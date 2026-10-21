@@ -20,6 +20,7 @@ import {
   originalsKeyValueStore,
   serveFetch,
   uploadLayer,
+  uploadPolicyAny,
   uploadPolicyBearer,
   uploadsKeyValueStore,
   type UploadOptions,
@@ -204,6 +205,76 @@ describe('uploadPolicyBearer', () => {
     ['an empty bearer, with an empty secret', '', { authorization: 'Bearer ' }, false],
   ])('given %s, admits it: %s', async (_, token, headers, admitted) => {
     expect(await admits(token, headers)).toBe(admitted)
+  })
+})
+
+describe('uploadPolicyAny', () => {
+  type Answer = 'admit' | 'forbid' | 'unknown'
+  /** A policy answering `answer`, counting how often it is built and asked. */
+  const fixed = (answer: Answer) => {
+    const counts = { built: 0, asked: 0 }
+    const layer = Layer.effect(
+      UploadPolicy,
+      Effect.sync(() => {
+        counts.built++
+        return {
+          admit: () =>
+            Effect.suspend((): Effect.Effect<void, UploadForbidden | UploadUnauthenticated> => {
+              counts.asked++
+              if (answer === 'forbid') return Effect.fail(new UploadForbidden({}))
+              if (answer === 'unknown') return Effect.fail(new UploadUnauthenticated({}))
+              return Effect.void
+            }),
+        }
+      }),
+    )
+    return { counts, layer }
+  }
+  const outcome = (policy: Layer.Layer<UploadPolicy>, times = 1) =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const service = yield* UploadPolicy
+        const request = HttpServerRequest.fromWeb(new Request('http://media.test/'))
+        let last = 'admitted'
+        for (let at = 0; at < times; at++) {
+          last = yield* service.admit(request, 'Upload').pipe(
+            Effect.as('admitted'),
+            Effect.catch(error => Effect.succeed(error._tag)),
+          )
+        }
+        return last
+      }).pipe(Effect.provide(policy)),
+    )
+
+  it.each([
+    ['admits when a later one does', ['forbid', 'admit'], 'admitted'],
+    [
+      'answers the last refusal when every one refuses',
+      ['forbid', 'unknown'],
+      'UploadUnauthenticated',
+    ],
+    ['answers the last refusal, whichever it is', ['unknown', 'forbid'], 'UploadForbidden'],
+    ['tries past two', ['forbid', 'unknown', 'admit'], 'admitted'],
+  ] as const)('%s', async (_, answers, expected) => {
+    const [a, b, ...more] = answers.map(fixed)
+    expect(
+      await outcome(uploadPolicyAny(a!.layer, b!.layer, ...more.map(each => each.layer))),
+    ).toBe(expected)
+  })
+
+  it('never asks a later policy once one admits, and builds each once', async () => {
+    const first = fixed('admit')
+    const second = fixed('forbid')
+    expect(await outcome(uploadPolicyAny(first.layer, second.layer), 3)).toBe('admitted')
+    expect([first.counts, second.counts]).toEqual([
+      { built: 1, asked: 3 },
+      { built: 1, asked: 0 },
+    ])
+  })
+
+  it('takes two policies or more (a type check)', () => {
+    // @ts-expect-error: one policy is that policy, not a choice among them.
+    uploadPolicyAny(fixed('admit').layer)
   })
 })
 

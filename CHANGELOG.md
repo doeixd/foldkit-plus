@@ -14,6 +14,12 @@ version changed; `pnpm` skips versions already in the registry.
   lookups. A hand-written policy gains the parameter. `UploadUnauthenticated` is a `401`, for a
   request whose session the policy cannot tell, beside `UploadForbidden`'s `403`.
 
+### Added
+
+- `foldkit-media/server`: `uploadPolicyAny(a, b, …)` tries upload policies in turn, the first to
+  admit winning, so a deployment's secret and sessions can both upload; when every one refuses,
+  the last refusal is the answer. Each is built once, with the combined layer.
+
 ### Fixed
 
 - `foldkit-media`'s README and the skill no longer promise more than the code keeps: a variant's

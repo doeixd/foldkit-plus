@@ -124,7 +124,7 @@ one it cannot read). `UploadPolicy` is required and asked first by both, told th
 (`admit(request, 'Upload' | 'DescribeUrl')`), and refuses with `UploadForbidden` (403) or
 `UploadUnauthenticated` (401, a session it cannot tell):
 `uploadPolicyBearer(secret)` for a deployment's secret (constant-time, nobody while unset), or the
-application's own;
+application's own, and `uploadPolicyAny(a, b, …)` for several (the first to admit wins);
 the application registers the facts in its own data, as its server read them: `HashedAsset`
 checks their shape, not that they are true, so never store facts a client sends back.
 

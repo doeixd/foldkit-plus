@@ -186,6 +186,36 @@ export const uploadHandlers = (options: UploadOptions = {}) => {
 export const uploadLayer = (options: UploadOptions = {}) =>
   HttpApiBuilder.layer(UploadApi).pipe(Layer.provide(uploadHandlers(options)))
 
+/**
+ * Policies tried in turn, the first to admit winning: a deployment's secret
+ * for scripts beside sessions for editors. A refusal tries the next; when
+ * every one refuses, the last refusal is the answer. Each is built once, with
+ * the combined layer, and closes with it.
+ */
+export const uploadPolicyAny = <E, R>(
+  ...policies: readonly [
+    Layer.Layer<UploadPolicy, E, R>,
+    Layer.Layer<UploadPolicy, E, R>,
+    ...ReadonlyArray<Layer.Layer<UploadPolicy, E, R>>,
+  ]
+): Layer.Layer<UploadPolicy, E, R> =>
+  Layer.effect(
+    UploadPolicy,
+    Effect.gen(function* () {
+      const [head, ...tail] = policies
+      const first = Context.get(yield* Layer.build(head), UploadPolicy)
+      const rest: Array<typeof UploadPolicy.Service> = []
+      for (const policy of tail) rest.push(Context.get(yield* Layer.build(policy), UploadPolicy))
+      return {
+        admit: (request, route) =>
+          rest.reduce(
+            (asked, next) => Effect.catch(asked, () => next.admit(request, route)),
+            first.admit(request, route),
+          ),
+      }
+    }),
+  )
+
 const digestOf = (text: string) =>
   Effect.promise(() => crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))).pipe(
     Effect.map(digest => new Uint8Array(digest)),

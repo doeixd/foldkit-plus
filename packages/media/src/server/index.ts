@@ -26,6 +26,7 @@ export {
   Uploads,
   uploadHandlers,
   uploadLayer,
+  uploadPolicyAny,
   uploadPolicyBearer,
   uploadsKeyValueStore,
   type UploadOptions,

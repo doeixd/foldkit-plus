@@ -239,4 +239,27 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'the first policy decides alone',
+    edits: [
+      {
+        file: route,
+        find: '(asked, next) => Effect.catch(asked, () => next.admit(request, route)),',
+        replace: '(asked) => asked,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'every policy is asked, the last deciding',
+    edits: [
+      {
+        file: route,
+        find: '(asked, next) => Effect.catch(asked, () => next.admit(request, route)),',
+        replace:
+          '(asked, next) => Effect.andThen(Effect.ignore(asked), next.admit(request, route)),',
+      },
+    ],
+    tests,
+  },
 ]

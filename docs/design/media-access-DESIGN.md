@@ -179,11 +179,15 @@ A script that uploads with a token and an editor who uploads with a session are 
 first answer is two policies tried in turn, the first to admit winning:
 
 ```ts
-UploadPolicy.either(uploadPolicyBearer(env.UPLOAD_TOKEN), GuardMedia.uploadPolicy(Policy, …))
+uploadPolicyAny(uploadPolicyBearer(env.UPLOAD_TOKEN), GuardMedia.uploadPolicy(Policy, …))
 ```
 
-`either` lives in media, next to `UploadPolicy`: it knows nothing of guard. A `401` from the
+It lives in media, next to `UploadPolicy`: it knows nothing of guard. A `401` from the
 first does not stop the second; the last refusal is the answer.
+
+*As built: named `uploadPolicyAny`, beside `uploadPolicyBearer`, rather than `UploadPolicy.either`
+(the package names its policies so, and `either` reads as Effect's `Either`); it takes two
+policies or more.*
 
 ---
 
@@ -288,7 +292,7 @@ Every refusal is `no-store` and kept by no browser, as media's refusals are now.
 ## 7. What changes, package by package
 
 - **`foldkit-media/server`:** `UploadPolicy.admit` takes the route; `UploadUnauthenticated`
-  (`401`, `Answer.cases.Unauthenticated`); `UploadPolicy.either`; `Uploads.put` keeps facts;
+  (`401`, `Answer.cases.Unauthenticated`); `uploadPolicyAny`; `Uploads.put` keeps facts;
   `StoredFacts` and its stores. README: §3's call under Uploads, §4's flow replacing "the
   application registers the facts".
 - **`foldkit-guard`:** the `/media` subpath, with `foldkit-media` an optional peer, as
@@ -308,7 +312,7 @@ Each slice lands with its README, skill and changelog lines, and its mutations d
 1. **The route on `admit`, and the 401.** Media only. Tests: each route passes its name; a
    policy refusing `DescribeUrl` alone still admits an upload; a `401` is `no-store` and its
    kind only. Mutations: the route swapped; the 401 mapped to 403.
-2. **`UploadPolicy.either`.** Tests: the second admits after the first refuses; both refusing
+2. **`uploadPolicyAny`.** Tests: the second admits after the first refuses; both refusing
    answers the last refusal; the first admitting never asks the second.
 3. **`foldkit-guard/media`.** Tests, with a resolver fake that rejects a `Request` with a body,
    so reading it fails the test: a visitor refused; an editor admitted for `Upload` and refused
