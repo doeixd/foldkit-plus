@@ -34,7 +34,8 @@ version changed; `pnpm` skips versions already in the registry.
   levels of `Typography`; `reading.headingWrap` and `reading.bodyWrap` choose
   `balance`, `pretty` or `wrap`; `reading.align` chooses `start`, `center`,
   `end` or `justify`. `Prose.style({ align })` adds a per-container override,
-  and `/create` draws a Reading pane for the four knobs.
+  and `/create` draws the four reading controls in its Type pane, below the
+  fluid knobs.
 
 ## 0.30.1
 

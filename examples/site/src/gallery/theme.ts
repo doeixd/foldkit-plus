@@ -36,15 +36,7 @@ export const Direction = Schema.Literals(['ltr', 'rtl'])
 export type Direction = typeof Direction.Type
 
 /** The panes `/create` groups its knobs into. */
-export const Section = Schema.Literals([
-  'theme',
-  'color',
-  'shape',
-  'type',
-  'reading',
-  'icons',
-  'motion',
-])
+export const Section = Schema.Literals(['theme', 'color', 'shape', 'type', 'icons', 'motion'])
 export type Section = typeof Section.Type
 
 export const sectionLabels: Readonly<Record<Section, string>> = {
@@ -52,7 +44,6 @@ export const sectionLabels: Readonly<Record<Section, string>> = {
   color: 'Color',
   shape: 'Shape',
   type: 'Type',
-  reading: 'Reading',
   icons: 'Icons',
   motion: 'Motion',
 }

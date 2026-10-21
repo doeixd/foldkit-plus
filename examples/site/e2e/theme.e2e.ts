@@ -258,7 +258,6 @@ test('the fluid and reading knobs reach the Typography canvas', async () => {
       .poll(() => page.locator(`#knob-${id}-value`).isVisible(), { timeout: 15_000 })
       .toBe(true)
   }
-  await page.getByRole('tab', { name: 'Reading' }).click()
   await expect
     .poll(() => page.locator('#knob-reading-measure-value').getAttribute('aria-valuetext'), {
       timeout: 15_000,

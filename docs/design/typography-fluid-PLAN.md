@@ -303,10 +303,10 @@ the wrap and the alignment, so a page does not repeat `65ch`, `balance` and
   still win.
 - `Typography`'s base aligns its text, and `body`, `lead` and `quote` cap
   themselves at `reading.measure`.
-- `/create` gets a Reading pane with the measure slider and the three choice
-  rows; the presets, looks and shuffle set them, and the Typography canvas
-  shows the result because its `body`/`lead` samples use the measure and its
-  headings use the wrap tokens.
+- `/create` gets the measure slider and the three choice rows in its Type
+  pane, below the fluid knobs; the presets, looks and shuffle set them, and the
+  Typography canvas shows the result because its `body`/`lead` samples use the
+  measure and its headings use the wrap tokens.
 
 Tests:
 - [x] `Theme.tokens.knob` carries `measure`, `heading-wrap`, `body-wrap` and
@@ -377,11 +377,12 @@ Tests:
 - [ ] The `cqi` clamps in `examples/cms/src/content/site.ts` (a page measured
       by its container) wait for phase 6.
 - [x] Leave padding `clamp()`s alone in this phase; they are spacing, not type.
-- [x] `/create`: the Type pane's three fluid sliders, a Reading pane with the
-      four reading knobs, the presets and looks, the shuffle, and the
-      `examples/site/test/theme.test.ts` cases in §5.6 and §5.7.
-- [x] The site e2e checks the Reading pane, the fluid/reading values on the
-      Typography canvas, and the Type pane's three sliders.
+- [x] `/create`: the Type pane's three fluid sliders and four reading knobs,
+      the presets and looks, the shuffle, and the `examples/site/test/theme.test.ts`
+      cases in §5.6 and §5.7. They share one pane so the six section tabs fit
+      the studio's column.
+- [x] The site e2e checks the Type pane's fluid and reading controls, the
+      fluid/reading values on the Typography canvas, and the preview container.
 - [x] The richtext-playground e2e uses `caretAtEnd` for the slash-menu hint:
       the fluid h1 makes the paragraph wrap, and `End` stops at the line.
 - [ ] State in the Type pane's hint that previews follow the window, not the

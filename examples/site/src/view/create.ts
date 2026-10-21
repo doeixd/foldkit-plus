@@ -477,9 +477,7 @@ const typePane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
   slider(model, slots, h, 'type.fluid'),
   slider(model, slots, h, 'type.viewportMin'),
   slider(model, slots, h, 'type.viewportMax'),
-]
-
-const readingPane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
+  // Reading is type too; the column scrolls, so it needs no tab of its own.
   slider(model, slots, h, 'reading.measure'),
   row(model, slots, h, 'reading.headingWrap'),
   row(model, slots, h, 'reading.bodyWrap'),
@@ -523,7 +521,6 @@ const panes: Readonly<Record<Section, (model: Model, slots: Slots, h: H) => Read
     color: colorPane,
     shape: shapePane,
     type: typePane,
-    reading: readingPane,
     icons: iconsPane,
     motion: motionPane,
   }
