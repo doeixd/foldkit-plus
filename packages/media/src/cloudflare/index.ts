@@ -4,7 +4,13 @@
  * Each takes the binding it needs, so build them in `serveFetch`'s `layer`
  * from the request's environment.
  */
-import type { Cache, ImagesBinding, R2Bucket, RateLimit } from '@cloudflare/workers-types'
+import type {
+  Cache,
+  CacheStorage,
+  ImagesBinding,
+  R2Bucket,
+  RateLimit,
+} from '@cloudflare/workers-types'
 import { Effect, Layer, Option } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
 import { Admission, RateLimited } from '../server/admission.js'
@@ -190,21 +196,35 @@ const withEdge = (behind: Variants['Service'], edge: Cache): Variants['Service']
   }
 }
 
+// A Worker's global, which the DOM's `CacheStorage` declares without `default`.
+declare const caches: CacheStorage | undefined
+
+const cacheOf = (cache: Cache | true): Cache => {
+  if (cache !== true) return cache
+  if (typeof caches === 'undefined') {
+    throw new Error(
+      'variantsR2: `cache: true` reads the Worker global `caches.default`, which this runtime lacks',
+    )
+  }
+  return caches.default
+}
+
 /**
  * Variants kept in R2 under `prefix`, so one made last month is not made, and
- * billed, again: `variantsKeyValueStore` over `keyValueStoreR2`. With `cache`
- * (`caches.default`), the Cache API stands in front of it.
+ * billed, again: `variantsKeyValueStore` over `keyValueStoreR2`. With `cache`,
+ * the Cache API stands in front of it: `true` for the Worker's
+ * `caches.default`, or a cache of your own (`await caches.open(…)`).
  */
 export const variantsR2 = (
   bucket: R2Bucket,
-  options: { readonly prefix?: string; readonly cache?: Cache } = {},
+  options: { readonly prefix?: string; readonly cache?: Cache | true } = {},
 ): Layer.Layer<Variants> => {
   const kept = makeVariants(KeyValueStore.prefix(r2Store(bucket), options.prefix ?? 'variants/'))
   return Layer.succeed(
     Variants,
     Option.match(Option.fromNullishOr(options.cache), {
       onNone: () => kept,
-      onSome: edge => withEdge(kept, edge),
+      onSome: cache => withEdge(kept, cacheOf(cache)),
     }),
   )
 }

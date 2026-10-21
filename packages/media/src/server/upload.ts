@@ -12,7 +12,6 @@ import { KeyValueStore } from 'effect/persistence'
 import { ImageAsset } from '../asset.js'
 import { describe, type Inspector } from '../describe.js'
 import { nonNegativeInteger } from '../limits.js'
-import { fetchOf } from './handlers.js'
 import { OriginalTooLarge } from './errors.js'
 import { factsOf, type FactsOptions } from './facts.js'
 import { Answer, headersFor, statusOf } from './headers.js'
@@ -169,17 +168,32 @@ export const uploadHandlers = (options: UploadOptions = {}) => {
 export const uploadLayer = (options: UploadOptions = {}) =>
   HttpApiBuilder.layer(UploadApi).pipe(Layer.provide(uploadHandlers(options)))
 
+const digestOf = (text: string) =>
+  Effect.promise(() => crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))).pipe(
+    Effect.map(digest => new Uint8Array(digest)),
+  )
+
 /**
- * The upload route as a Worker's fetch handler, its services from each
- * environment's bindings (`uploadsR2`, `inspectorImages`, and the
- * application's `UploadPolicy`). Route `/_media/upload` to it.
+ * Admits a request whose `Authorization` is `Bearer <token>`, and with no
+ * token (unset or empty) admits nobody, whatever it sends. The two are
+ * compared by digest, every byte, so the time taken says nothing of the
+ * token. For a deployment's secret (`wrangler secret put`); who may upload
+ * by session is the application's own `UploadPolicy`.
  */
-export const serveUploadFetch = <Env extends object>(
-  options: UploadOptions & {
-    readonly layer: (env: Env) => Layer.Layer<Uploads | Inspector | UploadPolicy, unknown>
-  },
-): ((request: Request, env: Env) => Promise<Response>) =>
-  fetchOf(env => uploadLayer(options).pipe(Layer.provide(options.layer(env))))
+export const uploadPolicyBearer = (token: string | undefined): Layer.Layer<UploadPolicy> =>
+  Layer.succeed(UploadPolicy, {
+    admit: request =>
+      Effect.all([
+        digestOf(request.headers['authorization'] ?? ''),
+        digestOf(`Bearer ${token}`),
+      ]).pipe(
+        Effect.flatMap(([given, expected]) => {
+          let difference = token === undefined || token === '' ? 1 : 0
+          for (let at = 0; at < expected.length; at++) difference |= given[at]! ^ expected[at]!
+          return difference === 0 ? Effect.void : Effect.fail(new UploadForbidden({}))
+        }),
+      ),
+  })
 
 /**
  * Uploads kept in the application's `KeyValueStore`, each under its content

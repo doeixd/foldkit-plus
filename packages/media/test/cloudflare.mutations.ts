@@ -147,4 +147,26 @@ export default [
     ],
     tests: ['packages/media/test/cloudflare.test.ts'],
   },
+  {
+    name: '`cache: true` keeps no edge cache',
+    edits: [
+      {
+        file: '../src/cloudflare/index.ts',
+        find: 'onSome: cache => withEdge(kept, cacheOf(cache)),',
+        replace: 'onSome: cache => (cache === true ? kept : withEdge(kept, cacheOf(cache))),',
+      },
+    ],
+    tests: ['packages/media/test/cloudflare.test.ts'],
+  },
+  {
+    name: '`cache: true` outside a Worker fails on first use, not at definition',
+    edits: [
+      {
+        file: '../src/cloudflare/index.ts',
+        find: "if (typeof caches === 'undefined') {",
+        replace: 'if (false) {',
+      },
+    ],
+    tests: ['packages/media/test/cloudflare.test.ts'],
+  },
 ]

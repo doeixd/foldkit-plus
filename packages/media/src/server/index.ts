@@ -1,7 +1,8 @@
 export { MediaApi } from './api.js'
 export { Answer, headersFor, statusOf } from './headers.js'
 export { OriginalNotFound, OriginalTooLarge, QuotaExhausted, TransformFailed } from './errors.js'
-export { handlers, layer, serveFetch, type Options } from './handlers.js'
+export { handlers, layer, type Options } from './handlers.js'
+export { serveFetch, type FetchOptions } from './fetch.js'
 export {
   Originals,
   Transformer,
@@ -22,8 +23,8 @@ export {
   UploadPolicy,
   Uploads,
   uploadHandlers,
-  serveUploadFetch,
   uploadLayer,
+  uploadPolicyBearer,
   uploadsKeyValueStore,
   type UploadOptions,
 } from './upload.js'

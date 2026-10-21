@@ -16,25 +16,27 @@ const MISSING = 'c'.repeat(64)
 
 let made: Array<string> = []
 const server = serveFetch<object>({
-  layer: () =>
-    Layer.mergeAll(
-      memoryStores(
-        new Map([
-          [A, new Uint8Array([1])],
-          [B, new Uint8Array([2])],
-        ]),
+  images: {
+    layer: () =>
+      Layer.mergeAll(
+        memoryStores(
+          new Map([
+            [A, new Uint8Array([1])],
+            [B, new Uint8Array([2])],
+          ]),
+        ),
+        Layer.succeed(Transformer, {
+          transform: (_original, variant) =>
+            Effect.sync(() => {
+              made.push(`${variant.width}.${variant.format}`)
+              return {
+                bytes: new TextEncoder().encode(`${variant.width}.${variant.format}`),
+                contentType: `image/${variant.format}`,
+              }
+            }),
+        }),
       ),
-      Layer.succeed(Transformer, {
-        transform: (_original, variant) =>
-          Effect.sync(() => {
-            made.push(`${variant.width}.${variant.format}`)
-            return {
-              bytes: new TextEncoder().encode(`${variant.width}.${variant.format}`),
-              contentType: `image/${variant.format}`,
-            }
-          }),
-      }),
-    ),
+  },
 })
 const env = {}
 const fetch = (request: Request) => server(request, env)

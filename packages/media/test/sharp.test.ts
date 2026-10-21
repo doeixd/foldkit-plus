@@ -10,7 +10,7 @@ import { createHash } from 'node:crypto'
 import { Effect, Exit, Layer, Option, Ref } from 'effect'
 import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
-import { Inspector, Variant, describe as describeOriginal } from 'foldkit-media'
+import { Inspector, Provider, Variant, describe as describeOriginal } from 'foldkit-media'
 import { Transformer, limitTransforms, serveFetch } from 'foldkit-media/server'
 import { inspectorSharp, transformerSharp } from 'foldkit-media/sharp'
 import { memoryStores } from './stores.js'
@@ -44,18 +44,20 @@ const space = Variant.space({ formats: ['avif', 'webp', 'jpeg'], qualities: [40,
 
 const serve = (options: { readonly maxPixels?: number } = {}) => {
   const fetch = serveFetch<object>({
-    space,
-    layer: () =>
-      Layer.mergeAll(
-        memoryStores(
-          new Map([
-            [hashOf(original), original],
-            [hashOf(notAnImage), notAnImage],
-            [hashOf(portrait), portrait],
-          ]),
+    images: {
+      provider: Provider.hosted({ space }),
+      layer: () =>
+        Layer.mergeAll(
+          memoryStores(
+            new Map([
+              [hashOf(original), original],
+              [hashOf(notAnImage), notAnImage],
+              [hashOf(portrait), portrait],
+            ]),
+          ),
+          transformerSharp({ ...options, concurrency: 2 }),
         ),
-        transformerSharp({ ...options, concurrency: 2 }),
-      ),
+    },
   })
   return (hash: string, spelling: string) =>
     fetch(new Request(`http://media.test/_image/${hash}/${spelling}`), {})

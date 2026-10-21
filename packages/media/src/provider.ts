@@ -102,13 +102,19 @@ const cdnCgiSource = (key: string): string => {
   return key.includes('?') ? encodeURIComponent(key) : key
 }
 
+/** `Provider.hosted`'s provider, carrying its space, so its server reads the same one. */
+export interface Hosted extends Provider<HashedAsset> {
+  readonly space: Variant.Space
+}
+
 /**
  * Our own server's variants (`foldkit-media/server`), at `Variant.PATH` under
  * `baseUrl`. An original is named by its content hash, so it takes a
  * `HashedAsset`, and has no URL for `auto`: this server names the format in
  * the URL, never reads `Accept`, so every cache can key on the URL alone.
  * Its formats and quality must be in `space`, or it is refused here rather
- * than answered with a 400 on every image.
+ * than answered with a 400 on every image. Give the same value to the server
+ * (`serveFetch`'s `images.provider`), which reads its space from it.
  */
 export const hosted = (
   options: {
@@ -122,7 +128,7 @@ export const hosted = (
     readonly fallback?: Format
     readonly quality?: number
   } = {},
-): Provider<HashedAsset> => {
+): Hosted => {
   const { baseUrl: askedBaseUrl = '', space = Variant.standard } = options
   const fallback = options.fallback ?? space.formats[space.formats.length - 1]!
   const sources = options.sources ?? space.formats.slice(0, -1)
@@ -146,6 +152,7 @@ export const hosted = (
   }
   const encodeVariant = Schema.encodeOption(space.schema)
   return {
+    space,
     widths: space.widths,
     sources,
     fallback,

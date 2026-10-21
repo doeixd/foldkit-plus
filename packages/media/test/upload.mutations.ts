@@ -168,4 +168,42 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'with no secret set, the unset secret spelt out uploads',
+    edits: [
+      {
+        file: route,
+        find: "let difference = token === undefined || token === '' ? 1 : 0",
+        replace: 'let difference = 0',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'any bearer uploads',
+    edits: [{ file: route, find: 'difference |= given[at]! ^ expected[at]!', replace: '' }],
+    tests,
+  },
+  {
+    name: 'a path under /_media/ the routes lack goes to the application',
+    edits: [
+      {
+        file: '../src/server/fetch.ts',
+        find: 'pathname.startsWith(IMAGES) || pathname.startsWith(UPLOADS)',
+        replace: 'pathname.startsWith(IMAGES) || pathname === `${UPLOADS}upload`',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the application is never asked',
+    edits: [
+      {
+        file: '../src/server/fetch.ts',
+        find: '    return otherwise === undefined',
+        replace: '    return true',
+      },
+    ],
+    tests,
+  },
 ]

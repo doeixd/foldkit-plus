@@ -11,7 +11,7 @@ import type { Cache, ImagesBinding, R2Bucket, RateLimit } from '@cloudflare/work
 import { Effect, Exit, Layer, Option } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
 import { Miniflare, Response as WorkerResponse } from 'miniflare'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import {
   admissionRateLimit,
   inspectorImages,
@@ -21,7 +21,7 @@ import {
   uploadsR2,
   variantsR2,
 } from 'foldkit-media/cloudflare'
-import { Inspector, Variant } from 'foldkit-media'
+import { Inspector, Provider, Variant } from 'foldkit-media'
 import { Originals, Uploads, serveFetch } from 'foldkit-media/server'
 
 interface Env {
@@ -79,13 +79,15 @@ const store = async (bytes: Uint8Array<ArrayBuffer>) => {
 
 // PNG beside the standard formats: a PNG's width is in its header.
 const server = serveFetch<Env>({
-  space: Variant.space({ formats: ['avif', 'webp', 'png'] }),
-  layer: bindings =>
-    Layer.mergeAll(
-      originalsR2(bindings.MEDIA),
-      transformerImages(bindings.IMAGES),
-      variantsR2(bindings.MEDIA, { cache: edge }),
-    ),
+  images: {
+    provider: Provider.hosted({ space: Variant.space({ formats: ['avif', 'webp', 'png'] }) }),
+    layer: bindings =>
+      Layer.mergeAll(
+        originalsR2(bindings.MEDIA),
+        transformerImages(bindings.IMAGES),
+        variantsR2(bindings.MEDIA, { cache: edge }),
+      ),
+  },
 })
 const get = (path: string, bindings: Env = env) =>
   server(new Request(`https://media.test${path}`), bindings)
@@ -119,6 +121,35 @@ describe('the Cloudflare layers', () => {
     expect(await infoOf(again)).toMatchObject({ width: 320 })
   })
 
+  it('read the Worker’s own `caches.default` given `cache: true`', async () => {
+    vi.stubGlobal('caches', { default: edge })
+    try {
+      const own = serveFetch<Env>({
+        images: {
+          provider: Provider.hosted({ space: Variant.space({ formats: ['avif', 'webp', 'png'] }) }),
+          layer: bindings =>
+            Layer.mergeAll(
+              originalsR2(bindings.MEDIA),
+              transformerImages(bindings.IMAGES),
+              variantsR2(bindings.MEDIA, { cache: true }),
+            ),
+        },
+      })
+      const hash = await store(await png(520, 100))
+      const path = `https://media.test/_image/${hash}/w320.png`
+      expect((await own(new Request(path), env)).status).toBe(200)
+      await env.MEDIA.delete([hash, `variants/${hash}/w320.png`])
+      const again = await own(new Request(path), env)
+      expect(again.headers.get('server-timing')).toBe('media;desc="edge"')
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('refuse `cache: true` where there is no Worker cache', () => {
+    expect(() => variantsR2(env.MEDIA, { cache: true })).toThrow(/caches\.default/)
+  })
+
   it('serve through the durable cache when the edge cache fails', async () => {
     const hash = await store(await png(360, 180))
     expect((await get(`/_image/${hash}/w320.png`)).status).toBe(200)
@@ -128,13 +159,15 @@ describe('the Cloudflare layers', () => {
       put: () => Promise.reject(new Error('edge write failed')),
     } as unknown as Cache
     const withoutEdge = serveFetch<Env>({
-      space: Variant.space({ formats: ['avif', 'webp', 'png'] }),
-      layer: bindings =>
-        Layer.mergeAll(
-          originalsR2(bindings.MEDIA),
-          transformerImages(bindings.IMAGES),
-          variantsR2(bindings.MEDIA, { cache: failing }),
-        ),
+      images: {
+        provider: Provider.hosted({ space: Variant.space({ formats: ['avif', 'webp', 'png'] }) }),
+        layer: bindings =>
+          Layer.mergeAll(
+            originalsR2(bindings.MEDIA),
+            transformerImages(bindings.IMAGES),
+            variantsR2(bindings.MEDIA, { cache: failing }),
+          ),
+      },
     })
     const response = await withoutEdge(
       new Request(`https://media.test/_image/${hash}/w320.png`),
@@ -151,13 +184,15 @@ describe('the Cloudflare layers', () => {
       put: () => Promise.reject(new Error('edge write failed')),
     } as unknown as Cache
     const withoutFill = serveFetch<Env>({
-      space: Variant.space({ formats: ['avif', 'webp', 'png'] }),
-      layer: bindings =>
-        Layer.mergeAll(
-          originalsR2(bindings.MEDIA),
-          transformerImages(bindings.IMAGES),
-          variantsR2(bindings.MEDIA, { cache: failing }),
-        ),
+      images: {
+        provider: Provider.hosted({ space: Variant.space({ formats: ['avif', 'webp', 'png'] }) }),
+        layer: bindings =>
+          Layer.mergeAll(
+            originalsR2(bindings.MEDIA),
+            transformerImages(bindings.IMAGES),
+            variantsR2(bindings.MEDIA, { cache: failing }),
+          ),
+      },
     })
     const response = await withoutFill(
       new Request(`https://media.test/_image/${hash}/w320.png`),
@@ -196,14 +231,16 @@ describe('the Cloudflare layers', () => {
 describe('admissionRateLimit', () => {
   it('refuses a client past the binding’s limit, after the period it is told', async () => {
     const limited = serveFetch<Env>({
-      space: Variant.space({ formats: ['avif', 'webp', 'png'] }),
-      layer: bindings =>
-        Layer.mergeAll(
-          originalsR2(bindings.MEDIA),
-          transformerImages(bindings.IMAGES),
-          variantsR2(bindings.MEDIA),
-          admissionRateLimit(bindings.LIMITER, { retryAfterSeconds: 60 }),
-        ),
+      images: {
+        provider: Provider.hosted({ space: Variant.space({ formats: ['avif', 'webp', 'png'] }) }),
+        layer: bindings =>
+          Layer.mergeAll(
+            originalsR2(bindings.MEDIA),
+            transformerImages(bindings.IMAGES),
+            variantsR2(bindings.MEDIA),
+            admissionRateLimit(bindings.LIMITER, { retryAfterSeconds: 60 }),
+          ),
+      },
     })
     const hash = await store(await png(300, 100))
     const statuses: Array<number> = []

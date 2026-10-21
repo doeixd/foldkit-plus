@@ -5,8 +5,8 @@
  * policy is asked before any byte is read; and what is not an image, too
  * large, or not allowed is refused with nothing kept.
  */
-import { Effect, Layer, Option, Schema } from 'effect'
-import { HttpRouter, HttpServer } from 'effect/http'
+import { Effect, Exit, Layer, Option, Schema } from 'effect'
+import { HttpRouter, HttpServer, HttpServerRequest } from 'effect/http'
 import { KeyValueStore } from 'effect/persistence'
 import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
@@ -16,8 +16,9 @@ import {
   UploadPolicy,
   layer,
   originalsKeyValueStore,
-  serveUploadFetch,
+  serveFetch,
   uploadLayer,
+  uploadPolicyBearer,
   uploadsKeyValueStore,
   type UploadOptions,
   variantsKeyValueStore,
@@ -105,24 +106,93 @@ const png = () =>
     .png()
     .toBuffer()
 
-describe('serveUploadFetch', () => {
-  it('answers an upload in a Worker, its services from the environment', async () => {
-    const fetch = serveUploadFetch<{ readonly name: string }>({
-      layer: () =>
-        Layer.mergeAll(uploadsKeyValueStore(), inspectorSharp(), policy().service).pipe(
-          Layer.provide(KeyValueStore.layerMemory),
-        ),
+describe('serveFetch', () => {
+  // One layer value under both sides: a build makes it once, so an upload is where the variants read.
+  const images = {
+    layer: () =>
+      Layer.mergeAll(originalsKeyValueStore(), variantsKeyValueStore(), transformerSharp()).pipe(
+        Layer.provide(KeyValueStore.layerMemory),
+      ),
+  }
+  const uploads = {
+    layer: () =>
+      Layer.mergeAll(uploadsKeyValueStore(), inspectorSharp(), policy().service).pipe(
+        Layer.provide(KeyValueStore.layerMemory),
+      ),
+  }
+  const request = (path: string, init: RequestInit = {}) =>
+    new Request(`http://media.test${path}`, init)
+  const uploadOf = async () =>
+    request('/_media/upload', {
+      method: 'POST',
+      body: new Uint8Array(await png()),
+      headers: { authorization: 'Bearer ok', 'content-type': 'image/png' },
     })
-    const response = await fetch(
-      new Request('http://media.test/_media/upload', {
-        method: 'POST',
-        body: new Uint8Array(await png()),
-        headers: { authorization: 'Bearer ok', 'content-type': 'image/png' },
-      }),
-      { name: 'one' },
-    )
-    expect(response.status).toBe(201)
+
+  it('answers an upload and then its variants, from one handler', async () => {
+    const fetch = serveFetch<object>({ images, uploads })
+    const env = {}
+    const answer = await fetch(await uploadOf(), env)
+    expect(answer.status).toBe(201)
+    const { key } = Schema.decodeUnknownSync(ImageAsset)(await answer.json())
+    expect((await fetch(request(`/_image/${key}/w320.webp`), env)).status).toBe(200)
   }, 60_000)
+
+  it.each([
+    ['another path under its routes', request('/_media/elsewhere')],
+    ['a preflight for an upload', request('/_media/upload', { method: 'OPTIONS' })],
+  ])('refuses %s with a 404, never passing it on', async (_, refused) => {
+    let passed = 0
+    const fetch = serveFetch<object>({
+      images,
+      uploads,
+      otherwise: async () => {
+        passed++
+        return new Response('app')
+      },
+    })
+    expect([(await fetch(refused, {})).status, passed]).toEqual([404, 0])
+  })
+
+  it('passes every other path to `otherwise`, and answers it 404 without one', async () => {
+    const withApp = serveFetch<object>({ images, otherwise: async () => new Response('app') })
+    expect(await (await withApp(request('/todos'), {})).text()).toBe('app')
+    expect((await serveFetch<object>({ images })(request('/todos'), {})).status).toBe(404)
+  })
+
+  it('answers no upload when given only the images', async () => {
+    const fetch = serveFetch<object>({ images })
+    expect((await fetch(await uploadOf(), {})).status).toBe(404)
+  }, 60_000)
+
+  it('refuses to be made with neither side', () => {
+    expect(() => serveFetch<object>({})).toThrow(/serveFetch/)
+  })
+})
+
+describe('uploadPolicyBearer', () => {
+  const admits = (token: string | undefined, headers: Record<string, string>) =>
+    Effect.runPromise(
+      UploadPolicy.use(policy =>
+        policy.admit(HttpServerRequest.fromWeb(new Request('http://media.test/', { headers }))),
+      ).pipe(Effect.provide(uploadPolicyBearer(token)), Effect.exit, Effect.map(Exit.isSuccess)),
+    )
+
+  it.each([
+    ['the secret', 'secret', { authorization: 'Bearer secret' }, true],
+    ['another token', 'secret', { authorization: 'Bearer guess' }, false],
+    ['the secret without its scheme', 'secret', { authorization: 'secret' }, false],
+    ['no header', 'secret', {}, false],
+    [
+      'the unset secret spelt out, with none set',
+      undefined,
+      { authorization: 'Bearer undefined' },
+      false,
+    ],
+    ['an empty bearer, with an empty secret', '', { authorization: 'Bearer ' }, false],
+  ])('given %s, admits it: %s', async (_, token, headers, admitted) => {
+    expect(await admits(token, headers)).toBe(admitted)
+  })
 })
 
 describe('the upload route', () => {

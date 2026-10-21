@@ -1,6 +1,7 @@
 import { Cache, Effect, Layer, Option, Schema } from 'effect'
 import { HttpRouter, HttpServer, HttpServerResponse, type HttpServerRequest } from 'effect/http'
 import { HttpApiBuilder } from 'effect/http-api'
+import type { Hosted } from '../provider.js'
 import * as Variant from '../variant.js'
 import { nonNegativeInteger } from '../limits.js'
 import { MediaApi } from './api.js'
@@ -13,14 +14,17 @@ import { Originals, Transformer, Variants, type Encoded } from './services.js'
 const DEFAULT_MAX_BYTES = 20 * 1024 * 1024
 
 export interface Options {
-  /** Every variant this server makes: the same value `Provider.hosted` writes URLs in. */
-  readonly space?: Variant.Space
+  /**
+   * The `Provider.hosted` the pages write URLs with: the server makes every
+   * variant of its space and nothing else. `Provider.hosted()` when omitted.
+   */
+  readonly provider?: Hosted
   /** The largest original read, in bytes; larger ones are a 413. */
   readonly maxBytes?: number
   /**
    * Concurrent misses for one variant share one transform and one write.
    * Only where requests may wait on one another's work: on by default for
-   * `layer` (a Node server), off for `serveFetch`, since a Worker request
+   * `layer` (a Node server), off in `serveFetch`, since a Worker request
    * cannot wake another's.
    */
   readonly coalesce?: boolean
@@ -60,11 +64,11 @@ const refused = (answer: Answer) =>
  */
 export const handlers = (options: Options = {}) => {
   const {
-    space = Variant.standard,
     maxBytes: requestedMaxBytes = DEFAULT_MAX_BYTES,
     coalesce = false,
     clientOf = defaultClientOf,
   } = options
+  const space = options.provider?.space ?? Variant.standard
   const maxBytes = nonNegativeInteger('maxBytes', requestedMaxBytes)
   const decodeHash = Schema.decodeUnknownOption(Variant.ContentHash)
   const decodeVariant = Schema.decodeUnknownOption(space.schema)
@@ -212,16 +216,3 @@ export const fetchOf = <Env extends object>(
     return answer(request)
   }
 }
-
-/**
- * The media server as a Worker's fetch handler, its services from each
- * environment's bindings. It answers its own route and 404s anything else, so
- * route to it by path (`/_image/`).
- */
-export const serveFetch = <Env extends object>(
-  options: Options & {
-    /** The services, from the request's bindings. A layer that fails to build answers a 500. */
-    readonly layer: (env: Env) => Layer.Layer<Originals | Transformer | Variants, unknown>
-  },
-): ((request: Request, env: Env) => Promise<Response>) =>
-  fetchOf(env => layer({ coalesce: false, ...options }).pipe(Layer.provide(options.layer(env))))

@@ -15,6 +15,24 @@ version changed; `pnpm` skips versions already in the registry.
   `Image.view`, `Avatar.view`), where they were drawn as an unavailable image. `HashedAsset` is
   also the Schema that decodes them (an upload's answer), and `isHashed` narrows; a `?image`
   import's `asset` is one.
+- `foldkit-media/server`: `serveFetch` is the whole Worker: `serveFetch({ images?, uploads?,
+  otherwise? })` owns `/_image/` and `/_media/`, answers anything else under them (a preflight
+  included) with a 404, and hands every other path to `otherwise`. `serveUploadFetch` is
+  removed; `images: { layer }` is what `serveFetch({ layer })` was, and `images` takes no
+  `coalesce`, which a Worker cannot use.
+- `foldkit-media/server`: the server reads its space from the provider the pages write URLs
+  with: `images: { provider: Provider.hosted({ space }) }` (and `layer({ provider })`) in place
+  of `space`, so the two cannot differ. `Provider.hosted` returns a `Provider.Hosted`, which
+  carries its `space`.
+- `foldkit-media/cloudflare`: `variantsR2(bucket, { cache: true })` puts the Worker's
+  `caches.default` in front, with no cast of the DOM's `caches`; outside a Worker it throws
+  where the layer is made.
+
+### Added
+
+- `foldkit-media/server`: `uploadPolicyBearer(secret)`, the `UploadPolicy` for a deployment's
+  secret: `Authorization: Bearer <secret>`, compared by digest in constant time, and nobody
+  while the secret is unset or empty. The README's upload example compared with `===`.
 
 ## 0.28.0
 

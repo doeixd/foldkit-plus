@@ -131,17 +131,21 @@ const transformer = Layer.succeed(Transformer, {
 const serverAtRevision2 = () => {
   const encode = (text: string) => new TextEncoder().encode(text)
   const fetch = serveFetch<object>({
-    space: Variant.space({ widths: Widths.make([320, 640]), revision: 2 }),
-    layer: () =>
-      Layer.mergeAll(
-        memoryStores(
-          new Map([
-            [HASH, encode('IMAGE')],
-            [`variants/${HASH}/w320.webp`, encode('kept from revision 0')],
-          ]),
+    images: {
+      provider: Provider.hosted({
+        space: Variant.space({ widths: Widths.make([320, 640]), revision: 2 }),
+      }),
+      layer: () =>
+        Layer.mergeAll(
+          memoryStores(
+            new Map([
+              [HASH, encode('IMAGE')],
+              [`variants/${HASH}/w320.webp`, encode('kept from revision 0')],
+            ]),
+          ),
+          transformer,
         ),
-        transformer,
-      ),
+    },
   })
   return (path: string, init?: RequestInit) =>
     fetch(new Request(`http://media.test${path}`, init), {})

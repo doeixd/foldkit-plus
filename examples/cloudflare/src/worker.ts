@@ -14,7 +14,6 @@
 import { Effect, Layer } from 'effect'
 import { DurableObject } from 'cloudflare:workers'
 import type {
-  CacheStorage,
   D1Database,
   DurableObjectNamespace,
   ImagesBinding,
@@ -29,10 +28,9 @@ import {
   uploadsR2,
   variantsR2,
 } from 'foldkit-media/cloudflare'
-import { serveFetch as serveImages, serveUploadFetch } from 'foldkit-media/server'
+import { serveFetch, uploadPolicyBearer } from 'foldkit-media/server'
 import { defineDocumentHost } from 'foldkit-sync/do'
-import { serveFetch } from 'foldkit-remote-server/fetch'
-import { uploadPolicy } from './uploadPolicy.js'
+import { serveFetch as serveRemote } from 'foldkit-remote-server/fetch'
 import { databaseFrom, makeServer, openTodosJournal, settleTodos, Todos } from './schema.js'
 
 export interface WorkerEnv {
@@ -62,7 +60,7 @@ const actorOf = (request: Request): string => {
   return 'anon'
 }
 
-const answerRemote = serveFetch({
+const answerRemote = serveRemote({
   server,
   // A short heartbeat: an idle stream must keep moving to survive.
   liveHeartbeat: '1 second',
@@ -95,52 +93,47 @@ const withCors = (response: Response): Response => {
 }
 
 /**
- * Image variants: originals by hash in R2, resized by the Images binding,
- * kept in R2 behind the edge cache. The page writes their URLs with
- * `Provider.hosted`.
+ * Every path outside the media routes: `/sync` upgrades into the Durable
+ * Object, and Remote answers the rest, with CORS for the Pages origin.
  */
-const answerImages = serveImages<WorkerEnv>({
-  layer: env =>
-    Layer.mergeAll(
-      originalsR2(env.MEDIA),
-      transformerImages(env.IMAGES),
-      // The page's `caches` is typed by the DOM library, which has no `default`.
-      variantsR2(env.MEDIA, { cache: (caches as unknown as CacheStorage).default }),
-      admissionRateLimit(env.LIMITER),
-    ),
-})
+const answerApp = async (request: Request, env: WorkerEnv): Promise<Response> => {
+  if (new URL(request.url).pathname === '/sync')
+    // Two fetch universes meet here, as in the sync package's worker
+    // fixture: the wire shape is identical; only the brands differ.
+    return env.SYNC_HOST.get(env.SYNC_HOST.idFromName('todos')).fetch(
+      request as never,
+    ) as unknown as Promise<Response>
+  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS })
+  return withCors(await answerRemote(request, env))
+}
 
 /**
- * Uploads: an original into R2 under its hash, its facts read by the Images
- * binding and answered for the page to keep. Only a request bearing the
- * `UPLOAD_TOKEN` secret may upload; an application asks its session here
- * instead, through `foldkit-guard`.
+ * The media routes first. Variants: originals by hash in R2, resized by the
+ * Images binding, kept in R2 behind the edge cache; the page writes their
+ * URLs with `Provider.hosted()`. Uploads: an original into R2 under its hash,
+ * its facts read by the Images binding and answered for the page to keep.
+ * Only a request bearing the `UPLOAD_TOKEN` secret may upload; an application
+ * asks its session here instead, through `foldkit-guard`.
  */
-const answerUploads = serveUploadFetch<WorkerEnv>({
-  layer: env =>
-    Layer.mergeAll(
-      uploadsR2(env.MEDIA),
-      inspectorImages(env.IMAGES),
-      uploadPolicy(env.UPLOAD_TOKEN),
-    ),
+const answer = serveFetch<WorkerEnv>({
+  images: {
+    layer: env =>
+      Layer.mergeAll(
+        originalsR2(env.MEDIA),
+        transformerImages(env.IMAGES),
+        variantsR2(env.MEDIA, { cache: true }),
+        admissionRateLimit(env.LIMITER),
+      ),
+  },
+  uploads: {
+    layer: env =>
+      Layer.mergeAll(
+        uploadsR2(env.MEDIA),
+        inspectorImages(env.IMAGES),
+        uploadPolicyBearer(env.UPLOAD_TOKEN),
+      ),
+  },
+  otherwise: answerApp,
 })
 
-export default {
-  fetch: async (request: Request, env: WorkerEnv): Promise<Response> => {
-    const url = new URL(request.url)
-    if (url.pathname.startsWith('/_image/')) return answerImages(request, env)
-    if (url.pathname === '/_media/upload' && request.method === 'POST')
-      return answerUploads(request, env)
-    // Nothing else under the media routes, a preflight least of all: another site's page cannot
-    // send an upload's `image/*` body or its `Authorization` without one.
-    if (url.pathname.startsWith('/_media/')) return new Response(null, { status: 404 })
-    if (url.pathname === '/sync')
-      // Two fetch universes meet here, as in the sync package's worker
-      // fixture: the wire shape is identical; only the brands differ.
-      return env.SYNC_HOST.get(env.SYNC_HOST.idFromName('todos')).fetch(
-        request as never,
-      ) as unknown as Promise<Response>
-    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS })
-    return withCors(await answerRemote(request, env))
-  },
-}
+export default { fetch: answer }

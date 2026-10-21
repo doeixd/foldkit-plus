@@ -10,7 +10,7 @@ import { HttpRouter, HttpServer } from 'effect/http'
 import { KeyValueStore, RateLimiter } from 'effect/persistence'
 import { afterEach, describe, expect, it } from 'vitest'
 import { memoryStores } from './stores.js'
-import { Variant, Widths } from 'foldkit-media'
+import { Provider, Variant, Widths } from 'foldkit-media'
 import {
   Originals,
   QuotaExhausted,
@@ -62,11 +62,15 @@ const fakeTransformer = Layer.succeed(Transformer, {
 const serve = (options: Options = {}) => {
   let built = 0
   const fetch = serveFetch<{ readonly name: string }>({
-    space: Variant.space({ widths: Widths.make([320, 640, 1280]) }),
-    ...options,
-    layer: () => {
-      built++
-      return Layer.mergeAll(memoryStores(originals), fakeTransformer)
+    images: {
+      provider: Provider.hosted({
+        space: Variant.space({ widths: Widths.make([320, 640, 1280]) }),
+      }),
+      ...options,
+      layer: () => {
+        built++
+        return Layer.mergeAll(memoryStores(originals), fakeTransformer)
+      },
     },
   })
   const env = { name: 'one' }
@@ -251,13 +255,15 @@ describe('serveFetch', () => {
         }),
     })
     const fetch = serveFetch<object>({
-      space: Variant.space({ widths: Widths.make([320, 640]) }),
-      layer: () =>
-        Layer.mergeAll(
-          counting,
-          fakeTransformer,
-          variantsKeyValueStore().pipe(Layer.provide(KeyValueStore.layerMemory)),
-        ),
+      images: {
+        provider: Provider.hosted({ space: Variant.space({ widths: Widths.make([320, 640]) }) }),
+        layer: () =>
+          Layer.mergeAll(
+            counting,
+            fakeTransformer,
+            variantsKeyValueStore().pipe(Layer.provide(KeyValueStore.layerMemory)),
+          ),
+      },
     })
     const response = await fetch(new Request(`http://media.test/_image/${IMAGE}/w1280.webp`), {})
     expect(response.status).toBe(404)
@@ -292,14 +298,16 @@ describe('serveFetch', () => {
       size: Effect.succeed(0),
     })
     const fetch = serveFetch<object>({
-      layer: () =>
-        Layer.mergeAll(
-          memoryStores(originals),
-          fakeTransformer,
-          variantsKeyValueStore().pipe(
-            Layer.provide(Layer.succeed(KeyValueStore.KeyValueStore, failing)),
+      images: {
+        layer: () =>
+          Layer.mergeAll(
+            memoryStores(originals),
+            fakeTransformer,
+            variantsKeyValueStore().pipe(
+              Layer.provide(Layer.succeed(KeyValueStore.KeyValueStore, failing)),
+            ),
           ),
-        ),
+      },
     })
     for (const _attempt of [1, 2]) {
       const response = await fetch(new Request(`http://media.test/_image/${IMAGE}/w640.webp`), {})
@@ -326,24 +334,34 @@ describe('serveFetch', () => {
         [1, 2, 3].map(() => fetch(new Request(`http://media.test/_image/${IMAGE}/w640.webp`))),
       )
 
+    const onNode = (options: { readonly coalesce?: boolean } = {}) =>
+      HttpRouter.toWebHandler(
+        layer(options).pipe(
+          Layer.provide(Layer.mergeAll(memoryStores(originals), slow)),
+          Layer.provide(HttpServer.layerServices),
+        ),
+        { disableLogger: true },
+      )
+
     it.each([
       ['shares one transform among concurrent misses when asked', true, ['640.webp']],
       ['makes each miss its own when not', false, ['640.webp', '640.webp', '640.webp']],
     ])('%s', async (_, coalesce, expected) => {
-      const fetch = serveFetch<object>({
-        coalesce,
-        layer: () => Layer.mergeAll(memoryStores(originals), slow),
-      })
-      // One environment, as a Worker hands every request: a router per environment.
-      const env = {}
-      const answers = await three(request => fetch(request, env))
-      expect(answers.map(answer => answer.status)).toEqual([200, 200, 200])
-      expect(transforms).toEqual(expected)
+      const { handler, dispose } = onNode({ coalesce })
+      try {
+        const answers = await three(request => handler(request))
+        expect(answers.map(answer => answer.status)).toEqual([200, 200, 200])
+        expect(transforms).toEqual(expected)
+      } finally {
+        await dispose()
+      }
     })
 
     it('is off for a Worker by default, since its requests cannot wait on one another', async () => {
       const fetch = serveFetch<object>({
-        layer: () => Layer.mergeAll(memoryStores(originals), slow),
+        images: {
+          layer: () => Layer.mergeAll(memoryStores(originals), slow),
+        },
       })
       const env = {}
       await three(request => fetch(request, env))
@@ -351,13 +369,7 @@ describe('serveFetch', () => {
     })
 
     it('is on for a Node server’s layer by default', async () => {
-      const { handler, dispose } = HttpRouter.toWebHandler(
-        layer().pipe(
-          Layer.provide(Layer.mergeAll(memoryStores(originals), slow)),
-          Layer.provide(HttpServer.layerServices),
-        ),
-        { disableLogger: true },
-      )
+      const { handler, dispose } = onNode()
       try {
         await three(request => handler(request))
         expect(transforms).toEqual(['640.webp'])
@@ -370,15 +382,18 @@ describe('serveFetch', () => {
   describe('admission', () => {
     const admitted = (store: Layer.Layer<RateLimiter.RateLimiterStore>) => {
       const fetch = serveFetch<object>({
-        layer: () =>
-          Layer.mergeAll(
-            memoryStores(originals),
-            fakeTransformer,
-            admissionRateLimiter({ limit: 2, window: '1 minute', algorithm: 'fixed-window' }).pipe(
-              Layer.provide(RateLimiter.layer),
-              Layer.provide(store),
+        images: {
+          layer: () =>
+            Layer.mergeAll(
+              memoryStores(originals),
+              fakeTransformer,
+              admissionRateLimiter({
+                limit: 2,
+                window: '1 minute',
+                algorithm: 'fixed-window',
+              }).pipe(Layer.provide(RateLimiter.layer), Layer.provide(store)),
             ),
-          ),
+        },
       })
       const env = {}
       return (spelling: string, client: string) =>

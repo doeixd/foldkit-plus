@@ -451,9 +451,9 @@ export default [
     name: 'a Worker coalesces by default, waiting on another request’s work',
     edits: [
       {
-        file: '../src/server/handlers.ts',
-        find: 'layer({ coalesce: false, ...options })',
-        replace: 'layer(options)',
+        file: '../src/server/fetch.ts',
+        find: 'layer({ ...images, coalesce: false })',
+        replace: 'layer({ ...images, coalesce: true })',
       },
     ],
     tests: ['packages/media/test/server.test.ts'],

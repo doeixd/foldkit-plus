@@ -246,9 +246,11 @@ A server makes only what its `Variant.space({ widths?, formats?, qualities?, rev
 allows: the width ladder, a set of formats (AVIF and WebP by default) and a set
 of qualities (none by default: no URL names one, and the encoder uses its own).
 A request outside it is refused before any work, so an original has at most
-`space.size` variants, whoever asks: 16 for `Variant.standard`. Give `Provider.hosted` and
-the server the same space; the provider refuses, when defined, a format or
-quality its server would refuse.
+`space.size` variants, whoever asks: 16 for `Variant.standard`. The server
+reads its space from the provider the pages use, so the two cannot differ:
+define `const media = Provider.hosted({ space })` once and give the same value
+to `serveFetch`'s `images.provider` (or `layer({ provider })`). The provider
+refuses, when defined, a format or quality its space does not make.
 
 A variant's URL names its bytes, kept for a year, so a change to what a
 variant is (the encoder's settings, how it resizes) is a new `revision` of
@@ -308,11 +310,15 @@ cross-origin` and `Timing-Allow-Origin: *`, and a variant says where it came
 from in `Server-Timing` (`edge`, `store` or `made`). Nothing sends `Vary`: the
 format is in the URL.
 
-- `serveFetch({ space?, maxBytes?, layer: env => Layer })` is a Worker's fetch
-  handler. The services are built from the request's bindings, once per
-  environment. It 404s any other path, so route `/_image/` to it.
-- `layer(options)` is the route as an Effect `HttpRouter` layer, for a Node
-  server beside other routes.
+- `serveFetch({ images?, uploads?, otherwise? })` is a Worker's fetch handler.
+  It owns `/_image/` and `/_media/`: `images` (`{ provider?, maxBytes?, layer }`)
+  serves the variants, `uploads` (below) the upload route, each with its
+  services built from the request's bindings once per environment. Anything
+  else under those two prefixes, a route it was not given or a preflight, is a
+  404, and every other path goes to `otherwise` (a 404 without one), so the
+  application's own routes need not know the media paths.
+- `layer({ provider?, maxBytes?, coalesce? })` is the route as an Effect
+  `HttpRouter` layer, for a Node server beside other routes.
 - `variantsNone` keeps nothing, for a host with a cache of its own in front.
 
 ### Stores
@@ -409,36 +415,32 @@ serves it at once. Only the facts go on to the application's data (a CMS's
 asset row); the bytes never travel through RPC.
 
 Who may upload is the application's to say, and the route has no default:
-`UploadPolicy` is asked before a byte is read.
+`UploadPolicy` is asked before a byte is read. `uploadPolicyBearer(secret)` is
+the one for a deployment's secret: it admits `Authorization: Bearer <secret>`,
+compared by digest so the time taken says nothing of the secret, and admits
+nobody while the secret is unset or empty. Who may upload by session is a
+policy of your own (`Layer.succeed(UploadPolicy, { admit })`, a `foldkit-guard`
+check).
 
 ```ts
-import { Effect, Layer } from 'effect'
-import {
-  UploadForbidden,
-  UploadPolicy,
-  uploadLayer,
-  uploadsKeyValueStore,
-} from 'foldkit-media/server'
+import { Layer } from 'effect'
+import { uploadLayer, uploadPolicyBearer, uploadsKeyValueStore } from 'foldkit-media/server'
 import { inspectorSharp } from 'foldkit-media/sharp'
 
-// The application's own secret or session check; compare a secret in constant time.
-declare const token: string
-
-const editors = Layer.succeed(UploadPolicy, {
-  admit: request =>
-    request.headers['authorization'] === `Bearer ${token}`
-      ? Effect.void
-      : Effect.fail(new UploadForbidden({})),
-})
-
 const uploads = uploadLayer({ maxBytes: 10 * 1024 * 1024 }).pipe(
-  Layer.provide(Layer.mergeAll(uploadsKeyValueStore(), inspectorSharp(), editors)),
+  Layer.provide(
+    Layer.mergeAll(
+      uploadsKeyValueStore(),
+      inspectorSharp(),
+      uploadPolicyBearer(process.env['UPLOAD_TOKEN']),
+    ),
+  ),
 )
 ```
 
 `uploadsKeyValueStore()` keeps them where `originalsKeyValueStore()` reads,
 over the same `KeyValueStore`; on Cloudflare, `uploadsR2(bucket)` beside
-`originalsR2(bucket)`, and `serveUploadFetch({ layer })` hosts the route in a
+`originalsR2(bucket)`, and `serveFetch`'s `uploads` hosts the route in a
 Worker. A refusal answers its kind and nothing more, and no browser keeps it:
 `403` from the policy, `415` for a body that is not `image/*` or not an image
 the inspector reads, `413` past `maxBytes` or the inspector's pixel limit, and
@@ -464,12 +466,14 @@ them as files at their own paths, for `foldkit-ssr`'s `staticSite` `emit`:
 
 ```ts
 const media = serveFetch<object>({
-  layer: () =>
-    Layer.mergeAll(transformerSharp(), originalsKeyValueStore(), variantsKeyValueStore()).pipe(
-      Layer.provide(KeyValueStore.layerFileSystem('.media')),
-      // The disk itself: Node's file system and paths.
-      Layer.provide(NodeServices.layer),
-    ),
+  images: {
+    layer: () =>
+      Layer.mergeAll(transformerSharp(), originalsKeyValueStore(), variantsKeyValueStore()).pipe(
+        Layer.provide(KeyValueStore.layerFileSystem('.media')),
+        // The disk itself: Node's file system and paths.
+        Layer.provide(NodeServices.layer),
+      ),
+  },
 })
 const env = {}
 
@@ -496,17 +500,33 @@ export const site = {
 
 ### On Cloudflare
 
-`foldkit-media/cloudflare` gives the three services from a Worker's bindings:
+`foldkit-media/cloudflare` gives the services from a Worker's bindings, and
+`serveFetch` is the Worker:
 
 ```ts
-const answerImages = serveFetch<WorkerEnv>({
-  layer: env =>
-    Layer.mergeAll(
-      originalsR2(env.MEDIA),
-      transformerImages(env.IMAGES),
-      variantsR2(env.MEDIA, { cache: caches.default }),
-    ),
-})
+export default {
+  fetch: serveFetch<WorkerEnv>({
+    images: {
+      layer: env =>
+        Layer.mergeAll(
+          originalsR2(env.MEDIA),
+          transformerImages(env.IMAGES),
+          variantsR2(env.MEDIA, { cache: true }),
+          admissionRateLimit(env.LIMITER),
+        ),
+    },
+    uploads: {
+      layer: env =>
+        Layer.mergeAll(
+          uploadsR2(env.MEDIA),
+          inspectorImages(env.IMAGES),
+          uploadPolicyBearer(env.UPLOAD_TOKEN),
+        ),
+    },
+    // The application's own routes.
+    otherwise: async () => new Response('Not found', { status: 404 }),
+  }),
+}
 ```
 
 - `transformerImages(images)` is the Images binding: it scales down, never up,
@@ -517,14 +537,16 @@ const answerImages = serveFetch<WorkerEnv>({
   bucket).
 - `variantsR2(bucket, { prefix?, cache? })` is `variantsKeyValueStore` over
   it, so a variant made last month is not made, and billed, again; with
-  `cache`, the Cache API is read first and filled from R2.
+  `cache`, the Cache API is read first and filled from R2: `true` for the
+  Worker's `caches.default`, or a cache of your own (`await caches.open(…)`).
+  `true` outside a Worker throws where the layer is made.
 - `originalsR2(bucket)` streams an original rather than reading it into
   memory, unlike the general adapter.
 
 Cloudflare bills each new width of each original once a month (format and
 quality do not count), so the ladder is the cost: eight widths are at most
-eight transformations an original. `examples/cloudflare` routes `/_image/` to
-this server.
+eight transformations an original. `examples/cloudflare` is such a Worker,
+with Remote and Sync as its `otherwise`.
 
 ## Icons
 

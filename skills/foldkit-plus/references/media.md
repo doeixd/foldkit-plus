@@ -83,7 +83,8 @@ export const heroView = (h: HtmlBuilder<never>) =>
   stored facts with `HashedAsset`, or narrow with `isHashed`). `Variant.space({ widths, formats, qualities, revision })` bounds what it makes
   (a changed output is a new `revision`: `w640.r1.avif`, an earlier one answered while kept,
   else a brief `302` to the current URL);
-  `foldkit-media/server` serves the route, decoding with the same Schema, and
+  `foldkit-media/server` serves the route, its space read from the same provider
+  (`serveFetch({ images: { provider } })`), decoding with the same Schema, and
   decides every response's headers in `headersFor` (immutable variants, ETag
   and 304, a lifetime per error, CORS).
 
@@ -94,7 +95,8 @@ Originals and variants are kept in any Effect `KeyValueStore`
 (`originalsKeyValueStore()`, `variantsKeyValueStore()` over
 `KeyValueStore.layerMemory`, `layerFileSystem` or `layerSql`); on Cloudflare,
 `foldkit-media/cloudflare` gives `keyValueStoreR2`, `originalsR2`,
-`variantsR2` (with the Cache API in front) and `transformerImages`; on Node,
+`variantsR2` (`cache: true` puts the Worker's `caches.default` in front) and
+`transformerImages`; on Node,
 `foldkit-media/sharp` gives `transformerSharp` (a pixel limit and a
 concurrency limit), and `layer` coalesces concurrent misses. Rate limits apply to misses only:
 `admissionRateLimiter` (Effect's `RateLimiter`) or `admissionRateLimit` (a
@@ -106,13 +108,17 @@ enters: `describe(key, bytes)` (from `foldkit-media`) through an `Inspector` (`i
 URL, kept by URL and revalidated with its `ETag`. Variants
 are a cache: a store that fails is answered by making the variant.
 
-Uploads: `uploadLayer({ maxBytes? })` (or `serveUploadFetch({ layer })` in a
+A Worker is one `serveFetch({ images?, uploads?, otherwise? })`: it owns `/_image/` and
+`/_media/` (anything else under them, a preflight included, is a 404) and hands every other path
+to `otherwise`. Uploads: `uploadLayer({ maxBytes? })` (or `serveFetch`'s `uploads` in a
 Worker) serves `POST /_media/upload`: an `image/*` body, read under the byte
 cap, described, kept under its SHA-256 by `Uploads` (`uploadsKeyValueStore()`,
 `uploadsR2(bucket)`, where `Originals` reads) and answered as a `HashedAsset`
 (201), and `GET /_media/facts?url=` answers the facts of an image named by URL through
 `factsOf`, from the hosts `uploadLayer({ facts: { allow } })` names (none by default; 422 for
-one it cannot read). `UploadPolicy` is required and asked first by both (`UploadForbidden`, 403);
+one it cannot read). `UploadPolicy` is required and asked first by both (`UploadForbidden`, 403):
+`uploadPolicyBearer(secret)` for a deployment's secret (constant-time, nobody while unset), or the
+application's own;
 the application registers the facts in its own data.
 
 See also: [packages/media/README.md](https://github.com/doeixd/foldkit-plus/blob/main/packages/media/README.md),

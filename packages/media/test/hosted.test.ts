@@ -142,8 +142,10 @@ describe('the server reads what the provider writes', () => {
       }),
   })
   const server = serveFetch<object>({
-    space,
-    layer: () => Layer.mergeAll(memoryStores(new Map([[HASH, new Uint8Array(1)]])), echo),
+    images: {
+      provider: Provider.hosted({ space }),
+      layer: () => Layer.mergeAll(memoryStores(new Map([[HASH, new Uint8Array(1)]])), echo),
+    },
   })
   const env = {}
   const fetchPath = (path: string) => server(new Request(`http://media.test${path}`), env)
