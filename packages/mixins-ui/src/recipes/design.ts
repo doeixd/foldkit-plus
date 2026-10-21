@@ -147,7 +147,7 @@ export const listScroll: StyleValue = component(
 )
 
 export const disabled: StyleValue = Style.pseudo(':is([aria-disabled="true"], :disabled)', {
-  opacity: '0.5',
+  opacity: ref.knob['state-disabled'],
   cursor: 'not-allowed',
 })
 

@@ -51,7 +51,7 @@ export const SignaturePad = Style.recipeFor(SignaturePadSlots)({
         '--fk-signature-font': 'cursive',
         '--_fk-signature-height': '10rem',
       }),
-      Style.pseudo('[data-disabled]', { opacity: '0.5' }),
+      Style.pseudo('[data-disabled]', { opacity: ref.knob['state-disabled'] }),
     ),
     label: component(
       Style.self({ color: ref.text.overt, ...role('body'), fontWeight: ref.weight.medium }),

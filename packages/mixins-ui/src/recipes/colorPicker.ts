@@ -78,7 +78,7 @@ export const ColorPicker = Style.recipeFor(ColorPickerSlots)({
         gap: ref.space.sm,
         inlineSize: 'min(100%, 18rem)',
       }),
-      Style.pseudo('[data-disabled]', { opacity: '0.5' }),
+      Style.pseudo('[data-disabled]', { opacity: ref.knob['state-disabled'] }),
     ),
     label: component(
       Style.self({ color: ref.text.overt, ...role('body'), fontWeight: ref.weight.medium }),

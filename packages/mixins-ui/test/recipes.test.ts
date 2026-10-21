@@ -71,6 +71,10 @@ import {
   ResizableSlots,
   ColorPickerSlots,
   CommandSlots,
+  CheckboxGroupSlots,
+  NumberFieldSlots,
+  TagsInputSlots,
+  TreeViewSlots,
   TimerSlots,
   MarqueeSlots,
   ImageCropperSlots,
@@ -495,6 +499,50 @@ describe('Recipes', () => {
             )
               strays.add(value!)
     expect([...strays]).toEqual([])
+  })
+
+  // A disabled control faded to `0.4` in two recipes and `0.5` in the rest: one page showed two
+  // fades. Every rule for a disabled control that sets an opacity reads the knob, so a theme sets
+  // them all. A `:not(:disabled)` is the hover guard, not the state, so negations come off first.
+  const withoutNegations = (selector: string): string => {
+    const once = selector.replace(/:not\([^()]*\)/g, '')
+    return once === selector ? once : withoutNegations(once)
+  }
+  const fades = (selector: string) =>
+    /:disabled|\[aria-disabled="true"\]|\[data-disabled/.test(withoutNegations(selector))
+  it.each(Object.entries(compiled))(
+    '%s fades a disabled control by the theme’s opacity',
+    (_, sheets) => {
+      const strays = new Set<string>()
+      for (const css of sheets)
+        for (const [, selector, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g))
+          if (fades(selector!))
+            for (const [, value] of body!.matchAll(/opacity:([^;]+)/g))
+              if (!value!.includes('var(--fk-knob-state-disabled)'))
+                strays.add(`${selector!.trim()} { opacity: ${value} }`)
+      expect([...strays]).toEqual([])
+    },
+  )
+
+  // The recipes whose disabled fade this change converted, each still reading the knob: a literal
+  // back in one of them shows two fades on one page, which is what the knob ended.
+  const faded = {
+    AngleSlider: Style.forSlots(AngleSliderSlots)(Recipes.AngleSlider({})).css,
+    Calendar: Style.forSlots(CalendarSlots)(Recipes.Calendar({})).css,
+    Card: Style.forSlots(CardSlots)(Recipes.Card({})).css,
+    CheckboxGroup: Style.forSlots(CheckboxGroupSlots)(Recipes.CheckboxGroup({})).css,
+    ColorPicker: Style.forSlots(ColorPickerSlots)(Recipes.ColorPicker({})).css,
+    Command: Style.forSlots(CommandSlots)(Recipes.Command({})).css,
+    ImageCropper: Style.forSlots(ImageCropperSlots)(Recipes.ImageCropper({})).css,
+    Item: Style.forSlots(ItemSlots)(Recipes.Item({})).css,
+    NumberField: Style.forSlots(NumberFieldSlots)(Recipes.NumberField({})).css,
+    SignaturePad: Style.forSlots(SignaturePadSlots)(Recipes.SignaturePad({})).css,
+    Slider: Style.forSlots(SliderSlots)(Recipes.Slider({})).css,
+    TagsInput: Style.forSlots(TagsInputSlots)(Recipes.TagsInput({})).css,
+    TreeView: Style.forSlots(TreeViewSlots)(Recipes.TreeView({})).css,
+  }
+  it.each(Object.entries(faded))('%s still fades a disabled control by the knob', (_, css) => {
+    expect(css).toContain('opacity:var(--fk-knob-state-disabled)')
   })
 
   // A press held on a drag surface opened iOS's callout menu over the drag.

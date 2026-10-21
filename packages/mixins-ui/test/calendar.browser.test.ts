@@ -23,7 +23,10 @@ afterEach(() => {
 
 const week = (style: NamedStyle<typeof CalendarSlots>) => (_: unknown, h: HtmlBuilder<never>) => {
   const slots = SlotView.buildersFor(CalendarSlots, [style.mixin], { input: undefined, h })
-  const day = (label: string, state: 'selected' | 'outside-month' | 'in-range' | 'plain') =>
+  const day = (
+    label: string,
+    state: 'selected' | 'outside-month' | 'in-range' | 'disabled' | 'plain',
+  ) =>
     h.span(
       slots.dayCell.attrs([
         h.Role('gridcell'),
@@ -38,6 +41,7 @@ const week = (style: NamedStyle<typeof CalendarSlots>) => (_: unknown, h: HtmlBu
         day('1', 'plain'),
         day('2', 'selected'),
         day('3', 'in-range'),
+        day('4', 'disabled'),
       ]),
     ]),
   ])
@@ -88,6 +92,19 @@ test('the chosen day fills, and a day outside the month is quieter', async () =>
     expect(getComputedStyle(day('1')).backgroundColor).toBe('rgba(0, 0, 0, 0)')
     expect(getComputedStyle(day('2')).backgroundColor).not.toBe('rgba(0, 0, 0, 0)')
     expect(getComputedStyle(day('30')).color).not.toBe(getComputedStyle(day('1')).color)
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a disabled day fades by the theme’s opacity, and one in the month does not', async () => {
+  const handle = mount(Style.forSlots(CalendarSlots)(Recipes.Calendar({})))
+  try {
+    await vi.waitFor(() => expect(day('4')).toBeTruthy())
+    await userEvent.hover(document.body, { position: { x: 600, y: 600 } })
+    expect(getComputedStyle(day('4')).opacity).toBe('0.5')
+    expect(getComputedStyle(day('4')).textDecorationLine).toBe('line-through')
+    expect(getComputedStyle(day('1')).opacity).toBe('1')
   } finally {
     handle.dispose()
   }

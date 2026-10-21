@@ -33,7 +33,7 @@ const stepper = component(
     ...transition('background-color, color'),
   }),
   hover({ background: unfilledHover, color: ref.text.overt }),
-  Style.pseudo(':disabled', { opacity: '0.4', cursor: 'not-allowed' }),
+  Style.pseudo(':disabled', { opacity: ref.knob['state-disabled'], cursor: 'not-allowed' }),
 )
 
 export const NumberField = Style.recipeFor(NumberFieldSlots)({

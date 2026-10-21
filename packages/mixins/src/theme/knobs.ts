@@ -196,6 +196,17 @@ export const standard = {
         'How strongly a hovered row or button is tinted, a fluid highlight with it, and a press more.',
     }),
   },
+  state: {
+    disabledOpacity: Knob.number({
+      title: 'Disabled',
+      variable: 'state-disabled',
+      default: 0.5,
+      min: 0.3,
+      max: 0.7,
+      step: 0.05,
+      description: 'How far a disabled control fades: 0.5 is half, 1 draws it as any other.',
+    }),
+  },
   shape: {
     radius: Knob.number({
       title: 'Radius',

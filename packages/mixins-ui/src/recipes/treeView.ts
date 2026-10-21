@@ -103,7 +103,10 @@ export const TreeView = Style.recipeFor(TreeViewSlots)({
         outline: `${ref.border.thick} solid ${ref.outline.focus}`,
         outlineOffset: '-2px',
       }),
-      Style.nest(':is([aria-disabled="true"]) > &', { opacity: '0.5', cursor: 'not-allowed' }),
+      Style.nest(':is([aria-disabled="true"]) > &', {
+        opacity: ref.knob['state-disabled'],
+        cursor: 'not-allowed',
+      }),
     ),
     chevron: component(
       // Its row is the expanded item's child, so the item opens it from one level up.

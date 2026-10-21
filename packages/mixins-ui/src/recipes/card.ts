@@ -88,7 +88,7 @@ export const Card = Style.recipeFor(CardSlots)({
         overflow: 'clip',
         ...transition('background-color, box-shadow, opacity'),
       }),
-      Style.nest('&[data-disabled="true"]', { opacity: '0.5' }),
+      Style.nest('&[data-disabled="true"]', { opacity: ref.knob['state-disabled'] }),
     ),
     image: component(
       Style.self({ overflow: 'clip' }),

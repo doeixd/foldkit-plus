@@ -674,7 +674,8 @@ What a recipe assumes and does:
   accordion row darkens while the press is held, and a fluid highlight darkens
   with the item it lights (`FluidHover` marks the container `data-fluid-held`).
   Chosen rows next to each other in a multiple listbox or
-  combobox merge into one block.
+  combobox merge into one block. A disabled control fades by
+  `state.disabledOpacity` (half by default), so one page shows one fade.
 - **Raised surfaces nest.** Popups, popovers, date picker panels and toasts
   sit two levels above what holds them and dialogs four (`Theme.raise`), each
   painted for its level, so a popover in a dialog lands above the dialog: a

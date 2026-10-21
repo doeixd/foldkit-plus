@@ -51,7 +51,7 @@ export const AngleSlider = Style.recipeFor(AngleSliderSlots)({
         '--_fk-angle-track': ref.surface.muted,
         '--_fk-angle-paint': `conic-gradient(${toneVar('fill')} ${angle}, var(--_fk-angle-track) 0)`,
       }),
-      Style.pseudo('[data-disabled]', { opacity: '0.5' }),
+      Style.pseudo('[data-disabled]', { opacity: ref.knob['state-disabled'] }),
       Style.pseudo('[data-invalid]', { '--_fk-angle-track': ref.error.default }),
     ),
     label: component(

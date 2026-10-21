@@ -227,6 +227,8 @@ follows another knob until a theme sets it.
 | `surface.contrast` | percent | 26 | 0 to 100 | `surface-contrast` |
 | `surface.textContrast` | number | 1 | | `contrast-factor` |
 | `surface.hover` | choice | `surface` | `surface`, `neutral`, `accent` | `surface-ink`, `state-ink` |
+| `surface.hoverStrength` | percent | 12 | 4 to 24 | `state-hover`; a press lays 1.75 of it |
+| `state.disabledOpacity` | number | 0.5 | 0.3 to 0.7 | `state-disabled` |
 | `shape.radius` | number | 1 | 0 to 2.5 | `radius-factor` |
 | `shape.density` | number | 1 | 0.75 to 1.3 | `density` |
 | `shape.size` | choice | `default` | `default`, `compact` | `step` |
@@ -265,9 +267,9 @@ Not knobs, deliberately:
 
 - `travel`, which the reset sets under reduced motion: the reader's
   preference, not the theme's.
-- The tuning of the state films (`state-hover`, `state-tint`,
-  `state-tint-dark`), `image-edge` and `raise-dark`: internal constants of the
-  derivations, reachable through `Theme.define` for the rare theme that must.
+- The tuning of the state films (`state-tint`, `state-tint-dark`),
+  `image-edge` and `raise-dark`: internal constants of the derivations,
+  reachable through `Theme.define` for the rare theme that must.
 
 New variables (`border-width`, `font-body`, `font-heading`, `heading-weight`,
 `heading-tracking`, `ease`, and the shadow and outline lists the choices

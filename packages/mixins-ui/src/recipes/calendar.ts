@@ -56,7 +56,7 @@ const quiet: StyleValue = component(
   }),
   hover({ background: unfilledHover, color: ref.text.overt }),
   focusRing,
-  Style.pseudo(':disabled', { opacity: '0.4', cursor: 'not-allowed' }),
+  Style.pseudo(':disabled', { opacity: ref.knob['state-disabled'], cursor: 'not-allowed' }),
 )
 
 /** A day, month or year button: its state is on the cell around it. */
@@ -100,7 +100,7 @@ const choice = (shape: 'round' | 'wide'): StyleValue =>
       outlineOffset: '-2px',
     }),
     Style.nest('[data-disabled] > &', {
-      opacity: '0.4',
+      opacity: ref.knob['state-disabled'],
       cursor: 'not-allowed',
       textDecoration: 'line-through',
     }),

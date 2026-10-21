@@ -105,7 +105,7 @@ export const Slider = Style.recipeFor(SliderSlots)({
         gap: ref.space['2xs'],
         minInlineSize: 'var(--fk-slider-min-length, 12rem)',
       }),
-      Style.pseudo('[data-disabled]', { opacity: '0.5' }),
+      Style.pseudo('[data-disabled]', { opacity: ref.knob['state-disabled'] }),
       Style.pseudo('[data-orientation="vertical"]', { minInlineSize: '0', justifyItems: 'start' }),
     ),
     header: component(

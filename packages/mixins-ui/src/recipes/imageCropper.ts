@@ -76,7 +76,7 @@ export const ImageCropper = Style.recipeFor(ImageCropperSlots)({
   base: {
     root: component(
       Style.self({ display: 'grid', gap: ref.space.sm, inlineSize: '100%' }),
-      Style.pseudo('[data-disabled]', { opacity: '0.5' }),
+      Style.pseudo('[data-disabled]', { opacity: ref.knob['state-disabled'] }),
     ),
     label: component(
       Style.self({ color: ref.text.overt, ...role('body'), fontWeight: ref.weight.medium }),

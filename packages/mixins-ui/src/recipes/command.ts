@@ -132,7 +132,10 @@ export const Command = Style.recipeFor(CommandSlots)({
         background: ref.popup.highlight,
         color: ref.popup['highlight-ink'],
       }),
-      Style.pseudo('[aria-disabled="true"]', { opacity: '0.5', cursor: 'not-allowed' }),
+      Style.pseudo('[aria-disabled="true"]', {
+        opacity: ref.knob['state-disabled'],
+        cursor: 'not-allowed',
+      }),
     ),
     // A drawing given at any size takes the ladder's icon size.
     icon: component(

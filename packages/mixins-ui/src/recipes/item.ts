@@ -41,7 +41,7 @@ export const Item = Style.recipeFor(ItemSlots)({
       Style.nest('&[data-selected="true"]', {
         backgroundImage: `linear-gradient(${film('1')}, ${film('1')})`,
       }),
-      Style.nest('&[data-disabled="true"]', { opacity: '0.5' }),
+      Style.nest('&[data-disabled="true"]', { opacity: ref.knob['state-disabled'] }),
     ),
     media: component(
       Style.self({

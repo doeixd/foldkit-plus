@@ -100,7 +100,9 @@ const fieldBox = (layout: Declarations): StyleValue =>
 /** The box around a textarea and its footer. */
 const frame = Style.compose(
   fieldBox({ display: 'grid' }),
-  component(Style.pseudo(':has(:disabled)', { opacity: '0.5', cursor: 'not-allowed' })),
+  component(
+    Style.pseudo(':has(:disabled)', { opacity: ref.knob['state-disabled'], cursor: 'not-allowed' }),
+  ),
 )
 
 export const Textarea = Style.recipeFor(TextareaSlots)({

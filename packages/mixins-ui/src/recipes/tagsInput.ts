@@ -114,7 +114,10 @@ export const TagsInput = Style.recipeFor(TagsInputSlots)({
         outline: `${ref.border.thick} solid ${ref.outline.focus}`,
         outlineOffset: '2px',
       }),
-      Style.nest('&[data-disabled="true"]', { opacity: '0.5', cursor: 'not-allowed' }),
+      Style.nest('&[data-disabled="true"]', {
+        opacity: ref.knob['state-disabled'],
+        cursor: 'not-allowed',
+      }),
       shakes.even.style,
       shakes.odd.style,
       Style.states({ even: shake(shakes.even.name), odd: shake(shakes.odd.name) }, 'data-refused'),

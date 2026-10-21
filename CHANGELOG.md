@@ -31,6 +31,9 @@ version changed; `pnpm` skips versions already in the registry.
   container `data-fluid-held` while the lit item is pressed, and every fluid highlight (Table,
   Segmented, Tabs, Nav, Sidebar, TreeView) and the popups' own deepen with it. One knob,
   `surface.hoverStrength`, sets both strengths.
+- `foldkit-mixins`: `state.disabledOpacity` (`Disabled`, 0.3 to 0.7, half by default), how far a
+  disabled control fades. Every recipe that draws the state reads it, so a page no longer shows
+  `0.4` on a calendar day and `0.5` on the button beside it, and a theme sets them all.
 - `foldkit-mixins`: `surface.hoverStrength`, how strongly a hovered row or button is tinted
   (4% to 24%); the palette's `state-hover` was a fixed 12%, which stays the default, so a theme
   that does not set it draws as before.

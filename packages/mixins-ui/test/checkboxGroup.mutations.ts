@@ -154,7 +154,7 @@ export default [
     edits: [
       {
         file: recipe,
-        find: "component(Style.nest(dimmed, { opacity: '0.5' })),",
+        find: "component(Style.nest(dimmed, { opacity: ref.knob['state-disabled'] })),",
         replace: 'Style.empty,',
       },
     ],

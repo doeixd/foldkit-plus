@@ -443,7 +443,8 @@ element's own text color (`hover`, and `press` at 1.75 of it; `tint` and `tint-h
 see-through fill; `edge`, a hairline inside an image), so it reads at any elevation and on any
 band; its amounts are knob variables (`state-hover`, `state-tint`, `state-tint-dark`,
 `image-edge`), and a theme sets the hover's, and the press's with it, with
-`surface.hoverStrength` (4% to 24%, 12% by default). `Theme.nested(outer, inset,
+`surface.hoverStrength` (4% to 24%, 12% by default); a disabled control fades by
+`state.disabledOpacity` (`Disabled`, 0.3 to 0.7, half by default). `Theme.nested(outer, inset,
 border?)` is the radius of a surface inset in another, so their corners are concentric. A
 container that pads its children can publish that instead: spread `Theme.nests(radius, inset,
 border?)` beside its own radius and padding, and `Theme.nested()` with no arguments on any

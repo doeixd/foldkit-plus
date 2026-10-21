@@ -86,11 +86,11 @@ export const CheckboxGroup = Style.recipeFor(CheckboxGroupSlots)({
     // A disabled option's words dim with its box.
     label: Style.compose(
       box.label ?? Style.empty,
-      component(Style.nest(dimmed, { opacity: '0.5' })),
+      component(Style.nest(dimmed, { opacity: ref.knob['state-disabled'] })),
     ),
     description: component(
       Style.self({ gridColumn: '2', margin: '0', color: ref.text.muted, ...role('caption') }),
-      Style.nest(dimmed, { opacity: '0.5' }),
+      Style.nest(dimmed, { opacity: ref.knob['state-disabled'] }),
     ),
     error: component(Style.self({ margin: '0', color: ref.error.ink, ...role('caption') })),
   },
