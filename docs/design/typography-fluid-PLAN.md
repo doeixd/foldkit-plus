@@ -2,8 +2,9 @@
 
 **Status:** Phases 1-4, the reading knobs, and container-based fluid type are
 implemented, 2026-10-21. Phase 5 is not needed: the fluid growth already uses
-`pow`, and the size table remains the fixed small end. The CMS's `cqi` padding
-and screenshots remain.
+`pow`, and the size table remains the fixed small end. Screenshots are reviewed
+at 390, 768 and 1440; the only open item is the CMS's `cqi` padding, which is
+spacing rather than type.
 
 **Scope:** the `foldkit-mixins` type scale and theme tokens, `Defaults`,
 `Prose`, the `Typography` recipe, and the examples that write per-component
@@ -361,8 +362,9 @@ Tests:
 - [x] Confirm `Defaults.body`, `Defaults.headings`, `Prose`, and the
       `Typography` headings all use unitless leading, so no line-height change
       is needed.
-- [ ] Screenshots at 320, 768 and 1440 for `examples/site` and
-      `examples/design-system`.
+- [x] Screenshots at 390, 768 and 1440 for `examples/site`; the `/create`
+      tab strip fits at all three, and the Type pane holds the fluid and
+      reading controls.
 - [x] CHANGELOG, README, `docs/theme-knobs.md`, and the skill reference.
 
 ### Phase 3: examples and `/create` (done, `cqi` clamps wait for phase 6)
