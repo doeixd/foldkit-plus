@@ -41,17 +41,31 @@ export class UploadForbidden extends Schema.TaggedError<UploadForbidden>()(
 ) {}
 
 /**
- * Who may upload, asked of every request before its body is read. The route
- * has no default: an application that serves uploads says who may (a
- * `foldkit-guard` policy over the session, an API key), so a server is never
- * open to every upload by omission.
+ * The policy could not tell who is asking (an untrusted origin, a session
+ * that ended), so the client should sign in again rather than give up.
+ */
+export class UploadUnauthenticated extends Schema.TaggedError<UploadUnauthenticated>()(
+  'UploadUnauthenticated',
+  {},
+  { httpApiStatus: 401 },
+) {}
+
+/** Which route the policy is asked about: an upload, or the facts of an image named by URL. */
+export type UploadRoute = 'Upload' | 'DescribeUrl'
+
+/**
+ * Who may upload, asked of every request before its body is read, with the
+ * route it is for. The route has no default: an application that serves
+ * uploads says who may (`foldkit-guard/media` over the session, a secret), so
+ * a server is never open to every upload by omission.
  */
 export class UploadPolicy extends Context.Service<
   UploadPolicy,
   {
     readonly admit: (
       request: HttpServerRequest.HttpServerRequest,
-    ) => Effect.Effect<void, UploadForbidden>
+      route: UploadRoute,
+    ) => Effect.Effect<void, UploadForbidden | UploadUnauthenticated>
   }
 >()('foldkit-media/UploadPolicy') {}
 
@@ -119,7 +133,7 @@ export const uploadHandlers = (options: UploadOptions = {}) => {
       return group
         .handle('upload', ({ request }) =>
           Effect.gen(function* () {
-            yield* policy.admit(request)
+            yield* policy.admit(request, 'Upload')
             if (!(request.headers['content-type'] ?? '').startsWith('image/')) {
               return refused(Answer.cases.Unsupported.make({}))
             }
@@ -132,6 +146,8 @@ export const uploadHandlers = (options: UploadOptions = {}) => {
             Effect.provide(services),
             Effect.catchTags({
               UploadForbidden: () => Effect.succeed(refused(Answer.cases.Forbidden.make({}))),
+              UploadUnauthenticated: () =>
+                Effect.succeed(refused(Answer.cases.Unauthenticated.make({}))),
               OriginalTooLarge: () => Effect.succeed(refused(Answer.cases.TooLarge.make({}))),
               TransformFailed: () => Effect.succeed(refused(Answer.cases.Unsupported.make({}))),
               // The body broke off or could not be read: the request's fault, not the server's.
@@ -142,7 +158,7 @@ export const uploadHandlers = (options: UploadOptions = {}) => {
         )
         .handle('facts', ({ request }) =>
           Effect.gen(function* () {
-            yield* policy.admit(request)
+            yield* policy.admit(request, 'DescribeUrl')
             const url = new URL(request.url, 'http://media.invalid').searchParams.get('url')
             if (url === null) return refused(Answer.cases.Malformed.make({}))
             return answered(Answer.cases.Described.make({}), encode(yield* factsOf(url, facts)))
@@ -150,6 +166,8 @@ export const uploadHandlers = (options: UploadOptions = {}) => {
             Effect.provide(services),
             Effect.catchTags({
               UploadForbidden: () => Effect.succeed(refused(Answer.cases.Forbidden.make({}))),
+              UploadUnauthenticated: () =>
+                Effect.succeed(refused(Answer.cases.Unauthenticated.make({}))),
               // Why stays in the server: a host refused, a read failed, a file that is no image.
               FactsUnavailable: () => Effect.succeed(refused(Answer.cases.Unavailable.make({}))),
             }),

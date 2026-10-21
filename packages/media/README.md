@@ -426,12 +426,16 @@ Decoding with `HashedAsset` checks the facts' shape, not that they are true,
 so store facts your server read, not ones a client sends back.
 
 Who may upload is the application's to say, and the route has no default:
-`UploadPolicy` is asked before a byte is read. `uploadPolicyBearer(secret)` is
+`UploadPolicy.admit(request, route)` is asked before a byte is read, with the
+route it is for (`'Upload'`, or `'DescribeUrl'` for the facts route below). It
+refuses with `UploadForbidden`, or with `UploadUnauthenticated` when it cannot
+tell who is asking (a session that ended), so a client knows to sign in again.
+`uploadPolicyBearer(secret)` is
 the one for a deployment's secret: it admits `Authorization: Bearer <secret>`,
 compared by digest so the time taken says nothing of the secret, and admits
 nobody while the secret is unset or empty. Who may upload by session is a
-policy of your own (`Layer.succeed(UploadPolicy, { admit })`, a `foldkit-guard`
-check).
+policy of your own (`Layer.succeed(UploadPolicy, { admit })`), and the route
+lets it admit uploads and refuse URL lookups.
 
 ```ts
 import { Layer } from 'effect'
@@ -453,7 +457,7 @@ const uploads = uploadLayer({ maxBytes: 10 * 1024 * 1024 }).pipe(
 over the same `KeyValueStore`; on Cloudflare, `uploadsR2(bucket)` beside
 `originalsR2(bucket)`, and `serveFetch`'s `uploads` hosts the route in a
 Worker. A refusal answers its kind and nothing more, and no browser keeps it:
-`403` from the policy, `415` for a body that is not `image/*` or not an image
+`403` from the policy (`401` when it cannot tell who is asking), `415` for a body that is not `image/*` or not an image
 the inspector reads, `413` past `maxBytes` or the inspector's pixel limit, and
 `400` for a body that broke off. Because the body must be `image/*`, which is
 not a type a browser sends to another origin without a preflight, and the
@@ -461,7 +465,7 @@ route answers no preflight, a cookie alone cannot upload from another site.
 
 An image a page names only by URL gets its facts from the same route set:
 `GET /_media/facts?url=` reads it with `factsOf`, behind the same
-`UploadPolicy`, and answers them keyed by the URL (`200`). Only `https` on a
+`UploadPolicy`, asked for `'DescribeUrl'`, and answers them keyed by the URL (`200`). Only `https` on a
 host in `uploadLayer({ facts: { allow } })` is read, and `allow` is empty
 unless given, so a server names every host it fetches. An editor asks it when
 a URL is set, and stores the facts beside the URL. Neither route limits how

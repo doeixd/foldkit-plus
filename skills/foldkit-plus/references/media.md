@@ -120,7 +120,9 @@ cap, described, kept under its SHA-256 by `Uploads` (`uploadsKeyValueStore()`,
 `uploadsR2(bucket)`, where `Originals` reads) and answered as a `HashedAsset`
 (201), and `GET /_media/facts?url=` answers the facts of an image named by URL through
 `factsOf`, from the hosts `uploadLayer({ facts: { allow } })` names (none by default; 422 for
-one it cannot read). `UploadPolicy` is required and asked first by both (`UploadForbidden`, 403):
+one it cannot read). `UploadPolicy` is required and asked first by both, told the route
+(`admit(request, 'Upload' | 'DescribeUrl')`), and refuses with `UploadForbidden` (403) or
+`UploadUnauthenticated` (401, a session it cannot tell):
 `uploadPolicyBearer(secret)` for a deployment's secret (constant-time, nobody while unset), or the
 application's own;
 the application registers the facts in its own data, as its server read them: `HashedAsset`

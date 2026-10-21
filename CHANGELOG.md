@@ -7,6 +7,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Changed
+
+- `foldkit-media/server`: `UploadPolicy.admit(request, route)` is told which route it guards,
+  `'Upload'` or `'DescribeUrl'` (the facts route), so a policy may admit uploads and refuse URL
+  lookups. A hand-written policy gains the parameter. `UploadUnauthenticated` is a `401`, for a
+  request whose session the policy cannot tell, beside `UploadForbidden`'s `403`.
+
 ### Fixed
 
 - `foldkit-media`'s README and the skill no longer promise more than the code keeps: a variant's

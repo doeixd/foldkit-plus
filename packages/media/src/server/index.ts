@@ -21,6 +21,8 @@ export {
   UploadApi,
   UploadForbidden,
   UploadPolicy,
+  UploadUnauthenticated,
+  type UploadRoute,
   Uploads,
   uploadHandlers,
   uploadLayer,

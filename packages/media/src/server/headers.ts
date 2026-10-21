@@ -38,8 +38,10 @@ export const Answer = Schema.TaggedUnion({
   Exhausted: {},
   /** An upload kept; its facts are the body. */
   Uploaded: {},
-  /** The upload policy refused the request. */
+  /** The upload policy refused who is asking. */
   Forbidden: {},
+  /** The upload policy could not tell who is asking: an untrusted origin, a session ended. */
+  Unauthenticated: {},
   /** An upload that is not an image the server reads. */
   Unsupported: {},
   /** The facts of an image named by URL; the facts are the body. */
@@ -74,6 +76,7 @@ export const statusOf: (answer: Answer) => number = Answer.match({
   Exhausted: () => 503,
   Uploaded: () => 201,
   Forbidden: () => 403,
+  Unauthenticated: () => 401,
   Unsupported: () => 415,
   Described: () => 200,
   Unavailable: () => 422,
@@ -81,8 +84,8 @@ export const statusOf: (answer: Answer) => number = Answer.match({
 
 /**
  * Every response's headers, decided in one place, so the server, the edge
- * and a static host cannot disagree. A variant's URL names its bytes, so it
- * is kept for a year. A refusal of a variant is not: another release, or the
+ * and a static host cannot disagree. A variant's URL names the variant, and
+ * a new way of making it is a new revision, so it is kept for a year. A refusal of a variant is not: another release, or the
  * same one configured otherwise, may answer it, so only a CDN keeps it,
  * briefly; a failure is never kept. Every image may be read by a canvas on
  * another origin, and its type is never sniffed.
@@ -116,6 +119,7 @@ export const headersFor = (answer: Answer): Readonly<Record<string, string>> => 
     // An upload's answers are about one request, and are never kept.
     Uploaded: (): Record<string, string> => ({ 'cache-control': 'no-store' }),
     Forbidden: (): Record<string, string> => ({ 'cache-control': 'no-store' }),
+    Unauthenticated: (): Record<string, string> => ({ 'cache-control': 'no-store' }),
     Unsupported: (): Record<string, string> => ({ 'cache-control': 'no-store' }),
     Described: (): Record<string, string> => ({ 'cache-control': 'no-store' }),
     Unavailable: (): Record<string, string> => ({ 'cache-control': 'no-store' }),

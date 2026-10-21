@@ -14,6 +14,8 @@ import { ImageAsset } from 'foldkit-media'
 import {
   UploadForbidden,
   UploadPolicy,
+  UploadUnauthenticated,
+  type UploadRoute,
   layer,
   originalsKeyValueStore,
   serveFetch,
@@ -27,14 +29,21 @@ import { inspectorSharp, transformerSharp } from 'foldkit-media/sharp'
 
 const MAX_BYTES = 64 * 1024
 
-/** Admits a request bearing `Bearer ok`, and counts every request it is asked about. */
+/**
+ * Admits `Bearer ok` on either route and `Bearer uploader` on uploads alone; takes `Bearer
+ * gone` for a session that ended; and counts every request, keeping the routes it was asked.
+ */
 const policy = () => {
-  const asked = { count: 0 }
+  const asked = { count: 0, routes: [] as Array<UploadRoute> }
   const service = Layer.succeed(UploadPolicy, {
-    admit: request =>
-      Effect.suspend(() => {
+    admit: (request, route) =>
+      Effect.suspend((): Effect.Effect<void, UploadForbidden | UploadUnauthenticated> => {
         asked.count++
-        return request.headers['authorization'] === 'Bearer ok'
+        asked.routes.push(route)
+        const authorization = request.headers['authorization']
+        if (authorization === 'Bearer gone') return Effect.fail(new UploadUnauthenticated({}))
+        return authorization === 'Bearer ok' ||
+          (authorization === 'Bearer uploader' && route === 'Upload')
           ? Effect.void
           : Effect.fail(new UploadForbidden({}))
       }),
@@ -174,7 +183,10 @@ describe('uploadPolicyBearer', () => {
   const admits = (token: string | undefined, headers: Record<string, string>) =>
     Effect.runPromise(
       UploadPolicy.use(policy =>
-        policy.admit(HttpServerRequest.fromWeb(new Request('http://media.test/', { headers }))),
+        policy.admit(
+          HttpServerRequest.fromWeb(new Request('http://media.test/', { headers })),
+          'Upload',
+        ),
       ).pipe(Effect.provide(uploadPolicyBearer(token)), Effect.exit, Effect.map(Exit.isSuccess)),
     )
 
@@ -229,6 +241,23 @@ describe('the upload route', () => {
     expect(await response.json()).toEqual({ error: 'Forbidden' })
     expect([asked.count, pulled, kept.size]).toEqual([1, false, 0])
   })
+
+  it('asks about the upload route, so a policy may admit uploads alone', async () => {
+    const { upload, asked } = server()
+    const response = await upload(new Uint8Array(await png()), { authorization: 'Bearer uploader' })
+    expect([response.status, asked.routes]).toEqual([201, ['Upload']])
+  }, 60_000)
+
+  it('answers a session the policy cannot tell 401, reading nothing and kept by no one', async () => {
+    const { upload, kept } = server()
+    const response = await upload(new Uint8Array(await png()), { authorization: 'Bearer gone' })
+    expect([
+      response.status,
+      response.headers.get('cache-control'),
+      await response.json(),
+      kept.size,
+    ]).toEqual([401, 'no-store', { error: 'Unauthenticated' }, 0])
+  }, 60_000)
 
   it.each([
     ['a body that is not declared an image', 'text/plain', async () => new Uint8Array(await png())],
@@ -321,6 +350,14 @@ describe('the facts route', () => {
     ['a host not allowed', 'https://elsewhere.test/hero.png', 'Bearer ok', 422, 'Unavailable'],
     ['an image that is not there', 'https://images.test/gone.png', 'Bearer ok', 422, 'Unavailable'],
     ['a request the policy refuses', 'https://images.test/hero.png', 'Bearer no', 403, 'Forbidden'],
+    [
+      'an uploader, admitted to upload alone',
+      'https://images.test/hero.png',
+      'Bearer uploader',
+      403,
+      'Forbidden',
+    ],
+    ['a session that ended', 'https://images.test/hero.png', 'Bearer gone', 401, 'Unauthenticated'],
   ])(
     'refuses %s, saying only its kind',
     async (_, url, authorization, status, error) => {
@@ -331,7 +368,7 @@ describe('the facts route', () => {
         response.headers.get('cache-control'),
         await response.json(),
       ]).toEqual([status, 'no-store', { error }])
-      if (status === 403 || url.includes('elsewhere')) expect(asked).toEqual([])
+      if (status < 422 || url.includes('elsewhere')) expect(asked).toEqual([])
     },
     60_000,
   )

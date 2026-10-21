@@ -13,7 +13,7 @@ export default [
     edits: [
       {
         file: route,
-        find: "yield* policy.admit(request)\n            if (!(request.headers['content-type']",
+        find: "yield* policy.admit(request, 'Upload')\n            if (!(request.headers['content-type']",
         replace: "if (!(request.headers['content-type']",
       },
     ],
@@ -24,7 +24,7 @@ export default [
     edits: [
       {
         file: route,
-        find: 'yield* policy.admit(request)\n            const url = new URL',
+        find: "yield* policy.admit(request, 'DescribeUrl')\n            const url = new URL",
         replace: 'const url = new URL',
       },
     ],
@@ -156,14 +156,14 @@ export default [
     edits: [
       {
         file: route,
-        find: "yield* policy.admit(request)\n            if (!(request.headers['content-type']",
+        find: "yield* policy.admit(request, 'Upload')\n            if (!(request.headers['content-type']",
         replace: "if (!(request.headers['content-type']",
       },
       {
         file: route,
         find: 'const bytes = yield* bodyOf(request, maxBytes)',
         replace:
-          'const bytes = yield* bodyOf(request, maxBytes)\n            yield* policy.admit(request)',
+          "const bytes = yield* bodyOf(request, maxBytes)\n            yield* policy.admit(request, 'Upload')",
       },
     ],
     tests,
@@ -202,6 +202,39 @@ export default [
         file: '../src/server/fetch.ts',
         find: '    return otherwise === undefined',
         replace: '    return true',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the upload route asks as the facts route',
+    edits: [
+      {
+        file: route,
+        find: "yield* policy.admit(request, 'Upload')",
+        replace: "yield* policy.admit(request, 'DescribeUrl')",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the facts route asks as the upload route',
+    edits: [
+      {
+        file: route,
+        find: "yield* policy.admit(request, 'DescribeUrl')",
+        replace: "yield* policy.admit(request, 'Upload')",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an ended session reads as forbidden',
+    edits: [
+      {
+        file: headers,
+        find: 'Unauthenticated: () => 401,',
+        replace: 'Unauthenticated: () => 403,',
       },
     ],
     tests,
