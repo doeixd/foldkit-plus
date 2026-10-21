@@ -6,6 +6,11 @@ implemented, 2026-10-21. Phase 5 is not needed: the fluid growth already uses
 at 390, 768 and 1440; the only open item is the CMS's `cqi` padding, which is
 spacing rather than type.
 
+A full `pnpm check` passes format, paths, icons, tags, mutation anchors and
+typecheck; `demo` and `pack:check` pass with `FOLDKIT_BUILD_ID=local`. The full
+browser run had two unrelated flakes (`sheetSwipe.touch` and
+`listboxSelect.browser`), each of which passes alone.
+
 **Scope:** the `foldkit-mixins` type scale and theme tokens, `Defaults`,
 `Prose`, the `Typography` recipe, and the examples that write per-component
 `clamp()` numbers.
