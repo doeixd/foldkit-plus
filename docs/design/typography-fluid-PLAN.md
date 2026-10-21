@@ -1,8 +1,8 @@
 # Fluid typography without `clamp()` magic numbers
 
-**Status:** Phases 1-3, the reading knobs, and container-based fluid type are
-implemented, 2026-10-21. Fluid roles, the exponential scale, the CMS's `cqi`
-padding, and screenshots remain.
+**Status:** Phases 1-4, the reading knobs, and container-based fluid type are
+implemented, 2026-10-21. The exponential scale, the CMS's `cqi` padding, and
+screenshots remain.
 
 **Scope:** the `foldkit-mixins` type scale and theme tokens, `Defaults`,
 `Prose`, the `Typography` recipe, and the examples that write per-component
@@ -386,17 +386,17 @@ Tests:
 - [ ] State in the Type pane's hint that previews follow the window, not the
       preview frame, until phase 6.
 
-### Phase 4: roles and the `Typography` recipe (optional, 1-2 commits)
+### Phase 4: roles and the `Typography` recipe (done)
 
-- [ ] Decide the role leading strategy: blend the rem leading with the same
-      ratio, or switch roles to a unitless leading.
-- [ ] Add fluid growth to `display`, `title` and `subtitle` only; keep `body`,
-      `caption` and `micro` fixed to protect the control ladder.
-- [ ] `Typography` levels `display`, `title` and `subtitle` become fluid;
-      update `packages/mixins-ui/test/typography.test.ts` and its mutations.
-- [ ] Browser test: a `title` in a compact region still steps with density and
-      grows with the viewport.
-- [ ] Docs.
+- [x] The role's rem leading is multiplied by the same progress as its size,
+      so the line box grows with the type.
+- [x] `Theme.role('display' | 'title' | 'subtitle', { fluid: true })` grows
+      only those three; `body`, `caption` and `micro` stay fixed to protect the
+      control ladder.
+- [x] `Typography` levels `display`, `title` and `subtitle` use it; the
+      `typography.test.ts` case and the browser role-growth test cover it.
+- [x] A type test refuses `{ fluid: true }` on `body`.
+- [x] Docs.
 
 ### Phase 5: exponential scale (optional, 1 commit)
 

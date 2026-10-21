@@ -413,6 +413,40 @@ test('the type knobs scale the text, spread the headings and open the lines', ()
   expect(measured('leading', { leading: '1.2' })).toBeCloseTo(64.8, 1)
 })
 
+test('a fluid role grows its size and leading by the same progress', () => {
+  const style = document.createElement('style')
+  style.dataset['test'] = ''
+  style.textContent = Style.stylesheet(
+    L.declare,
+    L.in('tokens', Theme.root(Theme.tokens, { colorScheme: 'light' })),
+  )
+  document.head.append(style)
+  const root = document.documentElement.style
+  const role = Theme.role('display', { fluid: true })
+  const box = document.createElement('div')
+  box.style.fontSize = role.fontSize
+  box.style.lineHeight = role.lineHeight
+  document.body.append(box)
+  const measure = () => {
+    const computed = getComputedStyle(box)
+    return {
+      size: Number.parseFloat(computed.fontSize),
+      leading: Number.parseFloat(computed.lineHeight),
+    }
+  }
+  root.setProperty('--fk-fluid-progress', '0')
+  const still = measure()
+  root.setProperty('--fk-fluid-progress', '1')
+  const fluid = measure()
+  expect(fluid.size).toBeGreaterThan(still.size)
+  expect(fluid.leading).toBeGreaterThan(still.leading)
+  expect(fluid.size / still.size).toBeCloseTo(1.12, 2)
+  expect(fluid.leading / still.leading).toBeCloseTo(1.12, 2)
+  root.removeProperty('--fk-fluid-progress')
+  box.remove()
+  style.remove()
+})
+
 test('fluid type is the viewport’s place between two ranges, and the strength scales it', () => {
   const style = document.createElement('style')
   style.dataset['test'] = ''

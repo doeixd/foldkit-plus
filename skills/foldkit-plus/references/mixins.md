@@ -358,9 +358,11 @@ themes a subtree; `Theme.fluidType({ min, max })` blends one size over the theme
 (`Theme.fluidType({ min, max, viewport })` over a range of its own, or
 `container: true` over the nearest `container-type: inline-size` ancestor;
 `Theme.containerFluidProgress()` is that container progress for
-`--fk-fluid-progress`); `reading.measure` (in `ch`) caps `Prose` and reading
-`Typography`, `reading.headingWrap` / `reading.bodyWrap` choose `text-wrap`, and
-`reading.align` sets reading alignment;
+`--fk-fluid-progress`; `Theme.role('display' | 'title' | 'subtitle', { fluid: true })`
+grows a role's size and leading together, while `body` / `caption` / `micro`
+stay on the control ladder); `reading.measure` (in `ch`) caps `Prose` and
+reading `Typography`, `reading.headingWrap` / `reading.bodyWrap` choose
+`text-wrap`, and `reading.align` sets reading alignment;
 `Knobs.schema(knobs)` decodes a theme's values, `Theme.print(theme)` writes its source, and each
 knob's `title`, `description` and `default` draw its control; `Knobs.at(knobs, path)`, `Knobs.valueAt` and
 `Knobs.withValue` reach one knob by its path, typed), put bases in the

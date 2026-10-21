@@ -67,4 +67,10 @@ describe('Typography recipe', () => {
     for (const level of ['h1', 'body', 'caption'] as const)
       expect(css({ level }), level).toContain('text-align:var(--fk-reading-align)')
   })
+
+  it('grows the interface roles with fluid type, and leaves the body role fixed', () => {
+    for (const level of ['display', 'title', 'subtitle'] as const)
+      expect(css({ level }), level).toContain('var(--fk-fluid-progress)')
+    expect(css({ level: 'body' })).not.toContain('var(--fk-fluid-progress)')
+  })
 })

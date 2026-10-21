@@ -74,7 +74,7 @@ export const Typography = Style.recipeFor(TypographySlots)({
       display: {
         text: variant(
           Style.self({
-            ...role('display'),
+            ...role('display', { fluid: true }),
             fontFamily: ref.font.heading,
             fontWeight: `calc(${ref.weight.heading} + 100)`,
             letterSpacing: ref.tracking.heading,
@@ -84,7 +84,7 @@ export const Typography = Style.recipeFor(TypographySlots)({
       title: {
         text: variant(
           Style.self({
-            ...role('title'),
+            ...role('title', { fluid: true }),
             fontFamily: ref.font.heading,
             fontWeight: ref.weight.heading,
           }),
@@ -93,7 +93,7 @@ export const Typography = Style.recipeFor(TypographySlots)({
       subtitle: {
         text: variant(
           Style.self({
-            ...role('subtitle'),
+            ...role('subtitle', { fluid: true }),
             fontFamily: ref.font.heading,
             fontWeight: ref.weight.heading,
           }),

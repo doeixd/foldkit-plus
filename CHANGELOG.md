@@ -26,6 +26,9 @@ version changed; `pnpm` skips versions already in the registry.
   nearest `inline-size` container rather than the window. `/create`'s previews
   now follow their own frame, and the CMS hero uses its page container; the
   CMS's remaining `cqi` padding clamp is spacing, not type.
+- `Theme.role('display', { fluid: true })` grows `display`, `title` and
+  `subtitle` in both size and leading; `Typography` uses it, while `body`,
+  `caption` and `micro` stay on the control ladder.
 - `foldkit-mixins` / `foldkit-mixins-ui`: a `reading` knob group.
   `reading.measure` (in `ch`) caps `Prose` and the `body`, `lead` and `quote`
   levels of `Typography`; `reading.headingWrap` and `reading.bodyWrap` choose

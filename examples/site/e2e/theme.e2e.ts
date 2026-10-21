@@ -226,11 +226,15 @@ test('the fluid and reading knobs reach the Typography canvas', async () => {
   const shown = async () => {
     await typeTab.click()
     const h1 = page.locator('[data-size="specimen"] h1').first()
+    const display = page.locator('[data-size="specimen"] p', { hasText: '1,284 orders' }).first()
     const body = page
       .locator('[data-size="specimen"] p', { hasText: 'Your card is charged' })
       .first()
     return {
       size: await h1.evaluate(element => Number.parseFloat(getComputedStyle(element).fontSize)),
+      displaySize: await display.evaluate(element =>
+        Number.parseFloat(getComputedStyle(element).fontSize),
+      ),
       container: await page
         .locator('[data-size="specimen"]')
         .evaluate(element => getComputedStyle(element).containerType),
@@ -274,6 +278,7 @@ test('the fluid and reading knobs reach the Typography canvas', async () => {
   )
   const fluid = await shown()
   expect(fluid.size).toBeGreaterThan(still.size)
+  expect(fluid.displaySize).toBeGreaterThan(still.displaySize)
   expect(fluid.wrap).toBe('pretty')
   expect(fluid.bodyWrap).toBe('wrap')
   expect(fluid.align).toBe('center')

@@ -156,6 +156,13 @@ describe('Theme.tokens', () => {
     ).toContain('tan(atan2(100vw - 320px, 1440px - 320px))')
   })
 
+  it('grows a display role’s size and leading together, and leaves the body role', () => {
+    const display = Theme.role('display', { fluid: true })
+    expect(display.fontSize).toContain('var(--fk-fluid-progress)')
+    expect(display.lineHeight).toContain('var(--fk-fluid-progress)')
+    expect(Theme.role('body').fontSize).not.toContain('var(--fk-fluid-progress)')
+  })
+
   it('measures a container by cqw, not the window', () => {
     expect(Theme.containerFluidRatio()).toContain(
       'tan(atan2(100cqw - var(--fk-knob-fluid-viewport-min)',

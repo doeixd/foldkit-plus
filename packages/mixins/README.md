@@ -398,6 +398,11 @@ the progress of the nearest `container-type: inline-size` ancestor, for setting
 `--fk-fluid-progress` on its contents, and `Theme.fluidType({ min, max, container: true })`
 uses it directly. `/create`'s previews and the CMS hero are drawn this way.
 
+`Typography`'s `display`, `title` and `subtitle` grow with the same progress, their leading
+growing with their size: `Theme.role('display', { fluid: true })`. The interface roles
+`body`, `caption` and `micro` stay on the control ladder, so a button's or a field's words do
+not outgrow its height.
+
 Themes are installed by name, the names being a record's keys:
 
 ```ts

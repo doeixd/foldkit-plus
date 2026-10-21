@@ -300,6 +300,12 @@ of a `container-type: inline-size` ancestor, and
 intermediate property. `/create`'s previews and the CMS hero use this, so a
 narrow preview reads as a narrow page.
 
+The interface roles `display`, `title` and `subtitle` can grow too:
+`Theme.role('display', { fluid: true })` multiplies both the size and the
+rem leading by the same progress, so the line box grows with the type.
+`body`, `caption` and `micro` stay fixed: they set a control's words, and the
+control's height is the ladder's.
+
 ### Reading
 
 `reading.measure` is a length in `ch`, so it follows the reading font: `Prose`

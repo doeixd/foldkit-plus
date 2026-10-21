@@ -359,16 +359,44 @@ export const concentric = (bounds: { readonly min: string; readonly max: string 
 
 /** A role of the type scale. */
 export type Role = 'display' | 'title' | 'subtitle' | 'body' | 'caption' | 'micro'
+/** A role that may grow with fluid type; the interface roles stay on the control ladder. */
+export type FluidRole = 'display' | 'title' | 'subtitle'
+
+/** How much a fluid role's size and leading grow at the large end. */
+const ROLE_FLUID: Readonly<Record<FluidRole, number>> = {
+  display: 0.12,
+  title: 0.08,
+  subtitle: 0.06,
+}
+
+const roleGrowth = (name: FluidRole, value: string): string =>
+  `calc(${value} * (1 + ${ROLE_FLUID[name]} * var(--fk-fluid-progress)))`
 
 /**
  * Text in `role`: its size and leading on the size ladder, read on the
  * element like `ladder`, so a compact region's text steps down with its
- * controls.
+ * controls. A `display`, `title` or `subtitle` may also grow with
+ * `{ fluid: true }`, its leading growing with its size.
  */
-export const role = (name: Role): { readonly fontSize: string; readonly lineHeight: string } => ({
-  fontSize: blend('type', `${name}-size`),
-  lineHeight: blend('type', `${name}-leading`),
-})
+export function role(
+  name: FluidRole,
+  options: { readonly fluid: true },
+): {
+  readonly fontSize: string
+  readonly lineHeight: string
+}
+export function role(name: Role): { readonly fontSize: string; readonly lineHeight: string }
+export function role(
+  name: Role,
+  options?: { readonly fluid?: true },
+): { readonly fontSize: string; readonly lineHeight: string } {
+  const size = blend('type', `${name}-size`)
+  const leading = blend('type', `${name}-leading`)
+  if (options?.fluid !== true || !(name in ROLE_FLUID))
+    return { fontSize: size, lineHeight: leading }
+  const grown = name as FluidRole
+  return { fontSize: roleGrowth(grown, size), lineHeight: roleGrowth(grown, leading) }
+}
 
 /** A token's default end blended toward its `-compact` one by the `step` knob. */
 const blend = (group: string, name: string) => {
