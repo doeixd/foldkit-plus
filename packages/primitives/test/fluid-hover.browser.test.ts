@@ -217,6 +217,47 @@ it('follows no touch', async () => {
   }
 })
 
+it('marks its container held while the lit item is pressed, and lets go on release or on leaving', async () => {
+  const hover = await mount()
+  try {
+    hover.point(50, 30)
+    await vi.waitFor(() => expect(hover.highlighted()).toBe(0))
+    const held = () => hover.container.getAttribute('data-fluid-held')
+    expect(held()).toBeNull()
+    hover.items[0]!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }))
+    expect(held()).toBe('hover')
+    window.dispatchEvent(new PointerEvent('pointerup'))
+    expect(held()).toBeNull()
+    // Pressed again, then the pointer leaves: nothing is held once it is away.
+    hover.items[0]!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }))
+    expect(held()).toBe('hover')
+    hover.container.dispatchEvent(new PointerEvent('pointerleave'))
+    expect(held()).toBeNull()
+  } finally {
+    await hover.stop()
+  }
+})
+
+it('marks held for the gap a click reaches through, and not for another item', async () => {
+  const hover = await mount()
+  try {
+    // The gap between items 1 and 2, nearest item 2: a click there presses it.
+    hover.point(50, 125)
+    await vi.waitFor(() => expect(hover.highlighted()).toBe(2))
+    const held = () => hover.container.getAttribute('data-fluid-held')
+    hover.container.dispatchEvent(
+      new PointerEvent('pointerdown', { bubbles: true, button: 0, clientX: 50, clientY: 125 }),
+    )
+    expect(held()).toBe('hover')
+    window.dispatchEvent(new PointerEvent('pointerup'))
+    // Item 0 is not the lit one: its press is its own, and marks nothing.
+    hover.items[0]!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }))
+    expect(held()).toBeNull()
+  } finally {
+    await hover.stop()
+  }
+})
+
 it('presses the highlighted item from a gap, and nothing from the item itself', async () => {
   const hover = await mount()
   try {

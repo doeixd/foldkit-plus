@@ -273,6 +273,10 @@ export const palette = define({
   // films reading it directly (`neutral`, as before).
   state: {
     hover: `color-mix(in oklab, currentColor ${v('knob', 'state-hover')}, transparent)`,
+    // The same ink held down: a press is the hover at 1.75, one strength the
+    // `hoverStrength` knob moves for both. `pressedHover` is its twin, and
+    // takes the surface's ink where this one takes the text's.
+    press: `color-mix(in oklab, currentColor calc(${v('knob', 'state-hover')} * 1.75), transparent)`,
     tint: ld(
       `color-mix(in oklab, currentColor ${v('knob', 'state-tint')}, transparent)`,
       `color-mix(in oklab, currentColor ${v('knob', 'state-tint-dark')}, transparent)`,
@@ -305,6 +309,13 @@ export const palette = define({
       v('accent', 'default'),
       'popup-bold',
       `color-mix(in oklab, ${v('popup', 'ink')} 8%, transparent)`,
+    ),
+    // Held down, as a row's hover deepens to its press: the accent darker, the
+    // panel's own ink denser.
+    press: share(
+      v('accent', 'active'),
+      'popup-bold',
+      `color-mix(in oklab, ${v('popup', 'ink')} 14%, transparent)`,
     ),
     'highlight-ink': share(v('accent', 'on-fill'), 'popup-bold', v('popup', 'ink')),
     blur: v('knob', 'popup-blur'),

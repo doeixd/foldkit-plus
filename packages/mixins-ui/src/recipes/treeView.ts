@@ -21,7 +21,11 @@ import {
   component,
   cornerSides,
   glide,
+  heldHighlight,
+  HOVERED,
   opensBelow,
+  PRESSED,
+  pressedHover,
   ref,
   rowOnLadder,
   transition,
@@ -70,6 +74,7 @@ export const TreeView = Style.recipeFor(TreeViewSlots)({
         ...glide('fast', hovered('moving')),
       }),
       Style.nest(':where([data-fluid-hover]) > &', { display: 'block' }),
+      heldHighlight,
     ),
     item: component(opensBelow(open), Style.self({ outline: 'none' })),
     row: component(
@@ -85,7 +90,8 @@ export const TreeView = Style.recipeFor(TreeViewSlots)({
         userSelect: 'none',
         ...transition('background-color, color'),
       }),
-      Style.nest(`${unlit}:is(:hover, :active)`, { background: unfilledHover }),
+      Style.nest(`${unlit}${HOVERED}`, { background: unfilledHover }),
+      Style.nest(`${unlit}${PRESSED}`, { background: pressedHover }),
       Style.pseudo(':is(:hover, :active, [data-fluid-lit])', { color: ref.text.overt }),
       // `:is`, not `:where`, so a chosen or disabled row keeps its look under the pointer.
       Style.nest(':is([aria-selected="true"]) > &', {

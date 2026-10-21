@@ -31,6 +31,15 @@ export const FLUID_PRESS_ATTRIBUTE = 'data-fluid-press'
 /** The attribute on the item the highlight is shown on, for what CSS draws beside it. */
 export const FLUID_LIT_ATTRIBUTE = 'data-fluid-lit'
 
+/**
+ * The attribute `FluidHover` sets on its container, to the highlight's name,
+ * while the item that highlight is on is held. A stylist draws the press on
+ * the highlight (`data-fluid-held`) rather than on the item, whose own press
+ * is hidden under it; a press in a gap marks it too where `gapClick` sends
+ * that press to the lit item.
+ */
+export const FLUID_HELD_ATTRIBUTE = 'data-fluid-held'
+
 const Axis = Schema.Literals(['x', 'y', 'xy'])
 export type FluidAxis = typeof Axis.Type
 
@@ -79,7 +88,7 @@ const isDisabled = (item: Element) =>
  * tries again for three frames, rather than drawing the highlight at zero.
  * The item the highlight is shown on carries `data-fluid-lit`, so a style
  * can change what sits beside it (a table hides the lines around the lit
- * row).
+ * row); its container carries `data-fluid-held` while that item is pressed.
  *
  * `follows` names the item the highlight sits on while the pointer is not
  * moving it: a menu marks the row its keys reach (`[data-active]`), and the
@@ -172,6 +181,7 @@ export const FluidHover = Mount.defineStream('FluidHover', {
           }
           const hide = () => {
             container.style.setProperty(property.shown, '0')
+            container.removeAttribute(FLUID_HELD_ATTRIBUTE)
             light(null)
           }
           /** Whether the keyboard has an item focused, which the highlight then stays on. */
@@ -210,6 +220,7 @@ export const FluidHover = Mount.defineStream('FluidHover', {
           }
           const leave = () => {
             pointer = null
+            release()
             if (!keyed()) hide()
           }
           const focus = (event: FocusEvent) => {
@@ -225,24 +236,39 @@ export const FluidHover = Mount.defineStream('FluidHover', {
             const to = event.relatedTarget
             if (pointer === null && !(to instanceof Node && container.contains(to))) hide()
           }
+          const reachOf = (item: Element, event: MouseEvent) =>
+            gapReach === undefined ||
+            distance(item.getBoundingClientRect(), event.clientX, event.clientY, 'xy') <= gapReach
+          /** Whether a click in a gap presses the lit item, within `gapReach` of it. */
+          const reaches = (item: Element, event: MouseEvent) => gapClick && reachOf(item, event)
           const click = (event: MouseEvent) => {
-            if (!gapClick || active === null) return
+            if (active === null) return
             if (container.style.getPropertyValue(property.shown) !== '1') return
             const target = event.target
             if (!(target instanceof Element) || target.closest(selector) !== null) return
-            const reach = distance(
-              active.getBoundingClientRect(),
-              event.clientX,
-              event.clientY,
-              'xy',
-            )
-            if (gapReach !== undefined && reach > gapReach) return
+            if (!reaches(active, event)) return
             const press = active.querySelector(`[${FLUID_PRESS_ATTRIBUTE}]`) ?? active
             if (press instanceof HTMLElement) press.click()
           }
           const soon = () => {
             if (active !== null) requestAnimationFrame(() => place())
           }
+          /**
+           * Marks the container as held where the press is the lit item's: the
+           * item itself, or a gap a click there reaches through (`gapClick`). A
+           * press on another item is that item's, once the pointer has lit it.
+           */
+          const press = (event: PointerEvent) => {
+            if (event.button !== 0 || active === null) return
+            if (container.style.getPropertyValue(property.shown) !== '1') return
+            const target = event.target
+            if (!(target instanceof Element)) return
+            const inItem = target.closest(selector) !== null
+            if (inItem && !active.contains(target)) return
+            if (!inItem && !reaches(active, event)) return
+            container.setAttribute(FLUID_HELD_ATTRIBUTE, name)
+          }
+          const release = () => container.removeAttribute(FLUID_HELD_ATTRIBUTE)
           /** The marked item moved: the highlight goes with it, or fades if it is gone. */
           const marked = () => {
             if (follows === undefined) return
@@ -260,7 +286,12 @@ export const FluidHover = Mount.defineStream('FluidHover', {
           sizes?.observe(container)
           marks?.observe(container, { subtree: true, childList: true, attributes: true })
           container.addEventListener('pointermove', move, { passive: true })
+          container.addEventListener('pointerdown', press)
           container.addEventListener('pointerleave', leave)
+          // Released outside the container, or cancelled by the browser (a
+          // scroll taking the gesture): the press ended either way.
+          window.addEventListener('pointerup', release)
+          window.addEventListener('pointercancel', release)
           container.addEventListener('focusin', focus)
           container.addEventListener('focusout', blur)
           container.addEventListener('click', click)
@@ -274,9 +305,13 @@ export const FluidHover = Mount.defineStream('FluidHover', {
             sizes?.disconnect()
             marks?.disconnect()
             container.removeAttribute(FLUID_HOVER_ATTRIBUTE)
+            container.removeAttribute(FLUID_HELD_ATTRIBUTE)
             light(null)
             container.removeEventListener('pointermove', move)
+            container.removeEventListener('pointerdown', press)
             container.removeEventListener('pointerleave', leave)
+            window.removeEventListener('pointerup', release)
+            window.removeEventListener('pointercancel', release)
             container.removeEventListener('focusin', focus)
             container.removeEventListener('focusout', blur)
             container.removeEventListener('click', click)

@@ -17,9 +17,13 @@ import { Utilities } from 'foldkit-mixins/utilities'
 import {
   component,
   glide,
+  heldHighlight,
   hover,
+  HOVERED,
   onLadder,
   pressCorner,
+  PRESSED,
+  pressedHover,
   ref,
   steps,
   trimmed,
@@ -80,6 +84,7 @@ export const Segmented = Style.recipeFor(SegmentedSlots)({
         ...glide('fast', 'var(--fk-segmented-hover-moving)'),
       }),
       Style.nest(lit, { display: 'block' }),
+      heldHighlight,
     ),
     option: component(
       Style.self({
@@ -98,10 +103,12 @@ export const Segmented = Style.recipeFor(SegmentedSlots)({
       }),
       hover({ color: ref.text.overt }),
       // Without `fluid`, each option tints itself, as the highlight tints it with `fluid`.
-      Style.nest(
-        `:where(:not([data-fluid-hover])) > &:not(${pressed}, [aria-disabled="true"], :disabled):is(:hover, :active)`,
-        { background: unfilledHover },
-      ),
+      Style.nest(`:where(:not([data-fluid-hover])) > &:not(${pressed})${HOVERED}`, {
+        background: unfilledHover,
+      }),
+      Style.nest(`:where(:not([data-fluid-hover])) > &:not(${pressed})${PRESSED}`, {
+        background: pressedHover,
+      }),
       // A pressed option turns semibold; a `data-label` on it keeps its width.
       Utilities.steady('semibold'),
       // Its steady copy holds the words alone: room for the icon beside them too.

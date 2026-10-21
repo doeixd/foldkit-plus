@@ -10,8 +10,10 @@ import {
   component,
   disabled,
   glide,
+  HOVERED,
   listScroll,
   presence,
+  PRESSED,
   ref,
   rowOnLadder,
   variant,
@@ -118,7 +120,12 @@ export const item: StyleValue = component(
   }),
   // The row the keys or the pointer are on (upstream marks it `data-active`),
   // until a fluid highlight runs in the panel and lights it instead.
-  Style.nest(`${unlit}:is(:hover, :active):not([aria-disabled="true"], :disabled)`, lighted),
+  Style.nest(`${unlit}${HOVERED}`, lighted),
+  // Held down, the panel's own highlight deepens.
+  Style.nest(`${unlit}${PRESSED}`, {
+    background: ref.popup.press,
+    color: ref.popup['highlight-ink'],
+  }),
   Style.nest(`${unlit}[data-active]`, lighted),
   // Under a fluid highlight the highlight is the fill; the row keeps its ink.
   Style.nest(`:where([data-fluid-hover]) &[data-active]`, { color: ref.popup['highlight-ink'] }),
@@ -158,6 +165,8 @@ export const highlight: StyleValue = component(
     ...glide('fast', 'var(--fk-popup-hover-moving)'),
   }),
   Style.nest(lit, { display: 'block' }),
+  // The panel's own highlight deepens while the lit row is held.
+  Style.nest(':where([data-fluid-held]) > &', { background: ref.popup.press }),
 )
 
 /**

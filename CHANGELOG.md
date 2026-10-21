@@ -25,6 +25,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- `foldkit-mixins` / `foldkit-mixins-ui`: a press is its own state. `state.press` is the
+  hover's film at 1.75, and `hover()` lays it while a row, tab, accordion trigger or menu item
+  is held, so a press no longer looks like the hover it followed. `FluidHover` marks its
+  container `data-fluid-held` while the lit item is pressed, and every fluid highlight (Table,
+  Segmented, Tabs, Nav, Sidebar, TreeView) and the popups' own deepen with it. One knob,
+  `surface.hoverStrength`, sets both strengths.
 - `foldkit-mixins`: `surface.hoverStrength`, how strongly a hovered row or button is tinted
   (4% to 24%); the palette's `state-hover` was a fixed 12%, which stays the default, so a theme
   that does not set it draws as before.

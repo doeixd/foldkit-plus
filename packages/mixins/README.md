@@ -433,14 +433,16 @@ at both ends, where a vivid near-white or near-black falls out of gamut; `wash-1
 mix step 6 into `surface.base` at 8, 16, 28 and 44%, so a tinted ground follows the scheme and
 the surface knobs. Each hue is a knob (`red-h`), and `scale-c` scales every step's chroma
 (`--fk-blue-wash-2`, `ref.blue['6']`). The `popup` group is a menu's
-panel (`surface`, `ink`, `blur`) and its lit row (`highlight`, `highlight-ink`): `menu.highlight:
-'bold'` lights the row in the accent's fill, and `menu.panel` draws the panel `inverted`
-(the other scheme's surface and text) or `translucent` over a blur, as shadcn's menu options do.
+panel (`surface`, `ink`, `blur`) and its lit row (`highlight`, `press`, `highlight-ink`):
+`menu.highlight: 'bold'` lights the row in the accent's fill, and `menu.panel` draws the panel
+`inverted` (the other scheme's surface and text) or `translucent` over a blur, as shadcn's menu
+options do.
 Each is a 0-or-1 knob (`popup-bold`, `popup-invert`) blended by `color-mix`, so an override
 switches it live. The `state` group is what a state lays over the surface under it, a mix of the
-element's own text color (`hover`; `tint` and `tint-hover`, a see-through fill; `edge`, a hairline
-inside an image), so it reads at any elevation and on any band; its amounts are knob variables
-(`state-hover`, `state-tint`, `state-tint-dark`, `image-edge`), and a theme sets the hover's with
+element's own text color (`hover`, and `press` at 1.75 of it; `tint` and `tint-hover`, a
+see-through fill; `edge`, a hairline inside an image), so it reads at any elevation and on any
+band; its amounts are knob variables (`state-hover`, `state-tint`, `state-tint-dark`,
+`image-edge`), and a theme sets the hover's, and the press's with it, with
 `surface.hoverStrength` (4% to 24%, 12% by default). `Theme.nested(outer, inset,
 border?)` is the radius of a surface inset in another, so their corners are concentric. A
 container that pads its children can publish that instead: spread `Theme.nests(radius, inset,

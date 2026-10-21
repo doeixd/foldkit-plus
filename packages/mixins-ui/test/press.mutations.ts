@@ -1,52 +1,55 @@
 /**
- * A button's press, broken in turn:
- * `pnpm mutate packages/mixins-ui/test/press.mutations.ts`.
+ * A press being its own state, broken in turn: the film's strength, the
+ * shared piece's press rule, the fluid highlight's held rule, and the mark
+ * `FluidHover` sets. `pnpm mutate packages/mixins-ui/test/press.mutations.ts`
+ * checks that a test fails for every one.
  */
 const tests = ['packages/mixins-ui/test/press.browser.test.ts']
-const file = '../src/recipes/button.ts'
+const mount = ['packages/primitives/test/fluid-hover.browser.test.ts']
 
 export default [
   {
-    name: 'a press changes nothing',
+    name: 'a press is the hover’s strength, not 1.75 of it',
     edits: [
       {
-        file,
-        find: "    borderColor: 'transparent',\n    transitionDuration: ref.motion.fast,",
-        replace: '    transitionDuration: ref.motion.fast,',
+        file: '../src/recipes/design.ts',
+        find: "calc(${ref.knob['state-hover']} * 1.75)",
+        replace: "${ref.knob['state-hover']}",
       },
     ],
     tests,
   },
   {
-    name: 'the fill runs under the border, so a press shrinks nothing',
-    edits: [{ file, find: "    backgroundClip: 'padding-box',\n", replace: '' }],
-    tests,
-  },
-  {
-    name: 'a press keeps the resting fill',
-    edits: [{ file, find: '    background: fillActive,\n', replace: '' }],
-    tests,
-  },
-  {
-    name: 'a held button keeps its size',
+    name: 'the shared hover piece presses with the hover’s own declarations',
     edits: [
       {
-        file,
-        find: 'scale: `calc(1 - 0.02 * ${ref.knob.travel})`',
-        replace: "scale: '1'",
+        file: '../src/recipes/design.ts',
+        find: 'Style.pseudo(PRESSED, held(declarations))',
+        replace: 'Style.pseudo(PRESSED, declarations)',
       },
     ],
     tests,
   },
   {
-    name: 'the press scales under reduced motion too',
+    name: 'a fluid highlight ignores the held mark',
     edits: [
       {
-        file,
-        find: 'scale: `calc(1 - 0.02 * ${ref.knob.travel})`',
-        replace: "scale: '0.98'",
+        file: '../src/recipes/design.ts',
+        find: "Style.nest(':where([data-fluid-held]) > &', {",
+        replace: "Style.nest(':where([data-fluid-hover]) > &', {",
       },
     ],
     tests,
+  },
+  {
+    name: 'FluidHover never marks the item its highlight lights as held',
+    edits: [
+      {
+        file: '../../primitives/src/dom/fluid-hover.ts',
+        find: '            container.setAttribute(FLUID_HELD_ATTRIBUTE, name)\n',
+        replace: '',
+      },
+    ],
+    tests: mount,
   },
 ]

@@ -16,7 +16,12 @@ import {
   component,
   focusRing,
   glide,
+  heldHighlight,
+  hover,
+  HOVERED,
   onLadder,
+  PRESSED,
+  pressedHover,
   ref,
   transition,
   triggerChevron,
@@ -65,8 +70,10 @@ const entry = Style.compose(
   }),
   Style.pseudo(':hover', { color: ref.text.overt }),
   Style.pseudo(current, { color: ref.text.overt }),
-  // Without `fluid`, the current entry draws its own line and the hover its fill.
-  Style.nest(unlit(':is(:hover, :active)'), { background: unfilledHover }),
+  // Without `fluid`, the current entry draws its own line and the hover its fill,
+  // deeper under a press.
+  Style.nest(unlit(HOVERED), { background: unfilledHover }),
+  Style.nest(unlit(PRESSED), { background: pressedHover }),
   Style.nest(unlit(current), {
     boxShadow: `inset 0 calc(-1 * ${ref.border.thick}) 0 ${ref.accent.default}`,
   }),
@@ -150,7 +157,7 @@ export const Nav = Style.recipeFor(NavSlots)({
         textDecoration: 'none',
         ...transition('background-color'),
       }),
-      Style.pseudo(':is(:hover, :active)', { background: unfilledHover }),
+      hover({ background: unfilledHover }),
       Style.pseudo('[aria-current="page"]', {
         background: ref.accent.subtle,
         color: ref.accent.ink,
@@ -192,6 +199,7 @@ export const Nav = Style.recipeFor(NavSlots)({
         opacity: 'var(--fk-nav-hover-shown)',
         ...glide('fast', 'var(--fk-nav-hover-moving)'),
       }),
+      heldHighlight,
       Style.nest(fluid, { display: 'block' }),
     ),
   },

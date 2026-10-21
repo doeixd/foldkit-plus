@@ -13,6 +13,7 @@ import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { Recipes, SegmentedSlots, TableSlots, TabsSlots } from '../src/index.js'
+import { alpha, backgroundOf, painted } from './colour.js'
 
 type Made = Parameters<typeof Theme.standard>[0]
 
@@ -75,21 +76,8 @@ const mount = async (made: Made) => {
   return handle
 }
 
-/** A colour as the browser paints it over nothing: `[r, g, b, a]`, each 0 to 255. */
-const painted = (color: string): ReadonlyArray<number> => {
-  const canvas = document.createElement('canvas')
-  canvas.width = 1
-  canvas.height = 1
-  const context = canvas.getContext('2d')!
-  context.fillStyle = color
-  context.fillRect(0, 0, 1, 1)
-  return Array.from(context.getImageData(0, 0, 1, 1).data)
-}
-const backgroundOf = (id: string) =>
-  painted(getComputedStyle(document.getElementById(id)!).backgroundColor)
 /** How far from grey: a tint of the accent has some, of the text none. */
 const hue = ([r, g, b]: ReadonlyArray<number>) => Math.max(r!, g!, b!) - Math.min(r!, g!, b!)
-const alpha = (color: ReadonlyArray<number>) => color[3]!
 
 const highlights = ['table-highlight', 'table-expand', 'segmented-highlight', 'tabs-highlight']
 const accent = { accent: { hue: 265, chroma: 0.16 } } as const

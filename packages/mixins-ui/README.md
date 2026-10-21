@@ -645,7 +645,8 @@ What a recipe assumes and does:
   pointer, so iOS Safari does not zoom the page into it.
 - **A state is a tint, not a surface.** An unfilled control's hover is a
   faint film of the state ink over whatever is under it, so it reads on a
-  muted page, a colored band or an inverted panel. The ink is the theme's
+  muted page, a colored band or an inverted panel; a press lays that film
+  stronger (`state.press`, 1.75 of the hover's). The ink is the theme's
   `--fk-state-ink` (`state.ink`: the element's own text, or the accent's ink
   under `stateHue: 'accent'`) unless a painted surface above names its paint
   in the local `--_fk-state-ink`: the accent and danger tones name their
@@ -669,7 +670,10 @@ What a recipe assumes and does:
   pressed toggle (`aria-pressed="true"`) rests on its tone's fill, a solid
   one on the `active` fill; hovered, a solid toggle keeps it and an unfilled
   one takes its tone's hover fill; held, it deepens to the `active` fill; and
-  its text stays the fill's throughout. Chosen rows next to each other in a multiple listbox or
+  its text stays the fill's throughout. A hovered row, tab, menu item or
+  accordion row darkens while the press is held, and a fluid highlight darkens
+  with the item it lights (`FluidHover` marks the container `data-fluid-held`).
+  Chosen rows next to each other in a multiple listbox or
   combobox merge into one block.
 - **Raised surfaces nest.** Popups, popovers, date picker panels and toasts
   sit two levels above what holds them and dialogs four (`Theme.raise`), each

@@ -30,6 +30,7 @@ import {
   component,
   disabled,
   focusRing,
+  hover,
   ref,
   transition,
   travelled,
@@ -189,7 +190,7 @@ export const Accordion = Style.recipeFor(AccordionSlots)({
         root: variant(Style.self({ '--_fk-accordion-inset': ladder('row-pad') })),
         trigger: variant(
           Style.self({ borderRadius: ref.radius.md }),
-          Style.pseudo(':is(:hover, :active):not(:disabled)', { background: unfilledHover }),
+          hover({ background: unfilledHover }),
         ),
       },
     },

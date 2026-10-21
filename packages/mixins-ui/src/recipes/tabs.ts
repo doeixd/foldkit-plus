@@ -18,6 +18,7 @@ import {
   disabled,
   focusRing,
   glide,
+  heldHighlight,
   hover,
   onLadder,
   ref,
@@ -97,6 +98,7 @@ export const Tabs = Style.recipeFor(TabsSlots)({
         ...glide('fast', hovered('moving')),
       }),
       Style.nest(fluid, { display: 'block' }),
+      heldHighlight,
     ),
     tab: component(
       Style.self({
@@ -250,6 +252,8 @@ export const Tabs = Style.recipeFor(TabsSlots)({
             background: unfilledHover,
             opacity: hovered('shown'),
           }),
+          // Beside the fill it deepens, since a variant's own rule beats the base's held one.
+          heldHighlight,
         ),
       },
     },

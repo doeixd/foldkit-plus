@@ -207,10 +207,7 @@ export const CascadeSelect = Style.recipeFor(CascadeSelectSlots)({
       ghost: {
         trigger: variant(
           Style.self({ background: 'transparent', borderColor: 'transparent' }),
-          Style.pseudo(':is(:hover, :active):not(:disabled, [aria-disabled="true"])', {
-            background: unfilledHover,
-            borderColor: 'transparent',
-          }),
+          hover({ background: unfilledHover, borderColor: 'transparent' }),
         ),
       },
     },

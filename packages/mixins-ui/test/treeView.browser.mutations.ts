@@ -55,8 +55,8 @@ export default [
     edits: [
       {
         file: '../src/recipes/treeView.ts',
-        find: 'Style.nest(`${unlit}:is(:hover, :active)`',
-        replace: "Style.nest('&:is(:hover, :active)'",
+        find: 'Style.nest(`${unlit}${HOVERED}`',
+        replace: 'Style.nest(`&${HOVERED}`',
       },
     ],
     tests,

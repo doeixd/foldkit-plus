@@ -29,7 +29,12 @@ import {
   controlHeight,
   focusRing,
   glide,
+  heldHighlight,
+  hover,
+  HOVERED,
   opensBelow,
+  PRESSED,
+  pressedHover,
   ref,
   rowOnLadder,
   transition,
@@ -71,7 +76,7 @@ const handle = Style.compose(
     cursor: 'pointer',
     ...transition('background-color, color'),
   }),
-  Style.pseudo(':is(:hover, :active)', { backgroundColor: unfilledHover, color: ref.text.overt }),
+  hover({ backgroundColor: unfilledHover, color: ref.text.overt }),
   focusRing,
 )
 
@@ -112,7 +117,8 @@ const row = Style.compose(
     cursor: 'pointer',
     ...transition('background-color, color'),
   }),
-  Style.nest(`${unlit}:is(:hover, :active)`, { background: unfilledHover }),
+  Style.nest(`${unlit}${HOVERED}`, { background: unfilledHover }),
+  Style.nest(`${unlit}${PRESSED}`, { background: pressedHover }),
   Style.pseudo(':hover', { color: ref.text.overt }),
   Style.pseudo('[aria-current="page"]', { color: ref.accent.ink, fontWeight: ref.weight.medium }),
   Style.nest(`${unlit}[aria-current="page"]`, { background: ref.accent.subtle }),
@@ -234,7 +240,7 @@ export const Sidebar = Style.recipeFor(SidebarSlots)({
         cursor: 'pointer',
         ...transition('background-color, color'),
       }),
-      Style.pseudo(':is(:hover, :active)', { background: unfilledHover, color: ref.text.overt }),
+      hover({ background: unfilledHover, color: ref.text.overt }),
       Style.nest(railed, { display: 'none' }),
       Style.nest(headed, { paddingInlineEnd: controlHeight }),
       focusRing,
@@ -369,7 +375,7 @@ export const Sidebar = Style.recipeFor(SidebarSlots)({
         cursor: 'pointer',
         ...transition('opacity, background-color, color'),
       }),
-      Style.pseudo(':is(:hover, :active)', { background: unfilledHover, color: ref.text.overt }),
+      hover({ background: unfilledHover, color: ref.text.overt }),
       Style.at(
         '@media (hover: hover)',
         Style.nest(`:where(${actionRow}:not(:hover, :focus-within)) > &`, { opacity: '0' }),
@@ -391,6 +397,7 @@ export const Sidebar = Style.recipeFor(SidebarSlots)({
         ...glide('fast', 'var(--fk-sidebar-hover-moving)'),
       }),
       Style.nest(lit, { display: 'block' }),
+      heldHighlight,
     ),
     // A hit area centred on the column's border, so the press need not land on its pixel.
     resize: component(

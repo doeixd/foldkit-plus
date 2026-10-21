@@ -7,6 +7,9 @@
  * under reduced motion; let go, it comes back. The press is forced through
  * Chrome: a real held mouse races the other test files, which share one
  * pointer and move or press it while this one holds it down.
+ *
+ * A row and a fluid highlight press too: the state film is laid at 1.75 while
+ * held, and the highlight takes it while `FluidHover` marks its container.
  */
 import { Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
@@ -15,7 +18,8 @@ import { Layers, SlotView, Style } from 'foldkit-mixins'
 import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
-import { ButtonSlots, Recipes } from '../src/index.js'
+import { ButtonSlots, Recipes, SegmentedSlots, TableSlots, TabsSlots } from '../src/index.js'
+import { alpha, backgroundOf } from './colour.js'
 import { force, nodeOf } from './pseudoState.js'
 
 const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
@@ -112,6 +116,95 @@ test('with travel at 0, as under reduced motion, a held button deepens but keeps
     await vi.waitFor(() => expect(element.getAnimations()).toHaveLength(0))
     expect(style.scale).toBe('1')
     await press(target, false)
+  } finally {
+    handle.dispose()
+  }
+})
+
+const table = Style.forSlots(TableSlots)(Recipes.Table({}))
+const filled = Style.forSlots(SegmentedSlots)(Recipes.Segmented({}))
+const pill = Style.forSlots(TabsSlots)(Recipes.Tabs({ variant: 'pill' }))
+const highlights = ['table-highlight', 'segmented-highlight', 'tabs-highlight']
+
+/** Table's expand toggle and the three fluid highlights, drawn bare over the sheet. */
+const mountRows = () => {
+  const sheet = document.createElement('style')
+  sheet.dataset['test'] = ''
+  sheet.textContent =
+    Style.stylesheet(
+      Layers.standard.declare,
+      Layers.standard.in('reset', Defaults.reset),
+      Layers.standard.in('theme', Theme.root(theme)),
+    ) +
+    table.css +
+    filled.css +
+    pill.css +
+    '* { transition: none !important; }'
+  document.head.append(sheet)
+  const container = document.createElement('div')
+  container.id = 'press-rows'
+  document.body.appendChild(container)
+  const view = (_: unknown, h: HtmlBuilder<never>) => {
+    const tableSlots = SlotView.buildersFor(TableSlots, [table.mixin], { input: undefined, h })
+    const segmented = SlotView.buildersFor(SegmentedSlots, [filled.mixin], { input: undefined, h })
+    const tabs = SlotView.buildersFor(TabsSlots, [pill.mixin], { input: undefined, h })
+    return h.div(
+      [h.Id('rows-root')],
+      [
+        h.div([h.Id('away'), h.Style({ height: '40px' })], []),
+        h.div(tableSlots.highlight.attrs([h.Id('table-highlight')]), []),
+        h.button(tableSlots.expandButton.attrs([h.Id('table-expand'), h.Type('button')]), ['+']),
+        h.div(segmented.highlight.attrs([h.Id('segmented-highlight')]), []),
+        h.div(tabs.highlight.attrs([h.Id('tabs-highlight')]), []),
+      ],
+    )
+  }
+  return Runtime.embed(
+    Runtime.makeElement({
+      Model,
+      container,
+      init: () => ({ model: {} }),
+      update: (model: typeof Model.Type) => ({ model }),
+      view,
+    }),
+  )
+}
+
+test('a held row lays the hover’s film at 1.75, darker than the hover it was', async () => {
+  const handle = mountRows()
+  try {
+    await vi.waitFor(() => expect(document.getElementById('table-expand')).not.toBeNull())
+    const target = await nodeOf('#table-expand')
+    await force(target, ['hover'])
+    const hovered = await vi.waitFor(() => {
+      const film = backgroundOf('table-expand')
+      expect(alpha(film)).toBeGreaterThan(0)
+      return film
+    })
+    await force(target, ['hover', 'active'])
+    await vi.waitFor(() =>
+      expect(alpha(backgroundOf('table-expand'))).toBeGreaterThan(alpha(hovered)),
+    )
+    await force(target, [])
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a fluid highlight takes the press while the item it lights is held', async () => {
+  const handle = mountRows()
+  try {
+    await vi.waitFor(() => expect(document.getElementById('table-highlight')).not.toBeNull())
+    const root = document.getElementById('rows-root')!
+    const hovered = highlights.map(backgroundOf)
+    expect(hovered.map(alpha).every(paint => paint > 0)).toBe(true)
+    root.setAttribute('data-fluid-held', 'hover')
+    const held = highlights.map(backgroundOf)
+    root.removeAttribute('data-fluid-held')
+    expect(highlights.map((id, at) => [id, alpha(held[at]!) > alpha(hovered[at]!)])).toEqual(
+      highlights.map(id => [id, true]),
+    )
+    expect(highlights.map(backgroundOf)).toEqual(hovered)
   } finally {
     handle.dispose()
   }

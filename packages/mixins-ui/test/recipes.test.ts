@@ -479,7 +479,7 @@ describe('Recipes', () => {
     ['*', 'currentColor calc(var(--fk-knob-state-hover) *', 'a scrollbar thumb takes the text'],
   ]
   const stateRead =
-    /--_fk-state-ink|--_fk-tone-|--fk-(?!state-)[a-z]+-(hover|active)\b|--fk-popup-highlight|^\s*(transparent|none|inherit)\s*$/
+    /--_fk-state-ink|--_fk-tone-|--fk-(?!state-)[a-z]+-(hover|active|press)\b|--fk-popup-(highlight|press)|^\s*(transparent|none|inherit)\s*$/
   it.each(Object.entries(compiled))('%s draws its hovers from the state tokens', (name, sheets) => {
     const strays = new Set<string>()
     for (const css of sheets)
@@ -614,14 +614,18 @@ describe('Recipes', () => {
   })
 
   it.each(['outline', 'ghost', 'icon'] as const)(
-    'grounds a %s button’s hover on the state ink, its text or its surface’s paint',
+    'grounds a %s button’s hover and press on the state ink, its text or its surface’s paint',
     variant => {
       const css = Style.forSlots(ButtonSlots)(
         Recipes.Button({ tone: 'neutral', variant, size: null }),
       ).css
-      expect(css).toMatch(
-        /:is\(:hover, :active\):not\(\[aria-disabled="true"\], :disabled\)\{[^}]*background:color-mix\(in oklab, var\(--_fk-state-ink, var\(--fk-state-ink\)\) var\(--fk-knob-state-hover\), transparent\)/,
-      )
+      const film = (state: 'hover' | 'active', strength: string) =>
+        new RegExp(
+          `:${state}:not\\(\\[aria-disabled="true"\\], :disabled\\)\\{[^}]*background:color-mix\\(in oklab, var\\(--_fk-state-ink, var\\(--fk-state-ink\\)\\) ${strength}, transparent\\)`,
+        )
+      expect(css).toMatch(film('hover', 'var\\(--fk-knob-state-hover\\)'))
+      // A press is the same ink held at 1.75, so it reads darker than the hover.
+      expect(css).toMatch(film('active', 'calc\\(var\\(--fk-knob-state-hover\\) \\* 1\\.75\\)'))
     },
   )
 

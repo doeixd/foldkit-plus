@@ -18,6 +18,7 @@ import {
   cornerSides,
   disabled,
   focusRing,
+  hover,
   onLadder,
   ref,
   steps,
@@ -176,10 +177,7 @@ export const Listbox = Style.recipeFor(ListboxSlots)({
       ghost: {
         button: variant(
           Style.self({ background: 'transparent', borderColor: 'transparent' }),
-          Style.pseudo(':is(:hover, :active):not(:disabled, [aria-disabled="true"])', {
-            background: unfilledHover,
-            borderColor: 'transparent',
-          }),
+          hover({ background: unfilledHover, borderColor: 'transparent' }),
         ),
       },
     },

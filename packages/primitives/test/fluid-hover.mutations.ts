@@ -147,8 +147,8 @@ export default [
     edits: [
       {
         file,
-        find: '            if (gapReach !== undefined && reach > gapReach) return',
-        replace: '',
+        find: 'const reachOf = (item: Element, event: MouseEvent) =>\n            gapReach === undefined ||',
+        replace: 'const reachOf = (item: Element, event: MouseEvent) =>\n            true ||',
       },
     ],
     tests,

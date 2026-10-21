@@ -19,6 +19,8 @@ import {
   cornerSides,
   focusRing,
   glide,
+  heldHighlight,
+  hover,
   ref,
   steps,
   transition,
@@ -76,6 +78,7 @@ export const Table = Style.recipeFor(TableSlots)({
         pointerEvents: 'none',
         ...glide('fast', 'var(--fk-table-hover-moving)'),
       }),
+      heldHighlight,
     ),
     root: component(
       Style.self({
@@ -181,7 +184,7 @@ export const Table = Style.recipeFor(TableSlots)({
         color: ref.text.muted,
         ...transition('color, background-color'),
       }),
-      Style.pseudo(':is(:hover, :active)', { color: ref.text.overt, background: unfilledHover }),
+      hover({ color: ref.text.overt, background: unfilledHover }),
       focusRing,
     ),
     // Pointing along the row shut, down open.

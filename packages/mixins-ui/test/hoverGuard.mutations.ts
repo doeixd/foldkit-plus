@@ -27,8 +27,8 @@ export default [
     edits: [
       {
         file: '../src/recipes/design.ts',
-        find: 'Style.pseudo(\':is(:hover, :active):not([aria-disabled="true"], :disabled)\', declarations)',
-        replace: 'Style.pseudo(\':hover:not([aria-disabled="true"], :disabled)\', declarations)',
+        find: ', Style.pseudo(PRESSED, held(declarations)))',
+        replace: ')',
       },
     ],
     tests,

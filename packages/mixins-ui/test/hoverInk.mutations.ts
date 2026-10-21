@@ -57,8 +57,9 @@ export default [
     edits: [
       {
         file: '../src/recipes/segmented.ts',
-        find: '        { background: unfilledHover },\n      ),',
-        replace: '        {},\n      ),',
+        find: '        background: unfilledHover,\n      }),\n      Style.nest(`:where(:not([data-fluid-hover])) > &:not(${pressed})${PRESSED}`,',
+        replace:
+          "        background: 'transparent',\n      }),\n      Style.nest(`:where(:not([data-fluid-hover])) > &:not(${pressed})${PRESSED}`,",
       },
     ],
     tests,

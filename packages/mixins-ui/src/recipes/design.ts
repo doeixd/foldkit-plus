@@ -84,13 +84,38 @@ export const steps = {
   lg: variant(Style.self({ '--fk-knob-step': '-0.5' })),
 } as const
 
+/** What a hover skips: a control the reader cannot use shows no state of its own. */
+const unpressable = '[aria-disabled="true"], :disabled'
+
 /**
- * A hover rule that skips a disabled element, and is the pressed state too: on a touch
+ * The hover's selector, and the press's beside it. A rule that must sit under a
+ * parent of its own (a list that draws its own hover until a fluid highlight
+ * runs) composes these, since `hover` can only reach `&` itself.
+ */
+export const HOVERED = `:hover:not(${unpressable})`
+export const PRESSED = `:active:not(${unpressable})`
+
+/**
+ * A hover rule that skips a disabled element, and the press rule beside it: on a touch
  * screen, where nothing hovers (the stylesheet writes hover only where a pointer can), a
- * finger on the control shows it, and lifting takes it away.
+ * finger on the control shows the press, and lifting takes it away. A press is the hover
+ * held down: where the hover lays the state film (`unfilledHover`), the press lays it
+ * stronger (`pressedHover`). Any other declaration is the same while pressed, since a
+ * border's color or a tone's fill is the component's own look, and a press does not
+ * invent one.
  */
 export const hover = (declarations: Declarations): StyleValue =>
-  Style.pseudo(':is(:hover, :active):not([aria-disabled="true"], :disabled)', declarations)
+  Style.compose(Style.pseudo(HOVERED, declarations), Style.pseudo(PRESSED, held(declarations)))
+
+const held = (declarations: Declarations): Declarations => {
+  if (declarations.background === unfilledHover) {
+    return { ...declarations, background: pressedHover }
+  }
+  if (declarations.backgroundColor === unfilledHover) {
+    return { ...declarations, backgroundColor: pressedHover }
+  }
+  return declarations
+}
 
 export const focusRing: StyleValue = Style.pseudo(':focus-visible', {
   outline: `${ref.border.thick} solid ${ref.outline.focus}`,
@@ -334,6 +359,23 @@ export const surfaceInk = (paint: string): string =>
  * surface step vanished on a page of that step.
  */
 export const unfilledHover = `color-mix(in oklab, var(--_fk-state-ink, ${ref.state.ink}) ${ref.knob['state-hover']}, transparent)`
+
+/**
+ * The same film held down: a press lays the hover's ink at 1.75, so a row, a
+ * tab or a menu item answers a click instead of looking untouched once the
+ * pointer is already on it. The twin of `unfilledHover` for the same reason
+ * (`state.press` cannot carry a surface's ink either).
+ */
+export const pressedHover = `color-mix(in oklab, var(--_fk-state-ink, ${ref.state.ink}) calc(${ref.knob['state-hover']} * 1.75), transparent)`
+
+/**
+ * The fluid highlight, deeper while the item it lights is held: `FluidHover`
+ * marks its container (`data-fluid-held`), so the press shows on that one
+ * highlight rather than on the row under it, which has none of its own.
+ */
+export const heldHighlight: StyleValue = Style.nest(':where([data-fluid-held]) > &', {
+  background: pressedHover,
+})
 
 /** A 1px hairline inside an image's edge, so a pale picture keeps its shape without a border changing its box. */
 export const imageEdge: Declarations = {
