@@ -67,6 +67,9 @@ once you add it with its library:
 
 `npx foldkit-plus setup` lists them with the command that adds each.
 
+`foldkit-media` is installed, but two of its subpaths need a library that is not:
+`foldkit-plus/media/sharp` needs `sharp`, and `foldkit-plus/media/unpic` needs `unpic`.
+
 ## Versions
 
 `effect` and `foldkit` are peers: this release targets Effect 4 (`^4.0.0`,

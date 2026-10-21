@@ -3,7 +3,7 @@ name: foldkit-plus
 description: Explains the Foldkit Plus packages (foldkit-surface, foldkit-remote with -server and -drizzle, foldkit-sync, foldkit-durable, foldkit-mirror, foldkit-site, foldkit-agent with WebMCP/MCP/A2A/Agent Native adapters, foldkit-mixins with -surface, -ui, -form and -crud, foldkit-react, foldkit-bundle, foldkit-primitives, foldkit-entity, foldkit-guard, foldkit-auth, foldkit-form, foldkit-crud, foldkit-cms, foldkit-data-grid, foldkit-media), which owns which state, and basic use. Use when writing or reviewing a Foldkit app using a foldkit-* package, choosing one for server data, offline sync, URL or storage state, route topology, AI agent tools, view styling, React interop, reusable Submodels, domain entities, authorization, Yielded Auth sessions, forms, admin screens, a data grid, a CMS, images and icons, or when the user mentions Foldkit Plus, Surface, Projection, Remote, Sync, Mirror, Site.target, Agent.expose, Mixins, Bundle, Entity.select, Guards.declare, Form.make, Crud.editor, DataGrid.make, or Cms.content.
 license: MIT
 metadata:
-  version: '0.27.0'
+  version: '0.28.0'
   repository: https://github.com/doeixd/foldkit-plus
 ---
 
@@ -37,7 +37,7 @@ list under the rules below. APIs are `0.x` and may break between minors.
 | What an AI agent may see and do, over MCP, WebMCP, A2A, or Agent Native | the application | `foldkit-agent` + one adapter | [agent.md](references/agent.md) |
 | Restyling or adding behaviour to views, including `@foldkit/ui` | the view contract | `foldkit-mixins` (+ `-surface`, `-ui`) | [mixins.md](references/mixins.md) |
 | A reusable Submodel placed several times or per key, with every part wired | the parent Model | `foldkit-bundle` (+ `-surface`) | [bundle.md](references/bundle.md) |
-| Responsive images: which widths exist, `srcset`, `sizes`, a source per format, placeholders, and the URL of each variant; icons as data, imported by name | the image's source; variants are a cache | `foldkit-media` (+ `Image`, `Icon.view` in `foldkit-mixins-ui`; early, 0.0.0) | [media.md](references/media.md) |
+| Responsive images: which widths exist, `srcset`, `sizes`, a source per format, placeholders, and the URL of each variant; icons as data, imported by name | the image's source; variants are a cache | `foldkit-media` (+ `Image`, `Icon.view` in `foldkit-mixins-ui`; early, 0.1.0) | [media.md](references/media.md) |
 | A media query, presence, timer, pagination, undo history, socket, resize, or clipboard | the parent Model | `foldkit-primitives` | [primitives.md](references/primitives.md) |
 | A React component in a Foldkit view, a Foldkit program in a React app, or views compiled to TSX | the Model / the embedded program | `foldkit-react` (+ `-codegen`) | [react.md](references/react.md) |
 | Typed facts a package attaches to another package's declaration (package authors only) | the key's package | `foldkit-metadata` (re-exported by `foldkit-surface`) | [surface.md](references/surface.md) |

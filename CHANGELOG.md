@@ -5,7 +5,23 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
-## Unreleased
+## 0.28.0
+
+Images and icons. `foldkit-media` 0.1.0 is its first release: an image's facts, a provider and a
+layout give every attribute of its markup, a server (`/server`, `/cloudflare`, `/sharp`) or a
+build (`/vite`) makes and keeps each variant, and icons are data a build reads from an Iconify set
+or an SVG file. `foldkit-mixins-ui` 0.17.0 draws them (`Image`, `Figure`, `Icon.view`, an
+`Avatar` picture), and `foldkit-mixins` 0.17.0 adds the theme's `icon` tokens and keeps a
+reader's theme and knobs before the first paint. `foldkit-richtext` 0.5.0 lets an `Image` carry its
+facts, `foldkit-primitives` 0.15.0 adds `decodeImage`, `foldkit-ssr` 0.8.0 adds `emit`,
+`foldkit-mixins-richtext` 0.5.0 draws its icons from Lucide's data, and `foldkit-plus` is 0.10.0.
+Packages that pin one of them republish with a patch so their ranges cover the new versions
+(`foldkit-builder`, `foldkit-cms`, `foldkit-cms-drizzle`, `foldkit-composition`,
+`foldkit-mixins-builder`, `foldkit-mixins-crud`, `foldkit-mixins-data-grid`,
+`foldkit-mixins-form`, `foldkit-mixins-surface`, `foldkit-richtext-code`,
+`foldkit-richtext-code-shiki`, `foldkit-richtext-dom`, `foldkit-richtext-markdown`,
+`foldkit-site`). One change needs code: `ColorPicker.popover` now draws the whole Popover and takes
+its Model and Messages (see Changed).
 
 ### Added
 
@@ -30,7 +46,7 @@ version changed; `pnpm` skips versions already in the registry.
 - `foldkit-mixins`: `Themes.choose(themes, name, key?)` shows a named theme and keeps it, and
   `Themes.script(themes, key?)` is a head script that shows the kept one before the first paint,
   on the attribute `Themes.apply` writes; a name no theme has is ignored.
-- `foldkit-media` 0.0.0, unpublished: responsive images as URLs to write. `Picture.derive` turns
+- `foldkit-media` 0.1.0, its first release: responsive images as URLs to write. `Picture.derive` turns
   an `ImageAsset`'s facts, a `Provider` and a `Layout` (`Fixed`, `Constrained`, `FullWidth`) into
   every attribute of an image's markup: `srcset` and a `source` per format from one `Widths`
   ladder, `sizes`, the reserved box, loading priority, and a placeholder background (a color, a
@@ -51,18 +67,18 @@ version changed; `pnpm` skips versions already in the registry.
   (`headersFor`): an `ETag` and 304, a cache lifetime for each answer, CORS, `nosniff`, `Server-Timing`. `serveFetch` hosts it in a Worker,
   `layer` in an Effect `HttpRouter`. `foldkit-media/cloudflare` gives its services from a Worker's bindings:
   `originalsR2`, `transformerImages` (the Images binding) and `variantsR2` (R2 behind the Cache API).
-  `examples/cloudflare` serves `/_image/` with them. `Originals` and `Variants` are kept in
+  `examples/cloudflare` serves `/_image/` with them, and takes an upload only with its `UPLOAD_TOKEN` secret. `Originals` and `Variants` are kept in
   any Effect `KeyValueStore` (`originalsKeyValueStore`, `variantsKeyValueStore`), and
   `keyValueStoreR2` is an R2 bucket as one. `foldkit-media/sharp`'s `transformerSharp` serves a Node server: it
   refuses an original above its pixel limit with a 413 before decoding it, and runs at most
-  `concurrency` transforms (`limitTransforms`); `layer` coalesces concurrent misses for a variant. Rate limits apply to misses only:
+  `concurrency` transforms (`limitTransforms`); `layer` coalesces concurrent misses for a variant (`serveFetch` does not: a Worker request cannot wait on another's work), and sharp reads an original as its EXIF orientation shows it. Rate limits apply to misses only:
   `admissionRateLimiter` (Effect's `RateLimiter`) or `admissionRateLimit` (a Workers rate-limit
   binding) answers a 429 with `Retry-After`. `materialize` writes the hosted variants a static site's pages
   name, as `foldkit-ssr`'s `emit`, and `headersRule()` is the `_headers` rule they need.
   `describe` (in the core) derives an original's facts through an `Inspector` (`foldkit-media/browser`'s
   `inspectorBrowser`, the browser's own decoder, so an editor describes a file where it is chosen;
   `inspectorSharp`,
-  `inspectorImages`), and `factsOf(url)` describes an image named only by URL, from allowed hosts,
+  `inspectorImages`), and `factsOf(url)` describes an image named only by URL, from allowed hosts at their default port,
   kept and revalidated with its `ETag`. `Icon` holds an icon as data (`IconData`: its `viewBox`,
   what its root paints, its drawing): `Icon.serialize` writes it as one SVG document and
   `Icon.maskUrl` as a CSS `url()` for a mask. `foldkit-media/icons`, for builds, reads an SVG file
@@ -81,7 +97,8 @@ version changed; `pnpm` skips versions already in the registry.
   `foldkit-media/vite`'s `images({ widths?, sources?, fallback?, quality? })` makes an image in the
   repository an import: `import hero from './hero.jpg?image'` is `{ asset, provider }`, its facts
   read once through sharp and a file written for each ladder width up to its own in each format,
-  named by content and kept in Vite's cache by the original's hash; the development server makes
+  named by content and kept whole in Vite's cache by the original's hash, at most one original read
+  per core at once; the development server makes
   the same variants on request. `foldkit-media/client` types the import.
   `foldkit-media/unpic`'s `detect(url, options?)` is the provider of an image on a host that resizes
   it (Shopify, Cloudinary, imgix and the rest unpic knows, an optional peer), or none: the `img`
@@ -145,19 +162,6 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
-- `foldkit-media`: sharp reads an original as its EXIF orientation shows it, so a phone's
-  portrait photograph is measured, resized and placeheld upright, as `inspectorBrowser` (and a
-  browser) already read it; its variants came out turned and its facts landscape.
-- `foldkit-media/vite`: `images` keeps a cached file whole or not at all (written beside it and
-  moved in), so a build stopped halfway leaves no cut-short variant a later build would ship; it
-  reads at most as many originals at once as there are cores; and its cache revision moves to
-  `r2`, so facts and variants read before the orientation fix are made again.
-- `foldkit-media`: `factsOf` reads an allowed host at its default port alone; another port of it
-  is another service.
-- `examples/cloudflare`: an upload must bear the `UPLOAD_TOKEN` secret; `x-actor`, which anyone
-  may send, admitted any name, and the worker answered a preflight for the media routes too.
-- `foldkit-media`: `serveFetch` no longer coalesces concurrent misses by default, as its docs
-  said; it did, and a Worker request cannot wait on another's work.
 - `foldkit-mixins-ui`: a Card's `media` is an accent tile only around a bare icon (`svg`,
   `img`); an Avatar or anything else leads at its own size, at the card's start. The docs site's
   profile card passed its Avatar as `image`, which bleeds to the edges in a 16:9 band, and the
