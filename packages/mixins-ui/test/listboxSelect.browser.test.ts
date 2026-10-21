@@ -24,6 +24,18 @@ type Message = UpstreamListbox.Message
 const fruits = ['Apple', 'Banana', 'Cherry']
 let handle: { dispose: () => void } | undefined
 
+/** A color's alpha, however the browser writes it (`rgba` or `oklab`). */
+const alphaOf = (color: string): number => {
+  const canvas = document.createElement('canvas')
+  canvas.width = 1
+  canvas.height = 1
+  const context = canvas.getContext('2d')
+  if (context === null) throw new Error('the browser has no 2D context')
+  context.fillStyle = color
+  context.fillRect(0, 0, 1, 1)
+  return context.getImageData(0, 0, 1, 1).data[3] ?? 0
+}
+
 afterEach(() => {
   handle?.dispose()
   handle = undefined
@@ -171,8 +183,10 @@ test.each(['outline', 'filled', 'ghost'] as const)('a %s trigger draws its box',
   const fills = {
     outline: getComputedStyle(probe).color,
     filled: getComputedStyle(probe).color,
-    ghost: 'rgba(0, 0, 0, 0)',
   }
-  expect(style.backgroundColor).toBe(fills[trigger])
-  expect(style.borderTopColor === 'rgba(0, 0, 0, 0)').toBe(trigger !== 'outline')
+  // A ghost fill is a transparent color-mix, which Chromium may write in
+  // `oklab`; the fill's alpha is what the test means.
+  if (trigger === 'ghost') expect(alphaOf(style.backgroundColor)).toBe(0)
+  else expect(style.backgroundColor).toBe(fills[trigger])
+  expect(alphaOf(style.borderTopColor) === 0).toBe(trigger !== 'outline')
 })

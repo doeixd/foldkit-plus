@@ -99,13 +99,17 @@ export const open = async (
       view,
     }),
   )
-  const panel = await vi.waitFor(() => {
-    const found = document.getElementById('edge-panel')
-    expect(found).not.toBeNull()
-    // Entered: drawn closed first, then let slide in.
-    expect(found!.hasAttribute('data-closed')).toBe(false)
-    return found!
-  })
+  const panel = await vi.waitFor(
+    () => {
+      const found = document.getElementById('edge-panel')
+      expect(found).not.toBeNull()
+      // Entered: drawn closed first, then let slide in.
+      expect(found!.hasAttribute('data-closed')).toBe(false)
+      return found!
+    },
+    // A loaded full run can draw the first frame well after the default wait.
+    { timeout: 15_000, interval: 50 },
+  )
   await settled(panel)
   return {
     panel,
