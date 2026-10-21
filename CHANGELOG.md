@@ -14,7 +14,8 @@ version changed; `pnpm` skips versions already in the registry.
   Tabs' highlight painted with the text (Table) or the accent's subtle fill whatever the theme
   chose; they now paint with `unfilledHover`, as Nav, Sidebar and TreeView do. The accent's
   "trying the tab on" look is `surface: { hover: 'accent' }`. A Segmented without `fluid` tints
-  its option under the pointer, as a fluid tray's highlight does.
+  its option under the pointer, as a fluid tray's highlight does. A Dialog's or Sheet's close
+  button hovered with a surface step; it now hovers as every icon button does.
 - `foldkit-media/server`: `UploadPolicy.admit(request, route)` is told which route it guards,
   `'Upload'` or `'DescribeUrl'` (the facts route), so a policy may admit uploads and refuse URL
   lookups. A hand-written policy gains the parameter. `UploadUnauthenticated` is a `401`, for a

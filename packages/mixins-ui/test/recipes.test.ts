@@ -462,6 +462,41 @@ describe('Recipes', () => {
     )
   })
 
+  // Table's highlight painted with the text alone while every hover beside it followed
+  // `surface.hover`. A hover or a press reads the state ink (`unfilledHover`), a tone's own fill,
+  // or the popups' highlight; anything else is named here, with why, so a new one is a decision.
+  // `*` names a value every recipe may read.
+  const hoverExceptions: ReadonlyArray<readonly [recipe: string, value: string, why: string]> = [
+    ['Card', 'surface-default', 'a pressable card steps its own surface'],
+    ['Card', 'surface-muted', 'a pressable card steps its own surface'],
+    ['Card', 'knob-state-tint', 'its film lightens a dark page as it darkens a light one'],
+    ['CardGroup', 'knob-state-tint', 'its highlight is a card’s film, as a card’s own hover'],
+    ['Tabs', 'accent-subtle', 'the chosen pill dims while another tab is hovered'],
+    ['Calendar', 'accent-default', 'a chosen day keeps its fill under the pointer'],
+    ['Resizable', 'accent-default', 'the handle shows its accent line under the pointer'],
+    ['Menu', 'error-default', 'a danger row hovers in its own tone'],
+    ['Button', 'text-overt', 'an ink button deepens its own fill'],
+    ['*', 'currentColor calc(var(--fk-knob-state-hover) *', 'a scrollbar thumb takes the text'],
+  ]
+  const stateRead =
+    /--_fk-state-ink|--_fk-tone-|--fk-(?!state-)[a-z]+-(hover|active)\b|--fk-popup-highlight|^\s*(transparent|none|inherit)\s*$/
+  it.each(Object.entries(compiled))('%s draws its hovers from the state tokens', (name, sheets) => {
+    const strays = new Set<string>()
+    for (const css of sheets)
+      for (const [, selector, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g))
+        // A fluid highlight sets its fill on itself, shown by its `--fk-<name>-hover-shown`.
+        if (/:hover|:active/.test(selector!) || /-hover-shown\)/.test(body!))
+          for (const [, value] of body!.matchAll(/background(?:-color)?:([^;]+)/g))
+            if (
+              !stateRead.test(value!) &&
+              !hoverExceptions.some(
+                ([recipe, read]) => (recipe === '*' || recipe === name) && value!.includes(read),
+              )
+            )
+              strays.add(value!)
+    expect([...strays]).toEqual([])
+  })
+
   // A press held on a drag surface opened iOS's callout menu over the drag.
   it.each(Object.entries(compiled))('%s holds no callout where it takes the press', (_, sheets) => {
     for (const css of sheets) {

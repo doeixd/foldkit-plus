@@ -9,7 +9,7 @@ import { Style } from 'foldkit-mixins'
 import { nests, raise, raisedSurface, role } from 'foldkit-mixins/theme'
 import { Utilities } from 'foldkit-mixins/utilities'
 import { DialogSlots } from '../dialog.js'
-import { component, focusRing, hover, presence, ref, variant } from './design.js'
+import { component, focusRing, hover, presence, ref, unfilledHover, variant } from './design.js'
 import { bar, overlaid, thumb } from './scrollBars.js'
 
 /** A width one notch narrower in a compact region, as Fluid Functionalism's (400px to 360px). */
@@ -150,7 +150,7 @@ export const Dialog = Style.recipeFor(DialogSlots)({
         cursor: 'pointer',
       }),
       hover({
-        background: ref.surface.muted,
+        background: unfilledHover,
         color: ref.text.overt,
       }),
       focusRing,
