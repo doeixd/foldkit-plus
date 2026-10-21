@@ -8,8 +8,9 @@ spacing rather than type.
 
 A full `pnpm check` passes format, paths, icons, tags, mutation anchors and
 typecheck; `demo` and `pack:check` pass with `FOLDKIT_BUILD_ID=local`. The full
-browser run had two unrelated flakes (`sheetSwipe.touch` and
-`listboxSelect.browser`), each of which passes alone.
+browser run exposed three load-sensitive waits (`sheetSwipe.touch`,
+`listboxSelect.browser` and `tooltip.browser`); each was hardened and passes
+alone, and none reads typography state.
 
 **Scope:** the `foldkit-mixins` type scale and theme tokens, `Defaults`,
 `Prose`, the `Typography` recipe, and the examples that write per-component
