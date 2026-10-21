@@ -152,7 +152,7 @@ App.model.remote, … })`, `Mirror.url(App, …)`, and `SurfaceView.define(TodoL
 - **A new application** starts with the user, not with code: the brief, the look
   (a theme from foldkit-plus.pages.dev/create), the domain
   in rounds, recorded in `docs/domain/` and mapped to these packages, a plan for
-  architecture, performance, SEO, testing, CI and deployment, then built once they
+  architecture, performance, mobile, SEO, testing, CI and deployment, then built once they
   agree. Follow [greenfield.md](references/greenfield.md).
 
 ## More
