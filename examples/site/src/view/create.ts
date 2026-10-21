@@ -420,6 +420,7 @@ const colorPane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
   slider(model, slots, h, 'surface.contrast'),
   slider(model, slots, h, 'scales.chroma'),
   row(model, slots, h, 'surface.hover'),
+  slider(model, slots, h, 'surface.hoverStrength'),
   row(model, slots, h, 'menu.highlight'),
   picker(
     model,
@@ -439,6 +440,7 @@ const shapePane = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
   row(model, slots, h, 'shape.controls'),
   slider(model, slots, h, 'shape.border'),
   row(model, slots, h, 'shape.outlines'),
+  slider(model, slots, h, 'state.disabledOpacity'),
   slider(model, slots, h, 'shadow.strength'),
   row(model, slots, h, 'shadow.style'),
   row(model, slots, h, 'shadow.relief'),

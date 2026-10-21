@@ -57,6 +57,50 @@ const open = async (page: Page, path: string) => {
   await page.waitForSelector('[data-size="page"], [data-size="canvas"]', { timeout: 120_000 })
 }
 
+/** A colour's hue on the OKLCH wheel, in degrees, as the browser paints it. */
+const hueOf = ([red, green, blue]: ReadonlyArray<number>): number => {
+  const linear = (channel: number) => {
+    const value = channel! / 255
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+  }
+  const [r, g, b] = [red!, green!, blue!].map(linear) as [number, number, number]
+  const long = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b)
+  const medium = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b)
+  const short = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b)
+  const x = 1.9779984951 * long - 2.428592205 * medium + 0.4505937099 * short
+  const y = 0.0259040371 * long + 0.7827717662 * medium - 0.808675766 * short
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360
+}
+
+/**
+ * The Components canvas's Segmented preview: its fluid highlight painted as
+ * the browser draws it, and the accent hue the preview declares, so a test can
+ * say whose ink the highlight is.
+ */
+const hoverFilm = (page: Page) =>
+  page.locator('[data-size="canvas"]').evaluate(preview => {
+    const group = preview.querySelector('[role="group"][aria-label="Range"]')
+    if (group === null) throw new Error('the canvas draws no Segmented control')
+    // The recipe draws the pressed pill, then the highlight that follows the pointer.
+    const highlight = group.querySelectorAll('[aria-hidden="true"]')[1]
+    if (!(highlight instanceof HTMLElement))
+      throw new Error('the Segmented control has no highlight')
+    const canvas = document.createElement('canvas')
+    canvas.width = 1
+    canvas.height = 1
+    const context = canvas.getContext('2d')!
+    context.fillStyle = getComputedStyle(highlight).backgroundColor
+    context.fillRect(0, 0, 1, 1)
+    const [r, g, b, a] = Array.from(context.getImageData(0, 0, 1, 1).data)
+    return {
+      rgb: [r!, g!, b!],
+      alpha: a! / 255,
+      opacity: getComputedStyle(highlight).opacity,
+      accentHue: Number(getComputedStyle(preview).getPropertyValue('--fk-knob-accent-h')),
+      strength: getComputedStyle(preview).getPropertyValue('--fk-knob-state-hover').trim(),
+    }
+  })
+
 test('a theme made on /create follows the reader to every component page', async () => {
   const context = await browser.newContext()
   const page = await context.newPage()
@@ -117,5 +161,53 @@ test('a kept theme is drawn in the first frame, before the application starts', 
   await open(page, '/components/badge')
   expect(await page.locator('style[data-fk-knobs]').count()).toBe(0)
   expect(await previewHue(page)).not.toBe('30')
+  await context.close()
+})
+
+test('the hover knobs reach a fluid highlight in the preview', async () => {
+  const context = await browser.newContext()
+  const page = await context.newPage()
+  const errors: Array<string> = []
+  page.on('pageerror', error => errors.push(String(error)))
+  // The application's own diagnostics, a resume that could not replay above
+  // all; a dev server's notices are not this page's.
+  page.on('console', message => {
+    const text = message.text()
+    if (text.includes('[foldkit-')) errors.push(`${message.type()}: ${text}`)
+  })
+
+  const week = page
+    .locator('[data-size="canvas"] [role="group"][aria-label="Range"]')
+    .getByRole('button', { name: 'Week' })
+  const lit = () => hoverFilm(page)
+  const shown = async () => (await lit()).opacity
+
+  // Hover = accent: the fluid highlight is the hover, painted in the accent's hue.
+  await open(page, '/create?surface.hover=accent')
+  // The panes offer both knobs: the hover's strength beside Hover, the fade in Shape.
+  await page.getByRole('tab', { name: 'Color' }).click()
+  await expect
+    .poll(() => page.locator('#knob-surface-hoverStrength-value').isVisible(), { timeout: 15_000 })
+    .toBe(true)
+  await page.getByRole('tab', { name: 'Shape' }).click()
+  await expect
+    .poll(() => page.locator('#knob-state-disabledOpacity-value').isVisible(), { timeout: 15_000 })
+    .toBe(true)
+  await week.hover()
+  await expect.poll(shown, { timeout: 15_000 }).toBe('1')
+  const hovered = await lit()
+  expect(hovered.strength).toBe('12%')
+  expect(hovered.alpha).toBeGreaterThan(0)
+  // Within the wheel's rounding: the accent the preview carries is its ink's hue.
+  expect(Math.abs(hueOf(hovered.rgb) - hovered.accentHue)).toBeLessThan(5)
+
+  // Hover strength: the same ink, more of it.
+  await open(page, '/create?surface.hover=accent&surface.hoverStrength=24')
+  await expect.poll(async () => (await lit()).strength, { timeout: 15_000 }).toBe('24%')
+  await week.hover()
+  await expect.poll(shown, { timeout: 15_000 }).toBe('1')
+  const deeper = await lit()
+  expect(deeper.alpha).toBeGreaterThan(hovered.alpha)
+  expect(errors).toEqual([])
   await context.close()
 })
