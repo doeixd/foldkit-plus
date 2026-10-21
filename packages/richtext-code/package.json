@@ -1,6 +1,6 @@
 {
   "name": "foldkit-richtext-code",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Code tokenizers for foldkit-richtext's CodeBlock, producing syntax decorations.",
   "keywords": [
     "foldkit",

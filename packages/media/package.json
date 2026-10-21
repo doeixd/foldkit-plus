@@ -1,6 +1,6 @@
 {
   "name": "foldkit-media",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Responsive images for Foldkit Plus: an image is a URL to write, through providers that share one width ladder.",
   "keywords": [
     "foldkit",

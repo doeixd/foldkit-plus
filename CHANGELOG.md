@@ -5,7 +5,18 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
-## Unreleased
+## 0.29.0
+
+Images with fewer ways to go wrong. `foldkit-media` 0.2.0: a provider says which facts it takes,
+so an image without a content hash given `Provider.hosted` is a type error, not an empty box; the
+server reads its space from that same provider; `serveFetch` is the whole Worker, with
+`uploadPolicyBearer` for a deployment's secret and `variantsR2({ cache: true })`.
+`foldkit-mixins-ui` 0.18.0: `Icon.view({ icon })` takes the icon itself, and `alt` takes plain
+words. `foldkit-plus` is 0.11.0. Packages that pin one of them republish with a patch
+(`foldkit-mixins-form`, `foldkit-mixins-builder`, `foldkit-mixins-richtext`, `foldkit-richtext`,
+`foldkit-richtext-code`, `foldkit-richtext-code-shiki`, `foldkit-richtext-dom`,
+`foldkit-richtext-markdown`). Code that calls `serveFetch({ layer })`, `serveUploadFetch`,
+`serveFetch({ space })`, or `Icon.view({ content })` needs changing (see Changed).
 
 ### Changed
 
