@@ -23,6 +23,7 @@ import {
   steps,
   transition,
   travelled,
+  unfilledHover,
   variant,
 } from './design.js'
 
@@ -71,7 +72,7 @@ export const Table = Style.recipeFor(TableSlots)({
         translate: 'var(--fk-table-hover-x) var(--fk-table-hover-y)',
         opacity: 'var(--fk-table-hover-shown)',
         borderRadius: ref.radius.md,
-        background: ref.state.hover,
+        background: unfilledHover,
         pointerEvents: 'none',
         ...glide('fast', 'var(--fk-table-hover-moving)'),
       }),
@@ -180,7 +181,7 @@ export const Table = Style.recipeFor(TableSlots)({
         color: ref.text.muted,
         ...transition('color, background-color'),
       }),
-      Style.pseudo(':is(:hover, :active)', { color: ref.text.overt, background: ref.state.hover }),
+      Style.pseudo(':is(:hover, :active)', { color: ref.text.overt, background: unfilledHover }),
       focusRing,
     ),
     // Pointing along the row shut, down open.

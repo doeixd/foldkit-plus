@@ -242,12 +242,13 @@ export const Tabs = Style.recipeFor(TabsSlots)({
             opacity: `calc(1 - 0.15 * ${hovered('shown')})`,
           }),
         ),
-        // The hover is the chosen pill, faint, as if it were trying the tab on.
+        // The hover, in the pill's corner; `surface.hover` chooses its ink (the
+        // accent's, for a hover that tries the chosen pill on).
         highlight: variant(
           Style.self({
             borderRadius: nested(),
-            background: ref.accent.subtle,
-            opacity: `calc(0.4 * ${hovered('shown')})`,
+            background: unfilledHover,
+            opacity: hovered('shown'),
           }),
         ),
       },

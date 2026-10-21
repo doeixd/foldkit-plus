@@ -71,11 +71,12 @@ export const Segmented = Style.recipeFor(SegmentedSlots)({
       Style.self({ background: ref.accent.subtle, ...glide('moderate', '1') }),
       Style.nest(lit, { display: 'var(--fk-segmented-chosen-display, none)' }),
     ),
+    // The hover, as a plain tray's options draw it: `surface.hover` chooses its ink.
     highlight: component(
       overlay('hover'),
       Style.self({
-        background: ref.accent.subtle,
-        opacity: 'calc(0.4 * var(--fk-segmented-hover-shown))',
+        background: unfilledHover,
+        opacity: 'var(--fk-segmented-hover-shown)',
         ...glide('fast', 'var(--fk-segmented-hover-moving)'),
       }),
       Style.nest(lit, { display: 'block' }),
@@ -96,6 +97,11 @@ export const Segmented = Style.recipeFor(SegmentedSlots)({
         fontWeight: ref.weight.medium,
       }),
       hover({ color: ref.text.overt }),
+      // Without `fluid`, each option tints itself, as the highlight tints it with `fluid`.
+      Style.nest(
+        `:where(:not([data-fluid-hover])) > &:not(${pressed}, [aria-disabled="true"], :disabled):is(:hover, :active)`,
+        { background: unfilledHover },
+      ),
       // A pressed option turns semibold; a `data-label` on it keeps its width.
       Utilities.steady('semibold'),
       // Its steady copy holds the words alone: room for the icon beside them too.
@@ -174,9 +180,6 @@ export const Segmented = Style.recipeFor(SegmentedSlots)({
             borderRadius: '0',
             background: ref.accent.default,
           }),
-        ),
-        highlight: variant(
-          Style.self({ background: unfilledHover, opacity: 'var(--fk-segmented-hover-shown)' }),
         ),
       },
     },

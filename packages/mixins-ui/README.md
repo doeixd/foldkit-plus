@@ -840,8 +840,10 @@ sets no `display`: the Builder owns its narrow tabs' visibility) or an `underlin
 the tray and its options on the ladder (`xs` a half step below compact, 24px), the
 tray's inset counted in, so a tray is as tall as a button beside it. Its `indicator` and `highlight` slots, drawn first in the group
 and given `Segmented.fluid`, slide the pressed option's pill to a new press
-and move a faint pill to the option the pointer is on; until it runs the
-pressed option fills itself:
+and move the hover to the option the pointer is on, tinted as every hover is
+(the theme's `surface.hover` and `surface.hoverStrength`; a plain tray's
+options tint themselves the same); until it runs the pressed option fills
+itself:
 
 ```ts
 const SegmentedStyle = Style.forSlots(SegmentedSlots)(

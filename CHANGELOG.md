@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- `foldkit-mixins-ui`: every tinted hover follows the theme's `surface.hover`, fluid highlights
+  included. Table's highlight and its expand toggle, a filled Segmented's highlight and pill
+  Tabs' highlight painted with the text (Table) or the accent's subtle fill whatever the theme
+  chose; they now paint with `unfilledHover`, as Nav, Sidebar and TreeView do. The accent's
+  "trying the tab on" look is `surface: { hover: 'accent' }`. A Segmented without `fluid` tints
+  its option under the pointer, as a fluid tray's highlight does.
 - `foldkit-media/server`: `UploadPolicy.admit(request, route)` is told which route it guards,
   `'Upload'` or `'DescribeUrl'` (the facts route), so a policy may admit uploads and refuse URL
   lookups. A hand-written policy gains the parameter. `UploadUnauthenticated` is a `401`, for a
