@@ -141,8 +141,8 @@ export default [
     edits: [
       {
         file: '../src/cloudflare/index.ts',
-        find: 'put: (hash, bytes) => Effect.promise(() => bucket.put(hash, bytes)).pipe(Effect.asVoid),',
-        replace: 'put: () => Effect.void,',
+        find: 'await bucket.put(hash, bytes)',
+        replace: '',
       },
     ],
     tests: ['packages/media/test/cloudflare.test.ts'],
@@ -165,6 +165,17 @@ export default [
         file: '../src/cloudflare/index.ts',
         find: "if (typeof caches === 'undefined') {",
         replace: 'if (false) {',
+      },
+    ],
+    tests: ['packages/media/test/cloudflare.test.ts'],
+  },
+  {
+    name: 'the facts of an upload in R2 are never found',
+    edits: [
+      {
+        file: '../src/cloudflare/index.ts',
+        find: 'return object === null ? Option.none() : Option.some(decodeFacts(await object.text()))',
+        replace: 'return Option.none()',
       },
     ],
     tests: ['packages/media/test/cloudflare.test.ts'],

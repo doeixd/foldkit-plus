@@ -21,6 +21,7 @@ export {
   UploadApi,
   UploadForbidden,
   UploadPolicy,
+  StoredFacts,
   UploadUnauthenticated,
   type UploadRoute,
   Uploads,
@@ -29,5 +30,6 @@ export {
   uploadPolicyAny,
   uploadPolicyBearer,
   uploadsKeyValueStore,
+  storedFactsKeyValueStore,
   type UploadOptions,
 } from './upload.js'

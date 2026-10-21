@@ -650,7 +650,9 @@ the body to `Originals`, inspects it, and answers the facts; `foldkit-cms-media`
 then registers them as an `Asset` row through a Remote mutation, so the facts
 live in the database the CMS already reads. Image bytes never travel through
 RPC: a variant is an HTTP GET a cache can hold, and Remote carries only facts.
-Who may upload is a `foldkit-guard` policy on that mutation and the route.
+Who may upload is a `foldkit-guard` policy on that mutation and the route
+(`foldkit-guard/media`, [media-access-DESIGN.md](./media-access-DESIGN.md)), and the
+mutation reads the facts the route kept (`StoredFacts`), never the client's.
 
 *Built in `foldkit-media/server`: `UploadApi` (apart from `MediaApi`, so the
 variant server needs none of its services), `uploadLayer`, `serveFetch`'s `uploads`,

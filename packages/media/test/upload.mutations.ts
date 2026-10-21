@@ -86,13 +86,17 @@ export default [
   },
   {
     name: 'an upload is answered and not kept',
-    edits: [{ file: route, find: 'yield* uploads.put(hash, bytes)', replace: '' }],
+    edits: [{ file: route, find: 'yield* uploads.put(hash, bytes, facts)', replace: '' }],
     tests,
   },
   {
     name: 'an upload is keyed by the name it was sent under',
     edits: [
-      { file: route, find: 'encode({ ...described, key: hash })', replace: 'encode(described)' },
+      {
+        file: route,
+        find: 'const facts = { ...described, key: hash }',
+        replace: 'const facts = described',
+      },
     ],
     tests,
   },
@@ -258,6 +262,40 @@ export default [
         find: '(asked, next) => Effect.catch(asked, () => next.admit(request, route)),',
         replace:
           '(asked, next) => Effect.andThen(Effect.ignore(asked), next.admit(request, route)),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an upload keeps its bytes and not its facts',
+    edits: [
+      {
+        file: route,
+        find: 'Effect.andThen(store.set(factsKey(hash), encodeFacts(facts))),',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an upload keeps facts other than those it answered',
+    edits: [
+      {
+        file: route,
+        find: 'const facts = { ...described, key: hash }',
+        replace: 'const facts = { ...described, key: hash, width: described.width + 1 }',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an entry that is not facts reads as none',
+    edits: [
+      {
+        file: route,
+        find: 'Effect.map(found => Option.map(Option.fromNullishOr(found), decodeFacts)),',
+        replace:
+          'Effect.map(found => Option.flatMap(Option.fromNullishOr(found), Option.liftThrowable(decodeFacts))),',
       },
     ],
     tests,

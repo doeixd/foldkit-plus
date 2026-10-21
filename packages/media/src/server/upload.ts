@@ -9,7 +9,7 @@ import { Context, Effect, Layer, Option, Schema, Stream } from 'effect'
 import { HttpServerResponse, type HttpServerRequest } from 'effect/http'
 import { HttpApi, HttpApiBuilder, HttpApiEndpoint, HttpApiGroup } from 'effect/http-api'
 import { KeyValueStore } from 'effect/persistence'
-import { ImageAsset } from '../asset.js'
+import { HashedAsset, ImageAsset } from '../asset.js'
 import { describe, type Inspector } from '../describe.js'
 import { nonNegativeInteger } from '../limits.js'
 import { OriginalTooLarge } from './errors.js'
@@ -27,11 +27,41 @@ export const UploadApi = HttpApi.make('foldkit-media-upload').add(
   ),
 )
 
-/** Keeps an uploaded original under its content hash: the one writer of what `Originals` reads. */
+/**
+ * Keeps an uploaded original under its content hash, and the facts the
+ * server read from it beside it: the one writer of what `Originals` and
+ * `StoredFacts` read. The bytes are kept first, so kept facts mean kept bytes.
+ */
 export class Uploads extends Context.Service<
   Uploads,
-  { readonly put: (hash: string, bytes: Uint8Array<ArrayBuffer>) => Effect.Effect<void> }
+  {
+    readonly put: (
+      hash: string,
+      bytes: Uint8Array<ArrayBuffer>,
+      facts: ImageAsset,
+    ) => Effect.Effect<void>
+  }
 >()('foldkit-media/Uploads') {}
+
+/**
+ * The facts the upload route read from an original, by its hash: what an
+ * application stores, rather than facts a client sends back. None for a hash
+ * nobody uploaded, or one kept before facts were.
+ */
+export class StoredFacts extends Context.Service<
+  StoredFacts,
+  { readonly get: (hash: string) => Effect.Effect<Option.Option<HashedAsset>> }
+>()('foldkit-media/StoredFacts') {}
+
+/** Where an upload's facts are kept, beside its bytes under the same prefix. */
+export const factsKey = (hash: string): string => `facts/${hash}`
+
+export const encodeFacts = (facts: ImageAsset): string =>
+  JSON.stringify(Schema.encodeSync(ImageAsset)(facts))
+
+// Facts the route wrote are hashed; any other entry is a defect, never a silent none.
+export const decodeFacts = (stored: string): HashedAsset =>
+  Schema.decodeUnknownSync(Schema.fromJsonString(HashedAsset))(stored)
 
 /** The request may not upload. Why stays with the policy: the answer says only no. */
 export class UploadForbidden extends Schema.TaggedError<UploadForbidden>()(
@@ -140,8 +170,9 @@ export const uploadHandlers = (options: UploadOptions = {}) => {
             const bytes = yield* bodyOf(request, maxBytes)
             const described = yield* describe('upload', bytes)
             const hash = Option.getOrThrow(described.hash)
-            yield* uploads.put(hash, bytes)
-            return answered(Answer.cases.Uploaded.make({}), encode({ ...described, key: hash }))
+            const facts = { ...described, key: hash }
+            yield* uploads.put(hash, bytes, facts)
+            return answered(Answer.cases.Uploaded.make({}), encode(facts))
           }).pipe(
             Effect.provide(services),
             Effect.catchTags({
@@ -256,8 +287,31 @@ export const uploadsKeyValueStore = (
     Effect.gen(function* () {
       const store = KeyValueStore.prefix(yield* KeyValueStore.KeyValueStore, options.prefix ?? '')
       return {
-        put: (hash: string, bytes: Uint8Array<ArrayBuffer>) =>
-          store.set(hash, bytes).pipe(Effect.orDie),
+        put: (hash: string, bytes: Uint8Array<ArrayBuffer>, facts: ImageAsset) =>
+          store
+            .set(hash, bytes)
+            .pipe(Effect.andThen(store.set(factsKey(hash), encodeFacts(facts))), Effect.orDie),
+      }
+    }),
+  )
+
+/**
+ * Upload facts read back from the application's `KeyValueStore`, under the
+ * same `prefix` as `uploadsKeyValueStore`. A store that fails is a defect.
+ */
+export const storedFactsKeyValueStore = (
+  options: { readonly prefix?: string } = {},
+): Layer.Layer<StoredFacts, never, KeyValueStore.KeyValueStore> =>
+  Layer.effect(
+    StoredFacts,
+    Effect.gen(function* () {
+      const store = KeyValueStore.prefix(yield* KeyValueStore.KeyValueStore, options.prefix ?? '')
+      return {
+        get: (hash: string) =>
+          store.get(factsKey(hash)).pipe(
+            Effect.map(found => Option.map(Option.fromNullishOr(found), decodeFacts)),
+            Effect.orDie,
+          ),
       }
     }),
   )

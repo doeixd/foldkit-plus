@@ -128,7 +128,9 @@ application's own (`foldkit-guard/media`'s `GuardMedia.uploadPolicy` decides by 
 who `AuthServer.resolver` says is asking), and `uploadPolicyAny(a, b, …)` for several (the first
 to admit wins);
 the application registers the facts in its own data, as its server read them: `HashedAsset`
-checks their shape, not that they are true, so never store facts a client sends back.
+checks their shape, not that they are true, so a registering mutation takes the hash and reads
+`StoredFacts.get(hash)` (kept beside the bytes by `Uploads`; `storedFactsKeyValueStore()`,
+`storedFactsR2(bucket)`; none for a hash nobody uploaded), never facts a client sends back.
 
 See also: [packages/media/README.md](https://github.com/doeixd/foldkit-plus/blob/main/packages/media/README.md),
 [docs/design/media-DESIGN.md](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/media-DESIGN.md).

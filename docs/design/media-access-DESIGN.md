@@ -1,6 +1,6 @@
 # Media access: who may upload, whose facts are stored, who may read
 
-**Status:** Proposed, 2026-10-21; slices 1 to 3 built the same day (§8 records each).
+**Status:** Proposed and built, 2026-10-21: slices 1 to 5 (§8 records each); §5 stays open.
 **Target:** a new subpath, `foldkit-guard/media`, and small changes in `foldkit-media/server`.
 **Related:** [media-DESIGN.md](./media-DESIGN.md) §9.5 (facts at upload), [guard-DESIGN.md](./guard-DESIGN.md) §5 (one subpath per seam), [auth-DESIGN.md](./auth-DESIGN.md) (the resolver).
 
@@ -332,8 +332,12 @@ Each slice lands with its README, skill and changelog lines, and its mutations d
    uploaded is none; an original kept before the change is none. The CMS-style mutation in a
    test fixture: facts from the store, not the input; a forged width in the input is not
    stored (the input has no width).
+   *Built. `Uploads.put` takes the facts as plain `ImageAsset`s, and `StoredFacts.get` decodes
+   them with the `HashedAsset` Schema, which narrows without a cast; a stored entry that is not
+   facts is a defect, never a silent none. The mutation fixture is left to the CMS, which has no
+   upload control yet; the README describes the flow.*
 5. **Docs: the README's Uploads section rewritten around §3 and §4**, and media-DESIGN §9.5's
-   sentence made true.
+   sentence made true. *Built; its snippet compiles against the guard and media sources.*
 
 §5 is not in the order.
 

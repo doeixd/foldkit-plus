@@ -416,37 +416,26 @@ An original that no CDN or build holds, such as an editor's upload, enters
 through `POST /_media/upload`: the bytes are the body, with an `image/*`
 `Content-Type`. The route reads at most `maxBytes` (20 MB by default) as the
 body streams, reads its facts through the `Inspector`, keeps the bytes under
-their SHA-256 in `Uploads` (where `Originals` reads them), and answers the
-facts as a `HashedAsset`, keyed by that hash, with a `201`. The variant server
-serves it at once. Only the facts go on to the application's data (a CMS's
-asset row); the bytes never travel through RPC. The answer is the server's
-reading of the bytes, but once it has passed through a client it is the
-client's word: a client can change a width or name another original's hash.
-Decoding with `HashedAsset` checks the facts' shape, not that they are true,
-so store facts your server read, not ones a client sends back.
+their SHA-256 in `Uploads` (where `Originals` reads them) with the facts
+beside them, and answers the facts as a `HashedAsset`, keyed by that hash,
+with a `201`. The variant server serves it at once.
 
-Who may upload is the application's to say, and the route has no default:
-`UploadPolicy.admit(request, route)` is asked before a byte is read, with the
-route it is for (`'Upload'`, or `'DescribeUrl'` for the facts route below). It
-refuses with `UploadForbidden`, or with `UploadUnauthenticated` when it cannot
-tell who is asking (a session that ended), so a client knows to sign in again.
-`uploadPolicyBearer(secret)` is
-the one for a deployment's secret: it admits `Authorization: Bearer <secret>`,
-compared by digest so the time taken says nothing of the secret, and admits
-nobody while the secret is unset or empty. Who may upload by session is a
-policy decided by your guards: `foldkit-guard/media`'s
-`GuardMedia.uploadPolicy(Policy, { resolve, Upload, DescribeUrl })` decides
-each route by principal guards for who your resolver (`AuthServer.resolver`
-from `foldkit-auth/server`) says is asking, read from the headers alone. A
-policy of your own is `Layer.succeed(UploadPolicy, { admit })`, and the route
-lets it admit uploads and refuse URL lookups. `uploadPolicyAny(a, b, …)` tries
-policies in turn, the first to admit winning, so a script's secret and an
-editor's session can both upload; when every one refuses, the last refusal is
-the answer.
+**Who may upload** is the application's to say, and the route has no
+default. `UploadPolicy.admit(request, route)` is asked before a byte is read,
+with the route it is for (`'Upload'`, or `'DescribeUrl'` for the facts route
+below). It refuses with `UploadForbidden` (`403`), or with
+`UploadUnauthenticated` (`401`) when it cannot tell who is asking, so a client
+whose session ended knows to sign in again.
 
 ```ts
 import { Layer } from 'effect'
-import { uploadLayer, uploadPolicyBearer, uploadsKeyValueStore } from 'foldkit-media/server'
+import { GuardMedia } from 'foldkit-guard/media'
+import {
+  uploadLayer,
+  uploadPolicyAny,
+  uploadPolicyBearer,
+  uploadsKeyValueStore,
+} from 'foldkit-media/server'
 import { inspectorSharp } from 'foldkit-media/sharp'
 
 const uploads = uploadLayer({ maxBytes: 10 * 1024 * 1024 }).pipe(
@@ -454,21 +443,50 @@ const uploads = uploadLayer({ maxBytes: 10 * 1024 * 1024 }).pipe(
     Layer.mergeAll(
       uploadsKeyValueStore(),
       inspectorSharp(),
-      uploadPolicyBearer(process.env['UPLOAD_TOKEN']),
+      uploadPolicyAny(
+        uploadPolicyBearer(process.env['UPLOAD_TOKEN']),
+        GuardMedia.uploadPolicy(Policy, { resolve, Upload: [G.isEditor] }),
+      ),
     ),
   ),
 )
 ```
 
-`uploadsKeyValueStore()` keeps them where `originalsKeyValueStore()` reads,
-over the same `KeyValueStore`; on Cloudflare, `uploadsR2(bucket)` beside
-`originalsR2(bucket)`, and `serveFetch`'s `uploads` hosts the route in a
-Worker. A refusal answers its kind and nothing more, and no browser keeps it:
-`403` from the policy (`401` when it cannot tell who is asking), `415` for a body that is not `image/*` or not an image
-the inspector reads, `413` past `maxBytes` or the inspector's pixel limit, and
-`400` for a body that broke off. Because the body must be `image/*`, which is
-not a type a browser sends to another origin without a preflight, and the
-route answers no preflight, a cookie alone cannot upload from another site.
+- `uploadPolicyBearer(secret)` is for a deployment's secret, a script's: it
+  admits `Authorization: Bearer <secret>`, compared by digest so the time
+  taken says nothing of the secret, and admits nobody while the secret is
+  unset or empty.
+- `GuardMedia.uploadPolicy` from `foldkit-guard/media` decides each route by
+  the principal guards of your guard set (`G`, `Policy`), for who `resolve`
+  says is asking: the resolver your Remote server is given, such as
+  `AuthServer.resolver` from `foldkit-auth/server`. It reads the request's
+  headers alone. A route given no guards admits nobody; here an editor may
+  upload and nobody may have a URL described.
+- `uploadPolicyAny(a, b, …)` tries policies in turn, the first to admit
+  winning; when every one refuses, the last refusal is the answer.
+- A policy of your own is `Layer.succeed(UploadPolicy, { admit })`.
+
+**Registering an upload.** The bytes never travel through RPC; only facts go
+on to the application's data (a CMS's asset row). But the facts the route
+answered are the client's word once they pass through it: a client can change
+a width, or name another original's hash, and decoding with `HashedAsset`
+checks their shape, not that they are true. So the mutation that registers
+an upload takes the hash, and reads the facts the server kept:
+`StoredFacts.get(hash)` answers them, or none for a hash nobody uploaded (or
+one kept before facts were), over the same store as `Uploads`
+(`storedFactsKeyValueStore()`, `storedFactsR2(bucket)`). What only an editor
+knows, such as a focal point, comes with the hash.
+
+`uploadsKeyValueStore()` keeps uploads where `originalsKeyValueStore()`
+reads, over the same `KeyValueStore`; on Cloudflare, `uploadsR2(bucket)`
+beside `originalsR2(bucket)`, and `serveFetch`'s `uploads` hosts the route in
+a Worker. A refusal answers its kind and nothing more, and no browser keeps
+it: `403` or `401` from the policy, `415` for a body that is not `image/*` or
+not an image the inspector reads, `413` past `maxBytes` or the inspector's
+pixel limit, and `400` for a body that broke off. Because the body must be
+`image/*`, which is not a type a browser sends to another origin without a
+preflight, and the route answers no preflight, a cookie alone cannot upload
+from another site.
 
 An image a page names only by URL gets its facts from the same route set:
 `GET /_media/facts?url=` reads it with `factsOf`, behind the same

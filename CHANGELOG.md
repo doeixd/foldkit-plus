@@ -13,6 +13,8 @@ version changed; `pnpm` skips versions already in the registry.
   `'Upload'` or `'DescribeUrl'` (the facts route), so a policy may admit uploads and refuse URL
   lookups. A hand-written policy gains the parameter. `UploadUnauthenticated` is a `401`, for a
   request whose session the policy cannot tell, beside `UploadForbidden`'s `403`.
+- `foldkit-media/server`: `Uploads.put(hash, bytes, facts)` keeps the facts the route read
+  beside the bytes; an `Uploads` of your own gains the parameter.
 
 ### Added
 
@@ -26,6 +28,10 @@ version changed; `pnpm` skips versions already in the registry.
   route admits when any of its guards allows, a route given none admits nobody, and a row guard
   is a type error. A resolver failure is a `401`, a refusal a `403`. `foldkit-media` is a new
   optional peer of `foldkit-guard`.
+- `foldkit-media/server`: `StoredFacts.get(hash)` reads back the facts the upload route read, so
+  a mutation registering an upload takes a hash and never a client's facts; none for a hash
+  nobody uploaded, or one kept before facts were. `storedFactsKeyValueStore()` over the
+  application's store, `storedFactsR2(bucket)` on Cloudflare.
 
 ### Fixed
 

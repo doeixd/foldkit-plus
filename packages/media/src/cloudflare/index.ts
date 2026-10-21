@@ -17,7 +17,7 @@ import { Admission, RateLimited } from '../server/admission.js'
 import { Inspector } from '../describe.js'
 import { OriginalNotFound, QuotaExhausted, TransformFailed } from '../server/errors.js'
 import { Originals, Transformer, Variants, type Encoded, type Kept } from '../server/services.js'
-import { Uploads } from '../server/upload.js'
+import { StoredFacts, Uploads, decodeFacts, encodeFacts, factsKey } from '../server/upload.js'
 import { makeVariants } from '../server/stores.js'
 
 /** Originals in an R2 bucket, each under its content hash. */
@@ -37,10 +37,27 @@ export const originalsR2 = (bucket: R2Bucket): Layer.Layer<Originals> =>
       ),
   })
 
-/** Uploads into an R2 bucket, each under its content hash: what `originalsR2` reads. */
+/**
+ * Uploads into an R2 bucket, each under its content hash, what `originalsR2`
+ * reads, and its facts under `facts/<hash>`, what `storedFactsR2` reads.
+ */
 export const uploadsR2 = (bucket: R2Bucket): Layer.Layer<Uploads> =>
   Layer.succeed(Uploads, {
-    put: (hash, bytes) => Effect.promise(() => bucket.put(hash, bytes)).pipe(Effect.asVoid),
+    put: (hash, bytes, facts) =>
+      Effect.promise(async () => {
+        await bucket.put(hash, bytes)
+        await bucket.put(factsKey(hash), encodeFacts(facts))
+      }),
+  })
+
+/** An upload's facts, read back from the bucket `uploadsR2` keeps them in. */
+export const storedFactsR2 = (bucket: R2Bucket): Layer.Layer<StoredFacts> =>
+  Layer.succeed(StoredFacts, {
+    get: hash =>
+      Effect.promise(async () => {
+        const object = await bucket.get(factsKey(hash))
+        return object === null ? Option.none() : Option.some(decodeFacts(await object.text()))
+      }),
   })
 
 // Cloudflare's code for a spent transformation allowance.

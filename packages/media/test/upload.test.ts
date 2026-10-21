@@ -10,11 +10,13 @@ import { HttpRouter, HttpServer, HttpServerRequest } from 'effect/http'
 import { KeyValueStore } from 'effect/persistence'
 import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
-import { ImageAsset } from 'foldkit-media'
+import { HashedAsset, ImageAsset } from 'foldkit-media'
 import {
   UploadForbidden,
   UploadPolicy,
+  StoredFacts,
   UploadUnauthenticated,
+  Uploads,
   type UploadRoute,
   layer,
   originalsKeyValueStore,
@@ -22,6 +24,7 @@ import {
   uploadLayer,
   uploadPolicyAny,
   uploadPolicyBearer,
+  storedFactsKeyValueStore,
   uploadsKeyValueStore,
   type UploadOptions,
   variantsKeyValueStore,
@@ -55,6 +58,7 @@ const policy = () => {
 const server = (facts: UploadOptions['facts'] = {}) => {
   const allowed = policy()
   const kept = new Map<string, Uint8Array>()
+  const keptFacts = new Map<string, string>()
   // One memory store under both routes, watched so a test sees what was kept.
   const store = Layer.effect(
     KeyValueStore.KeyValueStore,
@@ -67,6 +71,7 @@ const server = (facts: UploadOptions['facts'] = {}) => {
         set: (key, value) =>
           Effect.suspend(() => {
             if (typeof value !== 'string' && !key.startsWith('variants/')) kept.set(key, value)
+            if (typeof value === 'string' && key.startsWith('facts/')) keptFacts.set(key, value)
             return inner.set(key, value)
           }),
         remove: key => inner.remove(key),
@@ -107,6 +112,7 @@ const server = (facts: UploadOptions['facts'] = {}) => {
     get: (path: string) => handler(new Request(`http://media.test${path}`)),
     handle: (request: Request) => handler(request),
     kept,
+    keptFacts,
     asked: allowed.asked,
   }
 }
@@ -208,6 +214,60 @@ describe('uploadPolicyBearer', () => {
   })
 })
 
+describe('StoredFacts', () => {
+  const HASH = 'a'.repeat(64)
+  const facts = Schema.decodeUnknownSync(ImageAsset)({
+    key: HASH,
+    width: 400,
+    height: 200,
+    alpha: false,
+    hash: HASH,
+    placeholder: null,
+  })
+  const run = <A>(
+    effect: Effect.Effect<A, never, Uploads | StoredFacts | KeyValueStore.KeyValueStore>,
+  ) =>
+    Effect.runPromise(
+      effect.pipe(
+        Effect.provide(
+          Layer.mergeAll(uploadsKeyValueStore(), storedFactsKeyValueStore()).pipe(
+            Layer.provideMerge(KeyValueStore.layerMemory),
+          ),
+        ),
+      ),
+    )
+
+  it('reads back the facts an upload kept, and none for a hash nobody uploaded', async () => {
+    const [kept, unknown] = await run(
+      Effect.gen(function* () {
+        yield* Uploads.use(uploads => uploads.put(HASH, new Uint8Array([1]), facts))
+        return [
+          yield* StoredFacts.use(stored => stored.get(HASH)),
+          yield* StoredFacts.use(stored => stored.get('b'.repeat(64))),
+        ] as const
+      }),
+    )
+    expect([kept, unknown]).toEqual([Option.some(facts), Option.none()])
+  })
+
+  it('has none for an original kept before facts were, and a defect for an entry not facts', async () => {
+    const [before, broken] = await run(
+      Effect.gen(function* () {
+        const store = yield* KeyValueStore.KeyValueStore
+        yield* store.set(HASH, new Uint8Array([1])).pipe(Effect.orDie)
+        const before = yield* StoredFacts.use(stored => stored.get(HASH))
+        yield* store.set(`facts/${HASH}`, '{"width":1}').pipe(Effect.orDie)
+        const broken = yield* StoredFacts.use(stored => stored.get(HASH)).pipe(
+          Effect.as('read'),
+          Effect.catchDefect(() => Effect.succeed('defect')),
+        )
+        return [before, broken] as const
+      }),
+    )
+    expect([before, broken]).toEqual([Option.none(), 'defect'])
+  })
+})
+
 describe('uploadPolicyAny', () => {
   type Answer = 'admit' | 'forbid' | 'unknown'
   /** A policy answering `answer`, counting how often it is built and asked. */
@@ -292,6 +352,15 @@ describe('the upload route', () => {
     expect(variant.status).toBe(200)
     const { width, format } = await sharp(new Uint8Array(await variant.arrayBuffer())).metadata()
     expect([width, format]).toEqual([320, 'webp'])
+  }, 60_000)
+
+  it('keeps the facts it answered beside the bytes, for StoredFacts to read', async () => {
+    const { upload, keptFacts } = server()
+    const answer = await (await upload(new Uint8Array(await png()))).json()
+    const asset = Schema.decodeUnknownSync(HashedAsset)(answer)
+    expect([...keptFacts.keys()]).toEqual([`facts/${asset.key}`])
+    const stored = keptFacts.get(`facts/${asset.key}`)!
+    expect(Schema.decodeUnknownSync(Schema.fromJsonString(HashedAsset))(stored)).toEqual(asset)
   }, 60_000)
 
   it('asks the policy before reading a byte, and keeps nothing it refuses', async () => {

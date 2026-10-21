@@ -8,7 +8,7 @@
  */
 import { createHash } from 'node:crypto'
 import type { Cache, ImagesBinding, R2Bucket, RateLimit } from '@cloudflare/workers-types'
-import { Effect, Exit, Layer, Option } from 'effect'
+import { Effect, Exit, Layer, Option, Schema } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
 import { Miniflare, Response as WorkerResponse } from 'miniflare'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -17,12 +17,13 @@ import {
   inspectorImages,
   keyValueStoreR2,
   originalsR2,
+  storedFactsR2,
   transformerImages,
   uploadsR2,
   variantsR2,
 } from 'foldkit-media/cloudflare'
-import { Inspector, Provider, Variant } from 'foldkit-media'
-import { Originals, Uploads, serveFetch } from 'foldkit-media/server'
+import { ImageAsset, Inspector, Provider, Variant } from 'foldkit-media'
+import { Originals, StoredFacts, Uploads, serveFetch } from 'foldkit-media/server'
 
 interface Env {
   readonly MEDIA: R2Bucket
@@ -259,18 +260,35 @@ describe('admissionRateLimit', () => {
 })
 
 describe('uploadsR2', () => {
-  it('keeps an upload where originalsR2 reads it', async () => {
+  const factsOf = (hash: string) =>
+    Schema.decodeUnknownSync(ImageAsset)({
+      key: hash,
+      width: 3,
+      height: 1,
+      alpha: false,
+      hash,
+      placeholder: null,
+    })
+
+  it('keeps an upload where originalsR2 reads it, and its facts where storedFactsR2 does', async () => {
     const hash = 'f'.repeat(64)
-    const read = await Effect.runPromise(
+    const [read, facts, unknown] = await Effect.runPromise(
       Effect.gen(function* () {
-        yield* Uploads.use(uploads => uploads.put(hash, new Uint8Array([7, 8, 9])))
+        yield* Uploads.use(uploads => uploads.put(hash, new Uint8Array([7, 8, 9]), factsOf(hash)))
         const original = yield* Originals.use(originals => originals.get(hash))
-        return Array.from(
-          new Uint8Array(yield* Effect.promise(() => new Response(original.body).arrayBuffer())),
-        )
-      }).pipe(Effect.provide(Layer.mergeAll(uploadsR2(env.MEDIA), originalsR2(env.MEDIA)))),
+        const bytes = yield* Effect.promise(() => new Response(original.body).arrayBuffer())
+        return [
+          Array.from(new Uint8Array(bytes)),
+          yield* StoredFacts.use(stored => stored.get(hash)),
+          yield* StoredFacts.use(stored => stored.get('e'.repeat(64))),
+        ] as const
+      }).pipe(
+        Effect.provide(
+          Layer.mergeAll(uploadsR2(env.MEDIA), originalsR2(env.MEDIA), storedFactsR2(env.MEDIA)),
+        ),
+      ),
     )
-    expect(read).toEqual([7, 8, 9])
+    expect([read, facts, unknown]).toEqual([[7, 8, 9], Option.some(factsOf(hash)), Option.none()])
   })
 })
 
