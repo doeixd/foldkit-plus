@@ -223,7 +223,7 @@ export const setupGuide = ({ project, manager, versions }: SetupInput): string =
   ])
   const check = Option.match(project, {
     onNone: () => [
-      'There is no `package.json` here: this is a new application. Do not scaffold yet. Follow the greenfield guide, which asks the user about the goals and the domain before any code:',
+      'There is no `package.json` here: this is a new application. Do not scaffold yet. Follow the greenfield guide, which asks the user about the goals, the look and the domain before any code:',
       '',
       `- ${GREENFIELD} (in the skill of step 3, \`references/greenfield.md\`)`,
       '',
@@ -281,7 +281,7 @@ export const setupGuide = ({ project, manager, versions }: SetupInput): string =
       onNone: () => [],
       onSome: () => [
         '',
-        `Building a new application rather than extending one? Follow its \`references/greenfield.md\` (${GREENFIELD}): goals, then the domain with the user, recorded in the project and mapped to these packages, then a plan for architecture, performance, SEO, testing, CI and deployment, before implementing.`,
+        `Building a new application rather than extending one? Follow its \`references/greenfield.md\` (${GREENFIELD}): goals and the look, then the domain with the user, recorded in the project and mapped to these packages, then a plan for architecture, performance, SEO, testing, CI and deployment, before implementing.`,
       ],
     }),
     '',

@@ -17,7 +17,9 @@ says.
 For a new application, run it in an empty folder. With no `package.json` it
 sends the agent to the skill's
 [greenfield guide](https://github.com/doeixd/foldkit-plus/blob/main/skills/foldkit-plus/references/greenfield.md):
-ask about the goals and the domain first, record the answers in the project,
+ask about the goals, the look (a theme designed at
+[/create](https://foldkit-plus.pages.dev/create)) and the domain first, record
+the answers in the project,
 map them to these packages with you, plan the architecture, performance, SEO,
 testing, CI and deployment, and build once you agree. It prints the
 `create-foldkit-app` command, at the release that installs this release's

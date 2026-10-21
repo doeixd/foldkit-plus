@@ -34,7 +34,9 @@ version changed; `pnpm` skips versions already in the registry.
   application's store, `storedFactsR2(bucket)` on Cloudflare.
 
 - The `foldkit-plus` skill has `references/greenfield.md`: how an agent starts a new
-  application. The brief, then a scaffold with the matching `create-foldkit-app`, then rounds of
+  application. The brief, the look (a theme the user designs at foldkit-plus.pages.dev/create,
+  its code saved as the app's style module), then a scaffold with the matching
+  `create-foldkit-app`, then rounds of
   domain questions recorded in `docs/domain/` until the user stops, a mapping of the domain to
   the packages agreed with them, a plan (`plan.md`) for architecture, performance budgets, SEO,
   accessibility, design, testing, CI, deployment, security, operations and milestones, and only

@@ -9,8 +9,8 @@ the user has said what the domain is. Every phase leaves a file in the project,
 so a later session (or another agent) picks up where this one stopped.
 
 ```text
-1 brief -> 2 scaffold -> 3 domain rounds -> 4 survey + mapping -> 5 plan -> 6 implement
-  ask       create        ask, record       read, propose        agree     on "go"
+1 brief -> 2 look -> 3 scaffold -> 4 domain rounds -> 5 mapping -> 6 plan -> 7 implement
+  ask      design     create        ask, record     read, propose  agree     on "go"
 ```
 
 ## 1. The brief
@@ -28,7 +28,31 @@ Ask about constraints that change architecture now, not later: offline use,
 several devices editing the same thing, sign-in, content editors who are not
 developers, AI agents acting in the app.
 
-## 2. Scaffold
+## 2. The look
+
+Before the domain, settle how the application looks, so every screen the
+mapping implies is drawn in it from the start. Ask the user to design a theme
+at https://foldkit-plus.pages.dev/create: starting from a preset, its knobs
+(colour, shape, type, icons and motion, in light and dark) restyle every
+component as they move, and the page writes the theme as a module beside
+them. Ask them to paste
+back two things:
+
+- **The code** under the preview: a module importing `AppStyle` from
+  `foldkit-mixins/app` and `Theme` from `foldkit-mixins/theme`, holding
+  `const theme = Theme.make({ … })` and exporting `t`, `slots`, `forSlots` and
+  `stylesheet` from `AppStyle.make`.
+- **The page's address**: the theme is in its query, so the link reopens it
+  for a later change.
+
+If they would rather not design one, ask a few questions instead (a calm or a
+bold look; light, dark or both; dense or roomy; sharp or round; one accent
+colour; a typeface they like) and choose the nearest of the page's presets
+with them. Either way, write the answers, the link and the code into
+`docs/domain/brief.md` under **Look**; phase 3 saves the code as the
+application's style module.
+
+## 3. Scaffold
 
 In the parent folder, run `npx foldkit-plus setup`: with no `package.json` it
 prints the `create-foldkit-app` release whose Foldkit matches this release, as
@@ -41,17 +65,22 @@ npx foldkit-plus setup
 ```
 
 Follow the second `setup` output (install, the skill, imports). Install an
-adapter only when the mapping (phase 4) calls for it. Then:
+adapter only when the mapping (phase 5) calls for it. Then:
 
 - Run the project's `typecheck` and `test` once, so a later failure is yours.
 - Create `docs/domain/` and add a line under **Project Notes** in the
   scaffold's `AGENTS.md`: "The domain, its decisions and its mapping to Foldkit
   Plus are in `docs/domain/`; read them before changing the app."
-- Write `docs/domain/brief.md` from phase 1's answers.
+- Write `docs/domain/brief.md` from phase 1's answers, and the look from phase 2.
+- Save phase 2's theme code as `src/style.ts`, and keep its link in a comment
+  above it; the views of phase 7 draw through its `slots` and `stylesheet`
+  (see [mixins.md](mixins.md), `AppStyle`). The scaffold also styles with
+  Tailwind (`src/styles.css`): keep it beside the theme only if the user wants
+  both, and say so in phase 6's plan.
 
-The scaffold's counter is a placeholder: leave it until phase 5 replaces it.
+The scaffold's counter is a placeholder: leave it until phase 7 replaces it.
 
-## 3. Domain rounds
+## 4. Domain rounds
 
 Ask a few questions at a time (three to six), grouped by topic, and record the
 answers before asking more. Keep going, round after round, **until the user
@@ -84,10 +113,10 @@ Record every round in `docs/domain/`:
   each interaction and who may do it; open questions at the bottom.
 
 Beside each decision in `model.md`, note the package it points to, as a hint
-for phase 4 ("archived only by an admin → a principal guard on an `Archive`
+for phase 5 ("archived only by an admin → a principal guard on an `Archive`
 interaction, `foldkit-guard`").
 
-## 4. Survey and mapping
+## 5. Survey and mapping
 
 Before proposing anything, read this skill's `SKILL.md` and the reference of
 every package the model touches, so the mapping uses the APIs as they are.
@@ -128,10 +157,10 @@ Then show the user `mapping.md`, ask what is wrong or missing, and revise it.
 Repeat until they say it is right. A disagreement about the domain goes back to
 `model.md` and `rounds.md` first.
 
-## 5. Plan the build
+## 6. Plan the build
 
 With the mapping agreed, settle how the application is built, shipped and
-held to a standard, before any of it is. Ask topic by topic, as in phase 3,
+held to a standard, before any of it is. Ask topic by topic, as in phase 4,
 propose an answer where the brief and the mapping already suggest one, and
 record the decisions in `docs/domain/plan.md`.
 
@@ -141,18 +170,18 @@ record the decisions in `docs/domain/plan.md`.
 | Performance | Budgets, written as numbers: Lighthouse scores, LCP, CLS, INP, the client bundle's size. What the largest image is and how it loads (`priority`, `Image.preloadsIn`). That server-only modules stay out of the client bundle (import `foldkit-ssr/client`, never `foldkit-ssr`, in the browser). Fonts. |
 | SEO and sharing | Which routes are indexed. A title per route (`foldkit-site`'s `title`), a description and a canonical URL in each page's head; Foldkit fills head tags the HTML template already holds and adds none, so the template needs each one. A sitemap and `robots.txt` (a static site's build writes both). Open Graph images (`Picture.ogImage`). |
 | Accessibility | The level aimed for (WCAG 2.2 AA is the usual answer). Keyboard paths through every flow, focus after each navigation and dialog, reduced motion, contrast through the theme. |
-| Design and polish | The theme: one `Theme.make` of knob values (density, radius, motion, colour), dark mode, the components from `foldkit-mixins-ui`. Every screen's empty, loading, failed and offline state. Copy and tone. |
+| Design and polish | The look from phase 2, revisited now that the screens are known: dark mode, more than one theme, the components from `foldkit-mixins-ui`. Every screen's empty, loading, failed and offline state. Copy and tone. |
 | Testing | What each kind proves: `update` and invariants as unit tests, views as Scene tests, focus, layout and the pointer as browser tests, flows that cross the server as end-to-end tests in a real browser. Guards and invariants under mutation testing, so each test is shown able to fail. Type tests for what must not compile. |
 | CI | The checks every push runs (format, typecheck, tests, end-to-end, build) and what blocks a merge. Preview deployments, if the host offers them. |
 | Deployment | The host and its project, environments (preview, production), domains, secrets (session keys, an upload token), database migrations and backups, where images are kept and resized (`foldkit-media`'s server, a CDN). Who may deploy, and confirm before the first public one. |
 | Security | Authentication and its CSRF and origin checks (`foldkit-auth`), guards checked at startup (`GuardServer.validate`), who may upload, rate limits, response headers. |
 | Operations | Logs, error reports, analytics if any, and what is done when a deploy goes wrong. |
-| Milestones | The slices of phase 6, in order, each with what "done" means, so the user can stop after any one with something that works. |
+| Milestones | The slices of phase 7, in order, each with what "done" means, so the user can stop after any one with something that works. |
 
 Show the user `plan.md`, revise it with them, and wait for them to say to go
 ahead. A decision here that changes the domain goes back to `mapping.md`.
 
-## 6. Implement
+## 7. Implement
 
 Only after the user approves the mapping and the plan. Set up CI and the
 deployment target first, so every slice is checked and could ship. Then build
