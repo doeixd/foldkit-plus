@@ -127,6 +127,60 @@ every package the model touches, so the mapping uses the APIs as they are.
 Then write `docs/domain/mapping.md`: every concept of the model, where it
 lives, and through which API.
 
+### How the pieces stack
+
+```text
+Schema    a value's shape and checks, decoded at every boundary
+  Entity  the domain: identity, fields, Relations, derived members, Selections
+    Remote  server-owned rows: queries and mutations over the Entity
+    Form    one mutation's input as a draft: controls, validation, a value
+    Crud    a list over a query, an editor over a form and a mutation
+Guard     who may read or change an Entity's rows, enforced on the server
+Auth      the session Guard's principal comes from
+Site      the routes and titles the Crud screens hang on
+Composition  a page as Blocks in Regions, stored as a field, drawn by a route
+```
+
+A worked path for a `Project` with an owner and tasks, in the order the
+mapping names it:
+
+- **Schema** (`effect`'s `Schema`): `Project`'s fields — its id, `ownerId`, its
+  name — and Person's and Task's, one Schema decoding the value wherever it
+  crosses in: a request, a row, a form. A check here is the first boundary.
+- **Entity**: `Entity.define('Project', Schema.Struct({ … }))`, then
+  `const Domain = Entity.relate({ Project, Person, Task }, { Project: { owner:
+  Relation.one(Person), tasks: Relation.many(Task) } })` for the relations and
+  `Entity.derived` for the counts; `Entity.select(Domain.Project, { name: true
+  })` names what one screen reads, from the related set rather than the bare
+  one. Remote, Drizzle and Form read this declaration; none of them repeats it.
+- **Guard**: the `rename` interaction's row guard, declared once with
+  `Guards.declare` as `Expr.eq(Project.fields.ownerId, p.id)` (`p` the
+  principal), enforced by `remote-server`, `-drizzle`, Sync and agents. An
+  invariant only `update` checks is a UI rule, not an invariant.
+- **Auth**: `AuthServer.resolver` reads the request's session and answers as
+  that principal, a visitor, or a refusal. Guard decides on it; Auth signs
+  nobody in.
+- **Remote**: `Remote.make({ model, entities: Object.values(Domain), queries:
+  [ProjectsByOwner], mutations: [RenameProject] })`, a mutation's `Input` the
+  Schema the form fills; `remote-server` answers it and `remote-drizzle` binds
+  the Entity to tables.
+- **Form**: `Form.make('Rename', Entity.input(Domain.Project, RenameInput))` —
+  the mutation's input as a draft, validated, its decoded value handed on.
+- **Crud**: `Crud.editor('ProjectEditor', { form, mutation })` loads the row,
+  fills the form, saves and reports the status; a list is a query drawn as a
+  table.
+- **Site**: `Site.route(router, Route.Project, { title, access })` and its
+  parent, so the screen has an address, a title, and who may see it; the Crud
+  screens are the views.
+- **Composition**: if the `Project` carries a page as a field, it is a
+  `Catalog` of Blocks and a stored `Document` of Blocks in Regions
+  (`Composition.validate` checks one against the other), edited by the Builder;
+  the route that draws it is still Site's.
+
+Keep one copy of each fact: the field on the Entity, the check on the Schema,
+the rule on the Guard. A fact in two rows of `mapping.md` has two owners, and
+one of them is wrong.
+
 | In the domain | Owned by | Reference |
 | --- | --- | --- |
 | A thing with fields, identity, relations, derived members | `foldkit-entity`: `Entity.define`, `Relation`, Selections | [entity.md](entity.md) |
