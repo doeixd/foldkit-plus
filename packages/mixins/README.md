@@ -277,8 +277,8 @@ one.
 | `Theme.root(theme, { omit?, colorScheme? })` / `Theme.scoped(theme, selector, overrides)` | from `foldkit-mixins/theme`: tokens as `:root` custom properties, or as overrides under a selector; unlayered global pieces for `Style.stylesheet` |
 | `Theme.schemeScript(key?)` / `Theme.chooseScheme(scheme, key?)` / `Theme.currentScheme()` | from `foldkit-mixins/theme`: a head script applying a kept `light` or `dark` before the first paint; a Command's Effect that applies and keeps a choice; the scheme applied now |
 | `Theme.knobScript({ key?, selector? })` / `Theme.chooseKnobs(theme, { base, key?, selector? })` | from `foldkit-mixins/theme`: a head script applying kept knob variables before the first paint; a Command's Effect that applies `theme`'s knobs that differ from `base` and keeps them |
-| `Theme.make(values)` / `Theme.standard(theme?)` | from `foldkit-mixins/theme`: a theme, the typed knob values it changes (`Knobs.standard`); every shipped token with a theme's knobs, for `Theme.root` |
-| `Theme.tokens` / `Theme.breakpointWidths(theme)` | from `foldkit-mixins/theme`: the shipped spacing, type, radius, motion, width, border, shadow and breakpoint scales, `icon` (the masks the components draw their own icons with, Lucide's by default; an application's pack is `foldkit-mixins-ui`'s `Icons.tokens(pack)`, passed as its own tokens), and `safe` (what a notch or the home indicator takes from each screen edge, `env(safe-area-inset-*)`, 0 unless the viewport meta says `viewport-fit=cover`); the breakpoints as pixel widths for `foldkit-primitives/media` |
+| `Theme.make(values)` / `Theme.standard(theme?)` / `Theme.fluidType({ min, max })` | from `foldkit-mixins/theme`: a theme, the typed knob values it changes (`Knobs.standard`); every shipped token with a theme's knobs, for `Theme.root`; one size blended between two lengths by the theme's fluid range |
+| `Theme.tokens` / `Theme.breakpointWidths(theme)` | from `foldkit-mixins/theme`: the shipped spacing, type, reading, radius, motion, width, border, shadow and breakpoint scales, `icon` (the masks the components draw their own icons with, Lucide's by default; an application's pack is `foldkit-mixins-ui`'s `Icons.tokens(pack)`, passed as its own tokens), and `safe` (what a notch or the home indicator takes from each screen edge, `env(safe-area-inset-*)`, 0 unless the viewport meta says `viewport-fit=cover`); the breakpoints as pixel widths for `foldkit-primitives/media` |
 | `Layers.define(names)` / `Layers.standard` | cascade layers as a value: `names`, `declare` (the `@layer …;` statement as a global piece), `in(name, piece)` (a piece's unlayered rules and global CSS inside that layer; what is already layered keeps its layer; a piece wholly in another layer is `style:relayered`) and `layer(name)` (the placement `Style.forSlots(S)(pieces, { layer })` takes, so a slot style is compiled in that layer). A name outside the order is a type error. `standard` is `reset, tokens, theme, defaults, components, layouts, variants, utilities, app`; also under `foldkit-mixins/layers` |
 | `Style.stylesheet(...)` | one `<style>` block from `NamedStyle`s and bare `StyleValue`s: the layer order hoisted first (two different orders is `style:conflicting-layer-order`), then global chunks, then scoped classes, deduplicated. Once an order is declared, a rule outside it is `style:unlayered-rule`, since it would beat every layer; keyframes, font faces and `@property` pass |
 
@@ -378,6 +378,20 @@ reaches a knob by its path, typed by it: `Knobs.paths(knobs)` lists them, `Knobs
 'shape.radius')` is the knob, and `Knobs.valueAt` and `Knobs.withValue` read and set one value of a
 theme, checked by its knob; a schemed knob's `light` and `dark` are knobs of their own, each with its
 range. `/create` is drawn this way.
+
+Type is still by default. `type.fluid` (0 to 1) says how much larger every size grows between
+`type.viewportMin` and `type.viewportMax`: `0` is today's fixed scale, `1` uses the whole range,
+and the growth is larger the further a step stands above the body. The `fluid` token group is
+`ratio` (the viewport's place in that range, 0 to 1) and `progress` (that place at the theme's
+strength); `Theme.fluidType({ min, max })` writes the same blend for one value, so a heading reads
+its size from the page's range instead of a `clamp()` with a `vw` in it. A range of its own is
+`Theme.fluidType({ min, max, viewport: { min: '500px', max: '1000px' } })`.
+
+Reading is its own group: `reading.measure` is a length in `ch` (65 by default) that caps
+`Prose` and the `body`, `lead` and `quote` levels of `Typography`; `reading.headingWrap` and
+`reading.bodyWrap` choose `balance`, `pretty` or `wrap`; and `reading.align` is `start`,
+`center`, `end` or `justify`. `Prose.style({ measure, align })` still overrides them for one
+container.
 
 Themes are installed by name, the names being a record's keys:
 

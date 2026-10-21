@@ -15,6 +15,7 @@
  */
 import { DiagnosticError } from '../diagnostics.js'
 import { define } from './core.js'
+import { FLUID_BASE, FLUID_RATIO, fluidRatioOf } from './fluid.js'
 import { masks } from './iconMasks.js'
 import { standard } from './knobs.js'
 import { asVariables, elevation, reliefs } from './shadows.js'
@@ -27,11 +28,16 @@ const textScale = 'var(--fk-knob-text-scale, 1)'
  * A step of the type scale: at or below the body size it scales with the
  * text alone; above it, its distance from the body size also scales with
  * `heading-scale`, so headings can stand further off the text or closer.
+ * Fluid growth adds a step's share at the large viewport; `step` is its
+ * distance from `md`, so headings grow more than the body.
  */
-const text = (rem: number) =>
-  rem <= 1
-    ? `calc(${rem}rem * ${textScale})`
-    : `calc((1rem + ${Number((rem - 1).toFixed(4))}rem * var(--fk-knob-heading-scale, 1)) * ${textScale})`
+const text = (rem: number, step: number) => {
+  const base =
+    rem <= 1
+      ? `calc(${rem}rem * ${textScale})`
+      : `calc((1rem + ${Number((rem - 1).toFixed(4))}rem * var(--fk-knob-heading-scale, 1)) * ${textScale})`
+  return `calc(${base} * (1 + ${FLUID_BASE} * pow(${FLUID_RATIO}, ${step}) * var(--fk-fluid-progress)))`
+}
 const leading = (ratio: number) => `calc(${ratio} * var(--fk-knob-leading, 1))`
 export const tokens = define({
   knob: {
@@ -58,11 +64,25 @@ export const tokens = define({
     ...standard.type.heading.unset,
     ...standard.type.headingWeight.unset,
     ...standard.type.headingTracking.unset,
+    ...standard.type.fluid.unset,
+    ...standard.type.viewportMin.unset,
+    ...standard.type.viewportMax.unset,
+    ...standard.reading.measure.unset,
+    ...standard.reading.headingWrap.unset,
+    ...standard.reading.bodyWrap.unset,
+    ...standard.reading.align.unset,
     ...standard.motion.easing.unset,
     ...standard.icon.size.unset,
     ...standard.icon.stroke.unset,
     ...standard.shadow.style.unset,
     ...standard.shadow.relief.unset,
+  },
+  // The viewport's place between the two range knobs, and that place at the
+  // theme's strength. `tan(atan2(y, x))` is y/x, unitless and linear, and
+  // `atan2` alone is an angle; see `fluid.ts`.
+  fluid: {
+    ratio: fluidRatioOf('var(--fk-knob-fluid-viewport-min)', 'var(--fk-knob-fluid-viewport-max)'),
+    progress: 'calc(var(--fk-fluid-ratio) * var(--fk-knob-fluid))',
   },
   space: {
     '3xs': space(0.125),
@@ -92,14 +112,14 @@ export const tokens = define({
     mono: 'ui-monospace, monospace',
   },
   size: {
-    xs: text(0.75),
-    sm: text(0.875),
-    md: text(1),
-    lg: text(1.125),
-    xl: text(1.25),
-    '2xl': text(1.5),
-    '3xl': text(1.875),
-    '4xl': text(2.25),
+    xs: text(0.75, -2),
+    sm: text(0.875, -1),
+    md: text(1, 0),
+    lg: text(1.125, 1),
+    xl: text(1.25, 2),
+    '2xl': text(1.5, 3),
+    '3xl': text(1.875, 4),
+    '4xl': text(2.25, 5),
   },
   leading: {
     tight: leading(1.2),
@@ -190,6 +210,15 @@ export const tokens = define({
     'micro-size-compact': '0.625rem',
     'micro-leading': '0.875rem',
     'micro-leading-compact': '0.75rem',
+  },
+  // How reading text measures and breaks: the line length in `ch`, and the
+  // `text-wrap` a heading or a paragraph uses. `align` is `text-align`, with
+  // `start` following the writing direction.
+  reading: {
+    measure: 'var(--fk-knob-measure)',
+    'heading-wrap': 'var(--fk-knob-heading-wrap)',
+    'body-wrap': 'var(--fk-knob-body-wrap)',
+    align: 'var(--fk-knob-reading-align)',
   },
   // The least widths content sets: `field` a text field's, so one sized by
   // its content still has room to type in; the columns a grid of cards or

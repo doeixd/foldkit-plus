@@ -15,6 +15,7 @@ describe('Prose.style', () => {
     const narrow = Prose.style({
       measure: '50ch',
       leading: '1.8',
+      align: 'center',
       rhythm: { heading: '2.5em', list: '0' },
     })
     expect(Style.stylesheet(plain)).toBe(Style.stylesheet(narrow))
@@ -23,12 +24,16 @@ describe('Prose.style', () => {
     expect(narrow.style).toEqual({
       '--fk-prose-measure': '50ch',
       '--fk-prose-leading': '1.8',
+      '--fk-prose-align': 'center',
       '--fk-prose-heading': '2.5em',
       '--fk-prose-list': '0',
     })
     const css = Style.stylesheet(plain)
-    expect(css).toContain('max-inline-size:var(--fk-prose-measure, 65ch)')
+    expect(css).toContain(
+      'max-inline-size:var(--fk-prose-measure, var(--fk-reading-measure, 65ch))',
+    )
     expect(css).toContain('line-height:var(--fk-prose-leading, var(--fk-leading-relaxed, 1.6))')
+    expect(css).toContain('text-align:var(--fk-prose-align, var(--fk-reading-align, start))')
   })
 
   it('writes the rhythm between unlike elements as rules with token fallbacks', () => {

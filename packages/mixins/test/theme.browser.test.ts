@@ -412,3 +412,61 @@ test('the type knobs scale the text, spread the headings and open the lines', ()
   expect(measured('leading', {})).toBe(54)
   expect(measured('leading', { leading: '1.2' })).toBeCloseTo(64.8, 1)
 })
+
+test('fluid type is the viewport’s place between two ranges, and the strength scales it', () => {
+  const style = document.createElement('style')
+  style.dataset['test'] = ''
+  style.textContent = Style.stylesheet(
+    L.declare,
+    L.in(
+      'theme',
+      Theme.root(
+        Theme.standard(Theme.make({ type: { fluid: 1, viewportMin: 320, viewportMax: 1440 } })),
+        { colorScheme: 'light' },
+      ),
+    ),
+  )
+  document.head.append(style)
+  const root = document.documentElement.style
+  const size = () => {
+    const box = document.createElement('div')
+    box.style.fontSize = 'var(--fk-size-md)'
+    document.body.append(box)
+    const value = Number.parseFloat(getComputedStyle(box).fontSize)
+    box.remove()
+    return value
+  }
+  const ratio = () => {
+    const box = document.createElement('div')
+    box.style.width = 'calc(var(--fk-fluid-ratio) * 1000px)'
+    document.body.append(box)
+    const value = box.getBoundingClientRect().width / 1000
+    box.remove()
+    return value
+  }
+
+  // The fallback is the linear place in the range; native progress() agrees.
+  const expected = Math.min(
+    1,
+    Math.max(0, Math.tan(Math.atan2(window.innerWidth - 320, 1440 - 320))),
+  )
+  expect(ratio()).toBeCloseTo(expected, 2)
+  if (CSS.supports('opacity', 'progress(0, 0, 1)')) {
+    const native = document.createElement('div')
+    native.style.setProperty('--native-ratio', 'progress(100vw, 320px, 1440px)')
+    native.style.width = 'calc(var(--native-ratio) * 1000px)'
+    document.body.append(native)
+    expect(native.getBoundingClientRect().width / 1000).toBeCloseTo(ratio(), 3)
+    native.remove()
+  }
+
+  // `type.fluid: 1` reaches the large end; half progress is half the growth.
+  root.setProperty('--fk-fluid-progress', '0')
+  expect(size()).toBe(16)
+  root.setProperty('--fk-fluid-progress', '0.5')
+  expect(size()).toBeCloseTo(16 * (1 + 0.06 * 0.5), 1)
+  root.setProperty('--fk-fluid-progress', '1')
+  expect(size()).toBeCloseTo(16 * 1.06, 1)
+  root.removeProperty('--fk-fluid-progress')
+  document.head.querySelectorAll('style[data-test]').forEach(element => element.remove())
+})

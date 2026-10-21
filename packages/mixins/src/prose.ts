@@ -13,6 +13,8 @@ export interface ProseOptions {
   readonly measure?: string
   /** The line height, e.g. `'1.75'`. Default: the theme's relaxed leading. */
   readonly leading?: string
+  /** The alignment. Default: the theme's reading alignment. */
+  readonly align?: 'start' | 'center' | 'end' | 'justify'
   /** The space before an element, by what it follows. */
   readonly rhythm?: Partial<{
     /** Between flowing blocks: paragraph after paragraph, list after paragraph. */
@@ -78,6 +80,7 @@ const rules: StyleValue = compose(
 const variables = (options: ProseOptions): Readonly<Record<`--${string}`, string>> => ({
   ...(options.measure === undefined ? {} : { '--fk-prose-measure': options.measure }),
   ...(options.leading === undefined ? {} : { '--fk-prose-leading': options.leading }),
+  ...(options.align === undefined ? {} : { '--fk-prose-align': options.align }),
   ...(options.rhythm?.paragraph === undefined
     ? {}
     : { '--fk-prose-paragraph': options.rhythm.paragraph }),
@@ -96,8 +99,9 @@ const variables = (options: ProseOptions): Readonly<Record<`--${string}`, string
 export const style = (options: ProseOptions = {}): StyleValue =>
   compose(
     self({
-      maxInlineSize: 'var(--fk-prose-measure, 65ch)',
+      maxInlineSize: 'var(--fk-prose-measure, var(--fk-reading-measure, 65ch))',
       lineHeight: 'var(--fk-prose-leading, var(--fk-leading-relaxed, 1.6))',
+      textAlign: 'var(--fk-prose-align, var(--fk-reading-align, start))',
     }),
     inline(variables(options)),
     rules,

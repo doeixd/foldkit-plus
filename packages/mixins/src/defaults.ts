@@ -35,8 +35,8 @@ export const reset: StyleValue = global(
     ':where(:is(img,picture,video,canvas,svg)){display:block;max-inline-size:100%;block-size:auto}',
     ':where(:is(input,button,textarea,select)){font:inherit;color:inherit}',
     ':where(textarea){field-sizing:content;min-block-size:2lh}',
-    ':where(:is(h1,h2,h3,h4,h5,h6)){text-wrap:balance}',
-    ':where(p){text-wrap:pretty;overflow-wrap:break-word}',
+    ':where(:is(h1,h2,h3,h4,h5,h6)){text-wrap:var(--fk-reading-heading-wrap, balance)}',
+    ':where(p){text-wrap:var(--fk-reading-body-wrap, pretty);overflow-wrap:break-word}',
     // Reduced motion is fewer and gentler, not none: what moves snaps (the
     // `travel` knob on every element, important so one that sets the knob
     // itself, a scoped theme's or an inline one, cannot restore it), while a

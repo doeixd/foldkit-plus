@@ -349,12 +349,16 @@ the shipped tokens (`Theme.root(Theme.standard(theme))` ships them; a theme is t
 `Theme.make({ shape: { radius: 1.8 }, menu: { panel: 'inverted' } })` over `Knobs.standard`, pipeable with
 `Theme.set` and `Theme.describe`, and `shadow: { relief: 'bevel' }` raises every faced button and sinks every
 field; every knob is a
-variable, choices too: `icon.size` (multiplies the icon rung of `ladder`) and `icon.stroke` (`border.glyph`, what recipes draw in CSS), `shape.border`, `type.body`, `type.headingWeight`, `motion.easing`, `shadow.style`, `shadow.relief`,
+variable, choices too: `icon.size` (multiplies the icon rung of `ladder`) and `icon.stroke` (`border.glyph`, what recipes draw in CSS), `shape.border`, `type.body`, `type.headingWeight`, `type.fluid` (0 keeps one size; 1 grows type between `type.viewportMin` and `type.viewportMax`), `motion.easing`, `shadow.style`, `shadow.relief`,
 `shape.outlines` and `surface.hover` each write the CSS their option holds, so they switch at runtime;
 `Themes.make({ iris, cobalt }, { initial: 'iris' })` installs themes by name for `AppStyle.make({ themes })`,
 `themes.Name` the Model's field and `Themes.apply(themes, name)` the Command (`Themes.choose` also keeps the name,
 and `Themes.script(themes)` in the head shows the kept one before the first paint), and `Theme.scope(theme, selector)`
-themes a subtree; `Knobs.schema(knobs)` decodes a theme's values, `Theme.print(theme)` writes its source, and each
+themes a subtree; `Theme.fluidType({ min, max })` blends one size over the theme's fluid range
+(`Theme.fluidType({ min, max, viewport })` over a range of its own);
+`reading.measure` (in `ch`) caps `Prose` and reading `Typography`, `reading.headingWrap` /
+`reading.bodyWrap` choose `text-wrap`, and `reading.align` sets reading alignment;
+`Knobs.schema(knobs)` decodes a theme's values, `Theme.print(theme)` writes its source, and each
 knob's `title`, `description` and `default` draw its control; `Knobs.at(knobs, path)`, `Knobs.valueAt` and
 `Knobs.withValue` reach one knob by its path, typed), put bases in the
 `components` layer and variants in `variants` of `Layers.standard`, and style state from the

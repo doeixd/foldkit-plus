@@ -345,4 +345,48 @@ export default [
     ],
     tests: ['packages/mixins/test/theme.browser.test.ts'],
   },
+  {
+    name: 'a fluid ratio is the raw angle, not y/x',
+    edits: [
+      {
+        file: '../src/theme/fluid.ts',
+        find: 'tan(atan2(100vw - ${min}, ${max} - ${min}))',
+        replace: 'atan2(100vw - ${min}, ${max} - ${min})',
+      },
+    ],
+    tests: ['packages/mixins/test/theme.browser.test.ts'],
+  },
+  {
+    name: 'a size ignores the theme’s fluid strength',
+    edits: [
+      {
+        file: '../src/theme/tokens.ts',
+        find: '${FLUID_BASE} * pow(${FLUID_RATIO}, ${step}) * var(--fk-fluid-progress)))',
+        replace: '${FLUID_BASE} * pow(${FLUID_RATIO}, ${step}) * 1))',
+      },
+    ],
+    tests: ['packages/mixins/test/theme.browser.test.ts'],
+  },
+  {
+    name: 'the reading measure writes a px variable',
+    edits: [
+      {
+        file: '../src/theme/knobs.ts',
+        find: "variable: 'measure',",
+        replace: "variable: 'reading-measure',",
+      },
+    ],
+    tests: ['packages/mixins/test/themePage.test.ts'],
+  },
+  {
+    name: 'headings wrap as body copy does',
+    edits: [
+      {
+        file: '../src/theme/tokens.ts',
+        find: "'heading-wrap': 'var(--fk-knob-heading-wrap)'",
+        replace: "'heading-wrap': 'var(--fk-knob-body-wrap)'",
+      },
+    ],
+    tests: ['packages/mixins/test/themePage.test.ts'],
+  },
 ]

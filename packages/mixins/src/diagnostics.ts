@@ -26,6 +26,8 @@ export type DiagnosticCode =
   | 'style:unlayered-rule'
   | 'style:relayered'
   | 'theme:unparseable-breakpoint'
+  | 'theme:fluid-boundary'
+  | 'theme:fluid-range'
   | 'a11y:missing-slot'
   | 'a11y:hidden-slot'
   | 'a11y:capability-mismatch'

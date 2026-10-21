@@ -83,8 +83,8 @@ export const angle = <const Name extends string>(
 ) => number({ min: -360, max: 360, step: 1, ...options })
 /** A percentage, written with `%`. */
 export const percent = ranged('%')
-/** A length in `unit`, written with it (`1px`, `-0.025em`). */
-export const length = (unit: 'px' | 'em' | 'rem') => ranged(unit)
+/** A length in `unit`, written with it (`1px`, `-0.025em`, `65ch`). */
+export const length = (unit: 'px' | 'em' | 'rem' | 'ch') => ranged(unit)
 
 /**
  * A value per scheme: `{ light, dark }`, or a bare value for the light scheme

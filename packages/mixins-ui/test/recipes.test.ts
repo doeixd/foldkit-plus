@@ -140,7 +140,11 @@ const defined = new Set([
     part => `slider-${part}`,
   ),
   // Prose's own knobs, each read with a fallback and set by `Prose.style(options)`.
-  ...['measure', 'leading', 'paragraph', 'heading', 'list', 'figure'].map(part => `prose-${part}`),
+  ...['measure', 'leading', 'align', 'paragraph', 'heading', 'list', 'figure'].map(
+    part => `prose-${part}`,
+  ),
+  // The reading tokens `Prose` falls back to when its own options are unset.
+  ...['measure', 'heading-wrap', 'body-wrap', 'align'].map(part => `reading-${part}`),
   // Written by the views: the dial's angle and each marker's, the timer's share counted,
   // the marquee's measured timing, the cropper's geometry.
   'angle',

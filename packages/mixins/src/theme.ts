@@ -8,6 +8,7 @@
  */
 import * as Core from './theme/core.js'
 import * as Knob from './theme/knob.js'
+import { fluidRatio, fluidType } from './theme/fluid.js'
 import { fonts } from './theme/fonts.js'
 import {
   at,
@@ -41,6 +42,8 @@ import {
 
 export { compose, define, lightDark, ref, variables, VAR_PREFIX } from './theme/core.js'
 export type { Refs, Theme as ThemeValue, ThemeTokens } from './theme/core.js'
+export { fluidRatio, fluidType } from './theme/fluid.js'
+export type { FluidTypeOptions, Viewport } from './theme/fluid.js'
 export { root, scoped } from './theme/root.js'
 export type { Overrides, RootOptions } from './theme/root.js'
 export {
@@ -113,6 +116,8 @@ export const Theme = {
   tokensOf,
   print,
   fonts,
+  fluidType,
+  fluidRatio,
   scope: ThemeSet.scope,
   schemeScript,
   chooseScheme,

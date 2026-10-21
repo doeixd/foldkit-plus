@@ -60,4 +60,11 @@ describe('Typography recipe', () => {
     expect(css({ level: 'muted' })).toContain('color:var(--fk-text-muted)')
     expect(css({ level: 'code' })).toContain('background:var(--fk-surface-muted)')
   })
+
+  it('caps reading levels at the theme’s measure and aligns them', () => {
+    for (const level of ['body', 'lead', 'quote'] as const)
+      expect(css({ level }), level).toContain('max-inline-size:var(--fk-reading-measure)')
+    for (const level of ['h1', 'body', 'caption'] as const)
+      expect(css({ level }), level).toContain('text-align:var(--fk-reading-align)')
+  })
 })

@@ -33,12 +33,13 @@ describe('Defaults', () => {
     )
   })
 
-  it('reset normalizes the box model and references no theme token', () => {
+  it('reset normalizes the box model and reads only the reading tokens, with fallbacks', () => {
     const css = cssOf(Defaults.reset)
     for (const selector of ['*,*::before,*::after', ':where(html)', ':where(textarea)']) {
       expect(css).toContain(selector)
     }
-    expect(tokenReferences(css)).toEqual([])
+    expect(tokenReferences(css)).toEqual(['reading-heading-wrap', 'reading-body-wrap'])
+    expect(css).not.toMatch(/var\(--fk-[a-z0-9-]+\)/)
   })
 
   it('all composes every default except reset', () => {

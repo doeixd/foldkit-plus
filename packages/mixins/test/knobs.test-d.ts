@@ -9,6 +9,7 @@ Theme.make({
   accent: { hue: 235, chroma: 0.225, lightness: { light: 55, dark: 70 } },
   shape: { radius: 1.8, size: 'compact', controls: 'pill' },
   menu: { panel: 'inverted' },
+  reading: { measure: 70, headingWrap: 'pretty', bodyWrap: 'wrap', align: 'center' },
 })
 
 // @ts-expect-error An unknown group.
@@ -21,6 +22,10 @@ Theme.make({ shape: { size: 'huge' } })
 Theme.make({ shape: { radius: '1.8' } })
 // @ts-expect-error A scheme the value does not have.
 Theme.make({ accent: { lightness: { dim: 40 } } })
+// @ts-expect-error A measure is a number of ch, not a length string.
+Theme.make({ reading: { measure: '65ch' } })
+// @ts-expect-error A wrap outside its options.
+Theme.make({ reading: { headingWrap: 'balanced' } })
 
 Theme.make({}).pipe(Theme.set({ shape: { density: 0.9 } }))
 // @ts-expect-error Set takes the theme's own knobs.

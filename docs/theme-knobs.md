@@ -242,6 +242,13 @@ follows another knob until a theme sets it.
 | `type.leading` | number | 1 | 0.85 to 1.3 | `leading` |
 | `type.headingWeight` | number | 600 | 300 to 900, by 100 | `heading-weight` |
 | `type.headingTracking` | length em | -0.01 | -0.05 to 0.05 | `heading-tracking` |
+| `type.fluid` | number | 0 | 0 to 1 | `fluid`; 0 keeps one size, 1 uses the whole range |
+| `type.viewportMin` | length px | 320 | 240 to 800 | `fluid-viewport-min` |
+| `type.viewportMax` | length px | 1440 | 900 to 2560 | `fluid-viewport-max` |
+| `reading.measure` | length ch | 65 | 30 to 100 | `measure`; the line length `Prose` and reading text keep |
+| `reading.headingWrap` | choice | `balance` | `balance`, `pretty`, `wrap` | `heading-wrap` |
+| `reading.bodyWrap` | choice | `pretty` | `pretty`, `wrap`, `balance` | `body-wrap` |
+| `reading.align` | choice | `start` | `start`, `center`, `end`, `justify` | `reading-align` |
 | `icon.size` | number | 1 | 0.75 to 1.5 | `icon-scale`; the `icon` rung of `ladder` multiplies by it |
 | `icon.stroke` | length px | 2 | 1 to 3 | `glyph-width`; `border.glyph`, what recipes draw in CSS, not a pack's masks. `Icons.tokens(pack, { width })` restrokes a pack's own drawings |
 | `motion.scale` | number | 1 | 0 to 2 | `motion` |
@@ -262,6 +269,41 @@ follows another knob until a theme sets it.
 Variables written without a prefix above are `--fk-knob-...`. The defaults of
 `accent` and `type.headingWeight` / `headingTracking` are Iris's and the
 shipped heading's; the rest are today's.
+
+### Fluid type
+
+Every `size.*` token is its fixed value times `1 + growth * progress`, where
+`progress` is the viewport's place between `type.viewportMin` and
+`type.viewportMax`, multiplied by `type.fluid`. The growth rises with the step's
+distance from the body, so headings move more than body text. At
+`type.fluid: 0` every size is today's value.
+
+`--fk-fluid-ratio` is the viewport's place alone, 0 to 1, and
+`--fk-fluid-progress` is that place at the theme's strength. Both are tokens, so
+`Theme.scope` re-derives them with a subtree's knobs. The expression is
+`clamp(0, tan(atan2(100vw - min, max - min)), 1)`: `tan(atan2(y, x))` is
+exactly `y/x`, unitless and linear. Native `progress(100vw, min, max)` returns
+the same number, but it is newer than the palette's `light-dark()` floor, so
+the exact fallback is what ships.
+
+`Theme.fluidType({ min, max })` writes `min + (max - min) * progress` for one
+value. A range of its own is
+`Theme.fluidType({ min, max, viewport: { min: '500px', max: '1000px' } })`.
+Both boundaries must be `px` and `min < max`; a crossing pair, or a
+`type.viewportMin` at or above `type.viewportMax`, is a
+`theme:fluid-range` diagnostic.
+
+### Reading
+
+`reading.measure` is a length in `ch`, so it follows the reading font: `Prose`
+uses it as its `max-inline-size`, and the `body`, `lead` and `quote` levels of
+`Typography` cap themselves with it. `reading.headingWrap` and
+`reading.bodyWrap` become `text-wrap` on the reset's headings and paragraphs:
+`balance` levels a heading's lines, `pretty` improves a paragraph's last line,
+and `wrap` leaves the browser's own. `reading.align` is `text-align` on reading
+text (`Prose` and `Typography`); `start` follows the writing direction. A
+per-instance `Prose.style({ measure, align })` still wins, because its own
+`--fk-prose-*` variables come first.
 
 Not knobs, deliberately:
 

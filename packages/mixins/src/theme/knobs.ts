@@ -7,6 +7,7 @@
  * default or the expression it follows (`docs/theme-knobs.md`).
  */
 import { Option, Schema } from 'effect'
+import { DiagnosticError } from '../diagnostics.js'
 import { pipeSelf, type Pipeable } from '../pipe.js'
 import { define } from './core.js'
 import * as Knob from './knob.js'
@@ -338,6 +339,80 @@ export const standard = {
       step: 0.05,
       description: 'Multiplies line height, the space each line of text takes.',
     }),
+    fluid: Knob.number({
+      title: 'Fluid type',
+      variable: 'fluid',
+      default: 0,
+      min: 0,
+      max: 1,
+      step: 0.05,
+      description:
+        'How much larger type grows between the small and large viewport. 0 keeps one size; 1 uses the whole range.',
+    }),
+    viewportMin: Knob.length('px')({
+      title: 'Small viewport',
+      variable: 'fluid-viewport-min',
+      default: 320,
+      min: 240,
+      max: 800,
+      step: 10,
+      description: 'The viewport where every fluid size is its smallest, in px.',
+    }),
+    viewportMax: Knob.length('px')({
+      title: 'Large viewport',
+      variable: 'fluid-viewport-max',
+      default: 1440,
+      min: 900,
+      max: 2560,
+      step: 10,
+      description: 'The viewport where every fluid size is its largest, in px.',
+    }),
+  },
+  reading: {
+    measure: Knob.length('ch')({
+      title: 'Reading measure',
+      variable: 'measure',
+      default: 65,
+      min: 30,
+      max: 100,
+      step: 1,
+      description:
+        'The widest a line of reading text may run, in ch. Around 65 is a book’s measure; wider is harder to track back from.',
+    }),
+    headingWrap: Knob.choice({
+      title: 'Heading wrap',
+      default: 'balance',
+      options: {
+        balance: { 'heading-wrap': 'balance' },
+        pretty: { 'heading-wrap': 'pretty' },
+        wrap: { 'heading-wrap': 'wrap' },
+      },
+      description:
+        'How a heading breaks across lines: balanced lines, a prettier last line, or the browser’s ordinary wrap.',
+    }),
+    bodyWrap: Knob.choice({
+      title: 'Body wrap',
+      default: 'pretty',
+      options: {
+        pretty: { 'body-wrap': 'pretty' },
+        wrap: { 'body-wrap': 'wrap' },
+        balance: { 'body-wrap': 'balance' },
+      },
+      description:
+        'How body copy breaks: a prettier last line, the browser’s ordinary wrap, or balanced lines.',
+    }),
+    align: Knob.choice({
+      title: 'Reading alignment',
+      default: 'start',
+      options: {
+        start: { 'reading-align': 'start' },
+        center: { 'reading-align': 'center' },
+        end: { 'reading-align': 'end' },
+        justify: { 'reading-align': 'justify' },
+      },
+      description:
+        'The alignment of reading text: start, centered, end, or justified. Start follows the writing direction.',
+    }),
   },
   icon: {
     size: Knob.number({
@@ -533,6 +608,44 @@ const checked = <S extends KnobSet>(knobs: S, values: Values<S>): Values<S> => {
   return values
 }
 
+const valueOf = <S extends KnobSet>(
+  knobs: S,
+  values: Values<S>,
+  group: string,
+  name: string,
+): unknown => {
+  const set = (values[group] as Readonly<Record<string, unknown>> | undefined)?.[name]
+  return (
+    set ??
+    (knobs[group] as Readonly<Record<string, Knob.Knob<unknown>>> | undefined)?.[name]?.default
+  )
+}
+
+/**
+ * A cross-knob rule each knob's schema cannot state: the fluid range's two
+ * halves must not cross. Read from the merged values, each unset half from its
+ * knob's default, so `Theme.set` and `Theme.make` both refuse an inverted range.
+ */
+const validate = <S extends KnobSet>(knobs: S, values: Values<S>): void => {
+  const group = knobs['type'] as Readonly<Record<string, Knob.Knob<unknown>>> | undefined
+  if (
+    group === undefined ||
+    !Object.hasOwn(group, 'viewportMin') ||
+    !Object.hasOwn(group, 'viewportMax')
+  )
+    return
+  const min = valueOf(knobs, values, 'type', 'viewportMin')
+  const max = valueOf(knobs, values, 'type', 'viewportMax')
+  if (typeof min !== 'number' || typeof max !== 'number' || min < max) return
+  throw new DiagnosticError({
+    source: 'theme',
+    code: 'theme:fluid-range',
+    severity: 'error',
+    message: `Theme: type.viewportMin (${min}px) must be less than type.viewportMax (${max}px).`,
+    details: { min, max },
+  })
+}
+
 /**
  * A theme of the standard knobs, or of `knobs`: the values it sets, checked,
  * every other knob keeping its default. A misspelt knob or a choice outside
@@ -542,7 +655,9 @@ export function make(values: Values<Standard>): KnobTheme<Standard>
 export function make<S extends KnobSet>(knobs: S, values: Values<NoInfer<S>>): KnobTheme<S>
 export function make(...args: [Values<Standard>] | [KnobSet, Values<KnobSet>]): KnobTheme<KnobSet> {
   const [knobs, values] = args.length === 1 ? [standard, args[0]] : args
-  return theme(knobs, checked(knobs, values), Option.none(), Option.none())
+  const checkedValues = checked(knobs, values)
+  validate(knobs, checkedValues)
+  return theme(knobs, checkedValues, Option.none(), Option.none())
 }
 
 /** `theme` with `values` over its own, group by group. */
@@ -553,6 +668,7 @@ export const set =
     for (const source of [self.values, checked(self.knobs, values)])
       for (const [group, names] of Object.entries(source))
         merged[group] = { ...merged[group], ...names }
+    validate(self.knobs, merged as Values<S>)
     return theme(self.knobs, merged as Values<S>, self.title, self.description)
   }
 
@@ -710,5 +826,7 @@ export const withValue = <S extends KnobSet, P extends PathOf<S>>(
 ): Values<S> => {
   const [group, name] = split(path)
   Schema.decodeUnknownSync(at(knobs, path).schema)(value)
-  return { ...values, [group]: { ...values[group], [name]: value } } as Values<S>
+  const next = { ...values, [group]: { ...values[group], [name]: value } } as Values<S>
+  validate(knobs, next)
+  return next
 }

@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { Diagnostics, Layers, Style } from '../src/index.js'
-import { Theme } from '../src/theme.js'
+import { Knob, Theme } from '../src/theme.js'
 import { palette as colors } from '../src/theme/oklch.js'
 
 const cssOf = (piece: { readonly globalCss?: ReadonlyArray<string> }) =>
@@ -73,6 +73,13 @@ describe('Theme.tokens', () => {
       'font-heading': 'inherit',
       'heading-weight': '600',
       'heading-tracking': '-0.01em',
+      fluid: '0',
+      'fluid-viewport-min': '320px',
+      'fluid-viewport-max': '1440px',
+      measure: '65ch',
+      'heading-wrap': 'balance',
+      'body-wrap': 'pretty',
+      'reading-align': 'start',
       ease: 'ease-out',
     })
     expect(Theme.tokens.border.thick).toBe('calc(var(--fk-knob-border-width) + 1px)')
@@ -94,9 +101,120 @@ describe('Theme.tokens', () => {
     expect(still.motion.fast).toBe('calc(80ms * var(--fk-knob-motion))')
   })
 
+  it('places type between two viewports, exactly and without a clamp() guess', () => {
+    // `tan(atan2(y, x))` is y/x: linear, unitless, and below the palette's floor.
+    expect(Theme.tokens.fluid.ratio).toContain(
+      'clamp(0, tan(atan2(100vw - var(--fk-knob-fluid-viewport-min)',
+    )
+    expect(Theme.tokens.fluid.ratio).toContain(
+      'var(--fk-knob-fluid-viewport-max) - var(--fk-knob-fluid-viewport-min)',
+    )
+    expect(Theme.tokens.fluid.progress).toBe('calc(var(--fk-fluid-ratio) * var(--fk-knob-fluid))')
+    // Every size blends by the strength, so `type.fluid: 0` is today's size.
+    expect(Theme.tokens.size.md).toContain('var(--fk-fluid-progress)')
+    expect(Theme.tokens.size['4xl']).toContain('pow(1.15, 5)')
+  })
+
+  it('re-declares the fluid and reading tokens under a scoped theme', () => {
+    const scoped = Theme.scope(
+      Theme.make({ type: { fluid: 1 }, reading: { measure: 40 } }),
+      '.region',
+    )
+    const css = (scoped.globalCss ?? []).join('')
+    expect(css).toContain('--fk-fluid-ratio:clamp(')
+    expect(css).toContain('--fk-fluid-progress:calc(var(--fk-fluid-ratio) * var(--fk-knob-fluid))')
+    expect(css).toContain('--fk-reading-measure:var(--fk-knob-measure)')
+    expect(css).toContain('--fk-knob-measure:40ch')
+  })
+
+  it('carries the reading measure, wrap and alignment as tokens', () => {
+    const theme = Theme.standard(
+      Theme.make({
+        reading: { measure: 70, headingWrap: 'pretty', bodyWrap: 'wrap', align: 'center' },
+      }),
+    )
+    expect(theme.reading.measure).toBe('var(--fk-knob-measure)')
+    expect(theme.reading['heading-wrap']).toBe('var(--fk-knob-heading-wrap)')
+    expect(theme.reading['body-wrap']).toBe('var(--fk-knob-body-wrap)')
+    expect(theme.reading.align).toBe('var(--fk-knob-reading-align)')
+    expect(theme.knob.measure).toBe('70ch')
+    expect(theme.knob['heading-wrap']).toBe('pretty')
+    expect(theme.knob['body-wrap']).toBe('wrap')
+    expect(theme.knob['reading-align']).toBe('center')
+  })
+
+  it('a fluid size is a linear blend of its two ends', () => {
+    expect(Theme.fluidType({ min: '1rem', max: '2rem' })).toBe(
+      'calc(1rem + (2rem - 1rem) * var(--fk-fluid-progress))',
+    )
+    expect(
+      Theme.fluidType({
+        min: '1rem',
+        max: '2rem',
+        viewport: { min: '320px', max: '1440px' },
+      }),
+    ).toContain('tan(atan2(100vw - 320px, 1440px - 320px))')
+  })
+
+  it('refuses a fluid range that is inverted or not in px', () => {
+    const thrown = (fn: () => unknown) => {
+      try {
+        fn()
+        return undefined
+      } catch (error) {
+        return error
+      }
+    }
+    const inverted = thrown(() =>
+      Theme.fluidType({ min: '1rem', max: '2rem', viewport: { min: '900px', max: '800px' } }),
+    )
+    expect(inverted).toBeInstanceOf(Diagnostics.DiagnosticError)
+    if (inverted instanceof Diagnostics.DiagnosticError)
+      expect(inverted.diagnostic.code).toBe('theme:fluid-range')
+    const unit = thrown(() =>
+      Theme.fluidType({ min: '1rem', max: '2rem', viewport: { min: '20rem', max: '40rem' } }),
+    )
+    expect(unit).toBeInstanceOf(Diagnostics.DiagnosticError)
+    if (unit instanceof Diagnostics.DiagnosticError)
+      expect(unit.diagnostic.code).toBe('theme:fluid-boundary')
+  })
+
+  it('refuses crossing viewport knobs when a theme is made or set', () => {
+    // The shipped ranges cannot cross, so a custom set proves the rule.
+    const Viewports = {
+      type: {
+        viewportMin: Knob.number({
+          variable: 'test-viewport-min',
+          default: 320,
+          min: 0,
+          max: 2000,
+          step: 1,
+          title: 'Small viewport',
+          description: 'The small end.',
+        }),
+        viewportMax: Knob.number({
+          variable: 'test-viewport-max',
+          default: 1440,
+          min: 0,
+          max: 2000,
+          step: 1,
+          title: 'Large viewport',
+          description: 'The large end.',
+        }),
+      },
+    }
+    expect(() => Theme.make(Viewports, { type: { viewportMin: 900, viewportMax: 900 } })).toThrow(
+      Diagnostics.DiagnosticError,
+    )
+    expect(() =>
+      Theme.make(Viewports, {}).pipe(Theme.set({ type: { viewportMin: 900, viewportMax: 900 } })),
+    ).toThrow(Diagnostics.DiagnosticError)
+  })
+
   it('names the groups a design system shares', () => {
     expect(Object.keys(Theme.tokens)).toEqual([
       'knob',
+      'fluid',
       'space',
       'radius',
       'font',
@@ -107,6 +225,7 @@ describe('Theme.tokens', () => {
       'motion',
       'control',
       'type',
+      'reading',
       'width',
       'icon',
       'border',

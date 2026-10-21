@@ -25,6 +25,7 @@ export const declaredTokens: ReadonlyArray<string> = [
   ...['body', 'heading', 'mono'].map(n => `font-${n}`),
   ...['xs', 'sm', 'md', 'lg', 'xl', '2xl', '3xl', '4xl'].map(n => `size-${n}`),
   ...['tight', 'snug', 'normal', 'relaxed'].map(n => `leading-${n}`),
+  ...['measure', 'heading-wrap', 'body-wrap', 'align'].map(n => `reading-${n}`),
   ...['normal', 'medium', 'semibold', 'bold'].map(n => `weight-${n}`),
   ...['fast', 'normal', 'ease'].map(n => `motion-${n}`),
   ...['thin', 'thick', 'heavy'].map(n => `border-${n}`),
