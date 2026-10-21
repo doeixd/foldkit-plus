@@ -20,6 +20,7 @@
       "foldkit-guard": ["../../packages/guard/src/index.ts"],
       "foldkit-guard/agent": ["../../packages/guard/src/agent.ts"],
       "foldkit-guard/drizzle": ["../../packages/guard/src/drizzle.ts"],
+      "foldkit-guard/media": ["../../packages/guard/src/media.ts"],
       "foldkit-guard/server": ["../../packages/guard/src/server.ts"],
       "foldkit-guard/sync": ["../../packages/guard/src/sync.ts"],
       "foldkit-metadata": ["../../packages/metadata/src/index.ts"],
