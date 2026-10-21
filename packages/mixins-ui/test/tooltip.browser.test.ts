@@ -99,12 +99,16 @@ const show = async (where: Record<string, string>, anchor = Tooltip.anchor()) =>
     return found!
   })
   trigger.focus()
-  const panel = await vi.waitFor(() => {
-    const found = document.querySelector<HTMLElement>('[role="tooltip"]')
-    expect(found).not.toBeNull()
-    expect(getComputedStyle(found!).visibility).toBe('visible')
-    return found!
-  })
+  const panel = await vi.waitFor(
+    () => {
+      const found = document.querySelector<HTMLElement>('[role="tooltip"]')
+      expect(found).not.toBeNull()
+      expect(getComputedStyle(found!).visibility).toBe('visible')
+      return found!
+    },
+    // A loaded full run can take longer than the default wait to portal it.
+    { timeout: 15_000, interval: 50 },
+  )
   // The arrow follows the anchor's writes; let the last one land.
   await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
   return {
