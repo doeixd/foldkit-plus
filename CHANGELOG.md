@@ -5,7 +5,15 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
-## Unreleased
+## 0.30.0
+
+One owner for every interactive state. `foldkit-mixins` 0.18.0 adds `surface.hoverStrength` (how
+strongly a hover tints, 4% to 24% around the shipped 12%) and `state.disabledOpacity` (how far a
+disabled control fades), so a theme moves every hover and every disabled control at once.
+`foldkit-mixins-ui` 0.19.0 makes a press its own state: `state.press` is the hover's film at 1.75,
+`hover()` lays it on a held row, tab or menu item, and `FluidHover` marks the container so a held
+fluid highlight deepens too; every tinted hover — Table's, Segmented's, pill Tabs' — now follows
+`surface.hover`. Packages that pin either republish with a patch, and `foldkit-plus` is 0.12.0.
 
 ### Changed
 
