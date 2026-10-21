@@ -82,11 +82,15 @@ The scaffold's counter is a placeholder: leave it until phase 7 replaces it.
 
 ## 4. Domain rounds
 
-Ask a few questions at a time (three to six), grouped by topic, and record the
-answers before asking more. Keep going, round after round, **until the user
-says to stop**. Use their words for names; ask when two words might mean one
-thing. Skip a topic the brief already settled, and come back to one an answer
-reopened.
+Before the first round, tell the user whose call the end is: **the user says
+when the questions stop**, not the agent. The agent does not run out of
+questions and must not decide the domain is settled, so a plain "stop",
+"enough" or "that's the domain" is what ends the rounds, and the user should
+know it is theirs to say. Then ask a few questions at a time (three to six),
+grouped by topic, and record the answers before asking more. Keep going, round
+after round, until they say so. Use their words for names; ask when two words
+might mean one thing. Skip a topic the brief already settled, and come back to
+one an answer reopened.
 
 | Topic | Ask |
 | --- | --- |
