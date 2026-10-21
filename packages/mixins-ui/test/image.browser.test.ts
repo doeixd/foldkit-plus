@@ -477,6 +477,10 @@ test('audit warns of a blurry image, a wasteful one, and two drawn with priority
       expect(warnings.some(warning => warning.includes('blurry'))).toBe(true)
       expect(warnings.some(warning => warning.includes('wasted bytes'))).toBe(true)
     })
+    // A `load` still queued when the Mount found the image complete: the same file again.
+    document
+      .querySelectorAll('img[alt="blurry"], img[alt="wasteful"]')
+      .forEach(image => image.dispatchEvent(new Event('load')))
     expect(warnings.filter(warning => warning.includes('blurry'))).toHaveLength(1)
     expect(warnings.filter(warning => warning.includes('wasted bytes'))).toHaveLength(1)
     expect(warnings.some(warning => warning.includes('2 images are drawn with priority'))).toBe(

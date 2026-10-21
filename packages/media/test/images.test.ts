@@ -152,6 +152,9 @@ describe('images', () => {
       cacheDir: join(root, '.vite'),
       plugins: [images(options)],
       server: { port: 0 },
+      // The workspace's packages resolve to source; a checkout has no `dist` to fall back on.
+      resolve: { conditions: ['foldkit-plus:source'] },
+      ssr: { resolve: { conditions: ['foldkit-plus:source'] } },
     })
     await server.listen()
     try {

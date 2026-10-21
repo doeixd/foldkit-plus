@@ -215,9 +215,12 @@ const Audit = Mount.defineStream('ImageAudit', {
               )
             }
           }
+          // `complete` can be true while the file's `load` is still queued: measure each file once.
+          let measured = ''
           const measure = () => {
             const drawn = image.getBoundingClientRect().width * devicePixelRatio
-            if (image.naturalWidth === 0 || drawn === 0) return
+            if (image.naturalWidth === 0 || drawn === 0 || image.currentSrc === measured) return
+            measured = image.currentSrc
             const fact = `drawn ${Math.round(drawn)} device pixels wide from a ${image.naturalWidth}px file`
             if (image.naturalWidth < drawn * BLURRY_BELOW)
               warn(`${fact}: blurry, offer a wider candidate`)
