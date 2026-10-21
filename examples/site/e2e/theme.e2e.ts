@@ -232,6 +232,7 @@ test('the fluid and reading knobs reach the Typography canvas', async () => {
     return {
       size: await h1.evaluate(element => Number.parseFloat(getComputedStyle(element).fontSize)),
       wrap: await h1.evaluate(element => getComputedStyle(element).textWrap),
+      bodyWrap: await body.evaluate(element => getComputedStyle(element).textWrap),
       measure: await body.evaluate(element =>
         getComputedStyle(element).getPropertyValue('max-inline-size'),
       ),
@@ -242,7 +243,7 @@ test('the fluid and reading knobs reach the Typography canvas', async () => {
   // A still theme: the reading measure, wrap and alignment still apply.
   await open(
     page,
-    '/create?type.fluid=0&reading.measure=40&reading.align=center&reading.headingWrap=pretty',
+    '/create?type.fluid=0&reading.measure=40&reading.align=center&reading.headingWrap=pretty&reading.bodyWrap=wrap',
   )
   await page.getByRole('tab', { name: 'Type' }).click()
   for (const id of ['type-fluid', 'type-viewportMin', 'type-viewportMax']) {
@@ -258,17 +259,19 @@ test('the fluid and reading knobs reach the Typography canvas', async () => {
     .toBe('40ch')
   const still = await shown()
   expect(still.wrap).toBe('pretty')
+  expect(still.bodyWrap).toBe('wrap')
   expect(still.align).toBe('center')
   expect(still.measure).not.toBe('none')
 
   // A fluid theme grows the same heading at this window.
   await open(
     page,
-    '/create?type.fluid=1&reading.measure=40&reading.align=center&reading.headingWrap=pretty',
+    '/create?type.fluid=1&reading.measure=40&reading.align=center&reading.headingWrap=pretty&reading.bodyWrap=wrap',
   )
   const fluid = await shown()
   expect(fluid.size).toBeGreaterThan(still.size)
   expect(fluid.wrap).toBe('pretty')
+  expect(fluid.bodyWrap).toBe('wrap')
   expect(fluid.align).toBe('center')
 
   expect(errors).toEqual([])
