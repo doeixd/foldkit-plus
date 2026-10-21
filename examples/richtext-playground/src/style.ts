@@ -25,9 +25,13 @@ export const A = AppStyle.make({
   theme: Theme.make({
     accent: { hue: 285, chroma: { dark: 0.14 }, lightness: { dark: 72 } },
     surface: { saturation: 0.006 },
+    type: { fluid: 1 },
   }),
 })
 const { t } = A
+
+/** One h1 size for the editor and the block handle's measured line. */
+const h1Size = Theme.fluidType({ min: '1.9rem', max: '2.6rem' })
 
 const row = (gap: string): StyleValue =>
   Style.self({ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap })
@@ -116,7 +120,7 @@ const writing = Style.compose(
   // The block a handle is dragging, dimmed until it is dropped (`foldkit-richtext-dom`'s drag).
   Style.nest('[data-richtext-dragging]', { opacity: '0.4' }),
   Style.nest('h1', {
-    fontSize: 'clamp(1.9rem, 3.2vw, 2.6rem)',
+    fontSize: h1Size,
     lineHeight: '1.2',
     letterSpacing: '-0.035em',
     margin: '0',
@@ -628,7 +632,7 @@ export const Page = A.slots({
       alignItems: 'center',
       blockSize: 'calc(1.0625rem * 1.75)',
     }),
-    Style.pseudo('[data-line="h1"]', { blockSize: 'calc(clamp(1.9rem, 3.2vw, 2.6rem) * 1.2)' }),
+    Style.pseudo('[data-line="h1"]', { blockSize: `calc(${h1Size} * 1.2)` }),
     Style.pseudo('[data-line="h2"]', { blockSize: 'calc(1.6rem * 1.3)' }),
     Style.pseudo('[data-line="h3"]', { blockSize: 'calc(1.25rem * 1.75)' }),
     Style.pseudo('[data-line="Callout"]', { paddingBlockStart: t.space.md, blockSize: 'auto' }),

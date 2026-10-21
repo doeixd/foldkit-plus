@@ -7,6 +7,7 @@ import { Loading } from 'foldkit-mixins-crud'
 import { Touch } from 'foldkit-mixins-ui'
 import { Layout } from 'foldkit-mixins/layout'
 import { Prose } from 'foldkit-mixins/prose'
+import { Theme } from 'foldkit-mixins/theme'
 import {
   app,
   button,
@@ -145,7 +146,7 @@ export const SiteStyle = Style.forSlots(SiteSlots)(
     heading: Style.self({
       color: t.text.overt,
       fontFamily: t.font.heading,
-      fontSize: 'clamp(2.4rem, 6vw, 3.6rem)',
+      fontSize: Theme.fluidType({ min: '2.4rem', max: '3.6rem' }),
       letterSpacing: '-0.03em',
       lineHeight: '1.05',
       margin: '0',
@@ -173,7 +174,7 @@ export const SiteStyle = Style.forSlots(SiteSlots)(
     title: Style.self({
       color: t.text.overt,
       fontFamily: t.font.heading,
-      fontSize: 'clamp(2.2rem, 5.5vw, 3.4rem)',
+      fontSize: Theme.fluidType({ min: '2.2rem', max: '3.4rem' }),
       letterSpacing: '-0.03em',
       lineHeight: '1.08',
       margin: '0',
@@ -181,7 +182,7 @@ export const SiteStyle = Style.forSlots(SiteSlots)(
     }),
     standfirst: Style.self({
       color: t.text.muted,
-      fontSize: 'clamp(1.1rem, 2vw, 1.3rem)',
+      fontSize: Theme.fluidType({ min: '1.1rem', max: '1.3rem' }),
       lineHeight: '1.5',
       margin: '0',
       textWrap: 'pretty',

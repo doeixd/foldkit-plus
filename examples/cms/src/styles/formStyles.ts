@@ -7,6 +7,7 @@ import { ListSlots, Loading } from 'foldkit-mixins-crud'
 import { FieldSlots, FormSlots, type FieldInput } from 'foldkit-mixins-form'
 import { Recipes } from 'foldkit-mixins-ui'
 import { Layout } from 'foldkit-mixins/layout'
+import { Theme } from 'foldkit-mixins/theme'
 import { app, button, field, L, serif, stateBadge, t, visuallyHidden } from './style.js'
 
 // --- the form, the worklist, and the Builder --------------------------------------
@@ -101,7 +102,7 @@ export const WritingFieldStyle = Style.forSlots(FieldSlots)(
           bare,
           Style.self({
             color: t.text.overt,
-            fontSize: 'clamp(2rem, 4vw, 2.75rem)',
+            fontSize: Theme.fluidType({ min: '2rem', max: '2.75rem' }),
             fontWeight: t.weight.bold,
             letterSpacing: '-0.025em',
             lineHeight: '1.15',

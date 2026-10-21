@@ -716,7 +716,7 @@ const PostsLook = Appearance.make(PostsSlots, {
             }),
             Style.nest('> :first-child > :first-child', { aspectRatio: '16 / 9' }),
             Style.nest('> :first-child h3', {
-              fontSize: 'clamp(1.6rem, 3vw, 2.2rem)',
+              fontSize: Theme.fluidType({ min: '1.6rem', max: '2.2rem' }),
               lineHeight: '1.15',
             }),
             Style.nest('> :first-child p:last-child', { fontSize: t.size.lg }),

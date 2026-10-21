@@ -19,6 +19,9 @@ version changed; `pnpm` skips versions already in the registry.
   themes render unchanged.
 - `/create`: the Type pane draws the three fluid knobs, and the presets, looks
   and shuffle set them.
+- `examples/site`, `examples/design-system`, the CMS and the richtext
+  playground use `Theme.fluidType` for their `vw` clamps; the CMS's `cqi`
+  clamps wait for container fluidity.
 - `foldkit-mixins` / `foldkit-mixins-ui`: a `reading` knob group.
   `reading.measure` (in `ch`) caps `Prose` and the `body`, `lead` and `quote`
   levels of `Typography`; `reading.headingWrap` and `reading.bodyWrap` choose

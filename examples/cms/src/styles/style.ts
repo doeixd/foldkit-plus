@@ -17,6 +17,7 @@ export const theme = Theme.standard(
   Theme.make({
     accent: { hue: 265, chroma: { light: 0.16, dark: 0.13 }, lightness: { dark: 72 } },
     surface: { saturation: 0.012 },
+    type: { fluid: 1 },
   }),
 )
 /** Every token as a typed `var(--fk-…)` reference: the admin's and the site's styles read these. */

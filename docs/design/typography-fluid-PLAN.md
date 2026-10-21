@@ -1,9 +1,8 @@
 # Fluid typography without `clamp()` magic numbers
 
-**Status:** Phases 1-2, the site/design-system half of phase 3, and the reading
-knobs are implemented, 2026-10-21. The CMS and richtext-playground migrations,
-screenshots, and phases 4-6 (roles, exponential scale, container fluidity)
-remain.
+**Status:** Phases 1-3 and the reading knobs are implemented, 2026-10-21. The
+`cqi` clamps (container fluidity), screenshots, and phases 4-6 (roles,
+exponential scale, container fluidity) remain.
 
 **Scope:** the `foldkit-mixins` type scale and theme tokens, `Defaults`,
 `Prose`, the `Typography` recipe, and the examples that write per-component
@@ -365,21 +364,25 @@ Tests:
       `examples/design-system`.
 - [x] CHANGELOG, README, `docs/theme-knobs.md`, and the skill reference.
 
-### Phase 3: examples and `/create` (site and design-system done)
+### Phase 3: examples and `/create` (done, `cqi` clamps wait for phase 6)
 
 - [x] `examples/site/src/style.ts:324`, `:694`: replaced `clamp()` with
       `Theme.fluidType`.
 - [x] `examples/design-system/src/style.ts:116`: the same.
-- [ ] `examples/cms/src/styles/siteStyle.ts:148`, `:176`;
-      `examples/cms/src/content/site.ts:226`;
+- [x] `examples/cms/src/styles/siteStyle.ts:148`, `:176`, `:184`;
+      `examples/cms/src/content/site.ts:719`; `examples/cms/src/styles/formStyles.ts:104`;
       `examples/richtext-playground/src/style.ts:119`, `:631`. The last two
-      must share one expression so the line height cannot drift.
+      share `h1Size`, so the handle's line height cannot drift.
+- [ ] The `cqi` clamps in `examples/cms/src/content/site.ts` (a page measured
+      by its container) wait for phase 6.
 - [x] Leave padding `clamp()`s alone in this phase; they are spacing, not type.
 - [x] `/create`: the Type pane's three fluid sliders, a Reading pane with the
       four reading knobs, the presets and looks, the shuffle, and the
       `examples/site/test/theme.test.ts` cases in §5.6 and §5.7.
 - [x] The site e2e checks the Reading pane, the fluid/reading values on the
       Typography canvas, and the Type pane's three sliders.
+- [x] The richtext-playground e2e uses `caretAtEnd` for the slash-menu hint:
+      the fluid h1 makes the paragraph wrap, and `End` stops at the line.
 - [ ] State in the Type pane's hint that previews follow the window, not the
       preview frame, until phase 6.
 
