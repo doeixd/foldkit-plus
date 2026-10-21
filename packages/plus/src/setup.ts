@@ -30,6 +30,15 @@ export interface SetupInput {
 const SITE = 'https://foldkit-plus.pages.dev'
 const REPOSITORY = 'https://github.com/doeixd/foldkit-plus'
 
+/**
+ * The `create-foldkit-app` release whose templates pin the Foldkit this
+ * release needs (0.39.1 installs `foldkit` 0.168.0). A release that moves
+ * the `foldkit` peer moves this with it.
+ */
+export const SCAFFOLDER = 'create-foldkit-app@0.39.1'
+
+const GREENFIELD = `${REPOSITORY}/blob/main/skills/foldkit-plus/references/greenfield.md`
+
 /** What each job needs, where to import it from, and where it is explained. */
 export const jobs: ReadonlyArray<{
   readonly job: string
@@ -214,7 +223,17 @@ export const setupGuide = ({ project, manager, versions }: SetupInput): string =
   ])
   const check = Option.match(project, {
     onNone: () => [
-      'There is no `package.json` here. Create the Foldkit application first (https://foldkit.dev shows how), then run `npx foldkit-plus setup` again in its folder.',
+      'There is no `package.json` here: this is a new application. Do not scaffold yet. Follow the greenfield guide, which asks the user about the goals and the domain before any code:',
+      '',
+      `- ${GREENFIELD} (in the skill of step 3, \`references/greenfield.md\`)`,
+      '',
+      'When its first step has a name and a rendering mode, it scaffolds with:',
+      '',
+      '```bash',
+      `npx ${SCAFFOLDER} --name <name> --rendering <spa|ssg|ssr> --example counter --package-manager ${manager}`,
+      '```',
+      '',
+      'Then run `npx foldkit-plus setup` again in the new folder and continue from step 2.',
     ],
     onSome: found => [
       `This is \`${found.name}\`, installed with ${manager}.`,
@@ -257,6 +276,14 @@ export const setupGuide = ({ project, manager, versions }: SetupInput): string =
     '```',
     '',
     'It teaches you which package owns which kind of state, when to reach for each, and a working example of each. Read its `SKILL.md` before writing code with Foldkit Plus, and the reference for the package at hand before changing it.',
+    // An empty folder was sent to the guide in step 1.
+    ...Option.match(project, {
+      onNone: () => [],
+      onSome: () => [
+        '',
+        `Building a new application rather than extending one? Follow its \`references/greenfield.md\` (${GREENFIELD}): goals, then the domain with the user, recorded in the project and mapped to these packages, before implementing.`,
+      ],
+    }),
     '',
     '## 4. Import',
     '',

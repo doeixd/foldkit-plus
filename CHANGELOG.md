@@ -33,8 +33,17 @@ version changed; `pnpm` skips versions already in the registry.
   nobody uploaded, or one kept before facts were. `storedFactsKeyValueStore()` over the
   application's store, `storedFactsR2(bucket)` on Cloudflare.
 
+- The `foldkit-plus` skill has `references/greenfield.md`: how an agent starts a new
+  application. The brief, then a scaffold with the matching `create-foldkit-app`, then rounds of
+  domain questions recorded in `docs/domain/` until the user stops, a mapping of the domain to
+  the packages agreed with them, and only then the build, in slices. `npx foldkit-plus setup`
+  run where there is no `package.json` sends an agent there and prints the non-interactive
+  scaffold command (`create-foldkit-app@0.39.1`, which installs Foldkit 0.168.0); in a project it
+  names the guide too.
+
 ### Fixed
 
+- The skill said it targets Foldkit 0.165; it is 0.168.
 - `foldkit-media`'s README and the skill no longer promise more than the code keeps: a variant's
   URL names the variant, not its bytes, so a change to how variants are made is a revision the
   application bumps; anyone holding a variant's URL can read it; a Worker cannot coalesce two

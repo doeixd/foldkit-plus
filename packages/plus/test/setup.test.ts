@@ -5,7 +5,7 @@
 import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 
-import { addCommand, setupGuide, type Project } from '../src/setup.js'
+import { SCAFFOLDER, addCommand, setupGuide, type Project } from '../src/setup.js'
 
 const versions = { plus: '0.1.0', effect: '4.0.0', foldkit: '0.165.0' }
 const guide = (project: Option.Option<Project>, manager: 'pnpm' | 'npm' = 'pnpm') =>
@@ -14,8 +14,20 @@ const project = (deps: Readonly<Record<string, string>>) =>
   Option.some({ name: 'todo', versions: deps })
 
 describe('setupGuide', () => {
-  it('sends an agent with no project to make one first', () => {
-    expect(guide(Option.none())).toContain('There is no `package.json` here.')
+  it('sends an agent with no project to the greenfield guide, and scaffolds with its manager', () => {
+    const text = guide(Option.none(), 'npm')
+    expect(text).toContain('There is no `package.json` here')
+    // Once, in the check that stops it: not again among the steps it is told to skip.
+    expect(text.split('skills/foldkit-plus/references/greenfield.md')).toHaveLength(2)
+    expect(text).toContain(
+      `npx ${SCAFFOLDER} --name <name> --rendering <spa|ssg|ssr> --example counter --package-manager npm`,
+    )
+  })
+
+  it('names the greenfield guide in a project too', () => {
+    expect(guide(project({ effect: '4.0.0', foldkit: '0.165.0' }))).toContain(
+      'Building a new application rather than extending one? Follow its `references/greenfield.md`',
+    )
   })
 
   it('says each library fits when it does', () => {

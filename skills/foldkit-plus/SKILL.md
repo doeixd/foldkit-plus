@@ -1,6 +1,6 @@
 ---
 name: foldkit-plus
-description: Explains the Foldkit Plus packages (foldkit-surface, foldkit-remote with -server and -drizzle, foldkit-sync, foldkit-durable, foldkit-mirror, foldkit-site, foldkit-agent with WebMCP/MCP/A2A/Agent Native adapters, foldkit-mixins with -surface, -ui, -form and -crud, foldkit-react, foldkit-bundle, foldkit-primitives, foldkit-entity, foldkit-guard, foldkit-auth, foldkit-form, foldkit-crud, foldkit-cms, foldkit-data-grid, foldkit-media), which owns which state, and basic use. Use when writing or reviewing a Foldkit app using a foldkit-* package, choosing one for server data, offline sync, URL or storage state, route topology, AI agent tools, view styling, React interop, reusable Submodels, domain entities, authorization, Yielded Auth sessions, forms, admin screens, a data grid, a CMS, images and icons, or when the user mentions Foldkit Plus, Surface, Projection, Remote, Sync, Mirror, Site.target, Agent.expose, Mixins, Bundle, Entity.select, Guards.declare, Form.make, Crud.editor, DataGrid.make, or Cms.content.
+description: Explains the Foldkit Plus packages (foldkit-surface, foldkit-remote with -server and -drizzle, foldkit-sync, foldkit-durable, foldkit-mirror, foldkit-site, foldkit-agent and its adapters, foldkit-mixins with -surface, -ui, -form and -crud, foldkit-react, foldkit-bundle, foldkit-primitives, foldkit-entity, foldkit-guard, foldkit-auth, foldkit-form, foldkit-crud, foldkit-cms, foldkit-data-grid, foldkit-media), which owns which state, and basic use. Use when starting a new Foldkit app, writing or reviewing one using a foldkit-* package, choosing one for server data, offline sync, URL or storage state, route topology, AI agent tools, view styling, React interop, reusable Submodels, domain entities, authorization, Yielded Auth sessions, forms, admin screens, a data grid, a CMS, images and icons, or when the user mentions Foldkit Plus, Surface, Projection, Remote, Sync, Mirror, Site.target, Agent.expose, Mixins, Bundle, Entity.select, Guards.declare, Form.make, Crud.editor, DataGrid.make, or Cms.content.
 license: MIT
 metadata:
   version: '0.29.0'
@@ -22,7 +22,7 @@ Every package keeps that rule:
 - the URL and storage mirror a slice of the Model, never own it;
 - views are extended from outside without forking them.
 
-Targets Foldkit `0.165.x` and Effect 4 stable (`effect@4.0.0`); see the peer
+Targets Foldkit `0.168.x` and Effect 4 stable (`effect@4.0.0`); see the peer
 list under the rules below. APIs are `0.x` and may break between minors.
 
 ## Pick the package by who owns the data
@@ -143,12 +143,15 @@ App.model.remote, … })`, `Mirror.url(App, …)`, and `SurfaceView.define(TodoL
   contract-only `….wiring()`); routing, startup Commands, Subscriptions, and the
   Module derive from the list. See `bundle.md` and the integration's page.
 - **Install** `foldkit-plus` for every package at once (`pnpm add effect@4.0.0
-  foldkit@0.165.0 foldkit-plus`, then import `foldkit-plus/<package>`, as in
+  foldkit@0.168.0 foldkit-plus`, then import `foldkit-plus/<package>`, as in
   `foldkit-plus/remote-server`), or each package on its own with its peers; both name
   the same modules. Adapters that need a library of their own (`foldkit-react`, the
   Drizzle packages, `foldkit-mixins-ui`, `-richtext-code-shiki`, `-agent-native`) are
   added with it. `npx foldkit-plus setup` prints all of this for the project it runs
   in. `foldkit-durable` needs Node >= 22.
+- **A new application** starts with the user, not with code: the brief, the domain
+  in rounds, recorded in `docs/domain/` and mapped to these packages, then built
+  once they agree. Follow [greenfield.md](references/greenfield.md).
 
 ## More
 

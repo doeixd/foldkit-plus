@@ -41,4 +41,37 @@ export default [
     "|| source.endsWith('.d.ts'))",
     ')',
   ),
+  {
+    name: 'an empty folder is not sent to the greenfield guide',
+    edits: [
+      {
+        file: '../src/setup.ts',
+        find: '      `- ${GREENFIELD} (in the skill of step 3,',
+        replace: '      `- (in the skill of step 3,',
+      },
+    ],
+    tests: ['packages/plus/test/setup.test.ts'],
+  },
+  {
+    name: 'the scaffold command ignores the package manager',
+    edits: [
+      {
+        file: '../src/setup.ts',
+        find: '--example counter --package-manager ${manager}`',
+        replace: '--example counter --package-manager pnpm`',
+      },
+    ],
+    tests: ['packages/plus/test/setup.test.ts'],
+  },
+  {
+    name: 'a project is not told of the greenfield guide',
+    edits: [
+      {
+        file: '../src/setup.ts',
+        find: '    `Building a new application rather than extending one?',
+        replace: '    `Extending an application?',
+      },
+    ],
+    tests: ['packages/plus/test/setup.test.ts'],
+  },
 ]

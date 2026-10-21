@@ -14,6 +14,14 @@ your `package.json` first and says when `effect` or `foldkit` is missing or at a
 version this release does not support. It writes nothing; the agent runs what it
 says.
 
+For a new application, run it in an empty folder. With no `package.json` it
+sends the agent to the skill's
+[greenfield guide](https://github.com/doeixd/foldkit-plus/blob/main/skills/foldkit-plus/references/greenfield.md):
+ask about the goals and the domain first, record the answers in the project,
+map them to these packages with you, and build once you agree. It prints the
+`create-foldkit-app` command, at the release that installs this release's
+Foldkit, for when it is time to scaffold.
+
 ## What it is
 
 [Foldkit Plus](https://foldkit-plus.pages.dev) is a family of packages that
