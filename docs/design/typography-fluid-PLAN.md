@@ -7,10 +7,10 @@ at 390, 768 and 1440; the only open item is the CMS's `cqi` padding, which is
 spacing rather than type.
 
 A full `pnpm check` passes format, paths, icons, tags, mutation anchors and
-typecheck; `demo` and `pack:check` pass with `FOLDKIT_BUILD_ID=local`. The full
-browser run exposed three load-sensitive waits (`sheetSwipe.touch`,
-`listboxSelect.browser` and `tooltip.browser`); each was hardened and passes
-alone, and none reads typography state.
+typecheck; `demo` and `pack:check` pass with `FOLDKIT_BUILD_ID=local`. Three
+load-sensitive waits (`sheetSwipe.touch`, `listboxSelect.browser` and
+`tooltip.browser`) were exposed by full runs; each was hardened and passes
+alone, and the full suite then passed: 1,164 files, 12,514 tests, 2 skipped.
 
 **Scope:** the `foldkit-mixins` type scale and theme tokens, `Defaults`,
 `Prose`, the `Typography` recipe, and the examples that write per-component
