@@ -1472,6 +1472,17 @@ of its own named a form field "fits the Catalog". Read words with
   installs with `--frozen-lockfile`, so a new dependency without a
   regenerated lockfile fails all jobs in 30s. Regenerate in the same change
   and prove it with `pnpm install --frozen-lockfile` before pushing.
+- **A publish that fails partway resumes; it does not need a new version.**
+  `npm publish` with provenance can stop on `TLOG_CREATE_ENTRY_ERROR (409) an
+  equivalent entry already exists` when its own retry collides with the
+  attestation it just wrote (`foldkit-remote@0.18.1`, 2026-10-22). Re-run the
+  failed job (`gh run rerun <id> --failed`): pnpm skips versions already in the
+  registry and continues, and the release step still runs. Bumping instead would
+  drag every dependent package with it.
+- **Registry visibility lags a green publish by minutes.** Ten minutes after the
+  release run succeeded, 15 of 37 new versions were still absent from
+  `registry.npmjs.org`, and the count fell as they landed. Read `gh run view`
+  for the verdict; use `npm view` only to confirm afterwards.
 - **A fast red hides slower reds.** Fixing the 30s install failure above
   revealed a `tags:check` failure the red main had masked for days. After
   any CI repair, watch a full run to green — a green gate is not a green

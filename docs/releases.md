@@ -81,6 +81,18 @@ in its manifest, and `pnpm publish` skips it.
   but makes no release, since there is no tag to make one for.
 - Check the registry (`npm view <name> version`) before relying on what is live;
   the version column is the tree's declaration, not a release guarantee.
+- **A failed publish resumes; nothing needs a new version.** If the publish step
+  stops partway (2026-10-22: `TLOG_CREATE_ENTRY_ERROR (409) an equivalent entry
+  already exists`, npm's provenance log rejecting an attestation its own retry
+  had already written for `foldkit-remote@0.18.1`), re-run the failed job with
+  `gh run rerun <run-id> --failed`. pnpm skips the versions that did publish and
+  continues from the one that did not, and the GitHub-release step then runs.
+  Do not bump: a new version would need every dependent republished too.
+- **A publish's registry visibility lags the job by minutes.** After the run
+  went green, 15 of the 37 versions were still absent from
+  `registry.npmjs.org` and the count fell over the next ten minutes. Judge a
+  release from `gh run view` first, and only then from
+  `npm view <name> version`.
 
 ## Dependency expectations
 
