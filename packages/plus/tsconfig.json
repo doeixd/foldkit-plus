@@ -218,137 +218,49 @@
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "scripts/**/*.ts", "tsdown.config.ts"],
   "references": [
-    {
-      "path": "../agent/tsconfig.build.json"
-    },
-    {
-      "path": "../agent-a2a/tsconfig.build.json"
-    },
-    {
-      "path": "../agent-mcp/tsconfig.build.json"
-    },
-    {
-      "path": "../agent-native/tsconfig.build.json"
-    },
-    {
-      "path": "../agent-webmcp/tsconfig.build.json"
-    },
-    {
-      "path": "../auth/tsconfig.build.json"
-    },
-    {
-      "path": "../builder/tsconfig.build.json"
-    },
-    {
-      "path": "../bundle/tsconfig.build.json"
-    },
-    {
-      "path": "../bundle-surface/tsconfig.build.json"
-    },
-    {
-      "path": "../cms/tsconfig.build.json"
-    },
-    {
-      "path": "../cms-drizzle/tsconfig.build.json"
-    },
-    {
-      "path": "../composition/tsconfig.build.json"
-    },
-    {
-      "path": "../crud/tsconfig.build.json"
-    },
-    {
-      "path": "../data-grid/tsconfig.build.json"
-    },
-    {
-      "path": "../durable/tsconfig.build.json"
-    },
-    {
-      "path": "../entity/tsconfig.build.json"
-    },
-    {
-      "path": "../form/tsconfig.build.json"
-    },
-    {
-      "path": "../guard/tsconfig.build.json"
-    },
-    {
-      "path": "../media/tsconfig.build.json"
-    },
-    {
-      "path": "../metadata/tsconfig.build.json"
-    },
-    {
-      "path": "../mirror/tsconfig.build.json"
-    },
-    {
-      "path": "../mixins/tsconfig.build.json"
-    },
-    {
-      "path": "../mixins-builder/tsconfig.build.json"
-    },
-    {
-      "path": "../mixins-crud/tsconfig.build.json"
-    },
-    {
-      "path": "../mixins-data-grid/tsconfig.build.json"
-    },
-    {
-      "path": "../mixins-form/tsconfig.build.json"
-    },
-    {
-      "path": "../mixins-richtext/tsconfig.build.json"
-    },
-    {
-      "path": "../mixins-surface/tsconfig.build.json"
-    },
-    {
-      "path": "../mixins-ui/tsconfig.build.json"
-    },
-    {
-      "path": "../primitives/tsconfig.build.json"
-    },
-    {
-      "path": "../react/tsconfig.build.json"
-    },
-    {
-      "path": "../react-codegen/tsconfig.build.json"
-    },
-    {
-      "path": "../remote/tsconfig.build.json"
-    },
-    {
-      "path": "../remote-drizzle/tsconfig.build.json"
-    },
-    {
-      "path": "../remote-server/tsconfig.build.json"
-    },
-    {
-      "path": "../richtext/tsconfig.build.json"
-    },
-    {
-      "path": "../richtext-code/tsconfig.build.json"
-    },
-    {
-      "path": "../richtext-code-shiki/tsconfig.build.json"
-    },
-    {
-      "path": "../richtext-dom/tsconfig.build.json"
-    },
-    {
-      "path": "../richtext-markdown/tsconfig.build.json"
-    },
-    {
-      "path": "../site/tsconfig.build.json"
-    },
-    {
-      "path": "../ssr/tsconfig.build.json"
-    },
-    {
-      "path": "../surface/tsconfig.build.json"
-    },
-    {
-      "path": "../sync/tsconfig.build.json"
-    }
+    { "path": "../agent/tsconfig.build.json" },
+    { "path": "../agent-a2a/tsconfig.build.json" },
+    { "path": "../agent-mcp/tsconfig.build.json" },
+    { "path": "../agent-native/tsconfig.build.json" },
+    { "path": "../agent-webmcp/tsconfig.build.json" },
+    { "path": "../auth/tsconfig.build.json" },
+    { "path": "../builder/tsconfig.build.json" },
+    { "path": "../bundle/tsconfig.build.json" },
+    { "path": "../bundle-surface/tsconfig.build.json" },
+    { "path": "../cms/tsconfig.build.json" },
+    { "path": "../cms-drizzle/tsconfig.build.json" },
+    { "path": "../composition/tsconfig.build.json" },
+    { "path": "../crud/tsconfig.build.json" },
+    { "path": "../data-grid/tsconfig.build.json" },
+    { "path": "../durable/tsconfig.build.json" },
+    { "path": "../entity/tsconfig.build.json" },
+    { "path": "../form/tsconfig.build.json" },
+    { "path": "../guard/tsconfig.build.json" },
+    { "path": "../media/tsconfig.build.json" },
+    { "path": "../metadata/tsconfig.build.json" },
+    { "path": "../mirror/tsconfig.build.json" },
+    { "path": "../mixins/tsconfig.build.json" },
+    { "path": "../mixins-builder/tsconfig.build.json" },
+    { "path": "../mixins-crud/tsconfig.build.json" },
+    { "path": "../mixins-data-grid/tsconfig.build.json" },
+    { "path": "../mixins-form/tsconfig.build.json" },
+    { "path": "../mixins-richtext/tsconfig.build.json" },
+    { "path": "../mixins-surface/tsconfig.build.json" },
+    { "path": "../mixins-ui/tsconfig.build.json" },
+    { "path": "../primitives/tsconfig.build.json" },
+    { "path": "../react/tsconfig.build.json" },
+    { "path": "../react-codegen/tsconfig.build.json" },
+    { "path": "../remote/tsconfig.build.json" },
+    { "path": "../remote-drizzle/tsconfig.build.json" },
+    { "path": "../remote-server/tsconfig.build.json" },
+    { "path": "../richtext/tsconfig.build.json" },
+    { "path": "../richtext-code/tsconfig.build.json" },
+    { "path": "../richtext-code-shiki/tsconfig.build.json" },
+    { "path": "../richtext-dom/tsconfig.build.json" },
+    { "path": "../richtext-markdown/tsconfig.build.json" },
+    { "path": "../site/tsconfig.build.json" },
+    { "path": "../ssr/tsconfig.build.json" },
+    { "path": "../surface/tsconfig.build.json" },
+    { "path": "../sync/tsconfig.build.json" }
   ]
 }

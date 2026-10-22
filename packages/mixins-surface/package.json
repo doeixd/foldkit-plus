@@ -43,15 +43,15 @@
   },
   "peerDependencies": {
     "effect": "^4.0.0",
-    "foldkit": "^0.168.0",
+    "foldkit": "^0.169.0",
     "foldkit-mixins": "workspace:^",
     "foldkit-surface": "workspace:^"
   },
   "devDependencies": {
-    "@effect/platform-browser": "^4.0.4",
-    "@foldkit/ui": "0.168.0",
-    "effect": "^4.0.4",
-    "foldkit": "0.168.0",
+    "@effect/platform-browser": "^4.0.5",
+    "@foldkit/ui": "0.169.0",
+    "effect": "^4.0.5",
+    "foldkit": "0.169.0",
     "foldkit-mixins": "workspace:*",
     "foldkit-mixins-ui": "workspace:*",
     "foldkit-surface": "workspace:*",

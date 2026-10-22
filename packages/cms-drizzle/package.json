@@ -51,14 +51,14 @@
     "foldkit-remote-server": "workspace:*"
   },
   "peerDependencies": {
-    "drizzle-orm": "1.0.0-rc.4",
+    "drizzle-orm": "1.0.0-rc.5",
     "effect": "^4.0.0"
   },
   "devDependencies": {
-    "drizzle-orm": "1.0.0-rc.4",
-    "@effect/platform-browser": "^4.0.4",
-    "effect": "^4.0.4",
-    "foldkit": "0.168.0",
+    "drizzle-orm": "1.0.0-rc.5",
+    "@effect/platform-browser": "^4.0.5",
+    "effect": "^4.0.5",
+    "foldkit": "0.169.0",
     "foldkit-bundle": "workspace:*",
     "foldkit-form": "workspace:*",
     "foldkit-surface": "workspace:*",

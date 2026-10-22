@@ -51,7 +51,7 @@
   },
   "peerDependencies": {
     "effect": "^4.0.0",
-    "foldkit": "^0.168.0",
+    "foldkit": "^0.169.0",
     "foldkit-crud": "workspace:*",
     "foldkit-remote": "workspace:*"
   },
@@ -64,8 +64,8 @@
     }
   },
   "devDependencies": {
-    "effect": "^4.0.4",
-    "foldkit": "0.168.0",
+    "effect": "^4.0.5",
+    "foldkit": "0.169.0",
     "foldkit-crud": "workspace:*",
     "foldkit-entity": "workspace:*",
     "foldkit-remote": "workspace:*",

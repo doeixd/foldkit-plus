@@ -7,12 +7,12 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
-    "@livestore/livestore": "0.5.0-dev.1",
+    "@livestore/livestore": "0.5.0",
     "foldkit-entity": "workspace:*",
     "foldkit-remote-server": "workspace:*"
   },
   "devDependencies": {
-    "effect": "^4.0.4",
+    "effect": "^4.0.5",
     "typescript": "7.0.2"
   }
 }

@@ -100,7 +100,7 @@ export default [
     edits: [
       {
         file: compile,
-        find: '      return not(predicate(node.operand, target, input, query))',
+        find: '      return negate(predicate(node.operand, target, input, query))',
         replace: '      return predicate(node.operand, target, input, query)',
       },
     ],

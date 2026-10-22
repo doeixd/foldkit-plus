@@ -11,9 +11,9 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
-    "drizzle-orm": "1.0.0-rc.4",
-    "effect": "^4.0.4",
-    "foldkit": "0.168.0",
+    "drizzle-orm": "1.0.0-rc.5",
+    "effect": "^4.0.5",
+    "foldkit": "0.169.0",
     "foldkit-bundle": "workspace:*",
     "foldkit-crud": "workspace:*",
     "foldkit-durable": "workspace:*",
@@ -31,11 +31,11 @@
     "foldkit-sync": "workspace:*"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "5.20261013.1",
-    "@effect/sql-d1": "^4.0.4",
+    "@cloudflare/workers-types": "5.20261022.1",
+    "@effect/sql-d1": "^4.0.5",
     "esbuild": "0.28.2",
     "miniflare": "4.20260730.0",
     "typescript": "7.0.2",
-    "vite": "8.3.4"
+    "vite": "8.3.5"
   }
 }

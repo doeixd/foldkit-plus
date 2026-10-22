@@ -8,7 +8,7 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
-    "drizzle-orm": "1.0.0-rc.4",
+    "drizzle-orm": "1.0.0-rc.5",
     "foldkit-agent": "workspace:*",
     "foldkit-agent-a2a": "workspace:*",
     "foldkit-agent-mcp": "workspace:*",
@@ -27,10 +27,10 @@
     "foldkit-surface": "workspace:*"
   },
   "devDependencies": {
-    "@effect/platform-browser": "^4.0.4",
-    "@foldkit/ui": "0.168.0",
-    "effect": "^4.0.4",
-    "foldkit": "0.168.0",
+    "@effect/platform-browser": "^4.0.5",
+    "@foldkit/ui": "0.169.0",
+    "effect": "^4.0.5",
+    "foldkit": "0.169.0",
     "typescript": "7.0.2"
   }
 }

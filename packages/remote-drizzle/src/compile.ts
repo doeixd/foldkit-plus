@@ -22,7 +22,6 @@ import {
   lte,
   isNotNull,
   isNull,
-  not,
   sql,
   type AnyColumn,
   type SQL,
@@ -113,6 +112,13 @@ const side = (
 const escapeLike = (value: string): string => value.replace(/[\\%_]/g, found => `\\${found}`)
 
 /**
+ * Drizzle's `not` takes `undefined` for an optional condition and answers
+ * `undefined` for it, so rc.5 typed its return as optional. A predicate here is
+ * always present, and the SQL is the same `not (…)` rc.4 emitted.
+ */
+const negate = (condition: SQL): SQL => sql`not (${condition})`
+
+/**
  * `eq(somePredicate, aBoolean)` asked directly: the predicate when the boolean
  * is true, and its negation when false. `undefined` when this comparison is not
  * of that shape, which leaves it to ordinary equality.
@@ -138,7 +144,7 @@ const truthComparison = (
   if (asked._tag === 'Null') {
     return predicate({ ...asked, present: !asked.present }, target, input, query)
   }
-  return not(predicate(asked, target, input, query))
+  return negate(predicate(asked, target, input, query))
 }
 
 /**
@@ -304,7 +310,7 @@ const undecided = (
     case 'Or':
       return connective(node.operands, 'or', target, input, query)
     case 'Not':
-      return not(predicate(node.operand, target, input, query))
+      return negate(predicate(node.operand, target, input, query))
     case 'Compare':
       return comparison(node, target, input, query)
     case 'Eq': {

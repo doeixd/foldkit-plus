@@ -69,7 +69,7 @@
     "foldkit-metadata": "workspace:*"
   },
   "peerDependencies": {
-    "drizzle-orm": "1.0.0-rc.4",
+    "drizzle-orm": "1.0.0-rc.5",
     "effect": "^4.0.0",
     "foldkit-media": "workspace:^",
     "foldkit-remote": "workspace:^",
@@ -98,9 +98,9 @@
     }
   },
   "devDependencies": {
-    "drizzle-orm": "1.0.0-rc.4",
-    "effect": "^4.0.4",
-    "foldkit": "0.168.0",
+    "drizzle-orm": "1.0.0-rc.5",
+    "effect": "^4.0.5",
+    "foldkit": "0.169.0",
     "foldkit-agent": "workspace:*",
     "foldkit-media": "workspace:*",
     "foldkit-remote": "workspace:*",

@@ -8,16 +8,16 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
-    "@tanstack/db": "0.13.0",
+    "@tanstack/db": "0.15.2",
     "foldkit-entity": "workspace:*",
     "foldkit-remote": "workspace:*",
     "foldkit-remote-server": "workspace:*",
     "foldkit-surface": "workspace:*"
   },
   "devDependencies": {
-    "@effect/platform-browser": "^4.0.4",
-    "effect": "^4.0.4",
-    "foldkit": "0.168.0",
+    "@effect/platform-browser": "^4.0.5",
+    "effect": "^4.0.5",
+    "foldkit": "0.169.0",
     "typescript": "7.0.2"
   }
 }
