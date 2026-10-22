@@ -80,6 +80,7 @@ Each carries a status note at its head saying what it waits for.
 
 | Doc | What it covers | Waiting on |
 | --- | --- | --- |
+| [schema-to-ui-PLAN.md](./schema-to-ui-PLAN.md) | Field recipes and CRUD workflow recipes from a typed operation schema ([#188](https://github.com/doeixd/foldkit-plus/issues/188)): one `Control.format` hook, UI renderer coverage for every kind, date/time and money packs, CRUD presentation and a screen composition, a file control over `foldkit-media`, and a gallery. §1 records the audit and where the issue's inventory is wrong. | Nothing built; Phase 0 (the form contract) first |
 | [platform-DESIGN.md](./platform-DESIGN.md) | Portable Style and Behavior: a target type on every piece, conditions and theme derivations as data, accessibility intents and element handles, a host per platform, React Native through codegen first. | Nothing built; no dependency blocks it. |
 | [reactivity-DESIGN.md](./reactivity-DESIGN.md) | Fine-grained propagation without mutable signals, with the Plus packages as interpreters of three core primitives. | The three primitives in `foldkit/foldkit`; it cannot start here. |
 | [effect-reuse-sync-durable-DESIGN.md](./effect-reuse-sync-durable-DESIGN.md) | Why Sync and Durable keep their own protocols while reusing Effect's persistence, SQL, RPC and socket layers, plus four upstream Effect PRs. | The decision holds, and `foldkit-durable` uses Effect SQL. Its prototypes are unbuilt, and the four PRs are proposals that were never submitted. |
