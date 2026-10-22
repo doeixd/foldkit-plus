@@ -892,18 +892,19 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   "failed" transaction in the table. Write the callback synchronously, with
   `.run()` and `.all()`; Postgres takes an async one, and D1 only `batch`.
 
-- **Drizzle's Effect driver does not load under the pinned Effect.**
-  `drizzle-orm@1.0.0-rc.4`'s `effect-postgres` driver imports
-  `cache/core/cache-effect.ts`, which calls `Schema.TaggedErrorClass` — a name
-  no Effect 4 release exports (rc.112 did not, and 4.0.0 still does not). A static import throws
-  `Schema$1.TaggedErrorClass is not a function` and fails every test file that
-  reaches it, not just the query. Require a Context tag and let the application
-  provide the database; do not import the driver in library code until the two
-  versions agree.
+- **An adapter's peer range is not proof that its imports exist.** Drizzle's
+  `effect-postgres` driver loads `cache/core/cache-effect.ts`, which called
+  `Schema.TaggedErrorClass` in `1.0.0-rc.4` — a name no Effect 4 release
+  exports — so a static import threw `Schema$1.TaggedErrorClass is not a
+  function` and failed every test file that reached it, not just the query.
+  `1.0.0-rc.5` declares the same error with `Schema.TaggedError` and mentions
+  the old name nowhere. Import the driver in a probe run from inside the package
+  before trusting a peer range, and keep library code on a Context tag until the
+  two versions are known to agree.
 
 **Effect 4, not 3**
 
-The workspace runs `effect@^4.0.4`, one copy of each Effect package;
+The workspace runs `effect@^4.0.5`, one copy of each Effect package;
 foldkit's exact peer (`effect@4.0.0`) is relaxed in `pnpm-workspace.yaml`, and
 published packages peer on `^4.0.0` (`foldkit-auth`, which peers Yielded Auth,
 on `^4.0.4`). Within 4.0.x, `Crypto.randomUUIDv4` became a function: `yield*
@@ -1462,7 +1463,9 @@ of its own named a form field "fits the Catalog". Read words with
   and pnpm resolved its optional `@cloudflare/workers-types` peer again: to
   that day's release in most projects, the pinned one in two, so two drizzles
   existed and `examples/cloudflare` failed to typecheck. That package publishes
-  daily; the root `pnpm.overrides` pins it to the version the repository names.
+  daily and is pinned exactly wherever it is declared, so a version move is one
+  deliberate edit per manifest (2026-10-22: `5.20261022.1`); no override covers
+  it. Check `pnpm-lock.yaml` for two copies after any move.
   After a version move, count the copies (`grep -o 'name@[0-9.]*'
   pnpm-lock.yaml | sort | uniq -c`) and regenerate from the old lockfile.
 - **A `package.json` change without `pnpm install` reds every job.** CI

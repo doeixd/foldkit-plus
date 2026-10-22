@@ -22,7 +22,7 @@ Every package keeps that rule:
 - the URL and storage mirror a slice of the Model, never own it;
 - views are extended from outside without forking them.
 
-Targets Foldkit `0.168.x` and Effect 4 stable (`effect@4.0.0`); see the peer
+Targets Foldkit `0.169.x` and Effect 4 stable (`effect@4.0.0`); see the peer
 list under the rules below. APIs are `0.x` and may break between minors.
 
 ## Pick the package by who owns the data
@@ -143,7 +143,7 @@ App.model.remote, … })`, `Mirror.url(App, …)`, and `SurfaceView.define(TodoL
   contract-only `….wiring()`); routing, startup Commands, Subscriptions, and the
   Module derive from the list. See `bundle.md` and the integration's page.
 - **Install** `foldkit-plus` for every package at once (`pnpm add effect@4.0.0
-  foldkit@0.168.0 foldkit-plus`, then import `foldkit-plus/<package>`, as in
+  foldkit@0.169.0 foldkit-plus`, then import `foldkit-plus/<package>`, as in
   `foldkit-plus/remote-server`), or each package on its own with its peers; both name
   the same modules. Adapters that need a library of their own (`foldkit-react`, the
   Drizzle packages, `foldkit-mixins-ui`, `-richtext-code-shiki`, `-agent-native`) are

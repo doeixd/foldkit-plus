@@ -619,7 +619,7 @@ refetches it and a read of it is `Refreshing`.
 
 ## Drizzle: `foldkit-remote-drizzle`
 
-`foldkit-remote-drizzle` pins `drizzle-orm` `1.0.0-rc.4` as a dependency; the
+`foldkit-remote-drizzle` pins `drizzle-orm` `1.0.0-rc.5` as a dependency; the
 app's `drizzle-orm` must be the same version.
 
 ```ts

@@ -5,6 +5,33 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
+## Unreleased
+
+### Changed
+
+- **Dependencies to the latest versions that resolve together.** `effect` and
+  every `@effect/*` package move to 4.0.5 (4.0.6 of the satellites peers on an
+  `effect@4.0.6` that was never published), `foldkit` and `@foldkit/ui` to
+  0.169.0, `@foldkit/vite-plugin` to 0.28.0, `drizzle-orm` to `1.0.0-rc.5`,
+  `@yielded/auth` and `@yielded/auth-persistence` to `0.1.0-beta.43`,
+  `@agent-native/core` to 0.214.0, `@tanstack/db` to 0.15.2,
+  `@livestore/livestore` to 0.5.0, plus Vite 8.3.5, Vitest 5.0.5 and
+  `@vitest/browser-playwright` 5.0.5, Playwright 1.64.1, jsdom 30.1.3, React
+  19.3.1, oxfmt 0.74.0, `sql.js` 1.15.1 and the rest of the patch cohort. Peer
+  floors moved with them: `foldkit@^0.169.0`, `@foldkit/ui@^0.169.0`,
+  `drizzle-orm@1.0.0-rc.5`, `@yielded/auth@0.1.0-beta.43`,
+  `@agent-native/core@0.214.0`. The toolchain moves to Node 22.23.4, the floor
+  jsdom and `@agent-native/core` already set.
+- Held deliberately: `@effect/wa-sqlite` stays at 0.1.2, because
+  `@effect/sql-sqlite-wasm` peers `>=0.1.2 <0.2.0`; `@types/node` stays on 22,
+  the runtime the workspace and CI run; `miniflare` stays on its latest stable
+  line. Foldkit 0.169.0 changes Popover, Menu and Listbox trigger clicks to
+  `ClickedButton`, but `foldkit-mixins-ui` owns its own trigger messages, so no
+  view here changed.
+- `foldkit-remote-drizzle`: a `Not` predicate compiles through a local
+  `negate`, because `drizzle-orm@1.0.0-rc.5` typed `not`'s return as optional
+  for its optional argument. The emitted SQL is the same `not (…)`.
+
 ## 0.31.0
 
 Readable type that follows the page. `foldkit-mixins` 0.19.0 adds fluid type

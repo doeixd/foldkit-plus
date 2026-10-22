@@ -86,7 +86,7 @@ semantics instead of introducing a second data model.
 pnpm add foldkit-remote-drizzle drizzle-orm
 ```
 
-`effect` and `drizzle-orm` (currently `1.0.0-rc.4`) are peer dependencies, so
+`effect` and `drizzle-orm` (currently `1.0.0-rc.5`) are peer dependencies, so
 the adapter reads the tables you define with your own Drizzle, not a copy of
 its own; `foldkit-remote` and `foldkit-remote-server` come with the package.
 
