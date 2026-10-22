@@ -5,7 +5,17 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
-## Unreleased
+## 0.31.0
+
+Readable type that follows the page. `foldkit-mixins` 0.19.0 adds fluid type
+(`type.fluid`, `type.viewportMin`, `type.viewportMax`), a container-measured
+progress, and a `reading` knob group (`measure` in `ch`, `headingWrap`,
+`bodyWrap`, `align`); `Typography`'s `display`, `title` and `subtitle` grow in
+size and leading while `body`, `caption` and `micro` stay on the control
+ladder. `foldkit-mixins-ui` 0.20.0 uses them. `/create` draws the new knobs in
+its Type pane, and the site, design-system, CMS and richtext playground use
+`Theme.fluidType`. Packages that pin either republish with a patch, and
+`foldkit-plus` is 0.13.0.
 
 ### Added
 
