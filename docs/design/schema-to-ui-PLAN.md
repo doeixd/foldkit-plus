@@ -1,11 +1,16 @@
 # Schema to UI: field recipes and CRUD workflow recipes
 
-> **Status:** proposed, 2026-10-22. Written from
+> **Status:** Phase 0 built (2026-10-22); Phases 1 to 7 proposed. Written from
 > [#188](https://github.com/doeixd/foldkit-plus/issues/188) and an audit of the
-> code on the same date (§1, §11). **Nothing here is built.** Blocks marked
-> *Sketch* are shapes to review, not APIs; the phase that builds each one fixes
-> its real signature. Where this plan and a package README disagree, the README
-> and the source win.
+> code on the same date (§1, §11). §1.3 records what building Phase 0 changed in
+> the plan. Blocks marked *Sketch* are shapes to review, not APIs; the phase that
+> builds each one fixes its real signature. Where this plan and a package README
+> disagree, the README and the source win.
+
+| Phase | Ships | Evidence |
+| --- | --- | --- |
+| 0 | `Control.format`, `Control.parseList`, `Input.Choices`, array-of-literal resolution, and the plain `Choices` renderer | `packages/form/test/format.test.ts`, `packages/form/test/choices.test.ts`, `packages/mixins-form/test/choices.test.ts`; 9 mutations, all killed |
+| 1 to 7 | — | not started |
 
 The issue asks for a complete schema-to-UI story: reusable field recipes, UI
 renderers for every control kind, and CRUD workflow recipes. This plan keeps the
@@ -96,6 +101,45 @@ form's words cannot translate.
    `Display.number(format)`) and its kinds are Entity metadata. Read-only
    presentation does not need form internals.
 
+### 1.3 What building Phase 0 changed in this plan
+
+Phase 0 shipped on 2026-10-22 (§6). Building it settled five things this plan had
+left as prose.
+
+1. **A hook its draft can never reach is refused by the types.** `parse` and
+   `format` are a text draft's, `parseList` a list draft's. `Input.kind`'s spec is
+   a union discriminated on `draft`, and each member forbids the others' hooks
+   (`parseList?: never` on the text member, say), so `{ draft: 'list', format }`
+   does not compile. The runtime throw this plan first described is gone: the test
+   that asserted it became three `@ts-expect-error` cases in
+   `packages/form/test/input.test-d.ts`. A type is the earliest definition time
+   there is; a runtime check would only have covered callers who cast past it.
+2. **A phase that adds a kind ships its plain renderer in the same phase.** Phase 0
+   adds `Choices`, and without a renderer in `foldkit-mixins-form` the first person
+   to take the new inference path meets `no renderer for "Choices"` at render — a
+   kind that is advertised and undrawable. The `/ui` renderer may lag a phase; the
+   plain one may not.
+3. **`format` is a pair with `parse`, and its failure names the form and the key.**
+   It runs on `fill` only, never on an edit, so a caret and a composition are never
+   disturbed. A value it cannot show fails the fill as
+   `Form "X": "key" cannot show that value: …`. That cannot be caught at
+   definition time, because it depends on the value.
+4. **A filled key is not in the value until it is checked.** `Form.engine.value`
+   reads keys that are acceptable, and a required key filled but never validated is
+   not acceptable yet. Every acceptance test that reads a filled value validates
+   first (`Message.ValidatedAll()`), and the conformance runner (§4.7) does too.
+5. **A mutation that breaks a module at import is `invalid`, not `killed`.** The
+   runner compares the collected test set, so a test of a *resolver* builds its
+   form inside the test: a mutation that stops the resolution then fails an
+   assertion instead of emptying the file. The first version of Phase 0's
+   resolution mutation was reported invalid for exactly this reason.
+
+Probed rather than assumed, before the resolver was written: `Schema.Array(X)` is
+an `Arrays` node with `elements: []` and `rest: [X]` (a `Tuple` is the reverse,
+`elements` set and `rest: []`; a `NonEmptyArray` sets both), and an array admits
+`[]`. So `rest.length === 1` is the right test for "an array of one thing", and a
+`Choices` key is required only when its own schema refuses the empty one.
+
 ## 2. Scope
 
 **In.** Eight phases of package work, 0 to 7 (§6): the one form contract change
@@ -147,8 +191,7 @@ an async relation renderer, and the gallery and docs that prove them.
 
 ### 4.1 What a recipe is
 
-A recipe is a value with two halves, split across subpaths so the semantic half
-never imports the DOM (§8):
+A recipe is one value with three projections, and the first two carry no DOM:
 
 ```ts
 // Sketch. Semantics: no DOM, no view types.
@@ -157,43 +200,47 @@ interface FieldRecipe<Data> {
   readonly control: Control<Data>   // carries its own `data`
   readonly display: Display
   readonly words?: RecipeWords
+  /**
+   * The plain renderer, beside the control and the display. Absent only for a
+   * kind whose drawing is always the application's (a rich-text editor).
+   */
+  readonly render?: <Message>(context: FieldContext<Message>) => Html<Message>
 }
-
-// `FieldRecipes.money(data): FieldRecipe<MoneyData>` — the data is fixed when
-// the recipe is made, so the control and the display cannot disagree.
 ```
 
-Renderers are a second value, typed structurally the way
-`packages/cms/src/kinds.ts` already types `controlRenderers` and
-`displayRenderers` — so a recipe package need not depend on `mixins-form` to
-describe what it draws:
+A renderer is typed structurally the way `packages/cms/src/kinds.ts` already
+types `controlRenderers` and `displayRenderers`, so the semantic entry point of a
+recipe package need not depend on `mixins-form` to describe what it draws.
+
+A **pack** is a value over named keys, so an application says each thing once and
+cannot attach a control without its display:
 
 ```ts
 // Sketch.
-const renderers: <Message>() => Readonly<
-  Record<string, (context: FieldContext<Message>) => Html<Message>>
->
-```
-
-Used the way the existing API already works:
-
-```ts
-// Sketch.
-const Money = FieldRecipes.money({ currency: 'USD', unit: 'minor' })
-
-Entity.annotateMembers({ price: Input.of(Money.control) })
-Entity.annotateMembers({ price: Display.of(Money.display) })
-
-const ProductForm = Form.make('Product', ProductInput, {
-  inputs: { price: Money.control },
+const Product = FieldRecipes.pack({
+  price: FieldRecipes.money({ currency: 'USD', unit: 'minor' }),
+  publishedAt: FieldRecipes.dateTime({ stored: 'instant' }),
+  tags: FieldRecipes.choices(['new', 'sale']),
 })
-const View = FormView.define(ProductForm, {
-  renderers: RecipeViews.renderers<Message>(), // `foldkit-form-recipes/html`
+
+Entity.annotateMembers(Product.members)                 // Input.of and Display.of per key
+const ProductForm = Form.make('Product', ProductInput, { inputs: Product.inputs })
+const View = FormView.define(ProductForm, { renderers: Product.renderers<Message>() })
+const Table = ListView.forMessages<Message>().define(ProductList, {
+  renderers: Product.displayRenderers<Message>(),
 })
 ```
 
-No new form step, no new precedence level. `FieldRecipes.merge(...)` exists only
-to combine renderer tables and to refuse two recipes claiming one kind.
+`pack` is a convenience over the three mechanisms that already exist — `Input.of`,
+`Form.make`'s `inputs`, `FormView`'s renderers — and not a fourth place a control
+can come from: `FieldRecipes.money(...)` alone is still a value attached by hand.
+`members` and `inputs` are keyed by the pack's names, so a key the form does not
+have is a type error; the two renderer tables are keyed by kind, so a recipe the
+form does not use costs nothing. A pack asked for its renderers refuses when one
+of its recipes has none — naming the recipe — rather than drawing nothing for it.
+
+`FieldRecipes.merge(...)` combines two packs' renderer tables and refuses two
+recipes claiming one kind.
 
 ### 4.2 `Control.format`: the one change to `foldkit-form`
 
@@ -208,9 +255,16 @@ Semantics:
   Nothing else calls it; a keystroke never reformats its own draft.
 - Optional. Without it, a text draft shows `String(value)`, as today, so this
   is backward compatible.
-- A `format` that throws fails the fill, naming the key. Phase 0 wraps the call
-  in the form's existing `attempt`; today `fill` calls `draftOf` unguarded.
+- A `format` that throws fails the fill, naming the form and the key. Phase 0
+  wraps the call where `fill` reads each value, so the message reads
+  `Form "X": "key" cannot show that value: …`.
 - `undefined` and `null` stay the empty draft; `Option.none()` too.
+- **It is a pair with `parse`.** `parse(format(value))` is `value` on the
+  recipe's domain, which the conformance suite tests (§4.7); a recipe whose two
+  directions disagree is not shippable.
+- **Only a text draft has one.** `Input.kind`'s spec is discriminated on `draft`,
+  so `{ draft: 'list', format }` is a type error, not a hook that is silently
+  never called (§1.3).
 
 Rejected:
 
@@ -224,62 +278,113 @@ Rejected:
 - **A `format` on `Display` only.** Display formats a table cell; a form needs
   the same decision for the control's text.
 
-### 4.3 Multi-choice literals
+### 4.3 Multi-choice literals — built in Phase 0
 
-A key typed `Schema.Array(Schema.Literals([...]))` has no control today:
-`fromSchema` looks at `SchemaShape.present(schema.ast)`, which yields the array
-node itself, so `Form.make` throws. Add:
+A key typed `Schema.Array(Schema.Literals([...]))` had no control:
+`fromSchema` reads `SchemaShape.present(schema.ast)`, which yields the array node
+itself, so `Form.make` threw. Phase 0 added:
 
-- `Input.choices(options)` with draft `'list'`, `parse` by option identity, and
-  an `unparsed` word.
-- `fromSchema` resolving an array of literals to `Choices`, which is as
-  unambiguous as the single-literal case it already resolves.
-- A plain renderer in the `choices` slot (checkbox group), which
-  `foldkit-mixins-form` already has for `RelationMany`; reuse its markup rather
-  than a second group.
+- **`Input.choices(options)`** with draft `'list'`, an option read by its own
+  text (so a numeric option is stored as the number it is), and an `unparsed`
+  word for a value that is not one of them.
+- **`fromSchema` resolving an array of literals to `Choices`**, as unambiguous as
+  the single-literal case it already resolved. It reads `Arrays.rest` and
+  requires exactly one item (a `Tuple` has none, so it still throws); the item is
+  one literal or a union of them, and every member must be a string or a number.
+- **A plain renderer**, a group of checkboxes in the `choices` slot, each named
+  by its key so a form post carries them. It shares one helper with
+  `RelationMany`, which already drew that group: one group, two option sources.
+
+Semantics worth stating, because they are not obvious:
+
+- **Never required when the schema admits `[]`.** An array does, so an empty
+  choice is a valid value. An array that refuses it — `Schema.NonEmptyArray`, or
+  an `Array` with a length check — resolves to the same kind and is required by
+  its own schema at submit.
+- **The options are the control's own**, so a draft can only hold a value that is
+  offered — a stored draft that predates an option change is shown as `? value`
+  (the group's existing behaviour) and can be let go.
+- **`Array<Literal>` is not `Array<String>`.** Text says nothing about its values,
+  so it still throws at `Form.make`, naming the key: the resolver infers only what
+  the schema spells out.
 
 ### 4.4 The `/ui` renderer table
 
 `foldkit-mixins-form/ui` today is a `field()` override that handles Text and
-Multiline and throws otherwise. Replace the control half with a table that
-covers every shipped kind — `Text`, `Multiline`, `Number`, `Toggle`, `Select`,
-`RelationOne`, `RelationMany`, `Choices` — and keep `field()` as the layout
-entry, built on the table. Unsupported kinds keep throwing by name.
+Multiline and throws otherwise. Replace the control half with a table that covers
+every shipped kind, and keep `field()` as the layout entry, built on the table.
+Unsupported kinds keep throwing by name.
 
-Why a table: today a form chooses UI drawing per key and only for two kinds,
-so a design-system form still falls back to plain HTML for everything else. A
-renderer table composes with `FormView.define` directly, and a recipe pack can
-ship one table for both paths.
+The mechanism is not the same for every kind, and the table says which:
+
+| Kind | Drawn through | Why |
+| --- | --- | --- |
+| `Text`, `Number` | `mixins-ui`'s `Input.view` | a number's draft is text, so it stays a text input with `inputMode` — not `NumberField`, whose value is a `number` and would refuse `"4."` |
+| `Multiline` | `Textarea.view` | as today |
+| `Toggle` | `Checkbox`'s slots, resolved with `SlotView.buildersFor` | the field's control is a checkbox; `Switch` is a setting's affordance, not a form field's |
+| `Select`, `RelationOne` | `Select`'s slots, resolved the same way | a native `<select>`, which is what upstream's adapter is |
+| `Choices`, `RelationMany` | `CheckboxGroup.view` | one group for both option sources, as the plain path draws it |
+
+`ui.ts` already resolves `FieldSlots` with `SlotView.buildersFor`, so the
+slot-bundle mechanism is the one that file already uses, and every adapter's style
+is optional: a table with no styles is still a complete, unstyled form.
+
+Every kind keeps what the plain path promises: the key as `name`, the control's
+`id`, `aria-invalid`, `aria-describedby` naming the description, the checking line
+and the error. The checking line's words come from the form's `words`:
+`mixins-ui`'s `descriptionOf` writes `Checking…` as a literal today
+(`packages/mixins-ui/src/field.ts`), and the table must not inherit that.
 
 ### 4.5 CRUD presentation
 
-Three stateless views in `foldkit-mixins-crud`:
+Three stateless views in `foldkit-mixins-crud`, each given state and Messages and
+owning neither:
 
-- `EditorView.forMessages<Message>().define(placedEditor)` with a
-  `presentation: 'page' | 'drawer' | 'dialog'` choice, the form's view inside,
-  and slots for the frame, title, body, actions and error summary.
-- `ConfirmView` for a remover: asked, deleting, failed, with the entity's name
-  and the words the app passes.
-- `Toolbar` for a list: search, filters, sort and actions as slots, with the
-  state and Messages supplied by the app.
+- **`EditorView.forMessages<Message>().define(placedEditor)`** — inputs
+  `{ status, model, options, locked, words, presentation, onClose }`; it draws the
+  form's view in the body, a title from the entity and the words, the save error,
+  and an actions row. `presentation` is `'page' | 'drawer' | 'dialog'`, and the
+  last two render inside the Dialog or Drawer that already exists, so focus and
+  dismissal are those components' rules and not a third implementation. Slots:
+  `root`, `frame`, `title`, `body`, `actions`, `error`.
+- **`ConfirmView.forMessages<Message>().define(placedRemover)`** — inputs
+  `{ status, target, words, onConfirm, onCancel }`; slots `root`, `body`,
+  `actions`. It draws the target's name and cannot confirm without one.
+- **`Toolbar.forMessages<Message>().define()`** — inputs
+  `{ search, filters, sort, actions }`, each optional and each a slot the
+  application fills with its own controls; slots `root`, `search`, `filters`,
+  `sort`, `actions`. It reads no query state: filtering and sorting stay the
+  query's input, in the application's Model.
 
-A view or a dialog owns no lifecycle: saving is `Crud.editor`'s, deleting is
-`Crud.remover`'s, and dismissing is the app's Message. Focus enters on open and
-returns to the opener — a browser test, not a unit test.
+A view owns no lifecycle: saving is `Crud.editor`'s, deleting is
+`Crud.remover`'s, dismissing is the application's Message. Focus enters on open
+and returns to the opener — a browser test, not a unit test.
 
 ### 4.6 `Crud.screen`: composition, not a new owner
 
 ```ts
 // Sketch.
 const Posts = Crud.screen('Posts', {
-  list: PostList,      // a Crud.list result
-  editor: PostEditor,  // a Crud.editor result
-  remover: Remover,    // a Crud.remover result
+  list: PostList,        // a Crud.list result: its columns, choices and query
+  editor: PostEditor,    // a Crud.editor result
+  remover: Remover,      // a Crud.remover result
+})
+
+const Placed = Posts.at({
+  data: Data,
+  model: App.model.posts,           // the screen's own Model slice
+  input: model => Option.some({ search: model.search }), // the query's input
 })
 ```
 
-It composes pieces that already exist; it does not build a form, a mutation or
-a query. It owns exactly four things:
+`at` returns `{ active, update, after, helpers, editor, remover }`: `helpers` is
+`{ blank, open, close, ask }`, `after` composes both syncs, and `editor` and
+`remover` are the placed handles their views take. `list` may be omitted for a
+create-only screen (then no list state is read and the application wires its own
+pickers); `remover` may be omitted for a screen that cannot delete.
+
+It composes pieces that already exist; it does not build a form, a mutation or a
+query. It owns exactly four things:
 
 | It owns | Not its job |
 | --- | --- |
@@ -294,43 +399,59 @@ example hand-writes today; it is not the only way to build a CRUD page, and the
 checks `packages/crud/README.md` lists continue to apply to the pieces it
 places.
 
-The screen's own config keys are Phase 5's design work. What it must not do is
-fixed here: no hidden query, no second cache, no second permission check.
+The screen's own config keys beyond the sketch above are Phase 5's design work.
+What it must not do is fixed here: no hidden query, no second cache, no second
+permission check.
 
 ### 4.7 Conformance
 
-`foldkit-form-recipes/conformance` exports cases as data a test runner
-iterates, in the manner of `foldkit-entity/conformance` — not an assertion
-library:
+`foldkit-form-recipes/conformance` exports the observations *and* the runner, so
+a third-party recipe does not re-implement the loop:
 
 ```ts
 // Sketch.
-interface RecipeCase {
+interface RecipeAction {
+  readonly fill?: ReadonlyArray<unknown>  // values to fill with, in order
+  readonly type?: ReadonlyArray<string>   // drafts typed, in order
+}
+
+interface RecipeObservation {
+  readonly drafts: ReadonlyArray<string>
+  readonly value: 'some' | 'none'
+  readonly unparsed: boolean
+  readonly required: boolean
+}
+
+RecipeConformance.probe(recipe, schema, action): RecipeObservation
+RecipeConformance.cases: ReadonlyArray<{
   readonly what: string
   readonly recipe: FieldRecipe<unknown>
-  readonly given: ReadonlyArray<unknown>      // values to fill with
-  readonly typed: ReadonlyArray<string>       // drafts typed, in order
-  readonly expect: {
-    readonly drafts: ReadonlyArray<string>
-    readonly value: 'some' | 'none'
-    readonly unparsed: boolean
-  }
-}
+  readonly action: RecipeAction
+  readonly expect: Partial<RecipeObservation>
+}>
 ```
 
-A recipe package's tests iterate the cases against its own recipes; a
-third-party recipe can import the same cases. This is what makes "complete"
-checkable rather than aspirational (§7).
+`probe` builds a `Form.make` over the recipe and the schema, runs the actions,
+validates (`Message.ValidatedAll()` — a filled key is not in the value until it is
+checked, §1.3), and reads four things: the drafts, whether the value is `Some`,
+whether the key reads unparsed, and whether the key is required. One place reads
+them the same way for every recipe, which is what makes "complete" checkable
+rather than aspirational (§7). The shipped `cases` are the table a recipe's own
+test iterates; the runner is what lets a third party add a recipe and be held to
+the same bar.
 
 ## 5. The catalog, by phase
 
-| Phase | Recipes | Why it is more than a kind |
-| --- | --- | --- |
-| 2 | `date`, `dateTime` | a stored form, a local text form, and a format that survives a fill |
-| 2 | `email`, `url`, `tel`, `slug`, `password` | element attrs (`type`, `autocomplete`, `inputmode`), masking rules, and a display |
-| 3 | `money`, `decimal`, `percent` | locale parsing, minor units, zero-decimal currencies |
-| 6 | `image`, `file` | a Bundle control (progress, cancel, retry) over `foldkit-media`'s upload |
-| 6 | relation search | a combobox renderer over `Crud.options` and a list's `more` |
+| Phase | Recipes | Plain renderer | Why it is more than a kind |
+| --- | --- | --- | --- |
+| 2 | `date`, `dateTime` | `input type=date`, `type=datetime-local` | a stored form, a local text form, and a format that survives a fill |
+| 2 | `email`, `url`, `tel`, `slug`, `password` | `input` with the type, `autocomplete` and `inputmode` the recipe implies | element attrs, masking rules, and a display |
+| 3 | `money`, `decimal`, `percent` | `input` with `inputmode` | locale parsing, minor units, zero-decimal currencies |
+| 6 | `image`, `file` | `FileDrop` and a progress line | a Bundle control (progress, cancel, retry) over `foldkit-media`'s upload |
+| 6 | relation search | `Combobox` over the rows found | paging inside the picker, through `Crud.options` and a list's `more` |
+
+A phase that adds a kind ships its plain renderer in the same phase (§1.3); the
+`/ui` renderer may follow in Phase 1's table or later.
 
 Deliberately not in the first catalog: location, signature (a component exists,
 a legal requirement does not), barcode, payment, tax id, cron, semver, tree
@@ -344,15 +465,22 @@ Each phase ships on its own, with the gates the repository runs
 server), a mutation spec for the new behaviour, and a browser test where the
 claim is about focus or layout.
 
-### Phase 0 — the form contract (S)
+### Phase 0 — the form contract (S) — **built 2026-10-22**
 
-**Build.** `Control.format` (§4.2). `Input.choices` and array-of-literal
-resolution (§4.3).
+**Built.** `Control.format` and `Control.parseList`; an `Input.kind` spec
+discriminated on `draft`, so a hook its draft can never reach is a type error
+rather than a runtime throw; `Input.Choices` and array-of-literal resolution; and
+the plain `Choices` renderer, sharing one group helper with `RelationMany`.
+
+**Evidence.** `packages/form/test/format.test.ts`, `packages/form/test/choices.test.ts`,
+`packages/mixins-form/test/choices.test.ts`, three `@ts-expect-error` cases in
+`packages/form/test/input.test-d.ts`, and nine mutations across two specs, all
+killed. §1.3 records what building it changed in this plan.
 
 **Why first.** Every formatted recipe depends on it, and it is additive: no
 existing form changes behaviour.
 
-**Acceptance.**
+**Acceptance, as written before the build.**
 
 - Filling a control whose `format` renders `12.34` puts `12.34` in the draft;
   a control without one still shows `String(value)`.
@@ -361,15 +489,16 @@ existing form changes behaviour.
 - `Input.choices` accepts `['a', 'b']`, refuses `'c'` as unparsed, and submits
   the literals themselves.
 
-**Kills.** `format` replaced by an identity function; `Choices.parse` replaced
-by `() => options[0]`. Each must turn its test red.
+**Kills.** `format` replaced by an identity function; `parseList` skipped;
+`Choices.parse` replaced by `() => options[0]`; the array resolution disabled;
+the group drawn with no options, unnamed, or nothing checked.
 
 ### Phase 1 — renderers for every kind (M)
 
-**Build.** The `/ui` renderer table (§4.4); a `Choices` renderer on both
-paths; `field()` rebuilt on the table; a `summary` slot in `FormSlots` whose
-content lists each invalid key as a link to its control's id, so it focuses the
-field natively and works without scripts.
+**Build.** The `/ui` renderer table (§4.4), including the `/ui` drawing of
+`Choices` (the plain one shipped in Phase 0); `field()` rebuilt on the table; a
+`summary` slot in `FormSlots` whose content lists each invalid key as a link to
+its control's id, so it focuses the field natively and works without scripts.
 
 **Why second.** Until every kind can be drawn through `/ui`, a UI-backed recipe
 cannot be shown, and the gap hides behind a throw at render time. The summary
@@ -564,15 +693,15 @@ claim:
 
 | Package | Entry | Depends on (new) | Ships |
 | --- | --- | --- | --- |
-| `foldkit-form` | `.` | — | `format`, `Input.choices`, array-of-literal resolution |
-| `foldkit-mixins-form` | `.` | — | `Choices` renderer, the `summary` slot |
+| `foldkit-form` | `.` | — | **built**: `Control.format`, `Control.parseList`, `Input.Choices`, array-of-literal resolution |
+| `foldkit-mixins-form` | `.` | — | **built**: the `Choices` renderer; Phase 1: the `summary` slot |
 | `foldkit-mixins-form` | `./ui` | — | the renderer table for every kind |
 | `foldkit-crud` | `.` | — | `Crud.screen` |
 | `foldkit-mixins-crud` | `.` | — | `EditorView`, `ConfirmView`, `Toolbar` |
-| **`foldkit-form-recipes`** (new) | `.` | `foldkit-form`, `foldkit-crud` | `FieldRecipes`, the kinds, displays and words |
-| | `./html` | `foldkit-mixins-form` | `RecipeViews.renderers<Message>()` |
-| | `./ui` | `foldkit-mixins-ui`, `foldkit-mixins-form/ui` | `RecipeUi.renderers<Message>()` |
-| | `./conformance` | `foldkit-form` | the recipe cases |
+| **`foldkit-form-recipes`** (new) | `.` | `foldkit-form`, `foldkit-crud` | `FieldRecipes` and `pack`, the kinds, displays and words |
+| | `./html` | `foldkit-mixins-form` | the plain renderers a pack projects |
+| | `./ui` | `foldkit-mixins-ui`, `foldkit-mixins-form/ui` | the UI renderers a pack projects |
+| | `./conformance` | `foldkit-form` | `RecipeConformance.probe` and the cases |
 
 Why one new package rather than entries in three existing ones: the semantic
 half must not import the DOM, the UI half must not be pulled in by an app that
@@ -606,6 +735,16 @@ across three version numbers.
    changelog. Budget it in the release notes of the phase that creates it.
 8. **Locale parsing is a bug farm.** The rule is conservative: accept the
    locale's own separators and a plain `.`; refuse ambiguity rather than guess.
+9. **A kind can ship advertised and undrawable.** Phase 0 met this: `Choices`
+   resolved from a schema and had no renderer, so the first user of the new
+   inference path got a render-time throw. A phase that adds a kind ships its
+   plain renderer in the same phase (§1.3).
+10. **The hook refusal is only as good as the types.** A discriminated spec
+    catches every typed caller; a cast walks past it. A runtime check would have
+    covered only the cast — the narrower case — so the type is the better place,
+    and the `@ts-expect-error` cases in `packages/form/test/input.test-d.ts` are
+    load-bearing: without them, a widening of the spec would pass unnoticed
+    (§1.3).
 
 ## 10. Open questions
 
@@ -614,8 +753,10 @@ across three version numbers.
    Revisit only if a real application shows the per-entity call is too much
    ceremony.
 2. **Schema annotation, Entity metadata, or form input?** Precedence already
-   exists: form `inputs` > member `Input.of` > relation > schema shape. A
-   recipe attaches at the same three places; nothing new.
+   exists: form `inputs` > member `Input.of` > relation > schema shape. Phase 0
+   added one more shape the last step reads (an array of literals) and changed
+   nothing else about it: a recipe attaches at those three places, and no
+   registry is needed.
 3. **Which stateful controls are allowed to be `Input.bundle`?** Only those
    that need a Model of their own and can live with no `check`, no OutMessage,
    and no nesting with resources. Phase 6 states this in the README rather
@@ -633,10 +774,11 @@ across three version numbers.
 7. **Can a registry be tree-shakeable and deterministic?** A value is; a
    module-level registry is not deterministic across two applications in one
    page. That is the argument of §3, principle 2.
-8. **What is the smallest slice worth shipping?** Phases 0, 1, and the `date`
-   and `dateTime` halves of 2: a form can then draw every kind through a
-   design system and load a stored date correctly, which is the first thing a
-   real CRUD page needs.
+8. **What is the smallest slice worth shipping?** Answered, and half shipped:
+   Phase 0 is built (§1.3), and what remains of the smallest slice is Phase 1
+   plus the `date` and `dateTime` halves of Phase 2 — a form that draws every
+   kind through a design system and loads a stored date correctly, which is the
+   first thing a real CRUD page needs.
 
 ## 11. How this was checked
 
@@ -657,3 +799,9 @@ across three version numbers.
 - Not checked: every one of the 92 `mixins-ui` namespaces line by line; the
   upstream components' own behaviour under this repository's SSR and no-script
   paths (Phase 1 and 4 test it, rather than assume it).
+- Phase 0 (2026-10-22): the AST shapes above were probed against the installed
+  Effect before the resolver was written, and its two mutation specs ran under
+  `pnpm mutate` with nine mutations, all killed. Its first attempt at the
+  resolver's mutation was reported `invalid` rather than killed, because the
+  test built its form at module scope — the reason §1.3 records that a resolver
+  test must build its form inside the test.
