@@ -1,6 +1,6 @@
 {
   "name": "foldkit-richtext-dom",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "description": "The DOM interpreter for a foldkit-richtext editable subtree.",
   "keywords": [
     "foldkit",

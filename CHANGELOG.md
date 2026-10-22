@@ -5,7 +5,20 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
-## Unreleased
+## 0.32.0
+
+A dependency release. The workspace moves to Foldkit 0.169.0 and Effect 4.0.5,
+with `drizzle-orm` 1.0.0-rc.5, `@yielded/auth` 0.1.0-beta.43,
+`@agent-native/core` 0.214.0, `@tanstack/db` 0.15.2, `@livestore/livestore`
+0.5.0, and the toolchain (Vite 8.3.5, Vitest 5.0.5, Playwright 1.64.1, jsdom
+30.1.3, React 19.3.1, oxfmt 0.74.0). Every package that peers on Foldkit
+republishes with the new floor so a fresh install resolves the release it was
+tested against; `foldkit-mixins-ui` peers `@foldkit/ui@^0.169.0`,
+`foldkit-remote-drizzle`, `foldkit-cms-drizzle` and `foldkit-guard` peer
+`drizzle-orm@1.0.0-rc.5`, `foldkit-auth` peers `@yielded/auth@0.1.0-beta.43`,
+and `foldkit-agent-native` peers `@agent-native/core@0.214.0`.
+`foldkit-remote-drizzle` 0.12.4 also compiles a `Not` predicate through its own
+`negate`. `foldkit-plus` is 0.14.0.
 
 ### Changed
 
