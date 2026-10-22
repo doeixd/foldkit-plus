@@ -47,6 +47,17 @@ export interface Control<Data = unknown> {
    */
   // A method, so a control of any data is a `Control<unknown>`.
   parse?(draft: string, data: Data): unknown
+  /**
+   * For a `list` draft: the value the key's schema is given, read with the
+   * control's `data` (a choice group's options). `undefined` means one of the
+   * chosen values is not one of them.
+   */
+  parseList?(draft: ReadonlyArray<string>, data: Data): unknown
+  /**
+   * For a `text` draft: the text a value is shown as when the form is filled
+   * with it, the inverse of `parse`. Default `String(value)`.
+   */
+  format?(value: unknown, data: Data): string
   /** What to say when `parse` gives `undefined`. */
   readonly unparsed?: string | undefined
   /**
@@ -112,18 +123,47 @@ export interface NestedForm {
   }
 }
 
+/**
+ * What every kind's spec says, whatever its draft holds. The draft decides which
+ * hooks a spec may carry, so a hook that draft can never reach is a type error
+ * rather than a hook that is silently never called.
+ */
+interface ControlSpec<Data, Draft extends DraftKind> {
+  readonly draft: Draft
+  readonly shown?: boolean
+  readonly searches?: boolean | ((data: Data) => boolean)
+  readonly unparsed?: string
+}
+
+/** A text draft: read by `parse`, shown by `format`. */
+interface TextSpec<Data> extends ControlSpec<Data, 'text'> {
+  /** The value the text stands for, given the control's data; `undefined` when it stands for none. */
+  readonly parse?: (draft: string, data: Data) => unknown
+  /** The text a value is shown as when the form is filled with it. */
+  readonly format?: (value: unknown, data: Data) => string
+  readonly parseList?: never
+}
+
+/** A list draft: each chosen value as text, read by `parseList`. */
+interface ListSpec<Data> extends ControlSpec<Data, 'list'> {
+  /** The value the chosen values stand for, given the control's data; `undefined` when one is not allowed. */
+  readonly parseList?: (draft: ReadonlyArray<string>, data: Data) => unknown
+  readonly parse?: never
+  readonly format?: never
+}
+
+/** A draft with nothing to read or show: a flag, rows, or a Bundle's Model. */
+interface PlainSpec<Data> extends ControlSpec<Data, 'flag' | 'rows' | 'model'> {
+  readonly parse?: never
+  readonly parseList?: never
+  readonly format?: never
+}
+
+/** What `Input.kind` takes. */
+type Spec<Data> = TextSpec<Data> | ListSpec<Data> | PlainSpec<Data>
+
 /** A kind of control. The kinds below are made with it, and so is an application's. */
-const kind = <Data = Record<string, never>>(
-  name: string,
-  spec: {
-    readonly draft: DraftKind
-    readonly shown?: boolean
-    readonly searches?: boolean | ((data: Data) => boolean)
-    /** The value a text draft stands for, given the control's data; `undefined` when it stands for none. */
-    readonly parse?: (draft: string, data: Data) => unknown
-    readonly unparsed?: string
-  },
-): ControlKind<Data> => {
+const kind = <Data = Record<string, never>>(name: string, spec: Spec<Data>): ControlKind<Data> => {
   return {
     kind: name,
     of: data =>
@@ -134,7 +174,15 @@ const kind = <Data = Record<string, never>>(
         searches:
           typeof spec.searches === 'function' ? spec.searches(data) : (spec.searches ?? false),
         data,
-        ...(spec.parse === undefined ? {} : { parse: spec.parse }),
+        // The hooks the spec's own draft can reach; its type carries no others.
+        ...(spec.draft === 'text'
+          ? {
+              ...(spec.parse === undefined ? {} : { parse: spec.parse }),
+              ...(spec.format === undefined ? {} : { format: spec.format }),
+            }
+          : spec.draft === 'list'
+            ? { ...(spec.parseList === undefined ? {} : { parseList: spec.parseList }) }
+            : {}),
         unparsed: spec.unparsed,
       }),
     is: (control): control is Control<Data> => control.kind === name,
@@ -231,6 +279,19 @@ const Select = kind<{ readonly options: ReadonlyArray<string | number> }>('Selec
   parse: (draft, data) => data.options.find(option => String(option) === draft),
   unparsed: 'Choose one of the options',
 })
+/**
+ * One or more of a fixed set, text or numbers. The draft is each chosen option
+ * as text, as a group of checkboxes holds them; the value is the options
+ * themselves, so `3` is stored as `3`.
+ */
+const Choices = kind<{ readonly options: ReadonlyArray<string | number> }>('Choices', {
+  draft: 'list',
+  parseList: (draft, data) => {
+    const chosen = draft.map(text => data.options.find(option => String(option) === text))
+    return chosen.some(option => option === undefined) ? undefined : chosen
+  },
+  unparsed: 'Choose from the options',
+})
 const RelationOne = kind<RelationData>('RelationOne', {
   draft: 'text',
   searches: data => data.search,
@@ -247,6 +308,16 @@ const key = Metadata.key<Control>('foldkit-form/input', {
   summarize: control => control.kind,
 })
 
+/** The options a schema is a union of, when every member is a string or number literal. */
+const optionsOf = (ast: SchemaAST.AST): ReadonlyArray<string | number> | undefined => {
+  const literals = SchemaAST.isLiteral(ast) ? [ast] : SchemaAST.isUnion(ast) ? ast.types : []
+  const values = literals.map(member => (SchemaAST.isLiteral(member) ? member.literal : undefined))
+  const options = values.filter(
+    (value): value is string | number => typeof value === 'string' || typeof value === 'number',
+  )
+  return options.length > 0 && options.length === values.length ? options : undefined
+}
+
 // Optional text is still text, so `null` and `undefined` are set aside first.
 const fromSchema = (schema: Schema.Top): Control | undefined => {
   const members = SchemaShape.present(schema.ast)
@@ -255,6 +326,11 @@ const fromSchema = (schema: Schema.Top): Control | undefined => {
     if (SchemaAST.isString(only)) return Text.of(nothing)
     if (SchemaAST.isNumber(only)) return Number_.of(nothing)
     if (SchemaAST.isBoolean(only)) return Toggle.of(nothing)
+    // A list of literals is as unambiguous as a union of them: any number of them.
+    if (SchemaAST.isArrays(only) && only.rest.length === 1) {
+      const items = optionsOf(only.rest[0]!)
+      if (items !== undefined) return Choices.of({ options: items })
+    }
   }
   const literals = members.map(member => (SchemaAST.isLiteral(member) ? member.literal : undefined))
   const options = literals.filter(
@@ -281,6 +357,7 @@ export const Input = {
   Number: Number_,
   Toggle,
   Select,
+  Choices,
   RelationOne,
   RelationMany,
   Nested,
@@ -327,6 +404,12 @@ export const Input = {
   number: (): Control => Number_.of(nothing),
   toggle: (): Control => Toggle.of(nothing),
   select: (options: ReadonlyArray<string | number>): Control => Select.of({ options }),
+  /**
+   * Any number of a fixed set, text or numbers. A key typed
+   * `Schema.Array(Schema.Literals([...]))` resolves to one without asking; name
+   * it here for a set the schema cannot spell.
+   */
+  choices: (options: ReadonlyArray<string | number>): Control => Choices.of({ options }),
   /**
    * A picker of one of `target`, for a value that is not a relation of the
    * form's Entity: a page Builder's Block prop that holds an id. A relation key

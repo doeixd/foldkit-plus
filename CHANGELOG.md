@@ -5,6 +5,24 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
+## Unreleased
+
+### Added
+
+- **`foldkit-form`: a control says how a value is shown, and a key can be any
+  number of a fixed set.** `Input.kind` takes `format`, the text a value is shown
+  as when a form is filled with it — the inverse of `parse`, called by `fill`
+  only, so a caret and a composition are never disturbed while someone types.
+  A key typed `Schema.Array(Schema.Literals([...]))` resolves to the new
+  `Choices` kind instead of failing at `Form.make`, and `Input.choices([1, 2])`
+  names the set for a key whose schema cannot spell it. `foldkit-mixins-form`
+  draws a `Choices` key as a group of checkboxes, as it draws a relation picker.
+  `Input.kind` also takes `parseList`, the list counterpart of `parse`, and its
+  spec is discriminated on the draft a kind holds: a hook that draft can never
+  reach — `parse` or `format` on a `list`, say — is a type error rather than a
+  hook that is silently never called. A filled value whose control formats
+  nothing still shows as `String(value)`.
+
 ## 0.32.0
 
 A dependency release. The workspace moves to Foldkit 0.169.0 and Effect 4.0.5,

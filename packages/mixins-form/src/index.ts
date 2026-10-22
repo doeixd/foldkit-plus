@@ -533,35 +533,51 @@ const defaultRenderers = <Message>(): Renderers<Message> => {
         !context.input.control.required,
       ),
     [Input.RelationOne.kind]: context => pick(context, context.input.options, true),
-    [Input.RelationMany.kind]: ({ input, draft, change, slots, h }) => {
-      const chosen = Array.isArray(draft) ? (draft as ReadonlyArray<string>) : []
-      const isChosen = new Set(chosen)
-      return h.div(
-        slots.choices.attrs([h.Id(input.id), h.Role('group'), h.AriaLabel(input.control.label)]),
-        withChosen(input.options, chosen).map(option =>
-          h.label(slots.choiceLabel.attrs(), [
-            h.input(
-              slots.choice.attrs([
-                h.Type('checkbox'),
-                h.Name(input.control.key),
-                h.Value(option.value),
-                h.Checked(isChosen.has(option.value)),
-                ...(input.locked === true ? [h.Disabled(true)] : []),
-                h.OnClick(
-                  change(
-                    isChosen.has(option.value)
-                      ? chosen.filter(value => value !== option.value)
-                      : [...chosen, option.value],
-                  ),
-                ),
-              ]),
+    // A key of any number of choices, whether the options come from the schema
+    // (`Choices`) or from the application's own list (`RelationMany`).
+    [Input.Choices.kind]: context =>
+      choiceGroup(
+        context,
+        (Input.Choices.is(context.control) ? context.control.data.options : []).map(option => ({
+          value: String(option),
+          label: String(option),
+        })),
+      ),
+    [Input.RelationMany.kind]: context => choiceGroup(context, context.input.options),
+  }
+}
+
+/** A key of any number of choices: each one a checkbox in its own label. */
+const choiceGroup = <Message>(
+  { input, draft, change, slots, h }: RenderContext<Message>,
+  options: ReadonlyArray<Option>,
+): Html => {
+  const chosen = Array.isArray(draft) ? (draft as ReadonlyArray<string>) : []
+  const isChosen = new Set(chosen)
+  return h.div(
+    slots.choices.attrs([h.Id(input.id), h.Role('group'), h.AriaLabel(input.control.label)]),
+    withChosen(options, chosen).map(option =>
+      h.label(slots.choiceLabel.attrs(), [
+        h.input(
+          slots.choice.attrs([
+            h.Type('checkbox'),
+            h.Name(input.control.key),
+            h.Value(option.value),
+            h.Checked(isChosen.has(option.value)),
+            ...(input.locked === true ? [h.Disabled(true)] : []),
+            h.OnClick(
+              change(
+                isChosen.has(option.value)
+                  ? chosen.filter(value => value !== option.value)
+                  : [...chosen, option.value],
+              ),
             ),
-            option.label,
           ]),
         ),
-      )
-    },
-  }
+        option.label,
+      ]),
+    ),
+  )
 }
 
 /**

@@ -74,8 +74,8 @@ const RenameForm = Page.at(Slot, {
   a plain form post carries the drafts.
 - **Draw it:** `Rename.controls` is the keys in order, each with `control`
   (`Text`, `Multiline`, `Hidden`, `Number`, `Toggle`, `Select` with `options` (string or number
-  literals; the value is the option itself),
-  `RelationOne` / `RelationMany` with `target`), `label`, `description`,
+  literals; the value is the option itself), `Choices` with `options` (any number
+  of them), `RelationOne` / `RelationMany` with `target`), `label`, `description`,
   `required`, and the Entity `member`. Read a key's state from
   `model.rename.fields[key]` with `foldkit/fieldValidation` (`match`,
   `isInvalid`); cross-key failures are in `model.rename.errors`.
@@ -84,7 +84,8 @@ const RenameForm = Page.at(Slot, {
   for the member everywhere. Otherwise: the relation the key writes, then the
   schema's shape. No match throws at `Form.make`, naming the key.
   A key holding ids that is not a relation: `Input.relationOne(Author)`,
-  `Input.relationMany(Tag)`.
+  `Input.relationMany(Tag)`. An array of literals is a choice of any number of
+  them; a set the schema cannot spell takes `Input.choices([1, 2])`.
 - **Label:** `Schema.String.annotate({ title, description })` on the input key or
   the Entity field. A relation takes `Form.label('Author')` as Entity metadata.
 - **Ask something outside the form** (is this slug taken?): `checks: { slug: (slug, { values }) => Effect }`
@@ -106,9 +107,17 @@ const RenameForm = Page.at(Slot, {
   `form.search(model, key)`); read it as the input of the query that lists the
   choices. `foldkit-mixins-form` draws the search box.
 - **A control of your own** (date, rich text, money): controls are one primitive,
-  `{ kind, draft, shown, searches, data, parse? }`, and the shipped kinds are made
-  the way yours is: `const Cents = Input.kind<{ currency: string }>('Cents', { draft: 'text', parse, unparsed })`,
+  `{ kind, draft, shown, searches, data, parse?, parseList?, format? }`, and the
+  shipped kinds are made the way yours is:
+  `const Cents = Input.kind<{ currency: string }>('Cents', { draft: 'text', parse, format, unparsed })`,
   then `inputs: { cents: Cents.of({ currency: 'USD' }) }` and `Cents.is(control)`.
+  `parse` reads a text draft as a value, `parseList` reads a list draft the same
+  way, and `format` is the other direction: the text a value is shown as when the
+  form is filled with it, so a stored `1234` reads as `'12.34'`. Without it a
+  filled value shows as `String(value)`. `format` is never called while someone
+  types, so a caret and a composition are not disturbed. A hook a draft can never
+  reach is a type error: `parse` and `format` are a text draft's, `parseList` a
+  list draft's.
   Draw it with `FormView.define(form, { renderers: { Cents: ctx => ... } })`; the
   same table replaces a shipped renderer.
 - **A control with a Model of its own** (a color picker with a popover, a page

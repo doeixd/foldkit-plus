@@ -160,6 +160,7 @@ EditForm.view(model, h, {
 | `Number` | `input type="text" inputmode="decimal"` | `number` |
 | `Toggle` | `input type="checkbox"` | `toggle` |
 | `Select` | `select` of the control's own options, with a blank while nothing is chosen | `select`, `option` |
+| `Choices` | a `role="group"` of checkboxes over the control's own options | `choices`, `choiceLabel`, `choice` |
 | `RelationOne` | `select` of `options[key]`, with a blank | `select`, `option` |
 | `RelationMany` | a `role="group"` of checkboxes over `options[key]`, each in a `label` with its words | `choices`, `choiceLabel`, `choice` |
 | `Nested` | a `fieldset` with a `legend`, a `div` per row holding the nested form's fields, and `button type="button"`s to add and remove a row | `group`, `legend`, `row`, `add`, `remove` |

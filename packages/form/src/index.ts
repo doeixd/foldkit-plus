@@ -656,7 +656,9 @@ const planOf = (
         ? bundled.value(draft)
         : control.parse !== undefined && typeof draft === 'string'
           ? control.parse(draft, control.data)
-          : draft
+          : control.parseList !== undefined && Array.isArray(draft)
+            ? control.parseList(draft, control.data)
+            : draft
     if (value === undefined) return Result.fail(say.unparsed)
     const decoded = Result.mapError(decode(value), error => say.invalid(error.message))
     return Option.isSome(held) ? Result.map(decoded, Option.some) : decoded
@@ -712,14 +714,17 @@ const attempt = <A>(name: string, run: () => A): A => {
   }
 }
 
-/** The draft that shows `value`: a number as its text, nothing (`Option.none()` too) as the empty draft. */
+/**
+ * The draft that shows `value`: the text the control's `format` makes of it, or
+ * `String(value)` when it formats nothing; nothing (`Option.none()` too) is the
+ * empty draft.
+ */
 const draftOf = (plan: Plan, given: unknown): Draft => {
   const value = Option.isOption(given) ? Option.getOrUndefined(given) : given
-  return value === null || value === undefined
-    ? plan.empty
-    : plan.kind === 'text'
-      ? String(value)
-      : (value as Draft)
+  if (value === null || value === undefined) return plan.empty
+  if (plan.kind !== 'text') return value as Draft
+  const format = plan.control.format
+  return format === undefined ? String(value) : format(value, plan.control.data)
 }
 
 const Core = {
@@ -1273,6 +1278,18 @@ const Core = {
     /** Shows existing values, as an edit form does; keys not given keep their draft and their rows. */
     const fill = (model: Model, values: Partial<Value>): { readonly model: Model } => {
       const given = values as Readonly<Record<string, unknown>>
+      // A control that shows a value badly is a wiring mistake, and a fill is
+      // where it says so: named by the form and the key it was showing.
+      const shown = (plan: Plan, value: unknown): Draft => {
+        try {
+          return draftOf(plan, value)
+        } catch (error) {
+          return fail(
+            name,
+            `"${plan.key}" cannot show that value: ${error instanceof Error ? error.message : String(error)}`,
+          )
+        }
+      }
       const filled: Model = {
         ...model,
         // Another value to edit is another search.
@@ -1282,7 +1299,7 @@ const Core = {
         touched: Object.fromEntries(
           followers.flatMap(key =>
             key in given
-              ? isEmpty(draftOf(plans[key], given[key]))
+              ? isEmpty(shown(plans[key], given[key]))
                 ? []
                 : [[key, true] as const]
               : model.touched[key] === true
@@ -1301,7 +1318,7 @@ const Core = {
                         drafts(model)[plan.key as Key].value,
                         given[plan.key],
                       ) as Draft)
-                    : draftOf(plan, given[plan.key]),
+                    : shown(plan, given[plan.key]),
               })
             : drafts(model)[plan.key as Key],
         ),

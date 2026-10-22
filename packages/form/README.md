@@ -136,6 +136,7 @@ included.
 | `Number` | `string` | the schema is a number |
 | `Toggle` | `boolean` | the schema is a boolean |
 | `Select` | `string` | the schema is a union of string or number literals; carries `options`, and gives the chosen option itself, so `3` is `3` |
+| `Choices` | `string[]` | the schema is an array of string or number literals; carries `options`, and gives the options themselves, so `3` is `3` |
 | `RelationOne` | `string` (an id, `""` for none) | the key is `Relation.input` of a `one` |
 | `RelationMany` | `string[]` | the key is `Relation.input` of a `many` |
 
@@ -158,7 +159,8 @@ Form.make('Rename', Entity.input(Cms, RenameInput), { inputs: { id: Input.text()
 
 A key that holds an id without being a relation asks for a picker with
 `Input.relationOne(Author)` or `Input.relationMany(Tag)`, as the page Builder's
-Block props do.
+Block props do. A key the schema cannot spell — `Schema.Array(Schema.Number)` —
+takes the choices it may hold from `Input.choices([1, 2])`.
 
 ### Your own kind of control
 
@@ -170,6 +172,9 @@ const Cents = Input.kind<{ readonly currency: string }>('Cents', {
   draft: 'text', // what the Model holds while it is edited
   // The value the schema is given, when that is not the text itself.
   parse: draft => (/^\d+(\.\d{1,2})?$/.test(draft) ? Math.round(Number(draft) * 100) : undefined),
+  // The text a value is shown as when the form is filled with it, the inverse
+  // of `parse`. Without it, a filled value shows as `String(value)`.
+  format: (value, data) => (Number(value) / 100).toFixed(2),
   unparsed: 'Enter an amount',
 })
 
@@ -178,10 +183,20 @@ Form.make('Price', input, { inputs: { cents: Cents.of({ currency: 'USD' }) } })
 Cents.is(control) && control.data.currency // 'USD'
 ```
 
-- `draft` is `'text'`, `'flag'` (a boolean) or `'list'` (ids).
+- `draft` is `'text'`, `'flag'` (a boolean) or `'list'` (each chosen value as
+  text, as a group of checkboxes holds them).
 - `parse` reads text as something else before the key's schema sees it, as
   `Number` does; `undefined` means it does not read, and `unparsed` is what to
   say. Text that is only spaces is nothing entered, not a failure to parse.
+- `parseList` is the same for a `'list'` draft, given every chosen value as
+  text; `undefined` means one of them is not allowed.
+- `format` is the other direction: the text a value is shown as when the form is
+  filled with it, so a stored `1234` reads as `'12.34'`. It is called by `fill`
+  only, never while someone types, so a caret and a composition are never
+  disturbed. A `format` that throws fails the fill, naming the key.
+- A hook a draft can never reach is a type error, not a hook that is silently
+  never called: `parse` and `format` are a `'text'` draft's, `parseList` a
+  `'list'` draft's.
 - `shown: false` makes a kind that is carried and not drawn, as `Hidden` is.
 - Nothing else in the form treats a shipped kind differently. A view draws your
   kind once it has a renderer for it; see
