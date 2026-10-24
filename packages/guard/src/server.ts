@@ -30,6 +30,13 @@ import { memberRules, rowRules, writeRules } from './placed.js'
 
 const noMembers = (record: EntityRecord) => record
 
+/** Two stored values, which are JSON: equal when they encode the same. */
+const sameStored = (left: unknown, right: unknown): boolean =>
+  JSON.stringify(left) === JSON.stringify(right)
+
+/** Guarded writers given no `revision`, whose check and write a change can fall between. */
+const unpinned = new WeakSet<object>()
+
 /** A ref key's two halves, `Entity:id`; `none` for anything else. */
 const refOf = (value: unknown): Option.Option<{ readonly entity: string; readonly id: string }> => {
   if (typeof value !== 'string') return Option.none()
@@ -238,6 +245,14 @@ export const GuardServer = {
    * from, and a create whose input sets a preset field is a mistake of the
    * server's, refused.
    *
+   * `revision` names a field whose stored value changes on every write of
+   * the row. An update or a delete then lands only on the revision its rules
+   * were decided over (the writer's `expect`), so a change between the check
+   * and the write is never written over; it is decided again against the row
+   * as it now is, up to three times. Without it, such a change is not seen,
+   * and `validate` warns. An input that expects a revision the row read is
+   * not at is a `Conflict`, decided before any rule.
+   *
    * ```ts
    * RemoteServer.write(EditTodo, GuardServer.writer(Todo, Policy, writer(Db.Todo)))
    * ```
@@ -250,8 +265,15 @@ export const GuardServer = {
       readonly presets?: {
         readonly [K in keyof E['fields']]?: (user: User) => E['fields'][K]['schema']['Type']
       }
+      readonly revision?: keyof E['fields'] & string
     } = {},
   ): EntityWriter<Option.Option<User>, R | RW> => {
+    const revision = options.revision
+    if (revision !== undefined && !Object.hasOwn(entity.fields, revision)) {
+      throw new Error(
+        `[foldkit-guard] GuardServer.writer: ${entity.name} has no field "${revision}" for its revision`,
+      )
+    }
     const presets = Object.entries(options.presets ?? {}).map(([field, preset]) => {
       const declared = Object.hasOwn(entity.fields, field)
         ? (entity.fields as Readonly<Record<string, { readonly schema: Schema.Top }>>)[field]
@@ -354,6 +376,44 @@ export const GuardServer = {
         ...rules.flatMap(({ condition }) => Condition.members(condition)),
       ]),
     ]
+    type Expect = Option.Option<{ readonly field: string; readonly revision: unknown }>
+    /** The fields that say which version of the row was read: the revision, and the input's. */
+    const versionFields = (expect: Expect) => [
+      ...(revision === undefined ? [] : [revision]),
+      ...Option.match(expect, { onNone: () => [], onSome: ({ field }) => [field] }),
+    ]
+    /** Whether the row read is not at the revision the input expects. */
+    const moved = (expect: Expect, before: Readonly<Record<string, unknown>>) =>
+      Option.exists(expect, ({ field, revision }) => !sameStored(before[field], revision))
+    /** The write held to the row its rules were decided over, where there is a revision. */
+    const pin = (expect: Expect, before: Readonly<Record<string, unknown>>): Expect =>
+      revision === undefined ? expect : Option.some({ field: revision, revision: before[revision] })
+    /**
+     * `attempt` run again while its pinned write misses: the row moved after it
+     * was read, so it is decided again over the row as it now is. A write the
+     * input pinned misses as a conflict, and is not run again.
+     */
+    const pinned = <A, E, RA>(
+      id: string,
+      expected: boolean,
+      missed: (outcome: A) => boolean,
+      attempt: () => Effect.Effect<A, E, RA>,
+    ): Effect.Effect<A, E | RemoteServerError, RA> => {
+      if (revision === undefined || expected) return attempt()
+      const loop = (left: number): Effect.Effect<A, E | RemoteServerError, RA> =>
+        Effect.flatMap(attempt(), outcome =>
+          !missed(outcome)
+            ? Effect.succeed(outcome)
+            : left > 1
+              ? loop(left - 1)
+              : Effect.fail(
+                  new RemoteServerError({
+                    message: `${entity.name} ${id} changed while it was written`,
+                  }),
+                ),
+        )
+      return loop(3)
+    }
     // What an answer shows: the row as the writer may see it, members ruled.
     const memberRead = GuardServer.filter(entity, policy)
     const guarded: EntityWriter<Option.Option<User>, R | RW> = {
@@ -367,45 +427,51 @@ export const GuardServer = {
           id,
         ),
       update: context =>
-        Effect.gen(function* () {
-          const { principal, values, links } = context
-          const row = yield* policy.writable(entity, principal, 'Update')
-          const members = yield* policy.writeMembers(
-            entity,
-            principal,
-            Object.keys(values),
-            'Update',
-          )
-          const relating = yield* linkRules(principal, links)
-          const fields = fieldsOf([row, ...members, ...ruleOf(relating)], Object.keys(links))
-          const current = yield* read({ id: context.id, fields, principal })
-          if (Option.isNone(current)) return yield* Effect.fail(refused(row.deny))
-          const before = current.value
-          const linked = Object.keys(links)
-          const stored =
-            writer.linked === undefined || linked.length === 0
-              ? Option.none()
-              : yield* writer.linked({ id: context.id, relations: linked })
-          const relations = linking(
-            relating,
-            Option.some(
-              Option.match(stored, {
-                onNone: () => ({ links: before, exact: false }),
-                onSome: links => ({ links, exact: true }),
-              }),
-            ),
-          )
-          const after = {
-            ...before,
-            ...values,
-            ...Object.fromEntries(
-              Object.entries(links).map(([relation, link]) => [relation, linkKey(link)]),
-            ),
-          }
-          yield* require([row, ...members, ...relations], before, principal)
-          yield* require([row], after, principal)
-          return yield* writer.update(context)
-        }),
+        pinned(context.id, Option.isSome(context.expect), Option.isNone, () =>
+          Effect.gen(function* () {
+            const { principal, values, links } = context
+            const row = yield* policy.writable(entity, principal, 'Update')
+            const members = yield* policy.writeMembers(
+              entity,
+              principal,
+              Object.keys(values),
+              'Update',
+            )
+            const relating = yield* linkRules(principal, links)
+            const fields = fieldsOf(
+              [row, ...members, ...ruleOf(relating)],
+              [...Object.keys(links), ...versionFields(context.expect)],
+            )
+            const current = yield* read({ id: context.id, fields, principal })
+            if (Option.isNone(current)) return yield* Effect.fail(refused(row.deny))
+            const before = current.value
+            if (moved(context.expect, before)) return Option.none()
+            const linked = Object.keys(links)
+            const stored =
+              writer.linked === undefined || linked.length === 0
+                ? Option.none()
+                : yield* writer.linked({ id: context.id, relations: linked })
+            const relations = linking(
+              relating,
+              Option.some(
+                Option.match(stored, {
+                  onNone: () => ({ links: before, exact: false }),
+                  onSome: links => ({ links, exact: true }),
+                }),
+              ),
+            )
+            const after = {
+              ...before,
+              ...values,
+              ...Object.fromEntries(
+                Object.entries(links).map(([relation, link]) => [relation, linkKey(link)]),
+              ),
+            }
+            yield* require([row, ...members, ...relations], before, principal)
+            yield* require([row], after, principal)
+            return yield* writer.update({ ...context, expect: pin(context.expect, before) })
+          }),
+        ),
       insert: given =>
         Effect.gen(function* () {
           const preset = presets.find(({ field }) => Object.hasOwn(given.values, field))
@@ -453,19 +519,30 @@ export const GuardServer = {
           return yield* writer.insert(context)
         }),
       delete: context =>
-        Effect.gen(function* () {
-          const row = yield* policy.writable(entity, context.principal, 'Delete')
-          const current = yield* read({
-            id: context.id,
-            fields: fieldsOf([row], []),
-            principal: context.principal,
-          })
-          // Hidden or gone, the writer sees no row: there is nothing of theirs to delete.
-          if (Option.isNone(current)) return 'absent' as const
-          yield* require([row], current.value, context.principal)
-          return yield* writer.delete(context)
-        }),
+        pinned(
+          context.id,
+          Option.isSome(context.expect),
+          outcome => outcome === 'moved',
+          () =>
+            Effect.gen(function* () {
+              const row = yield* policy.writable(entity, context.principal, 'Delete')
+              const current = yield* read({
+                id: context.id,
+                fields: fieldsOf([row], versionFields(context.expect)),
+                principal: context.principal,
+              })
+              // Hidden or gone, the writer sees no row: there is nothing of theirs to delete.
+              if (Option.isNone(current)) return 'absent' as const
+              if (moved(context.expect, current.value)) return 'moved' as const
+              yield* require([row], current.value, context.principal)
+              return yield* writer.delete({
+                ...context,
+                expect: pin(context.expect, current.value),
+              })
+            }),
+        ),
     }
+    if (revision === undefined) unpinned.add(guarded)
     return writeRules.add(guarded, policy, [entity])
   },
 
@@ -740,6 +817,19 @@ export const GuardServer = {
     const problems = [...undeclared, ...entityProblems]
     if (problems.length > 0) {
       throw new Error(`[foldkit-guard] GuardServer.validate: ${problems.join('; ')}`)
+    }
+    // Not refused yet: a writer given no revision is how every writer was made before it.
+    const unpinnedWrites = [...config.server.mutations].flatMap(([mutation, source]) =>
+      typeof source.writes?.writer === 'object' &&
+      source.writes.writer !== null &&
+      unpinned.has(source.writes.writer)
+        ? [mutation]
+        : [],
+    )
+    if (unpinnedWrites.length > 0) {
+      console.warn(
+        `[foldkit-guard] GuardServer.validate: ${unpinnedWrites.join(', ')} ${unpinnedWrites.length === 1 ? 'writes' : 'write'} through a GuardServer.writer with no revision, so a change between its check and its write is not seen; pass { revision }`,
+      )
     }
   },
 }

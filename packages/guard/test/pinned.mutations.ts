@@ -1,0 +1,43 @@
+/**
+ * A guarded write's revision pin, each step broken in turn:
+ * `pnpm mutate packages/guard/test/pinned.mutations.ts` checks that a test
+ * fails for every one.
+ */
+const file = '../src/server.ts'
+const tests = ['packages/guard/test/pinned.test.ts']
+const edit = (name: string, find: string, replace: string) => ({
+  name,
+  edits: [{ file, find, replace }],
+  tests,
+})
+
+export default [
+  edit(
+    'an update is not pinned',
+    'return yield* writer.update({ ...context, expect: pin(context.expect, before) })',
+    'return yield* writer.update(context)',
+  ),
+  edit(
+    'a delete is not pinned',
+    'expect: pin(context.expect, current.value),',
+    'expect: context.expect,',
+  ),
+  edit('a miss is not decided again', '? loop(left - 1)', '? Effect.succeed(outcome)'),
+  edit('two attempts, not three', 'return loop(3)', 'return loop(2)'),
+  edit(
+    'an input’s pinned write is retried',
+    'if (revision === undefined || expected) return attempt()',
+    'if (revision === undefined) return attempt()',
+  ),
+  edit(
+    'an update ignores the revision its input expects',
+    'if (moved(context.expect, before)) return Option.none()',
+    '',
+  ),
+  edit(
+    'a delete ignores the revision its input expects',
+    "if (moved(context.expect, current.value)) return 'moved' as const",
+    '',
+  ),
+  edit('validate does not warn', 'if (revision === undefined) unpinned.add(guarded)', ''),
+]

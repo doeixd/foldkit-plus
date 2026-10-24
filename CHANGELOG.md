@@ -30,6 +30,16 @@ version changed; `pnpm` skips versions already in the registry.
   drawn. A click reaches the grid through a Mount, which cannot read the rows
   the view drew, so the application answers it, as it answers `Out.Filled`.
   An exhaustive `Grid.Out.match` needs the new arm. (#144)
+- **`foldkit-guard`: a guarded write lands on the row its rules were decided
+  over.** `GuardServer.writer(entity, policy, writer, { revision })` names a
+  field every write of the row changes; each update and delete then passes
+  the revision it read as the writer's `expect`, so the check and the write
+  are one compare-and-set statement. A row that moved after the check is
+  decided again over what it now holds, up to three times, then the write
+  fails ("changed while it was written"). An input that expects a revision
+  the row is not at is a `Conflict`, decided before any rule. Without
+  `revision` nothing changes, and `GuardServer.validate` warns of each write
+  through such a writer. (#182)
 
 ### Fixed
 

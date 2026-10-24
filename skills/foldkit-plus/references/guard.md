@@ -123,7 +123,10 @@ const Todo = TodoFields.pipe(
   a row the write hid from them in `deleted`. The binding needs `visible`.
   `GuardServer.writer(Todo, Policy, writer(Db.Todo), { presets: { ownerId:
   user => user.id } })` sets a field from who is asking on create; the input
-  must leave it out.
+  must leave it out. Pass `revision: 'revision'` (a field every write of the
+  row changes) so an update or delete lands only on the revision its rules
+  were decided over, decided again if the row moved; without it a change
+  between check and write is not seen, and `GuardServer.validate` warns.
 - `may`: `TodoFields.pipe(Guards.attach(G, { … }), Guards.may)` adds a derived
   member `GuardServer.filter` answers per row (over Drizzle, bind it
   `derived: { may: { supplied: true } }`); select `may: true` and read it with

@@ -387,6 +387,19 @@ RemoteServer.write(EditTodo, GuardServer.writer(Todo, Policy, writer(Db.Todo)))
   fields than the write set, and a row the write hid from them in `deleted`,
   so the client takes it out of its lists instead of placing it.
 
+Reading the row and writing it are two statements, so another write can land
+between the check and the write. Name a field whose stored value changes on
+every write of the row, and the guard closes that window: for an Entity with
+a `revision` field, `GuardServer.writer(Todo, Policy, writer(Db.Todo), {
+revision: 'revision' })`. Every update and delete then lands only on the
+revision its rules were decided over (the writer's `expect`, one compare and
+set statement). If the row moved after the check, it is decided again over
+the row as it now is, up to three times, then fails with "changed while it
+was written"; nothing is written over a version no rule saw. An input that
+`expect`s a revision the row is not at is a `Conflict`, decided before any
+rule, and not retried. A writer with no `revision` keeps the window, and
+`GuardServer.validate` warns of each write through one.
+
 The binding must have a `visible` rule, which is how the writer reads a row
 as its writer may see it; the writer refuses one without. That the rule is
 `GuardDrizzle.visible`'s is what `GuardServer.validate` checks of the
@@ -752,10 +765,12 @@ const uploads = uploadLayer().pipe(
 - **A Sync document is one audience.** Per-member or per-row secrecy within
   one is not something a replicated log offers: `GuardSync.document` refuses
   it where it is declared.
-- **A write's check and the write are two statements.** The row is read and
-  its rules decided, then it is written; a change of owner landing between
-  them is not seen. A write that `expect`s a revision is refused once the row
-  moved; one that does not takes that window.
+- **A `revision` pins one row.** A write rule reads the principal and the
+  row, so pinning the row's revision makes the check and the write one; a
+  store written around the revision (raw SQL, a migration that leaves it
+  alone) defeats it, and so does Sync's `applyEdits`, which keeps one
+  revision for two changes in one operation. A writer given no `revision`
+  does not see a change landing between its check and its write.
 - **Sync's `admit` reads the table, which lags the journal.** An edit lands
   in the table when its exchange settles, so an edit admitted before another
   lands is judged against the row as it was: a concurrent change of owner
