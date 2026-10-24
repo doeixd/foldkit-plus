@@ -1,7 +1,8 @@
 # Guards that hold when the write lands
 
-**Status:** Proposed, 2026-10-24. Nothing built. Answers #182 §1 (atomic guard
-enforcement); §2–§5 of that issue (expression assignments, preconditions) build
+**Status:** Proposed and built, 2026-10-24, with §4's proposals taken as
+decided. Tests: `packages/guard/test/pinned.test.ts`, mutations beside it.
+Answers #182 §1 (atomic guard enforcement); §2–§5 of that issue (expression assignments, preconditions) build
 on it and are out of scope here.
 **Target:** `foldkit-guard` (`GuardServer.writer`), a sentence in
 `foldkit-remote-server`'s `EntityWriter` contract, `foldkit-remote-drizzle`
@@ -108,7 +109,10 @@ Say each in the Guard README in place of today's Limit:
   it at registration until then.
 - **An entity with no revision.** Unpinned, as today (§4).
 
-## 4. Open questions for review
+## 4. Questions reviewed
+
+Each proposal below was taken as written.
+
 
 1. **Required or opt-in?** Requiring `revision` makes the safe path the only
    path but breaks every `GuardServer.writer` call without one. Opt-in keeps
