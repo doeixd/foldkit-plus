@@ -41,8 +41,8 @@ export default [
     edits: [
       {
         file: drizzle,
-        find: 'where: and(eq(idColumn(binding), id), eq(column, revision)),',
-        replace: 'where: eq(idColumn(binding), id),',
+        find: 'where: and(eq(idColumn(binding), id), eq(column, revision), ...holding),',
+        replace: 'where: and(eq(idColumn(binding), id), ...holding),',
       },
     ],
     tests,
@@ -121,8 +121,8 @@ export default [
     edits: [
       {
         file: drizzle,
-        find: 'if (Option.isSome(written) || Option.isNone(expect)) return written',
-        replace: 'return written',
+        find: 'row[field] === revision + 1 &&',
+        replace: 'false &&',
       },
     ],
     tests,
@@ -148,8 +148,8 @@ export default [
     edits: [
       {
         file: drizzle,
-        find: "return still.length === 0 ? 'absent' : 'moved'",
-        replace: "return 'moved'",
+        find: "if (row === undefined) return 'absent'",
+        replace: "if (row === undefined) return 'moved'",
       },
     ],
     tests,
