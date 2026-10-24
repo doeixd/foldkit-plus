@@ -421,6 +421,21 @@ describe('A write that increments a field', () => {
     ).toThrow('which a key also sets')
   })
 
+  it('adds nothing for an optional amount the input leaves out', () => {
+    const Maybe = Entity.input(
+      Item,
+      Schema.Struct({
+        id: Schema.String,
+        revision: Schema.Number,
+        by: Schema.optionalKey(Schema.Number),
+      }),
+      { by: Entity.unmapped },
+    )
+    const bump = Write.update(Maybe, { id: 'id', expect: 'revision', increment: { stock: 'by' } })
+    expect(Write.bind(bump, { id: 'i1', revision: 1 }).increments).toEqual({})
+    expect(Write.bind(bump, { id: 'i1', revision: 1, by: 2 }).increments).toEqual({ stock: 2 })
+  })
+
   it('counts as something to set', () => {
     const Bump = Entity.input(
       Item,
