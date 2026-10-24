@@ -269,6 +269,14 @@ GridSelection.isSelected(picked.selection.rows)('p1') // true
   selection in `'single'` mode; either way it becomes the anchor.
   `RowsExtended({ rows, to })` adds a Shift range the view worked out with
   `GridSelection.rowsBetween`; `RowsCleared` empties it.
+- **A Shift click** in a `'multiple'` grid without `cellSelection` focuses
+  the cell and reports `Out.RowsRequested({ from, to })`: from the anchor, or
+  the row focused before it, to the row clicked. A click reaches the grid
+  through a Mount, which cannot read the rows the view last drew, so the
+  application, which holds them, adds the range:
+  `Grid.extendRows(rows, model.grid, request)` is the grid's Model with it
+  added, the rows between taken in the order they are drawn. With
+  `cellSelection`, a Shift click spans cells instead.
 - **Cells** are one rectangle, `CellsSelected({ anchor, focus })`, named by
   its corners, so it survives a re-sort as the same two cells and
   `GridSelection.boxOf(projection, range)` is what it covers now. A plain
@@ -310,7 +318,7 @@ const priced = Columns.define<Product>()({
 })
 const Prices = DataGrid.make({ id: 'prices', columns: priced })
 // Edited({ row, column, text }) | Pasted({ accepted, refused }) | Filled({ source, to })
-// | UndoRequested | RedoRequested
+// | UndoRequested | RedoRequested | RowsRequested({ from, to })
 type Out = typeof Prices.Out.Type
 
 // In `onOut`: the committed text read back as its column's value, a number here.
@@ -497,6 +505,5 @@ twice keeps its first place.
 ## Limits
 
 - Not built: a drag across regions to pin a column (the view's column
-  menu pins), a Shift-click row range,
-  more than one cell range, and a fill handle.
+  menu pins), and more than one cell range.
 - Every row is one height.

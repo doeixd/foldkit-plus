@@ -160,6 +160,12 @@ const application = Bundle.assemble<Model, Message>()([
         // These rows keep no history; the registry demo shows undo as new edits.
         UndoRequested: () => ({ model }),
         RedoRequested: () => ({ model }),
+        // Which rows a Shift-click spans is worked out from the products as they are now.
+        RowsRequested: request => ({
+          model: modifyFields(model, {
+            grid: () => Grid.extendRows(rowsOf(model), model.grid, request),
+          }),
+        }),
       }),
   }),
 ])

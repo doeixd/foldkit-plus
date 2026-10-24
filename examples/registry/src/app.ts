@@ -426,6 +426,11 @@ const Page = Base.pipe(
         Filled: request => edited(model, Grid.fill(rowsOf(model), model.grid, request).accepted),
         UndoRequested: () => replay(model, 'undo'),
         RedoRequested: () => replay(model, 'redo'),
+        RowsRequested: request => ({
+          model: modifyFields(model, {
+            grid: () => Grid.extendRows(rowsOf(model), model.grid, request),
+          }),
+        }),
       }),
   }),
   Bundle.withWiring(

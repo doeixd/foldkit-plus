@@ -261,6 +261,12 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
      * rows by `fill`, which the application holds.
      */
     Filled: FillRequest.fields,
+    /**
+     * A Shift-click range of rows, from the anchor to the clicked row. Which
+     * rows lie between is worked out from the rows by `extendRows`, which the
+     * application holds.
+     */
+    RowsRequested: { from: Schema.String, to: Schema.String },
   })
   type Out = typeof Out.Type
   type Return = Update.ReturnWithOutMessage<Model, Message, Out, never>
@@ -317,6 +323,16 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
       }
     }
     const focused = clearCells(focusTo(model, address))
+    if (shiftKey && options.rowSelection === 'multiple') {
+      // The range runs from the anchor, or from the row focused before the click.
+      const from = Option.getOrElse(
+        Option.orElse(model.selection.anchor, () =>
+          Option.map(model.focus.current, current => current.row),
+        ),
+        () => address.row,
+      )
+      return { model: focused, outMessage: Out.RowsRequested({ from, to: address.row }) }
+    }
     if (toggleKey && options.rowSelection !== undefined) {
       return { model: selectionBy(focused, choose(focused.selection, address.row)) }
     }
@@ -1041,6 +1057,24 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     })
   }
 
+  /**
+   * The grid's Model with an `Out.RowsRequested` range added to its row
+   * selection, over `rows` as they are now.
+   */
+  const extendRows = (
+    rows: RowModel<Row>,
+    model: Model,
+    request: { readonly from: string; readonly to: string },
+  ): Model =>
+    bundle.update(
+      model,
+      Message.RowsExtended({
+        rows: GridSelection.rowsBetween(project(rows, model.columns), request.from, request.to),
+        to: request.to,
+      }),
+      undefined,
+    ).model
+
   /** The grid as presented: the rows through the column state in the Model. */
   const project = (
     rows: RowModel<Row>,
@@ -1087,6 +1121,7 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     project,
     window,
     fill,
+    extendRows,
     draftOf,
     Out,
     Model,
