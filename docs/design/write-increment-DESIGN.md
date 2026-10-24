@@ -94,8 +94,9 @@ a startup check deciding what the write can disclose.
 - A stored `null` never matches: the field's encoded schema is a plain number,
   so a nullable field is refused where the write is declared.
 - An amount is a plain number in the input: an `Option` or a nullable amount
-  is not stored as a number, and is refused where the write is declared. An
-  optional key the input leaves out adds nothing.
+  is not stored as a number, and is refused where the write is declared, as is
+  `Schema.optional` (which allows `undefined`). A `Schema.optionalKey` amount
+  the input leaves out adds nothing.
 - `keys` narrows increments as it narrows values: an increment of a key the
   author did not name is not applied.
 
