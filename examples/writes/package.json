@@ -1,0 +1,22 @@
+{
+  "name": "foldkit-example-writes",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "demo": "tsx src/main.ts",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "drizzle-orm": "1.0.0-rc.5",
+    "foldkit-entity": "workspace:*",
+    "foldkit-guard": "workspace:*",
+    "foldkit-remote": "workspace:*",
+    "foldkit-remote-drizzle": "workspace:*",
+    "foldkit-remote-server": "workspace:*"
+  },
+  "devDependencies": {
+    "effect": "^4.0.5",
+    "typescript": "7.0.2"
+  }
+}
