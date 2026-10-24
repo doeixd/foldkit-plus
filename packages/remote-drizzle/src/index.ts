@@ -26,6 +26,7 @@ import type { EntityRef } from 'foldkit-entity'
 import type { NormalizedPatch, QueryDescriptor } from 'foldkit-remote'
 import { Entity } from 'foldkit-remote'
 import {
+  RemoteServer,
   RemoteServerError,
   type EntityRecord,
   type EntityWriter,
@@ -33,6 +34,7 @@ import {
   type EntitySource,
   type EntitySourceContext,
   type QuerySource,
+  type WriteWhen,
 } from 'foldkit-remote-server'
 import type { AnyEntityBinding, ManyRelation, ManyToManyRelation } from './binding.js'
 import { idColumn, projectsAny } from './columns.js'
@@ -311,6 +313,18 @@ export const runStatement = <A>(
     Effect.tapError(error => Effect.logError(`[foldkit-remote-drizzle] ${failed}`, error)),
     Effect.mapError(() => new RemoteServerError({ message: failed })),
   )
+
+/** What `compile` builds, or the body it could not compile, refused as the server's error. */
+const compileFor = <A>(compile: () => A): Effect.Effect<A, RemoteServerError> =>
+  Effect.suspend(() => {
+    try {
+      return Effect.succeed(compile())
+    } catch (error) {
+      if (error instanceof QueryCompileError)
+        return Effect.fail(new RemoteServerError({ message: error.message }))
+      throw error
+    }
+  })
 
 const withFilters = (base: SQL, ...filters: ReadonlyArray<SQL | undefined>): SQL => {
   const conditions: SQL[] = [base]
@@ -707,16 +721,6 @@ export const query = <P = unknown, Input = unknown>(
         // here is the request's input (a search holding NUL, a sort naming no
         // order offered): the client's to be told, as a query error, not a
         // defect. Anything else is a bug.
-        const compileFor = <A>(compile: () => A) =>
-          Effect.suspend(() => {
-            try {
-              return Effect.succeed(compile())
-            } catch (error) {
-              if (error instanceof QueryCompileError)
-                return Effect.fail(new RemoteServerError({ message: error.message }))
-              throw error
-            }
-          })
         const computed =
           typeof options.orderBy === 'function'
             ? options.orderBy(input as Input, principal)
@@ -884,16 +888,33 @@ export const writer = <P = unknown>(
       return set
     })
 
-  /** The row by id, and while it is still at the expected revision when one is. */
+  /**
+   * The row by id, while it is still at the expected revision when one is, and
+   * while it holds the write's precondition when there is one: all in the
+   * statement that writes it.
+   */
   const rowOf = (
     id: string,
     expect: Option.Option<{ readonly field: string; readonly revision: unknown }>,
+    when: Option.Option<WriteWhen>,
   ): Effect.Effect<
     { readonly where: SQL | undefined; readonly bump: Record<string, SQL> },
     RemoteServerError
   > =>
     Effect.gen(function* () {
-      if (Option.isNone(expect)) return { where: eq(idColumn(binding), id), bump: {} }
+      const holding = Option.isNone(when)
+        ? []
+        : yield* compileFor(() =>
+            compileWhere(
+              when.value.body,
+              binding,
+              when.value.input,
+              `${binding.name}'s write precondition`,
+            ),
+          )
+      if (Option.isNone(expect)) {
+        return { where: and(eq(idColumn(binding), id), ...holding), bump: {} }
+      }
       const { field, revision } = expect.value
       const column = binding.columns[field]
       const key = keyOf(field)
@@ -901,7 +922,7 @@ export const writer = <P = unknown>(
         return yield* missing(`column for its revision "${field}"`)
       }
       return {
-        where: and(eq(idColumn(binding), id), eq(column, revision)),
+        where: and(eq(idColumn(binding), id), eq(column, revision), ...holding),
         bump: { [key]: sql`${column} + 1` },
       }
     })
@@ -928,9 +949,10 @@ export const writer = <P = unknown>(
 
   return {
     entity: binding.name,
-    update: ({ id, values, links, expect }) =>
+    preconditions: true,
+    update: ({ id, values, links, expect, when }) =>
       Effect.gen(function* () {
-        const { where, bump } = yield* rowOf(id, expect)
+        const { where, bump } = yield* rowOf(id, expect, when)
         const set = { ...(yield* setOf(values, links)), ...bump }
         const answered = returning(binding, [
           ...Object.keys(values),
@@ -948,23 +970,40 @@ export const writer = <P = unknown>(
                 'Database write failed',
               )
         const written = answeredOf(rows, answered)
-        if (Option.isSome(written) || Option.isNone(expect)) return written
-        // The guard missed. If the row is one revision past the expected one and
-        // holds these values, this write landed already and its answer was lost:
-        // a retry answers the row rather than conflicting with itself.
+        if (Option.isSome(written) || (Option.isNone(expect) && Option.isNone(when))) {
+          return written
+        }
+        // The write missed. Why is read from the row as it is now: gone, moved
+        // past the expected revision, or else not holding the precondition.
         const now = answeredOf(
           yield* selectRows(yield* DrizzleDatabase, binding.table, answered.columns, {
             where: eq(idColumn(binding), id),
           }),
           answered,
         )
-        const { field, revision } = expect.value
-        return Option.filter(
-          now,
-          row =>
-            typeof revision === 'number' &&
-            row[field] === revision + 1 &&
-            holdsWritten(row, values, links),
+        if (Option.isNone(now)) return now
+        const row = now.value
+        if (Option.isSome(expect) && !sameStored(row[expect.value.field], expect.value.revision)) {
+          // One revision past the expected one and holding these values, this
+          // write landed already and its answer was lost: a retry answers the
+          // row rather than conflicting with itself.
+          const { field, revision } = expect.value
+          return Option.filter(
+            now,
+            row =>
+              typeof revision === 'number' &&
+              row[field] === revision + 1 &&
+              holdsWritten(row, values, links),
+          )
+        }
+        // A write with no precondition missed only by its revision.
+        if (Option.isNone(when)) return Option.none()
+        // At the expected revision, or expecting none: the precondition did not
+        // hold. A row already holding what this write sets is a retry of one
+        // that landed, which the precondition no longer describes.
+        if (holdsWritten(row, values, links)) return now
+        return yield* RemoteServer.unmet(
+          `${binding.name} ${id} does not hold what the write asks of it`,
         )
       }),
     insert: ({ id, values, links }) =>
@@ -1009,9 +1048,9 @@ export const writer = <P = unknown>(
           },
         )
       }),
-    delete: ({ id, expect }) =>
+    delete: ({ id, expect, when }) =>
       Effect.gen(function* () {
-        const { where } = yield* rowOf(id, expect)
+        const { where } = yield* rowOf(id, expect, when)
         const writes = yield* drizzleWrites
         const deleted = yield* runStatement(
           () =>
@@ -1022,16 +1061,37 @@ export const writer = <P = unknown>(
           'Database write failed',
         )
         if (deleted.length > 0) return 'deleted'
-        if (Option.isNone(expect)) return 'absent'
-        // The guard missed: gone is gone (a retry of this delete, or another's);
-        // still there means it moved past the revision this delete expected.
+        if (Option.isNone(expect) && Option.isNone(when)) return 'absent'
+        // The delete missed: gone is gone (a retry of this delete, or another's);
+        // still there, it moved past the revision this delete expected, or else
+        // does not hold its precondition.
+        const revisionField = Option.map(expect, ({ field }) => field)
         const still = yield* selectRows(
           yield* DrizzleDatabase,
           binding.table,
-          { id: idColumn(binding) },
+          {
+            id: idColumn(binding),
+            ...Option.match(revisionField, {
+              onNone: () => ({}),
+              onSome: field => {
+                const column = binding.columns[field]
+                return column === undefined ? {} : { revision: column }
+              },
+            }),
+          },
           { where: eq(idColumn(binding), id) },
         )
-        return still.length === 0 ? 'absent' : 'moved'
+        const row = still[0]
+        if (row === undefined) return 'absent'
+        if (
+          Option.isNone(when) ||
+          (Option.isSome(expect) && !sameStored(row['revision'], expect.value.revision))
+        ) {
+          return 'moved'
+        }
+        return yield* RemoteServer.unmet(
+          `${binding.name} ${id} does not hold what the delete asks of it`,
+        )
       }),
     linked: ({ id, relations }) =>
       Effect.gen(function* () {

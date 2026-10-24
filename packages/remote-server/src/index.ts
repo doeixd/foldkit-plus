@@ -9,6 +9,7 @@ import { Context, Effect, Layer, Match, Option, Queue, Schema, Stream } from 'ef
 import {
   Write,
   evaluate,
+  type AnyQuery,
   type AnyWrite,
   type BoundWrite,
   type EntityRef,
@@ -69,6 +70,21 @@ export class RemoteServerError extends Schema.TaggedError<RemoteServerError>()(
     message: Schema.String,
   },
 ) {}
+
+/**
+ * A writer's word that the row does not hold what the write's `when` asks of
+ * it, where the write would commit: `RemoteServer.write` answers it as the
+ * mutation's `Unmet` refusal.
+ */
+export class RemoteUnmet extends Schema.TaggedError<RemoteUnmet>()('RemoteUnmet', {
+  message: Schema.String,
+}) {}
+
+/** A write's precondition as a writer is handed it: the body, and the input encoded. */
+export interface WriteWhen {
+  readonly body: AnyQuery
+  readonly input: Readonly<Record<string, unknown>>
+}
 
 /**
  * A mutation Source's refusal, as the value its descriptor's `Refusal`
@@ -157,21 +173,30 @@ const readFiltered = <P, R>(
 /**
  * Where a declared write lands: one row's new values, encoded as the store holds
  * them. With `expect`, the row is written only while its revision is still that
- * value, and the revision moves on with the write. The row as written answers;
- * none when no row matched.
+ * value, and the revision moves on with the write. With `when`, only while the
+ * row holds its body, checked in the statement that writes it; a row there at
+ * the expected revision that does not hold it fails with `RemoteUnmet`. The row
+ * as written answers; none when no row matched.
  */
 export interface EntityWriter<P, R = never> {
   readonly entity: string
+  /**
+   * Whether `update` and `delete` honour `when`. `RemoteServer.write` refuses
+   * a write with a precondition over a writer without it, which would write
+   * whatever the row held.
+   */
+  readonly preconditions?: true
   readonly update: (context: {
     readonly id: string
     readonly values: Readonly<Record<string, unknown>>
     /** Each `one` relation it points, by the relation's key: the row, or none. */
     readonly links: Readonly<Record<string, Option.Option<EntityRef>>>
     readonly expect: Option.Option<{ readonly field: string; readonly revision: unknown }>
+    readonly when: Option.Option<WriteWhen>
     readonly principal: P
   }) => Effect.Effect<
     Option.Option<Readonly<Record<string, unknown>>>,
-    RemoteServerError | RemoteForbidden,
+    RemoteServerError | RemoteForbidden | RemoteUnmet,
     R
   >
   /**
@@ -193,8 +218,13 @@ export interface EntityWriter<P, R = never> {
   readonly delete: (context: {
     readonly id: string
     readonly expect: Option.Option<{ readonly field: string; readonly revision: unknown }>
+    readonly when: Option.Option<WriteWhen>
     readonly principal: P
-  }) => Effect.Effect<'deleted' | 'absent' | 'moved', RemoteServerError | RemoteForbidden, R>
+  }) => Effect.Effect<
+    'deleted' | 'absent' | 'moved',
+    RemoteServerError | RemoteForbidden | RemoteUnmet,
+    R
+  >
   /**
    * The row as `principal` may see it, under the read rule its Source applies:
    * none when there is no such row, or it is hidden. Given, a write's answer
@@ -1378,6 +1408,14 @@ export const RemoteServer = {
    * nothing of why. `answer` sends it as a 403, and the client's mutation
    * fails with `_tag: 'Forbidden'`.
    */
+  /**
+   * A writer's refusal of a row that does not hold the write's `when`: fail
+   * `update` or `delete` with it (`yield* RemoteServer.unmet()`), and
+   * `RemoteServer.write` answers the mutation's `Unmet` refusal.
+   */
+  unmet: (message = 'The row does not hold what the write asks of it'): RemoteUnmet =>
+    new RemoteUnmet({ message }),
+
   forbid: (reason?: string): RemoteForbidden =>
     new RemoteForbidden({
       message: reason ?? 'Forbidden',
@@ -1404,10 +1442,18 @@ export const RemoteServer = {
    * there; an insert of an id already holding what it writes (a retry)
    * answers with that row, and of one holding anything else fails; a delete of
    * a row already gone succeeds. A row that moved past the revision the write
-   * `expect`s is refused as a conflict.
+   * `expect`s is refused as a conflict, and one that does not hold its `when`
+   * as unmet; a write with a `when` needs a writer that checks it
+   * (`preconditions`), and is refused here without one.
    */
-  write: <P = unknown, R = never, Name extends string = string, Input = unknown>(
-    mutation: MutationDescriptor<Name, Input, {}, { readonly _tag: 'Conflict' }> & {
+  write: <
+    P = unknown,
+    R = never,
+    Name extends string = string,
+    Input = unknown,
+    Refused extends { readonly _tag: 'Conflict' | 'Unmet' } = { readonly _tag: 'Conflict' },
+  >(
+    mutation: MutationDescriptor<Name, Input, {}, Refused> & {
       readonly write: AnyWrite
     },
     writer: EntityWriter<P, R>,
@@ -1418,6 +1464,14 @@ export const RemoteServer = {
         `[foldkit-remote-server] write "${mutation.name}" writes ${write.input.entity.name}, but its writer is for ${writer.entity}`,
       )
     }
+    if (Option.isSome(write.when) && writer.preconditions !== true) {
+      throw new Error(
+        `[foldkit-remote-server] write "${mutation.name}" has a precondition, but its writer for ${writer.entity} does not check one (preconditions)`,
+      )
+    }
+    const encodeInput = Schema.encodeUnknownEffect(
+      write.input.schema as unknown as Schema.Codec<unknown, Readonly<Record<string, unknown>>>,
+    )
     return {
       mutation: mutation.name,
       writes: { entity: writer.entity, writer },
@@ -1430,8 +1484,32 @@ export const RemoteServer = {
         const conflict = (bound: { readonly entity: string; readonly id: string }) =>
           RemoteServer.refuse(
             mutation,
-            { _tag: 'Conflict' },
+            { _tag: 'Conflict' } as Refused,
             `${bound.entity} ${bound.id} changed since it was read`,
+          )
+        // The body reads the input as a query's does: encoded, by its keys.
+        const when = Option.match(write.when, {
+          onNone: () => Effect.succeed(Option.none<WriteWhen>()),
+          onSome: body =>
+            encodeInput(given).pipe(
+              Effect.map(encoded => Option.some({ body, input: encoded })),
+              Effect.mapError(
+                () => new RemoteServerError({ message: `${mutation.name}'s input did not encode` }),
+              ),
+            ),
+        })
+        const unmet = <A>(
+          bound: { readonly entity: string; readonly id: string },
+          writing: Effect.Effect<A, RemoteServerError | RemoteForbidden | RemoteUnmet, R>,
+        ) =>
+          Effect.catchTag(writing, 'RemoteUnmet', () =>
+            Effect.fail(
+              RemoteServer.refuse(
+                mutation,
+                { _tag: 'Unmet' } as Refused,
+                `${bound.entity} ${bound.id} does not hold what ${mutation.name} asks of it`,
+              ),
+            ),
           )
         const answered = (bound: BoundWrite, values: Readonly<Record<string, unknown>>) => {
           const read = writer.read
@@ -1462,13 +1540,17 @@ export const RemoteServer = {
             Update: () =>
               Effect.gen(function* () {
                 const bound = Write.bind(write, given, keys)
-                const written = yield* writer.update({
-                  id: bound.id,
-                  values: bound.values,
-                  links: bound.links,
-                  expect,
-                  principal,
-                })
+                const written = yield* unmet(
+                  bound,
+                  writer.update({
+                    id: bound.id,
+                    values: bound.values,
+                    links: bound.links,
+                    expect,
+                    when: yield* when,
+                    principal,
+                  }),
+                )
                 if (Option.isSome(written)) return yield* answered(bound, written.value)
                 return yield* Option.isSome(expect)
                   ? Effect.fail(conflict(bound))
@@ -1493,7 +1575,10 @@ export const RemoteServer = {
             Delete: () =>
               Effect.gen(function* () {
                 const bound = Write.bind(write, given)
-                const outcome = yield* writer.delete({ id: bound.id, expect, principal })
+                const outcome = yield* unmet(
+                  bound,
+                  writer.delete({ id: bound.id, expect, when: yield* when, principal }),
+                )
                 // Gone already is gone: only a revision the row moved past refuses.
                 if (outcome === 'moved') return yield* Effect.fail(conflict(bound))
                 return {

@@ -79,6 +79,21 @@ const RemoveAt = Mutation.write(
   }),
 )
 
+// Retitles only a todo still titled as it was made: a precondition beside the rules.
+const untouched = () => Expr.eq(Fields.fields.title, 'Own')
+const Rename = Mutation.write(
+  'Rename',
+  Write.update(Entity.input(Todo, Retitle), { id: 'id', when: untouched }),
+)
+const RenameAt = Mutation.write(
+  'RenameAt',
+  Write.update(Entity.input(Todo, Retitle.pipe(Schema.fieldsAssign({ revision: Schema.Number }))), {
+    id: 'id',
+    expect: 'revision',
+    when: untouched,
+  }),
+)
+
 const ada = Option.some<User>({ id: 'ada', role: 'member' })
 const vi_ = Option.some<User>({ id: 'vi', role: 'viewer' })
 
@@ -110,7 +125,7 @@ const open = (between: (sqlite: DatabaseSync) => void = () => {}, pinned = true)
   const guarded = GuardServer.writer(Todo, Policy, racing, pinned ? { revision: 'revision' } : {})
   const server = RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
     entities: [],
-    mutations: [Edit, EditAt, Remove, RemoveAt].map(mutation =>
+    mutations: [Edit, EditAt, Remove, RemoveAt, Rename, RenameAt].map(mutation =>
       RemoteServer.write(mutation, guarded),
     ),
   })
@@ -256,5 +271,50 @@ describe('GuardServer.validate over an unpinned writer', () => {
     warn.mockClear()
     validate({ revision: 'revision' })
     expect(warn).not.toHaveBeenCalled()
+  })
+})
+
+describe('GuardServer.writer over a write with a precondition', () => {
+  const retitled = "update todos set title = 'Theirs' where id = 't1'"
+
+  it('refuses who may not write before saying the row does not hold it', async () => {
+    // The row fails the precondition too; the rules speak first.
+    const { mutate } = open(sqlite => sqlite.exec(retitled))
+    const grace = Option.some<User>({ id: 'grace', role: 'member' })
+    // vi may read t1 but not update it; grace may not see it.
+    expect(await mutate(vi_, 'Rename', { id: 't1', title: 'Mine' })).toMatchObject({
+      _tag: 'Failure',
+      failure: { _tag: 'Forbidden' },
+    })
+    expect(await mutate(grace, 'Rename', { id: 't1', title: 'Mine' })).toMatchObject({
+      _tag: 'Failure',
+      failure: { _tag: 'Forbidden' },
+    })
+  })
+
+  it('says a stale revision before an unmet precondition', async () => {
+    const { mutate } = open(sqlite => sqlite.exec(retitled))
+    expect(await mutate(ada, 'RenameAt', { id: 't1', title: 'Mine', revision: 5 })).toMatchObject({
+      _tag: 'Failure',
+      failure: { refusal: { _tag: 'Conflict' } },
+    })
+  })
+
+  it('is unmet when the row stops holding it after the check, and is not retried', async () => {
+    // Retitled after the guard's read by a write that leaves the revision alone, so the pin
+    // cannot see it: only the precondition, checked where the write commits, stops it.
+    const { mutate, row, reads } = open(once(retitled))
+    expect(await mutate(ada, 'Rename', { id: 't1', title: 'Mine' })).toMatchObject({
+      _tag: 'Failure',
+      failure: { refusal: { _tag: 'Unmet' } },
+    })
+    expect(row()).toMatchObject({ title: 'Theirs' })
+    expect(reads()).toBe(1)
+  })
+
+  it('writes a row that holds it, pinned', async () => {
+    const { mutate, row } = open()
+    expect((await mutate(ada, 'Rename', { id: 't1', title: 'Mine' }))._tag).toBe('Success')
+    expect(row()).toMatchObject({ title: 'Mine', revision: 1 })
   })
 })
