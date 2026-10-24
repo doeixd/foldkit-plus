@@ -22,7 +22,7 @@ export default [
     edits: [
       {
         file,
-        find: '...(input.locked === true ? [h.Disabled(true)] : []),\n                h.OnClick(',
+        find: '...(input.locked === true ? [h.Disabled(true)] : []),\n            h.OnClick(',
         replace: 'h.OnClick(',
       },
     ],
