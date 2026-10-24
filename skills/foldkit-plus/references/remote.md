@@ -455,7 +455,8 @@ changed and sends them with the request.
 
 **Refusals.** `Mutation.make(name, { Input, Output, Refusal })` declares what
 the server may refuse with (`Refusal.field(key, reason)`, `Refusal.conflict`,
-or any codec); a Source fails with `RemoteServer.refuse(mutation, value)`, and
+or any codec); a `Mutation.write` whose write has a `when` may also be refused
+as `Refusal.unmet`, and only then does its `Refusal` type include it; a Source fails with `RemoteServer.refuse(mutation, value)`, and
 `Data.refusal(model, requestId, mutation)` reads it decoded, as an `Option`.
 `RemoteServer.forbid(reason?)` refuses who is asking, for any mutation: a 403
 over JSON, and `Data.mutation` is `Failed` with `error._tag === 'Forbidden'` and

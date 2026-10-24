@@ -355,6 +355,17 @@ optional relation set to nothing), and each interpreter carries it its own way,
 a ref key in a store, a foreign key in a table. A `many` relation or a nested
 key is refused where the write is declared.
 
+An update or a delete may also say when it makes sense: `when` is what the row
+must hold for it to land, written as a query body is: `() =>
+Expr.eq(Post.fields.title, 'Draft')`, or with the input, `({ input }) =>
+Expr.eq(Post.fields.title, input.from)`. It reads the row as it is before the write and the input,
+never who is asking (that is a guard's), and only its own Entity: a field of
+another is a type error, and refused where the write is declared. It is held as
+a query body (`write.when`), so an interpreter checks it in the statement that
+writes, and a row it does not hold of is refused as unmet. A write declared with
+one is a `ConditionedWrite`, which is how `Mutation.write` knows it may be
+refused so.
+
 ## Attaching metadata
 
 An interpreter declares a [`foldkit-metadata`](../metadata/README.md) key and
@@ -698,7 +709,7 @@ from queries, not from what a database could express.
 | `Entity.select(entity, { key: true or Selection })` | A Selection: what was selected (`members`) and the `schema` of the result. |
 | `Entity.page(selection, { first, after } or { last, before })` | In a Selection, a `many` relation read as a page: `items`, `hasNext`, `hasPrevious`. |
 | `Entity.fields(entity, ...keys)` | The schemas of those fields, by key, to spread into an input's struct. |
-| `Write.update(input, { id, expect? })` | A declared update of one row: every key the input maps to a field, but the id and the expected revision. |
+| `Write.update(input, { id, expect?, when? })` | A declared update of one row: every key the input maps to a field, but the id and the expected revision; `when`, what the row must hold for it to land. |
 | `Write.writes(write)` / `Write.bind(write, value, keys?)` | The fields it may change; the row and values one input writes, encoded as the store holds them. |
 | `Entity.input(entity, struct, mapping?)` | Experimental. Which member each key of an operation's input writes. |
 | `Relation.nested(relation, input)` | In an input mapping: the key holds the target itself, written through `input`. |
