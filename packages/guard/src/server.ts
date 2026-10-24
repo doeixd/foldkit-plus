@@ -418,6 +418,8 @@ export const GuardServer = {
     const memberRead = GuardServer.filter(entity, policy)
     const guarded: EntityWriter<Option.Option<User>, R | RW> = {
       entity: writer.entity,
+      // The precondition is the writer's to check, in the statement that writes.
+      ...(writer.preconditions === true ? { preconditions: true } : {}),
       read: ({ id, fields, principal }) =>
         seenRow(
           { filter: memberRead },
