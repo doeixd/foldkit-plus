@@ -22,6 +22,14 @@ version changed; `pnpm` skips versions already in the registry.
   reach — `parse` or `format` on a `list`, say — is a type error rather than a
   hook that is silently never called. A filled value whose control formats
   nothing still shows as `String(value)`.
+- **`foldkit-data-grid`: a Shift click spans rows.** In a `'multiple'` grid
+  without `cellSelection`, a Shift click focuses the cell and reports
+  `Out.RowsRequested({ from, to })`, from the anchor (or the row focused
+  before it) to the row clicked; `Grid.extendRows(rows, model.grid, request)`
+  is the grid's Model with the rows between added, in the order they are
+  drawn. A click reaches the grid through a Mount, which cannot read the rows
+  the view drew, so the application answers it, as it answers `Out.Filled`.
+  An exhaustive `Grid.Out.match` needs the new arm. (#144)
 
 ### Fixed
 

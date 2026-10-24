@@ -56,6 +56,7 @@ const application = Bundle.assemble<Model, Message>()([
         UndoRequested: () => ['undo'],
         RedoRequested: () => ['redo'],
         Filled: request => Grid.fill(rows, model.grid, request).accepted.map(cell),
+        RowsRequested: () => [],
       })
       return { model: modifyFields(model, { edits: () => [...model.edits, ...reported] }) }
     },

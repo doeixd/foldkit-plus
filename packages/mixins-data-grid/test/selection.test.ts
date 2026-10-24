@@ -3,9 +3,10 @@
  * Selection driven on the real runtime: Shift with a click or a key spans a
  * range of cells, Ctrl or Meta with a click toggles a row, Space selects the
  * focused row and Shift+Space extends to it, Ctrl+A selects every row, and
- * Escape lets a range go.
+ * Escape lets a range go. Without cell selection, a Shift click spans rows.
  */
 import { Schema } from 'effect'
+import { modifyFields } from 'foldkit/struct'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
@@ -69,14 +70,20 @@ const selectedRows = () =>
     row.getAttribute('aria-rowindex'),
   )
 
-test('the pointer and the keyboard select rows and ranges of cells', async () => {
+/** Frames on a timer, and a viewport of ten 20px rows under a 20px header. */
+const stubLayout = () => {
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
     setTimeout(() => callback(performance.now()), 0),
   )
   vi.stubGlobal('cancelAnimationFrame', clearTimeout)
-  // Ten 20px rows under a 20px header.
   vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(220)
   vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(300)
+}
+const click = (row: string, column: 'id' | 'name', modifiers: MouseEventInit = {}) =>
+  cellOf(row, column).dispatchEvent(new MouseEvent('click', { bubbles: true, ...modifiers }))
+
+test('the pointer and the keyboard select rows and ranges of cells', async () => {
+  stubLayout()
   const container = document.createElement('div')
   container.id = 'grid-selection'
   document.body.appendChild(container)
@@ -90,8 +97,6 @@ test('the pointer and the keyboard select rows and ranges of cells', async () =>
     }),
   )
   const grid = () => document.getElementById('items')!
-  const click = (row: string, column: 'id' | 'name', modifiers: MouseEventInit = {}) =>
-    cellOf(row, column).dispatchEvent(new MouseEvent('click', { bubbles: true, ...modifiers }))
   const press = (key: string, modifiers: KeyboardEventInit = {}) => {
     const event = new KeyboardEvent('keydown', {
       key,
@@ -162,6 +167,65 @@ test('the pointer and the keyboard select rows and ranges of cells', async () =>
       ),
     )
     expect(selectedRows()).toContain('2')
+  } finally {
+    handle.dispose()
+  }
+})
+
+// The same rows with no cell selection: a Shift click asks for rows, and the
+// application, which holds them, answers with `extendRows`.
+const Ranged = DataGrid.make({ id: 'items', columns, rowSelection: 'multiple' })
+const RangedPlacement = Bundle.declare(Ranged.bundle, 'grid')
+const RangedModel = Schema.Struct({ ...RangedPlacement.fields })
+type RangedModel = typeof RangedModel.Type
+const RangedMessage = defineMessageUnion({ ...RangedPlacement.cases })
+type RangedMessage = typeof RangedMessage.Type
+const ranged = Bundle.assemble<RangedModel, RangedMessage>()([
+  Bundle.parent({ Model: RangedModel, Message: RangedMessage }).at(RangedPlacement, {
+    onOut: out => model =>
+      out._tag === 'RowsRequested'
+        ? {
+            model: modifyFields(model, {
+              grid: () => Ranged.extendRows(rows, model.grid, out),
+            }),
+          }
+        : { model },
+  }),
+])
+const RangedView = DataGridView<RangedMessage>().define(Ranged)
+
+test('without cell selection, a Shift click spans the rows from the anchor', async () => {
+  stubLayout()
+  const container = document.createElement('div')
+  container.id = 'grid-ranged'
+  document.body.appendChild(container)
+  const handle = Runtime.embed(
+    Runtime.makeElement({
+      Model: RangedModel,
+      container,
+      init: () => ranged.initial({ grid: Ranged.bundle.init(undefined).model }),
+      update: ranged.update(),
+      view: (model: RangedModel, h: HtmlBuilder<RangedMessage>) =>
+        RangedView(
+          {
+            state: model.grid,
+            rows,
+            wrap: message => RangedPlacement.wrapper.make(message),
+            label: 'Items',
+            rowHeight: 20,
+            headerHeight: 20,
+          },
+          h,
+        ),
+    }),
+  )
+  try {
+    await vi.waitFor(() => expect(cellOf('r2', 'id')).not.toBeNull())
+    click('r1', 'id', { ctrlKey: true })
+    await vi.waitFor(() => expect(selectedRows()).toEqual(['3']))
+    click('r4', 'name', { shiftKey: true })
+    await vi.waitFor(() => expect(selectedRows()).toEqual(['3', '4', '5', '6']))
+    expect(selectedCells()).toEqual([])
   } finally {
     handle.dispose()
   }

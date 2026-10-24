@@ -549,6 +549,59 @@ describe('DataGrid selection', () => {
     )
   })
 
+  describe('a Shift press without cell selection', () => {
+    const Ranging = DataGrid.make({ id: 'ranging', columns, rowSelection: 'multiple' })
+    const start = Ranging.bundle.init(undefined).model
+    const rows = RowModel.fromArray(products, productKey)
+    const update = (model: typeof start, message: typeof Ranging.Message.Type) =>
+      Ranging.bundle.update(model, message, undefined)
+    const shift = (model: typeof start, row: string) =>
+      update(
+        model,
+        Ranging.Message.CellPressed({
+          cell: GridFocus.cellId('ranging', at(row, 'sku')),
+          shiftKey: true,
+          toggleKey: false,
+        }),
+      )
+
+    test('focuses the cell and asks for the rows from the anchor, which extendRows adds', () => {
+      const anchored = update(start, Ranging.Message.RowSelected({ row: 'p:10' })).model
+      const pressed = shift(anchored, 'p:100')
+      expect(pressed.model.focus.current).toEqual(Option.some(at('p:100', 'sku')))
+      expect(pressed.outMessage).toEqual(Ranging.Out.RowsRequested({ from: 'p:10', to: 'p:100' }))
+      // By position, not by key: p:1 lies between p:10 and p:100 on the page.
+      const extended = Ranging.extendRows(rows, pressed.model, { from: 'p:10', to: 'p:100' })
+      expect(selected(extended)).toEqual(['p:10', 'p:1', 'p:100'])
+      expect(extended.selection.anchor).toEqual(Option.some('p:10'))
+    })
+
+    test('runs from the focused row when nothing is anchored, else from the pressed row', () => {
+      const focused = update(start, Ranging.Message.Focused({ address: at('p:100', 'name') })).model
+      expect(shift(focused, 'p:1').outMessage).toEqual(
+        Ranging.Out.RowsRequested({ from: 'p:100', to: 'p:1' }),
+      )
+      expect(shift(start, 'p:1').outMessage).toEqual(
+        Ranging.Out.RowsRequested({ from: 'p:1', to: 'p:1' }),
+      )
+    })
+
+    test('asks for nothing in single mode or where a Shift press spans cells', () => {
+      const pressed = (grid: typeof Single | typeof Selecting) =>
+        grid.bundle.update(
+          grid.bundle.init(undefined).model,
+          grid.Message.CellPressed({
+            cell: GridFocus.cellId(grid.id, at('p:1', 'sku')),
+            shiftKey: true,
+            toggleKey: false,
+          }),
+          undefined,
+        ).outMessage
+      expect(pressed(Single)).toBeUndefined()
+      expect(pressed(Selecting)).toBeUndefined()
+    })
+  })
+
   test('a Ctrl or Meta press toggles the row and focuses the cell', () => {
     const toggle = (model: typeof fresh, row: string) =>
       send(

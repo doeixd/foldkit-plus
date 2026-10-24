@@ -106,6 +106,8 @@ the whole wiring, compiled.
   `Pasted({ accepted, refused })`, `Filled({ source, to })` (Ctrl/Meta+D or
   R, or the fill handle, whose drag scrolls the grid at its edge; write
   `Grid.fill(rows, model.grid, request).accepted`),
+  `RowsRequested({ from, to })` (a Shift click without `cellSelection`;
+  answer with `grid: () => Grid.extendRows(rows, model.grid, request)`),
   or `UndoRequested`/`RedoRequested` (Ctrl/Meta+Z, with Shift or Ctrl+Y; the
   application keeps the history and builds the inverse from its Model; match
   it with `Grid.Out.match`). Place it
@@ -127,7 +129,8 @@ the whole wiring, compiled.
   cellSelection: true })`. Ask `GridSelection.isSelected(model.grid.selection.rows)`
   once per render; select-all is `AllExcept`, so it holds rows not loaded.
   The view handles the clicks and keys (Shift ranges, Space, Ctrl+A, Escape);
-  a Shift click over rows does not extend a row range, Shift+Space does.
+  with `cellSelection` a Shift click spans cells, without it the rows
+  (through `Out.RowsRequested`), and Shift+Space extends rows either way.
 - Resizable columns get a drag handle (`resizeHandle`, a `role="separator"`),
   out of the tab order. By keyboard: ArrowUp from the first row reaches the
   header, where Shift+Arrow resizes and Ctrl/Meta+Shift+Arrow reorders. A
