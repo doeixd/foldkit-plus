@@ -103,6 +103,7 @@ describe('patchOfWrite', () => {
           author: Option.some({ entity: 'Author', id: 'a1' }),
           editor: Option.none(),
         },
+        increments: {},
       }),
     ).toEqual({
       entity: 'Post',

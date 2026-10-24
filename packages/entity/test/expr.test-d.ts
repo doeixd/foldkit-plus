@@ -256,3 +256,15 @@ const maybe: {
 }
 // @ts-expect-error a `when` that may be there needs the caller to say which
 Write.update(Retitle, maybe)
+
+// An increment moves a number field by a number the input holds.
+const Rerank = Entity.input(
+  Doc,
+  Schema.Struct({ id: Schema.String, rank: Schema.Number, by: Schema.Number, note: Schema.String }),
+  { by: Entity.unmapped, note: Entity.unmapped },
+)
+Write.update(Rerank, { id: 'id', expect: 'rank', increment: { rank: 'by' } })
+// @ts-expect-error a title is text, which no amount moves
+Write.update(Rerank, { id: 'id', expect: 'rank', increment: { title: 'by' } })
+// @ts-expect-error the note is text, so no amount
+Write.update(Rerank, { id: 'id', expect: 'rank', increment: { rank: 'note' } })

@@ -61,6 +61,11 @@ export interface Write<E extends AnyEntity, Fields extends Schema.Struct.Fields>
   readonly when: Option.Option<AnyQuery>
   /** The keys it sets, in the input's order. */
   readonly sets: ReadonlyArray<WriteSet>
+  /**
+   * The fields it moves by an amount the input holds (`stock + quantity`),
+   * computed where the write commits: the input key, and the field it moves.
+   */
+  readonly increments: ReadonlyArray<WriteSet>
   /** The `one` relations it points elsewhere, in the input's order. */
   readonly links: ReadonlyArray<WriteLink>
 }
@@ -78,13 +83,49 @@ interface RowOptions<Fields extends Schema.Struct.Fields> {
   readonly expect?: keyof Fields & string
 }
 
-/** `update` or `delete`: conditioned when given `when`, which the overloads tell apart. */
-interface RowWrite {
+/** The keys of `Fields` whose values are numbers. */
+type NumberKeys<Fields> = {
+  [K in keyof Fields & string]: Fields[K] extends Schema.Top
+    ? Schema.Schema.Type<Fields[K]> extends number
+      ? K
+      : never
+    : never
+}[keyof Fields & string]
+
+/** An update's increments: a number field of the Entity, by the input key holding the amount. */
+export type WriteIncrements<E extends AnyEntity, Fields extends Schema.Struct.Fields> = {
+  readonly [
+    K in NumberKeys<{ [F in keyof E['fields']]: E['fields'][F]['schema'] }>
+  ]?: NumberKeys<Fields>
+}
+
+/** An update's options: a row's, and what it moves by an amount. */
+type UpdateOptions<
+  E extends AnyEntity,
+  Fields extends Schema.Struct.Fields,
+> = RowOptions<Fields> & {
+  readonly increment?: WriteIncrements<E, Fields>
+}
+
+/** `update`: conditioned when given `when`, which the overloads tell apart. */
+interface UpdateWrite {
+  <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
+    input: EntityInput<E, Fields, any>,
+    options: UpdateOptions<E, Fields> & { readonly when: WriteCondition<E, Fields> },
+  ): ConditionedWrite<E, Fields>
+  // `when?: undefined`, so an optional `when` in a variable cannot pick this one and lose `Unmet`.
+  <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
+    input: EntityInput<E, Fields, any>,
+    options: UpdateOptions<E, Fields> & { readonly when?: undefined },
+  ): Write<E, Fields>
+}
+
+/** `delete`: conditioned when given `when`, as an update is. */
+interface DeleteWrite {
   <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
     input: EntityInput<E, Fields, any>,
     options: RowOptions<Fields> & { readonly when: WriteCondition<E, Fields> },
   ): ConditionedWrite<E, Fields>
-  // `when?: undefined`, so an optional `when` in a variable cannot pick this one and lose `Unmet`.
   <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
     input: EntityInput<E, Fields, any>,
     options: RowOptions<Fields> & { readonly when?: undefined },
@@ -92,10 +133,12 @@ interface RowWrite {
 }
 
 // `declared` sets `when` exactly when it is given, which is what the overloads say.
-const update: RowWrite = (input: EntityInput<AnyEntity, any, any>, options: RowOptions<any>) =>
-  settingSomething(declared('Update', input, options)) as never
+const update: UpdateWrite = (
+  input: EntityInput<AnyEntity, any, any>,
+  options: UpdateOptions<AnyEntity, any>,
+) => settingSomething(declared('Update', input, options)) as never
 
-const remove: RowWrite = (input: EntityInput<AnyEntity, any, any>, options: RowOptions<any>) => {
+const remove: DeleteWrite = (input: EntityInput<AnyEntity, any, any>, options: RowOptions<any>) => {
   const write = declared('Delete', input, options)
   const named = [...write.sets, ...write.links][0]
   if (named !== undefined) fail(input, `a delete sets nothing, but "${named.key}" is mapped`)
@@ -124,6 +167,8 @@ export interface BoundWrite {
    * key on the wire, a foreign key in a table) is each interpreter's.
    */
   readonly links: Readonly<Record<string, Option.Option<EntityRef>>>
+  /** Each field it moves, by the amount, encoded: the server's to add; no patch shows it. */
+  readonly increments: Readonly<Record<string, number>>
 }
 
 const fail = (input: EntityInput<AnyEntity, any, any>, message: string): never => {
@@ -166,6 +211,7 @@ const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
     readonly id: keyof Fields & string
     readonly expect?: keyof Fields & string
     readonly when?: WriteCondition<E, Fields> | undefined
+    readonly increment?: Readonly<Record<string, string | undefined>>
   },
 ): Write<E, Fields> => {
   const id = fieldAt(input, options.id, 'id')
@@ -209,6 +255,15 @@ const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
       Query.where(condition({ input: placeholders as never }) as Predicate),
     ) as AnyQuery
   })
+  const increments = Object.entries(options.increment ?? {}).flatMap(([fieldKey, key]) =>
+    key === undefined ? [] : [incrementOf(input, fieldKey, key, { expect, sets })],
+  )
+  if (increments.length > 0 && expect === undefined) {
+    fail(
+      input,
+      'an increment needs `expect`: without a revision, a retry of a write that landed would add twice',
+    )
+  }
   return Object.freeze({
     _tag: kind,
     input,
@@ -216,15 +271,53 @@ const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
     expect,
     when,
     sets: Object.freeze(sets),
+    increments: Object.freeze(increments),
     links: Object.freeze(links),
   })
+}
+
+/** Whether a value's stored form is a plain number. */
+const storedAsNumber = (schema: Schema.Top): boolean =>
+  SchemaAST.isNumber(Schema.toEncoded(schema).ast)
+
+/**
+ * One increment, checked: a field of the Entity stored as a number, written
+ * by nothing else, moved by an unmapped input key whose value is a number.
+ */
+const incrementOf = (
+  input: EntityInput<AnyEntity, any, any>,
+  fieldKey: string,
+  key: string,
+  declared: { readonly expect: WriteSet | undefined; readonly sets: ReadonlyArray<WriteSet> },
+): WriteSet => {
+  const fields = input.entity.fields as Readonly<Record<string, AnyField>>
+  const field = Object.hasOwn(fields, fieldKey) ? fields[fieldKey] : undefined
+  if (field === undefined) return fail(input, `increments "${fieldKey}", which is not a field`)
+  if (fieldKey === 'id') return fail(input, 'increments the id')
+  if (declared.expect?.field.key === fieldKey) {
+    return fail(input, `increments "${fieldKey}", the revision it expects`)
+  }
+  if (declared.sets.some(set => set.field.key === fieldKey)) {
+    return fail(input, `increments "${fieldKey}", which a key also sets`)
+  }
+  if (!storedAsNumber(field.schema as unknown as Schema.Top)) {
+    return fail(input, `increments "${fieldKey}", which is not stored as a number`)
+  }
+  const member = membersOf(input)[key]
+  if (member === undefined) return fail(input, `"${key}" is not a key of the input`)
+  if (member._tag !== 'Unmapped') {
+    return fail(input, `"${key}" is an amount, so it must be unmapped, not written as a member`)
+  }
+  const amount = input.schema.fields[key] as unknown as Schema.Top
+  if (!storedAsNumber(amount)) return fail(input, `"${key}" is an amount, but not a number`)
+  return Object.freeze({ key, field })
 }
 
 /** An update or an insert that would write nothing is refused where it is declared. */
 const settingSomething = <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
   write: Write<E, Fields>,
 ): Write<E, Fields> =>
-  write.sets.length === 0 && write.links.length === 0
+  write.sets.length === 0 && write.links.length === 0 && write.increments.length === 0
     ? fail(write.input, 'it sets no field')
     : write
 
@@ -287,8 +380,25 @@ export const Write = {
   /** The members any invocation may write: what a query reading none of them cannot be changed by. */
   writes: (write: AnyWrite): ReadonlyArray<AnyField | OneRelation> => [
     ...write.sets.map(set => set.field),
+    ...write.increments.map(increment => increment.field),
     ...write.links.map(link => link.relation),
   ],
+
+  /**
+   * The fields a write reads from the row it writes: those its `when` reads,
+   * each it increments, and the revision it expects. What an interpreter
+   * must read, and what a startup check judges it could disclose.
+   */
+  reads: (write: AnyWrite): ReadonlyArray<AnyField> => {
+    const fields = new Map<string, AnyField>()
+    const add = (field: AnyField) => fields.set(field.key, field)
+    Option.map(write.when, body =>
+      Query.dependencies(body).predicate.forEach(field => add(field as unknown as AnyField)),
+    )
+    write.increments.forEach(increment => add(increment.field))
+    if (write.expect !== undefined) add(write.expect.field)
+    return [...fields.values()]
+  },
 
   /**
    * The row this input writes and its new values, encoded as the store holds
@@ -321,11 +431,21 @@ export const Write = {
         id => ({ entity: target.name, id: String(encoded(target.fields.id as AnyField, id)) }),
       )
     }
+    const increments: Record<string, number> = {}
+    for (const { key, field } of write.increments) {
+      // `keys` names input keys, so an increment is asked for by its amount's key.
+      if (!asked(key)) continue
+      const schema = write.input.schema.fields[key] as unknown as Schema.Codec<unknown, number>
+      Option.map(given(input[key]), held => {
+        increments[field.key] = Schema.encodeUnknownSync(schema)(held)
+      })
+    }
     return {
       entity: write.input.entity.name,
       id: String(encoded(write.id.field, input[write.id.key])),
       values,
       links,
+      increments,
     }
   },
 }

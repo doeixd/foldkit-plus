@@ -148,6 +148,7 @@ describe('Write.bind', () => {
       id: 'p1',
       values: { title: 'Compilers', due: '2026-03-01T00:00:00.000Z' },
       links: {},
+      increments: {},
     })
   })
 
@@ -196,6 +197,7 @@ describe('A write that points a one relation', () => {
         author: Option.some({ entity: 'Author', id: 'a1' }),
         editor: Option.none(),
       },
+      increments: {},
     })
   })
 
@@ -302,5 +304,131 @@ describe('A write with a precondition', () => {
         when: () => elsewhere,
       }),
     ).toThrow('Author')
+  })
+})
+
+describe('A write that increments a field', () => {
+  const Item = Entity.define(
+    'Item',
+    Schema.Struct({
+      id: Schema.String,
+      stock: Schema.Number,
+      sold: Schema.Number,
+      // A number in code, text in the store: the store cannot add to it.
+      price: Schema.NumberFromString,
+      weight: Schema.NullOr(Schema.Number),
+      name: Schema.String,
+      revision: Schema.Number,
+    }),
+  )
+  const Restock = Entity.input(
+    Item,
+    Schema.Struct({
+      id: Schema.String,
+      revision: Schema.Number,
+      quantity: Schema.Number,
+      name: Schema.String,
+      label: Schema.String,
+    }),
+    { quantity: Entity.unmapped, label: Entity.unmapped },
+  )
+  const restock = Write.update(Restock, {
+    id: 'id',
+    expect: 'revision',
+    increment: { stock: 'quantity' },
+  })
+
+  it('binds each amount apart from the values, encoded, for the server to add', () => {
+    const value = { id: 'i1', revision: 3, quantity: -2, name: 'Bolt', label: 'x' }
+    expect(Write.bind(restock, value)).toMatchObject({
+      values: { name: 'Bolt' },
+      increments: { stock: -2 },
+    })
+    // `keys` names input keys: the amount's.
+    expect(Write.bind(restock, value, ['name']).increments).toEqual({})
+    expect(Write.bind(restock, value, ['quantity']).increments).toEqual({ stock: -2 })
+  })
+
+  it('writes the field it increments, and reads it with the revision and what `when` reads', () => {
+    const guarded = Write.update(Restock, {
+      id: 'id',
+      expect: 'revision',
+      increment: { stock: 'quantity' },
+      when: () => Expr.gte(Item.fields.sold, 0),
+    })
+    expect(Write.writes(guarded).map(field => field.key)).toEqual(['name', 'stock'])
+    expect(
+      Write.reads(guarded)
+        .map(field => field.key)
+        .sort(),
+    ).toEqual(['revision', 'sold', 'stock'])
+  })
+
+  it.each([
+    ['no expected revision', { id: 'id', increment: { stock: 'quantity' } }, 'needs `expect`'],
+    [
+      'a field it does not have',
+      { id: 'id', expect: 'revision', increment: { volume: 'quantity' } },
+      'not a field',
+    ],
+    [
+      'the id',
+      { id: 'id', expect: 'revision', increment: { id: 'quantity' } },
+      'increments the id',
+    ],
+    [
+      'the revision it expects',
+      { id: 'id', expect: 'revision', increment: { revision: 'quantity' } },
+      'the revision it expects',
+    ],
+    [
+      'a field stored as text',
+      { id: 'id', expect: 'revision', increment: { price: 'quantity' } },
+      'not stored as a number',
+    ],
+    [
+      'a nullable field',
+      { id: 'id', expect: 'revision', increment: { weight: 'quantity' } },
+      'not stored as a number',
+    ],
+    [
+      'an amount mapped to a member',
+      { id: 'id', expect: 'revision', increment: { stock: 'name' } },
+      'must be unmapped',
+    ],
+    [
+      'an amount that is not a number',
+      { id: 'id', expect: 'revision', increment: { stock: 'label' } },
+      'not a number',
+    ],
+  ])('refuses %s', (_, options, message) => {
+    expect(() => Write.update(Restock, options as never)).toThrow(message)
+  })
+
+  it('refuses a field a key also sets', () => {
+    const SetsStock = Entity.input(
+      Item,
+      Schema.Struct({
+        id: Schema.String,
+        revision: Schema.Number,
+        stock: Schema.Number,
+        by: Schema.Number,
+      }),
+      { by: Entity.unmapped },
+    )
+    expect(() =>
+      Write.update(SetsStock, { id: 'id', expect: 'revision', increment: { stock: 'by' } }),
+    ).toThrow('which a key also sets')
+  })
+
+  it('counts as something to set', () => {
+    const Bump = Entity.input(
+      Item,
+      Schema.Struct({ id: Schema.String, revision: Schema.Number, by: Schema.Number }),
+      { by: Entity.unmapped },
+    )
+    expect(
+      Write.update(Bump, { id: 'id', expect: 'revision', increment: { stock: 'by' } }).increments,
+    ).toHaveLength(1)
   })
 })
