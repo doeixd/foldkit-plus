@@ -125,7 +125,8 @@ export const SurfaceBlock = {
     catalog: Catalog,
     document: Document,
   ): Option.Option<Projection<Root, Readonly<Record<string, unknown>>>> => {
-    const entries: Record<string, Projection<Root, unknown>> = {}
+    // Node ids are stored data: a `__proto__` node must still be a key.
+    const entries: Record<string, Projection<Root, unknown>> = Object.create(null)
     for (const id of index(document).keys()) {
       const node = document.nodes[id]
       const block: AnyBlock | undefined =

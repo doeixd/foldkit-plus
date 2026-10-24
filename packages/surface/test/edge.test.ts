@@ -61,6 +61,14 @@ describe('Surface edge cases', () => {
     expect(projection.dependencies).toEqual([['todos']])
   })
 
+  it('Projection.struct keeps an entry named __proto__ as a key', () => {
+    const entries = Object.fromEntries([['__proto__', App.model.selectedTodoId]])
+    const struct = Projection.struct(entries)
+    const value = struct.read({ ...example, selectedTodoId: 'a' })
+    expect(Object.keys(value)).toEqual(['__proto__'])
+    expect(Schema.decodeUnknownSync(struct.Model)(value)).toEqual(value)
+  })
+
   it('modify transforms through a top-level field ref', () => {
     const next = App.model.todos.modify(example, todos => [...todos, { id: 'b', title: 'B' }])
     expect(next).toEqual({

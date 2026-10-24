@@ -220,6 +220,30 @@ describe('a Query Block', () => {
     expect(idle.answered(initial)).toBe(true)
   })
 
+  it('fetches a node whose id is __proto__', async () => {
+    const proto = Schema.decodeUnknownSync(Composition.Document)({
+      format: 1,
+      roots: ['s'],
+      nodes: {
+        s: { block: 'Section', props: {}, regions: { body: ['__proto__'] } },
+        ['__proto__']: { block: 'Projects', props: { owner: 'u1', count: 2 }, regions: {} },
+      },
+    })
+    const reads = Option.getOrThrow(QueryBlock.reads(Data, Site, proto))
+    const { asked, layer } = server()
+    const loaded = await Effect.runPromise(
+      Data.prefetch(initial, reads).pipe(Effect.provide(layer)),
+    )
+    expect(asked).toEqual([{ input: { ownerId: 'u1' }, first: 2 }])
+    expect(reads.read(loaded)['__proto__']).toMatchObject({ _tag: 'Ready' })
+    // Handed no data for it, the node is handed nothing, not the record's prototype.
+    const handed = Renderer.make(Site, {
+      Section: ({ regions, h }) => h.section([], [...regions.body]),
+      Projects: ({ data, h }) => h.p([], [data === undefined ? 'nothing' : 'something']),
+    })
+    expect(text(Renderer.render(handed, proto, inertHtml, { data: {} }))).toBe('nothing')
+  })
+
   it('reads nothing on a page with no Query Block', () => {
     const empty = Schema.decodeUnknownSync(Composition.Document)({
       format: 1,

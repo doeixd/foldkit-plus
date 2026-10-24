@@ -423,7 +423,8 @@ const render = <Blocks extends AnyBlock, Message, Into = Message>(
       id,
       node,
       shown,
-      options.data?.[id],
+      // A node id is stored data: `__proto__` must not read the record's prototype.
+      options.data !== undefined && Object.hasOwn(options.data, id) ? options.data[id] : undefined,
       Option.contains(selected, id)
         ? 'selected'
         : Option.contains(hovered, id)

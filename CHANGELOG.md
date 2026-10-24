@@ -23,6 +23,15 @@ version changed; `pnpm` skips versions already in the registry.
   hook that is silently never called. A filled value whose control formats
   nothing still shows as `String(value)`.
 
+### Fixed
+
+- **A page node whose id is `__proto__` is read.** `SurfaceBlock.reads` and
+  `QueryBlock.reads` keyed each node's read into a plain object, and
+  `Projection.struct` built its value the same way, so such a node set the
+  object's prototype instead: it was never fetched and showed `Initial` for
+  good. Each now builds an object with no prototype, and `Renderer.render`
+  hands a node only its own entry of `data`, never the record's prototype. (#177)
+
 ## 0.32.0
 
 A dependency release. The workspace moves to Foldkit 0.169.0 and Effect 4.0.5,
