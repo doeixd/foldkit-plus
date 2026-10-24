@@ -927,6 +927,23 @@ export const writer = <P = unknown>(
       }
     })
 
+  /** Each increment as its column moved by the amount, in the statement that writes. */
+  const incrementsOf = (
+    increments: Readonly<Record<string, number>>,
+  ): Effect.Effect<Record<string, SQL>, RemoteServerError> =>
+    Effect.gen(function* () {
+      const set: Record<string, SQL> = {}
+      for (const [field, amount] of Object.entries(increments)) {
+        const column = binding.columns[field]
+        const key = keyOf(field)
+        if (column === undefined || key === undefined) {
+          return yield* missing(`column for "${field}" to increment`)
+        }
+        set[key] = sql`${column} + ${amount}`
+      }
+      return set
+    })
+
   /** Whether `row` holds what a write set: each value, and each link as its ref. */
   const holdsWritten = (
     row: Readonly<Record<string, unknown>>,
@@ -950,12 +967,20 @@ export const writer = <P = unknown>(
   return {
     entity: binding.name,
     preconditions: true,
-    update: ({ id, values, links, expect, when }) =>
+    increments: true,
+    update: ({ id, values, increments, links, expect, when }) =>
       Effect.gen(function* () {
         const { where, bump } = yield* rowOf(id, expect, when)
-        const set = { ...(yield* setOf(values, links)), ...bump }
+        const set = {
+          ...(yield* setOf(values, links)),
+          ...(yield* incrementsOf(increments)),
+          ...bump,
+        }
+        // A row a revision on could be another's increment: only the write itself says it landed.
+        const incrementing = Object.keys(increments).length > 0
         const answered = returning(binding, [
           ...Object.keys(values),
+          ...Object.keys(increments),
           ...Object.keys(links),
           ...Option.match(expect, { onNone: () => [], onSome: ({ field }) => [field] }),
         ])
@@ -988,6 +1013,7 @@ export const writer = <P = unknown>(
           // write landed already and its answer was lost: a retry answers the
           // row rather than conflicting with itself.
           const { field, revision } = expect.value
+          if (incrementing) return Option.none()
           return Option.filter(
             now,
             row =>
@@ -1002,7 +1028,7 @@ export const writer = <P = unknown>(
         // hold. A row already holding what this write sets is a retry of one
         // that landed, which the precondition no longer describes.
         const sets = Object.keys(values).length + Object.keys(links).length > 0
-        if (sets && holdsWritten(row, values, links)) return now
+        if (sets && !incrementing && holdsWritten(row, values, links)) return now
         return yield* RemoteServer.unmet(
           `${binding.name} ${id} does not hold what the write asks of it`,
         )

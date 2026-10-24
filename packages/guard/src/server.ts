@@ -458,6 +458,7 @@ export const GuardServer = {
       entity: writer.entity,
       // The precondition is the writer's to check, in the statement that writes.
       ...(writer.preconditions === true ? { preconditions: true } : {}),
+      ...(writer.increments === true ? { increments: true } : {}),
       read: ({ id, fields, principal }) =>
         seenRow(
           { filter: memberRead },
@@ -469,12 +470,13 @@ export const GuardServer = {
       update: context =>
         pinned(context.id, context.expect, Option.isNone, () =>
           Effect.gen(function* () {
-            const { principal, values, links } = context
+            const { principal, values, increments, links } = context
             const row = yield* policy.writable(entity, principal, 'Update')
+            // An incremented field is set as surely as a written one: its Update rule holds.
             const members = yield* policy.writeMembers(
               entity,
               principal,
-              Object.keys(values),
+              [...Object.keys(values), ...Object.keys(increments)],
               'Update',
             )
             const relating = yield* linkRules(principal, links)
@@ -500,9 +502,17 @@ export const GuardServer = {
                 }),
               ),
             )
+            // The sum the writer will store, over the row read, which the pin keeps as the row
+            // written. Only a rule reads it, and `fieldsOf` read every field a rule reads.
             const after = {
               ...before,
               ...values,
+              ...Object.fromEntries(
+                Object.entries(increments).map(([field, amount]) => [
+                  field,
+                  Number(before[field]) + amount,
+                ]),
+              ),
               ...Object.fromEntries(
                 Object.entries(links).map(([relation, link]) => [relation, linkKey(link)]),
               ),
