@@ -586,6 +586,16 @@ describe('DataGrid selection', () => {
       )
     })
 
+    test('anchors where the first range ran from, so the next Shift press keeps that end', () => {
+      const focused = update(start, Ranging.Message.Focused({ address: at('p:100', 'name') })).model
+      const first = shift(focused, 'p:10')
+      expect(first.model.selection.anchor).toEqual(Option.some('p:100'))
+      const extended = Ranging.extendRows(rows, first.model, { from: 'p:100', to: 'p:10' })
+      expect(shift(extended, 'p:1').outMessage).toEqual(
+        Ranging.Out.RowsRequested({ from: 'p:100', to: 'p:1' }),
+      )
+    })
+
     test('asks for nothing in single mode or where a Shift press spans cells', () => {
       const pressed = (grid: typeof Single | typeof Selecting) =>
         grid.bundle.update(

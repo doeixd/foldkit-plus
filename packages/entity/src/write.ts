@@ -84,9 +84,10 @@ interface RowWrite {
     input: EntityInput<E, Fields, any>,
     options: RowOptions<Fields> & { readonly when: WriteCondition<E, Fields> },
   ): ConditionedWrite<E, Fields>
+  // `when?: undefined`, so an optional `when` in a variable cannot pick this one and lose `Unmet`.
   <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
     input: EntityInput<E, Fields, any>,
-    options: RowOptions<Fields>,
+    options: RowOptions<Fields> & { readonly when?: undefined },
   ): Write<E, Fields>
 }
 

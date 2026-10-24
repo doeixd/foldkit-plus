@@ -24,11 +24,7 @@ export default [
   ),
   edit('a miss is not decided again', '? loop(left - 1)', '? Effect.succeed(outcome)'),
   edit('two attempts, not three', 'return loop(3)', 'return loop(2)'),
-  edit(
-    'an input’s pinned write is retried',
-    'if (revision === undefined || expected) return attempt()',
-    'if (revision === undefined) return attempt()',
-  ),
+  edit('an input’s pinned write is retried', 'if (Option.isSome(expect)) {', 'if (false) {'),
   edit(
     'an update ignores the revision its input expects',
     'if (moved(context.expect, before)) return Option.none()',
@@ -39,5 +35,24 @@ export default [
     "if (moved(context.expect, current.value)) return 'moved' as const",
     '',
   ),
-  edit('validate does not warn', 'if (revision === undefined) unpinned.add(guarded)', ''),
+  edit(
+    'validate does not warn',
+    'pins.set(guarded, Option.fromUndefinedOr(revision))',
+    "pins.set(guarded, Option.some('revision'))",
+  ),
+  edit(
+    'an input expecting another field than the pin is written',
+    'return expect.value.field === revision',
+    'return true',
+  ),
+  edit(
+    'a revision not stored as a number is taken',
+    'if (!SchemaAST.isNumber(Schema.toEncoded(field.schema).ast)) {',
+    'if (false) {',
+  ),
+  edit(
+    'validate takes an expect the writer does not pin',
+    'Option.exists(pin, field => field !== expected)',
+    'false',
+  ),
 ]

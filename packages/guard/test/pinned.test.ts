@@ -237,6 +237,59 @@ describe('GuardServer.writer with a revision', () => {
     expect(row()).toMatchObject({ owner_id: 'grace', title: 'Mine' })
   })
 
+  it('refuses a revision not stored as a number, which the writer cannot move on', () => {
+    expect(() => GuardServer.writer(Todo, Policy, writer(Db.Todo), { revision: 'title' })).toThrow(
+      `Todo's revision "title" is not stored as a number`,
+    )
+  })
+
+  it('refuses at run time an input expecting another field than the one it pins', async () => {
+    const OwnerAt = Mutation.write(
+      'OwnerAt',
+      Write.update(
+        Entity.input(Todo, Retitle.pipe(Schema.fieldsAssign({ ownerId: Schema.String }))),
+        { id: 'id', expect: 'ownerId' },
+      ),
+    )
+    const sqlite = new DatabaseSync(':memory:')
+    sqlite.exec(
+      "create table todos (id text primary key, owner_id text not null, title text not null, revision integer not null); insert into todos values ('t1', 'ada', 'Own', 0);",
+    )
+    const server = RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
+      entities: [],
+      mutations: [
+        RemoteServer.write(
+          OwnerAt,
+          GuardServer.writer(Todo, Policy, writer(Db.Todo), { revision: 'revision' }),
+        ),
+      ],
+    })
+    const failed = await Effect.runPromise(
+      RemoteServer.handlers(server, ada)
+        .FoldkitRemoteMutate({
+          requestId: 'r1',
+          mutation: 'OwnerAt',
+          input: { id: 't1', title: 'Mine', ownerId: 'ada' },
+        })
+        .pipe(Effect.result, Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
+    )
+    expect(failed).toMatchObject({
+      _tag: 'Failure',
+      failure: { message: `Todo's input expects "ownerId", but its writer pins "revision"` },
+    })
+    // GuardServer.validate says so at startup.
+    expect(() =>
+      GuardServer.validate(Policy, {
+        entities: [Todo],
+        domain: Remote.define({ entities: [Todo] }),
+        server,
+      }),
+    ).toThrow("write OwnerAt expects Todo's ownerId, but its writer pins revision")
+    expect(sqlite.prepare("select title from todos where id = 't1'").get()).toEqual({
+      title: 'Own',
+    })
+  })
+
   it('refuses a revision the Entity does not have', () => {
     expect(() =>
       // @ts-expect-error: not a field of Todo.

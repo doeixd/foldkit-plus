@@ -38,13 +38,13 @@ export default [
   edit(
     'an unmet update reads as a conflict',
     drizzle,
-    'if (holdsWritten(row, values, links)) return now',
+    'if (sets && holdsWritten(row, values, links)) return now',
     'return Option.none()',
   ),
   edit(
     'a landed write’s retry is unmet',
     drizzle,
-    'if (holdsWritten(row, values, links)) return now',
+    'if (sets && holdsWritten(row, values, links)) return now',
     '',
   ),
   {
@@ -81,5 +81,17 @@ export default [
     guard,
     '...(writer.preconditions === true ? { preconditions: true } : {}),',
     '',
+  ),
+  edit(
+    'a write that sets nothing passes as its own retry',
+    drizzle,
+    'const sets = Object.keys(values).length + Object.keys(links).length > 0',
+    'const sets = true',
+  ),
+  edit(
+    'an unmet answer from a writer of a write with no precondition is a refusal',
+    server,
+    'Option.isNone(write.when)\n',
+    'false\n',
   ),
 ]

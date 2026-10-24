@@ -1001,7 +1001,8 @@ export const writer = <P = unknown>(
         // At the expected revision, or expecting none: the precondition did not
         // hold. A row already holding what this write sets is a retry of one
         // that landed, which the precondition no longer describes.
-        if (holdsWritten(row, values, links)) return now
+        const sets = Object.keys(values).length + Object.keys(links).length > 0
+        if (sets && holdsWritten(row, values, links)) return now
         return yield* RemoteServer.unmet(
           `${binding.name} ${id} does not hold what the write asks of it`,
         )

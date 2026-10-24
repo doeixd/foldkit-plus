@@ -331,7 +331,11 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
         ),
         () => address.row,
       )
-      return { model: focused, outMessage: Out.RowsRequested({ from, to: address.row }) }
+      // The range is anchored where it runs from, so the next Shift press keeps that end.
+      const anchored = Option.isSome(focused.selection.anchor)
+        ? focused
+        : selectionBy(focused, { ...focused.selection, anchor: Option.some(from) })
+      return { model: anchored, outMessage: Out.RowsRequested({ from, to: address.row }) }
     }
     if (toggleKey && options.rowSelection !== undefined) {
       return { model: selectionBy(focused, choose(focused.selection, address.row)) }

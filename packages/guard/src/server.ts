@@ -5,7 +5,7 @@
  * applies them. A subpath, so the shared declaration the browser imports never
  * brings the server along.
  */
-import { Effect, Match, Option, Schema } from 'effect'
+import { Effect, Match, Option, Schema, SchemaAST } from 'effect'
 import { Query, type AnyEntity, type AnyQuery } from 'foldkit-entity'
 import type { MutationDescriptor, RemoteForbidden } from 'foldkit-remote'
 import {
@@ -21,7 +21,14 @@ import {
   type ReadPlan,
   type ServerDefinition,
 } from 'foldkit-remote-server'
-import { attached, readRowsRuled, readRuled, type Deny, type InteractionKey } from './attach.js'
+import {
+  attached,
+  readRowsRuled,
+  readRuled,
+  type Attachment,
+  type Deny,
+  type InteractionKey,
+} from './attach.js'
 import { Condition, type RowRule } from './condition.js'
 import type { Policy } from './index.js'
 import type { MayAnswer } from './may.js'
@@ -34,8 +41,16 @@ const noMembers = (record: EntityRecord) => record
 const sameStored = (left: unknown, right: unknown): boolean =>
   JSON.stringify(left) === JSON.stringify(right)
 
-/** Guarded writers given no `revision`, whose check and write a change can fall between. */
-const unpinned = new WeakSet<object>()
+/** The members of `fields` that have a Read rule, once each. */
+const hiddenOf = (
+  attachment: Attachment,
+  fields: ReadonlyArray<{ readonly key: string }>,
+): ReadonlyArray<string> => [
+  ...new Set(fields.map(field => field.key).filter(key => readRuled(attachment, key))),
+]
+
+/** Each guarded writer's `revision`, or none: one a change can fall between check and write of. */
+const pins = new WeakMap<object, Option.Option<string>>()
 
 /** A ref key's two halves, `Entity:id`; `none` for anything else. */
 const refOf = (value: unknown): Option.Option<{ readonly entity: string; readonly id: string }> => {
@@ -245,13 +260,15 @@ export const GuardServer = {
    * from, and a create whose input sets a preset field is a mistake of the
    * server's, refused.
    *
-   * `revision` names a field whose stored value changes on every write of
-   * the row. An update or a delete then lands only on the revision its rules
-   * were decided over (the writer's `expect`), so a change between the check
-   * and the write is never written over; it is decided again against the row
-   * as it now is, up to three times. Without it, such a change is not seen,
-   * and `validate` warns. An input that expects a revision the row read is
-   * not at is a `Conflict`, decided before any rule.
+   * `revision` names a field stored as a number, which the writer moves on by
+   * one with each write it lands. An update or a delete then lands only on the
+   * revision its rules were decided over (the writer's `expect`), so a change
+   * between the check and the write is never written over; it is decided
+   * again against the row as it now is, up to three times. A change that does
+   * not move the revision (a handler's, `applyEdits`', raw SQL) is not seen.
+   * Without `revision`, none is, and `validate` warns. An input that expects a
+   * revision the row read is not at is a `Conflict`, decided before any rule;
+   * an input may expect only the field the writer pins.
    *
    * ```ts
    * RemoteServer.write(EditTodo, GuardServer.writer(Todo, Policy, writer(Db.Todo)))
@@ -269,10 +286,21 @@ export const GuardServer = {
     } = {},
   ): EntityWriter<Option.Option<User>, R | RW> => {
     const revision = options.revision
-    if (revision !== undefined && !Object.hasOwn(entity.fields, revision)) {
-      throw new Error(
-        `[foldkit-guard] GuardServer.writer: ${entity.name} has no field "${revision}" for its revision`,
-      )
+    if (revision !== undefined) {
+      const field = Object.hasOwn(entity.fields, revision)
+        ? (entity.fields as Readonly<Record<string, { readonly schema: Schema.Top }>>)[revision]
+        : undefined
+      if (field === undefined) {
+        throw new Error(
+          `[foldkit-guard] GuardServer.writer: ${entity.name} has no field "${revision}" for its revision`,
+        )
+      }
+      // The writer moves it on by one in the statement it writes with, so it is stored as a number.
+      if (!SchemaAST.isNumber(Schema.toEncoded(field.schema).ast)) {
+        throw new Error(
+          `[foldkit-guard] GuardServer.writer: ${entity.name}'s revision "${revision}" is not stored as a number`,
+        )
+      }
     }
     const presets = Object.entries(options.presets ?? {}).map(([field, preset]) => {
       const declared = Object.hasOwn(entity.fields, field)
@@ -395,11 +423,21 @@ export const GuardServer = {
      */
     const pinned = <A, E, RA>(
       id: string,
-      expected: boolean,
+      expect: Expect,
       missed: (outcome: A) => boolean,
       attempt: () => Effect.Effect<A, E, RA>,
     ): Effect.Effect<A, E | RemoteServerError, RA> => {
-      if (revision === undefined || expected) return attempt()
+      if (revision === undefined) return attempt()
+      if (Option.isSome(expect)) {
+        // The pin is the one revision the write moves on; another would stand still.
+        return expect.value.field === revision
+          ? attempt()
+          : Effect.fail(
+              new RemoteServerError({
+                message: `${entity.name}'s input expects "${expect.value.field}", but its writer pins "${revision}"`,
+              }),
+            )
+      }
       const loop = (left: number): Effect.Effect<A, E | RemoteServerError, RA> =>
         Effect.flatMap(attempt(), outcome =>
           !missed(outcome)
@@ -429,7 +467,7 @@ export const GuardServer = {
           id,
         ),
       update: context =>
-        pinned(context.id, Option.isSome(context.expect), Option.isNone, () =>
+        pinned(context.id, context.expect, Option.isNone, () =>
           Effect.gen(function* () {
             const { principal, values, links } = context
             const row = yield* policy.writable(entity, principal, 'Update')
@@ -523,7 +561,7 @@ export const GuardServer = {
       delete: context =>
         pinned(
           context.id,
-          Option.isSome(context.expect),
+          context.expect,
           outcome => outcome === 'moved',
           () =>
             Effect.gen(function* () {
@@ -544,7 +582,7 @@ export const GuardServer = {
             }),
         ),
     }
-    if (revision === undefined) unpinned.add(guarded)
+    pins.set(guarded, Option.fromUndefinedOr(revision))
     return writeRules.add(guarded, policy, [entity])
   },
 
@@ -753,29 +791,47 @@ export const GuardServer = {
             ([queryName, { body }]) => {
               if (body === undefined || body.entity.name !== name) return []
               const { predicate, order } = Query.dependencies(body)
-              const hidden = (fields: typeof predicate) => [
-                ...new Set(
-                  fields.map(field => field.key).filter(key => readRuled(attachment, key)),
-                ),
-              ]
               return [
-                ...hidden(predicate).map(
+                ...hiddenOf(attachment, predicate).map(
                   member =>
                     `query ${queryName} filters ${name} by ${member}, which has a Read rule`,
                 ),
-                ...hidden(order).map(
+                ...hiddenOf(attachment, order).map(
                   member => `query ${queryName} orders ${name} by ${member}, which has a Read rule`,
                 ),
               ]
             },
           )
-          const writeProblems = [...config.server.mutations].flatMap(([mutation, source]) =>
-            source.writes !== undefined &&
-            source.writes.entity === name &&
-            !writeRules.has(source.writes.writer, policy, entity)
-              ? [`write ${mutation} writes ${name} without its write rules`]
-              : [],
-          )
+          const writeProblems = [...config.server.mutations].flatMap(([mutation, source]) => {
+            if (source.writes === undefined || source.writes.entity !== name) return []
+            if (!writeRules.has(source.writes.writer, policy, entity)) {
+              return [`write ${mutation} writes ${name} without its write rules`]
+            }
+            const { write, writer } = source.writes
+            // Unmet or written, Conflict or not, answers for a member its writer may not read.
+            const when = Option.match(write.when, {
+              onNone: () => [],
+              onSome: body => hiddenOf(attachment, Query.dependencies(body).predicate),
+            })
+            const expected = write.expect?.field.key
+            const pin = typeof writer === 'object' && writer !== null ? pins.get(writer) : undefined
+            return [
+              ...when.map(
+                member =>
+                  `write ${mutation}'s precondition reads ${name}'s ${member}, which has a Read rule`,
+              ),
+              ...(expected !== undefined && readRuled(attachment, expected)
+                ? [`write ${mutation} expects ${name}'s ${expected}, which has a Read rule`]
+                : []),
+              ...(expected !== undefined &&
+              pin !== undefined &&
+              Option.exists(pin, field => field !== expected)
+                ? [
+                    `write ${mutation} expects ${name}'s ${expected}, but its writer pins ${Option.getOrThrow(pin)}`,
+                  ]
+                : []),
+            ]
+          })
           // A shared field goes to every live subscriber as written: no rule may tell them apart.
           const shared = Option.match(source, {
             onNone: () => [],
@@ -821,13 +877,11 @@ export const GuardServer = {
       throw new Error(`[foldkit-guard] GuardServer.validate: ${problems.join('; ')}`)
     }
     // Not refused yet: a writer given no revision is how every writer was made before it.
-    const unpinnedWrites = [...config.server.mutations].flatMap(([mutation, source]) =>
-      typeof source.writes?.writer === 'object' &&
-      source.writes.writer !== null &&
-      unpinned.has(source.writes.writer)
-        ? [mutation]
-        : [],
-    )
+    const unpinnedWrites = [...config.server.mutations].flatMap(([mutation, source]) => {
+      const writer = source.writes?.writer
+      const pin = typeof writer === 'object' && writer !== null ? pins.get(writer) : undefined
+      return pin !== undefined && Option.isNone(pin) ? [mutation] : []
+    })
     if (unpinnedWrites.length > 0) {
       console.warn(
         `[foldkit-guard] GuardServer.validate: ${unpinnedWrites.join(', ')} ${unpinnedWrites.length === 1 ? 'writes' : 'write'} through a GuardServer.writer with no revision, so a change between its check and its write is not seen; pass { revision }`,

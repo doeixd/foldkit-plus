@@ -310,11 +310,11 @@ export interface MutationOutcome<Output> {
 export interface MutationSource<P, R = never> {
   readonly mutation: string
   /**
-   * For a declared write (`RemoteServer.write`), the Entity it writes and the
-   * writer it lands through, as it was given one. The server never reads it;
-   * a startup check such as `GuardServer.validate` does.
+   * For a declared write (`RemoteServer.write`), the Entity it writes, the
+   * writer it lands through, as it was given one, and the write itself. The
+   * server never reads it; a startup check such as `GuardServer.validate` does.
    */
-  readonly writes?: { readonly entity: string; readonly writer: unknown }
+  readonly writes?: { readonly entity: string; readonly writer: unknown; readonly write: AnyWrite }
   readonly Input: Schema.Codec<unknown>
   readonly Output: Schema.Codec<unknown>
   readonly Refusal: Schema.Codec<unknown, unknown>
@@ -1402,13 +1402,6 @@ export const RemoteServer = {
   ): MutationRefused => new MutationRefused({ mutation: mutation.name, refusal, message }),
 
   /**
-   * A refusal of who is asking: fail a Source with it
-   * (`yield* RemoteServer.forbid()`) and the write never runs. `reason`, when
-   * given, is what the person who asked reads; without it the refusal says
-   * nothing of why. `answer` sends it as a 403, and the client's mutation
-   * fails with `_tag: 'Forbidden'`.
-   */
-  /**
    * A writer's refusal of a row that does not hold the write's `when`: fail
    * `update` or `delete` with it (`yield* RemoteServer.unmet()`), and
    * `RemoteServer.write` answers the mutation's `Unmet` refusal.
@@ -1416,6 +1409,13 @@ export const RemoteServer = {
   unmet: (message = 'The row does not hold what the write asks of it'): RemoteUnmet =>
     new RemoteUnmet({ message }),
 
+  /**
+   * A refusal of who is asking: fail a Source with it
+   * (`yield* RemoteServer.forbid()`) and the write never runs. `reason`, when
+   * given, is what the person who asked reads; without it the refusal says
+   * nothing of why. `answer` sends it as a 403, and the client's mutation
+   * fails with `_tag: 'Forbidden'`.
+   */
   forbid: (reason?: string): RemoteForbidden =>
     new RemoteForbidden({
       message: reason ?? 'Forbidden',
@@ -1474,7 +1474,7 @@ export const RemoteServer = {
     )
     return {
       mutation: mutation.name,
-      writes: { entity: writer.entity, writer },
+      writes: { entity: writer.entity, writer, write },
       Input: mutation.Input,
       Output: mutation.Output,
       Refusal: mutation.Refusal,
@@ -1502,14 +1502,25 @@ export const RemoteServer = {
           bound: { readonly entity: string; readonly id: string },
           writing: Effect.Effect<A, RemoteServerError | RemoteForbidden | RemoteUnmet, R>,
         ) =>
-          Effect.catchTag(writing, 'RemoteUnmet', () =>
-            Effect.fail(
-              RemoteServer.refuse(
-                mutation,
-                { _tag: 'Unmet' } as Refused,
-                `${bound.entity} ${bound.id} does not hold what ${mutation.name} asks of it`,
-              ),
-            ),
+          Effect.catchTag(
+            writing,
+            'RemoteUnmet',
+            (): Effect.Effect<never, RemoteServerError | MutationRefused> =>
+              Option.isNone(write.when)
+                ? // A writer unmet with no precondition to meet is wrong, and the
+                  // mutation declares no such refusal: the server's error, not one.
+                  Effect.fail(
+                    new RemoteServerError({
+                      message: `${writer.entity}'s writer refused ${mutation.name}, which has no precondition, as unmet`,
+                    }),
+                  )
+                : Effect.fail(
+                    RemoteServer.refuse(
+                      mutation,
+                      { _tag: 'Unmet' } as Refused,
+                      `${bound.entity} ${bound.id} does not hold what ${mutation.name} asks of it`,
+                    ),
+                  ),
           )
         const answered = (bound: BoundWrite, values: Readonly<Record<string, unknown>>) => {
           const read = writer.read

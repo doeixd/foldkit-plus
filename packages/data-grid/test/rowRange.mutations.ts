@@ -59,8 +59,8 @@ export default [
     edits: [
       {
         file,
-        find: '      return { model: focused, outMessage: Out.RowsRequested({ from, to: address.row }) }',
-        replace: '      return { model, outMessage: Out.RowsRequested({ from, to: address.row }) }',
+        find: '        ? focused\n',
+        replace: '        ? model\n',
       },
     ],
     tests,
@@ -72,6 +72,17 @@ export default [
         file,
         find: '        rows: GridSelection.rowsBetween(project(rows, model.columns), request.from, request.to),',
         replace: '        rows: [request.from, request.to],',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a first Shift press anchors at the row clicked',
+    edits: [
+      {
+        file,
+        find: 'anchor: Option.some(from) })',
+        replace: 'anchor: Option.some(address.row) })',
       },
     ],
     tests,
