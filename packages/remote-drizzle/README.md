@@ -825,7 +825,10 @@ the revision, so it holds of the row the write changes, on SQLite and Postgres
 alike. When nothing was written, the row read back says why: gone, moved on
 (a conflict), or else not holding the precondition (unmet). A row that already
 holds every value the write sets is the retry of one that landed, and answers as
-written. A binding with a
+written. An increment is `column = column + amount` in the same statement, and
+its sum is in the answer. For a write with one, neither recognition applies: a
+row a revision on could hold another client's increment, so a retry is a
+conflict and the field moves once. A binding with a
 `visible` rule reads the answer back through it: the row as its writer may now
 see it, or, when the write hid it from them, a deletion.
 

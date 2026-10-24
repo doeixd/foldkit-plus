@@ -415,6 +415,12 @@ would still answer for that member (Unmet or written, Conflict or not), so
 such a member. A pinned write that is unmet is not
 decided again: the row did not move, it does not hold.
 
+A declared write's `increment` is the writer's to add, in the statement that
+writes. The guard requires each incremented member's Update rule, as for a
+member it sets, and holds the row's rules over the sum the writer will store, so
+a rule `stock >= 0` refuses a sale past zero. The write must expect a revision,
+which keeps the row the guard summed over as the row the writer writes.
+
 The binding must have a `visible` rule, which is how the writer reads a row
 as its writer may see it; the writer refuses one without. That the rule is
 `GuardDrizzle.visible`'s is what `GuardServer.validate` checks of the
