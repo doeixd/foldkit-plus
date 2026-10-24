@@ -56,6 +56,15 @@ describe('a Surface Block', () => {
     expect(Hello.value(undefined)).toEqual(Option.none())
   })
 
+  it('reads a node whose id is __proto__', () => {
+    const document = page({ ['__proto__']: { name: 'Ada' } })
+    const model: Model = { greeting: 'Hi', page: document }
+    const reads = Option.getOrThrow(SurfaceBlock.reads<Model>(Site, document))
+    expect(Hello.value(reads.read(model)['__proto__'])).toEqual(
+      Option.some({ greeting: 'Hi', to: 'Ada' }),
+    )
+  })
+
   it('is active while there is a page with one, may send what its Surfaces list, once per page', () => {
     const active = SurfaceBlock.active('Features', App.owner, Site, (model: Model) =>
       Option.some(model.page),

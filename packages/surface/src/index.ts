@@ -407,7 +407,8 @@ export const Projection = {
   struct: <const Entries extends Record<string, Projection<any, any> | ModelRef<any, any>>>(
     entries: Entries & (IsUnion<EntryRoots<Entries>[keyof Entries]> extends true ? never : unknown),
   ): Projection<EntryRoot<Entries[keyof Entries]>, StructValue<Entries>> => {
-    const picked: Record<string, AnySchema> = {}
+    // Keys may be stored ids (a page's node ids), so `__proto__` must stay a key.
+    const picked: Record<string, AnySchema> = Object.create(null)
     const dependencies: (readonly string[])[] = []
     const metadata: Metadata[] = []
     const readers: (readonly [string, (root: unknown) => unknown])[] = []
@@ -427,7 +428,7 @@ export const Projection = {
     }
 
     const read = (root: unknown): unknown => {
-      const out: Record<string, unknown> = {}
+      const out: Record<string, unknown> = Object.create(null)
       for (const [key, reader] of readers) out[key] = reader(root)
       return out
     }

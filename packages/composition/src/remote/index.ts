@@ -169,7 +169,8 @@ export const QueryBlock = {
     catalog: Catalog,
     document: Document,
   ): Option.Option<Projection<AppModel, Readonly<Record<string, RemoteData<unknown>>>>> => {
-    const entries: Record<string, Projection<AppModel, RemoteData<unknown>>> = {}
+    // Node ids are stored data: a `__proto__` node must still be a key.
+    const entries: Record<string, Projection<AppModel, RemoteData<unknown>>> = Object.create(null)
     for (const id of index(document).keys()) {
       const node = document.nodes[id]
       const block: AnyBlock | undefined =
