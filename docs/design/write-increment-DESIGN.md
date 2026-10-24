@@ -93,8 +93,9 @@ a startup check deciding what the write can disclose.
   a real; a value past the column's range fails as the database fails it.
 - A stored `null` never matches: the field's encoded schema is a plain number,
   so a nullable field is refused where the write is declared.
-- An amount the input leaves out (an `Option` holding nothing) adds nothing to
-  that field.
+- An amount is a plain number in the input: an `Option` or a nullable amount
+  is not stored as a number, and is refused where the write is declared. An
+  optional key the input leaves out adds nothing.
 - `keys` narrows increments as it narrows values: an increment of a key the
   author did not name is not applied.
 
@@ -108,7 +109,8 @@ a startup check deciding what the write can disclose.
   an insert or a delete: each refused.
 - Through a guard: the after-state rule sees the incremented value (a rule
   `stock >= 0` refuses a decrement past zero); the incremented field needs its
-  Update rule.
+  Update rule. The guard reads the field only through the rules that read it:
+  a rule that does not read it does not judge the sum.
 - The optimistic patch leaves the incremented field out.
 - `Write.reads` lists the `when`'s fields, the incremented field and the
   revision; `Write.writes` lists the incremented field.

@@ -54,6 +54,17 @@ version changed; `pnpm` skips versions already in the registry.
   `GuardServer.validate` refuses a `when` or an `expect` over a member with a
   Read rule, which would answer for it. A guarded writer's `revision` must be
   stored as a number, and an input may expect only that field. (#182)
+- **A declared update can move a number field by an amount: `increment`.**
+  `Write.update(input, { id, expect, increment: { stock: 'quantity' } })` adds
+  the input's unmapped `quantity` to the stored `stock`, in the statement that
+  writes (`column = column + amount` in the Drizzle writer). It must `expect`
+  a revision, so a retry of a write that landed is a `Conflict`, never a
+  second increment; Remote's recognition of a lost answer is off for such a
+  write. `Write.bind` returns `increments` apart from `values`, so the
+  optimistic patch shows no sum. `EntityWriter.update` receives `increments`,
+  and a writer without `increments: true` is refused for such a write.
+  `GuardServer.writer` requires the member's Update rule and judges the sum.
+  `Write.reads` lists what a write reads from its row. (#182)
 
 ### Fixed
 

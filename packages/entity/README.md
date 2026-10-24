@@ -366,6 +366,18 @@ writes, and a row it does not hold of is refused as unmet. A write declared with
 one is a `ConditionedWrite`, which is how `Mutation.write` knows it may be
 refused so.
 
+An update may move a number field by an amount the input holds, rather than set
+it: `increment: { stock: 'quantity' }` adds the input's `quantity` (an unmapped
+key, a number; negative takes away) to the stored `stock`, in the statement that
+writes, so no concurrent change is lost. It must `expect` a revision: a retry of
+a write that landed is then a conflict, never a second increment. The field must
+be stored as a number, and may not be the id, the revision, or set by another
+key. `Write.bind` gives the amounts apart from the values (`increments`), so an
+optimistic patch shows no sum computed over a row that may be stale; the field
+keeps its value until the server answers. `Write.reads(write)` is what a write
+reads from its row: what its `when` reads, each field it increments, and the
+revision.
+
 ## Attaching metadata
 
 An interpreter declares a [`foldkit-metadata`](../metadata/README.md) key and
@@ -709,7 +721,8 @@ from queries, not from what a database could express.
 | `Entity.select(entity, { key: true or Selection })` | A Selection: what was selected (`members`) and the `schema` of the result. |
 | `Entity.page(selection, { first, after } or { last, before })` | In a Selection, a `many` relation read as a page: `items`, `hasNext`, `hasPrevious`. |
 | `Entity.fields(entity, ...keys)` | The schemas of those fields, by key, to spread into an input's struct. |
-| `Write.update(input, { id, expect?, when? })` | A declared update of one row: every key the input maps to a field, but the id and the expected revision; `when`, what the row must hold for it to land. |
+| `Write.update(input, { id, expect?, when?, increment? })` | A declared update of one row: every key the input maps to a field, but the id and the expected revision; `when`, what the row must hold for it to land; `increment`, the number fields it moves by an input amount. |
+| `Write.reads(write)` | The fields a write reads from its row: its `when`'s, each it increments, the revision. |
 | `Write.writes(write)` / `Write.bind(write, value, keys?)` | The fields it may change; the row and values one input writes, encoded as the store holds them. |
 | `Entity.input(entity, struct, mapping?)` | Experimental. Which member each key of an operation's input writes. |
 | `Relation.nested(relation, input)` | In an input mapping: the key holds the target itself, written through `input`. |
