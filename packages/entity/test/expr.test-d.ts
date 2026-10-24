@@ -11,6 +11,7 @@ import {
   Expr,
   Order,
   Query,
+  Write,
   dependenciesOf,
   type AndPredicate,
   type ComparePredicate,
@@ -230,3 +231,17 @@ Query.from(Post).pipe(
   // @ts-expect-error a Doc field orders no Post
   Query.orderBy(Order.desc(Doc.fields.rank)),
 )
+
+// A write's precondition reads its own Entity, typed by the input it is given.
+const Retitle = Entity.input(Doc, Schema.Struct({ id: Schema.String, rank: Schema.Number }))
+Write.update(Retitle, { id: 'id', when: ({ input }) => Expr.lt(Doc.fields.rank, input.rank) })
+Write.update(Retitle, {
+  id: 'id',
+  // @ts-expect-error a Post field is no precondition of a Doc
+  when: () => Expr.eq(Post.fields.title, 'x'),
+})
+Write.update(Retitle, {
+  id: 'id',
+  // @ts-expect-error the rank input is a number; a title is text
+  when: ({ input }) => Expr.eq(Doc.fields.title, input.rank),
+})
