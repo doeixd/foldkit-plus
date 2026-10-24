@@ -1006,6 +1006,7 @@ export {
   Write,
   type AnyWrite,
   type BoundWrite,
+  type ConditionedWrite,
   type WriteCondition,
   type WriteLink,
   type WriteSet,
