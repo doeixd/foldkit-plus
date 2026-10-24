@@ -468,7 +468,14 @@ RemoteServer.write(EditProject, writer(Db.Project)) // `writer` from foldkit-rem
 
 The answer is the mutation's patch, or for a delete its deletion. With
 `expect`, the writer is told the revision the row was read at; no row at it is
-refused as `Refusal.conflict`. An update of no row fails; an insert of an id
+refused as `Refusal.conflict`. With `when`, the writer is handed the
+precondition and the input encoded, checks it in the statement that writes, and
+fails a row at the revision that does not hold it with `RemoteUnmet`
+(`RemoteServer.unmet()`), which is refused as `Refusal.unmet`: absent first, then
+a moved revision, then the precondition. A writer says it checks one
+(`preconditions: true` on `EntityWriter`), and a write with a `when` over a
+writer that does not is refused where it is served, rather than written whatever
+the row holds. An update of no row fails; an insert of an id
 already holding what it writes answers that row, and a delete of a row already
 gone succeeds, so a retry of either is safe. An insert of an id holding
 anything else fails: that row is not its answer. The writer must be for the write's own Entity,

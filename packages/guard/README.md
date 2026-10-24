@@ -400,6 +400,14 @@ was written"; nothing is written over a version no rule saw. An input that
 rule, and not retried. A writer with no `revision` keeps the window, and
 `GuardServer.validate` warns of each write through one.
 
+A declared write's `when` (`foldkit-entity`) is the writer's to check, in the
+statement that writes; the guarded writer passes it through and speaks first.
+The order is: a row hidden from the writer, then a rule that does not hold
+(both `Forbidden`), then a stale input revision (`Conflict`), then the
+precondition (`Unmet`). So `Unmet` reaches only someone the rules let write the
+row, and says nothing a read would not. A pinned write that is unmet is not
+decided again: the row did not move, it does not hold.
+
 The binding must have a `visible` rule, which is how the writer reads a row
 as its writer may see it; the writer refuses one without. That the rule is
 `GuardDrizzle.visible`'s is what `GuardServer.validate` checks of the

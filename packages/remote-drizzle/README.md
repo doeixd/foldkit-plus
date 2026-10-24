@@ -819,7 +819,13 @@ named some, so two authors editing different fields of a row both land. The
 written fields answer as the mutation's patch. A write that `expect`s a revision
 is guarded by that column and moves it on by one in the same statement: of two
 writes made from one revision, the second finds no row and is refused as a
-conflict. A write that expects none, to a row that is not there, fails. A binding with a
+conflict. A write that expects none, to a row that is not there, fails. A
+write's `when` is compiled into the same statement's `WHERE`, beside the id and
+the revision, so it holds of the row the write changes, on SQLite and Postgres
+alike. When nothing was written, the row read back says why: gone, moved on
+(a conflict), or else not holding the precondition (unmet). A row that already
+holds every value the write sets is the retry of one that landed, and answers as
+written. A binding with a
 `visible` rule reads the answer back through it: the row as its writer may now
 see it, or, when the write hid it from them, a deletion.
 

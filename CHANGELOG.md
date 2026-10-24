@@ -40,6 +40,17 @@ version changed; `pnpm` skips versions already in the registry.
   the row is not at is a `Conflict`, decided before any rule. Without
   `revision` nothing changes, and `GuardServer.validate` warns of each write
   through such a writer. (#182)
+- **A declared write can say when it makes sense: `when`.** `Write.update` and
+  `Write.delete` (`foldkit-entity`) take `when: ({ input }) => Predicate`, a
+  query body over the write's own Entity, read from the row before the write
+  and the input. The Drizzle writer compiles it into the statement's own
+  `WHERE`, so it holds of the row the write changes, and a row that does not
+  hold it is refused as `Refusal.unmet` (`foldkit-remote`). `Mutation.write`'s
+  `Refusal` includes `Unmet` only for a write with a `when`. `EntityWriter`
+  gains `when` in its update and delete contexts, `RemoteUnmet`
+  (`RemoteServer.unmet()`), and `preconditions: true`, without which
+  `RemoteServer.write` refuses a write with a `when`. Through
+  `GuardServer.writer`, `Forbidden` and `Conflict` come before `Unmet`. (#182)
 
 ### Fixed
 

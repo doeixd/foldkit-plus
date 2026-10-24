@@ -135,7 +135,10 @@ reuses the fields' schemas, and a mapping may name a member by key:
 { id, expect? })` declare the other two kinds. `Write.update(input, { id: 'id', expect? })` declares
 an update of one row from that input (every key mapped to a field is set, a
 `one` relation key is pointed and bound to a ref in `links`; an unmapped key is
-not written; a `many` or nested key is refused). `Write.writes(write)` is what
+not written; a `many` or nested key is refused). `when: ({ input }) =>
+Expr.eq(Post.fields.status, 'draft')` on an update or a delete is what the row
+must hold for it to land, over its own Entity only, checked where it commits and
+refused as unmet. `Write.writes(write)` is what
 it may change and `Write.bind(write, value, keys?)` the row and its encoded new
 values, for an optimistic patch or a server to write.
 

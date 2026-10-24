@@ -1,6 +1,9 @@
 # Preconditions on a declared write
 
-**Status:** Proposed, 2026-10-24. Nothing built. #182 §3 ("static
+**Status:** Proposed and built, 2026-10-24, with §5's proposals taken as
+decided. Tests: `packages/remote-drizzle/test/precondition.test.ts`,
+`packages/guard/test/pinned.test.ts`, mutations in
+`packages/remote-drizzle/test/precondition.mutations.ts`. #182 §3 ("static
 preconditions and well-defined outcomes"), the step after
 [guard-atomic-DESIGN.md](./guard-atomic-DESIGN.md). Expression assignments
 (§2), dependency analysis (§4) and computed-write retries (§5) are later steps.
@@ -124,7 +127,10 @@ refuses, as every refused mutation's is. The client does not evaluate `when`
 here: its cached row may be stale or incomplete, and §4 of the issue makes
 client prediction its own step.
 
-## 5. Open questions for review
+## 5. Questions reviewed
+
+Each proposal below was taken as written.
+
 
 1. **The refusal's name and payload.** `Unmet`, with nothing in it, is
    proposed. A `reason` naming which condition (a label given beside `when`)

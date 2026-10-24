@@ -1454,7 +1454,10 @@ Data.mutate(model, EditProject, { id: 'p1', name: 'Apollo II', status: 'active' 
 ```
 
 `Refusal.field(key, reason)` names an input key and why; `Refusal.conflict`
-says the row moved on. The server sends the refusal encoded by this schema and
+says the row moved on, and `Refusal.unmet` that it does not hold what a declared
+write's `when` asks of it. A `Mutation.write` is refused as unmet only when its
+write has a `when`, and its `Refusal` type says so: without one it stays
+`Conflict`, so a match over it needs no `Unmet` arm. The server sends the refusal encoded by this schema and
 `Data.refusal` decodes it by the same one; it is none while the mutation is
 pending or applied, or when it failed for another reason.
 
