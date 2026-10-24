@@ -50,7 +50,10 @@ version changed; `pnpm` skips versions already in the registry.
   gains `when` in its update and delete contexts, `RemoteUnmet`
   (`RemoteServer.unmet()`), and `preconditions: true`, without which
   `RemoteServer.write` refuses a write with a `when`. Through
-  `GuardServer.writer`, `Forbidden` and `Conflict` come before `Unmet`. (#182)
+  `GuardServer.writer`, `Forbidden` and `Conflict` come before `Unmet`, and
+  `GuardServer.validate` refuses a `when` or an `expect` over a member with a
+  Read rule, which would answer for it. A guarded writer's `revision` must be
+  stored as a number, and an input may expect only that field. (#182)
 
 ### Fixed
 

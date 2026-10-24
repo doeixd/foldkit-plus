@@ -350,12 +350,24 @@ export default [
   },
   {
     name: 'a body may filter by a hidden member',
-    edits: [{ file, find: '...hidden(predicate).map(', replace: '...hidden([]).map(' }],
+    edits: [
+      {
+        file,
+        find: '...hiddenOf(attachment, predicate).map(',
+        replace: '...hiddenOf(attachment, []).map(',
+      },
+    ],
     tests,
   },
   {
     name: 'a body may order by a hidden member',
-    edits: [{ file, find: '...hidden(order).map(', replace: '...hidden([]).map(' }],
+    edits: [
+      {
+        file,
+        find: '...hiddenOf(attachment, order).map(',
+        replace: '...hiddenOf(attachment, []).map(',
+      },
+    ],
     tests,
   },
   {

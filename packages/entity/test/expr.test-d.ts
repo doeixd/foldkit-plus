@@ -13,6 +13,7 @@ import {
   Query,
   Write,
   dependenciesOf,
+  type WriteCondition,
   type AndPredicate,
   type ComparePredicate,
   type EqPredicate,
@@ -245,3 +246,13 @@ Write.update(Retitle, {
   // @ts-expect-error the rank input is a number; a title is text
   when: ({ input }) => Expr.eq(Doc.fields.title, input.rank),
 })
+// An optional `when` in a variable could be none or a precondition: it picks neither overload,
+// since the plain one would type a write that may be refused as unmet as one that may not.
+const maybe: {
+  readonly id: 'id'
+  readonly when?: WriteCondition<typeof Doc, typeof Retitle.schema.fields>
+} = {
+  id: 'id',
+}
+// @ts-expect-error a `when` that may be there needs the caller to say which
+Write.update(Retitle, maybe)

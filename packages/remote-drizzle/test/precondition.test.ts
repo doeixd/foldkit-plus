@@ -96,10 +96,15 @@ const server = RemoteServer.make({
 })
 const handlers = RemoteServer.handlers(server, undefined)
 let requests = 0
-const run = (mutation: string, input: unknown) =>
+const run = (mutation: string, input: unknown, keys?: ReadonlyArray<string>) =>
   Effect.runPromise(
     handlers
-      .FoldkitRemoteMutate({ requestId: `r${++requests}`, mutation, input })
+      .FoldkitRemoteMutate({
+        requestId: `r${++requests}`,
+        mutation,
+        input,
+        ...(keys === undefined ? {} : { keys }),
+      })
       .pipe(Effect.result, Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
   )
 const refusedAs = (tag: string) => ({ _tag: 'Failure', failure: { refusal: { _tag: tag } } })
@@ -165,6 +170,36 @@ describe('A write with a precondition', () => {
     expect(row()).toBeUndefined()
     // Gone is gone: a retry of the delete succeeds.
     expect((await run('Drop', { id: 'p1' }))._tag).toBe('Success')
+  })
+
+  it('is unmet with nothing to set, not answered as a retry of itself', async () => {
+    seed('paused')
+    // No key named: the row holds every value the write sets, vacuously.
+    expect(await run('Archive', { id: 'p1', status: 'archived' }, [])).toMatchObject(
+      refusedAs('Unmet'),
+    )
+  })
+
+  it('takes an unmet from a writer for a write with no precondition as the server’s error', async () => {
+    seed('active')
+    const Plain = Mutation.write('Plain', Write.update(StatusInput, { id: 'id' }))
+    const wrong = { ...writer(Db.Project), update: () => Effect.fail(RemoteServer.unmet()) }
+    const failed = await Effect.runPromise(
+      RemoteServer.handlers(
+        RemoteServer.make({ entities: [], mutations: [RemoteServer.write(Plain, wrong)] }),
+        undefined,
+      )
+        .FoldkitRemoteMutate({
+          requestId: 'wrong',
+          mutation: 'Plain',
+          input: { id: 'p1', status: 'x' },
+        })
+        .pipe(Effect.result, Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
+    )
+    expect(failed).toMatchObject({
+      _tag: 'Failure',
+      failure: { message: "Project's writer refused Plain, which has no precondition, as unmet" },
+    })
   })
 
   it('refuses a writer that does not check preconditions, where the write is declared', () => {

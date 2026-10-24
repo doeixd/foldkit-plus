@@ -388,8 +388,9 @@ RemoteServer.write(EditTodo, GuardServer.writer(Todo, Policy, writer(Db.Todo)))
   so the client takes it out of its lists instead of placing it.
 
 Reading the row and writing it are two statements, so another write can land
-between the check and the write. Name a field whose stored value changes on
-every write of the row, and the guard closes that window: for an Entity with
+between the check and the write. Name a revision, a field stored as a number
+that the writer moves on by one with every write it lands, and the guard closes
+that window for every write that moves it: for an Entity with
 a `revision` field, `GuardServer.writer(Todo, Policy, writer(Db.Todo), {
 revision: 'revision' })`. Every update and delete then lands only on the
 revision its rules were decided over (the writer's `expect`, one compare and
@@ -397,15 +398,21 @@ set statement). If the row moved after the check, it is decided again over
 the row as it now is, up to three times, then fails with "changed while it
 was written"; nothing is written over a version no rule saw. An input that
 `expect`s a revision the row is not at is a `Conflict`, decided before any
-rule, and not retried. A writer with no `revision` keeps the window, and
-`GuardServer.validate` warns of each write through one.
+rule, and not retried. An input may expect only the revision the writer pins:
+one expecting another field is refused, at startup by `GuardServer.validate`
+and at run time, since the pin would leave that field where it was. A writer
+with no `revision` keeps the window, and `GuardServer.validate` warns of each
+write through one.
 
 A declared write's `when` (`foldkit-entity`) is the writer's to check, in the
 statement that writes; the guarded writer passes it through and speaks first.
 The order is: a row hidden from the writer, then a rule that does not hold
 (both `Forbidden`), then a stale input revision (`Conflict`), then the
 precondition (`Unmet`). So `Unmet` reaches only someone the rules let write the
-row, and says nothing a read would not. A pinned write that is unmet is not
+row. A precondition, or an expected revision, over a member with a Read rule
+would still answer for that member (Unmet or written, Conflict or not), so
+`GuardServer.validate` refuses one, as it refuses a query body that filters by
+such a member. A pinned write that is unmet is not
 decided again: the row did not move, it does not hold.
 
 The binding must have a `visible` rule, which is how the writer reads a row
@@ -773,11 +780,12 @@ const uploads = uploadLayer().pipe(
 - **A Sync document is one audience.** Per-member or per-row secrecy within
   one is not something a replicated log offers: `GuardSync.document` refuses
   it where it is declared.
-- **A `revision` pins one row.** A write rule reads the principal and the
-  row, so pinning the row's revision makes the check and the write one; a
-  store written around the revision (raw SQL, a migration that leaves it
-  alone) defeats it, and so does Sync's `applyEdits`, which keeps one
-  revision for two changes in one operation. A writer given no `revision`
+- **A `revision` pins one row, against the writes that move it.** A write
+  rule reads the principal and the row, so pinning the row's revision makes
+  the check and the write one. Only the declared writes that pin or `expect`
+  it move it on: a handler (`RemoteServer.mutation`), raw SQL or a migration
+  that changes the row without moving it is not seen, nor is Sync's
+  `applyEdits`, which keeps one revision for two changes in one operation. A writer given no `revision`
   does not see a change landing between its check and its write.
 - **Sync's `admit` reads the table, which lags the journal.** An edit lands
   in the table when its exchange settles, so an edit admitted before another

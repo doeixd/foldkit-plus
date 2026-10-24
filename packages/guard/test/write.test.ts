@@ -10,7 +10,7 @@ import { Effect, Option, Result, Schema } from 'effect'
 import { Entity, Expr, Relation, Write } from 'foldkit-entity'
 import { Mutation, Remote } from 'foldkit-remote'
 import { bind, databaseLayer, source, writer, type DrizzleDatabase } from 'foldkit-remote-drizzle'
-import { RemoteServer, type EntityWriter } from 'foldkit-remote-server'
+import { RemoteServer, type EntityWriter, type MutationSource } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
 import { GuardDrizzle } from '../src/drizzle.js'
 import { Guards, Interaction } from '../src/index.js'
@@ -463,6 +463,48 @@ describe('GuardServer.validate over writes', () => {
 
   it('passes a declared write that lands through the guarded writer', () => {
     expect(check(guarded)).not.toThrow()
+  })
+
+  it('refuses a precondition or an expected revision that reads a member with a Read rule', () => {
+    const TitleInput = Entity.input(
+      Todo,
+      Schema.Struct({ id: Schema.String, title: Schema.String, guess: Schema.String }),
+      { guess: Entity.unmapped },
+    )
+    // Unmet or written would say whether the guess is who claimed it, which the writer may not read.
+    const Probe = Mutation.write(
+      'Probe',
+      Write.update(TitleInput, {
+        id: 'id',
+        when: ({ input }) => Expr.eq(Related.Todo.fields.claimedBy, input.guess),
+      }),
+    )
+    const ClaimAt = Mutation.write(
+      'ClaimAt',
+      Write.update(
+        Entity.input(
+          Todo,
+          Schema.Struct({
+            id: Schema.String,
+            title: Schema.String,
+            claimedBy: Schema.NullOr(Schema.String),
+          }),
+        ),
+        { id: 'id', expect: 'claimedBy' },
+      ),
+    )
+    const serving = (source: MutationSource<Option.Option<User>, DrizzleDatabase>) => () =>
+      GuardServer.validate(Policy, {
+        entities: [Todo],
+        domain: Remote.define({ entities: [Todo, Note, Related.Project] }),
+        server: RemoteServer.make({ entities: [], mutations: [source] }),
+      })
+    expect(serving(RemoteServer.write(Probe, guarded))).toThrow(
+      "write Probe's precondition reads Todo's claimedBy, which has a Read rule",
+    )
+    expect(serving(RemoteServer.write(ClaimAt, guarded))).toThrow(
+      "write ClaimAt expects Todo's claimedBy, which has a Read rule",
+    )
   })
 
   it('refuses one through a bare writer, or a writer guarded by another Policy or Entity', () => {

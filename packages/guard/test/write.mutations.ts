@@ -167,7 +167,13 @@ export default [
   },
   {
     name: 'validate takes any writer of any Entity as guarded',
-    edits: [{ file, find: 'source.writes.entity === name &&', replace: '' }],
+    edits: [
+      {
+        file,
+        find: 'if (source.writes === undefined || source.writes.entity !== name) return []',
+        replace: 'if (source.writes === undefined) return []',
+      },
+    ],
     tests,
   },
   {
@@ -175,7 +181,7 @@ export default [
     edits: [
       {
         file: '../../remote-server/src/index.ts',
-        find: 'writes: { entity: writer.entity, writer },',
+        find: 'writes: { entity: writer.entity, writer, write },',
         replace: '',
       },
     ],
@@ -358,6 +364,28 @@ export default [
   {
     name: "a writer for another Entity takes this one's rules",
     edits: [{ file, find: 'if (writer.entity !== entity.name) {', replace: 'if (false) {' }],
+    tests,
+  },
+  {
+    name: 'validate takes a precondition over a hidden member',
+    edits: [
+      {
+        file,
+        find: 'onSome: body => hiddenOf(attachment, Query.dependencies(body).predicate),',
+        replace: 'onSome: () => [],',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'validate takes an expected revision on a hidden member',
+    edits: [
+      {
+        file,
+        find: '...(expected !== undefined && readRuled(attachment, expected)',
+        replace: '...(false',
+      },
+    ],
     tests,
   },
 ]
