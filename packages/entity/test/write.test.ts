@@ -4,7 +4,7 @@
  */
 import { Option, Schema, SchemaGetter } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Entity, Relation, Write } from '../src/index.js'
+import { Entity, Expr, Relation, Write, evaluate, type Predicate } from '../src/index.js'
 
 /** A date the store keeps as ISO text: what bind must encode to. */
 const Day = Schema.Date.pipe(
@@ -272,5 +272,35 @@ describe('Write.insert and Write.delete', () => {
     expect(() =>
       Write.insert(Entity.input(Blog.Post, Schema.Struct({ id: Schema.String })), { id: 'id' }),
     ).toThrow('sets no field')
+  })
+})
+
+describe('A write with a precondition', () => {
+  const Retitle = Entity.input(
+    Post,
+    Schema.Struct({ id: Schema.String, title: Schema.String, from: Schema.String }),
+    { from: Entity.unmapped },
+  )
+
+  it('holds it as a query over its Entity, reading the input by its keys', () => {
+    const write = Write.update(Retitle, {
+      id: 'id',
+      when: ({ input }) => Expr.eq(Post.fields.title, input.from),
+    })
+    const body = Option.getOrThrow(write.when)
+    expect(body.entity).toBe(Post)
+    expect(evaluate(body, { from: 'Draft' }, [{ id: 'p1', title: 'Draft' }])).toHaveLength(1)
+    expect(evaluate(body, { from: 'Draft' }, [{ id: 'p1', title: 'Final' }])).toHaveLength(0)
+    expect(Write.update(Retitle, { id: 'id' }).when).toEqual(Option.none())
+  })
+
+  it('refuses one over another Entity, though its type does not say whose it is', () => {
+    const elsewhere: Predicate = Expr.eq(Author.fields.name, 'Ada')
+    expect(() =>
+      Write.delete(Entity.input(Post, Schema.Struct({ id: Schema.String })), {
+        id: 'id',
+        when: () => elsewhere,
+      }),
+    ).toThrow('Author')
   })
 })

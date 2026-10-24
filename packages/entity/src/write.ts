@@ -22,6 +22,7 @@ import type {
   EntityRelation,
   InputMember,
 } from './index.js'
+import { Expr, Query, type AnyQuery, type InputExpr, type Predicate, type Reads } from './expr.js'
 
 type AnyField = EntityField<string, string, Schema.Constraint>
 type OneRelation = EntityRelation<string, string, AnyEntity, 'one', boolean>
@@ -52,6 +53,12 @@ export interface Write<E extends AnyEntity, Fields extends Schema.Struct.Fields>
    * the write is refused for a row that moved on since.
    */
   readonly expect: (WriteSet & { readonly key: keyof Fields & string }) | undefined
+  /**
+   * What the row must hold for the write to land, over the Entity, read
+   * before the write and checked where it commits: an interpreter writes only
+   * a row it holds of, and refuses the rest as unmet.
+   */
+  readonly when: Option.Option<AnyQuery>
   /** The keys it sets, in the input's order. */
   readonly sets: ReadonlyArray<WriteSet>
   /** The `one` relations it points elsewhere, in the input's order. */
@@ -59,6 +66,17 @@ export interface Write<E extends AnyEntity, Fields extends Schema.Struct.Fields>
 }
 
 export type AnyWrite = Write<AnyEntity, any>
+
+/**
+ * A write's precondition: a predicate over its Entity's row, given one
+ * placeholder per input key, as a `Query.define` body is. It is built once,
+ * so `input` stands for what the write will be given.
+ */
+export type WriteCondition<E extends AnyEntity, Fields extends Schema.Struct.Fields> = (context: {
+  readonly input: {
+    readonly [K in keyof Fields & string]: InputExpr<Schema.Schema.Type<Fields[K]>>
+  }
+}) => Predicate & Reads<E['name']>
 
 /** One row's new values, in the store's wire shape: what a client patches and a server writes. */
 export interface BoundWrite {
@@ -109,7 +127,11 @@ const fieldAt = (input: EntityInput<AnyEntity, any, any>, key: string, role: str
 const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
   kind: Write<E, Fields>['_tag'],
   input: EntityInput<E, Fields, any>,
-  options: { readonly id: keyof Fields & string; readonly expect?: keyof Fields & string },
+  options: {
+    readonly id: keyof Fields & string
+    readonly expect?: keyof Fields & string
+    readonly when?: WriteCondition<E, Fields>
+  },
 ): Write<E, Fields> => {
   const id = fieldAt(input, options.id, 'id')
   if (id.key !== 'id') fail(input, `id "${options.id}" is mapped to "${id.key}", not to "id"`)
@@ -142,11 +164,22 @@ const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
         fail(input, `"${key}" writes a nested row; a write writes its own row only`)
     }
   }
+  const when = Option.map(Option.fromUndefinedOr(options.when), condition => {
+    const placeholders: Record<string, InputExpr<unknown>> = Object.create(null)
+    for (const [key, schema] of Object.entries(input.schema.fields)) {
+      placeholders[key] = Expr.input(key, schema as unknown as Schema.Codec<unknown, unknown>)
+    }
+    // `where` refuses a predicate over another Entity, which the type allows when it is unmarked.
+    return Query.from(input.entity).pipe(
+      Query.where(condition({ input: placeholders as never }) as Predicate),
+    ) as AnyQuery
+  })
   return Object.freeze({
     _tag: kind,
     input,
     id: Object.freeze({ key: options.id, field: id }),
     expect,
+    when,
     sets: Object.freeze(sets),
     links: Object.freeze(links),
   })
@@ -174,12 +207,17 @@ export const Write = {
    * id it holds. Refused where it is written: an `id` that is not the Entity's
    * `id` field, a `many` relation or a nested key (not written by an update
    * yet), or nothing to set.
+   *
+   * `when` is what the row must hold for the update to land, checked where it
+   * commits (`({ input }) => Expr.eq(Post.fields.status, 'draft')`); a row it
+   * does not hold of is refused as unmet.
    */
   update: <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
     input: EntityInput<E, Fields, any>,
     options: {
       readonly id: keyof Fields & string
       readonly expect?: keyof Fields & string
+      readonly when?: WriteCondition<E, Fields>
     },
   ): Write<E, Fields> => {
     return settingSomething(declared('Update', input, options))
@@ -202,13 +240,14 @@ export const Write = {
    * Deletes the row whose id is the input's `id` key, only while it is still at
    * the revision `expect` names, when it names one. It sets nothing, so a key
    * mapped to a member is refused where it is written. A row already gone (a
-   * retry) is gone.
+   * retry) is gone. `when`, as an update's, is what the row must hold.
    */
   delete: <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
     input: EntityInput<E, Fields, any>,
     options: {
       readonly id: keyof Fields & string
       readonly expect?: keyof Fields & string
+      readonly when?: WriteCondition<E, Fields>
     },
   ): Write<E, Fields> => {
     const write = declared('Delete', input, options)
