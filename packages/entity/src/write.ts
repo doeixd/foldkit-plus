@@ -67,6 +67,40 @@ export interface Write<E extends AnyEntity, Fields extends Schema.Struct.Fields>
 
 export type AnyWrite = Write<AnyEntity, any>
 
+/** A write declared with a precondition, so it may be refused as unmet. */
+export type ConditionedWrite<E extends AnyEntity, Fields extends Schema.Struct.Fields> = Write<
+  E,
+  Fields
+> & { readonly when: Option.Some<AnyQuery> }
+
+interface RowOptions<Fields extends Schema.Struct.Fields> {
+  readonly id: keyof Fields & string
+  readonly expect?: keyof Fields & string
+}
+
+/** `update` or `delete`: conditioned when given `when`, which the overloads tell apart. */
+interface RowWrite {
+  <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
+    input: EntityInput<E, Fields, any>,
+    options: RowOptions<Fields> & { readonly when: WriteCondition<E, Fields> },
+  ): ConditionedWrite<E, Fields>
+  <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
+    input: EntityInput<E, Fields, any>,
+    options: RowOptions<Fields>,
+  ): Write<E, Fields>
+}
+
+// `declared` sets `when` exactly when it is given, which is what the overloads say.
+const update: RowWrite = (input: EntityInput<AnyEntity, any, any>, options: RowOptions<any>) =>
+  settingSomething(declared('Update', input, options)) as never
+
+const remove: RowWrite = (input: EntityInput<AnyEntity, any, any>, options: RowOptions<any>) => {
+  const write = declared('Delete', input, options)
+  const named = [...write.sets, ...write.links][0]
+  if (named !== undefined) fail(input, `a delete sets nothing, but "${named.key}" is mapped`)
+  return write as never
+}
+
 /**
  * A write's precondition: a predicate over its Entity's row, given one
  * placeholder per input key, as a `Query.define` body is. It is built once,
@@ -130,7 +164,7 @@ const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
   options: {
     readonly id: keyof Fields & string
     readonly expect?: keyof Fields & string
-    readonly when?: WriteCondition<E, Fields>
+    readonly when?: WriteCondition<E, Fields> | undefined
   },
 ): Write<E, Fields> => {
   const id = fieldAt(input, options.id, 'id')
@@ -212,16 +246,7 @@ export const Write = {
    * commits (`({ input }) => Expr.eq(Post.fields.status, 'draft')`); a row it
    * does not hold of is refused as unmet.
    */
-  update: <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
-    input: EntityInput<E, Fields, any>,
-    options: {
-      readonly id: keyof Fields & string
-      readonly expect?: keyof Fields & string
-      readonly when?: WriteCondition<E, Fields>
-    },
-  ): Write<E, Fields> => {
-    return settingSomething(declared('Update', input, options))
-  },
+  update,
 
   /**
    * Inserts the row whose id is the input's `id` key, an id the client chose,
@@ -242,19 +267,7 @@ export const Write = {
    * mapped to a member is refused where it is written. A row already gone (a
    * retry) is gone. `when`, as an update's, is what the row must hold.
    */
-  delete: <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
-    input: EntityInput<E, Fields, any>,
-    options: {
-      readonly id: keyof Fields & string
-      readonly expect?: keyof Fields & string
-      readonly when?: WriteCondition<E, Fields>
-    },
-  ): Write<E, Fields> => {
-    const write = declared('Delete', input, options)
-    const named = [...write.sets, ...write.links][0]
-    if (named !== undefined) fail(input, `a delete sets nothing, but "${named.key}" is mapped`)
-    return write
-  },
+  delete: remove,
 
   /**
    * The revision this input says the row was read at, encoded, with its field:

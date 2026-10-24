@@ -6,7 +6,13 @@
  * unknown or already-applied result is a no-op.
  */
 import { Match, Option, Record as Rec, Schema } from 'effect'
-import { Write as DomainWrite, type AnyWrite, type BoundWrite, type Write } from 'foldkit-entity'
+import {
+  Write as DomainWrite,
+  type AnyWrite,
+  type BoundWrite,
+  type ConditionedWrite,
+  type Write,
+} from 'foldkit-entity'
 import type { RemoteError } from './remoteData.js'
 import { entityKey, tombstone, writeEntities, type EntityStore } from './store.js'
 
@@ -157,6 +163,8 @@ export interface MutationDescriptor<Name extends string, Input, Output, Refused 
 }
 
 const conflict = Schema.TaggedStruct('Conflict', {})
+const unmet = Schema.TaggedStruct('Unmet', {})
+const conflictOrUnmet = Schema.Union([conflict, unmet])
 const anyField = Schema.TaggedStruct('Field', { key: Schema.String, reason: Schema.Unknown })
 
 /** Refusals a form or an editor knows how to show. */
@@ -166,11 +174,21 @@ export const Refusal = {
     Schema.TaggedStruct('Field', { key: Schema.Literal(key), reason }),
   /** The row moved on since the client read it; the author decides what wins. */
   conflict,
+  /** The row does not hold what the write's `when` asks of it, where it would commit. */
+  unmet,
   /** Whether a refusal, of whatever mutation, is a `Refusal.field`. */
   isField: Schema.is(anyField),
   /** Whether a refusal, of whatever mutation, is `Refusal.conflict`. */
   isConflict: Schema.is(conflict),
+  /** Whether a refusal, of whatever mutation, is `Refusal.unmet`. */
+  isUnmet: Schema.is(unmet),
 }
+
+/** What a declared write may be refused with: unmet too, when it has a `when`. */
+export type RefusalOfWrite<W> =
+  W extends ConditionedWrite<any, any>
+    ? typeof conflict.Type | typeof unmet.Type
+    : typeof conflict.Type
 
 /** A codec, or the fields of a `Schema.Struct` where one is expected. */
 export type SchemaOrFields = Schema.Codec<any, any, any, any> | Schema.Struct.Fields
@@ -238,18 +256,27 @@ export const Mutation = {
    * A mutation that is a declared `Write` (`update`, `insert` or `delete`): its
    * input is the write's, and it answers nothing but the row it changed, as a
    * patch, or its deletion. It may be refused as a conflict, for a write that
-   * `expect`s a revision the row has moved past.
+   * `expect`s a revision the row has moved past, and, for a write with a
+   * `when`, as unmet.
    */
-  write: <const Name extends string, Fields extends Schema.Struct.Fields>(
+  write: <
+    const Name extends string,
+    Fields extends Schema.Struct.Fields,
+    W extends Write<any, Fields> = Write<any, Fields>,
+  >(
     name: Name,
-    write: Write<any, Fields>,
-  ): MutationDescriptor<Name, Schema.Struct.Type<Fields>, {}, typeof Refusal.conflict.Type> & {
-    readonly write: Write<any, Fields>
+    write: W & Write<any, Fields>,
+  ): MutationDescriptor<Name, Schema.Struct.Type<Fields>, {}, RefusalOfWrite<W>> & {
+    readonly write: W
   } => ({
     name,
     Input: write.input.schema as unknown as Schema.Codec<Schema.Struct.Type<Fields>>,
     Output: Schema.Struct({}),
-    Refusal: Refusal.conflict,
+    // What the overloads typed `W` by is whether it holds a `when`.
+    Refusal: (Option.isSome(write.when) ? conflictOrUnmet : conflict) as unknown as Schema.Codec<
+      RefusalOfWrite<W>,
+      unknown
+    >,
     write,
   }),
 
