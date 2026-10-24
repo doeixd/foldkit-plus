@@ -26,6 +26,8 @@ Three things stay distinct, though two now share `Expr`:
 
 ## 1. Declaring it
 
+A sketch of the proposed API; `Post`, `Item` and their inputs are illustrative.
+
 ```ts
 const Publish = Mutation.write(
   'Publish',
