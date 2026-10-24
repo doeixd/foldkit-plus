@@ -186,9 +186,20 @@ export interface EntityWriter<P, R = never> {
    * whatever the row held.
    */
   readonly preconditions?: true
+  /**
+   * Whether `update` adds `increments` to their fields where it writes.
+   * `RemoteServer.write` refuses a write with an increment over a writer
+   * without it, which would leave the fields where they were.
+   */
+  readonly increments?: true
   readonly update: (context: {
     readonly id: string
     readonly values: Readonly<Record<string, unknown>>
+    /**
+     * Each field to move, by the amount, encoded: added to the stored value in
+     * the statement that writes, never computed from a value read before it.
+     */
+    readonly increments: Readonly<Record<string, number>>
     /** Each `one` relation it points, by the relation's key: the row, or none. */
     readonly links: Readonly<Record<string, Option.Option<EntityRef>>>
     readonly expect: Option.Option<{ readonly field: string; readonly revision: unknown }>
@@ -1464,6 +1475,11 @@ export const RemoteServer = {
         `[foldkit-remote-server] write "${mutation.name}" writes ${write.input.entity.name}, but its writer is for ${writer.entity}`,
       )
     }
+    if (write.increments.length > 0 && writer.increments !== true) {
+      throw new Error(
+        `[foldkit-remote-server] write "${mutation.name}" increments a field, but its writer for ${writer.entity} does not add one (increments)`,
+      )
+    }
     if (Option.isSome(write.when) && writer.preconditions !== true) {
       throw new Error(
         `[foldkit-remote-server] write "${mutation.name}" has a precondition, but its writer for ${writer.entity} does not check one (preconditions)`,
@@ -1556,6 +1572,7 @@ export const RemoteServer = {
                   writer.update({
                     id: bound.id,
                     values: bound.values,
+                    increments: bound.increments,
                     links: bound.links,
                     expect,
                     when: yield* when,
