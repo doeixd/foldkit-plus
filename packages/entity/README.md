@@ -374,9 +374,9 @@ expects a revision (a retry of a write that landed is then a conflict), or its
 writer keeps a ledger, which answers the retry from its record and lets two
 concurrent increments both land. `RemoteServer.write` refuses one with neither. The field must
 be stored as a number, and may not be the id, the revision, or set by another
-key. `Write.bind` gives the amounts apart from the values (`increments`), so an
-optimistic patch shows no sum computed over a row that may be stale; the field
-keeps its value until the server answers. `Write.reads(write)` is what a write
+key. `Write.bind` gives the amounts apart from the values (`increments`), so a
+client can add them to the value it holds as it reads it (Remote does), never
+fixing a sum over a row that may since have moved. `Write.reads(write)` is what a write
 reads from its row: what its `when` reads, each field it increments, and the
 revision.
 

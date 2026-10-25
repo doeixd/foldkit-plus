@@ -117,6 +117,13 @@ describe('A pending edit to an ordering field', () => {
     expect(ids(active, Data.lift(moved, 'edit'))).toEqual(['p1', 'p2', 'p3'])
   })
 
+  it('moves it by a pending increment, the sum taken over the price the store holds', () => {
+    const moved = Data.overlay(loaded(), 'edit', [
+      { entity: 'Project', id: 'p1', values: {}, adds: { price: 12 } },
+    ])
+    expect(ids(active, moved)).toEqual(['p2', 'p1', 'p3'])
+  })
+
   it('moves it to the end of a list that ends', () => {
     expect(ids(active, repriced(loaded(), 'p1', 99))).toEqual(['p2', 'p3', 'p1'])
   })

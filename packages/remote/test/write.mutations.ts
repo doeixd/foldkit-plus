@@ -21,8 +21,8 @@ export default [
     edits: [
       {
         file: '../src/mutation.ts',
-        find: 'Update: () => [patchOfWrite(DomainWrite.bind(write, input as never, keys))],',
-        replace: 'Update: () => [patchOfWrite(DomainWrite.bind(write, input as never))],',
+        find: 'const bound = DomainWrite.bind(write, input as never, keys)',
+        replace: 'const bound = DomainWrite.bind(write, input as never)',
       },
     ],
     tests,

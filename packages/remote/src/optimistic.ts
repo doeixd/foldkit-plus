@@ -4,18 +4,20 @@
  * patched with inverses. Settling is remove-the-layer, so overlapping layers
  * rebase for free.
  */
+import { Option, Predicate } from 'effect'
 import { type Connection, type Edge, edge, items } from './connection.js'
 import {
   reconcileMutation,
   type MutationAnswer,
   type MutationState,
   type NormalizedPatch,
+  type PendingPatch,
 } from './mutation.js'
-import { entityKey, isTombstone, writeEntities, type EntityStore } from './store.js'
+import { entityKey, isTombstone, writeEntities, type EntityKey, type EntityStore } from './store.js'
 
 export interface EntityLayer {
   readonly id: string
-  readonly patches: ReadonlyArray<NormalizedPatch>
+  readonly patches: ReadonlyArray<PendingPatch>
 }
 
 /**
@@ -41,7 +43,7 @@ export type ConnectionChange =
   | { readonly _tag: 'Remove'; readonly connection: string; readonly edge: Edge }
 
 /** What a request changes before the server answers: entity patches and connection changes. */
-export type OptimisticOperation = NormalizedPatch | ConnectionChange
+export type OptimisticOperation = PendingPatch | ConnectionChange
 
 const isConnectionChange = (operation: OptimisticOperation): operation is ConnectionChange =>
   '_tag' in operation
@@ -105,7 +107,7 @@ export const beginOptimistic = (
   operations: ReadonlyArray<OptimisticOperation>,
 ): OptimisticState => {
   const patches = operations.filter(
-    (operation): operation is NormalizedPatch => !isConnectionChange(operation),
+    (operation): operation is PendingPatch => !isConnectionChange(operation),
   )
   const changes = operations.filter(isConnectionChange)
   if (patches.length === 0 && changes.length === 0) return optimistic
@@ -183,18 +185,49 @@ export const removeOverlay = (optimistic: OptimisticState, id: string): Optimist
 export const visibleStore = (base: EntityStore, optimistic: OptimisticState): EntityStore =>
   writeEntities(
     base,
-    optimistic.layers.flatMap(layer =>
-      layer.patches.map(patch => {
-        const key = entityKey(patch.entity, patch.id)
-        const under = base[key]
-        return {
-          key,
-          values: patch.values,
-          updatedAt: under === undefined || under.tombstone ? Infinity : under.updatedAt,
-        }
-      }),
-    ),
+    resolvedPatches(base, optimistic).map(patch => {
+      const key = entityKey(patch.entity, patch.id)
+      const under = base[key]
+      return {
+        key,
+        values: patch.values,
+        updatedAt: under === undefined || under.tombstone ? Infinity : under.updatedAt,
+      }
+    }),
   )
+
+/**
+ * Every pending patch in order, each amount added to the value under it: the
+ * store's, or an earlier layer's. A prediction, so only over a number the
+ * client holds: a field it has not read, or holds as anything else, keeps
+ * what it shows until the server answers with the sum.
+ */
+export const resolvedPatches = (
+  base: EntityStore,
+  optimistic: OptimisticState,
+): ReadonlyArray<NormalizedPatch> => {
+  const shown = new Map<EntityKey, Record<string, unknown>>()
+  return optimistic.layers.flatMap(layer =>
+    layer.patches.map(({ adds, ...patch }) => {
+      const key = entityKey(patch.entity, patch.id)
+      const earlier = shown.get(key) ?? {}
+      const values: Record<string, unknown> = { ...patch.values }
+      const under = base[key]
+      // The store holds a value only for a field it has, and a tombstone none.
+      const valueUnder = (field: string): Option.Option<unknown> =>
+        Object.hasOwn(earlier, field)
+          ? Option.some(earlier[field])
+          : Option.fromUndefinedOr(under?.values[field])
+      for (const [field, amount] of Object.entries(adds ?? {})) {
+        Option.map(Option.filter(valueUnder(field), Predicate.isNumber), current => {
+          values[field] = current + amount
+        })
+      }
+      shown.set(key, { ...earlier, ...values })
+      return { ...patch, values }
+    }),
+  )
+}
 
 /**
  * A fresh page is newer than any settled overlay it covers: an edge the page
