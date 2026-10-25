@@ -5,7 +5,27 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
-## Unreleased
+## 0.33.0
+
+Declared writes that hold where they commit. A `Write` says what it sets, when it
+makes sense (`when`), and what it adds (`increment`); `Entity.invariant` says what
+every row, and every change of one, must hold; the Drizzle writer checks all of it,
+and the guard's revision pin, in the one statement that lands the write, with a
+ledger so a retry is never applied twice. Forms and Crud show an invariant's
+refusal beside its fields. The guide is `docs/declared-writes.md`.
+
+Breaking: `Remote.mutate`'s fourth argument is options (see Changed). New minors:
+`foldkit-entity` 0.11.0, `foldkit-remote` 0.19.0, `foldkit-remote-server` 0.16.0,
+`foldkit-remote-drizzle` 0.13.0, `foldkit-form` 0.7.0, `foldkit-guard` 0.4.0,
+`foldkit-data-grid` 0.3.0, `foldkit-crud` 0.9.0 and `foldkit-mixins-form` 0.8.0.
+Fixed: `foldkit-surface` 0.10.2, `foldkit-composition` 0.3.10 and
+`foldkit-cms-drizzle` 0.6.15. Republished for the new versions they depend on:
+`foldkit-agent` 0.8.3, `foldkit-auth` 0.1.3, `foldkit-builder` 0.3.12,
+`foldkit-bundle-surface` 0.4.3, `foldkit-cms` 0.7.12, `foldkit-mirror` 0.6.3,
+`foldkit-mixins-builder` 0.3.14, `foldkit-mixins-crud` 0.7.12,
+`foldkit-mixins-data-grid` 0.2.13, `foldkit-richtext-dom` 0.6.4, `foldkit-site`
+0.4.4, `foldkit-ssr` 0.8.2, `foldkit-sync` 0.12.2 and `foldkit-mixins-richtext`
+0.5.5. `foldkit-plus` is 0.15.0.
 
 ### Added
 

@@ -1,6 +1,6 @@
 {
   "name": "foldkit-auth",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Yielded Auth in Foldkit Plus: a verified session as the principal a Remote server answers as.",
   "keywords": [
     "foldkit",
