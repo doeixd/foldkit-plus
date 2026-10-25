@@ -202,6 +202,9 @@ export const decided = (node: Predicate, input: Row): Option.Option<PredicateTru
   return reads ? Option.none() : Option.some(holds(node, {}, input))
 }
 
+/** A predicate's truth over one row, as `evaluate` judges a row: SQL's three values. */
+export const truthOver = (node: Predicate, row: Row): PredicateTruth => holds(node, row, {})
+
 /** Every predicate must hold: the list is the conjunction, as it is in a `Query`. */
 const matches = (body: AnyQuery, row: Row, input: Row): boolean =>
   body.where.every(node => holds(node, row, input) === true)

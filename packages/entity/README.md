@@ -381,6 +381,48 @@ reads from its row: what its `when` reads, each field it increments, and the
 revision. How a declaration, its guard, its writer and the client fit together is
 the [declared writes guide](../../docs/declared-writes.md).
 
+## What every row must hold: invariants
+
+A Schema judges a value, and a write's `when` the row before it. Neither judges
+the row a write leaves: with `quantity = 10, reserved = 5`, an update setting
+`quantity = 3` decodes, and leaves a row that holds more reserved than there is.
+An **invariant** is what every stored row must hold, over the row's own fields:
+
+```ts
+import { Schema } from 'effect'
+import { Entity, Expr } from 'foldkit-entity'
+
+const InventoryFields = Entity.define(
+  'Inventory',
+  Schema.Struct({ id: Schema.String, quantity: Schema.Number, reserved: Schema.Number }),
+)
+const Inventory = InventoryFields.pipe(
+  Entity.invariant('reservedWithinQuantity', f => Expr.lte(f.reserved, Expr.field(f.quantity)), {
+    message: 'Reserved stock cannot exceed the quantity',
+    path: ['reserved'],
+  }),
+)
+
+Entity.judge(Inventory, { id: 'i1', quantity: 3, reserved: 5 })
+// { _tag: 'Invalid', failures: [{ id: 'reservedWithinQuantity', … }] }
+```
+
+- It is declared once, on the Entity's metadata, and attaching more adds to it;
+  the Entity stays the same (`Entity.same`). Its interpreters read it from there.
+- It reads stored rows only: one over another Entity, or reading an input, is
+  refused where it is declared, as is an id declared twice or a `path` naming no
+  field. Who may write is a guard's; whether a write applies now is its `when`'s.
+- `Entity.judge(entity, row)` judges a row as the store holds it (encoded) and is
+  pure. A row holds an invariant only when it is true: a null fails it, as SQL's
+  unknown drops a row from a `WHERE`. A row without a field it reads is
+  `Undecided`, never `Valid`.
+- `Entity.check(entity)` is the same invariants as a Schema check over the row
+  type (`entity.schema.check(Entity.check(entity))`): it encodes the value, and
+  reports each failure at its `path` with its `message`.
+
+Text compares only under a declared collation, here too: a date stored as text
+needs `{ collation: Collation.binary }` on its comparison.
+
 ## Attaching metadata
 
 An interpreter declares a [`foldkit-metadata`](../metadata/README.md) key and

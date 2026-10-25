@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-entity`: invariants.** `Entity.invariant(id, fields => predicate,
+  { message, path? })` declares, on the Entity's metadata, what every stored row
+  must hold over its own fields (`reserved <= quantity`). `Entity.judge(entity,
+  row)` judges a stored row: `Valid`, `Invalid` with the failures (a null
+  fails, as SQL's unknown), or `Undecided` when the row lacks a field one reads.
+  `Entity.check(entity)` is the same invariants as a Schema check, each failure
+  at its path. A server's declared writes do not enforce them yet. (#183)
 - **`foldkit-form`: a control says how a value is shown, and a key can be any
   number of a fixed set.** `Input.kind` takes `format`, the text a value is shown
   as when a form is filled with it — the inverse of `parse`, called by `fill`

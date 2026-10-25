@@ -9,6 +9,7 @@
  */
 import { type Option, Pipeable, Schema } from 'effect'
 import { Metadata } from 'foldkit-metadata'
+import { check, invariant, invariantsOf, judge } from './invariant.js'
 import { SchemaShape } from './shape.js'
 
 export const EntityTypeId: unique symbol = Symbol.for('foldkit-entity/Entity')
@@ -750,6 +751,29 @@ export const Entity = {
     <E extends AnyEntity>(entity: E): E =>
       make({ ...entity, metadata: Metadata.combine([entity.metadata, metadata]) }) as E,
 
+  /**
+   * Declares what every stored row must hold, over the row's own fields:
+   * `Entity.invariant('reservedWithinQuantity', f => Expr.lte(f.reserved,
+   * Expr.field(f.quantity)), { message })`. Judged over the whole row a write
+   * would leave, never the input alone. Refused where it is declared: an id
+   * declared twice, a predicate over another Entity or reading an input, an
+   * operation the reference interpreter does not run, a path naming no field.
+   */
+  invariant,
+
+  /** The Entity's invariants, in the order they were declared. */
+  invariants: invariantsOf,
+
+  /**
+   * A stored row under the Entity's invariants: `Valid`, `Invalid` with the
+   * ones that fail (a null fails, as SQL's unknown), or `Undecided` with the
+   * fields an invariant reads that the row lacks.
+   */
+  judge,
+
+  /** The invariants as a Schema check over the row type, each failure at its path. */
+  check,
+
   /** Attaches an interpreter's metadata to members, by key. */
   annotateMembers:
     <E extends AnyEntity>(metadata: { readonly [K in keyof E['members']]?: Metadata }) =>
@@ -1002,6 +1026,7 @@ export * from './shape.js'
 // this entry because it is fixture data every form and admin screen would
 // otherwise carry.
 export * from './evaluate.js'
+export type { Invariant, Judgement } from './invariant.js'
 export {
   Write,
   type AnyWrite,
