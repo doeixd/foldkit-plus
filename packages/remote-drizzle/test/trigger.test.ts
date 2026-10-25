@@ -4,7 +4,7 @@
  */
 import { DatabaseSync } from 'node:sqlite'
 import { PGlite } from '@electric-sql/pglite'
-import { integer as pgInteger, pgTable, text as pgText } from 'drizzle-orm/pg-core'
+import { integer as pgInteger, pgSchema, pgTable, text as pgText } from 'drizzle-orm/pg-core'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Schema } from 'effect'
@@ -81,6 +81,17 @@ describe('revisionTrigger', () => {
     expect(sqlite.prepare('select row_version from note_rows').get()).toEqual({ row_version: 40 })
   })
 
+  it('can be run again, as a migration may be', () => {
+    const sqlite = new DatabaseSync(':memory:')
+    sqlite.exec(create)
+    sqlite.exec(revisionTrigger(Db.Note, 'version'))
+    sqlite.exec(revisionTrigger(Db.Note, 'version'))
+    sqlite.exec("insert into note_rows values ('n1', 'first', 1)")
+    sqlite.exec("update note_rows set body = 'raw' where note_id = 'n1'")
+    // One trigger, so one move.
+    expect(sqlite.prepare('select row_version from note_rows').get()).toEqual({ row_version: 2 })
+  })
+
   it('refuses a revision the binding has no column for', () => {
     expect(() => revisionTrigger(Db.Note, 'revision')).toThrow(
       'Note has no column for its revision "revision"',
@@ -112,6 +123,29 @@ describe('revisionTrigger', () => {
       await pglite.exec("update note_rows set row_version = 40 where note_id = 'n1'")
       const set = await pglite.query('select row_version from note_rows')
       expect(set.rows).toEqual([{ row_version: 40 }])
+      // Run again: replaced, not doubled.
+      await pglite.exec(revisionTrigger(PgDb.Note, 'version'))
+      await pglite.exec("update note_rows set body = 'again' where note_id = 'n1'")
+      const again = await pglite.query('select row_version from note_rows')
+      expect(again.rows).toEqual([{ row_version: 41 }])
+    })
+
+    it('names a table in a schema by its schema', async () => {
+      const shop = pgSchema('shop')
+      const scoped = shop.table('note_rows', {
+        id: pgText('note_id').primaryKey(),
+        body: pgText('body').notNull(),
+        version: pgInteger('row_version').notNull(),
+      })
+      const Scoped = bind({ Note }, { Note: { table: scoped } })
+      await pglite.exec(
+        'create schema shop; create table shop.note_rows (note_id text primary key, body text not null, row_version integer not null)',
+      )
+      await pglite.exec(revisionTrigger(Scoped.Note, 'version'))
+      await pglite.exec("insert into shop.note_rows values ('n1', 'first', 1)")
+      await pglite.exec("update shop.note_rows set body = 'raw' where note_id = 'n1'")
+      const rows = await pglite.query('select row_version from shop.note_rows')
+      expect(rows.rows).toEqual([{ row_version: 2 }])
     })
   })
 })

@@ -1,5 +1,5 @@
 /**
- * Three declared writes, sent as a client would send them, over SQLite in
+ * Four declared writes, sent as a client would send them, over SQLite in
  * memory. Each line is what the server answered.
  */
 import { DatabaseSync } from 'node:sqlite'
@@ -7,7 +7,7 @@ import { drizzle } from 'drizzle-orm/node-sqlite'
 import { Effect, Option, Schema } from 'effect'
 import { databaseLayer } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
-import { Publish, Rename, Restock, type User } from './domain.js'
+import { Publish, Rename, Restock, Sell, type User } from './domain.js'
 import { schema, server } from './server.js'
 
 export const runDemo = async (): Promise<ReadonlyArray<string>> => {
@@ -32,6 +32,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
       readonly Refusal: Schema.Codec<Refused, unknown>
     },
     input: Input,
+    operation?: string,
   ) => {
     const outcome = await Effect.runPromise(
       RemoteServer.handlers(server, principal)
@@ -39,6 +40,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
           requestId: `r${++requests}`,
           mutation: mutation.name,
           input: Schema.encodeSync(mutation.Input)(input),
+          ...(operation === undefined ? {} : { operation }),
         })
         .pipe(Effect.result, Effect.provide(layer)),
     )
@@ -64,6 +66,9 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     `publish an archived product: ${await send(ada, Publish, { id: 'p2', status: 'published' })}`,
     `restock 5 at revision 3: ${await send(ada, Restock, restock)}`,
     `the same restock again, its answer lost: ${await send(ada, Restock, restock)}`,
+    `sell 2, from the read at revision 4: ${await send(ada, Sell, { id: 'p1', quantity: -2 }, 'sale-1')}`,
+    `sell 3, from the same read: ${await send(ada, Sell, { id: 'p1', quantity: -3 }, 'sale-2')}`,
+    `the first sale again, its answer lost: ${await send(ada, Sell, { id: 'p1', quantity: -2 }, 'sale-1')}`,
     `row: ${JSON.stringify(sqlite.prepare("select name, status, stock, revision from products where id = 'p1'").get())}`,
   ]
 }

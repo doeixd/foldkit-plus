@@ -209,6 +209,22 @@ describe('An operation id', () => {
     expect(reloaded.sent[0]?.operation).not.toBe(failed.sent[0]?.operation)
   })
 
+  it('is minted on a page served over plain HTTP, which has no randomUUID', async () => {
+    const { randomUUID } = globalThis.crypto
+    Object.defineProperty(globalThis.crypto, 'randomUUID', { value: undefined, configurable: true })
+    try {
+      const first = await run(held, undefined, false)
+      const other = await run(held, undefined, false)
+      expect(first.sent[0]?.operation).toMatch(/^[0-9a-f]{32}$/)
+      expect(first.sent[0]?.operation).not.toBe(other.sent[0]?.operation)
+    } finally {
+      Object.defineProperty(globalThis.crypto, 'randomUUID', {
+        value: randomUUID,
+        configurable: true,
+      })
+    }
+  })
+
   it('is bounded on the wire, where a server keys a record by it', () => {
     const request = (operation: string) =>
       Schema.decodeUnknownResult(MutationRequest)({

@@ -174,8 +174,17 @@ export const coalescedLayer = <E, R>(
     }),
   ).pipe(Layer.provide(layer))
 
-/** A new operation's identity: random, so unique across clients and reloads. */
-export const mintOperation = (): string => globalThis.crypto.randomUUID()
+/**
+ * A new operation's identity: random, so unique across clients and reloads.
+ * `randomUUID` exists only in a secure context, so a page served over plain
+ * HTTP draws 128 random bits from `getRandomValues`, which exists in all.
+ */
+export const mintOperation = (): string =>
+  typeof globalThis.crypto.randomUUID === 'function'
+    ? globalThis.crypto.randomUUID()
+    : Array.from(globalThis.crypto.getRandomValues(new Uint8Array(16)), byte =>
+        byte.toString(16).padStart(2, '0'),
+      ).join('')
 
 /**
  * `Remote.mutate` as a standalone effect, so `Remote.mutateInto` can reuse it

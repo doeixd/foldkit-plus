@@ -128,10 +128,11 @@ describe('GuardServer.writer over a writer with a ledger', () => {
     {
       scope: text('scope').notNull(),
       operation: text('operation').notNull(),
+      target: text('target').notNull(),
       answer: text('answer').notNull(),
       at: integer('at').notNull(),
     },
-    table => [primaryKey({ columns: [table.scope, table.operation] })],
+    table => [primaryKey({ columns: [table.scope, table.operation, table.target] })],
   )
   // No revision expected: the ledger is what keeps a retry from adding twice.
   const Bump = Mutation.write(
@@ -148,7 +149,7 @@ describe('GuardServer.writer over a writer with a ledger', () => {
     const sqlite = new DatabaseSync(':memory:')
     sqlite.exec(`
       create table items (id text primary key, owner_id text not null, stock integer not null, revision integer not null);
-      create table write_ledger (scope text not null, operation text not null, answer text not null, at integer not null, primary key (scope, operation));
+      create table write_ledger (scope text not null, operation text not null, target text not null, answer text not null, at integer not null, primary key (scope, operation, target));
       insert into items values ('i1', 'mo', 3, 1);
     `)
     const server = RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
@@ -195,7 +196,7 @@ describe('GuardServer.writer over a writer with a ledger', () => {
     const sqlite = new DatabaseSync(':memory:')
     sqlite.exec(`
       create table items (id text primary key, owner_id text not null, stock integer not null, revision integer not null);
-      create table write_ledger (scope text not null, operation text not null, answer text not null, at integer not null, primary key (scope, operation));
+      create table write_ledger (scope text not null, operation text not null, target text not null, answer text not null, at integer not null, primary key (scope, operation, target));
       insert into items values ('i1', 'mo', 3, 1);
     `)
     const server = RemoteServer.make<Option.Option<User>, DrizzleDatabase>({

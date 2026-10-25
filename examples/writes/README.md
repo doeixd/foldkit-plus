@@ -1,11 +1,12 @@
 # Declared writes that hold where they commit
 
-Three writes to one product, each declared as data and checked in the statement
+Four writes to one product, each declared as data and checked in the statement
 that lands it: a **guarded rename**, a **transition** that makes sense from one
-state only, and a **computed restock** a retry cannot apply twice.
+state only, and two computed writes a retry cannot apply twice: a **restock**
+that expects a revision, and a **sale** recorded in a ledger.
 
 ```text
-domain.ts   Product · who may change it (Shop) · Rename · Publish · Restock
+domain.ts   Product · who may change it (Shop) · Rename · Publish · Restock · Sell
             (data: no query, no table)
 server.ts   products table · GuardServer.writer(…, { revision }) · RemoteServer.write
 demo.ts     each write sent as a client sends it, and what the server answered
@@ -49,7 +50,10 @@ publish it again: written {"id":"p1","status":"published","revision":3}
 publish an archived product: Unmet
 restock 5 at revision 3: written {"id":"p1","stock":15,"revision":4}
 the same restock again, its answer lost: Conflict
-row: {"name":"Bolt, M6","status":"published","stock":15,"revision":4}
+sell 2, from the read at revision 4: written {"id":"p1","stock":13,"revision":5}
+sell 3, from the same read: written {"id":"p1","stock":10,"revision":6}
+the first sale again, its answer lost: written {"id":"p1","stock":10,"revision":6}
+row: {"name":"Bolt, M6","status":"published","stock":10,"revision":6}
 ```
 
 ## What each line means
@@ -71,6 +75,13 @@ row: {"name":"Bolt, M6","status":"published","stock":15,"revision":4}
   the same request finds the row a revision on: `Conflict`, and the stock moved
   once (10 to 15). The client cannot tell "mine landed" from "someone else's
   did", so it re-reads the product, as after any conflict.
+- **A sale over a ledger.** `Sell` increments the stock too, but expects no
+  revision: its writer keeps a ledger (`writer(binding, { ledger })`), which
+  records each update under the client's operation id in the transaction that
+  writes it. Two sales made from one read both land (15, 13, 10), which a
+  revision would have refused. Sent again after its answer was lost, the first
+  sale is found in the ledger and not written again: the stock stays 10, and the
+  answer is the row as it now is.
 
 `GuardServer.validate` runs at startup in `server.ts`. It refuses a write that
 lands through no guarded writer, or whose `when` or `expect` reads a member its
@@ -82,8 +93,9 @@ writer may not read, and warns of a guarded writer with no `revision`.
   another, are not offered.
 - The revision pin sees only writes that move the revision: a handler or raw SQL
   that changes the row without moving it is not seen.
-- A retried increment is a conflict, not deduplicated: there is no table of
-  request ids, so "it landed and the answer was lost" reads like any conflict.
+- Without a ledger, a retried increment is a conflict: "it landed and the
+  answer was lost" reads like any conflict. With one, a retry later than its
+  record's retention (a day) is a new operation.
 
 See the [precondition](../../docs/design/write-precondition-DESIGN.md),
 [increment](../../docs/design/write-increment-DESIGN.md) and

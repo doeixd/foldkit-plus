@@ -28,4 +28,11 @@ export default [
     'if (column === undefined) {\n    throw new Error(\n      `[foldkit-remote-drizzle] revisionTrigger',
     'if (false) {\n    throw new Error(\n      `[foldkit-remote-drizzle] revisionTrigger',
   ),
+  edit('SQLite cannot be run again', 'create trigger if not exists', 'create trigger'),
+  edit('Postgres cannot be run again', 'create or replace trigger', 'create trigger'),
+  edit(
+    'a Postgres table is named outside its schema',
+    'schema === undefined ? quoted(name) :',
+    'true ? quoted(name) :',
+  ),
 ]

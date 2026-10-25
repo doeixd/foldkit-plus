@@ -91,7 +91,12 @@ its writes are compare-and-set statements a batch cannot condition on each
 other; the lost-answer recognitions stay for a ledgered write (the ledger answers
 a retry before them, so they meet only a fresh miss, where they are harmless);
 and the guard refuses an increment with no revision through a writer it does not
-pin, since its rules would judge a sum over a row that may move.
+pin, since its rules would judge a sum over a row that may move. A retry is never
+written twice, but its answer is not the recorded one: `RemoteServer.write`
+reads every answer back through the writer's `read`, so a retry is answered with
+the row as it now is, under its reader's rules (a later write's values, a row
+hidden since as deleted). The ledger decides whether to write; the read-back
+decides what is shown.
 
 - A ledger table, `(scope, operation) → answer`, written in the same
   transaction or statement as the row. A write whose operation is already in the
