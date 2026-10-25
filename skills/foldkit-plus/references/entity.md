@@ -145,7 +145,8 @@ retry is answered from its record, and concurrent increments both land). Remote
 predicts the sum over the value it holds, re-added as that value changes
 ([guide](https://github.com/doeixd/foldkit-plus/blob/main/docs/declared-writes.md)). `Write.reads(write)` is what a write reads from its row.
 `Entity.invariant(id, ({ after }) => Expr.lte(after.reserved, after.quantity), { message, path? })`
-declares what every stored row must hold (piped onto the Entity); one that reads `before` too relates the
+declares what every stored row must hold (piped onto the Entity, or hoisted as
+`Entity.invariant<typeof Fields>(…)` to export: the step carries its `id`, which `Refusal.isInvalidBy` matches); one that reads `before` too relates the
 row before an update to the row after (a shipped order stays shipped), and is judged on updates only.
 `Entity.judge(entity, { after, before? })` answers `Valid`, `Invalid` or `Undecided` (a field missing),
 a null failing, and `Entity.check(entity)` is the state invariants as a Schema check. The Drizzle writer

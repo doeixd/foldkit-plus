@@ -24,6 +24,12 @@ version changed; `pnpm` skips versions already in the registry.
   invariants as a Schema check, each failure at its path.
   `Expr.substituteNext(predicate, values)` reads the fields a write sets as
   their values, and `Dependencies` lists them as `next`. (#183, #184)
+- **`foldkit-entity` and `foldkit-remote`: an invariant is matched by its
+  declaration.** `Entity.invariant` returns the step that attaches it with its
+  `id` (`DeclaredInvariant`); hoisted as `Entity.invariant<typeof Fields>(…)`
+  it can be exported beside the Entity. `Refusal.isInvalidBy(refusal,
+  invariant)` says whether a refusal is `Invalid` naming it; an unnamed one
+  matches none.
 - **`foldkit-remote-drizzle`: the writer enforces invariants.** `bind` keeps
   the Entity's invariants on the binding (`invariants`), and `writer` compiles
   each into the update's `WHERE` over the row it would leave (a set field as

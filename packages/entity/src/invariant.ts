@@ -77,60 +77,73 @@ export type Judgement =
 /** Whether an invariant reads the row before, and so is judged only where there is one. */
 export const readsBefore = (held: Invariant): boolean => held.before.length > 0
 
+/**
+ * An invariant as declared: the step that attaches it to its Entity, carrying
+ * its id, so a refusal is matched against the declaration rather than a
+ * string spelled again (`Refusal.isInvalidBy(refusal, reservedWithinQuantity)`).
+ */
+export interface DeclaredInvariant<E extends AnyEntity> {
+  (entity: E): E
+  readonly id: string
+}
+
 const fail = (entity: AnyEntity, message: string): never => {
   throw new Error(`[foldkit-entity] Entity.invariant on ${entity.name}: ${message}`)
 }
 
-export const invariant =
-  <E extends AnyEntity>(
-    id: string,
-    build: (rows: {
-      readonly before: E['fields']
-      readonly after: AfterRow<E>
-    }) => Predicate & Reads<E['name']>,
-    options: {
-      readonly message: string
-      readonly path?: ReadonlyArray<keyof E['fields'] & string>
-    },
-  ) =>
-  (entity: E): E => {
-    if (id.length === 0) fail(entity, 'an invariant needs an id')
-    if (invariantsOf(entity).some(held => held.id === id)) fail(entity, `"${id}" is declared twice`)
-    const fields = entity.fields as Readonly<Record<string, E['fields'][string]>>
-    const after = Object.fromEntries(
-      Object.entries(fields).map(([key, field]) => [key, Expr.next(field)]),
-    ) as unknown as AfterRow<E>
-    const predicate = build({ before: entity.fields, after }) as Predicate
-    // `where` refuses a predicate over another Entity, which the type allows when it is unmarked.
-    const body = Query.from(entity).pipe(Query.where(predicate))
-    const dependencies = Query.dependencies(body)
-    if (dependencies.inputs.length > 0) {
-      fail(
-        entity,
-        `"${id}" reads the input ${dependencies.inputs.join(', ')}; it judges stored rows`,
-      )
-    }
-    const before = dependencies.predicate.map(field => field.key)
-    const afterReads = dependencies.next.map(field => field.key)
-    const path = options.path ?? [...new Set([...afterReads, ...before])]
-    for (const key of path) {
-      if (!Object.hasOwn(fields, key)) fail(entity, `"${id}"'s path names "${key}", not a field`)
-    }
-    return entity.pipe(
-      Entity.annotate(
-        Invariants.of(
-          Object.freeze({
-            id,
-            predicate,
-            message: options.message,
-            path: Object.freeze([...path]),
-            before: Object.freeze(before),
-            after: Object.freeze(afterReads),
-          }),
+export const invariant = <E extends AnyEntity>(
+  id: string,
+  build: (rows: {
+    readonly before: E['fields']
+    readonly after: AfterRow<E>
+  }) => Predicate & Reads<E['name']>,
+  options: {
+    readonly message: string
+    readonly path?: ReadonlyArray<keyof E['fields'] & string>
+  },
+): DeclaredInvariant<E> =>
+  Object.assign(
+    (entity: E): E => {
+      if (id.length === 0) fail(entity, 'an invariant needs an id')
+      if (invariantsOf(entity).some(held => held.id === id))
+        fail(entity, `"${id}" is declared twice`)
+      const fields = entity.fields as Readonly<Record<string, E['fields'][string]>>
+      const after = Object.fromEntries(
+        Object.entries(fields).map(([key, field]) => [key, Expr.next(field)]),
+      ) as unknown as AfterRow<E>
+      const predicate = build({ before: entity.fields, after }) as Predicate
+      // `where` refuses a predicate over another Entity, which the type allows when it is unmarked.
+      const body = Query.from(entity).pipe(Query.where(predicate))
+      const dependencies = Query.dependencies(body)
+      if (dependencies.inputs.length > 0) {
+        fail(
+          entity,
+          `"${id}" reads the input ${dependencies.inputs.join(', ')}; it judges stored rows`,
+        )
+      }
+      const before = dependencies.predicate.map(field => field.key)
+      const afterReads = dependencies.next.map(field => field.key)
+      const path = options.path ?? [...new Set([...afterReads, ...before])]
+      for (const key of path) {
+        if (!Object.hasOwn(fields, key)) fail(entity, `"${id}"'s path names "${key}", not a field`)
+      }
+      return entity.pipe(
+        Entity.annotate(
+          Invariants.of(
+            Object.freeze({
+              id,
+              predicate,
+              message: options.message,
+              path: Object.freeze([...path]),
+              before: Object.freeze(before),
+              after: Object.freeze(afterReads),
+            }),
+          ),
         ),
-      ),
-    ) as E
-  }
+      ) as E
+    },
+    { id },
+  )
 
 export const invariantsOf = (entity: AnyEntity): ReadonlyArray<Invariant> =>
   Invariants.get(entity.metadata)

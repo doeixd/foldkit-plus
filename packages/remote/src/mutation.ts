@@ -11,6 +11,7 @@ import {
   type AnyWrite,
   type BoundWrite,
   type ConditionedWrite,
+  type Invariant,
   type Write,
 } from 'foldkit-entity'
 import type { RemoteError } from './remoteData.js'
@@ -215,6 +216,13 @@ export const Refusal = {
   isUnmet: Schema.is(unmet),
   /** Whether a refusal, of whatever mutation, is `Refusal.invalid`. */
   isInvalid: Schema.is(invalid),
+  /**
+   * Whether a refusal is `Refusal.invalid` naming this invariant: the one
+   * `Entity.invariant` returned, or one `Entity.invariants` reads. An invariant
+   * over a member hidden from the asker names none, so it matches nothing.
+   */
+  isInvalidBy: (refusal: unknown, invariant: Pick<Invariant, 'id'>): boolean =>
+    Schema.is(invalid)(refusal) && Option.contains(refusal.rule, invariant.id),
 }
 
 /**

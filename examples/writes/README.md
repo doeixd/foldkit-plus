@@ -59,13 +59,13 @@ rename by another: Forbidden
 publish the draft: written {"id":"p1","status":"published","revision":3}
 publish it again: written {"id":"p1","status":"published","revision":3}
 publish an archived product: Unmet
-put the published product back to draft: Invalid
+put the published product back to draft: Invalid publishedStaysPublished
 restock 5 at revision 3: written {"id":"p1","stock":15,"revision":4}
 the same restock again, its answer lost: Conflict
 sell 2, from the read at revision 4: written {"id":"p1","stock":13,"revision":5}
 sell 3, from the same read: written {"id":"p1","stock":10,"revision":6}
 the first sale again, its answer lost: written {"id":"p1","stock":10,"revision":6}
-sell 9 of the 10, 2 of them reserved: Invalid
+sell 9 of the 10, 2 of them reserved: Invalid reservedWithinStock
 row: {"name":"Bolt, M6","status":"published","stock":10,"reserved":2,"revision":6}
 ```
 
@@ -104,7 +104,9 @@ row: {"name":"Bolt, M6","status":"published","stock":10,"reserved":2,"revision":
   (`reserved <= stock + -9`) in the same statement, and refuses it as `Invalid`,
   naming `reservedWithinStock` and its path, `reserved`, for a form to show it
   there. The table also holds it as a `CHECK` (`invariantChecks`), so raw SQL
-  cannot break it either.
+  cannot break it either. The demo tells which one a refusal names with
+  `Refusal.isInvalidBy(refusal, reservedWithinStock)`: `domain.ts` exports each
+  invariant as declared, so no id is spelled twice.
 
 `GuardServer.validate` runs at startup in `server.ts`. It refuses a write that
 lands through no guarded writer, or whose `when` or `expect` reads a member its

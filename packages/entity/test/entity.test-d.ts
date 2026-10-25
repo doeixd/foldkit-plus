@@ -1,7 +1,7 @@
 import { Schema } from 'effect'
 import { Metadata } from 'foldkit-metadata'
 import { expectTypeOf } from 'vitest'
-import { Derived, Entity, Relation, type Selected } from '../src/index.js'
+import { Derived, Entity, Expr, Relation, type Selected } from '../src/index.js'
 
 const Author = Entity.define('Author', Schema.Struct({ id: Schema.String, name: Schema.String }))
 
@@ -85,4 +85,28 @@ Post.pipe(Entity.annotate(Tags.of(1)))
   expectTypeOf<Selected<typeof NoteBody>>().toEqualTypeOf<{ readonly body: string }>()
   // @ts-expect-error an Entity is not a Selection
   type _Entity = Selected<typeof Note>
+}
+
+{
+  const StockFields = Entity.define(
+    'Stock',
+    Schema.Struct({ id: Schema.String, quantity: Schema.Number }),
+  )
+  // Hoisted, an invariant names its Entity's type, and piping it keeps the Entity's.
+  const positive = Entity.invariant<typeof StockFields>(
+    'positive',
+    ({ after }) => Expr.gte(after.quantity, 0),
+    { message: 'x' },
+  )
+  expectTypeOf(StockFields.pipe(positive)).toEqualTypeOf<typeof StockFields>()
+  expectTypeOf(positive.id).toEqualTypeOf<string>()
+  Entity.invariant<typeof StockFields>(
+    'unknown',
+    // @ts-expect-error not a field of the Entity
+    ({ after }) => Expr.gte(after.volume, 0),
+    { message: 'x' },
+  )
+  // Without it, what it reads is unknown to it.
+  // @ts-expect-error a field of no known Entity
+  Entity.invariant('loose', ({ after }) => Expr.gte(after.quantity, 0), { message: 'x' })
 }

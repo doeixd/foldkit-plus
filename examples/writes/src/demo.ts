@@ -6,9 +6,21 @@ import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { Effect, Option, Schema } from 'effect'
 import { databaseLayer } from 'foldkit-remote-drizzle'
+import { Refusal } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
-import { Publish, Rename, Restock, Revert, Sell, type User } from './domain.js'
+import {
+  Publish,
+  publishedStaysPublished,
+  Rename,
+  reservedWithinStock,
+  Restock,
+  Revert,
+  Sell,
+  type User,
+} from './domain.js'
 import { schema, server } from './server.js'
+
+const invariants = [reservedWithinStock, publishedStaysPublished]
 
 export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   const sqlite = new DatabaseSync(':memory:')
@@ -22,7 +34,8 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   /**
    * One mutation as `principal` sent it, and what came back: the values
    * written, or the refusal decoded by the mutation's own `Refusal`, as a
-   * client's `Data.refusal` reads it, or else the failure's tag.
+   * client's `Data.refusal` reads it (with the invariant it names, matched by
+   * its declaration), or else the failure's tag.
    */
   const send = async <Input, Refused extends { readonly _tag: string }>(
     principal: Option.Option<User>,
@@ -52,7 +65,14 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
       failure._tag === 'RemoteMutationError'
         ? Schema.decodeUnknownOption(mutation.Refusal)(failure.refusal)
         : Option.none()
-    return Option.match(refused, { onNone: () => failure._tag, onSome: refusal => refusal._tag })
+    return Option.match(refused, {
+      onNone: () => failure._tag,
+      onSome: refusal =>
+        [
+          refusal._tag,
+          ...invariants.filter(held => Refusal.isInvalidBy(refusal, held)).map(held => held.id),
+        ].join(' '),
+    })
   }
   const ada = Option.some({ id: 'ada' })
   const grace = Option.some({ id: 'grace' })

@@ -13,16 +13,17 @@ const StockFields = Entity.define(
   'Stock',
   Schema.Struct({ id: Schema.String, quantity: Schema.Number, reserved: Schema.Number }),
 )
-const Stock = StockFields.pipe(
-  Entity.invariant(
-    'reservedWithinQuantity',
-    ({ after }) => Expr.lte(after.reserved, after.quantity),
-    {
-      message: 'Reserved stock cannot exceed the quantity',
-      path: ['reserved'],
-    },
-  ),
+const reservedWithinQuantity = Entity.invariant<typeof StockFields>(
+  'reservedWithinQuantity',
+  ({ after }) => Expr.lte(after.reserved, after.quantity),
+  { message: 'Reserved stock cannot exceed the quantity', path: ['reserved'] },
 )
+const quantityNotNegative = Entity.invariant<typeof StockFields>(
+  'quantityNotNegative',
+  ({ after }) => Expr.gte(after.quantity, 0),
+  { message: 'The quantity cannot be negative' },
+)
+const Stock = StockFields.pipe(reservedWithinQuantity, quantityNotNegative)
 const SetQuantity = Mutation.write(
   'SetQuantity',
   Write.update(Entity.input(Stock, Schema.Struct({ id: Schema.String, quantity: Schema.Number })), {
@@ -78,6 +79,11 @@ describe('An invalid row', () => {
     const refusal = Schema.decodeUnknownSync(SetQuantity.Refusal)(encoded)
     expect(refusal).toEqual({ ...encoded, rule: Option.some('reservedWithinQuantity') })
     expect(Refusal.isInvalid(refusal)).toBe(true)
+    // Matched by its declaration, or by the invariant the Entity holds, never by another's.
+    expect(Refusal.isInvalidBy(refusal, reservedWithinQuantity)).toBe(true)
+    expect(Refusal.isInvalidBy(refusal, Entity.invariants(Stock)[0]!)).toBe(true)
+    expect(Refusal.isInvalidBy(refusal, quantityNotNegative)).toBe(false)
+    expect(Refusal.isInvalidBy({ _tag: 'Conflict' }, reservedWithinQuantity)).toBe(false)
   })
 
   it('names nothing when the writer may not say which invariant', async () => {
@@ -87,6 +93,14 @@ describe('An invalid row', () => {
         refusal: { _tag: 'Invalid', rule: null, message: 'The row would be invalid', path: [] },
       },
     })
+    const unnamed = Schema.decodeUnknownSync(SetQuantity.Refusal)({
+      _tag: 'Invalid',
+      rule: null,
+      message: 'The row would be invalid',
+      path: [],
+    })
+    expect(Refusal.isInvalid(unnamed)).toBe(true)
+    expect(Refusal.isInvalidBy(unnamed, reservedWithinQuantity)).toBe(false)
   })
 
   it('is refused where it is served, over a writer that does not judge invariants', () => {
@@ -105,7 +119,7 @@ describe('An invalid row', () => {
     expect(() => RemoteServer.write(Plain, blind)).not.toThrow()
   })
 
-  it("is refused where it is served for an update the Entity's transitions judge, and not for an insert", () => {
+  it("is refused where it is served for an update the Entity's transition invariants judge, and not for an insert", () => {
     const { invariants: _, ...blind } = refusing(RemoteServer.invalid('x'))
     const Moving = StockFields.pipe(
       Entity.invariant(

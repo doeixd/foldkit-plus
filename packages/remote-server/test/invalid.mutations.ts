@@ -13,6 +13,24 @@ const edit = (name: string, file: string, find: string, replace: string) => ({
 
 export default [
   edit(
+    'any invalid refusal matches every invariant',
+    '../../remote/src/mutation.ts',
+    'Schema.is(invalid)(refusal) && Option.contains(refusal.rule, invariant.id)',
+    'Schema.is(invalid)(refusal)',
+  ),
+  edit(
+    'an unnamed refusal matches every invariant',
+    '../../remote/src/mutation.ts',
+    'Option.contains(refusal.rule, invariant.id)',
+    'Option.getOrElse(Option.map(refusal.rule, rule => rule === invariant.id), () => true)',
+  ),
+  edit(
+    'a declared invariant carries no id',
+    '../../entity/src/invariant.ts',
+    '{ id },',
+    "{ id: '' },",
+  ),
+  edit(
     'a writer that judges no invariant is taken',
     server,
     'if (judged.length > 0 && writer.invariants !== true) {',

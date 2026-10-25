@@ -440,6 +440,22 @@ reads before too   -> transition invariant: every update, the only write with a 
 
 `Entity.readsBefore(invariant)` says which one is.
 
+`Entity.invariant` returns the step that attaches it, carrying its `id`. Hoist
+it to export it, naming the Entity's type (what it reads is checked against
+it), and match a refusal against it rather than spelling the id again:
+
+```ts
+export const reservedWithinQuantity = Entity.invariant<typeof InventoryFields>(
+  'reservedWithinQuantity',
+  ({ after }) => Expr.lte(after.reserved, after.quantity),
+  { message: 'Reserved stock cannot exceed the quantity', path: ['reserved'] },
+)
+export const Inventory = InventoryFields.pipe(reservedWithinQuantity)
+
+// Where a write's refusal is read (foldkit-remote):
+Refusal.isInvalidBy(refusal, reservedWithinQuantity)
+```
+
 - `before` is the Entity's fields; `after` is each field as the row after holds
   it, an `Expr.next` node typed as the field.
 - It is declared once, on the Entity's metadata, and attaching more adds to it;
