@@ -15,7 +15,7 @@ import type { BuildSchema } from 'drizzle-orm/effect-schema'
 import { getTableColumns, type AnyColumn, type SQL, type Table as DrizzleTable } from 'drizzle-orm'
 import { Entity, type EntityDescriptor, type EntityRef } from 'foldkit-remote'
 import { Effect, Schema } from 'effect'
-import type { Invariant } from 'foldkit-entity'
+import type { Invariant, Transition } from 'foldkit-entity'
 import type { RemoteServerError } from 'foldkit-remote-server'
 import type { OrderTerm } from './cursor.js'
 
@@ -123,6 +123,8 @@ export interface EntityBinding<
    * from a table alone (`entity`).
    */
   readonly invariants: ReadonlyArray<Invariant>
+  /** What every update must hold over the row before it and after (`Entity.transition`). */
+  readonly transitions: ReadonlyArray<Transition>
 }
 
 /**
@@ -301,6 +303,7 @@ export const entity = <
     relations,
     computed,
     invariants: [],
+    transitions: [],
     ...(options?.visible === undefined ? {} : { visible: options.visible }),
   } as unknown as EntityBinding<
     Name,

@@ -100,4 +100,25 @@ describe('An invalid row', () => {
     )
     expect(() => RemoteServer.write(Plain, blind)).not.toThrow()
   })
+
+  it("is refused where it is served for an update the Entity's transitions judge, and not for an insert", () => {
+    const { invariants: _, ...blind } = refusing(RemoteServer.invalid('x'))
+    const Moving = StockFields.pipe(
+      Entity.transition(
+        'neverFalls',
+        ({ before, after }) => Expr.gte(after.quantity, Expr.field(before.quantity)),
+        {
+          message: 'x',
+        },
+      ),
+    )
+    const input = Entity.input(
+      Moving,
+      Schema.Struct({ id: Schema.String, quantity: Schema.Number }),
+    )
+    const Update = Mutation.write('Update', Write.update(input, { id: 'id' }))
+    const Insert = Mutation.write('Insert', Write.insert(input, { id: 'id' }))
+    expect(() => RemoteServer.write(Update, blind)).toThrow('does not judge them (invariants)')
+    expect(() => RemoteServer.write(Insert, blind)).not.toThrow()
+  })
 })

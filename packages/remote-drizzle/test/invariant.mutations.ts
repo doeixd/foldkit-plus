@@ -24,12 +24,7 @@ export default [
     '[Expr.substitute(held.predicate, values)],',
     '[held.predicate],',
   ),
-  edit(
-    'an increment is judged unmoved',
-    drizzle,
-    'moved[field] = sql`(${binding.columns[field]} + ${amount})` as unknown as AnyColumn',
-    '',
-  ),
+  edit('an increment is judged unmoved', drizzle, 'after[field] = movedBy(field, amount)', ''),
   edit(
     'a miss is never classified as invalid',
     drizzle,

@@ -456,15 +456,19 @@ export const GuardServer = {
     }
     const attachment = attached(entity)
     const hiddenByBody = new WeakMap<AnyQuery, ReadonlyArray<string>>()
-    // An invariant reading a member a Read rule hides is still enforced, but named to no
-    // one: which one failed, and where, would say what that member holds.
+    // An invariant or transition reading a member a Read rule hides is still enforced, but
+    // named to no one: which one failed, and where, would say what that member holds.
     const unnamed = new Set(
       Option.match(attachment, {
         onNone: () => [],
-        onSome: ruled =>
-          Entity.invariants(entity)
+        onSome: ruled => [
+          ...Entity.invariants(entity)
             .filter(held => held.reads.some(key => readRuled(ruled, key)))
             .map(held => held.id),
+          ...Entity.transitions(entity)
+            .filter(held => [...held.before, ...held.after].some(key => readRuled(ruled, key)))
+            .map(held => held.id),
+        ],
       }),
     )
     const told = <E>(error: E | RemoteInvalid): E | RemoteInvalid =>
