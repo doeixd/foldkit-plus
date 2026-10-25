@@ -1048,7 +1048,7 @@ export * from './shape.js'
 // this entry because it is fixture data every form and admin screen would
 // otherwise carry.
 export * from './evaluate.js'
-export type { AfterRow, Change, Invariant, Judgement } from './invariant.js'
+export type { AfterRow, Change, DeclaredInvariant, Invariant, Judgement } from './invariant.js'
 export {
   Write,
   type AnyWrite,

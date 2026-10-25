@@ -39,8 +39,8 @@ export default [
   ),
   edit(
     'an id may be declared twice',
-    'if (invariantsOf(entity).some(held => held.id === id)) fail(entity, `"${id}" is declared twice`)',
-    '',
+    'if (invariantsOf(entity).some(held => held.id === id))',
+    'if (false)',
   ),
   edit('an invariant may read an input', 'if (dependencies.inputs.length > 0) {', 'if (false) {'),
   edit(
