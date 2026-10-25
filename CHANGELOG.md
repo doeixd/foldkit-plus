@@ -82,6 +82,11 @@ version changed; `pnpm` skips versions already in the registry.
   `expect` for one, and `RemoteServer.write` refuses one with neither.
   `GuardServer.writer` answers a recorded retry without deciding it again, and
   refuses an increment with no revision through a writer it does not pin.
+- **`foldkit-remote-drizzle`: `revisionTrigger(binding, field)`.** The SQL
+  (SQLite or Postgres) that has the database move a revision on every update
+  that does not set it itself, so a guarded writer's pin sees a handler's or
+  raw SQL's change too. An update that sets the revision, by one or to any
+  value, is left as it set it. Not for a table Sync writes.
 
 
 ### Changed

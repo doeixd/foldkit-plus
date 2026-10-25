@@ -10,7 +10,13 @@ import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Option, Schema } from 'effect'
 import { Entity, Expr, Write } from 'foldkit-entity'
 import { Mutation, Remote } from 'foldkit-remote'
-import { bind, databaseLayer, writer, type DrizzleDatabase } from 'foldkit-remote-drizzle'
+import {
+  bind,
+  databaseLayer,
+  revisionTrigger,
+  writer,
+  type DrizzleDatabase,
+} from 'foldkit-remote-drizzle'
 import { RemoteServer, type EntityWriter } from 'foldkit-remote-server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { GuardDrizzle } from '../src/drizzle.js'
@@ -102,12 +108,17 @@ const vi_ = Option.some<User>({ id: 'vi', role: 'viewer' })
  * each read the guard makes, before the write: another writer's change
  * landing in the window.
  */
-const open = (between: (sqlite: DatabaseSync) => void = () => {}, pinned = true) => {
+const open = (
+  between: (sqlite: DatabaseSync) => void = () => {},
+  pinned = true,
+  trigger = false,
+) => {
   const sqlite = new DatabaseSync(':memory:')
   sqlite.exec(`
     create table todos (id text primary key, owner_id text not null, title text not null, revision integer not null);
     insert into todos values ('t1', 'ada', 'Own', 0);
   `)
+  if (trigger) sqlite.exec(revisionTrigger(Db.Todo, 'revision'))
   const bare = writer<Option.Option<User>>(Db.Todo)
   let reads = 0
   const racing: EntityWriter<Option.Option<User>, DrizzleDatabase> = {
@@ -369,5 +380,26 @@ describe('GuardServer.writer over a write with a precondition', () => {
     const { mutate, row } = open()
     expect((await mutate(ada, 'Rename', { id: 't1', title: 'Mine' }))._tag).toBe('Success')
     expect(row()).toMatchObject({ title: 'Mine', revision: 1 })
+  })
+})
+
+describe('GuardServer.writer over a table whose revision a trigger moves', () => {
+  // A change of owner by raw SQL that leaves the revision alone: the pin's documented gap.
+  const stolen = "update todos set owner_id = 'grace' where id = 't1'"
+
+  it('sees a change that did not move the revision, and decides again', async () => {
+    const { mutate, row, reads } = open(once(stolen), true, true)
+    expect(await mutate(ada, 'Edit', { id: 't1', title: 'Mine' })).toMatchObject({
+      _tag: 'Failure',
+      failure: { _tag: 'Forbidden' },
+    })
+    expect(row()).toMatchObject({ owner_id: 'grace', title: 'Own', revision: 1 })
+    expect(reads()).toBe(2)
+  })
+
+  it('without it, writes over that change, as the README warns', async () => {
+    const { mutate, row } = open(once(stolen), true, false)
+    await mutate(ada, 'Edit', { id: 't1', title: 'Mine' })
+    expect(row()).toMatchObject({ owner_id: 'grace', title: 'Mine' })
   })
 })

@@ -798,9 +798,12 @@ const uploads = uploadLayer().pipe(
   rule reads the principal and the row, so pinning the row's revision makes
   the check and the write one. Only the declared writes that pin or `expect`
   it move it on: a handler (`RemoteServer.mutation`), raw SQL or a migration
-  that changes the row without moving it is not seen, nor is Sync's
-  `applyEdits`, which keeps one revision for two changes in one operation. A writer given no `revision`
-  does not see a change landing between its check and its write.
+  that changes the row without moving it is not seen, unless the table carries
+  `foldkit-remote-drizzle`'s `revisionTrigger`, which has the database move it
+  on every update that does not. Sync's `applyEdits` keeps one revision for two
+  changes in one operation, so a table Sync writes takes no trigger, and the
+  pin does not see that second change. A writer given no `revision` does not
+  see a change landing between its check and its write.
 - **Sync's `admit` reads the table, which lags the journal.** An edit lands
   in the table when its exchange settles, so an edit admitted before another
   lands is judged against the row as it was: a concurrent change of owner
