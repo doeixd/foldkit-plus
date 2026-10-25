@@ -4,10 +4,10 @@ A domain entity declared once as a typed value: intrinsic fields, relations to
 other entities, and derived members. It **describes only**. It fetches, stores,
 validates, and renders nothing, and it never touches a Model or a Message.
 
-**Status: declaration and selection.** `foldkit-remote` registers Entities and
-reads Selections as they are (`Remote.make`, `Data.get`; see
+**Status: declaration, selection, declared writes and invariants.** `foldkit-remote`
+registers Entities and reads Selections as they are (`Remote.make`, `Data.get`; see
 [remote.md](remote.md)), and `foldkit-remote-drizzle` binds a related set to
-tables with `bind`.
+tables with `bind` and lands declared writes with `writer`.
 
 ## Ownership
 
@@ -15,8 +15,10 @@ tables with `bind`.
 | --- | --- |
 | Which members an entity has, and what kind each is | `foldkit-entity` |
 | Whether a value is valid | the Effect `Schema.Struct` in `entity.schema` |
-| How a relation is stored, how a derived value is computed | the interpreter (none shipped yet) |
-| Create / update / delete | not implied; an Entity has no operations |
+| How a relation is stored, how a derived value is computed | the interpreter (`foldkit-remote-drizzle`'s `bind`) |
+| What a write sets and asks of its row (`Write`: `when`, `expect`, `increment`) | `foldkit-entity` declares it as data; the server's writer lands it |
+| What every stored row, and every change of one, must hold (`Entity.invariant`) | `foldkit-entity` declares it; the writer enforces it where it commits |
+| Who may write | `foldkit-guard`, never an invariant |
 | An interpreter's own facts about an entity or member | that interpreter, under its `foldkit-metadata` key |
 | What a query says about one row (`Expr`, `Order`) | `foldkit-entity` declares it; an interpreter compiles it |
 
@@ -131,30 +133,13 @@ const PostWithComments = Entity.select(Blog.Post, {
 reuses the fields' schemas, and a mapping may name a member by key:
 `Entity.input(Post, Input, { editorId: 'editor' })` is `Relation.input(Post.relations.editor)`.
 
-**What an input writes:** `Write.insert(input, { id })` and `Write.delete(input,
-{ id, expect? })` declare the other two kinds. `Write.update(input, { id: 'id', expect? })` declares
-an update of one row from that input (every key mapped to a field is set, a
-`one` relation key is pointed and bound to a ref in `links`; an unmapped key is
-not written; a `many` or nested key is refused). `when: ({ input }) =>
-Expr.eq(Post.fields.status, 'draft')` on an update or a delete is what the row
-must hold for it to land, over its own Entity only, checked where it commits and
-refused as unmet. `increment: { stock: 'quantity' }` on an update adds an
-unmapped number input to a number field where it commits. A retry must not add
-twice: give it `expect` (a retry is a conflict), or a writer with a ledger (a
-retry is answered from its record, and concurrent increments both land). Remote
-predicts the sum over the value it holds, re-added as that value changes
-([guide](https://github.com/doeixd/foldkit-plus/blob/main/docs/declared-writes.md)). `Write.reads(write)` is what a write reads from its row.
-`Entity.invariant(id, ({ after }) => Expr.lte(after.reserved, after.quantity), { message, path? })`
-declares what every stored row must hold (piped onto the Entity, or hoisted as
-`Entity.invariant<typeof Fields>(…)` to export: the step carries its `id`, which `Refusal.isInvalidBy` matches); one that reads `before` too relates the
-row before an update to the row after (a shipped order stays shipped), and is judged on updates only.
-`Entity.judge(entity, { after, before? })` answers `Valid`, `Invalid` or `Undecided` (a field missing),
-a null failing, and `Entity.check(entity)` is the state invariants as a Schema check. The Drizzle writer
-enforces them over the row a write leaves, in its statement, and refuses a breaking write as
-`Refusal.invalid`; `invariantChecks(binding)` from `foldkit-remote-drizzle` gives each state invariant as
-a `CHECK` constraint to migrate with, which holds against raw SQL too. `Write.writes(write)` is what
-it may change and `Write.bind(write, value, keys?)` the row and its encoded new
-values, for an optimistic patch or a server to write.
+**What an input writes:** `Write.update(input, { id: 'id' })`, `Write.insert(input, { id })` and
+`Write.delete(input, { id })` declare a write as data. In an update, every key mapped to a field is set,
+a `one` relation key is pointed (bound to a ref in `links`), and an unmapped key is not written; a `many`
+or nested key is refused. `Write.writes(write)` is what it may change, `Write.reads(write)` what it
+reads from its row, and `Write.bind(write, value, keys?)` the row and its encoded new values, for an
+optimistic patch or a server to write. See "Declared writes and invariants" below for what a write may
+ask of its row.
 
 **An input that embeds the target** (a post with a new author): map the key with
 `Relation.nested`. `selectFor` and `valuesFor` follow it.
@@ -200,6 +185,90 @@ const CmsPost = Blog.Post.pipe(
 Labels.get(CmsPost.fields.title.metadata)   // ['Title']
 Entity.same(CmsPost, Blog.Post)             // true
 ```
+
+## Declared writes and invariants
+
+Four questions about a write, four owners. Keep each in its own place:
+
+| Question | Declared with | Refused as |
+| --- | --- | --- |
+| Is the value well formed? | the input's Schema | a decode failure |
+| Who may write this row? | a guard (`foldkit-guard`, [guard.md](guard.md)) | `Forbidden` |
+| Does this write apply to the row as it is now? | the write's `when` (and `expect`) | `Unmet` (`Conflict`) |
+| What must every stored row, and every change of one, hold, whoever writes it? | `Entity.invariant` | `Invalid` |
+
+```ts
+import { Schema } from 'effect'
+import { Entity, Expr, Write } from 'foldkit-entity'
+
+const ProductFields = Entity.define(
+  'Product',
+  Schema.Struct({
+    id: Schema.String,
+    status: Schema.Literals(['draft', 'published']),
+    stock: Schema.Number,
+    reserved: Schema.Number,
+    revision: Schema.Number,
+  }),
+)
+
+// A state invariant: reads only `after`, the row a write leaves.
+export const reservedWithinStock = Entity.invariant<typeof ProductFields>(
+  'reservedWithinStock',
+  ({ after }) => Expr.lte(after.reserved, after.stock),
+  { message: 'Reserved stock cannot exceed the stock', path: ['reserved'] },
+)
+// A transition invariant: reads `before` too, so it judges updates only.
+export const publishedStaysPublished = Entity.invariant<typeof ProductFields>(
+  'publishedStaysPublished',
+  ({ before, after }) =>
+    Expr.or(Expr.not(Expr.eq(before.status, 'published')), Expr.eq(after.status, 'published')),
+  { message: 'A published product does not go back to draft', path: ['status'] },
+)
+export const Product = ProductFields.pipe(reservedWithinStock, publishedStaysPublished)
+
+// Applies only to a draft, checked where it commits.
+const Publish = Write.update(
+  Entity.input(Product, Schema.Struct({ id: Schema.String, status: Schema.Literal('published') })),
+  { id: 'id', when: () => Expr.eq(Product.fields.status, 'draft') },
+)
+// Adds to the stored stock where it commits; `expect` makes a retry a conflict, not a second add.
+const Restock = Write.update(
+  Entity.input(
+    Product,
+    Schema.Struct({ id: Schema.String, revision: Schema.Number, quantity: Schema.Number }),
+    { quantity: Entity.unmapped },
+  ),
+  { id: 'id', expect: 'revision', increment: { stock: 'quantity' } },
+)
+```
+
+- **`when`** reads the row before the write (and the input), over its own Entity only; it is compiled
+  into the write's own `WHERE`, so it holds of the row the statement changes. Only a write with one has
+  `Unmet` in its `Refusal` type.
+- **`expect: 'revision'`** lands only on that revision and moves it on: a second write from one read is a
+  `Conflict`. **`increment: { stock: 'quantity' }`** adds an unmapped number input where it commits. A
+  retry must not add twice: give it `expect`, or serve it through a writer with a ledger (a retry is
+  answered from its record, so concurrent increments both land). Remote predicts the sum over the value
+  it holds.
+- **An invariant's lifecycle is what it reads.** `after` only: a state invariant, judged on every create
+  and update, and a `CHECK` constraint (`invariantChecks`). `before` too: a transition invariant, judged
+  on updates only. `Entity.readsBefore(invariant)` tells which. One reading nothing of `after` is refused
+  where it is declared: which rows a write may start from is its `when`.
+- **Strictly true.** A null fails one, as SQL's unknown drops a row from a `WHERE`; write
+  `Expr.or(Expr.isNull(after.x), …)` to allow it. Text compares only under a declared collation.
+- **Judged everywhere it can be.** `Entity.judge(entity, { after, before? })` is the pure reference
+  (`Valid`, `Invalid` with the failures, or `Undecided` when a row lacks a field one reads);
+  `Entity.check(entity)` the state invariants as a Schema check; a form judges them on submit; the Drizzle
+  writer judges them in the statement that writes, and refuses a breaking write as `Refusal.invalid`.
+- **Not a rule.** No guard alternative excuses an invariant, and a valid row grants no one anything.
+- **A handle, not a string.** `Entity.invariant` returns the pipe step, carrying its `id`. Export it and
+  match a refusal with `Refusal.isInvalidBy(refusal, reservedWithinStock)` (`foldkit-remote`) rather than
+  spelling the id again. Hoisted, it needs the Entity's type (`Entity.invariant<typeof ProductFields>`);
+  inline in `.pipe(…)` it infers it.
+
+How the declaration, its guard, its writer and the client fit together:
+[declared writes guide](https://github.com/doeixd/foldkit-plus/blob/main/docs/declared-writes.md).
 
 ## Typed ids
 
@@ -356,7 +425,17 @@ Query.dependencies(recent)     // every field it reads, also split into `predica
   objects, and never `[Selection]` for a `many` relation.
 - There is no "one-to-many" vocabulary: `Relation.one` on one side and
   `Relation.many` on the other is that relationship.
-- IDs are untyped and no field is marked as the identifier yet.
+- The identifier is the field named `id`, text; brand it to type refs and inputs (Typed ids).
+- An invariant is not a check in `update`: one only `update` enforces is a UI rule, which
+  a second device, an agent, a handler or raw SQL passes. Declare it on the Entity, and
+  migrate `invariantChecks(binding)` so the database holds it too.
+- Inside `Entity.invariant`, read the row after through `after`. A bare `Product.fields.stock`
+  reads the row before, and one reading nothing of `after` is refused where it is declared.
+- An increment with neither `expect` nor a ledger recording its operation (a ledgered
+  writer, and the operation id `Data.mutate` sends) is refused by the server: its retry
+  would add twice.
+- `Entity.judge(entity, { after })` without `before` skips transition invariants: pass the
+  row before for an update.
 - A schema's label and help text are `Words.of(schema)` (`title`, `description`, each an
   `Option`). Never `Schema.resolveAnnotations(schema)?.title`: under Effect 4 a checked
   schema resolves to its last check's annotations, so a title given before a check is lost.

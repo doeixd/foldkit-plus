@@ -130,7 +130,9 @@ const Todo = TodoFields.pipe(
   which the writer moves on with each write it lands) so an update or delete
   lands only on the revision its rules were decided over, decided again if the
   row moved; an input may `expect` only that field. A change that does not move
-  it (a handler, raw SQL) is not seen; without `revision`, none is, and
+  it (a handler, raw SQL) is not seen, unless the table carries
+  `revisionTrigger(binding, 'revision')` (`foldkit-remote-drizzle`, run with its
+  migration), which moves it on every other update; without `revision`, none is, and
   `GuardServer.validate` warns. A `when` or `expect` over a member with a Read
   rule is refused by the writer itself, and by `validate` at startup.
 - `may`: `TodoFields.pipe(Guards.attach(G, { … }), Guards.may)` adds a derived
