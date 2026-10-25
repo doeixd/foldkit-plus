@@ -35,6 +35,7 @@ import {
   RemoteClient,
   coalescedLayer,
   liveEventOf,
+  mintOperation,
   mutateRemote,
   remoteError,
   type RemoteRpcClient,
@@ -3613,6 +3614,8 @@ const bindDomain = <
       const requestId =
         options.requestId ?? `${bound.contract.name}-${remote.mutations.sequence + 1}`
       const tempId = `${requestId}.tmp`
+      // A retry of a failed request sends the operation id it was first sent with.
+      const known = Option.fromUndefinedOr(remote.mutations.operations.get(requestId))
       // A declared write shows what it writes until the server answers; one given wins.
       const optimistic =
         typeof options.optimistic === 'function'
@@ -3633,22 +3636,28 @@ const bindDomain = <
         command: {
           name: `Remote.mutate(${mutation.name})`,
           args: { requestId },
-          effect: mutateRemote(mutation, input, requestId, options.keys).pipe(
-            Effect.match({
-              onFailure: (error): RemoteMessage => ({
-                _tag: 'MutationFailed',
-                requestId,
-                error: remoteError(error),
-              }),
-              onSuccess: (outcome): RemoteMessage => ({
-                _tag: 'MutationSucceeded',
-                requestId,
-                entities: outcome.entities,
-                connections: outcome.connections,
-                deleted: outcome.deleted,
-                now: (options.now ?? wallClock)(),
-              }),
-            }),
+          // Minted where the Command runs, so `update` stays pure; a retry finds it in the Model.
+          effect: Effect.flatMap(
+            Effect.sync(() => Option.getOrElse(known, mintOperation)),
+            operation =>
+              mutateRemote(mutation, input, requestId, { keys: options.keys, operation }).pipe(
+                Effect.match({
+                  onFailure: (error): RemoteMessage => ({
+                    _tag: 'MutationFailed',
+                    requestId,
+                    error: remoteError(error),
+                    operation,
+                  }),
+                  onSuccess: (outcome): RemoteMessage => ({
+                    _tag: 'MutationSucceeded',
+                    requestId,
+                    entities: outcome.entities,
+                    connections: outcome.connections,
+                    deleted: outcome.deleted,
+                    now: (options.now ?? wallClock)(),
+                  }),
+                }),
+              ),
           ),
         },
       }

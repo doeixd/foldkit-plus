@@ -51,7 +51,15 @@ describe('Remote mutations', () => {
     expect(output).toEqual({ id: 'u1' })
     expect(entities).toEqual([{ entity: 'User', id: 'u1', values: { name: 'ada' } }])
     expect(requests).toEqual([
-      { requestId: 'req-1', mutation: 'RenameUser', input: { id: 'u1', name: 'ada' } },
+      {
+        requestId: 'req-1',
+        // A new operation, so a server can tell it from every other client's.
+        operation: expect.stringMatching(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+        ),
+        mutation: 'RenameUser',
+        input: { id: 'u1', name: 'ada' },
+      },
     ])
   })
 
@@ -89,7 +97,7 @@ describe('Remote mutations', () => {
     expect(pending.pending.has('req-1')).toBe(true)
     expect(mutationStatus(pending, 'req-1')).toEqual({ _tag: 'Pending' })
 
-    const failed = failMutation(pending, 'req-1', offline)
+    const failed = failMutation(pending, 'req-1', offline, 'op')
     expect(failed.pending.has('req-1')).toBe(false)
     expect(failed.failed.has('req-1')).toBe(true)
     expect(mutationStatus(failed, 'req-1')).toEqual({ _tag: 'Failed', error: offline })
@@ -104,7 +112,7 @@ describe('Remote mutations', () => {
   })
 
   it('reads a retry by its latest outcome: in flight, then applied', () => {
-    const retried = beginMutation(failMutation(emptyMutationState, 'req-1', offline), 'req-1')
+    const retried = beginMutation(failMutation(emptyMutationState, 'req-1', offline, 'op'), 'req-1')
     expect(mutationStatus(retried, 'req-1')).toEqual({ _tag: 'Pending' })
 
     const applied = reconcileMutation(emptyStore, retried, 'req-1', { entities: [], now: 0 }).state
@@ -151,10 +159,13 @@ describe('Remote mutations', () => {
   it('bounds the failed-request ledger', () => {
     let state = emptyMutationState
     for (let index = 0; index < 4096; index += 1) {
-      state = failMutation(state, `req-${index}`, offline)
+      state = failMutation(state, `req-${index}`, offline, `op-${index}`)
     }
 
     expect(state.failed.size).toBeLessThan(4096)
+    // An operation id outlives its request's place in the window by nothing.
+    expect(state.operations.size).toBe(state.failed.size)
+    expect(state.operations.get('req-4095')).toBe('op-4095')
     expect(state.failed.has('req-4095')).toBe(true)
     // An error is kept exactly as long as its id is.
     expect([...state.errors.keys()]).toEqual([...state.failed])

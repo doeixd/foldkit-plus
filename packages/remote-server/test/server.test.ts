@@ -1,4 +1,4 @@
-import { Context, Effect, Schema, Stream } from 'effect'
+import { Context, Effect, Option, Schema, Stream } from 'effect'
 import { RpcTest } from 'effect/rpc'
 import {
   Entity,
@@ -56,9 +56,9 @@ const server = RemoteServer.make({
     }),
   ],
   mutations: [
-    RemoteServer.mutation(RenameUser, ({ input, requestId }) =>
+    RemoteServer.mutation(RenameUser, ({ input, requestId, operation }) =>
       Effect.sync(() => {
-        heard.push(requestId)
+        heard.push(`${requestId} ${Option.getOrElse(operation, () => 'none')}`)
         return {
           output: { id: input.id },
           entities: [Entity.patch(User.ref(input.id), { name: input.name })],
@@ -95,12 +95,17 @@ const read = (principal: string, requests: ReadonlyArray<Request>) =>
     ).pipe(Effect.provide(layer(principal))),
   )
 
-const mutate = (mutation: string, input: unknown, requestId = 'r1') =>
+const mutate = (mutation: string, input: unknown, requestId = 'r1', operation?: string) =>
   Effect.runPromise(
     Effect.scoped(
       Effect.gen(function* () {
         const client = yield* RpcTest.makeClient(RemoteRpc)
-        return yield* client.FoldkitRemoteMutate({ requestId, mutation, input })
+        return yield* client.FoldkitRemoteMutate({
+          requestId,
+          mutation,
+          input,
+          ...(operation === undefined ? {} : { operation }),
+        })
       }),
     ).pipe(Effect.provide(layer('user'))),
   )
@@ -308,11 +313,19 @@ describe('RemoteServer', () => {
     expect(result.entities).toEqual([{ entity: 'User', id: 'u1', values: { name: 'ada' } }])
   })
 
-  it('gives the Source the request id the client sent, so a retry can be recognised', async () => {
+  it('gives the Source the operation the client sent, which a retry sends again', async () => {
     heard.length = 0
-    await mutate('RenameUser', { id: 'u1', name: 'ada' }, 'RenameUser-7')
-    await mutate('RenameUser', { id: 'u1', name: 'ada' }, 'RenameUser-7')
-    expect(heard).toEqual(['RenameUser-7', 'RenameUser-7'])
+    await mutate('RenameUser', { id: 'u1', name: 'ada' }, 'RenameUser-7', 'op-7')
+    await mutate('RenameUser', { id: 'u1', name: 'ada' }, 'RenameUser-7', 'op-7')
+    // An older client sends none.
+    await mutate('RenameUser', { id: 'u1', name: 'ada' }, 'RenameUser-8')
+    expect(heard).toEqual(['RenameUser-7 op-7', 'RenameUser-7 op-7', 'RenameUser-8 none'])
+  })
+
+  it('refuses an operation id the wire does not bound', async () => {
+    await expect(
+      mutate('RenameUser', { id: 'u1', name: 'ada' }, 'r', 'x'.repeat(129)),
+    ).rejects.toThrow()
   })
 
   it('rejects an unknown mutation', async () => {

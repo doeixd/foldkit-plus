@@ -59,6 +59,13 @@ Small, independent, closes a security gap regardless of what follows.
 
 ### Phase 2: an operation identity (prerequisite for phase 3)
 
+**Built**, 2026-10-25, with one change from the sketch below: `update` is pure,
+so `Data.mutate` cannot mint a random id. The Command mints it where it runs,
+`MutationFailed` carries it back, and `MutationState.operations` keeps it as
+long as the request's error, so a retry with the same `requestId` (Remote's
+existing retry convention) sends it again; no `Data.retry` was needed. The
+principal scope is phase 3's, where the ledger keys by it.
+
 - `Data.mutate` mints an operation id unique across clients
   (`crypto.randomUUID()`, or `replicaId:sequence` where a replica id exists),
   carried on the wire beside `requestId` as `operation`. The application keeps

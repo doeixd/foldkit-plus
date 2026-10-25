@@ -86,6 +86,7 @@ describe('Remote.update', () => {
     })
     const failed = updateRemote(withLayer, {
       _tag: 'MutationFailed',
+      operation: 'op',
       requestId: 'req-1',
       error: { _tag: 'Boom', message: 'x' },
     })
@@ -351,6 +352,7 @@ describe('Remote.update', () => {
     })
     model = updateRemote(model, {
       _tag: 'MutationFailed',
+      operation: 'op',
       requestId: 'req-2',
       error: { _tag: 'Boom', message: 'x' },
     })

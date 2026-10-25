@@ -135,6 +135,7 @@ describe('A Message that changes nothing', () => {
     expect(
       updateRemote(started, {
         _tag: 'MutationFailed',
+        operation: 'op',
         requestId: 'm1',
         error: { _tag: 'Transport', message: 'x' },
       }).optimistic,

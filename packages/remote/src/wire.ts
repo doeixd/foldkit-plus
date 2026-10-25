@@ -137,9 +137,26 @@ export const ReadBatchResult = Schema.Struct({
   settled: Schema.Array(SettledFields),
 })
 
+/**
+ * One operation's identity across every client: minted where it is first sent
+ * and sent again with each retry of it. Bounded, since a server keys a record
+ * of the write by it.
+ */
+export const OperationId = Schema.String.check(
+  Schema.isMinLength(1),
+  Schema.isMaxLength(128),
+  Schema.isPattern(/^[A-Za-z0-9:._-]+$/),
+)
+
 export const MutationRequest = Schema.Struct({
-  /** Stable across transport retries so a mutation is not applied twice. */
+  /**
+   * This client's id for the request, the same on each retry of it. It is
+   * unique within one client's Model only (a counter there), so it names a
+   * request to that client; `operation` names it to a server.
+   */
   requestId: Schema.String,
+  /** The operation's identity across clients: what a server keys a record of the write by. */
+  operation: Schema.optional(OperationId),
   mutation: Schema.String,
   input: Schema.Unknown,
   /** For a mutation that is a `Write`: the input keys to write, when not all of them. */

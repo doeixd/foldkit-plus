@@ -7,7 +7,15 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Entity as DomainEntity, Write } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
-import { Mutation, Refusal, Remote, RemoteClient, patchOfWrite } from '../src/index.js'
+import {
+  Mutation,
+  MutationRequest,
+  Refusal,
+  Remote,
+  RemoteClient,
+  RemoteMutationError,
+  patchOfWrite,
+} from '../src/index.js'
 
 const Project = DomainEntity.define(
   'Project',
@@ -87,7 +95,15 @@ describe('Data.mutate of a write', () => {
     const started = Data.mutate(held, EditProject, edit, { keys: ['name'] })
     await Effect.runPromise(started.command.effect.pipe(Effect.provide(client)))
     expect(sent).toEqual([
-      { requestId: started.requestId, mutation: 'EditProject', input: edit, keys: ['name'] },
+      {
+        requestId: started.requestId,
+        operation: expect.stringMatching(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+        ),
+        mutation: 'EditProject',
+        input: edit,
+        keys: ['name'],
+      },
     ])
   })
 })
@@ -142,5 +158,68 @@ describe('Data.mutate of an insert or a delete', () => {
   it('shows nothing for a delete until the server answers', () => {
     const started = Writes.mutate(held, DropProject, { id: 'p1' })
     expect(started.model.remote.optimistic).toEqual(held.remote.optimistic)
+  })
+})
+
+describe('An operation id', () => {
+  const edit = { id: 'p1', name: 'Apollo II', status: 'active' }
+  /** A client that records what it was sent, and fails or answers as told. */
+  const recording = (fails: boolean) => {
+    const sent: Array<{ readonly requestId: string; readonly operation?: string | undefined }> = []
+    const layer = Layer.succeed(RemoteClient, {
+      read: () => Effect.die('no reads'),
+      query: () => Effect.die('no queries'),
+      mutate: request =>
+        Effect.suspend(() => {
+          sent.push(request)
+          return fails
+            ? Effect.fail(new RemoteMutationError({ message: 'offline' }))
+            : Effect.succeed({ output: {}, entities: [] })
+        }),
+      live: () => Stream.empty,
+    })
+    return { sent, layer }
+  }
+  const run = async (model: Model, requestId: string | undefined, fails: boolean) => {
+    const { sent, layer } = recording(fails)
+    const started = Data.mutate(
+      model,
+      EditProject,
+      edit,
+      requestId === undefined ? {} : { requestId },
+    )
+    const message = await Effect.runPromise(started.command.effect.pipe(Effect.provide(layer)))
+    return { sent, model: Data.reduce(started.model, message), requestId: started.requestId }
+  }
+
+  it('is new for each mutation, so two clients’ first ones differ', async () => {
+    const first = await run(held, undefined, false)
+    const other = await run(held, undefined, false)
+    // Both models are fresh: their request ids agree, their operations do not.
+    expect(first.requestId).toBe(other.requestId)
+    expect(first.sent[0]?.operation).not.toBe(other.sent[0]?.operation)
+  })
+
+  it('is sent again by a retry of a failed request, and is new after a reload', async () => {
+    const failed = await run(held, undefined, true)
+    const retried = await run(failed.model, failed.requestId, false)
+    expect(retried.sent[0]?.operation).toBe(failed.sent[0]?.operation)
+    // A reloaded model has no record of it: the same request id is a new operation.
+    const reloaded = await run(held, failed.requestId, false)
+    expect(reloaded.sent[0]?.operation).not.toBe(failed.sent[0]?.operation)
+  })
+
+  it('is bounded on the wire, where a server keys a record by it', () => {
+    const request = (operation: string) =>
+      Schema.decodeUnknownResult(MutationRequest)({
+        requestId: 'r',
+        operation,
+        mutation: 'EditProject',
+        input: {},
+      })._tag
+    expect(request('a1b2-c3:d4.e5_f6')).toBe('Success')
+    expect(request('x'.repeat(129))).toBe('Failure')
+    expect(request('a b')).toBe('Failure')
+    expect(request('')).toBe('Failure')
   })
 })
