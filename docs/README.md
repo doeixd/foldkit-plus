@@ -72,6 +72,7 @@ Link and Placement to Connection and Segment, are in the
 | Serve several screens from one route topology, with navigation, data preparation, and rendering derived from it | [Site guide](./site.md) | `foldkit-site` (+ `foldkit-surface`, `foldkit-remote`, `foldkit-ssr` as composed) |
 | Decide between a hand-wired Submodel and a Bundle, and see what a placement replaces | [Bundle versus Submodel](./bundle-vs-submodel.md) | `foldkit-bundle` |
 | Choose between a Surface and a Bundle, or combine them | [Surface versus Bundle](./surface-vs-bundles.md) | `foldkit-surface`, `foldkit-bundle` |
+| Change one server row so the change holds where it commits: who may, when it makes sense, by how much, and safe to retry | [Declared writes](./declared-writes.md) | `foldkit-entity`, `foldkit-guard`, `foldkit-remote-drizzle`, `foldkit-remote` |
 | Tell who is asking from what they may do, and wire the two | [Auth and Guard](./auth-and-guard.md) | `foldkit-auth`, `foldkit-guard` |
 | Let callers restyle/decorate views through typed extension points | [View composition](./mixins.md) | `foldkit-mixins`, `foldkit-mixins-surface`, `foldkit-mixins-ui` |
 | Build on the shared UI vocabulary (anatomy, capability, recipe, theme) before adding widgets | [UI architecture](./ui-architecture.md) | `foldkit-mixins`, `foldkit-mixins-ui` |

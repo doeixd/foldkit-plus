@@ -1456,7 +1456,8 @@ holds whenever the row is read, so a change that reaches the store meanwhile is
 added to rather than hidden, and two pending increments add up. A field the
 client has not read is not guessed; it shows the server's sum when the answer
 comes. The prediction is never authority: the server decides, and its answer
-replaces it. `keys` names the input keys
+replaces it. The [declared writes guide](../../docs/declared-writes.md) follows
+one write from here to the statement that lands it. `keys` names the input keys
 an author changed: only those are shown, and the request carries them for the
 server to write; the input is still sent and validated whole.
 

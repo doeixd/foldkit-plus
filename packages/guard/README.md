@@ -349,7 +349,8 @@ Policy as it is and require its services where the write runs.
 ## Serving writes
 
 A declared write (`Mutation.write`) is served by `RemoteServer.write` with no
-handler. Wrap its writer, and the write rules are checked before it lands:
+handler (the [declared writes guide](../../docs/declared-writes.md) shows the
+whole path, client to statement). Wrap its writer, and the write rules are checked before it lands:
 
 ```ts
 import { Write } from 'foldkit-entity'

@@ -378,7 +378,8 @@ key. `Write.bind` gives the amounts apart from the values (`increments`), so a
 client can add them to the value it holds as it reads it (Remote does), never
 fixing a sum over a row that may since have moved. `Write.reads(write)` is what a write
 reads from its row: what its `when` reads, each field it increments, and the
-revision.
+revision. How a declaration, its guard, its writer and the client fit together is
+the [declared writes guide](../../docs/declared-writes.md).
 
 ## Attaching metadata
 

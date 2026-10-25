@@ -92,11 +92,15 @@ writer may not read, and warns of a guarded writer with no `revision`.
 - Only an increment is computed; other arithmetic, and copying one field into
   another, are not offered.
 - The revision pin sees only writes that move the revision: a handler or raw SQL
-  that changes the row without moving it is not seen.
+  that changes the row without moving it is not seen, unless the table has
+  `revisionTrigger`'s trigger, which moves it for them.
 - Without a ledger, a retried increment is a conflict: "it landed and the
   answer was lost" reads like any conflict. With one, a retry later than its
   record's retention (a day) is a new operation.
 
-See the [precondition](../../docs/design/write-precondition-DESIGN.md),
+On the client, `Data.mutate` shows a pending restock or sale as a predicted sum
+over the stock it holds, re-added as that stock changes, until the answer.
+
+The guide is [Declared writes](../../docs/declared-writes.md); see also the [precondition](../../docs/design/write-precondition-DESIGN.md),
 [increment](../../docs/design/write-increment-DESIGN.md) and
 [revision pin](../../docs/design/guard-atomic-DESIGN.md) designs.
