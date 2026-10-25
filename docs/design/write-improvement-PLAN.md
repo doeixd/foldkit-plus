@@ -126,6 +126,12 @@ pin, since its rules would judge a sum over a row that may move.
 
 ### Phase 4: restructure `GuardServer.writer` (item 5)
 
+**Built**, 2026-10-25: `update` is `admitUpdate`, `answeredOr`, then within the
+retry `updateRules`, `readBefore`, `decideUpdate` and the pinned write; `delete`
+was already that short and kept its shape. Every guard test and all 140
+mutations of the six specs over the writer pass unchanged, re-anchored where the
+code moved.
+
 No behaviour change; done after phase 3, which adds the ledger read, and before
 #183/#184 add invariants.
 

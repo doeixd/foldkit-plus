@@ -11,15 +11,15 @@ export default [
     edits: [
       {
         file,
-        find: 'yield* require([row, ...members, ...relations], before, principal)',
-        replace: 'yield* require([...members, ...relations], before, principal)',
+        find: 'yield* require([rules.row, ...rules.members, ...relations], before, principal)',
+        replace: 'yield* require([...rules.members, ...relations], before, principal)',
       },
     ],
     tests,
   },
   {
     name: 'an update is not checked over the row as it would be',
-    edits: [{ file, find: 'yield* require([row], after, principal)', replace: '' }],
+    edits: [{ file, find: 'yield* require([rules.row], after, principal)', replace: '' }],
     tests,
   },
   {
@@ -27,7 +27,7 @@ export default [
     edits: [
       {
         file,
-        find: 'if (Option.isNone(current)) return yield* Effect.fail(refused(row.deny))',
+        find: 'if (Option.isNone(current)) return yield* Effect.fail(refused(rules.row.deny))',
         replace: 'if (Option.isNone(current)) return yield* writer.update(context)',
       },
     ],
@@ -35,7 +35,13 @@ export default [
   },
   {
     name: 'a relation rule’s fields are not read',
-    edits: [{ file, find: '[row, ...members, ...ruleOf(relating)]', replace: '[row, ...members]' }],
+    edits: [
+      {
+        file,
+        find: '[rules.row, ...rules.members, ...ruleOf(rules.relating)]',
+        replace: '[rules.row, ...rules.members]',
+      },
+    ],
     tests,
   },
   {

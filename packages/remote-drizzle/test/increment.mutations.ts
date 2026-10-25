@@ -84,8 +84,8 @@ export default [
   edit(
     'the incremented member needs no Update rule',
     guard,
-    '[...Object.keys(values), ...Object.keys(increments)],',
-    'Object.keys(values),',
+    '[...Object.keys(context.values), ...Object.keys(context.increments)],',
+    'Object.keys(context.values),',
   ),
   edit(
     'the guard judges the row as it was, not with the sum',
