@@ -74,4 +74,10 @@ export default [
     'Option.isNone(context.expect) &&',
     'false &&',
   ),
+  edit(
+    'a record answers for every row',
+    drizzle,
+    '      eq(book.table.target, Entity.refKey({ entity: binding.name, id })),\n',
+    '',
+  ),
 ]

@@ -832,21 +832,29 @@ conflict and the field moves once. A binding with a
 `visible` rule reads the answer back through it: the row as its writer may now
 see it, or, when the write hid it from them, a deletion.
 
-### A ledger: retries answered exactly
+### A ledger: a retry is never applied twice
 
 `writer(binding, { ledger: { table, scope } })` records each update it lands
-under the operation that asked for it (the client's `operation` id), in the
+under the operation that asked for it (the client's `operation` id) and the row
+it wrote, in the
 transaction that writes the row, and answers a retry of that operation from the
 record instead of writing again. So an increment needs no `expect`: two made
-from one read both land, and a lost answer's retry is answered with what landed.
+from one read both land, and a lost answer's retry is not written again. It is
+answered, as every write is, with the row as it now is, read back under its
+reader's rules: a later write's values, and none it may no longer see.
 
 ```sql
 create table write_ledger (
-  scope text not null, operation text not null,
-  answer text not null, at integer not null,
-  primary key (scope, operation)
-)
+  scope text not null, operation text not null, target text not null,
+  answer text not null, at bigint not null,
+  primary key (scope, operation, target)
+);
+create index write_ledger_at on write_ledger (at);
 ```
+
+`at` is milliseconds, past a Postgres `integer` (SQLite's `integer` holds it;
+`bigint` there reads as one). The index on `at` keeps pruning from scanning the
+table.
 
 - `scope(principal)` names whose operations they are, so no one is answered with
   another's write; an operation id is only unique per client that minted it.
@@ -866,8 +874,10 @@ A writer moves a revision only with the writes it lands. `revisionTrigger(bindin
 'revision')` is the SQL that makes the database move it on every other update
 too (a handler's, raw SQL), so a guarded writer pinned to it sees every change.
 An update that sets the revision itself, by one or to any value, is left as it
-set it. Run it once, with the migration that makes the table (SQLite and
-Postgres). Not for a table Sync writes: `applyEdits` keeps one revision for two
+set it. Run it with the migration that makes the table (SQLite and Postgres);
+running it again replaces it, and a Postgres table in a `pgSchema` is named by
+its schema. The revision column must be `not null`: the trigger compares it with
+`=`, which a null never satisfies, so a null revision is never moved. Not for a table Sync writes: `applyEdits` keeps one revision for two
 changes in one operation, which the trigger would move past its sequence.
 
 An insert is one `insert ... on conflict do nothing returning` under the id the

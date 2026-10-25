@@ -76,3 +76,19 @@ export const Restock = Mutation.write(
     { id: 'id', expect: 'revision', increment: { stock: 'quantity' } },
   ),
 )
+
+/**
+ * A sale takes from the stock where it commits, expecting no revision: two
+ * sales made from one read both land. The server's writer for it keeps a
+ * ledger, so a retry of a sale is never sold twice; it is answered with the row
+ * as it now is.
+ */
+export const Sell = Mutation.write(
+  'Sell',
+  Write.update(
+    Entity.input(Product, Schema.Struct({ id: Schema.String, quantity: Schema.Number }), {
+      quantity: Entity.unmapped,
+    }),
+    { id: 'id', increment: { stock: 'quantity' } },
+  ),
+)

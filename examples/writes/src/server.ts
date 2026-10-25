@@ -1,15 +1,16 @@
 /**
- * The server's half: the table, how a guard's body is decided, and one
- * guarded writer pinned to the revision its rules were decided over.
+ * The server's half: the tables, how a guard's body is decided, and guarded
+ * writers pinned to the revision their rules were decided over, one of them
+ * keeping a ledger of the writes it lands.
  */
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Option } from 'effect'
 import { GuardDrizzle } from 'foldkit-guard/drizzle'
 import { GuardServer } from 'foldkit-guard/server'
 import { Remote } from 'foldkit-remote'
 import { bind, writer, type DrizzleDatabase } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
-import { Product, Publish, Rename, Restock, Shop, type User } from './domain.js'
+import { Product, Publish, Rename, Restock, Sell, Shop, type User } from './domain.js'
 
 export const products = sqliteTable('products', {
   id: text('id').primaryKey(),
@@ -20,10 +21,27 @@ export const products = sqliteTable('products', {
   revision: integer('revision').notNull(),
 })
 
+/** Each write the ledgered writer landed, by whose operation it was. */
+export const ledger = sqliteTable(
+  'write_ledger',
+  {
+    scope: text('scope').notNull(),
+    operation: text('operation').notNull(),
+    target: text('target').notNull(),
+    answer: text('answer').notNull(),
+    at: integer('at').notNull(),
+  },
+  table => [primaryKey({ columns: [table.scope, table.operation, table.target] })],
+)
+
 export const schema = `
   create table products (
     id text primary key, owner_id text not null, name text not null,
     status text not null, stock integer not null, revision integer not null
+  );
+  create table write_ledger (
+    scope text not null, operation text not null, target text not null, answer text not null, at integer not null,
+    primary key (scope, operation, target)
   )`
 
 // Every guard is a row guard, decided in SQL: there is no principal guard to implement.
@@ -37,12 +55,26 @@ const Db = bind(
 // Each update and delete lands only on the revision its rules were decided over.
 const guarded = GuardServer.writer(Product, Policy, writer(Db.Product), { revision: 'revision' })
 
+// The same, recording each update under its operation, scoped to who asked.
+const ledgered = GuardServer.writer(
+  Product,
+  Policy,
+  writer<Option.Option<User>>(Db.Product, {
+    ledger: {
+      table: ledger,
+      scope: principal => Option.match(principal, { onNone: () => '', onSome: user => user.id }),
+    },
+  }),
+  { revision: 'revision' },
+)
+
 export const server = RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
   entities: [],
   mutations: [
     RemoteServer.write(Rename, guarded),
     RemoteServer.write(Publish, guarded),
     RemoteServer.write(Restock, guarded),
+    RemoteServer.write(Sell, ledgered),
   ],
 })
 

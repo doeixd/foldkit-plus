@@ -205,6 +205,8 @@ export interface EntityWriter<P, R = never> {
    */
   readonly recorded?: (context: {
     readonly operation: string
+    /** The row the operation writes: one operation may write several rows. */
+    readonly id: string
     readonly principal: P
   }) => Effect.Effect<Option.Option<Readonly<Record<string, unknown>>>, RemoteServerError, R>
   readonly update: (context: {

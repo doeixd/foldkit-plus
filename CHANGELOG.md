@@ -67,17 +67,19 @@ version changed; `pnpm` skips versions already in the registry.
   `GuardServer.writer` requires the member's Update rule and judges the sum.
   `Write.reads` lists what a write reads from its row. (#182)
 - **A mutation names its operation across clients.** `Data.mutate` sends an
-  `operation` id (`crypto.randomUUID()`, minted in the Command, so `update`
-  stays pure) beside `requestId`; a failed request keeps it, and a retry with
+  `operation` id (`crypto.randomUUID()`, or 128 bits of `getRandomValues` on a
+  page served over plain HTTP; minted in the Command, so `update` stays pure) beside `requestId`; a failed request keeps it, and a retry with
   the same `requestId` sends it again. A Source (`RemoteServer.mutation`'s
   handler, an `EntityWriter`'s caller) receives it as `operation`. Record a
   write under it, never under `requestId`, which the docs had advised and which
   is a per-Model counter two clients share.
-- **`foldkit-remote-drizzle`: a writer's ledger answers a retry exactly.**
+- **`foldkit-remote-drizzle`: a writer's ledger never applies a retry twice.**
   `writer(binding, { ledger: { table, scope, retention? } })` records each
-  update under its operation, in the transaction that writes (synchronous on
+  update under its operation and row (a `write_ledger` keyed by `scope`,
+  `operation` and `target`), in the transaction that writes (synchronous on
   SQLite, awaited on Postgres; refused on a database without transactions),
-  and answers a retry from the record. An increment over such a writer needs no
+  and answers a retry from the record without writing again (read back, as any
+  answer is, as the row now is). An increment over such a writer needs no
   `expect`, so concurrent increments both land; `Write` no longer requires
   `expect` for one, and `RemoteServer.write` refuses one with neither.
   `GuardServer.writer` answers a recorded retry without deciding it again, and
@@ -86,7 +88,8 @@ version changed; `pnpm` skips versions already in the registry.
   (SQLite or Postgres) that has the database move a revision on every update
   that does not set it itself, so a guarded writer's pin sees a handler's or
   raw SQL's change too. An update that sets the revision, by one or to any
-  value, is left as it set it. Not for a table Sync writes.
+  value, is left as it set it. It can be run again, and names a Postgres
+  table by its `pgSchema`. Not for a table Sync writes.
 
 
 ### Changed

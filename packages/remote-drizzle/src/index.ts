@@ -25,6 +25,7 @@ import {
   type SQL,
   type Table,
 } from 'drizzle-orm'
+import { getTableConfig as getPgTableConfig, type PgTable } from 'drizzle-orm/pg-core'
 import { SQLiteTable } from 'drizzle-orm/sqlite-core'
 import { Clock, Effect, Option, Schema } from 'effect'
 import type { EntityRef } from 'foldkit-entity'
@@ -887,17 +888,24 @@ export const revisionTrigger = (binding: AnyEntityBinding, revision: string): st
       `[foldkit-remote-drizzle] revisionTrigger: ${binding.name} has no column for its revision "${revision}"`,
     )
   }
-  const table = quoted(getTableName(binding.table))
-  const name = quoted(`${getTableName(binding.table)}_${column.name}_moves`)
   const moved = quoted(column.name)
+  const trigger = `${getTableName(binding.table)}_${column.name}_moves`
+  // Run again, it keeps (SQLite) or replaces (Postgres) what it made, rather than failing.
   if (is(binding.table, SQLiteTable)) {
+    const table = quoted(getTableName(binding.table))
     const id = quoted(idColumn(binding).name)
-    return `create trigger ${name} after update on ${table} for each row when new.${moved} = old.${moved}
+    return `create trigger if not exists ${quoted(trigger)} after update on ${table} for each row when new.${moved} = old.${moved}
 begin update ${table} set ${moved} = old.${moved} + 1 where ${id} = new.${id}; end;`
   }
+  // A table in a `pgSchema` is named by it, and so is its function.
+  const schema = getPgTableConfig(binding.table as PgTable).schema
+  const within = (name: string) =>
+    schema === undefined ? quoted(name) : `${quoted(schema)}.${quoted(name)}`
+  const table = within(getTableName(binding.table))
+  const name = within(trigger)
   return `create or replace function ${name}() returns trigger language plpgsql as $$
 begin if new.${moved} = old.${moved} then new.${moved} := old.${moved} + 1; end if; return new; end $$;
-create trigger ${name} before update on ${table} for each row execute function ${name}();`
+create or replace trigger ${quoted(trigger)} before update on ${table} for each row execute function ${name}();`
 }
 
 /**
@@ -907,17 +915,23 @@ create trigger ${name} before update on ${table} for each row execute function $
  *
  * ```sql
  * create table write_ledger (
- *   scope text not null, operation text not null,
- *   answer text not null, at integer not null,
- *   primary key (scope, operation)
- * )
+ *   scope text not null, operation text not null, target text not null,
+ *   answer text not null, at bigint not null,
+ *   primary key (scope, operation, target)
+ * );
+ * create index write_ledger_at on write_ledger (at);
  * ```
+ *
+ * `target` is the row (`Entity:id`), so one operation that updates two rows
+ * records each, and an operation id sent again for another row is not that
+ * row's retry. `at` is milliseconds, past a Postgres `integer`.
  */
 export interface WriteLedger<P> {
-  /** The ledger table, its columns named `scope`, `operation`, `answer` and `at`. */
+  /** The ledger table, its columns named `scope`, `operation`, `target`, `answer` and `at`. */
   readonly table: Table & {
     readonly scope: AnyColumn
     readonly operation: AnyColumn
+    readonly target: AnyColumn
     readonly answer: AnyColumn
     readonly at: AnyColumn
   }
@@ -948,8 +962,10 @@ interface LedgerTx {
   delete(table: Table): { where(condition: SQL | undefined): SyncStatement & PromiseLike<unknown> }
 }
 
-/** The provided Drizzle database, as far as a ledger needs it: a transaction. */
+/** The provided Drizzle database, as far as a ledger needs it: a transaction, and its kind. */
 interface LedgerDatabase {
+  /** `'sync'` for a driver whose statements run where they are called (node-sqlite, better-sqlite3). */
+  readonly resultKind?: string
   transaction<A>(body: (tx: LedgerTx) => A): A
 }
 
@@ -1076,10 +1092,17 @@ export const writer = <P = unknown>(
     Option.map(Option.fromUndefinedOr(answered.patches(rows)[0]), patch => patch.values)
 
   /** A ledger's record of `operation`, unless past its retention, pruned yet or not: a retry that late is new. */
-  const recordOf = (book: WriteLedger<P>, scope: string, operation: string, cutoff: number) =>
+  const recordOf = (
+    book: WriteLedger<P>,
+    scope: string,
+    operation: string,
+    id: string,
+    cutoff: number,
+  ) =>
     and(
       eq(book.table.scope, scope),
       eq(book.table.operation, operation),
+      eq(book.table.target, Entity.refKey({ entity: binding.name, id })),
       gte(book.table.at, cutoff),
     )
 
@@ -1093,18 +1116,23 @@ export const writer = <P = unknown>(
     book: WriteLedger<P>,
     scope: string,
     operation: string,
+    id: string,
     update: (database: unknown) => unknown,
     answerOf: (rows: ReadonlyArray<Record<string, unknown>>) => Option.Option<unknown>,
   ): Effect.Effect<Ledgered, RemoteServerError, DrizzleDatabase> =>
     Effect.gen(function* () {
       const now = yield* Clock.currentTimeMillis
       const cutoff = now - (book.retention ?? DAY)
-      const key = recordOf(book, scope, operation, cutoff)
+      const key = recordOf(book, scope, operation, id, cutoff)
       const expired = lt(book.table.at, cutoff)
       const record = (answer: unknown) => ({
         scope,
         operation,
-        answer: JSON.stringify(answer),
+        target: Entity.refKey({ entity: binding.name, id }),
+        // Only the answer for a row since gone; a bigint goes as its digits.
+        answer: JSON.stringify(answer, (_, value: unknown) =>
+          typeof value === 'bigint' ? value.toString() : value,
+        ),
         at: now,
       })
       // The database is the application's Drizzle one; its builders are not nameable by dialect.
@@ -1114,7 +1142,9 @@ export const writer = <P = unknown>(
           message: `${binding.name}'s ledger needs a database with transactions`,
         })
       }
-      if (is(binding.table, SQLiteTable)) {
+      // A synchronous driver's transaction commits when its body returns, so the body awaits
+      // nothing; an asynchronous one's (libsql, D1, Postgres) is awaited.
+      if (database.resultKind === 'sync') {
         return yield* Effect.try({
           try: () =>
             database.transaction(tx => {
@@ -1132,8 +1162,13 @@ export const writer = <P = unknown>(
               })
               return { _tag: 'Written', rows }
             }) as Ledgered,
-          catch: () => new RemoteServerError({ message: 'Database write failed' }),
-        })
+          catch: error => error,
+        }).pipe(
+          Effect.tapError(error =>
+            Effect.logError('[foldkit-remote-drizzle] Database write failed', error),
+          ),
+          Effect.mapError(() => new RemoteServerError({ message: 'Database write failed' })),
+        )
       }
       return yield* runStatement(
         () =>
@@ -1160,14 +1195,14 @@ export const writer = <P = unknown>(
       ? {}
       : {
           ledger: true,
-          recorded: ({ operation, principal }) =>
+          recorded: ({ operation, principal, id }) =>
             Effect.gen(function* () {
               const cutoff = (yield* Clock.currentTimeMillis) - (ledger.retention ?? DAY)
               const found = yield* selectRows(
                 yield* DrizzleDatabase,
                 ledger.table,
                 { answer: ledger.table.answer },
-                { where: recordOf(ledger, ledger.scope(principal), operation, cutoff) },
+                { where: recordOf(ledger, ledger.scope(principal), operation, id, cutoff) },
               )
               return Option.map(
                 Option.fromUndefinedOr(found[0]),
@@ -1197,12 +1232,19 @@ export const writer = <P = unknown>(
           ledger !== undefined && Object.keys(set).length > 0
             ? Option.map(operation, op => ({ ledger, op }))
             : Option.none()
+        // Unrecorded and unrevisioned, a retry of an increment would add twice: whoever calls.
+        if (Object.keys(increments).length > 0 && Option.isNone(expect) && Option.isNone(book)) {
+          return yield* new RemoteServerError({
+            message: `${binding.name} ${id}: an increment with no revision is written only under a ledgered operation`,
+          })
+        }
         let rows: ReadonlyArray<Record<string, unknown>>
         if (Option.isSome(book)) {
           const done = yield* inLedger(
             book.value.ledger,
             book.value.ledger.scope(principal),
             book.value.op,
+            id,
             tx =>
               (tx as DrizzleWrites)
                 .update(binding.table)
@@ -1212,7 +1254,17 @@ export const writer = <P = unknown>(
             landed => answeredOf(landed, answered),
           )
           if (done._tag === 'Recorded') {
-            return Option.some(JSON.parse(done.answer) as Readonly<Record<string, unknown>>)
+            // Landed already: not written again, and answered as the row now is, since the
+            // record's values may be older than a later write; the record only if it is gone.
+            const now = answeredOf(
+              yield* selectRows(yield* DrizzleDatabase, binding.table, answered.columns, {
+                where: eq(idColumn(binding), id),
+              }),
+              answered,
+            )
+            return Option.orElse(now, () =>
+              Option.some(JSON.parse(done.answer) as Readonly<Record<string, unknown>>),
+            )
           }
           rows = done.rows
         } else if (Object.keys(set).length === 0) {

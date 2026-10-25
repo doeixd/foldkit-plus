@@ -33,7 +33,18 @@ export default [
     'for (const id of operations.keys()) if (!failed.has(id)) operations.delete(id)',
     '',
   ),
-  edit('every operation is the same', '../src/client.ts', 'globalThis.crypto.randomUUID()', "'op'"),
+  edit(
+    'every operation is the same',
+    '../src/client.ts',
+    '? globalThis.crypto.randomUUID()',
+    "? 'op'",
+  ),
+  edit(
+    'an insecure page mints the same operation',
+    '../src/client.ts',
+    "byte.toString(16).padStart(2, '0'),",
+    "'0',",
+  ),
   edit(
     'the operation is not sent',
     '../src/client.ts',

@@ -15,7 +15,7 @@ import {
 } from 'drizzle-orm/pg-core'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { Effect, Schema } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import { Entity, Write } from 'foldkit-entity'
 import { Mutation } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
@@ -36,10 +36,11 @@ const ledgerTable = sqliteTable(
   {
     scope: text('scope').notNull(),
     operation: text('operation').notNull(),
+    target: text('target').notNull(),
     answer: text('answer').notNull(),
     at: integer('at').notNull(),
   },
-  table => [primaryKey({ columns: [table.scope, table.operation] })],
+  table => [primaryKey({ columns: [table.scope, table.operation, table.target] })],
 )
 const Db = bind({ Item }, { Item: { table: items } })
 
@@ -57,8 +58,8 @@ const Restock = Mutation.write(
 const schema = `
   create table items (id text primary key, stock integer not null, revision integer not null);
   create table write_ledger (
-    scope text not null, operation text not null, answer text not null, at integer not null,
-    primary key (scope, operation)
+    scope text not null, operation text not null, target text not null, answer text not null, at integer not null,
+    primary key (scope, operation, target)
   );`
 
 const sqlite = new DatabaseSync(':memory:')
@@ -113,7 +114,7 @@ describe('A writer with a ledger', () => {
     expect(stock()).toEqual({ stock: 18 })
   })
 
-  it('answers a retry from its record, exactly, and adds once', async () => {
+  it('answers a retry from its record, and adds once', async () => {
     seed()
     const server = serving()
     const first = await send(server, 'ada', 5, 'op-a')
@@ -126,6 +127,74 @@ describe('A writer with a ledger', () => {
     expect(retried).toEqual(first)
     expect(stock()).toEqual({ stock: 15 })
     expect(records()).toEqual([{ scope: 'ada', operation: 'op-a' }])
+  })
+
+  it('answers a retry after a later write with the row as it now is, and adds once', async () => {
+    seed()
+    const server = serving()
+    await send(server, 'ada', 5, 'op-a')
+    await send(server, 'ada', 3, 'op-b')
+    // op-a's answer was lost; it comes again after op-b landed.
+    expect(await send(server, 'ada', 5, 'op-a')).toMatchObject({
+      _tag: 'Success',
+      success: { entities: [{ id: 'i1', values: { stock: 18 } }] },
+    })
+    expect(stock()).toEqual({ stock: 18 })
+  })
+
+  it('records each row one operation writes, and answers no other row’s retry', async () => {
+    sqlite.exec("insert into items values ('i1', 10, 1), ('i2', 10, 1)")
+    const server = serving()
+    const restock = (id: string, quantity: number) =>
+      Effect.runPromise(
+        RemoteServer.handlers(server, 'ada')
+          .FoldkitRemoteMutate({
+            requestId: 'r',
+            mutation: 'Restock',
+            input: { id, quantity },
+            operation: 'transfer-1',
+          })
+          .pipe(Effect.result, Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
+      )
+    // One operation moving stock between two rows: each is written once.
+    await restock('i1', -4)
+    await restock('i2', 4)
+    await restock('i1', -4)
+    const both = sqlite.prepare('select id, stock from items order by id').all()
+    expect(both).toEqual([
+      { id: 'i1', stock: 6 },
+      { id: 'i2', stock: 14 },
+    ])
+    expect(records()).toHaveLength(2)
+  })
+
+  it('refuses, called directly, an increment with no revision and no ledgered operation', async () => {
+    seed()
+    const direct = writer<string>(Db.Item, {
+      ledger: { table: ledgerTable, scope: principal => principal },
+    })
+    const failed = await Effect.runPromise(
+      direct
+        .update({
+          id: 'i1',
+          values: {},
+          increments: { stock: 5 },
+          links: {},
+          expect: Option.none(),
+          when: Option.none(),
+          operation: Option.none(),
+          principal: 'ada',
+        })
+        .pipe(Effect.result, Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
+    )
+    expect(failed).toMatchObject({
+      _tag: 'Failure',
+      failure: {
+        message:
+          'Item i1: an increment with no revision is written only under a ledgered operation',
+      },
+    })
+    expect(stock()).toEqual({ stock: 10 })
   })
 
   it('answers no one with another’s write: an operation id is the asker’s', async () => {
@@ -197,10 +266,11 @@ describe('A writer with a ledger, on Postgres', () => {
     {
       scope: pgText('scope').notNull(),
       operation: pgText('operation').notNull(),
+      target: pgText('target').notNull(),
       answer: pgText('answer').notNull(),
       at: pgBigint('at', { mode: 'number' }).notNull(),
     },
-    table => [pgPrimaryKey({ columns: [table.scope, table.operation] })],
+    table => [pgPrimaryKey({ columns: [table.scope, table.operation, table.target] })],
   )
   const PgDb = bind({ Item }, { Item: { table: pgItems } })
   const pglite = new PGlite()
@@ -231,8 +301,8 @@ describe('A writer with a ledger, on Postgres', () => {
     await pglite.exec(`
       create table items (id text primary key, stock integer not null, revision integer not null);
       create table write_ledger (
-        scope text not null, operation text not null, answer text not null, at bigint not null,
-        primary key (scope, operation)
+        scope text not null, operation text not null, target text not null, answer text not null, at bigint not null,
+        primary key (scope, operation, target)
       );
       insert into items values ('i1', 10, 1);`)
     expect((await pgSend(5, 'op-a'))._tag).toBe('Success')

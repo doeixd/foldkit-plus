@@ -498,6 +498,7 @@ export const GuardServer = {
      */
     const answeredOr = <E, RA>(
       context: {
+        readonly id: string
         readonly operation: Option.Option<string>
         readonly principal: Option.Option<User>
       },
@@ -506,7 +507,11 @@ export const GuardServer = {
       const recorded = writer.recorded
       if (recorded === undefined || Option.isNone(context.operation)) return write()
       return Effect.flatMap(
-        recorded({ operation: context.operation.value, principal: context.principal }),
+        recorded({
+          operation: context.operation.value,
+          id: context.id,
+          principal: context.principal,
+        }),
         Option.match({ onSome: answer => Effect.succeed(Option.some(answer)), onNone: write }),
       )
     }
