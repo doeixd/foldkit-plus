@@ -7,6 +7,7 @@
  */
 import { Context, Effect, Layer, Match, Option, Queue, Schema, Stream } from 'effect'
 import {
+  Entity,
   Write,
   evaluate,
   type AnyQuery,
@@ -78,6 +79,18 @@ export class RemoteServerError extends Schema.TaggedError<RemoteServerError>()(
  */
 export class RemoteUnmet extends Schema.TaggedError<RemoteUnmet>()('RemoteUnmet', {
   message: Schema.String,
+}) {}
+
+/**
+ * A writer's word that the row a write would leave breaks one of its Entity's
+ * invariants: `RemoteServer.write` answers it as the mutation's `Invalid`
+ * refusal. `rule` and `path` are none and empty when saying them would tell
+ * the caller what a member hidden from them holds.
+ */
+export class RemoteInvalid extends Schema.TaggedError<RemoteInvalid>()('RemoteInvalid', {
+  message: Schema.String,
+  rule: Schema.Option(Schema.String),
+  path: Schema.Array(Schema.String),
 }) {}
 
 /** A write's precondition as a writer is handed it: the body, and the input encoded. */
@@ -199,6 +212,13 @@ export interface EntityWriter<P, R = never> {
    */
   readonly ledger?: true
   /**
+   * Whether `update` and `insert` refuse a row that would break its Entity's
+   * invariants (`Entity.invariant`), with `RemoteInvalid`, judged over the row
+   * they write. `RemoteServer.write` refuses a write over an Entity with
+   * invariants through a writer without it.
+   */
+  readonly invariants?: true
+  /**
    * The answer recorded for `operation`, when this writer has a ledger and
    * holds one: what a wrapping writer (a guard) answers a retry with, without
    * deciding again over a row that has moved since.
@@ -226,7 +246,7 @@ export interface EntityWriter<P, R = never> {
     readonly principal: P
   }) => Effect.Effect<
     Option.Option<Readonly<Record<string, unknown>>>,
-    RemoteServerError | RemoteForbidden | RemoteUnmet,
+    RemoteServerError | RemoteForbidden | RemoteUnmet | RemoteInvalid,
     R
   >
   /**
@@ -239,7 +259,11 @@ export interface EntityWriter<P, R = never> {
     readonly values: Readonly<Record<string, unknown>>
     readonly links: Readonly<Record<string, Option.Option<EntityRef>>>
     readonly principal: P
-  }) => Effect.Effect<Readonly<Record<string, unknown>>, RemoteServerError | RemoteForbidden, R>
+  }) => Effect.Effect<
+    Readonly<Record<string, unknown>>,
+    RemoteServerError | RemoteForbidden | RemoteInvalid,
+    R
+  >
   /**
    * Deletes the row, while it is still at the revision when one is expected:
    * `deleted`, `absent` (no row, so nothing to delete; a retry's case), or
@@ -1449,6 +1473,18 @@ export const RemoteServer = {
     new RemoteUnmet({ message }),
 
   /**
+   * A writer's refusal of a row that would break an invariant: fail `update`
+   * or `insert` with it, naming the invariant's id and path when the caller
+   * may be told them, and `RemoteServer.write` answers the mutation's
+   * `Invalid` refusal.
+   */
+  invalid: (
+    message: string,
+    rule: Option.Option<string> = Option.none(),
+    path: ReadonlyArray<string> = [],
+  ): RemoteInvalid => new RemoteInvalid({ message, rule, path }),
+
+  /**
    * A refusal of who is asking: fail a Source with it
    * (`yield* RemoteServer.forbid()`) and the write never runs. `reason`, when
    * given, is what the person who asked reads; without it the refusal says
@@ -1490,7 +1526,9 @@ export const RemoteServer = {
     R = never,
     Name extends string = string,
     Input = unknown,
-    Refused extends { readonly _tag: 'Conflict' | 'Unmet' } = { readonly _tag: 'Conflict' },
+    Refused extends { readonly _tag: 'Conflict' | 'Unmet' | 'Invalid' } = {
+      readonly _tag: 'Conflict'
+    },
   >(
     mutation: MutationDescriptor<Name, Input, {}, Refused> & {
       readonly write: AnyWrite
@@ -1512,6 +1550,11 @@ export const RemoteServer = {
     if (write.increments.length > 0 && writer.increments !== true) {
       throw new Error(
         `[foldkit-remote-server] write "${mutation.name}" increments a field, but its writer for ${writer.entity} does not add one (increments)`,
+      )
+    }
+    if (Entity.invariants(write.input.entity).length > 0 && writer.invariants !== true) {
+      throw new Error(
+        `[foldkit-remote-server] write "${mutation.name}" writes ${writer.entity}, which has invariants, but its writer does not judge them (invariants)`,
       )
     }
     if (Option.isSome(write.when) && writer.preconditions !== true) {
@@ -1550,7 +1593,11 @@ export const RemoteServer = {
         })
         const unmet = <A>(
           bound: { readonly entity: string; readonly id: string },
-          writing: Effect.Effect<A, RemoteServerError | RemoteForbidden | RemoteUnmet, R>,
+          writing: Effect.Effect<
+            A,
+            RemoteServerError | RemoteForbidden | RemoteUnmet | RemoteInvalid,
+            R
+          >,
         ) =>
           Effect.catchTag(
             writing,
@@ -1571,6 +1618,28 @@ export const RemoteServer = {
                       `${bound.entity} ${bound.id} does not hold what ${mutation.name} asks of it`,
                     ),
                   ),
+          )
+        // The writer judged the row it would leave; the client is told what the writer said.
+        const invalid = <A>(
+          writing: Effect.Effect<
+            A,
+            RemoteServerError | RemoteForbidden | MutationRefused | RemoteInvalid,
+            R
+          >,
+        ) =>
+          Effect.catchTag(writing, 'RemoteInvalid', refused =>
+            Effect.fail(
+              RemoteServer.refuse(
+                mutation,
+                {
+                  _tag: 'Invalid',
+                  rule: refused.rule,
+                  message: refused.message,
+                  path: refused.path,
+                } as unknown as Refused,
+                refused.message,
+              ),
+            ),
           )
         const answered = (bound: BoundWrite, values: Readonly<Record<string, unknown>>) => {
           const read = writer.read
@@ -1611,18 +1680,20 @@ export const RemoteServer = {
                     message: `${mutation.name} increments a field with no revision, so it needs an operation id`,
                   })
                 }
-                const written = yield* unmet(
-                  bound,
-                  writer.update({
-                    id: bound.id,
-                    operation,
-                    values: bound.values,
-                    increments: bound.increments,
-                    links: bound.links,
-                    expect,
-                    when: yield* when,
-                    principal,
-                  }),
+                const written = yield* invalid(
+                  unmet(
+                    bound,
+                    writer.update({
+                      id: bound.id,
+                      operation,
+                      values: bound.values,
+                      increments: bound.increments,
+                      links: bound.links,
+                      expect,
+                      when: yield* when,
+                      principal,
+                    }),
+                  ),
                 )
                 if (Option.isSome(written)) return yield* answered(bound, written.value)
                 return yield* Option.isSome(expect)
@@ -1637,20 +1708,24 @@ export const RemoteServer = {
             Insert: () =>
               Effect.gen(function* () {
                 const bound = Write.bind(write, given)
-                const row = yield* writer.insert({
-                  id: bound.id,
-                  values: bound.values,
-                  links: bound.links,
-                  principal,
-                })
+                const row = yield* invalid(
+                  writer.insert({
+                    id: bound.id,
+                    values: bound.values,
+                    links: bound.links,
+                    principal,
+                  }),
+                )
                 return yield* answered(bound, row)
               }),
             Delete: () =>
               Effect.gen(function* () {
                 const bound = Write.bind(write, given)
-                const outcome = yield* unmet(
-                  bound,
-                  writer.delete({ id: bound.id, expect, when: yield* when, principal }),
+                const outcome = yield* invalid(
+                  unmet(
+                    bound,
+                    writer.delete({ id: bound.id, expect, when: yield* when, principal }),
+                  ),
                 )
                 // Gone already is gone: only a revision the row moved past refuses.
                 if (outcome === 'moved') return yield* Effect.fail(conflict(bound))
