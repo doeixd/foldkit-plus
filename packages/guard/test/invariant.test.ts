@@ -63,7 +63,7 @@ const Item = Fields.pipe(
   }),
   Entity.invariant(
     'costAboveReserved',
-    ({ before, after }) => Expr.gt(after.cost, Expr.field(before.reserved)),
+    ({ before, after }) => Expr.gt(after.cost, before.reserved),
     { message: 'The cost must stay above the reserved count' },
   ),
 )

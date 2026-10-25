@@ -4,7 +4,7 @@
  * from there by each interpreter: the reference judge here, a Schema check, a
  * form, a server's writer.
  *
- * One is built over the row before a write (`before`, the Entity's fields) and
+ * One is built over the row before a write (`before`, each field as `Expr.field`) and
  * the row after it (`after`, each field as `Expr.next`). What it reads decides
  * when it is judged:
  *
@@ -19,7 +19,7 @@
 import { Metadata } from 'foldkit-metadata'
 import { Option, Schema, type SchemaAST } from 'effect'
 import { truthOver, type Row } from './evaluate.js'
-import { Expr, Query, type NextExpr, type Predicate, type Reads } from './expr.js'
+import { Expr, Query, type FieldExpr, type NextExpr, type Predicate, type Reads } from './expr.js'
 // A cycle with `index.ts`, safe because `Entity` is read only when an invariant is attached.
 import {
   Entity,
@@ -46,7 +46,15 @@ export interface Invariant {
   readonly after: ReadonlyArray<string>
 }
 
-/** Each field as the row after a write holds it, which an invariant reads it through. */
+/** Each field as the row before a write holds it: what an invariant reads as `before`. */
+export type BeforeRow<E extends AnyEntity> = {
+  readonly [K in keyof E['fields'] & string]: FieldExpr<
+    Schema.Schema.Type<E['fields'][K]['schema']>
+  > &
+    Reads<E['name']>
+}
+
+/** Each field as the row after a write holds it: what an invariant reads as `after`. */
 export type AfterRow<E extends AnyEntity> = {
   readonly [K in keyof E['fields'] & string]: NextExpr<
     Schema.Schema.Type<E['fields'][K]['schema']>
@@ -94,7 +102,7 @@ const fail = (entity: AnyEntity, message: string): never => {
 export const invariant = <E extends AnyEntity>(
   id: string,
   build: (rows: {
-    readonly before: E['fields']
+    readonly before: BeforeRow<E>
     readonly after: AfterRow<E>
   }) => Predicate & Reads<E['name']>,
   options: {
@@ -111,7 +119,10 @@ export const invariant = <E extends AnyEntity>(
       const after = Object.fromEntries(
         Object.entries(fields).map(([key, field]) => [key, Expr.next(field)]),
       ) as unknown as AfterRow<E>
-      const predicate = build({ before: entity.fields, after }) as Predicate
+      const before = Object.fromEntries(
+        Object.entries(fields).map(([key, field]) => [key, Expr.field(field)]),
+      ) as unknown as BeforeRow<E>
+      const predicate = build({ before, after }) as Predicate
       // `where` refuses a predicate over another Entity, which the type allows when it is unmarked.
       const body = Query.from(entity).pipe(Query.where(predicate))
       const dependencies = Query.dependencies(body)
@@ -121,9 +132,17 @@ export const invariant = <E extends AnyEntity>(
           `"${id}" reads the input ${dependencies.inputs.join(', ')}; it judges stored rows`,
         )
       }
-      const before = dependencies.predicate.map(field => field.key)
+      const beforeReads = dependencies.predicate.map(field => field.key)
       const afterReads = dependencies.next.map(field => field.key)
-      const path = options.path ?? [...new Set([...afterReads, ...before])]
+      // Reading the row before alone, it says which rows a write may start from: a write's `when`.
+      // Judged as an invariant, a create would skip it and a repair would be refused by it.
+      if (afterReads.length === 0) {
+        fail(
+          entity,
+          `"${id}" reads no field of \`after\`; what a write may start from is its \`when\``,
+        )
+      }
+      const path = options.path ?? [...new Set([...afterReads, ...beforeReads])]
       for (const key of path) {
         if (!Object.hasOwn(fields, key)) fail(entity, `"${id}"'s path names "${key}", not a field`)
       }
@@ -135,7 +154,7 @@ export const invariant = <E extends AnyEntity>(
               predicate,
               message: options.message,
               path: Object.freeze([...path]),
-              before: Object.freeze(before),
+              before: Object.freeze(beforeReads),
               after: Object.freeze(afterReads),
             }),
           ),

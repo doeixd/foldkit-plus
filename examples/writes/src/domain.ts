@@ -84,7 +84,7 @@ export const Publish = Mutation.write(
   ),
 )
 
-/** Sets a product back to draft, which its transition allows only of one never published. */
+/** Sets a product back to draft, which its transition invariant allows only of one never published. */
 export const Revert = Mutation.write(
   'Revert',
   Write.update(

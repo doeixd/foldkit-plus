@@ -38,15 +38,10 @@ export default [
   edit(
     'an unmet update reads as a conflict',
     drizzle,
-    'if (sets && !incrementing && holdsWritten(row, values, links)) return now',
+    'if (retried) return now',
     'return Option.none()',
   ),
-  edit(
-    'a landed write’s retry is unmet',
-    drizzle,
-    'if (sets && !incrementing && holdsWritten(row, values, links)) return now',
-    '',
-  ),
+  edit('a landed write’s retry is unmet', drizzle, 'if (retried) return now', ''),
   {
     ...edit(
       'a write with no precondition, missed at its revision, is unmet',

@@ -42,6 +42,11 @@ export default [
     'if (invariantsOf(entity).some(held => held.id === id))',
     'if (false)',
   ),
+  edit(
+    'an invariant may read only the row before',
+    'if (afterReads.length === 0) {',
+    'if (false) {',
+  ),
   edit('an invariant may read an input', 'if (dependencies.inputs.length > 0) {', 'if (false) {'),
   edit(
     'a path may name no field',
@@ -50,7 +55,7 @@ export default [
   ),
   edit(
     'the path defaults to nothing',
-    'options.path ?? [...new Set([...afterReads, ...before])]',
+    'options.path ?? [...new Set([...afterReads, ...beforeReads])]',
     'options.path ?? []',
   ),
   edit(
@@ -88,7 +93,14 @@ export default [
     'false',
     '../../remote-drizzle/src/compile.ts',
   ),
-  edit('a field after is no dependency', 'found.nextOrder.push(read)', '', '../src/expr.ts'),
+  edit('a field after needs no operation', "found.operations.add('next')", '', '../src/expr.ts'),
+  // Dropping the read instead fails every declaration as reading nothing after, before a test runs.
+  edit(
+    'a field after is recorded under another key',
+    'found.nextOrder.push(read)',
+    "found.nextOrder.push({ ...read, key: 'id' })",
+    '../src/expr.ts',
+  ),
   ...[
     ['Eq', 'left: substitutedSide(predicate.left, rewrite),', 'left: predicate.left,'],
     ['Null', 'operand: rewrite(predicate.operand) })', 'operand: predicate.operand })'],

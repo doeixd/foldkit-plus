@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { runDemo } from '../src/demo.js'
 
 describe('foldkit-example-writes', () => {
-  it('answers a guarded rename, a conditional transition, increments retried with and without a ledger, an invariant and a transition', async () => {
+  it('answers a guarded rename, a conditional transition, increments retried with and without a ledger, a state invariant and a transition invariant', async () => {
     expect(await runDemo()).toEqual([
       'rename by its owner: written {"id":"p1","name":"Bolt, M6","revision":2}',
       'rename by another: Forbidden',

@@ -1449,18 +1449,21 @@ export const writer = <P = unknown>(
           onNone: () => true,
           onSome: ({ body, input }) => evaluate(body, input, [row]).length > 0,
         })
+        // A row already holding what this write sets is a retry of one that
+        // landed, which neither its precondition nor a transition invariant
+        // describes any more: writing it again changes nothing, so it is judged
+        // as a row and not as a change.
+        const sets = Object.keys(values).length + Object.keys(links).length > 0
+        const retried = sets && !incrementing && holdsWritten(row, values, links)
         // Holding its precondition, it missed by the row it would leave.
         if (holdsWhen) {
-          const broken = brokenIn({ before: row, after: proposedOf(row, values, increments) })
+          const after = proposedOf(row, values, increments)
+          const broken = brokenIn(retried ? { after } : { before: row, after })
           if (Option.isSome(broken)) return yield* broken.value
         }
+        if (retried) return now
         // A write with no precondition missed only by its revision.
         if (Option.isNone(when)) return Option.none()
-        // At the expected revision, or expecting none: the precondition did not
-        // hold. A row already holding what this write sets is a retry of one
-        // that landed, which the precondition no longer describes.
-        const sets = Object.keys(values).length + Object.keys(links).length > 0
-        if (sets && !incrementing && holdsWritten(row, values, links)) return now
         return yield* RemoteServer.unmet(
           `${binding.name} ${id} does not hold what the write asks of it`,
         )

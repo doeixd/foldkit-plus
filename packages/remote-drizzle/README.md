@@ -850,8 +850,10 @@ reads unset, since a default the writer cannot see would decide it.
 A write that would break one is refused as `Invalid`, naming the first that
 fails and its path. When nothing was written, the row read back says why in this
 order: gone, moved on (a conflict), not holding the precondition (unmet), then
-breaking an invariant. A write that repairs a row already invalid is judged by
-the row it leaves, so it lands. An invariant the database cannot compile is
+breaking an invariant. A row already holding what the write sets is answered as
+written, as the retry of a write that landed finds it: writing it again changes
+nothing, so it is judged as a row and not as a change. A write that repairs a
+row already invalid is judged by the row it leaves, so it lands. An invariant the database cannot compile is
 refused when the writer is made, not at the first write. A table-only binding
 (`entity`) has no Entity, so no invariants; a handler's writes, and raw SQL, are
 not judged by the writer.

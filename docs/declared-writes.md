@@ -273,7 +273,7 @@ const Order = OrderFields.pipe(
 )
 ```
 
-`before` is the Entity's fields and `after` each field as the row after holds
+`before` is each field as the row before holds it and `after` each as the row after holds
 it. Reading `before` is all that makes it a transition invariant; nothing else is
 declared. The writer judges it beside the state invariants, in the same `WHERE`: the row before is
 the columns themselves, and after, a field the write sets is its value, one it

@@ -124,7 +124,7 @@ describe('An invalid row', () => {
     const Moving = StockFields.pipe(
       Entity.invariant(
         'neverFalls',
-        ({ before, after }) => Expr.gte(after.quantity, Expr.field(before.quantity)),
+        ({ before, after }) => Expr.gte(after.quantity, before.quantity),
         {
           message: 'x',
         },

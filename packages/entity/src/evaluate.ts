@@ -39,7 +39,7 @@ export class QueryEvaluateError extends Error {
 
 /**
  * What a predicate is judged over: the row, the input it was given, and the row
- * a write would leave, which only a rule over a change reads (`Next`).
+ * a write would leave, which an invariant reads (`Next`).
  */
 interface Scope {
   readonly row: Row
@@ -216,7 +216,7 @@ export const decided = (node: Predicate, input: Row): Option.Option<PredicateTru
   return reads ? Option.none() : Option.some(holds(node, { row: {}, input, next: {} }))
 }
 
-/** A predicate's truth over one row (and, for a rule over a change, the row after it): SQL's three values. */
+/** A predicate's truth over one row (and, for an invariant, the row after a write): SQL's three values. */
 export const truthOver = (
   node: Predicate,
   row: Row,

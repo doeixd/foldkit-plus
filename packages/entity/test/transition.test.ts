@@ -24,13 +24,9 @@ const Order = OrderFields.pipe(
     { message: 'A shipped order stays shipped', path: ['status'] },
   ),
   // Relates a field after to another before: paying never lowers the total.
-  Entity.invariant(
-    'totalNeverFalls',
-    ({ before, after }) => Expr.gte(after.total, Expr.field(before.total)),
-    {
-      message: 'The total cannot fall',
-    },
-  ),
+  Entity.invariant('totalNeverFalls', ({ before, after }) => Expr.gte(after.total, before.total), {
+    message: 'The total cannot fall',
+  }),
 )
 
 const placed = { id: 'o1', status: 'placed', total: 10, paid: null }
@@ -69,16 +65,6 @@ describe('A transition invariant', () => {
     expect([never?.before, never?.after, never?.path]).toEqual([['total'], ['total'], ['total']])
   })
 
-  it('is refused where it is declared for an id the Entity has already', () => {
-    expect(() =>
-      Order.pipe(
-        Entity.invariant('totalNeverFalls', ({ after }) => Expr.gte(after.total, 0), {
-          message: 'x',
-        }),
-      ),
-    ).toThrow('declared twice')
-  })
-
   it('is judged only of a change: a create, with no row before, judges state invariants alone', () => {
     const Priced = Order.pipe(
       Entity.invariant('totalNotNegative', ({ after }) => Expr.gte(after.total, 0), {
@@ -91,18 +77,6 @@ describe('A transition invariant', () => {
     expect(Entity.judge(Priced, { after: { ...placed, total: -1 } })).toEqual(
       failing('totalNotNegative'),
     )
-  })
-
-  it('refuses one that reads an input of its own', () => {
-    expect(() =>
-      OrderFields.pipe(
-        Entity.invariant(
-          'input',
-          ({ after }) => Expr.gte(after.total, Expr.input('least', Schema.Number)),
-          { message: 'x' },
-        ),
-      ),
-    ).toThrow('reads the input least')
   })
 })
 

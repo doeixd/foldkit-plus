@@ -49,8 +49,8 @@ export default [
   edit(
     'a miss judges no transition',
     drizzle,
-    'brokenIn({ before: row, after: proposedOf(row, values, increments) })',
-    'brokenIn({ after: proposedOf(row, values, increments) })',
+    'brokenIn(retried ? { after } : { before: row, after })',
+    'brokenIn({ after })',
   ),
   edit(
     'a miss reads no field an invariant reads',
@@ -124,5 +124,16 @@ export default [
       '.filter(() => false)',
     ),
     tests: ['packages/guard/test/invariant.test.ts'],
+  },
+  {
+    name: 'a retry of a write that landed is judged as a change',
+    edits: [
+      {
+        file: '../src/index.ts',
+        find: 'brokenIn(retried ? { after } : { before: row, after })',
+        replace: 'brokenIn({ before: row, after })',
+      },
+    ],
+    tests: ['packages/remote-drizzle/test/transition.test.ts'],
   },
 ]
