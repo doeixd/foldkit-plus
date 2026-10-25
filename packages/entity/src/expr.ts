@@ -764,22 +764,6 @@ export const Expr = {
   show: (node: Operandish): string => showExpr(node),
 
   /**
-   * The predicate with each field `values` names, by key, read as that value:
-   * how a predicate judges the row a write would leave, where the write's new
-   * values are known and every other field is still the row's. Each value is
-   * as the store holds it (encoded), as a field's is.
-   */
-  substitute: (predicate: Predicate, values: Readonly<Record<string, unknown>>): Predicate =>
-    substituted(predicate, operand =>
-      Match.value(operand).pipe(
-        Match.tag('Field', field =>
-          Object.hasOwn(values, field.key) ? literal(values[field.key]) : field,
-        ),
-        Match.orElse(() => operand),
-      ),
-    ),
-
-  /**
    * The predicate with each field after a write (`Next`) that `values` names,
    * by key, read as that value: how a rule over a change is judged where the
    * write's new values are known. A field it does not name stays `Next`, for

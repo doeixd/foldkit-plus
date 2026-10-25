@@ -35,9 +35,8 @@ import {
   Query,
   evaluate,
   type EntityRef,
+  type Change,
   type Invariant,
-  type Judgement,
-  type Transition,
 } from 'foldkit-entity'
 import type { NormalizedPatch, QueryDescriptor } from 'foldkit-remote'
 import { Entity } from 'foldkit-remote'
@@ -902,19 +901,22 @@ export const invariantChecks = (
   binding: AnyEntityBinding,
 ): ReadonlyArray<{ readonly name: string; readonly constraint: string }> => {
   const dialect = is(binding.table, SQLiteTable) ? new SQLiteDialect() : new PgDialect()
-  return binding.invariants.map(held => {
-    const what = `${binding.name}'s invariant "${held.id}"`
-    const condition = sql.join(
-      [...compilePredicates([held.predicate], binding, {}, what)],
-      sql` and `,
-    )
-    const query = dialect.sqlToQuery(sql`(${condition}) is true`.inlineParams())
-    if (query.params.length > 0) {
-      throw new QueryCompileError(`${what} compares a value a constraint cannot hold`)
-    }
-    const name = `${getTableName(binding.table)}_${held.id}`
-    return { name, constraint: `constraint ${quoted(name)} check (${query.sql})` }
-  })
+  // A constraint sees one row, so only a state invariant (reading no row before) is one.
+  return binding.invariants
+    .filter(held => !DomainEntity.readsBefore(held))
+    .map(held => {
+      const what = `${binding.name}'s invariant "${held.id}"`
+      const condition = sql.join(
+        [...compilePredicates([held.predicate], binding, {}, what)],
+        sql` and `,
+      )
+      const query = dialect.sqlToQuery(sql`(${condition}) is true`.inlineParams())
+      if (query.params.length > 0) {
+        throw new QueryCompileError(`${what} compares a value a constraint cannot hold`)
+      }
+      const name = `${getTableName(binding.table)}_${held.id}`
+      return { name, constraint: `constraint ${quoted(name)} check (${query.sql})` }
+    })
 }
 
 /**
@@ -1046,56 +1048,38 @@ export const writer = <P = unknown>(
   // The rows as a principal may read them, under the binding's `visible`.
   const readable = source<P>(binding)
 
-  const { invariants, transitions } = binding
+  const { invariants } = binding
   const invariantName = (held: Invariant) => `${binding.name}'s invariant "${held.id}"`
-  const transitionName = (held: Transition) => `${binding.name}'s transition "${held.id}"`
   // Compiled once over the columns, so one this compiler cannot run fails where it is defined.
   for (const held of invariants)
     compilePredicates([held.predicate], binding, {}, invariantName(held))
-  for (const held of transitions)
-    compilePredicates([held.predicate], binding, {}, transitionName(held))
 
   /**
-   * Each invariant over the row an update leaves, and each transition over the
-   * change, for its `where`. A field the write sets is read as its new value,
-   * one it increments as its column moved by the amount, and every other field
-   * as its column; a transition reads the row before as the columns
-   * themselves. The rows the statement writes are the rows they judge.
+   * Each invariant over the change an update makes, for its `where`: a field
+   * before is its column; after, a field the write sets is its new value, one it
+   * increments its column moved by the amount, and any other its column, which
+   * the write leaves as it is. The rows the statement writes are the rows judged.
    */
   const holdingInvariants = (
     values: Readonly<Record<string, unknown>>,
     increments: Readonly<Record<string, number>>,
   ): Effect.Effect<ReadonlyArray<SQL>, RemoteServerError> =>
     compileFor(() => {
-      // An incremented field is a number, compared with no collation, and Drizzle's
-      // operators take an expression where they take a column.
-      const movedBy = (field: string, amount: number) =>
-        sql`(${binding.columns[field]} + ${amount})` as unknown as AnyColumn
-      const after: Record<string, AnyColumn> = Object.assign(Object.create(null), binding.columns)
-      // A transition reads a field before as its column, and after as the row after holds it.
       const next: Record<string, AnyColumn> = Object.create(null)
       for (const [field, amount] of Object.entries(increments)) {
-        after[field] = movedBy(field, amount)
-        next[field] = movedBy(field, amount)
+        // An incremented field is a number, compared with no collation, and Drizzle's
+        // operators take an expression where they take a column.
+        next[field] = sql`(${binding.columns[field]} + ${amount})` as unknown as AnyColumn
       }
-      return [
-        ...invariants.flatMap(held =>
-          compilePredicates(
-            [Expr.substitute(held.predicate, values)],
-            { table: binding.table, columns: after },
-            {},
-            invariantName(held),
-          ),
+      const target = { table: binding.table, columns: binding.columns, next }
+      return invariants.flatMap(held =>
+        compilePredicates(
+          [Expr.substituteNext(held.predicate, values)],
+          target,
+          {},
+          invariantName(held),
         ),
-        ...transitions.flatMap(held =>
-          compilePredicates(
-            [Expr.substituteNext(held.predicate, values)],
-            { table: binding.table, columns: binding.columns, next },
-            {},
-            transitionName(held),
-          ),
-        ),
-      ]
+      )
     })
 
   /** The row an update would leave: the row as it is, with its values set and amounts added. */
@@ -1112,28 +1096,20 @@ export const writer = <P = unknown>(
     return proposed
   }
 
-  /** The first of the invariants or transitions broken, as the refusal a writer answers it with. */
-  const refusalOf = (failures: ReadonlyArray<Invariant | Transition>) =>
+  /** The first of the invariants broken, as the refusal a writer answers it with. */
+  const refusalOf = (failures: ReadonlyArray<Invariant>) =>
     Option.map(Arr.head(failures), held =>
       RemoteServer.invalid(held.message, Option.some(held.id), held.path),
     )
 
-  /** The refusal for the first invariant or transition broken; none for what it cannot judge. */
-  const brokenBy = <Failure extends Invariant | Transition>(judged: Judgement<Failure>) =>
-    Match.value(judged).pipe(
+  /** The refusal for the first invariant a row or a change breaks; none for what it cannot judge. */
+  const brokenIn = (change: Change) =>
+    Match.value(DomainEntity.judgeAgainst(invariants, change)).pipe(
       Match.tagsExhaustive({
         Valid: () => Option.none(),
         Undecided: () => Option.none(),
         Invalid: ({ failures }) => refusalOf(failures),
       }),
-    )
-  /** The refusal for the row an update leaves, or for the change it makes, in that order. */
-  const brokenIn = (
-    row: Readonly<Record<string, unknown>>,
-    proposed: Readonly<Record<string, unknown>>,
-  ) =>
-    Option.orElse(brokenBy(DomainEntity.judgeAgainst(invariants, proposed)), () =>
-      brokenBy(DomainEntity.judgeChangeAgainst(transitions, row, proposed)),
     )
 
   /** The columns a write sets: each field's value, and each `one` relation's foreign key. */
@@ -1429,11 +1405,7 @@ export const writer = <P = unknown>(
           )
         }
         const written = answeredOf(rows, answered)
-        const conditioned =
-          Option.isSome(expect) ||
-          Option.isSome(when) ||
-          invariants.length > 0 ||
-          transitions.length > 0
+        const conditioned = Option.isSome(expect) || Option.isSome(when) || invariants.length > 0
         if (Option.isSome(written) || !conditioned) return written
         // The write missed. Why is read from the row as it is now: gone, moved
         // past the expected revision, not holding the precondition, or else
@@ -1445,8 +1417,7 @@ export const writer = <P = unknown>(
               onNone: () => [],
               onSome: ({ body }) => Query.dependencies(body).predicate.map(field => field.key),
             }),
-            ...invariants.flatMap(held => held.reads),
-            ...transitions.flatMap(held => [...held.before, ...held.after]),
+            ...invariants.flatMap(held => [...held.before, ...held.after]),
           ]),
         ])
         const current = yield* selectRows(yield* DrizzleDatabase, binding.table, judged.columns, {
@@ -1480,7 +1451,7 @@ export const writer = <P = unknown>(
         })
         // Holding its precondition, it missed by the row it would leave.
         if (holdsWhen) {
-          const broken = brokenIn(row, proposedOf(row, values, increments))
+          const broken = brokenIn({ before: row, after: proposedOf(row, values, increments) })
           if (Option.isSome(broken)) return yield* broken.value
         }
         // A write with no precondition missed only by its revision.
@@ -1497,7 +1468,9 @@ export const writer = <P = unknown>(
     insert: ({ id, values, links }) =>
       Effect.gen(function* () {
         // There is no row yet: the row it would make is its values, judged before it is written.
-        yield* Match.value(DomainEntity.judgeAgainst(invariants, { ...values, id })).pipe(
+        yield* Match.value(
+          DomainEntity.judgeAgainst(invariants, { after: { ...values, id } }),
+        ).pipe(
           Match.tagsExhaustive({
             Valid: () => Effect.void,
             Invalid: ({ failures }) =>

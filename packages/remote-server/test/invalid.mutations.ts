@@ -29,13 +29,13 @@ export default [
   edit(
     'a writer that judges no transition is taken',
     server,
-    "...(write._tag === 'Update' ? Entity.transitions(write.input.entity) : []),",
-    '',
+    "held => write._tag === 'Update' || !Entity.readsBefore(held),",
+    'held => !Entity.readsBefore(held),',
   ),
   edit(
     'an insert needs a writer that judges transitions',
     server,
-    "...(write._tag === 'Update' ? Entity.transitions(write.input.entity) : []),",
-    '...Entity.transitions(write.input.entity),',
+    "held => write._tag === 'Update' || !Entity.readsBefore(held),",
+    'held => true || held,',
   ),
 ]

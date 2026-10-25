@@ -18,11 +18,15 @@ const Stock = Entity.define(
     note: Schema.String,
   }),
 ).pipe(
-  Entity.invariant('reservedWithinQuantity', f => Expr.lte(f.reserved, Expr.field(f.quantity)), {
-    message: 'Reserved stock cannot exceed the quantity',
-    path: ['reserved'],
-  }),
-  Entity.invariant('noteGiven', f => Expr.not(Expr.eq(f.note, 'nothing')), {
+  Entity.invariant(
+    'reservedWithinQuantity',
+    ({ after }) => Expr.lte(after.reserved, after.quantity),
+    {
+      message: 'Reserved stock cannot exceed the quantity',
+      path: ['reserved'],
+    },
+  ),
+  Entity.invariant('noteGiven', ({ after }) => Expr.not(Expr.eq(after.note, 'nothing')), {
     message: 'Say something',
     path: ['id'],
   }),

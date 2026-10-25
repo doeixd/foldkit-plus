@@ -30,14 +30,19 @@ const StockFields = Entity.define(
   }),
 )
 const Stock = StockFields.pipe(
-  Entity.invariant('reservedWithinQuantity', f => Expr.lte(f.reserved, Expr.field(f.quantity)), {
-    message: 'Reserved stock cannot exceed the quantity',
-    path: ['reserved'],
-  }),
+  Entity.invariant(
+    'reservedWithinQuantity',
+    ({ after }) => Expr.lte(after.reserved, after.quantity),
+    {
+      message: 'Reserved stock cannot exceed the quantity',
+      path: ['reserved'],
+    },
+  ),
   // Eq, Null, Not and Or, so a value set is substituted through each.
   Entity.invariant(
     'shippedHasAddress',
-    f => Expr.or(Expr.not(Expr.eq(f.status, 'shipped')), Expr.isNotNull(f.shippedTo)),
+    ({ after }) =>
+      Expr.or(Expr.not(Expr.eq(after.status, 'shipped')), Expr.isNotNull(after.shippedTo)),
     { message: 'A shipped order needs an address' },
   ),
 )
@@ -285,9 +290,13 @@ describe('A writer over an Entity with invariants', () => {
   it('refuses, where it is made, an invariant its database cannot compile', () => {
     // Text holding a NUL, which no SQL text holds portably.
     const Unwritable = StockFields.pipe(
-      Entity.invariant('notNul', f => Expr.not(Expr.eq(f.status, `a${String.fromCharCode(0)}b`)), {
-        message: 'x',
-      }),
+      Entity.invariant(
+        'notNul',
+        ({ after }) => Expr.not(Expr.eq(after.status, `a${String.fromCharCode(0)}b`)),
+        {
+          message: 'x',
+        },
+      ),
     )
     const Db = bind(
       { Stock: Unwritable },

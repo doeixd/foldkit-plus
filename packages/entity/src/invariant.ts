@@ -1,18 +1,25 @@
 /**
- * Invariants: what every stored row of an Entity must hold, judged over the
- * whole row a write would leave rather than the input it was given. Declared
- * once on the Entity, through its metadata, and read from there by each
- * interpreter: the reference judge here, a Schema check, a server's writer.
+ * Invariants: what every stored row of an Entity must hold, and what every
+ * change of one must, declared once on the Entity through its metadata and read
+ * from there by each interpreter: the reference judge here, a Schema check, a
+ * form, a server's writer.
  *
- * An invariant reads the row's own fields and nothing else: no input, no
- * principal. Who may write is a guard's; whether a write applies now is its
- * `when`'s.
+ * One is built over the row before a write (`before`, the Entity's fields) and
+ * the row after it (`after`, each field as `Expr.next`). What it reads decides
+ * when it is judged:
+ *
+ * ```text
+ * reads `after` only  -> a state invariant: every create and update, a CHECK constraint
+ * reads `before` too  -> a transition invariant: every update, which has a row before
+ * ```
+ *
+ * It reads no input and no principal. Who may write is a guard's; whether a
+ * write applies now is its `when`'s.
  */
 import { Metadata } from 'foldkit-metadata'
 import { Option, Schema, type SchemaAST } from 'effect'
-import { assertSupported, truthOver, type Row } from './evaluate.js'
-import { Query, type Predicate, type Reads } from './expr.js'
-import { transitionsOf } from './transition.js'
+import { truthOver, type Row } from './evaluate.js'
+import { Expr, Query, type NextExpr, type Predicate, type Reads } from './expr.js'
 // A cycle with `index.ts`, safe because `Entity` is read only when an invariant is attached.
 import {
   Entity,
@@ -26,15 +33,32 @@ type AnyField = EntityField<string, string, Schema.Constraint>
 
 /** One invariant of an Entity, as its interpreters read it. */
 export interface Invariant {
-  /** Stable, unique within its Entity: what forms and logs key on. */
+  /** Stable, unique within its Entity: what a refusal names, and forms and logs key on. */
   readonly id: string
   readonly predicate: Predicate
   /** What someone the rules let write is told when a write would break it. */
   readonly message: string
   /** The fields a form shows the failure beside. */
   readonly path: ReadonlyArray<string>
-  /** The fields it reads, which a row must hold for it to be judged. */
-  readonly reads: ReadonlyArray<string>
+  /** The fields it reads of the row before a write; none for a state invariant. */
+  readonly before: ReadonlyArray<string>
+  /** The fields it reads of the row after. */
+  readonly after: ReadonlyArray<string>
+}
+
+/** Each field as the row after a write holds it, which an invariant reads it through. */
+export type AfterRow<E extends AnyEntity> = {
+  readonly [K in keyof E['fields'] & string]: NextExpr<
+    Schema.Schema.Type<E['fields'][K]['schema']>
+  > &
+    Reads<E['name']>
+}
+
+/** A row, or a change from one row to another, as an invariant is judged over it. */
+export interface Change {
+  readonly after: Row
+  /** The row before an update; none for a create, which judges no transition invariant. */
+  readonly before?: Row
 }
 
 const Invariants = Metadata.key<Invariant>('foldkit-entity/invariants', {
@@ -43,12 +67,15 @@ const Invariants = Metadata.key<Invariant>('foldkit-entity/invariants', {
   summarize: invariant => invariant.id,
 })
 
-/** What a row, or a change, comes to under an Entity's invariants, or its transitions. */
-export type Judgement<Failure = Invariant> =
+/** What a row, or a change, comes to under an Entity's invariants. */
+export type Judgement =
   | { readonly _tag: 'Valid' }
-  | { readonly _tag: 'Invalid'; readonly failures: ReadonlyArray<Failure> }
-  /** Some invariant reads a field the row does not have, so validity is not known. */
+  | { readonly _tag: 'Invalid'; readonly failures: ReadonlyArray<Invariant> }
+  /** Some invariant reads a field a row does not have, so validity is not known. */
   | { readonly _tag: 'Undecided'; readonly fields: ReadonlyArray<string> }
+
+/** Whether an invariant reads the row before, and so is judged only where there is one. */
+export const readsBefore = (held: Invariant): boolean => held.before.length > 0
 
 const fail = (entity: AnyEntity, message: string): never => {
   throw new Error(`[foldkit-entity] Entity.invariant on ${entity.name}: ${message}`)
@@ -57,7 +84,10 @@ const fail = (entity: AnyEntity, message: string): never => {
 export const invariant =
   <E extends AnyEntity>(
     id: string,
-    build: (fields: E['fields']) => Predicate & Reads<E['name']>,
+    build: (rows: {
+      readonly before: E['fields']
+      readonly after: AfterRow<E>
+    }) => Predicate & Reads<E['name']>,
     options: {
       readonly message: string
       readonly path?: ReadonlyArray<keyof E['fields'] & string>
@@ -65,12 +95,14 @@ export const invariant =
   ) =>
   (entity: E): E => {
     if (id.length === 0) fail(entity, 'an invariant needs an id')
-    const taken = [...invariantsOf(entity), ...transitionsOf(entity)]
-    if (taken.some(held => held.id === id)) fail(entity, `"${id}" is declared twice`)
-    const predicate = build(entity.fields) as Predicate
+    if (invariantsOf(entity).some(held => held.id === id)) fail(entity, `"${id}" is declared twice`)
+    const fields = entity.fields as Readonly<Record<string, E['fields'][string]>>
+    const after = Object.fromEntries(
+      Object.entries(fields).map(([key, field]) => [key, Expr.next(field)]),
+    ) as unknown as AfterRow<E>
+    const predicate = build({ before: entity.fields, after }) as Predicate
     // `where` refuses a predicate over another Entity, which the type allows when it is unmarked.
     const body = Query.from(entity).pipe(Query.where(predicate))
-    assertSupported(body)
     const dependencies = Query.dependencies(body)
     if (dependencies.inputs.length > 0) {
       fail(
@@ -78,11 +110,11 @@ export const invariant =
         `"${id}" reads the input ${dependencies.inputs.join(', ')}; it judges stored rows`,
       )
     }
-    const reads = dependencies.predicate.map(field => field.key)
-    const path = options.path ?? reads
+    const before = dependencies.predicate.map(field => field.key)
+    const afterReads = dependencies.next.map(field => field.key)
+    const path = options.path ?? [...new Set([...afterReads, ...before])]
     for (const key of path) {
-      if (!Object.hasOwn(entity.fields, key))
-        fail(entity, `"${id}"'s path names "${key}", not a field`)
+      if (!Object.hasOwn(fields, key)) fail(entity, `"${id}"'s path names "${key}", not a field`)
     }
     return entity.pipe(
       Entity.annotate(
@@ -92,7 +124,8 @@ export const invariant =
             predicate,
             message: options.message,
             path: Object.freeze([...path]),
-            reads: Object.freeze(reads),
+            before: Object.freeze(before),
+            after: Object.freeze(afterReads),
           }),
         ),
       ),
@@ -102,23 +135,20 @@ export const invariant =
 export const invariantsOf = (entity: AnyEntity): ReadonlyArray<Invariant> =>
   Invariants.get(entity.metadata)
 
-/**
- * A stored row (each field as the store holds it, encoded) under every
- * invariant: valid only when each is true. SQL's unknown, from a null, fails an
- * invariant, as a `WHERE` drops the row; a field the row does not have leaves it
- * undecided, never valid.
- */
-export const judge = (entity: AnyEntity, row: Row): Judgement =>
-  judgeAgainst(invariantsOf(entity), row)
-
 /** `judge` with the invariants given, as a binding that keeps them holds them. */
-export const judgeAgainst = (invariants: ReadonlyArray<Invariant>, row: Row): Judgement => {
+export const judgeAgainst = (invariants: ReadonlyArray<Invariant>, change: Change): Judgement => {
   const missing = new Set<string>()
   const failures: Array<Invariant> = []
+  const { after, before } = change
   for (const held of invariants) {
-    const absent = held.reads.filter(key => !Object.hasOwn(row, key))
+    // A create has no row before, so a transition invariant has nothing to judge.
+    if (readsBefore(held) && before === undefined) continue
+    const absent = [
+      ...held.after.filter(key => !Object.hasOwn(after, key)),
+      ...held.before.filter(key => !Object.hasOwn(before ?? {}, key)),
+    ]
     if (absent.length > 0) absent.forEach(key => missing.add(key))
-    else if (truthOver(held.predicate, row) !== true) failures.push(held)
+    else if (truthOver(held.predicate, before ?? {}, {}, after) !== true) failures.push(held)
   }
   if (failures.length > 0) return { _tag: 'Invalid', failures }
   if (missing.size > 0) return { _tag: 'Undecided', fields: [...missing] }
@@ -126,10 +156,21 @@ export const judgeAgainst = (invariants: ReadonlyArray<Invariant>, row: Row): Ju
 }
 
 /**
- * The row an input's value describes, judged under its Entity's invariants:
- * each key mapped to a field, encoded as the store holds it. An invariant over
- * a field the input does not set (an `Option` holding nothing, a key left out)
- * is undecided, so a partial input is never called valid on its account.
+ * A row, or a change, under every invariant (each row as the store holds it,
+ * encoded): valid only when each is true. SQL's unknown, from a null, fails
+ * one, as a `WHERE` drops the row; a field a row does not have leaves it
+ * undecided, never valid. Without `before` (a create), transition invariants
+ * are not judged.
+ */
+export const judge = (entity: AnyEntity, change: Change): Judgement =>
+  judgeAgainst(invariantsOf(entity), change)
+
+/**
+ * The row an input's value describes, judged under its Entity's state
+ * invariants: each key mapped to a field, encoded as the store holds it. An
+ * invariant over a field the input does not set (an `Option` holding nothing, a
+ * key left out) is undecided, so a partial input is never called valid on its
+ * account. It has no row before, so it judges no transition.
  */
 export const judgeInput = (
   input: EntityInput<AnyEntity, any, any>,
@@ -156,13 +197,13 @@ export const judgeInput = (
       },
     )
   }
-  return judgeAgainst(invariants, row)
+  return judgeAgainst(invariants, { after: row })
 }
 
 /**
- * The Entity's invariants as an Effect Schema check over its row type: each
- * failure at its path, with its message. The value is encoded first, field by
- * field, so it is judged as the store would hold it.
+ * The Entity's state invariants as an Effect Schema check over its row type:
+ * each failure at its path, with its message. The value is encoded first,
+ * field by field, so it is judged as the store would hold it.
  */
 export const check = <E extends AnyEntity>(
   entity: E,
@@ -177,7 +218,7 @@ export const check = <E extends AnyEntity>(
         field.schema as unknown as Schema.Codec<unknown, unknown>,
       )(decoded[key])
     }
-    const judged = judge(entity, row)
+    const judged = judge(entity, { after: row })
     if (judged._tag !== 'Invalid') return undefined
     return judged.failures.flatMap((failure): ReadonlyArray<Schema.FilterIssue> =>
       failure.path.length === 0

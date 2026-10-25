@@ -15,7 +15,7 @@ import { Entity, Expr, Write } from 'foldkit-entity'
 import { Mutation } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { bind, databaseLayer, writer, type DrizzleDatabase } from '../src/index.js'
+import { bind, databaseLayer, invariantChecks, writer, type DrizzleDatabase } from '../src/index.js'
 
 const Order = Entity.define(
   'Order',
@@ -26,19 +26,19 @@ const Order = Entity.define(
     revision: Schema.Number,
   }),
 ).pipe(
-  Entity.transition(
+  Entity.invariant(
     'shippedStaysShipped',
     ({ before, after }) =>
       Expr.or(Expr.not(Expr.eq(before.status, 'shipped')), Expr.eq(after.status, 'shipped')),
     { message: 'A shipped order stays shipped', path: ['status'] },
   ),
-  Entity.transition(
+  Entity.invariant(
     'totalNeverFalls',
     ({ before, after }) => Expr.gte(after.total, Expr.field(before.total)),
     { message: 'The total cannot fall' },
   ),
   // Reads a field before that a status write does not set.
-  Entity.transition(
+  Entity.invariant(
     'shipsWithTotal',
     ({ before, after }) =>
       Expr.or(Expr.not(Expr.eq(after.status, 'shipped')), Expr.gt(before.total, 0)),
@@ -223,7 +223,7 @@ describe.each(backends)('Transitions over %s', (_, backend) => {
 describe('A writer over an Entity with transitions', () => {
   it('refuses, where it is made, a transition its database cannot compile', () => {
     const Unwritable = Order.pipe(
-      Entity.transition(
+      Entity.invariant(
         'notNul',
         ({ before }) =>
           // @ts-expect-error: no status holds text with a NUL, which no SQL text holds portably
@@ -232,6 +232,10 @@ describe('A writer over an Entity with transitions', () => {
       ),
     )
     const Db = bind({ Order: Unwritable }, { Order: { table: sqliteOrders } })
-    expect(() => writer(Db.Order)).toThrow(`Order's transition "notNul"`)
+    expect(() => writer(Db.Order)).toThrow(`Order's invariant "notNul"`)
+  })
+
+  it('makes no constraint of one, which a CHECK seeing one row cannot hold', () => {
+    expect(invariantChecks(bindOrders(sqliteOrders).Order)).toEqual([])
   })
 })

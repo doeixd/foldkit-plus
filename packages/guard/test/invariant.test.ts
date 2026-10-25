@@ -54,14 +54,14 @@ const Item = Fields.pipe(
     // A member sees no cost.
     members: { cost: { Read: [G.isManager] } },
   }),
-  Entity.invariant('reservedWithinStock', f => Expr.lte(f.reserved, Expr.field(f.stock)), {
+  Entity.invariant('reservedWithinStock', ({ after }) => Expr.lte(after.reserved, after.stock), {
     message: 'Reserved stock cannot exceed the stock',
     path: ['reserved'],
   }),
-  Entity.invariant('costNotNegative', f => Expr.gte(f.cost, 0), {
+  Entity.invariant('costNotNegative', ({ after }) => Expr.gte(after.cost, 0), {
     message: 'The cost cannot be negative',
   }),
-  Entity.transition(
+  Entity.invariant(
     'costAboveReserved',
     ({ before, after }) => Expr.gt(after.cost, Expr.field(before.reserved)),
     { message: 'The cost must stay above the reserved count' },

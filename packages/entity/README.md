@@ -381,12 +381,13 @@ reads from its row: what its `when` reads, each field it increments, and the
 revision. How a declaration, its guard, its writer and the client fit together is
 the [declared writes guide](../../docs/declared-writes.md).
 
-## What every row must hold: invariants
+## What every row and change must hold: invariants
 
 A Schema judges a value, and a write's `when` the row before it. Neither judges
 the row a write leaves: with `quantity = 10, reserved = 5`, an update setting
 `quantity = 3` decodes, and leaves a row that holds more reserved than there is.
-An **invariant** is what every stored row must hold, over the row's own fields:
+An **invariant** is what every stored row must hold, read over the row after a
+write (`after`):
 
 ```ts
 import { Schema } from 'effect'
@@ -397,37 +398,19 @@ const InventoryFields = Entity.define(
   Schema.Struct({ id: Schema.String, quantity: Schema.Number, reserved: Schema.Number }),
 )
 const Inventory = InventoryFields.pipe(
-  Entity.invariant('reservedWithinQuantity', f => Expr.lte(f.reserved, Expr.field(f.quantity)), {
-    message: 'Reserved stock cannot exceed the quantity',
-    path: ['reserved'],
-  }),
+  Entity.invariant(
+    'reservedWithinQuantity',
+    ({ after }) => Expr.lte(after.reserved, after.quantity),
+    { message: 'Reserved stock cannot exceed the quantity', path: ['reserved'] },
+  ),
 )
 
-Entity.judge(Inventory, { id: 'i1', quantity: 3, reserved: 5 })
+Entity.judge(Inventory, { after: { id: 'i1', quantity: 3, reserved: 5 } })
 // { _tag: 'Invalid', failures: [{ id: 'reservedWithinQuantity', … }] }
 ```
 
-- It is declared once, on the Entity's metadata, and attaching more adds to it;
-  the Entity stays the same (`Entity.same`). Its interpreters read it from there.
-- It reads stored rows only: one over another Entity, or reading an input, is
-  refused where it is declared, as is an id declared twice or a `path` naming no
-  field. Who may write is a guard's; whether a write applies now is its `when`'s.
-- `Entity.judge(entity, row)` judges a row as the store holds it (encoded) and is
-  pure. A row holds an invariant only when it is true: a null fails it, as SQL's
-  unknown drops a row from a `WHERE`. A row without a field it reads is
-  `Undecided`, never `Valid`.
-- `Entity.check(entity)` is the same invariants as a Schema check over the row
-  type (`entity.schema.check(Entity.check(entity))`): it encodes the value, and
-  reports each failure at its `path` with its `message`.
-
-Text compares only under a declared collation, here too: a date stored as text
-needs `{ collation: Collation.binary }` on its comparison.
-
-### What every change must hold: transitions
-
-An invariant judges one row. A **transition** relates the row before an update
-to the row after, each of which may be valid on its own: an order that shipped
-stays shipped.
+One that reads the row before too (`before`) relates the two, each of which may
+be valid on its own: an order that shipped stays shipped.
 
 ```ts
 const OrderFields = Entity.define(
@@ -435,7 +418,7 @@ const OrderFields = Entity.define(
   Schema.Struct({ id: Schema.String, status: Schema.Literals(['placed', 'shipped']) }),
 )
 const Order = OrderFields.pipe(
-  Entity.transition(
+  Entity.invariant(
     'shippedStaysShipped',
     ({ before, after }) =>
       Expr.or(Expr.not(Expr.eq(before.status, 'shipped')), Expr.eq(after.status, 'shipped')),
@@ -444,19 +427,39 @@ const Order = OrderFields.pipe(
 )
 
 const shipped = { id: 'o1', status: 'shipped' }
-Entity.judgeChange(Order, shipped, { ...shipped, status: 'placed' })
+Entity.judge(Order, { before: shipped, after: { ...shipped, status: 'placed' } })
 // { _tag: 'Invalid', failures: [{ id: 'shippedStaysShipped', … }] }
 ```
 
-`before` is the Entity's fields; `after` is one placeholder per field, typed as
-it. Every update is judged; a create has no row before and a delete none after,
-so neither is. It is declared, refused and judged as an invariant is (strictly
-true, over stored values, `Undecided` when either row lacks a field it reads),
-and its id is unique among the Entity's invariants too, since a refusal names
-it. `after.status` is a `Next` node (`Expr.next`): the field as the row after
-holds it, which the evaluator reads from a second row and an interpreter that
-judges stored rows alone refuses as the operation `next`. `Expr.substituteNext`
-reads the ones a write sets as their values.
+What an invariant reads decides when it is judged; nothing else is declared:
+
+```text
+reads after only   -> state invariant:      every create and update; a CHECK constraint
+reads before too   -> transition invariant: every update, the only write with a row before
+```
+
+`Entity.readsBefore(invariant)` says which one is.
+
+- `before` is the Entity's fields; `after` is each field as the row after holds
+  it, an `Expr.next` node typed as the field.
+- It is declared once, on the Entity's metadata, and attaching more adds to it;
+  the Entity stays the same (`Entity.same`). Its interpreters read it from there.
+- It reads stored rows only: one over another Entity, or reading an input, is
+  refused where it is declared, as is an id declared twice or a `path` naming no
+  field. Who may write is a guard's; whether a write applies now is its `when`'s.
+- `Entity.judge(entity, { after, before? })` judges rows as the store holds them
+  (encoded) and is pure. Without `before` (a create) it skips transition
+  invariants. A row holds one only when it is true: a null fails it, as SQL's
+  unknown drops a row from a `WHERE`. A row without a field it reads is
+  `Undecided`, never `Valid`.
+- `Entity.check(entity)` is the state invariants as a Schema check over the row
+  type (`entity.schema.check(Entity.check(entity))`): it encodes the value, and
+  reports each failure at its `path` with its `message`.
+
+Text compares only under a declared collation, here too: a date stored as text
+needs `{ collation: Collation.binary }` on its comparison. An interpreter that
+judges stored rows alone refuses `after`'s nodes as the operation `next`;
+`Expr.substituteNext` reads the ones a write sets as their values.
 
 ## Attaching metadata
 

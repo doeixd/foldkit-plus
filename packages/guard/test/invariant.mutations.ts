@@ -19,12 +19,12 @@ export default [
   ),
   edit(
     'an invariant over a hidden member is named',
-    '.filter(held => held.reads.some(key => readRuled(ruled, key)))',
+    '.filter(held => [...held.before, ...held.after].some(key => readRuled(ruled, key)))',
     '.filter(() => false)',
   ),
   edit(
     'every invariant is unnamed',
-    '.filter(held => held.reads.some(key => readRuled(ruled, key)))',
+    '.filter(held => [...held.before, ...held.after].some(key => readRuled(ruled, key)))',
     '.filter(() => true)',
   ),
   edit(

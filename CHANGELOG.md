@@ -9,14 +9,21 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
-- **`foldkit-entity`: invariants.** `Entity.invariant(id, fields => predicate,
-  { message, path? })` declares, on the Entity's metadata, what every stored row
-  must hold over its own fields (`reserved <= quantity`). `Entity.judge(entity,
-  row)` judges a stored row: `Valid`, `Invalid` with the failures (a null
-  fails, as SQL's unknown), or `Undecided` when the row lacks a field one reads.
-  `Entity.check(entity)` is the same invariants as a Schema check, each failure
-  at its path. `Expr.substitute(predicate, values)` reads named fields as
-  given values. (#183)
+- **`foldkit-entity`: invariants.** `Entity.invariant(id, ({ before, after })
+  => predicate, { message, path? })` declares, on the Entity's metadata, what
+  every stored row must hold (`({ after }) => Expr.lte(after.reserved,
+  after.quantity)`). `after` is each field as the row after a write holds it
+  (`Expr.next`, a `Next` node, which query interpreters refuse as the operation
+  `next`); `before` is the Entity's fields. What it reads sets its lifecycle:
+  one over `after` only is a state invariant, judged on every create and
+  update; one that reads `before` too is a transition invariant (a shipped
+  order stays shipped), judged on updates only (`Entity.readsBefore`).
+  `Entity.judge(entity, { after, before? })` judges a row or a change: `Valid`,
+  `Invalid` with the failures (a null fails, as SQL's unknown), or `Undecided`
+  when a row lacks a field one reads. `Entity.check(entity)` is the state
+  invariants as a Schema check, each failure at its path.
+  `Expr.substituteNext(predicate, values)` reads the fields a write sets as
+  their values, and `Dependencies` lists them as `next`. (#183, #184)
 - **`foldkit-remote-drizzle`: the writer enforces invariants.** `bind` keeps
   the Entity's invariants on the binding (`invariants`), and `writer` compiles
   each into the update's `WHERE` over the row it would leave (a set field as
@@ -32,20 +39,13 @@ version changed; `pnpm` skips versions already in the registry.
   an invariant does not go out, and the message shows beside each key its path
   names, or in `errors`; one over a field the form does not set is left to the
   server. `Crud.editor` shows a save's `Refusal.invalid` the same way. (#183)
-- **`foldkit-entity`: transitions.** `Entity.transition(id, ({ before, after })
-  => predicate, { message, path? })` declares what every update must hold over
-  the row before it and the row after (`after.status` is `Expr.next`, a
-  `Next` node: a field as the row after holds it, which query interpreters
-  refuse as the operation `next`); `Entity.judgeChange(entity, before, after)`
-  judges a change, and `Expr.substituteNext` reads the fields a write sets as
-  their values. `Dependencies` lists them as `next`. The
-  Drizzle writer judges every update's change in its statement (the row
-  before as the columns, after as for an invariant), classifies a miss that
-  breaks one as `Invalid`, and refuses a writer it cannot compile; `bind`
-  keeps them as `transitions`. `GuardServer.writer` names none over a
-  Read-ruled member, and `RemoteServer.write` needs `invariants: true` of an
-  update's writer when the Entity has transitions. (#184)
-- **`foldkit-remote-drizzle`: `invariantChecks(binding)`.** Each invariant as
+- **`foldkit-remote-drizzle`: the writer judges transition invariants.** Over
+  every update's change, in its statement (the row before as the columns,
+  after as for a state invariant); a miss that breaks one is `Invalid`.
+  `GuardServer.writer` names none over a Read-ruled member, and
+  `RemoteServer.write` needs `invariants: true` of an update's writer when the
+  Entity has any. (#184)
+- **`foldkit-remote-drizzle`: `invariantChecks(binding)`.** Each state invariant as
   a `CHECK` constraint (`constraint "<table>_<id>" check ((…) is true)`, values
   inlined) for a migration, so a handler's write or raw SQL is held to it too;
   a null fails it, as in the writer. (#183)

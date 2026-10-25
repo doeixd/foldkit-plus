@@ -144,14 +144,14 @@ twice: give it `expect` (a retry is a conflict), or a writer with a ledger (a
 retry is answered from its record, and concurrent increments both land). Remote
 predicts the sum over the value it holds, re-added as that value changes
 ([guide](https://github.com/doeixd/foldkit-plus/blob/main/docs/declared-writes.md)). `Write.reads(write)` is what a write reads from its row.
-`Entity.invariant(id, f => Expr.lte(f.reserved, Expr.field(f.quantity)), { message, path? })`
-declares what every stored row must hold (piped onto the Entity); `Entity.judge(entity, row)`
-answers `Valid`, `Invalid` or `Undecided` (a field missing), a null failing, and
-`Entity.check(entity)` is the same as a Schema check. The Drizzle writer enforces them over the row a write leaves,
-in its statement, and refuses a breaking write as `Refusal.invalid`; `invariantChecks(binding)` from
-`foldkit-remote-drizzle` gives each as a `CHECK` constraint to migrate with, which holds against raw SQL too.
-`Entity.transition(id, ({ before, after }) => predicate, { message })` relates the row before an update to the
-row after (`Entity.judgeChange(entity, before, after)`); every update is judged, creates and deletes are not. `Write.writes(write)` is what
+`Entity.invariant(id, ({ after }) => Expr.lte(after.reserved, after.quantity), { message, path? })`
+declares what every stored row must hold (piped onto the Entity); one that reads `before` too relates the
+row before an update to the row after (a shipped order stays shipped), and is judged on updates only.
+`Entity.judge(entity, { after, before? })` answers `Valid`, `Invalid` or `Undecided` (a field missing),
+a null failing, and `Entity.check(entity)` is the state invariants as a Schema check. The Drizzle writer
+enforces them over the row a write leaves, in its statement, and refuses a breaking write as
+`Refusal.invalid`; `invariantChecks(binding)` from `foldkit-remote-drizzle` gives each state invariant as
+a `CHECK` constraint to migrate with, which holds against raw SQL too. `Write.writes(write)` is what
 it may change and `Write.bind(write, value, keys?)` the row and its encoded new
 values, for an optimistic patch or a server to write.
 

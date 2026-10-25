@@ -9,8 +9,15 @@
  */
 import { type Option, Pipeable, Schema } from 'effect'
 import { Metadata } from 'foldkit-metadata'
-import { check, invariant, invariantsOf, judge, judgeAgainst, judgeInput } from './invariant.js'
-import { judgeChange, judgeChangeAgainst, transition, transitionsOf } from './transition.js'
+import {
+  check,
+  invariant,
+  invariantsOf,
+  judge,
+  judgeAgainst,
+  judgeInput,
+  readsBefore,
+} from './invariant.js'
 import { SchemaShape } from './shape.js'
 
 export const EntityTypeId: unique symbol = Symbol.for('foldkit-entity/Entity')
@@ -753,12 +760,13 @@ export const Entity = {
       make({ ...entity, metadata: Metadata.combine([entity.metadata, metadata]) }) as E,
 
   /**
-   * Declares what every stored row must hold, over the row's own fields:
-   * `Entity.invariant('reservedWithinQuantity', f => Expr.lte(f.reserved,
-   * Expr.field(f.quantity)), { message })`. Judged over the whole row a write
-   * would leave, never the input alone. Refused where it is declared: an id
-   * declared twice, a predicate over another Entity or reading an input, an
-   * operation the reference interpreter does not run, a path naming no field.
+   * Declares what every stored row, or every change of one, must hold:
+   * `Entity.invariant('reservedWithinQuantity', ({ after }) =>
+   * Expr.lte(after.reserved, after.quantity), { message })` over the row a
+   * write leaves, or with `before` too over the change an update makes.
+   * Refused where it is declared: an id declared twice, a predicate over another
+   * Entity or reading an input, an operation no judge runs, a path naming no
+   * field.
    */
   invariant,
 
@@ -766,11 +774,15 @@ export const Entity = {
   invariants: invariantsOf,
 
   /**
-   * A stored row under the Entity's invariants: `Valid`, `Invalid` with the
-   * ones that fail (a null fails, as SQL's unknown), or `Undecided` with the
-   * fields an invariant reads that the row lacks.
+   * A row (`{ after }`, a create's) or a change (`{ before, after }`, an
+   * update's) under the Entity's invariants: `Valid`, `Invalid` with the ones
+   * that fail (a null fails, as SQL's unknown), or `Undecided` with the fields
+   * one reads that a row lacks.
    */
   judge,
+
+  /** Whether an invariant reads the row before a write: judged on updates only, and no CHECK. */
+  readsBefore,
 
   /** `Entity.judge` against invariants already read, such as those a database binding keeps. */
   judgeAgainst,
@@ -781,28 +793,7 @@ export const Entity = {
    */
   judgeInput,
 
-  /**
-   * Declares what every update must hold over the row before it and the row
-   * after: `Entity.transition('shippedStaysShipped', ({ before, after }) =>
-   * Expr.or(Expr.not(Expr.eq(before.status, 'shipped')), Expr.eq(after.status,
-   * 'shipped')), { message })`. A create and a delete are not judged. Refused
-   * where it is declared as an invariant is, and for an id an invariant has.
-   */
-  transition,
-
-  /** The Entity's transitions, in the order they were declared. */
-  transitions: transitionsOf,
-
-  /**
-   * A change from one stored row to another under the Entity's transitions:
-   * `Valid`, `Invalid` with the ones that fail (a null fails), or `Undecided`.
-   */
-  judgeChange,
-
-  /** `Entity.judgeChange` against transitions already read. */
-  judgeChangeAgainst,
-
-  /** The invariants as a Schema check over the row type, each failure at its path. */
+  /** The state invariants as a Schema check over the row type, each failure at its path. */
   check,
 
   /** Attaches an interpreter's metadata to members, by key. */
@@ -1057,8 +1048,7 @@ export * from './shape.js'
 // this entry because it is fixture data every form and admin screen would
 // otherwise carry.
 export * from './evaluate.js'
-export type { Invariant, Judgement } from './invariant.js'
-export type { AfterRow, Transition } from './transition.js'
+export type { AfterRow, Change, Invariant, Judgement } from './invariant.js'
 export {
   Write,
   type AnyWrite,

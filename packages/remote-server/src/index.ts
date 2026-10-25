@@ -212,11 +212,11 @@ export interface EntityWriter<P, R = never> {
    */
   readonly ledger?: true
   /**
-   * Whether `update` and `insert` refuse a row that would break its Entity's
-   * invariants (`Entity.invariant`), and `update` a change that breaks one of
-   * its transitions (`Entity.transition`), with `RemoteInvalid`, judged over
-   * the rows they write. `RemoteServer.write` refuses a write the Entity holds
-   * to either through a writer without it.
+   * Whether `update` and `insert` refuse a row, or a change, that would break
+   * one of its Entity's invariants (`Entity.invariant`), with `RemoteInvalid`,
+   * judged over the rows they write; an insert judges the state invariants
+   * alone. `RemoteServer.write` refuses a write the Entity holds to any through
+   * a writer without it.
    */
   readonly invariants?: true
   /**
@@ -1553,20 +1553,20 @@ export const RemoteServer = {
         `[foldkit-remote-server] write "${mutation.name}" increments a field, but its writer for ${writer.entity} does not add one (increments)`,
       )
     }
-    const judged = [
-      ...Entity.invariants(write.input.entity),
-      ...(write._tag === 'Update' ? Entity.transitions(write.input.entity) : []),
-    ]
+    // An update judges every invariant; an insert, with no row before, the state ones alone.
+    const judged = Entity.invariants(write.input.entity).filter(
+      held => write._tag === 'Update' || !Entity.readsBefore(held),
+    )
     if (judged.length > 0 && writer.invariants !== true) {
       throw new Error(
-        `[foldkit-remote-server] write "${mutation.name}" writes ${writer.entity}, which has invariants or transitions, but its writer does not judge them (invariants)`,
+        `[foldkit-remote-server] write "${mutation.name}" writes ${writer.entity}, which has invariants, but its writer does not judge them (invariants)`,
       )
     }
     // An insert's row is its values: a field it leaves to a default the writer cannot judge.
     if (write._tag === 'Insert') {
       const sets = new Set(['id', ...write.sets.map(set => set.field.key)])
-      const unset = Entity.invariants(write.input.entity).flatMap(held =>
-        held.reads.filter(key => !sets.has(key)).map(key => `${held.id} reads ${key}`),
+      const unset = judged.flatMap(held =>
+        held.after.filter(key => !sets.has(key)).map(key => `${held.id} reads ${key}`),
       )
       if (unset.length > 0) {
         throw new Error(
