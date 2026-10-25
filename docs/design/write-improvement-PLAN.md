@@ -84,6 +84,15 @@ principal scope is phase 3's, where the ledger keys by it.
 
 ### Phase 3: a write ledger, and one exact answer to a retry (items 1 and 2)
 
+**Built**, 2026-10-25, with these differences from the sketch: the ledger is the
+Drizzle writer's option, not the binding's; only updates are recorded (inserts
+and deletes already answer a retry exactly); D1 is refused, not batched, since
+its writes are compare-and-set statements a batch cannot condition on each
+other; the lost-answer recognitions stay for a ledgered write (the ledger answers
+a retry before them, so they meet only a fresh miss, where they are harmless);
+and the guard refuses an increment with no revision through a writer it does not
+pin, since its rules would judge a sum over a row that may move.
+
 - A ledger table, `(scope, operation) → answer`, written in the same
   transaction or statement as the row. A write whose operation is already in the
   ledger is answered from it, not written again.

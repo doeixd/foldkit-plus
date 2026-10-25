@@ -58,12 +58,6 @@ export default [
     'increments: {},',
   ),
   edit(
-    'an increment needs no expected revision',
-    entity,
-    'if (increments.length > 0 && expect === undefined) {',
-    'if (false) {',
-  ),
-  edit(
     'an increment of a field not stored as a number is taken',
     entity,
     'if (!storedAsNumber(field.schema as unknown as Schema.Top)) {',

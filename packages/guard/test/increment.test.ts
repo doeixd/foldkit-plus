@@ -5,7 +5,7 @@
  */
 import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Option, Schema } from 'effect'
 import { Entity, Expr, Write } from 'foldkit-entity'
 import { Mutation } from 'foldkit-remote'
@@ -119,5 +119,111 @@ describe('GuardServer.writer over a write that increments a field', () => {
       failure: { _tag: 'Forbidden' },
     })
     expect(stock('i2')).toEqual({ stock: 3 })
+  })
+})
+
+describe('GuardServer.writer over a writer with a ledger', () => {
+  const ledger = sqliteTable(
+    'write_ledger',
+    {
+      scope: text('scope').notNull(),
+      operation: text('operation').notNull(),
+      answer: text('answer').notNull(),
+      at: integer('at').notNull(),
+    },
+    table => [primaryKey({ columns: [table.scope, table.operation] })],
+  )
+  // No revision expected: the ledger is what keeps a retry from adding twice.
+  const Bump = Mutation.write(
+    'Bump',
+    Write.update(
+      Entity.input(Item, Schema.Struct({ id: Schema.String, by: Schema.Number }), {
+        by: Entity.unmapped,
+      }),
+      { id: 'id', increment: { stock: 'by' } },
+    ),
+  )
+
+  it('answers a retry as it landed, though the row has since moved out of its writer’s reach', async () => {
+    const sqlite = new DatabaseSync(':memory:')
+    sqlite.exec(`
+      create table items (id text primary key, owner_id text not null, stock integer not null, revision integer not null);
+      create table write_ledger (scope text not null, operation text not null, answer text not null, at integer not null, primary key (scope, operation));
+      insert into items values ('i1', 'mo', 3, 1);
+    `)
+    const server = RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
+      entities: [],
+      mutations: [
+        RemoteServer.write(
+          Bump,
+          GuardServer.writer(
+            Item,
+            Policy,
+            writer<Option.Option<User>>(Db.Item, {
+              ledger: {
+                table: ledger,
+                scope: principal =>
+                  Option.match(principal, { onNone: () => '', onSome: user => user.id }),
+              },
+            }),
+            { revision: 'revision' },
+          ),
+        ),
+      ],
+    })
+    const bump = (operation: string) =>
+      Effect.runPromise(
+        RemoteServer.handlers(server, mo)
+          .FoldkitRemoteMutate({
+            requestId: 'r',
+            mutation: 'Bump',
+            input: { id: 'i1', by: 2 },
+            operation,
+          })
+          .pipe(Effect.result, Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
+      )
+    expect((await bump('op-1'))._tag).toBe('Success')
+    sqlite.exec("update items set owner_id = 'ada' where id = 'i1'")
+    // The retry was decided when it landed; deciding it again would refuse a write that happened.
+    expect((await bump('op-1'))._tag).toBe('Success')
+    // A new operation is decided now, and refused.
+    expect(await bump('op-2')).toMatchObject({ _tag: 'Failure', failure: { _tag: 'Forbidden' } })
+    expect(sqlite.prepare("select stock from items where id = 'i1'").get()).toEqual({ stock: 5 })
+  })
+
+  it('refuses an increment with no revision through an unpinned writer, whose rules would judge a stale sum', async () => {
+    const sqlite = new DatabaseSync(':memory:')
+    sqlite.exec(`
+      create table items (id text primary key, owner_id text not null, stock integer not null, revision integer not null);
+      create table write_ledger (scope text not null, operation text not null, answer text not null, at integer not null, primary key (scope, operation));
+      insert into items values ('i1', 'mo', 3, 1);
+    `)
+    const server = RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
+      entities: [],
+      mutations: [
+        RemoteServer.write(
+          Bump,
+          GuardServer.writer(
+            Item,
+            Policy,
+            writer<Option.Option<User>>(Db.Item, {
+              ledger: { table: ledger, scope: () => 'mo' },
+            }),
+          ),
+        ),
+      ],
+    })
+    const failed = await Effect.runPromise(
+      RemoteServer.handlers(server, mo)
+        .FoldkitRemoteMutate({
+          requestId: 'r',
+          mutation: 'Bump',
+          input: { id: 'i1', by: 2 },
+          operation: 'op',
+        })
+        .pipe(Effect.result, Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
+    )
+    expect(JSON.stringify(failed)).toContain('its writer pins none')
+    expect(sqlite.prepare("select stock from items where id = 'i1'").get()).toEqual({ stock: 3 })
   })
 })

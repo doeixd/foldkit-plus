@@ -14,14 +14,18 @@ import {
   and,
   eq,
   getTableColumns,
+  gte,
   inArray,
+  is,
+  lt,
   lte,
   sql,
   type AnyColumn,
   type SQL,
   type Table,
 } from 'drizzle-orm'
-import { Effect, Option, Schema } from 'effect'
+import { SQLiteTable } from 'drizzle-orm/sqlite-core'
+import { Clock, Effect, Option, Schema } from 'effect'
 import type { EntityRef } from 'foldkit-entity'
 import type { NormalizedPatch, QueryDescriptor } from 'foldkit-remote'
 import { Entity } from 'foldkit-remote'
@@ -48,7 +52,12 @@ import {
   CursorRead,
   type OrderTerm,
 } from './cursor.js'
-import { DrizzleDatabase, drizzleWrites, type DrizzleDatabaseService } from './database.js'
+import {
+  DrizzleDatabase,
+  drizzleWrites,
+  type DrizzleDatabaseService,
+  type DrizzleWrites,
+} from './database.js'
 import { toQueryPage } from './page.js'
 import { buildPage } from './pagination.js'
 import { shapeWindow } from './window.js'
@@ -851,9 +860,71 @@ const sameStored = (left: unknown, right: unknown): boolean =>
  * `visible` rule reads back through it (`read`), so an answer shows its writer
  * only a row they may read.
  */
+/**
+ * Where a writer records each update it lands, by the operation that asked for
+ * it, so a retry of that operation is answered from the record rather than
+ * written again. A table the application migrates:
+ *
+ * ```sql
+ * create table write_ledger (
+ *   scope text not null, operation text not null,
+ *   answer text not null, at integer not null,
+ *   primary key (scope, operation)
+ * )
+ * ```
+ */
+export interface WriteLedger<P> {
+  /** The ledger table, its columns named `scope`, `operation`, `answer` and `at`. */
+  readonly table: Table & {
+    readonly scope: AnyColumn
+    readonly operation: AnyColumn
+    readonly answer: AnyColumn
+    readonly at: AnyColumn
+  }
+  /** Whose operations they are (a principal's key), so no one is answered with another's write. */
+  readonly scope: (principal: P) => string
+  /** How long an answer is kept, in milliseconds: a day unless given. A later retry is new. */
+  readonly retention?: number
+}
+
+/** A SQLite statement, run where its transaction is: no await between it and the commit. */
+interface SyncStatement {
+  all(): ReadonlyArray<Record<string, unknown>>
+  run(): unknown
+}
+
+/** A ledger transaction's builders, typed only as far as the ledger uses them. */
+interface LedgerTx {
+  select(columns: Record<string, AnyColumn>): {
+    from(table: Table): {
+      where(
+        condition: SQL | undefined,
+      ): SyncStatement & PromiseLike<ReadonlyArray<Record<string, unknown>>>
+    }
+  }
+  insert(table: Table): {
+    values(values: Record<string, unknown>): SyncStatement & PromiseLike<unknown>
+  }
+  delete(table: Table): { where(condition: SQL | undefined): SyncStatement & PromiseLike<unknown> }
+}
+
+/** The provided Drizzle database, as far as a ledger needs it: a transaction. */
+interface LedgerDatabase {
+  transaction<A>(body: (tx: LedgerTx) => A): A
+}
+
+/** What one update did inside its ledger's transaction. */
+type Ledgered =
+  | { readonly _tag: 'Recorded'; readonly answer: string }
+  | { readonly _tag: 'Written'; readonly rows: ReadonlyArray<Record<string, unknown>> }
+
+const DAY = 24 * 60 * 60 * 1000
+
 export const writer = <P = unknown>(
   binding: AnyEntityBinding,
+  options: { readonly ledger?: WriteLedger<P> } = {},
 ): EntityWriter<P, DrizzleDatabase> => {
+  const ledger = options.ledger
   // `set` is keyed by the table's own property names, not by its columns' SQL names.
   const keys = new Map<unknown, string>(
     Object.entries(getTableColumns(binding.table)).map(([key, column]) => [column, key]),
@@ -964,11 +1035,107 @@ export const writer = <P = unknown>(
   ): Option.Option<Readonly<Record<string, unknown>>> =>
     Option.map(Option.fromUndefinedOr(answered.patches(rows)[0]), patch => patch.values)
 
+  /** A ledger's record of `operation`, unless past its retention, pruned yet or not: a retry that late is new. */
+  const recordOf = (book: WriteLedger<P>, scope: string, operation: string, cutoff: number) =>
+    and(
+      eq(book.table.scope, scope),
+      eq(book.table.operation, operation),
+      gte(book.table.at, cutoff),
+    )
+
+  /**
+   * One update in a transaction with its ledger: the recorded answer when the
+   * operation already landed, else the update, recorded when it writes a row.
+   * SQLite's transaction is synchronous, so its body uses `.all()` and `.run()`
+   * and awaits nothing; Postgres's is awaited.
+   */
+  const inLedger = (
+    book: WriteLedger<P>,
+    scope: string,
+    operation: string,
+    update: (database: unknown) => unknown,
+    answerOf: (rows: ReadonlyArray<Record<string, unknown>>) => Option.Option<unknown>,
+  ): Effect.Effect<Ledgered, RemoteServerError, DrizzleDatabase> =>
+    Effect.gen(function* () {
+      const now = yield* Clock.currentTimeMillis
+      const cutoff = now - (book.retention ?? DAY)
+      const key = recordOf(book, scope, operation, cutoff)
+      const expired = lt(book.table.at, cutoff)
+      const record = (answer: unknown) => ({
+        scope,
+        operation,
+        answer: JSON.stringify(answer),
+        at: now,
+      })
+      // The database is the application's Drizzle one; its builders are not nameable by dialect.
+      const database = (yield* DrizzleDatabase) as unknown as LedgerDatabase
+      if (typeof database.transaction !== 'function') {
+        return yield* new RemoteServerError({
+          message: `${binding.name}'s ledger needs a database with transactions`,
+        })
+      }
+      if (is(binding.table, SQLiteTable)) {
+        return yield* Effect.try({
+          try: () =>
+            database.transaction(tx => {
+              const found = tx
+                .select({ answer: book.table.answer })
+                .from(book.table)
+                .where(key)
+                .all()
+              if (found[0] !== undefined)
+                return { _tag: 'Recorded', answer: String(found[0].answer) }
+              const rows = (update(tx) as SyncStatement).all()
+              Option.map(answerOf(rows), answer => {
+                tx.delete(book.table).where(expired).run()
+                tx.insert(book.table).values(record(answer)).run()
+              })
+              return { _tag: 'Written', rows }
+            }) as Ledgered,
+          catch: () => new RemoteServerError({ message: 'Database write failed' }),
+        })
+      }
+      return yield* runStatement(
+        () =>
+          database.transaction(async tx => {
+            const found = await tx.select({ answer: book.table.answer }).from(book.table).where(key)
+            if (found[0] !== undefined) return { _tag: 'Recorded', answer: String(found[0].answer) }
+            const rows = await (update(tx) as PromiseLike<ReadonlyArray<Record<string, unknown>>>)
+            const answer = answerOf(rows)
+            if (Option.isSome(answer)) {
+              await tx.delete(book.table).where(expired)
+              await tx.insert(book.table).values(record(answer.value))
+            }
+            return { _tag: 'Written', rows }
+          }) as PromiseLike<Ledgered>,
+        'Database write failed',
+      )
+    })
+
   return {
     entity: binding.name,
     preconditions: true,
     increments: true,
-    update: ({ id, values, increments, links, expect, when }) =>
+    ...(ledger === undefined
+      ? {}
+      : {
+          ledger: true,
+          recorded: ({ operation, principal }) =>
+            Effect.gen(function* () {
+              const cutoff = (yield* Clock.currentTimeMillis) - (ledger.retention ?? DAY)
+              const found = yield* selectRows(
+                yield* DrizzleDatabase,
+                ledger.table,
+                { answer: ledger.table.answer },
+                { where: recordOf(ledger, ledger.scope(principal), operation, cutoff) },
+              )
+              return Option.map(
+                Option.fromUndefinedOr(found[0]),
+                row => JSON.parse(String(row['answer'])) as Readonly<Record<string, unknown>>,
+              )
+            }),
+        }),
+    update: ({ id, values, increments, links, expect, when, operation, principal }) =>
       Effect.gen(function* () {
         const { where, bump } = yield* rowOf(id, expect, when)
         const set = {
@@ -985,15 +1152,40 @@ export const writer = <P = unknown>(
           ...Option.match(expect, { onNone: () => [], onSome: ({ field }) => [field] }),
         ])
         const writes = yield* drizzleWrites
-        const rows =
-          Object.keys(set).length === 0
-            ? // Nothing to set: the row as it is, if it is there.
-              yield* selectRows(yield* DrizzleDatabase, binding.table, answered.columns, { where })
-            : yield* runStatement(
-                () =>
-                  writes.update(binding.table).set(set).where(where).returning(answered.columns),
-                'Database write failed',
-              )
+        // An operation the ledger knows is answered from it; a recorded write is never repeated.
+        const book =
+          ledger !== undefined && Object.keys(set).length > 0
+            ? Option.map(operation, op => ({ ledger, op }))
+            : Option.none()
+        let rows: ReadonlyArray<Record<string, unknown>>
+        if (Option.isSome(book)) {
+          const done = yield* inLedger(
+            book.value.ledger,
+            book.value.ledger.scope(principal),
+            book.value.op,
+            tx =>
+              (tx as DrizzleWrites)
+                .update(binding.table)
+                .set(set)
+                .where(where)
+                .returning(answered.columns),
+            landed => answeredOf(landed, answered),
+          )
+          if (done._tag === 'Recorded') {
+            return Option.some(JSON.parse(done.answer) as Readonly<Record<string, unknown>>)
+          }
+          rows = done.rows
+        } else if (Object.keys(set).length === 0) {
+          // Nothing to set: the row as it is, if it is there.
+          rows = yield* selectRows(yield* DrizzleDatabase, binding.table, answered.columns, {
+            where,
+          })
+        } else {
+          rows = yield* runStatement(
+            () => writes.update(binding.table).set(set).where(where).returning(answered.columns),
+            'Database write failed',
+          )
+        }
         const written = answeredOf(rows, answered)
         if (Option.isSome(written) || (Option.isNone(expect) && Option.isNone(when))) {
           return written

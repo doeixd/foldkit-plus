@@ -482,7 +482,10 @@ writer that does not is refused where it is served, rather than written whatever
 the row holds. A write's increments reach the writer apart from its values
 (`increments`, each field's amount, encoded), to be added in the statement that
 writes; a writer says it adds them (`increments: true`), and a write with one
-over a writer that does not is refused where it is served. An update of no row fails; an insert of an id
+over a writer that does not is refused where it is served. An increment that
+expects no revision is served only over a writer with a ledger (`ledger: true`),
+which records each update under its `operation` and answers a retry from the
+record (`recorded`), and only for a request carrying an operation id. An update of no row fails; an insert of an id
 already holding what it writes answers that row, and a delete of a row already
 gone succeeds, so a retry of either is safe. An insert of an id holding
 anything else fails: that row is not its answer. The writer must be for the write's own Entity,

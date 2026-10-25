@@ -369,8 +369,10 @@ refused so.
 An update may move a number field by an amount the input holds, rather than set
 it: `increment: { stock: 'quantity' }` adds the input's `quantity` (an unmapped
 key, a number; negative takes away) to the stored `stock`, in the statement that
-writes, so no concurrent change is lost. It must `expect` a revision: a retry of
-a write that landed is then a conflict, never a second increment. The field must
+writes, so no concurrent change is lost. A retry must not add twice, so either it
+expects a revision (a retry of a write that landed is then a conflict), or its
+writer keeps a ledger, which answers the retry from its record and lets two
+concurrent increments both land. `RemoteServer.write` refuses one with neither. The field must
 be stored as a number, and may not be the id, the revision, or set by another
 key. `Write.bind` gives the amounts apart from the values (`increments`), so an
 optimistic patch shows no sum computed over a row that may be stale; the field

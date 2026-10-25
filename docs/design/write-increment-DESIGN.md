@@ -40,6 +40,10 @@ Write.update(input, { id: 'id', expect: 'revision', increment: { stock: 'quantit
 
 ## 2. Retry: an increment must expect a revision
 
+**Amended**, 2026-10-25, by [write-improvement-PLAN.md](./write-improvement-PLAN.md)
+phase 3: an increment over a writer with a ledger needs no `expect`; the ledger
+answers its retry. Without a ledger, what follows still holds.
+
 A write with an `increment` must name `expect`; it is refused where declared
 without one. The guarantee is then optimistic concurrency, not deduplication:
 
