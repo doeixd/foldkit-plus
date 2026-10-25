@@ -32,6 +32,12 @@ version changed; `pnpm` skips versions already in the registry.
   an invariant does not go out, and the message shows beside each key its path
   names, or in `errors`; one over a field the form does not set is left to the
   server. `Crud.editor` shows a save's `Refusal.invalid` the same way. (#183)
+- **`foldkit-entity`: transitions.** `Entity.transition(id, ({ before, after })
+  => predicate, { message, path? })` declares what every update must hold over
+  the row before it and the row after (`after` is one placeholder per field);
+  `Entity.judgeChange(entity, before, after)` judges a change, and
+  `Entity.changeOver` is the rewrite an interpreter judges one in a statement
+  with. `Expr.substituteInputs` reads placeholders as given scalars. (#184)
 - **`foldkit-remote-drizzle`: `invariantChecks(binding)`.** Each invariant as
   a `CHECK` constraint (`constraint "<table>_<id>" check ((…) is true)`, values
   inlined) for a migration, so a handler's write or raw SQL is held to it too;

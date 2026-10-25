@@ -423,6 +423,39 @@ Entity.judge(Inventory, { id: 'i1', quantity: 3, reserved: 5 })
 Text compares only under a declared collation, here too: a date stored as text
 needs `{ collation: Collation.binary }` on its comparison.
 
+### What every change must hold: transitions
+
+An invariant judges one row. A **transition** relates the row before an update
+to the row after, each of which may be valid on its own: an order that shipped
+stays shipped.
+
+```ts
+const OrderFields = Entity.define(
+  'Order',
+  Schema.Struct({ id: Schema.String, status: Schema.Literals(['placed', 'shipped']) }),
+)
+const Order = OrderFields.pipe(
+  Entity.transition(
+    'shippedStaysShipped',
+    ({ before, after }) =>
+      Expr.or(Expr.not(Expr.eq(before.status, 'shipped')), Expr.eq(after.status, 'shipped')),
+    { message: 'A shipped order stays shipped', path: ['status'] },
+  ),
+)
+
+const shipped = { id: 'o1', status: 'shipped' }
+Entity.judgeChange(Order, shipped, { ...shipped, status: 'placed' })
+// { _tag: 'Invalid', failures: [{ id: 'shippedStaysShipped', … }] }
+```
+
+`before` is the Entity's fields; `after` is one placeholder per field, typed as
+it. Every update is judged; a create has no row before and a delete none after,
+so neither is. It is declared, refused and judged as an invariant is (strictly
+true, over stored values, `Undecided` when either row lacks a field it reads),
+and its id is unique among the Entity's invariants too, since a refusal names
+it. `Entity.changeOver` is the rewrite an interpreter judges it in one statement
+with.
+
 ## Attaching metadata
 
 An interpreter declares a [`foldkit-metadata`](../metadata/README.md) key and

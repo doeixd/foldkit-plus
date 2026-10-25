@@ -10,6 +10,13 @@
 import { type Option, Pipeable, Schema } from 'effect'
 import { Metadata } from 'foldkit-metadata'
 import { check, invariant, invariantsOf, judge, judgeAgainst, judgeInput } from './invariant.js'
+import {
+  changeOver,
+  judgeChange,
+  judgeChangeAgainst,
+  transition,
+  transitionsOf,
+} from './transition.js'
 import { SchemaShape } from './shape.js'
 
 export const EntityTypeId: unique symbol = Symbol.for('foldkit-entity/Entity')
@@ -780,6 +787,34 @@ export const Entity = {
    */
   judgeInput,
 
+  /**
+   * Declares what every update must hold over the row before it and the row
+   * after: `Entity.transition('shippedStaysShipped', ({ before, after }) =>
+   * Expr.or(Expr.not(Expr.eq(before.status, 'shipped')), Expr.eq(after.status,
+   * 'shipped')), { message })`. A create and a delete are not judged. Refused
+   * where it is declared as an invariant is, and for an id an invariant has.
+   */
+  transition,
+
+  /** The Entity's transitions, in the order they were declared. */
+  transitions: transitionsOf,
+
+  /**
+   * A change from one stored row to another under the Entity's transitions:
+   * `Valid`, `Invalid` with the ones that fail (a null fails), or `Undecided`.
+   */
+  judgeChange,
+
+  /** `Entity.judgeChange` against transitions already read. */
+  judgeChangeAgainst,
+
+  /**
+   * A transition as one statement judges an update, for an interpreter: what
+   * the write sets as its value, what it moves under `after:<field>`, the rest
+   * as the field.
+   */
+  changeOver,
+
   /** The invariants as a Schema check over the row type, each failure at its path. */
   check,
 
@@ -1036,6 +1071,7 @@ export * from './shape.js'
 // otherwise carry.
 export * from './evaluate.js'
 export type { Invariant, Judgement } from './invariant.js'
+export type { AfterRow, Transition } from './transition.js'
 export {
   Write,
   type AnyWrite,
