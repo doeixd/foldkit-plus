@@ -130,7 +130,10 @@ export const subsites: ReadonlyArray<Subsite> = [
       shelf: 'Data',
       packages: ['remote', 'remote-server', 'remote-drizzle'],
     },
-    [doc('server-state', 'Server-derived state', 'remote')],
+    [
+      doc('server-state', 'Server-derived state', 'remote'),
+      doc('writes', 'Declared writes', 'declared-writes'),
+    ],
   ),
   family(
     {
