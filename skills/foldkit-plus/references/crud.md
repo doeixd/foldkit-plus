@@ -73,7 +73,7 @@ const subscriptions = Data.subscriptions({ editor: PostEditor.active })
   `LoadFailed`, `Editing`, `Saving`, `Saved`, `SaveFailed`, `Moved` (another
   client saved a row whose write `expect`s a revision), or `Conflict` (the
   mutation's `Refusal.conflict`); a `Refusal.field` of one of the form's keys
-  shows on that key;
+  shows on that key, and a `Refusal.invalid` beside each key its path names;
   `PostEditor.saveError(model)` is why a save failed, `PostEditor.refresh(model)`
   retries a `LoadFailed` read, and
   `PostEditor.target(model)` the id being edited (`null` for a new one). The form's Model is

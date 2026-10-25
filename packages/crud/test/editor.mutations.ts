@@ -43,7 +43,7 @@ export default [
     edits: [
       {
         file: editor,
-        find: 'if (Option.isNone(field) || !draftKeys.has(field.value.key)) return root',
+        find: 'if (named.length === 0) return root',
         replace: 'return root',
       },
     ],
@@ -65,8 +65,8 @@ export default [
     edits: [
       {
         file: editor,
-        find: 'if (Option.isNone(field) || !draftKeys.has(field.value.key)) return root',
-        replace: 'if (Option.isNone(field)) return root',
+        find: 'return draftKeys.has(refusal.key)\n          ? [{ key: refusal.key, error: String(refusal.reason) }]\n          : []',
+        replace: 'return [{ key: refusal.key, error: String(refusal.reason) }]',
       },
     ],
     tests,

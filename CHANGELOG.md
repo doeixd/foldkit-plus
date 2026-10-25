@@ -27,6 +27,11 @@ version changed; `pnpm` skips versions already in the registry.
   an insert that leaves a field one reads unset. On SQLite, Postgres and D1.
   `GuardServer.writer` passes them through, after its rules, and answers an
   invariant that reads a Read-ruled member as `Invalid` naming none.
+- **`foldkit-form` and `foldkit-crud` show invariants.** A form judges the row
+  its value describes on submit (`Entity.judgeInput`, new): a row that breaks
+  an invariant does not go out, and the message shows beside each key its path
+  names, or in `errors`; one over a field the form does not set is left to the
+  server. `Crud.editor` shows a save's `Refusal.invalid` the same way. (#183)
 - **`foldkit-form`: a control says how a value is shown, and a key can be any
   number of a fixed set.** `Input.kind` takes `format`, the text a value is shown
   as when a form is filled with it — the inverse of `parse`, called by `fill`

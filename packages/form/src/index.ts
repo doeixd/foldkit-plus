@@ -8,7 +8,7 @@
  * happens to it (a Remote mutation, a Sync operation, a plain `update`) is the
  * parent's.
  */
-import { Duration, Effect, Option, Pipeable, Result, Schema, SchemaAST } from 'effect'
+import { Duration, Effect, Match, Option, Pipeable, Result, Schema, SchemaAST } from 'effect'
 import { Bundle, Link } from 'foldkit-bundle'
 import {
   Entity,
@@ -1161,6 +1161,49 @@ const Core = {
       Schema.toType(input.schema) as Schema.Codec<Value>,
     )
 
+    // The key of this input that sets each field, for showing an invariant beside it.
+    const keyOfField = new Map<string, Key>(
+      keys.flatMap(key => {
+        const member = members[key]!
+        if (member._tag !== 'Field') return []
+        return [[member.key, key] as const]
+      }),
+    )
+
+    /**
+     * The value's row under its Entity's invariants, as the server will judge
+     * it: each failure beside the keys its path names that this form sets, or
+     * on the whole input when it sets none of them.
+     */
+    const judged = (model: Model, value: Value): Option.Option<Model> =>
+      Match.value(Entity.judgeInput(input, value as Readonly<Record<string, unknown>>)).pipe(
+        Match.tagsExhaustive({
+          Valid: () => Option.none(),
+          Undecided: () => Option.none(),
+          Invalid: ({ failures }) => {
+            let next = model
+            const errors: Array<string> = []
+            for (const failure of failures) {
+              const shown = failure.path.flatMap(field =>
+                Option.toArray(Option.fromUndefinedOr(keyOfField.get(field))),
+              )
+              if (shown.length === 0) errors.push(failure.message)
+              for (const key of shown) {
+                next = withField(
+                  next,
+                  key,
+                  FieldValidation.Invalid({
+                    value: drafts(next)[key].value,
+                    errors: [failure.message],
+                  }),
+                )
+              }
+            }
+            return Option.some({ ...next, errors })
+          },
+        }),
+      )
+
     const acceptable = (model: Model): boolean =>
       keys.every(key => {
         const field = drafts(model)[key]
@@ -1185,7 +1228,11 @@ const Core = {
       const nested = acceptable(model) ? nestedValues(model) : undefined
       if (nested === undefined) return { model: settled }
       return Result.match(decodeInput({ ...decoded(model), ...nested }), {
-        onSuccess: value => ({ model: { ...settled, errors: [] }, value }),
+        onSuccess: value =>
+          Option.match(judged(settled, value), {
+            onNone: () => ({ model: { ...settled, errors: [] }, value }),
+            onSome: refused => ({ model: refused }),
+          }),
         onFailure: error => ({
           model: {
             ...settled,

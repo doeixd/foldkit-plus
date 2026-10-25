@@ -2,7 +2,7 @@
  * Invariants: declared once on an Entity, judged over a whole stored row, and
  * read as a Schema check.
  */
-import { Schema, SchemaGetter } from 'effect'
+import { Option, Schema, SchemaGetter } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { Collation, Entity, Expr, truthOver } from '../src/index.js'
 
@@ -177,5 +177,41 @@ describe('Expr.substitute', () => {
     expect(truthOver(Expr.substitute(predicate, values), stored)).toBe(false)
     // A field it names but does not read changes nothing.
     expect(truthOver(Expr.substitute(predicate, { id: 'other' }), stored)).toBe(true)
+  })
+})
+
+describe('Entity.judgeInput', () => {
+  const Edit = Entity.input(
+    Inventory,
+    Schema.Struct({
+      quantity: Schema.Number,
+      reserved: Schema.Option(Schema.NullOr(Schema.Number)),
+      starts: Day,
+      ends: Day,
+      note: Schema.String,
+    }),
+    { note: Entity.unmapped },
+  )
+  const value = {
+    quantity: 3,
+    reserved: Option.some(5),
+    starts: new Date('2026-01-01'),
+    ends: new Date('2026-02-01'),
+    note: 'x',
+  }
+
+  it('judges the row an input describes, its values encoded as the store holds them', () => {
+    expect(Entity.judgeInput(Edit, value)).toEqual(failing('reservedWithinQuantity'))
+    expect(Entity.judgeInput(Edit, { ...value, quantity: 5 })).toEqual({ _tag: 'Valid' })
+    expect(
+      Entity.judgeInput(Edit, { ...value, quantity: 5, ends: new Date('2025-12-01') }),
+    ).toEqual(failing('endsAfterStart'))
+  })
+
+  it('leaves an invariant over a key holding nothing undecided', () => {
+    expect(Entity.judgeInput(Edit, { ...value, reserved: Option.none() })).toEqual({
+      _tag: 'Undecided',
+      fields: ['reserved'],
+    })
   })
 })
