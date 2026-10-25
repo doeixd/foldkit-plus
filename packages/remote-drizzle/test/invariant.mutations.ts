@@ -95,4 +95,10 @@ export default [
     survives:
       'Drizzle inlines every value the compiler passes it, so no test reaches the guard; it keeps a value Drizzle did not inline from becoming a silent `?` in a constraint',
   },
+  edit(
+    'a retry is answered with every field the miss read',
+    drizzle,
+    'Object.entries(row).filter(([key]) => answers.has(key))',
+    'Object.entries(row)',
+  ),
 ]

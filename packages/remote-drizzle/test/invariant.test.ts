@@ -242,6 +242,19 @@ describe.each(backends)('Invariants over %s', (_, backend) => {
     )
   })
 
+  it('answers a retry of a write that landed with what it wrote, not every field the miss read', async () => {
+    await fresh("('s1', 'shipped', 10, 5, 'Leeds', 1)")
+    // Shipped already: the precondition misses, the row holds what the write sets.
+    expect(await send('Ship', { id: 's1', status: 'shipped' })).toMatchObject({
+      _tag: 'Success',
+      success: { entities: [{ id: 's1', values: { id: 's1', status: 'shipped' } }] },
+    })
+    // Nothing the write did not set, though the miss read the fields its invariants read.
+    expect(await send('Ship', { id: 's1', status: 'shipped' })).not.toMatchObject({
+      success: { entities: [{ values: { shippedTo: expect.anything() } }] },
+    })
+  })
+
   it('lets a write repair a row already invalid, and refuses one that leaves it so', async () => {
     await fresh("('s1', 'packed', 3, 5, null, 1)")
     expect(await send('SetQuantity', { id: 's1', quantity: 4 })).toMatchObject(
