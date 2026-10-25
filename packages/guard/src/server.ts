@@ -512,6 +512,93 @@ export const GuardServer = {
     }
     // What an answer shows: the row as the writer may see it, members ruled.
     const memberRead = GuardServer.filter(entity, policy)
+    // An update, step by step: admitted for what it declares, its rules chosen, the
+    // row they read read, the rules decided over it as it is and as it would be, then
+    // written pinned to that row. Each step refuses before the next can speak.
+    type UpdateContext = Parameters<EntityWriter<Option.Option<User>, RW>['update']>[0]
+    interface UpdateRules {
+      readonly row: RowRule
+      readonly members: ReadonlyArray<RowRule>
+      readonly relating: Effect.Success<ReturnType<typeof linkRules>>
+    }
+    /** Refused before any rule, for what the write declares rather than what the row holds. */
+    const admitUpdate = (context: UpdateContext): Effect.Effect<void, RemoteServerError> =>
+      Effect.andThen(discloses(context.expect, context.when), () =>
+        // The rules judge a sum over the row read: unpinned, that is not the row written.
+        Object.keys(context.increments).length > 0 &&
+        Option.isNone(context.expect) &&
+        revision === undefined
+          ? Effect.fail(
+              new RemoteServerError({
+                message: `${entity.name}'s increment expects no revision and its writer pins none, so its rules would judge a sum over a row that may move; give the writer a revision`,
+              }),
+            )
+          : Effect.void,
+      )
+    /** The rules an update must meet: the row's, each member it sets, each relation it points. */
+    const updateRules = (context: UpdateContext) =>
+      Effect.gen(function* () {
+        const row = yield* policy.writable(entity, context.principal, 'Update')
+        // An incremented field is set as surely as a written one: its Update rule holds.
+        const members = yield* policy.writeMembers(
+          entity,
+          context.principal,
+          [...Object.keys(context.values), ...Object.keys(context.increments)],
+          'Update',
+        )
+        const relating = yield* linkRules(context.principal, context.links)
+        return { row, members, relating } satisfies UpdateRules
+      })
+    /** The row as its writer may see it, with every field the rules and the version read. */
+    const readBefore = (context: UpdateContext, rules: UpdateRules) =>
+      read({
+        id: context.id,
+        fields: fieldsOf(
+          [rules.row, ...rules.members, ...ruleOf(rules.relating)],
+          [...Object.keys(context.links), ...versionFields(context.expect)],
+        ),
+        principal: context.principal,
+      })
+    /** The rules, over the row as it is and as the write would leave it. */
+    const decideUpdate = (
+      context: UpdateContext,
+      rules: UpdateRules,
+      before: Readonly<Record<string, unknown>>,
+    ) =>
+      Effect.gen(function* () {
+        const { principal, values, increments, links } = context
+        const linked = Object.keys(links)
+        const stored =
+          writer.linked === undefined || linked.length === 0
+            ? Option.none()
+            : yield* writer.linked({ id: context.id, relations: linked })
+        const relations = linking(
+          rules.relating,
+          Option.some(
+            Option.match(stored, {
+              onNone: () => ({ links: before, exact: false }),
+              onSome: links => ({ links, exact: true }),
+            }),
+          ),
+        )
+        // The sum the writer will store, over the row read, which the pin keeps as the row
+        // written. Only a rule reads it, and `fieldsOf` read every field a rule reads.
+        const after = {
+          ...before,
+          ...values,
+          ...Object.fromEntries(
+            Object.entries(increments).map(([field, amount]) => [
+              field,
+              Number(before[field]) + amount,
+            ]),
+          ),
+          ...Object.fromEntries(
+            Object.entries(links).map(([relation, link]) => [relation, linkKey(link)]),
+          ),
+        }
+        yield* require([rules.row, ...rules.members, ...relations], before, principal)
+        yield* require([rules.row], after, principal)
+      })
     const guarded: EntityWriter<Option.Option<User>, R | RW> = {
       entity: writer.entity,
       // The precondition is the writer's to check, in the statement that writes.
@@ -528,70 +615,19 @@ export const GuardServer = {
           id,
         ),
       update: context =>
-        Effect.andThen(discloses(context.expect, context.when), () =>
+        Effect.andThen(admitUpdate(context), () =>
           answeredOr(context, () =>
             pinned(context.id, context.expect, Option.isNone, () =>
               Effect.gen(function* () {
-                const { principal, values, increments, links } = context
-                // The rules judge a sum over the row read: unpinned, that is not the row written.
-                if (
-                  Object.keys(increments).length > 0 &&
-                  Option.isNone(context.expect) &&
-                  revision === undefined
-                ) {
-                  return yield* new RemoteServerError({
-                    message: `${entity.name}'s increment expects no revision and its writer pins none, so its rules would judge a sum over a row that may move; give the writer a revision`,
-                  })
-                }
-                const row = yield* policy.writable(entity, principal, 'Update')
-                // An incremented field is set as surely as a written one: its Update rule holds.
-                const members = yield* policy.writeMembers(
-                  entity,
-                  principal,
-                  [...Object.keys(values), ...Object.keys(increments)],
-                  'Update',
-                )
-                const relating = yield* linkRules(principal, links)
-                const fields = fieldsOf(
-                  [row, ...members, ...ruleOf(relating)],
-                  [...Object.keys(links), ...versionFields(context.expect)],
-                )
-                const current = yield* read({ id: context.id, fields, principal })
-                if (Option.isNone(current)) return yield* Effect.fail(refused(row.deny))
-                const before = current.value
-                if (moved(context.expect, before)) return Option.none()
-                const linked = Object.keys(links)
-                const stored =
-                  writer.linked === undefined || linked.length === 0
-                    ? Option.none()
-                    : yield* writer.linked({ id: context.id, relations: linked })
-                const relations = linking(
-                  relating,
-                  Option.some(
-                    Option.match(stored, {
-                      onNone: () => ({ links: before, exact: false }),
-                      onSome: links => ({ links, exact: true }),
-                    }),
-                  ),
-                )
-                // The sum the writer will store, over the row read, which the pin keeps as the row
-                // written. Only a rule reads it, and `fieldsOf` read every field a rule reads.
-                const after = {
-                  ...before,
-                  ...values,
-                  ...Object.fromEntries(
-                    Object.entries(increments).map(([field, amount]) => [
-                      field,
-                      Number(before[field]) + amount,
-                    ]),
-                  ),
-                  ...Object.fromEntries(
-                    Object.entries(links).map(([relation, link]) => [relation, linkKey(link)]),
-                  ),
-                }
-                yield* require([row, ...members, ...relations], before, principal)
-                yield* require([row], after, principal)
-                return yield* writer.update({ ...context, expect: pin(context.expect, before) })
+                const rules = yield* updateRules(context)
+                const current = yield* readBefore(context, rules)
+                if (Option.isNone(current)) return yield* Effect.fail(refused(rules.row.deny))
+                if (moved(context.expect, current.value)) return Option.none()
+                yield* decideUpdate(context, rules, current.value)
+                return yield* writer.update({
+                  ...context,
+                  expect: pin(context.expect, current.value),
+                })
               }),
             ),
           ),

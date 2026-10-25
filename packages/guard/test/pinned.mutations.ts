@@ -14,20 +14,20 @@ const edit = (name: string, find: string, replace: string) => ({
 export default [
   edit(
     'an update is not pinned',
-    'return yield* writer.update({ ...context, expect: pin(context.expect, before) })',
-    'return yield* writer.update(context)',
+    'return yield* writer.update({\n                  ...context,\n                  expect: pin(context.expect, current.value),',
+    'return yield* writer.update({\n                  ...context,\n                  expect: context.expect,',
   ),
   edit(
     'a delete is not pinned',
-    'expect: pin(context.expect, current.value),',
-    'expect: context.expect,',
+    'return yield* writer.delete({\n                  ...context,\n                  expect: pin(context.expect, current.value),',
+    'return yield* writer.delete({\n                  ...context,\n                  expect: context.expect,',
   ),
   edit('a miss is not decided again', '? loop(left - 1)', '? Effect.succeed(outcome)'),
   edit('two attempts, not three', 'return loop(3)', 'return loop(2)'),
   edit('an input’s pinned write is retried', 'if (Option.isSome(expect)) {', 'if (false) {'),
   edit(
     'an update ignores the revision its input expects',
-    'if (moved(context.expect, before)) return Option.none()',
+    'if (moved(context.expect, current.value)) return Option.none()',
     '',
   ),
   edit(
