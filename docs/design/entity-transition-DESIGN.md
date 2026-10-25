@@ -1,7 +1,8 @@
 # Entity transitions
 
-**Status:** Design, 2026-10-25, for
-[#184](https://github.com/doeixd/foldkit-plus/issues/184). Builds on
+**Status:** Built, 2026-10-25, for
+[#184](https://github.com/doeixd/foldkit-plus/issues/184), as §7 sets out; the
+guide is [Declared writes](../declared-writes.md#what-every-change-holds-a-transition). Builds on
 [entity invariants](./entity-invariant-DESIGN.md) (#183) and declared writes
 (#182).
 

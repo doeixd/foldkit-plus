@@ -1,6 +1,6 @@
 /**
  * What client and server share: one Entity, who may change it, what every row
- * of it holds, and four declared writes. Nothing here runs a query or touches a table.
+ * of it holds, what every change of it holds, and five declared writes. Nothing here runs a query or touches a table.
  */
 import { Schema } from 'effect'
 import { Entity, Expr, Write } from 'foldkit-entity'
@@ -43,6 +43,16 @@ export const Product = ProductFields.pipe(
     message: 'Reserved stock cannot exceed the stock',
     path: ['reserved'],
   }),
+  // A draft and a published product are both valid; going from one back to the other is not.
+  Entity.transition(
+    'publishedStaysPublished',
+    ({ before, after }) =>
+      Expr.or(
+        Expr.not(Expr.eq(before.status, 'published')),
+        Expr.not(Expr.eq(after.status, 'draft')),
+      ),
+    { message: 'A published product does not go back to draft', path: ['status'] },
+  ),
 )
 
 /** A guarded rename: the rules decide who may, the writer's revision pin when it lands. */
@@ -66,6 +76,15 @@ export const Publish = Mutation.write(
       Schema.Struct({ id: Schema.String, status: Schema.Literal('published') }),
     ),
     { id: 'id', when: () => Expr.eq(Product.fields.status, 'draft') },
+  ),
+)
+
+/** Sets a product back to draft, which its transition allows only of one never published. */
+export const Revert = Mutation.write(
+  'Revert',
+  Write.update(
+    Entity.input(Product, Schema.Struct({ id: Schema.String, status: Schema.Literal('draft') })),
+    { id: 'id' },
   ),
 )
 

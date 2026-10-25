@@ -1,5 +1,5 @@
 /**
- * Four declared writes, sent as a client would send them, over SQLite in
+ * Five declared writes, sent as a client would send them, over SQLite in
  * memory. Each line is what the server answered.
  */
 import { DatabaseSync } from 'node:sqlite'
@@ -7,7 +7,7 @@ import { drizzle } from 'drizzle-orm/node-sqlite'
 import { Effect, Option, Schema } from 'effect'
 import { databaseLayer } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
-import { Publish, Rename, Restock, Sell, type User } from './domain.js'
+import { Publish, Rename, Restock, Revert, Sell, type User } from './domain.js'
 import { schema, server } from './server.js'
 
 export const runDemo = async (): Promise<ReadonlyArray<string>> => {
@@ -64,6 +64,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     `publish the draft: ${await send(ada, Publish, { id: 'p1', status: 'published' })}`,
     `publish it again: ${await send(ada, Publish, { id: 'p1', status: 'published' })}`,
     `publish an archived product: ${await send(ada, Publish, { id: 'p2', status: 'published' })}`,
+    `put the published product back to draft: ${await send(ada, Revert, { id: 'p1', status: 'draft' })}`,
     `restock 5 at revision 3: ${await send(ada, Restock, restock)}`,
     `the same restock again, its answer lost: ${await send(ada, Restock, restock)}`,
     `sell 2, from the read at revision 4: ${await send(ada, Sell, { id: 'p1', quantity: -2 }, 'sale-1')}`,
