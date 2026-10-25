@@ -109,22 +109,17 @@ describe('A transition', () => {
   })
 })
 
-describe('Entity.changeOver', () => {
-  const [stays, never] = Entity.transitions(Order)
+describe('Expr.substituteNext', () => {
+  const [stays] = Entity.transitions(Order)
 
-  it('reads what the write sets after as its value, and what it leaves alone as the field', () => {
-    // Setting the status back: the field before is read from the row, the one after is the value.
-    const back = Entity.changeOver(stays!, { status: 'placed' }, new Set())
+  it('reads a field the write sets as its value after, and leaves the rest to the row after', () => {
+    // Setting the status back: before is the row's, after is the value.
+    const back = Expr.substituteNext(stays!.predicate, { status: 'placed' })
     expect(truthOver(back, shipped)).toBe(false)
     expect(truthOver(back, placed)).toBe(true)
-    // A write that leaves the status alone holds it, whatever the row.
-    const untouched = Entity.changeOver(stays!, { total: 12 }, new Set())
-    expect(truthOver(untouched, shipped)).toBe(true)
-  })
-
-  it('reads a field it moves under its own key, for the interpreter to bind', () => {
-    const moved = Entity.changeOver(never!, {}, new Set(['total']))
-    expect(truthOver(moved, { ...placed, 'after:total': 9 })).toBe(false)
-    expect(truthOver(moved, { ...placed, 'after:total': 11 })).toBe(true)
+    // A value it does not name stays the row after's to give.
+    const open = Expr.substituteNext(stays!.predicate, { total: 12 })
+    expect(truthOver(open, shipped, {}, shipped)).toBe(true)
+    expect(truthOver(open, shipped, {}, placed)).toBe(false)
   })
 })

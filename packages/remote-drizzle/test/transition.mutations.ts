@@ -14,14 +14,10 @@ const edit = (name: string, find: string, replace: string, file = drizzle) => ({
 export default [
   edit(
     'the statement does not judge the change',
-    '[DomainEntity.changeOver(held, values, moved)]',
-    '[DomainEntity.changeOver(held, {}, new Set())]',
+    '[Expr.substituteNext(held.predicate, values)]',
+    '[held.predicate]',
   ),
-  edit(
-    'a moved field is judged as unmoved',
-    'const moved = new Set(Object.keys(increments))',
-    'const moved = new Set<string>()',
-  ),
+  edit('a moved field is judged as unmoved', 'next[field] = movedBy(field, amount)', ''),
   edit(
     'a miss is never classified by a transition',
     'brokenBy(DomainEntity.judgeChangeAgainst(transitions, row, proposed)),',

@@ -38,7 +38,7 @@ export default [
     edits: [
       {
         file: evaluate,
-        find: '    reads = dependenciesOf(node).fields.length > 0\n',
+        find: '    reads = read.fields.length + read.next.length > 0\n',
         replace: '    reads = true\n',
       },
     ],

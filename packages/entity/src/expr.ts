@@ -50,8 +50,18 @@ export interface InputExpr<T> {
   readonly schema: Schema.Codec<T, unknown>
 }
 
+/**
+ * A field as the row a write would leave holds it, where a rule judges a change
+ * (`after.status` beside `before.status`). An interpreter that judges stored
+ * rows alone refuses it, as the operation `next`.
+ */
+export interface NextExpr<T> {
+  readonly _tag: 'Next'
+  readonly field: FieldExpr<T>
+}
+
 /** A typed scalar: what a comparison compares. */
-export type Expr<T> = LiteralExpr<T> | FieldExpr<T> | InputExpr<T>
+export type Expr<T> = LiteralExpr<T> | FieldExpr<T> | InputExpr<T> | NextExpr<T>
 
 /** Any scalar, for the places that hold operands without caring what they are. */
 export type AnyExpr = Expr<unknown>
@@ -298,7 +308,7 @@ const toOperand = <T>(value: Operand<T> | T): Operandish => {
   if (tag === 'Field') {
     return fieldExpr(value as EntityField<string, string, Schema.Constraint>)
   }
-  if (tag === 'Literal' || tag === 'Input' || predicateTags.has(tag as string)) {
+  if (tag === 'Literal' || tag === 'Input' || tag === 'Next' || predicateTags.has(tag as string)) {
     return value as Operandish
   }
   return literal(value)
@@ -330,6 +340,7 @@ export type Operation =
   | 'or'
   | 'not'
   | 'compare'
+  | 'next'
 
 /** One field an expression reads: its Entity's name and key, and the identity that owns it. */
 export interface FieldDependency {
@@ -344,6 +355,8 @@ export interface FieldDependency {
 export interface Dependencies {
   /** One entry per distinct field of each Entity identity. */
   readonly fields: ReadonlyArray<FieldDependency>
+  /** Each field read as the row a write would leave holds it (`Next`), one entry each. */
+  readonly next: ReadonlyArray<FieldDependency>
   /** One entry per distinct input key. */
   readonly inputs: ReadonlyArray<string>
   /** One entry per distinct operation, so an interpreter can refuse what it cannot run. */
@@ -410,6 +423,7 @@ const sideKind = (side: AnyExpr): 'number' | 'text' | 'none' | 'null' =>
   Match.value(side).pipe(
     Match.tagsExhaustive({
       Field: field => orderKindOf(Schema.toEncoded(field.schema).ast),
+      Next: ({ field }) => orderKindOf(Schema.toEncoded(field.schema).ast),
       Input: input => orderKindOf(Schema.toEncoded(input.schema).ast),
       Literal: ({ value }) => literalKind(value),
     }),
@@ -439,6 +453,7 @@ const collationFor = (
   const fields = [left, right].flatMap(side =>
     Match.value(side).pipe(
       Match.tag('Field', field => [field]),
+      Match.tag('Next', next => [next.field]),
       Match.orElse(() => []),
     ),
   )
@@ -566,6 +581,15 @@ export const Expr = {
    */
   input: <T>(key: string, schema: Schema.Codec<T, unknown>): InputExpr<T> =>
     node({ _tag: 'Input', key, schema }),
+
+  /**
+   * A field as the row a write would leave holds it, for a rule over a change:
+   * the builder of `Entity.rule` hands these out as `after`.
+   */
+  next: <Name extends string, Key extends string, S extends Schema.Constraint>(
+    field: EntityField<Name, Key, S>,
+  ): NextExpr<Schema.Schema.Type<S>> & Reads<Name> =>
+    node({ _tag: 'Next', field: fieldExpr(field) }) as NextExpr<Schema.Schema.Type<S>>,
 
   /** One field of one Entity, as a scalar. */
   field: <Name extends string, Key extends string, S extends Schema.Constraint>(
@@ -756,17 +780,17 @@ export const Expr = {
     ),
 
   /**
-   * The predicate with each input placeholder `replace` answers for read as
-   * what it answers: how an interpreter puts a scalar of its own (a column, a
-   * value) where a definition left a placeholder.
+   * The predicate with each field after a write (`Next`) that `values` names,
+   * by key, read as that value: how a rule over a change is judged where the
+   * write's new values are known. A field it does not name stays `Next`, for
+   * the interpreter to read as the row after holds it.
    */
-  substituteInputs: (
-    predicate: Predicate,
-    replace: (key: string) => Option.Option<AnyExpr>,
-  ): Predicate =>
+  substituteNext: (predicate: Predicate, values: Readonly<Record<string, unknown>>): Predicate =>
     substituted(predicate, operand =>
       Match.value(operand).pipe(
-        Match.tag('Input', input => Option.getOrElse(replace(input.key), () => operand)),
+        Match.tag('Next', ({ field }) =>
+          Object.hasOwn(values, field.key) ? literal(values[field.key]) : operand,
+        ),
         Match.orElse(() => operand),
       ),
     ),
@@ -1009,6 +1033,8 @@ interface Found {
   readonly fields: Map<symbol, Map<string, FieldDependency>>
   readonly order: Array<FieldDependency>
   readonly inputs: Set<string>
+  readonly next: Map<symbol, Map<string, FieldDependency>>
+  readonly nextOrder: Array<FieldDependency>
   readonly operations: Set<Operation>
 }
 
@@ -1035,6 +1061,18 @@ const walk = (expr: AnyExpr | Predicate | Ordering, found: Found): void => {
     case 'Input':
       found.inputs.add(expr.key)
       return
+    case 'Next': {
+      found.operations.add('next')
+      const { field } = expr
+      const byKey = found.next.get(field.owner.token) ?? new Map<string, FieldDependency>()
+      found.next.set(field.owner.token, byKey)
+      if (!byKey.has(field.key)) {
+        const read = { entity: field.owner.name, key: field.key, owner: field.owner }
+        byKey.set(field.key, read)
+        found.nextOrder.push(read)
+      }
+      return
+    }
     case 'Eq':
       found.operations.add('eq')
       walk(expr.left, found)
@@ -1094,10 +1132,17 @@ export const dependenciesOf = (
     fields: new Map(),
     order: [],
     inputs: new Set(),
+    next: new Map(),
+    nextOrder: [],
     operations: new Set(),
   }
   for (const term of nodes) walk(term, found)
-  return { fields: found.order, inputs: [...found.inputs], operations: [...found.operations] }
+  return {
+    fields: found.order,
+    next: found.nextOrder,
+    inputs: [...found.inputs],
+    operations: [...found.operations],
+  }
 }
 
 /**
@@ -1138,6 +1183,9 @@ const fieldsIn = function* (
   switch (expr._tag) {
     case 'Field':
       yield expr
+      return
+    case 'Next':
+      yield expr.field
       return
     case 'Literal':
     case 'Input':
@@ -1215,6 +1263,7 @@ const childrenOf = (expr: AnyExpr | Predicate): ReadonlyArray<AnyExpr | Predicat
     case 'Literal':
     case 'Field':
     case 'Input':
+    case 'Next':
       return []
     case 'Eq':
       return [expr.left, expr.right]
@@ -1458,6 +1507,8 @@ const showExpr = (node: AnyExpr | Predicate): string => {
       return `${node.owner.name}.${node.key}`
     case 'Input':
       return `$${node.key}`
+    case 'Next':
+      return `next ${node.field.owner.name}.${node.field.key}`
     case 'Eq':
       return `${showOperand(node.left)} = ${showOperand(node.right)}`
     case 'Null':

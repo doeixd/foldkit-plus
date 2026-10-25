@@ -453,8 +453,10 @@ it. Every update is judged; a create has no row before and a delete none after,
 so neither is. It is declared, refused and judged as an invariant is (strictly
 true, over stored values, `Undecided` when either row lacks a field it reads),
 and its id is unique among the Entity's invariants too, since a refusal names
-it. `Entity.changeOver` is the rewrite an interpreter judges it in one statement
-with.
+it. `after.status` is a `Next` node (`Expr.next`): the field as the row after
+holds it, which the evaluator reads from a second row and an interpreter that
+judges stored rows alone refuses as the operation `next`. `Expr.substituteNext`
+reads the ones a write sets as their values.
 
 ## Attaching metadata
 

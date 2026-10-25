@@ -57,6 +57,9 @@ const operand = (node: AnyExpr, input: Readonly<Record<string, unknown>>) => {
       return { value: node.value }
     case 'Input':
       return { value: input[node.key] }
+    case 'Next':
+      // Refused above as unsupported: this engine reads stored rows, never a row a write would leave.
+      throw new LiveStoreCompileError('this engine judges stored rows only')
   }
 }
 

@@ -1053,12 +1053,7 @@ export const writer = <P = unknown>(
   for (const held of invariants)
     compilePredicates([held.predicate], binding, {}, invariantName(held))
   for (const held of transitions)
-    compilePredicates(
-      [DomainEntity.changeOver(held, {}, new Set())],
-      binding,
-      {},
-      transitionName(held),
-    )
+    compilePredicates([held.predicate], binding, {}, transitionName(held))
 
   /**
    * Each invariant over the row an update leaves, and each transition over the
@@ -1077,13 +1072,12 @@ export const writer = <P = unknown>(
       const movedBy = (field: string, amount: number) =>
         sql`(${binding.columns[field]} + ${amount})` as unknown as AnyColumn
       const after: Record<string, AnyColumn> = Object.assign(Object.create(null), binding.columns)
-      // A transition's row before keeps each field's column; after, a moved field is its own key.
-      const change: Record<string, AnyColumn> = Object.assign(Object.create(null), binding.columns)
+      // A transition reads a field before as its column, and after as the row after holds it.
+      const next: Record<string, AnyColumn> = Object.create(null)
       for (const [field, amount] of Object.entries(increments)) {
         after[field] = movedBy(field, amount)
-        change[`after:${field}`] = movedBy(field, amount)
+        next[field] = movedBy(field, amount)
       }
-      const moved = new Set(Object.keys(increments))
       return [
         ...invariants.flatMap(held =>
           compilePredicates(
@@ -1095,8 +1089,8 @@ export const writer = <P = unknown>(
         ),
         ...transitions.flatMap(held =>
           compilePredicates(
-            [DomainEntity.changeOver(held, values, moved)],
-            { table: binding.table, columns: change },
+            [Expr.substituteNext(held.predicate, values)],
+            { table: binding.table, columns: binding.columns, next },
             {},
             transitionName(held),
           ),

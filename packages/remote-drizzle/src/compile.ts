@@ -51,6 +51,12 @@ import { collatedColumn, type OrderTerm } from './cursor.js'
 export interface CompileTarget {
   readonly table: Table
   readonly columns: Record<string, AnyColumn>
+  /**
+   * Each field as the row a write would leave holds it, where a rule over a
+   * change reads one (`Next`): a field it does not name is its column, which
+   * a write that leaves the field alone leaves as it is.
+   */
+  readonly next?: Readonly<Record<string, AnyColumn>>
 }
 
 export class QueryCompileError extends Error {
@@ -84,6 +90,10 @@ const operand = (
   switch (node._tag) {
     case 'Field':
       return columnFor(target, node.key, query)
+    case 'Next':
+      return Object.hasOwn(target.next ?? {}, node.field.key)
+        ? target.next![node.field.key]!
+        : columnFor(target, node.field.key, query)
     case 'Literal':
       return node.value
     case 'Input':
@@ -203,6 +213,14 @@ const connective = (
   return sql`(${sql.join(kept, joiner === 'and' ? sql` and ` : sql` or `)})`
 }
 
+/** Whether an operand reads a column: a field, before a write or after it. */
+const isColumn = (node: Operandish): boolean =>
+  !isPredicate(node) &&
+  Match.value(node).pipe(
+    Match.tags({ Field: () => true, Next: () => true }),
+    Match.orElse(() => false),
+  )
+
 /** The same comparison with its sides swapped: `3 > rank` is `rank < 3`. */
 const flipped: Readonly<Record<CompareOperator, CompareOperator>> = {
   lt: 'gt',
@@ -230,15 +248,7 @@ const comparison = (
   input: Readonly<Record<string, unknown>>,
   query: string,
 ): SQL => {
-  const fieldFirst = Match.value(node.left).pipe(
-    Match.tag('Field', () => true),
-    Match.orElse(() =>
-      Match.value(node.right).pipe(
-        Match.tag('Field', () => false),
-        Match.orElse(() => true),
-      ),
-    ),
-  )
+  const fieldFirst = isColumn(node.left) || !isColumn(node.right)
   const [first, second, operator] = fieldFirst
     ? [node.left, node.right, node.operator]
     : [node.right, node.left, flipped[node.operator]]
@@ -252,29 +262,23 @@ const comparison = (
   const symbol = sql.raw(symbols[operator])
   return Option.match(node.collation, {
     onNone: () =>
-      Match.value(first).pipe(
-        Match.tag('Field', () => comparing[operator](left as AnyColumn, right)),
-        Match.orElse(() => sql`${left} ${symbol} ${right}`),
-      ),
+      isColumn(first)
+        ? comparing[operator](left as AnyColumn, right)
+        : sql`${left} ${symbol} ${right}`,
     // Text compares only against a field, which the swap above put first.
     onSome: collation => {
       const column = left as AnyColumn
       const under = collatedColumn(column, collation)
       const key = Option.match(under, { onNone: () => sql`${column}`, onSome: ({ key }) => key })
-      const value = Match.value(second).pipe(
-        Match.tag('Field', () =>
-          Option.match(collatedColumn(right as AnyColumn, collation), {
+      const value = isColumn(second)
+        ? Option.match(collatedColumn(right as AnyColumn, collation), {
             onNone: () => sql`${right}`,
             onSome: ({ key }) => key,
-          }),
-        ),
-        Match.orElse(() =>
-          Option.match(under, {
+          })
+        : Option.match(under, {
             onNone: () => sql`${right}`,
             onSome: ({ value }) => sql`${value(right)}`,
-          }),
-        ),
-      )
+          })
       return sql`${key} ${symbol} ${value}`
     },
   })
@@ -332,7 +336,7 @@ const undecided = (
       // Drizzle's `eq` wants a column or expression on the left; a body may
       // compare either way round, and equality does not care. Normalising keeps
       // the generated SQL the shape a binding would have been written in.
-      return isPredicate(node.left) || node.left._tag === 'Field'
+      return isPredicate(node.left) || isColumn(node.left)
         ? eq(left as AnyColumn, right)
         : eq(right as AnyColumn, left)
     }
@@ -390,7 +394,7 @@ const undecided = (
       }
       // Over a column, Drizzle encodes each element as the column's own type,
       // as `eq` does; anything else is compared as it is.
-      return node.value._tag === 'Field'
+      return isColumn(node.value)
         ? inArray(value as AnyColumn, among)
         : sql`${value} in (${sql.join(
             among.map(each => sql`${each}`),

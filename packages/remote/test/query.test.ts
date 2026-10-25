@@ -210,6 +210,7 @@ describe('Query.define declares a query by what it means', () => {
     expect(Query.dependencies(PostsBySlug.body!)).toEqual({
       fields: [slug, id],
       inputs: ['slug'],
+      next: [],
       operations: ['eq'],
       predicate: [slug],
       order: [id],
