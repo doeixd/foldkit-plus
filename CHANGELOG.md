@@ -146,6 +146,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **The `foldkit-plus` skill covers declared writes and invariants.** `entity.md`
+  has a section on who owns which rule (Schema, guard, `when`, `Entity.invariant`)
+  with a compiled example; `remote.md` says what the Drizzle `writer` guarantees
+  and how each kind of write is retried; `greenfield.md` asks about invariants,
+  transitions and concurrency, and maps each rule to its one owner.
+
 - **`foldkit-remote`: every declared write may be refused as `Invalid`.**
   `Refusal.invalid` (`{ rule: Option<string>, message, path }`, with
   `Refusal.isInvalid`) is in every `Mutation.write`'s `Refusal` type, because

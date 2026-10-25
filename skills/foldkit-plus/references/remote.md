@@ -451,7 +451,12 @@ order (the server's `orderBy` decides it) by any change to a row it holds. `Data
 `Write.insert` with a client-minted id, or `Write.delete`) is a
 mutation whose effect is data: `Data.mutate` derives its optimistic patch
 (`Write.bind`), and `options.keys` narrows it to the input keys an author
-changed and sends them with the request.
+changed and sends them with the request. A write may ask of its row (`when`, `expect`)
+and compute where it commits (`increment`); Remote shows an increment as an amount
+added to whatever the store holds when it is read, so a live update meanwhile is added
+to, not hidden. `Data.mutate` also sends an operation id, kept across a retry with the
+same `requestId`, which a ledgered writer answers from its record. Declaring them, and
+invariants: [entity.md](entity.md).
 
 **Refusals.** `Mutation.make(name, { Input, Output, Refusal })` declares what
 the server may refuse with (`Refusal.field(key, reason)`, `Refusal.conflict`,
@@ -673,7 +678,8 @@ const RemoteClientLive = Remote.clientLayer(RemoteServer.handlers(Server, 'user-
 
 Nullable foreign keys must say `one(User, { field, nullable: true })` (a NULL
 becomes a present null). `many(...)` + `computed: { count: { relation } }` exist.
-No mutation DSL: write mutations with `RemoteServer.mutation`. Page size default
+A mutation declared as a `Write` needs no handler (`writer`, below); write any
+other with `RemoteServer.mutation`. Page size default
 20, max 100; pagination semantics follow Postgres NULL ordering.
 
 **Drizzle over a `foldkit-entity` domain.** `bind` takes an `Entity.relate`
@@ -723,6 +729,26 @@ is for fields; `visible` is for rows. Rules declared once for every seam, rows,
 members, writes and the client's `may`, are `foldkit-guard`'s (see guard.md):
 `GuardDrizzle.visible` compiles them into `visible`, `GuardServer.filter` into a
 Source's `filter`.
+
+**What `writer(binding)` guarantees.** One `update … where … returning` per update:
+the id, an `expect`ed revision, the write's `when` and every invariant of the Entity
+(set fields read as their new values, an increment as `column + amount`) are in the
+same `WHERE`, so all of them hold of the row the statement changes. When nothing was
+written, the row read back says why, in this order: gone, `Conflict`, `Unmet`, `Invalid`.
+A row already holding what the write sets answers as written (the retry of one that
+landed), unless it increments. An insert's values are judged before it is written, by its state invariants
+only. Retries, by kind of write:
+
+| Write | A retry after a lost answer |
+| --- | --- |
+| sets values | written again; answered as written |
+| `expect`s a revision | `Conflict`; the client re-reads |
+| increments, under `writer(binding, { ledger: { table, scope } })` | found in the ledger by its operation id, not written again |
+
+An increment with neither an `expect` nor a ledger is refused. The ledger needs a transaction, which D1 lacks.
+Migrate `invariantChecks(binding)` (each state invariant as `check ((…) is true)`) and,
+for a guarded writer's `revision` pin, `revisionTrigger(binding, 'revision')`, so a
+handler's write and raw SQL are held to the invariants and move the revision too.
 
 ## Gotchas
 

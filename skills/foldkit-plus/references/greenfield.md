@@ -99,7 +99,8 @@ one an answer reopened.
 | Identity | How is each identified: generated id, a slug, a natural key? Can it change? |
 | Relationships | What belongs to what? One or many on each side? What happens to the children when a parent goes? |
 | Lifecycle | What states does a thing pass through (draft, published, archived)? Which moves are allowed, and which are not? |
-| Invariants | What must always be true ("a project has one owner", "stock is never negative")? What must never happen? |
+| Invariants | What must always be true of a thing ("stock is never negative", "reserved never exceeds stock")? Which changes must never happen, whatever the two states ("a shipped order never goes back to placed")? |
+| Concurrency | Can two people change the same thing at once, and who wins? Which interactions add to a count (stock, a balance, votes), where sending one twice would count twice? |
 | Interactions | What can a user do: create, edit, archive, approve, invite, reorder? Which are one step, which a flow? |
 | People | Who uses it: visitors, members, editors, admins? How do they sign in? |
 | Permissions | Who may see and do each interaction, and on which rows ("only the owner", "members of its project")? Which fields are hidden from whom? |
@@ -118,7 +119,8 @@ Record every round in `docs/domain/`:
 
 Beside each decision in `model.md`, note the package it points to, as a hint
 for phase 5 ("archived only by an admin → a principal guard on an `Archive`
-interaction, `foldkit-guard`").
+interaction, `foldkit-guard`"; "stock never negative → `Entity.invariant` on
+`Product`"; "publish only a draft → `when` on the `Publish` write").
 
 ## 5. Survey and mapping
 
@@ -153,17 +155,25 @@ mapping names it:
   `Entity.derived` for the counts; `Entity.select(Domain.Project, { name: true
   })` names what one screen reads, from the related set rather than the bare
   one. Remote, Drizzle and Form read this declaration; none of them repeats it.
+  What every stored row, or every change of one, must hold is declared here too,
+  `Entity.invariant('hasName', ({ after }) => Expr.not(Expr.eq(after.name, '')),
+  { message })`, and an interaction's write as data,
+  `Write.update(Entity.input(Domain.Project, RenameInput), { id: 'id' })`, with
+  `when` for the state it applies from. An invariant only `update` checks is a UI
+  rule, not an invariant: a second device, an agent or a handler passes it.
 - **Guard**: the `rename` interaction's row guard, declared once with
   `Guards.declare` as `Expr.eq(Project.fields.ownerId, p.id)` (`p` the
-  principal), enforced by `remote-server`, `-drizzle`, Sync and agents. An
-  invariant only `update` checks is a UI rule, not an invariant.
+  principal), enforced by `remote-server`, `-drizzle`, Sync and agents. A guard
+  says who may; it never excuses an invariant.
 - **Auth**: `AuthServer.resolver` reads the request's session and answers as
   that principal, a visitor, or a refusal. Guard decides on it; Auth signs
   nobody in.
 - **Remote**: `Remote.make({ model, entities: Object.values(Domain), queries:
-  [ProjectsByOwner], mutations: [RenameProject] })`, a mutation's `Input` the
-  Schema the form fills; `remote-server` answers it and `remote-drizzle` binds
-  the Entity to tables.
+  [ProjectsByOwner], mutations: [RenameProject] })`, with `RenameProject =
+  Mutation.write('RenameProject', write)` over the Entity's write and its
+  `Input` the Schema the form fills; `remote-server` serves it through
+  `remote-drizzle`'s `writer`, which checks the write's `when`, revision and the
+  invariants in the one statement that lands it, and binds the Entity to tables.
 - **Form**: `Form.make('Rename', Entity.input(Domain.Project, RenameInput))` —
   the mutation's input as a draft, validated, its decoded value handed on.
 - **Crud**: `Crud.editor('ProjectEditor', { form, mutation })` loads the row,
@@ -184,6 +194,7 @@ one of them is wrong.
 | In the domain | Owned by | Reference |
 | --- | --- | --- |
 | A thing with fields, identity, relations, derived members | `foldkit-entity`: `Entity.define`, `Relation`, Selections | [entity.md](entity.md) |
+| What every row, or every change of one, must hold; what an interaction writes, from which state | `foldkit-entity`: `Entity.invariant`, `Write` (`when`, `expect`, `increment`); enforced by `foldkit-remote-drizzle`'s `writer` | [entity.md](entity.md) |
 | Shared server data, its queries and mutations, live updates | `foldkit-remote`, `foldkit-remote-server`, `foldkit-remote-drizzle` | [remote.md](remote.md) |
 | One person's edits that survive offline and converge across devices | `foldkit-sync` (`/entity`, `/journal`) over `foldkit-durable` | [sync.md](sync.md) |
 | Who may see and do what, per interaction and row | `foldkit-guard` and its seam subpaths | [guard.md](guard.md) |
@@ -206,8 +217,11 @@ one of them is wrong.
 
 In `mapping.md`, for each entity and interaction: the package, the API, where
 its state lives (the Model, the server, a replica, the URL), and which guard
-decides it. Write each invariant down with who enforces it: a Schema check (on
-decode), `update` (on every Message), or the server (on every write). Keep one
+decides it. Write each rule down with its one owner: a Schema check (a value's
+shape, on decode), an `Entity.invariant` (every stored row, or every change,
+whoever writes it), a write's `when` (whether this write applies to the row as it
+is), or a guard (who may). For each count an interaction adds to, say how a retry
+is kept from adding twice: an `expect`ed revision, or a ledger. Keep one
 owner per fact: if a datum appears in two rows of the mapping, one of them is
 wrong. Name what is deliberately left out, and the adapters to install.
 
@@ -224,7 +238,7 @@ record the decisions in `docs/domain/plan.md`.
 
 | Topic | Settle |
 | --- | --- |
-| Architecture | The rendering mode, confirmed against what SEO and first paint need. Where the server runs (Node, Cloudflare Workers) and what it holds: Remote's server, Sync's journal, the media server. The database and its driver (SQLite, Postgres, D1 through Drizzle). How the code is laid out: shared domain (Entities, the guard set), server, client, views; a Surface per feature. |
+| Architecture | The rendering mode, confirmed against what SEO and first paint need. Where the server runs (Node, Cloudflare Workers) and what it holds: Remote's server, Sync's journal, the media server. The database and its driver (SQLite, Postgres, D1 through Drizzle); D1 has no transactions, so a write ledger cannot run there and an increment must `expect` a revision. How the code is laid out: shared domain (Entities, the guard set), server, client, views; a Surface per feature. |
 | Performance | Budgets, written as numbers: Lighthouse scores, LCP, CLS, INP, the client bundle's size. What the largest image is and how it loads (`priority`, `Image.preloadsIn`). That server-only modules stay out of the client bundle (import `foldkit-ssr/client`, never `foldkit-ssr`, in the browser). Fonts. Measure them on a mid-range phone over a slowed network too, not only on a desktop, and size each image for the phone's width. |
 | SEO and sharing | Which routes are indexed. A title per route (`foldkit-site`'s `title`), a description and a canonical URL in each page's head; Foldkit fills head tags the HTML template already holds and adds none, so the template needs each one. A sitemap and `robots.txt` (a static site's build writes both). Open Graph images (`Picture.ogImage`). |
 | Accessibility | The level aimed for (WCAG 2.2 AA is the usual answer). Keyboard paths through every flow, focus after each navigation and dialog, reduced motion, contrast through the theme. |
@@ -232,7 +246,7 @@ record the decisions in `docs/domain/plan.md`.
 | Design and polish | The look from phase 2, revisited now that the screens are known: dark mode, more than one theme, the components from `foldkit-mixins-ui`. Every screen's empty, loading, failed and offline state. Copy and tone. |
 | Testing | What each kind proves: `update` and invariants as unit tests, views as Scene tests, focus, layout and the pointer as browser tests, flows that cross the server as end-to-end tests in a real browser. Guards and invariants under mutation testing, so each test is shown able to fail. Type tests for what must not compile. |
 | CI | The checks every push runs (format, typecheck, tests, end-to-end, build) and what blocks a merge. Preview deployments, if the host offers them. |
-| Deployment | The host and its project, environments (preview, production), domains, secrets (session keys, an upload token), database migrations and backups, where images are kept and resized (`foldkit-media`'s server, a CDN). Who may deploy, and confirm before the first public one. Propose the CAFE stack below, and ask. |
+| Deployment | The host and its project, environments (preview, production), domains, secrets (session keys, an upload token), database migrations (with each table's `invariantChecks`, a `revisionTrigger` where a guarded writer pins a revision, and the ledger's table) and backups, where images are kept and resized (`foldkit-media`'s server, a CDN). Who may deploy, and confirm before the first public one. Propose the CAFE stack below, and ask. |
 | Security | Authentication and its CSRF and origin checks (`foldkit-auth`), guards checked at startup (`GuardServer.validate`), who may upload, rate limits, response headers. |
 | Operations | Logs, error reports, analytics if any, and what is done when a deploy goes wrong. |
 | Milestones | The slices of phase 7, in order, each with what "done" means, so the user can stop after any one with something that works. |
@@ -306,7 +320,7 @@ Only after the user approves the mapping and the plan. Set up CI and the
 deployment target first, so every slice is checked and could ship. Then build
 in the plan's milestones, slices that each run:
 
-1. The domain: Entities, their Schemas and invariants (`foldkit-entity`).
+1. The domain: Entities, their Schemas, invariants and declared writes (`foldkit-entity`).
 2. Who may do what: the guard set, implemented on the server.
 3. The data path: Remote's server and client, or Sync, per the mapping; Auth.
 4. The screens: routes (`foldkit-site`), views and forms, through Mixins.
