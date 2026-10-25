@@ -37,7 +37,13 @@ version changed; `pnpm` skips versions already in the registry.
   the row before it and the row after (`after` is one placeholder per field);
   `Entity.judgeChange(entity, before, after)` judges a change, and
   `Entity.changeOver` is the rewrite an interpreter judges one in a statement
-  with. `Expr.substituteInputs` reads placeholders as given scalars. (#184)
+  with. `Expr.substituteInputs` reads placeholders as given scalars. The
+  Drizzle writer judges every update's change in its statement (the row
+  before as the columns, after as for an invariant), classifies a miss that
+  breaks one as `Invalid`, and refuses a writer it cannot compile; `bind`
+  keeps them as `transitions`. `GuardServer.writer` names none over a
+  Read-ruled member, and `RemoteServer.write` needs `invariants: true` of an
+  update's writer when the Entity has transitions. (#184)
 - **`foldkit-remote-drizzle`: `invariantChecks(binding)`.** Each invariant as
   a `CHECK` constraint (`constraint "<table>_<id>" check ((…) is true)`, values
   inlined) for a migration, so a handler's write or raw SQL is held to it too;

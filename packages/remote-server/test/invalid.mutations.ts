@@ -15,7 +15,7 @@ export default [
   edit(
     'a writer that judges no invariant is taken',
     server,
-    'if (Entity.invariants(write.input.entity).length > 0 && writer.invariants !== true) {',
+    'if (judged.length > 0 && writer.invariants !== true) {',
     'if (false) {',
   ),
   edit('the refusal names no rule', server, 'rule: refused.rule,', 'rule: Option.none(),'),
@@ -25,5 +25,17 @@ export default [
     '../../remote/src/mutation.ts',
     ': conflictOrInvalid) as unknown',
     ': Refusal.conflict) as unknown',
+  ),
+  edit(
+    'a writer that judges no transition is taken',
+    server,
+    "...(write._tag === 'Update' ? Entity.transitions(write.input.entity) : []),",
+    '',
+  ),
+  edit(
+    'an insert needs a writer that judges transitions',
+    server,
+    "...(write._tag === 'Update' ? Entity.transitions(write.input.entity) : []),",
+    '...Entity.transitions(write.input.entity),',
   ),
 ]

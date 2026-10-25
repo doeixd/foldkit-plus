@@ -213,9 +213,10 @@ export interface EntityWriter<P, R = never> {
   readonly ledger?: true
   /**
    * Whether `update` and `insert` refuse a row that would break its Entity's
-   * invariants (`Entity.invariant`), with `RemoteInvalid`, judged over the row
-   * they write. `RemoteServer.write` refuses a write over an Entity with
-   * invariants through a writer without it.
+   * invariants (`Entity.invariant`), and `update` a change that breaks one of
+   * its transitions (`Entity.transition`), with `RemoteInvalid`, judged over
+   * the rows they write. `RemoteServer.write` refuses a write the Entity holds
+   * to either through a writer without it.
    */
   readonly invariants?: true
   /**
@@ -1552,9 +1553,13 @@ export const RemoteServer = {
         `[foldkit-remote-server] write "${mutation.name}" increments a field, but its writer for ${writer.entity} does not add one (increments)`,
       )
     }
-    if (Entity.invariants(write.input.entity).length > 0 && writer.invariants !== true) {
+    const judged = [
+      ...Entity.invariants(write.input.entity),
+      ...(write._tag === 'Update' ? Entity.transitions(write.input.entity) : []),
+    ]
+    if (judged.length > 0 && writer.invariants !== true) {
       throw new Error(
-        `[foldkit-remote-server] write "${mutation.name}" writes ${writer.entity}, which has invariants, but its writer does not judge them (invariants)`,
+        `[foldkit-remote-server] write "${mutation.name}" writes ${writer.entity}, which has invariants or transitions, but its writer does not judge them (invariants)`,
       )
     }
     // An insert's row is its values: a field it leaves to a default the writer cannot judge.

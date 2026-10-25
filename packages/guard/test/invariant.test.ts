@@ -61,6 +61,11 @@ const Item = Fields.pipe(
   Entity.invariant('costNotNegative', f => Expr.gte(f.cost, 0), {
     message: 'The cost cannot be negative',
   }),
+  Entity.transition(
+    'costAboveReserved',
+    ({ before, after }) => Expr.gt(after.cost, Expr.field(before.reserved)),
+    { message: 'The cost must stay above the reserved count' },
+  ),
 )
 const Policy = G.implement({
   isManager: principal => Option.exists(principal, user => user.role === 'manager'),
@@ -144,6 +149,17 @@ describe('A guarded write over an Entity with invariants', () => {
       },
     })
     expect(row()).toEqual({ stock: 10, cost: 2 })
-    expect((await send(ada, 'SetCost', { id: 'i1', cost: 4 }))._tag).toBe('Success')
+    expect((await send(ada, 'SetCost', { id: 'i1', cost: 6 }))._tag).toBe('Success')
+  })
+
+  it('names no transition over a member a Read rule hides, and still enforces it', async () => {
+    const { send, row } = open()
+    // 4 is no negative cost, and no more than the 5 reserved.
+    expect(await send(ada, 'SetCost', { id: 'i1', cost: 4 })).toMatchObject({
+      failure: {
+        refusal: { _tag: 'Invalid', rule: null, message: 'The row would be invalid', path: [] },
+      },
+    })
+    expect(row()).toEqual({ stock: 10, cost: 2 })
   })
 })

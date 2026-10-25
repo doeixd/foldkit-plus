@@ -363,6 +363,7 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
       relations,
       computed,
       invariants: Domain.Entity.invariants(entity),
+      transitions: Domain.Entity.transitions(entity),
       ...(config.visible === undefined ? {} : { visible: config.visible }),
     } as unknown as EntityBinding<string, DrizzleTable>
   }

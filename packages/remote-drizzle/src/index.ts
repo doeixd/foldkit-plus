@@ -36,6 +36,8 @@ import {
   evaluate,
   type EntityRef,
   type Invariant,
+  type Judgement,
+  type Transition,
 } from 'foldkit-entity'
 import type { NormalizedPatch, QueryDescriptor } from 'foldkit-remote'
 import { Entity } from 'foldkit-remote'
@@ -1044,38 +1046,62 @@ export const writer = <P = unknown>(
   // The rows as a principal may read them, under the binding's `visible`.
   const readable = source<P>(binding)
 
-  const { invariants } = binding
+  const { invariants, transitions } = binding
   const invariantName = (held: Invariant) => `${binding.name}'s invariant "${held.id}"`
+  const transitionName = (held: Transition) => `${binding.name}'s transition "${held.id}"`
   // Compiled once over the columns, so one this compiler cannot run fails where it is defined.
   for (const held of invariants)
     compilePredicates([held.predicate], binding, {}, invariantName(held))
+  for (const held of transitions)
+    compilePredicates(
+      [DomainEntity.changeOver(held, {}, new Set())],
+      binding,
+      {},
+      transitionName(held),
+    )
 
   /**
-   * Each invariant over the row an update leaves, for its `where`: a field it
-   * sets read as its new value, one it increments as its column moved by the
-   * amount, and every other field as its column. The row the statement writes
-   * is the row they judge.
+   * Each invariant over the row an update leaves, and each transition over the
+   * change, for its `where`. A field the write sets is read as its new value,
+   * one it increments as its column moved by the amount, and every other field
+   * as its column; a transition reads the row before as the columns
+   * themselves. The rows the statement writes are the rows they judge.
    */
   const holdingInvariants = (
     values: Readonly<Record<string, unknown>>,
     increments: Readonly<Record<string, number>>,
   ): Effect.Effect<ReadonlyArray<SQL>, RemoteServerError> =>
     compileFor(() => {
-      const moved: Record<string, AnyColumn> = Object.assign(Object.create(null), binding.columns)
+      // An incremented field is a number, compared with no collation, and Drizzle's
+      // operators take an expression where they take a column.
+      const movedBy = (field: string, amount: number) =>
+        sql`(${binding.columns[field]} + ${amount})` as unknown as AnyColumn
+      const after: Record<string, AnyColumn> = Object.assign(Object.create(null), binding.columns)
+      // A transition's row before keeps each field's column; after, a moved field is its own key.
+      const change: Record<string, AnyColumn> = Object.assign(Object.create(null), binding.columns)
       for (const [field, amount] of Object.entries(increments)) {
-        // An incremented field is a number, compared with no collation, and Drizzle's
-        // operators take an expression where they take a column.
-        moved[field] = sql`(${binding.columns[field]} + ${amount})` as unknown as AnyColumn
+        after[field] = movedBy(field, amount)
+        change[`after:${field}`] = movedBy(field, amount)
       }
-      const target = { table: binding.table, columns: moved }
-      return invariants.flatMap(held =>
-        compilePredicates(
-          [Expr.substitute(held.predicate, values)],
-          target,
-          {},
-          invariantName(held),
+      const moved = new Set(Object.keys(increments))
+      return [
+        ...invariants.flatMap(held =>
+          compilePredicates(
+            [Expr.substitute(held.predicate, values)],
+            { table: binding.table, columns: after },
+            {},
+            invariantName(held),
+          ),
         ),
-      )
+        ...transitions.flatMap(held =>
+          compilePredicates(
+            [DomainEntity.changeOver(held, values, moved)],
+            { table: binding.table, columns: change },
+            {},
+            transitionName(held),
+          ),
+        ),
+      ]
     })
 
   /** The row an update would leave: the row as it is, with its values set and amounts added. */
@@ -1092,20 +1118,28 @@ export const writer = <P = unknown>(
     return proposed
   }
 
-  /** The first of the invariants a row breaks, as the refusal a writer answers it with. */
-  const refusalOf = (failures: ReadonlyArray<Invariant>) =>
+  /** The first of the invariants or transitions broken, as the refusal a writer answers it with. */
+  const refusalOf = (failures: ReadonlyArray<Invariant | Transition>) =>
     Option.map(Arr.head(failures), held =>
       RemoteServer.invalid(held.message, Option.some(held.id), held.path),
     )
 
-  /** The refusal for the first invariant `row` breaks; none for a row it cannot judge. */
-  const brokenIn = (row: Readonly<Record<string, unknown>>) =>
-    Match.value(DomainEntity.judgeAgainst(invariants, row)).pipe(
+  /** The refusal for the first invariant or transition broken; none for what it cannot judge. */
+  const brokenBy = <Failure extends Invariant | Transition>(judged: Judgement<Failure>) =>
+    Match.value(judged).pipe(
       Match.tagsExhaustive({
         Valid: () => Option.none(),
         Undecided: () => Option.none(),
         Invalid: ({ failures }) => refusalOf(failures),
       }),
+    )
+  /** The refusal for the row an update leaves, or for the change it makes, in that order. */
+  const brokenIn = (
+    row: Readonly<Record<string, unknown>>,
+    proposed: Readonly<Record<string, unknown>>,
+  ) =>
+    Option.orElse(brokenBy(DomainEntity.judgeAgainst(invariants, proposed)), () =>
+      brokenBy(DomainEntity.judgeChangeAgainst(transitions, row, proposed)),
     )
 
   /** The columns a write sets: each field's value, and each `one` relation's foreign key. */
@@ -1401,7 +1435,11 @@ export const writer = <P = unknown>(
           )
         }
         const written = answeredOf(rows, answered)
-        const conditioned = Option.isSome(expect) || Option.isSome(when) || invariants.length > 0
+        const conditioned =
+          Option.isSome(expect) ||
+          Option.isSome(when) ||
+          invariants.length > 0 ||
+          transitions.length > 0
         if (Option.isSome(written) || !conditioned) return written
         // The write missed. Why is read from the row as it is now: gone, moved
         // past the expected revision, not holding the precondition, or else
@@ -1414,6 +1452,7 @@ export const writer = <P = unknown>(
               onSome: ({ body }) => Query.dependencies(body).predicate.map(field => field.key),
             }),
             ...invariants.flatMap(held => held.reads),
+            ...transitions.flatMap(held => [...held.before, ...held.after]),
           ]),
         ])
         const current = yield* selectRows(yield* DrizzleDatabase, binding.table, judged.columns, {
@@ -1447,7 +1486,7 @@ export const writer = <P = unknown>(
         })
         // Holding its precondition, it missed by the row it would leave.
         if (holdsWhen) {
-          const broken = brokenIn(proposedOf(row, values, increments))
+          const broken = brokenIn(row, proposedOf(row, values, increments))
           if (Option.isSome(broken)) return yield* broken.value
         }
         // A write with no precondition missed only by its revision.
