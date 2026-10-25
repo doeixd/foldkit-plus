@@ -9,11 +9,17 @@
  * `when`'s.
  */
 import { Metadata } from 'foldkit-metadata'
-import { Schema, type SchemaAST } from 'effect'
+import { Option, Schema, type SchemaAST } from 'effect'
 import { assertSupported, truthOver, type Row } from './evaluate.js'
 import { Query, type Predicate, type Reads } from './expr.js'
 // A cycle with `index.ts`, safe because `Entity` is read only when an invariant is attached.
-import { Entity, type AnyEntity, type EntityField } from './index.js'
+import {
+  Entity,
+  type AnyEntity,
+  type EntityField,
+  type EntityInput,
+  type InputMember,
+} from './index.js'
 
 type AnyField = EntityField<string, string, Schema.Constraint>
 
@@ -115,6 +121,40 @@ export const judgeAgainst = (invariants: ReadonlyArray<Invariant>, row: Row): Ju
   if (failures.length > 0) return { _tag: 'Invalid', failures }
   if (missing.size > 0) return { _tag: 'Undecided', fields: [...missing] }
   return { _tag: 'Valid' }
+}
+
+/**
+ * The row an input's value describes, judged under its Entity's invariants:
+ * each key mapped to a field, encoded as the store holds it. An invariant over
+ * a field the input does not set (an `Option` holding nothing, a key left out)
+ * is undecided, so a partial input is never called valid on its account.
+ */
+export const judgeInput = (
+  input: EntityInput<AnyEntity, any, any>,
+  value: Readonly<Record<string, unknown>>,
+): Judgement => {
+  const invariants = invariantsOf(input.entity)
+  if (invariants.length === 0) return { _tag: 'Valid' }
+  const members = input.members as Readonly<Record<string, InputMember>>
+  const row: Record<string, unknown> = {}
+  for (const [key, member] of Object.entries(members)) {
+    if (member._tag !== 'Field' || !Object.hasOwn(value, key)) continue
+    const encode = Schema.encodeUnknownOption(
+      member.schema as unknown as Schema.Codec<unknown, unknown>,
+    )
+    const given = value[key]
+    const held = Option.isOption(given) ? given : Option.fromUndefinedOr(given)
+    // The value as the field holds it: itself for a field typed `Option`, else what it holds.
+    // One the field cannot hold is no row the store would keep, so it decides nothing here.
+    const stored = Option.orElse(encode(given), () => Option.flatMap(held, encode))
+    Option.map(
+      Option.flatMap(held, () => stored),
+      encoded => {
+        row[member.key] = encoded
+      },
+    )
+  }
+  return judgeAgainst(invariants, row)
 }
 
 /**

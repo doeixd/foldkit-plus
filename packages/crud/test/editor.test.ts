@@ -39,6 +39,7 @@ const EditPostMutation = Mutation.make('EditPost', {
     Refusal.field('title', Schema.String),
     Refusal.field('slug', Schema.String),
     Refusal.conflict,
+    Refusal.invalid,
   ]),
 })
 const EditPostForm = Form.make(
@@ -295,6 +296,24 @@ describe('Crud.editor', () => {
     // Editing the key is a new round: the refusal no longer describes it.
     const edited = await form(after, EditPostForm.Message.Changed({ key: 'title', value: 'Free' }))
     expect(PostEditor.status(edited)).toBe('Editing')
+  })
+
+  it('shows an invariant the save broke beside each key its path names', async () => {
+    const ready = await load(await dispatch(initial, Message.OpenedPost({ id: 'p1' })))
+    // The path names fields: `title` is the form's key for it, `slug` no key of the form.
+    refusing = Option.some({
+      _tag: 'Invalid',
+      rule: 'titleFits',
+      message: 'The title does not fit',
+      path: ['title', 'slug'],
+    })
+    const refused = await form(ready, EditPostForm.Message.Submitted())
+
+    expect(PostEditor.status(refused)).toBe('SaveFailed')
+    expect(EditPostForm.field(refused.editor.form, 'title')).toMatchObject({
+      _tag: 'Invalid',
+      errors: ['The title does not fit'],
+    })
   })
 
   it('leaves a refusal of a key the form does not have to the status', async () => {

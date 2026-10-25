@@ -23,7 +23,7 @@ nothing; `foldkit-mixins-form` draws it (see [Drawing it](#drawing-it)).
 Schema.Struct + Entity.input ──► Form.make ──► controls (draw these)
                                           └──► bundle
    Changed / Blurred ──► validate the draft against the key's own input schema
-   Submitted ──► every key valid, whole input decoded ──► out Message { value }
+   Submitted ──► every key valid, whole input decoded, the row's invariants hold ──► out Message { value }
 ```
 
 A draft is what the control holds: a number being typed is text, an unchosen

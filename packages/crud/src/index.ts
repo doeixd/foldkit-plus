@@ -692,6 +692,34 @@ export const Crud = {
     const draftKeys = new Set(
       form.controls.filter(entry => !Input.Nested.is(entry.control)).map(entry => entry.key),
     )
+    // The form's key that sets each field, for an invariant's path, which names fields.
+    const keyOfField = new Map<string, string>(
+      Object.entries(form.input.members as Readonly<Record<string, InputMember>>).flatMap(
+        ([key, member]) => {
+          if (member._tag !== 'Field' || !draftKeys.has(key)) return []
+          return [[member.key, key] as const]
+        },
+      ),
+    )
+    /** The keys a refusal names among the form's, each with what to say beside it. */
+    const namedBy = (
+      refusal: unknown,
+    ): ReadonlyArray<{ readonly key: string; readonly error: string }> => {
+      if (Refusal.isField(refusal)) {
+        return draftKeys.has(refusal.key)
+          ? [{ key: refusal.key, error: String(refusal.reason) }]
+          : []
+      }
+      if (Refusal.isInvalid(refusal)) {
+        return refusal.path.flatMap(field =>
+          Option.toArray(Option.fromUndefinedOr(keyOfField.get(field))).map(key => ({
+            key,
+            error: refusal.message,
+          })),
+        )
+      }
+      return []
+    }
 
     const closed: Model = {
       form: form.initial,
@@ -805,23 +833,24 @@ export const Crud = {
          * `Editing`, and the failure is the read's to show.
          */
         /**
-         * A save the server refused for one of the form's keys shows on that key,
-         * once per save: `Refusal.field`'s reason, as text. Any other refusal is
-         * the status's to say.
+         * A save the server refused for the form's keys shows on those keys,
+         * once per save: `Refusal.field`'s reason, as text, or `Refusal.invalid`'s
+         * message beside each key its path names. Any other refusal, and one
+         * naming no key of the form, is the status's to say.
          */
         const refused = (root: Root): Root => {
           const editor = slice.get(root)
           const { requestId } = editor
           if (requestId === null || Option.contains(editor.refusedFor, requestId)) return root
-          const field = Option.filter(refusalOf(root), Refusal.isField)
-          if (Option.isNone(field) || !draftKeys.has(field.value.key)) return root
-          const message = form.Message.Refused({
-            key: field.value.key,
-            error: String(field.value.reason),
-          })
+          const named = Option.match(refusalOf(root), { onNone: () => [], onSome: namedBy })
+          if (named.length === 0) return root
           return slice.set(root, {
             ...editor,
-            form: form.bundle.update(editor.form, message, undefined).model,
+            form: named.reduce(
+              (shown, { key, error }) =>
+                form.bundle.update(shown, form.Message.Refused({ key, error }), undefined).model,
+              editor.form,
+            ),
             refusedFor: Option.some(requestId),
           })
         }

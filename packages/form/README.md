@@ -328,6 +328,12 @@ Entity's: the operation decides what is valid, and may be stricter.
   input is decoded; a rule that spans keys fails there and lands in
   `model.errors`, since it belongs to no one control. The next edit clears
   them.
+- **An invariant** of the Entity (`Entity.invariant`) is judged on submit over
+  the row the decoded value describes (`Entity.judgeInput`), as the server will
+  judge it: a row that breaks one does not go out, and its message shows beside
+  each key its path names, or in `model.errors` when the form sets none of
+  them. One reading a field the form does not set is not judged here; the
+  server decides it, and the form never calls the input valid on its account.
 - **`ValidatedAll`** checks every key a submit would, rows too, and submits
   nothing: for a page that sends several forms at once. A rule that spans keys
   is said only by a submit.
