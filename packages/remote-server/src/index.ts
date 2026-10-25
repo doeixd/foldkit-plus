@@ -1557,6 +1557,18 @@ export const RemoteServer = {
         `[foldkit-remote-server] write "${mutation.name}" writes ${writer.entity}, which has invariants, but its writer does not judge them (invariants)`,
       )
     }
+    // An insert's row is its values: a field it leaves to a default the writer cannot judge.
+    if (write._tag === 'Insert') {
+      const sets = new Set(['id', ...write.sets.map(set => set.field.key)])
+      const unset = Entity.invariants(write.input.entity).flatMap(held =>
+        held.reads.filter(key => !sets.has(key)).map(key => `${held.id} reads ${key}`),
+      )
+      if (unset.length > 0) {
+        throw new Error(
+          `[foldkit-remote-server] insert "${mutation.name}" leaves unset a field an invariant reads (${unset.join('; ')})`,
+        )
+      }
+    }
     if (Option.isSome(write.when) && writer.preconditions !== true) {
       throw new Error(
         `[foldkit-remote-server] write "${mutation.name}" has a precondition, but its writer for ${writer.entity} does not check one (preconditions)`,

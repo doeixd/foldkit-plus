@@ -832,6 +832,30 @@ conflict and the field moves once. A binding with a
 `visible` rule reads the answer back through it: the row as its writer may now
 see it, or, when the write hid it from them, a deletion.
 
+### Invariants: the row a write leaves
+
+An Entity's invariants (`Entity.invariant`, kept on the binding by `bind`) are
+judged over the row a write would leave, in the statement that writes it. Each
+is compiled into the update's `WHERE` with the fields the write sets read as
+their new values and each incremented field as its column moved by the amount;
+every other field is its column. So `quantity = 3` against `reserved <= quantity`
+is `… where id = ? and reserved <= 3`, and a `reserved` another writer raised
+after the client read the row is judged too. A row whose invariant comes to SQL's
+unknown (a null) is not written, as a `WHERE` drops it.
+
+An insert has no row yet: its values, with its id, are judged before it is
+written. `RemoteServer.write` refuses an insert that leaves a field an invariant
+reads unset, since a default the writer cannot see would decide it.
+
+A write that would break one is refused as `Invalid`, naming the first that
+fails and its path. When nothing was written, the row read back says why in this
+order: gone, moved on (a conflict), not holding the precondition (unmet), then
+breaking an invariant. A write that repairs a row already invalid is judged by
+the row it leaves, so it lands. An invariant the database cannot compile is
+refused when the writer is made, not at the first write. A table-only binding
+(`entity`) has no Entity, so no invariants; a handler's writes, and raw SQL, are
+not judged.
+
 ### A ledger: a retry is never applied twice
 
 Where it sits beside expected revisions and plain assignments is in the

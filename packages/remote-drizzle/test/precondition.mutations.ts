@@ -32,8 +32,8 @@ export default [
   edit(
     'an update’s miss is not read back when only the precondition could explain it',
     drizzle,
-    'if (Option.isSome(written) || (Option.isNone(expect) && Option.isNone(when))) {',
-    'if (Option.isSome(written) || Option.isNone(expect)) {',
+    'const conditioned = Option.isSome(expect) || Option.isSome(when) || invariants.length > 0',
+    'const conditioned = Option.isSome(expect) || invariants.length > 0',
   ),
   edit(
     'an unmet update reads as a conflict',

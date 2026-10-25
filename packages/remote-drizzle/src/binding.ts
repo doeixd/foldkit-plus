@@ -15,6 +15,7 @@ import type { BuildSchema } from 'drizzle-orm/effect-schema'
 import { getTableColumns, type AnyColumn, type SQL, type Table as DrizzleTable } from 'drizzle-orm'
 import { Entity, type EntityDescriptor, type EntityRef } from 'foldkit-remote'
 import { Effect, Schema } from 'effect'
+import type { Invariant } from 'foldkit-entity'
 import type { RemoteServerError } from 'foldkit-remote-server'
 import type { OrderTerm } from './cursor.js'
 
@@ -116,6 +117,12 @@ export interface EntityBinding<
    * would leave three open. A row it hides is, to that principal, not there.
    */
   readonly visible?: Visible | undefined
+  /**
+   * What every row must hold, from the bound Entity (`Entity.invariant`): a
+   * writer judges the row it would leave against each. None for a binding made
+   * from a table alone (`entity`).
+   */
+  readonly invariants: ReadonlyArray<Invariant>
 }
 
 /**
@@ -293,6 +300,7 @@ export const entity = <
     columns,
     relations,
     computed,
+    invariants: [],
     ...(options?.visible === undefined ? {} : { visible: options.visible }),
   } as unknown as EntityBinding<
     Name,

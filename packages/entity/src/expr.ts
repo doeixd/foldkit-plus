@@ -738,6 +738,64 @@ export const Expr = {
 
   /** An expression as readable text; see `showExpr` for what it is and is not. */
   show: (node: Operandish): string => showExpr(node),
+
+  /**
+   * The predicate with each field `values` names, by key, read as that value:
+   * how a predicate judges the row a write would leave, where the write's new
+   * values are known and every other field is still the row's. Each value is
+   * as the store holds it (encoded), as a field's is.
+   */
+  substitute: (predicate: Predicate, values: Readonly<Record<string, unknown>>): Predicate =>
+    substituted(predicate, values),
+}
+
+const substitutedOperand = (operand: AnyExpr, values: Readonly<Record<string, unknown>>): AnyExpr =>
+  Match.value(operand).pipe(
+    Match.tag('Field', field =>
+      Object.hasOwn(values, field.key) ? literal(values[field.key]) : field,
+    ),
+    Match.orElse(() => operand),
+  )
+
+const substitutedSide = (side: Operandish, values: Readonly<Record<string, unknown>>) =>
+  isPredicate(side) ? substituted(side, values) : substitutedOperand(side, values)
+
+const substituted = (
+  predicate: Predicate,
+  values: Readonly<Record<string, unknown>>,
+): Predicate => {
+  switch (predicate._tag) {
+    case 'Eq':
+      return node({
+        ...predicate,
+        left: substitutedSide(predicate.left, values),
+        right: substitutedSide(predicate.right, values),
+      })
+    case 'Null':
+      return node({ ...predicate, operand: substitutedOperand(predicate.operand, values) })
+    case 'Contains':
+      return node({
+        ...predicate,
+        value: substitutedOperand(predicate.value, values),
+        search: substitutedSide(predicate.search, values),
+      })
+    case 'In':
+      return node({ ...predicate, value: substitutedOperand(predicate.value, values) })
+    case 'And':
+    case 'Or':
+      return node({
+        ...predicate,
+        operands: Arr.map(predicate.operands, operand => substituted(operand, values)),
+      })
+    case 'Not':
+      return node({ ...predicate, operand: substituted(predicate.operand, values) })
+    case 'Compare':
+      return node({
+        ...predicate,
+        left: substitutedOperand(predicate.left, values),
+        right: substitutedOperand(predicate.right, values),
+      })
+  }
 }
 
 /** One term of an ordering: a scalar and the direction to read it in. */

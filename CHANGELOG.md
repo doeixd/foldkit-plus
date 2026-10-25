@@ -15,7 +15,18 @@ version changed; `pnpm` skips versions already in the registry.
   row)` judges a stored row: `Valid`, `Invalid` with the failures (a null
   fails, as SQL's unknown), or `Undecided` when the row lacks a field one reads.
   `Entity.check(entity)` is the same invariants as a Schema check, each failure
-  at its path. A server's declared writes do not enforce them yet. (#183)
+  at its path. `Expr.substitute(predicate, values)` reads named fields as
+  given values. (#183)
+- **`foldkit-remote-drizzle`: the writer enforces invariants.** `bind` keeps
+  the Entity's invariants on the binding (`invariants`), and `writer` compiles
+  each into the update's `WHERE` over the row it would leave (a set field as
+  its new value, an incremented one as its column moved), judges an insert's
+  values before writing, and refuses a row that breaks one as `Invalid`, after
+  a conflict and an unmet precondition. An invariant the database cannot
+  compile is refused when the writer is made, and `RemoteServer.write` refuses
+  an insert that leaves a field one reads unset. On SQLite, Postgres and D1.
+  `GuardServer.writer` passes them through, after its rules, and answers an
+  invariant that reads a Read-ruled member as `Invalid` naming none.
 - **`foldkit-form`: a control says how a value is shown, and a key can be any
   number of a fixed set.** `Input.kind` takes `format`, the text a value is shown
   as when a form is filled with it — the inverse of `parse`, called by `fill`
