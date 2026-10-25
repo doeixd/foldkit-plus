@@ -17,6 +17,7 @@ import {
   getTableName,
   gte,
   inArray,
+  entityKind,
   is,
   lt,
   lte,
@@ -1137,13 +1138,17 @@ export const writer = <P = unknown>(
       })
       // The database is the application's Drizzle one; its builders are not nameable by dialect.
       const database = (yield* DrizzleDatabase) as unknown as LedgerDatabase
-      if (typeof database.transaction !== 'function') {
+      // D1's Drizzle database has a `transaction`, which sends a `BEGIN` that D1 refuses.
+      if (
+        typeof database.transaction !== 'function' ||
+        (database.constructor as { readonly [entityKind]?: string })[entityKind] === 'D1Database'
+      ) {
         return yield* new RemoteServerError({
           message: `${binding.name}'s ledger needs a database with transactions`,
         })
       }
       // A synchronous driver's transaction commits when its body returns, so the body awaits
-      // nothing; an asynchronous one's (libsql, D1, Postgres) is awaited.
+      // nothing; an asynchronous one's (libsql, Postgres) is awaited.
       if (database.resultKind === 'sync') {
         return yield* Effect.try({
           try: () =>

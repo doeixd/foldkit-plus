@@ -77,7 +77,8 @@ version changed; `pnpm` skips versions already in the registry.
   `writer(binding, { ledger: { table, scope, retention? } })` records each
   update under its operation and row (a `write_ledger` keyed by `scope`,
   `operation` and `target`), in the transaction that writes (synchronous on
-  SQLite, awaited on Postgres; refused on a database without transactions),
+  SQLite, awaited on Postgres; refused on a database without transactions, D1
+  among them),
   and answers a retry from the record without writing again (read back, as any
   answer is, as the row now is). An increment over such a writer needs no
   `expect`, so concurrent increments both land; `Write` no longer requires
