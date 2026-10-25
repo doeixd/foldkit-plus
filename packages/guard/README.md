@@ -419,8 +419,15 @@ decided again: the row did not move, it does not hold.
 A declared write's `increment` is the writer's to add, in the statement that
 writes. The guard requires each incremented member's Update rule, as for a
 member it sets, and holds the row's rules over the sum the writer will store, so
-a rule `stock >= 0` refuses a sale past zero. The write must expect a revision,
-which keeps the row the guard summed over as the row the writer writes.
+a rule `stock >= 0` refuses a sale past zero. The row the guard summed over must
+be the row the writer writes: the input's expected revision keeps it so, or the
+writer's `revision` pin. An increment with neither is refused.
+
+Over a writer with a ledger (`foldkit-remote-drizzle`'s `writer(binding, {
+ledger })`), a retry of an operation that landed is answered from the ledger,
+before any rule: it was decided when it landed, and deciding it again over a row
+that has moved since could refuse a write that happened. A new operation is
+decided as any write is.
 
 The binding must have a `visible` rule, which is how the writer reads a row
 as its writer may see it; the writer refuses one without. That the rule is

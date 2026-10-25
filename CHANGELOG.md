@@ -73,6 +73,15 @@ version changed; `pnpm` skips versions already in the registry.
   handler, an `EntityWriter`'s caller) receives it as `operation`. Record a
   write under it, never under `requestId`, which the docs had advised and which
   is a per-Model counter two clients share.
+- **`foldkit-remote-drizzle`: a writer's ledger answers a retry exactly.**
+  `writer(binding, { ledger: { table, scope, retention? } })` records each
+  update under its operation, in the transaction that writes (synchronous on
+  SQLite, awaited on Postgres; refused on a database without transactions),
+  and answers a retry from the record. An increment over such a writer needs no
+  `expect`, so concurrent increments both land; `Write` no longer requires
+  `expect` for one, and `RemoteServer.write` refuses one with neither.
+  `GuardServer.writer` answers a recorded retry without deciding it again, and
+  refuses an increment with no revision through a writer it does not pin.
 
 
 ### Changed

@@ -258,12 +258,6 @@ const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
   const increments = Object.entries(options.increment ?? {}).flatMap(([fieldKey, key]) =>
     key === undefined ? [] : [incrementOf(input, fieldKey, key, { expect, sets })],
   )
-  if (increments.length > 0 && expect === undefined) {
-    fail(
-      input,
-      'an increment needs `expect`: without a revision, a retry of a write that landed would add twice',
-    )
-  }
   return Object.freeze({
     _tag: kind,
     input,

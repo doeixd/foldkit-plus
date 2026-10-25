@@ -192,8 +192,25 @@ export interface EntityWriter<P, R = never> {
    * without it, which would leave the fields where they were.
    */
   readonly increments?: true
+  /**
+   * Whether `update` records each write it lands under its `operation`, in
+   * the transaction that writes, and answers a retry of it from that record
+   * rather than writing again. An increment that expects no revision needs one.
+   */
+  readonly ledger?: true
+  /**
+   * The answer recorded for `operation`, when this writer has a ledger and
+   * holds one: what a wrapping writer (a guard) answers a retry with, without
+   * deciding again over a row that has moved since.
+   */
+  readonly recorded?: (context: {
+    readonly operation: string
+    readonly principal: P
+  }) => Effect.Effect<Option.Option<Readonly<Record<string, unknown>>>, RemoteServerError, R>
   readonly update: (context: {
     readonly id: string
+    /** The operation's identity across clients, when the client sent one: a ledger's key. */
+    readonly operation: Option.Option<string>
     readonly values: Readonly<Record<string, unknown>>
     /**
      * Each field to move, by the amount, encoded: added to the stored value in
@@ -1484,6 +1501,12 @@ export const RemoteServer = {
         `[foldkit-remote-server] write "${mutation.name}" writes ${write.input.entity.name}, but its writer is for ${writer.entity}`,
       )
     }
+    // Without a revision, only a ledger tells a retry of an increment from a second one.
+    if (write.increments.length > 0 && write.expect === undefined && writer.ledger !== true) {
+      throw new Error(
+        `[foldkit-remote-server] write "${mutation.name}" increments a field and expects no revision, so a retry could add twice; give it \`expect\`, or a writer with a ledger`,
+      )
+    }
     if (write.increments.length > 0 && writer.increments !== true) {
       throw new Error(
         `[foldkit-remote-server] write "${mutation.name}" increments a field, but its writer for ${writer.entity} does not add one (increments)`,
@@ -1503,7 +1526,7 @@ export const RemoteServer = {
       Input: mutation.Input,
       Output: mutation.Output,
       Refusal: mutation.Refusal,
-      run: ({ input, principal, keys }) => {
+      run: ({ input, principal, keys, operation }) => {
         const given = input as never
         const expect = Write.expected(write, given)
         const conflict = (bound: { readonly entity: string; readonly id: string }) =>
@@ -1576,10 +1599,21 @@ export const RemoteServer = {
             Update: () =>
               Effect.gen(function* () {
                 const bound = Write.bind(write, given, keys)
+                if (
+                  write.increments.length > 0 &&
+                  write.expect === undefined &&
+                  Option.isNone(operation)
+                ) {
+                  // The ledger keys a write by its operation: with none, a retry could add twice.
+                  return yield* new RemoteServerError({
+                    message: `${mutation.name} increments a field with no revision, so it needs an operation id`,
+                  })
+                }
                 const written = yield* unmet(
                   bound,
                   writer.update({
                     id: bound.id,
+                    operation,
                     values: bound.values,
                     increments: bound.increments,
                     links: bound.links,

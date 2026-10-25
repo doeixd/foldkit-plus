@@ -365,7 +365,6 @@ describe('A write that increments a field', () => {
   })
 
   it.each([
-    ['no expected revision', { id: 'id', increment: { stock: 'quantity' } }, 'needs `expect`'],
     [
       'a field it does not have',
       { id: 'id', expect: 'revision', increment: { volume: 'quantity' } },
@@ -403,6 +402,12 @@ describe('A write that increments a field', () => {
     ],
   ])('refuses %s', (_, options, message) => {
     expect(() => Write.update(Restock, options as never)).toThrow(message)
+  })
+
+  it('may expect no revision: whether a retry is safe is for the server, which knows its writer', () => {
+    expect(
+      Write.update(Restock, { id: 'id', increment: { stock: 'quantity' } }).increments,
+    ).toHaveLength(1)
   })
 
   it('refuses a field a key also sets', () => {

@@ -832,6 +832,34 @@ conflict and the field moves once. A binding with a
 `visible` rule reads the answer back through it: the row as its writer may now
 see it, or, when the write hid it from them, a deletion.
 
+### A ledger: retries answered exactly
+
+`writer(binding, { ledger: { table, scope } })` records each update it lands
+under the operation that asked for it (the client's `operation` id), in the
+transaction that writes the row, and answers a retry of that operation from the
+record instead of writing again. So an increment needs no `expect`: two made
+from one read both land, and a lost answer's retry is answered with what landed.
+
+```sql
+create table write_ledger (
+  scope text not null, operation text not null,
+  answer text not null, at integer not null,
+  primary key (scope, operation)
+)
+```
+
+- `scope(principal)` names whose operations they are, so no one is answered with
+  another's write; an operation id is only unique per client that minted it.
+- A record is kept for `retention` milliseconds, a day unless given; a retry
+  later than that is a new operation. Records are pruned as new ones are made.
+- Only an update is recorded. An insert and a delete are already answered
+  exactly on a retry (an id holding what it wrote; a row already gone).
+- The ledger runs in a transaction: synchronous on SQLite, awaited on Postgres.
+  D1 offers none, so a ledger there fails each write it would record, rather
+  than writing it unrecorded.
+- A write from a client that sends no operation id is written as without a
+  ledger, except an increment that expects no revision, which is refused.
+
 An insert is one `insert ... on conflict do nothing returning` under the id the
 client chose: a retry finds the id taken and answers the row it made. A delete
 is one `delete` by id, guarded by the revision when it expects one; a row
