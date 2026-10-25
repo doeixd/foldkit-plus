@@ -1,10 +1,13 @@
 /**
- * Transitions, each step broken in turn:
- * `pnpm mutate packages/entity/test/transition.mutations.ts` checks that a
- * test fails for every one.
+ * Transitions and the Next node they read the row after through, each step
+ * broken in turn: `pnpm mutate packages/entity/test/transition.mutations.ts`
+ * checks that a test fails for every one.
  */
 const file = '../src/transition.ts'
-const tests = ['packages/entity/test/transition.test.ts']
+const tests = [
+  'packages/entity/test/transition.test.ts',
+  'packages/remote-drizzle/test/transition.test.ts',
+]
 const edit = (name: string, find: string, replace: string, at = file) => ({
   name,
   edits: [{ file: at, find, replace }],
@@ -23,10 +26,10 @@ export default [
     'const taken = invariantsOf(entity)',
     '../src/invariant.ts',
   ),
-  edit('a transition may read an input', 'if (foreign.length > 0) {', 'if (false) {'),
+  edit('a transition may read an input', 'if (dependencies.inputs.length > 0) {', 'if (false) {'),
   edit(
     'the row after is not given',
-    'truthOver(held.predicate, before, input) !== true',
+    'truthOver(held.predicate, before, {}, after) !== true',
     'truthOver(held.predicate, before) !== true',
   ),
   edit('a missing field is judged', 'if (absent.length > 0) absent', 'if (false) absent'),
@@ -37,14 +40,27 @@ export default [
   ),
   edit(
     'a value the write sets is not read after',
-    'if (Object.hasOwn(values, field)) return Expr.literal(values[field])',
-    '',
-  ),
-  edit('a moved field is read as itself', 'if (!moved.has(field)) return scalar', 'return scalar'),
-  edit(
-    'no input is substituted',
-    "Match.tag('Input', input => Option.getOrElse(replace(input.key), () => operand)),",
-    '',
+    'Object.hasOwn(values, field.key) ? literal(values[field.key]) : operand',
+    'operand',
     '../src/expr.ts',
   ),
+  edit(
+    'the row after is read as the row before',
+    'return scope.next[node.field.key]',
+    'return scope.row[node.field.key]',
+    '../src/evaluate.ts',
+  ),
+  edit(
+    'a predicate reading only the row after is decided from the input',
+    'reads = read.fields.length + read.next.length > 0',
+    'reads = read.fields.length > 0',
+    '../src/evaluate.ts',
+  ),
+  edit(
+    'the compiler reads the row after as the row before',
+    'Object.hasOwn(target.next ?? {}, node.field.key)',
+    'false',
+    '../../remote-drizzle/src/compile.ts',
+  ),
+  edit('a field after is no dependency', 'found.nextOrder.push(read)', '', '../src/expr.ts'),
 ]

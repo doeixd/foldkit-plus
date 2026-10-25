@@ -10,13 +10,7 @@
 import { type Option, Pipeable, Schema } from 'effect'
 import { Metadata } from 'foldkit-metadata'
 import { check, invariant, invariantsOf, judge, judgeAgainst, judgeInput } from './invariant.js'
-import {
-  changeOver,
-  judgeChange,
-  judgeChangeAgainst,
-  transition,
-  transitionsOf,
-} from './transition.js'
+import { judgeChange, judgeChangeAgainst, transition, transitionsOf } from './transition.js'
 import { SchemaShape } from './shape.js'
 
 export const EntityTypeId: unique symbol = Symbol.for('foldkit-entity/Entity')
@@ -807,13 +801,6 @@ export const Entity = {
 
   /** `Entity.judgeChange` against transitions already read. */
   judgeChangeAgainst,
-
-  /**
-   * A transition as one statement judges an update, for an interpreter: what
-   * the write sets as its value, what it moves under `after:<field>`, the rest
-   * as the field.
-   */
-  changeOver,
 
   /** The invariants as a Schema check over the row type, each failure at its path. */
   check,

@@ -34,10 +34,11 @@ version changed; `pnpm` skips versions already in the registry.
   server. `Crud.editor` shows a save's `Refusal.invalid` the same way. (#183)
 - **`foldkit-entity`: transitions.** `Entity.transition(id, ({ before, after })
   => predicate, { message, path? })` declares what every update must hold over
-  the row before it and the row after (`after` is one placeholder per field);
-  `Entity.judgeChange(entity, before, after)` judges a change, and
-  `Entity.changeOver` is the rewrite an interpreter judges one in a statement
-  with. `Expr.substituteInputs` reads placeholders as given scalars. The
+  the row before it and the row after (`after.status` is `Expr.next`, a
+  `Next` node: a field as the row after holds it, which query interpreters
+  refuse as the operation `next`); `Entity.judgeChange(entity, before, after)`
+  judges a change, and `Expr.substituteNext` reads the fields a write sets as
+  their values. `Dependencies` lists them as `next`. The
   Drizzle writer judges every update's change in its statement (the row
   before as the columns, after as for an invariant), classifies a miss that
   breaks one as `Invalid`, and refuses a writer it cannot compile; `bind`

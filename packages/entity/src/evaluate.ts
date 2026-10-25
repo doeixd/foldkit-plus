@@ -37,14 +37,26 @@ export class QueryEvaluateError extends Error {
   }
 }
 
-const valueOf = (node: AnyExpr, row: Row, input: Row): unknown => {
+/**
+ * What a predicate is judged over: the row, the input it was given, and the row
+ * a write would leave, which only a rule over a change reads (`Next`).
+ */
+interface Scope {
+  readonly row: Row
+  readonly input: Row
+  readonly next: Row
+}
+
+const valueOf = (node: AnyExpr, scope: Scope): unknown => {
   switch (node._tag) {
     case 'Field':
-      return row[node.key]
+      return scope.row[node.key]
+    case 'Next':
+      return scope.next[node.field.key]
     case 'Literal':
       return node.value
     case 'Input':
-      return input[node.key]
+      return scope.input[node.key]
   }
 }
 
@@ -69,8 +81,8 @@ const NUL = String.fromCharCode(0)
 const holdsNul = (value: unknown): boolean => typeof value === 'string' && value.includes(NUL)
 
 /** A predicate used as a value is its own truth; anything else is its value. */
-const sideOf = (node: Operandish, row: Row, input: Row): unknown =>
-  isPredicate(node) ? truthValue(holds(node, row, input)) : valueOf(node, row, input)
+const sideOf = (node: Operandish, scope: Scope): unknown =>
+  isPredicate(node) ? truthValue(holds(node, scope)) : valueOf(node, scope)
 
 /**
  * A predicate compared as a value. SQL's unknown is null there too, so an
@@ -78,11 +90,11 @@ const sideOf = (node: Operandish, row: Row, input: Row): unknown =>
  */
 const truthValue = (truth: Truth): unknown => (truth === 'unknown' ? null : truth)
 
-const holds = (node: Predicate, row: Row, input: Row): Truth => {
+const holds = (node: Predicate, scope: Scope): Truth => {
   switch (node._tag) {
     case 'Eq': {
-      const left = sideOf(node.left, row, input)
-      const right = sideOf(node.right, row, input)
+      const left = sideOf(node.left, scope)
+      const right = sideOf(node.right, scope)
       // `null = anything` is unknown in SQL, including `null = null`. A row is
       // kept only when a comparison is true, so an unknown drops it either way;
       // saying so explicitly is what keeps this honest about three-valued logic
@@ -98,10 +110,10 @@ const holds = (node: Predicate, row: Row, input: Row): Truth => {
     case 'Null':
       // The one comparison that is never unknown: asking whether a value is
       // absent always has an answer.
-      return isNull(valueOf(node.operand, row, input)) !== node.present
+      return isNull(valueOf(node.operand, scope)) !== node.present
     case 'Contains': {
-      const value = valueOf(node.value, row, input)
-      const search = sideOf(node.search, row, input)
+      const value = valueOf(node.value, scope)
+      const search = sideOf(node.search, scope)
       // `null like anything` is unknown, which is why an empty search is not
       // the same as no filter over a column that can be null.
       if (isNull(value) || isNull(search)) return 'unknown'
@@ -120,7 +132,7 @@ const holds = (node: Predicate, row: Row, input: Row): Truth => {
       return foldAscii(value).includes(foldAscii(search))
     }
     case 'In': {
-      const among = valueOf(node.among, row, input)
+      const among = valueOf(node.among, scope)
       if (!Array.isArray(among)) {
         throw new QueryEvaluateError('a membership test was given a list that is not a list')
       }
@@ -128,7 +140,7 @@ const holds = (node: Predicate, row: Row, input: Row): Truth => {
       // value is unknown, a match is true, and no match against a list
       // holding a null is unknown, since that null might have been it.
       if (among.length === 0) return false
-      const value = valueOf(node.value, row, input)
+      const value = valueOf(node.value, scope)
       if (holdsNul(value) || among.some(holdsNul)) {
         throw new QueryEvaluateError(
           'a membership test was given text holding a NUL character, which SQL text cannot hold portably',
@@ -141,22 +153,22 @@ const holds = (node: Predicate, row: Row, input: Row): Truth => {
     // Every operand is asked, with no short cut: SQL fixes no order, so one
     // that refuses its value (a NUL) refuses here whichever operand decided.
     case 'And': {
-      const truths = node.operands.map(operand => holds(operand, row, input))
+      const truths = node.operands.map(operand => holds(operand, scope))
       if (truths.includes(false)) return false
       return truths.includes('unknown') ? 'unknown' : true
     }
     case 'Or': {
-      const truths = node.operands.map(operand => holds(operand, row, input))
+      const truths = node.operands.map(operand => holds(operand, scope))
       if (truths.includes(true)) return true
       return truths.includes('unknown') ? 'unknown' : false
     }
     case 'Not': {
-      const truth = holds(node.operand, row, input)
+      const truth = holds(node.operand, scope)
       return truth === 'unknown' ? 'unknown' : !truth
     }
     case 'Compare': {
-      const left = valueOf(node.left, row, input)
-      const right = valueOf(node.right, row, input)
+      const left = valueOf(node.left, scope)
+      const right = valueOf(node.right, scope)
       if (isNull(left) || isNull(right)) return 'unknown'
       if (holdsNul(left) || holdsNul(right)) {
         throw new QueryEvaluateError(
@@ -196,19 +208,25 @@ const readsAField = new WeakMap<Predicate, boolean>()
 export const decided = (node: Predicate, input: Row): Option.Option<PredicateTruth> => {
   let reads = readsAField.get(node)
   if (reads === undefined) {
-    reads = dependenciesOf(node).fields.length > 0
+    // A field after a write is a field too: nothing in the input alone decides it.
+    const read = dependenciesOf(node)
+    reads = read.fields.length + read.next.length > 0
     readsAField.set(node, reads)
   }
-  return reads ? Option.none() : Option.some(holds(node, {}, input))
+  return reads ? Option.none() : Option.some(holds(node, { row: {}, input, next: {} }))
 }
 
-/** A predicate's truth over one row, as `evaluate` judges a row: SQL's three values. */
-export const truthOver = (node: Predicate, row: Row, input: Row = {}): PredicateTruth =>
-  holds(node, row, input)
+/** A predicate's truth over one row (and, for a rule over a change, the row after it): SQL's three values. */
+export const truthOver = (
+  node: Predicate,
+  row: Row,
+  input: Row = {},
+  next: Row = {},
+): PredicateTruth => holds(node, { row, input, next })
 
 /** Every predicate must hold: the list is the conjunction, as it is in a `Query`. */
 const matches = (body: AnyQuery, row: Row, input: Row): boolean =>
-  body.where.every(node => holds(node, row, input) === true)
+  body.where.every(node => holds(node, { row, input, next: {} }) === true)
 
 /** The kinds of value this interpreter orders by; every key of one term must share one. */
 const comparable = new Set(['string', 'number', 'boolean'])

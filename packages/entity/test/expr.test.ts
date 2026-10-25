@@ -169,6 +169,7 @@ describe('dependenciesOf says what an expression reads', () => {
     expect(dependenciesOf(predicate)).toEqual({
       fields: [{ entity: 'Post', key: 'title', owner: Post.identity }],
       inputs: ['title'],
+      next: [],
       operations: ['eq'],
     })
   })
@@ -201,6 +202,7 @@ describe('dependenciesOf says what an expression reads', () => {
     expect(dependenciesOf(Expr.eq(Expr.literal(1), 1))).toEqual({
       fields: [],
       inputs: [],
+      next: [],
       operations: ['eq'],
     })
   })
@@ -217,6 +219,7 @@ describe('dependenciesOf says what an expression reads', () => {
         { entity: 'Post', key: 'id', owner: Post.identity },
       ],
       inputs: ['slug'],
+      next: [],
       operations: ['eq'],
     })
   })
@@ -297,6 +300,7 @@ describe('Query composes which rows, as data', () => {
     expect(Query.dependencies(q)).toEqual({
       fields: [title, id],
       inputs: ['title'],
+      next: [],
       operations: ['eq'],
       predicate: [title],
       order: [id],
@@ -371,6 +375,7 @@ describe('The operations the CMS worklist needs', () => {
         { entity: 'Post', key: 'published', owner: Post.identity },
       ],
       inputs: ['type', 'archived', 'search'],
+      next: [],
       operations: ['eq', 'isNotNull', 'contains'],
     })
   })
@@ -531,6 +536,7 @@ describe('and, or and not', () => {
         { entity: 'Post', key: 'published', owner: Post.identity },
       ],
       inputs: [],
+      next: [],
       operations: ['or', 'eq', 'not', 'and', 'isNull'],
     })
   })
@@ -614,6 +620,7 @@ describe('comparisons', () => {
     expect(dependenciesOf(Expr.gt(Ranked.fields.rank, Expr.input('n', Schema.Number)))).toEqual({
       fields: [{ entity: 'Ranked', key: 'rank', owner: Ranked.identity }],
       inputs: ['n'],
+      next: [],
       operations: ['compare'],
     })
   })

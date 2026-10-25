@@ -61,6 +61,7 @@ const asSql = (body: ReturnType<typeof Query.from>, input: Row) => {
   const side = (operand: Operandish): string => {
     if (isPredicate(operand)) return `(${predicate(operand)})`
     if (operand._tag === 'Field') return `"${column[operand.key]}"`
+    if (operand._tag === 'Next') throw new Error('a query reads no row after a write')
     params.push(operand._tag === 'Input' ? input[operand.key] : operand.value)
     return '?'
   }
