@@ -388,4 +388,37 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'the writer lets a precondition read a hidden member',
+    edits: [
+      {
+        file,
+        find: 'const hidden = hiddenOf(ruled, Query.dependencies(body).predicate)',
+        replace: 'const hidden: ReadonlyArray<string> = []',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the writer lets an expected revision name a hidden member',
+    edits: [
+      {
+        file,
+        find: 'onSome: ({ field }) => (readRuled(ruled, field) ? [field] : []),',
+        replace: 'onSome: () => [],',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the writer checks nothing it writes',
+    edits: [
+      {
+        file,
+        find: 'return hidden.length === 0\n',
+        replace: 'return true\n',
+      },
+    ],
+    tests,
+  },
 ]

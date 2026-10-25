@@ -410,9 +410,10 @@ The order is: a row hidden from the writer, then a rule that does not hold
 (both `Forbidden`), then a stale input revision (`Conflict`), then the
 precondition (`Unmet`). So `Unmet` reaches only someone the rules let write the
 row. A precondition, or an expected revision, over a member with a Read rule
-would still answer for that member (Unmet or written, Conflict or not), so
-`GuardServer.validate` refuses one, as it refuses a query body that filters by
-such a member. A pinned write that is unmet is not
+would still answer for that member (Unmet or written, Conflict or not), so the
+guarded writer refuses such a write before any rule, whether or not
+`GuardServer.validate` ran; `validate` refuses it at startup too, as it refuses
+a query body that filters by such a member. A pinned write that is unmet is not
 decided again: the row did not move, it does not hold.
 
 A declared write's `increment` is the writer's to add, in the statement that

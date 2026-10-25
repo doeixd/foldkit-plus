@@ -253,7 +253,7 @@ const open = () => {
         .pipe(Effect.result, Effect.provide(layer)),
     )
   const row = (id: string) => sqlite.prepare('select * from todos where id = ?').get(id)
-  return { mutate, row }
+  return { mutate, row, layer }
 }
 
 describe('GuardServer.writer', () => {
@@ -445,6 +445,35 @@ describe('GuardServer.writer', () => {
   })
 })
 
+// Writes over claimedBy, which only an admin or its owning editor may read.
+const TitleInput = Entity.input(
+  Todo,
+  Schema.Struct({ id: Schema.String, title: Schema.String, guess: Schema.String }),
+  { guess: Entity.unmapped },
+)
+// Unmet or written would say whether the guess is who claimed it, which the writer may not read.
+const Probe = Mutation.write(
+  'Probe',
+  Write.update(TitleInput, {
+    id: 'id',
+    when: ({ input }) => Expr.eq(Related.Todo.fields.claimedBy, input.guess),
+  }),
+)
+const ClaimAt = Mutation.write(
+  'ClaimAt',
+  Write.update(
+    Entity.input(
+      Todo,
+      Schema.Struct({
+        id: Schema.String,
+        title: Schema.String,
+        claimedBy: Schema.NullOr(Schema.String),
+      }),
+    ),
+    { id: 'id', expect: 'claimedBy' },
+  ),
+)
+
 describe('GuardServer.validate over writes', () => {
   const Data = Remote.define({ entities: [Todo, Note, Related.Project] })
   const check = (writing: EntityWriter<Option.Option<User>, DrizzleDatabase>) => () =>
@@ -466,33 +495,6 @@ describe('GuardServer.validate over writes', () => {
   })
 
   it('refuses a precondition or an expected revision that reads a member with a Read rule', () => {
-    const TitleInput = Entity.input(
-      Todo,
-      Schema.Struct({ id: Schema.String, title: Schema.String, guess: Schema.String }),
-      { guess: Entity.unmapped },
-    )
-    // Unmet or written would say whether the guess is who claimed it, which the writer may not read.
-    const Probe = Mutation.write(
-      'Probe',
-      Write.update(TitleInput, {
-        id: 'id',
-        when: ({ input }) => Expr.eq(Related.Todo.fields.claimedBy, input.guess),
-      }),
-    )
-    const ClaimAt = Mutation.write(
-      'ClaimAt',
-      Write.update(
-        Entity.input(
-          Todo,
-          Schema.Struct({
-            id: Schema.String,
-            title: Schema.String,
-            claimedBy: Schema.NullOr(Schema.String),
-          }),
-        ),
-        { id: 'id', expect: 'claimedBy' },
-      ),
-    )
     const serving = (source: MutationSource<Option.Option<User>, DrizzleDatabase>) => () =>
       GuardServer.validate(Policy, {
         entities: [Todo],
@@ -848,5 +850,33 @@ describe('GuardServer.writer over a link its writer cannot see', () => {
       failure: { _tag: 'Forbidden' },
     })
     expect(await move(root, 't1', null, 'unsure')).toMatchObject({ _tag: 'Success' })
+  })
+})
+
+describe('GuardServer.writer over a write that reads a hidden member', () => {
+  // No validate here: the writer refuses on its own.
+  const server = RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
+    entities: [],
+    mutations: [RemoteServer.write(Probe, guarded), RemoteServer.write(ClaimAt, guarded)],
+  })
+  const send = (mutation: string, input: unknown) =>
+    Effect.runPromise(
+      RemoteServer.handlers(server, ada)
+        .FoldkitRemoteMutate({ requestId: mutation, mutation, input })
+        .pipe(Effect.result, Effect.provide(open().layer)),
+    )
+
+  it('refuses a precondition that reads it, whatever the row holds', async () => {
+    expect(await send('Probe', { id: 't1', title: 'Mine', guess: 'grace' })).toMatchObject({
+      _tag: 'Failure',
+      failure: { message: "Todo's write reads claimedBy, which a Read rule hides from its writer" },
+    })
+  })
+
+  it('refuses an expected revision that names it', async () => {
+    expect(await send('ClaimAt', { id: 't1', title: 'Mine', claimedBy: null })).toMatchObject({
+      _tag: 'Failure',
+      failure: { message: "Todo's write reads claimedBy, which a Read rule hides from its writer" },
+    })
   })
 })

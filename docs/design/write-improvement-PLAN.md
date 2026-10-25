@@ -41,6 +41,9 @@ that phase starts.
 
 ### Phase 1: the guarded writer refuses the oracle itself (item 3)
 
+**Built**, 2026-10-25: `discloses` in `GuardServer.writer`, cached per body;
+tests in `packages/guard/test/write.test.ts`, mutations in `write.mutations.ts`.
+
 Small, independent, closes a security gap regardless of what follows.
 
 - `GuardServer.writer` checks, on the first update or delete of each declared

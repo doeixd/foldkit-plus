@@ -51,8 +51,9 @@ version changed; `pnpm` skips versions already in the registry.
   (`RemoteServer.unmet()`), and `preconditions: true`, without which
   `RemoteServer.write` refuses a write with a `when`. Through
   `GuardServer.writer`, `Forbidden` and `Conflict` come before `Unmet`, and
-  `GuardServer.validate` refuses a `when` or an `expect` over a member with a
-  Read rule, which would answer for it. A guarded writer's `revision` must be
+  a `when` or an `expect` over a member with a Read rule, which would answer
+  for it, is refused by the guarded writer itself and by `GuardServer.validate`
+  at startup. A guarded writer's `revision` must be
   stored as a number, and an input may expect only that field. (#182)
 - **A declared update can move a number field by an amount: `increment`.**
   `Write.update(input, { id, expect, increment: { stock: 'quantity' } })` adds
