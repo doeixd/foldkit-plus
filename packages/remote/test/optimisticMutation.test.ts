@@ -115,6 +115,7 @@ describe('a mutation owns its optimistic entity layer and connection overlays', 
   it('failure drops both and reveals the base', () => {
     const failed = updateRemote(start(withFeed(), 'req-1', 'tmp-1'), {
       _tag: 'MutationFailed',
+      operation: 'op',
       requestId: 'req-1',
       error: { _tag: 'Boom', message: 'no' },
     })
@@ -180,6 +181,7 @@ describe('a mutation owns its optimistic entity layer and connection overlays', 
     expect(visible(removing)).toEqual(['c2'])
     const failed = updateRemote(removing, {
       _tag: 'MutationFailed',
+      operation: 'op',
       requestId: 'req-3',
       error: { _tag: 'Boom', message: 'no' },
     })
@@ -318,6 +320,7 @@ describe('a Surface reads through the optimistic layers', () => {
     expect(projection.read({ remote: pending })).toEqual({ _tag: 'Ready', value: { body: 'new' } })
     const failed = updateRemote(pending, {
       _tag: 'MutationFailed',
+      operation: 'op',
       requestId: 'r',
       error: { _tag: 'Boom', message: 'no' },
     })

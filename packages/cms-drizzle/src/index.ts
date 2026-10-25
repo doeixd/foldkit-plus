@@ -853,6 +853,7 @@ export const CmsServer = {
             input: decoded,
             principal,
             requestId: `publish:${entry.id}:${held ?? 'new'}`,
+            operation: Option.some(`publish:${entry.id}:${held ?? 'new'}`),
           })
           const targetId = creating
             ? String((ran.output as { readonly id: unknown }).id)

@@ -66,7 +66,21 @@ version changed; `pnpm` skips versions already in the registry.
   and a writer without `increments: true` is refused for such a write.
   `GuardServer.writer` requires the member's Update rule and judges the sum.
   `Write.reads` lists what a write reads from its row. (#182)
+- **A mutation names its operation across clients.** `Data.mutate` sends an
+  `operation` id (`crypto.randomUUID()`, minted in the Command, so `update`
+  stays pure) beside `requestId`; a failed request keeps it, and a retry with
+  the same `requestId` sends it again. A Source (`RemoteServer.mutation`'s
+  handler, an `EntityWriter`'s caller) receives it as `operation`. Record a
+  write under it, never under `requestId`, which the docs had advised and which
+  is a per-Model counter two clients share.
 
+
+### Changed
+
+- **`foldkit-remote`: `Remote.mutate`'s fourth argument is options.**
+  `Remote.mutate(mutation, input, requestId, { keys, operation })`; it was
+  `keys`, positionally. A caller that passed keys passes `{ keys }`.
+  `MutationFailed` carries the `operation` it was sent with.
 ### Fixed
 
 - **A page node whose id is `__proto__` is read.** `SurfaceBlock.reads` and

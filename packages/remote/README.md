@@ -1424,6 +1424,15 @@ effect on rows it did not return.
 `Unknown` for an id never started here (or settled so long ago it left the
 bounded ledger). A retry reuses its id, and the latest outcome wins.
 
+A request id names a request to this client only: it is a counter in the
+Model, so it restarts on reload and two clients' first requests share it. To a
+server, a mutation is named by its **operation**, an id minted where it is first
+sent (`crypto.randomUUID()`), unique across clients. A failed request keeps its
+operation, and a retry with the same `requestId` (`Data.mutate(model, M, input,
+{ requestId })`) sends it again, so a server that keeps a record of its writes
+can recognise the retry. After a reload the record of it is gone, and the same
+request id is a new operation.
+
 A mutation can say what the server may refuse it with, as data rather than a
 message to parse:
 
@@ -2077,9 +2086,11 @@ above.
 `Remote.mutateInto(bound, model, mutation, input, requestId, { optimistic, now })` is
 the one-step imperative start/run/settle form for SSR and tests.
 
-`Remote.mutate(mutation, input, requestId)` is the transport call itself. It
-decodes the typed `Output` and returns normalized entity patches and confirmed
-connection changes for a caller to reduce through `updateRemote`.
+`Remote.mutate(mutation, input, requestId, { keys, operation })` is the
+transport call itself. It decodes the typed `Output` and returns normalized
+entity patches and confirmed connection changes for a caller to reduce through
+`updateRemote`. It mints an operation id when none is given; a caller retrying
+a request passes the one it first sent.
 
 `MutationSucceeded` reconciles at most once per `requestId`; an unknown or
 already-applied settlement is a no-op. It carries `now`, the clock reading of

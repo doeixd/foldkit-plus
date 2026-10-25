@@ -333,10 +333,16 @@ export interface MutationSource<P, R = never> {
     readonly input: unknown
     readonly principal: P
     /**
-     * The client's id for this request, the same on every retry of it: what a
-     * Source keys a record of the write by, so a retry finds it was made.
+     * The client's id for this request, the same on every retry of it. It is
+     * unique within that client only: two clients' first requests can share
+     * it. Key a record of the write by `operation`, never by this.
      */
     readonly requestId: string
+    /**
+     * The operation's identity across clients, the same on every retry of it,
+     * when the client sent one (Remote's does); none from an older client.
+     */
+    readonly operation: Option.Option<string>
     /** For a declared write: the input keys to write, when the client named only some. */
     readonly keys?: ReadonlyArray<string> | undefined
   }) => Effect.Effect<
@@ -1373,8 +1379,10 @@ export const RemoteServer = {
     run: (context: {
       readonly input: Input
       readonly principal: P
-      /** The client's id for this request, the same on every retry of it. */
+      /** The client's id for this request, unique within that client only. */
       readonly requestId: string
+      /** The operation's identity across clients, for a record of the write; see `MutationSource`. */
+      readonly operation: Option.Option<string>
     }) => Effect.Effect<
       MutationOutcome<Output>,
       RemoteServerError | MutationRefused | RemoteForbidden,
@@ -1390,6 +1398,7 @@ export const RemoteServer = {
         input: context.input as Input,
         principal: context.principal,
         requestId: context.requestId,
+        operation: context.operation,
       }).pipe(
         Effect.map(outcome => ({
           output: outcome.output,
@@ -1961,7 +1970,13 @@ export const RemoteServer = {
 
         const caller = yield* asking
         const outcome = yield* source
-          .run({ input, principal: caller, requestId: payload.requestId, keys: payload.keys })
+          .run({
+            input,
+            principal: caller,
+            requestId: payload.requestId,
+            operation: Option.fromUndefinedOr(payload.operation),
+            keys: payload.keys,
+          })
           .pipe(
             Effect.catchTag('RemoteServerError', error =>
               Effect.fail(new RemoteMutationError({ message: error.message })),

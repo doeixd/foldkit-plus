@@ -8,8 +8,8 @@ export default [
     edits: [
       {
         file: '../src/index.ts',
-        find: '.run({ input, principal: caller, requestId: payload.requestId, keys: payload.keys })',
-        replace: ".run({ input, principal: caller, requestId: 'r', keys: payload.keys })",
+        find: 'requestId: payload.requestId,',
+        replace: "requestId: 'r',",
       },
     ],
     tests: ['packages/remote-server/test/server.test.ts'],

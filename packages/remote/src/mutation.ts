@@ -29,6 +29,11 @@ export interface MutationState {
   /** Why each request in `failed` failed, kept exactly as long as `failed` keeps its id. */
   readonly errors: ReadonlyMap<string, RemoteError>
   /**
+   * The operation id each request in `failed` was sent with, kept as `errors`
+   * is: a retry of that request id sends it again, so a server recognises it.
+   */
+  readonly operations: ReadonlyMap<string, string>
+  /**
    * How many mutations this model has started. A bound domain takes its next
    * request id from here, so `update` stays pure and the id exists before the
    * Command runs.
@@ -41,6 +46,7 @@ export const emptyMutationState: MutationState = {
   applied: new Set(),
   failed: new Set(),
   errors: new Map(),
+  operations: new Map(),
   sequence: 0,
 }
 
@@ -72,14 +78,17 @@ export const failMutation = (
   state: MutationState,
   requestId: string,
   error: RemoteError,
+  operation: string,
 ): MutationState => {
   const pending = new Set(state.pending)
   pending.delete(requestId)
   const failed = remember(state.failed, requestId)
   const errors = new Map([...state.errors, [requestId, error] as const])
-  // `failed` is a bounded window; an error outlives its id by nothing.
+  const operations = new Map([...state.operations, [requestId, operation] as const])
+  // `failed` is a bounded window; an error or an operation outlives its id by nothing.
   for (const id of errors.keys()) if (!failed.has(id)) errors.delete(id)
-  return { ...state, pending, failed, errors }
+  for (const id of operations.keys()) if (!failed.has(id)) operations.delete(id)
+  return { ...state, pending, failed, errors, operations }
 }
 
 /** What Remote knows of one mutation request, by the id `mutate` returned. */

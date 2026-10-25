@@ -266,6 +266,9 @@ describe('Data.mutate starts a mutation from update', () => {
     )
     expect(settled).toEqual({
       _tag: 'MutationFailed',
+      operation: expect.stringMatching(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+      ),
       requestId: 'remote-1',
       error: { _tag: 'RemoteMutationError', message: 'no' },
     })
@@ -322,6 +325,7 @@ describe('Data.overlay shows a change nobody has made', () => {
     expect(started.requestId).toBe('remote-1')
     const failed = Data.reduce(started.model, {
       _tag: 'MutationFailed',
+      operation: 'op',
       requestId: 'remote-1',
       error: { _tag: 'RemoteMutationError', message: 'no' },
     })
@@ -421,6 +425,7 @@ describe('Data.confirmed reads past what is only pending', () => {
     )
     const failed = Data.reduce(started.model, {
       _tag: 'MutationFailed',
+      operation: 'op',
       requestId: started.requestId,
       error: { _tag: 'RemoteMutationError', message: 'no' },
     })

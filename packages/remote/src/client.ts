@@ -174,6 +174,9 @@ export const coalescedLayer = <E, R>(
     }),
   ).pipe(Layer.provide(layer))
 
+/** A new operation's identity: random, so unique across clients and reloads. */
+export const mintOperation = (): string => globalThis.crypto.randomUUID()
+
 /**
  * `Remote.mutate` as a standalone effect, so `Remote.mutateInto` can reuse it
  * without the object literal referencing itself.
@@ -186,9 +189,18 @@ export const mutateRemote = Effect.fn('Remote.mutate')(function* <
   mutation: MutationDescriptor<Name, Input, Output>,
   input: Input,
   requestId: string,
-  keys?: ReadonlyArray<string>,
+  options: {
+    readonly keys?: ReadonlyArray<string> | undefined
+    /**
+     * The operation's identity across clients, the same on each retry of it:
+     * minted here when not given, so a retry must pass the one first sent.
+     */
+    readonly operation?: string | undefined
+  } = {},
 ) {
-  yield* Effect.annotateCurrentSpan({ mutation: mutation.name, requestId })
+  const { keys } = options
+  const operation = options.operation ?? (yield* Effect.sync(mintOperation))
+  yield* Effect.annotateCurrentSpan({ mutation: mutation.name, requestId, operation })
   const client = yield* RemoteClient
   const encoded = yield* Schema.encodeUnknownEffect(mutation.Input)(input).pipe(
     Effect.catchTag('SchemaError', error =>
@@ -197,6 +209,7 @@ export const mutateRemote = Effect.fn('Remote.mutate')(function* <
   )
   const result = yield* client.mutate({
     requestId,
+    operation,
     mutation: mutation.name,
     input: encoded,
     ...(keys === undefined ? {} : { keys }),

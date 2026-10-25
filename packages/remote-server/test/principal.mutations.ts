@@ -39,8 +39,9 @@ export default [
     edits: [
       {
         file,
-        find: '.run({ input, principal: caller, requestId',
-        replace: '.run({ input, principal: undefined as P, requestId',
+        find: '            principal: caller,\n            requestId: payload.requestId,',
+        replace:
+          '            principal: undefined as P,\n            requestId: payload.requestId,',
       },
     ],
     tests,

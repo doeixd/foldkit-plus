@@ -336,7 +336,13 @@ export type RemoteMessage =
       /** Injected clock reading of the answer: how fresh the written entities are. */
       readonly now: number
     }
-  | { readonly _tag: 'MutationFailed'; readonly requestId: string; readonly error: RemoteError }
+  | {
+      readonly _tag: 'MutationFailed'
+      readonly requestId: string
+      readonly error: RemoteError
+      /** The operation id it was sent with, for a retry to send again. */
+      readonly operation: string
+    }
   /**
    * Operations shown over the store with no request behind them, until they are
    * lifted: a preview of a change nobody has made. Showing an id again replaces
@@ -449,7 +455,7 @@ export const remoteMessageCases = {
     ),
     now: Schema.Number,
   },
-  MutationFailed: { requestId: Schema.String, error: remoteErrorSchema },
+  MutationFailed: { requestId: Schema.String, error: remoteErrorSchema, operation: Schema.String },
   OverlayShown: { id: Schema.String, optimistic: Schema.Array(Schema.Unknown) },
   OverlayLifted: { id: Schema.String },
   WindowGrown: { window: Schema.String, size: Schema.Number },
@@ -1053,7 +1059,12 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
     case 'MutationFailed':
       return {
         ...model,
-        mutations: failMutation(model.mutations, message.requestId, message.error),
+        mutations: failMutation(
+          model.mutations,
+          message.requestId,
+          message.error,
+          message.operation,
+        ),
         optimistic: settleFailure(model.optimistic, message.requestId),
       }
     case 'LiveReceived': {

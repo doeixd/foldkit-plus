@@ -444,8 +444,12 @@ A refusal of who is asking, rather than of what they asked, is
 `Forbidden` with the reason (a 403 over JSON), or with none when `forbid()` is
 given none, so the refusal says nothing of why. It is the same for every
 mutation, so it needs no `Refusal` declared. The Source is also given `requestId`, the client's id for the
-request, which is the same on every retry of it: record a write under it, and a
-retry can find that the write was made. Nothing deduplicates by it yet. A Source
+request, and `operation`, the operation's id across clients, both the same on
+every retry of it. Record a write under `operation`, never `requestId`: a
+request id is a counter in one client's Model, so two clients' first requests
+share it, and a record keyed by it would answer one client with another's write.
+`operation` is none from a client that sends none, and bounded on the wire (128
+characters of `A-Z a-z 0-9 : . _ -`). A Source
 may additionally return connection changes:
 
 ```ts
