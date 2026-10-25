@@ -1421,9 +1421,12 @@ export const writer = <P = unknown>(
         })
         const whole = answeredOf(current, judged)
         if (Option.isNone(whole)) return whole
-        // The same row, narrowed to what this write answers with.
-        const now = answeredOf(current, answered)
         const row = whole.value
+        // The same row with only what this write answers with: a patch keeps every column read.
+        const answers = new Set(['id', ...answeredFields])
+        const now = Option.some(
+          Object.fromEntries(Object.entries(row).filter(([key]) => answers.has(key))),
+        )
         if (Option.isSome(expect) && !sameStored(row[expect.value.field], expect.value.revision)) {
           // One revision past the expected one and holding these values, this
           // write landed already and its answer was lost: a retry answers the
