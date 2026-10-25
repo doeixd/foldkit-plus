@@ -12,6 +12,7 @@ import { Metadata } from 'foldkit-metadata'
 import { Option, Schema, type SchemaAST } from 'effect'
 import { assertSupported, truthOver, type Row } from './evaluate.js'
 import { Query, type Predicate, type Reads } from './expr.js'
+import { transitionsOf } from './transition.js'
 // A cycle with `index.ts`, safe because `Entity` is read only when an invariant is attached.
 import {
   Entity,
@@ -42,10 +43,10 @@ const Invariants = Metadata.key<Invariant>('foldkit-entity/invariants', {
   summarize: invariant => invariant.id,
 })
 
-/** What a row comes to under an Entity's invariants. */
-export type Judgement =
+/** What a row, or a change, comes to under an Entity's invariants, or its transitions. */
+export type Judgement<Failure = Invariant> =
   | { readonly _tag: 'Valid' }
-  | { readonly _tag: 'Invalid'; readonly failures: ReadonlyArray<Invariant> }
+  | { readonly _tag: 'Invalid'; readonly failures: ReadonlyArray<Failure> }
   /** Some invariant reads a field the row does not have, so validity is not known. */
   | { readonly _tag: 'Undecided'; readonly fields: ReadonlyArray<string> }
 
@@ -64,7 +65,8 @@ export const invariant =
   ) =>
   (entity: E): E => {
     if (id.length === 0) fail(entity, 'an invariant needs an id')
-    if (invariantsOf(entity).some(held => held.id === id)) fail(entity, `"${id}" is declared twice`)
+    const taken = [...invariantsOf(entity), ...transitionsOf(entity)]
+    if (taken.some(held => held.id === id)) fail(entity, `"${id}" is declared twice`)
     const predicate = build(entity.fields) as Predicate
     // `where` refuses a predicate over another Entity, which the type allows when it is unmarked.
     const body = Query.from(entity).pipe(Query.where(predicate))

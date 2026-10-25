@@ -746,54 +746,73 @@ export const Expr = {
    * as the store holds it (encoded), as a field's is.
    */
   substitute: (predicate: Predicate, values: Readonly<Record<string, unknown>>): Predicate =>
-    substituted(predicate, values),
+    substituted(predicate, operand =>
+      Match.value(operand).pipe(
+        Match.tag('Field', field =>
+          Object.hasOwn(values, field.key) ? literal(values[field.key]) : field,
+        ),
+        Match.orElse(() => operand),
+      ),
+    ),
+
+  /**
+   * The predicate with each input placeholder `replace` answers for read as
+   * what it answers: how an interpreter puts a scalar of its own (a column, a
+   * value) where a definition left a placeholder.
+   */
+  substituteInputs: (
+    predicate: Predicate,
+    replace: (key: string) => Option.Option<AnyExpr>,
+  ): Predicate =>
+    substituted(predicate, operand =>
+      Match.value(operand).pipe(
+        Match.tag('Input', input => Option.getOrElse(replace(input.key), () => operand)),
+        Match.orElse(() => operand),
+      ),
+    ),
 }
 
-const substitutedOperand = (operand: AnyExpr, values: Readonly<Record<string, unknown>>): AnyExpr =>
-  Match.value(operand).pipe(
-    Match.tag('Field', field =>
-      Object.hasOwn(values, field.key) ? literal(values[field.key]) : field,
-    ),
-    Match.orElse(() => operand),
-  )
+/** Rewrites one operand; the walk below applies it wherever a predicate holds one. */
+type OperandRewrite = (operand: AnyExpr) => AnyExpr
 
-const substitutedSide = (side: Operandish, values: Readonly<Record<string, unknown>>) =>
-  isPredicate(side) ? substituted(side, values) : substitutedOperand(side, values)
+const substitutedSide = (side: Operandish, rewrite: OperandRewrite) =>
+  isPredicate(side) ? substituted(side, rewrite) : rewrite(side)
 
-const substituted = (
-  predicate: Predicate,
-  values: Readonly<Record<string, unknown>>,
-): Predicate => {
+const substituted = (predicate: Predicate, rewrite: OperandRewrite): Predicate => {
   switch (predicate._tag) {
     case 'Eq':
       return node({
         ...predicate,
-        left: substitutedSide(predicate.left, values),
-        right: substitutedSide(predicate.right, values),
+        left: substitutedSide(predicate.left, rewrite),
+        right: substitutedSide(predicate.right, rewrite),
       })
     case 'Null':
-      return node({ ...predicate, operand: substitutedOperand(predicate.operand, values) })
+      return node({ ...predicate, operand: rewrite(predicate.operand) })
     case 'Contains':
       return node({
         ...predicate,
-        value: substitutedOperand(predicate.value, values),
-        search: substitutedSide(predicate.search, values),
+        value: rewrite(predicate.value),
+        search: substitutedSide(predicate.search, rewrite),
       })
     case 'In':
-      return node({ ...predicate, value: substitutedOperand(predicate.value, values) })
+      return node({
+        ...predicate,
+        value: rewrite(predicate.value),
+        among: rewrite(predicate.among),
+      })
     case 'And':
     case 'Or':
       return node({
         ...predicate,
-        operands: Arr.map(predicate.operands, operand => substituted(operand, values)),
+        operands: Arr.map(predicate.operands, operand => substituted(operand, rewrite)),
       })
     case 'Not':
-      return node({ ...predicate, operand: substituted(predicate.operand, values) })
+      return node({ ...predicate, operand: substituted(predicate.operand, rewrite) })
     case 'Compare':
       return node({
         ...predicate,
-        left: substitutedOperand(predicate.left, values),
-        right: substitutedOperand(predicate.right, values),
+        left: rewrite(predicate.left),
+        right: rewrite(predicate.right),
       })
   }
 }
