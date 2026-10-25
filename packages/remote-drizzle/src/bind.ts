@@ -10,7 +10,7 @@ import type { AnyColumn, SQL, Table as DrizzleTable } from 'drizzle-orm'
 import { getTableColumns } from 'drizzle-orm'
 import { Schema, SchemaAST } from 'effect'
 import { SchemaShape } from 'foldkit-entity'
-import type * as Domain from 'foldkit-entity'
+import * as Domain from 'foldkit-entity'
 import { Entity, type FieldsFrom } from 'foldkit-remote'
 import type { ComputedConfig, EntityBinding, RelationBinding, Visible } from './binding.js'
 import type { OrderTerm } from './cursor.js'
@@ -362,6 +362,7 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
       columns,
       relations,
       computed,
+      invariants: Domain.Entity.invariants(entity),
       ...(config.visible === undefined ? {} : { visible: config.visible }),
     } as unknown as EntityBinding<string, DrizzleTable>
   }

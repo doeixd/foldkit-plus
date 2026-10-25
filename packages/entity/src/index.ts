@@ -9,7 +9,7 @@
  */
 import { type Option, Pipeable, Schema } from 'effect'
 import { Metadata } from 'foldkit-metadata'
-import { check, invariant, invariantsOf, judge } from './invariant.js'
+import { check, invariant, invariantsOf, judge, judgeAgainst } from './invariant.js'
 import { SchemaShape } from './shape.js'
 
 export const EntityTypeId: unique symbol = Symbol.for('foldkit-entity/Entity')
@@ -770,6 +770,9 @@ export const Entity = {
    * fields an invariant reads that the row lacks.
    */
   judge,
+
+  /** `Entity.judge` against invariants already read, such as those a database binding keeps. */
+  judgeAgainst,
 
   /** The invariants as a Schema check over the row type, each failure at its path. */
   check,

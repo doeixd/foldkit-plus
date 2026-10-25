@@ -28,8 +28,15 @@ import {
 } from 'drizzle-orm'
 import { getTableConfig as getPgTableConfig, type PgTable } from 'drizzle-orm/pg-core'
 import { SQLiteTable } from 'drizzle-orm/sqlite-core'
-import { Clock, Effect, Option, Schema } from 'effect'
-import type { EntityRef } from 'foldkit-entity'
+import { Array as Arr, Clock, Effect, Match, Option, Schema } from 'effect'
+import {
+  Entity as DomainEntity,
+  Expr,
+  Query,
+  evaluate,
+  type EntityRef,
+  type Invariant,
+} from 'foldkit-entity'
 import type { NormalizedPatch, QueryDescriptor } from 'foldkit-remote'
 import { Entity } from 'foldkit-remote'
 import {
@@ -45,7 +52,13 @@ import {
 } from 'foldkit-remote-server'
 import type { AnyEntityBinding, ManyRelation, ManyToManyRelation } from './binding.js'
 import { idColumn, projectsAny } from './columns.js'
-import { checkFields, compileOrderBy, compileWhere, QueryCompileError } from './compile.js'
+import {
+  checkFields,
+  compileOrderBy,
+  compilePredicates,
+  compileWhere,
+  QueryCompileError,
+} from './compile.js'
 import {
   cursorSelection,
   keyCursor,
@@ -995,6 +1008,70 @@ export const writer = <P = unknown>(
   // The rows as a principal may read them, under the binding's `visible`.
   const readable = source<P>(binding)
 
+  const { invariants } = binding
+  const invariantName = (held: Invariant) => `${binding.name}'s invariant "${held.id}"`
+  // Compiled once over the columns, so one this compiler cannot run fails where it is defined.
+  for (const held of invariants)
+    compilePredicates([held.predicate], binding, {}, invariantName(held))
+
+  /**
+   * Each invariant over the row an update leaves, for its `where`: a field it
+   * sets read as its new value, one it increments as its column moved by the
+   * amount, and every other field as its column. The row the statement writes
+   * is the row they judge.
+   */
+  const holdingInvariants = (
+    values: Readonly<Record<string, unknown>>,
+    increments: Readonly<Record<string, number>>,
+  ): Effect.Effect<ReadonlyArray<SQL>, RemoteServerError> =>
+    compileFor(() => {
+      const moved: Record<string, AnyColumn> = Object.assign(Object.create(null), binding.columns)
+      for (const [field, amount] of Object.entries(increments)) {
+        // An incremented field is a number, compared with no collation, and Drizzle's
+        // operators take an expression where they take a column.
+        moved[field] = sql`(${binding.columns[field]} + ${amount})` as unknown as AnyColumn
+      }
+      const target = { table: binding.table, columns: moved }
+      return invariants.flatMap(held =>
+        compilePredicates(
+          [Expr.substitute(held.predicate, values)],
+          target,
+          {},
+          invariantName(held),
+        ),
+      )
+    })
+
+  /** The row an update would leave: the row as it is, with its values set and amounts added. */
+  const proposedOf = (
+    row: Readonly<Record<string, unknown>>,
+    values: Readonly<Record<string, unknown>>,
+    increments: Readonly<Record<string, number>>,
+  ): Readonly<Record<string, unknown>> => {
+    const proposed: Record<string, unknown> = { ...row, ...values }
+    for (const [field, amount] of Object.entries(increments)) {
+      const held = row[field]
+      proposed[field] = typeof held === 'number' ? held + amount : held
+    }
+    return proposed
+  }
+
+  /** The first of the invariants a row breaks, as the refusal a writer answers it with. */
+  const refusalOf = (failures: ReadonlyArray<Invariant>) =>
+    Option.map(Arr.head(failures), held =>
+      RemoteServer.invalid(held.message, Option.some(held.id), held.path),
+    )
+
+  /** The refusal for the first invariant `row` breaks; none for a row it cannot judge. */
+  const brokenIn = (row: Readonly<Record<string, unknown>>) =>
+    Match.value(DomainEntity.judgeAgainst(invariants, row)).pipe(
+      Match.tagsExhaustive({
+        Valid: () => Option.none(),
+        Undecided: () => Option.none(),
+        Invalid: ({ failures }) => refusalOf(failures),
+      }),
+    )
+
   /** The columns a write sets: each field's value, and each `one` relation's foreign key. */
   const setOf = (
     values: Readonly<Record<string, unknown>>,
@@ -1196,6 +1273,7 @@ export const writer = <P = unknown>(
     entity: binding.name,
     preconditions: true,
     increments: true,
+    invariants: true,
     ...(ledger === undefined
       ? {}
       : {
@@ -1217,7 +1295,9 @@ export const writer = <P = unknown>(
         }),
     update: ({ id, values, increments, links, expect, when, operation, principal }) =>
       Effect.gen(function* () {
-        const { where, bump } = yield* rowOf(id, expect, when)
+        const at = yield* rowOf(id, expect, when)
+        const where = and(at.where, ...(yield* holdingInvariants(values, increments)))
+        const { bump } = at
         const set = {
           ...(yield* setOf(values, links)),
           ...(yield* incrementsOf(increments)),
@@ -1225,12 +1305,13 @@ export const writer = <P = unknown>(
         }
         // A row a revision on could be another's increment: only the write itself says it landed.
         const incrementing = Object.keys(increments).length > 0
-        const answered = returning(binding, [
+        const answeredFields = [
           ...Object.keys(values),
           ...Object.keys(increments),
           ...Object.keys(links),
           ...Option.match(expect, { onNone: () => [], onSome: ({ field }) => [field] }),
-        ])
+        ]
+        const answered = returning(binding, answeredFields)
         const writes = yield* drizzleWrites
         // An operation the ledger knows is answered from it; a recorded write is never repeated.
         const book =
@@ -1284,19 +1365,29 @@ export const writer = <P = unknown>(
           )
         }
         const written = answeredOf(rows, answered)
-        if (Option.isSome(written) || (Option.isNone(expect) && Option.isNone(when))) {
-          return written
-        }
+        const conditioned = Option.isSome(expect) || Option.isSome(when) || invariants.length > 0
+        if (Option.isSome(written) || !conditioned) return written
         // The write missed. Why is read from the row as it is now: gone, moved
-        // past the expected revision, or else not holding the precondition.
-        const now = answeredOf(
-          yield* selectRows(yield* DrizzleDatabase, binding.table, answered.columns, {
-            where: eq(idColumn(binding), id),
-          }),
-          answered,
-        )
-        if (Option.isNone(now)) return now
-        const row = now.value
+        // past the expected revision, not holding the precondition, or else
+        // leaving a row that breaks an invariant. What those read is read too.
+        const judged = returning(binding, [
+          ...new Set([
+            ...answeredFields,
+            ...Option.match(when, {
+              onNone: () => [],
+              onSome: ({ body }) => Query.dependencies(body).predicate.map(field => field.key),
+            }),
+            ...invariants.flatMap(held => held.reads),
+          ]),
+        ])
+        const current = yield* selectRows(yield* DrizzleDatabase, binding.table, judged.columns, {
+          where: eq(idColumn(binding), id),
+        })
+        const whole = answeredOf(current, judged)
+        if (Option.isNone(whole)) return whole
+        // The same row, narrowed to what this write answers with.
+        const now = answeredOf(current, answered)
+        const row = whole.value
         if (Option.isSome(expect) && !sameStored(row[expect.value.field], expect.value.revision)) {
           // One revision past the expected one and holding these values, this
           // write landed already and its answer was lost: a retry answers the
@@ -1311,6 +1402,15 @@ export const writer = <P = unknown>(
               holdsWritten(row, values, links),
           )
         }
+        const holdsWhen = Option.match(when, {
+          onNone: () => true,
+          onSome: ({ body, input }) => evaluate(body, input, [row]).length > 0,
+        })
+        // Holding its precondition, it missed by the row it would leave.
+        if (holdsWhen) {
+          const broken = brokenIn(proposedOf(row, values, increments))
+          if (Option.isSome(broken)) return yield* broken.value
+        }
         // A write with no precondition missed only by its revision.
         if (Option.isNone(when)) return Option.none()
         // At the expected revision, or expecting none: the precondition did not
@@ -1324,6 +1424,20 @@ export const writer = <P = unknown>(
       }),
     insert: ({ id, values, links }) =>
       Effect.gen(function* () {
+        // There is no row yet: the row it would make is its values, judged before it is written.
+        yield* Match.value(DomainEntity.judgeAgainst(invariants, { ...values, id })).pipe(
+          Match.tagsExhaustive({
+            Valid: () => Effect.void,
+            Invalid: ({ failures }) =>
+              Option.match(refusalOf(failures), { onNone: () => Effect.void, onSome: Effect.fail }),
+            Undecided: ({ fields }) =>
+              Effect.fail(
+                new RemoteServerError({
+                  message: `${binding.name} ${id}: an invariant reads ${fields.join(', ')}, which the insert does not set`,
+                }),
+              ),
+          }),
+        )
         const idKey = keys.get(idColumn(binding))
         if (idKey === undefined) return yield* missing('id column to insert')
         const set = { ...(yield* setOf(values, links)), [idKey]: id }

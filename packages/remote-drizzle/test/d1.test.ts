@@ -335,6 +335,38 @@ describe('A declared write over D1', () => {
     expect(await stock()).toEqual({ stock: 0, revision: 2 })
   }, 30_000)
 
+  it('refuses an update that would leave the row breaking an invariant, in the one statement', async () => {
+    const Guarded = Entity.define(
+      'Item',
+      Schema.Struct({ id: Schema.String, stock: Schema.Number, revision: Schema.Number }),
+    ).pipe(
+      Entity.invariant('stockNotNegative', f => Expr.gte(f.stock, 0), {
+        message: 'Stock cannot go below zero',
+      }),
+    )
+    const GuardedDb = bind({ Item: Guarded }, { Item: { table: items } })
+    const Restock = Mutation.write(
+      'Restock',
+      Write.update(
+        Entity.input(
+          Guarded,
+          Schema.Struct({ id: Schema.String, revision: Schema.Number, quantity: Schema.Number }),
+          { quantity: Entity.unmapped },
+        ),
+        { id: 'id', expect: 'revision', increment: { stock: 'quantity' } },
+      ),
+    )
+    const restock = [RemoteServer.write(Restock, writer<string>(GuardedDb.Item))]
+    expect(await send(restock, 'Restock', { id: 'i1', revision: 1, quantity: -2 })).toMatchObject({
+      _tag: 'Failure',
+      failure: { refusal: { _tag: 'Invalid', rule: 'stockNotNegative', path: ['stock'] } },
+    })
+    expect(await stock()).toEqual({ stock: 1, revision: 1 })
+    expect(await send(restock, 'Restock', { id: 'i1', revision: 1, quantity: -1 })).toMatchObject({
+      _tag: 'Success',
+    })
+  }, 30_000)
+
   it('refuses a ledger, which needs a transaction D1 does not offer, and writes nothing', async () => {
     const take = [
       RemoteServer.write(

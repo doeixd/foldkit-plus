@@ -100,10 +100,14 @@ export const invariantsOf = (entity: AnyEntity): ReadonlyArray<Invariant> =>
  * invariant, as a `WHERE` drops the row; a field the row does not have leaves it
  * undecided, never valid.
  */
-export const judge = (entity: AnyEntity, row: Row): Judgement => {
+export const judge = (entity: AnyEntity, row: Row): Judgement =>
+  judgeAgainst(invariantsOf(entity), row)
+
+/** `judge` with the invariants given, as a binding that keeps them holds them. */
+export const judgeAgainst = (invariants: ReadonlyArray<Invariant>, row: Row): Judgement => {
   const missing = new Set<string>()
   const failures: Array<Invariant> = []
-  for (const held of invariantsOf(entity)) {
+  for (const held of invariants) {
     const absent = held.reads.filter(key => !Object.hasOwn(row, key))
     if (absent.length > 0) absent.forEach(key => missing.add(key))
     else if (truthOver(held.predicate, row) !== true) failures.push(held)

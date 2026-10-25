@@ -4,7 +4,7 @@
  */
 import { Schema, SchemaGetter } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Collation, Entity, Expr } from '../src/index.js'
+import { Collation, Entity, Expr, truthOver } from '../src/index.js'
 
 /** A date the store keeps as ISO text, so an invariant over it compares the text. */
 const Day = Schema.Date.pipe(
@@ -152,5 +152,30 @@ describe('Entity.check', () => {
   it('judges a decoded value by its stored form', () => {
     expect(Schema.is(Stored)(decoded)).toBe(true)
     expect(Schema.is(Stored)({ ...decoded, ends: new Date('2025-12-01') })).toBe(false)
+  })
+})
+
+describe('Expr.substitute', () => {
+  const Item = Entity.define(
+    'Item',
+    Schema.Struct({ id: Schema.String, name: Schema.String, size: Schema.NullOr(Schema.Number) }),
+  )
+  const f = Item.fields
+  const stored = { id: 'i1', name: 'Bolt', size: 3 }
+  // Each holds of the stored row and not once `values` replace what it reads, or the reverse.
+  it.each([
+    ['eq', Expr.eq(f.name, 'Bolt'), { name: 'Nut' }],
+    ['isNull', Expr.isNotNull(f.size), { size: null }],
+    ['contains', Expr.contains(f.name, 'ol'), { name: 'Nut' }],
+    ['in', Expr.in(f.size, [3, 4]), { size: 5 }],
+    ['and', Expr.and(Expr.eq(f.name, 'Bolt'), Expr.isNotNull(f.size)), { size: null }],
+    ['or', Expr.or(Expr.eq(f.name, 'Bolt'), Expr.isNull(f.size)), { name: 'Nut' }],
+    ['not', Expr.not(Expr.eq(f.name, 'Nut')), { name: 'Nut' }],
+    ['compare', Expr.gte(f.size, 2), { size: 1 }],
+  ])('reads a value given for what %s reads', (_, predicate, values) => {
+    expect(truthOver(predicate, stored)).toBe(true)
+    expect(truthOver(Expr.substitute(predicate, values), stored)).toBe(false)
+    // A field it names but does not read changes nothing.
+    expect(truthOver(Expr.substitute(predicate, { id: 'other' }), stored)).toBe(true)
   })
 })

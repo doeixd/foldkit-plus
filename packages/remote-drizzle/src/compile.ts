@@ -444,7 +444,15 @@ export const compileWhere = (
   target: CompileTarget,
   input: Readonly<Record<string, unknown>>,
   query: string,
-): ReadonlyArray<SQL> => body.where.map(node => predicate(node, target, input, query))
+): ReadonlyArray<SQL> => compilePredicates(body.where, target, input, query)
+
+/** Predicates with no body around them, as SQL fragments: an invariant's, say. */
+export const compilePredicates = (
+  predicates: ReadonlyArray<Predicate>,
+  target: CompileTarget,
+  input: Readonly<Record<string, unknown>>,
+  query: string,
+): ReadonlyArray<SQL> => predicates.map(node => predicate(node, target, input, query))
 
 /**
  * The body's ordering for one input, as this package's order terms: a chosen
