@@ -8,15 +8,17 @@
  */
 import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
-import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Schema } from 'effect'
-import { Entity, Expr, Order } from 'foldkit-entity'
-import { Query } from 'foldkit-remote'
+import { Entity, Expr, Order, Write } from 'foldkit-entity'
+import { Mutation, Query } from 'foldkit-remote'
+import { RemoteServer, type MutationSource } from 'foldkit-remote-server'
 import { Miniflare } from 'miniflare'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import {
   bind,
   databaseLayer,
+  type DrizzleDatabase,
   drizzleWrites,
   entity,
   many,
@@ -25,6 +27,7 @@ import {
   returning,
   source,
   type AnyEntityBinding,
+  writer,
 } from '../src/index.js'
 
 const users = sqliteTable('users', {
@@ -239,5 +242,113 @@ describe('RemoteDrizzle over D1', () => {
         },
       },
     ])
+  }, 30_000)
+})
+
+describe('A declared write over D1', () => {
+  const Item = Entity.define(
+    'Item',
+    Schema.Struct({ id: Schema.String, stock: Schema.Number, revision: Schema.Number }),
+  )
+  const items = sqliteTable('items', {
+    id: text('id').primaryKey(),
+    stock: integer('stock').notNull(),
+    revision: integer('revision').notNull(),
+  })
+  const ItemDb = bind({ Item }, { Item: { table: items } })
+  const ledgerTable = sqliteTable('write_ledger', {
+    scope: text('scope').notNull(),
+    operation: text('operation').notNull(),
+    target: text('target').notNull(),
+    answer: text('answer').notNull(),
+    at: integer('at').notNull(),
+  })
+  const Amount = Entity.input(
+    Item,
+    Schema.Struct({ id: Schema.String, revision: Schema.Number, quantity: Schema.Number }),
+    { quantity: Entity.unmapped },
+  )
+  // Takes from the stock only while some is left: the precondition reads the row the sum moves.
+  const Sell = Mutation.write(
+    'Sell',
+    Write.update(Amount, {
+      id: 'id',
+      expect: 'revision',
+      increment: { stock: 'quantity' },
+      when: () => Expr.gte(Item.fields.stock, 1),
+    }),
+  )
+  const Take = Mutation.write(
+    'Take',
+    Write.update(
+      Entity.input(Item, Schema.Struct({ id: Schema.String, quantity: Schema.Number }), {
+        quantity: Entity.unmapped,
+      }),
+      { id: 'id', increment: { stock: 'quantity' } },
+    ),
+  )
+  let requests = 0
+  const send = (
+    mutations: ReadonlyArray<MutationSource<string, DrizzleDatabase>>,
+    mutation: string,
+    input: unknown,
+    operation?: string,
+  ) =>
+    Effect.runPromise(
+      RemoteServer.handlers(RemoteServer.make({ entities: [], mutations }), 'ada')
+        .FoldkitRemoteMutate({
+          requestId: `r${++requests}`,
+          mutation,
+          input,
+          ...(operation === undefined ? {} : { operation }),
+        })
+        .pipe(Effect.result, Effect.provide(databaseLayer(database()))),
+    )
+  const stock = async () =>
+    (await db.prepare("SELECT stock, revision FROM items WHERE id = 'i1'").first()) as unknown
+
+  beforeEach(async () => {
+    await db.batch([
+      db.prepare('DROP TABLE IF EXISTS items'),
+      db.prepare('DROP TABLE IF EXISTS write_ledger'),
+      db.prepare(
+        'CREATE TABLE items (id TEXT PRIMARY KEY, stock INTEGER NOT NULL, revision INTEGER NOT NULL)',
+      ),
+      db.prepare(
+        'CREATE TABLE write_ledger (scope TEXT NOT NULL, operation TEXT NOT NULL, target TEXT NOT NULL, answer TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (scope, operation, target))',
+      ),
+      db.prepare("INSERT INTO items VALUES ('i1', 1, 1)"),
+    ])
+  })
+
+  it('adds the amount and checks its precondition in the one statement D1 runs', async () => {
+    const sell = [RemoteServer.write(Sell, writer<string>(ItemDb.Item))]
+    expect(await send(sell, 'Sell', { id: 'i1', revision: 1, quantity: -1 })).toMatchObject({
+      _tag: 'Success',
+      success: { entities: [{ id: 'i1', values: { stock: 0, revision: 2 } }] },
+    })
+    // None left: refused as unmet, at the revision it now has, and nothing moves.
+    expect(await send(sell, 'Sell', { id: 'i1', revision: 2, quantity: -1 })).toMatchObject({
+      _tag: 'Failure',
+      failure: { refusal: { _tag: 'Unmet' } },
+    })
+    expect(await stock()).toEqual({ stock: 0, revision: 2 })
+  }, 30_000)
+
+  it('refuses a ledger, which needs a transaction D1 does not offer, and writes nothing', async () => {
+    const take = [
+      RemoteServer.write(
+        Take,
+        writer<string>(ItemDb.Item, {
+          ledger: { table: ledgerTable, scope: principal => principal },
+        }),
+      ),
+    ]
+    expect(await send(take, 'Take', { id: 'i1', quantity: 5 }, 'op-a')).toMatchObject({
+      _tag: 'Failure',
+      failure: { message: "Item's ledger needs a database with transactions" },
+    })
+    expect(await stock()).toEqual({ stock: 1, revision: 1 })
+    expect(await db.prepare('SELECT * FROM write_ledger').all()).toMatchObject({ results: [] })
   }, 30_000)
 })

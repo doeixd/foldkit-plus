@@ -863,8 +863,10 @@ table.
 - Only an update is recorded. An insert and a delete are already answered
   exactly on a retry (an id holding what it wrote; a row already gone).
 - The ledger runs in a transaction: synchronous on SQLite, awaited on Postgres.
-  D1 offers none, so a ledger there fails each write it would record, rather
-  than writing it unrecorded.
+  D1 offers none (its Drizzle database has a `transaction`, whose `BEGIN` D1
+  refuses), so a ledger there refuses each write it would record, rather than
+  writing it unrecorded. A precondition and an increment need no transaction and
+  work on D1.
 - A write from a client that sends no operation id is written as without a
   ledger, except an increment that expects no revision, which is refused.
 

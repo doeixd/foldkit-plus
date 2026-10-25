@@ -41,8 +41,8 @@ export default [
   edit(
     'a database with no transactions writes unrecorded',
     drizzle,
-    "if (typeof database.transaction !== 'function') {",
-    'if (false) {',
+    "typeof database.transaction !== 'function' ||",
+    'false ||',
   ),
   edit(
     'an increment with no revision is served over a writer with no ledger',
@@ -80,4 +80,15 @@ export default [
     '      eq(book.table.target, Entity.refKey({ entity: binding.name, id })),\n',
     '',
   ),
+  {
+    name: 'D1 is taken for a database with transactions',
+    edits: [
+      {
+        file: drizzle,
+        find: "[entityKind] === 'D1Database'",
+        replace: "[entityKind] === 'none'",
+      },
+    ],
+    tests: ['packages/remote-drizzle/test/d1.test.ts'],
+  },
 ]
