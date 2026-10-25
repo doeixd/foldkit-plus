@@ -476,7 +476,13 @@ refused as `Refusal.conflict`. With `when`, the writer is handed the
 precondition and the input encoded, checks it in the statement that writes, and
 fails a row at the revision that does not hold it with `RemoteUnmet`
 (`RemoteServer.unmet()`), which is refused as `Refusal.unmet`: absent first, then
-a moved revision, then the precondition. A writer says it checks one
+a moved revision, then the precondition. A row the write would leave that
+breaks an invariant of its Entity (`Entity.invariant`) is the writer's to
+refuse, with `RemoteServer.invalid(message, rule, path)`, which is refused as
+`Refusal.invalid`: the invariant's id and path, or none and empty when the
+caller may not be told them. A writer says it judges invariants
+(`invariants: true`), and a write over an Entity that has some, through a writer
+that does not, is refused where it is served. A writer says it checks one
 (`preconditions: true` on `EntityWriter`), and a write with a `when` over a
 writer that does not is refused where it is served, rather than written whatever
 the row holds. A write's increments reach the writer apart from its values

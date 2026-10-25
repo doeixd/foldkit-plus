@@ -182,7 +182,18 @@ export interface MutationDescriptor<Name extends string, Input, Output, Refused 
 
 const conflict = Schema.TaggedStruct('Conflict', {})
 const unmet = Schema.TaggedStruct('Unmet', {})
-const conflictOrUnmet = Schema.Union([conflict, unmet])
+/**
+ * The row the write would leave breaks one of its Entity's invariants: which
+ * one, what to tell the author, and the fields to show it beside. None and
+ * empty when the invariant reads a member hidden from whoever asked.
+ */
+const invalid = Schema.TaggedStruct('Invalid', {
+  rule: Schema.OptionFromNullOr(Schema.String),
+  message: Schema.String,
+  path: Schema.Array(Schema.String),
+})
+const conflictOrInvalid = Schema.Union([conflict, invalid])
+const conflictUnmetOrInvalid = Schema.Union([conflict, unmet, invalid])
 const anyField = Schema.TaggedStruct('Field', { key: Schema.String, reason: Schema.Unknown })
 
 /** Refusals a form or an editor knows how to show. */
@@ -194,19 +205,28 @@ export const Refusal = {
   conflict,
   /** The row does not hold what the write's `when` asks of it, where it would commit. */
   unmet,
+  /** The row the write would leave breaks an invariant of its Entity. */
+  invalid,
   /** Whether a refusal, of whatever mutation, is a `Refusal.field`. */
   isField: Schema.is(anyField),
   /** Whether a refusal, of whatever mutation, is `Refusal.conflict`. */
   isConflict: Schema.is(conflict),
   /** Whether a refusal, of whatever mutation, is `Refusal.unmet`. */
   isUnmet: Schema.is(unmet),
+  /** Whether a refusal, of whatever mutation, is `Refusal.invalid`. */
+  isInvalid: Schema.is(invalid),
 }
 
-/** What a declared write may be refused with: unmet too, when it has a `when`. */
+/**
+ * What a declared write may be refused with: unmet too, when it has a `when`,
+ * and invalid always, since the server's Entity may hold invariants the
+ * client's does not show.
+ */
 export type RefusalOfWrite<W> =
-  W extends ConditionedWrite<any, any>
-    ? typeof conflict.Type | typeof unmet.Type
-    : typeof conflict.Type
+  | (W extends ConditionedWrite<any, any>
+      ? typeof conflict.Type | typeof unmet.Type
+      : typeof conflict.Type)
+  | typeof invalid.Type
 
 /** A codec, or the fields of a `Schema.Struct` where one is expected. */
 export type SchemaOrFields = Schema.Codec<any, any, any, any> | Schema.Struct.Fields
@@ -280,8 +300,8 @@ export const Mutation = {
    * A mutation that is a declared `Write` (`update`, `insert` or `delete`): its
    * input is the write's, and it answers nothing but the row it changed, as a
    * patch, or its deletion. It may be refused as a conflict, for a write that
-   * `expect`s a revision the row has moved past, and, for a write with a
-   * `when`, as unmet.
+   * `expect`s a revision the row has moved past, for a write with a `when` as
+   * unmet, and as invalid when the row it would leave breaks an invariant.
    */
   write: <
     const Name extends string,
@@ -297,10 +317,9 @@ export const Mutation = {
     Input: write.input.schema as unknown as Schema.Codec<Schema.Struct.Type<Fields>>,
     Output: Schema.Struct({}),
     // What the overloads typed `W` by is whether it holds a `when`.
-    Refusal: (Option.isSome(write.when) ? conflictOrUnmet : conflict) as unknown as Schema.Codec<
-      RefusalOfWrite<W>,
-      unknown
-    >,
+    Refusal: (Option.isSome(write.when)
+      ? conflictUnmetOrInvalid
+      : conflictOrInvalid) as unknown as Schema.Codec<RefusalOfWrite<W>, unknown>,
     write,
   }),
 

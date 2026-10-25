@@ -1,4 +1,4 @@
-/** A declared write's refusals: unmet only for one with a `when`. */
+/** A declared write's refusals: unmet only for one with a `when`, invalid for every one. */
 import { Schema } from 'effect'
 import { Entity, Expr, Write } from 'foldkit-entity'
 import { Mutation, Refusal } from 'foldkit-remote'
@@ -23,19 +23,30 @@ const Removing = Mutation.write(
   }),
 )
 
-expectTypeOf(Plain.Refusal.Type).toEqualTypeOf<typeof Refusal.conflict.Type>()
+expectTypeOf(Plain.Refusal.Type).toEqualTypeOf<
+  typeof Refusal.conflict.Type | typeof Refusal.invalid.Type
+>()
 expectTypeOf(Drafts.Refusal.Type).toEqualTypeOf<
-  typeof Refusal.conflict.Type | typeof Refusal.unmet.Type
+  typeof Refusal.conflict.Type | typeof Refusal.unmet.Type | typeof Refusal.invalid.Type
 >()
 expectTypeOf(Removing.Refusal.Type).toEqualTypeOf<
-  typeof Refusal.conflict.Type | typeof Refusal.unmet.Type
+  typeof Refusal.conflict.Type | typeof Refusal.unmet.Type | typeof Refusal.invalid.Type
 >()
 // The input type is the write's, conditioned or not.
 expectTypeOf(Drafts.Input.Type).toEqualTypeOf<{ readonly id: string; readonly title: string }>()
 
 // A match over a plain write's refusals needs no Unmet arm, and one over a conditioned write's does.
-const plainArms: Record<(typeof Plain.Refusal.Type)['_tag'], true> = { Conflict: true }
+const plainArms: Record<(typeof Plain.Refusal.Type)['_tag'], true> = {
+  Conflict: true,
+  Invalid: true,
+}
 // @ts-expect-error a conditioned write may be refused as unmet
-const draftArms: Record<(typeof Drafts.Refusal.Type)['_tag'], true> = { Conflict: true }
+const draftArms: Record<(typeof Drafts.Refusal.Type)['_tag'], true> = {
+  Conflict: true,
+  Invalid: true,
+}
+// @ts-expect-error any declared write may be refused as invalid
+const noInvalidArm: Record<(typeof Plain.Refusal.Type)['_tag'], true> = { Conflict: true }
+void noInvalidArm
 void plainArms
 void draftArms

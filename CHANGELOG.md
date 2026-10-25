@@ -103,6 +103,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-remote`: every declared write may be refused as `Invalid`.**
+  `Refusal.invalid` (`{ rule: Option<string>, message, path }`, with
+  `Refusal.isInvalid`) is in every `Mutation.write`'s `Refusal` type, because
+  the server's Entity may hold invariants the client's does not show. A match
+  over such a refusal needs an `Invalid` arm. On the server,
+  `RemoteServer.invalid(message, rule?, path?)` is a writer's `RemoteInvalid`,
+  answered as that refusal; `EntityWriter.invariants: true` says a writer
+  judges them, and `RemoteServer.write` refuses a write over an Entity with
+  invariants through a writer that does not. (#183)
 - **`foldkit-remote`: `Remote.mutate`'s fourth argument is options.**
   `Remote.mutate(mutation, input, requestId, { keys, operation })`; it was
   `keys`, positionally. A caller that passed keys passes `{ keys }`.
