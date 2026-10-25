@@ -128,8 +128,8 @@ const Todo = TodoFields.pipe(
   lands only on the revision its rules were decided over, decided again if the
   row moved; an input may `expect` only that field. A change that does not move
   it (a handler, raw SQL) is not seen; without `revision`, none is, and
-  `GuardServer.validate` warns. `validate` also refuses a `when` or `expect`
-  over a member with a Read rule.
+  `GuardServer.validate` warns. A `when` or `expect` over a member with a Read
+  rule is refused by the writer itself, and by `validate` at startup.
 - `may`: `TodoFields.pipe(Guards.attach(G, { … }), Guards.may)` adds a derived
   member `GuardServer.filter` answers per row (over Drizzle, bind it
   `derived: { may: { supplied: true } }`); select `may: true` and read it with
