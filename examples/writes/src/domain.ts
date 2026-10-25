@@ -1,6 +1,6 @@
 /**
- * What client and server share: one Entity, who may change it, and three
- * declared writes. Nothing here runs a query or touches a table.
+ * What client and server share: one Entity, who may change it, what every row
+ * of it holds, and four declared writes. Nothing here runs a query or touches a table.
  */
 import { Schema } from 'effect'
 import { Entity, Expr, Write } from 'foldkit-entity'
@@ -18,6 +18,7 @@ const ProductFields = Entity.define(
     name: Schema.String,
     status: Schema.Literals(['draft', 'published', 'archived']),
     stock: Schema.Number,
+    reserved: Schema.Number,
     revision: Schema.Number,
   }),
 )
@@ -31,9 +32,17 @@ export const Shop = Guards.declare(
   { key: user => user.id, unguarded: 'allow' },
 )
 
-/** A product is its owner's to read and to change. */
+/**
+ * A product is its owner's to read and to change, and whoever changes it
+ * leaves no more reserved than is in stock: who may is a rule, what every row
+ * holds an invariant.
+ */
 export const Product = ProductFields.pipe(
   Guards.attach(Shop, { row: { Read: [Shop.isOwner], Update: [Shop.isOwner] } }),
+  Entity.invariant('reservedWithinStock', f => Expr.lte(f.reserved, Expr.field(f.stock)), {
+    message: 'Reserved stock cannot exceed the stock',
+    path: ['reserved'],
+  }),
 )
 
 /** A guarded rename: the rules decide who may, the writer's revision pin when it lands. */
