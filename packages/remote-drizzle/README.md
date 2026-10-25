@@ -854,7 +854,30 @@ breaking an invariant. A write that repairs a row already invalid is judged by
 the row it leaves, so it lands. An invariant the database cannot compile is
 refused when the writer is made, not at the first write. A table-only binding
 (`entity`) has no Entity, so no invariants; a handler's writes, and raw SQL, are
-not judged.
+not judged by the writer.
+
+To hold an invariant against those too, install it as a constraint.
+`invariantChecks(binding)` gives each as `constraint "<table>_<id>" check ((…) is
+true)`, its values written into the SQL: `is true`, because a plain `check`
+passes a row its condition calls unknown, and an invariant does not.
+
+```ts
+for (const { constraint } of invariantChecks(Db.Stock)) {
+  await pglite.exec(`alter table stock add ${constraint}`)
+}
+```
+
+- **Postgres** adds one to a table (`alter table … add`). A table already
+  holding rows that break it refuses the constraint; add it `not valid`, repair
+  the rows, then `alter table … validate constraint "<name>"`.
+- **SQLite** cannot add a constraint to a table: write each in the table's
+  `create table`, and for an existing table rebuild it (create the new one,
+  copy the rows, drop the old, rename), which fails on a row that breaks one.
+- Changing an invariant is a migration too: drop the constraint by its name and
+  add the new one.
+- The writer still judges first, so a declared write keeps its typed `Invalid`;
+  a handler or raw SQL meeting a constraint fails as a database error.
+- One the dialect cannot compile is refused, by name.
 
 ### A ledger: a retry is never applied twice
 

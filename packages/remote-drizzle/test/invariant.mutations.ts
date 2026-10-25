@@ -73,4 +73,26 @@ export default [
     "if (write._tag === 'Insert') {",
     'if (false) {',
   ),
+  edit(
+    'a constraint passes a row its condition calls unknown',
+    drizzle,
+    'sql`(${condition}) is true`.inlineParams()',
+    'sql`(${condition})`.inlineParams()',
+  ),
+  edit(
+    'a constraint is sent its values as parameters',
+    drizzle,
+    'sql`(${condition}) is true`.inlineParams()',
+    'sql`(${condition}) is true`',
+  ),
+  {
+    ...edit(
+      'a constraint holding a parameter is taken',
+      drizzle,
+      'if (query.params.length > 0) {',
+      'if (false) {',
+    ),
+    survives:
+      'Drizzle inlines every value the compiler passes it, so no test reaches the guard; it keeps a value Drizzle did not inline from becoming a silent `?` in a constraint',
+  },
 ]

@@ -148,7 +148,8 @@ predicts the sum over the value it holds, re-added as that value changes
 declares what every stored row must hold (piped onto the Entity); `Entity.judge(entity, row)`
 answers `Valid`, `Invalid` or `Undecided` (a field missing), a null failing, and
 `Entity.check(entity)` is the same as a Schema check. The Drizzle writer enforces them over the row a write leaves,
-in its statement, and refuses a breaking write as `Refusal.invalid`. `Write.writes(write)` is what
+in its statement, and refuses a breaking write as `Refusal.invalid`; `invariantChecks(binding)` from
+`foldkit-remote-drizzle` gives each as a `CHECK` constraint to migrate with, which holds against raw SQL too. `Write.writes(write)` is what
 it may change and `Write.bind(write, value, keys?)` the row and its encoded new
 values, for an optimistic patch or a server to write.
 
