@@ -6,9 +6,10 @@
  * brings the server along.
  */
 import { Effect, Match, Option, Schema, SchemaAST } from 'effect'
-import { Query, type AnyEntity, type AnyQuery } from 'foldkit-entity'
+import { Entity, Query, type AnyEntity, type AnyQuery } from 'foldkit-entity'
 import type { MutationDescriptor, RemoteForbidden } from 'foldkit-remote'
 import {
+  RemoteInvalid,
   RemoteServer,
   RemoteServerError,
   type EntityRecord,
@@ -455,6 +456,21 @@ export const GuardServer = {
     }
     const attachment = attached(entity)
     const hiddenByBody = new WeakMap<AnyQuery, ReadonlyArray<string>>()
+    // An invariant reading a member a Read rule hides is still enforced, but named to no
+    // one: which one failed, and where, would say what that member holds.
+    const unnamed = new Set(
+      Option.match(attachment, {
+        onNone: () => [],
+        onSome: ruled =>
+          Entity.invariants(entity)
+            .filter(held => held.reads.some(key => readRuled(ruled, key)))
+            .map(held => held.id),
+      }),
+    )
+    const told = <E>(error: E | RemoteInvalid): E | RemoteInvalid =>
+      error instanceof RemoteInvalid && Option.exists(error.rule, rule => unnamed.has(rule))
+        ? RemoteServer.invalid('The row would be invalid')
+        : error
     /**
      * Fails a write whose `when` reads, or whose `expect` names, a member with
      * a Read rule: Unmet or written, Conflict or not, would answer for it.
@@ -610,6 +626,8 @@ export const GuardServer = {
       ...(writer.preconditions === true ? { preconditions: true } : {}),
       ...(writer.increments === true ? { increments: true } : {}),
       ...(writer.ledger === true ? { ledger: true } : {}),
+      // Invariants are the writer's to judge, over the row its statement writes.
+      ...(writer.invariants === true ? { invariants: true } : {}),
       ...(writer.recorded === undefined ? {} : { recorded: writer.recorded }),
       read: ({ id, fields, principal }) =>
         seenRow(
@@ -620,22 +638,25 @@ export const GuardServer = {
           id,
         ),
       update: context =>
-        Effect.andThen(admitUpdate(context), () =>
-          answeredOr(context, () =>
-            pinned(context.id, context.expect, Option.isNone, () =>
-              Effect.gen(function* () {
-                const rules = yield* updateRules(context)
-                const current = yield* readBefore(context, rules)
-                if (Option.isNone(current)) return yield* Effect.fail(refused(rules.row.deny))
-                if (moved(context.expect, current.value)) return Option.none()
-                yield* decideUpdate(context, rules, current.value)
-                return yield* writer.update({
-                  ...context,
-                  expect: pin(context.expect, current.value),
-                })
-              }),
+        Effect.mapError(
+          Effect.andThen(admitUpdate(context), () =>
+            answeredOr(context, () =>
+              pinned(context.id, context.expect, Option.isNone, () =>
+                Effect.gen(function* () {
+                  const rules = yield* updateRules(context)
+                  const current = yield* readBefore(context, rules)
+                  if (Option.isNone(current)) return yield* Effect.fail(refused(rules.row.deny))
+                  if (moved(context.expect, current.value)) return Option.none()
+                  yield* decideUpdate(context, rules, current.value)
+                  return yield* writer.update({
+                    ...context,
+                    expect: pin(context.expect, current.value),
+                  })
+                }),
+              ),
             ),
           ),
+          told,
         ),
       insert: given =>
         Effect.gen(function* () {
@@ -681,7 +702,7 @@ export const GuardServer = {
             ...rule,
             condition: Condition.unsetting(rule.condition, unset),
           })), proposed, principal)
-          return yield* writer.insert(context)
+          return yield* Effect.mapError(writer.insert(context), told)
         }),
       delete: context =>
         Effect.andThen(discloses(context.expect, context.when), () =>
