@@ -14,10 +14,12 @@ version changed; `pnpm` skips versions already in the registry.
   every stored row must hold (`({ after }) => Expr.lte(after.reserved,
   after.quantity)`). `after` is each field as the row after a write holds it
   (`Expr.next`, a `Next` node, which query interpreters refuse as the operation
-  `next`); `before` is the Entity's fields. What it reads sets its lifecycle:
+  `next`); `before` each as the row before holds it (`Expr.field`). What it reads sets its lifecycle:
   one over `after` only is a state invariant, judged on every create and
   update; one that reads `before` too is a transition invariant (a shipped
-  order stays shipped), judged on updates only (`Entity.readsBefore`).
+  order stays shipped), judged on updates only (`Entity.readsBefore`). One that
+  reads nothing of `after` is refused where it is declared: which rows a write
+  may start from is its `when`.
   `Entity.judge(entity, { after, before? })` judges a row or a change: `Valid`,
   `Invalid` with the failures (a null fails, as SQL's unknown), or `Undecided`
   when a row lacks a field one reads. `Entity.check(entity)` is the state
@@ -47,7 +49,9 @@ version changed; `pnpm` skips versions already in the registry.
   server. `Crud.editor` shows a save's `Refusal.invalid` the same way. (#183)
 - **`foldkit-remote-drizzle`: the writer judges transition invariants.** Over
   every update's change, in its statement (the row before as the columns,
-  after as for a state invariant); a miss that breaks one is `Invalid`.
+  after as for a state invariant); a miss that breaks one is `Invalid`. A row
+  already holding what an update sets is answered as written, as its retry
+  finds it, and judged as a row rather than a change.
   `GuardServer.writer` names none over a Read-ruled member, and
   `RemoteServer.write` needs `invariants: true` of an update's writer when the
   Entity has any. (#184)

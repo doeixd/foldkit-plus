@@ -765,8 +765,8 @@ export const Entity = {
    * Expr.lte(after.reserved, after.quantity), { message })` over the row a
    * write leaves, or with `before` too over the change an update makes.
    * Refused where it is declared: an id declared twice, a predicate over another
-   * Entity or reading an input, an operation no judge runs, a path naming no
-   * field.
+   * Entity, one reading an input or nothing of `after` (that is a `when`), a path
+   * naming no field.
    */
   invariant,
 
@@ -1048,7 +1048,14 @@ export * from './shape.js'
 // this entry because it is fixture data every form and admin screen would
 // otherwise carry.
 export * from './evaluate.js'
-export type { AfterRow, Change, DeclaredInvariant, Invariant, Judgement } from './invariant.js'
+export type {
+  AfterRow,
+  BeforeRow,
+  Change,
+  DeclaredInvariant,
+  Invariant,
+  Judgement,
+} from './invariant.js'
 export {
   Write,
   type AnyWrite,

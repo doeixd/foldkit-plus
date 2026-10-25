@@ -1,5 +1,5 @@
 /**
- * An Entity's transitions, judged by the Drizzle writer over the change an
+ * An Entity's transition invariants, judged by the Drizzle writer over the change an
  * update makes, in the statement that makes it: the row before as the columns,
  * the row after with the write's values set and its amounts added. A create is
  * not judged. Each case runs on SQLite and on Postgres.
@@ -32,11 +32,9 @@ const Order = Entity.define(
       Expr.or(Expr.not(Expr.eq(before.status, 'shipped')), Expr.eq(after.status, 'shipped')),
     { message: 'A shipped order stays shipped', path: ['status'] },
   ),
-  Entity.invariant(
-    'totalNeverFalls',
-    ({ before, after }) => Expr.gte(after.total, Expr.field(before.total)),
-    { message: 'The total cannot fall' },
-  ),
+  Entity.invariant('totalNeverFalls', ({ before, after }) => Expr.gte(after.total, before.total), {
+    message: 'The total cannot fall',
+  }),
   // Reads a field before that a status write does not set.
   Entity.invariant(
     'shipsWithTotal',
@@ -145,7 +143,7 @@ const refused = (rule: string) => ({
   failure: { refusal: { _tag: 'Invalid', rule } },
 })
 
-describe.each(backends)('Transitions over %s', (_, backend) => {
+describe.each(backends)('Transition invariants over %s', (_, backend) => {
   const handlers = RemoteServer.handlers(
     RemoteServer.make({
       entities: [],
@@ -212,6 +210,19 @@ describe.each(backends)('Transitions over %s', (_, backend) => {
     })
   })
 
+  it('answers as written a write the row already holds, as a retry of one that landed finds it', async () => {
+    // Read as a change, shipping again with no total breaks shipsWithTotal; but it changes nothing.
+    await fresh("('o1', 'shipped', 0, 1)")
+    expect(await send('SetStatus', { id: 'o1', status: 'shipped' })).toMatchObject({
+      _tag: 'Success',
+      success: { entities: [{ values: { status: 'shipped' } }] },
+    })
+    // A change it does make is judged as one still.
+    expect(await send('SetStatus', { id: 'o1', status: 'placed' })).toMatchObject(
+      refused('shippedStaysShipped'),
+    )
+  })
+
   it('does not judge a create, which has no row before', async () => {
     await fresh()
     expect((await send('Place', { id: 'o1', status: 'shipped', total: 0, revision: 1 }))._tag).toBe(
@@ -220,14 +231,17 @@ describe.each(backends)('Transitions over %s', (_, backend) => {
   })
 })
 
-describe('A writer over an Entity with transitions', () => {
-  it('refuses, where it is made, a transition its database cannot compile', () => {
+describe('A writer over an Entity with transition invariants', () => {
+  it('refuses, where it is made, a transition invariant its database cannot compile', () => {
     const Unwritable = Order.pipe(
       Entity.invariant(
         'notNul',
-        ({ before }) =>
-          // @ts-expect-error: no status holds text with a NUL, which no SQL text holds portably
-          Expr.not(Expr.eq(before.status, `a${String.fromCharCode(0)}b`)),
+        ({ before, after }) =>
+          Expr.or(
+            Expr.eq(after.status, 'placed'),
+            // @ts-expect-error: no status holds text with a NUL, which no SQL text holds portably
+            Expr.not(Expr.eq(before.status, `a${String.fromCharCode(0)}b`)),
+          ),
         { message: 'x' },
       ),
     )

@@ -456,13 +456,14 @@ export const Inventory = InventoryFields.pipe(reservedWithinQuantity)
 Refusal.isInvalidBy(refusal, reservedWithinQuantity)
 ```
 
-- `before` is the Entity's fields; `after` is each field as the row after holds
-  it, an `Expr.next` node typed as the field.
+- `before` is each field as the row before holds it (`Expr.field`), and `after`
+  each as the row after holds it (`Expr.next`), both typed as the field.
 - It is declared once, on the Entity's metadata, and attaching more adds to it;
   the Entity stays the same (`Entity.same`). Its interpreters read it from there.
 - It reads stored rows only: one over another Entity, or reading an input, is
   refused where it is declared, as is an id declared twice or a `path` naming no
-  field. Who may write is a guard's; whether a write applies now is its `when`'s.
+  field. So is one reading nothing of `after`: which rows a write may start from
+  is its `when`. Who may write is a guard's; whether a write applies now is its `when`'s.
 - `Entity.judge(entity, { after, before? })` judges rows as the store holds them
   (encoded) and is pure. Without `before` (a create) it skips transition
   invariants. A row holds one only when it is true: a null fails it, as SQL's

@@ -41,8 +41,8 @@ export default [
   edit(
     'a row holding the set values passes an unmet increment as its retry',
     drizzle,
-    'if (sets && !incrementing && holdsWritten(row, values, links)) return now',
-    'if (sets && holdsWritten(row, values, links)) return now',
+    'const retried = sets && !incrementing && holdsWritten(row, values, links)',
+    'const retried = sets && holdsWritten(row, values, links)',
   ),
   edit('the answer leaves the sum out', drizzle, '          ...Object.keys(increments),\n', ''),
   edit(

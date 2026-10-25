@@ -51,8 +51,8 @@ export interface InputExpr<T> {
 }
 
 /**
- * A field as the row a write would leave holds it, where a rule judges a change
- * (`after.status` beside `before.status`). An interpreter that judges stored
+ * A field as the row a write would leave holds it: what an invariant reads
+ * (`after.status`, beside `before.status` over a change). An interpreter that judges stored
  * rows alone refuses it, as the operation `next`.
  */
 export interface NextExpr<T> {
@@ -583,8 +583,8 @@ export const Expr = {
     node({ _tag: 'Input', key, schema }),
 
   /**
-   * A field as the row a write would leave holds it, for a rule over a change:
-   * the builder of `Entity.rule` hands these out as `after`.
+   * A field as the row a write would leave holds it: what `Entity.invariant`'s
+   * builder hands out as `after`.
    */
   next: <Name extends string, Key extends string, S extends Schema.Constraint>(
     field: EntityField<Name, Key, S>,
@@ -765,7 +765,7 @@ export const Expr = {
 
   /**
    * The predicate with each field after a write (`Next`) that `values` names,
-   * by key, read as that value: how a rule over a change is judged where the
+   * by key, read as that value: how an invariant is judged where the
    * write's new values are known. A field it does not name stays `Next`, for
    * the interpreter to read as the row after holds it.
    */

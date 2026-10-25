@@ -4,7 +4,7 @@
  */
 import { Option, Schema, SchemaGetter } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Collation, Entity, Expr, truthOver } from '../src/index.js'
+import { assertSupported, Collation, Entity, Expr, Query, truthOver } from '../src/index.js'
 
 /** A date the store keeps as ISO text, so an invariant over it compares the text. */
 const Day = Schema.Date.pipe(
@@ -135,6 +135,27 @@ describe('An invariant', () => {
       'reads the input least',
     ],
     [
+      'a predicate reading only the row before, a precondition',
+      () =>
+        InventoryFields.pipe(
+          Entity.invariant('before', ({ before }) => Expr.gte(before.quantity, 0), {
+            message: 'x',
+          }),
+        ),
+      'reads no field of `after`',
+    ],
+    [
+      // The stored fields read the row before: an invariant reads the row after through `after`.
+      'a predicate over the stored fields alone',
+      () =>
+        InventoryFields.pipe(
+          Entity.invariant('stored', () => Expr.gte(InventoryFields.fields.quantity, 0), {
+            message: 'x',
+          }),
+        ),
+      'reads no field of `after`',
+    ],
+    [
       'a path naming no field',
       () =>
         InventoryFields.pipe(
@@ -191,6 +212,12 @@ describe('Expr.substituteNext', () => {
     expect(truthOver(Expr.substituteNext(predicate, values), {}, {}, after)).toBe(false)
     // A field it names but does not read changes nothing.
     expect(truthOver(Expr.substituteNext(predicate, { id: 'other' }), {}, {}, after)).toBe(true)
+  })
+
+  it('is refused by a query, which reads stored rows and no row after', () => {
+    expect(() =>
+      assertSupported(Query.from(Item).pipe(Query.where(Expr.eq(name, 'Bolt')))),
+    ).toThrow('does not run next')
   })
 
   it('leaves a field as stored alone: only the row after is substituted', () => {

@@ -10,7 +10,7 @@ published product does not go back to draft).
 
 ```text
 domain.ts   Product · who may change it (Shop) · what every row holds (an invariant)
-            and every change (a transition) · Rename · Publish · Revert · Restock · Sell
+            and every change (a transition invariant) · Rename · Publish · Revert · Restock · Sell
             (data: no query, no table)
 server.ts   products table, its invariant as a CHECK · GuardServer.writer(…, { revision })
             RemoteServer.write
