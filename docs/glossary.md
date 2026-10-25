@@ -50,6 +50,9 @@ each of those.
 | **Relation** | A field that refers to another Entity (`Relation.one`, `Relation.many`), stored as a ref key such as `'User:u1'`, never a copy. |
 | **Selection** | Exactly which fields of an Entity, and through which relations, a consumer needs; it decodes to that shape. `Entity.select`. |
 | **Query body** | What a query means, as a value: `Query.define(name, Input, ({ input }) => …)` with `Expr` predicates and an order. Compiled to SQL on a server, run over rows by `evaluate`. |
+| **Declared write** | A change to one row by id, as data (`Write.update`, `insert`, `delete`): what it sets, adds, and must find. Served with no handler. [Declared writes](./declared-writes.md) |
+| **Precondition** | A declared write's `when`: what the row must hold for the write to land, checked in the statement; refused as `Unmet`. |
+| **Increment** | A declared write's `increment`: an amount added to a number field in the statement (`stock = stock + ?`). |
 
 ## `foldkit-remote`: server data
 
@@ -63,7 +66,9 @@ each of those.
 | **Edge** | One entry in a connection: a key and a reference to an entity. |
 | **Segment** | A run of adjacent edges. The gap between two segments is rows nobody has fetched. |
 | **Boundary** | What is known past a segment's end: `Terminal` (nothing more), `Cursor` (where to page from), or `Unknown`. |
-| **Optimistic layer** | A mutation's patches shown over the cache while it is in flight, removed when it settles. |
+| **Optimistic layer** | A mutation's patches shown over the cache while it is in flight, removed when it settles. An increment's amount (`adds`) is added to the value under it each time it is read. |
+| **Operation id** | A mutation's identity to a server, unique across clients (`crypto.randomUUID()`), resent by a retry with the same `requestId`; unlike the request id, a per-Model counter. |
+| **Write ledger** | `foldkit-remote-drizzle`'s record of the updates a writer landed, by operation and row, so a retry is not applied twice. [Declared writes](./declared-writes.md#a-write-ledger) |
 | **Overlay** | Operations shown over the cache with no request behind them, until lifted: a preview. |
 | **Retention** | Keeping only what active Surfaces reach; the rest is collected when they change. |
 

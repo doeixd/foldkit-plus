@@ -834,6 +834,9 @@ see it, or, when the write hid it from them, a deletion.
 
 ### A ledger: a retry is never applied twice
 
+Where it sits beside expected revisions and plain assignments is in the
+[declared writes guide](../../docs/declared-writes.md#retries-three-different-guarantees).
+
 `writer(binding, { ledger: { table, scope } })` records each update it lands
 under the operation that asked for it (the client's `operation` id) and the row
 it wrote, in the
