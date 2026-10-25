@@ -22,6 +22,15 @@ export interface NormalizedPatch {
   readonly values: Readonly<Record<string, unknown>>
 }
 
+/**
+ * A patch a pending request shows, and the amounts it moves fields by: each
+ * added, whenever the store is read, to the value under it, so a change that
+ * reaches the store meanwhile is added to, not hidden.
+ */
+export interface PendingPatch extends NormalizedPatch {
+  readonly adds?: Readonly<Record<string, number>>
+}
+
 export interface MutationState {
   readonly pending: ReadonlySet<string>
   readonly applied: ReadonlySet<string>
@@ -234,17 +243,23 @@ export const patchOfWrite = (bound: BoundWrite): NormalizedPatch => ({
 /**
  * What a declared write shows before the server answers: an update's or an
  * insert's row as a patch (an update's only for the keys named, when some
- * are). A delete shows nothing, since no operation removes a row from every
+ * are), and an update's increments as amounts over the value the store holds. A delete shows nothing, since no operation removes a row from every
  * list it is in; its answer does.
  */
 export const optimisticOfWrite = (
   write: AnyWrite,
   input: unknown,
   keys: ReadonlyArray<string> | undefined,
-): ReadonlyArray<NormalizedPatch> =>
+): ReadonlyArray<PendingPatch> =>
   Match.value(write).pipe(
     Match.tagsExhaustive({
-      Update: () => [patchOfWrite(DomainWrite.bind(write, input as never, keys))],
+      Update: () => {
+        const bound = DomainWrite.bind(write, input as never, keys)
+        const patch = patchOfWrite(bound)
+        return [
+          Object.keys(bound.increments).length === 0 ? patch : { ...patch, adds: bound.increments },
+        ]
+      },
       // A new row is read like any other, so it carries its own id.
       Insert: () => {
         const patch = patchOfWrite(DomainWrite.bind(write, input as never))

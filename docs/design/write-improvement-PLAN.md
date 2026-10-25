@@ -174,8 +174,14 @@ correct for cooperating writers.
 ## 3. Out of scope
 
 General arithmetic and cross-field assignments (§2 of #182) wait for a use
-case. Client-side prediction of a write (§4 of #182) waits for the ledger, which
-gives a retry an exact answer to reconcile against. #183's invariants and
+case; a constant needs no assignment, since a literal input schema
+(`Schema.Literal('published')`) already fixes the value the server decodes.
+
+Client-side prediction of a write (§4 of #182), **built** 2026-10-25: an
+increment's pending layer holds its amount (`adds`), which Remote adds to the
+value the store holds each time it is read, so the prediction re-bases on a live
+change and two pending increments add up. A field the client has not read is not
+guessed. It is a prediction only: the guard decides, and the answer replaces it. #183's invariants and
 #184's transition rules build on phase 4.
 
 ## 4. Order and size

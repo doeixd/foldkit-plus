@@ -58,11 +58,12 @@ version changed; `pnpm` skips versions already in the registry.
 - **A declared update can move a number field by an amount: `increment`.**
   `Write.update(input, { id, expect, increment: { stock: 'quantity' } })` adds
   the input's unmapped `quantity` to the stored `stock`, in the statement that
-  writes (`column = column + amount` in the Drizzle writer). It must `expect`
-  a revision, so a retry of a write that landed is a `Conflict`, never a
-  second increment; Remote's recognition of a lost answer is off for such a
-  write. `Write.bind` returns `increments` apart from `values`, so the
-  optimistic patch shows no sum. `EntityWriter.update` receives `increments`,
+  writes (`column = column + amount` in the Drizzle writer). Without a ledger
+  (below) it must `expect` a revision, so a retry of a write that landed is a
+  `Conflict`, never a second increment; Remote's recognition of a lost answer is off for such a
+  write. `Write.bind` returns `increments` apart from `values`, and `Data.mutate`
+  predicts the sum over the value the store holds (a pending layer's `adds`,
+  added each time the store is read). `EntityWriter.update` receives `increments`,
   and a writer without `increments: true` is refused for such a write.
   `GuardServer.writer` requires the member's Update rule and judges the sum.
   `Write.reads` lists what a write reads from its row. (#182)

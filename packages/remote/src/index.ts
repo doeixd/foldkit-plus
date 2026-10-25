@@ -109,6 +109,7 @@ import {
 import {
   connectionIdentity,
   emptyOptimistic,
+  resolvedPatches,
   visibleItems,
   visibleStore,
   type ConnectionIdentity,
@@ -2846,7 +2847,10 @@ const bindDomain = <
       placedHeld(
         identity,
         pages,
-        changesOf({ entities: layers.flatMap(layer => layer.patches) }, remote.entities),
+        changesOf(
+          { entities: resolvedPatches(remote.entities, remote.optimistic) },
+          remote.entities,
+        ),
         visibleStoreOf(remote.entities, remote.optimistic),
       ),
     )

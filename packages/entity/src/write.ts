@@ -167,7 +167,7 @@ export interface BoundWrite {
    * key on the wire, a foreign key in a table) is each interpreter's.
    */
   readonly links: Readonly<Record<string, Option.Option<EntityRef>>>
-  /** Each field it moves, by the amount, encoded: the server's to add; no patch shows it. */
+  /** Each field it moves, by the amount, encoded: added by the server, and predicted over what a client holds. */
   readonly increments: Readonly<Record<string, number>>
 }
 

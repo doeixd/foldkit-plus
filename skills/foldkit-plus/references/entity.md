@@ -141,8 +141,8 @@ must hold for it to land, over its own Entity only, checked where it commits and
 refused as unmet. `increment: { stock: 'quantity' }` on an update adds an
 unmapped number input to a number field where it commits. A retry must not add
 twice: give it `expect` (a retry is a conflict), or a writer with a ledger (a
-retry is answered from its record, and concurrent increments both land). No
-optimistic patch shows the sum. `Write.reads(write)` is what a write reads from its row. `Write.writes(write)` is what
+retry is answered from its record, and concurrent increments both land). Remote
+predicts the sum over the value it holds, re-added as that value changes. `Write.reads(write)` is what a write reads from its row. `Write.writes(write)` is what
 it may change and `Write.bind(write, value, keys?)` the row and its encoded new
 values, for an optimistic patch or a server to write.
 

@@ -1450,7 +1450,13 @@ A mutation can also be a declared write: `Mutation.write(name, write)` over a
 `foldkit-entity` `Write.update`, `Write.insert` or `Write.delete`. Its input is
 the write's, it answers nothing of its own, and `Data.mutate` shows an update's
 or an insert's row until the server answers, so it needs no `optimistic` list;
-a delete shows nothing until its answer removes the row everywhere. `keys` names the input keys
+a delete shows nothing until its answer removes the row everywhere. An update's
+`increment` is shown as a prediction: its amount is added to the value the store
+holds whenever the row is read, so a change that reaches the store meanwhile is
+added to rather than hidden, and two pending increments add up. A field the
+client has not read is not guessed; it shows the server's sum when the answer
+comes. The prediction is never authority: the server decides, and its answer
+replaces it. `keys` names the input keys
 an author changed: only those are shown, and the request carries them for the
 server to write; the input is still sent and validated whole.
 
