@@ -16,7 +16,7 @@ import { Entity, Expr, Write } from 'foldkit-entity'
 import { Mutation } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { bind, databaseLayer, writer, type DrizzleDatabase } from '../src/index.js'
+import { bind, databaseLayer, invariantChecks, writer, type DrizzleDatabase } from '../src/index.js'
 
 const StockFields = Entity.define(
   'Stock',
@@ -304,5 +304,42 @@ describe('A declared write over an Entity with invariants', () => {
     expect(() => RemoteServer.write(Partial, writer(bindStock(sqliteStock).Stock))).toThrow(
       'reservedWithinQuantity reads reserved',
     )
+  })
+})
+
+describe('invariantChecks', () => {
+  const columns =
+    'id text primary key, status text not null, quantity integer not null, reserved integer, shipped_to text, revision integer not null'
+
+  it('makes each a CHECK constraint SQLite keeps against raw SQL, a null failing it', () => {
+    const checks = invariantChecks(bindStock(sqliteStock).Stock)
+    expect(checks.map(check => check.name)).toEqual([
+      'stock_reservedWithinQuantity',
+      'stock_shippedHasAddress',
+    ])
+    const db = new DatabaseSync(':memory:')
+    db.exec(`create table stock (${columns}, ${checks.map(check => check.constraint).join(', ')})`)
+    db.exec("insert into stock values ('s1', 'shipped', 10, 5, 'Leeds', 1)")
+    for (const row of [
+      "('s2', 'packed', 3, 5, null, 1)",
+      "('s3', 'packed', 3, null, null, 1)",
+      "('s4', 'shipped', 10, 5, null, 1)",
+    ]) {
+      expect(() => db.exec(`insert into stock values ${row}`)).toThrow('CHECK constraint failed')
+    }
+  })
+
+  it('makes each one Postgres adds to a table and keeps against raw SQL', async () => {
+    await pglite.exec(`drop table if exists stock; create table stock (${columns})`)
+    for (const { constraint } of invariantChecks(bindStock(pgStock).Stock)) {
+      await pglite.exec(`alter table stock add ${constraint}`)
+    }
+    await pglite.exec("insert into stock values ('s1', 'packed', 10, 5, null, 1)")
+    await expect(pglite.exec("update stock set quantity = 3 where id = 's1'")).rejects.toThrow(
+      'stock_reservedWithinQuantity',
+    )
+    await expect(
+      pglite.exec("update stock set status = 'shipped' where id = 's1'"),
+    ).rejects.toThrow('stock_shippedHasAddress')
   })
 })

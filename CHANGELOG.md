@@ -32,6 +32,10 @@ version changed; `pnpm` skips versions already in the registry.
   an invariant does not go out, and the message shows beside each key its path
   names, or in `errors`; one over a field the form does not set is left to the
   server. `Crud.editor` shows a save's `Refusal.invalid` the same way. (#183)
+- **`foldkit-remote-drizzle`: `invariantChecks(binding)`.** Each invariant as
+  a `CHECK` constraint (`constraint "<table>_<id>" check ((…) is true)`, values
+  inlined) for a migration, so a handler's write or raw SQL is held to it too;
+  a null fails it, as in the writer. (#183)
 - **`foldkit-form`: a control says how a value is shown, and a key can be any
   number of a fixed set.** `Input.kind` takes `format`, the text a value is shown
   as when a form is filled with it — the inverse of `parse`, called by `fill`
