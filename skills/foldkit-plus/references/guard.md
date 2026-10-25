@@ -121,6 +121,9 @@ const Todo = TodoFields.pipe(
   relation's own; a create over what it proposes, an unset field matching no
   guard), refuses as `Forbidden`, and answers as the writer now sees the row:
   a row the write hid from them in `deleted`. The binding needs `visible`.
+  An Entity's invariants (`Entity.invariant`) are not rules: the writer judges
+  them after the rules, so neither grants the other, and one reading a
+  Read-ruled member is refused as `Invalid` naming no invariant.
   `GuardServer.writer(Todo, Policy, writer(Db.Todo), { presets: { ownerId:
   user => user.id } })` sets a field from who is asking on create; the input
   must leave it out. Pass `revision: 'revision'` (a field stored as a number,

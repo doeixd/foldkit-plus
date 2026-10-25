@@ -14,8 +14,8 @@ const edit = (name: string, find: string, replace: string) => ({
 export default [
   edit(
     'an update is not pinned',
-    'return yield* writer.update({\n                  ...context,\n                  expect: pin(context.expect, current.value),',
-    'return yield* writer.update({\n                  ...context,\n                  expect: context.expect,',
+    'return yield* writer.update({\n                    ...context,\n                    expect: pin(context.expect, current.value),',
+    'return yield* writer.update({\n                    ...context,\n                    expect: context.expect,',
   ),
   edit(
     'a delete is not pinned',

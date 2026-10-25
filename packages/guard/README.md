@@ -424,6 +424,16 @@ a rule `stock >= 0` refuses a sale past zero. The row the guard summed over must
 be the row the writer writes: the input's expected revision keeps it so, or the
 writer's `revision` pin. An increment with neither is refused.
 
+An Entity's invariants (`Entity.invariant`) are the writer's to judge, over the
+row its statement writes; the guarded writer passes them through and speaks
+first. They are not rules, and are never one of a command's alternatives:
+`Update: [isOwner, isManager]` says who may, and an invariant says what every
+row must hold whoever writes it, so being allowed does not make a row valid and
+a valid row does not make anyone allowed. `Invalid` reaches only someone the
+rules let write the row. An invariant that reads a member with a Read rule is
+enforced all the same, but its refusal names no invariant and no path ("The row
+would be invalid"), since naming it would say what that member holds.
+
 Over a writer with a ledger (`foldkit-remote-drizzle`'s `writer(binding, {
 ledger })`), a retry of an operation that landed is answered from the ledger,
 before any rule: it was decided when it landed, and deciding it again over a row
