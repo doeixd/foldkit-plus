@@ -8,7 +8,7 @@ the row version that statement will change, and the client shows it before the
 answer comes. Nothing reads the row in one statement and writes it in another,
 so nothing another request does in between is written over.
 
-This guide covers preconditions, increments, invariants, a guard that holds
+This guide covers preconditions, increments, invariants, transitions, a guard that holds
 where the write commits, operation ids, a write ledger, a revision the database
 moves, and the client's prediction of a sum. The runnable version is
 [`examples/writes`](../examples/writes/README.md).
@@ -19,6 +19,7 @@ moves, and the client's prediction of a sum. The runnable version is
 | --- | --- | --- | --- |
 | The declaration | `foldkit-entity` (`Write`) | what changes, `when` it makes sense, what it `increment`s | any I/O; it is a value |
 | The invariants | `foldkit-entity` (`Entity.invariant`) | what every stored row must hold, whoever writes it | who may write; whether this write applies now |
+| The transitions | `foldkit-entity` (`Entity.transition`) | what every update must hold over the row before and the row after | creates and deletes; who may write |
 | The rules | `foldkit-guard` | who may write which row and member, decided over the row being written | the statement; it hands the writer what to check |
 | The writer | `foldkit-remote-drizzle` (`writer`) | the one `update … where` that checks and writes; the ledger, when given one | who may write |
 | The client | `foldkit-remote` (`Data.mutate`) | the operation id; what shows until the answer | authority: a prediction decides nothing |
@@ -251,6 +252,43 @@ const Stock = StockFields.pipe(
   message beside its path; `invariantChecks(binding)` gives each as a `CHECK`
   constraint, which holds against handlers and raw SQL too.
 
+### What every change holds: a transition
+
+Some rules relate two rows, each valid on its own: an order that shipped stays
+shipped. A transition is a predicate over the row before an update and the row
+after:
+
+```ts
+const OrderFields = Entity.define(
+  'Order',
+  Schema.Struct({ id: Schema.String, status: Schema.Literals(['placed', 'shipped']) }),
+)
+const Order = OrderFields.pipe(
+  Entity.transition(
+    'shippedStaysShipped',
+    ({ before, after }) =>
+      Expr.or(Expr.not(Expr.eq(before.status, 'shipped')), Expr.eq(after.status, 'shipped')),
+    { message: 'A shipped order stays shipped', path: ['status'] },
+  ),
+)
+```
+
+`before` is the Entity's fields and `after` one placeholder per field. The
+writer judges it beside the invariants, in the same `WHERE`: the row before is
+the columns themselves, and after, a field the write sets is its value, one it
+increments its column moved, and any other unchanged. Every update is judged;
+a create has no row before and a delete none after. It is refused as `Invalid`
+with its id, like an invariant, and like one it is never a guard rule, so no one
+is excused it. A form has no row before, so it judges none; Crud shows the
+server's refusal beside its path. A `CHECK` sees one row, so a transition is not
+a constraint.
+
+All four kinds must hold for a write to land:
+
+```text
+authorization (Forbidden) AND precondition (Unmet) AND transitions AND invariants (Invalid)
+```
+
 ### Retries: three different guarantees
 
 | Write | A retry after a lost answer | Two writes from one read |
@@ -373,7 +411,7 @@ change.
 | `Forbidden` | a hidden row, or a rule that does not hold | show it; asking again is refused again |
 | `Conflict` | the input's revision is not the row's | re-read, then let the author decide |
 | `Unmet` | the row does not hold the write's `when` | show why; the state changed |
-| `Invalid` | the row the write would leave breaks an invariant | show its `message` beside its `path`; change the input |
+| `Invalid` | the row the write would leave breaks an invariant, or the change breaks a transition | show its `message` beside its `path`; change the input |
 | "changed while it was written" | the row kept moving through three decisions | retry later |
 | "needs a database with transactions" | a ledger over D1 | serve that write without a ledger |
 

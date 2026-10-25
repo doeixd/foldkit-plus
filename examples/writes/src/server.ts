@@ -10,7 +10,7 @@ import { GuardServer } from 'foldkit-guard/server'
 import { Remote } from 'foldkit-remote'
 import { bind, invariantChecks, writer, type DrizzleDatabase } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
-import { Product, Publish, Rename, Restock, Sell, Shop, type User } from './domain.js'
+import { Product, Publish, Rename, Restock, Revert, Sell, Shop, type User } from './domain.js'
 
 export const products = sqliteTable('products', {
   id: text('id').primaryKey(),
@@ -79,6 +79,7 @@ export const server = RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
   mutations: [
     RemoteServer.write(Rename, guarded),
     RemoteServer.write(Publish, guarded),
+    RemoteServer.write(Revert, guarded),
     RemoteServer.write(Restock, guarded),
     RemoteServer.write(Sell, ledgered),
   ],

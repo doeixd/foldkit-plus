@@ -1,14 +1,17 @@
 # Declared writes that hold where they commit
 
-Four writes to one product, each declared as data and checked in the statement
-that lands it: a **guarded rename**, a **transition** that makes sense from one
-state only, and two computed writes a retry cannot apply twice: a **restock**
-that expects a revision, and a **sale** recorded in a ledger. Under all four, an
-**invariant**: no product holds more reserved than it has in stock.
+Five writes to one product, each declared as data and checked in the statement
+that lands it: a **guarded rename**, a **publish** that makes sense from one
+state only, a **revert** the product's history forbids, and two computed writes
+a retry cannot apply twice: a **restock** that expects a revision, and a
+**sale** recorded in a ledger. Under all of them, an **invariant** (no product
+holds more reserved than it has in stock) and a **transition** (a published
+product does not go back to draft).
 
 ```text
 domain.ts   Product · who may change it (Shop) · what every row holds (an invariant)
-            Rename · Publish · Restock · Sell (data: no query, no table)
+            and every change (a transition) · Rename · Publish · Revert · Restock · Sell
+            (data: no query, no table)
 server.ts   products table, its invariant as a CHECK · GuardServer.writer(…, { revision })
             RemoteServer.write
 demo.ts     each write sent as a client sends it, and what the server answered
@@ -23,6 +26,9 @@ demo.ts     each write sent as a client sends it, and what the server answered
 - **The invariant** (`Entity.invariant`) says what every product holds,
   whoever writes it: `reserved <= stock`. It is not a rule, so being the owner
   does not excuse a row that breaks it.
+- **The transition** (`Entity.transition`) says what every change holds: a
+  product published once does not go back to draft. Both rows are valid on
+  their own; the change between them is not.
 - **The writer** (`foldkit-remote-drizzle`) lands it in one `update` statement,
   where the revision, the precondition, the increment and the invariant are all
   checked or computed against the row the statement changes.
@@ -53,6 +59,7 @@ rename by another: Forbidden
 publish the draft: written {"id":"p1","status":"published","revision":3}
 publish it again: written {"id":"p1","status":"published","revision":3}
 publish an archived product: Unmet
+put the published product back to draft: Invalid
 restock 5 at revision 3: written {"id":"p1","stock":15,"revision":4}
 the same restock again, its answer lost: Conflict
 sell 2, from the read at revision 4: written {"id":"p1","stock":13,"revision":5}
@@ -75,6 +82,10 @@ row: {"name":"Bolt, M6","status":"published","stock":10,"reserved":2,"revision":
   again is answered as written and changes nothing (the revision stays 3): a row
   already holding everything a write sets is how a retry of a write that landed
   looks, so the writer cannot tell a repeat from a retry, and does not need to.
+- **A forbidden change.** `Revert` sets the status to `draft`, a value the
+  invariant and the rules both allow. Its transition reads the row before
+  (`published`) and the row after (`draft`) in the statement that would write
+  it, and refuses the change as `Invalid`, naming `publishedStaysPublished`.
 - **A computed restock.** `Restock` has `increment: { stock: 'quantity' }`: the
   statement adds the quantity to the stored stock, so a concurrent change is
   never lost. It must `expect` a revision. Sent again after its answer was lost,
