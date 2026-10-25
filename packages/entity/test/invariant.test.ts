@@ -1,0 +1,156 @@
+/**
+ * Invariants: declared once on an Entity, judged over a whole stored row, and
+ * read as a Schema check.
+ */
+import { Schema, SchemaGetter } from 'effect'
+import { describe, expect, it } from 'vitest'
+import { Collation, Entity, Expr } from '../src/index.js'
+
+/** A date the store keeps as ISO text, so an invariant over it compares the text. */
+const Day = Schema.Date.pipe(
+  Schema.encodeTo(Schema.String, {
+    decode: SchemaGetter.transform((iso: string) => new Date(iso)),
+    encode: SchemaGetter.transform((at: Date) => at.toISOString()),
+  }),
+)
+
+const InventoryFields = Entity.define(
+  'Inventory',
+  Schema.Struct({
+    id: Schema.String,
+    quantity: Schema.Number,
+    reserved: Schema.NullOr(Schema.Number),
+    starts: Day,
+    ends: Day,
+  }),
+)
+const Inventory = InventoryFields.pipe(
+  Entity.invariant('reservedWithinQuantity', f => Expr.lte(f.reserved, Expr.field(f.quantity)), {
+    message: 'Reserved stock cannot exceed the quantity',
+    path: ['reserved'],
+  }),
+  Entity.invariant(
+    'endsAfterStart',
+    f => Expr.lte(f.starts, Expr.field(f.ends), { collation: Collation.binary }),
+    {
+      message: 'It ends before it starts',
+    },
+  ),
+)
+const Other = Entity.define('Other', Schema.Struct({ id: Schema.String, size: Schema.Number }))
+
+const row = {
+  id: 'i1',
+  quantity: 10,
+  reserved: 5,
+  starts: '2026-01-01T00:00:00.000Z',
+  ends: '2026-02-01T00:00:00.000Z',
+}
+/** What an invalid row's judgement holds: exactly these invariants, failing. */
+const failing = (...ids: ReadonlyArray<string>) => ({
+  _tag: 'Invalid',
+  failures: ids.map(id => expect.objectContaining({ id })),
+})
+
+describe('An invariant', () => {
+  it('judges the whole row: valid, or each that fails', () => {
+    expect(Entity.judge(Inventory, row)).toEqual({ _tag: 'Valid' })
+    // A patch valid on its own (3 is a number) that leaves an invalid row.
+    expect(Entity.judge(Inventory, { ...row, quantity: 3 })).toEqual(
+      failing('reservedWithinQuantity'),
+    )
+    // Over the stored text of a date: ending in December before a January start fails.
+    expect(
+      Entity.judge(Inventory, { ...row, quantity: 3, ends: '2025-12-01T00:00:00.000Z' }),
+    ).toEqual(failing('reservedWithinQuantity', 'endsAfterStart'))
+  })
+
+  it('fails on a null, as a WHERE drops the row SQL cannot call true', () => {
+    expect(Entity.judge(Inventory, { ...row, reserved: null })).toEqual(
+      failing('reservedWithinQuantity'),
+    )
+  })
+
+  it('leaves a row without a field it reads undecided, never valid', () => {
+    const { quantity: _, ...partial } = row
+    expect(Entity.judge(Inventory, partial)).toEqual({ _tag: 'Undecided', fields: ['quantity'] })
+    // A failure it can decide still decides.
+    expect(Entity.judge(Inventory, { ...partial, ends: '2025-12-01T00:00:00.000Z' })).toEqual(
+      failing('endsAfterStart'),
+    )
+  })
+
+  it('is metadata: attaching adds to what is there, and the Entity is the same', () => {
+    expect(Entity.invariants(Inventory).map(held => held.id)).toEqual([
+      'reservedWithinQuantity',
+      'endsAfterStart',
+    ])
+    expect(Entity.invariants(InventoryFields)).toEqual([])
+    expect(Entity.same(Inventory, InventoryFields)).toBe(true)
+    expect(Entity.invariants(Inventory)[1]?.path).toEqual(['starts', 'ends'])
+    // The same invariants reached twice, as when two annotated copies combine, are held once.
+    expect(Entity.invariants(Inventory.pipe(Entity.annotate(Inventory.metadata)))).toHaveLength(2)
+  })
+
+  it.each([
+    [
+      'an id declared twice',
+      () =>
+        Inventory.pipe(
+          Entity.invariant('endsAfterStart', f => Expr.gte(f.quantity, 0), { message: 'x' }),
+        ),
+      'declared twice',
+    ],
+    [
+      'a predicate over another Entity',
+      () =>
+        InventoryFields.pipe(
+          Entity.invariant('other', () => Expr.gte(Other.fields.size, 0) as never, {
+            message: 'x',
+          }),
+        ),
+      'Other',
+    ],
+    [
+      'a predicate reading an input',
+      () =>
+        InventoryFields.pipe(
+          Entity.invariant('input', f => Expr.gte(f.quantity, Expr.input('least', Schema.Number)), {
+            message: 'x',
+          }),
+        ),
+      'reads the input least',
+    ],
+    [
+      'a path naming no field',
+      () =>
+        InventoryFields.pipe(
+          Entity.invariant('path', f => Expr.gte(f.quantity, 0), {
+            message: 'x',
+            // @ts-expect-error: not a field of the Entity
+            path: ['volume'],
+          }),
+        ),
+      'not a field',
+    ],
+  ])('is refused where it is declared: %s', (_, declare, message) => {
+    expect(declare).toThrow(message)
+  })
+})
+
+describe('Entity.check', () => {
+  const Stored = InventoryFields.schema.check(Entity.check(Inventory))
+  const decoded = Schema.decodeUnknownSync(InventoryFields.schema)(row)
+
+  it('passes a valid row, and fails an invalid one at its path with its message', () => {
+    expect(Schema.decodeUnknownSync(Stored)(row)).toEqual(decoded)
+    expect(() => Schema.decodeUnknownSync(Stored)({ ...row, quantity: 3 })).toThrow(
+      /Reserved stock cannot exceed the quantity[\s\S]*reserved|reserved[\s\S]*Reserved stock cannot exceed the quantity/,
+    )
+  })
+
+  it('judges a decoded value by its stored form', () => {
+    expect(Schema.is(Stored)(decoded)).toBe(true)
+    expect(Schema.is(Stored)({ ...decoded, ends: new Date('2025-12-01') })).toBe(false)
+  })
+})

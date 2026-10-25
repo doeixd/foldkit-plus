@@ -143,7 +143,11 @@ unmapped number input to a number field where it commits. A retry must not add
 twice: give it `expect` (a retry is a conflict), or a writer with a ledger (a
 retry is answered from its record, and concurrent increments both land). Remote
 predicts the sum over the value it holds, re-added as that value changes
-([guide](https://github.com/doeixd/foldkit-plus/blob/main/docs/declared-writes.md)). `Write.reads(write)` is what a write reads from its row. `Write.writes(write)` is what
+([guide](https://github.com/doeixd/foldkit-plus/blob/main/docs/declared-writes.md)). `Write.reads(write)` is what a write reads from its row.
+`Entity.invariant(id, f => Expr.lte(f.reserved, Expr.field(f.quantity)), { message, path? })`
+declares what every stored row must hold (piped onto the Entity); `Entity.judge(entity, row)`
+answers `Valid`, `Invalid` or `Undecided` (a field missing), a null failing, and
+`Entity.check(entity)` is the same as a Schema check. `Write.writes(write)` is what
 it may change and `Write.bind(write, value, keys?)` the row and its encoded new
 values, for an optimistic patch or a server to write.
 
