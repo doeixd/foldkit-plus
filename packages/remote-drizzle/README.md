@@ -860,6 +860,16 @@ create table write_ledger (
 - A write from a client that sends no operation id is written as without a
   ledger, except an increment that expects no revision, which is refused.
 
+### A revision the database moves
+
+A writer moves a revision only with the writes it lands. `revisionTrigger(binding,
+'revision')` is the SQL that makes the database move it on every other update
+too (a handler's, raw SQL), so a guarded writer pinned to it sees every change.
+An update that sets the revision itself, by one or to any value, is left as it
+set it. Run it once, with the migration that makes the table (SQLite and
+Postgres). Not for a table Sync writes: `applyEdits` keeps one revision for two
+changes in one operation, which the trigger would move past its sequence.
+
 An insert is one `insert ... on conflict do nothing returning` under the id the
 client chose: a retry finds the id taken and answers the row it made. A delete
 is one `delete` by id, guarded by the revision when it expects one; a row

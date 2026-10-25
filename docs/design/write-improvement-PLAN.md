@@ -145,6 +145,13 @@ No behaviour change; done after phase 3, which adds the ledger read, and before
 
 ### Phase 5: make the revision structural, where the store allows (item 4)
 
+**Built**, 2026-10-25, simpler than sketched: `revisionTrigger(binding,
+field)` in `foldkit-remote-drizzle` (the revision is the writer's), and the
+trigger moves the revision only for an update that did not set it, so the writer
+keeps bumping it and needs no `revision: 'trigger'` mode. An update that sets it
+to a value of its own (a journal's sequence) is left as set; the Sync limit
+stands, since a second change in one operation does not set it.
+
 Last, because it is a schema change for applications and the pin is already
 correct for cooperating writers.
 

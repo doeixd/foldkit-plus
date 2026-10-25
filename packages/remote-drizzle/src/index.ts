@@ -14,6 +14,7 @@ import {
   and,
   eq,
   getTableColumns,
+  getTableName,
   gte,
   inArray,
   is,
@@ -860,6 +861,45 @@ const sameStored = (left: unknown, right: unknown): boolean =>
  * `visible` rule reads back through it (`read`), so an answer shows its writer
  * only a row they may read.
  */
+/** A name as SQL quotes it, its own quotes doubled. */
+const quoted = (name: string): string => `"${name.replaceAll('"', '""')}"`
+
+/**
+ * The SQL that makes a database move `binding`'s revision on every update that
+ * does not move it itself: a handler's, `applyEdits`', raw SQL. A guarded
+ * writer pinned to the revision then sees every change, not only those of
+ * writers that cooperate. An update that sets the revision itself (a declared
+ * write's, by one; a journal's, to a sequence) is left as it set it, so nothing
+ * moves twice. Migrate with it once:
+ *
+ * ```ts
+ * sqlite.exec(revisionTrigger(Db.Todo, 'revision'))
+ * ```
+ *
+ * Not for a table Sync writes: `applyEdits` sets the revision to a commit
+ * sequence, and a second change in one operation keeps it, which the trigger
+ * would move past that sequence.
+ */
+export const revisionTrigger = (binding: AnyEntityBinding, revision: string): string => {
+  const column = binding.columns[revision]
+  if (column === undefined) {
+    throw new Error(
+      `[foldkit-remote-drizzle] revisionTrigger: ${binding.name} has no column for its revision "${revision}"`,
+    )
+  }
+  const table = quoted(getTableName(binding.table))
+  const name = quoted(`${getTableName(binding.table)}_${column.name}_moves`)
+  const moved = quoted(column.name)
+  if (is(binding.table, SQLiteTable)) {
+    const id = quoted(idColumn(binding).name)
+    return `create trigger ${name} after update on ${table} for each row when new.${moved} = old.${moved}
+begin update ${table} set ${moved} = old.${moved} + 1 where ${id} = new.${id}; end;`
+  }
+  return `create or replace function ${name}() returns trigger language plpgsql as $$
+begin if new.${moved} = old.${moved} then new.${moved} := old.${moved} + 1; end if; return new; end $$;
+create trigger ${name} before update on ${table} for each row execute function ${name}();`
+}
+
 /**
  * Where a writer records each update it lands, by the operation that asked for
  * it, so a retry of that operation is answered from the record rather than
