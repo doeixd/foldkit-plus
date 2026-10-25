@@ -8,11 +8,10 @@ the row version that statement will change, and the client shows it before the
 answer comes. Nothing reads the row in one statement and writes it in another,
 so nothing another request does in between is written over.
 
-This guide covers what was added for
-[#182](https://github.com/doeixd/foldkit-plus/issues/182): preconditions,
-increments, a guard that holds where the write commits, operation ids, a write
-ledger, a revision the database moves, and the client's prediction of a sum. The
-runnable version is [`examples/writes`](../examples/writes/README.md).
+This guide covers preconditions, increments, a guard that holds where the write
+commits, operation ids, a write ledger, a revision the database moves, and the
+client's prediction of a sum. The runnable version is
+[`examples/writes`](../examples/writes/README.md).
 
 ## Who owns what
 
@@ -358,9 +357,3 @@ second copy.
 - Without the trigger, the pin trusts every writer to move the revision.
 - A ledger's record lasts its retention; an increment retried later is applied
   again.
-
-See also the designs:
-[the revision pin](./design/guard-atomic-DESIGN.md),
-[preconditions](./design/write-precondition-DESIGN.md),
-[increments](./design/write-increment-DESIGN.md), and
-[the improvement plan](./design/write-improvement-PLAN.md).
