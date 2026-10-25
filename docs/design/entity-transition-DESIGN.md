@@ -2,9 +2,15 @@
 
 **Status:** Built, 2026-10-25, for
 [#184](https://github.com/doeixd/foldkit-plus/issues/184), as §7 sets out; the
-guide is [Declared writes](../declared-writes.md#what-every-change-holds-a-transition). Builds on
+guide is [Declared writes](../declared-writes.md#what-every-change-holds-a-transition-invariant). Builds on
 [entity invariants](./entity-invariant-DESIGN.md) (#183) and declared writes
 (#182).
+
+**Since:** transitions are no longer a declaration of their own. `Entity.invariant`
+builds over `({ before, after })`, and one that reads `before` is a transition
+invariant, judged on updates only; `Entity.transition`, `Entity.judgeChange` and
+`Expr.substitute` are gone, and `Entity.judge` takes `{ after, before? }`. The
+sections below describe the design as first built.
 
 ## 0. What is missing
 

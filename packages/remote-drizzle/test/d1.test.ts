@@ -340,7 +340,7 @@ describe('A declared write over D1', () => {
       'Item',
       Schema.Struct({ id: Schema.String, stock: Schema.Number, revision: Schema.Number }),
     ).pipe(
-      Entity.invariant('stockNotNegative', f => Expr.gte(f.stock, 0), {
+      Entity.invariant('stockNotNegative', ({ after }) => Expr.gte(after.stock, 0), {
         message: 'Stock cannot go below zero',
       }),
     )

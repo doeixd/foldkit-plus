@@ -5,8 +5,8 @@ that lands it: a **guarded rename**, a **publish** that makes sense from one
 state only, a **revert** the product's history forbids, and two computed writes
 a retry cannot apply twice: a **restock** that expects a revision, and a
 **sale** recorded in a ledger. Under all of them, an **invariant** (no product
-holds more reserved than it has in stock) and a **transition** (a published
-product does not go back to draft).
+holds more reserved than it has in stock) and a **transition invariant** (a
+published product does not go back to draft).
 
 ```text
 domain.ts   Product · who may change it (Shop) · what every row holds (an invariant)
@@ -26,8 +26,8 @@ demo.ts     each write sent as a client sends it, and what the server answered
 - **The invariant** (`Entity.invariant`) says what every product holds,
   whoever writes it: `reserved <= stock`. It is not a rule, so being the owner
   does not excuse a row that breaks it.
-- **The transition** (`Entity.transition`) says what every change holds: a
-  product published once does not go back to draft. Both rows are valid on
+- **The transition invariant** (an `Entity.invariant` that reads `before` too)
+  says what every change holds: a product published once does not go back to draft. Both rows are valid on
   their own; the change between them is not.
 - **The writer** (`foldkit-remote-drizzle`) lands it in one `update` statement,
   where the revision, the precondition, the increment and the invariant are all
@@ -83,7 +83,7 @@ row: {"name":"Bolt, M6","status":"published","stock":10,"reserved":2,"revision":
   already holding everything a write sets is how a retry of a write that landed
   looks, so the writer cannot tell a repeat from a retry, and does not need to.
 - **A forbidden change.** `Revert` sets the status to `draft`, a value the
-  invariant and the rules both allow. Its transition reads the row before
+  state invariant and the rules both allow. The transition invariant reads the row before
   (`published`) and the row after (`draft`) in the statement that would write
   it, and refuses the change as `Invalid`, naming `publishedStaysPublished`.
 - **A computed restock.** `Restock` has `increment: { stock: 'quantity' }`: the

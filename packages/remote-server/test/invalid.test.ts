@@ -14,10 +14,14 @@ const StockFields = Entity.define(
   Schema.Struct({ id: Schema.String, quantity: Schema.Number, reserved: Schema.Number }),
 )
 const Stock = StockFields.pipe(
-  Entity.invariant('reservedWithinQuantity', f => Expr.lte(f.reserved, Expr.field(f.quantity)), {
-    message: 'Reserved stock cannot exceed the quantity',
-    path: ['reserved'],
-  }),
+  Entity.invariant(
+    'reservedWithinQuantity',
+    ({ after }) => Expr.lte(after.reserved, after.quantity),
+    {
+      message: 'Reserved stock cannot exceed the quantity',
+      path: ['reserved'],
+    },
+  ),
 )
 const SetQuantity = Mutation.write(
   'SetQuantity',
@@ -104,7 +108,7 @@ describe('An invalid row', () => {
   it("is refused where it is served for an update the Entity's transitions judge, and not for an insert", () => {
     const { invariants: _, ...blind } = refusing(RemoteServer.invalid('x'))
     const Moving = StockFields.pipe(
-      Entity.transition(
+      Entity.invariant(
         'neverFalls',
         ({ before, after }) => Expr.gte(after.quantity, Expr.field(before.quantity)),
         {

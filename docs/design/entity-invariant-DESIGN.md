@@ -10,6 +10,12 @@ form judges invariants on submit only, through `Entity.judgeInput`; and
 write in its `create table`. The guide is
 [Declared writes](../declared-writes.md#what-every-row-holds-an-invariant).
 
+**Since:** an invariant builds over `({ before, after })` and reads the row after
+through `Expr.next`; one that reads `before` is a transition invariant
+([entity transitions](./entity-transition-DESIGN.md)). `f => Expr.lte(f.reserved,
+Expr.field(f.quantity))` below is now `({ after }) => Expr.lte(after.reserved,
+after.quantity)`.
+
 ## 0. The problem in one row
 
 An inventory row holds `quantity = 10, reserved = 5`. An update setting

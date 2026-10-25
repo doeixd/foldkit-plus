@@ -1,10 +1,13 @@
 /**
- * Invariants in the Drizzle writer, each step broken in turn:
- * `pnpm mutate packages/remote-drizzle/test/invariant.mutations.ts` checks
- * that a test fails for every one.
+ * Invariants in the Drizzle writer, state and transition, each step broken in
+ * turn: `pnpm mutate packages/remote-drizzle/test/invariant.mutations.ts`
+ * checks that a test fails for every one.
  */
 const drizzle = '../src/index.ts'
-const tests = ['packages/remote-drizzle/test/invariant.test.ts']
+const tests = [
+  'packages/remote-drizzle/test/invariant.test.ts',
+  'packages/remote-drizzle/test/transition.test.ts',
+]
 const edit = (name: string, file: string, find: string, replace: string) => ({
   name,
   edits: [{ file, find, replace }],
@@ -21,10 +24,15 @@ export default [
   edit(
     'the statement judges the row before the write',
     drizzle,
-    '[Expr.substitute(held.predicate, values)],',
+    '[Expr.substituteNext(held.predicate, values)],',
     '[held.predicate],',
   ),
-  edit('an increment is judged unmoved', drizzle, 'after[field] = movedBy(field, amount)', ''),
+  edit(
+    'an increment is judged unmoved',
+    drizzle,
+    'next[field] = sql`(${binding.columns[field]} + ${amount})` as unknown as AnyColumn',
+    '',
+  ),
   edit(
     'a miss is never classified as invalid',
     drizzle,
@@ -39,9 +47,15 @@ export default [
     'held',
   ),
   edit(
+    'a miss judges no transition',
+    drizzle,
+    'brokenIn({ before: row, after: proposedOf(row, values, increments) })',
+    'brokenIn({ after: proposedOf(row, values, increments) })',
+  ),
+  edit(
     'a miss reads no field an invariant reads',
     drizzle,
-    '...invariants.flatMap(held => held.reads),',
+    '...invariants.flatMap(held => [...held.before, ...held.after]),',
     '',
   ),
   edit(
@@ -91,9 +105,24 @@ export default [
       'Drizzle inlines every value the compiler passes it, so no test reaches the guard; it keeps a value Drizzle did not inline from becoming a silent `?` in a constraint',
   },
   edit(
+    'a transition invariant becomes a constraint',
+    drizzle,
+    '.filter(held => !DomainEntity.readsBefore(held))',
+    '.filter(() => true)',
+  ),
+  edit(
     'a retry is answered with every field the miss read',
     drizzle,
     'Object.entries(row).filter(([key]) => answers.has(key))',
     'Object.entries(row)',
   ),
+  {
+    ...edit(
+      'an invariant over a hidden member is named',
+      '../../guard/src/server.ts',
+      '.filter(held => [...held.before, ...held.after].some(key => readRuled(ruled, key)))',
+      '.filter(() => false)',
+    ),
+    tests: ['packages/guard/test/invariant.test.ts'],
+  },
 ]

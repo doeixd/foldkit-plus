@@ -39,12 +39,12 @@ export const Shop = Guards.declare(
  */
 export const Product = ProductFields.pipe(
   Guards.attach(Shop, { row: { Read: [Shop.isOwner], Update: [Shop.isOwner] } }),
-  Entity.invariant('reservedWithinStock', f => Expr.lte(f.reserved, Expr.field(f.stock)), {
+  Entity.invariant('reservedWithinStock', ({ after }) => Expr.lte(after.reserved, after.stock), {
     message: 'Reserved stock cannot exceed the stock',
     path: ['reserved'],
   }),
   // A draft and a published product are both valid; going from one back to the other is not.
-  Entity.transition(
+  Entity.invariant(
     'publishedStaysPublished',
     ({ before, after }) =>
       Expr.or(

@@ -1,7 +1,7 @@
 /**
- * Transitions: what every update must hold over the row before it and the row
- * after, judged as a row and an input by the reference evaluator, and rewritten
- * for an interpreter that judges it in one statement.
+ * Transition invariants: what every update must hold over the row before it
+ * and the row after, judged over two rows by the reference evaluator, and
+ * substituted for an interpreter that judges one in a statement.
  */
 import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
@@ -17,14 +17,14 @@ const OrderFields = Entity.define(
   }),
 )
 const Order = OrderFields.pipe(
-  Entity.transition(
+  Entity.invariant(
     'shippedStaysShipped',
     ({ before, after }) =>
       Expr.or(Expr.not(Expr.eq(before.status, 'shipped')), Expr.eq(after.status, 'shipped')),
     { message: 'A shipped order stays shipped', path: ['status'] },
   ),
   // Relates a field after to another before: paying never lowers the total.
-  Entity.transition(
+  Entity.invariant(
     'totalNeverFalls',
     ({ before, after }) => Expr.gte(after.total, Expr.field(before.total)),
     {
@@ -40,66 +40,63 @@ const failing = (...ids: ReadonlyArray<string>) => ({
   failures: ids.map(id => expect.objectContaining({ id })),
 })
 
-describe('A transition', () => {
+describe('A transition invariant', () => {
   it('judges the change from one row to another, each valid on its own', () => {
-    expect(Entity.judgeChange(Order, placed, shipped)).toEqual({ _tag: 'Valid' })
-    expect(Entity.judgeChange(Order, shipped, shipped)).toEqual({ _tag: 'Valid' })
-    expect(Entity.judgeChange(Order, shipped, placed)).toEqual(failing('shippedStaysShipped'))
-    expect(Entity.judgeChange(Order, placed, { ...placed, total: 9 })).toEqual(
+    expect(Entity.judge(Order, { before: placed, after: shipped })).toEqual({ _tag: 'Valid' })
+    expect(Entity.judge(Order, { before: shipped, after: shipped })).toEqual({ _tag: 'Valid' })
+    expect(Entity.judge(Order, { before: shipped, after: placed })).toEqual(
+      failing('shippedStaysShipped'),
+    )
+    expect(Entity.judge(Order, { before: placed, after: { ...placed, total: 9 } })).toEqual(
       failing('totalNeverFalls'),
     )
   })
 
   it('fails on a null on either side, and is undecided over a field either row lacks', () => {
-    expect(Entity.judgeChange(Order, placed, { ...placed, total: null })).toEqual(
+    expect(Entity.judge(Order, { before: placed, after: { ...placed, total: null } })).toEqual(
       failing('totalNeverFalls'),
     )
     const { total: _, ...partial } = placed
-    expect(Entity.judgeChange(Order, partial, placed)).toEqual({
+    expect(Entity.judge(Order, { before: partial, after: placed })).toEqual({
       _tag: 'Undecided',
       fields: ['total'],
     })
   })
 
   it('reads what it reads of each row, and its path defaults to them', () => {
-    const [stays, never] = Entity.transitions(Order)
+    const [stays, never] = Entity.invariants(Order)
     expect([stays?.before, stays?.after]).toEqual([['status'], ['status']])
     expect([never?.before, never?.after, never?.path]).toEqual([['total'], ['total'], ['total']])
   })
 
-  it.each([
-    [
-      'an id declared twice',
-      () =>
-        Order.pipe(
-          Entity.transition('totalNeverFalls', ({ after }) => Expr.gte(after.total, 0), {
-            message: 'x',
-          }),
-        ),
-    ],
-    [
-      'an id an invariant has',
-      () =>
-        OrderFields.pipe(
-          Entity.invariant('taken', f => Expr.gte(f.total, 0), { message: 'x' }),
-          Entity.transition('taken', ({ after }) => Expr.gte(after.total, 0), { message: 'x' }),
-        ),
-    ],
-    [
-      'an invariant with an id a transition has',
-      () =>
-        Order.pipe(
-          Entity.invariant('totalNeverFalls', f => Expr.gte(f.total, 0), { message: 'x' }),
-        ),
-    ],
-  ])('is refused where it is declared: %s', (_, declare) => {
-    expect(declare).toThrow('declared twice')
+  it('is refused where it is declared for an id the Entity has already', () => {
+    expect(() =>
+      Order.pipe(
+        Entity.invariant('totalNeverFalls', ({ after }) => Expr.gte(after.total, 0), {
+          message: 'x',
+        }),
+      ),
+    ).toThrow('declared twice')
+  })
+
+  it('is judged only of a change: a create, with no row before, judges state invariants alone', () => {
+    const Priced = Order.pipe(
+      Entity.invariant('totalNotNegative', ({ after }) => Expr.gte(after.total, 0), {
+        message: 'x',
+      }),
+    )
+    expect(Entity.invariants(Priced).map(Entity.readsBefore)).toEqual([true, true, false])
+    // Lower than any total before, yet nothing came before: only the state invariant speaks.
+    expect(Entity.judge(Priced, { after: { ...placed, total: 1 } })).toEqual({ _tag: 'Valid' })
+    expect(Entity.judge(Priced, { after: { ...placed, total: -1 } })).toEqual(
+      failing('totalNotNegative'),
+    )
   })
 
   it('refuses one that reads an input of its own', () => {
     expect(() =>
       OrderFields.pipe(
-        Entity.transition(
+        Entity.invariant(
           'input',
           ({ after }) => Expr.gte(after.total, Expr.input('least', Schema.Number)),
           { message: 'x' },
@@ -110,7 +107,7 @@ describe('A transition', () => {
 })
 
 describe('Expr.substituteNext', () => {
-  const [stays] = Entity.transitions(Order)
+  const [stays] = Entity.invariants(Order)
 
   it('reads a field the write sets as its value after, and leaves the rest to the row after', () => {
     // Setting the status back: before is the row's, after is the value.

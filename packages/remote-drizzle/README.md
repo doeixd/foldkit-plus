@@ -856,18 +856,17 @@ refused when the writer is made, not at the first write. A table-only binding
 (`entity`) has no Entity, so no invariants; a handler's writes, and raw SQL, are
 not judged by the writer.
 
-An Entity's transitions (`Entity.transition`, kept by `bind` as `transitions`)
-are judged the same way over the change an update makes: compiled into its
-`WHERE` with the row before read as the columns themselves and the row after as
-for an invariant. A write setting the status to `'placed'` makes
+An invariant that reads the row before too (a transition invariant, `before.status`)
+is judged the same way over the change an update makes: the row before is the
+columns themselves, and the row after is as above. A write setting the status to `'placed'` makes
 `shippedStaysShipped` `… where not (status = 'shipped')`: its after side is
 known, so it is decided before the SQL is written. A field the write leaves alone
 is unchanged after, and one it increments is its column moved. A miss that
-breaks one is refused as `Invalid`, beside the invariants. A create and a delete
-are not judged, and a transition is not a constraint: a `CHECK` sees one row.
+breaks one is refused as `Invalid` too. A create and a delete do not judge it,
+and it is not a constraint: a `CHECK` sees one row.
 
 To hold an invariant against those too, install it as a constraint.
-`invariantChecks(binding)` gives each as `constraint "<table>_<id>" check ((…) is
+`invariantChecks(binding)` gives each state invariant as `constraint "<table>_<id>" check ((…) is
 true)`, its values written into the SQL: `is true`, because a plain `check`
 passes a row its condition calls unknown, and an invariant does not.
 

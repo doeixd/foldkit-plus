@@ -25,13 +25,17 @@ const InventoryFields = Entity.define(
   }),
 )
 const Inventory = InventoryFields.pipe(
-  Entity.invariant('reservedWithinQuantity', f => Expr.lte(f.reserved, Expr.field(f.quantity)), {
-    message: 'Reserved stock cannot exceed the quantity',
-    path: ['reserved'],
-  }),
+  Entity.invariant(
+    'reservedWithinQuantity',
+    ({ after }) => Expr.lte(after.reserved, after.quantity),
+    {
+      message: 'Reserved stock cannot exceed the quantity',
+      path: ['reserved'],
+    },
+  ),
   Entity.invariant(
     'endsAfterStart',
-    f => Expr.lte(f.starts, Expr.field(f.ends), { collation: Collation.binary }),
+    ({ after }) => Expr.lte(after.starts, after.ends, { collation: Collation.binary }),
     {
       message: 'It ends before it starts',
     },
@@ -54,30 +58,33 @@ const failing = (...ids: ReadonlyArray<string>) => ({
 
 describe('An invariant', () => {
   it('judges the whole row: valid, or each that fails', () => {
-    expect(Entity.judge(Inventory, row)).toEqual({ _tag: 'Valid' })
+    expect(Entity.judge(Inventory, { after: row })).toEqual({ _tag: 'Valid' })
     // A patch valid on its own (3 is a number) that leaves an invalid row.
-    expect(Entity.judge(Inventory, { ...row, quantity: 3 })).toEqual(
+    expect(Entity.judge(Inventory, { after: { ...row, quantity: 3 } })).toEqual(
       failing('reservedWithinQuantity'),
     )
     // Over the stored text of a date: ending in December before a January start fails.
     expect(
-      Entity.judge(Inventory, { ...row, quantity: 3, ends: '2025-12-01T00:00:00.000Z' }),
+      Entity.judge(Inventory, { after: { ...row, quantity: 3, ends: '2025-12-01T00:00:00.000Z' } }),
     ).toEqual(failing('reservedWithinQuantity', 'endsAfterStart'))
   })
 
   it('fails on a null, as a WHERE drops the row SQL cannot call true', () => {
-    expect(Entity.judge(Inventory, { ...row, reserved: null })).toEqual(
+    expect(Entity.judge(Inventory, { after: { ...row, reserved: null } })).toEqual(
       failing('reservedWithinQuantity'),
     )
   })
 
   it('leaves a row without a field it reads undecided, never valid', () => {
     const { quantity: _, ...partial } = row
-    expect(Entity.judge(Inventory, partial)).toEqual({ _tag: 'Undecided', fields: ['quantity'] })
+    expect(Entity.judge(Inventory, { after: partial })).toEqual({
+      _tag: 'Undecided',
+      fields: ['quantity'],
+    })
     // A failure it can decide still decides.
-    expect(Entity.judge(Inventory, { ...partial, ends: '2025-12-01T00:00:00.000Z' })).toEqual(
-      failing('endsAfterStart'),
-    )
+    expect(
+      Entity.judge(Inventory, { after: { ...partial, ends: '2025-12-01T00:00:00.000Z' } }),
+    ).toEqual(failing('endsAfterStart'))
   })
 
   it('is metadata: attaching adds to what is there, and the Entity is the same', () => {
@@ -97,7 +104,9 @@ describe('An invariant', () => {
       'an id declared twice',
       () =>
         Inventory.pipe(
-          Entity.invariant('endsAfterStart', f => Expr.gte(f.quantity, 0), { message: 'x' }),
+          Entity.invariant('endsAfterStart', ({ after }) => Expr.gte(after.quantity, 0), {
+            message: 'x',
+          }),
         ),
       'declared twice',
     ],
@@ -115,9 +124,13 @@ describe('An invariant', () => {
       'a predicate reading an input',
       () =>
         InventoryFields.pipe(
-          Entity.invariant('input', f => Expr.gte(f.quantity, Expr.input('least', Schema.Number)), {
-            message: 'x',
-          }),
+          Entity.invariant(
+            'input',
+            ({ after }) => Expr.gte(after.quantity, Expr.input('least', Schema.Number)),
+            {
+              message: 'x',
+            },
+          ),
         ),
       'reads the input least',
     ],
@@ -125,7 +138,7 @@ describe('An invariant', () => {
       'a path naming no field',
       () =>
         InventoryFields.pipe(
-          Entity.invariant('path', f => Expr.gte(f.quantity, 0), {
+          Entity.invariant('path', ({ after }) => Expr.gte(after.quantity, 0), {
             message: 'x',
             // @ts-expect-error: not a field of the Entity
             path: ['volume'],
@@ -155,28 +168,34 @@ describe('Entity.check', () => {
   })
 })
 
-describe('Expr.substitute', () => {
+describe('Expr.substituteNext', () => {
   const Item = Entity.define(
     'Item',
     Schema.Struct({ id: Schema.String, name: Schema.String, size: Schema.NullOr(Schema.Number) }),
   )
-  const f = Item.fields
-  const stored = { id: 'i1', name: 'Bolt', size: 3 }
-  // Each holds of the stored row and not once `values` replace what it reads, or the reverse.
+  const name = Expr.next(Item.fields.name)
+  const size = Expr.next(Item.fields.size)
+  const after = { id: 'i1', name: 'Bolt', size: 3 }
+  // Each holds of the row after and not once `values` replace what it reads.
   it.each([
-    ['eq', Expr.eq(f.name, 'Bolt'), { name: 'Nut' }],
-    ['isNull', Expr.isNotNull(f.size), { size: null }],
-    ['contains', Expr.contains(f.name, 'ol'), { name: 'Nut' }],
-    ['in', Expr.in(f.size, [3, 4]), { size: 5 }],
-    ['and', Expr.and(Expr.eq(f.name, 'Bolt'), Expr.isNotNull(f.size)), { size: null }],
-    ['or', Expr.or(Expr.eq(f.name, 'Bolt'), Expr.isNull(f.size)), { name: 'Nut' }],
-    ['not', Expr.not(Expr.eq(f.name, 'Nut')), { name: 'Nut' }],
-    ['compare', Expr.gte(f.size, 2), { size: 1 }],
-  ])('reads a value given for what %s reads', (_, predicate, values) => {
-    expect(truthOver(predicate, stored)).toBe(true)
-    expect(truthOver(Expr.substitute(predicate, values), stored)).toBe(false)
+    ['eq', Expr.eq(name, 'Bolt'), { name: 'Nut' }],
+    ['isNull', Expr.isNotNull(size), { size: null }],
+    ['contains', Expr.contains(name, 'ol'), { name: 'Nut' }],
+    ['in', Expr.in(size, [3, 4]), { size: 5 }],
+    ['and', Expr.and(Expr.eq(name, 'Bolt'), Expr.isNotNull(size)), { size: null }],
+    ['or', Expr.or(Expr.eq(name, 'Bolt'), Expr.isNull(size)), { name: 'Nut' }],
+    ['not', Expr.not(Expr.eq(name, 'Nut')), { name: 'Nut' }],
+    ['compare', Expr.gte(size, 2), { size: 1 }],
+  ])('reads a value given for what %s reads after', (_, predicate, values) => {
+    expect(truthOver(predicate, {}, {}, after)).toBe(true)
+    expect(truthOver(Expr.substituteNext(predicate, values), {}, {}, after)).toBe(false)
     // A field it names but does not read changes nothing.
-    expect(truthOver(Expr.substitute(predicate, { id: 'other' }), stored)).toBe(true)
+    expect(truthOver(Expr.substituteNext(predicate, { id: 'other' }), {}, {}, after)).toBe(true)
+  })
+
+  it('leaves a field as stored alone: only the row after is substituted', () => {
+    const stored = Expr.eq(Item.fields.name, 'Bolt')
+    expect(truthOver(Expr.substituteNext(stored, { name: 'Nut' }), after)).toBe(true)
   })
 })
 
