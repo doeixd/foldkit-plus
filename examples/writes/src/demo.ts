@@ -14,8 +14,8 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   const sqlite = new DatabaseSync(':memory:')
   sqlite.exec(schema)
   sqlite.exec(`insert into products values
-    ('p1', 'ada', 'Bolt', 'draft', 10, 1),
-    ('p2', 'ada', 'Rivet', 'archived', 0, 1)`)
+    ('p1', 'ada', 'Bolt', 'draft', 10, 2, 1),
+    ('p2', 'ada', 'Rivet', 'archived', 0, 0, 1)`)
   const layer = databaseLayer(drizzle({ client: sqlite }))
   let requests = 0
 
@@ -69,6 +69,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     `sell 2, from the read at revision 4: ${await send(ada, Sell, { id: 'p1', quantity: -2 }, 'sale-1')}`,
     `sell 3, from the same read: ${await send(ada, Sell, { id: 'p1', quantity: -3 }, 'sale-2')}`,
     `the first sale again, its answer lost: ${await send(ada, Sell, { id: 'p1', quantity: -2 }, 'sale-1')}`,
-    `row: ${JSON.stringify(sqlite.prepare("select name, status, stock, revision from products where id = 'p1'").get())}`,
+    `sell 9 of the 10, 2 of them reserved: ${await send(ada, Sell, { id: 'p1', quantity: -9 }, 'sale-3')}`,
+    `row: ${JSON.stringify(sqlite.prepare("select name, status, stock, reserved, revision from products where id = 'p1'").get())}`,
   ]
 }

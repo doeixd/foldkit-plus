@@ -1,7 +1,14 @@
 # Entity invariants
 
-**Status:** Design, 2026-10-25, for
-[#183](https://github.com/doeixd/foldkit-plus/issues/183). Nothing built.
+**Status:** Built, 2026-10-25, for
+[#183](https://github.com/doeixd/foldkit-plus/issues/183), in the phases of §6,
+with these differences from the sketch: the Drizzle writer reads its invariants
+from the binding (`bind` keeps them), since a binding does not keep its Entity;
+an invariant the database cannot compile is refused when the writer is made; a
+form judges invariants on submit only, through `Entity.judgeInput`; and
+`invariantChecks` gives a `constraint` clause for both dialects, SQLite's to
+write in its `create table`. The guide is
+[Declared writes](../declared-writes.md#what-every-row-holds-an-invariant).
 
 ## 0. The problem in one row
 

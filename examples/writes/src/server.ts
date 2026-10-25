@@ -8,7 +8,7 @@ import { Option } from 'effect'
 import { GuardDrizzle } from 'foldkit-guard/drizzle'
 import { GuardServer } from 'foldkit-guard/server'
 import { Remote } from 'foldkit-remote'
-import { bind, writer, type DrizzleDatabase } from 'foldkit-remote-drizzle'
+import { bind, invariantChecks, writer, type DrizzleDatabase } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import { Product, Publish, Rename, Restock, Sell, Shop, type User } from './domain.js'
 
@@ -18,6 +18,7 @@ export const products = sqliteTable('products', {
   name: text('name').notNull(),
   status: text('status').notNull(),
   stock: integer('stock').notNull(),
+  reserved: integer('reserved').notNull(),
   revision: integer('revision').notNull(),
 })
 
@@ -34,16 +35,6 @@ export const ledger = sqliteTable(
   table => [primaryKey({ columns: [table.scope, table.operation, table.target] })],
 )
 
-export const schema = `
-  create table products (
-    id text primary key, owner_id text not null, name text not null,
-    status text not null, stock integer not null, revision integer not null
-  );
-  create table write_ledger (
-    scope text not null, operation text not null, target text not null, answer text not null, at integer not null,
-    primary key (scope, operation, target)
-  )`
-
 // Every guard is a row guard, decided in SQL: there is no principal guard to implement.
 export const Policy = Shop.implement({})
 
@@ -51,6 +42,21 @@ const Db = bind(
   { Product },
   { Product: { table: products, visible: GuardDrizzle.visible(Policy, [Product]).Product } },
 )
+
+// The invariants as constraints too, so raw SQL is held to them as the writer is.
+export const schema = `
+  create table products (
+    id text primary key, owner_id text not null, name text not null,
+    status text not null, stock integer not null, reserved integer not null,
+    revision integer not null,
+    ${invariantChecks(Db.Product)
+      .map(check => check.constraint)
+      .join(',\n    ')}
+  );
+  create table write_ledger (
+    scope text not null, operation text not null, target text not null, answer text not null, at integer not null,
+    primary key (scope, operation, target)
+  )`
 
 // Each update and delete lands only on the revision its rules were decided over.
 const guarded = GuardServer.writer(Product, Policy, writer(Db.Product), { revision: 'revision' })

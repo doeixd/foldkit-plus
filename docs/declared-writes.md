@@ -8,9 +8,9 @@ the row version that statement will change, and the client shows it before the
 answer comes. Nothing reads the row in one statement and writes it in another,
 so nothing another request does in between is written over.
 
-This guide covers preconditions, increments, a guard that holds where the write
-commits, operation ids, a write ledger, a revision the database moves, and the
-client's prediction of a sum. The runnable version is
+This guide covers preconditions, increments, invariants, a guard that holds
+where the write commits, operation ids, a write ledger, a revision the database
+moves, and the client's prediction of a sum. The runnable version is
 [`examples/writes`](../examples/writes/README.md).
 
 ## Who owns what
@@ -18,6 +18,7 @@ client's prediction of a sum. The runnable version is
 | Part | Package | Owns | Does not |
 | --- | --- | --- | --- |
 | The declaration | `foldkit-entity` (`Write`) | what changes, `when` it makes sense, what it `increment`s | any I/O; it is a value |
+| The invariants | `foldkit-entity` (`Entity.invariant`) | what every stored row must hold, whoever writes it | who may write; whether this write applies now |
 | The rules | `foldkit-guard` | who may write which row and member, decided over the row being written | the statement; it hands the writer what to check |
 | The writer | `foldkit-remote-drizzle` (`writer`) | the one `update … where` that checks and writes; the ledger, when given one | who may write |
 | The client | `foldkit-remote` (`Data.mutate`) | the operation id; what shows until the answer | authority: a prediction decides nothing |
@@ -208,6 +209,48 @@ const Sell = Mutation.write(
 )
 ```
 
+### What every row holds: an invariant
+
+A precondition says whether this write applies now; an invariant says what
+every stored row must hold, whoever writes it. With `quantity = 10, reserved =
+5`, an update setting `quantity = 3` decodes, passes every rule, and leaves a
+row holding more reserved than there is. An invariant is declared once on the
+Entity:
+
+```ts
+const StockFields = Entity.define(
+  'Stock',
+  Schema.Struct({ id: Schema.String, quantity: Schema.Number, reserved: Schema.Number }),
+)
+const Stock = StockFields.pipe(
+  Entity.invariant('reservedWithinQuantity', f => Expr.lte(f.reserved, Expr.field(f.quantity)), {
+    message: 'Reserved stock cannot exceed the quantity',
+    path: ['reserved'],
+  }),
+)
+```
+
+- **Judged over the row a write leaves.** The writer compiles it into the same
+  `WHERE`, with the fields the write sets read as their new values and each
+  incremented field as its column moved: `… and reserved <= 3`. The row judged
+  is the row written, at the version written, so a `reserved` raised by another
+  request after the client's read is judged too. An insert's values are judged
+  before it is written.
+- **Strictly true.** A null fails it, as SQL's unknown drops a row from a
+  `WHERE`. A rule that allows one says so: `Expr.or(Expr.isNull(f), …)`.
+- **Not a rule.** `Update: [isOwner, isManager]` says who may; an invariant is
+  never one of those alternatives, so authority does not excuse an invalid row
+  and a valid row grants no one anything. The rules speak first, so `Invalid`
+  reaches only someone they let write. One over a member a Read rule hides is
+  enforced, but its refusal names no invariant and no path.
+- **Repair is possible.** A row already invalid is judged by the row a write
+  leaves, so a write that fixes it lands.
+- **The same declaration, everywhere it can be judged.** `Entity.judge(entity,
+  row)` is the reference; `Entity.check(entity)` is a Schema check; a form over
+  an input that sets every field one reads judges it on submit and shows the
+  message beside its path; `invariantChecks(binding)` gives each as a `CHECK`
+  constraint, which holds against handlers and raw SQL too.
+
 ### Retries: three different guarantees
 
 | Write | A retry after a lost answer | Two writes from one read |
@@ -330,6 +373,7 @@ change.
 | `Forbidden` | a hidden row, or a rule that does not hold | show it; asking again is refused again |
 | `Conflict` | the input's revision is not the row's | re-read, then let the author decide |
 | `Unmet` | the row does not hold the write's `when` | show why; the state changed |
+| `Invalid` | the row the write would leave breaks an invariant | show its `message` beside its `path`; change the input |
 | "changed while it was written" | the row kept moving through three decisions | retry later |
 | "needs a database with transactions" | a ledger over D1 | serve that write without a ledger |
 
@@ -337,7 +381,8 @@ change.
 
 | | SQLite | Postgres | D1 |
 | --- | --- | --- | --- |
-| Revision, `when`, increment | one statement | one statement | one statement |
+| Revision, `when`, increment, invariant | one statement | one statement | one statement |
+| `invariantChecks` | in `create table` | `alter table … add` | in `create table` |
 | Ledger | a synchronous transaction | an awaited transaction; the primary key settles a race | refused: D1 runs no `BEGIN` |
 | `revisionTrigger` | yes | yes | yes (SQLite) |
 
@@ -350,6 +395,8 @@ second copy.
 
 - One row by id. Bulk predicates, nested writes and multi-row programs are
   handlers.
+- An invariant reads one row. Uniqueness, foreign keys and limits across rows
+  need the database to coordinate them; a predicate cannot say them.
 - Only an increment is computed. Copying one field into another, and other
   arithmetic, wait for a use case.
 - A rule that reads facts outside the database (a remote permission service)

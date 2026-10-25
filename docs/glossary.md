@@ -52,6 +52,7 @@ each of those.
 | **Query body** | What a query means, as a value: `Query.define(name, Input, ({ input }) => …)` with `Expr` predicates and an order. Compiled to SQL on a server, run over rows by `evaluate`. |
 | **Declared write** | A change to one row by id, as data (`Write.update`, `insert`, `delete`): what it sets, adds, and must find. Served with no handler. [Declared writes](./declared-writes.md) |
 | **Precondition** | A declared write's `when`: what the row must hold for the write to land, checked in the statement; refused as `Unmet`. |
+| **Invariant** | What every stored row of an Entity must hold over its own fields (`Entity.invariant`), judged over the row a write leaves and refused as `Invalid`; not a rule, so it grants and excuses no one. [Declared writes](./declared-writes.md#what-every-row-holds-an-invariant) |
 | **Increment** | A declared write's `increment`: an amount added to a number field in the statement (`stock = stock + ?`). |
 
 ## `foldkit-remote`: server data
