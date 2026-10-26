@@ -46,4 +46,12 @@ export const Collation = {
   /** The collation a member's metadata declares, if any. */
   declared: (metadata: Metadata): Option.Option<Collation> =>
     Option.fromUndefinedOr(key.get(metadata)[0]),
+
+  /**
+   * Text as `asciiFold` compares it: ASCII letters lowercased, every other
+   * character as it is, which is what SQLite's `lower` does without ICU and so
+   * what compiled SQL folds to. `toLowerCase` would fold `É` to `é` here and not
+   * there. An operator implementing `asciiFold` folds with this.
+   */
+  foldAscii: (text: string): string => text.replace(/[A-Z]+/g, upper => upper.toLowerCase()),
 }

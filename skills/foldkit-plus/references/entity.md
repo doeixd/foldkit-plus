@@ -343,6 +343,17 @@ by what a call means; `published(Story.fields.publishedAt)` is then a predicate
 `Query.dependencies(body).operators`, and run by every interpreter as its expansion
 (`Expr.expanded`), so it needs no SQL of its own. `definedAs` may read only its
 arguments. `foldkit-cms`'s `Cms.published(entity)` is one, over the `published` role.
+Without `definedAs` an operator is **primitive**: each interpreter implements it.
+In memory, `Operators.memory(Operators.implement(op, (a, b, { collation }) => …))`
+is a table passed to `evaluate(body, input, rows, { operators })`, `Entity.judge`,
+`judgeInput` and `Entity.check(entity, { operators })`; `Operators.kernel` is the
+default and holds `Text.startsWith(text, prefix, { collation? })`. A strict operator
+(the default) never sees a null; `nulls: 'handled'` with
+`Operators.implementHandlingNulls` does. `collation: 'operands'` makes a text result
+carry its operands' collation; `'required'` refuses text with none. A body calling an
+operator a table lacks is refused by name (`Query.unsupported(body, supported,
+operators)`, `Expr.unsupported(nodes, { operations, operators })`); an invariant is
+then `Undecided` with `operators`, which a form passes.
 
 **Asking about an input without branching on it.** An input is a placeholder, so
 a query cannot pick a shape from a value. It does not need to:

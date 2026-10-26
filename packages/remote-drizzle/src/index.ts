@@ -1492,10 +1492,19 @@ export const writer = <P = unknown>(
             Valid: () => Effect.void,
             Invalid: ({ failures }) =>
               Option.match(refusalOf(failures), { onNone: () => Effect.void, onSome: Effect.fail }),
-            Undecided: ({ fields }) =>
+            Undecided: ({ fields, operators }) =>
               Effect.fail(
                 new RemoteServerError({
-                  message: `${binding.name} ${id}: an invariant reads ${fields.join(', ')}, which the insert does not set`,
+                  message: `${binding.name} ${id}: ${[
+                    ...(fields.length > 0
+                      ? [`an invariant reads ${fields.join(', ')}, which the insert does not set`]
+                      : []),
+                    ...(operators.length > 0
+                      ? [
+                          `an invariant calls ${operators.join(', ')}, which this server does not run`,
+                        ]
+                      : []),
+                  ].join('; ')}`,
                 }),
               ),
           }),

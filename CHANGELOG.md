@@ -39,6 +39,19 @@ version changed; `pnpm` skips versions already in the registry.
   what no argument holds, a wrong argument, or a body of the wrong kind is refused
   when called. Phase 1 of `expr-operations-DESIGN.md`; the conformance suite runs
   operator cases in every interpreter.
+- **Primitive operators and their tables** (Phase 2 of `expr-operations-DESIGN.md`).
+  `Expr.operator` without `definedAs` declares an operator each interpreter
+  implements, with a null rule (`nulls: 'strict' | 'handled'`) and a collation
+  rule (`collation: 'none' | 'operands' | 'required'`); a call may be given
+  `{ collation }`. `Operators` builds immutable tables of in-memory
+  implementations (`memory`, `implement`, `implementHandlingNulls`, `merge`,
+  `override`, `checked`, `kernel`), which `evaluate`, `decided`, `truthOver`,
+  `Entity.judge`, `Entity.judgeInput` and `Entity.check(entity, { operators })`
+  take. `Text.startsWith` is the kernel's first, under its text's collation.
+  `Expr.unsupported(nodes, { operations, operators })` names what an interpreter
+  lacks, `Collation.foldAscii` folds as `asciiFold` compares, and
+  `OperatorMissingError` names an operator a table does not run. The
+  conformance suite exports `primitiveCases` and `primitiveRefusals`.
 - **`Cms.published(entity)`**: whether a row is published, as `cms.published` over
   the Entity's `published` role. The CMS example's two public queries and three
   visitor Read rules use it in place of five hand-written `isNotNull`s.
@@ -50,6 +63,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`Query.unsupported(body, supported, operators?)` names primitive operators
+  too**, so its result is `ReadonlyArray<string>`, not `Operation`s; without a
+  table every primitive operator is named. **Comparing text needs a
+  collation, not a field**: a call carrying one compares as a field does.
+- **An invariant's `Undecided` has `operators`** beside `fields`: the operators
+  its judge's table does not run. An exact comparison with one adds
+  `operators: []`.
 - **`Dependencies` gains `operators`**, each operator a body calls, and Remote's
   `ExplainedDependencies` carries them as `{ id, version }`. A test comparing a
   whole `Dependencies` with `toEqual` adds `operators: []`.

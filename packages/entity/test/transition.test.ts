@@ -56,6 +56,7 @@ describe('A transition invariant', () => {
     expect(Entity.judge(Order, { before: partial, after: placed })).toEqual({
       _tag: 'Undecided',
       fields: ['total'],
+      operators: [],
     })
   })
 

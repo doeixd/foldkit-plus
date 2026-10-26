@@ -80,6 +80,7 @@ describe('An invariant', () => {
     expect(Entity.judge(Inventory, { after: partial })).toEqual({
       _tag: 'Undecided',
       fields: ['quantity'],
+      operators: [],
     })
     // A failure it can decide still decides.
     expect(
@@ -258,6 +259,7 @@ describe('Entity.judgeInput', () => {
     expect(Entity.judgeInput(Edit, { ...value, reserved: Option.none() })).toEqual({
       _tag: 'Undecided',
       fields: ['reserved'],
+      operators: [],
     })
   })
 })

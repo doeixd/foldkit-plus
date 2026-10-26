@@ -75,9 +75,35 @@ export interface OperatorDescriptor {
   /** One schema per argument, read as the stored form. */
   readonly input: ReadonlyArray<Schema.Top>
   readonly output: Schema.Top
-  /** Builds the expression a call means, from its arguments. */
-  readonly definedAs: (...args: ReadonlyArray<Operandish>) => Operandish
+  /**
+   * Builds the expression a call means, from its arguments: an operator defined
+   * by an expression. None for a primitive operator, which each interpreter
+   * implements (`Operators`).
+   */
+  readonly definedAs: Option.Option<(...args: ReadonlyArray<Operandish>) => Operandish>
+  /**
+   * A primitive operator's null rule. `strict`: a null argument gives null, or
+   * unknown for a predicate, and the implementation never sees one. `handled`:
+   * the implementation is given nulls and answers for them.
+   */
+  readonly nulls: 'strict' | 'handled'
+  /**
+   * How a call compares text. `operands`: it carries the collation its collated
+   * text arguments share, so its text result compares under it. `required`: the
+   * same, refused where none is declared (it compares text itself, as
+   * `Text.startsWith` does). `none`: it carries none.
+   */
+  readonly collation: 'none' | 'operands' | 'required'
 }
+
+/** What an interpreter runs, as far as a check of a body needs to know. */
+export interface OperatorTable {
+  /** Whether this table implements the operator. */
+  readonly has: (operator: OperatorDescriptor) => boolean
+}
+
+/** A table implementing nothing: every primitive operator is unsupported by it. */
+export const noOperators: OperatorTable = Object.freeze({ has: () => false })
 
 /**
  * A call of an operator whose result is a scalar. `expansion` is the
@@ -89,6 +115,8 @@ export interface CallExpr<T> {
   readonly operator: OperatorDescriptor
   readonly args: ReadonlyArray<Operandish>
   readonly expansion: Option.Option<Expr<T>>
+  /** How its text result compares, from its operator's `collation` rule. */
+  readonly collation: Option.Option<Collation>
 }
 
 /** A typed scalar: what a comparison compares. */
@@ -209,6 +237,8 @@ export interface TestPredicate {
   readonly operator: OperatorDescriptor
   readonly args: ReadonlyArray<Operandish>
   readonly expansion: Option.Option<Predicate>
+  /** The collation it compares text under, from its operator's `collation` rule. */
+  readonly collation: Option.Option<Collation>
 }
 
 /**
@@ -513,27 +543,34 @@ const collationFor = (
     )
   }
   if (!kinds.has('text')) return Option.none()
+  // The sides that can say how text orders: a field, as declared, or a call, as its
+  // operator's rule carries one. A literal or an input says nothing.
   const fields = [left, right].flatMap(side =>
     Match.value(side).pipe(
-      Match.tag('Field', field => [field]),
-      Match.tag('Next', next => [next.field]),
+      Match.tag('Field', field => [
+        { name: `${field.owner.name}.${field.key}`, collation: field.collation },
+      ]),
+      Match.tag('Next', ({ field }) => [
+        { name: `${field.owner.name}.${field.key}`, collation: field.collation },
+      ]),
+      Match.tag('Call', call => [{ name: showExpr(call), collation: call.collation }]),
       Match.orElse(() => []),
     ),
   )
   const [first] = fields
   if (first === undefined) {
     throw new Error(
-      `[foldkit-entity] Expr.${step}: text compared with no field, whose collation would say how it orders`,
+      `[foldkit-entity] Expr.${step}: text compared with no field, nor a call carrying a collation, to say how it orders`,
     )
   }
-  const named = fields.map(field => `${field.owner.name}.${field.key}`).join(' and ')
+  const named = fields.map(field => field.name).join(' and ')
   const collations = Option.match(given, {
     onSome: collation => [collation],
     onNone: () =>
       fields.map(field =>
         Option.getOrElse(field.collation, () => {
           throw new Error(
-            `[foldkit-entity] Expr.${step}: ${field.owner.name}.${field.key} is text with no declared collation, so backends would order it differently; declare Collation.binary or Collation.asciiFold on it, or pass one`,
+            `[foldkit-entity] Expr.${step}: ${field.name} is text with no declared collation, so backends would order it differently; declare Collation.binary or Collation.asciiFold on it, or pass one`,
           )
         }),
       ),
@@ -670,7 +707,54 @@ export interface Operator<In extends ReadonlyArray<Schema.Top>, Out extends Sche
   <const A extends { readonly [K in keyof In]: ArgumentOf<In[K]> }>(
     ...args: A
   ): CallOf<Out> & Reads<ReadsOf<A[number]>>
+  /**
+   * A call comparing text under the collation given, rather than its text
+   * arguments' declared one: for an operator whose `collation` is `operands`
+   * or `required`, as `Expr.lt(field, value, { collation })` is.
+   */
+  <const A extends { readonly [K in keyof In]: ArgumentOf<In[K]> }>(
+    ...args: [...A, CallOptions]
+  ): CallOf<Out> & Reads<ReadsOf<A[number]>>
   readonly descriptor: OperatorDescriptor
+}
+
+/** What a call may say past its arguments. */
+export interface CallOptions {
+  /** The collation it compares text under, in place of its arguments' declared one. */
+  readonly collation: Collation
+}
+
+const collationTags = new Set(['Binary', 'AsciiFold', 'Locale'])
+
+/** A call's last value, when it is one past the arguments: its options, checked. */
+const callOptionsOf = (id: string, value: unknown): Collation => {
+  const collation =
+    typeof value === 'object' && value !== null && Object.hasOwn(value, 'collation')
+      ? (value as { readonly collation: unknown }).collation
+      : undefined
+  if (!collationTags.has(tagOf(collation) as string)) {
+    throw new Error(
+      `[foldkit-entity] ${id}: a value past its arguments is \`{ collation }\`, a Collation`,
+    )
+  }
+  return collation as Collation
+}
+
+/** A collation a call was given: one its operator compares by, and portable where required. */
+const givenCollation = (
+  id: string,
+  descriptor: OperatorDescriptor,
+  collation: Collation,
+): Option.Option<Collation> => {
+  if (Option.isSome(descriptor.definedAs) || descriptor.collation === 'none') {
+    throw new Error(`[foldkit-entity] ${id}: takes no collation; it compares no text of its own`)
+  }
+  if (descriptor.collation === 'required' && collation._tag === 'Locale') {
+    throw new Error(
+      `[foldkit-entity] ${id}: compares by the backend's "${collation.locale}" collation, which only that backend has`,
+    )
+  }
+  return Option.some(collation)
 }
 
 /** Namespaced, lower camel case: `cms.published`, `text.startsWith`. */
@@ -721,6 +805,63 @@ const argumentFor = (
   return arg
 }
 
+/** A scalar's collation: a field's declared one, or a call's. */
+const collationOf = (scalar: AnyExpr): Option.Option<Collation> =>
+  Match.value(scalar).pipe(
+    Match.tagsExhaustive({
+      Field: field => field.collation,
+      Next: ({ field }) => field.collation,
+      Call: call => call.collation,
+      Literal: () => Option.none<Collation>(),
+      Input: () => Option.none<Collation>(),
+    }),
+  )
+
+/**
+ * The collation a primitive call compares text under: the one its collated
+ * text arguments share. A literal or an input carries none and does not vote.
+ * `required` refuses a call with none, or with a backend's locale.
+ */
+const callCollation = (
+  id: string,
+  rule: OperatorDescriptor['collation'],
+  args: ReadonlyArray<Operandish>,
+): Option.Option<Collation> => {
+  if (rule === 'none') return Option.none()
+  const fail = (what: string): never => {
+    throw new Error(`[foldkit-entity] ${id}: ${what}`)
+  }
+  const voters = args.flatMap(arg =>
+    isPredicate(arg) || arg._tag === 'Literal' || arg._tag === 'Input' || sideKind(arg) !== 'text'
+      ? []
+      : [{ name: showExpr(arg), collation: collationOf(arg) }],
+  )
+  const collations = voters.flatMap(({ name, collation }) =>
+    Option.match(collation, {
+      onSome: each => [each],
+      onNone: (): ReadonlyArray<Collation> =>
+        rule === 'required'
+          ? fail(
+              `${name} is text with no declared collation, so backends would compare it differently; declare Collation.binary or Collation.asciiFold on it`,
+            )
+          : [],
+    }),
+  )
+  const [shared] = collations
+  if (shared === undefined) {
+    return rule === 'required'
+      ? fail('compares text with no field or call holding a collation')
+      : Option.none()
+  }
+  if (collations.some(each => each._tag !== shared._tag)) {
+    fail(`${voters.map(voter => voter.name).join(' and ')} declare different collations`)
+  }
+  if (rule === 'required' && shared._tag === 'Locale') {
+    fail(`compares by the backend's "${shared.locale}" collation, which only that backend has`)
+  }
+  return Option.some(shared)
+}
+
 /** Builds an operator: checks what it is given once, then each call. */
 const makeOperator = (
   id: string,
@@ -729,7 +870,9 @@ const makeOperator = (
     readonly output: Schema.Top
     readonly version?: number | undefined
     readonly description?: string | undefined
-    readonly definedAs: (...args: ReadonlyArray<Operandish>) => unknown
+    readonly definedAs?: ((...args: ReadonlyArray<Operandish>) => unknown) | undefined
+    readonly nulls?: OperatorDescriptor['nulls'] | undefined
+    readonly collation?: OperatorDescriptor['collation'] | undefined
   },
 ): Operator<ReadonlyArray<Schema.Top>, Schema.Top> => {
   const fail = (what: string): never => {
@@ -745,9 +888,28 @@ const makeOperator = (
     fail('`input` is one schema per argument')
   }
   if (!Schema.isSchema(options.output)) fail('`output` is a schema')
-  if (typeof options.definedAs !== 'function') fail('`definedAs` builds what a call means')
+  const definedAs = Option.fromUndefinedOr(options.definedAs)
+  if (Option.isSome(definedAs) && typeof definedAs.value !== 'function') {
+    fail('`definedAs` builds what a call means')
+  }
+  // A defined operator means its body, null and text alike: it declares neither.
+  if (
+    Option.isSome(definedAs) &&
+    (options.nulls !== undefined || options.collation !== undefined)
+  ) {
+    fail("a defined operator means its body, so `nulls` and `collation` are its body's")
+  }
+  const nulls = options.nulls ?? 'strict'
+  const collation = options.collation ?? 'none'
+  if (nulls !== 'strict' && nulls !== 'handled') fail("`nulls` is 'strict' or 'handled'")
+  if (collation !== 'none' && collation !== 'operands' && collation !== 'required') {
+    fail("`collation` is 'none', 'operands' or 'required'")
+  }
   const input = Object.freeze([...options.input])
   const predicate = storedAsBoolean(options.output)
+  if (collation === 'operands' && orderKindOf(Schema.toEncoded(options.output).ast) !== 'text') {
+    fail("`collation: 'operands'` describes a text result, and this one is not text")
+  }
   const descriptor: OperatorDescriptor = Object.freeze({
     _tag: 'Operator',
     id,
@@ -755,18 +917,16 @@ const makeOperator = (
     description: Option.fromUndefinedOr(options.description),
     input,
     output: options.output,
-    definedAs: options.definedAs as OperatorDescriptor['definedAs'],
+    definedAs: definedAs as OperatorDescriptor['definedAs'],
+    nulls,
+    collation,
   })
-  const call = (...given: ReadonlyArray<unknown>) => {
-    if (given.length !== input.length) {
-      throw new Error(
-        `[foldkit-entity] ${id}: takes ${input.length} argument${input.length === 1 ? '' : 's'}, given ${given.length}`,
-      )
-    }
-    const args = Object.freeze(
-      given.map((value, position) => argumentFor(id, position, input[position]!, value)),
-    )
-    const expansion = toOperand(descriptor.definedAs(...args))
+  /** A defined call's expansion, checked: of its output's kind, reading only its arguments. */
+  const expand = (
+    body: (...args: ReadonlyArray<Operandish>) => Operandish,
+    args: ReadonlyArray<Operandish>,
+  ): Operandish => {
+    const expansion = toOperand(body(...args))
     if (predicate !== isPredicate(expansion)) {
       throw new Error(
         `[foldkit-entity] ${id}: its output is ${predicate ? 'a boolean, so `definedAs` returns a predicate' : 'not a boolean, so `definedAs` returns a scalar'}`,
@@ -781,18 +941,48 @@ const makeOperator = (
         `[foldkit-entity] ${id}: \`definedAs\` reads ${hidden.join(', ')}, which no argument holds; pass it as one`,
       )
     }
-    return isPredicate(expansion)
+    return expansion
+  }
+  const call = (...written: ReadonlyArray<unknown>) => {
+    // One value past the arguments is the call's options.
+    const explicit =
+      written.length === input.length + 1
+        ? Option.some(callOptionsOf(id, written[written.length - 1]))
+        : Option.none<Collation>()
+    const given = Option.isSome(explicit) ? written.slice(0, -1) : written
+    if (given.length !== input.length) {
+      throw new Error(
+        `[foldkit-entity] ${id}: takes ${input.length} argument${input.length === 1 ? '' : 's'}, given ${given.length}`,
+      )
+    }
+    const args = Object.freeze(
+      given.map((value, position) => argumentFor(id, position, input[position]!, value)),
+    )
+    const expansion = Option.map(descriptor.definedAs, body => expand(body, args))
+    // A collation given wins; else a defined call's text compares as its body
+    // does, and a primitive one's by its rule.
+    const carried = Option.match(explicit, {
+      onSome: each => givenCollation(id, descriptor, each),
+      onNone: () =>
+        Option.match(expansion, {
+          onSome: body => (isPredicate(body) ? Option.none<Collation>() : collationOf(body)),
+          onNone: () => callCollation(id, collation, args),
+        }),
+    })
+    return predicate
       ? node<TestPredicate>({
           _tag: 'Test',
           operator: descriptor,
           args,
-          expansion: Option.some(expansion),
+          expansion: expansion as Option.Option<Predicate>,
+          collation: carried,
         })
       : node<CallExpr<unknown>>({
           _tag: 'Call',
           operator: descriptor,
           args,
-          expansion: Option.some(expansion),
+          expansion: expansion as Option.Option<AnyExpr>,
+          collation: carried,
         })
   }
   return Object.freeze(Object.assign(call, { descriptor })) as unknown as Operator<
@@ -882,6 +1072,14 @@ export const Expr = {
    * called, since nothing asking what the call reads would see it. The id is
    * namespaced (`cms.published`); `foldkit.` is reserved; `version` (default 1)
    * changes when what it means does.
+   *
+   * **Without `definedAs` it is primitive**: each interpreter implements it
+   * (`Operators.implement` in memory), and one without an implementation
+   * refuses the body by the operator's id. `nulls` (default `strict`: a null
+   * argument gives null, the implementation never sees one) and `collation`
+   * (`operands`: a text result carries its text arguments' shared collation;
+   * `required`: it compares text itself and needs one) are a primitive
+   * operator's; a defined one means its body for both.
    */
   operator: <const In extends ReadonlyArray<Schema.Top>, Out extends Schema.Top>(
     id: string,
@@ -890,8 +1088,20 @@ export const Expr = {
       readonly output: Out
       readonly version?: number | undefined
       readonly description?: string | undefined
-      readonly definedAs: (...args: { readonly [K in keyof In]: ParameterOf<In[K]> }) => BodyOf<Out>
-    },
+    } & (
+      | {
+          readonly definedAs: (
+            ...args: { readonly [K in keyof In]: ParameterOf<In[K]> }
+          ) => BodyOf<Out>
+          readonly nulls?: undefined
+          readonly collation?: undefined
+        }
+      | {
+          readonly definedAs?: undefined
+          readonly nulls?: OperatorDescriptor['nulls'] | undefined
+          readonly collation?: OperatorDescriptor['collation'] | undefined
+        }
+    ),
   ): Operator<In, Out> =>
     makeOperator(id, options as Parameters<typeof makeOperator>[1]) as unknown as Operator<In, Out>,
 
@@ -902,6 +1112,21 @@ export const Expr = {
    * for the interpreter to refuse by name.
    */
   expanded: (predicate: Predicate): Predicate => expandedPredicate(predicate),
+
+  /**
+   * What these expressions need that an interpreter lacks, as `Query.unsupported`
+   * says it for a query: each kernel operation `supported` does not list, then
+   * each primitive operator `operators` does not implement, by name (`id`, or
+   * `id@version` past the first). For anything holding expressions that is not a
+   * query: a guard's rule, an invariant, a write's `when`.
+   */
+  unsupported: (
+    nodes: ReadonlyArray<AnyExpr | Predicate | Ordering>,
+    interpreter: {
+      readonly operations: ReadonlyArray<Operation>
+      readonly operators: OperatorTable
+    },
+  ): ReadonlyArray<string> => unsupportedIn(nodes, interpreter.operations, interpreter.operators),
 
   /** A constant. Comparisons coerce a plain value, so this is rarely written. */
   literal,
@@ -1781,8 +2006,10 @@ export const Query = {
 
   /**
    * The operations this query needs that `supported` does not list, in the
-   * order the query uses them. Empty means an interpreter declaring
-   * `supported` can answer it.
+   * order the query uses them, then each primitive operator `operators` does
+   * not implement, by name. Without `operators`, every primitive operator is
+   * named: a list of operations implements none. Empty means an interpreter
+   * declaring both can answer it.
    *
    * An interpreter declares what it runs and refuses the rest, rather than
    * ignoring an operation it does not implement — which would answer a
@@ -1796,10 +2023,11 @@ export const Query = {
    * if (missing.length > 0) throw new Error(`cannot run ${missing.join(', ')}`)
    * ```
    */
-  unsupported: (self: AnyQuery, supported: ReadonlyArray<Operation>): ReadonlyArray<Operation> => {
-    const runs = new Set(supported)
-    return Query.dependencies(self).operations.filter(operation => !runs.has(operation))
-  },
+  unsupported: (
+    self: AnyQuery,
+    supported: ReadonlyArray<Operation>,
+    operators: OperatorTable = noOperators,
+  ): ReadonlyArray<string> => unsupportedIn([...self.where, ...self.orderBy], supported, operators),
 
   /**
    * The whole query as readable text, one clause per line:
@@ -1897,6 +2125,26 @@ const showExpr = (node: AnyExpr | Predicate): string => {
 /** A call's expansion, scalar or predicate alike. */
 const expansionOf = (call: CallExpr<unknown> | TestPredicate): Option.Option<AnyExpr | Predicate> =>
   call.expansion
+
+/**
+ * What `nodes` need that an interpreter lacks: each kernel operation it does
+ * not list, then each primitive operator its table does not implement, by
+ * name. A defined operator needs nothing: what it means is walked instead.
+ */
+const unsupportedIn = (
+  nodes: ReadonlyArray<AnyExpr | Predicate | Ordering>,
+  supported: ReadonlyArray<Operation>,
+  operators: OperatorTable,
+): ReadonlyArray<string> => {
+  const read = dependenciesOf(...nodes)
+  const runs = new Set(supported)
+  return [
+    ...read.operations.filter(operation => !runs.has(operation)),
+    ...read.operators
+      .filter(operator => Option.isNone(operator.definedAs) && !operators.has(operator))
+      .map(operatorName),
+  ]
+}
 
 /** An operator by its id, and its version when that is not the first. */
 const operatorName = (operator: OperatorDescriptor): string =>

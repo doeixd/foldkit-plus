@@ -94,13 +94,13 @@ export default [
   edit(
     'a call of a predicate operator always holds',
     evaluate,
-    'return holds(expanded(node), scope)',
+    'return truthOf(node, called(node, scope))',
     'return true',
   ),
   edit(
     'a call of a scalar operator is null',
     evaluate,
-    'return valueOf(expanded(node), scope)',
+    'return called(node, scope)',
     'return null',
   ),
   edit(

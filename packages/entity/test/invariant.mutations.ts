@@ -18,20 +18,16 @@ const edit = (name: string, find: string, replace: string, at = file) => ({
 export default [
   edit(
     'a null passes',
-    'truthOver(held.predicate, before ?? {}, {}, after) !== true',
-    'truthOver(held.predicate, before ?? {}, {}, after) === false',
+    'truthOver(held.predicate, before ?? {}, {}, after, operators) !== true',
+    'truthOver(held.predicate, before ?? {}, {}, after, operators) === false',
   ),
   edit(
     'the row after is read as the row before',
-    'truthOver(held.predicate, before ?? {}, {}, after) !== true',
-    'truthOver(held.predicate, before ?? {}, {}, before ?? {}) !== true',
+    'truthOver(held.predicate, before ?? {}, {}, after, operators) !== true',
+    'truthOver(held.predicate, before ?? {}, {}, before ?? {}, operators) !== true',
   ),
   edit('a missing field is judged', 'if (absent.length > 0) absent', 'if (false) absent'),
-  edit(
-    'undecided reads as valid',
-    "if (missing.size > 0) return { _tag: 'Undecided'",
-    "if (false) return { _tag: 'Undecided'",
-  ),
+  edit('undecided reads as valid', 'if (missing.size > 0 || unrun.size > 0) {', 'if (false) {'),
   edit(
     'a create judges a transition invariant',
     'if (readsBefore(held) && before === undefined) continue',
