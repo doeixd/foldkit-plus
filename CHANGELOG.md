@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-crud`: `Crud.remover(name, config, { returnFocus })`.** A no takes
+  the delete question and its buttons away; with `returnFocus`, the selector of
+  what asked, focus goes back there rather than to the page. `examples/entity`
+  returns it to its Delete button.
+
 - **`foldkit-form`: `Input.bundle`'s `busy`.** A control with work its value
   waits on (an upload) says so, and a submit made meanwhile waits for it as for a
   check: the key reads `Validating`, the submit goes out when the work lands with

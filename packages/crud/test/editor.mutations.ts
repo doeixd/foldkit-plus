@@ -16,8 +16,8 @@ export default [
       },
       {
         file: editor,
-        find: "import { Match, Option, Schema } from 'effect'",
-        replace: "import { Match, Option, Predicate, Schema } from 'effect'",
+        find: "import { Effect, Match, Option, Schema } from 'effect'",
+        replace: "import { Effect, Match, Option, Predicate, Schema } from 'effect'",
       },
     ],
     tests,

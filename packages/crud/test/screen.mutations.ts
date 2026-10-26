@@ -53,4 +53,15 @@ export default [
     edits: [{ file, find: '[`Closed${name}`]: {},', replace: '[`Close${name}`]: {},' }],
     tests,
   },
+  {
+    name: 'a no leaves focus on the page',
+    edits: [
+      {
+        file: '../src/index.ts',
+        find: ': [FocusAsker({ selector: options.returnFocus })],',
+        replace: ': [],',
+      },
+    ],
+    tests: ['examples/entity/test/page.test.ts'],
+  },
 ]

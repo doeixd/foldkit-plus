@@ -154,6 +154,8 @@ it('lists posts, edits one through the drawn form, and shows the save in the lis
     await vi.waitFor(() => expect(element('#remove-question')?.textContent).toBe('Delete p2?'))
     answer('No').click()
     await vi.waitFor(() => expect(element('#delete')).not.toBeNull())
+    // The no took its button away; focus is back on what asked.
+    await vi.waitFor(() => expect(document.activeElement?.id).toBe('delete'))
     expect(backend.count('posts')).toBe(2)
 
     element('#delete').click()

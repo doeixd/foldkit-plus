@@ -8,7 +8,7 @@
  * ordinary Foldkit: a Bundle, an ActiveSurface, Update Steps. Nothing is
  * generated from an Entity alone; each capability is declared.
  */
-import { Match, Option, Schema } from 'effect'
+import { Effect, Match, Option, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import {
   Entity,
@@ -37,7 +37,8 @@ import {
   type RemoteMessage,
 } from 'foldkit-remote'
 import { Projection, type ActiveSurface, type ModelRef } from 'foldkit-surface'
-import type { Command } from 'foldkit/command'
+import { define as defineCommand, type Command } from 'foldkit/command'
+import * as Dom from 'foldkit/dom'
 import { defineMessageUnion } from 'foldkit/message'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import * as Submodel from 'foldkit/submodel'
@@ -233,10 +234,23 @@ const columnsOf = <Members>(
   })
 }
 
-const RemoverMessage = defineMessageUnion({ Confirmed: {}, Cancelled: {} })
+const RemoverMessage = defineMessageUnion({
+  Confirmed: {},
+  Cancelled: {},
+  /** Focus went back to what asked, after a no took the question away. */
+  CompletedFocus: {},
+})
 type RemoverMessage = typeof RemoverMessage.Type
 
 const idle: RemoverModel = { target: null, requestId: null }
+
+const FocusAsker = defineCommand('Crud.remover.Focus', {
+  args: { selector: Schema.String },
+  messages: [RemoverMessage.CompletedFocus],
+  // What asked may be gone by now, and nothing to focus is nothing to do.
+  execute: ({ selector }) =>
+    Dom.focus(selector).pipe(Effect.ignore, Effect.as(RemoverMessage.CompletedFocus())),
+})
 
 export const Crud = {
   /**
@@ -316,6 +330,13 @@ export const Crud = {
            */
           readonly id: Key & (Input extends Readonly<Record<Key, string>> ? Key : never)
         },
+    options: {
+      /**
+       * Where focus goes after a no takes the question away: the button that
+       * asked (`'#delete'`). Without it focus falls to the page.
+       */
+      readonly returnFocus?: string | undefined
+    } = {},
   ) => {
     type AskedId = [Key] extends [never] ? Id : Input[Key] & string
     const inputFor = (id: string): Input =>
@@ -328,9 +349,22 @@ export const Crud = {
       Message: RemoverMessage,
       init: () => ({ model: idle }),
       update: (model: RemoverModel, message: RemoverMessage) =>
-        message._tag === 'Cancelled' || model.target === null
-          ? { model: idle }
-          : { model, outMessage: { _tag: 'Confirmed', id: model.target } as ConfirmedRemoval },
+        RemoverMessage.match<
+          Update.ReturnWithOutMessage<RemoverModel, RemoverMessage, ConfirmedRemoval, never>
+        >(message, {
+          Cancelled: () => ({
+            model: idle,
+            commands:
+              options.returnFocus === undefined
+                ? []
+                : [FocusAsker({ selector: options.returnFocus })],
+          }),
+          Confirmed: () =>
+            model.target === null
+              ? { model: idle }
+              : { model, outMessage: { _tag: 'Confirmed', id: model.target } as ConfirmedRemoval },
+          CompletedFocus: () => ({ model }),
+        }),
       helpers: {
         /** Asks whether to delete `id`. Nothing is deleted until `Confirmed`. */
         ask: (_: RemoverModel, id: AskedId) => ({ model: { target: id, requestId: null } }),

@@ -51,12 +51,17 @@ const EditorBundle = Editor.bundle.pipe(
 )
 
 // Deleting is a mutation with a yes in between.
-const Remover = Crud.remover('PostRemover', {
-  mutation: DeletePostMutation,
-  // The input is `{ id }`, so naming the key is enough: the remover is asked about a
-  // PostId, the key's own type, and an AuthorId would not compile.
-  id: 'id',
-})
+const Remover = Crud.remover(
+  'PostRemover',
+  {
+    mutation: DeletePostMutation,
+    // The input is `{ id }`, so naming the key is enough: the remover is asked about a
+    // PostId, the key's own type, and an AuthorId would not compile.
+    id: 'id',
+  },
+  // A no takes the question away: focus goes back to the button that asked it.
+  { returnFocus: '#delete' },
+)
 export const RemoverMessage = Remover.Message
 
 /**
