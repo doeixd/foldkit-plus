@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-ui`: `AppShell`, an application's page frame.** A skip link,
+  a header bar with the title, status and actions, an optional side column for a
+  `Sidebar`, the main region the skip link focuses, and a footer, from
+  `AppShell.view({ title, … }, main, h)`. It holds no state and draws the same on
+  a server. `Recipes.AppShell({ width })` keeps the header and side column in view
+  while the page scrolls and puts a Sidebar's phone opener in the header's row
+  below `md`. `Patterns.AppShell` is its accessibility contract.
+- **`foldkit-mixins`: a `width.page` token** (`72rem`), the widest a page's content
+  runs. `AppShell`'s `width: 'contained'` reads it.
 - **Computed assignments** (Phase 6 of `expr-operations-DESIGN.md`).
   `Write.update(input, { compute: { label: ({ row, input }) => … } })` sets a
   field from the row before the write and the input, refused where declared for

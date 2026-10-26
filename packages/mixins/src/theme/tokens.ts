@@ -220,14 +220,17 @@ export const tokens = define({
     'body-wrap': 'var(--fk-knob-body-wrap)',
     align: 'var(--fk-knob-reading-align)',
   },
-  // The least widths content sets: `field` a text field's, so one sized by
-  // its content still has room to type in; the columns a grid of cards or
-  // tiles lays out by.
+  // The widths content is laid out by: the least ones, `field` a text
+  // field's, so one sized by its content still has room to type in, and the
+  // columns a grid of cards or tiles lays out by; and the most one, `page`,
+  // the widest a page's content runs, where a frame keeps it from the
+  // window's edges.
   width: {
     field: '20ch',
     'column-sm': '10rem',
     'column-md': '14rem',
     'column-lg': '18rem',
+    page: '72rem',
   },
   // The icons the components draw themselves, each a CSS mask `url()` an
   // element paints in its text's color: Lucide's by default, written by

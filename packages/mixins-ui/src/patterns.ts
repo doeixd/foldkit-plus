@@ -25,6 +25,7 @@ import { TreeViewSlots } from './treeView.js'
 import { ColorPickerSlots } from './colorPicker.js'
 import { InputCopySlots } from './inputCopy.js'
 import { AlertSlots } from './alert.js'
+import { AppShellSlots } from './appShell.js'
 import { TagsInputSlots } from './tagsInput.js'
 import { PasswordInputSlots } from './passwordInput.js'
 import { RatingSlots } from './rating.js'
@@ -288,6 +289,14 @@ export const Alert = A11y.pattern({
     attributes: [Attr.AriaLabel],
     optional: true,
   },
+})
+
+/** One banner, one main region the skip link reaches, and the link itself. */
+export const AppShell = A11y.pattern({
+  root: { capability: Capability.Container },
+  skip: { capability: Capability.Interactive },
+  header: { capability: Capability.Container },
+  main: { capability: Capability.Container },
 })
 
 export const InputCopy = A11y.pattern({
@@ -718,6 +727,14 @@ export const catalog: ReadonlyArray<Entry> = Object.freeze([
   entry('resizable', Resizable, ResizableSlots, 'stateful', ['separator']),
   entry('sidebar', Sidebar, SidebarSlots, 'stateful', ['navigation', 'button']),
   entry('nav', Nav, NavSlots, 'stateful', ['navigation', 'link'], ['native-control']),
+  entry(
+    'app-shell',
+    AppShell,
+    AppShellSlots,
+    'stateless',
+    ['banner', 'main', 'contentinfo', 'link'],
+    ['native-control'],
+  ),
   entry('menubar', Menubar, MenubarSlots, 'stateful', ['menubar', 'menuitem', 'menu']),
   entry('progress', Progress, ProgressSlots, 'stateless', ['progressbar']),
   entry('meter', Meter, MeterSlots, 'stateless', ['meter']),
