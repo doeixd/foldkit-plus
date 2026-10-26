@@ -176,6 +176,35 @@ describe('A guarded write that sets, moves and computes', () => {
     expect(GuardServer.writer(Tag, Policy, writer(Db.Tag)).pins).toBeUndefined()
   })
 
+  it('is refused where registered when its policy cannot work the computed value out', () => {
+    // Its rules would judge the label as it was, and the write would land past them.
+    const Blind = G.implement({ anyone: () => true, labeler: () => true }, {})
+    expect(() =>
+      RemoteServer.make<Option.Option<typeof User.Type>, DrizzleDatabase>({
+        entities: [],
+        mutations: [
+          RemoteServer.write(
+            Retag,
+            GuardServer.writer(Tag, Blind, writer(Db.Tag), { revision: 'revision' }),
+          ),
+        ],
+      }),
+    ).toThrow('its assignment to "label" calls acme.concat, which the policy does not run')
+  })
+
+  it('answers an operator refusing its input as the writer would, not as a defect', async () => {
+    const { retag, row } = open()
+    const answer = await retag({
+      id: 't1',
+      revision: 1,
+      title: 'New',
+      prefix: `o${String.fromCharCode(0)}`,
+      by: 0,
+    })
+    expect(answer).toMatchObject({ _tag: 'Failure', failure: { _tag: 'RemoteMutationError' } })
+    expect(row()).toEqual({ title: 'Old', label: 'plain', stock: 2, revision: 1 })
+  })
+
   it('refuses a sum its rule forbids beside a computed value it allows', async () => {
     const { retag, row } = open()
     expect(await retag({ id: 't1', revision: 1, title: 'New', prefix: 'o', by: -3 })).toMatchObject(

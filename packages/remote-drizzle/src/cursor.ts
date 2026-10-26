@@ -79,18 +79,19 @@ export const collatedColumn = (
           : postgresText.has(column.columnType)
             ? Option.some({ key: sql`${column} collate "C"`, value: plain })
             : Option.none(),
+      // Folded under "C" on both sides: Postgres's `lower` follows the collation
+      // of what it folds, and under a UTF-8 one folds `É` too, which the
+      // evaluator and SQLite's NOCASE leave alone. A column that is not text has
+      // no case to fold, and Postgres refuses `lower` of one.
       AsciiFold: () =>
-        Option.some(
-          // Folded under "C" on both sides: Postgres's `lower` follows the collation
-          // of what it folds, and under a UTF-8 one folds `É` too, which the
-          // evaluator and SQLite's NOCASE leave alone.
-          postgres
-            ? {
+        !postgres
+          ? Option.some({ key: sql`${column} collate nocase`, value: plain })
+          : postgresText.has(column.columnType)
+            ? Option.some({
                 key: sql`lower(${column} collate "C")`,
                 value: (value: unknown) => sql`lower(${value} collate "C")`,
-              }
-            : { key: sql`${column} collate nocase`, value: plain },
-        ),
+              })
+            : Option.none(),
       // The compiler refuses a locale on SQLite, which has none.
       Locale: ({ locale }) =>
         Option.some({ key: sql`${column} collate ${sql.identifier(locale)}`, value: plain }),

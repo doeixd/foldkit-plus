@@ -7,3 +7,6 @@ pnpm-lock.yaml
 # Markdown is authored by hand: a formatter pads table columns and reformats
 # code inside fenced blocks, which rewrites the documents' illustrative snippets.
 *.md
+
+# Written by foldkit-media/vite each time Vite starts; formatted, it would be written back.
+foldkit-icons.d.ts

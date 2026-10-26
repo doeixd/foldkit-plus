@@ -86,9 +86,7 @@ const ranked = Relational.from(Item).pipe(
 describe('A primitive operator in SQL', () => {
   it('compiles by its implementation, each parameter cast to its stored type on Postgres', () => {
     const [onPg] = compilePredicates(ranked.where, onPostgres, { a: 1, b: 2 }, 'Ranked')
-    expect(renderedPg(onPg!).sql).toBe(
-      '"items"."rank" = (cast($1 as integer) + cast($2 as integer))',
-    )
+    expect(renderedPg(onPg!).sql).toBe('"items"."rank" = (cast($1 as bigint) + cast($2 as bigint))')
     // SQLite takes no cast: its `cast(? as integer)` would truncate a fraction silently.
     const [onLite] = compilePredicates(ranked.where, onSqlite, { a: 1, b: 2 }, 'Ranked')
     expect(renderedSqlite(onLite!).sql).toBe('"items"."rank" = (? + ?)')
@@ -238,10 +236,11 @@ describe('A primitive operator run by the database', () => {
   const ids = (
     target: typeof onSqlite | typeof onPostgres,
     layer: ReturnType<typeof databaseLayer>,
+    input: { readonly a: number; readonly b: number } = { a: 1, b: 2 },
   ) =>
     Effect.runPromise(
       query(descriptor, { entity: target })
-        .run({ input: { a: 1, b: 2 }, window: { first: 5 }, principal: null })
+        .run({ input, window: { first: 5 }, principal: null })
         .pipe(
           Effect.map(page => page.edges.map(edge => edge.id)),
           Effect.provide(layer),
@@ -258,6 +257,46 @@ describe('A primitive operator run by the database', () => {
     sqlite.close()
   })
 
+  it('binds a boolean on SQLite as SQLite stores one', async () => {
+    const flagged = Expr.operator('acme.flagged', {
+      input: [Schema.Int, Schema.Boolean],
+      output: Schema.Boolean,
+    })
+    const table = {
+      memory: Operators.memory(Operators.implement(flagged, (rank, flag) => rank > 4 === flag)),
+      sql: DrizzleOperators.make(
+        DrizzleOperators.implement(
+          flagged,
+          ({ args: [rank, flag] }) => sql`((${rank} > 4) = ${flag})`,
+        ),
+      ),
+    }
+    const Flagged = {
+      ...Query.make('Flagged', { Input: { flag: Schema.Boolean }, Result: Query.connection(Item) }),
+      body: Relational.from(Item).pipe(
+        Relational.where(flagged(Item.fields.rank, Expr.input('flag', Schema.Boolean))),
+        Relational.orderBy(Order.asc(Item.fields.id)),
+      ),
+    }
+    const sqlite = new DatabaseSync(':memory:')
+    sqlite.exec(
+      'create table items (id text primary key, code text not null, rank integer not null)',
+    )
+    for (const row of rows) sqlite.prepare('insert into items values (?, ?, ?)').run(...row)
+    const run = (flag: boolean) =>
+      Effect.runPromise(
+        query(Flagged, { entity: entity('Item', sqliteItems, { operators: table }) })
+          .run({ input: { flag }, window: { first: 5 }, principal: null })
+          .pipe(
+            Effect.map(page => page.edges.map(edge => edge.id)),
+            Effect.provide(databaseLayer(drizzle({ client: sqlite }))),
+          ),
+      )
+    expect(await run(true)).toEqual(['i2'])
+    expect(await run(false)).toEqual(['i1'])
+    sqlite.close()
+  })
+
   describe('on Postgres', () => {
     const pglite = new PGlite()
     beforeAll(async () => {
@@ -271,6 +310,13 @@ describe('A primitive operator run by the database', () => {
     it('answers, its parameters cast where Postgres cannot type them', async () => {
       expect(await ids(onPostgres, databaseLayer(drizzlePg({ client: pglite })))).toEqual(['i1'])
     })
+
+    it('takes any integer Schema.Int admits, past the 32 bits of an integer', async () => {
+      const input = { a: 3_000_000_000, b: -2_999_999_997 }
+      expect(await ids(onPostgres, databaseLayer(drizzlePg({ client: pglite })), input)).toEqual([
+        'i1',
+      ])
+    })
   })
 })
 
@@ -279,6 +325,17 @@ describe('DrizzleOperators', () => {
     sum,
     ({ args: [left, right] }) => sql`(${left} + ${right})`,
   )
+
+  it('refuses an implementation of a defined operator, whose meaning it compiles', () => {
+    const named = Expr.operator('acme.named', {
+      input: [Schema.String],
+      output: Schema.Boolean,
+      definedAs: code => Expr.eq(code, 'AB'),
+    })
+    expect(() => DrizzleOperators.implement(named, () => sql`true`)).toThrow(
+      'acme.named is defined by an expression, which every interpreter runs; it takes no implementation',
+    )
+  })
 
   it('refuses one operator implemented twice, or two under one name', () => {
     expect(() => DrizzleOperators.make(sumSql, sumSql)).toThrow('acme.sum is implemented twice')

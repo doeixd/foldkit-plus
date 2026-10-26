@@ -1128,7 +1128,7 @@ can say whether a row belongs to a query. `Remote.matching` says:
 const judged = Remote.matching(Data.storeOf(model), ProjectsByOwner, { ownerId: 'u1' })
 
 judged.matched  // keys satisfying the body, in the order it asks for
-judged.skipped  // keys held, but missing a field the body reads
+judged.skipped  // keys held, but not judged either way
 ```
 
 It is pure, and it runs the **same interpreter the server checks itself
@@ -1145,7 +1145,9 @@ keys — so it is in the shape. A caller that knows it holds the whole populatio
 complete answer.
 
 **`skipped` is the honest half.** A row missing a field the body reads cannot be
-judged: it is neither a match nor a non-match. Dropping it silently would turn
+judged: it is neither a match nor a non-match. Nor can a row holding a value no
+interpreter answers for (text with a NUL); each row is judged alone, so one such
+row is skipped and the others are still answered. Dropping it silently would turn
 "I could not tell" into "no", so it is named instead, and the caller decides
 whether to fetch the field, ask the server, or say the answer is partial.
 

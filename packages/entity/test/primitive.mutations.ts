@@ -59,14 +59,18 @@ export default [
   edit(
     'a table is never asked',
     evaluate,
-    'return Option.match(scope.operators.get(call.operator), {',
-    'return Option.match(Option.none<never>(), {',
+    'Option.match(scope.operators.get(call.operator), {',
+    'Option.match(Option.none<never>(), {',
   ),
   edit(
     'evaluate ignores the table it is given',
     evaluate,
-    'const operators = options.operators ?? Operators.kernel',
-    'const operators = Operators.kernel',
+    `const operators = options.operators ?? Operators.kernel
+  assertSupported(body, operators)
+  return ordered(`,
+    `const operators = Operators.kernel
+  assertSupported(body, operators)
+  return ordered(`,
   ),
   edit(
     'deciding over the input ignores the table',

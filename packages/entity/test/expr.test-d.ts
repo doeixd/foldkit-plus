@@ -132,6 +132,10 @@ Expr.contains(Doc.fields.archived, 'a')
 // @ts-expect-error a predicate holds a boolean, so it holds no text either
 Expr.contains(Expr.isNull(Doc.fields.subtitle), 'a')
 
+// The search is a value or an input: one a row decides compiles nowhere.
+// @ts-expect-error a field as the search
+Expr.contains(Doc.fields.title, Doc.fields.subtitle)
+
 // The other operators are deliberately not constrained this way: absence is a
 // question about a field of any type.
 Expr.isNull(Doc.fields.rank)

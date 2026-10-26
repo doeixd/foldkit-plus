@@ -122,7 +122,15 @@ export const DrizzleOperators = {
   implement: (
     operator: { readonly descriptor: OperatorDescriptor },
     build: (context: SqlContext) => SQL,
-  ): SqlImplementation => Object.freeze({ operator: operator.descriptor, build }),
+  ): SqlImplementation => {
+    // Memory runs what a defined operator means; SQL must too.
+    if (Option.isSome(operator.descriptor.definedAs)) {
+      fail(
+        `${nameOf(operator.descriptor)} is defined by an expression, which every interpreter runs; it takes no implementation`,
+      )
+    }
+    return Object.freeze({ operator: operator.descriptor, build })
+  },
 
   /** A table of implementations. One operator implemented twice, or two under one name, is refused. */
   make: (...implementations: ReadonlyArray<SqlImplementation>): DrizzleOperators =>
@@ -177,6 +185,12 @@ export const DrizzleOperators = {
       const declared = operator.laws.map(law => JSON.stringify(Law.describe(law)))
       if (!declared.includes(JSON.stringify(record.law))) {
         fail(`evidence names a law of ${record.operator} it does not declare (${record.law.kind})`)
+      }
+      // A memory implementation's says nothing of the SQL this table compiles.
+      if (Option.isSome(Operators.testedOn(record))) {
+        fail(
+          `evidence of ${record.operator}'s ${record.law.kind} law was tested on a memory implementation; test this table's SQL with Conformance.lawsBy`,
+        )
       }
     }
     return table(base.implementations, [...base.evidence, ...evidence])

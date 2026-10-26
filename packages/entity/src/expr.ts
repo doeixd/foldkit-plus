@@ -120,6 +120,11 @@ export const noOperators: OperatorTable = Object.freeze({ has: () => false, vers
  */
 export const missingName = (operator: OperatorDescriptor, operators: OperatorTable): string => {
   const held = operators.versions(operator.id)
+  // The same name and version from another `Expr.operator` call: a table holds
+  // declarations, not names, so it is a different operator.
+  if (held.includes(operator.version)) {
+    return `${operatorName(operator)} (this table has another declaration of it; declare an operator once and import it)`
+  }
   return held.length === 0
     ? operatorName(operator)
     : `${operatorName(operator)} (this table has ${held
@@ -1305,13 +1310,18 @@ export const Expr = {
    */
   contains: <L extends TextOperand>(
     value: L,
-    search: string | Expr<string>,
-  ): ContainsPredicate & Reads<ReadsOf<L>> =>
-    node({
-      _tag: 'Contains',
-      value: toExpr(value, 'contains'),
-      search: toOperand(search as never),
-    }),
+    search: string | LiteralExpr<string> | InputExpr<string> | InputExpr<string | null>,
+  ): ContainsPredicate & Reads<ReadsOf<L>> => {
+    const operand = toOperand(search as never)
+    // A search a row decides would have to be escaped as a pattern in SQL, which
+    // no compiler here does: it is a value or an input.
+    if (operand._tag !== 'Literal' && operand._tag !== 'Input') {
+      throw new Error(
+        `[foldkit-entity] Expr.contains: the search is ${showExpr(operand)}; search for a value or an input`,
+      )
+    }
+    return node({ _tag: 'Contains', value: toExpr(value, 'contains'), search: operand })
+  },
 
   /**
    * Whether a value is one of `among`: a list written out, or an input whose
@@ -1527,13 +1537,23 @@ export interface TermOptions {
 
 /** A term, its nulls placed by `options` or by the direction's default. */
 const term = (direction: 'asc' | 'desc', expr: AnyExpr, options: TermOptions = {}): OrderTerm => {
-  const collation = Option.orElse(Option.fromUndefinedOr(options.collation), () =>
-    Match.value(expr).pipe(
-      Match.tag('Field', field => field.collation),
-      Match.tag('Call', call => call.collation),
-      Match.orElse(() => Option.none<Collation>()),
-    ),
-  )
+  // A number orders alike everywhere, and Postgres refuses a collation on one: a
+  // collation it would inherit from a call's text arguments is dropped.
+  const number = sideKind(expr) === 'number'
+  if (number && options.collation !== undefined) {
+    throw new Error(
+      `[foldkit-entity] Order: ${showExpr(expr)} is a number, which needs no collation; a collation orders text`,
+    )
+  }
+  const collation = number
+    ? Option.none<Collation>()
+    : Option.orElse(Option.fromUndefinedOr(options.collation), () =>
+        Match.value(expr).pipe(
+          Match.tag('Field', field => field.collation),
+          Match.tag('Call', call => call.collation),
+          Match.orElse(() => Option.none<Collation>()),
+        ),
+      )
   if (expr._tag === 'Call') orderableCall(expr, collation)
   return node({
     _tag: 'Term',

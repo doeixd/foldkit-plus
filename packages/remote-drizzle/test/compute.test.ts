@@ -13,7 +13,7 @@ import { drizzle as drizzlePg } from 'drizzle-orm/pglite'
 import { integer as pgInteger, pgTable, text as pgText } from 'drizzle-orm/pg-core'
 import { SQLiteDialect, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Schema } from 'effect'
-import { Entity, Expr, Law, Operators, Write, isPredicate } from 'foldkit-entity'
+import { Collation, Entity, Expr, Law, Operators, Write, isPredicate } from 'foldkit-entity'
 import { Conformance } from 'foldkit-entity/conformance'
 import { Mutation } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
@@ -55,10 +55,15 @@ const Fields = Entity.define(
     score: Schema.Int,
     revision: Schema.Int,
   }),
-)
+).pipe(Entity.annotateMembers({ label: Collation.of(Collation.binary) }))
 const Part = Fields.pipe(
   Entity.invariant('notBanned', ({ after }) => Expr.not(Expr.eq(after.label, 'banned')), {
     message: 'That label is banned',
+    path: ['label'],
+  }),
+  // Orders the computed label under its collation, which each dialect writes its own way.
+  Entity.invariant('beforeX', ({ after }) => Expr.lt(after.label, 'x'), {
+    message: 'Labels sort before x',
     path: ['label'],
   }),
 )
@@ -183,6 +188,14 @@ describe.each(backends)('A computed assignment on %s', (_, backend) => {
       failure: { refusal: { _tag: 'Invalid', rule: 'notBanned', path: ['label'] } },
     })
     expect(await backend.row()).toEqual({ label: 'plain', score: 10, revision: 1 })
+  })
+
+  it('orders the value it computes under the field’s collation', async () => {
+    await backend.fresh()
+    expect(await send({ id: 'p1', revision: 1, prefix: 'y' })).toMatchObject({
+      _tag: 'Failure',
+      failure: { refusal: { _tag: 'Invalid', rule: 'beforeX' } },
+    })
   })
 
   it('is not computed twice by a retry of one that landed', async () => {
@@ -353,6 +366,61 @@ describe("A SQL table's evidence", () => {
         { ...evidence[0]!, law: Law.describe(Law.idempotent) },
       ]),
     ).toThrow('evidence names a law of acme.add it does not declare (idempotent)')
+  })
+
+  it('refuses a record tested on a memory implementation, which says nothing of its SQL', () => {
+    const verdict = Conformance.laws(add, memory)
+    const evidence = verdict._tag === 'Holds' ? verdict.evidence : []
+    expect(() => DrizzleOperators.withEvidence(sqlTable, evidence)).toThrow(
+      "evidence of acme.add's commutative law was tested on a memory implementation",
+    )
+  })
+
+  it('does not let a law tested over less than every value admit a write with no revision', async () => {
+    // Associative over the positive integers only: a column may hold any.
+    const addSome = Expr.operator('acme.addSome', {
+      input: [Schema.Int, Schema.Int],
+      output: Schema.Int,
+      laws: [
+        Law.commutative,
+        Law.within(Law.associative, Schema.Int.check(Schema.isGreaterThan(0))),
+      ],
+    })
+    const tables = {
+      memory: Operators.memory(Operators.implement(addSome, (left, right) => left + right)),
+      sql: DrizzleOperators.make(
+        DrizzleOperators.implement(addSome, ({ args: [left, right] }) => sql`(${left} + ${right})`),
+      ),
+    }
+    const memoryVerdict = Conformance.laws(addSome, tables.memory)
+    const sqlVerdict = await Conformance.lawsBy(
+      addSome,
+      selectingSqlite(bind({ Part }, { Part: { table: sqliteParts } }, { operators: tables })),
+      { implementation: 'sqlite' },
+    )
+    if (memoryVerdict._tag !== 'Holds' || sqlVerdict._tag !== 'Holds') {
+      throw new Error('addition did not hold its laws')
+    }
+    const evidenced = {
+      memory: Operators.withEvidence(tables.memory, memoryVerdict.evidence),
+      sql: DrizzleOperators.withEvidence(tables.sql, sqlVerdict.evidence),
+    }
+    const ScoreSome = Mutation.write(
+      'ScoreSome',
+      Write.update(
+        Entity.input(Part, Schema.Struct({ id: Schema.String, by: Schema.Int }), {
+          by: Entity.unmapped,
+        }),
+        { id: 'id', compute: { score: ({ row, input }) => addSome(row.score, input.by) } },
+      ),
+    )
+    const Db = bind({ Part }, { Part: { table: sqliteParts } }, { operators: evidenced })
+    expect(() =>
+      RemoteServer.write(
+        ScoreSome,
+        writer<string>(Db.Part, { ledger: { table: ledgerTable, scope: principal => principal } }),
+      ),
+    ).toThrow('write "ScoreSome" computes "score" and expects no revision')
   })
 
   it('keeps its records through a merge, and drops a replaced implementation’s', async () => {

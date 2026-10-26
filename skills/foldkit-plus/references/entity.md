@@ -369,7 +369,7 @@ declares equations every implementation keeps (`commutative`, `idempotent`,
 `Law.within(law, schema)` narrows one), checked where declared; they rewrite
 nothing. `Conformance.laws(op, table)` (`foldkit-entity/conformance`) samples
 each, seeded, and answers `Holds` with `Tested` evidence or a `Counterexample`;
-`Operators.withEvidence(table, evidence)` records it and `describeTable(table)`
+`Operators.withEvidence(table, evidence)` records it, only for the implementation it was tested on (`Operators.testedOn`), and `describeTable(table)`
 lists each operator as `describe` does (its `name`, …), with its evidence. `Conformance.operator(op, {
 implementations })` runs generated calls through several runners
 (`Conformance.memory(table)`, an SQL one over `compileCall`) and reports where they
@@ -447,7 +447,11 @@ Query.dependencies(recent)     // every field it reads, also split into `predica
   `foldkit-entity/conformance`, a subpath so the fixtures stay out of the main
   bundle: `cases` each name the ids a body matches, and `refusals` are bodies
   every interpreter must refuse rather than answer (text holding NUL).
-- `Expr.contains` takes a **text or nullable-text** operand only, checked by the
+  `evaluateEach(body, input, rows)` judges each row alone: a row holding such
+  text goes in `refused` and the others are answered (Remote's `matching` skips
+  it); an input holding one still refuses the run.
+- `Expr.contains` searches for a **value or an input**, never a field or call (SQL
+  would have to escape one as a pattern), and takes a **text or nullable-text** operand only, checked by the
   type parameter: over a number it would compile to `lower(rank) like …`, which
   SQLite coerces and Postgres rejects. The check is a constraint rather than an
   `Invalid` brand intersected onto the parameter — a conditional over the type
@@ -500,6 +504,7 @@ Query.dependencies(recent)     // every field it reads, also split into `predica
 ## See also
 
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/entity/README.md
+- https://github.com/doeixd/foldkit-plus/blob/main/docs/operators.md (operators end to end)
 - https://github.com/doeixd/foldkit-plus/tree/main/examples/entity
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/metadata/README.md
 - https://github.com/doeixd/foldkit-plus/blob/main/docs/design/entity-DESIGN.md

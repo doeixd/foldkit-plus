@@ -8,7 +8,9 @@
 import { Effect, Match, Option, Schema, SchemaAST } from 'effect'
 import {
   Entity,
+  Expr,
   Query,
+  QueryEvaluateError,
   Write,
   dependenciesOf,
   supported,
@@ -621,6 +623,22 @@ export const GuardServer = {
         ),
         principal: context.principal,
       })
+    /**
+     * The row `context` would leave `before` as. An operator's refusal (text
+     * holding NUL, an implementation that throws) is answered as the writer
+     * answers one it cannot compile, not as a defect.
+     */
+    const leaves = (before: Readonly<Record<string, unknown>>, context: UpdateContext) =>
+      Effect.suspend(() => {
+        try {
+          return Effect.succeed(Write.apply(before, context, { operators: policy.operators }).row)
+        } catch (error) {
+          if (error instanceof QueryEvaluateError) {
+            return Effect.fail(new RemoteServerError({ message: error.message }))
+          }
+          throw error
+        }
+      })
     /** The rules, over the row as it is and as the write would leave it. */
     const decideUpdate = (
       context: UpdateContext,
@@ -646,7 +664,7 @@ export const GuardServer = {
         // What the writer will store, over the row read, which the pin keeps as the row
         // written: `Write.apply`'s, as the writer works it out.
         const after = {
-          ...Write.apply(before, context, { operators: policy.operators }).row,
+          ...(yield* leaves(before, context)),
           ...Object.fromEntries(
             Object.entries(links).map(([relation, link]) => [relation, linkKey(link)]),
           ),
@@ -666,8 +684,18 @@ export const GuardServer = {
       ...(writer.ledger === true ? { ledger: true } : {}),
       // Invariants are the writer's to judge, over the row its statement writes.
       ...(writer.invariants === true ? { invariants: true } : {}),
-      // What the store refuses, the store knows: the guard adds no reason and drops none.
-      ...(writer.refuses === undefined ? {} : { refuses: writer.refuses }),
+      // What the store refuses, the store knows: the guard drops none of its reasons. It
+      // adds one: its rules judge the row the write leaves, worked out by the policy's
+      // table, so an assignment that table cannot run would be judged as its old value.
+      refuses: write => [
+        ...(writer.refuses?.(write) ?? []),
+        ...write.assignments.flatMap(({ field, expr }) =>
+          Expr.unsupported([expr], { operations: supported, operators: policy.operators }).map(
+            missing =>
+              `its assignment to "${field.key}" calls ${missing}, which the policy does not run`,
+          ),
+        ),
+      ],
       ...(writer.recorded === undefined ? {} : { recorded: writer.recorded }),
       read: ({ id, fields, principal }) =>
         seenRow(

@@ -119,7 +119,7 @@ export const subsites: ReadonlyArray<Subsite> = [
       shelf: 'Data',
       packages: ['entity'],
     },
-    [doc('domain', 'One domain declaration', 'entity')],
+    [doc('domain', 'One domain declaration', 'entity'), doc('operators', 'Operators', 'operators')],
   ),
   family(
     {

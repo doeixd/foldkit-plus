@@ -1,0 +1,41 @@
+{
+  "name": "foldkit-example-chirp",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build:sandbox": "vite build",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "drizzle-orm": "1.0.0-rc.5",
+    "foldkit-bundle": "workspace:*",
+    "foldkit-crud": "workspace:*",
+    "foldkit-entity": "workspace:*",
+    "foldkit-example-site": "workspace:*",
+    "foldkit-form": "workspace:*",
+    "foldkit-guard": "workspace:*",
+    "foldkit-media": "workspace:*",
+    "foldkit-mixins": "workspace:*",
+    "foldkit-mixins-form": "workspace:*",
+    "foldkit-mixins-ui": "workspace:*",
+    "foldkit-primitives": "workspace:*",
+    "foldkit-remote": "workspace:*",
+    "foldkit-remote-drizzle": "workspace:*",
+    "foldkit-remote-server": "workspace:*",
+    "foldkit-site": "workspace:*",
+    "foldkit-surface": "workspace:*",
+    "sql.js": "1.15.1"
+  },
+  "devDependencies": {
+    "@foldkit/ui": "0.169.0",
+    "@iconify-json/lucide": "^1.2.147",
+    "@types/sql.js": "1.4.11",
+    "effect": "^4.0.5",
+    "foldkit": "0.169.0",
+    "playwright": "^1.64.1",
+    "typescript": "7.0.2",
+    "vite": "8.3.5"
+  }
+}

@@ -6,6 +6,7 @@ const tests = ['packages/entity/test/describe.test.ts']
 const expr = '../src/expr.ts'
 const operators = '../src/operators.ts'
 const evaluate = '../src/evaluate.ts'
+const jsonSchema = '../src/jsonSchema.ts'
 const edit = (name: string, file: string, find: string, replace: string, only = tests) => ({
   name,
   edits: [{ file, find, replace }],
@@ -80,8 +81,14 @@ export default [
   ),
   edit(
     'what a schema refers to is dropped',
-    operators,
+    jsonSchema,
     ': { ...document.schema, $defs: document.definitions }',
     ': document.schema',
+  ),
+  edit(
+    'another declaration reads as a version mismatch',
+    expr,
+    'if (held.includes(operator.version)) {',
+    'if (false) {',
   ),
 ]

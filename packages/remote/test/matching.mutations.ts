@@ -35,4 +35,15 @@ export default [
     ],
     tests: ['packages/remote/test/liveBelongs.test.ts'],
   },
+  {
+    name: 'a refused row is dropped, not skipped',
+    edits: [
+      {
+        file: '../src/matching.ts',
+        find: 'skipped: [...skipped, ...judged.refused.map(keyOf)]',
+        replace: 'skipped',
+      },
+    ],
+    tests: ['packages/remote/test/matching.test.ts', 'packages/remote/test/filtered.test.ts'],
+  },
 ]

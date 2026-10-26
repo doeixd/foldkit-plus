@@ -804,9 +804,11 @@ do. It must agree with the memory implementation, nulls included. The
 compiler adds what SQL cannot say for itself:
 
 - On Postgres, a literal or input argument the operator takes as a number or a
-  boolean is cast (`cast($1 as integer)`, `double precision`, `boolean`):
-  Postgres reads an untyped parameter as text, and refuses `$1 + $2`. SQLite
-  takes no cast, since its `cast(? as integer)` would drop a fraction silently.
+  boolean is cast (`cast($1 as bigint)` for an integer, which holds every
+  value `Schema.Int` admits; `double precision`; `boolean`): Postgres reads an
+  untyped parameter as text, and refuses `$1 + $2`. SQLite takes no cast, since
+  its `cast(? as integer)` would drop a fraction silently, and binds a boolean
+  as 1 or 0, as it stores one.
 - A call whose result is text, compared with a value, is compared under the
   call's collation.
 - Text holding NUL given to an operator is refused, as SQL text cannot hold it

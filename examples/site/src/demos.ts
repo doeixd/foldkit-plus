@@ -148,6 +148,31 @@ export const todoDemo: Demo = {
   packages: ['surface', 'sync', 'durable', 'agent', 'agent-webmcp', 'mixins', 'mirror'],
 }
 
+export const chirpDemo: Demo = {
+  title: 'A Twitter clone, Chirp',
+  url: 'https://foldkit-chirp-demo.pages.dev/',
+  example: 'examples/chirp',
+  proves:
+    'Posts declared once as Entities, guarded on the server, served through Remote, posted and edited through forms built from the same input, and liked in one round trip.',
+  tryThis: [
+    { title: 'Post', text: 'Write a chirp and press Chirp: it is at the top at once.' },
+    {
+      title: 'Edit',
+      text: 'Edit shows only on your own posts. Change one and save it in place.',
+    },
+    {
+      title: 'Admin',
+      text: 'Sign in as Ada, the admin: Edit shows on every post, because the server says she may.',
+    },
+    {
+      title: 'Like',
+      text: 'Press a heart, then reload: the like was kept, and pressing again takes it back.',
+    },
+  ],
+  readFirst: 'examples/chirp/src/domain.ts',
+  packages: ['entity', 'guard', 'remote', 'remote-drizzle', 'form', 'crud', 'site', 'mixins-ui'],
+}
+
 export const gridDemo: Demo = {
   title: 'A data grid over 100,000 rows',
   url: 'https://foldkit-grid-demo.pages.dev/',
@@ -202,6 +227,7 @@ export const demos: ReadonlyArray<Demo> = [
   pagesDemo,
   richtextDemo,
   todoDemo,
+  chirpDemo,
   gridDemo,
   widgetsDemo,
 ]

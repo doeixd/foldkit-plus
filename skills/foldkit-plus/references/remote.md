@@ -524,8 +524,9 @@ them.
 `Remote.matching(store, descriptor, input, { among? })` runs a query body over
 the rows the store already holds, returning `{ matched, skipped }` — keys that
 satisfy it in the body's order, and keys held but missing a field the body reads
-(neither a match nor a non-match; naming them keeps "could not tell" from
-becoming "no"). It uses the same reference interpreter the server is checked
+or holding a value no interpreter answers for, such as text with a NUL (neither a
+match nor a non-match; naming them keeps "could not tell" from becoming "no").
+Each row is judged alone, so one such row never voids the others. It uses the same reference interpreter the server is checked
 against, takes the input **decoded** and encodes it itself (a decoded value
 produces an empty answer that no error catches), and answers *which of the rows
 I hold match* — never *which rows match*. It applies no `visible` rule and is
@@ -740,7 +741,7 @@ bodies' primitive operators run by, each its kernel (`Text.startsWith`) when not
 given: `sql` from `DrizzleOperators.make(DrizzleOperators.implement(op, ({ args,
 dialect, collate }) => …))`, whose function returns Drizzle `SQL` (`merge`,
 `override`, `kernel`), `memory` from `Operators`. A literal or input argument taken as a number or boolean is cast on
-Postgres (`cast($1 as integer)`); SQLite takes none. A query, an invariant or a
+Postgres (`cast($1 as bigint)` for an integer); SQLite takes none, and binds a boolean as 1 or 0. A query, an invariant or a
 write's `when` calling one either table lacks is refused where it is registered
 or the writer built; `GuardDrizzle.visible(Policy, entities, { operators })`
 checks Read rules against the SQL table it is given. A body ordered by a call

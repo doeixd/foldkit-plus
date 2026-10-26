@@ -41,6 +41,17 @@ describe('keysetWhere', () => {
     ).toThrow('says its collation in its own SQL')
   })
 
+  it('folds no case of a Postgres column that is not text, which has none', () => {
+    // Postgres refuses `lower` of an integer; the column orders as it is.
+    const predicate = render(
+      [{ key: events.rank, direction: 'asc', collation: Collation.asciiFold }],
+      [2],
+      'forward',
+    )
+    expect(normalized(predicate)).toContain('"events"."rank" > $1')
+    expect(predicate.sql).not.toContain('lower')
+  })
+
   it.each([
     ['asc', 'forward', '>'],
     ['desc', 'forward', '<'],

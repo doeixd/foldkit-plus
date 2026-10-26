@@ -28,6 +28,15 @@ version changed; `pnpm` skips versions already in the registry.
   below `md`. `Patterns.AppShell` is its accessibility contract.
 - **`foldkit-mixins`: a `width.page` token** (`72rem`), the widest a page's content
   runs. `AppShell`'s `width: 'contained'` reads it.
+- **`examples/chirp`: a Twitter clone, published as a demo.** A timeline, a
+  profile per person and a page per post; posting, editing your own posts in
+  place, and likes. Posts are Entities with a guarded write (its author or an
+  admin) whose `may` decides where the page shows Edit; the server stamps a
+  chirp's author and time from who is asking; the compose box and the editor
+  are forms over the writes' inputs, drawn with `foldkit-mixins-form/ui`; a like
+  is one server handler answering the post as it now reads. The server runs in
+  the browser on SQLite compiled to WebAssembly, in a SharedWorker every tab
+  shares, and the demo is listed with the others.
 - **Computed assignments** (Phase 6 of `expr-operations-DESIGN.md`).
   `Write.update(input, { compute: { label: ({ row, input }) => … } })` sets a
   field from the row before the write and the input, refused where declared for
@@ -57,9 +66,87 @@ version changed; `pnpm` skips versions already in the registry.
   versions it holds of an operator (`OperatorTable.versions`), and a call to
   another version is refused naming both (`acme.slug@2 (this table has
   acme.slug)`), where it is checked and where it runs (`missingName`).
+- **An operators guide** (`docs/operators.md`, on the site under Entity): what
+  an application's operators enable, from a rule named once to computed writes
+  and one meaning checked across the client and the server.
+- **`evaluateEach(body, input, rows, { operators })`** in `foldkit-entity`:
+  the reference interpreter judging each row alone, so a row holding text with
+  a NUL goes in `refused` and the others are still answered. What no one row
+  causes (an operator the table lacks, an input the body reads holding a NUL,
+  order keys of different kinds) still refuses the run.
+
+### Fixed
+
+- **`foldkit-media/vite` reads Lucide.** An Iconify alias spelt only
+  differently from the icon it names (Lucide's `arrow-down-01` for
+  `arrow-down-0-1`) was taken for a second icon imported by the same name, and
+  `icons({ iconify: ['lucide'] })` failed to start. Such an alias is now left
+  out; two different icons under one name still fail the build.
+- **A guarded write whose policy cannot run an assignment's operator is refused
+  where it is registered.** `GuardServer.writer` judged the row a write leaves
+  by the policy's table, and a computed value that table could not work out was
+  judged as the field's old value, so a rule over it could be passed while the
+  database wrote the new one.
+- **Operator arguments bind as each database takes them.** On Postgres an
+  integer is cast to `bigint`, not `integer`, so a value past 32 bits that
+  `Schema.Int` admits no longer fails the query; on SQLite a boolean is bound
+  as 1 or 0, which SQLite stores, where it failed to bind at all.
+- **`Expr.contains` searches for a value or an input,** in its type and where
+  it is written. A field or a call as the search was answered in memory and
+  refused by the SQL compiler on every request.
+- **A guarded write whose operator refuses its input fails as the writer's
+  would.** `GuardServer.writer` worked out the row a write leaves outside any
+  handling, so text holding a NUL given to an operator ended the request as a
+  defect; it is now the server error the writer answers it with.
+- **A computed assignment that may be null is refused for a field that stores
+  none,** where it is declared: a nullable field, a null, or a strict operator
+  over a nullable argument. Memory showed the null and the database refused it
+  as `NOT NULL`.
+- **A refusal names another declaration of an operator as such.** A table
+  holding an operator of the same name and version from another
+  `Expr.operator` call read `acme.slug (this table has acme.slug)`.
+- **Evidence is tied to the implementation it was tested on.**
+  `Operators.withEvidence` refuses a `Tested` record `Conformance.laws` did not
+  make of the table's own implementation (`Operators.testedOn(record)` names
+  it), and `DrizzleOperators.withEvidence` one tested in memory; before, a
+  verdict for one implementation could be recorded for another that breaks
+  the law. A computed assignment commutes only by laws tested over every
+  value, not one narrowed by `Law.within`. `Law.describe` keeps a domain's
+  `$defs`.
+- **Laws are tested under every collation an operator is called with.**
+  `Conformance.laws` and `lawsBy` ran an operator that compares text under
+  `binary` alone, so an implementation that broke a law only under `asciiFold`
+  passed; a `Counterexample` now names its `collation`. A witness that compares
+  text (`Law.inverse`, `Law.distributes`) is called under it too, where it
+  threw. Outcomes are compared as values, not as JSON, which wrote `Infinity`
+  and `NaN` as `null`.
+- **A defined operator takes no implementation.** `Operators.implement` and
+  `DrizzleOperators.implement` refuse one: SQL compiles what a defined operator
+  means, and a memory implementation was a second meaning only the client ran.
+- **An order by a number carries no collation.** A number-valued call inherited
+  its text argument's collation, which Postgres refuses on a number; it is now
+  dropped, and a collation written on a number term is refused where it is
+  written. A raw order term folding a Postgres column that is not text no
+  longer lowers it.
+- **A computed value compared under a collation compiles on Postgres.** An
+  invariant ordering the value an assignment computes wrote SQLite's
+  `collate binary` there, which Postgres refuses.
+- **`foldkit-mixins-data-grid`: a header's sort label and column menu button are
+  finger targets**, at least 24px (the menu button each way), where they were the
+  height of their words and glyph (about 21px tall and 30 by 23).
+- **`foldkit-remote`: a row created in an empty list shows.** An empty, complete
+  answer was stored as no segments at all, so placing a created row by the
+  list's declared order found nothing that ends the list and left the row out,
+  pending and confirmed: the Cloudflare example's first todo never appeared in
+  the tab that added it. Such an answer is now kept as one empty segment while
+  the list holds nothing else.
 
 ### Changed
 
+- **`Remote.matching` skips a held row holding text with a NUL** rather than
+  refusing the whole list, so one bad stored row no longer blanks a local
+  filter (`filtered`). An input holding one still refuses, as the server
+  does.
 - **`Operators.describeTable(table)` lists each operator as `Operators.describe`
   does**, with its evidence: its name is `name`, where it was `operator`. An
   `OperatorTable` has `versions` beside `has`.
@@ -72,18 +159,6 @@ version changed; `pnpm` skips versions already in the registry.
 - **`BoundWrite.assignments`, `EntityWriter.update`'s `assignments`**, and
   `visibleStore`/`resolvedPatches`' `operators` (the kernel by default) are new
   parts of these shapes; a hand-built `BoundRemote` needs `operators`.
-
-### Fixed
-
-- **`foldkit-mixins-data-grid`: a header's sort label and column menu button are
-  finger targets**, at least 24px (the menu button each way), where they were the
-  height of their words and glyph (about 21px tall and 30 by 23).
-- **`foldkit-remote`: a row created in an empty list shows.** An empty, complete
-  answer was stored as no segments at all, so placing a created row by the
-  list's declared order found nothing that ends the list and left the row out,
-  pending and confirmed: the Cloudflare example's first todo never appeared in
-  the tab that added it. Such an answer is now kept as one empty segment while
-  the list holds nothing else.
 
 ## 0.34.0
 

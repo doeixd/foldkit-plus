@@ -80,6 +80,44 @@ jobs:
 
       - run: pnpm test
 
+  # PGlite's database collates by `C`, so a collation the Drizzle compiler
+  # forgets to write passes every other test (expr-operations-DESIGN §17). These
+  # run the conformance suite and the call orders on a Postgres in a locale; the
+  # suite's first test fails if the database is not in one.
+  postgres-locale:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: ci
+          POSTGRES_INITDB_ARGS: --locale=en_US.UTF-8
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: >-
+          pnpm exec vitest run --project unit
+          packages/remote-drizzle/test/conformance.test.ts
+          packages/remote-drizzle/test/orderCall.test.ts
+        env:
+          FOLDKIT_LOCALE_PG: postgres://postgres:ci@localhost:5432/postgres
+
   # The examples with a server, end to end: each test starts the server and
   # Vite, and drives a real Chromium.
   e2e:

@@ -103,16 +103,16 @@ const valueOf = (node: AnyExpr, scope: Scope): unknown => {
 
 /**
  * What a call comes to, as a value (a predicate's truth as SQL's, unknown as
- * null). The table's implementation when it has one; else, for a defined
- * operator, what it means; else it is refused by name.
+ * null). A defined operator's is what it means, as SQL compiles it; a
+ * primitive one's is the table's implementation, or it is refused by name.
  */
 const called = (call: CallExpr<unknown> | TestPredicate, scope: Scope): unknown => {
   const expansion: Option.Option<AnyExpr | Predicate> = call.expansion
-  return Option.match(scope.operators.get(call.operator), {
-    onSome: run => ran(call, run, scope),
+  return Option.match(expansion, {
+    onSome: body => sideOf(body, scope),
     onNone: () =>
-      Option.match(expansion, {
-        onSome: body => sideOf(body, scope),
+      Option.match(scope.operators.get(call.operator), {
+        onSome: run => ran(call, run, scope),
         onNone: () => {
           throw new OperatorMissingError(call.operator, scope.operators)
         },
@@ -609,3 +609,60 @@ export const evaluate = (
     { input, operators },
   )
 }
+
+/** What `evaluateEach` made of each row: those it matched, in order, and those it refused. */
+export interface Evaluated {
+  readonly matched: ReadonlyArray<Row>
+  readonly refused: ReadonlyArray<Row>
+}
+
+/**
+ * As `evaluate`, with each row judged alone: a row whose own values are
+ * refused (text holding a NUL, a value an operator fails on) is set aside in
+ * `refused` and the others are still answered. A client judging the rows it
+ * holds wants this, since one bad stored row says nothing about the rest.
+ *
+ * What no single row causes still refuses the run: an operation or operator
+ * the table lacks, an order by a locale collation, an input the body reads
+ * holding a NUL (every row would refuse, and no row is the cause), and order
+ * keys of different kinds across rows.
+ */
+export const evaluateEach = (
+  body: AnyQuery,
+  input: Row,
+  rows: ReadonlyArray<Row>,
+  options: { readonly operators?: MemoryOperators | undefined } = {},
+): Evaluated => {
+  const operators = options.operators ?? Operators.kernel
+  assertSupported(body, operators)
+  const terms = Query.orderFor(body, input)
+  const scope = { input, operators }
+  const keyed: Array<{ readonly row: Row; readonly keys: ReadonlyArray<unknown> }> = []
+  const refused: Row[] = []
+  for (const row of rows) {
+    try {
+      if (matches(body, row, input, operators)) keyed.push({ row, keys: keysOf(row, terms, scope) })
+    } catch (error) {
+      if (!(error instanceof QueryEvaluateError) || inputHoldsNul(body, input)) throw error
+      refused.push(row)
+    }
+  }
+  checkOrder(
+    keyed.map(({ keys }) => keys),
+    terms,
+    body.entity.name,
+  )
+  return {
+    matched: keyed
+      .sort((left, right) => byTerms(terms, left.keys, right.keys))
+      .map(({ row }) => row),
+    refused,
+  }
+}
+
+/** Whether an input the body reads is text holding a NUL, or a list holding one. */
+const inputHoldsNul = (body: AnyQuery, input: Row): boolean =>
+  Query.dependencies(body).inputs.some(key => {
+    const value = input[key]
+    return Array.isArray(value) ? value.some(holdsNul) : holdsNul(value)
+  })

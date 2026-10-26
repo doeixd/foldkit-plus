@@ -15,9 +15,11 @@ export const Text = {
    * | the prefix is `''` | true |
    * | otherwise | whether it begins so, compared under the collation |
    *
-   * The collation is the text's: a field's declared one, or a call's. `binary`
-   * compares exactly; `asciiFold` folds ASCII letters on both sides. Text with
-   * none, or with a backend's locale, is refused where the call is written.
+   * The collation is the one its text operands share (a field's declared one,
+   * or a call's), or one given to the call. `binary` compares exactly;
+   * `asciiFold` folds ASCII letters on both sides. Operands declaring
+   * different collations, text with none, or a backend's locale are refused
+   * where the call is written.
    * Prefixes are by character, so non-ASCII and astral text begin as they read.
    *
    * ```ts

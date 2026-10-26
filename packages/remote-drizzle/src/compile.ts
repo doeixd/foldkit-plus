@@ -13,6 +13,7 @@
  * authorization.
  */
 import {
+  Column,
   eq,
   gt,
   gte,
@@ -111,22 +112,39 @@ const collateFor =
 
 /**
  * The SQL type a parameter is cast to on Postgres, which reads an untyped
- * parameter as text: `$1 + $2` is refused as "operator is not unique" (Phase 0,
- * probe 4). Text needs none, and SQLite takes none: its `cast(? as integer)`
- * would truncate `0.5` silently.
+ * parameter as text: `$1 + $2` is refused as "operator is not unique". An
+ * integer is a `bigint`, since `Schema.Int` admits every safe integer and an
+ * `integer` holds 32 bits. Text needs none.
  */
-const castFor = (schema: Schema.Top, dialect: 'sqlite' | 'postgres'): Option.Option<SQL> => {
-  if (dialect === 'sqlite') return Option.none()
+const castFor = (schema: Schema.Top): Option.Option<SQL> => {
   const present = SchemaShape.present(Schema.toEncoded(schema).ast)
   if (present.length > 0 && present.every(SchemaAST.isNumber)) {
     return Option.some(
-      present.every(SchemaShape.holdsIntegers) ? sql.raw('integer') : sql.raw('double precision'),
+      present.every(SchemaShape.holdsIntegers) ? sql.raw('bigint') : sql.raw('double precision'),
     )
   }
   if (present.length > 0 && present.every(SchemaAST.isBoolean))
     return Option.some(sql.raw('boolean'))
   return Option.none()
 }
+
+/**
+ * A literal or input value an operator takes, as a parameter: cast by the input
+ * it fills on Postgres. SQLite takes no cast (its `cast(? as integer)` would
+ * truncate `0.5` silently) and binds no boolean, so a boolean is 1 or 0, as
+ * SQLite stores one.
+ */
+const parameterSql = (
+  value: unknown,
+  schema: Option.Option<Schema.Top>,
+  target: CompileTarget,
+): SQL =>
+  dialectOf(target) === 'sqlite'
+    ? sql`${typeof value === 'boolean' ? Number(value) : value}`
+    : Option.match(Option.flatMap(schema, castFor), {
+        onNone: () => sql`${value}`,
+        onSome: type => sql`cast(${value} as ${type})`,
+      })
 
 /** One argument of a call, as SQL: a column, a parameter, a call's SQL or a predicate's. */
 const argumentSql = (
@@ -144,10 +162,7 @@ const argumentSql = (
       `query "${query}" gives an operator text holding a NUL character, which SQL text cannot hold portably`,
     )
   }
-  return Option.match(castFor(schema, dialectOf(target)), {
-    onNone: () => sql`${value}`,
-    onSome: type => sql`cast(${value} as ${type})`,
-  })
+  return parameterSql(value, Option.some(schema), target)
 }
 
 /**
@@ -176,13 +191,7 @@ const computedSql = (
           `${query} computes from text holding a NUL character, which SQL text cannot hold portably`,
         )
       }
-      return Option.match(
-        Option.flatMap(schema, each => castFor(each, dialectOf(target))),
-        {
-          onNone: () => sql`${value}`,
-          onSome: type => sql`cast(${value} as ${type})`,
-        },
-      )
+      return parameterSql(value, schema, target)
     },
     Call: ({ operator, args, collation }) => {
       const tables = operatorsOf(target)
@@ -451,7 +460,8 @@ const comparison = (
     // Text compares only against a field or a call carrying a collation, which the
     // swap above put first. A call is no column, so its collation is applied by rule.
     onSome: collation => {
-      if (first._tag === 'Call' || second._tag === 'Call') {
+      // A computed `Next` is an expression, not a column, so it is collated as a call is.
+      if (first._tag === 'Call' || second._tag === 'Call' || !is(left, Column)) {
         const collate = collateFor(Option.some(collation), dialectOf(target))
         return sql`${collate(sql`${left}`)} ${symbol} ${collate(sql`${right}`)}`
       }

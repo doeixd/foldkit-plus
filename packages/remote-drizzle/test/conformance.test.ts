@@ -9,6 +9,8 @@ import { PGlite } from '@electric-sql/pglite'
 import { Effect } from 'effect'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { drizzle as drizzlePg } from 'drizzle-orm/pglite'
+import { drizzle as drizzleNodePg } from 'drizzle-orm/node-postgres'
+import { sql } from 'drizzle-orm'
 import { integer as pgInteger, pgTable, text as pgText } from 'drizzle-orm/pg-core'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { DatabaseSync } from 'node:sqlite'
@@ -220,3 +222,60 @@ describe('foldkit-remote-drizzle folds a stored row as the evaluator does, on Po
     expect(await answer({ body, input: {} }, 900, pgBinding, layer)).toEqual(expected)
   })
 })
+
+/**
+ * PGlite's database collates by `C`, so the suite above cannot show that the
+ * collation each comparison and order names is what decides, not the
+ * database's (expr-operations-DESIGN §15, question 11). This runs it on a
+ * Postgres that collates by a locale, when `FOLDKIT_LOCALE_PG` names one:
+ *
+ *   docker run -d -e POSTGRES_PASSWORD=probe -p 55432:5432 \
+ *     -e POSTGRES_INITDB_ARGS="--locale=en_US.UTF-8" postgres:18
+ *   FOLDKIT_LOCALE_PG=postgres://postgres:probe@localhost:55432/postgres
+ */
+const localePg = process.env.FOLDKIT_LOCALE_PG
+// Declared only when named, so an ordinary run builds no pool from nothing.
+if (localePg !== undefined)
+  describe('the same on a Postgres that collates by a locale', () => {
+    const db = drizzleNodePg(localePg)
+    const layer = databaseLayer(db)
+    beforeAll(async () => {
+      await db.execute(sql.raw('drop table if exists conformance_rows'))
+      await db.execute(sql.raw(create))
+      for (const row of rows)
+        await db.execute(
+          sql`insert into conformance_rows values (${row.id}, ${row.label}, ${row.rank}, ${row.tag}, ${row.at})`,
+        )
+    }, 60_000)
+    afterAll(() => db.$client.end())
+
+    const ids = async (statement: string) =>
+      (await db.execute<{ id: string }>(statement, 'objects')).map(row => row.id)
+
+    it('collates by the locale where nothing names a collation, so the run proves something', async () => {
+      // `intro to sql` sorts among the capitals under en_US, after them under C.
+      expect(await ids('select id from conformance_rows order by label')).toEqual([
+        'd',
+        'a',
+        'b',
+        'c',
+        'e',
+      ])
+      expect(await ids('select id from conformance_rows order by label collate "C"')).toEqual([
+        'd',
+        'a',
+        'c',
+        'b',
+        'e',
+      ])
+    })
+    it.each(named)('$name', async ({ c, i }) => {
+      expect(await answer(c, i, pgBinding, layer)).toEqual(c.expected)
+    })
+    it.each(ordered)('pages: $name', async ({ c, i }) => {
+      expect(await paged(c, i, pgBinding, layer)).toEqual(c.expected)
+    })
+    it.each(refused)('refuses: $name', async ({ c, i }) => {
+      await expect(answer(c, i, pgBinding, layer)).rejects.toThrow(/NUL/)
+    })
+  })

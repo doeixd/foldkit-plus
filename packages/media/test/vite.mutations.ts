@@ -112,4 +112,20 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'an alias spelt like its icon is read as a second icon by that name',
+    edits: [{ file: plugin, find: 'if (exported.get(as) === drawn(name)) continue', replace: '' }],
+    tests,
+  },
+  {
+    name: 'any alias whose name is taken is left out, even one naming another icon',
+    edits: [
+      {
+        file: plugin,
+        find: 'if (exported.get(as) === drawn(name)) continue',
+        replace: 'if (exported.has(as)) continue',
+      },
+    ],
+    tests,
+  },
 ]

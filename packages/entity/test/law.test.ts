@@ -2,7 +2,7 @@
  * Laws, their evidence, and the conformance helper that tests them:
  * expr-operations-DESIGN §10.
  */
-import { Option, Schema } from 'effect'
+import { Match, Option, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { Conformance, Outcome } from '../src/conformance/index.js'
 import { Collation, Evidence, Expr, Law, Operators, Text, valueOfOperand } from '../src/index.js'
@@ -93,6 +93,12 @@ describe('Declaring a law', () => {
     ])
     const narrowed = Law.within(Law.commutative, Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)))
     expect(Law.describe(narrowed).domain).toMatchObject({ type: 'integer', minimum: 0 })
+    // A named domain is a reference, so its definition travels with it.
+    const named = Law.within(Law.commutative, Schema.Int.annotate({ identifier: 'Count' }))
+    expect(Law.describe(named).domain).toMatchObject({
+      $ref: '#/$defs/Count',
+      $defs: { Count: { type: 'integer' } },
+    })
   })
 })
 
@@ -211,6 +217,53 @@ describe('Testing laws', () => {
   })
 })
 
+describe('Testing laws under each collation', () => {
+  /** The lesser of two texts, the left one when they tie: commutative under binary only. */
+  const least = Expr.operator('acme.least', {
+    input: [Schema.String, Schema.String],
+    output: Schema.String,
+    collation: 'operands',
+    laws: [Law.commutative],
+  })
+  const leastLive = Operators.memory(
+    Operators.implement(least, (left, right, { collation }) => {
+      const key = (text: string) =>
+        Option.exists(collation, each => each._tag === 'AsciiFold')
+          ? Collation.foldAscii(text)
+          : text
+      return key(right) < key(left) ? right : left
+    }),
+  )
+
+  it('finds a law that holds under binary and breaks under asciiFold', () => {
+    // Folded, 'a' and 'A' tie, so each order keeps its own left.
+    expect(Conformance.laws(least, leastLive)).toMatchObject({
+      _tag: 'Counterexample',
+      collation: Option.some(Collation.asciiFold),
+    })
+  })
+
+  it('calls a witness that compares text under the collation', () => {
+    const swap = Expr.operator('acme.swapCase', {
+      input: [Schema.String],
+      output: Schema.String,
+      collation: 'required',
+    })
+    const glue = Expr.operator('acme.glue', {
+      input: [Schema.String, Schema.String],
+      output: Schema.String,
+      collation: 'operands',
+      laws: [Law.inverse(swap, 'x')],
+    })
+    const table = Operators.memory(
+      Operators.implement(glue, (left, right) => `${left}${right}`),
+      Operators.implement(swap, text => text),
+    )
+    // A verdict, not a refusal of the witness's call for want of a collation.
+    expect(Conformance.laws(glue, table)._tag).toBe('Counterexample')
+  })
+})
+
 describe('Evidence in a table', () => {
   const tested = () => {
     const verdict = Conformance.laws(concat, Operators.memory(concatLive), { implementation: 'js' })
@@ -259,6 +312,13 @@ describe('Evidence in a table', () => {
     ).toThrow('evidence names a law of acme.concat it does not declare (commutative)')
   })
 
+  it('refuses evidence tested on another implementation of the operator', () => {
+    const another = Operators.memory(Operators.implement(concat, (left, right) => right + left))
+    expect(() => Operators.withEvidence(another, tested())).toThrow(
+      "evidence of acme.concat's associative law was not tested on this table's implementation",
+    )
+  })
+
   it('keeps evidence through a merge, and drops a replaced implementation’s', () => {
     const table = Operators.withEvidence(Operators.memory(concatLive), tested())
     expect(Operators.merge(table, Operators.kernel).evidence).toEqual(tested())
@@ -291,6 +351,18 @@ describe('Running an operator through several implementations', () => {
         Text.startsWith(null, `a${String.fromCharCode(0)}`, { collation: Collation.binary }),
       ),
     ).toThrow('was given text holding a NUL character')
+  })
+
+  it('tells Infinity and NaN from null, which JSON writes them as', async () => {
+    const ratio = Expr.operator('acme.ratio', {
+      input: [Schema.Number, Schema.Number],
+      output: Schema.NullOr(Schema.Number),
+    })
+    const report = await Conformance.operator(ratio, {
+      implementations: { memory: () => Infinity, sql: () => null, again: () => NaN },
+      cases: [[1, 0]],
+    })
+    expect(report.disagreements).toHaveLength(1)
   })
 
   it('names the calls where one folds case and the other does not', async () => {
@@ -329,10 +401,14 @@ describe('Running an operator through several implementations', () => {
       output: Schema.Boolean,
       definedAs: text => Expr.eq(text, ''),
     })
-    // An implementation that also counts a space as blank disagrees with what the operator means.
-    const spaced = Operators.memory(Operators.implement(blank, text => text.trim() === ''))
+    // A database that compiled it as "blank once trimmed" disagrees with what it means.
+    const spaced = (call: Parameters<typeof valueOfOperand>[0]) =>
+      Match.value(call).pipe(
+        Match.tag('Call', 'Test', ({ args }) => String(valueOfOperand(args[0]!)).trim() === ''),
+        Match.orElse(() => null),
+      )
     const report = await Conformance.operator(blank, {
-      implementations: { spaced: Conformance.memory(spaced) },
+      implementations: { spaced },
       cases: [[''], [' '], ['a']],
     })
     expect(report.disagreements.map(each => each.args)).toEqual([[' ']])

@@ -126,7 +126,7 @@ export default [
   edit(
     'a guarded writer hides what its writer refuses',
     guard,
-    '...(writer.refuses === undefined ? {} : { refuses: writer.refuses }),',
+    '...(writer.refuses?.(write) ?? []),',
     '',
   ),
   edit(

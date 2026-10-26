@@ -178,8 +178,8 @@ export default [
   edit(
     'the guard judges the row before the computation',
     guard,
-    '...Write.apply(before, context, { operators: policy.operators }).row,',
-    '...before,\n          ...context.values,',
+    'return Effect.succeed(Write.apply(before, context, { operators: policy.operators }).row)',
+    'return Effect.succeed({ ...before, ...context.values })',
     guardTests,
   ),
   edit(
@@ -232,5 +232,20 @@ export default [
     'return visibleStoreOf(remote.entities, remote.optimistic, bound.operators)',
     'return visibleStoreOf(remote.entities, remote.optimistic, Operators.kernel)',
     remoteTests,
+  ),
+  edit(
+    'a SQL table takes evidence tested in memory',
+    operatorsFile,
+    'if (Option.isSome(Operators.testedOn(record))) {',
+    'if (false) {',
+    drizzleTests,
+  ),
+  edit(
+    'a law narrowed to a domain admits a commuting write',
+    writerFile,
+    `record.law.kind === kind &&
+          record.law.domain === null,`,
+    'record.law.kind === kind,',
+    drizzleTests,
   ),
 ]

@@ -6,7 +6,7 @@ with what gen2 offered (§13), completed as a plan, then checked against Remote,
 Guard, the server packages, Sync, CMS, Crud, Form and the example interpreters
 (§17 records what that check found). Phase 0's probes ran the same day (§17).
 Phases 1 to 7 built 2026-10-26 (their **Built** notes in §12); §15's
-questions 10 and 11 are open.
+questions 10 and 11 closed the same day (§15, §17).
 **Packages:** `foldkit-entity` (descriptors, nodes, the reference interpreter,
 writes, invariants, laws, conformance), `foldkit-remote-drizzle` (SQL, cursor,
 writer), `foldkit-remote-server` (registration and write checks),
@@ -759,7 +759,7 @@ mutation spec, the docs and skill references in step, and the changelog.
    keyset paging over an expression with ties and null keys on both dialects;
    CHECK constraints built from calls; where tables can be read. One probe is
    left for Phase 3: the same cases on a Postgres database created in a locale
-   (§15 question 11).
+   (§15 question 11, run 2026-10-26: §17).
 1. **Exhaustive walkers, nodes and defined operators** (`foldkit-entity`,
    `foldkit-remote-drizzle`, `foldkit-remote`, the two examples, `foldkit-cms`).
    First, each walker §5.2 lists becomes an exhaustive match, with no behaviour
@@ -1088,6 +1088,16 @@ spot, inspecting only literal operands because its nodes carry no type.
     so one refusal voids a list. A missing operator voids every row alike, but a
     NUL in one stored row would void the rest. Proposal: judge per row, a row that
     refuses being `unknown`, in Phase 3.
+
+    **Closed** 2026-10-26. `evaluateEach` in `foldkit-entity` judges each row
+    alone, setting a refusing row aside in `refused`; `matching` puts those keys
+    in `skipped`, so `filtered` answers the other rows and says it is incomplete,
+    and `belongs` (which judges one row) is unchanged. What no row causes still
+    refuses the run: an operator the table lacks, a locale order, keys of
+    different kinds across rows, and an input the body reads holding a NUL. A
+    refusal is laid to the input only when a read input holds a NUL, since every
+    row would refuse alike and none is the cause; with no rows held there is
+    nothing to refuse, as with `evaluate`.
 11. **A Postgres database in a locale.** PGlite creates its database with
     collation `C` (§17), so Phase 0 could not show what an expression without an
     explicit collation does under a locale. The plan collates every text
@@ -1096,6 +1106,13 @@ spot, inspecting only literal operands because its nodes carry no type.
     runs the prefix and ordering cases once on a Postgres created with
     `LC_COLLATE=en_US.UTF-8` (Docker is available here), to prove the explicit
     collation is what decides.
+
+    **Closed** 2026-10-26: it is (§17). The run is kept: `conformance.test.ts`
+    and `orderCall.test.ts` in `foldkit-remote-drizzle` run on such a database
+    when `FOLDKIT_LOCALE_PG` names one, and `localeCollation.mutations.ts`
+    drops each collation the compiler writes. CI's `postgres-locale` job runs
+    the two test files on such a database on every push; the mutations are run
+    by hand, as every spec is.
 
 ## 16. Risks
 
@@ -1163,7 +1180,7 @@ conformance case in the phase named.
 | 16 | CHECK built from a call, values inlined (`left`, `\|\|`, `lower … collate "C"`) | enforced | enforced (`substr`, `\|\|`, `collate nocase`) | Calls work in constraints with no flag (§5.4) |
 | 17 | CHECK with a parameter | refused (a DDL statement binds none) | "parameters prohibited in CHECK constraints" | Why `invariantChecks` inlines and refuses leftovers |
 | 18 | CHECK over a null column | passes | passes | A constraint passes on unknown; `invariantChecks` wraps `(…) is true` for this, and calls need it too |
-| 19 | the database's default collation | `C` (`datlocprovider` `c`) | — | Not proven under a locale: §15 question 11 |
+| 19 | the database's default collation | `C` (`datlocprovider` `c`) | — | Not proven under a locale: §15 question 11, run below |
 
 **A gap in shipped code, found by probe 5.** `Write.update`'s `incrementOf`
 (`packages/entity/src/write.ts:274-306`) accepts an integer field incremented
@@ -1177,3 +1194,33 @@ declared `Schema.Number` over an `integer` column, refused through a new
 `EntityWriter.refuses` where the write is registered. §9.3 builds on both, and
 `refuses` is where the commuting-assignment rule (§9.3) can live for writers
 other than Drizzle's.
+
+**2026-10-26, §15 question 11: a Postgres database in a locale.** PostgreSQL 18.6
+in Docker (`postgres:18`, initdb `--locale=en_US.UTF-8`; `datcollate` and
+`datctype` `en_US.UTF-8`, provider libc), reached through `drizzle-orm/node-postgres`,
+so the compiler's own SQL ran, not a hand-written copy.
+
+- **The locale is live.** An order naming no collation puts `intro to sql`
+  among the capitals (`d a b c e`); the same order `collate "C"` puts it after
+  them (`d a c b e`). The run asserts both, so it cannot pass on a `C` database
+  by accident.
+- **Every case agrees.** All the conformance suite's cases and primitive cases,
+  paged two at a time where they order, and its refusals (155 tests), and every
+  call order in `orderCall.test.ts` at page sizes 1 to 3, answer as the
+  reference interpreter does.
+- **The explicit collation is what decides, shown by removing it.** Each of
+  the four collations the compiler writes for Postgres (`collate "C"` on a
+  field's order and cursor, on a call's text; `lower(… collate "C")` for both
+  under `asciiFold`) was dropped in turn. On PGlite three of the four removals
+  pass every test, since its database collates by `C` anyway (the fourth is
+  caught only by a test of the SQL text). On the locale database all four fail.
+- **The suite's rows could not tell `C` from `en_US` for folded text.**
+  Lowered, its labels sort alike under both, so dropping the fold's `collate
+  "C"` passed even there. `orderCall.test.ts` gained rows that the two orders
+  disagree on: `a-c` against `ab` (a locale passes over the hyphen) and `é`
+  against `f` (a locale puts `é` beside `e`). Its expected orders are the
+  reference interpreter's, so no expectation was written by hand.
+- **Equality and prefixes need no collation to agree.** Dropping `collate "C"`
+  from a call's text changed no prefix or equality answer: under a
+  deterministic collation equality is byte equality, as the question expected.
+  Only an order over the call showed it.

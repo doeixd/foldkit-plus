@@ -7,6 +7,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { PGlite } from '@electric-sql/pglite'
 import { PgDialect, integer as pgInteger, pgTable, text as pgText } from 'drizzle-orm/pg-core'
 import { drizzle as drizzlePg } from 'drizzle-orm/pglite'
+import { drizzle as drizzleNodePg } from 'drizzle-orm/node-postgres'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { sql } from 'drizzle-orm'
@@ -41,6 +42,12 @@ const joined = Expr.operator('acme.joined', {
   output: Schema.String,
   collation: 'operands',
 })
+/** How many characters a code has: a number that inherits its text's collation. */
+const width = Expr.operator('acme.width', {
+  input: [Schema.String],
+  output: Schema.Int,
+  collation: 'required',
+})
 /** A distance from zero, defined by the primitive one: compiled as what it means. */
 const size = Expr.operator('acme.size', {
   input: [Schema.Int],
@@ -53,6 +60,7 @@ const operators = {
     Operators.memory(
       Operators.implement(distance, (rank, target) => Math.abs(rank - target)),
       Operators.implement(joined, (left, right) => `${left}${right}`),
+      Operators.implement(width, code => [...code].length),
     ),
   ),
   sql: DrizzleOperators.merge(
@@ -63,6 +71,7 @@ const operators = {
         ({ args: [rank, target] }) => sql`abs(${rank} - ${target})`,
       ),
       DrizzleOperators.implement(joined, ({ args: [left, right] }) => sql`(${left} || ${right})`),
+      DrizzleOperators.implement(width, ({ args: [code] }) => sql`length(${code})`),
     ),
   ),
 }
@@ -87,6 +96,12 @@ const bodies = {
     Relational.orderBy(Order.asc(joined(fields.code, '!'), { collation: Collation.asciiFold })),
   ),
   Bigger: Relational.from(Part).pipe(Relational.orderBy(Order.desc(size(fields.rank)))),
+  // Binary, the collation `code` gives the call.
+  Joined: Relational.from(Part).pipe(Relational.orderBy(Order.asc(joined(fields.code, '!')))),
+  Widest: Relational.from(Part).pipe(Relational.orderBy(Order.desc(width(fields.code)))),
+  CodeFolded: Relational.from(Part).pipe(
+    Relational.orderBy(Order.asc(fields.code, { collation: Collation.asciiFold })),
+  ),
   Chosen: Relational.from(Part).pipe(
     Relational.orderBy(
       Order.chosen(sort, { near: distance(fields.rank, target), code: fields.code }),
@@ -108,6 +123,12 @@ const rows = [
   { id: 'p6', code: 'C', rank: 1 },
   { id: 'p7', code: '_', rank: 5 },
   { id: 'p8', code: 'b', rank: 6 },
+  // Code point order and a locale's disagree on these: a locale passes over the
+  // hyphen (`ab` before `a-c`) and puts `é` beside `e`, not after `z`.
+  { id: 'p9', code: 'a-c', rank: 2 },
+  { id: 'p10', code: 'ab', rank: 4 },
+  { id: 'p11', code: 'é', rank: 8 },
+  { id: 'p12', code: 'f', rank: 10 },
 ]
 const create = 'create table parts (id text primary key, code text not null, rank integer not null)'
 const sqliteParts = sqliteTable('parts', {
@@ -137,6 +158,23 @@ afterAll(async () => {
   await pglite.close()
 })
 
+/**
+ * A Postgres whose database collates by a locale, which PGlite's cannot
+ * (expr-operations-DESIGN §15, question 11): only there does an order that
+ * left out its collation read differently. Set `FOLDKIT_LOCALE_PG` as
+ * conformance.test.ts says to run against one.
+ */
+const localePg = process.env.FOLDKIT_LOCALE_PG
+const localeDb = localePg === undefined ? undefined : drizzleNodePg(localePg)
+beforeAll(async () => {
+  if (localeDb === undefined) return
+  await localeDb.execute(sql.raw('drop table if exists parts'))
+  await localeDb.execute(sql.raw(create))
+  for (const row of rows)
+    await localeDb.execute(sql`insert into parts values (${row.id}, ${row.code}, ${row.rank})`)
+}, 60_000)
+afterAll(() => localeDb?.$client.end())
+
 const backends = [
   [
     'SQLite',
@@ -152,6 +190,17 @@ const backends = [
       layer: databaseLayer(drizzlePg({ client: pglite })),
     }),
   ],
+  ...(localeDb === undefined
+    ? []
+    : ([
+        [
+          'Postgres in a locale',
+          () => ({
+            target: entity('Part', pgParts, { operators }),
+            layer: databaseLayer(localeDb),
+          }),
+        ],
+      ] as const)),
 ] as const
 
 /** Every id the query lists, a page of `size` at a time, each page after the last one's cursor. */
@@ -193,6 +242,9 @@ const cases: ReadonlyArray<readonly [keyof typeof bodies, Readonly<Record<string
   ['Farthest', { target: 5 }],
   ['Folded', {}],
   ['Bigger', {}],
+  ['Joined', {}],
+  ['CodeFolded', {}],
+  ['Widest', {}],
   ['Chosen', { target: 6, sort: { by: 'near', direction: 'desc' } }],
 ]
 
@@ -219,7 +271,7 @@ describe('A call order compiled', () => {
     )
     const [first] = orderByTerms(terms, 'forward')
     expect(new PgDialect().sqlToQuery(first!).sql).toBe(
-      'abs("parts"."rank" - cast($1 as integer)) asc nulls last',
+      'abs("parts"."rank" - cast($1 as bigint)) asc nulls last',
     )
   })
 

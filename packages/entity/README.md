@@ -810,6 +810,11 @@ in full confidence, and every test it does support still passes.
 
 ### Naming a question: operators
 
+What operators make possible, end to end (a rule named once, search and order
+the kernel lacks, writes that compute, one meaning checked across
+interpreters), is the [operators guide](../../docs/operators.md); this section
+and the next three are the reference.
+
 A predicate an application asks in many places (in a public query, a
 visitor's Read rule, an invariant) can be given a name. `Expr.operator`
 declares one by what a call of it means:
@@ -900,7 +905,7 @@ refused where it is written.
   twice, or two under one name; `merge` refuses an overlap, and `override`
   replaces on purpose. `Operators.checked(table)` checks each answer against
   the operator's output schema, for tests. Nothing registers globally:
-  `evaluate`, `decided`, `truthOver`, `Entity.judge`, `Entity.judgeInput` and
+  `evaluate`, `evaluateEach`, `decided`, `truthOver`, `Entity.judge`, `Entity.judgeInput` and
   `Entity.check(entity, { operators })` each take the table, `Operators.kernel`
   by default.
 - **Null is strict by default.** A null argument gives null (unknown for a
@@ -924,6 +929,13 @@ refused where it is written.
   such a body. An invariant calling an operator its judge's table lacks is
   `Undecided` with that operator in `operators`, which a form passes and a
   server refuses to start without.
+- **One refusing row refuses the run, unless each row is judged alone.**
+  `evaluate` refuses a run when any row holds what no interpreter answers for
+  (text with a NUL). `evaluateEach(body, input, rows, { operators })` sets such
+  a row aside in `refused` and still answers the others, in order; what no one
+  row causes (an operator the table lacks, an input the body reads holding a
+  NUL, order keys of different kinds) still refuses it. A client judging the
+  rows it holds wants the second.
 - **NUL is refused** in any text argument, and an implementation that throws
   is reported as a `QueryEvaluateError` naming its operator.
 
@@ -949,7 +961,7 @@ const table = Operators.memory(Operators.implement(concat, (left, right) => `${l
 const verdict = Conformance.laws(concat, table) // { _tag: 'Holds', evidence: [...] }
 const recorded =
   verdict._tag === 'Holds' ? Operators.withEvidence(table, verdict.evidence) : table
-Operators.describeTable(recorded) // [{ operator: 'acme.concat', laws, evidence }]
+Operators.describeTable(recorded) // [{ name: 'acme.concat', …, laws, evidence }]
 ```
 
 - **A law is checked where it is declared.** `Law.commutative`, `associative`,
@@ -965,13 +977,19 @@ Operators.describeTable(recorded) // [{ operator: 'acme.concat', laws, evidence 
 - **Testing is sampling, seeded.** Cases come from a fixed sample of each kind
   (the empty string, mixed case, non-ASCII and astral text; zero, negatives, a
   fraction), kept where the schemas decode them, up to `cases` (200) a law
-  chosen by `seed` (0). The verdict is `Holds` with one `Tested` record a law,
-  or the first `Counterexample` with both sides: declaring `concat` commutative
+  chosen by `seed` (0), under `binary` and `asciiFold` for an operator that
+  compares text. The verdict is `Holds` with one `Tested` record a law, or the
+  first `Counterexample` with both sides and its collation: declaring `concat` commutative
   finds `"a"` and `"A"`, which give `"aA"` and `"Aa"`.
 - **Evidence is an implementation's.** `Operators.withEvidence` refuses a record
-  of an operator the table lacks or a law it does not declare; `override` drops
-  a replaced implementation's records, `merge` keeps both tables'.
-  `Evidence.Proven` records a proof made elsewhere, never checked here.
+  of an operator the table lacks or a law it does not declare, and a `Tested`
+  record `Conformance.laws` did not make of this table's own implementation
+  (`Operators.testedOn(record)` names the one it did); `override` drops a
+  replaced implementation's records, `merge` keeps both tables'. An SQL table
+  (`DrizzleOperators.withEvidence`) takes `Conformance.lawsBy`'s records and
+  refuses one tested in memory. `Evidence.Proven` records a proof made
+  elsewhere, never checked here. A law's domain is described as a JSON Schema
+  with the definitions it refers to.
 
 `Conformance.operator(op, { implementations })` runs one set of calls through
 every implementation given and reports where they disagree, a refusal included:
