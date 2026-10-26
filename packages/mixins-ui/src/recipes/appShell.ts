@@ -42,7 +42,8 @@ export const AppShell = Style.recipeFor(AppShellSlots)({
         position: 'absolute',
         insetBlockStart: ref.space.xs,
         insetInlineStart: ref.space.xs,
-        zIndex: '1',
+        // Above the header, which it overlaps when shown and which comes after it.
+        zIndex: '2',
         paddingBlock: ref.space['2xs'],
         paddingInline: ref.space.sm,
         borderRadius: ref.radius.md,
@@ -60,6 +61,8 @@ export const AppShell = Style.recipeFor(AppShellSlots)({
         gridArea: 'header',
         position: 'sticky',
         insetBlockStart: '0',
+        // Above positioned content in the main region scrolling under it.
+        zIndex: '1',
         display: 'flex',
         alignItems: 'center',
         gap: ref.space.sm,

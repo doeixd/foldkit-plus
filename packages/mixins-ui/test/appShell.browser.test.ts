@@ -47,7 +47,8 @@ const mount = async (sided: boolean) => {
           : {}),
         style,
       },
-      [h.p([h.Style({ blockSize: '3000px', margin: '0' })], ['A long page'])],
+      // Positioned, as a card or a popover's anchor is, so it would paint over a header without a layer.
+      [h.p([h.Style({ blockSize: '3000px', margin: '0', position: 'relative' })], ['A long page'])],
       h,
     )
   Runtime.embed(
@@ -98,8 +99,15 @@ test('the header stays at the top while the page scrolls', async () => {
   await mount(true)
   window.scrollTo(0, 1200)
   await vi.waitFor(() => expect(window.scrollY).toBe(1200))
-  expect(box('header').top).toBe(0)
+  const header = box('header')
+  expect(header.top).toBe(0)
   expect(box('[data-side] > div').top).toBe(0)
+  // What is under the header's middle is the header, not the page scrolled beneath it.
+  const hit = document.elementFromPoint(
+    header.left + header.width / 2,
+    header.top + header.height / 2,
+  )
+  expect(document.querySelector('header')!.contains(hit)).toBe(true)
 })
 
 test('the skip link is out of sight until focused, and takes focus to the main region', async () => {
@@ -110,6 +118,9 @@ test('the skip link is out of sight until focused, and takes focus to the main r
   await userEvent.keyboard('{Tab}')
   expect(document.activeElement).toBe(skip)
   await vi.waitFor(() => expect(skip.getBoundingClientRect().top).toBeGreaterThan(0))
+  // Shown over the header it overlaps, so a person can see what they are about to press.
+  const shown = skip.getBoundingClientRect()
+  expect(document.elementFromPoint(shown.left + 4, shown.top + shown.height / 2)).toBe(skip)
   await userEvent.keyboard('{Enter}')
   await vi.waitFor(() => expect(document.activeElement).toBe(document.querySelector('main')))
 })

@@ -66,8 +66,8 @@ export default [
     edits: [
       {
         file: recipe,
-        find: "        position: 'sticky',\n        insetBlockStart: '0',\n        display: 'flex',",
-        replace: "        display: 'flex',",
+        find: "        position: 'sticky',\n        insetBlockStart: '0',\n        // Above positioned",
+        replace: '        // Above positioned',
       },
     ],
     tests: [browser],
@@ -81,6 +81,22 @@ export default [
         replace: '',
       },
     ],
+    tests: [browser],
+  },
+  {
+    name: 'the header lies under the page scrolled beneath it',
+    edits: [
+      {
+        file: recipe,
+        find: "        zIndex: '1',\n        display: 'flex',",
+        replace: "        display: 'flex',",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'the skip link shows under the header',
+    edits: [{ file: recipe, find: "zIndex: '2',", replace: "zIndex: '1'," }],
     tests: [browser],
   },
 ]
