@@ -72,7 +72,9 @@ const Todo = TodoFields.pipe(
 - `Policy.readable(Todo, principal)` decides every principal guard and
   returns a `Condition` over the row (`Always`, `Never`, or row guards joined
   by and/or, plus inherited Reads); `Condition.holds(condition, values,
-  Policy.inputOf(principal), inherit)` runs it over stored values.
+  Policy.inputOf(principal), inherit, Policy.operators)` runs it over stored
+  values, the row guards' primitive operators by the policy's table
+  (`G.implement(bodies, { operators })`, `Operators.kernel` by default).
 - `Policy.readMembers(Todo, principal, members)` gives each ruled member's
   condition and its refusal (`Omit` or `Redact`).
 - `Policy.writable(Todo, principal, 'Update' | 'Create' | 'Delete' | Archive.key)`

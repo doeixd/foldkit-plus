@@ -432,7 +432,9 @@ leaves, one that joins (by its filter, new to the client, or from past a
 loaded rows, or out of them when it sorts past a `Cursor` (a row that was
 itself the edge beside that `Cursor` cannot be told, and invalidates). What
 cannot be placed is invalidated, restarting any read of it in flight, so its read entry
-refetches it. `Remote.make({ verifyPlacement: true })` (dev and tests) also
+refetches it. A body's primitive operators run on the client by
+`Remote.make({ operators })` (`Operators.kernel` by default); one the table lacks
+is the server's to judge. `Remote.make({ verifyPlacement: true })` (dev and tests) also
 fetches each list it placed an answer, a read or a live patch in, and keeps
 any disagreement with the server's first page in
 `remote.placementMismatches`: an order it does not share, or a row placing

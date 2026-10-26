@@ -99,7 +99,9 @@ const G = Guards.declare(
   { key: user => user.id, unguarded: 'deny' },
 )
 
-// Server: the body of every principal guard, and nothing else.
+// Server: the body of every principal guard, and nothing else. A row guard
+// calling a primitive operator runs it by the table given as a second argument,
+// `G.implement(bodies, { operators })`; `Operators.kernel` when not given.
 const Policy = G.implement({
   isAdmin: principal => Option.exists(principal, user => user.role === 'admin'),
 })
@@ -221,7 +223,7 @@ const readable = Effect.runSync(Policy.readable(Todo, ada))
 // isAdmin was false, so: isOwner or inProject, over each row
 
 const t1 = { id: 't1', ownerId: 'ada', projectId: 'p9', title: 'Write the README' }
-Condition.holds(readable, t1, Policy.inputOf(ada), () => false)
+Condition.holds(readable, t1, Policy.inputOf(ada), () => false, Policy.operators)
 // true
 ```
 

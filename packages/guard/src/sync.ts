@@ -233,7 +233,7 @@ export const GuardSync = {
           ]),
         ]
         const holdsOver = (values: Readonly<Record<string, unknown>>) => (condition: Condition) =>
-          Condition.holds(condition, values, input, () => false)
+          Condition.holds(condition, values, input, () => false, policy.operators)
         // Every edit to one row is judged together: two may each keep it in reach, and both not.
         const byRow = new Map<string, Record<string, unknown>>()
         for (const { id, member, value } of encoded.value) {

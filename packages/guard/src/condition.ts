@@ -5,7 +5,7 @@
  * never reach it, so their bodies stay on the server that decided them.
  */
 import { Effect, Match, Option } from 'effect'
-import { Query, evaluate, type AnyEntity } from 'foldkit-entity'
+import { Query, evaluate, type AnyEntity, type MemoryOperators } from 'foldkit-entity'
 import { attached, defaultDeny, surfaceOf, type AnyRule, type Deny } from './attach.js'
 import type { PrincipalGuard, RowGuard } from './index.js'
 
@@ -55,18 +55,20 @@ export const Condition = {
    * Whether a row's stored values meet `condition`, its row guards read with
    * `input` (the principal's, from `G.inputOf`). `inherit` answers whether the
    * row a relation points at is readable, which only the caller can look up.
+   * `operators` runs the guards' primitive operators: the policy's.
    */
   holds: (
     condition: Condition,
     values: Readonly<Record<string, unknown>>,
     input: Readonly<Record<string, unknown>>,
     inherit: (relation: string) => boolean,
+    operators: MemoryOperators,
   ): boolean => {
     const holds = (each: Condition): boolean =>
       Match.valueTags(each, {
         Always: () => true,
         Never: () => false,
-        Row: ({ guard }) => evaluate(guard.query, input, [values]).length === 1,
+        Row: ({ guard }) => evaluate(guard.query, input, [values], { operators }).length === 1,
         Inherit: ({ relation }) => inherit(relation),
         And: ({ conditions }) => conditions.every(holds),
         Or: ({ conditions }) => conditions.some(holds),

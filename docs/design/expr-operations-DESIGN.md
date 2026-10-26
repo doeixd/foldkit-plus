@@ -5,7 +5,8 @@
 with what gen2 offered (§13), completed as a plan, then checked against Remote,
 Guard, the server packages, Sync, CMS, Crud, Form and the example interpreters
 (§17 records what that check found). Phase 0's probes ran the same day (§17).
-Phase 1 built 2026-10-26 (its **Built** note in §12); Phases 2 to 7 are not.
+Phases 1 and 2 built 2026-10-26 (their **Built** notes in §12); Phases 3 to 7
+are not.
 **Packages:** `foldkit-entity` (descriptors, nodes, the reference interpreter,
 writes, invariants, laws, conformance), `foldkit-remote-drizzle` (SQL, cursor,
 writer), `foldkit-remote-server` (registration and write checks),
@@ -807,6 +808,41 @@ mutation spec, the docs and skill references in step, and the changelog.
    implementation and an unknown version are refused; a form with an invariant
    whose operator its table lacks answers `Undecided`; `GuardServer.validate`
    refuses a server whose Update rule needs an operator the policy's table lacks.
+
+   **Built**, 2026-10-26 (`5d52bcfe` for the kernel, then the memory sites).
+   Where it departed from the sketch:
+   - **A third collation rule, `required`.** §7 had `none` and `operands`, and
+     §6.2 made `startsWith` compare under its text's collation as a special case.
+     `required` is that case as a rule: the call carries its operands'
+     collation, and text with none, or a locale, is refused where written.
+   - **"One passed" is a trailing `{ collation }`.** A call of an operator whose
+     rule is `operands` or `required` may take one argument past its inputs,
+     told apart by count, as `Expr.lt(…, { collation })` and `Order.asc` take
+     theirs; a defined operator, or one with rule `none`, refuses it.
+   - **Two implementing functions.** `Operators.implement` types its arguments
+     non-null and takes only a strict operator; `implementHandlingNulls` takes
+     only a `handled` one. The types then say what the kernel does.
+   - **`Text` is exported from the package's main entry**, beside `Operators`,
+     not a subpath (§15 question 3 stays open for when there are several).
+   - **`Collation.foldAscii`** is public, so an application implementing an
+     `asciiFold` operator folds exactly as the kernel does.
+   - **`OperatorMissingError`** (a `QueryEvaluateError`) is how a judge tells a
+     missing operator, which it reads as `Undecided`, from any other refusal,
+     which still fails.
+   - **The conformance cases for `startsWith` are their own export**
+     (`primitiveCases`, `primitiveRefusals`), so an interpreter runs them once
+     it implements the operator: the reference interpreter and Remote's client
+     now, Drizzle in Phase 3. The handled-null rule is tested in
+     `primitive.test.ts`, not as a conformance case, since no kernel operator
+     handles null.
+   - **`Remote.make({ operators })` was built here**, with the other memory
+     sites; `bind`'s table is Phase 3's.
+   - **An order term takes no collation from a call yet.** Nothing reads one
+     until Phase 4, so that line waits for it.
+   - **Not yet tested, though passed through:** the table reaching a live
+     insert's membership (`belongsEncoded`) and change impact (`impactOn`), and a
+     nested form inheriting its parent's. A mutation dropping any of them would
+     survive; Phase 3's client tests should reach them.
 3. **SQL and completeness** (`foldkit-remote-drizzle`, `foldkit-remote-server`,
    `foldkit-guard`, `foldkit-remote`). `DrizzleOperators`, the scalar compiler,
    inlining, the casts Phase 0 found, `bind`'s and `Remote.make`'s tables, every

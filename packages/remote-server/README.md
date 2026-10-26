@@ -777,6 +777,9 @@ Source is responsible for any additional bounds appropriate to its backend.
 real server uses, so a client sees what production would send: only the
 fields asked for, and nested relations resolved in one read. Use it for a
 first run, a test, a story or a demo, when there is no database yet.
+A body calling a primitive operator runs by the `operators` it is given
+(`Operators.kernel` by default), and one calling an operator that table lacks
+is refused where the server is built.
 
 ```ts
 const backend = RemoteServer.memory({

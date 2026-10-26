@@ -264,6 +264,30 @@ export const surfaceOf = (attachment: Attachment, target: Target): Option.Option
 
 /** Whether who may read the rows depends on who is asking: a row Read rule, or `always`. */
 /** `Guards.anyone`: a conjunction of nothing, which every principal passes. */
+/** The rules, each `all` opened into its parts: every guard they ask. */
+export const flattenRules = (rules: ReadonlyArray<AnyRule>): ReadonlyArray<AnyRule> =>
+  rules.flatMap(rule =>
+    Match.valueTags(rule, {
+      PrincipalGuard: () => [rule],
+      RowGuard: () => [rule],
+      All: ({ rules: parts }) => flattenRules(parts),
+      Inherit: () => [rule],
+    }),
+  )
+
+/** Every rule attached anywhere: on the row, each member and relation, and always. */
+export const attachedRules = (attachment: Attachment): ReadonlyArray<AnyRule> =>
+  flattenRules([
+    ...attachment.always,
+    ...[
+      attachment.row,
+      ...Object.values(attachment.members),
+      ...Object.values(attachment.relations),
+    ]
+      .flatMap(surfaces => Object.values(surfaces))
+      .flatMap(surface => surface.rules),
+  ])
+
 export const isAnyone = (rule: AnyRule): boolean => rule._tag === 'All' && rule.rules.length === 0
 
 /** Whether a surface's rules restrict who passes: not when one of them is `anyone`. */

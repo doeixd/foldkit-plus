@@ -6,7 +6,7 @@
  * brings the server along.
  */
 import { Effect, Match, Option, Schema, SchemaAST } from 'effect'
-import { Entity, Query, type AnyEntity, type AnyQuery } from 'foldkit-entity'
+import { Entity, Query, supported, type AnyEntity, type AnyQuery } from 'foldkit-entity'
 import type { MutationDescriptor, RemoteForbidden } from 'foldkit-remote'
 import {
   RemoteInvalid,
@@ -25,6 +25,7 @@ import {
 } from 'foldkit-remote-server'
 import {
   attached,
+  attachedRules,
   readRowsRuled,
   readRuled,
   type Attachment,
@@ -166,7 +167,10 @@ export const GuardServer = {
                 const values: Record<string, unknown> = { ...record.values }
                 for (const { member, condition, redacted } of decided) {
                   // Member rules carry no inherited Read: only a row's Read may inherit.
-                  if (Condition.holds(condition, record.values, input, () => false)) continue
+                  if (
+                    Condition.holds(condition, record.values, input, () => false, policy.operators)
+                  )
+                    continue
                   Option.match(redacted, {
                     onNone: () => {
                       delete values[member]
@@ -218,18 +222,23 @@ export const GuardServer = {
             ): boolean => {
               const condition = conditions.get(entity)
               if (condition === undefined) return true
-              return Condition.holds(condition, values, input, relation =>
-                Option.match(refOf(values[relation]), {
-                  onNone: () => false,
-                  onSome: ref => {
-                    const key = `${ref.entity}:${ref.id}`
-                    if (seen.has(key)) return false
-                    return Option.match(row(ref.entity, ref.id), {
-                      onNone: () => false,
-                      onSome: target => holds(ref.entity, target, new Set([...seen, key])),
-                    })
-                  },
-                }),
+              return Condition.holds(
+                condition,
+                values,
+                input,
+                relation =>
+                  Option.match(refOf(values[relation]), {
+                    onNone: () => false,
+                    onSome: ref => {
+                      const key = `${ref.entity}:${ref.id}`
+                      if (seen.has(key)) return false
+                      return Option.match(row(ref.entity, ref.id), {
+                        onNone: () => false,
+                        onSome: target => holds(ref.entity, target, new Set([...seen, key])),
+                      })
+                    },
+                  }),
+                policy.operators,
               )
             }
             return (entity, values) => holds(entity, values, new Set())
@@ -333,7 +342,14 @@ export const GuardServer = {
       rule: { readonly condition: Condition },
       values: Readonly<Record<string, unknown>>,
       principal: Option.Option<User>,
-    ) => Condition.holds(rule.condition, values, policy.inputOf(principal), () => false)
+    ) =>
+      Condition.holds(
+        rule.condition,
+        values,
+        policy.inputOf(principal),
+        () => false,
+        policy.operators,
+      )
     /** Fails with the first rule of `rules` that does not hold over `values`. */
     const require = (
       rules: ReadonlyArray<{ readonly condition: Condition; readonly deny: Deny }>,
@@ -841,7 +857,7 @@ export const GuardServer = {
           const input = policy.inputOf(principal)
           if (Option.isNone(target)) {
             const unset = Condition.unsetting(rule.condition, new Set(ruled))
-            if (!Condition.holds(unset, {}, input, () => false)) {
+            if (!Condition.holds(unset, {}, input, () => false, policy.operators)) {
               return yield* Effect.fail(refused(rule.deny))
             }
             return yield* shown(yield* run({ ...context, row: Option.none() }), principal)
@@ -850,7 +866,7 @@ export const GuardServer = {
           const row = Option.fromUndefinedOr(yield* rowOf(source, principal, fields, target.value))
           if (
             Option.isNone(row) ||
-            !Condition.holds(rule.condition, row.value, input, () => false)
+            !Condition.holds(rule.condition, row.value, input, () => false, policy.operators)
           ) {
             return yield* Effect.fail(refused(rule.deny))
           }
@@ -1007,6 +1023,16 @@ export const GuardServer = {
                 : own
             }),
           ]
+          // A rule calling an operator the policy's table does not run would fail when
+          // asked, so the server does not start with one (expr-operations-DESIGN §5.6).
+          const operatorProblems = attachedRules(attachment).flatMap(rule =>
+            rule._tag === 'RowGuard'
+              ? Query.unsupported(rule.query, supported, policy.operators).map(
+                  missing =>
+                    `${name}'s ${rule.name} calls ${missing}, which the policy does not run`,
+                )
+              : [],
+          )
           // A live Source of its own streams whatever it reads: nothing here can check it.
           const liveProblems = config.server.live.has(name)
             ? [`${name} has a live Source of its own; serve its changes through a live hub`]
@@ -1017,6 +1043,7 @@ export const GuardServer = {
             ...bodyProblems,
             ...writeProblems,
             ...sharedProblems,
+            ...operatorProblems,
             ...liveProblems,
           ]
         },
@@ -1099,7 +1126,7 @@ const mayOf = <User, R>(
     ([rows, members, relations]): MayPlan => {
       const input = policy.inputOf(principal)
       const holds = (condition: Condition, values: Readonly<Record<string, unknown>>) =>
-        Condition.holds(condition, values, input, () => false)
+        Condition.holds(condition, values, input, () => false, policy.operators)
       // A relation without a rule for one direction leaves it to the row's Update.
       const allows = (rule: Option.Option<RowRule>, values: Readonly<Record<string, unknown>>) =>
         Option.match(rule, {

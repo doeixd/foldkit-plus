@@ -220,7 +220,7 @@ export default [
     edits: [
       {
         file,
-        find: 'if (!Condition.holds(unset, {}, input, () => false)) {',
+        find: 'if (!Condition.holds(unset, {}, input, () => false, policy.operators)) {',
         replace: 'if (false) {',
       },
     ],
@@ -231,7 +231,7 @@ export default [
     edits: [
       {
         file,
-        find: '!Condition.holds(rule.condition, row.value, input, () => false)',
+        find: '!Condition.holds(rule.condition, row.value, input, () => false, policy.operators)',
         replace: 'false',
       },
     ],

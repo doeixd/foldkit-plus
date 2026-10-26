@@ -14,7 +14,12 @@
  * by fields the client cannot see, so any change to a row it holds
  * invalidates it.
  */
-import { Query as Relational, dependenciesOf, type OrderTerm } from 'foldkit-entity'
+import {
+  Query as Relational,
+  dependenciesOf,
+  type MemoryOperators,
+  type OrderTerm,
+} from 'foldkit-entity'
 import { defineTaggedUnion } from 'foldkit/schema'
 import { edge, hasNext, hasPrevious, isGapped, type Connection } from './connection.js'
 import { RowPlace, placeIn, withEdge, withoutEdge } from './placement.js'
@@ -121,6 +126,7 @@ export const impactOn = (
   connection: HeldConnection,
   store: EntityStore,
   change: EntityChange,
+  operators?: MemoryOperators | undefined,
 ): Impact => {
   const { descriptor } = connection
   const body = descriptor.body
@@ -177,7 +183,9 @@ export const impactOn = (
 
       // A held row whose order alone changed still matches.
       const belongs =
-        held && !refilters ? 'yes' : belongsEncoded(store, descriptor, connection.encoded, key)
+        held && !refilters
+          ? 'yes'
+          : belongsEncoded(store, descriptor, connection.encoded, key, operators)
       if (belongs === 'unknown') {
         return Impact.Invalidated({
           reason: `${key} changed a field "${descriptor.name}" filters on, and the client cannot judge it`,

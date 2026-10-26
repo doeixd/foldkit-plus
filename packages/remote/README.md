@@ -1382,6 +1382,12 @@ the store the answer left:
   it. Declare the order in the body (`Query.orderBy`) to keep a list that a
   change provably did not move.
 
+**The client runs a body's primitive operators by its own table.**
+`Remote.make({ ..., operators })` (`Operators.kernel` by default) is the table
+it matches, filters and places rows with. A body calling an operator the table
+does not run is judged by the server, as any row the client cannot judge is:
+`Data.filtered` answers it incomplete and a change to it refetches.
+
 **A placement can be checked against the server.** `Remote.make({ ...,
 verifyPlacement: true })` places as usual, and also fetches each list it placed
 what the server said in (an answer, as above, or a read or a live patch, as

@@ -5,11 +5,11 @@
  */
 import { Context, Effect, Fiber, Option, Schema, Stream } from 'effect'
 import { RpcTest } from 'effect/rpc'
-import { Entity, Expr, Order, Relation } from 'foldkit-entity'
+import { Entity, Expr, Operators, Order, Relation } from 'foldkit-entity'
 import { Query, REMOTE_PROTOCOL_VERSION, Remote, RemoteRpc, type Requirement } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
-import { Guards, Interaction, May, MaySchema } from '../src/index.js'
+import { Condition, Guards, Interaction, May, MaySchema, type Policy } from '../src/index.js'
 import { GuardServer } from '../src/server.js'
 
 const User = Schema.Struct({
@@ -646,5 +646,92 @@ describe('GuardServer.validate', () => {
     expect(
       await Effect.runPromise(Twice.writeMembers(Todo, zoe, ['ownerId'], 'Update')),
     ).toMatchObject([{ condition: { _tag: 'Always' } }])
+  })
+})
+
+describe('A rule calling a primitive operator', () => {
+  const short = Expr.operator('acme.short', { input: [Schema.String], output: Schema.Boolean })
+  const shortLive = Operators.memory(Operators.implement(short, name => name.length < 5))
+  const PlainFields = Entity.define(
+    'Plain',
+    Schema.Struct({ id: Schema.String, name: Schema.String }),
+  )
+  const P = Guards.declare(
+    'Plains',
+    User,
+    guard => ({ isShort: guard.row(PlainFields, () => short(PlainFields.fields.name)) }),
+    { key: user => user.id, unguarded: 'allow' },
+  )
+  // An Update rule runs in memory only: no SQL ever compiles it.
+  const Plain = PlainFields.pipe(Guards.attach(P, { row: { Update: [P.isShort] } }))
+  const PlainData = Remote.define({ entities: [Plain], queries: [] })
+  const server = (policy: Policy<User>) =>
+    RemoteServer.memory({
+      domain: PlainData,
+      rows: { Plain: [{ id: 'x1', name: 'Bolt' }] },
+      principal: Option.none<User>(),
+      ...GuardServer.memory(policy, [Plain]),
+    }).server
+
+  it('is refused at startup when the policy does not run the operator', () => {
+    const without = P.implement({})
+    expect(() =>
+      GuardServer.validate(without, {
+        entities: [Plain],
+        domain: PlainData,
+        server: server(without),
+      }),
+    ).toThrow("Plain's isShort calls acme.short, which the policy does not run")
+  })
+
+  it('is decided by the policy’s table: a guard asked alone, and a row read in memory', async () => {
+    const policy = P.implement({}, { operators: shortLive })
+    const asked = (name: string) =>
+      Effect.runPromise(
+        policy.decide(P.isShort, {
+          principal: Option.none(),
+          interaction: 'Update',
+          row: { id: 'x', name },
+        }),
+      )
+    expect([await asked('Bolt'), await asked('Bolt cutter')]).toEqual([true, false])
+    const Read = PlainFields.pipe(Guards.attach(P, { row: { Read: [P.isShort] } }))
+    const ReadData = Remote.define({ entities: [Read], queries: [] })
+    const backend = RemoteServer.memory({
+      domain: ReadData,
+      rows: {
+        Plain: [
+          { id: 'x1', name: 'Bolt' },
+          { id: 'x2', name: 'Bolt cutter' },
+        ],
+      },
+      principal: Option.none<User>(),
+      ...GuardServer.memory(policy, [Read]),
+    })
+    const result = await Effect.runPromise(
+      RemoteServer.handlers(backend.server, Option.none<User>()).FoldkitRemoteRead({
+        version: REMOTE_PROTOCOL_VERSION,
+        requests: ['x1', 'x2'].map(id => ({ entity: 'Plain', id, fields: ['name'] })),
+      }),
+    )
+    expect(result.entities.map(entity => entity.id)).toEqual(['x1'])
+  })
+
+  it('starts, and is decided by the policy’s table, when it does', async () => {
+    const policy = P.implement({}, { operators: shortLive })
+    expect(() =>
+      GuardServer.validate(policy, {
+        entities: [Plain],
+        domain: PlainData,
+        server: server(policy),
+      }),
+    ).not.toThrow()
+    const rule = await Effect.runPromise(policy.writable(Plain, Option.none(), 'Update'))
+    expect(
+      Condition.holds(rule.condition, { name: 'Bolt' }, {}, () => false, policy.operators),
+    ).toBe(true)
+    expect(
+      Condition.holds(rule.condition, { name: 'Bolt cutter' }, {}, () => false, policy.operators),
+    ).toBe(false)
   })
 })

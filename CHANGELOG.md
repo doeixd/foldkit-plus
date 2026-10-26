@@ -52,6 +52,15 @@ version changed; `pnpm` skips versions already in the registry.
   lacks, `Collation.foldAscii` folds as `asciiFold` compares, and
   `OperatorMissingError` names an operator a table does not run. The
   conformance suite exports `primitiveCases` and `primitiveRefusals`.
+- **Every in-memory site takes the table.** `G.implement(bodies, { operators })`
+  gives a Guard policy one (`Policy.operators`), which `Policy.decide`,
+  `Condition.holds` and every `GuardServer` memory path run row guards by;
+  `GuardServer.validate` refuses a server whose rules, on any surface, call an
+  operator that table does not run. `RemoteServer.memory({ operators })` checks
+  every query body against its table where it is built, `Remote.make({
+  operators })` matches, filters and places rows by it, and
+  `Form.make(name, input, { operators })` judges invariants by it (a nested form
+  given none uses it).
 - **`Cms.published(entity)`**: whether a row is published, as `cms.published` over
   the Entity's `published` role. The CMS example's two public queries and three
   visitor Read rules use it in place of five hand-written `isNotNull`s.
@@ -67,6 +76,9 @@ version changed; `pnpm` skips versions already in the registry.
   too**, so its result is `ReadonlyArray<string>`, not `Operation`s; without a
   table every primitive operator is named. **Comparing text needs a
   collation, not a field**: a call carrying one compares as a field does.
+- **`Condition.holds(condition, values, input, inherit, operators)`** takes the
+  table its row guards run by, as a required last argument: pass the policy's
+  (`Policy.operators`).
 - **An invariant's `Undecided` has `operators`** beside `fields`: the operators
   its judge's table does not run. An exact comparison with one adds
   `operators: []`.

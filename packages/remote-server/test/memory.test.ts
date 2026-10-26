@@ -8,7 +8,7 @@
  */
 import { Effect, Layer, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Entity, Expr, Order, Relation } from 'foldkit-entity'
+import { Entity, Expr, Operators, Order, Relation } from 'foldkit-entity'
 import { Mutation, Query, REMOTE_PROTOCOL_VERSION, Remote, RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
@@ -536,5 +536,42 @@ describe('RemoteServer.memory', () => {
     expect(() => RemoteServer.memory({ domain, rows })).toThrow(
       'RemoteServer.memory: "Bodiless" has no body to run',
     )
+  })
+})
+
+describe('RemoteServer.memory over a body calling an application’s operator', () => {
+  const live = Expr.operator('acme.live', { input: [Schema.String], output: Schema.Boolean })
+  const Live = Query.define('Live', {}, () =>
+    Query.from(Project).pipe(
+      Query.where(live(Project.fields.status)),
+      Query.orderBy(Order.asc(Project.fields.name)),
+    ),
+  )
+  const LiveData = Remote.make({
+    model: App.model.remote,
+    entities: [User, Project],
+    queries: [Live],
+  })
+
+  it('refuses to be built without the operator, rather than failing on the first read', () => {
+    expect(() => RemoteServer.memory({ domain: LiveData, rows })).toThrow(
+      'this interpreter does not run acme.live',
+    )
+  })
+
+  it('answers with the table it is given', async () => {
+    const backend = RemoteServer.memory({
+      domain: LiveData,
+      rows,
+      operators: Operators.memory(Operators.implement(live, status => status === 'active')),
+    })
+    const list = LiveData.query(Live, {}, { select: summary, first: 5 })
+    const model = await Effect.runPromise(
+      LiveData.prefetch(initial, list).pipe(Effect.provide(backend.layer)),
+    )
+    expect(list.read(model)).toMatchObject({
+      _tag: 'Ready',
+      value: { items: [{ name: 'Apollo' }, { name: 'Borealis' }] },
+    })
   })
 })

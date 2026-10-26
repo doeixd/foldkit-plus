@@ -14,7 +14,7 @@ import {
   type Visible,
 } from 'foldkit-remote-drizzle'
 import { RemoteServerError } from 'foldkit-remote-server'
-import { attached, type AnyRule } from './attach.js'
+import { attached, flattenRules, type AnyRule } from './attach.js'
 import type { Condition } from './condition.js'
 import type { Policy } from './index.js'
 import { rowRules } from './placed.js'
@@ -30,16 +30,6 @@ const readRules = (entity: AnyEntity): ReadonlyArray<AnyRule> =>
     onNone: () => [],
     onSome: attachment => [...attachment.always, ...(attachment.row['Read']?.rules ?? [])],
   })
-
-const flatten = (rules: ReadonlyArray<AnyRule>): ReadonlyArray<AnyRule> =>
-  rules.flatMap(rule =>
-    Match.valueTags(rule, {
-      PrincipalGuard: () => [rule],
-      RowGuard: () => [rule],
-      All: ({ rules: parts }) => flatten(parts),
-      Inherit: () => [rule],
-    }),
-  )
 
 const nothing = sql`1 = 0`
 
@@ -63,7 +53,7 @@ export const GuardDrizzle = {
     const inherits = new Map<string, ReadonlyArray<string>>()
     for (const entity of entities) {
       const targets: Array<string> = []
-      for (const rule of flatten(readRules(entity))) {
+      for (const rule of flattenRules(readRules(entity))) {
         Match.valueTags(rule, {
           PrincipalGuard: () => {},
           RowGuard: guard => {

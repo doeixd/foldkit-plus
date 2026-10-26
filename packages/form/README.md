@@ -334,6 +334,9 @@ Entity's: the operation decides what is valid, and may be stricter.
   each key its path names, or in `model.errors` when the form sets none of
   them. One reading a field the form does not set is not judged here; the
   server decides it, and the form never calls the input valid on its account.
+  The same holds for one calling a primitive operator the form's table does
+  not run: give the table as `operators` (`Form.make(name, input, { operators
+  })`, `Operators.kernel` by default), and a nested form given none uses it.
 - **`ValidatedAll`** checks every key a submit would, rows too, and submits
   nothing: for a page that sends several forms at once. A rule that spans keys
   is said only by a submit.

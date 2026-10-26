@@ -59,8 +59,8 @@ export default [
     edits: [
       {
         file,
-        find: 'evaluate(guard.query, input, [values]).length === 1',
-        replace: 'evaluate(guard.query, input, [values]).length >= 0',
+        find: 'evaluate(guard.query, input, [values], { operators }).length === 1',
+        replace: 'evaluate(guard.query, input, [values], { operators }).length >= 0',
       },
     ],
     tests,
@@ -143,7 +143,7 @@ export default [
     edits: [
       {
         file: '../src/index.ts',
-        find: '!readsPrincipal(rowGuard) && evaluate(rowGuard.query, {}, [row]).length === 1,',
+        find: 'evaluate(rowGuard.query, {}, [row], { operators }).length === 1,',
         replace: 'false,',
       },
     ],

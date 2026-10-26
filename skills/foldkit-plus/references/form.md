@@ -27,7 +27,9 @@ Schema.Struct + Entity.input ──► Form.make ──► controls (draw these)
 ```
 
 A draft is what the control holds: a number being typed is text, an unchosen
-relation is `""`. It becomes a value only when checked.
+relation is `""`. It becomes a value only when checked. An invariant calling a
+primitive operator is judged by `Form.make(name, input, { operators })`
+(`Operators.kernel` by default); one the table lacks is left to the server.
 
 ## Minimal example
 
