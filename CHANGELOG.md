@@ -56,6 +56,14 @@ version changed; `pnpm` skips versions already in the registry.
   causes (an operator the table lacks, an input the body reads holding a NUL,
   order keys of different kinds) still refuses the run.
 
+### Fixed
+
+- **A guarded write whose policy cannot run an assignment's operator is refused
+  where it is registered.** `GuardServer.writer` judged the row a write leaves
+  by the policy's table, and a computed value that table could not work out was
+  judged as the field's old value, so a rule over it could be passed while the
+  database wrote the new one.
+
 ### Changed
 
 - **`Remote.matching` skips a held row holding text with a NUL** rather than

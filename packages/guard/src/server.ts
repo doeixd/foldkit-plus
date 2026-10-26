@@ -8,6 +8,7 @@
 import { Effect, Match, Option, Schema, SchemaAST } from 'effect'
 import {
   Entity,
+  Expr,
   Query,
   Write,
   dependenciesOf,
@@ -666,8 +667,18 @@ export const GuardServer = {
       ...(writer.ledger === true ? { ledger: true } : {}),
       // Invariants are the writer's to judge, over the row its statement writes.
       ...(writer.invariants === true ? { invariants: true } : {}),
-      // What the store refuses, the store knows: the guard adds no reason and drops none.
-      ...(writer.refuses === undefined ? {} : { refuses: writer.refuses }),
+      // What the store refuses, the store knows: the guard drops none of its reasons. It
+      // adds one: its rules judge the row the write leaves, worked out by the policy's
+      // table, so an assignment that table cannot run would be judged as its old value.
+      refuses: write => [
+        ...(writer.refuses?.(write) ?? []),
+        ...write.assignments.flatMap(({ field, expr }) =>
+          Expr.unsupported([expr], { operations: supported, operators: policy.operators }).map(
+            missing =>
+              `its assignment to "${field.key}" calls ${missing}, which the policy does not run`,
+          ),
+        ),
+      ],
       ...(writer.recorded === undefined ? {} : { recorded: writer.recorded }),
       read: ({ id, fields, principal }) =>
         seenRow(
