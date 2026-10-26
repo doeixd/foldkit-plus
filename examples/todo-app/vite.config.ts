@@ -1,6 +1,9 @@
+import { foldkit } from '@foldkit/vite-plugin'
 import { defineConfig } from 'vite'
 
 export default defineConfig({
+  // Foldkit's view identity for the differ, and the Model kept across a dev reload.
+  plugins: [foldkit()],
   // Workspace packages resolve to their source, so an edit shows without a build.
   resolve: { conditions: ['foldkit-plus:source'] },
   // The sandbox's server is a module SharedWorker.

@@ -17,6 +17,7 @@
     "foldkit-primitives": "workspace:*"
   },
   "devDependencies": {
+    "@foldkit/vite-plugin": "0.28.0",
     "@effect/platform-browser": "^4.0.5",
     "effect": "^4.0.5",
     "foldkit": "0.169.0",

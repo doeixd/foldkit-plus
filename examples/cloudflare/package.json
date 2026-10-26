@@ -33,6 +33,7 @@
     "foldkit-sync": "workspace:*"
   },
   "devDependencies": {
+    "@foldkit/vite-plugin": "0.28.0",
     "@cloudflare/workers-types": "5.20261022.1",
     "@effect/sql-d1": "^4.0.5",
     "esbuild": "0.28.2",
