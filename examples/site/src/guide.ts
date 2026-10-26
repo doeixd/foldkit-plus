@@ -51,6 +51,17 @@ export const GuideStyle = Style.forSlots(GuideSlots)(
         font: '13px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif',
       }),
       Style.nest('&[open] > summary::after', { transform: 'translateY(1px) rotate(225deg)' }),
+      // On a phone the pill sits over the page's last lines: the page ends in room as tall
+      // as the pill and its margins, so they scroll clear of it. A block after the body's
+      // content, not the body's padding, which a page's own unlayered rule would win over.
+      Style.at(
+        '@media (max-width: 48rem)',
+        Style.nest('body:has(&)::after', {
+          content: '""',
+          display: 'block',
+          blockSize: '4.25rem',
+        }),
+      ),
     ),
     pill: Style.compose(
       Style.self({
@@ -144,7 +155,15 @@ export const GuideStyle = Style.forSlots(GuideSlots)(
       borderBlockStart: `1px solid ${hairline}`,
     }),
     link: Style.compose(
-      Style.self({ color: ink, fontWeight: '500', textDecoration: 'none' }),
+      // A finger's target: at least 24px tall, as the words alone are not.
+      Style.self({
+        display: 'inline-flex',
+        alignItems: 'center',
+        minBlockSize: '1.5rem',
+        color: ink,
+        fontWeight: '500',
+        textDecoration: 'none',
+      }),
       Style.pseudo(':hover', { color: accent }),
       Style.pseudo(':focus-visible', { outline: `2px solid ${accent}`, outlineOffset: '2px' }),
     ),
