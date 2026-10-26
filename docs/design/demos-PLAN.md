@@ -65,6 +65,11 @@ do what it does.
 
 These come from `AGENTS.md`'s styling section and its traps; each has cost time here.
 
+- **A builtin first.** Before writing markup, a style or a helper, look for the
+  mixins-ui component, the `Layout` piece or the `AppStyle` option that does it,
+  and use it as it ships. Adjust a recipe with `.extend`, never by forking it. A
+  gap a demo finds is filled in the package, for every application, not in the
+  demo.
 - Values come from tokens through `Theme.ref`; no colour, size or duration is
   copied into a demo. A demo's look is a `Theme.make` of its own, installed with
   `Theme.root` in its sheet's `theme` layer.
@@ -92,44 +97,84 @@ Before changing anything, see what a visitor sees.
   unstyled control, a missing empty or error state, a spinner where a skeleton
   belongs, no visible focus ring, text that overflows at 390px, a dialog not
   centred, a status shown only in colour.
-- Decide the shared shell (Phase 1) from what the audit shows the demos have in
+- Settle `AppShell`'s Slots and options (Phase 1) from what the audit shows the demos have in
   common.
 
 Exit: a table of findings per demo, each pointing at a fix in a later phase.
 
-## Phase 1: one shell and one theme for every demo
+## Phase 1: `AppShell`, a reusable frame, and one theme for the demos
 
-A demo should not hand-write its frame. Build it once, in `examples/site` beside
-`demos.ts` and `guide.ts` (which every demo already imports):
+A demo should not hand-write its frame, and neither should an application: the
+frame is a `foldkit-mixins-ui` component, so every Foldkit Plus application can
+use it. Everything else the demos need is already shipped, and this phase builds
+nothing that a builtin covers.
 
-- **`demoTheme`**: one `Theme.make` the demos share, and a `Themes.make` of it with
-  a dark and a compact variant, selected from the Model. It is the first demo use
-  of `Themes.make`.
-- **`demoSheet(slotStyles)`**: the canonical sheet (`L.declare`, `Defaults.reset`,
-  `Theme.root`, `Defaults.body`, then the demo's own Slot styles), so no demo writes
-  `Style.stylesheet` by hand.
-- **`DemoShell`**: the frame, from mixins-ui. It has a header with the demo's title
-  and a theme `Segmented` control; an optional `Sidebar`; a main region; and the
-  guide pill. Its states are shared: `Empty` for no data, `Skeleton` while first
-  loading, `Alert` for a failure with a retry, and a `Toast` region for
-  confirmations.
-- **One status vocabulary** for online, offline, syncing and pending, drawn with
-  `Badge` and the same words in every demo that replicates (`todo-app`,
-  `registry`, `pages`, `cloudflare`, `auth`).
+**What already exists, and is used as it is:**
 
-Exit: `demoTheme`, `demoSheet` and `DemoShell` exist with a browser test of the
-shell's layout at both widths, and the `site` demo cards link to demos that use
-them.
+| Need | Builtin |
+| --- | --- |
+| The sheet, the layers, the reset, the tokens | `AppStyle.make` (`foldkit-mixins/app`) |
+| Named themes chosen by the Model (light, dark, compact) | `AppStyle.make({ themes: Themes.make(…) })` |
+| Page layout (header over a side column and a main column) | `Layout.sidebar`, `Layout.stack`, `Layout.cluster`, `Layout.center` |
+| The side navigation | `Sidebar`, `Nav` |
+| The theme switch in the header | `Segmented` |
+| A status (online, offline, syncing, pending) | `Badge`, with its word |
+| Nothing to show, first load, a failure | `Empty`, `Skeleton`, `Alert`; for a read, mixins-crud's `Loading`, `Empty` and `Failure` |
+| A confirmation, an undo | `Toast` |
+| Who is signed in | `Avatar`, `Menu` |
 
-## Phase 2: move the demos onto the shell and the components
+**What is new: `AppShell` in `foldkit-mixins-ui`.** It is a component like the
+others, with Slots, a recipe and an accessibility contract.
+
+- **Slots:** `root`, `skip` (a skip link to the main region), `header`, `brand`,
+  `actions`, `nav`, `main`, `status` and `footer`. Each is a Slot of its own on an
+  element of its own, so a stylist reaches every part.
+- **View:** `AppShell.view({ title, brand?, actions?, nav?, status?, footer? },
+  main, h)`.
+  - Without `nav` it is a single column. With `nav` it draws `Layout.sidebar`,
+    and the side column collapses into a `Sheet` below the breakpoint the theme
+    names.
+  - `actions` and `status` take other components (`Segmented`, `Badge`, `Avatar`)
+    rather than strings, so the shell owns placement and nothing else.
+- **Landmarks:** `header` is the banner, `nav` the navigation, and `main` the main
+  region, with an id the skip link targets. There is one of each per page.
+- **What it owns:** it holds no state. The collapsed side column is a `Sheet`'s,
+  and the Model's open flag is the application's. It sends no Message of its own.
+  It is drawn inert on a server, and its markup parses back to itself.
+- **Recipe:** `Recipes.AppShell({ width: 'full' | 'contained', density })`, placed
+  in `components`. Its values come from tokens.
+- **Contract:** `Patterns.AppShell`, one landmark each, and a `catalog` entry,
+  validated by the existing gate test.
+- **Tests:**
+  - unit tests of the markup;
+  - a browser test of the layout at 1280px and 390px, asserting geometry rather
+    than visibility;
+  - a browser test that the skip link moves focus to `main`;
+  - an SSR round-trip test;
+  - a mutation spec.
+- **Docs:** a row in mixins-ui's README component table and in the skill's
+  `references/mixins.md`, and a CHANGELOG entry.
+
+**The demos' theme** stays demo-specific and lives in `examples/site` beside
+`demos.ts` and `guide.ts`. `demoStyle` is one `AppStyle.make({ themes })` call
+with a light, a dark and a compact theme, and each demo takes its `t`, `slots` and
+`stylesheet` from it. It is the first demo use of `Themes.make`.
+
+Exit:
+
+- `AppShell` is released in `foldkit-mixins-ui`, with its tests.
+- `demoStyle` exists.
+- `design-system`, the components' own gallery, draws an `AppShell` page.
+
+## Phase 2: move the demos onto `AppShell` and the components
 
 One demo per commit, in this order (most visited first, most hand-written CSS
 first):
 
 1. **`todo-app`.** Replace its 9 raw controls with `Input`, `Checkbox`, `Button`
-   and `Toolbar`, and delete `styles.css`. Show offline and pending edits with the
+   and `ButtonGroup`, and delete `styles.css`. Show offline and pending edits with the
    shared status `Badge`, and "cleared" with an undo `Toast`.
-2. **`entity`.** Delete `styles.css`. Draw the screen through `DemoShell`, and the
+2. **`entity`.** Delete `styles.css`. Draw the screen through `AppShell`, and the
    editor and the delete question through `EditorView` and `ConfirmView`, which it
    already uses, styled by the theme rather than CSS.
 3. **`cloudflare`.** Delete `page.css`. The same shell, with the Worker and
@@ -144,9 +189,9 @@ first):
    `PasswordInput`. Draw the signed-in person as an `Avatar`, and sign-out as a
    `Menu`.
 7. **`richtext-playground`.** Replace its 19 raw controls in the toolbar and
-   settings with `Toolbar`, `Segmented`, `Select` and `Switch`.
+   settings with `ButtonGroup`, `Segmented`, `Select` and `Switch`.
 8. **`cms`** and **`data-grid`.** These are already on the theme, so they only
-   move onto the shared shell and states where the audit found a gap.
+   move onto `AppShell` and the shared states where the audit found a gap.
 
 For each demo the commit:
 
@@ -178,7 +223,7 @@ showcase of its own:
   count past what the warehouse holds).
 - **Operators**: a defined operator (`Expr.operator`) in `registry`'s search or
   sort beside its `Text.startsWith`, with a law the demo states.
-- **`Themes.make`** through the shell (Phase 1).
+- **`Themes.make`** through `demoStyle` and `AppShell`'s theme switch (Phase 1).
 
 For each feature the commit:
 
@@ -221,10 +266,7 @@ closed.
 
 ## Open questions
 
-- **Where the shell lives.** `examples/site` already exports `demos` and `guide`
-  to the demos, so the shell can sit there. If it proves generally useful, it could
-  become a `foldkit-mixins-ui` pattern (`Patterns`) instead. Decide after Phase 2.
-- **Whether `widgets` adopts the shared theme.** It can wear `demoTheme` without
-  giving up building from primitives.
+- **Whether `widgets` wears `demoStyle`.** It can take the shared theme and
+  `AppShell` without giving up building its widgets from primitives.
 - **Deploy access.** Phase 6 needs whoever deploys the Pages projects; this plan
   only prepares the builds.
