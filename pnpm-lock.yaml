@@ -538,9 +538,6 @@ importers:
 
   examples/fields:
     dependencies:
-      foldkit-crud:
-        specifier: workspace:*
-        version: link:../../packages/crud
       foldkit-form:
         specifier: workspace:*
         version: link:../../packages/form

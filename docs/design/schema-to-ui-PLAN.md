@@ -1,10 +1,10 @@
 # Schema to UI: field recipes and CRUD workflow recipes
 
-> **Status:** Phases 0 (2026-10-22), 1 to 5 (2026-10-26) built; Phases 6 and 7
-> proposed. Written from
+> **Status:** built: Phase 0 on 2026-10-22, Phases 1 to 7 on 2026-10-26, with a
+> review's fixes after (§1.11). Written from
 > [#188](https://github.com/doeixd/foldkit-plus/issues/188) and an audit of the
-> code on 2026-10-22 (§1, §11). §1.3 to §1.8 record what building Phases 0 to 5
-> changed in the plan. Blocks marked *Sketch* are shapes to review, not APIs; the phase that
+> code on 2026-10-22 (§1, §11). §1.3 to §1.11 record what building Phases 0 to 7, and
+> reviewing them, changed in the plan. Blocks marked *Sketch* are shapes to review, not APIs; the phase that
 > builds each one fixes its real signature. Where this plan and a package README
 > disagree, the README and the source win.
 
@@ -204,8 +204,9 @@ Phase 2 shipped on 2026-10-26 (§6) as a new package, `foldkit-form-recipes`.
 4. **A password has no reveal toggle.** Whether its text shows is state, and a
    renderer has nowhere to keep it; `foldkit-mixins-ui`'s `PasswordInput` keeps it
    in the application. Likewise the `/ui` calendar in a popover (an open month, a
-   focused day) waits for a control backed by a Bundle (Phase 6); `./ui` draws the
-   native inputs under the Input Slot meanwhile.
+   focused day) would be a control backed by a Bundle, which Phase 6 made
+   possible for `image` and did not build for dates; `./ui` draws the native
+   inputs under the Input Slot.
 5. **The CMS's controls moved rather than being wrapped.** `Cms.slug`,
    `Cms.dateTime`, `Cms.slugify`, `Cms.Input` and `Cms.controlRenderers` are
    removed, so there is one way to make a slug.
@@ -323,8 +324,31 @@ Phase 2 shipped on 2026-10-26 (§6) as a new package, `foldkit-form-recipes`.
 2. **No benchmark.** §6 asks for one against a hand-built TanStack Form + Query
    page only if it has something to measure, and there is no such page here
    (`examples/tanstack` is an interpreter). Writing one to compare against
-   would be the synthetic benchmark §1.8 set aside; the honest measurement
-   remains `examples/entity`'s before and after.
+   would be the synthetic benchmark Phase 5's text sets aside; the honest
+   measurement remains `examples/entity`'s before and after.
+
+### 1.11 What reviewing the build found
+
+Five reviews of Phases 1 to 7 found no blocking defect in the composition, and
+one in the amounts: a currency or a percentage can group and separate decimals
+otherwise than a plain number (`de-AT`, `fr-CH`, Indian currencies), and rtl
+locales write bidi marks, so a filled amount could not be submitted again in
+those locales. The symbols now come from the format the field writes with, and
+a test sweeps sixteen locales from format back to value. The rest, each fixed
+with a test that fails without it:
+
+- Two presses before a draw lost the first, so a press is the form's
+  `Toggled`, applied to the draft as it lands; a choice group that must hold
+  two could not be made.
+- A year under 100 was read as 19xx; a decimal past what a double holds was
+  rounded; a recipe's bad option threw on every keystroke, not when made; kind
+  names (`Date`) could collide with an application's own, and are prefixed.
+- The image control's label named nothing, its live region said every
+  percentage, a press left focus on the page, and a dropped file that is no
+  image was sent to be refused; the docs suggested a deployment's secret as a
+  browser's header.
+- A Dialog closed by Escape left its editor open; the summary's id could
+  collide with a key; the default conflict words offered a reload nothing does.
 
 ## 2. Scope
 
@@ -832,7 +856,11 @@ freeze an API around the parts that Phase 2 to 4 still change.
 **Kills.** `after` skipping the remover's sync; `active` dropping the editor;
 `close` clearing the wrong slice.
 
-### Phase 6 — files and asynchronous relations (L)
+### Phase 6 — files and asynchronous relations (L) — **built 2026-10-26**
+
+**Built.** `foldkit-media/browser`'s `upload`, `foldkit-form-recipes/image`, and
+a picker's "Show more" through `AskedForMore`. §1.9 says where it departs from
+the text below: no `file` recipe, an entry of its own, and no `Combobox`.
 
 **Build.** `FieldRecipes.file` and `.image` as `Bundle` controls over
 `foldkit-media`'s upload: `mixins-ui.FileDrop` for the drop zone, upload
@@ -857,7 +885,9 @@ earlier would have implied those limits were temporary.
 **Kills.** cancel ignored; a failed upload set as a value; `more` never
 requested.
 
-### Phase 7 — gallery, docs, benchmark (M)
+### Phase 7 — gallery, docs, benchmark (M) — **built 2026-10-26**
+
+**Built.** `examples/fields`, and no benchmark; §1.10 says why.
 
 **Build.** `examples/fields`: one page per recipe showing the schema, the
 derived control, the draft, the value, and the renderer options, rendered

@@ -207,7 +207,8 @@ choices (`{ value, label }`); loading them is the application's query.
 the server still checks). `FormView.define(Rename)` alone is a complete unstyled form. `words.none` words the
 blank choice of a picker; a chosen value the choices lack is shown as `? value`. `FieldSlots`: `root`,
 `label`, `description`, `error`, `checking`, and one per control kind (`text`, `multiline`,
-`number`, `toggle`, `select` with its `option`s, `choices`, `choiceLabel`, `choice`), plus `control`, `search`, and
+`number`, `toggle`, `select` with its `option`s, `choices`, `choiceLabel`, `choice`), plus `control`, `search`, `more` (the
+"Show more" button under a picker the view's `more` input names), and
 `group`/`affix` for a renderer's control with text beside it. `FormSlots`: `root`, `errors`,
 `summary` (with `summaryTitle`, `issues`, `issue`, `issueLink`), `submit`. While any field is invalid, `summary` lists each
 one above the submit button as a link to its control (`href="#id"`; a press focuses the

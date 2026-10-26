@@ -41,7 +41,7 @@ const nameOf = (entry: Entry) =>
   entry.name.replace(/(^|-)(\w)/g, (_, __, letter: string) => letter.toUpperCase())
 
 /** A form of the entry's key (`value`), and of the key a `slug` follows. */
-export const formOf = (entry: Entry) =>
+const formOf = (entry: Entry) =>
   Form.make(
     nameOf(entry),
     Form.input(

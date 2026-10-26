@@ -9,7 +9,6 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
-    "foldkit-crud": "workspace:*",
     "foldkit-form": "workspace:*",
     "foldkit-form-recipes": "workspace:*",
     "foldkit-media": "workspace:*",

@@ -29,7 +29,7 @@ const serve = <Model, Message>(
   ).pipe(Effect.map(html => injectIntoTemplate(template(title), html)))
 
 /** One recipe's page: its facts as the demo states them, and its control. */
-export const page = (reading: Reading) => {
+const page = (reading: Reading) => {
   const { form } = reading
   type Model = typeof form.initial
   type Message = typeof form.Message.Type
@@ -55,7 +55,7 @@ export const page = (reading: Reading) => {
 }
 
 /** The list of every page. */
-export const index = (readings: ReadonlyArray<Reading>) =>
+const index = (readings: ReadonlyArray<Reading>) =>
   serve('Field recipes', null, (_, h: HtmlBuilder<never>) =>
     h.main(
       [],

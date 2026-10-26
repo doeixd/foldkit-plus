@@ -99,7 +99,8 @@ export const gallery: ReadonlyArray<Entry> = [
     call: "FieldRecipes.password({ purpose: 'new' })",
     schema: Schema.String,
     recipe: FieldRecipes.password({ purpose: 'new' }),
-    stored: 'correct horse',
+    // Nothing stored: a page that served a stored password would hand it out.
+    stored: '',
     typed: 'battery staple',
     failures: [
       'Hidden in a list; no reveal toggle, since whether it shows is state the form does not hold.',
@@ -158,7 +159,9 @@ export const gallery: ReadonlyArray<Entry> = [
     stored: 0.125,
     typed: '7.5',
     refused: '7.5.1',
-    failures: ['Stored as the share (`0.125`); `points` stores `12.5`.'],
+    failures: [
+      'More decimals than the scale, or one a JavaScript number would round, are refused.',
+    ],
   },
   {
     name: 'image',
