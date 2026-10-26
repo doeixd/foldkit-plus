@@ -145,9 +145,15 @@ const dedupeConnection = (segments: readonly Segment[]): Segment[] => {
 /** Adds a page to the connection, joining contiguous or overlapping segments. */
 export const merge = (current: Connection, page: Segment): Connection => {
   // A zero-edge page carries no ordering evidence; joining it would let its
-  // boundary overwrite a real segment's end. Ignore it.
+  // boundary overwrite a real segment's end. Ignore it, unless it is the whole
+  // list and nothing is held: then it is the evidence that the list is empty,
+  // which placing a created row by the list's order needs. A later page drops
+  // it, as `dedupeConnection` keeps no segment without edges.
   const incoming = normalize(page)
-  if (incoming.edges.length === 0) return current
+  if (incoming.edges.length === 0) {
+    const whole = incoming.start._tag === 'Terminal' && incoming.end._tag === 'Terminal'
+    return whole && current.segments.length === 0 ? { ...current, segments: [incoming] } : current
+  }
 
   const segments = [...current.segments.map(normalize), incoming]
   let joined = true

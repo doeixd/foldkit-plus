@@ -73,6 +73,12 @@ version changed; `pnpm` skips versions already in the registry.
 - **`foldkit-mixins-data-grid`: a header's sort label and column menu button are
   finger targets**, at least 24px (the menu button each way), where they were the
   height of their words and glyph (about 21px tall and 30 by 23).
+- **`foldkit-remote`: a row created in an empty list shows.** An empty, complete
+  answer was stored as no segments at all, so placing a created row by the
+  list's declared order found nothing that ends the list and left the row out,
+  pending and confirmed: the Cloudflare example's first todo never appeared in
+  the tab that added it. Such an answer is now kept as one empty segment while
+  the list holds nothing else.
 
 ## 0.34.0
 

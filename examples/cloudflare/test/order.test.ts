@@ -48,6 +48,12 @@ describe('a created todo', () => {
     readonly ids: ReadonlyArray<string>
   }> = [
     {
+      name: 'is the only row of an empty list',
+      rows: [],
+      added: { id: 'm', title: 'mmm' },
+      ids: ['m'],
+    },
+    {
       name: 'lands between its neighbours',
       rows: [
         { id: 'a', title: 'asdf' },
