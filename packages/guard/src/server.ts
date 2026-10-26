@@ -624,29 +624,33 @@ export const GuardServer = {
         principal: context.principal,
       })
     /**
+     * The memory table the row a write leaves is worked out by: the writer's,
+     * so the rules judge the value its statement writes, else the policy's.
+     */
+    const computing = writer.operators ?? policy.operators
+    /**
      * The row `context` would leave `before` as. An operator's refusal (text
      * holding NUL, an implementation that throws) is a server error, as the
      * writer answers what it cannot compile: logged here, and never sent, since
-     * an implementation's own message may say anything.
+     * an implementation's own message may say anything. So is a field it cannot
+     * work out at all: judging its old value would let a rule over it pass.
      */
     const leaves = (before: Readonly<Record<string, unknown>>, context: UpdateContext) =>
       Effect.suspend(() => {
+        const unworkable = Effect.fail(
+          new RemoteServerError({
+            message: `${entity.name}'s write could not be worked out to judge its rules`,
+          }),
+        )
         try {
-          return Effect.succeed(Write.apply(before, context, { operators: policy.operators }).row)
+          const applied = Write.apply(before, context, { operators: computing })
+          return applied.unknown.length === 0 ? Effect.succeed(applied.row) : unworkable
         } catch (error) {
           if (!(error instanceof QueryEvaluateError)) throw error
           return Effect.logError(
             '[foldkit-guard] a computed value could not be worked out',
             error,
-          ).pipe(
-            Effect.andThen(
-              Effect.fail(
-                new RemoteServerError({
-                  message: `${entity.name}'s write could not be worked out to judge its rules`,
-                }),
-              ),
-            ),
-          )
+          ).pipe(Effect.andThen(unworkable))
         }
       })
     /** The rules, over the row as it is and as the write would leave it. */
@@ -702,11 +706,19 @@ export const GuardServer = {
       refuses: write => [
         ...(writer.refuses?.(write) ?? []),
         ...write.assignments.flatMap(({ field, expr }) =>
-          Expr.unsupported([expr], { operations: supported, operators: policy.operators }).map(
+          Expr.unsupported([expr], { operations: supported, operators: computing }).map(
             missing =>
-              `its assignment to "${field.key}" calls ${missing}, which the policy does not run`,
+              `its assignment to "${field.key}" calls ${missing}, which the guard cannot work out`,
           ),
         ),
+        // Refused per request too (`admitUpdate`), for a caller that registers none.
+        ...((write.increments.length > 0 || write.assignments.length > 0) &&
+        write.expect === undefined &&
+        revision === undefined
+          ? [
+              'it moves a field and expects no revision, and the guarded writer pins none, so its rules would judge a value over a row that may move; give the writer a revision',
+            ]
+          : []),
       ],
       ...(writer.recorded === undefined ? {} : { recorded: writer.recorded }),
       read: ({ id, fields, principal }) =>

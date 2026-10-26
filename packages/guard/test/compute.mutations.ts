@@ -30,8 +30,8 @@ export default [
     edits: [
       {
         file: '../src/server.ts',
-        find: "message: `${entity.name}'s write could not be worked out to judge its rules`,",
-        replace: 'message: String(error),',
+        find: 'Effect.andThen(unworkable)',
+        replace: 'Effect.andThen(Effect.fail(new RemoteServerError({ message: String(error) })))',
       },
     ],
     tests: ['packages/guard/test/compute.test.ts'],
@@ -53,5 +53,51 @@ export default [
       },
     ],
     tests: ['packages/guard/test/compute.test.ts'],
+  },
+  {
+    name: "the guard works a value out by the policy's table, not the writer's",
+    edits: [
+      {
+        file: '../src/server.ts',
+        find: 'const computing = writer.operators ?? policy.operators',
+        replace: 'const computing = policy.operators',
+      },
+    ],
+    tests: ['packages/guard/test/compute.test.ts'],
+  },
+  {
+    name: 'a value the guard cannot work out is judged as it was',
+    edits: [
+      {
+        file: '../src/server.ts',
+        find: 'applied.unknown.length === 0 ? Effect.succeed(applied.row) : unworkable',
+        replace: 'Effect.succeed(applied.row)',
+      },
+    ],
+    tests: ['packages/guard/test/compute.test.ts'],
+  },
+  {
+    name: 'the Drizzle writer names no table to judge by',
+    edits: [
+      {
+        file: '../../remote-drizzle/src/index.ts',
+        find: 'operators: binding.operators.memory,',
+        replace: '',
+      },
+    ],
+    tests: ['packages/guard/test/compute.test.ts'],
+  },
+  {
+    name: 'an unpinned move is registered, to be refused on every request',
+    edits: [
+      {
+        file: '../src/server.ts',
+        find: `write.expect === undefined &&
+        revision === undefined`,
+        replace: `write.expect === undefined &&
+        false`,
+      },
+    ],
+    tests: ['packages/guard/test/increment.test.ts'],
   },
 ]

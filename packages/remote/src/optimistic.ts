@@ -215,21 +215,35 @@ export const resolvedPatches = (
   operators: MemoryOperators = Operators.kernel,
 ): ReadonlyArray<NormalizedPatch> => {
   const shown = new Map<EntityKey, Record<string, unknown>>()
+  // Fields an earlier layer could not work out: what the store holds for one is
+  // not what the row before a later layer holds, so nothing reading it is predicted.
+  const unsure = new Map<EntityKey, ReadonlySet<string>>()
   return optimistic.layers.flatMap(layer =>
     layer.patches.map(({ adds, computes, ...patch }) => {
       const key = entityKey(patch.entity, patch.id)
       const earlier = shown.get(key) ?? {}
+      const unknown = new Set(
+        [...(unsure.get(key) ?? [])].filter(field => !Object.hasOwn(patch.values, field)),
+      )
       const values: Record<string, unknown> = { ...patch.values }
       // A tombstone holds no values; what the store holds, with what earlier layers show over it.
-      const row = { ...base[key]?.values, ...earlier }
+      const row = Object.fromEntries(
+        Object.entries({ ...base[key]?.values, ...earlier }).filter(
+          ([field]) => !unknown.has(field),
+        ),
+      )
       const moved = { values: {}, increments: adds ?? {}, assignments: computes ?? {} }
       const predicted = predicting(() => Write.apply(row, moved, { operators }))
       for (const field of [...Object.keys(moved.increments), ...Object.keys(moved.assignments)]) {
         if (predicted !== undefined && !predicted.unknown.includes(field)) {
           values[field] = predicted.row[field]
+          unknown.delete(field)
+        } else {
+          unknown.add(field)
         }
       }
       shown.set(key, { ...earlier, ...values })
+      unsure.set(key, unknown)
       return { ...patch, values }
     }),
   )

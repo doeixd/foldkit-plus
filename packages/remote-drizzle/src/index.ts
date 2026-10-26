@@ -1384,6 +1384,7 @@ export const writer = <P = unknown>(
     preconditions: true,
     increments: true,
     assignments: true,
+    operators: binding.operators.memory,
     commutes,
     invariants: true,
     // A fraction added to an integer column splits the dialects: Postgres refuses the

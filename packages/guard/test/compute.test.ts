@@ -18,7 +18,7 @@ import {
   writer,
   type DrizzleDatabase,
 } from 'foldkit-remote-drizzle'
-import { RemoteServer } from 'foldkit-remote-server'
+import { RemoteServer, type EntityWriter } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
 import { GuardDrizzle } from '../src/drizzle.js'
 import { Guards } from '../src/index.js'
@@ -118,20 +118,24 @@ const Retag = Mutation.write(
   ),
 )
 
-const open = () => {
+const seeded = () => {
   const sqlite = new DatabaseSync(':memory:')
   sqlite.exec(`
     create table tags (id text primary key, name text not null, title text not null, label text not null, stock integer not null, revision integer not null);
     insert into tags values ('t1', 'ned', 'Old', 'plain', 2, 1);
   `)
+  return sqlite
+}
+
+type Guarded = EntityWriter<Option.Option<typeof User.Type>, DrizzleDatabase>
+
+const open = (
+  guarded: Guarded = GuardServer.writer(Tag, Policy, writer(Db.Tag), { revision: 'revision' }),
+) => {
+  const sqlite = seeded()
   const server = RemoteServer.make<Option.Option<typeof User.Type>, DrizzleDatabase>({
     entities: [],
-    mutations: [
-      RemoteServer.write(
-        Retag,
-        GuardServer.writer(Tag, Policy, writer(Db.Tag), { revision: 'revision' }),
-      ),
-    ],
+    mutations: [RemoteServer.write(Retag, guarded)],
   })
   const retag = (input: unknown, by = 'mo') =>
     Effect.runPromise(
@@ -141,6 +145,27 @@ const open = () => {
     )
   const row = () => sqlite.prepare('select title, label, stock, revision from tags').get()
   return { retag, row }
+}
+
+/** The guarded writer called as a caller that registers nothing would call it. */
+const direct = (guarded: Guarded) => {
+  const sqlite = seeded()
+  const update = (prefix: string) => {
+    const bound = Write.bind(Retag.write, { id: 't1', revision: 1, title: 'New', prefix, by: 0 })
+    return Effect.runPromise(
+      guarded
+        .update({
+          ...bound,
+          operation: Option.none(),
+          expect: Option.some({ field: 'revision', revision: 1 }),
+          when: Option.none(),
+          principal: Option.some({ id: 'mo' }),
+        })
+        .pipe(Effect.result, Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
+    )
+  }
+  const row = () => sqlite.prepare('select title, label, stock, revision from tags').get()
+  return { update, row }
 }
 
 describe('A guarded write that sets, moves and computes', () => {
@@ -176,20 +201,44 @@ describe('A guarded write that sets, moves and computes', () => {
     expect(GuardServer.writer(Tag, Policy, writer(Db.Tag)).pins).toBeUndefined()
   })
 
-  it('is refused where registered when its policy cannot work the computed value out', () => {
-    // Its rules would judge the label as it was, and the write would land past them.
+  it("judges the value the writer computes, by the writer's table, whatever the policy's", async () => {
+    // The policy runs no concat; the writer does, and its value is what is judged.
     const Blind = G.implement({ anyone: () => true, labeler: () => true }, {})
+    const { retag, row } = open(
+      GuardServer.writer(Tag, Blind, writer(Db.Tag), { revision: 'revision' }),
+    )
+    expect(
+      await retag({ id: 't1', revision: 1, title: 'New', prefix: 'ban', by: 0 }),
+    ).toMatchObject({
+      _tag: 'Failure',
+      failure: { _tag: 'Forbidden' },
+    })
+    expect(row()).toEqual({ title: 'Old', label: 'plain', stock: 2, revision: 1 })
+  })
+
+  it('is refused where registered when nothing it holds can work the computed value out', () => {
+    // A writer naming no table: its rules would judge the label as it was.
+    const Blind = G.implement({ anyone: () => true, labeler: () => true }, {})
+    const tableless = { ...writer(Db.Tag), operators: undefined }
     expect(() =>
-      RemoteServer.make<Option.Option<typeof User.Type>, DrizzleDatabase>({
-        entities: [],
-        mutations: [
-          RemoteServer.write(
-            Retag,
-            GuardServer.writer(Tag, Blind, writer(Db.Tag), { revision: 'revision' }),
-          ),
-        ],
-      }),
-    ).toThrow('its assignment to "label" calls acme.concat, which the policy does not run')
+      RemoteServer.write(
+        Retag,
+        GuardServer.writer(Tag, Blind, tableless, { revision: 'revision' }),
+      ),
+    ).toThrow('its assignment to "label" calls acme.concat, which the guard cannot work out')
+  })
+
+  it('refuses, called directly, a computed value it cannot work out, rather than judge the old one', async () => {
+    const Blind = G.implement({ anyone: () => true, labeler: () => true }, {})
+    const tableless = { ...writer(Db.Tag), operators: undefined }
+    const { update, row } = direct(
+      GuardServer.writer(Tag, Blind, tableless, { revision: 'revision' }),
+    )
+    expect(await update('ban')).toMatchObject({
+      _tag: 'Failure',
+      failure: { _tag: 'RemoteServerError' },
+    })
+    expect(row()).toEqual({ title: 'Old', label: 'plain', stock: 2, revision: 1 })
   })
 
   it('answers an operator refusing its input as the writer would, not as a defect', async () => {

@@ -178,8 +178,8 @@ export default [
   edit(
     'the guard judges the row before the computation',
     guard,
-    'return Effect.succeed(Write.apply(before, context, { operators: policy.operators }).row)',
-    'return Effect.succeed({ ...before, ...context.values })',
+    'const applied = Write.apply(before, context, { operators: computing })',
+    'const applied = { row: { ...before, ...context.values }, unknown: [] }',
     guardTests,
   ),
   edit(

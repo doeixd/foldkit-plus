@@ -78,6 +78,18 @@ version changed; `pnpm` skips versions already in the registry.
 - **`Expr.contains` searches for a value or an input,** in its type and where
   it is written. A field or a call as the search was answered in memory and
   refused by the SQL compiler on every request.
+- **A guarded write is judged by the value its database writes.** A writer
+  names the memory table its statement's row is worked out by
+  (`EntityWriter.operators`; the Drizzle writer gives its binding's), and
+  `GuardServer.writer` works the row out by it, so a policy whose table
+  differed judged one value while the database wrote another. A field it
+  cannot work out fails the write, where its old value was judged, so a writer
+  called outside `RemoteServer.write` no longer lets a rule over it pass. A
+  guarded writer with no `revision` is refused at registration for a write
+  that moves a field and expects none, rather than on every request.
+- **Remote predicts nothing from a value an earlier pending write could not
+  work out.** A later pending computation read the store's stale value under
+  it, and showed a value the server would not write.
 - **The reference interpreter and the call builder agree with SQL at their
   edges.** An expression built from a field keeps its declared collation when
   passed on, so an invariant compares or orders text over `before`. A NUL in a

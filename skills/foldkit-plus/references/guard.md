@@ -139,7 +139,7 @@ const Todo = TodoFields.pipe(
   `GuardServer.validate` warns. With `revision` the guarded writer `pins`, so under a
   ledger a real-number increment or a computed assignment needs no `expect` of its own;
   a computed field needs its member's Update rule, and its rules judge the row
-  `Write.apply` works out, which the writer writes. A `when`, an `expect` or a
+  `Write.apply` works out by the writer's table (`EntityWriter.operators`), which the writer writes. A `when`, an `expect` or a
   computed assignment over a member with a Read rule is refused by the writer
   itself, and by `validate` at startup.
 - `may`: `TodoFields.pipe(Guards.attach(G, { … }), Guards.may)` adds a derived
