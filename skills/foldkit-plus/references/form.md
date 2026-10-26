@@ -248,7 +248,7 @@ view's native button. Real adopters:
 https://github.com/doeixd/foldkit-plus/blob/main/examples/foldkit/form/src/main.ts
 and https://github.com/doeixd/foldkit-plus/blob/main/examples/foldkit/auth/src/page/loggedOut/page/login.ts.
 
-## Recipes: dates, times, amounts and text-shaped keys
+## Recipes: dates, times, amounts, text-shaped keys and an image
 
 `foldkit-form-recipes` holds the controls whose parsing is easy to get wrong. A
 recipe is `{ control, display }`, made from one set of options: `control` goes in
@@ -286,15 +286,24 @@ const View = FormView.define(Meeting, { renderers: renderers() }) // date and da
   reveal toggle and is hidden in a list.
 - `money({ currency, unit: 'minor' | 'decimal', locale?, negative? })`,
   `decimal({ scale })`, `percent({ unit: 'fraction' | 'points' })`: read and shown in
-  the locale, exact (minor units are integers, `'decimal'` is text); grouping
-  other than the locale's, extra decimals and an unasked-for minus are refused.
+  the locale, exact (minor units are integers, `'decimal'` is text), in its own
+  currency or percent format (`de-AT`, `fr-CH`, rtl locales round-trip); grouping
+  other than the locale's, extra decimals, an unasked-for minus and a value a
+  double would round are refused. A bad scale or an unknown currency throws when
+  the recipe is made.
+- Kinds are named `FieldRecipes.Date`, `FieldRecipes.Money`, …, so an
+  application's own `Date` kind does not meet a recipe's renderer.
 - `foldkit-form-recipes/ui`'s `renderers({ input? })` draws the same inputs under
   `foldkit-mixins-ui`'s Input Slot, beside `UiForm.renderers(...)`.
 - `foldkit-form-recipes/image`'s `image({ id, url?, headers?, words?, styles? })` is a
   key holding the `HashedAsset` the upload route keeps. Its control is a Bundle:
   `Empty -> Sending -> Kept`, Cancel back to `Empty` (aborting the request), a
-  refusal `Refused` with Try again; only `Kept` is a value. As a Bundle control
-  it takes no `check` and cannot sit in a nested row.
+  refusal `Refused` with Try again; only `Kept` is a value. It is `busy` while it
+  sends, so a submit waits for it. The page's session cookie answers the
+  route's `UploadPolicy`: never a deployment secret in `headers`. As a Bundle
+  control it takes no `check` and cannot sit in a nested row.
+- Every recipe through a real form, as a trace and a page each:
+  https://github.com/doeixd/foldkit-plus/blob/main/examples/fields/README.md
 
 ## Nested input
 
