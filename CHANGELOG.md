@@ -15,7 +15,8 @@ lists the fields to fix above its submit button, and `Crud.screen` composes an
 editor, a list and a delete question into one page with `EditorView`,
 `ConfirmView` and `Toolbar`. `examples/fields` shows every recipe in a real form.
 `Expr.operator` names an operator by an expression, and primitive operators run
-by a table in memory and in SQL, through to ordering and paging by a call.
+by a table in memory and in SQL, through to ordering and paging by a call; an
+operator's laws are checked by `Conformance.laws`.
 
 Breaking: `foldkit-cms`'s slug and moment controls moved to `foldkit-form-recipes`;
 a Drizzle order term is `{ key, … }`, not `{ column, … }`; `Query.unsupported`,
