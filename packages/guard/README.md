@@ -318,6 +318,10 @@ const TodoSource = source(Db.Todo, { filter: GuardServer.filter(Todo, Policy) })
   is not fails its first read, which is when the binding is first known.
 - The principal reaches a binding untyped, so it is checked: one that is not
   an `Option` of the set's schema is a defect, never read as a visitor.
+- A rule calling a primitive operator compiles by the SQL table `bind` is
+  given, and is checked when built against the one passed here
+  (`GuardDrizzle.visible(Policy, [Todo], { operators })`, the kernel when not
+  given), since `visible` is built before `bind`.
 - `visible` is the row's Read. Member and relation Reads are the Source's
   `filter`, as `TodoSource` has it.
 

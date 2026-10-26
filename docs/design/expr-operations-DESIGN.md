@@ -5,7 +5,7 @@
 with what gen2 offered (§13), completed as a plan, then checked against Remote,
 Guard, the server packages, Sync, CMS, Crud, Form and the example interpreters
 (§17 records what that check found). Phase 0's probes ran the same day (§17).
-Phases 1 and 2 built 2026-10-26 (their **Built** notes in §12); Phases 3 to 7
+Phases 1 to 3 built 2026-10-26 (their **Built** notes in §12); Phases 4 to 7
 are not.
 **Packages:** `foldkit-entity` (descriptors, nodes, the reference interpreter,
 writes, invariants, laws, conformance), `foldkit-remote-drizzle` (SQL, cursor,
@@ -839,10 +839,9 @@ mutation spec, the docs and skill references in step, and the changelog.
      sites; `bind`'s table is Phase 3's.
    - **An order term takes no collation from a call yet.** Nothing reads one
      until Phase 4, so that line waits for it.
-   - **Not yet tested, though passed through:** the table reaching a live
-     insert's membership (`belongsEncoded`) and change impact (`impactOn`), and a
-     nested form inheriting its parent's. A mutation dropping any of them would
-     survive; Phase 3's client tests should reach them.
+   - **Not yet tested, though passed through:** a nested form inheriting its
+     parent's table. A mutation dropping it would survive. (The live insert's
+     membership and change impact were reached by Phase 3's client tests.)
 3. **SQL and completeness** (`foldkit-remote-drizzle`, `foldkit-remote-server`,
    `foldkit-guard`, `foldkit-remote`). `DrizzleOperators`, the scalar compiler,
    inlining, the casts Phase 0 found, `bind`'s and `Remote.make`'s tables, every
@@ -851,6 +850,36 @@ mutation spec, the docs and skill references in step, and the changelog.
    missing operator does not start and names it; the registry's search uses
    `startsWith`, `012` no longer finds a code holding it mid-way, and editing a UPC
    moves its row into and out of the list on the client.
+
+   **Built**, 2026-10-26 (`90539534` for the compiler, `749a85f0` for the
+   checks, `cbf78979` for the registry, then the tests and the update's fix).
+   Where it departed from the sketch:
+   - **`requireOperators` checks both tables.** A query, an invariant or a
+     `when` the SQL table runs can still need the memory table (a predicate over
+     the input alone, a miss explained, an insert judged), so each is refused
+     where it is registered by whichever table lacks it, SQL first.
+     `operatorProblems` is the same check as sentences, for `EntityWriter.refuses`.
+   - **`GuardDrizzle.visible` takes `{ operators }`**, the SQL table alone,
+     because it is built before `bind` and cannot read the binding's.
+   - **A call is a column to the compiler.** A comparison whose side is a call
+     compiles it, under the collation the call carries, as a column under its
+     own; a call over literals and inputs alone is decided in memory, as any
+     predicate over the input is.
+   - **Casts by stored kind, on Postgres only.** A literal or input argument is
+     cast by the operator's input schema (`integer` where it holds integers,
+     `SchemaShape.holdsIntegers`; `double precision`; `boolean`); text takes
+     none, and SQLite none at all, since its cast would drop a fraction.
+   - **The update's invariant target carried no operators.** It was built by
+     hand beside the binding, so a value set leaving a call over literals was
+     decided by the kernel and refused. Found by the writer test the mutation
+     spec asked for; the target now carries `binding.operators`.
+   - **The registry edits no UPC** (`editedColumns` is description, price, line
+     and status), so "editing a UPC moves its row" cannot be shown there. The
+     client half is shown in `packages/remote/test/operators.test.ts`: a write's
+     answer, a pending edit, a live insert and a changed row each judged by
+     `Remote.make`'s table, and handed to the server without it.
+   - **Left open:** §15 question 10 (judging candidates per row) and question 11
+     (the locale Postgres probe) were proposed for this phase and not done.
 4. **Ordering by a call.** §8 whole. *Done when* a list ordered by a call pages
    identically in memory and SQL across a page boundary with ties; an order term
    needing a missing operator stops registration; placement is refused with a

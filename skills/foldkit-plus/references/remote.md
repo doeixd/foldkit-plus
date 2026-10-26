@@ -732,6 +732,17 @@ members, writes and the client's `may`, are `foldkit-guard`'s (see guard.md):
 `GuardDrizzle.visible` compiles them into `visible`, `GuardServer.filter` into a
 Source's `filter`.
 
+**Primitive operators.** `bind(entities, storage, { operators: { memory, sql } })`
+(or `entity(name, table, { operators })`) gives every binding the tables its
+bodies' primitive operators run by, each its kernel (`Text.startsWith`) when not
+given: `sql` from `DrizzleOperators.make(DrizzleOperators.implement(op, ({ args,
+dialect, collate }) => …))`, whose function returns Drizzle `SQL` (`merge`,
+`override`, `kernel`), `memory` from `Operators`. A literal or input argument taken as a number or boolean is cast on
+Postgres (`cast($1 as integer)`); SQLite takes none. A query, an invariant or a
+write's `when` calling one either table lacks is refused where it is registered
+or the writer built; `GuardDrizzle.visible(Policy, entities, { operators })`
+checks Read rules against the SQL table it is given.
+
 **What `writer(binding)` guarantees.** One `update … where … returning` per update:
 the id, an `expect`ed revision, the write's `when` and every invariant of the Entity
 (set fields read as their new values, an increment as `column + amount`) are in the

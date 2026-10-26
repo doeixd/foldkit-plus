@@ -61,6 +61,19 @@ version changed; `pnpm` skips versions already in the registry.
   operators })` matches, filters and places rows by it, and
   `Form.make(name, input, { operators })` judges invariants by it (a nested form
   given none uses it).
+- **Primitive operators in SQL** (Phase 3 of `expr-operations-DESIGN.md`).
+  `DrizzleOperators` builds SQL tables (`implement`, `make`, `merge`, `override`,
+  `kernel`, with `Text.startsWith` as `substr`/`left` under its collation), and
+  `bind(entities, storage, { operators: { memory, sql } })` and `entity(name,
+  table, { operators })` give a binding both (`EntityBinding.operators`), each its
+  kernel when not given. On Postgres a literal or input argument taken as a number
+  or boolean is cast to its type; a call's text is compared under its collation.
+  A query, an invariant or a write's `when` calling an operator either table lacks
+  is refused where it is registered or its writer built (`requireOperators`,
+  `operatorProblems`), and the writer judges a row in memory by the binding's
+  table. `GuardDrizzle.visible(Policy, entities, { operators })` checks Read rules
+  against the SQL table it is given. `SchemaShape.holdsIntegers` says whether a
+  number schema holds integers. The registry finds a product by its UPC's prefix.
 - **`Cms.published(entity)`**: whether a row is published, as `cms.published` over
   the Entity's `published` role. The CMS example's two public queries and three
   visitor Read rules use it in place of five hand-written `isNotNull`s.

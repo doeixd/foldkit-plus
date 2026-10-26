@@ -759,6 +759,67 @@ Client-supplied windows are bounded: the default page size is `20`, the default
 maximum is `100`, and malformed combinations such as `after + before` or
 `first + last` fail rather than being guessed.
 
+### An operator the application implements
+
+A primitive operator (`Expr.operator` without `definedAs`) is a question each
+interpreter answers its own way, so a binding runs it by two tables: SQL for
+what the database runs, memory for what the server decides without it (a
+predicate over the input alone, a write's miss explained, an insert's
+invariants judged). `bind` takes both for the whole domain, each its kernel
+(`Text.startsWith`) when not given:
+
+```ts
+import { sql } from 'drizzle-orm'
+import { Expr, Operators } from 'foldkit-entity'
+import { DrizzleOperators, bind } from 'foldkit-remote-drizzle'
+
+const above = Expr.operator('acme.above', {
+  input: [Schema.Number, Schema.Number],
+  output: Schema.Boolean,
+})
+
+const Db = bind(
+  { Project },
+  { Project: { table: projects } },
+  {
+    operators: {
+      memory: Operators.merge(
+        Operators.kernel,
+        Operators.memory(Operators.implement(above, (value, floor) => value > floor)),
+      ),
+      sql: DrizzleOperators.merge(
+        DrizzleOperators.kernel,
+        DrizzleOperators.make(
+          DrizzleOperators.implement(above, ({ args: [value, floor] }) => sql`(${value} > ${floor})`),
+        ),
+      ),
+    },
+  },
+)
+```
+
+An implementation is given its arguments compiled, the dialect, the call's
+collation and `collate`, which writes text under it as the comparisons above
+do. It must agree with the memory implementation, nulls included. The
+compiler adds what SQL cannot say for itself:
+
+- On Postgres, a literal or input argument the operator takes as a number or a
+  boolean is cast (`cast($1 as integer)`, `double precision`, `boolean`):
+  Postgres reads an untyped parameter as text, and refuses `$1 + $2`. SQLite
+  takes no cast, since its `cast(? as integer)` would drop a fraction silently.
+- A call whose result is text, compared with a value, is compared under the
+  call's collation.
+- Text holding NUL given to an operator is refused, as SQL text cannot hold it
+  portably.
+
+A binding that cannot run an operator is refused where it would be needed,
+naming the operator and the table that lacks it: a query where it is
+registered, an invariant where the writer is built, a write's `when` where
+`RemoteServer.write` registers it. `GuardDrizzle.visible(Policy, entities, {
+operators })` checks Read rules against the SQL table it is given, since it is
+built before `bind`. The client runs the same memory table through
+`Remote.make({ operators })`.
+
 ## Computed fields
 
 The built-in computed field is a count over a collection relation:
