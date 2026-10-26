@@ -323,6 +323,11 @@
       "types": "./dist/mixins-crud.d.mts",
       "import": "./dist/mixins-crud.mjs"
     },
+    "./mixins-crud/recipes": {
+      "foldkit-plus:source": "./src/mixins-crud/recipes.ts",
+      "types": "./dist/mixins-crud/recipes.d.mts",
+      "import": "./dist/mixins-crud/recipes.mjs"
+    },
     "./mixins-data-grid": {
       "foldkit-plus:source": "./src/mixins-data-grid.ts",
       "types": "./dist/mixins-data-grid.d.mts",

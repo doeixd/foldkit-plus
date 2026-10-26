@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-crud/recipes`: a look for each view.** `List({ open })` (a quiet
+  table whose rows open wherever pressed), `Editor`, `Confirm` and `Toolbar`, over the
+  theme's tokens, for `Style.forSlots(ListSlots)(List({}))`. The views stay unstyled
+  without them. The CMS example's worklist now extends `List` rather than drawing its
+  own.
 - **`foldkit-mixins-ui`: `AppShell`, an application's page frame.** A skip link,
   a header bar with the title, status and actions, an optional side column for a
   `Sidebar`, the main region the skip link focuses, and a footer, from

@@ -219,6 +219,12 @@ dialog, draw the `EditorView` inside your `foldkit-mixins-ui` Dialog: focus in,
 trapped, and back to the opener are the Dialog's. Escape closes the Dialog alone,
 so answer its `Closed` OutMessage with the editor's `close()`.
 
+The views ship unstyled; `foldkit-mixins-crud/recipes` has a look for each over the
+theme's tokens: `Style.forSlots(ListSlots)(List({ open: 'row' }))` (a quiet table whose
+rows open wherever pressed; `open: 'link'` keeps it to the title), `Editor({})`,
+`Confirm({})` (the yes in the error's fill) and `Toolbar({})`. Adjust one with
+`.extend({ base: { cell: { padding: … } } })`.
+
 `Crud.screen('Post', { id: PostId })` names a page's four editor Messages
 (`messages`: `OpenedPost({ id })`, `CreatedPost()`, `ClosedPost()`,
 `AskedToRemovePost({ id })`, for `Bundle.withMessages`) and

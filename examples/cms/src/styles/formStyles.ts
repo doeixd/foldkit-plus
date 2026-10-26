@@ -3,7 +3,8 @@
  * inspector's forms, and the worklist's table.
  */
 import { Style, type StyleValue } from 'foldkit-mixins'
-import { ListSlots, Loading } from 'foldkit-mixins-crud'
+import { ListSlots } from 'foldkit-mixins-crud'
+import { List } from 'foldkit-mixins-crud/recipes'
 import { FieldSlots, FormSlots, type FieldInput } from 'foldkit-mixins-form'
 import { Recipes } from 'foldkit-mixins-ui'
 import { Layout } from 'foldkit-mixins/layout'
@@ -206,62 +207,16 @@ export const FormStyle = Style.forSlots(FormSlots)(
   { name: 'FormStyle', layer: app },
 )
 
+// The package's list look, roomier: taller rows, and titles at body size.
 export const ListStyle = Style.forSlots(ListSlots)(
   {
-    table: Style.self({ borderCollapse: 'collapse', fontSize: t.size.sm, width: '100%' }),
+    ...List.extend({
+      base: {
+        cell: { padding: '0.95rem 0.5rem' },
+        open: { fontSize: t.size.md },
+      },
+    })({}),
     badge: stateBadge,
-    headCell: Style.self({
-      borderBottom: `1px solid ${t.outline.subtle}`,
-      color: t.text.muted,
-      fontSize: t.size.xs,
-      fontWeight: t.weight.semibold,
-      letterSpacing: '0.04em',
-      padding: '0.4rem 0.5rem',
-      textAlign: 'start',
-      textTransform: 'uppercase',
-    }),
-    // The whole row opens its entry: the title's button reaches across it.
-    row: Style.compose(
-      Style.self({ position: 'relative' }),
-      Style.pseudo(':hover', { background: t.surface.muted }),
-    ),
-    cell: Style.self({
-      borderBottom: `1px solid ${t.outline.subtle}`,
-      padding: '0.95rem 0.5rem',
-      verticalAlign: 'middle',
-    }),
-    // Bespoke: unboxed text with a stretched overlay, so the whole row opens the entry.
-    open: Style.compose(
-      Style.self({
-        background: 'none',
-        border: '0',
-        color: t.text.default,
-        cursor: 'pointer',
-        font: 'inherit',
-        fontSize: t.size.md,
-        fontWeight: t.weight.semibold,
-        padding: '0',
-        textAlign: 'start',
-      }),
-      Style.nest('&::after', { content: '""', inset: '0', position: 'absolute' }),
-      Style.pseudo(':hover', { color: t.accent.ink }),
-    ),
-    // An empty list as a block of its own rather than a stray line.
-    status: Style.compose(
-      Style.self({
-        border: `1px dashed ${t.outline.default}`,
-        borderRadius: t.radius.lg,
-        color: t.text.muted,
-        fontSize: t.size.sm,
-        margin: `${t.space.md} 0 0`,
-        padding: `${t.space['2xl']} ${t.space.lg}`,
-        textAlign: 'center',
-      }),
-      // Loading is a wait, not an empty list: no box around it.
-      Style.nest('&[aria-busy="true"]', { borderColor: 'transparent' }),
-      Loading.shown,
-    ),
-    more: button({ tone: 'neutral', variant: 'outline', size: 'sm' }),
   },
   { name: 'ListStyle', layer: app },
 )
