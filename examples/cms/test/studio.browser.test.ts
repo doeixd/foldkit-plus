@@ -9,7 +9,7 @@ import type { Url } from 'foldkit/url'
 import { afterEach, expect, it } from 'vitest'
 import * as Studio from '../src/apps/studioApp.js'
 import { openHost } from '../src/server/host.js'
-import { hostedRemote } from './hosted.js'
+import { answered, hostedRemote } from './hosted.js'
 
 let dispose = () => {}
 afterEach(() => {
@@ -60,19 +60,25 @@ const type = (selector: string, value: string) => {
 it('moves between sections in place, keeping the address and each section’s state', async () => {
   // The shell reads its chair when its module loads, so the test sits in one chair throughout.
   await mount('/', 'as=wren')
-  await expect.poll(() => text('nav[aria-label="Sections"] a[aria-current="page"]')).toBe('Posts')
+  await expect
+    .poll(() => text('nav[aria-label="Sections"] a[aria-current="page"]'), answered)
+    .toBe('Posts')
   // Narrowing the worklist writes the address, as one application would.
   type('input[aria-label="Search posts"]', 'milk')
   await expect.poll(() => window.location.search).toContain('q=milk')
 
   click('a[href="/pages?as=wren"]')
-  await expect.poll(() => text('nav[aria-label="Sections"] a[aria-current="page"]')).toBe('Pages')
-  await expect.poll(() => text('#new')).toContain('New page')
+  await expect
+    .poll(() => text('nav[aria-label="Sections"] a[aria-current="page"]'), answered)
+    .toBe('Pages')
+  await expect.poll(() => text('#new'), answered).toContain('New page')
   // The posts section is hidden, not gone: its narrowing stays in the address.
   expect(window.location.search).toContain('q=milk')
 
   click('a[href="/?as=wren"]')
-  await expect.poll(() => text('nav[aria-label="Sections"] a[aria-current="page"]')).toBe('Posts')
+  await expect
+    .poll(() => text('nav[aria-label="Sections"] a[aria-current="page"]'), answered)
+    .toBe('Posts')
   expect(
     (document.querySelector('input[aria-label="Search posts"]') as HTMLInputElement).value,
   ).toBe('milk')
