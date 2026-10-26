@@ -113,8 +113,11 @@ export const imageWords: ImageWords = {
 }
 
 export interface ImageOptions extends UploadOptions {
-  /** The drop zone's `id`, which its file input is named by. Default `image`. */
-  readonly id?: string | undefined
+  /**
+   * The drop zone's `id`, which its file input takes: unique on the page, so
+   * two image keys never share one.
+   */
+  readonly id: string
   readonly words?: Partial<Omit<ImageWords, 'refused'>> & {
     readonly refused?: Partial<ImageWords['refused']> | undefined
   }
@@ -306,7 +309,7 @@ const ImageDisplay = Display.kind<{}>('Image', {
  * Bundle control it has no `check`, and a row of a nested form cannot hold it.
  */
 export const image = (
-  options: ImageOptions = {},
+  options: ImageOptions,
 ): FieldRecipe<BundleControl<ImageModel, ImageMessage, HashedAsset>> => {
   const words: ImageWords = {
     ...imageWords,
@@ -320,7 +323,7 @@ export const image = (
     Message: ImageMessage,
     init: () => ({
       model: {
-        drop: UiFileDrop.init({ id: options.id ?? 'image' }),
+        drop: UiFileDrop.init({ id: options.id }),
         upload: ImageUpload.Empty(),
         attempts: 0,
       },

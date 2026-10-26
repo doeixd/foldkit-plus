@@ -47,9 +47,13 @@ FieldRecipes.money({ currency: 'EUR' })
 FieldRecipes.dateTime({ stored: 'instant' })
 
 // An image, uploaded where it is chosen.
-const cover = image({ headers: { authorization: 'Bearer …' } })
+const cover = image({ id: 'cover', headers: { authorization: 'Bearer …' } })
 const Post = Form.make('Post', Form.input(Schema.Struct({ cover: HashedAsset })), {
   inputs: { cover: cover.control },
 })
 const PostView = FormView.define(Post)
 void PostView
+
+// An image key names its drop zone: two keys sharing a default would share ids.
+// @ts-expect-error `id` is required
+void image({})

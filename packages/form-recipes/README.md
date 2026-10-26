@@ -180,7 +180,7 @@ for a control backed by a Bundle.
 
 ### An image: `foldkit-form-recipes/image`
 
-`image({ url?, headers?, id?, words?, styles? })` is a key whose value is the
+`image({ id, url?, headers?, words?, styles? })` is a key whose value is the
 `HashedAsset` that `foldkit-media`'s upload route answers. Its control is a
 Bundle, because an upload has state of its own:
 
@@ -194,7 +194,7 @@ Empty --choose--> Sending --201--> Kept (the value)
 import { image } from 'foldkit-form-recipes/image'
 import { HashedAsset } from 'foldkit-media'
 
-const cover = image({ headers: { authorization: 'Bearer …' } })
+const cover = image({ id: 'cover', headers: { authorization: 'Bearer …' } })
 const Post = Form.make('Post', Form.input(Schema.Struct({ cover: HashedAsset })), {
   inputs: { cover: cover.control },
 })
@@ -208,6 +208,7 @@ sends the same file again. Only `Kept` is a value: a file on its way, or
 refused, is nothing entered, so a required key stays `Required` until the
 route has kept it.
 
+`id` is the drop zone's, and its file input's, so it is unique on the page.
 Who may upload stays the route's `UploadPolicy`; `headers` is only what the
 request carries. Its look comes from `styles.field` (over `ImageSlots`) and
 `styles.drop` (over `foldkit-mixins-ui`'s `FileDropSlots`), its words from

@@ -20,7 +20,7 @@ const asset = Schema.decodeUnknownSync(HashedAsset)({
   placeholder: null,
 })
 const Post = Entity.define('Post', Schema.Struct({ id: Schema.String, cover: HashedAsset }))
-const Cover = image()
+const Cover = image({ id: 'cover' })
 const PostForm = Form.make(
   'PostForm',
   Entity.input(Post, Schema.Struct({ cover: Post.fields.cover.schema })),
