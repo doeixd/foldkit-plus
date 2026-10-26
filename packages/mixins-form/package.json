@@ -32,6 +32,11 @@
       "types": "./dist/ui.d.mts",
       "import": "./dist/ui.mjs"
     },
+    "./recipes": {
+      "foldkit-plus:source": "./src/recipes.ts",
+      "types": "./dist/recipes.d.mts",
+      "import": "./dist/recipes.mjs"
+    },
     ".": {
       "foldkit-plus:source": "./src/index.ts",
       "types": "./dist/index.d.mts",

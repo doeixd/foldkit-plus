@@ -11,8 +11,14 @@ import {
   type FormViewInputs,
 } from '../src/index.js'
 import * as UiForm from '../src/ui.js'
+import { Field as FieldLook, Form as FormLook } from '../src/recipes.js'
 import { InputSlots, Recipes, SelectSlots } from 'foldkit-mixins-ui'
 import { Edit } from './fixture.js'
+
+const Looked = FormView.define(Edit, {
+  field: FormView.field(Edit).pipe(Style.attach(Style.forSlots(FieldSlots)(FieldLook({})))),
+}).pipe(Style.attach(Style.forSlots(FormSlots)(FormLook({}))))
+void Looked
 
 const UiView = FormView.define(Edit, {
   renderers: UiForm.renderers({

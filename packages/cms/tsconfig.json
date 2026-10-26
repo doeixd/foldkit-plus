@@ -22,6 +22,7 @@
       "foldkit-mixins-crud": ["../mixins-crud/src/index.ts"],
       "foldkit-mixins-crud/recipes": ["../mixins-crud/src/recipes.ts"],
       "foldkit-mixins-form": ["../mixins-form/src/index.ts"],
+      "foldkit-mixins-form/recipes": ["../mixins-form/src/recipes.ts"],
       "foldkit-mixins-form/ui": ["../mixins-form/src/ui.ts"],
       "foldkit-mixins/app": ["../mixins/src/app.ts"],
       "foldkit-mixins/defaults": ["../mixins/src/defaults.ts"],

@@ -228,6 +228,12 @@ form also counts a submit waiting on a check. While submitting, the `form` is
 `aria-busy` with `data-submitting`, and the button is disabled and reads
 `words.submitting`.
 
+The views ship unstyled; `foldkit-mixins-form/recipes` (beside `foldkit-mixins-ui`)
+has a look for each: `Style.forSlots(FieldSlots)(Field({}))` (label over control,
+the field's lines under it, mixins-ui's field looks on its controls, a failure in
+the error's ink) and `Style.forSlots(FormSlots)(Form({}))` (fields in a column, the
+submit as the primary button, as wide as its words). Adjust with `.extend`.
+
 To draw every field through `foldkit-mixins-ui`'s components, the optional
 `foldkit-mixins-form/ui` entry exports `renderers(styles?)`, a renderer for every
 shipped kind: `FormView.define(Rename, { renderers: UiForm.renderers({ input,

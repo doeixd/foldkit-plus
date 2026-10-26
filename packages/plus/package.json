@@ -338,6 +338,11 @@
       "types": "./dist/mixins-form/ui.d.mts",
       "import": "./dist/mixins-form/ui.mjs"
     },
+    "./mixins-form/recipes": {
+      "foldkit-plus:source": "./src/mixins-form/recipes.ts",
+      "types": "./dist/mixins-form/recipes.d.mts",
+      "import": "./dist/mixins-form/recipes.mjs"
+    },
     "./mixins-form": {
       "foldkit-plus:source": "./src/mixins-form.ts",
       "types": "./dist/mixins-form.d.mts",

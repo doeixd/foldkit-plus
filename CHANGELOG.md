@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-form/recipes`: a look for the field and the form.** `Field({})`
+  (label over control, a checkbox kept its size, text, number, select and a
+  picker's search box in `foldkit-mixins-ui`'s field looks, a failure in the error's
+  ink) and `Form({})` (fields in a column, the list of fields to fix in the error's
+  colours, the submit as wide as its words), over the theme's tokens.
 - **`foldkit-mixins-crud/recipes`: a look for each view.** `List({ open })` (a quiet
   table whose rows open wherever pressed), `RowList`, `Editor`, `Confirm` and `Toolbar`, over the
   theme's tokens, for `Style.forSlots(ListSlots)(List({}))`. The views stay unstyled
