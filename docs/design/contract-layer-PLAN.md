@@ -1,6 +1,7 @@
 # The contract layer: Foldkit Plus after Blocks
 
-> **Status:** Proposed (2026-10-26). Nothing here is built. Written after reading
+> **Status:** Proposed (2026-10-26), tracked in
+> [#190](https://github.com/doeixd/foldkit-plus/issues/190). Nothing here is built. Written after reading
 > foldkit/foldkit#1655 (Blocks and handler Layers) at `1f6776fa`,
 > foldkit/foldkit#1800 (`AgentContext`) at `3bb72531`, and alchemy-run/alchemy's
 > `@alchemy.run/domain` with its issues #2589 and #2590, against this repository on
