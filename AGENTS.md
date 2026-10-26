@@ -1265,6 +1265,11 @@ of its own named a form field "fits the Catalog". Read words with
   landed yet, nothing was animating, the settle resolved at once, and CI read
   0 about one full run in two. Wait for evidence of the step first (the count
   above zero), then settle, then assert the exact value.
+- **A MutationObserver callback sees the element as it is now, not as each
+  record left it.** The Menu's leave test read the panel's attributes in the
+  callback, so a batch that added `data-closed` beside `data-leave` and then
+  moved on recorded only `leave`, and CI failed it now and then. Observe with
+  `attributeOldValue` and replay the records (`leaving` in `menu.browser.test.ts`).
 - **A wait is only tested where something re-evaluates it.** The Agent + Sync
   test asserted "still pending before the exchange" and passed with the
   committed view reading the optimistic value: nothing notified between persist
