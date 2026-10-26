@@ -8,9 +8,12 @@
 import { Context, Effect, Layer, Match, Option, Queue, Schema, Stream } from 'effect'
 import {
   Entity,
+  Operators,
   Write,
+  assertSupported,
   evaluate,
   type AnyQuery,
+  type MemoryOperators,
   type AnyWrite,
   type BoundWrite,
   type EntityRef,
@@ -219,6 +222,12 @@ export interface EntityWriter<P, R = never> {
    * a writer without it.
    */
   readonly invariants?: true
+  /**
+   * Why this writer cannot land `write`, each a sentence; none when it can.
+   * `RemoteServer.write` asks once, where the write is registered, for what
+   * only the store knows: a column's type, say, which the Entity does not say.
+   */
+  readonly refuses?: (write: AnyWrite) => ReadonlyArray<string>
   /**
    * The answer recorded for `operation`, when this writer has a ledger and
    * holds one: what a wrapping writer (a guard) answers a retry with, without
@@ -965,6 +974,12 @@ export type MemoryConfig<P> = {
   readonly domain: Pick<RemoteDescriptor, 'registry'>
   readonly rows: MemoryRows
   /**
+   * How the bodies' primitive operators are run: every query body is checked
+   * against it where the server is built, and one calling an operator it lacks
+   * is refused there. `Operators.kernel` when not given.
+   */
+  readonly operators?: MemoryOperators | undefined
+  /**
    * Sources for entities the domain does not declare, which no row backs (a
    * `Me` row answered from the principal, `GuardServer.me`), served beside
    * the rows. One for a declared entity is refused: the rows serve it.
@@ -1093,6 +1108,11 @@ const pageOf = <Item>(
 function memory<P = undefined>(config: MemoryConfig<P> & MemoryAnswering<P>): MemoryBackend<P>
 function memory<P = undefined>(config: MemoryConfig<P>): MemoryServed<P>
 function memory<P = undefined>(config: MemoryConfig<P>): MemoryBackend<P> {
+  const operators = config.operators ?? Operators.kernel
+  // A body this table cannot run would fail on its first read: refuse it here.
+  for (const query of config.domain.registry.queries.values()) {
+    if (query.body !== undefined) assertSupported(query.body, operators)
+  }
   const declared = config.domain.registry.entities
   const extra = new Set<string>()
   for (const source of config.entities ?? []) {
@@ -1283,7 +1303,7 @@ function memory<P = undefined>(config: MemoryConfig<P>): MemoryBackend<P> {
                 const rows = (store.rows(entity) as ReadonlyArray<Row>).filter(row =>
                   readable(entity, row),
                 )
-                const matched = evaluate(body, encoded, rows)
+                const matched = evaluate(body, encoded, rows, { operators })
                 // A cursor row that no longer matches still has a place in the
                 // order, as a keyset has it: sort it among the matches with the
                 // predicates set aside. One that no longer exists has none.
@@ -1292,10 +1312,12 @@ function memory<P = undefined>(config: MemoryConfig<P>): MemoryBackend<P> {
                   if (row === undefined) {
                     throw new Error(`Cursor "${cursor}" names a row that no longer exists`)
                   }
-                  const placed = evaluate({ ...body, where: [] } as typeof body, encoded, [
-                    ...matched,
-                    row,
-                  ])
+                  const placed = evaluate(
+                    { ...body, where: [] } as typeof body,
+                    encoded,
+                    [...matched, row],
+                    { operators },
+                  )
                   return { index: placed.indexOf(row), exact: false }
                 }
                 const page = pageOf(matched, window, row => String(row.id), locate)
@@ -1551,6 +1573,12 @@ export const RemoteServer = {
     if (write.increments.length > 0 && writer.increments !== true) {
       throw new Error(
         `[foldkit-remote-server] write "${mutation.name}" increments a field, but its writer for ${writer.entity} does not add one (increments)`,
+      )
+    }
+    const refused = writer.refuses?.(write) ?? []
+    if (refused.length > 0) {
+      throw new Error(
+        `[foldkit-remote-server] write "${mutation.name}" cannot land through its writer for ${writer.entity}: ${refused.join('; ')}`,
       )
     }
     // An update judges every invariant; an insert, with no row before, the state ones alone.

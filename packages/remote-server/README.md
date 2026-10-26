@@ -491,7 +491,10 @@ writes; a writer says it adds them (`increments: true`), and a write with one
 over a writer that does not is refused where it is served. An increment that
 expects no revision is served only over a writer with a ledger (`ledger: true`),
 which records each update under its `operation` and answers a retry from the
-record (`recorded`), and only for a request carrying an operation id. An update of no row fails; an insert of an id
+record (`recorded`), and only for a request carrying an operation id. A writer
+may refuse a write for what only its store knows (`refuses`, asked once where
+the write is served): the Drizzle writer refuses an amount that may be a
+fraction for a column that holds integers. An update of no row fails; an insert of an id
 already holding what it writes answers that row, and a delete of a row already
 gone succeeds, so a retry of either is safe. An insert of an id holding
 anything else fails: that row is not its answer. The writer must be for the write's own Entity,
@@ -774,6 +777,9 @@ Source is responsible for any additional bounds appropriate to its backend.
 real server uses, so a client sees what production would send: only the
 fields asked for, and nested relations resolved in one read. Use it for a
 first run, a test, a story or a demo, when there is no database yet.
+A body calling a primitive operator runs by the `operators` it is given
+(`Operators.kernel` by default), and one calling an operator that table lacks
+is refused where the server is built.
 
 ```ts
 const backend = RemoteServer.memory({

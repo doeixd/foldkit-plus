@@ -42,7 +42,7 @@ const Project = entity('Project', projects, {
     comments: many(Comment, {
       foreignKey: comments.projectId,
       localKey: projects.id,
-      orderBy: [{ column: comments.createdAt, direction: 'asc' }],
+      orderBy: [{ key: comments.createdAt, direction: 'asc' }],
     }),
   },
   computed: { commentCount: { relation: 'comments' } },
@@ -75,7 +75,7 @@ const Projects = Query.make('Projects', {
 })
 const ProjectsByOwner = query(Projects, {
   entity: Project,
-  orderBy: [{ column: projects.createdAt, direction: 'asc' }],
+  orderBy: [{ key: projects.createdAt, direction: 'asc' }],
   where: input => eq(projects.ownerId, input.owner),
 })
 

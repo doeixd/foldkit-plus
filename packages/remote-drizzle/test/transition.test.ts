@@ -64,7 +64,7 @@ const Adjust = Mutation.write(
   Write.update(
     Entity.input(
       Order,
-      Schema.Struct({ id: Schema.String, revision: Schema.Number, by: Schema.Number }),
+      Schema.Struct({ id: Schema.String, revision: Schema.Number, by: Schema.Int }),
       { by: Entity.unmapped },
     ),
     { id: 'id', expect: 'revision', increment: { total: 'by' } },

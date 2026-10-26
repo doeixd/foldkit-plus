@@ -22,10 +22,22 @@
  * `null = null` is unknown in SQL and a row is not matched by it, where
  * JavaScript would happily call the two equal.
  */
-import { Match, Option } from 'effect'
-import type { Collation } from './collation.js'
-import { Query, dependenciesOf, isPredicate } from './expr.js'
-import type { AnyExpr, AnyQuery, Operandish, Operation, OrderTerm, Predicate } from './expr.js'
+import { Match, Option, Schema } from 'effect'
+import { absurd } from 'effect/Function'
+import { Collation } from './collation.js'
+import { Expr, Query, dependenciesOf, isPredicate } from './expr.js'
+import type {
+  AnyExpr,
+  AnyQuery,
+  CallExpr,
+  Operandish,
+  Operation,
+  OperatorDescriptor,
+  OrderTerm,
+  Predicate,
+  TestPredicate,
+} from './expr.js'
+import { Operators, type MemoryOperators } from './operators.js'
 
 /** A row as this interpreter reads one: values by field key. */
 export type Row = Readonly<Record<string, unknown>>
@@ -38,6 +50,27 @@ export class QueryEvaluateError extends Error {
 }
 
 /**
+ * A call of a primitive operator the table does not implement. Its own class,
+ * because a form judging an invariant reads it as a judgement it cannot make
+ * (`Undecided`), not as a failure.
+ */
+export class OperatorMissingError extends QueryEvaluateError {
+  readonly operator: OperatorDescriptor
+  /** The operator by its id, and its version past the first. */
+  readonly named: string
+  constructor(operator: OperatorDescriptor) {
+    super(`this interpreter does not run the operator "${operatorName(operator)}"`)
+    this.name = 'OperatorMissingError'
+    this.operator = operator
+    this.named = operatorName(operator)
+  }
+}
+
+/** An operator by its id, and its version when that is not the first. */
+const operatorName = (operator: OperatorDescriptor): string =>
+  operator.version === 1 ? operator.id : `${operator.id}@${operator.version}`
+
+/**
  * What a predicate is judged over: the row, the input it was given, and the row
  * a write would leave, which an invariant reads (`Next`).
  */
@@ -45,6 +78,8 @@ interface Scope {
   readonly row: Row
   readonly input: Row
   readonly next: Row
+  /** How a primitive operator is run. */
+  readonly operators: MemoryOperators
 }
 
 const valueOf = (node: AnyExpr, scope: Scope): unknown => {
@@ -57,7 +92,85 @@ const valueOf = (node: AnyExpr, scope: Scope): unknown => {
       return node.value
     case 'Input':
       return scope.input[node.key]
+    case 'Call':
+      return called(node, scope)
+    default:
+      return absurd(node)
   }
+}
+
+/**
+ * What a call comes to, as a value (a predicate's truth as SQL's, unknown as
+ * null). The table's implementation when it has one; else, for a defined
+ * operator, what it means; else it is refused by name.
+ */
+const called = (call: CallExpr<unknown> | TestPredicate, scope: Scope): unknown => {
+  const expansion: Option.Option<AnyExpr | Predicate> = call.expansion
+  return Option.match(scope.operators.get(call.operator), {
+    onSome: run => ran(call, run, scope),
+    onNone: () =>
+      Option.match(expansion, {
+        onSome: body => sideOf(body, scope),
+        onNone: () => {
+          throw new OperatorMissingError(call.operator)
+        },
+      }),
+  })
+}
+
+/**
+ * A primitive operator run: strict about null and NUL before it is asked, a
+ * throw it makes named as its own, and, in a checked table, its answer held to
+ * its output schema.
+ */
+const ran = (
+  call: CallExpr<unknown> | TestPredicate,
+  run: (
+    args: ReadonlyArray<unknown>,
+    context: { readonly collation: Option.Option<Collation> },
+  ) => unknown,
+  scope: Scope,
+): unknown => {
+  const { operator } = call
+  const values = call.args.map(arg => sideOf(arg, scope))
+  if (operator.nulls === 'strict' && values.some(isNull)) return null
+  if (values.some(holdsNul)) {
+    throw new QueryEvaluateError(
+      `the operator "${operatorName(operator)}" was given text holding a NUL character, which SQL text cannot hold portably`,
+    )
+  }
+  let answer: unknown
+  try {
+    answer = run(values, { collation: call.collation })
+  } catch (error) {
+    if (error instanceof QueryEvaluateError) throw error
+    throw new QueryEvaluateError(
+      `the operator "${operatorName(operator)}" failed: ${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
+  // A predicate answers null for unknown, whatever its output schema says.
+  const unknownTruth = call._tag === 'Test' && answer === null
+  if (
+    scope.operators.checked &&
+    !unknownTruth &&
+    !Schema.is(Schema.toEncoded(operator.output))(answer)
+  ) {
+    throw new QueryEvaluateError(
+      `the operator "${operatorName(operator)}" answered ${JSON.stringify(answer)}, which its output schema does not admit`,
+    )
+  }
+  return answer
+}
+
+/** A predicate operator's answer as a truth: null is unknown, anything but a boolean refused. */
+const truthOf = (call: TestPredicate, answer: unknown): Truth => {
+  if (answer === null || answer === undefined) return 'unknown'
+  if (typeof answer !== 'boolean') {
+    throw new QueryEvaluateError(
+      `the operator "${operatorName(call.operator)}" answered ${JSON.stringify(answer)}, which is not a truth`,
+    )
+  }
+  return answer
 }
 
 /** SQL's unknown: neither true nor false, and a row is kept only on true. */
@@ -65,12 +178,7 @@ type Truth = boolean | 'unknown'
 
 const isNull = (value: unknown): boolean => value === null || value === undefined
 
-/**
- * Lowercases ASCII letters and leaves every other character as it is, which is
- * what SQLite's `lower` does without ICU and so what the compiled SQL folds to.
- * `toLowerCase` would fold `É` to `é` here and not there.
- */
-const foldAscii = (text: string): string => text.replace(/[A-Z]+/g, upper => upper.toLowerCase())
+const { foldAscii } = Collation
 
 const NUL = String.fromCharCode(0)
 
@@ -92,6 +200,8 @@ const truthValue = (truth: Truth): unknown => (truth === 'unknown' ? null : trut
 
 const holds = (node: Predicate, scope: Scope): Truth => {
   switch (node._tag) {
+    case 'Test':
+      return truthOf(node, called(node, scope))
     case 'Eq': {
       const left = sideOf(node.left, scope)
       const right = sideOf(node.right, scope)
@@ -205,7 +315,11 @@ const readsAField = new WeakMap<Predicate, boolean>()
  * before it builds anything: `isNull($status)` is known before any row is.
  * Refuses what `evaluate` refuses (text holding a NUL).
  */
-export const decided = (node: Predicate, input: Row): Option.Option<PredicateTruth> => {
+export const decided = (
+  node: Predicate,
+  input: Row,
+  operators: MemoryOperators = Operators.kernel,
+): Option.Option<PredicateTruth> => {
   let reads = readsAField.get(node)
   if (reads === undefined) {
     // A field after a write is a field too: nothing in the input alone decides it.
@@ -213,7 +327,7 @@ export const decided = (node: Predicate, input: Row): Option.Option<PredicateTru
     reads = read.fields.length + read.next.length > 0
     readsAField.set(node, reads)
   }
-  return reads ? Option.none() : Option.some(holds(node, { row: {}, input, next: {} }))
+  return reads ? Option.none() : Option.some(holds(node, { row: {}, input, next: {}, operators }))
 }
 
 /** A predicate's truth over one row (and, for an invariant, the row after a write): SQL's three values. */
@@ -222,11 +336,12 @@ export const truthOver = (
   row: Row,
   input: Row = {},
   next: Row = {},
-): PredicateTruth => holds(node, { row, input, next })
+  operators: MemoryOperators = Operators.kernel,
+): PredicateTruth => holds(node, { row, input, next, operators })
 
 /** Every predicate must hold: the list is the conjunction, as it is in a `Query`. */
-const matches = (body: AnyQuery, row: Row, input: Row): boolean =>
-  body.where.every(node => holds(node, { row, input, next: {} }) === true)
+const matches = (body: AnyQuery, row: Row, input: Row, operators: MemoryOperators): boolean =>
+  body.where.every(node => holds(node, { row, input, next: {}, operators }) === true)
 
 /** The kinds of value this interpreter orders by; every key of one term must share one. */
 const comparable = new Set(['string', 'number', 'boolean'])
@@ -262,29 +377,44 @@ const compare = (left: unknown, right: unknown, collation: Option.Option<Collati
   return (left as number) - (right as number)
 }
 
+/** What an order's keys are worked out with: a call may read the input, and runs by the table. */
+interface OrderScope {
+  readonly input: Row
+  readonly operators: MemoryOperators
+}
+
+/** Each term's key for one row: a field's value, or what a call comes to over the row. */
+const keysOf = (row: Row, terms: ReadonlyArray<OrderTerm>, scope: OrderScope) =>
+  terms.map(term =>
+    valueOf(term.expr, { row, input: scope.input, next: {}, operators: scope.operators }),
+  )
+
 /**
  * Refuses an ordering this interpreter will not answer for, before sorting, so
  * the refusal names the first offending row in row order rather than whichever
  * pair the engine's sort happened to compare first. Every term is checked over
- * every row: a key whose kind differs from the first present one's. A null key
- * is not refused; the term says where it goes.
+ * every row's keys: a key whose kind differs from the first present one's. A
+ * null key is not refused; the term says where it goes.
  */
-const checkOrder = (rows: ReadonlyArray<Row>, terms: ReadonlyArray<OrderTerm>, query: string) => {
-  for (const term of terms) {
-    if (term.expr._tag !== 'Field') {
+const checkOrder = (
+  keys: ReadonlyArray<ReadonlyArray<unknown>>,
+  terms: ReadonlyArray<OrderTerm>,
+  query: string,
+) =>
+  terms.forEach((term, index) => {
+    if (term.expr._tag !== 'Field' && term.expr._tag !== 'Call') {
       throw new QueryEvaluateError(
-        `query "${query}" orders by something that is not a field, which this interpreter cannot run yet`,
+        `query "${query}" orders by something that is neither a field nor a call`,
       )
     }
     if (Option.exists(term.collation, declared => declared._tag === 'Locale')) {
       throw new QueryEvaluateError(
-        `query "${query}" orders "${term.expr.key}" by a backend's locale collation, which only that backend has`,
+        `query "${query}" orders ${Expr.show(term.expr)} by a backend's locale collation, which only that backend has`,
       )
     }
-    const key = term.expr.key
     let first: string | undefined
-    for (const row of rows) {
-      const value = row[key]
+    for (const row of keys) {
+      const value = row[index]
       if (isNull(value)) continue
       const kind = typeof value
       first ??= kind
@@ -294,39 +424,54 @@ const checkOrder = (rows: ReadonlyArray<Row>, terms: ReadonlyArray<OrderTerm>, q
         )
       }
     }
-  }
-}
+  })
 
-/** Two rows by checked terms: negative when `left` sorts first. */
-const byTerms = (terms: ReadonlyArray<OrderTerm>, left: Row, right: Row): number => {
-  for (const term of terms) {
-    const key = (term.expr as Extract<OrderTerm['expr'], { readonly _tag: 'Field' }>).key
-    const absentLeft = isNull(left[key])
-    const absentRight = isNull(right[key])
+/** Two rows' keys by checked terms: negative when `left` sorts first. */
+const byTerms = (
+  terms: ReadonlyArray<OrderTerm>,
+  left: ReadonlyArray<unknown>,
+  right: ReadonlyArray<unknown>,
+): number => {
+  for (const [index, term] of terms.entries()) {
+    const absentLeft = isNull(left[index])
+    const absentRight = isNull(right[index])
     // Where a row without a value goes is the term's to say, whichever the
     // direction; two such rows tie, for the next term.
     if (absentLeft || absentRight) {
       if (absentLeft && absentRight) continue
       return absentLeft === (term.nulls === 'first') ? -1 : 1
     }
-    const sign = compare(left[key], right[key], term.collation)
+    const sign = compare(left[index], right[index], term.collation)
     if (sign !== 0) return term.direction === 'asc' ? sign : -sign
   }
   return 0
 }
 
-const ordered = (rows: ReadonlyArray<Row>, terms: ReadonlyArray<OrderTerm>, query: string) => {
+const ordered = (
+  rows: ReadonlyArray<Row>,
+  terms: ReadonlyArray<OrderTerm>,
+  query: string,
+  scope: OrderScope,
+) => {
   // One row, or none, is in order whatever its keys hold.
   if (terms.length === 0 || rows.length < 2) return [...rows]
-  checkOrder(rows, terms, query)
-  return [...rows].sort((left, right) => byTerms(terms, left, right))
+  // Each row's keys worked out once, not once per comparison: a call may be dear.
+  const keyed = rows.map(row => ({ row, keys: keysOf(row, terms, scope) }))
+  checkOrder(
+    keyed.map(({ keys }) => keys),
+    terms,
+    query,
+  )
+  return keyed.sort((left, right) => byTerms(terms, left.keys, right.keys)).map(({ row }) => row)
 }
 
 /**
  * Where `left` sorts against `right` under these terms (`Query.orderFor`'s),
- * as `evaluate` sorts: negative when it comes first. Refuses what `evaluate`
- * refuses, for these two rows: a term not over a field, a locale collation,
- * or keys of different kinds. For a client placing one row among others it
+ * as `evaluate` sorts: negative when it comes first. A call among them runs
+ * over each row with `input` and `operators` (the kernel's when not given).
+ * Refuses what `evaluate` refuses, for these two rows: a term over neither a
+ * field nor a call, a locale collation, keys of different kinds, or an
+ * operator the table lacks. For a client placing one row among others it
  * holds.
  */
 export const compareRows = (
@@ -334,9 +479,15 @@ export const compareRows = (
   left: Row,
   right: Row,
   query: string,
+  options: {
+    readonly input?: Row | undefined
+    readonly operators?: MemoryOperators | undefined
+  } = {},
 ): number => {
-  checkOrder([left, right], terms, query)
-  return byTerms(terms, left, right)
+  const scope = { input: options.input ?? {}, operators: options.operators ?? Operators.kernel }
+  const keys = [keysOf(left, terms, scope), keysOf(right, terms, scope)] as const
+  checkOrder(keys, terms, query)
+  return byTerms(terms, keys[0], keys[1])
 }
 
 /**
@@ -362,8 +513,11 @@ export const supported: ReadonlyArray<Operation> = [
  * than skipping it and answering a different question. Called by `evaluate`;
  * call it directly to check a body once instead of on every run.
  */
-export const assertSupported = (body: AnyQuery): void => {
-  const missing = Query.unsupported(body, supported)
+export const assertSupported = (
+  body: AnyQuery,
+  operators: MemoryOperators = Operators.kernel,
+): void => {
+  const missing = Query.unsupported(body, supported, operators)
   if (missing.length > 0) {
     throw new QueryEvaluateError(
       `this interpreter does not run ${missing.join(', ')}, which query "${body.entity.name}" needs`,
@@ -383,11 +537,14 @@ export const evaluate = (
   body: AnyQuery,
   input: Row,
   rows: ReadonlyArray<Row>,
+  options: { readonly operators?: MemoryOperators | undefined } = {},
 ): ReadonlyArray<Row> => {
-  assertSupported(body)
+  const operators = options.operators ?? Operators.kernel
+  assertSupported(body, operators)
   return ordered(
-    rows.filter(row => matches(body, row, input)),
+    rows.filter(row => matches(body, row, input, operators)),
     Query.orderFor(body, input),
     body.entity.name,
+    { input, operators },
   )
 }

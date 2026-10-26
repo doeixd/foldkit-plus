@@ -107,7 +107,7 @@ const readable = Effect.runSync(Policy.readable(Todo, ada))
 // isAdmin was false, so: isOwner or inProject, over each row
 
 const t1 = { id: 't1', ownerId: 'ada', projectId: 'p9', title: 'Write the README' }
-Condition.holds(readable, t1, Policy.inputOf(ada), () => false)
+Condition.holds(readable, t1, Policy.inputOf(ada), () => false, Policy.operators)
 // true
 
 // ## Serving reads

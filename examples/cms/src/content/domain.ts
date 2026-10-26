@@ -120,7 +120,7 @@ export const PostPreview = Entity.select(Post, {
  */
 export const RecentPosts = Query.define('RecentPosts', {}, () =>
   Query.from(Post).pipe(
-    Query.where(Expr.isNotNull(Post.fields.publishedAt)),
+    Query.where(Cms.published(Post)),
     Query.orderBy(Order.desc(Post.fields.publishedAt)),
   ),
 )

@@ -87,6 +87,70 @@ version changed; `pnpm` skips versions already in the registry.
   its checking line reads `words.checking` as the plain field does, rather
   than a fixed `Checking…`.
 
+- **Operators defined by an expression: `Expr.operator`.** An application names
+  a question once (`Expr.operator('acme.published', { input, output, definedAs })`)
+  and calls it like a function: a boolean output makes the call a predicate
+  (`Test`), any other a scalar (`Call`). `definedAs` builds what a call means from
+  its arguments, and every interpreter runs that expansion, so an operator needs no
+  SQL or evaluator of its own and compiles to the SQL of its body written out.
+  Calls print by name, `Query.dependencies(body).operators` lists them (and Remote's
+  explanations), and `Expr.expanded(predicate)` writes them out. A body that reads
+  what no argument holds, a wrong argument, or a body of the wrong kind is refused
+  when called. Phase 1 of `expr-operations-DESIGN.md`; the conformance suite runs
+  operator cases in every interpreter.
+- **Primitive operators and their tables** (Phase 2 of `expr-operations-DESIGN.md`).
+  `Expr.operator` without `definedAs` declares an operator each interpreter
+  implements, with a null rule (`nulls: 'strict' | 'handled'`) and a collation
+  rule (`collation: 'none' | 'operands' | 'required'`); a call may be given
+  `{ collation }`. `Operators` builds immutable tables of in-memory
+  implementations (`memory`, `implement`, `implementHandlingNulls`, `merge`,
+  `override`, `checked`, `kernel`), which `evaluate`, `decided`, `truthOver`,
+  `Entity.judge`, `Entity.judgeInput` and `Entity.check(entity, { operators })`
+  take. `Text.startsWith` is the kernel's first, under its text's collation.
+  `Expr.unsupported(nodes, { operations, operators })` names what an interpreter
+  lacks, `Collation.foldAscii` folds as `asciiFold` compares, and
+  `OperatorMissingError` names an operator a table does not run. The
+  conformance suite exports `primitiveCases` and `primitiveRefusals`.
+- **Every in-memory site takes the table.** `G.implement(bodies, { operators })`
+  gives a Guard policy one (`Policy.operators`), which `Policy.decide`,
+  `Condition.holds` and every `GuardServer` memory path run row guards by;
+  `GuardServer.validate` refuses a server whose rules, on any surface, call an
+  operator that table does not run. `RemoteServer.memory({ operators })` checks
+  every query body against its table where it is built, `Remote.make({
+  operators })` matches, filters and places rows by it, and
+  `Form.make(name, input, { operators })` judges invariants by it (a nested form
+  given none uses it).
+- **Primitive operators in SQL** (Phase 3 of `expr-operations-DESIGN.md`).
+  `DrizzleOperators` builds SQL tables (`implement`, `make`, `merge`, `override`,
+  `kernel`, with `Text.startsWith` as `substr`/`left` under its collation), and
+  `bind(entities, storage, { operators: { memory, sql } })` and `entity(name,
+  table, { operators })` give a binding both (`EntityBinding.operators`), each its
+  kernel when not given. On Postgres a literal or input argument taken as a number
+  or boolean is cast to its type; a call's text is compared under its collation.
+  A query, an invariant or a write's `when` calling an operator either table lacks
+  is refused where it is registered or its writer built (`requireOperators`,
+  `operatorProblems`), and the writer judges a row in memory by the binding's
+  table. `GuardDrizzle.visible(Policy, entities, { operators })` checks Read rules
+  against the SQL table it is given. `SchemaShape.holdsIntegers` says whether a
+  number schema holds integers. The registry finds a product by its UPC's prefix.
+- **Ordering by a call** (Phase 4 of `expr-operations-DESIGN.md`). An order term,
+  or an `Order.chosen` alternative, may be a call whose result orders alike
+  everywhere: a number, or text under `binary` or `asciiFold` (the call's, or the
+  term's); anything else is refused where it is written. `evaluate` orders by it
+  per row with its table, Drizzle compiles it under its collation and pages by
+  its value on SQLite and Postgres, and Remote places rows by it with
+  `Remote.make`'s table, a list it cannot place being fetched instead.
+  `Expr.expanded` takes a scalar too, and expands a defined operator among a
+  primitive call's arguments.
+- **`Cms.published(entity)`**: whether a row is published, as `cms.published` over
+  the Entity's `published` role. The CMS example's two public queries and three
+  visitor Read rules use it in place of five hand-written `isNotNull`s.
+- **`EntityWriter.refuses(write)`**: the reasons a writer cannot land a write,
+  asked once by `RemoteServer.write` where the write is registered, for what only
+  the store knows (a column's type). `GuardServer.writer` passes its writer's on.
+  `Write`'s `increments` are `WriteIncrement`s, each saying whether its amount is
+  held to an integer (`integer`).
+
 ### Changed
 
 - **`foldkit-form-recipes`' kinds and displays are named `FieldRecipes.Date`,
@@ -106,6 +170,28 @@ version changed; `pnpm` skips versions already in the registry.
   `Intl.DateTimeFormat().resolvedOptions().timeZone` to keep that. A draft is no
   longer rewritten as it is drawn: a stored instant becomes the zone's local text
   when the form is filled.
+
+- **A Drizzle order term is `{ key, direction, nulls?, collation? }`**, where it
+  was `{ column, … }`: `key` is a column or a Drizzle `SQL` expression, which
+  says its own collation (one given beside it is refused). `cursorSelection`
+  selects each key under a positional alias (`key0`, `key1`, …), read back with
+  `keysOf`.
+- **`Query.placement(body, input, { operators })`** places a call only by a
+  client table that runs it (none when not given), and **`compareRows(terms,
+  left, right, query, { input, operators })`** runs a call by them.
+- **`Query.unsupported(body, supported, operators?)` names primitive operators
+  too**, so its result is `ReadonlyArray<string>`, not `Operation`s; without a
+  table every primitive operator is named. **Comparing text needs a
+  collation, not a field**: a call carrying one compares as a field does.
+- **`Condition.holds(condition, values, input, inherit, operators)`** takes the
+  table its row guards run by, as a required last argument: pass the policy's
+  (`Policy.operators`).
+- **An invariant's `Undecided` has `operators`** beside `fields`: the operators
+  its judge's table does not run. An exact comparison with one adds
+  `operators: []`.
+- **`Dependencies` gains `operators`**, each operator a body calls, and Remote's
+  `ExplainedDependencies` carries them as `{ id, version }`. A test comparing a
+  whole `Dependencies` with `toEqual` adds `operators: []`.
 
 ### Fixed
 
@@ -183,6 +269,24 @@ version changed; `pnpm` skips versions already in the registry.
   with, so a character typed and deleted before the next frame left it
   reading an empty field: Backspace stepped out of the page instead of
   deleting. It now reads what the field holds.
+
+- **An integer field is no longer incremented by an amount that may be a
+  fraction.** `Write.update` accepted `increment: { count: 'by' }` for a
+  `count` declared `Schema.Int` (or any check holding `Schema.isInt`, such as
+  `isInt32`) and a `by` declared `Schema.Number`. A fractional amount then split
+  the databases: Postgres refused the statement, and SQLite stored `2.5` in the
+  integer column, a value the field's schema does not admit. Such a write is now
+  refused where it is declared, naming both keys; declare the amount
+  `Schema.Int`.
+- **Nor is an integer column, whatever its field says.** A field declared
+  `Schema.Number` over an `integer` column (SQLite `integer`; Postgres
+  `integer`, `smallint`, `bigint` read as a number) took a fractional amount the
+  same way. `foldkit-remote-drizzle`'s `writer` now refuses such an increment
+  where `RemoteServer.write` registers it, so a server with one does not start;
+  give the amount `Schema.Int`. A `real` or `double precision` column takes any
+  amount. Every increment in the examples and guides now declares its amount
+  `Schema.Int`.
+
 
 ## 0.33.0
 

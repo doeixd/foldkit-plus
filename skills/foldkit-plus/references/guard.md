@@ -72,7 +72,9 @@ const Todo = TodoFields.pipe(
 - `Policy.readable(Todo, principal)` decides every principal guard and
   returns a `Condition` over the row (`Always`, `Never`, or row guards joined
   by and/or, plus inherited Reads); `Condition.holds(condition, values,
-  Policy.inputOf(principal), inherit)` runs it over stored values.
+  Policy.inputOf(principal), inherit, Policy.operators)` runs it over stored
+  values, the row guards' primitive operators by the policy's table
+  (`G.implement(bodies, { operators })`, `Operators.kernel` by default).
 - `Policy.readMembers(Todo, principal, members)` gives each ruled member's
   condition and its refusal (`Omit` or `Redact`).
 - `Policy.writable(Todo, principal, 'Update' | 'Create' | 'Delete' | Archive.key)`
@@ -92,7 +94,8 @@ const Todo = TodoFields.pipe(
 - `foldkit-guard/drizzle`: `GuardDrizzle.visible(Policy, [Todo, Project])`
   gives each binding's `visible` (`bind(..., { Todo: { table, visible:
   visible.Todo } })`); an inherited Read compiles to a subquery, checked
-  (listed, ruled, no loop) when built. Member and relation Reads are the Source's
+  (listed, ruled, no loop) when built, its primitive operators against the SQL
+  table passed as `{ operators }` (`bind`'s). Member and relation Reads are the Source's
   `filter`: `source(Db.Todo, { filter: GuardServer.filter(Todo, Policy) })`.
 - A relation's Read rules are guards over the parent row: where they refuse,
   the relation is withheld, like a member.

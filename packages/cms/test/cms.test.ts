@@ -1,5 +1,5 @@
 import { Schema } from 'effect'
-import { Entity } from 'foldkit-entity'
+import { Entity, Expr } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
 import { Mutation, Remote, Selection } from 'foldkit-remote'
 import { describe, expect, it } from 'vitest'
@@ -78,6 +78,29 @@ describe('Cms.roles', () => {
     ['a member that is not a field', { label: 'nope' }, '"nope" is not a field of Post'],
   ])('refuses %s', (_, roles, message) => {
     expect(() => BasePost.pipe(Cms.roles(roles as never))).toThrow(message)
+  })
+})
+
+describe('Cms.published', () => {
+  it('is `cms.published` over the field the published role names, and means it holds a value', () => {
+    const published = Cms.published(Post)
+    expect(Expr.show(published)).toBe('cms.published(Post.publishedAt)')
+    expect(Expr.expanded(published)).toEqual(Expr.isNotNull(Post.fields.publishedAt))
+  })
+
+  it('is one operator, whichever Entity asks it', () => {
+    const Page = Entity.define(
+      'Page',
+      Schema.Struct({ id: Schema.String, shownAt: Schema.NullOr(Schema.String) }),
+    ).pipe(Cms.roles({ published: 'shownAt' }))
+    expect(Cms.published(Page).operator).toBe(Cms.published(Post).operator)
+    expect(Expr.show(Cms.published(Page))).toBe('cms.published(Page.shownAt)')
+  })
+
+  it('refuses an Entity with no published role, every row of which is visible', () => {
+    expect(() => Cms.published(BasePost)).toThrow(
+      'Cms.published: Post names no published role, so every row is visible',
+    )
   })
 })
 

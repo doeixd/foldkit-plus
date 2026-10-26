@@ -73,7 +73,7 @@ const Db = bind(Domain, {
       lead: { field: projects.leadId },
       comments: {
         foreignKey: comments.projectId,
-        orderBy: [{ column: comments.createdAt, direction: 'desc' }],
+        orderBy: [{ key: comments.createdAt, direction: 'desc' }],
       },
       tags: {
         through: projectTags,

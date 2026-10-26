@@ -432,7 +432,9 @@ leaves, one that joins (by its filter, new to the client, or from past a
 loaded rows, or out of them when it sorts past a `Cursor` (a row that was
 itself the edge beside that `Cursor` cannot be told, and invalidates). What
 cannot be placed is invalidated, restarting any read of it in flight, so its read entry
-refetches it. `Remote.make({ verifyPlacement: true })` (dev and tests) also
+refetches it. A body's primitive operators run on the client by
+`Remote.make({ operators })` (`Operators.kernel` by default); one the table lacks
+is the server's to judge. `Remote.make({ verifyPlacement: true })` (dev and tests) also
 fetches each list it placed an answer, a read or a live patch in, and keeps
 any disagreement with the server's first page in
 `remote.placementMismatches`: an order it does not share, or a row placing
@@ -658,7 +660,7 @@ const Server = RemoteServer.make({
   entities: [source(User), source(Project)], // source(binding, { authorize }) for field policy
   queries: [query(ProjectsByOwner, {
     entity: Project,
-    orderBy: [{ column: projects.id, direction: 'desc' }], // keyset pagination; end with a unique column
+    orderBy: [{ key: projects.id, direction: 'desc' }], // keyset pagination; end with a unique column
     where: input => eq(projects.ownerId, input.ownerId),
     // Or `orderBy: input => [...]` to sort by what the input names; the id breaks its ties.
     // A Query.define body declares its own order (Order.chosen for a picked sort), and
@@ -730,6 +732,21 @@ members, writes and the client's `may`, are `foldkit-guard`'s (see guard.md):
 `GuardDrizzle.visible` compiles them into `visible`, `GuardServer.filter` into a
 Source's `filter`.
 
+**Primitive operators.** `bind(entities, storage, { operators: { memory, sql } })`
+(or `entity(name, table, { operators })`) gives every binding the tables its
+bodies' primitive operators run by, each its kernel (`Text.startsWith`) when not
+given: `sql` from `DrizzleOperators.make(DrizzleOperators.implement(op, ({ args,
+dialect, collate }) => …))`, whose function returns Drizzle `SQL` (`merge`,
+`override`, `kernel`), `memory` from `Operators`. A literal or input argument taken as a number or boolean is cast on
+Postgres (`cast($1 as integer)`); SQLite takes none. A query, an invariant or a
+write's `when` calling one either table lacks is refused where it is registered
+or the writer built; `GuardDrizzle.visible(Policy, entities, { operators })`
+checks Read rules against the SQL table it is given. A body ordered by a call
+compiles it as an expression under its collation and pages by its value, the
+same in SQLite and Postgres; index the expression if it must be fast. An order
+term `query({ orderBy })` takes is `{ key, direction, nulls?, collation? }`,
+`key` a column or a Drizzle `SQL` expression (which says its own collation).
+
 **What `writer(binding)` guarantees.** One `update … where … returning` per update:
 the id, an `expect`ed revision, the write's `when` and every invariant of the Entity
 (set fields read as their new values, an increment as `column + amount`) are in the
@@ -746,6 +763,10 @@ only. Retries, by kind of write:
 | increments, under `writer(binding, { ledger: { table, scope } })` | found in the ledger by its operation id, not written again |
 
 An increment with neither an `expect` nor a ledger is refused. The ledger needs a transaction, which D1 lacks.
+An increment of a column that holds integers needs a `Schema.Int` amount, whatever the field is
+declared as: the writer refuses it through `EntityWriter.refuses`, which `RemoteServer.write` asks
+where the write is served (`GuardServer.writer` passes it on). Each `Write` increment says whether
+its amount is an integer (`WriteIncrement.integer`).
 Migrate `invariantChecks(binding)` (each state invariant as `check ((…) is true)`) and,
 for a guarded writer's `revision` pin, `revisionTrigger(binding, 'revision')`, so a
 handler's write and raw SQL are held to the invariants and move the revision too.

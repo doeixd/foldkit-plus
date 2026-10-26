@@ -16,6 +16,7 @@ import {
   type AnyEntity,
   type EntityInput,
   type InputMember,
+  type MemoryOperators,
   type NestedInput,
   type SchemaWords,
 } from 'foldkit-entity'
@@ -330,6 +331,13 @@ export interface FormOptions<
    * form's `messages` and `debounce`.
    */
   readonly nested?: Nest
+  /**
+   * How the Entity's invariants' primitive operators are run while the form
+   * judges them (`Operators`): the kernel's when not given. An invariant calling
+   * one this table lacks is left to the server, as one over a field the form
+   * does not set is. A nested form given none uses this.
+   */
+  readonly operators?: MemoryOperators | undefined
 }
 
 interface Label {
@@ -841,7 +849,7 @@ const Core = {
           members[key] as Extract<InputMember, { readonly _tag: 'NestedInput' }>,
           givenForms[key],
           // A nested form made here takes this form's words and pace.
-          { messages: options.messages, debounce: options.debounce },
+          { messages: options.messages, debounce: options.debounce, operators: options.operators },
         ),
       ]),
     ) as Readonly<Record<RowsKey, NestedPlan>>
@@ -1223,7 +1231,9 @@ const Core = {
      * on the whole input when it sets none of them.
      */
     const judged = (model: Model, value: Value): Option.Option<Model> =>
-      Match.value(Entity.judgeInput(input, value as Readonly<Record<string, unknown>>)).pipe(
+      Match.value(
+        Entity.judgeInput(input, value as Readonly<Record<string, unknown>>, options.operators),
+      ).pipe(
         Match.tagsExhaustive({
           Valid: () => Option.none(),
           Undecided: () => Option.none(),

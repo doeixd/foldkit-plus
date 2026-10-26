@@ -236,7 +236,7 @@ const Publish = Write.update(
 const Restock = Write.update(
   Entity.input(
     Product,
-    Schema.Struct({ id: Schema.String, revision: Schema.Number, quantity: Schema.Number }),
+    Schema.Struct({ id: Schema.String, revision: Schema.Number, quantity: Schema.Int }),
     { quantity: Entity.unmapped },
   ),
   { id: 'id', expect: 'revision', increment: { stock: 'quantity' } },
@@ -247,7 +247,9 @@ const Restock = Write.update(
   into the write's own `WHERE`, so it holds of the row the statement changes. Only a write with one has
   `Unmet` in its `Refusal` type.
 - **`expect: 'revision'`** lands only on that revision and moves it on: a second write from one read is a
-  `Conflict`. **`increment: { stock: 'quantity' }`** adds an unmapped number input where it commits. A
+  `Conflict`. **`increment: { stock: 'quantity' }`** adds an unmapped number input where it commits; a
+  field declared `Schema.Int` needs a `Schema.Int` amount, or the write is refused where declared, and so
+  does an `integer` column under any field, or the Drizzle `writer` refuses it at registration. A
   retry must not add twice: give it `expect`, or serve it through a writer with a ledger (a retry is
   answered from its record, so concurrent increments both land). Remote predicts the sum over the value
   it holds.
@@ -334,6 +336,25 @@ from real queries, not from what SQL can express. `Expr.lt` / `lte` / `gt` /
 a field, since backends order text by different defaults; a date stored as an
 ISO string is text, compared under `binary`.
 
+**Naming a question.** `Expr.operator('acme.published', { input: [Schema.Unknown],
+output: Schema.Boolean, definedAs: at => Expr.isNotNull(at) })` declares an operator
+by what a call means; `published(Story.fields.publishedAt)` is then a predicate
+(a boolean output) or a scalar, printed by name, listed in
+`Query.dependencies(body).operators`, and run by every interpreter as its expansion
+(`Expr.expanded`), so it needs no SQL of its own. `definedAs` may read only its
+arguments. `foldkit-cms`'s `Cms.published(entity)` is one, over the `published` role.
+Without `definedAs` an operator is **primitive**: each interpreter implements it.
+In memory, `Operators.memory(Operators.implement(op, (a, b, { collation }) => …))`
+is a table passed to `evaluate(body, input, rows, { operators })`, `Entity.judge`,
+`judgeInput` and `Entity.check(entity, { operators })`; `Operators.kernel` is the
+default and holds `Text.startsWith(text, prefix, { collation? })`. A strict operator
+(the default) never sees a null; `nulls: 'handled'` with
+`Operators.implementHandlingNulls` does. `collation: 'operands'` makes a text result
+carry its operands' collation; `'required'` refuses text with none. A body calling an
+operator a table lacks is refused by name (`Query.unsupported(body, supported,
+operators)`, `Expr.unsupported(nodes, { operations, operators })`); an invariant is
+then `Undecided` with `operators`, which a form passes.
+
 **Asking about an input without branching on it.** An input is a placeholder, so
 a query cannot pick a shape from a value. It does not need to:
 
@@ -359,7 +380,7 @@ Query.dependencies(recent)     // every field it reads, also split into `predica
 
 - **A sort the reader picks belongs in the body:** `Query.orderBy(Order.chosen(input.sort,
   { title: Post.fields.title }))`, where `input.sort` is `{ by, direction } | null`
-  (Crud's `Sort.make(...).Schema`). Every name needs a field, or it does not compile;
+  (Crud's `Sort.make(...).Schema`). Every name needs a field or a call, or it does not compile;
   `null` chooses none. `Query.orderFor(query, input)` resolves it for one input and
   ends every order on the id, so ties break the same way on every interpreter.
 - **A server's own read rule is declared, not run:** `Entity.annotate(ReadFilter.of(['ownerId']))`
@@ -367,8 +388,14 @@ Query.dependencies(recent)     // every field it reads, also split into `predica
   rather than placing a row whose such member changed.
 - **Text orders by a declared collation, or by the server:** `Entity.annotateMembers({ name:
   Collation.of(Collation.asciiFold) })`; `binary` (code point; ids default to it), `asciiFold`
-  (ASCII folded), `locale(name)` (server only). `Query.placement(query, input)` is `Placeable`
-  when every term is a number, boolean, or portably collated text.
+  (ASCII folded), `locale(name)` (server only). `Query.placement(query, input, { operators })`
+  is `Placeable` when every term is a number, boolean, portably collated text, or a call
+  whose primitive operators the client's table runs.
+- **A call orders when its result does:** `Order.asc(distance(Post.fields.rank, input.target))`
+  takes a number, or text under `binary`/`asciiFold` (the call's, by `collation: 'operands'`,
+  or the term's own); anything else is refused where written, `Order.chosen` alternatives
+  included. `evaluate` runs it per row by its table; `compareRows(terms, a, b, query, { input,
+  operators })` compares two rows so.
 - **Nulls are placed by the term:** last ascending, first descending, or
   `Order.asc(field, { nulls: 'first' })`. Every interpreter is told (Drizzle
   compiles `NULLS FIRST/LAST`), so SQLite and Postgres agree and page alike.

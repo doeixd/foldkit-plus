@@ -99,4 +99,40 @@ export default [
     '...(writer.increments === true ? { increments: true } : {}),',
     '',
   ),
+  edit(
+    'the writer refuses no fractional amount for an integer column',
+    drizzle,
+    '!integer && holdsIntegers(binding.columns[field.key])',
+    'false',
+  ),
+  edit(
+    'every number column holds integers',
+    drizzle,
+    'column !== undefined && /^number u?int\\d+$/.test(column.dataType)',
+    "column !== undefined && column.dataType.startsWith('number')",
+  ),
+  edit(
+    'only a 32-bit column holds integers',
+    drizzle,
+    'column !== undefined && /^number u?int\\d+$/.test(column.dataType)',
+    "column !== undefined && column.dataType === 'number int32'",
+  ),
+  edit(
+    'registration ignores what the writer refuses',
+    server,
+    'if (refused.length > 0) {',
+    'if (false) {',
+  ),
+  edit(
+    'a guarded writer hides what its writer refuses',
+    guard,
+    '...(writer.refuses === undefined ? {} : { refuses: writer.refuses }),',
+    '',
+  ),
+  edit(
+    'every amount reads as an integer',
+    entity,
+    'return Object.freeze({ key, field, integer })',
+    'return Object.freeze({ key, field, integer: true })',
+  ),
 ]

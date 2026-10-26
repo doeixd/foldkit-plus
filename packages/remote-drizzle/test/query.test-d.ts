@@ -24,7 +24,7 @@ interface Principal {
 // the `where` that reads it says it is.
 const mine = query(BySlug, {
   entity: Post,
-  orderBy: [{ column: posts.id, direction: 'asc' }],
+  orderBy: [{ key: posts.id, direction: 'asc' }],
   where: (input, principal: Principal) => {
     expectTypeOf(input).toEqualTypeOf<{ readonly slug: string }>()
     return eq(posts.authorId, principal.id)
@@ -35,7 +35,7 @@ expectTypeOf(mine).toEqualTypeOf<QuerySource<Principal, DrizzleDatabase>>()
 // A query that reads no principal fits any server's.
 const anyone: QuerySource<Principal, DrizzleDatabase> = query(BySlug, {
   entity: Post,
-  orderBy: [{ column: posts.id, direction: 'asc' }],
+  orderBy: [{ key: posts.id, direction: 'asc' }],
 })
 export { anyone }
 

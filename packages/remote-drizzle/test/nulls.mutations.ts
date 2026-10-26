@@ -63,7 +63,7 @@ export default [
     edits: [
       {
         file: cursor,
-        find: 'return forward === last ? or(beyond, isNull(column))! : beyond',
+        find: 'return forward === last ? or(beyond, isNull(key))! : beyond',
         replace: 'return beyond',
       },
     ],
@@ -74,8 +74,8 @@ export default [
     edits: [
       {
         file: cursor,
-        find: 'if (value === null) return forward === last ? sql`false` : isNotNull(column)',
-        replace: 'if (value === null) return isNotNull(column)',
+        find: 'if (value === null) return forward === last ? sql`false` : isNotNull(key)',
+        replace: 'if (value === null) return isNotNull(key)',
       },
     ],
     tests,

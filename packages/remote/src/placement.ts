@@ -13,7 +13,14 @@
  * Pure: it reads the store and the list it is given.
  */
 import { Data, Match, Option, Schema, SchemaAST } from 'effect'
-import { Query as Relational, compareRows, type AnyQuery, type OrderTerm } from 'foldkit-entity'
+import {
+  Query as Relational,
+  compareRows,
+  dependenciesOf,
+  type AnyQuery,
+  type MemoryOperators,
+  type OrderTerm,
+} from 'foldkit-entity'
 import type { Connection, Edge } from './connection.js'
 import { entityKey, readField, type EntityStore } from './store.js'
 
@@ -31,8 +38,8 @@ export type RowPlace = Data.TaggedEnum<{
 export const RowPlace = Data.taggedEnum<RowPlace>()
 
 /**
- * The values a row holds of the fields an order reads, or none when it lacks
- * one. An `id` no Selection stored is its key's, when the id is stored as
+ * The values a row holds of the fields an order reads, a call's arguments
+ * included, or none when it lacks one. An `id` no Selection stored is its key's, when the id is stored as
  * text as a key holds it, so the id tie-break every order ends on does not
  * make such a row unplaceable; a number id is never compared as text.
  */
@@ -44,9 +51,7 @@ const keysOf = (
   terms: ReadonlyArray<OrderTerm>,
 ): Option.Option<Readonly<Record<string, unknown>>> => {
   const values: Record<string, unknown> = Object.create(null)
-  for (const term of terms) {
-    if (term.expr._tag !== 'Field') return Option.none()
-    const field = term.expr.key
+  for (const { key: field } of dependenciesOf(...terms).fields) {
     const stored = readField(store, key, field)
     const value = field === 'id' && Option.isNone(stored) && idIsText ? id : stored
     if (Option.isNone(value)) return Option.none()
@@ -57,9 +62,9 @@ const keysOf = (
 
 /**
  * Where the row stored under `key` falls in `connection`, by `body`'s order
- * for `input` (encoded, as a connection's identity carries it). The row's own
- * edge, if the list holds it, is left out: placing a row that moved asks
- * where it goes now.
+ * for `input` (encoded, as a connection's identity carries it), a call in it
+ * run by `operators`. The row's own edge, if the list holds it, is left out:
+ * placing a row that moved asks where it goes now.
  */
 export const placeIn = (
   store: EntityStore,
@@ -67,8 +72,9 @@ export const placeIn = (
   body: AnyQuery,
   input: Readonly<Record<string, unknown>>,
   key: string,
+  operators: MemoryOperators,
 ): RowPlace => {
-  const placement = Relational.placement(body, input)
+  const placement = Relational.placement(body, input, { operators })
   if (placement._tag === 'NotPlaceable') return RowPlace.Unknown({ reason: placement.reason })
   const terms = Relational.orderFor(body, input)
   // The row is of the body's Entity, so its key is that name, a colon, its id.
@@ -93,7 +99,9 @@ export const placeIn = (
       ),
       values => {
         try {
-          return Option.some(compareRows(terms, row.value, values, body.entity.name))
+          return Option.some(
+            compareRows(terms, row.value, values, body.entity.name, { input, operators }),
+          )
         } catch {
           return Option.none()
         }

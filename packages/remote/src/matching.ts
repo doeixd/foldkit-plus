@@ -26,7 +26,7 @@
  */
 import { Schema } from 'effect'
 import { Query as Relational } from 'foldkit-entity'
-import { QueryEvaluateError, evaluate, type Row } from 'foldkit-entity'
+import { QueryEvaluateError, evaluate, type MemoryOperators, type Row } from 'foldkit-entity'
 import type { QueryDescriptor } from './query.js'
 import type { EntityKey, EntityStore } from './store.js'
 
@@ -84,6 +84,8 @@ export interface MatchingOptions {
    * it, a caller narrows to a connection's own edges.
    */
   readonly among?: ReadonlyArray<EntityKey> | undefined
+  /** How the body's primitive operators are run: `Remote.make`'s `operators`. */
+  readonly operators?: MemoryOperators | undefined
 }
 
 /**
@@ -171,7 +173,7 @@ const matchingEncoded = <Name extends string, Input>(
     )
   }
 
-  const matched = evaluate(body, encoded, rows).map(
+  const matched = evaluate(body, encoded, rows, { operators: options.operators }).map(
     row => (row as { readonly __key: EntityKey }).__key,
   )
 
@@ -209,6 +211,7 @@ export const belongsEncoded = <Name extends string, Input>(
   descriptor: QueryDescriptor<Name, Input, unknown>,
   encoded: Readonly<Record<string, unknown>>,
   key: EntityKey,
+  operators?: MemoryOperators | undefined,
 ): Belongs => {
   const entry = store[key]
   // Never fetched: nothing to judge, and silence is the honest answer.
@@ -229,7 +232,7 @@ export const belongsEncoded = <Name extends string, Input>(
 
   let judged: Judged
   try {
-    judged = matchingEncoded(store, descriptor, encoded, { among: [key] })
+    judged = matchingEncoded(store, descriptor, encoded, { among: [key], operators })
   } catch (error) {
     // A body the reference interpreter refuses for this input (text holding
     // NUL) cannot settle membership; the server refuses it too.

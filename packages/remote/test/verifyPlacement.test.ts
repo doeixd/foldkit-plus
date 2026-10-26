@@ -5,7 +5,7 @@
  */
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Entity as DomainEntity, Order } from 'foldkit-entity'
+import { Entity as DomainEntity, Expr, Operators, Order, evaluate } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Query, Remote, type RemoteModel } from '../src/index.js'
@@ -150,5 +150,100 @@ describe('verifyPlacement', () => {
     expect(order(model.remote)).toEqual(['p2', 'p1'])
     expect(model.remote.connections[list]!.stale).toBe(false)
     expect(model.remote.placed).toEqual({})
+  })
+})
+
+describe('verifyPlacement over a list ordered by a call', () => {
+  /** How far a price lies from a target. */
+  const distance = Expr.operator('acme.distance', {
+    input: [Schema.Number, Schema.Number],
+    output: Schema.Number,
+  })
+  const Nearest = Query.define('Nearest', { target: Schema.Number }, ({ input }) =>
+    Query.from(Project).pipe(
+      Query.orderBy(Order.asc(distance(Project.fields.price, input.target))),
+    ),
+  )
+  const table = (run: (price: number, target: number) => number) =>
+    Operators.memory(Operators.implement(distance, run))
+  const client = table((price, target) => Math.abs(price - target))
+  const Data = Remote.make({
+    model: App.model.remote,
+    entities: [Project],
+    queries: [Nearest],
+    verifyPlacement: true,
+    operators: client,
+  })
+  const nearest = Nearest.ref({ target: 12 }).identity
+  const rows = [
+    { id: 'p1', price: 10 },
+    { id: 'p2', price: 20 },
+    { id: 'p3', price: 1 },
+  ]
+  /** The list as a server running `server` lists it, from these rows. */
+  const page = (server: ReturnType<typeof table>, held: ReadonlyArray<(typeof rows)[number]>) =>
+    edges(
+      evaluate(Nearest.body!, { target: 12 }, held, { operators: server }).map(row =>
+        String(row.id),
+      ),
+    )
+  const moved = rows.map(row => (row.id === 'p2' ? { ...row, price: 13 } : row))
+
+  /** p2 moved to 13 by a write; the list placed it, then the server answers its fetch. */
+  const checked = (server: ReturnType<typeof table>) => {
+    const stored = Data.reduce(
+      { remote: Remote.initial },
+      {
+        _tag: 'ReadReceived',
+        requests: rows.map(row => ({ entity: 'Project', id: row.id, fields: ['id', 'price'] })),
+        result: {
+          settled: [],
+          entities: rows.map(row => ({ entity: 'Project', id: row.id, values: row })),
+        },
+        now: 0,
+      },
+    )
+    const loaded = Data.reduce(stored, {
+      _tag: 'ConnectionMerged',
+      connection: nearest,
+      page: { edges: page(server, rows), start: { _tag: 'Terminal' }, end: { _tag: 'Terminal' } },
+    })
+    const written = Data.reduce(loaded, {
+      _tag: 'MutationSucceeded',
+      requestId: 'r1',
+      entities: [{ entity: 'Project', id: 'p2', values: { price: 13 } }],
+      now: 1,
+    })
+    return {
+      placed: written.remote.placed[nearest],
+      mismatches: Data.reduce(written, {
+        _tag: 'ConnectionMerged',
+        connection: nearest,
+        refreshes: true,
+        page: {
+          edges: page(server, moved),
+          start: { _tag: 'Terminal' },
+          end: { _tag: 'Terminal' },
+        },
+      }).remote.placementMismatches,
+    }
+  }
+
+  it('records nothing when the server orders by the same call', () => {
+    const { placed, mismatches } = checked(client)
+    // From 12: p2 at 13 is 1 away, p1 2 and p3 11.
+    expect(placed).toEqual({ order: ['Project:p2', 'Project:p1', 'Project:p3'], dropped: [] })
+    expect(mismatches).toEqual([])
+  })
+
+  it('records a server whose implementation orders the call differently', () => {
+    // Signed, not absolute: the server lists p3 (1 - 12) first.
+    expect(checked(table((price, target) => price - target)).mismatches).toEqual([
+      {
+        connection: nearest,
+        placed: ['Project:p2', 'Project:p3', 'Project:p1'],
+        served: ['Project:p3', 'Project:p1', 'Project:p2'],
+      },
+    ])
   })
 })

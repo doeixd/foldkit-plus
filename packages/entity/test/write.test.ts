@@ -452,3 +452,54 @@ describe('A write that increments a field', () => {
     ).toHaveLength(1)
   })
 })
+
+describe('A write that increments an integer field', () => {
+  const Counter = Entity.define(
+    'Counter',
+    Schema.Struct({
+      id: Schema.String,
+      count: Schema.Int,
+      // An integer in a range is a group of checks, the integer one inside it.
+      small: Schema.Number.check(Schema.isInt32()),
+      // Checked, but not an integer: only the integer check makes one.
+      level: Schema.Number.check(Schema.isGreaterThanOrEqualTo(0)),
+    }),
+  )
+  const Bump = Entity.input(
+    Counter,
+    Schema.Struct({
+      id: Schema.String,
+      whole: Schema.Int,
+      positive: Schema.Int.check(Schema.isGreaterThan(0)),
+      maybe: Schema.optionalKey(Schema.Int),
+      any: Schema.Number,
+    }),
+    {
+      whole: Entity.unmapped,
+      positive: Entity.unmapped,
+      maybe: Entity.unmapped,
+      any: Entity.unmapped,
+    },
+  )
+
+  // Postgres refuses `count + 0.5` into an integer column and SQLite stores 2.5 in
+  // it, so an amount that may be fractional is refused before either is asked.
+  it.each([
+    ['an integer field', { count: 'any' }],
+    ['an integer field in a range', { small: 'any' }],
+  ])('refuses an amount that may be fractional for %s', (_, increment) => {
+    expect(() => Write.update(Bump, { id: 'id', increment } as never)).toThrow(
+      'may not be an integer',
+    )
+  })
+
+  it.each([
+    ['an integer amount', { count: 'whole' }],
+    ['an integer amount with a check of its own', { count: 'positive' }],
+    ['an optional integer amount', { count: 'maybe' }],
+    ['an integer amount for a field in a range', { small: 'whole' }],
+    ['any amount for a field that may be fractional', { level: 'any' }],
+  ])('accepts %s', (_, increment) => {
+    expect(Write.update(Bump, { id: 'id', increment } as never).increments).toHaveLength(1)
+  })
+})

@@ -18,7 +18,13 @@
  */
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Entity as DomainEntity, Expr, Order } from 'foldkit-entity'
+import {
+  Entity as DomainEntity,
+  Expr,
+  Operators,
+  Order,
+  type MemoryOperators,
+} from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Query, Remote, type Matched } from '../src/index.js'
@@ -360,5 +366,36 @@ describe('What it does not do', () => {
     expect(() => Data.filtered(loaded(), projects, Stray as unknown as typeof Active, {})).toThrow(
       'Query "Stray" is not registered',
     )
+  })
+})
+
+describe('A filter calling an application’s operator', () => {
+  const live = Expr.operator('acme.live', { input: [Schema.String], output: Schema.Boolean })
+  const Live = Query.define('Live', {}, () =>
+    Query.from(Project).pipe(
+      Query.where(live(Project.fields.status)),
+      Query.orderBy(Order.asc(Project.fields.id)),
+    ),
+  )
+  const domain = (operators?: MemoryOperators) =>
+    Remote.make({
+      model: App.model.remote,
+      entities: [Project],
+      queries: [ProjectsByOwner, Live],
+      ...(operators === undefined ? {} : { operators }),
+    })
+
+  it('is judged on the client with the table `Remote.make` was given', () => {
+    const Given = domain(Operators.memory(Operators.implement(live, status => status === 'active')))
+    const list = Given.query(ProjectsByOwner, { ownerId: 'u1' }, { select: Summary, first: 25 })
+    const found = Given.filtered(loaded(), list, Live, {})
+    expect(found.items.map(item => item.id)).toEqual(['p1', 'p3'])
+    expect(found.complete).toBe(true)
+  })
+
+  it('is left to the server without it: nothing said, and not complete', () => {
+    const Bare = domain()
+    const list = Bare.query(ProjectsByOwner, { ownerId: 'u1' }, { select: Summary, first: 25 })
+    expect(Bare.filtered(loaded(), list, Live, {})).toEqual({ items: [], complete: false })
   })
 })

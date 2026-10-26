@@ -11,8 +11,10 @@ import {
   Entity as DomainEntity,
   Query as Relational,
   QueryEvaluateError,
+  Operators,
   ReadFilter,
   SelectionTypeId,
+  type MemoryOperators,
 } from 'foldkit-entity'
 import type * as Domain from 'foldkit-entity'
 import type { RpcClientError } from 'effect/rpc'
@@ -64,6 +66,7 @@ const explainedDependencies = (dependencies: Domain.Dependencies): ExplainedDepe
   fields: dependencies.fields.map(({ entity, key }) => ({ entity, key })),
   inputs: dependencies.inputs,
   operations: dependencies.operations,
+  operators: dependencies.operators.map(({ id, version }) => ({ id, version })),
 })
 import {
   inspectEntity,
@@ -907,11 +910,12 @@ const readContract = <Name extends string, Input, Value, Entity extends string>(
 const placeableReadContract = <Name extends string, Input>(
   contract: ReadContract<Name, Input>,
   body: Domain.AnyQuery | undefined,
+  operators: MemoryOperators,
 ): ReadContract<Name, Input> => {
   if (body === undefined) return contract
   const { requirement, ref } = contract
   const encoded = Schema.encodeSync(ref.Input)(ref.input) as Readonly<Record<string, unknown>>
-  if (Relational.placement(body, encoded)._tag !== 'Placeable') return contract
+  if (Relational.placement(body, encoded, { operators })._tag !== 'Placeable') return contract
   const missing = Relational.dependencies(body).fields.filter(
     field => !requirement.select.fields.includes(field.key),
   )
@@ -2113,8 +2117,18 @@ export const Remote = {
      * a collation that drifts should be found.
      */
     readonly verifyPlacement?: boolean | undefined
+    /**
+     * How the client runs a body's primitive operators when it judges rows it
+     * holds (`Operators`): the kernel's when not given. A body calling one this
+     * table lacks is judged by the server instead, as any row the client cannot
+     * judge is.
+     */
+    readonly operators?: MemoryOperators | undefined
   }): RemoteDomain<AppModel, Store, Entities, Queries, Mutations> =>
-    bindDomain(defineRemote(config), config.model, { verifyPlacement: config.verifyPlacement }),
+    bindDomain(defineRemote(config), config.model, {
+      verifyPlacement: config.verifyPlacement,
+      operators: config.operators,
+    }),
 
   /**
    * Declares a Remote domain without binding it: its entities, queries, and
@@ -2706,8 +2720,12 @@ const bindDomain = <
 >(
   definition: RemoteDescriptor<Entities, Queries, Mutations>,
   store: ModelRef<AppModel, Store>,
-  options: { readonly verifyPlacement?: boolean | undefined } = {},
+  options: {
+    readonly verifyPlacement?: boolean | undefined
+    readonly operators?: MemoryOperators | undefined
+  } = {},
 ): RemoteDomain<AppModel, Store, Entities, Queries, Mutations> => {
+  const operators = options.operators ?? Operators.kernel
   const bound = bindRemote(definition, store)
   // Every reader any `subscriptions` call names, and every connection one keeps:
   // retention is the domain's, so each call's retain entry roots them all, and
@@ -2758,6 +2776,7 @@ const bindDomain = <
       descriptor,
       encoded,
       entityKey(event.edge.ref.entity, event.edge.ref.id),
+      operators,
     )
     return decided === 'no' ? { prepend: 'ignore', append: 'ignore' } : declared
   }
@@ -2824,7 +2843,7 @@ const bindDomain = <
     for (const change of changes) {
       if (!holds.has(entityKey(change.entity, change.id))) continue
       placed = Impact.$match(
-        impactOn({ ...query.value, connection: placed, holds }, store, change),
+        impactOn({ ...query.value, connection: placed, holds }, store, change, operators),
         {
           Kept: () => placed,
           Placed: ({ connection }) => connection,
@@ -2903,7 +2922,7 @@ const bindDomain = <
       for (const edge of inserted.values()) {
         if (held.has(edge.key)) continue
         const key = entityKey(edge.ref.entity, edge.ref.id)
-        RowPlace.$match(placeIn(store, placed, body, query.value.encoded, key), {
+        RowPlace.$match(placeIn(store, placed, body, query.value.encoded, key, operators), {
           Before: place => void (placed = withEdge(placed, edge, place)),
           End: place => void (placed = withEdge(placed, edge, place)),
           Outside: () => void outside.push(edge),
@@ -3011,7 +3030,7 @@ const bindDomain = <
       let invalid = false
       for (const change of judged) {
         const held: HeldConnection = { ...query.value, connection: pages, holds }
-        const after = Impact.$match(impactOn(held, visible, change), {
+        const after = Impact.$match(impactOn(held, visible, change, operators), {
           Kept: () => Option.some(pages),
           Placed: ({ connection }) => Option.some(connection),
           Invalidated: () => Option.none<Connection>(),
@@ -3287,6 +3306,7 @@ const bindDomain = <
       const { ref, relation, requirement } = placeableReadContract(
         readContract(query.ref(input), select, window),
         query.body,
+        operators,
       )
       const relationKey = stableStringify(relation)
       // A read shows at most its window, whatever else loaded the connection:
@@ -3558,7 +3578,7 @@ const bindDomain = <
       const among = edges.map(edge => entityKey(edge.ref.entity, edge.ref.id))
       let judged: Judged
       try {
-        judged = matching(visible, by, input, { among })
+        judged = matching(visible, by, input, { among, operators })
       } catch (error) {
         // An input the reference interpreter refuses (a search holding NUL) is
         // one the server refuses too: nothing here can be said about the list.

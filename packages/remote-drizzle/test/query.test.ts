@@ -27,8 +27,8 @@ const ProjectsByOwner = Query.make('ProjectsByOwner', {
 const source = query(ProjectsByOwner, {
   entity: ProjectBinding,
   orderBy: [
-    { column: projects.createdAt, direction: 'desc' },
-    { column: projects.id, direction: 'desc' },
+    { key: projects.createdAt, direction: 'desc' },
+    { key: projects.id, direction: 'desc' },
   ],
   where: input => eq(projects.ownerId, input.ownerId),
 })
@@ -127,7 +127,7 @@ describe('RemoteDrizzle.query', () => {
 
   it('re-reads the cursor tuple and applies the keyset predicate', async () => {
     const { database, calls } = fakeDatabase([
-      [{ id: 'p2', created_at: 't2' }],
+      [{ key0: 't2', key1: 'p2' }],
       [
         { id: 'p3', created_at: 't3' },
         { id: 'p4', created_at: 't4' },
@@ -140,7 +140,7 @@ describe('RemoteDrizzle.query', () => {
     expect(page.start).toEqual({ _tag: 'Cursor', cursor: 'p2' })
     expect(page.end).toEqual({ _tag: 'Terminal' })
     expect(calls).toHaveLength(2)
-    expect(Object.keys(calls[0]!.selection)).toEqual(['created_at', 'id'])
+    expect(Object.keys(calls[0]!.selection)).toEqual(['key0', 'key1'])
     expect(calls[0]!.limit).toBe(1)
     expect(calls[1]!.limit).toBe(3)
 

@@ -1,11 +1,11 @@
 /**
  * What the client may read from the server: the products whose description
- * holds the search, in the order the list's sort names. Edits do not go this
- * way; they are the Sync document's.
+ * holds the search, or whose UPC begins with it, in the order the list's sort
+ * names. Edits do not go this way; they are the Sync document's.
  */
 import { Schema } from 'effect'
 import { Sort } from 'foldkit-crud'
-import { Expr, Order } from 'foldkit-entity'
+import { Expr, Order, Text } from 'foldkit-entity'
 import { Query } from 'foldkit-remote'
 import { Registry } from './domain.js'
 
@@ -16,10 +16,12 @@ const { fields } = Registry.Product
 
 /**
  * The body is the filter and the order, compiled by the server's Drizzle
- * binding: a search finds the text in a description or a UPC, folding case,
- * ASCII only, the same in SQLite and Postgres, and `sort` picks the column, or
- * none for the server's id order. The client reads the same body, so it knows
- * which edits can move a row.
+ * binding: a search finds the text anywhere in a description, folding case,
+ * ASCII only, the same in SQLite and Postgres; a UPC is typed from its start,
+ * so it is matched from its start (`Text.startsWith`, exactly, as the UPC's
+ * `binary` collation says), not by digits in its middle. `sort` picks the
+ * column, or none for the server's id order. The client reads the same body, so
+ * it knows which edits can move a row.
  */
 export const ProductsQuery = Query.define(
   'Products',
@@ -29,7 +31,7 @@ export const ProductsQuery = Query.define(
       Query.where(
         Expr.or(
           Expr.contains(fields.description, input.search),
-          Expr.contains(fields.upc, input.search),
+          Text.startsWith(fields.upc, input.search),
         ),
       ),
       Query.orderBy(

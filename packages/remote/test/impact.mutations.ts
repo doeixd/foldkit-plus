@@ -233,7 +233,7 @@ export default [
   },
   {
     name: 'a row a list does not hold is taken to belong',
-    edits: [{ file: impact, find: "held && !refilters ? 'yes'", replace: "!refilters ? 'yes'" }],
+    edits: [{ file: impact, find: 'held && !refilters', replace: '!refilters' }],
     tests,
   },
   {

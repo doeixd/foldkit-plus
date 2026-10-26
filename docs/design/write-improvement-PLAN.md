@@ -1,6 +1,7 @@
 # Declared writes: improvement plan
 
-**Status:** Plan, 2026-10-24. Nothing built. Follows a review of the work for
+**Status:** Plan, 2026-10-24; all five phases built, 2026-10-25, each with a
+**Built** note in §2 recording where it departed from the sketch. Follows a review of the work for
 #182 ([guard-atomic](./guard-atomic-DESIGN.md),
 [write-precondition](./write-precondition-DESIGN.md),
 [write-increment](./write-increment-DESIGN.md)) and amends those three designs

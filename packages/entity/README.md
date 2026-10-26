@@ -708,10 +708,11 @@ Query.placement(byName, {}) // { _tag: 'Placeable' }
   never by a client.
 
 A term overrides its field's: `Order.asc(field, { collation })`.
-`Query.placement(query, input)` says whether a client can order the rows exactly
-as the server does: every term over a number or a boolean (a row may lack it), or over text with a
-portable collation. A body with no order, text with none declared, or a locale
-is `NotPlaceable`, with the reason.
+`Query.placement(query, input, { operators })` says whether a client can order the rows exactly
+as the server does: every term over a number or a boolean (a row may lack it), over text with a
+portable collation, or a call whose primitive operators the client's table runs. A body with no
+order, text with none declared, a locale, or an operator the table lacks is `NotPlaceable`, with
+the reason.
 `foldkit-crud`'s `Sort.make(['title', 'id']).Schema` is such a sort.
 
 The list of predicates **is** the conjunction: a query wanting three
@@ -719,7 +720,7 @@ conditions writes three `where`s. `Expr.and` is for a conjunction inside
 something else, and `Expr.or` and `Expr.not` are the other two connectives:
 
 ```ts
-// A search over two fields: the registry finds a product by description or UPC.
+// A search over two fields: a product whose description or UPC holds the text.
 Expr.or(
   Expr.contains(Product.fields.description, input.search),
   Expr.contains(Product.fields.upc, input.search),
@@ -784,6 +785,125 @@ matters is that it refuses rather than skipping the operation — an interpreter
 that quietly drops a `contains` it cannot compile answers a different question
 in full confidence, and every test it does support still passes.
 
+### Naming a question: operators
+
+A predicate an application asks in many places (in a public query, a
+visitor's Read rule, an invariant) can be given a name. `Expr.operator`
+declares one by what a call of it means:
+
+```ts
+import { Schema } from 'effect'
+import { Entity, Expr, Query } from 'foldkit-entity'
+
+const Story = Entity.define(
+  'Story',
+  Schema.Struct({ id: Schema.String, publishedAt: Schema.NullOr(Schema.String) }),
+)
+
+const published = Expr.operator('acme.published', {
+  input: [Schema.Unknown],
+  output: Schema.Boolean,
+  definedAs: publishedAt => Expr.isNotNull(publishedAt),
+})
+
+const PublicStories = Query.from(Story).pipe(Query.where(published(Story.fields.publishedAt)))
+Query.show(PublicStories)
+// FROM Story
+// WHERE acme.published(Story.publishedAt)
+```
+
+- **It computes nothing of its own.** `definedAs` builds an expression from a
+  call's arguments, once per call, and every interpreter runs that expression
+  (`Expr.expanded` writes a predicate's calls out), so the operator needs no
+  SQL, no evaluator, and no support list. The SQL a body compiles to is the SQL
+  of the body written out by hand.
+- **What it adds is a name.** `Query.show` prints the call, and
+  `Query.dependencies(body).operators` lists each operator a body uses.
+- **It reads only its arguments.** A `definedAs` that closes over a field or an
+  input, instead of taking it, is refused when called: nothing asking what the
+  call reads (Guard's checks, Remote's matching) would see it.
+- **Arguments are checked by their stored form**, at compile time and when
+  called: a field, scalar or plain value of the input's stored type, or a
+  predicate where it takes a boolean. A boolean `output` makes a call a
+  predicate, usable in `and`, `or`, `not`, a guard or an invariant with no cast;
+  any other makes it a scalar of that type.
+- **Ids are namespaced** (`acme.published`), and `foldkit.` is reserved.
+  `version` (default 1) changes when what it means does; a call prints it after
+  the first (`acme.published@2(…)`).
+
+`foldkit-cms` declares one over its `published` role: `Cms.published(entity)`.
+
+### Operators each interpreter implements
+
+Without `definedAs`, an operator is **primitive**: it means what each
+interpreter's implementation does, and every implementation is held to the
+same statement of it. The kernel ships one, `Text.startsWith`; an application
+declares its own and implements it, here for the in-memory interpreter:
+
+```ts
+import { Schema } from 'effect'
+import { Collation, Entity, Expr, Operators, Query, Text, evaluate } from 'foldkit-entity'
+
+const Product = Entity.define(
+  'Product',
+  Schema.Struct({ id: Schema.String, upc: Schema.String, label: Schema.String }),
+).pipe(Entity.annotateMembers({ upc: Collation.of(Collation.binary) }))
+const search = Expr.input('search', Schema.String)
+
+// The UPC declares `binary`, so it compares exactly; the label declares nothing,
+// so this call is given a collation.
+const ByCode = Query.from(Product).pipe(Query.where(Text.startsWith(Product.fields.upc, search)))
+Text.startsWith(Product.fields.label, search, { collation: Collation.asciiFold })
+
+const joined = Expr.operator('acme.joined', {
+  input: [Schema.String, Schema.String],
+  output: Schema.String,
+  collation: 'operands',
+})
+const operators = Operators.merge(
+  Operators.kernel,
+  Operators.memory(Operators.implement(joined, (left, right) => `${left}${right}`)),
+)
+evaluate(ByCode, { search: '012' }, [{ id: 'p1', upc: '0123', label: 'Bolt' }], { operators })
+// [{ id: 'p1', upc: '0123', label: 'Bolt' }]
+```
+
+`startsWith` compares under its text's collation (`binary` exactly, `asciiFold`
+folding ASCII letters on both sides), is unknown when either side is null, and
+holds for the empty prefix; text with no collation, or a backend's locale, is
+refused where it is written.
+
+- **A table is a value.** `Operators.memory` refuses one operator implemented
+  twice, or two under one name; `merge` refuses an overlap, and `override`
+  replaces on purpose. `Operators.checked(table)` checks each answer against
+  the operator's output schema, for tests. Nothing registers globally:
+  `evaluate`, `decided`, `truthOver`, `Entity.judge`, `Entity.judgeInput` and
+  `Entity.check(entity, { operators })` each take the table, `Operators.kernel`
+  by default.
+- **Null is strict by default.** A null argument gives null (unknown for a
+  predicate) and the implementation never sees one. `nulls: 'handled'`
+  operators are implemented with `Operators.implementHandlingNulls` and answer
+  for null themselves; a predicate answers `null` for unknown.
+- **Text has a collation or no comparison.** `collation: 'operands'` makes a
+  text result carry the collation its text arguments share, so
+  `Expr.lt(joined(a, b), x)` compares under it; `'required'` (as
+  `startsWith`) refuses text with none. A call may be given one:
+  `op(a, b, { collation })`.
+- **A call orders when its result does.** `Order.asc(joined(Product.fields.upc, '!'))`
+  orders by the call's text under the collation it carries, and a call giving a
+  number orders as one; anything else, text with no collation included, is
+  refused where the term or `Order.chosen` alternative is written. `evaluate`
+  runs it per row by its table, and `compareRows(terms, a, b, query, { input,
+  operators })` compares two rows the same way.
+- **What a table lacks is refused by name.** `Query.unsupported(body,
+  supported, operators)` and `Expr.unsupported(nodes, { operations,
+  operators })` name each operation and operator missing; `evaluate` refuses
+  such a body. An invariant calling an operator its judge's table lacks is
+  `Undecided` with that operator in `operators`, which a form passes and a
+  server refuses to start without.
+- **NUL is refused** in any text argument, and an implementation that throws
+  is reported as a `QueryEvaluateError` naming its operator.
+
 ### Reading one back
 
 `Query.show(query)` renders a body as text, one clause per line:
@@ -843,14 +963,19 @@ from queries, not from what a database could express.
 | `Expr.not(predicate)` | The predicate does not hold; an unknown stays unknown, so a null matches neither side. |
 | `Expr.lt` / `lte` / `gt` / `gte(left, right, { collation? })` | One value orders before or after the other. Numbers as numbers; text only under `binary` or `asciiFold` (the field's declared collation, or the one given), and only against a field. |
 | `Expr.whenGiven(input, given => predicate)` | A filter applying only when a nullable input is given: `or(isNull(input), predicate)`, the predicate seeing the input as never null. |
+| `Expr.operator(id, { input, output, definedAs, version?, description? })` | An operator defined by what a call means; calling it builds a `Test` predicate (a boolean output) or a `Call` scalar, whose expansion every interpreter runs. |
+| `Expr.unsupported(nodes, { operations, operators })` | What these expressions need that an interpreter lacks: operations, then primitive operators by name. |
+| `Text.startsWith(text, prefix, { collation? })` | Whether text begins with a prefix, under its collation; the kernel's primitive operator. |
+| `Operators.memory(...)` / `implement` / `implementHandlingNulls` / `merge` / `override` / `checked` / `kernel` | Tables of in-memory implementations of primitive operators, passed to `evaluate` and every judge. |
+| `Expr.expanded(predicate)` | The predicate with every call of a defined operator written out as what it means, deeply; what an interpreter compiles. |
 | `Expr.field(field)` | One field of one Entity, as a scalar. |
 | `Expr.input(key, schema)` | A value the query is given when it runs, as a placeholder. |
 | `Expr.literal(value)` | A constant. Comparisons coerce one, so this is rarely written. |
 | `Order.asc(expr, { nulls? })` / `Order.desc(expr, { nulls? })` | One term of an ordering, over a field or a scalar. Rows without a value go last ascending and first descending unless `nulls` says otherwise; every interpreter is told, since databases disagree when it is unsaid. |
 | `Collation.binary` / `.asciiFold` / `.locale(name)` / `.of(collation)` | How a text field orders, as member metadata; see above. |
 | `ReadFilter.of(members)` / `.members(metadata)` | Entity metadata: the members a server filters rows by under a rule the client does not run (an authorization rule; `foldkit-guard` attaches it). A client placing rows in a list fetches the list instead when one changes. Annotations add up. |
-| `Query.placement(query, input)` | `Placeable`, or `NotPlaceable` with why: whether a client can order as the server does. |
-| `Order.chosen(sort, choices)` | The field an input's sort names (`{ by, direction }`, or `null` for none), among `choices`. |
+| `Query.placement(query, input, { operators })` | `Placeable`, or `NotPlaceable` with why: whether a client running `operators` can order as the server does. |
+| `Order.chosen(sort, choices)` | The field or call an input's sort names (`{ by, direction }`, or `null` for none), among `choices`. |
 | `dependenciesOf(...nodes)` | The distinct fields, inputs, and operations those expressions use. |
 | `Query.from(entity)` | Every row of an Entity: the query each step narrows. |
 | `Query.where(...predicates)` | Pipe step keeping the rows those hold for; conjoins with what is there. |

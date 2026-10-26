@@ -18,6 +18,7 @@ import { Effect, Schema } from 'effect'
 import type { Invariant } from 'foldkit-entity'
 import type { RemoteServerError } from 'foldkit-remote-server'
 import type { OrderTerm } from './cursor.js'
+import { operatorsFrom, type BindingOperators } from './operators.js'
 
 /** The Effect select schema Drizzle derives for a table. */
 type SelectSchema<Table extends DrizzleTable> = BuildSchema<
@@ -123,6 +124,13 @@ export interface EntityBinding<
    * from a table alone (`entity`).
    */
   readonly invariants: ReadonlyArray<Invariant>
+  /**
+   * How its expressions' primitive operators run: in SQL (queries, `when`,
+   * invariants, Read rules) and in memory (a predicate decided from the input
+   * alone, a write's miss explained, an insert judged). Both kernels unless
+   * given (`bind(…, { operators })`).
+   */
+  readonly operators: BindingOperators
 }
 
 /**
@@ -219,6 +227,8 @@ export const entity = <
     readonly computed?: Computed | undefined
     /** Which rows a principal may see at all. See `EntityBinding.visible`. */
     readonly visible?: Visible | undefined
+    /** How primitive operators run. See `EntityBinding.operators`. */
+    readonly operators?: Partial<BindingOperators> | undefined
   },
 ): EntityBinding<
   Name,
@@ -301,6 +311,7 @@ export const entity = <
     relations,
     computed,
     invariants: [],
+    operators: operatorsFrom(options?.operators),
     ...(options?.visible === undefined ? {} : { visible: options.visible }),
   } as unknown as EntityBinding<
     Name,

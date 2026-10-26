@@ -1,5 +1,15 @@
 # UI parity: shadcn/ui, Zag.js and Fluid Functionalism
 
+> **Status (2026-10-26):** partly built. Steps 2, 7 and 8 are done, and step
+> 3b is built as [`ui-systems-DESIGN.md`](./ui-systems-DESIGN.md) records.
+> Most of steps 4 to 6 ship in `foldkit-mixins-ui` (Accordion, Menubar,
+> Sidebar, Resizable, Command, Sheet, Drawer, Tags Input, Rating, Steps,
+> Carousel, Tree View, Color Picker, and the Progress, Meter, Nav and
+> VirtualList adapters), though the step list below marks none of them done.
+> Open: step 3's `/create` presets, and from step 6 a nested menu, a date
+> range and a range slider, for which no export was found. Icon libraries
+> wait on a bundling decision.
+
 What Foldkit Plus's UI packages (`foldkit-mixins-ui`, `foldkit-primitives`,
 `foldkit-mixins`) need so that an application can build everything those three
 libraries ship, with the customization `ui.shadcn.com/create` and

@@ -18,20 +18,16 @@ const edit = (name: string, find: string, replace: string, at = file) => ({
 export default [
   edit(
     'a null passes',
-    'truthOver(held.predicate, before ?? {}, {}, after) !== true',
-    'truthOver(held.predicate, before ?? {}, {}, after) === false',
+    'truthOver(held.predicate, before ?? {}, {}, after, operators) !== true',
+    'truthOver(held.predicate, before ?? {}, {}, after, operators) === false',
   ),
   edit(
     'the row after is read as the row before',
-    'truthOver(held.predicate, before ?? {}, {}, after) !== true',
-    'truthOver(held.predicate, before ?? {}, {}, before ?? {}) !== true',
+    'truthOver(held.predicate, before ?? {}, {}, after, operators) !== true',
+    'truthOver(held.predicate, before ?? {}, {}, before ?? {}, operators) !== true',
   ),
   edit('a missing field is judged', 'if (absent.length > 0) absent', 'if (false) absent'),
-  edit(
-    'undecided reads as valid',
-    "if (missing.size > 0) return { _tag: 'Undecided'",
-    "if (false) return { _tag: 'Undecided'",
-  ),
+  edit('undecided reads as valid', 'if (missing.size > 0 || unrun.size > 0) {', 'if (false) {'),
   edit(
     'a create judges a transition invariant',
     'if (readsBefore(held) && before === undefined) continue',
@@ -103,15 +99,19 @@ export default [
   ),
   ...[
     ['Eq', 'left: substitutedSide(predicate.left, rewrite),', 'left: predicate.left,'],
-    ['Null', 'operand: rewrite(predicate.operand) })', 'operand: predicate.operand })'],
+    [
+      'Null',
+      'operand: substitutedScalar(predicate.operand, rewrite) })',
+      'operand: predicate.operand })',
+    ],
     [
       'Contains',
-      'value: rewrite(predicate.value),\n        search:',
+      'value: substitutedScalar(predicate.value, rewrite),\n        search:',
       'value: predicate.value,\n        search:',
     ],
     [
       'In',
-      'value: rewrite(predicate.value),\n        among:',
+      'value: substitutedScalar(predicate.value, rewrite),\n        among:',
       'value: predicate.value,\n        among:',
     ],
     [
@@ -120,7 +120,7 @@ export default [
       'operands: predicate.operands,',
     ],
     ['Not', 'operand: substituted(predicate.operand, rewrite) })', 'operand: predicate.operand })'],
-    ['Compare', 'left: rewrite(predicate.left),', 'left: predicate.left,'],
+    ['Compare', 'left: substitutedScalar(predicate.left, rewrite),', 'left: predicate.left,'],
   ].map(([what, find, replace]) =>
     edit(`${what} is not substituted`, find!, replace!, '../src/expr.ts'),
   ),

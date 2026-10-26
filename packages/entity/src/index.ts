@@ -1040,6 +1040,8 @@ export const Derived = {
 
 export * from './expr.js'
 export * from './collation.js'
+export * from './operators.js'
+export * from './text.js'
 export * from './readFilter.js'
 export * from './words.js'
 export * from './shape.js'
@@ -1062,6 +1064,7 @@ export {
   type BoundWrite,
   type ConditionedWrite,
   type WriteCondition,
+  type WriteIncrement,
   type WriteLink,
   type WriteSet,
 } from './write.js'

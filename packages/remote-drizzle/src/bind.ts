@@ -8,6 +8,7 @@
  */
 import type { AnyColumn, SQL, Table as DrizzleTable } from 'drizzle-orm'
 import { getTableColumns } from 'drizzle-orm'
+import { operatorsFrom, type BindingOperators } from './operators.js'
 import { Schema, SchemaAST } from 'effect'
 import { SchemaShape } from 'foldkit-entity'
 import * as Domain from 'foldkit-entity'
@@ -240,6 +241,14 @@ const oneColumn = (
 export const bind = <const Es extends Domain.Entities, const S extends Storage<Es>>(
   entities: Es,
   storage: S & Storage<Es>,
+  options: {
+    /**
+     * How every binding's expressions run primitive operators, in SQL and in
+     * memory; each kernel's when not given. One table for the whole domain, so
+     * a query, a rule and an invariant over one operator run it alike.
+     */
+    readonly operators?: Partial<BindingOperators> | undefined
+  } = {},
 ): {
   readonly [K in keyof Es]: EntityBinding<
     Es[K]['name'],
@@ -249,6 +258,7 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
   >
 } => {
   const bindings: Record<string, EntityBinding<string, DrizzleTable>> = {}
+  const operators = operatorsFrom(options.operators)
   const tables = storage as unknown as Readonly<Record<string, LooseStorage | undefined>>
   const keyOf = (target: Domain.AnyEntity, owner: string, relation: string): string =>
     Object.keys(entities).find(key => target.identity.token === entities[key]!.identity.token) ??
@@ -363,6 +373,7 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
       relations,
       computed,
       invariants: Domain.Entity.invariants(entity),
+      operators,
       ...(config.visible === undefined ? {} : { visible: config.visible }),
     } as unknown as EntityBinding<string, DrizzleTable>
   }

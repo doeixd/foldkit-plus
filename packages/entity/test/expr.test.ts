@@ -142,7 +142,7 @@ describe('Order.chosen orders by the field the input names', () => {
     ).toThrow(/reads Author\.name, but the query is from Post/)
   })
 
-  it('refuses a choice that is not a field', () => {
+  it('refuses a choice that is neither a field nor a call', () => {
     expect(() =>
       Order.chosen(
         Expr.input(
@@ -158,7 +158,7 @@ describe('Order.chosen orders by the field the input names', () => {
           x: Expr.literal(1),
         },
       ),
-    ).toThrow(/"x" is not a field/)
+    ).toThrow(/"x" is neither a field nor a call/)
   })
 })
 
@@ -171,6 +171,7 @@ describe('dependenciesOf says what an expression reads', () => {
       inputs: ['title'],
       next: [],
       operations: ['eq'],
+      operators: [],
     })
   })
 
@@ -204,12 +205,13 @@ describe('dependenciesOf says what an expression reads', () => {
       inputs: [],
       next: [],
       operations: ['eq'],
+      operators: [],
     })
   })
 
   it('is the bySlug body of the CMS, which is what this kernel was sized to', () => {
     // packages/cms-drizzle/src/index.ts — `where: input => eq(column, input.slug)`
-    // with `orderBy: [{ column: id, direction: 'asc' }]`.
+    // with `orderBy: [{ key: id, direction: 'asc' }]`.
     const where: Predicate = Expr.eq(Post.fields.title, Expr.input('slug', Schema.String))
     const order = [Order.asc(Post.fields.id)]
 
@@ -221,6 +223,7 @@ describe('dependenciesOf says what an expression reads', () => {
       inputs: ['slug'],
       next: [],
       operations: ['eq'],
+      operators: [],
     })
   })
 })
@@ -302,6 +305,7 @@ describe('Query composes which rows, as data', () => {
       inputs: ['title'],
       next: [],
       operations: ['eq'],
+      operators: [],
       predicate: [title],
       order: [id],
     })
@@ -377,6 +381,7 @@ describe('The operations the CMS worklist needs', () => {
       inputs: ['type', 'archived', 'search'],
       next: [],
       operations: ['eq', 'isNotNull', 'contains'],
+      operators: [],
     })
   })
 
@@ -538,6 +543,7 @@ describe('and, or and not', () => {
       inputs: [],
       next: [],
       operations: ['or', 'eq', 'not', 'and', 'isNull'],
+      operators: [],
     })
   })
 
@@ -622,6 +628,7 @@ describe('comparisons', () => {
       inputs: ['n'],
       next: [],
       operations: ['compare'],
+      operators: [],
     })
   })
 

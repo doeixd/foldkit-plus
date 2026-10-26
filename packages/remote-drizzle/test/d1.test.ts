@@ -57,7 +57,7 @@ const ProjectBinding = entity('Project', projects, {
     comments: many(CommentBinding, {
       foreignKey: comments.projectId,
       localKey: projects.id,
-      orderBy: [{ column: comments.createdAt, direction: 'asc' }],
+      orderBy: [{ key: comments.createdAt, direction: 'asc' }],
     }),
   },
   computed: { commentCount: { relation: 'comments' } },
@@ -181,7 +181,7 @@ describe('RemoteDrizzle over D1', () => {
   it('pages a keyset query forward and backward over D1 rows', async () => {
     const byCreated = query(Projects, {
       entity: ProjectBinding,
-      orderBy: [{ column: projects.createdAt, direction: 'asc' }],
+      orderBy: [{ key: projects.createdAt, direction: 'asc' }],
     })
     const run = (window: Parameters<typeof byCreated.run>[0]['window']) =>
       Effect.runPromise(
@@ -265,7 +265,7 @@ describe('A declared write over D1', () => {
   })
   const Amount = Entity.input(
     Item,
-    Schema.Struct({ id: Schema.String, revision: Schema.Number, quantity: Schema.Number }),
+    Schema.Struct({ id: Schema.String, revision: Schema.Number, quantity: Schema.Int }),
     { quantity: Entity.unmapped },
   )
   // Takes from the stock only while some is left: the precondition reads the row the sum moves.
@@ -281,7 +281,7 @@ describe('A declared write over D1', () => {
   const Take = Mutation.write(
     'Take',
     Write.update(
-      Entity.input(Item, Schema.Struct({ id: Schema.String, quantity: Schema.Number }), {
+      Entity.input(Item, Schema.Struct({ id: Schema.String, quantity: Schema.Int }), {
         quantity: Entity.unmapped,
       }),
       { id: 'id', increment: { stock: 'quantity' } },
@@ -350,7 +350,7 @@ describe('A declared write over D1', () => {
       Write.update(
         Entity.input(
           Guarded,
-          Schema.Struct({ id: Schema.String, revision: Schema.Number, quantity: Schema.Number }),
+          Schema.Struct({ id: Schema.String, revision: Schema.Number, quantity: Schema.Int }),
           { quantity: Entity.unmapped },
         ),
         { id: 'id', expect: 'revision', increment: { stock: 'quantity' } },

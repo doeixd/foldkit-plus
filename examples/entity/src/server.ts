@@ -49,7 +49,7 @@ export const Db = bind(Blog, {
       editor: { field: posts.editorId },
       comments: {
         foreignKey: comments.postId,
-        orderBy: [{ column: comments.createdAt, direction: 'asc' }],
+        orderBy: [{ key: comments.createdAt, direction: 'asc' }],
       },
     },
     derived: { commentCount: { relation: 'comments' } },

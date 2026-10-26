@@ -5,12 +5,14 @@
  * by id, as a ref's target and through a query, over real SQLite.
  */
 import { DatabaseSync } from 'node:sqlite'
+import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Option, Schema } from 'effect'
-import { Entity, Expr, Relation } from 'foldkit-entity'
+import { Entity, Expr, Operators, Relation } from 'foldkit-entity'
 import { Query, REMOTE_PROTOCOL_VERSION, Remote } from 'foldkit-remote'
 import {
+  DrizzleOperators,
   bind,
   databaseLayer,
   query,
@@ -149,7 +151,7 @@ const AllTodos = Query.make('AllTodos', {
   Input: Schema.Struct({}),
   Result: Query.connection({ name: 'Todo' }),
 })
-const orderBy = [{ column: todos.id, direction: 'asc' as const }]
+const orderBy = [{ key: todos.id, direction: 'asc' as const }]
 const listed = query<Option.Option<User>, {}>(AllTodos, { entity: Db.Todo, orderBy })
 const list = async (principal: Option.Option<User>) => {
   const { sqlite, database } = setup()
@@ -327,5 +329,49 @@ describe('GuardServer.validate over Drizzle', () => {
         }),
       ),
     ).toThrow("Todo's Source does not apply its members' Read rules")
+  })
+})
+
+describe('GuardDrizzle.visible over a rule calling a primitive operator', () => {
+  const short = Expr.operator('acme.short', { input: [Schema.String], output: Schema.Boolean })
+  const operators = {
+    memory: Operators.memory(Operators.implement(short, name => name.length < 5)),
+    sql: DrizzleOperators.make(
+      DrizzleOperators.implement(short, ({ args: [name] }) => sql`length(${name}) < 5`),
+    ),
+  }
+  const items = sqliteTable('items', { id: text('id').primaryKey(), name: text('name').notNull() })
+  const PlainFields = Entity.define(
+    'Plain',
+    Schema.Struct({ id: Schema.String, name: Schema.String }),
+  )
+  const P = Guards.declare(
+    'Plains',
+    User,
+    guard => ({ isShort: guard.row(PlainFields, () => short(PlainFields.fields.name)) }),
+    { key: user => user.id, unguarded: 'allow' },
+  )
+  const Plain = PlainFields.pipe(Guards.attach(P, { row: { Read: [P.isShort] } }))
+  const policy = P.implement({}, { operators: operators.memory })
+
+  it('is refused at startup when its SQL table does not run the operator', () => {
+    expect(() => GuardDrizzle.visible(policy, [Plain])).toThrow(
+      "Plain's isShort needs acme.short, which SQL here does not run",
+    )
+  })
+
+  it('compiles by the binding’s table, so the database reads only the rows it allows', async () => {
+    const visible = GuardDrizzle.visible(policy, [Plain], { operators: operators.sql })
+    const Db = bind({ Plain }, { Plain: { table: items, visible: visible.Plain } }, { operators })
+    const sqlite = new DatabaseSync(':memory:')
+    sqlite.exec('create table items (id text primary key, name text not null)')
+    sqlite.exec("insert into items values ('x1', 'Bolt'), ('x2', 'Bolt cutter')")
+    const read = await Effect.runPromise(
+      source<Option.Option<User>>(Db.Plain)
+        .read({ ids: ['x1', 'x2'], fields: ['name'], principal: Option.none() })
+        .pipe(Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
+    )
+    expect(read.map(row => row.id)).toEqual(['x1'])
+    sqlite.close()
   })
 })

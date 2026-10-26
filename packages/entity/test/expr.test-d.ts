@@ -15,6 +15,9 @@ import {
   dependenciesOf,
   type WriteCondition,
   type AndPredicate,
+  type CallExpr,
+  type Expr as ExprOf,
+  type TestPredicate,
   type ComparePredicate,
   type EqPredicate,
   type InPredicate,
@@ -268,3 +271,33 @@ Write.update(Rerank, { id: 'id', expect: 'rank', increment: { rank: 'by' } })
 Write.update(Rerank, { id: 'id', expect: 'rank', increment: { title: 'by' } })
 // @ts-expect-error the note is text, so no amount
 Write.update(Rerank, { id: 'id', expect: 'rank', increment: { rank: 'note' } })
+
+// An operator's call types as its result and reads what its arguments read.
+const isX = Expr.operator('acme.isX', {
+  input: [Schema.String],
+  output: Schema.Boolean,
+  definedAs: title => {
+    // Each argument reaches the body as a node of the input's stored type.
+    expectTypeOf(title).toExtend<ExprOf<string>>()
+    return Expr.eq(title, 'x')
+  },
+})
+expectTypeOf(isX(Post.fields.title)).toExtend<TestPredicate & Reads<'Post'>>()
+// A boolean result is a predicate, with no cast.
+Expr.and(isX(Post.fields.title), Expr.eq(Post.fields.published, true))
+Query.from(Post).pipe(Query.where(isX(Post.fields.title)))
+// @ts-expect-error a boolean field is not stored as text
+isX(Post.fields.published)
+// @ts-expect-error it takes one argument
+isX(Post.fields.title, 'more')
+
+const sameTitle = Expr.operator('acme.sameTitle', {
+  input: [Schema.String],
+  output: Schema.String,
+  definedAs: title => title,
+})
+expectTypeOf(sameTitle(Post.fields.title)).toExtend<CallExpr<string>>()
+// A scalar result compares as its type does.
+Expr.eq(sameTitle(Post.fields.title), 'x')
+// @ts-expect-error a string result is not compared with a number
+Expr.eq(sameTitle(Post.fields.title), 3)

@@ -715,6 +715,7 @@ because SQL is what the compiling interpreter runs.
 | `eq(a, b)` | the two values are the same | either side is null, *including both* | `null = null` is unknown, not true. JavaScript would disagree. |
 | `isNull(x)` / `isNotNull(x)` | whether a value is absent | never | The one comparison that always has an answer. One node, with the answer absence gives flipped, so nothing has to negate a predicate. |
 | `contains(x, s)` | `x` holds `s` anywhere within it | either side is null | **Case-insensitive, ASCII folding.** Containing the empty string is everything, so an empty search box is the same query as a full one — but over a nullable column that is not the same as no filter, since a null contains nothing. |
+| `Text.startsWith(x, p)` | `x` begins with `p`, by character | either side is null | A primitive operator (expr-operations-DESIGN §6.2). **Under `x`'s collation**, `binary` or `asciiFold`, never folding by default as `contains` does; text with none, or a locale, is refused where written. The empty prefix holds for every non-null `x`; `%` and `_` are characters, never wildcards. |
 | `asc(f)` / `desc(f)` | read in this order | — | A field only. **Ordering by a column that is null in some row is refused**, not guessed, and **how text compares is the backend's** — see below. |
 
 Two consequences worth stating plainly, because both surprised the

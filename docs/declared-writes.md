@@ -175,7 +175,7 @@ const Restock = Mutation.write(
   Write.update(
     Entity.input(
       Product,
-      Schema.Struct({ id: Schema.String, revision: Schema.Number, quantity: Schema.Number }),
+      Schema.Struct({ id: Schema.String, revision: Schema.Number, quantity: Schema.Int }),
       { quantity: Entity.unmapped },
     ),
     { id: 'id', expect: 'revision', increment: { stock: 'quantity' } },
@@ -201,7 +201,7 @@ two protections, and `RemoteServer.write` refuses one with neither:
 const Sell = Mutation.write(
   'Sell',
   Write.update(
-    Entity.input(Product, Schema.Struct({ id: Schema.String, quantity: Schema.Number }), {
+    Entity.input(Product, Schema.Struct({ id: Schema.String, quantity: Schema.Int }), {
       quantity: Entity.unmapped,
     }),
     { id: 'id', increment: { stock: 'quantity' } },

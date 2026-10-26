@@ -1,4 +1,6 @@
+import { sql } from 'drizzle-orm'
 import { integer, pgTable, PgDialect, text } from 'drizzle-orm/pg-core'
+import { Collation } from 'foldkit-entity'
 import { describe, expect, it } from 'vitest'
 import { cursorSelection, keysetWhere, type OrderTerm } from '../src/index.js'
 
@@ -17,13 +19,35 @@ const render = (
 const normalized = (predicate: ReturnType<typeof render>) => predicate.sql.replace(/\s+/g, ' ')
 
 describe('keysetWhere', () => {
+  it('compares an expression key as written, its value bound as is', () => {
+    const predicate = render(
+      [{ key: sql`abs(${events.rank} - 5)`, direction: 'asc' }],
+      [2],
+      'forward',
+    )
+    expect(normalized(predicate)).toBe(
+      '((abs("events"."rank" - 5) > $1) or ((abs("events"."rank" - 5) is null)))',
+    )
+    expect(predicate.params).toEqual([2])
+  })
+
+  it('refuses a collation beside an expression key, which says its own', () => {
+    expect(() =>
+      render(
+        [{ key: sql`lower(${events.id})`, direction: 'asc', collation: Collation.binary }],
+        ['x'],
+        'forward',
+      ),
+    ).toThrow('says its collation in its own SQL')
+  })
+
   it.each([
     ['asc', 'forward', '>'],
     ['desc', 'forward', '<'],
     ['asc', 'backward', '<'],
     ['desc', 'backward', '>'],
   ] as const)('single %s %s compares with %s', (direction, traversal, comparator) => {
-    const predicate = render([{ column: events.id, direction }], ['e1'], traversal)
+    const predicate = render([{ key: events.id, direction }], ['e1'], traversal)
 
     expect(normalized(predicate)).toContain(`"events"."id" ${comparator} $1`)
     expect(predicate.params).toEqual(['e1'])
@@ -39,7 +63,7 @@ describe('keysetWhere', () => {
     ['desc', 'backward', null, ['false'], [], []],
     ['desc', 'backward', 'v', ['> $1', 'is null'], [], ['v']],
   ] as const)('handles nulls: %s %s %s', (direction, traversal, value, present, absent, params) => {
-    const predicate = render([{ column: events.id, direction }], [value], traversal)
+    const predicate = render([{ key: events.id, direction }], [value], traversal)
     const sql = normalized(predicate)
     for (const part of present) expect(sql).toContain(part)
     for (const part of absent) expect(sql).not.toContain(part)
@@ -49,8 +73,8 @@ describe('keysetWhere', () => {
   it('uses IS NULL for a null equality in a multi-column order', () => {
     const predicate = render(
       [
-        { column: events.createdAt, direction: 'desc' },
-        { column: events.id, direction: 'asc' },
+        { key: events.createdAt, direction: 'desc' },
+        { key: events.id, direction: 'asc' },
       ],
       [null, 'e1'],
       'forward',
@@ -65,9 +89,9 @@ describe('keysetWhere', () => {
 
   it('builds lexicographic branches for a multi-column order', () => {
     const terms: readonly [OrderTerm, ...OrderTerm[]] = [
-      { column: events.createdAt, direction: 'desc' },
-      { column: events.id, direction: 'desc' },
-      { column: events.rank, direction: 'asc' },
+      { key: events.createdAt, direction: 'desc' },
+      { key: events.id, direction: 'desc' },
+      { key: events.rank, direction: 'asc' },
     ]
     const predicate = render(terms, ['t1', 'e1', 7], 'forward')
     const sql = normalized(predicate)
@@ -83,8 +107,8 @@ describe('keysetWhere', () => {
 
   it('flips every comparator for a backward traversal', () => {
     const terms: readonly [OrderTerm, ...OrderTerm[]] = [
-      { column: events.createdAt, direction: 'desc' },
-      { column: events.id, direction: 'asc' },
+      { key: events.createdAt, direction: 'desc' },
+      { key: events.id, direction: 'asc' },
     ]
     const predicate = render(terms, ['t1', 'e1'], 'backward')
     const sql = normalized(predicate)
@@ -98,12 +122,12 @@ describe('keysetWhere', () => {
     expect(keysetWhere([], [], 'forward')).toBeUndefined()
   })
 
-  it('reads the ordering columns to reconstruct a cursor tuple', () => {
+  it("selects each term's key under an alias of its own", () => {
     expect(
       cursorSelection([
-        { column: events.createdAt, direction: 'desc' },
-        { column: events.id, direction: 'asc' },
+        { key: events.createdAt, direction: 'desc' },
+        { key: events.id, direction: 'asc' },
       ]),
-    ).toEqual({ created_at: events.createdAt, id: events.id })
+    ).toEqual({ key0: events.createdAt, key1: events.id })
   })
 })

@@ -101,6 +101,18 @@ a startup check deciding what the write can disclose.
   is not stored as a number, and is refused where the write is declared, as is
   `Schema.optional` (which allows `undefined`). A `Schema.optionalKey` amount
   the input leaves out adds nothing.
+- An integer field takes an integer amount (added 2026-10-26). A field whose
+  stored form carries `Schema.isInt`, alone or in a group such as `isInt32`, is
+  refused where the write is declared unless its amount does too. Without this,
+  a fractional amount split the databases: Postgres refused `2 + 0.5` into an
+  `integer` column, and SQLite stored `2.5` in it (expr-operations-DESIGN §17,
+  probe 5). The Entity reads its schemas; the column is the writer's: the
+  Drizzle `writer` refuses, through `EntityWriter.refuses` where
+  `RemoteServer.write` registers the write, an amount not held to an integer for
+  a column that holds integers (Drizzle's `number int…` and `number uint…`
+  data types), even under a field declared `Schema.Number`. Each increment
+  records whether its amount is an integer (`WriteIncrement.integer`), decided
+  once where the write is declared.
 - `keys` narrows increments as it narrows values: an increment of a key the
   author did not name is not applied.
 

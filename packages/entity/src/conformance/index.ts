@@ -21,7 +21,7 @@
  * different things.
  */
 import { Schema, SchemaGetter } from 'effect'
-import { Collation, Entity, Expr, Order, Query, type AnyQuery } from '../index.js'
+import { Collation, Entity, Expr, Order, Query, Text, type AnyQuery } from '../index.js'
 
 /**
  * A `Date` on the way in, an ISO string on the wire — the one fixture whose
@@ -115,6 +115,17 @@ const sort = Expr.input(
     Schema.Struct({ by: Schema.Literals(['rank']), direction: Schema.Literals(['asc', 'desc']) }),
   ),
 )
+/** Defined operators: an interpreter runs what each means, and needs nothing of its own. */
+const tagged = Expr.operator('conformance.tagged', {
+  input: [Schema.Unknown],
+  output: Schema.Boolean,
+  definedAs: value => Expr.isNotNull(value),
+})
+const rankOf = Expr.operator('conformance.rankOf', {
+  input: [Schema.Number],
+  output: Schema.Number,
+  definedAs: rank => rank,
+})
 const chosen = Query.orderBy(
   Order.chosen(sort, { rank: Subject.fields.rank }),
   Order.asc(Subject.fields.id),
@@ -585,6 +596,94 @@ export const cases: ReadonlyArray<ConformanceCase> = [
   // the database was created with — and §6.0.1 puts it outside the conformant
   // subset rather than pretending one of them is the rule. A case asserting an
   // order would only pin whichever engine was written first.
+
+  // ---- defined operators -----------------------------------------------------
+  {
+    what: 'a defined operator matches the rows what it means does',
+    body: from.pipe(Query.where(tagged(Subject.fields.tag)), byId),
+    input: {},
+    expected: ['b', 'd', 'e'],
+  },
+  {
+    what: 'a defined operator under not is the negation of what it means',
+    body: from.pipe(Query.where(Expr.not(tagged(Subject.fields.tag))), byId),
+    input: {},
+    expected: ['a', 'c'],
+  },
+  {
+    what: 'a defined operator over an input only is decided by the request',
+    body: from.pipe(Query.where(Expr.or(tagged(maybeTag), Expr.eq(Subject.fields.rank, 3))), byId),
+    input: { maybeTag: null },
+    expected: ['c', 'd'],
+  },
+  {
+    what: 'a defined scalar operator compares as what it means',
+    body: from.pipe(Query.where(Expr.eq(rankOf(Subject.fields.rank), 3)), byId),
+    input: {},
+    expected: ['c', 'd'],
+  },
+]
+
+const prefix = Expr.input('prefix', Schema.NullOr(Schema.String))
+const asciiFold = { collation: Collation.asciiFold }
+
+/**
+ * Bodies calling the kernel's primitive operators (`Text.startsWith`). An
+ * interpreter runs these once it implements them: the in-memory one through
+ * `Operators.kernel`, a compiler through its own table.
+ */
+export const primitiveCases: ReadonlyArray<ConformanceCase> = [
+  {
+    what: 'startsWith under binary is exact about case',
+    body: from.pipe(Query.where(Text.startsWith(Subject.fields.label, 'In', binary)), byId),
+    input: {},
+    expected: ['a'],
+  },
+  {
+    what: 'startsWith under asciiFold folds ASCII case on both sides',
+    body: from.pipe(Query.where(Text.startsWith(Subject.fields.label, 'IN', asciiFold)), byId),
+    input: {},
+    expected: ['a', 'b'],
+  },
+  {
+    what: 'startsWith the empty prefix holds for every row with text',
+    body: from.pipe(Query.where(Text.startsWith(Subject.fields.label, prefix, binary)), byId),
+    input: { prefix: '' },
+    expected: ['a', 'b', 'c', 'd', 'e'],
+  },
+  {
+    what: 'startsWith over null text is unknown, so its rows are not matched',
+    body: from.pipe(Query.where(Text.startsWith(Subject.fields.tag, '', binary)), byId),
+    input: {},
+    expected: ['b', 'd', 'e'],
+  },
+  {
+    what: 'startsWith a null prefix is unknown for every row',
+    body: from.pipe(Query.where(Text.startsWith(Subject.fields.label, prefix, binary)), byId),
+    input: { prefix: null },
+    expected: [],
+  },
+  {
+    what: 'startsWith reads % and _ as characters, never as like wildcards',
+    body: from.pipe(
+      Query.where(
+        Expr.or(
+          Text.startsWith(Subject.fields.label, '100%', binary),
+          Text.startsWith(Subject.fields.label, 'sn_', binary),
+          Text.startsWith(Subject.fields.label, 'O%', binary),
+        ),
+      ),
+      byId,
+    ),
+    input: {},
+    expected: ['d'],
+  },
+  {
+    what: 'startsWith under not keeps a null unknown',
+    body: from.pipe(Query.where(Expr.not(Text.startsWith(Subject.fields.tag, 'x', binary))), byId),
+    input: {},
+    expected: ['e'],
+  },
 ]
 
 /**
@@ -619,5 +718,14 @@ export const refusals: ReadonlyArray<ConformanceRefusal> = [
     what: 'contains refuses searched text holding NUL',
     body: from.pipe(Query.where(Expr.contains(text, label)), byId),
     input: { text: `a${NUL}b`, label: 'b' },
+  },
+]
+
+/** As `refusals`, for bodies calling the kernel's primitive operators. */
+export const primitiveRefusals: ReadonlyArray<ConformanceRefusal> = [
+  {
+    what: 'startsWith refuses a prefix holding NUL',
+    body: from.pipe(Query.where(Text.startsWith(Subject.fields.label, prefix, binary)), byId),
+    input: { prefix: `In${NUL}` },
   },
 ]

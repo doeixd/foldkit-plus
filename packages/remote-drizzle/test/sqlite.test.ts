@@ -56,7 +56,7 @@ const ProjectBinding = entity('Project', projects, {
     comments: many(CommentBinding, {
       foreignKey: comments.projectId,
       localKey: projects.id,
-      orderBy: [{ column: comments.createdAt, direction: 'asc' }],
+      orderBy: [{ key: comments.createdAt, direction: 'asc' }],
     }),
   },
   computed: { commentCount: { relation: 'comments' } },
@@ -279,7 +279,7 @@ describe('RemoteDrizzle against in-process SQLite', () => {
     try {
       const source_ = query(Projects, {
         entity: ProjectBinding,
-        orderBy: [{ column: projects.createdAt, direction: 'asc' }],
+        orderBy: [{ key: projects.createdAt, direction: 'asc' }],
       })
       const run = (window: Parameters<typeof source_.run>[0]['window']) =>
         Effect.runPromise(
@@ -306,9 +306,9 @@ describe('a query ordered by its input', () => {
     entity: ProjectBinding,
     orderBy: ({ by }) =>
       by === 'name-desc'
-        ? [{ column: projects.name, direction: 'desc' }]
+        ? [{ key: projects.name, direction: 'desc' }]
         : by === 'created'
-          ? [{ column: projects.createdAt, direction: 'asc' }]
+          ? [{ key: projects.createdAt, direction: 'asc' }]
           : [],
   })
   const ids = async (
@@ -356,7 +356,7 @@ describe('sortTerms', () => {
 
   it('reads the order a client asked for through the columns the server offers', () => {
     expect(sortTerms({ by: 'name', direction: 'desc' }, columns)).toEqual([
-      { column: projects.name, direction: 'desc' },
+      { key: projects.name, direction: 'desc' },
     ])
   })
 

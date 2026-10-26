@@ -99,7 +99,9 @@ const G = Guards.declare(
   { key: user => user.id, unguarded: 'deny' },
 )
 
-// Server: the body of every principal guard, and nothing else.
+// Server: the body of every principal guard, and nothing else. A row guard
+// calling a primitive operator runs it by the table given as a second argument,
+// `G.implement(bodies, { operators })`; `Operators.kernel` when not given.
 const Policy = G.implement({
   isAdmin: principal => Option.exists(principal, user => user.role === 'admin'),
 })
@@ -221,7 +223,7 @@ const readable = Effect.runSync(Policy.readable(Todo, ada))
 // isAdmin was false, so: isOwner or inProject, over each row
 
 const t1 = { id: 't1', ownerId: 'ada', projectId: 'p9', title: 'Write the README' }
-Condition.holds(readable, t1, Policy.inputOf(ada), () => false)
+Condition.holds(readable, t1, Policy.inputOf(ada), () => false, Policy.operators)
 // true
 ```
 
@@ -316,6 +318,10 @@ const TodoSource = source(Db.Todo, { filter: GuardServer.filter(Todo, Policy) })
   is not fails its first read, which is when the binding is first known.
 - The principal reaches a binding untyped, so it is checked: one that is not
   an `Option` of the set's schema is a defect, never read as a visitor.
+- A rule calling a primitive operator compiles by the SQL table `bind` is
+  given, and is checked when built against the one passed here
+  (`GuardDrizzle.visible(Policy, [Todo], { operators })`, the kernel when not
+  given), since `visible` is built before `bind`.
 - `visible` is the row's Read. Member and relation Reads are the Source's
   `filter`, as `TodoSource` has it.
 

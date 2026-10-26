@@ -4,7 +4,7 @@
  * bodies, row guards left as a condition over the row for an interpreter.
  */
 import { Effect, Option, Schema } from 'effect'
-import { Entity, Expr, Relation, type AnyEntity } from 'foldkit-entity'
+import { Entity, Expr, Operators, Relation, type AnyEntity } from 'foldkit-entity'
 import { describe, expect, it } from 'vitest'
 import { Condition, Guards, Interaction } from '../src/index.js'
 
@@ -77,7 +77,9 @@ const readable = (entity: AnyEntity, user: Option.Option<User>) =>
 const rowsFor = (user: Option.Option<User>, entity = Todo) => {
   const condition = readable(entity, user)
   return [own, shared, other]
-    .filter(row => Condition.holds(condition, row, Policy.inputOf(user), () => false))
+    .filter(row =>
+      Condition.holds(condition, row, Policy.inputOf(user), () => false, Policy.operators),
+    )
     .map(row => row.id)
 }
 
@@ -148,7 +150,15 @@ describe('Policy.readable', () => {
     const condition = Effect.runSync(Opened.readable(Shared, Option.none()))
     expect(
       [own, shared, other]
-        .filter(row => Condition.holds(condition, row, Opened.inputOf(Option.none()), () => false))
+        .filter(row =>
+          Condition.holds(
+            condition,
+            row,
+            Opened.inputOf(Option.none()),
+            () => false,
+            Opened.operators,
+          ),
+        )
         .map(row => row.id),
     ).toEqual(['t2', 't3'])
     const decided = (row: typeof own) =>
@@ -164,10 +174,16 @@ describe('Policy.readable', () => {
     )
     const condition = readable(Inherits, Option.some(ada))
     const followed: Array<string> = []
-    const holds = Condition.holds(condition, own, {}, relation => {
-      followed.push(relation)
-      return true
-    })
+    const holds = Condition.holds(
+      condition,
+      own,
+      {},
+      relation => {
+        followed.push(relation)
+        return true
+      },
+      Policy.operators,
+    )
     expect([holds, followed]).toEqual([true, ['project']])
     expect(Condition.members(condition)).toEqual(['project'])
   })
@@ -205,6 +221,7 @@ describe('Condition.unsetting', () => {
         { ownerId: 'ada' },
         { 'principal.id': 'ada' },
         () => true,
+        Operators.kernel,
       )
     for (const guard of [D.claimed, D.unclaimed, D.mentions]) {
       expect(holds({ _tag: 'Row', guard })).toBe(false)
@@ -234,8 +251,9 @@ describe('Policy.readMembers', () => {
     ])
     const [email, notes] = members
     const input = Policy.inputOf(Option.some(ada))
-    expect(Condition.holds(email!.condition, own, input, () => false)).toBe(true)
-    expect(Condition.holds(email!.condition, shared, input, () => false)).toBe(false)
+    const { operators } = Policy
+    expect(Condition.holds(email!.condition, own, input, () => false, operators)).toBe(true)
+    expect(Condition.holds(email!.condition, shared, input, () => false, operators)).toBe(false)
     expect(notes!.condition).toBe(Condition.never)
   })
 })
@@ -264,7 +282,13 @@ describe('write rules', () => {
     },
   })
   const holds = (condition: Condition, user: User, row: Readonly<Record<string, unknown>>) =>
-    Condition.holds(condition, row, Telling.inputOf(Option.some(user)), () => false)
+    Condition.holds(
+      condition,
+      row,
+      Telling.inputOf(Option.some(user)),
+      () => false,
+      Telling.operators,
+    )
 
   it('decides a row’s write by its interaction, its bodies told which one', () => {
     told.length = 0

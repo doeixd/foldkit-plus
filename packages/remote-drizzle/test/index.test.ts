@@ -128,8 +128,8 @@ describe('RemoteDrizzle', () => {
   it('reverses the order for a backward traversal', () => {
     const dialect = new PgDialect()
     const order = [
-      { column: projects.createdAt, direction: 'desc' as const },
-      { column: projects.id, direction: 'asc' as const },
+      { key: projects.createdAt, direction: 'desc' as const },
+      { key: projects.id, direction: 'asc' as const },
     ]
     const render = (traversal: 'forward' | 'backward') =>
       dialect.sqlToQuery(

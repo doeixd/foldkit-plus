@@ -166,7 +166,7 @@ describe('a binding’s visible rows', () => {
     })
     const listed = query<Principal, {}>(AllPosts, {
       entity: Db.Post,
-      orderBy: [{ column: posts.id, direction: 'asc' }],
+      orderBy: [{ key: posts.id, direction: 'asc' }],
     })
     const run = async (principal: Principal, window: { first: number; after?: string }) => {
       const { sqlite, database } = setup()

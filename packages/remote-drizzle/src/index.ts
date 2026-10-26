@@ -58,11 +58,15 @@ import {
   compileOrderBy,
   compilePredicates,
   compileWhere,
+  operatorProblems,
   QueryCompileError,
+  requireOperators,
+  supported,
 } from './compile.js'
 import {
   cursorSelection,
   keyCursor,
+  keysOf,
   keysetWhere,
   orderByTerms,
   readCursor,
@@ -84,6 +88,7 @@ export * from './compile.js'
 export * from './binding.js'
 export * from './columns.js'
 export * from './cursor.js'
+export * from './operators.js'
 export * from './database.js'
 export * from './page.js'
 export * from './pagination.js'
@@ -479,9 +484,9 @@ export const source = <P = unknown>(
           // The target id is the final tie-breaker, so ranking and ordering
           // agree and a page never drops a row that ties on the order columns.
           const declared = relation.orderBy ?? []
-          const order: ReadonlyArray<OrderTerm> = declared.some(term => term.column === targetId)
+          const order: ReadonlyArray<OrderTerm> = declared.some(term => term.key === targetId)
             ? declared
-            : [...declared, { column: targetId, direction: 'asc' }]
+            : [...declared, { key: targetId, direction: 'asc' }]
           const naturalOrder = orderByTerms(order, 'forward')
           const parentKeys = [
             ...new Set(
@@ -513,11 +518,7 @@ export const source = <P = unknown>(
                   message: `Relation "${field}" cursor no longer resolves`,
                 })
               }
-              keyset = keysetWhere(
-                order,
-                order.map(term => cursorRow[term.column.name]),
-                shape.traversal,
-              )
+              keyset = keysetWhere(order, keysOf(order, cursorRow), shape.traversal)
             }
 
             const byParent = new Map<string, Array<Record<string, unknown>>>()
@@ -767,9 +768,9 @@ export const query = <P = unknown, Input = unknown>(
         // this binding's own, and stays exactly as it was given.
         const tieBreak = typeof options.orderBy === 'function' || options.orderBy === undefined
         const orderBy: readonly OrderTerm[] =
-          !tieBreak || computed.some(term => term.column === id)
+          !tieBreak || computed.some(term => term.key === id)
             ? computed
-            : [...computed, { column: id, direction: 'asc' }]
+            : [...computed, { key: id, direction: 'asc' }]
         // The body's question, this server's own extra question, and the
         // binding's visibility rule are conjoined: a body can narrow what a
         // principal may see and never widen it.
@@ -816,7 +817,7 @@ export const query = <P = unknown, Input = unknown>(
                       message: 'The query cursor no longer resolves to a row',
                     })
                   }
-                  return orderBy.map(term => cursorRow[term.column.name])
+                  return keysOf(orderBy, cursorRow)
                 }),
               Invalid: () =>
                 Effect.fail(
@@ -837,10 +838,7 @@ export const query = <P = unknown, Input = unknown>(
 
         // Each order term under a key of its own: the id column may be named
         // anything, and may be one of them.
-        const columns: Record<string, AnyColumn> = {
-          id,
-          ...Object.fromEntries(orderBy.map((term, index) => [`key${index}`, term.column])),
-        }
+        const columns: Record<string, AnyColumn | SQL> = { id, ...cursorSelection(orderBy) }
         const rows = yield* selectRows(database, binding.table, columns, {
           where,
           orderBy: orderByTerms(orderBy, shape.traversal),
@@ -854,10 +852,7 @@ export const query = <P = unknown, Input = unknown>(
           traversal: shape.traversal,
           cursor: shape.cursor,
           idOf: row => String(row.id),
-          cursorOf: row =>
-            Option.getOrElse(keyCursor(orderBy.map((_, index) => row[`key${index}`])), () =>
-              String(row.id),
-            ),
+          cursorOf: row => Option.getOrElse(keyCursor(keysOf(orderBy, row)), () => String(row.id)),
         })
       }),
   }
@@ -1030,6 +1025,10 @@ type Ledgered =
 
 const DAY = 24 * 60 * 60 * 1000
 
+/** Whether a column holds integers: Drizzle names it `number int32`, `number int53`, `number uint16`… */
+const holdsIntegers = (column: AnyColumn | undefined): boolean =>
+  column !== undefined && /^number u?int\d+$/.test(column.dataType)
+
 export const writer = <P = unknown>(
   binding: AnyEntityBinding,
   options: { readonly ledger?: WriteLedger<P> } = {},
@@ -1050,9 +1049,13 @@ export const writer = <P = unknown>(
 
   const { invariants } = binding
   const invariantName = (held: Invariant) => `${binding.name}'s invariant "${held.id}"`
-  // Compiled once over the columns, so one this compiler cannot run fails where it is defined.
-  for (const held of invariants)
+  // Checked and compiled once, so one this binding cannot run, in SQL or in
+  // memory, fails where the writer is built.
+  for (const held of invariants) {
+    // An invariant reads the row after the write (`next`), which a query does not.
+    requireOperators([held.predicate], binding, invariantName(held), [...supported, 'next'])
     compilePredicates([held.predicate], binding, {}, invariantName(held))
+  }
 
   /**
    * Each invariant over the change an update makes, for its `where`: a field
@@ -1071,7 +1074,14 @@ export const writer = <P = unknown>(
         // operators take an expression where they take a column.
         next[field] = sql`(${binding.columns[field]} + ${amount})` as unknown as AnyColumn
       }
-      const target = { table: binding.table, columns: binding.columns, next }
+      // The binding's operators too: a value set can leave a call over literals
+      // alone, which is decided in memory rather than compiled.
+      const target = {
+        table: binding.table,
+        columns: binding.columns,
+        next,
+        operators: binding.operators,
+      }
       return invariants.flatMap(held =>
         compilePredicates(
           [Expr.substituteNext(held.predicate, values)],
@@ -1104,7 +1114,7 @@ export const writer = <P = unknown>(
 
   /** The refusal for the first invariant a row or a change breaks; none for what it cannot judge. */
   const brokenIn = (change: Change) =>
-    Match.value(DomainEntity.judgeAgainst(invariants, change)).pipe(
+    Match.value(DomainEntity.judgeAgainst(invariants, change, binding.operators.memory)).pipe(
       Match.tagsExhaustive({
         Valid: () => Option.none(),
         Undecided: () => Option.none(),
@@ -1314,6 +1324,22 @@ export const writer = <P = unknown>(
     preconditions: true,
     increments: true,
     invariants: true,
+    // A fraction added to an integer column splits the dialects: Postgres refuses the
+    // statement, SQLite stores the fraction. A field declared Schema.Number hides the column.
+    refuses: write => [
+      ...write.increments.flatMap(({ key, field, integer }) =>
+        !integer && holdsIntegers(binding.columns[field.key])
+          ? [
+              `"${key}" may not be an integer, but the column for "${field.key}" holds integers; give the amount Schema.Int`,
+            ]
+          : [],
+      ),
+      // Its precondition compiles into the statement and explains a miss in memory.
+      ...Option.match(write.when, {
+        onNone: () => [],
+        onSome: body => operatorProblems(body.where, binding, 'its precondition'),
+      }),
+    ],
     ...(ledger === undefined
       ? {}
       : {
@@ -1447,7 +1473,8 @@ export const writer = <P = unknown>(
         }
         const holdsWhen = Option.match(when, {
           onNone: () => true,
-          onSome: ({ body, input }) => evaluate(body, input, [row]).length > 0,
+          onSome: ({ body, input }) =>
+            evaluate(body, input, [row], { operators: binding.operators.memory }).length > 0,
         })
         // A row already holding what this write sets is a retry of one that
         // landed, which neither its precondition nor a transition invariant
@@ -1472,16 +1499,29 @@ export const writer = <P = unknown>(
       Effect.gen(function* () {
         // There is no row yet: the row it would make is its values, judged before it is written.
         yield* Match.value(
-          DomainEntity.judgeAgainst(invariants, { after: { ...values, id } }),
+          DomainEntity.judgeAgainst(
+            invariants,
+            { after: { ...values, id } },
+            binding.operators.memory,
+          ),
         ).pipe(
           Match.tagsExhaustive({
             Valid: () => Effect.void,
             Invalid: ({ failures }) =>
               Option.match(refusalOf(failures), { onNone: () => Effect.void, onSome: Effect.fail }),
-            Undecided: ({ fields }) =>
+            Undecided: ({ fields, operators }) =>
               Effect.fail(
                 new RemoteServerError({
-                  message: `${binding.name} ${id}: an invariant reads ${fields.join(', ')}, which the insert does not set`,
+                  message: `${binding.name} ${id}: ${[
+                    ...(fields.length > 0
+                      ? [`an invariant reads ${fields.join(', ')}, which the insert does not set`]
+                      : []),
+                    ...(operators.length > 0
+                      ? [
+                          `an invariant calls ${operators.join(', ')}, which this server does not run`,
+                        ]
+                      : []),
+                  ].join('; ')}`,
                 }),
               ),
           }),

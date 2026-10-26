@@ -62,6 +62,7 @@ const asSql = (body: ReturnType<typeof Query.from>, input: Row) => {
     if (isPredicate(operand)) return `(${predicate(operand)})`
     if (operand._tag === 'Field') return `"${column[operand.key]}"`
     if (operand._tag === 'Next') throw new Error('a query reads no row after a write')
+    if (operand._tag === 'Call') throw new Error('unsupported')
     params.push(operand._tag === 'Input' ? input[operand.key] : operand.value)
     return '?'
   }
@@ -95,6 +96,8 @@ const asSql = (body: ReturnType<typeof Query.from>, input: Row) => {
         return `(${node.operands.map(predicate).join(' or ')})`
       case 'Not':
         return `not (${predicate(node.operand)})`
+      case 'Test':
+        throw new Error('unsupported')
       case 'Compare': {
         const symbol = { lt: '<', lte: '<=', gt: '>', gte: '>=' }[node.operator]
         const collate = Option.match(node.collation, {

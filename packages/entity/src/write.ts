@@ -23,6 +23,7 @@ import type {
   InputMember,
 } from './index.js'
 import { Expr, Query, type AnyQuery, type InputExpr, type Predicate, type Reads } from './expr.js'
+import { SchemaShape } from './shape.js'
 
 type AnyField = EntityField<string, string, Schema.Constraint>
 type OneRelation = EntityRelation<string, string, AnyEntity, 'one', boolean>
@@ -31,6 +32,15 @@ type OneRelation = EntityRelation<string, string, AnyEntity, 'one', boolean>
 export interface WriteSet {
   readonly key: string
   readonly field: AnyField
+}
+
+/**
+ * One input key holding an amount, and the field it moves. `integer` is whether
+ * the amount's schema holds it to an integer (`Schema.isInt`): a writer over an
+ * integer column refuses an increment without it, which the Entity cannot see.
+ */
+export interface WriteIncrement extends WriteSet {
+  readonly integer: boolean
 }
 
 /** One input key the write points at another row with: a `one` relation, by the target's id. */
@@ -65,7 +75,7 @@ export interface Write<E extends AnyEntity, Fields extends Schema.Struct.Fields>
    * The fields it moves by an amount the input holds (`stock + quantity`),
    * computed where the write commits: the input key, and the field it moves.
    */
-  readonly increments: ReadonlyArray<WriteSet>
+  readonly increments: ReadonlyArray<WriteIncrement>
   /** The `one` relations it points elsewhere, in the input's order. */
   readonly links: ReadonlyArray<WriteLink>
 }
@@ -274,16 +284,21 @@ const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
 const storedAsNumber = (schema: Schema.Top): boolean =>
   SchemaAST.isNumber(Schema.toEncoded(schema).ast)
 
+/** Whether a value's stored form is checked to be an integer. */
+const storedAsInteger = (schema: Schema.Top): boolean =>
+  SchemaShape.holdsIntegers(Schema.toEncoded(schema).ast)
+
 /**
  * One increment, checked: a field of the Entity stored as a number, written
- * by nothing else, moved by an unmapped input key whose value is a number.
+ * by nothing else, moved by an unmapped input key whose value is a number, and
+ * an integer when the field is one.
  */
 const incrementOf = (
   input: EntityInput<AnyEntity, any, any>,
   fieldKey: string,
   key: string,
   declared: { readonly expect: WriteSet | undefined; readonly sets: ReadonlyArray<WriteSet> },
-): WriteSet => {
+): WriteIncrement => {
   const fields = input.entity.fields as Readonly<Record<string, AnyField>>
   const field = Object.hasOwn(fields, fieldKey) ? fields[fieldKey] : undefined
   if (field === undefined) return fail(input, `increments "${fieldKey}", which is not a field`)
@@ -304,7 +319,16 @@ const incrementOf = (
   }
   const amount = input.schema.fields[key] as unknown as Schema.Top
   if (!storedAsNumber(amount)) return fail(input, `"${key}" is an amount, but not a number`)
-  return Object.freeze({ key, field })
+  // The databases split over a fraction added to an integer: Postgres refuses the
+  // statement, SQLite stores it in the integer column. So it never reaches either.
+  const integer = storedAsInteger(amount)
+  if (storedAsInteger(field.schema as unknown as Schema.Top) && !integer) {
+    return fail(
+      input,
+      `"${key}" may not be an integer, but "${fieldKey}" is one; give the amount Schema.Int`,
+    )
+  }
+  return Object.freeze({ key, field, integer })
 }
 
 /** An update or an insert that would write nothing is refused where it is declared. */

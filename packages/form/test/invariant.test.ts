@@ -5,7 +5,7 @@
  * field the form does not set.
  */
 import { Schema } from 'effect'
-import { Entity, Expr } from 'foldkit-entity'
+import { Entity, Expr, Operators } from 'foldkit-entity'
 import { describe, expect, it } from 'vitest'
 import { Form } from '../src/index.js'
 
@@ -102,5 +102,40 @@ describe('A form over an Entity with invariants', () => {
     ])
     expect(outMessage).toBeUndefined()
     expect(model.errors).toEqual(['Say something'])
+  })
+})
+
+describe('A form over an invariant calling an operator', () => {
+  const blank = Expr.operator('acme.blank', { input: [Schema.String], output: Schema.Boolean })
+  const Note = Entity.define(
+    'Note',
+    Schema.Struct({ id: Schema.String, body: Schema.String }),
+  ).pipe(
+    Entity.invariant('bodyGiven', ({ after }) => Expr.not(blank(after.body)), {
+      message: 'Write something',
+      path: ['body'],
+    }),
+  )
+  const Edit = Entity.input(Note, Schema.Struct({ body: Schema.String }))
+
+  it('judges it with the table it is given', () => {
+    const Given = Form.make('Given', Edit, {
+      operators: Operators.memory(Operators.implement(blank, body => body.trim() === '')),
+    })
+    const { model, outMessage } = after(Given.bundle, [
+      Given.Message.Changed({ key: 'body', value: '   ' }),
+      Given.Message.Submitted(),
+    ])
+    expect(outMessage).toBeUndefined()
+    expect(model.fields.body).toMatchObject({ _tag: 'Invalid', errors: ['Write something'] })
+  })
+
+  it('leaves it to the server without one, as it does a field it does not set', () => {
+    const Bare = Form.make('Bare', Edit)
+    const { outMessage } = after(Bare.bundle, [
+      Bare.Message.Changed({ key: 'body', value: '   ' }),
+      Bare.Message.Submitted(),
+    ])
+    expect(outMessage).toBeDefined()
   })
 })

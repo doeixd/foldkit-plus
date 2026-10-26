@@ -609,8 +609,8 @@ const ProjectsByOwner = Query.make('ProjectsByOwner', {
 const ProjectsByOwnerSource = query(ProjectsByOwner, {
   entity: Project,
   orderBy: [
-    { column: projects.createdAt, direction: 'desc' },
-    { column: projects.id, direction: 'desc' },
+    { key: projects.createdAt, direction: 'desc' },
+    { key: projects.id, direction: 'desc' },
   ],
   where: input => eq(projects.ownerId, input.ownerId),
 })
@@ -712,8 +712,8 @@ query(PostsQuery, {
   where: ({ search }) => (search === '' ? undefined : like(posts.title, `%${search}%`)),
   orderBy: ({ sort }) =>
     sort === 'title'
-      ? [{ column: posts.title, direction: 'asc' }]
-      : [{ column: posts.id, direction: 'asc' }],
+      ? [{ key: posts.title, direction: 'asc' }]
+      : [{ key: posts.id, direction: 'asc' }],
 })
 ```
 
@@ -758,6 +758,76 @@ some reader may not read.
 Client-supplied windows are bounded: the default page size is `20`, the default
 maximum is `100`, and malformed combinations such as `after + before` or
 `first + last` fail rather than being guessed.
+
+### An operator the application implements
+
+A primitive operator (`Expr.operator` without `definedAs`) is a question each
+interpreter answers its own way, so a binding runs it by two tables: SQL for
+what the database runs, memory for what the server decides without it (a
+predicate over the input alone, a write's miss explained, an insert's
+invariants judged). `bind` takes both for the whole domain, each its kernel
+(`Text.startsWith`) when not given:
+
+```ts
+import { sql } from 'drizzle-orm'
+import { Expr, Operators } from 'foldkit-entity'
+import { DrizzleOperators, bind } from 'foldkit-remote-drizzle'
+
+const above = Expr.operator('acme.above', {
+  input: [Schema.Number, Schema.Number],
+  output: Schema.Boolean,
+})
+
+const Db = bind(
+  { Project },
+  { Project: { table: projects } },
+  {
+    operators: {
+      memory: Operators.merge(
+        Operators.kernel,
+        Operators.memory(Operators.implement(above, (value, floor) => value > floor)),
+      ),
+      sql: DrizzleOperators.merge(
+        DrizzleOperators.kernel,
+        DrizzleOperators.make(
+          DrizzleOperators.implement(above, ({ args: [value, floor] }) => sql`(${value} > ${floor})`),
+        ),
+      ),
+    },
+  },
+)
+```
+
+An implementation is given its arguments compiled, the dialect, the call's
+collation and `collate`, which writes text under it as the comparisons above
+do. It must agree with the memory implementation, nulls included. The
+compiler adds what SQL cannot say for itself:
+
+- On Postgres, a literal or input argument the operator takes as a number or a
+  boolean is cast (`cast($1 as integer)`, `double precision`, `boolean`):
+  Postgres reads an untyped parameter as text, and refuses `$1 + $2`. SQLite
+  takes no cast, since its `cast(? as integer)` would drop a fraction silently.
+- A call whose result is text, compared with a value, is compared under the
+  call's collation.
+- Text holding NUL given to an operator is refused, as SQL text cannot hold it
+  portably.
+
+A binding that cannot run an operator is refused where it would be needed,
+naming the operator and the table that lacks it: a query where it is
+registered, an invariant where the writer is built, a write's `when` where
+`RemoteServer.write` registers it. `GuardDrizzle.visible(Policy, entities, {
+operators })` checks Read rules against the SQL table it is given, since it is
+built before `bind`. The client runs the same memory table through
+`Remote.make({ operators })`.
+
+A body may order by a call whose result orders alike everywhere: a number, or
+text under `binary` or `asciiFold`. The call is compiled as an expression under
+its collation, selected beside each row, and pages by its value as a column
+does, so a cursor resumes after the last row read on SQLite and Postgres alike.
+Nothing indexes it for you: a list that must page fast over many rows wants an
+index on the expression. An order term is `{ key, direction, nulls?, collation? }`,
+where `key` is a column or a Drizzle `SQL` expression; an expression says its
+collation in its own SQL, and one given beside it is refused.
 
 ## Computed fields
 
@@ -826,7 +896,11 @@ alike. When nothing was written, the row read back says why: gone, moved on
 (a conflict), or else not holding the precondition (unmet). A row that already
 holds every value the write sets is the retry of one that landed, and answers as
 written. An increment is `column = column + amount` in the same statement, and
-its sum is in the answer. For a write with one, neither recognition applies: a
+its sum is in the answer. Over a column that holds integers (SQLite `integer`;
+Postgres `integer`, `smallint`, `bigint` read as a number) its amount must be
+`Schema.Int`, whatever the field is declared as: Postgres refuses a fraction
+there and SQLite would store it, so the writer refuses the write where it is
+served. For a write with one, neither recognition applies: a
 row a revision on could hold another client's increment, so a retry is a
 conflict and the field moves once. A binding with a
 `visible` rule reads the answer back through it: the row as its writer may now

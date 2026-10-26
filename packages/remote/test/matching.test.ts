@@ -11,8 +11,22 @@
  *    partial rows, and §9.2's encoding, which no runtime error would catch.
  */
 import { Schema, SchemaGetter } from 'effect'
-import { Entity as DomainEntity, Expr, Order, QueryEvaluateError } from 'foldkit-entity'
-import { Subject, cases, refusals, rows, type ConformanceCase } from 'foldkit-entity/conformance'
+import {
+  Entity as DomainEntity,
+  Expr,
+  Operators,
+  Order,
+  Query as Relational,
+  QueryEvaluateError,
+} from 'foldkit-entity'
+import {
+  Subject,
+  cases,
+  primitiveCases,
+  refusals,
+  rows,
+  type ConformanceCase,
+} from 'foldkit-entity/conformance'
 import { describe, expect, it } from 'vitest'
 import {
   Query,
@@ -275,5 +289,43 @@ describe('Which space the comparison happens in', () => {
     const judged = matching(store, At, { at: new Date('2026-01-02T00:00:00.000Z') })
 
     expect(judged.matched).toEqual([entityKey('Event', 'a')])
+  })
+})
+
+describe('It runs primitive operators with the table it is given', () => {
+  it.each(primitiveCases.map(one => ({ ...one, name: one.what })))(
+    'with the kernel’s: $name',
+    ({ body, input, expected }: ConformanceCase) => {
+      const judged = matching(conformanceStore(), descriptorFor(body, input) as never, input)
+      expect(judged.matched).toEqual(expected.map(id => entityKey('Subject', id)))
+    },
+  )
+
+  const above = Expr.operator('acme.above', {
+    input: [Schema.Number, Schema.Number],
+    output: Schema.Boolean,
+  })
+  const aboveLive = Operators.memory(Operators.implement(above, (rank, floor) => rank > floor))
+  const body = Relational.from(Subject).pipe(
+    Relational.where(above(Subject.fields.rank, 2)),
+    Relational.orderBy(Order.asc(Subject.fields.id)),
+  )
+
+  it('runs an application’s operator with its table', () => {
+    const judged = matching(
+      conformanceStore(),
+      descriptorFor(body, {}) as never,
+      {},
+      {
+        operators: aboveLive,
+      },
+    )
+    expect(judged.matched).toEqual(['c', 'd', 'e'].map(id => entityKey('Subject', id)))
+  })
+
+  it('refuses one its table lacks, so the server judges it', () => {
+    expect(() => matching(conformanceStore(), descriptorFor(body, {}) as never, {})).toThrow(
+      'this interpreter does not run acme.above',
+    )
   })
 })

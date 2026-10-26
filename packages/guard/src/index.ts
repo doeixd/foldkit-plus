@@ -21,9 +21,11 @@ import { me } from './me.js'
 import { providedFrom } from './origin.js'
 import {
   Expr,
+  Operators,
   Query,
   evaluate,
   type AnyEntity,
+  type MemoryOperators,
   type AnyQuery,
   type InputExpr,
   type Predicate,
@@ -137,15 +139,26 @@ export type GuardSet<Name extends string, User, S> = {
   readonly unguarded: 'allow' | 'deny'
   /** The principal's fields as row guards' inputs, encoded as stored values are. */
   readonly inputOf: (user: User) => Readonly<Record<string, unknown>>
-  /** The bodies of the principal guards: every one, and nothing else. */
-  readonly implement: <R = never>(bodies: {
-    readonly [K in PrincipalKeys<S>]: Body<User, R>
-  }) => Policy<User, R>
+  /**
+   * The bodies of the principal guards: every one, and nothing else. `operators`
+   * runs the row guards' primitive operators in memory; `Operators.kernel` when
+   * not given.
+   */
+  readonly implement: <R = never>(
+    bodies: { readonly [K in PrincipalKeys<S>]: Body<User, R> },
+    options?: { readonly operators?: MemoryOperators | undefined },
+  ) => Policy<User, R>
 }
 
 /** The server's half of a guard set: every principal guard's body. */
 export interface Policy<User, R = never> {
   readonly set: string
+  /**
+   * How a row guard's primitive operators are run in memory: by `decide`,
+   * `Condition.holds` and every guarded server judging a row. Given to
+   * `implement`; `Operators.kernel` when not.
+   */
+  readonly operators: MemoryOperators
   /**
    * Whether `guard` allows `principal`, for a row guard over `row` (its stored,
    * encoded values). A visitor passes no row guard that reads a principal's
@@ -411,7 +424,11 @@ export const Guards = {
       Schema.toCodecJson(principal) as unknown as Schema.Codec<unknown, unknown>,
     )
 
-    const implement = <R>(bodies: Readonly<Record<string, Body<User, R>>>): Policy<User, R> => {
+    const implement = <R>(
+      bodies: Readonly<Record<string, Body<User, R>>>,
+      implementation: { readonly operators?: MemoryOperators | undefined } = {},
+    ): Policy<User, R> => {
+      const operators = implementation.operators ?? Operators.kernel
       const missing = principalNames.filter(guard => !Object.hasOwn(bodies, guard))
       const extra = Object.keys(bodies).filter(guard => !principalNames.includes(guard))
       if (missing.length > 0 || extra.length > 0) {
@@ -441,8 +458,10 @@ export const Guards = {
                 Option.match(principal, {
                   // A visitor has no fields: only a guard over the row alone can hold.
                   onNone: () =>
-                    !readsPrincipal(rowGuard) && evaluate(rowGuard.query, {}, [row]).length === 1,
-                  onSome: user => evaluate(rowGuard.query, inputOf(user), [row]).length === 1,
+                    !readsPrincipal(rowGuard) &&
+                    evaluate(rowGuard.query, {}, [row], { operators }).length === 1,
+                  onSome: user =>
+                    evaluate(rowGuard.query, inputOf(user), [row], { operators }).length === 1,
                 }),
             ),
         })
@@ -466,6 +485,7 @@ export const Guards = {
       }
       const policy: Policy<User, R> = {
         set: name,
+        operators,
         decide,
         readable: (entity, principal) =>
           Effect.map(

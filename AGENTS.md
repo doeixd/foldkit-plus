@@ -1134,6 +1134,10 @@ of its own named a form field "fits the Catalog". Read words with
   CI now runs `pnpm mutate:check`, which finds every anchor and test file of
   every spec and runs none. It cannot tell whether the mutation is still
   killed: after re-anchoring, run the mutation (`--only <name>`).
+  Format before anchoring, too: `pnpm format` reflowed three long conditions
+  after their mutations had passed, and the commit went out with anchors
+  `mutate:check` refused. Run `pnpm format`, then the mutations, then
+  `mutate:check`, then commit.
 - **Read a library's handler table before describing its semantics.** A
   comment said Foldkit keeps the last of two `OnClick`s on an element; its
   `addDataOn` chains them all, so the resumable builder dropped bindings. Cite

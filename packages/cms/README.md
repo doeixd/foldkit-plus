@@ -299,6 +299,7 @@ nobody has makes the entry, so an editor need not wait to learn what it edits.
 | --- | --- |
 | `Cms.roles({ label?, slug?, published? })` | Pipe step: the members of an Entity that play a CMS part. |
 | `Cms.rolesOf(entity)` | Those roles, as Fields; `undefined` for a part nobody named. |
+| `Cms.published(entity)` | Whether a row is published, as a predicate: the operator `cms.published` over the `published` role's field, for a public query and a visitor's Read rule alike. Throws with no `published` role. |
 | `Cms.content(name, { entity, form, publish, words, preview? })` | A type of content: its Entity, form, publish operations, and name. |
 | `Cms.editor(name, { content, rest?, version?, untitled? })` | The authoring editor: `bundle`, `Message`, and `at({ data, model })`. |
 | `Cms.newEntryId()` | An id for something new. |

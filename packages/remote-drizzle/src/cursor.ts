@@ -15,6 +15,7 @@
  * first). A null cursor value pages by `IS NULL`, never `col > NULL`.
  */
 import {
+  Column,
   and,
   eq,
   gt,
@@ -32,11 +33,19 @@ import { Data, Match, Option } from 'effect'
 import type { Collation } from 'foldkit-entity'
 
 export interface OrderTerm {
-  readonly column: AnyColumn
+  /**
+   * What rows are ordered by: a column, or an expression over the row (a call
+   * a body orders by), which is selected beside the row so a cursor holds its
+   * value.
+   */
+  readonly key: AnyColumn | SQL
   readonly direction: 'asc' | 'desc'
   /** Where rows without a value go; last ascending and first descending when unsaid. */
   readonly nulls?: 'first' | 'last' | undefined
-  /** How text compares; the database's own when unsaid. */
+  /**
+   * How a column's text compares; the database's own when unsaid. An
+   * expression says its collation in its own SQL, which knows its dialect.
+   */
   readonly collation?: Collation | undefined
 }
 
@@ -89,8 +98,16 @@ export const collatedColumn = (
   )
 }
 
-/** A term's column under its collation, as `collatedColumn` makes it. */
-const collated = (term: OrderTerm) => collatedColumn(term.column, term.collation)
+/** A term's column under its collation, as `collatedColumn` makes it; an expression as it is. */
+const collated = (term: OrderTerm) => {
+  if (is(term.key, Column)) return collatedColumn(term.key, term.collation)
+  if (term.collation !== undefined) {
+    throw new Error(
+      '[foldkit-remote-drizzle] an expression order term says its collation in its own SQL, not beside it',
+    )
+  }
+  return Option.none()
+}
 
 /**
  * The order a client asked for, as order terms. `sort` names one of the orders
@@ -103,16 +120,21 @@ export const sortTerms = (
   columns: Readonly<Record<string, AnyColumn>>,
 ): readonly OrderTerm[] => {
   if (sort === null || sort === undefined || !Object.hasOwn(columns, sort.by)) return []
-  return [{ column: columns[sort.by]!, direction: sort.direction }]
+  return [{ key: columns[sort.by]!, direction: sort.direction }]
 }
 
 export type Traversal = 'forward' | 'backward'
 
+/** `operator` over a key and a value: a column's value bound by its codec, an expression's as it is. */
+const keyed = (operator: typeof eq, key: AnyColumn | SQL, value: unknown): SQL =>
+  // The arms are one call to two overloads, which a union of the two does not reach.
+  is(key, Column) ? operator(key, value) : operator(key, value)
+
 /** Equality under the term's collation, a null cursor value as `IS NULL`, not `= NULL`. */
 const cursorEquality = (term: OrderTerm, value: unknown): SQL => {
-  if (value === null) return isNull(term.column)
+  if (value === null) return isNull(term.key)
   return Option.match(collated(term), {
-    onNone: () => eq(term.column, value),
+    onNone: () => keyed(eq, term.key, value),
     onSome: ({ key, value: comparable }) => eq(key, comparable(value)),
   })
 }
@@ -124,18 +146,18 @@ const cursorEquality = (term: OrderTerm, value: unknown): SQL => {
  * first.
  */
 const cursorCompare = (term: OrderTerm, value: unknown, traversal: Traversal): SQL => {
-  const { column } = term
+  const { key } = term
   const forward = traversal === 'forward'
   const last = nullsLast(term)
   // After the cursor, forward; before it, backward.
-  if (value === null) return forward === last ? sql`false` : isNotNull(column)
+  if (value === null) return forward === last ? sql`false` : isNotNull(key)
   const after = (term.direction === 'asc') === forward
   const beyond = Option.match(collated(term), {
-    onNone: () => (after ? gt(column, value) : lt(column, value)),
+    onNone: () => keyed(after ? gt : lt, key, value),
     onSome: ({ key, value: comparable }) =>
       after ? gt(key, comparable(value)) : lt(key, comparable(value)),
   })
-  return forward === last ? or(beyond, isNull(column))! : beyond
+  return forward === last ? or(beyond, isNull(key))! : beyond
 }
 
 /**
@@ -182,15 +204,25 @@ export const orderByTerms = (
     const ascending = (term.direction === 'asc') === forward
     const last = nullsLast(term) === forward
     const key = Option.match(collated(term), {
-      onNone: () => sql`${term.column}`,
+      onNone: () => sql`${term.key}`,
       onSome: ({ key }) => key,
     })
     return sql`${key} ${ascending ? sql`asc` : sql`desc`} ${last ? sql`nulls last` : sql`nulls first`}`
   })
 
-/** The tuple columns to re-read for a cursor, keyed as Drizzle select aliases. */
-export const cursorSelection = (terms: readonly OrderTerm[]): Record<string, AnyColumn> =>
-  Object.fromEntries(terms.map(term => [term.column.name, term.column]))
+/**
+ * Each term's key under an alias of its own (`key0`, `key1`, …), to select
+ * beside a row: an expression has no name, and two columns may share one.
+ * `keysOf` reads them back.
+ */
+export const cursorSelection = (terms: readonly OrderTerm[]): Record<string, AnyColumn | SQL> =>
+  Object.fromEntries(terms.map((term, index) => [`key${index}`, term.key]))
+
+/** The values a row selected with `cursorSelection` holds, in the terms' order. */
+export const keysOf = (
+  terms: readonly OrderTerm[],
+  row: Readonly<Record<string, unknown>>,
+): ReadonlyArray<unknown> => terms.map((_, index) => row[`key${index}`])
 
 /** What marks a cursor holding key values, apart from an id from before them. */
 const KEYED = 'k:'

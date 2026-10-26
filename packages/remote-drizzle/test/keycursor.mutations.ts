@@ -12,7 +12,7 @@ export default [
     edits: [
       {
         file: index,
-        find: 'Option.getOrElse(keyCursor(orderBy.map((_, index) => row[`key${index}`])), () =>',
+        find: 'Option.getOrElse(keyCursor(keysOf(orderBy, row)), () =>',
         replace: 'Option.getOrElse(Option.none<string>(), () =>',
       },
     ],
@@ -78,9 +78,9 @@ export default [
     name: 'a key is read back by its column name',
     edits: [
       {
-        file: index,
-        find: 'keyCursor(orderBy.map((_, index) => row[`key${index}`]))',
-        replace: 'keyCursor(orderBy.map(term => row[term.column.name]))',
+        file: '../src/cursor.ts',
+        find: 'terms.map((_, index) => row[`key${index}`])',
+        replace: 'terms.map(term => row[(term.key as { readonly name: string }).name])',
       },
     ],
     tests,

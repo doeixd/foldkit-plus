@@ -54,8 +54,8 @@ export default [
     edits: [
       {
         file,
-        find: 'if (Condition.holds(condition, record.values, input, () => false)) continue',
-        replace: 'continue',
+        find: 'Condition.holds(condition, record.values, input, () => false, policy.operators)',
+        replace: 'true',
       },
     ],
     tests,

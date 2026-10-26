@@ -306,7 +306,7 @@ export default [
     edits: [
       {
         file: '../src/operations.ts',
-        find: '          Expr.contains(fields.upc, input.search),\n',
+        find: '          Text.startsWith(fields.upc, input.search),\n',
         replace: '',
       },
     ],
@@ -330,6 +330,17 @@ export default [
         file: '../../../packages/remote/src/model.ts',
         find: 'served.every((key, index) => key === asPlaced[index]) &&',
         replace: 'false &&',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a UPC is searched anywhere in it, not from its start',
+    edits: [
+      {
+        file: '../src/operations.ts',
+        find: 'Text.startsWith(fields.upc, input.search),',
+        replace: 'Expr.contains(fields.upc, input.search),',
       },
     ],
     tests,
