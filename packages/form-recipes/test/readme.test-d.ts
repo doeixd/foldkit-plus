@@ -47,7 +47,7 @@ FieldRecipes.money({ currency: 'EUR' })
 FieldRecipes.dateTime({ stored: 'instant' })
 
 // An image, uploaded where it is chosen.
-const cover = image({ id: 'cover', headers: { authorization: 'Bearer …' } })
+const cover = image({ id: 'cover' })
 const Post = Form.make('Post', Form.input(Schema.Struct({ cover: HashedAsset })), {
   inputs: { cover: cover.control },
 })

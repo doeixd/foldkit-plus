@@ -78,6 +78,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-form-recipes`' kinds and displays are named `FieldRecipes.Date`,
+  `FieldRecipes.Money`, …**, so an application's own `Date` kind no longer meets
+  a recipe's renderer. The image's default `sending` words are `Sending {name}`.
+- **A control backed by a Bundle is drawn in a `role="group"` named by its
+  field's label**, which now has an id (`{id}-label`).
+
 - **Breaking: `foldkit-cms`'s slug and moment controls are `foldkit-form-recipes`'.**
   `Cms.slug`, `Cms.slugify`, `Cms.dateTime`, `Cms.Input` and `Cms.controlRenderers`
   (with its `ControlContext` type) are removed: use `FieldRecipes.slug(from, {
@@ -91,6 +97,30 @@ version changed; `pnpm` skips versions already in the registry.
   when the form is filled.
 
 ### Fixed
+
+- **`foldkit-form-recipes`' amounts read back what they show in every locale.**
+  A currency or a percentage can group and separate decimals otherwise than a
+  plain number (`de-AT`, `fr-CH`, Indian currencies), and rtl locales write bidi
+  marks; a filled amount there was refused. The symbols now come from the field's
+  own format, and the keyboard's `¥`, `'` and full-width digits read as the format's.
+  A space or a symbol inside an amount is refused, and a `decimal` or `percent` a
+  JavaScript number would round is refused rather than stored rounded.
+- **A year under 100 is that year** in `date`, `dateTime` and their displays,
+  not 19xx.
+- **A recipe's bad option throws when it is made**: a scale that is no whole
+  number from 0 to 20, a currency `Intl` does not know, a `url` scheme without
+  its colon. `email` refuses control and invisible characters; `slugify` writes
+  `ß`, `ı`, `æ`, `ø`, `ł` as Latin letters; an instant is read only as ISO text.
+- **`foldkit-form-recipes/image`:** the field's label names the group the
+  control is drawn in; one live region says each state once, and the progress is
+  named by it; Cancel, Remove and Try again move focus on; a dropped file that
+  is no image is refused before it is sent; bad `headers` or `url` throw when the
+  recipe is made; the root carries `data-upload`. The docs no longer suggest a
+  deployment's secret as a browser's header: a page's session cookie answers the
+  application's `UploadPolicy`.
+- **`foldkit-mixins-crud`:** Escape closes a Dialog by itself, so the README says
+  to answer its `Closed` OutMessage with the editor's close; the default conflict
+  words no longer offer a reload nothing does.
 
 - **Two presses on a form's checkboxes before the next draw both count.** Each
   press sent the whole draft as drawn, so the second undid the first.

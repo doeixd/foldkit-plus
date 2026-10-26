@@ -26,4 +26,10 @@ export default [
   one('success never ends', '              Queue.endUnsafe(queue)\n', ''),
   one('a network failure is unexpected', "fail('Network')", "fail('Unexpected')"),
   one('interrupting keeps the request', 'Effect.sync(() => request.abort())', 'Effect.void'),
+  one(
+    'progress is said only at the end',
+    'request.upload.onprogress = event =>',
+    'request.upload.onloadend = event =>',
+  ),
+  one('progress says it is done at once', 'loaded: event.loaded,', 'loaded: file.size,'),
 ]

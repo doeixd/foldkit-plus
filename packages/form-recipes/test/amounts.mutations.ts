@@ -46,7 +46,7 @@ export default [
     edits: [
       {
         file: number,
-        find: 'if (digits !== whole && symbols.grouped.format(BigInt(digits)) !== whole) return Option.none()',
+        find: 'if (digits !== whole && symbols.grouped(digits) !== whole) return Option.none()',
         replace: '',
       },
     ],
@@ -74,12 +74,13 @@ export default [
     tests,
   },
   {
-    name: 'the separators come from a format that may show no decimal',
+    name: 'the separators come from a plain number, not the field’s format',
     edits: [
       {
         file: number,
-        find: 'separators.find(part => part.type === type)?.value',
-        replace: 'parts.find(part => part.type === type)?.value',
+        find: 'const of = (type: Intl.NumberFormatPartTypes) => parts.find(part => part.type === type)?.value',
+        replace:
+          "const of = (type: Intl.NumberFormatPartTypes) => new Intl.NumberFormat(locale, { numberingSystem: 'latn', minimumFractionDigits: 1 }).formatToParts(1234567.5).find(part => part.type === type)?.value",
       },
     ],
     tests,
@@ -89,8 +90,8 @@ export default [
     edits: [
       {
         file: index,
-        find: "Match.when('fraction', () => shifted(points, 2)),",
-        replace: "Match.when('fraction', () => points),",
+        find: 'exact(decimalText(shifted(points, 2)), (data.scale ?? 2) + 2),',
+        replace: 'exact(decimalText(points), data.scale ?? 2),',
       },
     ],
     tests,
@@ -112,5 +113,77 @@ export default [
       { file: '../src/html.ts', find: "negative === true ? 'text'", replace: "false ? 'text'" },
     ],
     tests,
+  },
+  {
+    name: 'bidi marks are read as part of the amount',
+    edits: [{ file: number, find: ".replace(invisible, '')", replace: '' }],
+    tests,
+  },
+  {
+    name: 'a percentage is grouped as its format scales it',
+    edits: [
+      {
+        file: number,
+        find: "...(options.style === 'percent' ? { style: 'decimal' } : {}),",
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a space inside an amount is dropped where none groups',
+    edits: [
+      {
+        file: number,
+        find: 'else if (spaces.test(text)) return Option.none()',
+        replace: "else text = text.replace(allSpaces, '')",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a symbol is taken anywhere in the amount',
+    edits: [
+      {
+        file: number,
+        find: 'if (text.startsWith(affix)) {',
+        replace:
+          "if (text.includes(affix)) { text = text.split(affix).join('') }\n      if (text.startsWith(affix)) {",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the keyboard’s apostrophe is not the Swiss group',
+    edits: [
+      {
+        file: number,
+        find: 'text = text.replace(apostrophes, symbols.group)',
+        replace: 'text = text',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a decimal is taken however a double rounds it',
+    edits: [
+      {
+        file: index,
+        find: 'return Option.contains(fixed(value, scale), text) ? Option.some(value) : Option.none()',
+        replace: 'return Option.some(value)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a scale is not checked when the recipe is made',
+    edits: [
+      {
+        file: index,
+        find: 'if (!Number.isInteger(scale) || scale < 0 || scale > most)',
+        replace: 'if (false)',
+      },
+    ],
+    tests: ['packages/form-recipes/test/text.test.ts'],
   },
 ]

@@ -90,3 +90,9 @@ describe('FieldRecipes.date', () => {
     )
   })
 })
+
+describe('a date in a year under 100', () => {
+  it('is shown in its own year, not in the 1900s', () => {
+    expect(FieldRecipes.date().display.text(make(50, 3, 5), {})).toBe('Mar 5, 50')
+  })
+})

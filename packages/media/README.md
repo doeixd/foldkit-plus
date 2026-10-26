@@ -500,19 +500,28 @@ the stream aborts it: a Command or Subscription that runs it cancels by
 ending.
 
 ```ts
-import { Effect, Stream } from 'effect'
+import { Effect, Match, Stream } from 'effect'
 import { upload } from 'foldkit-media/browser'
 
-const send = (file: File, token: string) =>
-  upload(file, { headers: { authorization: `Bearer ${token}` } }).pipe(
+const send = (file: File) =>
+  upload(file).pipe(
     Stream.runForEach(event =>
-      Effect.sync(() => {
-        if (event._tag === 'Progressed') console.log(`${event.loaded} of ${event.total} bytes`)
-        else console.log('kept as', event.asset.key)
-      }),
+      Effect.sync(() =>
+        Match.valueTags(event, {
+          Progressed: ({ loaded, total }) => console.log(`${loaded} of ${total} bytes`),
+          Uploaded: ({ asset }) => console.log('kept as', asset.key),
+        }),
+      ),
     ),
   )
 ```
+
+A browser authenticates as the page does: a same-origin request carries the
+session cookie, which the application's own `UploadPolicy` reads (as
+`GuardMedia.uploadPolicy` does). `uploadPolicyBearer`'s secret is a deployment's,
+for a script; a page that sends it in `headers` gives it to every visitor. No
+timeout is set: a stalled server shows the send on its way until it is
+interrupted.
 
 An image a page names only by URL gets its facts from the same route set:
 `GET /_media/facts?url=` reads it with `factsOf`, behind the same

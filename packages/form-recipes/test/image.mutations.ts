@@ -30,8 +30,13 @@ export default [
     'ImageUpload.Empty()',
     [unit, browser],
   ),
-  one('cancel is ignored', '{ Sending: () => emptied(model) }', '{}', [unit, browser]),
-  one('retry is ignored', '{ Refused: ({ file }) => send(model, file) }', '{}', [unit, browser]),
+  one(
+    'cancel is ignored',
+    'model: emptied(model), commands: [focus(`#${model.drop.id}`)]',
+    'model',
+    [unit, browser],
+  ),
+  one('retry is ignored', 'model: send(model, file),', 'model,', [unit, browser]),
   one(
     'a refusal is a value',
     '{ Kept: ({ asset }) => asset }',
@@ -47,4 +52,39 @@ export default [
   one('every refusal reads the same', 'words.refused[reason]', 'words.refused.Unexpected', [
     browser,
   ]),
+  one('a dropped file that is no image is sent', "files[0].type.startsWith('image/')", 'true', [
+    unit,
+  ]),
+  one(
+    'a send forgets the total it reports',
+    'ImageUpload.Sending({ ...upload, loaded, total })',
+    'ImageUpload.Sending({ ...upload, loaded })',
+    [unit],
+  ),
+  one(
+    'a remove keeps a refused file',
+    '{ Empty: () => ({ model }) }, () => ({',
+    '{ Empty: () => ({ model }), Refused: () => ({ model }) }, () => ({',
+    [unit],
+  ),
+  one(
+    'focus stays where a retry was',
+    'focus(`#${model.drop.id}-cancel`)',
+    'focus(`#${model.drop.id}`)',
+    [unit],
+  ),
+  one(
+    'a stored draft keeps its drag',
+    'drop: drop => (drop.isDragOver ? { ...drop, isDragOver: false } : drop),',
+    'drop: drop => drop,',
+    [unit],
+  ),
+  one('the progress has no name', 'h.AriaLabelledBy(`${id}-status`),', '', [browser]),
+  {
+    name: 'the field’s label names no group',
+    edits: [
+      { file: '../../mixins-form/src/index.ts', find: "        h.Role('group'),\n", replace: '' },
+    ],
+    tests: [browser],
+  },
 ]

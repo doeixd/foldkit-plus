@@ -96,8 +96,17 @@ it('shows the send on its way, then the kept image as the key’s value', async 
   try {
     await choose()
     const requestId = await next()
-    await vi.waitFor(() => expect(status()).toMatch(/^Sending cover\.png: \d+%$/))
-    expect(document.querySelector('progress')?.max).toBe(100)
+    await vi.waitFor(() => expect(status()).toBe('Sending cover.png'))
+    // The progress is named by what the live region says, and the field's label
+    // names the group the file input is drawn in.
+    const progress = document.querySelector('progress')!
+    expect([progress.max, progress.getAttribute('aria-labelledby')]).toEqual([100, 'cover-status'])
+    const group = document.getElementById('PostForm-cover')!
+    expect([group.getAttribute('role'), group.getAttribute('aria-labelledby')]).toEqual([
+      'group',
+      'PostForm-cover-label',
+    ])
+    expect(document.getElementById('PostForm-cover-label')?.textContent).toBe('Cover')
     await answer(requestId, 201, JSON.stringify(facts))
     await vi.waitFor(() => expect(status()).toBe('An image of 640 × 480'))
     expect(PostForm.partial(latest).cover?.key).toBe(hash)
@@ -120,7 +129,8 @@ it('cancels a send by aborting its request, and leaves the key empty', async () 
     await vi.waitFor(() => expect(status()).toMatch(/^Sending/))
     press('Cancel')
     await vi.waitFor(() => expect(states).toEqual([XMLHttpRequest.OPENED]))
-    await vi.waitFor(() => expect(document.querySelector('#cover')).not.toBeNull())
+    // The button pressed is gone: focus is on the file input again.
+    await vi.waitFor(() => expect(document.activeElement?.id).toBe('cover'))
     expect(PostForm.partial(latest)).toEqual({})
     await cdp()
       .send('Fetch.continueRequest', { requestId })

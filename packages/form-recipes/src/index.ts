@@ -12,7 +12,7 @@ import { Display } from 'foldkit-crud'
 import { Input, type Control, type ControlChange } from 'foldkit-form'
 import { isCalendarDate, type CalendarDate } from 'foldkit/calendar'
 import { decimalText, digitsOf, readDigits, shifted, writeAmount, type Digits } from './number.js'
-import { instantOf, knownZone, readWall, wallOf, writeWall } from './wall.js'
+import { dateFormat, instantOf, knownZone, readWall, utcOf, wallOf, writeWall } from './wall.js'
 
 /**
  * One kind of key: how it is edited, and how it reads. Most recipes' control is
@@ -46,7 +46,7 @@ const readDate = (text: string): CalendarDate | undefined => {
 const writeDate = (date: CalendarDate): string =>
   `${String(date.year).padStart(4, '0')}-${two(date.month)}-${two(date.day)}`
 
-const DateKind = Input.kind<Locale>('Date', {
+const DateKind = Input.kind<Locale>('FieldRecipes.Date', {
   draft: 'text',
   parse: draft => readDate(draft),
   format: value => {
@@ -56,13 +56,12 @@ const DateKind = Input.kind<Locale>('Date', {
   unparsed: 'Enter a date',
 })
 
-const DateDisplay = Display.kind<Locale>('Date', {
+const DateDisplay = Display.kind<Locale>('FieldRecipes.Date', {
   text: (data, value) =>
     isCalendarDate(value)
-      ? new Intl.DateTimeFormat(data.locale ?? 'en', {
-          dateStyle: 'medium',
-          timeZone: 'UTC',
-        }).format(Date.UTC(value.year, value.month - 1, value.day))
+      ? dateFormat(data.locale ?? 'en', { dateStyle: 'medium', timeZone: 'UTC' }).format(
+          utcOf({ ...value, hour: 0, minute: 0, second: 0, millisecond: 0 }),
+        )
       : String(value),
 })
 
@@ -86,7 +85,8 @@ interface Mode {
 }
 
 const shown = { dateStyle: 'medium', timeStyle: 'short' } as const
-const instantText = /(?:Z|[+-]\d\d:\d\d)$/
+// The ISO form alone, offset and all: `Date.parse` takes much else, in the runtime's zone.
+const instantText = /^\d{4,}-\d\d-\d\dT\d\d:\d\d(?::\d\d(?:\.\d+)?)?(?:Z|[+-]\d\d:\d\d)$/
 
 const local: Mode = {
   // The text as typed, once it names a real time: a stored value comes back unchanged.
@@ -100,10 +100,7 @@ const local: Mode = {
   text: (value, locale) =>
     Option.match(readWall(value), {
       onNone: () => value,
-      onSome: wall =>
-        new Intl.DateTimeFormat(locale, { ...shown, timeZone: 'UTC' }).format(
-          Date.UTC(wall.year, wall.month - 1, wall.day, wall.hour, wall.minute, wall.second),
-        ),
+      onSome: wall => dateFormat(locale, { ...shown, timeZone: 'UTC' }).format(utcOf(wall)),
     }),
 }
 
@@ -119,10 +116,8 @@ const instant = (zone: string): Mode => ({
     throw new Error(`an instant is ISO text with an offset, not ${JSON.stringify(value)}`)
   },
   text: (value, locale) => {
-    const at = Date.parse(value)
-    return Number.isNaN(at)
-      ? value
-      : new Intl.DateTimeFormat(locale, { ...shown, timeZone: zone }).format(at)
+    const at = instantText.test(value) ? Date.parse(value) : Number.NaN
+    return Number.isNaN(at) ? value : dateFormat(locale, { ...shown, timeZone: zone }).format(at)
   },
 })
 
@@ -134,14 +129,14 @@ const modeOf = (data: Stored): Mode =>
     }),
   )
 
-const DateTimeKind = Input.kind<DateTimeData>('DateTime', {
+const DateTimeKind = Input.kind<DateTimeData>('FieldRecipes.DateTime', {
   draft: 'text',
   parse: (draft, data) => Option.getOrUndefined(modeOf(data).parse(draft)),
   format: (value, data) => modeOf(data).format(value),
   unparsed: 'Enter a date and a time that exists',
 })
 
-const DateTimeDisplay = Display.kind<DateTimeData>('DateTime', {
+const DateTimeDisplay = Display.kind<DateTimeData>('FieldRecipes.DateTime', {
   text: (data, value) => modeOf(data).text(String(value), data.locale ?? 'en'),
 })
 
@@ -152,9 +147,10 @@ export interface Autofill {
 
 // One `@`, something either side, no space: an address, without guessing at
 // what a server will deliver to. Whether it exists is the server's to say.
-const address = /^[^\s@]+@[^\s@]+$/
+// No space, no control or invisible character, and one `@` with something either side.
+const address = /^[^\s@\p{C}]+@[^\s@\p{C}]+$/u
 
-const EmailKind = Input.kind<Autofill>('Email', {
+const EmailKind = Input.kind<Autofill>('FieldRecipes.Email', {
   draft: 'text',
   parse: draft => (address.test(draft) ? draft : undefined),
   unparsed: 'Enter an email address',
@@ -165,7 +161,7 @@ export interface Schemes extends Autofill {
   readonly protocols?: ReadonlyArray<string> | undefined
 }
 
-const UrlKind = Input.kind<Schemes>('Url', {
+const UrlKind = Input.kind<Schemes>('FieldRecipes.Url', {
   draft: 'text',
   // Kept as typed, once it parses with an allowed scheme: a reader's spelling is
   // not rewritten, and `javascript:` is not a link.
@@ -180,24 +176,39 @@ const UrlKind = Input.kind<Schemes>('Url', {
 
 // A telephone number is too varied to check here without refusing a real one;
 // the schema may, and the kind gives the keypad and the autofill.
-const TelKind = Input.kind<Autofill>('Tel', { draft: 'text' })
+const TelKind = Input.kind<Autofill>('FieldRecipes.Tel', { draft: 'text' })
 
 /** Whether the password is one the person has (`current`) or is choosing (`new`). */
 export interface Purpose {
   readonly purpose: 'current' | 'new'
 }
 
-const PasswordKind = Input.kind<Purpose>('Password', { draft: 'text' })
+const PasswordKind = Input.kind<Purpose>('FieldRecipes.Password', { draft: 'text' })
 
 /** A slug's address before it: `/blog/`. */
 export interface Prefix {
   readonly prefix: string
 }
 
-const SlugKind = Input.kind<Prefix>('Slug', { draft: 'text' })
+const SlugKind = Input.kind<Prefix>('FieldRecipes.Slug', { draft: 'text' })
+
+// Letters that decompose to no Latin letter, written as an address writes them.
+const unaccented: Readonly<Record<string, string>> = {
+  ı: 'i',
+  ß: 'ss',
+  æ: 'ae',
+  œ: 'oe',
+  ø: 'o',
+  ł: 'l',
+  đ: 'd',
+  ð: 'd',
+  þ: 'th',
+}
 
 const slugify = (text: string): string =>
   text
+    .toLowerCase()
+    .replace(/[ıßæœøłđðþ]/g, letter => unaccented[letter] ?? letter)
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
@@ -214,8 +225,8 @@ export interface Signed {
 /**
  * How an amount of money is stored. `minor` is an integer of the currency's
  * smallest unit (cents: `123456` for $1,234.56); `decimal` is a decimal text
- * (`'1234.56'`). The key's schema says which it holds; a value of the other form
- * is the schema's error, never rounded into it.
+ * (`'1234.56'`). The key's schema says which it holds; a fill with a value of
+ * the other form throws, rather than converting it.
  */
 export interface MoneyOptions extends Locale, Signed {
   /** An ISO 4217 code: `USD`, `EUR`, `JPY`. */
@@ -265,7 +276,7 @@ const moneyValue = (digits: Digits, data: MoneyData): Option.Option<unknown> =>
     Match.exhaustive,
   )
 
-const MoneyKind = Input.kind<MoneyData>('Money', {
+const MoneyKind = Input.kind<MoneyData>('FieldRecipes.Money', {
   draft: 'text',
   parse: (draft, data) =>
     Option.getOrUndefined(
@@ -292,7 +303,7 @@ const MoneyKind = Input.kind<MoneyData>('Money', {
   unparsed: 'Enter an amount',
 })
 
-const MoneyDisplay = Display.kind<MoneyData>('Money', {
+const MoneyDisplay = Display.kind<MoneyData>('FieldRecipes.Money', {
   text: (data, value) =>
     Option.match(moneyText(value, data), {
       onNone: () => String(value),
@@ -305,6 +316,14 @@ export interface DecimalOptions extends Locale, Signed {
   readonly scale: number
 }
 
+/** Throws, when a recipe is made, for a scale no format can write. */
+const scaleOf = (recipe: string, scale: number, most: number): void => {
+  if (!Number.isInteger(scale) || scale < 0 || scale > most)
+    throw new Error(
+      `FieldRecipes.${recipe}: scale is a whole number from 0 to ${most}, not ${scale}`,
+    )
+}
+
 /** A number's decimal text with `scale` decimals, or none when that would round it. */
 const fixed = (value: unknown, scale: number): Option.Option<string> => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return Option.none()
@@ -312,15 +331,25 @@ const fixed = (value: unknown, scale: number): Option.Option<string> => {
   return Number(text) === value ? Option.some(text) : Option.none()
 }
 
+/**
+ * A decimal text as a number, or none when no number holds it exactly: past
+ * about 15 significant digits a double rounds, and the typed amount would not
+ * be what is stored.
+ */
+const exact = (text: string, scale: number): Option.Option<number> => {
+  const value = Number(text)
+  return Option.contains(fixed(value, scale), text) ? Option.some(value) : Option.none()
+}
+
 const decimalOf = (data: DecimalOptions) => ({ maximumFractionDigits: data.scale }) as const
 
-const DecimalKind = Input.kind<DecimalOptions>('Decimal', {
+const DecimalKind = Input.kind<DecimalOptions>('FieldRecipes.Decimal', {
   draft: 'text',
   parse: (draft, data) =>
     Option.getOrUndefined(
-      Option.map(
+      Option.flatMap(
         readDigits(draft, data.locale ?? 'en', decimalOf(data), data.scale, data.negative === true),
-        digits => Number(decimalText(digits)),
+        digits => exact(decimalText(digits), data.scale),
       ),
     ),
   format: (value, data) =>
@@ -333,7 +362,7 @@ const DecimalKind = Input.kind<DecimalOptions>('Decimal', {
   unparsed: 'Enter a number',
 })
 
-const DecimalDisplay = Display.kind<DecimalOptions>('Decimal', {
+const DecimalDisplay = Display.kind<DecimalOptions>('FieldRecipes.Decimal', {
   text: (data, value) =>
     Option.match(fixed(value, data.scale), {
       onNone: () => String(value),
@@ -369,11 +398,11 @@ const shareText = (value: unknown, data: PercentOptions): Option.Option<string> 
   )
 }
 
-const PercentKind = Input.kind<PercentOptions>('Percent', {
+const PercentKind = Input.kind<PercentOptions>('FieldRecipes.Percent', {
   draft: 'text',
   parse: (draft, data) =>
     Option.getOrUndefined(
-      Option.map(
+      Option.flatMap(
         readDigits(
           draft,
           data.locale ?? 'en',
@@ -382,14 +411,12 @@ const PercentKind = Input.kind<PercentOptions>('Percent', {
           data.negative === true,
         ),
         points =>
-          Number(
-            decimalText(
-              Match.value(data.unit).pipe(
-                Match.when('points', () => points),
-                Match.when('fraction', () => shifted(points, 2)),
-                Match.exhaustive,
-              ),
+          Match.value(data.unit).pipe(
+            Match.when('points', () => exact(decimalText(points), data.scale ?? 2)),
+            Match.when('fraction', () =>
+              exact(decimalText(shifted(points, 2)), (data.scale ?? 2) + 2),
             ),
+            Match.exhaustive,
           ),
       ),
     ),
@@ -405,7 +432,7 @@ const PercentKind = Input.kind<PercentOptions>('Percent', {
   unparsed: 'Enter a percentage',
 })
 
-const PercentDisplay = Display.kind<PercentOptions>('Percent', {
+const PercentDisplay = Display.kind<PercentOptions>('FieldRecipes.Percent', {
   text: (data, value) =>
     Option.match(shareText(value, data), {
       onNone: () => String(value),
@@ -466,10 +493,15 @@ export const FieldRecipes = {
   }),
 
   /** A web address with one of `options.protocols`, kept as typed. */
-  url: (options: Schemes = {}): FieldRecipe<Control<Schemes>> => ({
-    control: UrlKind.of(options),
-    display: text,
-  }),
+  url: (options: Schemes = {}): FieldRecipe<Control<Schemes>> => {
+    // A scheme as `URL` writes one, or nothing could ever match it.
+    for (const protocol of options.protocols ?? [])
+      if (!/^[a-z][a-z0-9+.-]*:$/.test(protocol))
+        throw new Error(
+          `FieldRecipes.url: "${protocol}" is not a scheme as URL writes it, such as "https:"`,
+        )
+    return { control: UrlKind.of(options), display: text }
+  },
 
   /** A telephone number, as typed: the phone's keypad and the browser's autofill, no check. */
   tel: (options: Autofill = {}): FieldRecipe<Control<Autofill>> => ({
@@ -522,8 +554,8 @@ export const FieldRecipes = {
    * unknown currency code throws here.
    */
   money: (options: MoneyOptions): FieldRecipe<Control<MoneyData>> => {
-    if (!/^[A-Z]{3}$/.test(options.currency))
-      throw new Error(`FieldRecipes.money: "${options.currency}" is not an ISO 4217 code`)
+    if (!Intl.supportedValuesOf('currency').includes(options.currency))
+      throw new Error(`FieldRecipes.money: "${options.currency}" is not a currency Intl knows`)
     const scale =
       new Intl.NumberFormat(options.locale ?? 'en', {
         style: 'currency',
@@ -534,14 +566,15 @@ export const FieldRecipes = {
   },
 
   /** A number with at most `scale` decimals, read and shown in `locale`'s separators. */
-  decimal: (options: DecimalOptions): FieldRecipe<Control<DecimalOptions>> => ({
-    control: DecimalKind.of(options),
-    display: DecimalDisplay.of(options),
-  }),
+  decimal: (options: DecimalOptions): FieldRecipe<Control<DecimalOptions>> => {
+    scaleOf('decimal', options.scale, 20)
+    return { control: DecimalKind.of(options), display: DecimalDisplay.of(options) }
+  },
 
   /** A percentage, stored as a share or as points (see `PercentOptions`). */
-  percent: (options: PercentOptions): FieldRecipe<Control<PercentOptions>> => ({
-    control: PercentKind.of(options),
-    display: PercentDisplay.of(options),
-  }),
+  percent: (options: PercentOptions): FieldRecipe<Control<PercentOptions>> => {
+    // A share keeps two more decimals than the points it is shown as.
+    scaleOf('percent', options.scale ?? 2, 18)
+    return { control: PercentKind.of(options), display: PercentDisplay.of(options) }
+  },
 }

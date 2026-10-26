@@ -4,7 +4,7 @@
  * answers given by the browser itself (CDP `Fetch`), so what is sent and what
  * comes back are what a page meets.
  */
-import { Effect, Exit, Fiber, Stream } from 'effect'
+import { Effect, Exit, Fiber, Match, Stream } from 'effect'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { cdp } from 'vitest/browser'
 import { upload, UploadFailed, type UploadEvent } from '../src/browser/index.js'
@@ -75,13 +75,37 @@ test('sends the bytes typed by the file, with its headers, and ends with the fac
 test('reports progress as the bytes go, before an answer it does not know', async () => {
   const file = image(2 * 1024 * 1024)
   const seen: Array<UploadEvent> = []
-  const exit = await Effect.runPromiseExit(
-    Stream.runForEach(upload(file, { url: '/_no_route' }), event =>
-      Effect.sync(() => seen.push(event)),
-    ),
+  // Slowed to about a second, so the bytes go in several steps, not one.
+  await cdp().send('Network.enable')
+  await cdp().send('Network.emulateNetworkConditions', {
+    offline: false,
+    latency: 0,
+    downloadThroughput: -1,
+    uploadThroughput: 2 * 1024 * 1024,
+  })
+  try {
+    const exit = await Effect.runPromiseExit(
+      Stream.runForEach(upload(file, { url: '/_no_route' }), event =>
+        Effect.sync(() => seen.push(event)),
+      ),
+    )
+    expect(exit).toEqual(Exit.fail(new UploadFailed({ reason: 'Unexpected', status: 404 })))
+  } finally {
+    await cdp().send('Network.emulateNetworkConditions', {
+      offline: false,
+      latency: 0,
+      downloadThroughput: -1,
+      uploadThroughput: -1,
+    })
+    await cdp().send('Network.disable')
+  }
+  const loaded = seen.flatMap(event =>
+    Match.valueTags(event, { Progressed: ({ loaded }) => [loaded], Uploaded: () => [] }),
   )
+  // Climbing to the whole file, through some part of it first.
+  expect(loaded.some(bytes => bytes > 0 && bytes < file.size)).toBe(true)
+  expect(loaded).toEqual([...loaded].sort((a, b) => a - b))
   expect(seen.at(-1)).toEqual({ _tag: 'Progressed', loaded: file.size, total: file.size })
-  expect(exit).toEqual(Exit.fail(new UploadFailed({ reason: 'Unexpected', status: 404 })))
 })
 
 test.each([

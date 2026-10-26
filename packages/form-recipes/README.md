@@ -114,7 +114,9 @@ wrong address.
 | `slug(from, { prefix?, through? })` | anything | a text input after `prefix` |
 
 A `slug` follows the key `from`, made into a slug by `through` (default
-`FieldRecipes.slugify`: lower case, unaccented, words joined by `-`), until the
+`FieldRecipes.slugify`: lower case, unaccented, `ß` as `ss` and `ı` as `i`, words
+joined by `-`; a script with no Latin spelling, such as `東京`, leaves nothing,
+so such a title's slug is written by hand), until the
 person writes it; a form filled with a stored slug does not follow, so a
 published address does not move because its title did. Its control is a
 `ControlChange`, which only a form's `inputs` takes.
@@ -149,10 +151,14 @@ no floating point stands between what was typed and what is stored:
 
 What is refused rather than guessed at: grouping other than the locale's (`12,3`
 in `en-US` is not `123`, and `12.3` in `de-DE` is not either), more decimals than
-the scale (never rounded), a minus unless `negative: true`, and a minor amount
-past what a JavaScript number holds exactly (use `'decimal'` for those). A
-partial amount (`-`, `1,2`) reads `Enter an amount`: the form checks a key as it
-changes. The inputs are text with a numeric keypad (`inputmode`), since `"4."`
+the scale (never rounded), a minus unless `negative: true`, a space inside an
+amount where the locale groups with none, a symbol anywhere but at either end,
+a minor amount past what a JavaScript number holds exactly (use `'decimal'` for
+those), and a `decimal` or `percent` a JavaScript number would round. A partial
+amount (`-`, or `1,2` in `en-US`) reads `Enter an amount`: the form checks a key
+as it changes. What a keyboard types for what a format writes is read alike: `¥`
+for `￥`, `'` for the Swiss `’`, full-width digits, and the bidi marks an rtl
+locale writes around an amount are not part of it. The inputs are text with a numeric keypad (`inputmode`), since `"4."`
 is a fine draft that `type="number"` would refuse to report.
 
 ### Drawn through `foldkit-mixins-ui`
@@ -188,13 +194,15 @@ Bundle, because an upload has state of its own:
 Empty --choose--> Sending --201--> Kept (the value)
                   Sending --cancel--> Empty
                   Sending --refused--> Refused --retry--> Sending
+                                       Refused --choose--> Sending
+Sending, Refused, Kept --remove--> Empty
 ```
 
 ```ts
 import { image } from 'foldkit-form-recipes/image'
 import { HashedAsset } from 'foldkit-media'
 
-const cover = image({ id: 'cover', headers: { authorization: 'Bearer …' } })
+const cover = image({ id: 'cover' })
 const Post = Form.make('Post', Form.input(Schema.Struct({ cover: HashedAsset })), {
   inputs: { cover: cover.control },
 })
@@ -209,11 +217,25 @@ refused, is nothing entered, so a required key stays `Required` until the
 route has kept it.
 
 `id` is the drop zone's, and its file input's, so it is unique on the page.
-Who may upload stays the route's `UploadPolicy`; `headers` is only what the
-request carries. Its look comes from `styles.field` (over `ImageSlots`) and
+Who may upload stays the route's `UploadPolicy`, which a page's session cookie
+answers; `headers` is only what the request carries, fixed when the recipe is
+made, so never a secret. A dropped file that is no image is refused here, as
+`Unsupported`, before its bytes go anywhere. The state is the root's
+`data-upload` (`Empty`, `Sending`, `Refused`, `Kept`); the key's label names the
+group the control is drawn in; the status is one live region, said once per
+state (the progress moves under it); and a press that takes its button away
+moves focus on: Cancel and Remove to the file input, Try again to Cancel. Its look comes from `styles.field` (over `ImageSlots`) and
 `styles.drop` (over `foldkit-mixins-ui`'s `FileDropSlots`), its words from
-`words`. The entry needs `foldkit-media`, `@foldkit/ui` and
-`foldkit-mixins-ui` beside the package's own.
+`words`. The entry needs `foldkit-media`, `@foldkit/ui`, `foldkit-mixins` and
+`foldkit-mixins-ui` beside the package's own; `./ui` needs `foldkit-mixins`,
+`foldkit-mixins-ui` and `foldkit-mixins-form`, and `./html` `foldkit-mixins-form`.
+
+**A submit while a file is on its way** goes without it: the form cannot see a
+Bundle's send. A required key reads `Required` beside the progress; an optional
+one is submitted empty and the upload lands after. Hold the submit button back
+while the key's `data-upload` is `Sending` if that matters. In `vite dev`, a
+Model holding a `File` cannot be kept across a reload, so a send on its way is
+lost by one.
 
 ## Displays
 
@@ -230,8 +252,11 @@ instant reads in its recipe's zone.
 
 - **A time the clocks skip is refused.** In `instant` mode, `2026-03-29T01:30` in
   London names no instant (the clocks go from 01:00 to 02:00), and reads
-  `Enter a date and a time that exists`. A browser's `new Date` would move it an
-  hour on without saying.
+  `Enter a date and a time that exists`, the words for any draft that names no
+  time, a partly typed one too. A browser's `new Date` would move it an hour on
+  without saying.
+- **A year under 100 is that year.** `0050-06-01` is not read as 1950, as
+  `Date.UTC` would.
 - **A time the clocks repeat reads as the earlier.** `2026-10-25T01:30` in London
   happens twice; it submits `00:30Z`, the first.
 - **A fill with a value of the wrong form throws,** naming the form and the key: a

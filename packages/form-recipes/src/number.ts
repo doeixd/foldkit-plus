@@ -19,16 +19,26 @@ interface Symbols {
   readonly decimal: string
   /** Text that is not part of the amount: a currency symbol, a percent sign. */
   readonly affixes: ReadonlyArray<string>
-  /** Formats whole digits with the locale's grouping, to compare a grouped draft against. */
-  readonly grouped: Intl.NumberFormat
+  /** Whole digits grouped as this kind of amount groups them, to compare a grouped draft against. */
+  readonly grouped: (digits: string) => string
 }
 
 const minus = /^[-−]/
-const space = /[\s  ]/g
+const apostrophe = /^['’]$/
+const apostrophes = /['’]/g
+const spaces = /[\s\u00a0\u202f]/
+const allSpaces = /[\s\u00a0\u202f]/g
+/** Marks a format writes and a person does not type: bidi marks around an amount in rtl locales. */
+const invisible = /\p{Cf}/gu
 
 const symbolsCache = new Map<string, Symbols>()
 
-/** The symbols of `options` in `locale`, Latin digits always: a draft is typed on a keyboard. */
+/**
+ * The symbols of `options` in `locale`, Latin digits always: a draft is typed on
+ * a keyboard. All of them from the format the field writes with: a currency or a
+ * percentage can group, and separate decimals, otherwise than a plain number
+ * (`de-AT`'s euros group with `.`, its plain numbers with a space).
+ */
 const symbolsOf = (locale: string, options: Intl.NumberFormatOptions): Symbols => {
   const key = JSON.stringify([locale, options])
   const known = symbolsCache.get(key)
@@ -36,26 +46,35 @@ const symbolsOf = (locale: string, options: Intl.NumberFormatOptions): Symbols =
   const parts = new Intl.NumberFormat(locale, {
     ...options,
     numberingSystem: 'latn',
-  }).formatToParts(-1234567.5)
-  // The separators from a plain number that has both, whatever `options` shows:
-  // a percentage with no decimals still has the locale's decimal separator.
-  const separators = new Intl.NumberFormat(locale, {
-    numberingSystem: 'latn',
+    // One decimal, whatever the field's own: a yen amount still has a decimal separator.
     minimumFractionDigits: 1,
-  }).formatToParts(1234567.5)
-  const of = (type: Intl.NumberFormatPartTypes) =>
-    separators.find(part => part.type === type)?.value
+    maximumFractionDigits: 1,
+  }).formatToParts(-1234567.5)
+  const of = (type: Intl.NumberFormatPartTypes) => parts.find(part => part.type === type)?.value
+  // A percentage's whole digits are grouped as a number: its format would scale them.
+  const whole = new Intl.NumberFormat(locale, {
+    ...options,
+    ...(options.style === 'percent' ? { style: 'decimal' } : {}),
+    numberingSystem: 'latn',
+    useGrouping: true,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })
+  // In their compatibility forms, as a draft is read: the full-width `￥` a
+  // format writes is the `¥` a keyboard types.
   const made: Symbols = {
-    group: of('group') ?? ',',
-    decimal: of('decimal') ?? '.',
+    group: (of('group') ?? ',').normalize('NFKC'),
+    decimal: (of('decimal') ?? '.').normalize('NFKC'),
     affixes: parts
       .filter(part => part.type === 'currency' || part.type === 'percentSign')
-      .map(part => part.value),
-    grouped: new Intl.NumberFormat(locale, {
-      numberingSystem: 'latn',
-      useGrouping: true,
-      maximumFractionDigits: 0,
-    }),
+      .map(part => part.value.normalize('NFKC')),
+    grouped: digits =>
+      whole
+        .formatToParts(BigInt(digits))
+        .filter(part => part.type === 'integer' || part.type === 'group')
+        .map(part => part.value)
+        .join('')
+        .normalize('NFKC'),
   }
   symbolsCache.set(key, made)
   return made
@@ -65,7 +84,8 @@ const symbolsOf = (locale: string, options: Intl.NumberFormatOptions): Symbols =
  * The digits a draft names, in `locale` for amounts formatted with `options`:
  * none for text that is not an amount, has more than `scale` fraction digits,
  * groups its digits other than the locale does (`12,3` in `en-US` is no
- * thousand), or is negative where `negative` is false.
+ * thousand), or is negative where `negative` is false. A currency symbol or a
+ * percent sign is taken at either end only, and a minus before or after it.
  */
 export const readDigits = (
   draft: string,
@@ -75,22 +95,41 @@ export const readDigits = (
   negative: boolean,
 ): Option.Option<Digits> => {
   const symbols = symbolsOf(locale, options)
-  let text = draft
-  for (const affix of symbols.affixes) text = text.split(affix).join('')
-  // A locale that groups with a space groups with any space a person types.
-  const spaced = space.test(symbols.group)
-  text = text.trim()
-  text = spaced ? text.replace(space, symbols.group) : text.replace(space, '')
-  const signed = minus.test(text)
-  if (signed) text = text.slice(1)
+  let text = draft.normalize('NFKC').replace(invisible, '').trim()
+  let signed = false
+  for (let moved = true; moved;) {
+    moved = false
+    if (!signed && minus.test(text)) {
+      signed = true
+      text = text.slice(1).trim()
+      moved = true
+    }
+    for (const affix of symbols.affixes) {
+      if (text.startsWith(affix)) {
+        text = text.slice(affix.length).trim()
+        moved = true
+      }
+      if (text.endsWith(affix)) {
+        text = text.slice(0, -affix.length).trim()
+        moved = true
+      }
+    }
+  }
   if (signed && !negative) return Option.none()
+  // A locale that groups with a space groups with any space a person types; in
+  // one that does not, a space inside an amount is no part of it.
+  if (spaces.test(symbols.group)) text = text.replace(allSpaces, symbols.group)
+  else if (spaces.test(text)) return Option.none()
+  // Swiss grouping is an apostrophe, `’` or `'` as the runtime's ICU writes it
+  // (ICU 78 moved to `'`), and a person types either.
+  if (apostrophe.test(symbols.group)) text = text.replace(apostrophes, symbols.group)
   const [whole = '', fraction = '', ...rest] = text.split(symbols.decimal)
   if (rest.length > 0 || (whole === '' && fraction === '')) return Option.none()
   if (!/^\d*$/.test(fraction) || fraction.length > scale) return Option.none()
   const digits = whole.split(symbols.group).join('')
   if (!/^\d*$/.test(digits)) return Option.none()
   // Grouped only as the locale groups that number, or not at all.
-  if (digits !== whole && symbols.grouped.format(BigInt(digits)) !== whole) return Option.none()
+  if (digits !== whole && symbols.grouped(digits) !== whole) return Option.none()
   return Option.some({
     negative: signed,
     whole: digits.replace(/^0+(?=\d)/, '') || '0',

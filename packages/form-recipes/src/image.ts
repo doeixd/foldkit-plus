@@ -6,7 +6,7 @@
  * cancelled, and a refusal, which can be retried. Only facts the route kept
  * become the value; a file on its way, or refused, is nothing entered.
  */
-import { Match, Option, Schema, Stream } from 'effect'
+import { Effect, Match, Option, Schema, Stream } from 'effect'
 import * as UiFileDrop from '@foldkit/ui/fileDrop'
 import { Bundle } from 'foldkit-bundle'
 import { Display } from 'foldkit-crud'
@@ -15,6 +15,8 @@ import { HashedAsset } from 'foldkit-media'
 import { upload, UploadRefusal, type UploadOptions } from 'foldkit-media/browser'
 import { Capability, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import { FileDrop, type FileDropSlots } from 'foldkit-mixins-ui'
+import * as Command from 'foldkit/command'
+import * as Dom from 'foldkit/dom'
 import { defineMessageUnion } from 'foldkit/message'
 import { defineTaggedUnion } from 'foldkit/schema'
 import { modifyFields } from 'foldkit/struct'
@@ -68,6 +70,8 @@ export const ImageMessage = defineMessageUnion({
   Cancelled: {},
   Retried: {},
   Removed: {},
+  /** Focus moved on after a press took away the button pressed. */
+  CompletedFocus: {},
 })
 export type ImageMessage = typeof ImageMessage.Type
 
@@ -82,7 +86,10 @@ export const ImageSlots = Slots.define({
   remove: Slot.make({ capability: Capability.Interactive }),
 })
 
-/** What the control says. `{name}`, `{percent}`, `{width}` and `{height}` are filled. */
+/**
+ * What the control says. `{name}`, `{width}` and `{height}` are filled. Each is
+ * said once, in a live region: the progress shows how far a send has gone.
+ */
 export interface ImageWords {
   readonly prompt: string
   readonly sending: string
@@ -96,7 +103,7 @@ export interface ImageWords {
 
 export const imageWords: ImageWords = {
   prompt: 'Drop an image here, or choose one',
-  sending: 'Sending {name}: {percent}%',
+  sending: 'Sending {name}',
   kept: 'An image of {width} × {height}',
   cancel: 'Cancel',
   retry: 'Try again',
@@ -155,7 +162,13 @@ const sending = (
     () => model,
   )
 
-const update = (model: ImageModel, message: ImageMessage): { readonly model: ImageModel } =>
+const update = (
+  model: ImageModel,
+  message: ImageMessage,
+): {
+  readonly model: ImageModel
+  readonly commands?: ReadonlyArray<Command.Command<ImageMessage>>
+} =>
   ImageMessage.match(message, {
     GotDrop: ({ message }) => {
       const dropped = UiFileDrop.update(model.drop, message)
@@ -164,7 +177,15 @@ const update = (model: ImageModel, message: ImageMessage): { readonly model: Ima
         model: Option.match(Option.fromNullishOr(dropped.outMessage), {
           onNone: () => next,
           onSome: UiFileDrop.OutMessage.match({
-            ReceivedFiles: ({ files }) => send(next, files[0]),
+            // `accept` filters the picker, not a drop: what is no image is refused here,
+            // before its bytes go anywhere.
+            ReceivedFiles: ({ files }) =>
+              files[0].type.startsWith('image/')
+                ? send(next, files[0])
+                : modifyFields(next, {
+                    upload: () =>
+                      ImageUpload.Refused({ file: files[0], reason: 'Unsupported', status: 0 }),
+                  }),
             RejectedNonFiles: () => next,
           }),
         }),
@@ -183,20 +204,40 @@ const update = (model: ImageModel, message: ImageMessage): { readonly model: Ima
         modifyFields(model, { upload: () => ImageUpload.Refused({ file, reason, status }) }),
       ),
     }),
-    Cancelled: () => ({
-      model: ImageUpload.matchOrElse(model.upload, { Sending: () => emptied(model) }, () => model),
-    }),
-    Retried: () => ({
-      model: ImageUpload.matchOrElse(
+    // Each press takes away the button pressed, so focus goes where the reader goes next.
+    Cancelled: () =>
+      ImageUpload.matchOrElse(
         model.upload,
-        { Refused: ({ file }) => send(model, file) },
-        () => model,
+        { Sending: () => ({ model: emptied(model), commands: [focus(`#${model.drop.id}`)] }) },
+        () => ({ model }),
       ),
-    }),
-    Removed: () => ({
-      model: ImageUpload.matchOrElse(model.upload, { Empty: () => model }, () => emptied(model)),
-    }),
+    Retried: () =>
+      ImageUpload.matchOrElse(
+        model.upload,
+        {
+          Refused: ({ file }) => ({
+            model: send(model, file),
+            commands: [focus(`#${model.drop.id}-cancel`)],
+          }),
+        },
+        () => ({ model }),
+      ),
+    Removed: () =>
+      ImageUpload.matchOrElse(model.upload, { Empty: () => ({ model }) }, () => ({
+        model: emptied(model),
+        commands: [focus(`#${model.drop.id}`)],
+      })),
+    CompletedFocus: () => ({ model }),
   })
+
+const Focus = Command.define('FieldRecipes.Image.Focus', {
+  args: { selector: Schema.String },
+  messages: [ImageMessage.CompletedFocus],
+  // Nothing to focus is nothing to do: the control may be gone by the next draw.
+  execute: ({ selector }) =>
+    Dom.focus(selector).pipe(Effect.ignore, Effect.as(ImageMessage.CompletedFocus())),
+})
+const focus = (selector: string) => Focus({ selector })
 
 /** The send in flight, which is what the upload Subscription follows. */
 const inFlight = Schema.Option(Schema.Struct({ attempt: Schema.Number, file: FileSchema }))
@@ -247,8 +288,11 @@ const view = (options: ImageOptions, words: ImageWords) =>
       options.styles?.field === undefined ? [] : [options.styles.field.mixin],
       { input: model, h },
     )
+    const { id } = model.drop
     const button = (slot: 'cancel' | 'retry' | 'remove', message: ImageMessage) =>
-      h.button(slots[slot].attrs([h.Type('button'), h.OnClick(message)]), [words[slot]])
+      h.button(slots[slot].attrs([h.Id(`${id}-${slot}`), h.Type('button'), h.OnClick(message)]), [
+        words[slot],
+      ])
     const drop = h.submodel({
       slotId: model.drop.id,
       model: model.drop,
@@ -269,35 +313,44 @@ const view = (options: ImageOptions, words: ImageWords) =>
       },
       toParentMessage: message => ImageMessage.GotDrop({ message }),
     })
-    const status = (text: string) =>
-      h.p(slots.status.attrs([h.Role('status'), h.AriaLive('polite')]), [text])
-    return h.div(
-      slots.root.attrs(),
-      ImageUpload.match(model.upload, {
+    // One live region, drawn in every state and first, so a reader hears each
+    // change of state once, and never the percentages that move under it.
+    const said = ImageUpload.match(model.upload, {
+      Empty: () => '',
+      Sending: ({ file }) => fillWords(words.sending, { name: file.name }),
+      Refused: ({ file, reason }) => fillWords(words.refused[reason], { name: file.name }),
+      Kept: ({ asset }) => fillWords(words.kept, { width: asset.width, height: asset.height }),
+    })
+    const status = h.p(
+      slots.status.attrs([h.Id(`${id}-status`), h.Role('status'), h.AriaLive('polite')]),
+      [said],
+    )
+    return h.div(slots.root.attrs([h.DataAttribute('upload', model.upload._tag)]), [
+      status,
+      ...ImageUpload.match(model.upload, {
         Empty: () => [drop],
-        Sending: ({ file, loaded, total }) => {
-          const percent = percentOf(loaded, total)
-          return [
-            status(fillWords(words.sending, { name: file.name, percent })),
-            h.progress(slots.progress.attrs([h.Max('100'), h.Value(String(percent))]), []),
-            button('cancel', ImageMessage.Cancelled()),
-          ]
-        },
-        Refused: ({ file, reason }) => [
-          status(fillWords(words.refused[reason], { name: file.name })),
+        Sending: ({ loaded, total }) => [
+          h.progress(
+            slots.progress.attrs([
+              h.Max('100'),
+              h.Value(String(percentOf(loaded, total))),
+              h.AriaLabelledBy(`${id}-status`),
+            ]),
+            [],
+          ),
+          button('cancel', ImageMessage.Cancelled()),
+        ],
+        Refused: () => [
           button('retry', ImageMessage.Retried()),
           button('remove', ImageMessage.Removed()),
           drop,
         ],
-        Kept: ({ asset }) => [
-          status(fillWords(words.kept, { width: asset.width, height: asset.height })),
-          button('remove', ImageMessage.Removed()),
-        ],
+        Kept: () => [button('remove', ImageMessage.Removed())],
       }),
-    )
+    ])
   })
 
-const ImageDisplay = Display.kind<{}>('Image', {
+const ImageDisplay = Display.kind<{}>('FieldRecipes.Image', {
   text: (_, value) =>
     Schema.is(HashedAsset)(value) ? `${value.width} × ${value.height}` : String(value),
 })
@@ -316,6 +369,13 @@ export const image = (
     ...options.words,
     refused: { ...imageWords.refused, ...options.words?.refused },
   }
+  // A header or an address XMLHttpRequest refuses would throw at the first upload,
+  // inside the Subscription, and take the runtime with it: refuse it here.
+  for (const [name, value] of Object.entries(options.headers ?? {}))
+    if (!/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(name) || /[\r\n\0]/.test(value))
+      throw new Error(`image: "${name}" is not a header a browser can send`)
+  if (options.url !== undefined && !URL.canParse(options.url, 'http://localhost'))
+    throw new Error(`image: "${options.url}" is not an address`)
   const uploadOptions: UploadOptions = { url: options.url, headers: options.headers }
   const bundle = Bundle.make({
     name: 'Image',
@@ -333,7 +393,7 @@ export const image = (
     view: view(options, words),
   })
   return {
-    control: Input.bundle('Image', {
+    control: Input.bundle('FieldRecipes.Image', {
       bundle,
       value: model =>
         ImageUpload.matchOrElse(model.upload, { Kept: ({ asset }) => asset }, () => undefined),

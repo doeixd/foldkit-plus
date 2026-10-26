@@ -416,21 +416,30 @@ const bundleRenderer =
       throw new Error(
         `FormView: the "${control.kind}" control ("${input.control.key}") has no view; pass a renderer under "renderers"`,
       )
-    return h.div(slots.control.attrs(state.filter(attribute => attribute._tag !== 'Name')), [
-      h.submodel(
-        bundle.viewInputs === undefined
-          ? { slotId: input.id, model: bundle.model, view, toParentMessage: bundle.send }
-          : // A Bundle's view takes the inputs its application gives it in `controls`,
-            // whose type the form cannot know. A view given inputs is called with them.
-            ({
-              slotId: input.id,
-              model: bundle.model,
-              view,
-              toParentMessage: bundle.send,
-              viewInputs: bundle.viewInputs,
-            } as Parameters<typeof h.submodel>[0]),
-      ),
-    ])
+    // The label's `for` names this div, which labels nothing: as a group named by
+    // the label, the controls the Bundle draws inside are announced under it.
+    return h.div(
+      slots.control.attrs([
+        ...state.filter(attribute => attribute._tag !== 'Name'),
+        h.Role('group'),
+        h.AriaLabelledBy(`${input.id}-label`),
+      ]),
+      [
+        h.submodel(
+          bundle.viewInputs === undefined
+            ? { slotId: input.id, model: bundle.model, view, toParentMessage: bundle.send }
+            : // A Bundle's view takes the inputs its application gives it in `controls`,
+              // whose type the form cannot know. A view given inputs is called with them.
+              ({
+                slotId: input.id,
+                model: bundle.model,
+                view,
+                toParentMessage: bundle.send,
+                viewInputs: bundle.viewInputs,
+              } as Parameters<typeof h.submodel>[0]),
+        ),
+      ],
+    )
   }
 
 /** Renderers by the `kind` of control they draw. */
@@ -629,7 +638,7 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
 
       // The field's state by Foldkit's own tag, for a stylesheet: `[data-validation='Valid']`.
       return h.div(slots.root.attrs([h.DataAttribute('validation', input.field._tag)]), [
-        h.label(slots.label.attrs([h.For(id)]), [label]),
+        h.label(slots.label.attrs([h.Id(`${id}-label`), h.For(id)]), [label]),
         // Typing here changes which choices the picker below is offered.
         ...(searches
           ? [

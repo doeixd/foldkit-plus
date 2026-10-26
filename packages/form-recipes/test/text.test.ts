@@ -61,10 +61,16 @@ describe('FieldRecipes.email', () => {
     'keeps %s as typed',
     draft => expect(valueOf('email', draft)).toBe(draft),
   )
-  it.each(['ada', 'ada@', '@example.com', 'ada lovelace@example.com', 'ada@@example.com'])(
-    'refuses %s',
-    draft => expect(errorOf('email', draft)).toEqual(['Enter an email address']),
-  )
+  it.each([
+    'ada',
+    'ada@',
+    '@example.com',
+    'ada lovelace@example.com',
+    'ada@@example.com',
+    // A control or invisible character no address holds.
+    'ada@example.com\u0000',
+    'ada@example\u200b.com',
+  ])('refuses %s', draft => expect(errorOf('email', draft)).toEqual(['Enter an email address']))
 })
 
 describe('FieldRecipes.url', () => {
@@ -98,7 +104,24 @@ describe('FieldRecipes.slugify', () => {
     ['  Crème brûlée  ', 'creme-brulee'],
     ['a--b__c', 'a-b-c'],
     ['!!!', ''],
+    // Letters that decompose to no Latin letter, as an address writes them.
+    ['Kırmızı Elma', 'kirmizi-elma'],
+    ['Straße', 'strasse'],
+    ['Æsir Øl', 'aesir-ol'],
+    ['Łódź', 'lodz'],
+    // A script with no Latin spelling has none here: such a title's slug is written.
+    ['東京タワー', ''],
   ])('%s', (from, to) => expect(FieldRecipes.slugify(from)).toBe(to))
+})
+
+describe('a recipe made wrong', () => {
+  it.each([
+    ['a scheme without its colon', () => FieldRecipes.url({ protocols: ['https'] })],
+    ['a currency Intl does not know', () => FieldRecipes.money({ currency: 'ZZZ', unit: 'minor' })],
+    ['a scale that is no whole number', () => FieldRecipes.decimal({ scale: 1.5 })],
+    ['a scale past what a format writes', () => FieldRecipes.decimal({ scale: 200 })],
+    ['a negative percent scale', () => FieldRecipes.percent({ unit: 'points', scale: -1 })],
+  ])('throws when it is made, for %s', (_, make) => expect(make).toThrow(/FieldRecipes\./))
 })
 
 describe('FieldRecipes.slug', () => {

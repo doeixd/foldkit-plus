@@ -54,17 +54,31 @@ export const writeWall = (wall: Wall): string => {
   return `${date}T${two(wall.hour)}:${two(wall.minute)}${seconds}`
 }
 
-/** The reading as if it were in UTC, in milliseconds: what offsets are measured from. */
-const asUtc = (wall: Wall): number =>
-  Date.UTC(
-    wall.year,
-    wall.month - 1,
-    wall.day,
-    wall.hour,
-    wall.minute,
-    wall.second,
-    wall.millisecond,
-  )
+/**
+ * The reading as if it were in UTC, in milliseconds: what offsets are measured
+ * from. Set field by field, since `Date.UTC` reads a year under 100 as 19xx.
+ */
+export const utcOf = (wall: Wall): number => {
+  const at = new Date(0)
+  at.setUTCFullYear(wall.year, wall.month - 1, wall.day)
+  at.setUTCHours(wall.hour, wall.minute, wall.second, wall.millisecond)
+  return at.getTime()
+}
+
+const dateFormats = new Map<string, Intl.DateTimeFormat>()
+
+/** One formatter per locale and options: a display runs per cell, and making one is the slow part. */
+export const dateFormat = (
+  locale: string,
+  options: Intl.DateTimeFormatOptions,
+): Intl.DateTimeFormat => {
+  const key = JSON.stringify([locale, options])
+  const known = dateFormats.get(key)
+  if (known !== undefined) return known
+  const made = new Intl.DateTimeFormat(locale, options)
+  dateFormats.set(key, made)
+  return made
+}
 
 // One formatter per zone: making one is the slow part.
 const formatters = new Map<string, Intl.DateTimeFormat>()
@@ -123,12 +137,12 @@ const day = 86_400_000
  * can apply, since no zone changes its offset twice in two days.
  */
 export const instantOf = (wall: Wall, zone: string): Option.Option<number> => {
-  const local = asUtc(wall)
+  const local = utcOf(wall)
   const offsets = new Set(
-    [local - day, local + day].map(around => asUtc(wallOf(around, zone)) - around),
+    [local - day, local + day].map(around => utcOf(wallOf(around, zone)) - around),
   )
   const instants = [...offsets]
     .map(offset => local - offset)
-    .filter(instant => asUtc(wallOf(instant, zone)) === local)
+    .filter(instant => utcOf(wallOf(instant, zone)) === local)
   return instants.length === 0 ? Option.none() : Option.some(Math.min(...instants))
 }

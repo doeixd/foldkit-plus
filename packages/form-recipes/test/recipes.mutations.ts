@@ -36,8 +36,8 @@ export default [
     edits: [
       {
         file: index,
-        find: "new Intl.DateTimeFormat(data.locale ?? 'en', {",
-        replace: "new Intl.DateTimeFormat('en', {",
+        find: "dateFormat(data.locale ?? 'en', { dateStyle: 'medium', timeZone: 'UTC' })",
+        replace: "dateFormat('en', { dateStyle: 'medium', timeZone: 'UTC' })",
       },
     ],
     tests: date,
@@ -96,7 +96,7 @@ export default [
     edits: [
       {
         file: wall,
-        find: '.filter(instant => asUtc(wallOf(instant, zone)) === local)',
+        find: '.filter(instant => utcOf(wallOf(instant, zone)) === local)',
         replace: '',
       },
     ],
@@ -188,5 +188,39 @@ export default [
       },
     ],
     tests: ['packages/form-recipes/test/ui.test.ts'],
+  },
+  {
+    name: 'a year under 100 is read as 19xx',
+    edits: [
+      {
+        file: wall,
+        find: 'at.setUTCFullYear(wall.year, wall.month - 1, wall.day)',
+        replace: 'at.setTime(Date.UTC(wall.year, wall.month - 1, wall.day))',
+      },
+    ],
+    tests: [...date, ...dateTime],
+  },
+  {
+    name: 'a scheme is taken without its colon',
+    edits: [
+      { file: index, find: 'if (!/^[a-z][a-z0-9+.-]*:$/.test(protocol))', replace: 'if (false)' },
+    ],
+    tests: text,
+  },
+  {
+    name: 'an address may hold an invisible character',
+    edits: [
+      {
+        file: index,
+        find: '/^[^\\s@\\p{C}]+@[^\\s@\\p{C}]+$/u',
+        replace: '/^[^\\s@]+@[^\\s@]+$/u',
+      },
+    ],
+    tests: text,
+  },
+  {
+    name: 'slugify drops a dotless i',
+    edits: [{ file: index, find: "  ı: 'i',\n", replace: '' }],
+    tests: text,
   },
 ]

@@ -119,3 +119,15 @@ describe('a date and a time in a list', () => {
     expect(spaced(shownLocal.text('2026-07-01T09:30', {}))).toBe('01.07.2026, 09:30')
   })
 })
+
+// `Date.UTC` reads a year under 100 as 19xx; a date input writes year 0001.
+describe('a year under 100', () => {
+  it('is kept as written, read and shown', () => {
+    const instant = FieldRecipes.dateTime({ stored: 'instant', zone: 'UTC' }).control
+    expect(instant.parse!('0050-06-01T12:00', instant.data)).toBe('0050-06-01T12:00:00.000Z')
+    expect(instant.format!('0050-06-01T12:00:00.000Z', instant.data)).toBe('0050-06-01T12:00')
+    expect(FieldRecipes.dateTime({ stored: 'local' }).display.text('0050-03-05T09:30', {})).toBe(
+      'Mar 5, 50, 9:30 AM',
+    )
+  })
+})

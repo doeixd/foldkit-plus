@@ -154,3 +154,72 @@ describe('the image recipe', () => {
     expect(Cover.display.text(asset, {})).toBe('640 × 480')
   })
 })
+
+describe('the image recipe, after the review', () => {
+  const step = (model: Model, message: ImageMessage) =>
+    PostForm.bundle.update(model, cover.send(message), undefined)
+
+  it.each([
+    ['sending', [dropped(file())]],
+    [
+      'refused',
+      [dropped(file()), ImageMessage.Failed({ attempt: 1, reason: 'Network', status: 0 })],
+    ],
+  ] as const)('removes a file %s, leaving the key empty', (_, messages) => {
+    const removed = update(PostForm.initial, ...messages, ImageMessage.Removed())
+    expect(draft(removed).upload).toEqual({ _tag: 'Empty' })
+  })
+
+  it('follows the total a send reports, not the file’s size', () => {
+    const sending = update(PostForm.initial, dropped(file()))
+    const moved = update(sending, ImageMessage.Progressed({ attempt: 1, loaded: 3, total: 40 }))
+    expect(draft(moved).upload).toMatchObject({ loaded: 3, total: 40 })
+  })
+
+  it('refuses a dropped file that is no image before sending it', () => {
+    const pdf = new File([new Uint8Array(8)], 'notes.pdf', { type: 'application/pdf' })
+    const refused = update(PostForm.initial, dropped(pdf))
+    expect(draft(refused).upload).toMatchObject({
+      _tag: 'Refused',
+      reason: 'Unsupported',
+      status: 0,
+    })
+    expect(held(refused)).toBe(pdf)
+  })
+
+  it('moves focus on when a press takes its button away', () => {
+    const sending = update(PostForm.initial, dropped(file()))
+    expect(step(sending, ImageMessage.Cancelled()).commands?.map(command => command.args)).toEqual([
+      { selector: '#cover' },
+    ])
+    const refused = update(
+      sending,
+      ImageMessage.Failed({ attempt: 1, reason: 'TooLarge', status: 413 }),
+    )
+    expect(step(refused, ImageMessage.Retried()).commands?.map(command => command.args)).toEqual([
+      { selector: '#cover-cancel' },
+    ])
+    expect(step(refused, ImageMessage.Removed()).commands?.map(command => command.args)).toEqual([
+      { selector: '#cover' },
+    ])
+  })
+
+  it('settles a drag left over in a stored draft', () => {
+    const dragging = update(
+      PostForm.initial,
+      ImageMessage.GotDrop({ message: { _tag: 'EnteredDragZone' } }),
+    )
+    expect(draft(dragging).drop.isDragOver).toBe(true)
+    expect(draft(PostForm.settled(dragging)).drop.isDragOver).toBe(false)
+  })
+})
+
+describe('an image recipe made wrong', () => {
+  it.each([
+    ['a header name with a space', { headers: { 'x token': 'a' } }],
+    ['a header value with a line break', { headers: { 'x-token': 'a\r\nb' } }],
+    ['an address that is none', { url: 'http://[' }],
+  ])('throws when it is made, for %s', (_, options) =>
+    expect(() => image({ id: 'cover', ...options })).toThrow(/^image: /),
+  )
+})

@@ -59,7 +59,11 @@ const factsOf = (body: string): Option.Option<HashedAsset> => {
 export interface UploadOptions {
   /** Where the route is. Default `/_media/upload`. */
   readonly url?: string | undefined
-  /** Sent with the bytes, such as the `authorization` an `uploadPolicyBearer` reads. */
+  /**
+   * Sent with the bytes. A page's own session cookie goes with a same-origin
+   * request already: never put a deployment's secret (`uploadPolicyBearer`'s) here,
+   * where every visitor can read it.
+   */
   readonly headers?: Readonly<Record<string, string>> | undefined
 }
 

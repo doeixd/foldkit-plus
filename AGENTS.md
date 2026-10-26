@@ -1163,6 +1163,12 @@ of its own named a form field "fits the Catalog". Read words with
   File's `name`, `size` and `type` are prototype getters, so a test that the
   first of two dropped files was sent passed when the last was. Compare a File
   by identity (`toBe`).
+- **`pnpm exec` and `npx` can run different Nodes, with different ICU.** Here
+  `npx` ran `/opt/node22` (ICU 77) and `pnpm exec`, which `pnpm mutate` uses, ran
+  pnpm's own Node 22.23 (ICU 78), where Swiss francs group with `'` rather than
+  `’`. A mutation of the apostrophe handling survived one and died in the other.
+  Code reading what `Intl` writes must take every spelling an ICU release uses,
+  and a test pinning `Intl` output should hold under both (`process.versions.icu`).
 - **A constant `mint` makes a refusal test pass for any reason.** A test that an
   `InsertText` with bad link props is refused used `mint: () => 'x'`; the insert
   split a run twice, `apply` refused the duplicate id, and the case stayed green

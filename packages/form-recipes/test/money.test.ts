@@ -80,7 +80,7 @@ describe('FieldRecipes.money', () => {
 
   it('refuses a currency code that is not one, when it is made', () => {
     expect(() => FieldRecipes.money({ currency: 'dollars', unit: 'minor' })).toThrow(
-      /"dollars" is not an ISO 4217 code/,
+      /"dollars" is not a currency Intl knows/,
     )
   })
 
@@ -168,5 +168,55 @@ describe('the amounts’ plain renderers', () => {
       ['refund', 'text', 'text'],
       ['yen', 'text', 'numeric'],
     ])
+  })
+})
+
+// A currency or a percentage can group and separate decimals otherwise than a
+// plain number, and rtl locales write bidi marks around an amount: each must read
+// back what it shows.
+describe('every amount reads back what it shows', () => {
+  const locales = ['en-US', 'de-AT', 'de-CH', 'fr-CH', 'fr-FR', 'mr-IN', 'en-IN', 'he-IL']
+  const more = ['ar-EG', 'ar-SA', 'fa-IR', 'ur-PK', 'ja-JP', 'tr-TR', 'ru-RU', 'pt-BR']
+  it.each([...locales, ...more])('in %s', locale => {
+    const misread: Array<string> = []
+    const check = (control: Control, value: unknown) => {
+      const text = control.format!(value, control.data)
+      if (read(control, text) !== value) misread.push(`${JSON.stringify(text)} for ${value}`)
+    }
+    for (const currency of ['USD', 'EUR', 'JPY', 'KWD', 'CHF']) {
+      const money = FieldRecipes.money({ currency, unit: 'minor', locale, negative: true })
+      for (const value of [0, 5, 123456, -123456, 123456789]) check(money.control, value)
+    }
+    const decimal = FieldRecipes.decimal({ scale: 3, locale, negative: true })
+    for (const value of [1.5, -1234567.125]) check(decimal.control, value)
+    const percent = FieldRecipes.percent({ unit: 'fraction', locale, negative: true })
+    for (const value of [0.125, -0.5, 12.34]) check(percent.control, value)
+    expect(misread).toEqual([])
+  })
+
+  it('takes a symbol at either end only, and no space where the locale groups with none', () => {
+    expect(read(usd.control, '1 2 3')).toBeUndefined()
+    expect(read(usd.control, '1$2')).toBeUndefined()
+    expect(read(usd.control, '$ 12')).toBe(1200)
+    expect(read(usd.control, '-$12')).toBe(-1200)
+    expect(read(usd.control, '$-12')).toBe(-1200)
+  })
+})
+
+describe('what a keyboard types, and what no number holds', () => {
+  const chf = FieldRecipes.money({ currency: 'CHF', unit: 'minor', locale: 'de-CH' })
+  it('reads the keyboard’s yen, apostrophe and full-width digits', () => {
+    expect(read(jpy.control, '¥1,000')).toBe(1000)
+    // Either apostrophe, whichever one the runtime's ICU writes.
+    expect(read(chf.control, "1'234'567.50")).toBe(123456750)
+    expect(read(chf.control, '1’234’567.50')).toBe(123456750)
+    expect(read(jpy.control, '１０')).toBe(10)
+  })
+
+  it('refuses a decimal or a percentage a double would round', () => {
+    const decimal = FieldRecipes.decimal({ scale: 2 })
+    expect(read(decimal.control, '12345678901234567.89')).toBeUndefined()
+    expect(read(decimal.control, '9007199254740993')).toBeUndefined()
+    expect(read(decimal.control, '1234.56')).toBe(1234.56)
   })
 })
