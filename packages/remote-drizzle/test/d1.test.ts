@@ -57,7 +57,7 @@ const ProjectBinding = entity('Project', projects, {
     comments: many(CommentBinding, {
       foreignKey: comments.projectId,
       localKey: projects.id,
-      orderBy: [{ column: comments.createdAt, direction: 'asc' }],
+      orderBy: [{ key: comments.createdAt, direction: 'asc' }],
     }),
   },
   computed: { commentCount: { relation: 'comments' } },
@@ -181,7 +181,7 @@ describe('RemoteDrizzle over D1', () => {
   it('pages a keyset query forward and backward over D1 rows', async () => {
     const byCreated = query(Projects, {
       entity: ProjectBinding,
-      orderBy: [{ column: projects.createdAt, direction: 'asc' }],
+      orderBy: [{ key: projects.createdAt, direction: 'asc' }],
     })
     const run = (window: Parameters<typeof byCreated.run>[0]['window']) =>
       Effect.runPromise(

@@ -169,7 +169,7 @@ const CreateProjectSource = RemoteServer.mutation(CreateProject, ({ input }) =>
 
 const ProjectsByOwnerSource = query(ProjectsByOwner, {
   entity: Project,
-  orderBy: [{ column: projects.id, direction: 'desc' }],
+  orderBy: [{ key: projects.id, direction: 'desc' }],
   where: input => eq(projects.ownerId, input.ownerId),
 })
 

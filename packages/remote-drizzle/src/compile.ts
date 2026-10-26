@@ -620,8 +620,9 @@ export const compilePredicates = (
 
 /**
  * The body's ordering for one input, as this package's order terms: a chosen
- * order resolved to the field the input names. An input naming no order it
- * offers is the request's mistake, refused as a compile error.
+ * order resolved to the field or call the input names, a call compiled to its
+ * SQL under its collation. An input naming no order it offers is the
+ * request's mistake, refused as a compile error.
  */
 export const compileOrderBy = (
   body: AnyQuery,
@@ -636,9 +637,16 @@ export const compileOrderBy = (
     throw new QueryCompileError(`query "${query}": ${(error as Error).message}`)
   }
   return terms.map(term => {
+    const { direction, nulls } = term
+    // The term made sure a call orders: a number, or text under binary or asciiFold.
+    if (term.expr._tag === 'Call') {
+      const call = Expr.expanded(term.expr)
+      const compiled = sql`${operand(call, target, input, query)}`
+      return { key: collateFor(term.collation, dialectOf(target))(compiled), direction, nulls }
+    }
     if (term.expr._tag !== 'Field') {
       throw new QueryCompileError(
-        `query "${query}" orders by something that is not a field, which this compiler cannot run yet`,
+        `query "${query}" orders by something that is neither a field nor a call`,
       )
     }
     const column = columnFor(target, term.expr.key, query)
@@ -648,6 +656,6 @@ export const compileOrderBy = (
         `query "${query}" orders "${term.expr.key}" by the "${collation.locale}" collation, and SQLite has no locales`,
       )
     }
-    return { column, direction: term.direction, nulls: term.nulls, collation }
+    return { key: column, direction, nulls, collation }
   })
 }

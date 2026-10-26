@@ -609,8 +609,8 @@ const ProjectsByOwner = Query.make('ProjectsByOwner', {
 const ProjectsByOwnerSource = query(ProjectsByOwner, {
   entity: Project,
   orderBy: [
-    { column: projects.createdAt, direction: 'desc' },
-    { column: projects.id, direction: 'desc' },
+    { key: projects.createdAt, direction: 'desc' },
+    { key: projects.id, direction: 'desc' },
   ],
   where: input => eq(projects.ownerId, input.ownerId),
 })
@@ -712,8 +712,8 @@ query(PostsQuery, {
   where: ({ search }) => (search === '' ? undefined : like(posts.title, `%${search}%`)),
   orderBy: ({ sort }) =>
     sort === 'title'
-      ? [{ column: posts.title, direction: 'asc' }]
-      : [{ column: posts.id, direction: 'asc' }],
+      ? [{ key: posts.title, direction: 'asc' }]
+      : [{ key: posts.id, direction: 'asc' }],
 })
 ```
 

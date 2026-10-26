@@ -28,7 +28,7 @@ const ProjectBinding = entity('Project', projects, {
     comments: many(CommentBinding, {
       foreignKey: comments.projectId,
       localKey: projects.id,
-      orderBy: [{ column: comments.createdAt, direction: 'asc' }],
+      orderBy: [{ key: comments.createdAt, direction: 'asc' }],
     }),
   },
 })

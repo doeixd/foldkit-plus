@@ -66,6 +66,7 @@ import {
 import {
   cursorSelection,
   keyCursor,
+  keysOf,
   keysetWhere,
   orderByTerms,
   readCursor,
@@ -483,9 +484,9 @@ export const source = <P = unknown>(
           // The target id is the final tie-breaker, so ranking and ordering
           // agree and a page never drops a row that ties on the order columns.
           const declared = relation.orderBy ?? []
-          const order: ReadonlyArray<OrderTerm> = declared.some(term => term.column === targetId)
+          const order: ReadonlyArray<OrderTerm> = declared.some(term => term.key === targetId)
             ? declared
-            : [...declared, { column: targetId, direction: 'asc' }]
+            : [...declared, { key: targetId, direction: 'asc' }]
           const naturalOrder = orderByTerms(order, 'forward')
           const parentKeys = [
             ...new Set(
@@ -517,11 +518,7 @@ export const source = <P = unknown>(
                   message: `Relation "${field}" cursor no longer resolves`,
                 })
               }
-              keyset = keysetWhere(
-                order,
-                order.map(term => cursorRow[term.column.name]),
-                shape.traversal,
-              )
+              keyset = keysetWhere(order, keysOf(order, cursorRow), shape.traversal)
             }
 
             const byParent = new Map<string, Array<Record<string, unknown>>>()
@@ -771,9 +768,9 @@ export const query = <P = unknown, Input = unknown>(
         // this binding's own, and stays exactly as it was given.
         const tieBreak = typeof options.orderBy === 'function' || options.orderBy === undefined
         const orderBy: readonly OrderTerm[] =
-          !tieBreak || computed.some(term => term.column === id)
+          !tieBreak || computed.some(term => term.key === id)
             ? computed
-            : [...computed, { column: id, direction: 'asc' }]
+            : [...computed, { key: id, direction: 'asc' }]
         // The body's question, this server's own extra question, and the
         // binding's visibility rule are conjoined: a body can narrow what a
         // principal may see and never widen it.
@@ -820,7 +817,7 @@ export const query = <P = unknown, Input = unknown>(
                       message: 'The query cursor no longer resolves to a row',
                     })
                   }
-                  return orderBy.map(term => cursorRow[term.column.name])
+                  return keysOf(orderBy, cursorRow)
                 }),
               Invalid: () =>
                 Effect.fail(
@@ -841,10 +838,7 @@ export const query = <P = unknown, Input = unknown>(
 
         // Each order term under a key of its own: the id column may be named
         // anything, and may be one of them.
-        const columns: Record<string, AnyColumn> = {
-          id,
-          ...Object.fromEntries(orderBy.map((term, index) => [`key${index}`, term.column])),
-        }
+        const columns: Record<string, AnyColumn | SQL> = { id, ...cursorSelection(orderBy) }
         const rows = yield* selectRows(database, binding.table, columns, {
           where,
           orderBy: orderByTerms(orderBy, shape.traversal),
@@ -858,10 +852,7 @@ export const query = <P = unknown, Input = unknown>(
           traversal: shape.traversal,
           cursor: shape.cursor,
           idOf: row => String(row.id),
-          cursorOf: row =>
-            Option.getOrElse(keyCursor(orderBy.map((_, index) => row[`key${index}`])), () =>
-              String(row.id),
-            ),
+          cursorOf: row => Option.getOrElse(keyCursor(keysOf(orderBy, row)), () => String(row.id)),
         })
       }),
   }

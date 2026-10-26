@@ -660,7 +660,7 @@ const Server = RemoteServer.make({
   entities: [source(User), source(Project)], // source(binding, { authorize }) for field policy
   queries: [query(ProjectsByOwner, {
     entity: Project,
-    orderBy: [{ column: projects.id, direction: 'desc' }], // keyset pagination; end with a unique column
+    orderBy: [{ key: projects.id, direction: 'desc' }], // keyset pagination; end with a unique column
     where: input => eq(projects.ownerId, input.ownerId),
     // Or `orderBy: input => [...]` to sort by what the input names; the id breaks its ties.
     // A Query.define body declares its own order (Order.chosen for a picked sort), and
@@ -741,7 +741,11 @@ dialect, collate }) => …))`, whose function returns Drizzle `SQL` (`merge`,
 Postgres (`cast($1 as integer)`); SQLite takes none. A query, an invariant or a
 write's `when` calling one either table lacks is refused where it is registered
 or the writer built; `GuardDrizzle.visible(Policy, entities, { operators })`
-checks Read rules against the SQL table it is given.
+checks Read rules against the SQL table it is given. A body ordered by a call
+compiles it as an expression under its collation and pages by its value, the
+same in SQLite and Postgres; index the expression if it must be fast. An order
+term `query({ orderBy })` takes is `{ key, direction, nulls?, collation? }`,
+`key` a column or a Drizzle `SQL` expression (which says its own collation).
 
 **What `writer(binding)` guarantees.** One `update … where … returning` per update:
 the id, an `expect`ed revision, the write's `when` and every invariant of the Entity

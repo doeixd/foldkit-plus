@@ -211,7 +211,7 @@ describe('dependenciesOf says what an expression reads', () => {
 
   it('is the bySlug body of the CMS, which is what this kernel was sized to', () => {
     // packages/cms-drizzle/src/index.ts — `where: input => eq(column, input.slug)`
-    // with `orderBy: [{ column: id, direction: 'asc' }]`.
+    // with `orderBy: [{ key: id, direction: 'asc' }]`.
     const where: Predicate = Expr.eq(Post.fields.title, Expr.input('slug', Schema.String))
     const order = [Order.asc(Post.fields.id)]
 

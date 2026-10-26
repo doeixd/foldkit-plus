@@ -107,7 +107,7 @@ describe('A compiled body is the query the binding used to spell out', () => {
     const made = query(MadeBySlug, {
       entity: PostBinding,
       where: input => eq(posts.slug, (input as { slug: string }).slug),
-      orderBy: [{ column: posts.id, direction: 'asc' }],
+      orderBy: [{ key: posts.id, direction: 'asc' }],
     })
     const defined = query(DefinedBySlug, { entity: PostBinding })
 
@@ -267,7 +267,7 @@ describe('A compiled body is the query the binding used to spell out', () => {
     expect(() =>
       query(DefinedBySlug, {
         entity: PostBinding,
-        orderBy: [{ column: posts.slug, direction: 'desc' }],
+        orderBy: [{ key: posts.slug, direction: 'desc' }],
       }),
     ).toThrow(/declares its order in its body/)
   })

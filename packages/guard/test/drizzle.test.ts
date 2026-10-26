@@ -151,7 +151,7 @@ const AllTodos = Query.make('AllTodos', {
   Input: Schema.Struct({}),
   Result: Query.connection({ name: 'Todo' }),
 })
-const orderBy = [{ column: todos.id, direction: 'asc' as const }]
+const orderBy = [{ key: todos.id, direction: 'asc' as const }]
 const listed = query<Option.Option<User>, {}>(AllTodos, { entity: Db.Todo, orderBy })
 const list = async (principal: Option.Option<User>) => {
   const { sqlite, database } = setup()

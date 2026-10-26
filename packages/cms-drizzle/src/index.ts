@@ -318,7 +318,7 @@ export const CmsServer = {
           draft: { foreignKey: tables.drafts.id },
           revisions: {
             foreignKey: tables.revisions.entryId,
-            orderBy: [{ column: tables.revisions.n, direction: 'desc' }],
+            orderBy: [{ key: tables.revisions.n, direction: 'desc' }],
           },
         },
         // Not a column: this server derives it, below, with its own clock.

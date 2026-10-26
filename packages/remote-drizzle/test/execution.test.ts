@@ -66,7 +66,7 @@ const PostBinding = entity('Post', posts, {
     comments: many(CommentBinding, {
       foreignKey: comments.postId,
       localKey: posts.id,
-      orderBy: [{ column: comments.body, direction: 'desc' }],
+      orderBy: [{ key: comments.body, direction: 'desc' }],
     }),
     tags: manyToMany(TagBinding, {
       through: postTags,
@@ -382,7 +382,7 @@ describe('RemoteDrizzle execution', () => {
   it('supports an after cursor for a single parent', async () => {
     const { database, calls } = fakeDatabaseQueue([
       [{ id: 'p1', comments: 'p1' }],
-      [{ body: 'zzz' }],
+      [{ key0: 'zzz', key1: 'c0' }],
       [
         { child: 'c1', parent: 'p1' },
         { child: 'c2', parent: 'p1' },
@@ -406,7 +406,7 @@ describe('RemoteDrizzle execution', () => {
       hasPrevious: true,
     })
     expect(calls).toHaveLength(3)
-    expect(Object.keys(calls[1]!.selection)).toEqual(['body', 'id'])
+    expect(Object.keys(calls[1]!.selection)).toEqual(['key0', 'key1'])
 
     const dialect = new PgDialect()
     expect(dialect.sqlToQuery(calls[2]!.where as SQL).sql).toContain('"comments"."body" <')
