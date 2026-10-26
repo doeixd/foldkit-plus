@@ -63,6 +63,12 @@ version changed; `pnpm` skips versions already in the registry.
   `visibleStore`/`resolvedPatches`' `operators` (the kernel by default) are new
   parts of these shapes; a hand-built `BoundRemote` needs `operators`.
 
+### Fixed
+
+- **`foldkit-mixins-data-grid`: a header's sort label and column menu button are
+  finger targets**, at least 24px (the menu button each way), where they were the
+  height of their words and glyph (about 21px tall and 30 by 23).
+
 ## 0.34.0
 
 Fields from a schema, and operators an application defines. `foldkit-form-recipes`

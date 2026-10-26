@@ -247,6 +247,9 @@ export const GridStyle = Style.forSlots(GridSlots)(
         color: ref.text.muted,
         cursor: 'pointer',
         marginInlineStart: 'auto',
+        // A finger's target, however small the glyph.
+        minBlockSize: '1.5rem',
+        minInlineSize: '1.5rem',
         paddingInline: ref.space.xs,
       }),
       Style.nest('&[aria-expanded="true"]', { color: ref.text.default }),
@@ -278,6 +281,8 @@ export const GridStyle = Style.forSlots(GridSlots)(
         display: 'inline-flex',
         font: 'inherit',
         gap: ref.space.xs,
+        // A finger's target in height; its width is the label's.
+        minBlockSize: '1.5rem',
         minWidth: '0',
         overflow: 'hidden',
         padding: '0',

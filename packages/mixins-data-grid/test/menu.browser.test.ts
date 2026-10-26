@@ -34,7 +34,8 @@ const Grid = DataGrid.make({ id: 'lines', columns })
 const Placement = Bundle.declare(Grid.bundle, 'grid')
 const Model = Schema.Struct({ ...Placement.fields })
 type Model = typeof Model.Type
-const Message = defineMessageUnion({ ...Placement.cases })
+// `Sorted` only makes column `a`'s label a sort button, to measure; nothing here sends it.
+const Message = defineMessageUnion({ ...Placement.cases, Sorted: {} })
 type Message = typeof Message.Type
 const application = Bundle.assemble<Model, Message>()([
   Bundle.parent({ Model, Message }).at(Placement, { onOut: Bundle.ignore }),
@@ -60,6 +61,7 @@ const view = (model: Model, h: HtmlBuilder<Message>) =>
           rowHeight: 20,
           headerHeight: 24,
           columnMenu: true,
+          sort: { a: { message: Message.Sorted() } },
         },
         h,
       ),
@@ -98,6 +100,11 @@ test('a column menu is opened, walked and closed by keyboard and pointer, focus 
     document.getElementById(header(column))!.querySelector<HTMLElement>('[aria-haspopup="menu"]')!
   try {
     await vi.waitFor(() => expect(headers()).toEqual([header('a'), header('b')]))
+    // A finger's target, 24px each way, in a header as short as this one.
+    const menuBox = button('a').getBoundingClientRect()
+    expect([menuBox.width, menuBox.height].every(side => side >= 24)).toBe(true)
+    const label = document.getElementById(header('a'))!.querySelector('button:not([aria-haspopup])')
+    expect(label!.getBoundingClientRect().height).toBeGreaterThanOrEqual(24)
     // Looked up each time: a move redraws the cell as a new element.
     const cell = () =>
       document.getElementById(GridFocus.cellId('lines', { row: 'r0', column: 'a' }))!
