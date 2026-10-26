@@ -24,6 +24,7 @@ import {
 } from 'foldkit-entity'
 import { Form, Input, type FormControl, type Submitted } from 'foldkit-form'
 import { Display, type DisplayColumn } from './display.js'
+import { screen } from './screen.js'
 import {
   Refusal,
   RemoteData,
@@ -282,6 +283,13 @@ export const Crud = {
       }
     },
   }),
+
+  /**
+   * A screen's Messages (`OpenedPost`, `CreatedPost`, `ClosedPost`,
+   * `AskedToRemovePost`) and an `update` that answers them through the editor's
+   * and the remover's placements, for a page that places both itself.
+   */
+  screen,
 
   /**
    * Deleting through one mutation, with a yes in between: asked, confirmed,

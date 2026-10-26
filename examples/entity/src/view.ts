@@ -60,7 +60,7 @@ const editor = (model: Model, h: HtmlBuilder<Message>): Html => {
           title: 'Edit post',
           form: EditForm.view(model, h, { options: pickers(model), words }),
           error: PostEditor.saveError(model)?.message,
-          onClose: Message.ClosedEditor(),
+          onClose: Message.ClosedPost(),
           words: editorWords,
         },
         h,
@@ -76,7 +76,7 @@ const remove = (model: Model, h: HtmlBuilder<Message>): ReadonlyArray<Html> => {
   if (id === null) return []
   const status = PostRemover.status(model)
   if (status === 'Idle')
-    return [h.button([h.Id('delete'), h.OnClick(Message.AskedToDeletePost({ id }))], ['Delete'])]
+    return [h.button([h.Id('delete'), h.OnClick(Message.AskedToRemovePost({ id }))], ['Delete'])]
   const answer = (message: typeof RemoverMessage.Type) => Message.GotRemovePostMessage({ message })
   return [
     DeletePost(

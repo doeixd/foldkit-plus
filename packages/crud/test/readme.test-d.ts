@@ -92,6 +92,17 @@ expectTypeOf(Placed.helpers.open('p2')(root).model).toEqualTypeOf<Root>()
 void Placed.helpers.blank()
 void Placed.helpers.close()
 
+// A screen's Messages, answered through the placements.
+const PostScreen = Crud.screen('Post', { id: Schema.String })
+const screenUpdate = PostScreen.update(
+  { editor: PostEditor, editing: Placed, removing: RemoveForm },
+  placements.update((model, message) =>
+    Remote.reduces(message) ? { model: Data.reduce(model, message) } : { model },
+  ),
+)
+expectTypeOf(screenUpdate).parameter(0).toEqualTypeOf<Root>()
+void PostScreen.messages
+
 // The form's value has to be the mutation's input.
 const Other = Mutation.make('Other', { Input: { slug: Schema.String }, Output: {} })
 // @ts-expect-error EditPostForm submits an EditPostInput, which `Other` does not take

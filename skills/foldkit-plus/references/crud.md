@@ -216,6 +216,14 @@ onCancel, error? })` asks `Delete {name}?` and cannot confirm with no name;
 dialog, draw the `EditorView` inside your `foldkit-mixins-ui` Dialog: focus in,
 trapped, and back to the opener are the Dialog's.
 
+`Crud.screen('Post', { id: PostId })` names a page's four editor Messages
+(`messages`: `OpenedPost({ id })`, `CreatedPost()`, `ClosedPost()`,
+`AskedToRemovePost({ id })`, for `Bundle.withMessages`) and
+`screen.update({ editor: PostEditor, editing: Page.children.editor, removing?:
+Page.children.remover }, placements.update(yours))` answers them through those
+placements' `open`/`blank`/`close`/`ask` and runs the editor's `after`. It places
+nothing: children, `onOut`, query input and wiring stay the page's.
+
 Slots: `ListSlots` (`root`, `status`, `table`, `head`, `headRow`, `body`, `headCell`, `sort`, `row`, `cell`,
 `open`, `more`, `retry`) and `DetailSlots` (`root`, a `div` in every state;
 `list`, the `dl`; `status`, `term`, `value`, `retry`); `RowListSlots` is

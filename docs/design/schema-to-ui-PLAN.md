@@ -1,9 +1,9 @@
 # Schema to UI: field recipes and CRUD workflow recipes
 
-> **Status:** Phases 0 (2026-10-22), 1 to 4 (2026-10-26) built; Phases 5 to 7
+> **Status:** Phases 0 (2026-10-22), 1 to 5 (2026-10-26) built; Phases 6 and 7
 > proposed. Written from
 > [#188](https://github.com/doeixd/foldkit-plus/issues/188) and an audit of the
-> code on 2026-10-22 (§1, §11). §1.3 to §1.7 record what building Phases 0 to 4
+> code on 2026-10-22 (§1, §11). §1.3 to §1.8 record what building Phases 0 to 5
 > changed in the plan. Blocks marked *Sketch* are shapes to review, not APIs; the phase that
 > builds each one fixes its real signature. Where this plan and a package README
 > disagree, the README and the source win.
@@ -15,7 +15,8 @@
 | 2 | `foldkit-form-recipes`: `date`, `dateTime` (`local`, or `instant` in a named zone), `email`, `url`, `tel`, `password`, `slug`; `./html` and `./ui` renderers; the CMS on them | `packages/form-recipes/test/*.test.ts`; 22 mutations, all killed |
 | 3 | `money` (minor units or decimal text), `decimal`, `percent` (a share or points) | `packages/form-recipes/test/money.test.ts`; 11 mutations, all killed |
 | 4 | `EditorView`, `ConfirmView`, `Toolbar` in `foldkit-mixins-crud` | `packages/mixins-crud/test/editor.test.ts`, `editorDialog.browser.test.ts`; 6 mutations, all killed |
-| 5 to 7 | — | not started |
+| 5 | `Crud.screen`: a screen's four Messages and their `update`; `examples/entity` on it and on Phase 4's views | `packages/crud/test/screen.test.ts`, `screen.test-d.ts`; 6 mutations, all killed |
+| 6 and 7 | — | not started |
 
 The issue asks for a complete schema-to-UI story: reusable field recipes, UI
 renderers for every control kind, and CRUD workflow recipes. This plan keeps the
@@ -249,6 +250,31 @@ Phase 2 shipped on 2026-10-26 (§6) as a new package, `foldkit-form-recipes`.
 3. **`ConfirmView` takes the thing's `name` as an `Option`.** It is what a person
    recognises (a title), which the remover does not know; with none the confirm
    button is disabled.
+
+### 1.8 What building Phase 5 changed in this plan
+
+1. **The screen is Messages and an `update`, not a Model slice.** §4.6 had the
+   screen own `{ editor, remover }` and return a placed handle with `active` and
+   `after`. A Bundle composed with `Bundle.compose` cannot itself be placed as a
+   child, so owning the slice meant writing the children's routing (their
+   Messages, Commands, Subscriptions and Resources) a second time, or generating
+   the page's field names through template-literal types inside Bundle's own
+   pipe steps. `Crud.screen(name, { id })` instead names the four Messages for
+   `Bundle.withMessages` and wraps `update`; the page keeps its two `withChild`,
+   two `configure`, two `at` and its `active`.
+2. **The measurement, on `examples/entity`.** `app.ts` went from 242 lines to
+   240: three Message cases and three `update` cases left, a declaration and its
+   comment came in, and the `after` wrap became the screen's. `view.ts` went from
+   114 to 117 drawing its editor and delete question through `EditorView` and
+   `ConfirmView`, and now says every editor state: `Conflict` and `Moved` said
+   nothing before, and a failed save was a status line rather than an alert. (The
+   commit that made that change says the old view drew five states' lines; it
+   drew six.) The shorthand's value is that the
+   four cases are stated once and named after the screen, not that the page is
+   shorter; §6's "the example's app file shrinks" is met, by two lines.
+3. **No remover sync to compose.** A remover has no sync of its own (its state is
+   the mutation's), so §6's "`after` skipping the remover's sync" has no line to
+   mutate; "`close` clearing the wrong slice" is the `ClosedPost` routing mutation.
 
 ## 2. Scope
 
@@ -731,7 +757,10 @@ the applications that already compose `Crud.editor` by hand.
 **Kills.** Focus restoration removed; a status arm dropped; the confirm
 button enabled with no target.
 
-### Phase 5 — the screen composition (L)
+### Phase 5 — the screen composition (L) — **built 2026-10-26**
+
+**Built.** `Crud.screen`, and `examples/entity` on it and on Phase 4's views.
+§1.8 says where it departs from the text below, and what it measured.
 
 **Build.** `Crud.screen` (§4.6), and `examples/entity` rewritten on it.
 

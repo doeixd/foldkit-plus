@@ -399,6 +399,33 @@ names no list. Remote then knows the record absent: it leaves every list and
 relation it was in with no refetch, a detail of it reads `NotFound`, and an
 editor open on it reports `NotFound`.
 
+## A screen's Messages
+
+A page with an editor and a remover answers the same four Messages every time:
+open a row, start a new one, close, and ask to delete. `Crud.screen` states them
+once, named after the screen, and answers them through the placements' helpers:
+
+```ts
+const PostScreen = Crud.screen('Post', { id: Schema.String })
+// In the page: Bundle.withMessages({ ...PostScreen.messages }), beside its own:
+// OpenedPost({ id }), CreatedPost(), ClosedPost(), AskedToRemovePost({ id }).
+
+const update = PostScreen.update(
+  { editor: PostEditor, editing: Placed, removing: RemoveForm },
+  placements.update((model, message) =>
+    Remote.reduces(message) ? { model: Data.reduce(model, message) } : { model },
+  ),
+)
+```
+
+`update` answers `OpenedPost` with `Placed.helpers.open(id)`, `CreatedPost` with
+`blank()`, `ClosedPost` with `close()` and `AskedToRemovePost` with
+`RemoveForm.helpers.ask(id)`; every other Message goes to your `update`, and
+`PostEditor.after` runs after each. Leave `removing` out for a screen that cannot
+delete. The screen places nothing and holds no state: the children, their `onOut`,
+the query's input and the wiring stay the page's, and a page that writes these
+cases itself works the same.
+
 ## Detail
 
 One record through a Selection, for a page that shows it. Like a list it holds

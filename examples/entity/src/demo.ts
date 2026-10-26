@@ -208,7 +208,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     // --- Deleting ---
     const remover = (message: typeof RemoverMessage.Type) => (root: Model) =>
       dispatch(root, Message.GotRemovePostMessage({ message }))
-    model = await dispatch(model, Message.AskedToDeletePost({ id: PostId.make('p1') }))
+    model = await dispatch(model, Message.AskedToRemovePost({ id: PostId.make('p1') }))
     lines.push(
       `asked to delete p1: ${PostRemover.status(model)}; rows ${backend.count('posts')} posts, ${backend.count('comments')} comments`,
     )

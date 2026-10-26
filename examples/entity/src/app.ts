@@ -73,6 +73,10 @@ export const RemoverMessage = Remover.Message
  */
 const SearchInput = debounce({ name: 'PostSearch', value: Schema.String })
 
+// Opening a post, starting a new one, closing, and asking to delete: the screen's
+// Messages, answered through the editor's and the remover's placements below.
+const PostScreen = Crud.screen('Post', { id: PostId })
+
 // The page, stated once: its own fields and Messages, and the three bundles it
 // places. The editor and the remover save through Remote, whose domain is made
 // from this page's Model below, so their `onOut` is given once it exists.
@@ -84,9 +88,7 @@ const Base = Bundle.compose({
 }).pipe(
   Bundle.withMessages({
     ...Remote.messages,
-    AskedToDeletePost: { id: PostId },
-    OpenedPost: { id: PostId },
-    ClosedEditor: {},
+    ...PostScreen.messages,
     RequestedMorePosts: {},
     RetriedPosts: {},
     CompletedFocusPosts: {},
@@ -187,16 +189,12 @@ export const RemoveForm = Page.children.removePost
 export const Search = Page.children.search
 export const placements = Page.placements
 
-// `after` lets the editor show the loaded value whichever Message brings it.
-export const update = PostEditor.after(
+// The screen answers its own Messages and runs the editor's sync after every
+// Message, so the editor shows the loaded value whichever Message brings it.
+export const update = PostScreen.update(
+  { editor: PostEditor, editing: EditForm, removing: RemoveForm },
   placements.update((model: Model, message: Message) => {
     switch (message._tag) {
-      case 'OpenedPost':
-        return EditForm.helpers.open(message.id)(model)
-      case 'AskedToDeletePost':
-        return RemoveForm.helpers.ask(message.id)(model)
-      case 'ClosedEditor':
-        return EditForm.helpers.close()(model)
       case 'RequestedMorePosts': {
         return { model: Option.getOrElse(Posts.more(model), () => model), commands: [] }
       }

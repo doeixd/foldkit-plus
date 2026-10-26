@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-crud`: `Crud.screen(name, { id })`.** A page's four editor Messages,
+  named after the screen (`OpenedPost({ id })`, `CreatedPost()`, `ClosedPost()`,
+  `AskedToRemovePost({ id })`), and an `update` that answers them through the
+  editor's and the remover's placements and runs the editor's sync after every
+  Message. It places nothing and holds no state.
 - **`foldkit-mixins-crud`: `EditorView`, `ConfirmView` and `Toolbar`.** `EditorView`
   draws what a `Crud.editor` says around its form in each status (busy while
   loading or saving, a failed save as an alert that keeps the form, a conflict,
