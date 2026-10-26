@@ -28,12 +28,21 @@ import {
   type Table,
 } from 'drizzle-orm'
 import { PgColumn, PgTable } from 'drizzle-orm/pg-core'
-import { Match, Option } from 'effect'
+import { Match, Option, Schema, SchemaAST } from 'effect'
 import { absurd } from 'effect/Function'
-import { Expr, Query, QueryEvaluateError, decided, isPredicate } from 'foldkit-entity'
+import {
+  Expr,
+  Query,
+  QueryEvaluateError,
+  SchemaShape,
+  decided,
+  isPredicate,
+  type Collation,
+} from 'foldkit-entity'
 import type {
   AnyExpr,
   AnyQuery,
+  CallExpr,
   EqPredicate,
   OrderTerm as ExprOrderTerm,
   Operandish,
@@ -43,8 +52,11 @@ import type {
   OperatorDescriptor,
   Predicate,
   PredicateTruth,
+  Ordering,
+  TestPredicate,
 } from 'foldkit-entity'
 import { collatedColumn, type OrderTerm } from './cursor.js'
+import { kernelOperators, type BindingOperators } from './operators.js'
 
 /**
  * What a binding has to offer to be compiled against: a column per field key,
@@ -59,6 +71,103 @@ export interface CompileTarget {
    * a write that leaves the field alone leaves as it is.
    */
   readonly next?: Readonly<Record<string, AnyColumn>>
+  /**
+   * How primitive operators are run: in SQL, and in memory for a predicate
+   * decided from the input alone. Both kernels when not given.
+   */
+  readonly operators?: BindingOperators | undefined
+}
+
+const operatorsOf = (target: CompileTarget): BindingOperators => target.operators ?? kernelOperators
+
+const dialectOf = (target: CompileTarget): 'sqlite' | 'postgres' =>
+  is(target.table, PgTable) ? 'postgres' : 'sqlite'
+
+/** Text under a collation as `dialect` writes it (expr-operations-DESIGN §7); itself under none. */
+const collateFor =
+  (collation: Option.Option<Collation>, dialect: 'sqlite' | 'postgres') =>
+  (text: SQL): SQL =>
+    Option.match(collation, {
+      onNone: () => text,
+      onSome: each =>
+        Match.value(each).pipe(
+          Match.tagsExhaustive({
+            Binary: () =>
+              dialect === 'postgres' ? sql`(${text} collate "C")` : sql`(${text} collate binary)`,
+            AsciiFold: () =>
+              dialect === 'postgres'
+                ? sql`lower(${text} collate "C")`
+                : sql`(${text} collate nocase)`,
+            // A call carrying a locale is refused where it is written; nothing reaches here with one.
+            Locale: ({ locale }) => {
+              throw new QueryCompileError(
+                `text under the backend's "${locale}" collation is not compared by a call`,
+              )
+            },
+          }),
+        ),
+    })
+
+/**
+ * The SQL type a parameter is cast to on Postgres, which reads an untyped
+ * parameter as text: `$1 + $2` is refused as "operator is not unique" (Phase 0,
+ * probe 4). Text needs none, and SQLite takes none: its `cast(? as integer)`
+ * would truncate `0.5` silently.
+ */
+const castFor = (schema: Schema.Top, dialect: 'sqlite' | 'postgres'): Option.Option<SQL> => {
+  if (dialect === 'sqlite') return Option.none()
+  const present = SchemaShape.present(Schema.toEncoded(schema).ast)
+  if (present.length > 0 && present.every(SchemaAST.isNumber)) {
+    return Option.some(
+      present.every(SchemaShape.holdsIntegers) ? sql.raw('integer') : sql.raw('double precision'),
+    )
+  }
+  if (present.length > 0 && present.every(SchemaAST.isBoolean))
+    return Option.some(sql.raw('boolean'))
+  return Option.none()
+}
+
+/** One argument of a call, as SQL: a column, a parameter, a call's SQL or a predicate's. */
+const argumentSql = (
+  arg: Operandish,
+  schema: Schema.Top,
+  target: CompileTarget,
+  input: Readonly<Record<string, unknown>>,
+  query: string,
+): SQL => {
+  if (isPredicate(arg)) return predicate(arg, target, input, query)
+  const value = operand(arg, target, input, query)
+  if (arg._tag !== 'Literal' && arg._tag !== 'Input') return sql`${value}`
+  if (holdsNul(value)) {
+    throw new QueryCompileError(
+      `query "${query}" gives an operator text holding a NUL character, which SQL text cannot hold portably`,
+    )
+  }
+  return Option.match(castFor(schema, dialectOf(target)), {
+    onNone: () => sql`${value}`,
+    onSome: type => sql`cast(${value} as ${type})`,
+  })
+}
+
+/** A call of a primitive operator, as its SQL implementation builds it. */
+const callSql = (
+  call: CallExpr<unknown> | TestPredicate,
+  target: CompileTarget,
+  input: Readonly<Record<string, unknown>>,
+  query: string,
+): SQL => {
+  const build = Option.getOrThrowWith(operatorsOf(target).sql.get(call.operator), () =>
+    unrun(call.operator, query),
+  )
+  const dialect = dialectOf(target)
+  return build({
+    args: call.args.map((arg, position) =>
+      argumentSql(arg, call.operator.input[position]!, target, input, query),
+    ),
+    dialect,
+    collation: call.collation,
+    collate: collateFor(call.collation, dialect),
+  })
 }
 
 export class QueryCompileError extends Error {
@@ -100,9 +209,9 @@ const operand = (
       return node.value
     case 'Input':
       return input[node.key]
-    // Expanded before compiling: a call left is an operator with no definition.
+    // Expanded before compiling: a call left is a primitive operator, built here.
     case 'Call':
-      throw unrun(node.operator, query)
+      return callSql(node, target, input, query)
     default:
       return absurd(node)
   }
@@ -111,7 +220,7 @@ const operand = (
 /** An operator this compiler cannot run: one with no definition to compile instead. */
 const unrun = (operator: OperatorDescriptor, query: string): QueryCompileError =>
   new QueryCompileError(
-    `query "${query}" calls the operator "${operator.id}", which has no definition this compiler can run`,
+    `query "${query}" calls the operator "${operator.version === 1 ? operator.id : `${operator.id}@${operator.version}`}", which this binding's SQL operators do not run`,
   )
 
 /**
@@ -178,11 +287,12 @@ const truthComparison = (
  */
 const decide = (
   node: Predicate,
+  target: CompileTarget,
   input: Readonly<Record<string, unknown>>,
   query: string,
 ): Option.Option<PredicateTruth> => {
   try {
-    return decided(node, input)
+    return decided(node, input, operatorsOf(target).memory)
   } catch (error) {
     if (error instanceof QueryEvaluateError) {
       throw new QueryCompileError(
@@ -212,7 +322,7 @@ const connective = (
 ): SQL => {
   const decisive = joiner === 'or'
   const parts = operands.map(each =>
-    Option.match(decide(each, input, query), {
+    Option.match(decide(each, target, input, query), {
       onNone: (): SQL | PredicateTruth => predicate(each, target, input, query),
       onSome: (truth): SQL | PredicateTruth => truth,
     }),
@@ -230,7 +340,7 @@ const connective = (
 const isColumn = (node: Operandish): boolean =>
   !isPredicate(node) &&
   Match.value(node).pipe(
-    Match.tags({ Field: () => true, Next: () => true }),
+    Match.tags({ Field: () => true, Next: () => true, Call: () => true }),
     Match.orElse(() => false),
   )
 
@@ -278,8 +388,13 @@ const comparison = (
       isColumn(first)
         ? comparing[operator](left as AnyColumn, right)
         : sql`${left} ${symbol} ${right}`,
-    // Text compares only against a field, which the swap above put first.
+    // Text compares only against a field or a call carrying a collation, which the
+    // swap above put first. A call is no column, so its collation is applied by rule.
     onSome: collation => {
+      if (first._tag === 'Call' || second._tag === 'Call') {
+        const collate = collateFor(Option.some(collation), dialectOf(target))
+        return sql`${collate(sql`${left}`)} ${symbol} ${collate(sql`${right}`)}`
+      }
       const column = left as AnyColumn
       const under = collatedColumn(column, collation)
       const key = Option.match(under, { onNone: () => sql`${column}`, onSome: ({ key }) => key })
@@ -309,7 +424,7 @@ const predicate = (
   input: Readonly<Record<string, unknown>>,
   query: string,
 ): SQL =>
-  Option.match(decide(node, input, query), {
+  Option.match(decide(node, target, input, query), {
     onSome: constant,
     onNone: () => undecided(node, target, input, query),
   })
@@ -323,7 +438,7 @@ const undecided = (
 ): SQL => {
   switch (node._tag) {
     case 'Test':
-      throw unrun(node.operator, query)
+      return callSql(node, target, input, query)
     case 'And':
       return connective(node.operands, 'and', target, input, query)
     case 'Or':
@@ -444,13 +559,34 @@ export const supported: ReadonlyArray<Operation> = [
  * checked by compiling it, which happens at registration for the same reason.
  */
 export const checkFields = (body: AnyQuery, target: CompileTarget, query: string): void => {
-  const missing = Query.unsupported(body, supported)
-  if (missing.length > 0) {
+  requireOperators([...body.where, ...body.orderBy], target, `query "${query}"`)
+  for (const field of Query.dependencies(body).fields) columnFor(target, field.key, query)
+}
+
+/**
+ * Refuses expressions needing an operation or operator the binding cannot run:
+ * in SQL, or in memory, where a predicate over the input alone is decided and
+ * a write's miss explained (expr-operations-DESIGN §5.6). Called where each is
+ * registered or built, so a server that starts can run what it serves.
+ */
+export const requireOperators = (
+  nodes: ReadonlyArray<Predicate | Ordering>,
+  target: CompileTarget,
+  what: string,
+): void => {
+  const tables = operatorsOf(target)
+  const inSql = Expr.unsupported(nodes, { operations: supported, operators: tables.sql })
+  if (inSql.length > 0) {
     throw new QueryCompileError(
-      `query "${query}" needs ${missing.join(', ')}, which this compiler does not run`,
+      `${what} needs ${inSql.join(', ')}, which this compiler does not run`,
     )
   }
-  for (const field of Query.dependencies(body).fields) columnFor(target, field.key, query)
+  const inMemory = Expr.unsupported(nodes, { operations: supported, operators: tables.memory })
+  if (inMemory.length > 0) {
+    throw new QueryCompileError(
+      `${what} needs ${inMemory.join(', ')}, which this binding's memory operators do not run`,
+    )
+  }
 }
 
 /**

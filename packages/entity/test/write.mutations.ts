@@ -124,7 +124,7 @@ export default [
     name: 'an integer check inside a group is not seen',
     edits: [
       {
-        file,
+        file: '../src/shape.ts',
         find: 'FilterGroup: group => checksInteger(group.checks)',
         replace: 'FilterGroup: () => false',
       },
@@ -135,7 +135,7 @@ export default [
     name: 'any check reads as the integer one',
     edits: [
       {
-        file,
+        file: '../src/shape.ts',
         find: "Filter: filter => filter.annotations?.representation?.id === 'effect/schema/isInt'",
         replace: 'Filter: () => true',
       },

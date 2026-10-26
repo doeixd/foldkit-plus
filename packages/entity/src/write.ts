@@ -13,7 +13,7 @@
  * It is authority someone declared, never something derived from an Entity: an
  * Entity having a field does not mean anyone may set it.
  */
-import { Match, Option, Schema, SchemaAST } from 'effect'
+import { Option, Schema, SchemaAST } from 'effect'
 import type {
   AnyEntity,
   EntityField,
@@ -23,6 +23,7 @@ import type {
   InputMember,
 } from './index.js'
 import { Expr, Query, type AnyQuery, type InputExpr, type Predicate, type Reads } from './expr.js'
+import { SchemaShape } from './shape.js'
 
 type AnyField = EntityField<string, string, Schema.Constraint>
 type OneRelation = EntityRelation<string, string, AnyEntity, 'one', boolean>
@@ -283,20 +284,9 @@ const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
 const storedAsNumber = (schema: Schema.Top): boolean =>
   SchemaAST.isNumber(Schema.toEncoded(schema).ast)
 
-/** Whether any of these checks is `Schema.isInt`, alone or inside a group (`isInt32`). */
-const checksInteger = (checks: ReadonlyArray<SchemaAST.Check<unknown>>): boolean =>
-  checks.some(check =>
-    Match.value(check).pipe(
-      Match.tagsExhaustive({
-        Filter: filter => filter.annotations?.representation?.id === 'effect/schema/isInt',
-        FilterGroup: group => checksInteger(group.checks),
-      }),
-    ),
-  )
-
 /** Whether a value's stored form is checked to be an integer. */
 const storedAsInteger = (schema: Schema.Top): boolean =>
-  checksInteger(Schema.toEncoded(schema).ast.checks ?? [])
+  SchemaShape.holdsIntegers(Schema.toEncoded(schema).ast)
 
 /**
  * One increment, checked: a field of the Entity stored as a number, written

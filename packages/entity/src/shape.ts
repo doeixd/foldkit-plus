@@ -1,4 +1,4 @@
-import { SchemaAST } from 'effect'
+import { Match, SchemaAST } from 'effect'
 
 const isNullish = (ast: SchemaAST.AST): boolean =>
   SchemaAST.isNull(ast) || SchemaAST.isUndefined(ast)
@@ -8,6 +8,17 @@ const isText = (ast: SchemaAST.AST): boolean =>
   SchemaAST.isTemplateLiteral(ast) ||
   (SchemaAST.isLiteral(ast) && typeof ast.literal === 'string') ||
   (SchemaAST.isUnion(ast) && ast.types.length > 0 && ast.types.every(isText))
+
+/** Whether any of these checks is `Schema.isInt`, alone or inside a group (`isInt32`). */
+const checksInteger = (checks: ReadonlyArray<SchemaAST.Check<unknown>>): boolean =>
+  checks.some(check =>
+    Match.value(check).pipe(
+      Match.tagsExhaustive({
+        Filter: filter => filter.annotations?.representation?.id === 'effect/schema/isInt',
+        FilterGroup: group => checksInteger(group.checks),
+      }),
+    ),
+  )
 
 /** What a schema's AST holds, read through Effect's own guards. */
 export const SchemaShape = {
@@ -23,4 +34,11 @@ export const SchemaShape = {
 
   /** True when every value the schema admits is a string. */
   isText,
+
+  /**
+   * True when the AST is checked to hold integers (`Schema.isInt`, alone or in
+   * a group such as `isInt32`). Read it from a schema's encoded side to ask
+   * what the store holds.
+   */
+  holdsIntegers: (ast: SchemaAST.AST): boolean => checksInteger(ast.checks ?? []),
 }
