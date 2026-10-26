@@ -180,9 +180,9 @@ const UiView = FormView.define(Meeting, {
 ```
 
 The inputs, their names and their Messages are the plain ones; only the look is
-the Input recipe's. A calendar in a popover is not one of them yet: it holds an
-open month and a focused day, state a renderer has nowhere to keep, so it waits
-for a control backed by a Bundle.
+the Input recipe's. A calendar in a popover is not one of them: it holds an open
+month and a focused day, state a renderer has nowhere to keep, so it would be a
+control backed by a Bundle, as `image` is, and is not built.
 
 ### An image: `foldkit-form-recipes/image`
 
@@ -213,30 +213,31 @@ once with `foldkit-media/browser`'s `upload`. The control draws its progress and
 a Cancel button, which ends the send's Subscription and so aborts the request.
 A refusal shows the route's reason (`words.refused`) with Try again, which
 sends the same file again. Only `Kept` is a value: a file on its way, or
-refused, is nothing entered, so a required key stays `Required` until the
-route has kept it.
+refused, is nothing entered.
 
-`id` is the drop zone's, and its file input's, so it is unique on the page.
-Who may upload stays the route's `UploadPolicy`, which a page's session cookie
-answers; `headers` is only what the request carries, fixed when the recipe is
-made, so never a secret. A dropped file that is no image is refused here, as
-`Unsupported`, before its bytes go anywhere. The state is the root's
-`data-upload` (`Empty`, `Sending`, `Refused`, `Kept`); the key's label names the
-group the control is drawn in; the status is one live region, said once per
-state (the progress moves under it); and a press that takes its button away
-moves focus on: Cancel and Remove to the file input, Try again to Cancel. Its look comes from `styles.field` (over `ImageSlots`) and
-`styles.drop` (over `foldkit-mixins-ui`'s `FileDropSlots`), its words from
-`words`. The entry needs `foldkit-media`, `@foldkit/ui`, `foldkit-mixins` and
-`foldkit-mixins-ui` beside the package's own; `./ui` needs `foldkit-mixins`,
-`foldkit-mixins-ui` and `foldkit-mixins-form`, and `./html` `foldkit-mixins-form`.
-
-**A submit while a file is on its way** waits for it (the control is `busy`
-while `Sending`): the key reads as being checked, the form says
-`words.checking` under it, and the submit goes out with the image once the
-route keeps it. A cancel or a refusal ends the wait with nothing submitted, a
-required key then saying `Required`. In `vite dev`, a
-Model holding a `File` cannot be kept across a reload, so a send on its way is
-lost by one.
+- **A submit while a file is on its way** waits for it (the control is `busy`
+  while `Sending`): the key reads as being checked, the form says
+  `words.checking` under it, and the submit goes out with the image once the
+  route keeps it. A cancel or a refusal ends the wait with nothing submitted, a
+  required key then saying `Required`.
+- **Who may upload** stays the route's `UploadPolicy`, which a page's session
+  cookie answers. `headers` is only what the request carries, fixed when the
+  recipe is made, so never a secret; a bad header or `url` throws then.
+- **A dropped file that is no image** is refused here, as `Unsupported`, before
+  its bytes go anywhere: `accept` filters the picker, not a drop.
+- **For a reader:** the key's label names the group the control is drawn in; the
+  status is one live region, said once per state, while the progress moves under
+  it; a press that takes its button away moves focus on (Cancel and Remove to
+  the file input, Try again to Cancel).
+- **For a stylist:** the root's `data-upload` is the state (`Empty`, `Sending`,
+  `Refused`, `Kept`); `styles.field` styles `ImageSlots` and `styles.drop`
+  `foldkit-mixins-ui`'s `FileDropSlots`; `words` words it. `id` is the drop
+  zone's and its file input's, so it is unique on the page.
+- **What it needs:** `foldkit-media`, `@foldkit/ui`, `foldkit-mixins` and
+  `foldkit-mixins-ui` beside the package's own (`./ui` needs `foldkit-mixins`,
+  `foldkit-mixins-ui` and `foldkit-mixins-form`; `./html` `foldkit-mixins-form`).
+- **In `vite dev`,** a Model holding a `File` cannot be kept across a reload, so
+  a send on its way is lost by one.
 
 ## Displays
 
@@ -256,17 +257,17 @@ instant reads in its recipe's zone.
   `Enter a date and a time that exists`, the words for any draft that names no
   time, a partly typed one too. A browser's `new Date` would move it an hour on
   without saying.
-- **A year under 100 is that year.** `0050-06-01` is not read as 1950, as
-  `Date.UTC` would.
 - **A time the clocks repeat reads as the earlier.** `2026-10-25T01:30` in London
   happens twice; it submits `00:30Z`, the first.
+- **A year under 100 is that year.** `0050-06-01` is not read as 1950, as
+  `Date.UTC` would.
 - **A fill with a value of the wrong form throws,** naming the form and the key: a
   `CalendarDate` key given a string, local text in an `instant` key. That is a
-  wiring mistake, so it fails at once rather than showing nothing.
+  wiring mistake, so it fails at once rather than showing nothing. So does a
+  recipe made with an option no format can use.
 - **An empty `Schema.String` key submits `''`.** The empty draft is the form's,
   and a plain string schema accepts it. Give a moment that must be set a schema
   that refuses it: `Schema.String.check(Schema.isMinLength(1))`.
-
 - **An image control's draft is not stored mid-send.** A `File` cannot be
   kept in a stored draft, so `settled` turns `Sending` and `Refused` into
   `Empty`; a kept image stays.
@@ -277,9 +278,12 @@ instant reads in its recipe's zone.
 
 - An email or web address that passes is well-formed, not known to exist: whether
   it receives mail or answers is the server's to find out.
-
 - No arithmetic across zones and no zone-aware value type: an instant is text,
   and its zone is the recipe's.
+- A date is written and read with a four-digit year, 0000 to 9999: a later year
+  is refused, though a date input may take one.
+- `slugify` spells Latin letters only: a title in another script gives an empty
+  slug, which is then written by hand.
 - A browser's own date and time inputs are the default renderers; their look and
   their picker are the browser's.
 - `image` is a Bundle control, so it takes no `check` and cannot sit in a row of
