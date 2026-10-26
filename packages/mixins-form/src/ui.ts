@@ -15,6 +15,7 @@ import {
   FieldSlots,
   type FieldOverride,
   type FieldOverrideInput,
+  type FormViewWords,
   type Option,
   type RenderContext,
   type Renderers,
@@ -166,6 +167,8 @@ export interface UiFieldOptions<FormMessage, Message> {
   readonly inputStyle: NamedStyle<typeof InputSlots>
   readonly textareaStyle?: NamedStyle<typeof TextareaSlots>
   readonly draw?: (parts: UiFieldParts, h: HtmlBuilder<Message>) => Html
+  /** The form view's words; this reads `checking`, said while the key's check runs. */
+  readonly words?: FormViewWords | undefined
 }
 
 /** A FormView.fields override for Text/Multiline keys drawn through the UI adapters. */
@@ -177,7 +180,7 @@ export const field =
     const checking = input.field._tag === 'Validating'
     const description = [
       ...(input.control.description === undefined ? [] : [input.control.description]),
-      ...(checking ? ['Checking…'] : []),
+      ...(checking ? [options.words?.checking ?? 'Checking…'] : []),
       ...input.errors,
     ]
     const extra = [

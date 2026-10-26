@@ -232,8 +232,8 @@ FieldSlots style for a control the table draws (`text`, `select`, …) no longer
 reaches it; the label, description, checking line and error keep theirs.
 
 For one key in a custom layout, the same entry exports
-`field({ toMessage, inputStyle, textareaStyle?, draw? })`, a
-`FormView.fields` override for Text/Multiline. Install `foldkit-mixins-ui` and `@foldkit/ui`;
+`field({ toMessage, inputStyle, textareaStyle?, draw?, words? })`, a
+`FormView.fields` override for Text/Multiline; its checking line reads `words.checking`. Install `foldkit-mixins-ui` and `@foldkit/ui`;
 styles target their Input/Textarea Slots and read the field's state. It preserves
 Changed/Blurred dispatch, name, required state, hints, checking and errors.
 `draw` receives label/control/description nodes and `field` for a custom layout;

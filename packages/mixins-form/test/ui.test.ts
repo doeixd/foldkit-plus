@@ -3,7 +3,8 @@ import { Effect, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Entity } from 'foldkit-entity'
 import { Form, Input as FormInput } from 'foldkit-form'
-import { Style } from 'foldkit-mixins'
+import { SlotView, Style } from 'foldkit-mixins'
+import * as FieldValidation from 'foldkit/fieldValidation'
 import { InputSlots, TextareaSlots, Recipes } from 'foldkit-mixins-ui'
 import { Inert } from 'foldkit-mixins/testing'
 import { defineMessageUnion } from 'foldkit/message'
@@ -107,4 +108,26 @@ it('routes blur and edits through the Submodel, announces checking/rejection, an
   } finally {
     handle.dispose()
   }
+})
+
+it('says its checking line in the form’s words', () => {
+  const worded = UiForm.field({
+    toMessage: (message: FormMessage) => message,
+    inputStyle: Style.forSlots(InputSlots)(Recipes.Input()),
+    words: { checking: 'Prüfen…' },
+  })
+  const tree = worded(
+    {
+      control: Signup.controls.find(control => control.key === 'email')!,
+      field: FieldValidation.Validating({ value: 'new@example.com' }),
+      id: 'Signup-email',
+      invalid: false,
+      errors: [],
+      changed: value => Signup.Message.Changed({ key: 'email', value }),
+      blurred: Signup.Message.Blurred({ key: 'email' }),
+      attrs: {},
+    },
+    SlotView.inertBuilder(),
+  )
+  expect(Inert.text(Inert.byRole(tree, 'status')[0])).toBe('Work address Prüfen…')
 })

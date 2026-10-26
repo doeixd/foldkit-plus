@@ -8,6 +8,17 @@ const tests = ['packages/mixins-form/test/uiRenderers.test.ts']
 
 export default [
   {
+    name: 'the UI field says its checking line in its own words',
+    edits: [
+      {
+        file: ui,
+        find: "options.words?.checking ?? 'Checking…'",
+        replace: "'Checking…'",
+      },
+    ],
+    tests: ['packages/mixins-form/test/ui.test.ts'],
+  },
+  {
     name: 'a text input keeps the plain Slot, so the UI recipe never reaches it',
     edits: [{ file: ui, find: 'text: textInput(context)', replace: 'text: context.slots.text' }],
     tests,

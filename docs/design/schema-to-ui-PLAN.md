@@ -1,16 +1,18 @@
 # Schema to UI: field recipes and CRUD workflow recipes
 
-> **Status:** Phase 0 built (2026-10-22); Phases 1 to 7 proposed. Written from
+> **Status:** Phases 0 (2026-10-22) and 1 (2026-10-26) built; Phases 2 to 7
+> proposed. Written from
 > [#188](https://github.com/doeixd/foldkit-plus/issues/188) and an audit of the
-> code on the same date (§1, §11). §1.3 records what building Phase 0 changed in
-> the plan. Blocks marked *Sketch* are shapes to review, not APIs; the phase that
+> code on 2026-10-22 (§1, §11). §1.3 and §1.4 record what building Phases 0 and 1
+> changed in the plan. Blocks marked *Sketch* are shapes to review, not APIs; the phase that
 > builds each one fixes its real signature. Where this plan and a package README
 > disagree, the README and the source win.
 
 | Phase | Ships | Evidence |
 | --- | --- | --- |
 | 0 | `Control.format`, `Control.parseList`, `Input.Choices`, array-of-literal resolution, and the plain `Choices` renderer | `packages/form/test/format.test.ts`, `packages/form/test/choices.test.ts`, `packages/mixins-form/test/choices.test.ts`; 9 mutations, all killed |
-| 1 to 7 | — | not started |
+| 1 | `UiForm.renderers` for every shipped kind, the form's `summary` of fields to fix, `FollowedIssue`, `UiForm.field`'s `words` | `packages/mixins-form/test/uiRenderers.test.ts`, `summary.test.ts`, `summary.browser.test.ts`, `ui.test.ts`; 20 mutations, all killed |
+| 2 to 7 | — | not started |
 
 The issue asks for a complete schema-to-UI story: reusable field recipes, UI
 renderers for every control kind, and CRUD workflow recipes. This plan keeps the
@@ -139,6 +141,39 @@ an `Arrays` node with `elements: []` and `rest: [X]` (a `Tuple` is the reverse,
 `elements` set and `rest: []`; a `NonEmptyArray` sets both), and an array admits
 `[]`. So `rest.length === 1` is the right test for "an array of one thing", and a
 `Choices` key is required only when its own schema refuses the empty one.
+
+### 1.4 What building Phase 1 changed in this plan
+
+Phase 1 shipped on 2026-10-26 (§6). Five things came out differently from §4.4
+and §6.
+
+1. **The table is the plain renderers under other Slots, not the components'
+   views.** `Input.view` writes its own `aria-describedby` (one id), where a
+   field names its description, checking line and error; drawing through it
+   would have made the two paths differ in what they announce. So Text, Number,
+   Multiline and the selects are the plain renderers given `InputSlots`,
+   `TextareaSlots` and `SelectSlots` builders in place of FieldSlots', which is
+   what makes "the same Messages on both paths" true by construction. An element
+   keeps one Slot's class, so a FieldSlots style for those controls no longer
+   reaches them; the field around them keeps its own.
+2. **Choices and RelationMany use `CheckboxGroupSlots`, not `CheckboxGroup.view`.**
+   The view draws a `fieldset` and `legend` of its own, which would name the group
+   twice under the field's label. Like Toggle, its boxes are the Checkbox's
+   `role="checkbox"` buttons, which post nothing: each checked one holds a hidden
+   input named by the key, so a post without scripts carries it.
+3. **The summary sits above the submit button and is no live region.** Drawn at
+   the top, a field turning invalid on blur would push every field below it
+   while the person tabs; each field's error already announces itself.
+4. **A link in an application is a navigation.** Foldkit takes every link press
+   in a `makeApplication` as a URL request, so an `href="#id"` alone would not
+   focus anything once scripts run. The link keeps the `href` for a post without
+   scripts, and a press uses `OnClick`'s `focusSelector` (in the press, so a
+   phone's keyboard opens) with the default prevented. `OnClick` needs a
+   Message, so `foldkit-form` has `FollowedIssue({ id })`, which changes nothing.
+5. **A choice that must hold one threw at `Form.make`.** §4.3 said a
+   `NonEmptyArray` of literals resolves to a required Choices key; the wiring
+   check tried `[]` and an id, and such a schema takes neither. It now also tries
+   one of the control's own options.
 
 ## 2. Scope
 
@@ -493,7 +528,13 @@ existing form changes behaviour.
 `Choices.parse` replaced by `() => options[0]`; the array resolution disabled;
 the group drawn with no options, unnamed, or nothing checked.
 
-### Phase 1 — renderers for every kind (M)
+### Phase 1 — renderers for every kind (M) — **built 2026-10-26**
+
+**Built.** `UiForm.renderers(styles?)`, typed by every shipped kind; the
+`summary`, `summaryTitle`, `issues`, `issue` and `issueLink` slots with
+`words.summary` and `words.issue`; `foldkit-form`'s `FollowedIssue`; and
+`UiForm.field`'s `words`. §1.4 says where it departs from the text below,
+which is kept as it was planned.
 
 **Build.** The `/ui` renderer table (§4.4), including the `/ui` drawing of
 `Choices` (the plain one shipped in Phase 0); `field()` rebuilt on the table; a
