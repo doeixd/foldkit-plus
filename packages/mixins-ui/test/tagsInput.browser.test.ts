@@ -28,7 +28,14 @@ afterEach(async () => {
   document.body.replaceChildren()
 })
 
+/**
+ * Each Message `update` received this mount, with the draft, tags and input
+ * value after it: a burst's failure seen only on CI says what happened.
+ */
+let handled: Array<string> = []
+
 const mount = () => {
+  handled = []
   const sheet = document.createElement('style')
   sheet.dataset['test'] = ''
   sheet.textContent =
@@ -48,6 +55,10 @@ const mount = () => {
       init: () => ({ model: TagsInput.init({ id: 'topics' }) }),
       update: (model: TagsInput.Model, message: TagsInput.Message) => {
         const next = TagsInput.update(model, message)
+        const field = document.getElementById('topics-input') as HTMLInputElement | null
+        handled.push(
+          JSON.stringify([message, next.model.draft, next.model.tags, field?.value ?? null]),
+        )
         return { model: next.model, commands: next.commands ?? [] }
       },
       view: (model: TagsInput.Model, h: HtmlBuilder<TagsInput.Message>) =>
@@ -66,7 +77,9 @@ test('a tag typed and committed in one burst is added, and its repeat shakes the
     await vi.waitFor(() => expect(document.getElementById('topics-input')).not.toBeNull())
     input().focus()
     await userEvent.keyboard('react{Enter}react{Enter}')
-    await vi.waitFor(() => expect(status().textContent).toBe('react is already added'))
+    await vi.waitFor(() =>
+      expect(status().textContent, handled.join('\n')).toBe('react is already added'),
+    )
     expect([...document.querySelectorAll('li')].map(tag => tag.firstChild?.textContent)).toEqual([
       'react',
     ])
