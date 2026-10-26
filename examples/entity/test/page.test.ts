@@ -34,6 +34,11 @@ const choose = (selector: string, value: string) => {
   select.value = value
   select.dispatchEvent(new Event('change', { bubbles: true }))
 }
+/** One of the delete question's answers, by its words. */
+const answer = (words: string) =>
+  Array.from(document.querySelectorAll<HTMLButtonElement>('#remove button')).find(
+    button => button.textContent === words,
+  )!
 
 it('lists posts, edits one through the drawn form, and shows the save in the list', async () => {
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
@@ -125,7 +130,7 @@ it('lists posts, edits one through the drawn form, and shows the save in the lis
     )
     element('#editor form').dispatchEvent(new Event('submit', { cancelable: true }))
 
-    await vi.waitFor(() => expect(element('#status').textContent).toBe('Saved.'))
+    await vi.waitFor(() => expect(element('#editor [role="status"]').textContent).toBe('Saved.'))
     expect(backend.row('p2')).toMatchObject({
       headline: 'Compilers, revised',
       published: 1,
@@ -136,20 +141,24 @@ it('lists posts, edits one through the drawn form, and shows the save in the lis
 
     // Delete asks first, and a no deletes nothing.
     element('#delete').click()
-    await vi.waitFor(() => expect(element('#confirm')?.textContent).toBe('Delete p2?'))
-    element('#no').click()
+    await vi.waitFor(() => expect(element('#remove-question')?.textContent).toBe('Delete p2?'))
+    answer('No').click()
     await vi.waitFor(() => expect(element('#delete')).not.toBeNull())
     expect(backend.count('posts')).toBe(2)
 
     element('#delete').click()
-    await vi.waitFor(() => expect(element('#yes')).not.toBeNull())
-    element('#yes').click()
+    await vi.waitFor(() => expect(answer('Yes, delete')).not.toBeUndefined())
+    answer('Yes, delete').click()
     // The server named no list; the row left it, and the editor reads that its post is gone.
     await vi.waitFor(() => expect(cells()).toEqual([['p1', 'Notes on the Engine', 'yes']]))
     expect(backend.count('posts')).toBe(1)
-    await vi.waitFor(() => expect(element('#status').textContent).toBe('That post does not exist.'))
+    await vi.waitFor(() =>
+      expect(element('#editor [role="status"]').textContent).toBe('That post does not exist.'),
+    )
 
-    element('#close').click()
+    Array.from(document.querySelectorAll<HTMLButtonElement>('#editor button'))
+      .find(button => button.textContent === 'Close')!
+      .click()
     await vi.waitFor(() => expect(element('#editor')).toBeNull())
   } finally {
     handle.dispose()

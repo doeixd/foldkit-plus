@@ -4,9 +4,10 @@
  * names a field.
  */
 import type { Html, HtmlBuilder } from 'foldkit/html'
-import { ListView } from 'foldkit-mixins-crud'
+import { Option } from 'effect'
+import { ConfirmView, EditorView, ListView } from 'foldkit-mixins-crud'
 import { PostSort } from './operations.js'
-import { words } from './words.js'
+import { confirmWords, editorWords, words } from './words.js'
 import {
   EditForm,
   Message,
@@ -41,29 +42,29 @@ const table = (model: Model, h: HtmlBuilder<Message>): Html =>
     h,
   )
 
-const saveLine: Readonly<Record<string, string>> = {
-  Loading: 'Loading…',
-  NotFound: 'That post does not exist.',
-  LoadFailed: 'The post could not be read.',
-  Saving: 'Saving…',
-  Saved: 'Saved.',
-}
+// What the editor and the delete question say around the form; the states
+// themselves, and which of them keep the form, are the views'.
+const PostEditorView = EditorView.forMessages<Message>().define({ name: 'PostEditor' })
+const DeletePost = ConfirmView.forMessages<Message>().define({ name: 'DeletePost' })
 
 const editor = (model: Model, h: HtmlBuilder<Message>): Html => {
   const status = PostEditor.status(model)
   if (status === 'Closed') return h.p([h.Class('muted')], ['Choose a post to edit.'])
-  const error = PostEditor.saveError(model)
-  return h.section(
-    [h.Id('editor')],
+  return h.div(
+    [],
     [
-      h.p(
-        [h.Id('status'), h.Role('status')],
-        [status === 'SaveFailed' ? `Not saved: ${error?.message ?? ''}` : (saveLine[status] ?? '')],
+      PostEditorView(
+        {
+          id: 'editor',
+          status,
+          title: 'Edit post',
+          form: EditForm.view(model, h, { options: pickers(model), words }),
+          error: PostEditor.saveError(model)?.message,
+          onClose: Message.ClosedEditor(),
+          words: editorWords,
+        },
+        h,
       ),
-      ...(status === 'Loading' || status === 'NotFound' || status === 'LoadFailed'
-        ? []
-        : [EditForm.view(model, h, { options: pickers(model), words })]),
-      h.button([h.Id('close'), h.OnClick(Message.ClosedEditor())], ['Close']),
       ...remove(model, h),
     ],
   )
@@ -73,23 +74,25 @@ const editor = (model: Model, h: HtmlBuilder<Message>): Html => {
 const remove = (model: Model, h: HtmlBuilder<Message>): ReadonlyArray<Html> => {
   const id = PostEditor.target(model)
   if (id === null) return []
+  const status = PostRemover.status(model)
+  if (status === 'Idle')
+    return [h.button([h.Id('delete'), h.OnClick(Message.AskedToDeletePost({ id }))], ['Delete'])]
   const answer = (message: typeof RemoverMessage.Type) => Message.GotRemovePostMessage({ message })
-  switch (PostRemover.status(model)) {
-    case 'Confirming':
-      return [
-        h.p([h.Id('confirm')], [`Delete ${PostRemover.target(model) ?? ''}?`]),
-        h.button([h.Id('yes'), h.OnClick(answer(RemoverMessage.Confirmed()))], ['Yes, delete']),
-        h.button([h.Id('no'), h.OnClick(answer(RemoverMessage.Cancelled()))], ['No']),
-      ]
-    case 'Deleting':
-      return [h.p([h.Role('status')], ['Deleting…'])]
-    case 'Deleted':
-      return []
-    case 'DeleteFailed':
-      return [h.p([h.Role('alert')], [`Not deleted: ${PostRemover.error(model)?.message ?? ''}`])]
-    case 'Idle':
-      return [h.button([h.Id('delete'), h.OnClick(Message.AskedToDeletePost({ id }))], ['Delete'])]
-  }
+  return [
+    DeletePost(
+      {
+        id: 'remove',
+        status,
+        // The question names the post by its id, the one name the remover knows.
+        name: Option.fromNullishOr(PostRemover.target(model)),
+        onConfirm: answer(RemoverMessage.Confirmed()),
+        onCancel: answer(RemoverMessage.Cancelled()),
+        error: PostRemover.error(model)?.message,
+        words: confirmWords,
+      },
+      h,
+    ),
+  ]
 }
 
 export const view = (model: Model, h: HtmlBuilder<Message>): Html =>
