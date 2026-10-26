@@ -100,6 +100,12 @@ export const Todos = Listed.at({
 
 export const Rename = Editor.at({ data: Data, model: App.model.rename })
 
+/** A write's change to the list, through the list's own connection; none while it is not shown. */
+const inList = (
+  model: Model,
+  change: (list: { readonly identity: string }) => ConnectionChange,
+): ReadonlyArray<ConnectionChange> => Option.toArray(Option.map(Todos.connection(model), change))
+
 /**
  * One stable row the live stream subscribes to. The id is not a todo, and the
  * requirements do not follow the list, so a local edit does not restart the
@@ -172,7 +178,7 @@ const Page = Base.pipe(
           {
             optimistic: [
               Remote.patch(Todo, id, { id, title: value.title, done: 0 }),
-              ConnectionChange.prepend(AllTodos.ref({}), Remote.ref(Todo, id)),
+              ...inList(model, list => ConnectionChange.prepend(list, Remote.ref(Todo, id))),
             ],
           },
         )
@@ -238,7 +244,9 @@ export const update = Rename.after(
           DeleteTodo,
           { id: message.id },
           {
-            optimistic: [ConnectionChange.remove(AllTodos.ref({}), Remote.ref(Todo, message.id))],
+            optimistic: inList(model, list =>
+              ConnectionChange.remove(list, Remote.ref(Todo, message.id)),
+            ),
           },
         )
         const closed =

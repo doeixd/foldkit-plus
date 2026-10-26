@@ -127,6 +127,11 @@ What each call does:
 - **`AuthorList.refresh(model)`** is the Model with the list asked for again. A
   failed read is not retried on its own, so this is what a retry button's
   Message returns.
+- **`AuthorList.connection(model)`** is the connection the list reads, an
+  `Option`, none while it is not shown: what a write's optimistic insert or
+  remove names (`ConnectionChange.prepend(list, Remote.ref(Author, id))`). It
+  carries the list's input, so a change cannot name a list rebuilt from
+  another input that nothing reads.
 
 `AuthorList.row(id)` is a Projection of one row through the list's Selection,
 whether or not the query finds it now, and `AuthorList.choiceOf(model, id)` is

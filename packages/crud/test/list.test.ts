@@ -2,7 +2,7 @@ import { Effect, Layer, Schema, Stream, Option } from 'effect'
 import { Entity, Relation } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
 import { defineMessageUnion } from 'foldkit/message'
-import { Query, Remote, RemoteClient } from 'foldkit-remote'
+import { ConnectionChange, Query, Remote, RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Crud } from '../src/index.js'
@@ -123,6 +123,19 @@ describe('Crud.list', () => {
     // Another input is another connection: nothing of the first is shown for it.
     expect(shown({ ...searching, search: 'g' })).toBe('Initial')
     expect(shown(await load({ ...searching, search: 'g' }))).toEqual(['Grace'])
+  })
+
+  it('hands out the connection it reads, so a pending insert shows in it', async () => {
+    expect(Option.isNone(AuthorList.connection(initial))).toBe(true)
+    const searching = await load({ ...initial, search: 'g' })
+    const list = Option.getOrThrow(AuthorList.connection(searching))
+    // The search is part of the key: one rebuilt with another input names a list nothing reads.
+    expect(list.identity).not.toBe(AuthorsQuery.ref({ search: '' }).identity)
+    const adding = Data.overlay(searching, 'create', [
+      Remote.patch(Blog.Author, 'a9', { id: 'a9', name: 'Gus' }),
+      ConnectionChange.append(list, Remote.ref(Blog.Author, 'a9')),
+    ])
+    expect(shown(adding)).toEqual(['Grace', 'Gus'])
   })
 
   it('loads the next page onto the first, and has none to load after the last', async () => {

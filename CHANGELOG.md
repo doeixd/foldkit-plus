@@ -9,6 +9,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-crud`: a placed list hands out its connection.**
+  `AuthorList.connection(model)` is the key the list reads, for a write's
+  optimistic insert or remove, so an application no longer rebuilds it from the
+  list's input (the Cloudflare example spelt `AllTodos.ref({})`), where another
+  input names a list nothing reads.
 - **`foldkit-mixins-form/recipes`: a look for the field and the form.** `Field({})`
   (label over control, a checkbox kept its size, text, number, select and a
   picker's search box in `foldkit-mixins-ui`'s field looks, a failure in the error's

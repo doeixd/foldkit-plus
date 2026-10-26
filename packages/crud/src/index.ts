@@ -170,7 +170,11 @@ export interface DomainLike<Root> {
     readonly command: Command<RemoteMessage, never, RemoteClient>
   }
   get(selection: any, id: string): Projection<Root, RemoteData<any>>
-  query(query: any, input: any, options: any): Projection<Root, RemoteData<Page<any>>>
+  query(
+    query: any,
+    input: any,
+    options: any,
+  ): Projection<Root, RemoteData<Page<any>>> & { readonly ref: { readonly identity: string } }
   more(model: Root, projection: any): Option.Option<Root>
   refresh(model: Root, target: any): Root
   mutation(model: Root, requestId: string): MutationStatus
@@ -496,6 +500,15 @@ export const Crud = {
           active,
 
           page,
+
+          /**
+           * The connection the list reads while it is shown, for a write's
+           * optimistic insert or remove (`ConnectionChange.prepend(list, ref)`):
+           * the list's own key, so a change cannot name one rebuilt from its
+           * input that nothing reads. None while the list is not shown.
+           */
+          connection: (root: Root): Option.Option<{ readonly identity: string }> =>
+            Option.map(projectionOf(root), projection => projection.ref),
 
           /**
            * "Load more": the Model with the list showing one page more, for the

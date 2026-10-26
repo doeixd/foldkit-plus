@@ -122,6 +122,9 @@ const subscriptions = Data.subscriptions({ authors: AuthorList.active })
 - `AuthorList.refresh(model)` (and a placed detail's `refresh`): the Model with
   it asked for again. Failed reads are not retried automatically; this is the
   retry.
+- `AuthorList.connection(model)`: the connection the list reads (`Option`), for
+  a write's `ConnectionChange.prepend/append/remove(list, ref)`; never rebuild
+  it with `Query.ref(input)`.
 - `Crud.options(EditPostForm, [AuthorList])(model)`: every relation picker of
   the form fed by the list over its target, keyed by the form's keys, for
   `foldkit-mixins-form`'s `options`. Needs `choice` on the list. A picker with no
