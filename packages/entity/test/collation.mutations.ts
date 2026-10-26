@@ -32,8 +32,8 @@ export default [
     edits: [
       {
         file: expr,
-        find: 'const collation = Option.orElse(Option.fromUndefinedOr(options.collation), () =>',
-        replace: 'const collation = Option.orElse(Option.none<Collation>(), () =>',
+        find: ': Option.orElse(Option.fromUndefinedOr(options.collation), () =>',
+        replace: ': Option.orElse(Option.none<Collation>(), () =>',
       },
     ],
     tests,
@@ -111,7 +111,13 @@ export default [
   },
   {
     name: 'a uuid id is given a collation it cannot take',
-    edits: [{ file: cursor, find: ': postgresText.has(column.columnType)', replace: ': true' }],
+    edits: [
+      {
+        file: cursor,
+        find: ': postgresText.has(column.columnType)\n            ? Option.some({ key: sql`${column} collate "C"`',
+        replace: ': true\n            ? Option.some({ key: sql`${column} collate "C"`',
+      },
+    ],
     tests,
   },
   {
@@ -130,8 +136,8 @@ export default [
     edits: [
       {
         file: cursor,
-        find: ': { key: sql`${column} collate nocase`, value: plain },',
-        replace: ': { key: sql`${column}`, value: plain },',
+        find: '? Option.some({ key: sql`${column} collate nocase`, value: plain })',
+        replace: '? Option.some({ key: sql`${column}`, value: plain })',
       },
     ],
     tests,

@@ -59,8 +59,8 @@ export default [
   edit(
     'a table is never asked',
     evaluate,
-    'return Option.match(scope.operators.get(call.operator), {',
-    'return Option.match(Option.none<never>(), {',
+    'Option.match(scope.operators.get(call.operator), {',
+    'Option.match(Option.none<never>(), {',
   ),
   edit(
     'evaluate ignores the table it is given',

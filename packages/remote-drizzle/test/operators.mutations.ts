@@ -11,7 +11,7 @@ const operators = '../src/operators.ts'
 export default [
   {
     name: 'SQLite casts its parameters too',
-    edits: [{ file: compile, find: "if (dialect === 'sqlite') return Option.none()", replace: '' }],
+    edits: [{ file: compile, find: "dialectOf(target) === 'sqlite'", replace: 'false' }],
     tests,
   },
   {
@@ -19,8 +19,8 @@ export default [
     edits: [
       {
         file: compile,
-        find: "present.every(SchemaShape.holdsIntegers) ? sql.raw('integer')",
-        replace: "false ? sql.raw('integer')",
+        find: "present.every(SchemaShape.holdsIntegers) ? sql.raw('bigint')",
+        replace: "false ? sql.raw('bigint')",
       },
     ],
     tests,
@@ -68,7 +68,7 @@ export default [
     edits: [
       {
         file: compile,
-        find: "if (first._tag === 'Call' || second._tag === 'Call') {",
+        find: "if (first._tag === 'Call' || second._tag === 'Call' || !is(left, Column)) {",
         replace: 'if (false) {',
       },
     ],
