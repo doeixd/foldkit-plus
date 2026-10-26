@@ -488,6 +488,32 @@ pixel limit, and `400` for a body that broke off. Because the body must be
 preflight, and the route answers no preflight, a cookie alone cannot upload
 from another site.
 
+From a browser, `upload(file, { url?, headers? })` (`foldkit-media/browser`)
+sends one file to the route and is a `Stream`: `Progressed { loaded, total }`
+as the bytes go, then one `Uploaded { asset }` with the route's facts, and it
+ends. A refusal fails it with `UploadFailed { reason, status }`, whose
+`reason` names the route's answer (`Forbidden`, `Unauthenticated`,
+`TooLarge`, `Unsupported`, `Malformed`), `Network` when nothing answered,
+or `Unexpected` for an answer that is not the route's. It is an
+`XMLHttpRequest`, since `fetch` reports no upload progress, and interrupting
+the stream aborts it: a Command or Subscription that runs it cancels by
+ending.
+
+```ts
+import { Effect, Stream } from 'effect'
+import { upload } from 'foldkit-media/browser'
+
+const send = (file: File, token: string) =>
+  upload(file, { headers: { authorization: `Bearer ${token}` } }).pipe(
+    Stream.runForEach(event =>
+      Effect.sync(() => {
+        if (event._tag === 'Progressed') console.log(`${event.loaded} of ${event.total} bytes`)
+        else console.log('kept as', event.asset.key)
+      }),
+    ),
+  )
+```
+
 An image a page names only by URL gets its facts from the same route set:
 `GET /_media/facts?url=` reads it with `factsOf`, behind the same
 `UploadPolicy`, asked for `'DescribeUrl'`, and answers them keyed by the URL (`200`). Only `https` on a

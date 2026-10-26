@@ -55,6 +55,11 @@ version changed; `pnpm` skips versions already in the registry.
   with scripts off; with them on, a press focuses the control (a choice
   group's first box) without navigating, and sends **`foldkit-form`'s new
   `FollowedIssue({ id })`**, which changes nothing.
+- **`foldkit-media/browser`: `upload(file, { url?, headers? })`,** a browser
+  client for `POST /_media/upload`: a `Stream` of `Progressed` and one
+  `Uploaded` with the facts, failing with `UploadFailed`, whose `reason`
+  names the route's refusal, `Network` or `Unexpected`. Interrupting it
+  aborts the request.
 - **`foldkit-mixins-form/ui`: `UiForm.field` takes the form view's `words`,** so
   its checking line reads `words.checking` as the plain field does, rather
   than a fixed `Checking…`.
