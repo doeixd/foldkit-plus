@@ -342,13 +342,29 @@ test('an open panel escapes an overflow box: the top layer, not the page flow', 
  */
 const leaving = async (id: string, close: () => Promise<void>) => {
   const panel = byId(id)!
+  const marks = ['closed', 'enter', 'leave'].map(mark => `data-${mark}`)
+  const held = new Set(marks.filter(mark => panel.hasAttribute(mark)))
   const states: Array<string> = []
-  const observer = new MutationObserver(() =>
-    states.push(
-      ['closed', 'enter', 'leave'].filter(mark => panel.hasAttribute(`data-${mark}`)).join(' '),
-    ),
+  // A batch of records can hold a state already gone when the callback runs, so each
+  // record's own result is replayed: an attribute's value after one record is the old
+  // value the next record of it saw, or, for the last, what the panel holds now.
+  const observer = new MutationObserver(records =>
+    records.forEach((record, at) => {
+      const name = record.attributeName ?? ''
+      if (!marks.includes(name)) return
+      const next = records.slice(at + 1).find(later => later.attributeName === name)
+      const present = next === undefined ? panel.hasAttribute(name) : next.oldValue !== null
+      if (present) held.add(name)
+      else held.delete(name)
+      states.push(
+        marks
+          .filter(mark => held.has(mark))
+          .map(mark => mark.slice('data-'.length))
+          .join(' '),
+      )
+    }),
   )
-  observer.observe(panel, { attributes: true })
+  observer.observe(panel, { attributes: true, attributeOldValue: true })
   try {
     await close()
     await vi.waitFor(() => expect(byId(id)).toBeNull())
