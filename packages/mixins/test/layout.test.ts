@@ -28,7 +28,7 @@ describe('Layout', () => {
     expect(css).toContain(
       `.${classOf(Layout.stack())}{align-items:var(--fk-l-align, stretch);display:flex;flex-direction:column;gap:var(--fk-l-gap, var(--fk-space-md, 1rem))}`,
     )
-    expect(css).toContain(`> :not(.${intrinsic}){inline-size:100%;margin-block:0}`)
+    expect(css).toContain(`> :not(.${intrinsic}){align-self:stretch;margin-block:0}`)
     expect(cssOf(Layout.intrinsic)).toBe(
       `.${intrinsic}{align-self:var(--fk-l-intrinsic-align, flex-start);flex-grow:0;inline-size:fit-content;max-inline-size:max-content}`,
     )

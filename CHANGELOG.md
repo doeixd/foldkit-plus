@@ -131,6 +131,12 @@ version changed; `pnpm` skips versions already in the registry.
 - **A computed value compared under a collation compiles on Postgres.** An
   invariant ordering the value an assignment computes wrote SQLite's
   `collate binary` there, which Postgres refuses.
+- **`Layout.stack` keeps a width a child sets.** Its child rule gave every child
+  `inline-size: 100%` from the `layouts` layer, which beats `components`, so a
+  checkbox in a stack drew 308 by 16; it now stretches each child
+  (`align-self: stretch`), which fills one with no width of its own as before
+  and leaves a set width alone. A text field no longer spills past the stack by
+  its padding where no `border-box` reset applies.
 - **`foldkit-mixins-data-grid`: a header's sort label and column menu button are
   finger targets**, at least 24px (the menu button each way), where they were the
   height of their words and glyph (about 21px tall and 30 by 23).

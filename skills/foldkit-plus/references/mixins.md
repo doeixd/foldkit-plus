@@ -590,8 +590,8 @@ export const stylesheet: string = Style.stylesheet(
   `foldkit-mixins/prose` is one class for every caller; options are `--fk-prose-*` variables on
   the element. Put it in `components`.
 - Layout: `foldkit-mixins/layout` exports `Layout.stack/cluster/split/sidebar/switcher/reel/center/
-  frame/pad/autoGrid(options)` and the child pieces `Layout.intrinsic` (a stack child keeping its
-  width) and `Layout.aside` (the sidebar child). Options write `--fk-l-*` inline variables; the
+  frame/pad/autoGrid(options)` and the child pieces `Layout.intrinsic` (a stack child as wide as
+  its content; a child that sets a width keeps it anyway) and `Layout.aside` (the sidebar child). Options write `--fk-l-*` inline variables; the
   rule text is shared, except `split`'s breakpoint and `stack`'s `split` index. Pieces are
   unlayered: wrap with `L.in('layouts', Layout.stack({ gap }))`.
 - `foldkit-mixins-ui` exports `Patterns`: an `A11y.pattern` per adapter plus `Patterns.catalog`
