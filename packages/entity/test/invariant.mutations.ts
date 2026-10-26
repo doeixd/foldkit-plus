@@ -103,15 +103,19 @@ export default [
   ),
   ...[
     ['Eq', 'left: substitutedSide(predicate.left, rewrite),', 'left: predicate.left,'],
-    ['Null', 'operand: rewrite(predicate.operand) })', 'operand: predicate.operand })'],
+    [
+      'Null',
+      'operand: substitutedScalar(predicate.operand, rewrite) })',
+      'operand: predicate.operand })',
+    ],
     [
       'Contains',
-      'value: rewrite(predicate.value),\n        search:',
+      'value: substitutedScalar(predicate.value, rewrite),\n        search:',
       'value: predicate.value,\n        search:',
     ],
     [
       'In',
-      'value: rewrite(predicate.value),\n        among:',
+      'value: substitutedScalar(predicate.value, rewrite),\n        among:',
       'value: predicate.value,\n        among:',
     ],
     [
@@ -120,7 +124,7 @@ export default [
       'operands: predicate.operands,',
     ],
     ['Not', 'operand: substituted(predicate.operand, rewrite) })', 'operand: predicate.operand })'],
-    ['Compare', 'left: rewrite(predicate.left),', 'left: predicate.left,'],
+    ['Compare', 'left: substitutedScalar(predicate.left, rewrite),', 'left: predicate.left,'],
   ].map(([what, find, replace]) =>
     edit(`${what} is not substituted`, find!, replace!, '../src/expr.ts'),
   ),

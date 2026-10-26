@@ -336,6 +336,14 @@ from real queries, not from what SQL can express. `Expr.lt` / `lte` / `gt` /
 a field, since backends order text by different defaults; a date stored as an
 ISO string is text, compared under `binary`.
 
+**Naming a question.** `Expr.operator('acme.published', { input: [Schema.Unknown],
+output: Schema.Boolean, definedAs: at => Expr.isNotNull(at) })` declares an operator
+by what a call means; `published(Story.fields.publishedAt)` is then a predicate
+(a boolean output) or a scalar, printed by name, listed in
+`Query.dependencies(body).operators`, and run by every interpreter as its expansion
+(`Expr.expanded`), so it needs no SQL of its own. `definedAs` may read only its
+arguments. `foldkit-cms`'s `Cms.published(entity)` is one, over the `published` role.
+
 **Asking about an input without branching on it.** An input is a placeholder, so
 a query cannot pick a shape from a value. It does not need to:
 

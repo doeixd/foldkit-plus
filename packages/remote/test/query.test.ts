@@ -212,6 +212,7 @@ describe('Query.define declares a query by what it means', () => {
       inputs: ['slug'],
       next: [],
       operations: ['eq'],
+      operators: [],
       predicate: [slug],
       order: [id],
     })

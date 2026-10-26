@@ -17,6 +17,8 @@ import {
   type AnyEntity,
   type EntityField,
   type EntityInput,
+  type Reads,
+  type TestPredicate,
   Expr,
   Order,
   SchemaShape,
@@ -314,6 +316,17 @@ export interface Content<
 
 const editor = makeEditor({ Entities, Operations })
 
+/**
+ * Whether a row is published: its published role holds a value. One operator,
+ * so a query, a guard and an invariant that ask it name the same question.
+ */
+const publishedOperator = Expr.operator('cms.published', {
+  input: [Schema.Unknown],
+  output: Schema.Boolean,
+  description: 'Whether a row is published: its published role holds a value.',
+  definedAs: publishedAt => Expr.isNotNull(publishedAt),
+})
+
 export const Cms = {
   /**
    * A pipe step naming the members of an Entity that play a CMS part. It is
@@ -352,6 +365,27 @@ export const Cms = {
       entity.fields
     const field = (role: string) => (named[role] === undefined ? undefined : fields[named[role]])
     return { label: field('label'), slug: field('slug'), published: field('published') }
+  },
+
+  /**
+   * Whether a row of `entity` is published: `cms.published` over the field its
+   * `published` role names. Present means a visitor may see the row, so this is
+   * the predicate a public query and a visitor's Read rule both ask. An Entity
+   * with no published role is refused: every row of it is visible already.
+   *
+   * ```ts
+   * Query.from(Post).pipe(Query.where(Cms.published(Post)))
+   * guard.row(Post, () => Cms.published(Post))
+   * ```
+   */
+  published: <E extends AnyEntity>(entity: E): TestPredicate & Reads<E['name']> => {
+    const field = Cms.rolesOf(entity).published
+    if (field === undefined) {
+      throw new Error(
+        `[foldkit-cms] Cms.published: ${entity.name} names no published role, so every row is visible`,
+      )
+    }
+    return publishedOperator(field) as TestPredicate & Reads<E['name']>
   },
 
   /**

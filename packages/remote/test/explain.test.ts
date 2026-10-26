@@ -126,6 +126,7 @@ describe('A query read, explained', () => {
       ],
       inputs: ['ownerId'],
       operations: ['eq', 'isNull'],
+      operators: [],
     })
   })
 

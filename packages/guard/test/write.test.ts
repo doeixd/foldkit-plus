@@ -459,6 +459,19 @@ const Probe = Mutation.write(
     when: ({ input }) => Expr.eq(Related.Todo.fields.claimedBy, input.guess),
   }),
 )
+// The same probe, through an operator: the member is read under the call.
+const claimedAs = Expr.operator('acme.claimedAs', {
+  input: [Schema.Unknown, Schema.Unknown],
+  output: Schema.Boolean,
+  definedAs: (claimedBy, guess) => Expr.eq(claimedBy, guess),
+})
+const ProbeThrough = Mutation.write(
+  'ProbeThrough',
+  Write.update(TitleInput, {
+    id: 'id',
+    when: ({ input }) => claimedAs(Related.Todo.fields.claimedBy, input.guess),
+  }),
+)
 const ClaimAt = Mutation.write(
   'ClaimAt',
   Write.update(
@@ -857,7 +870,11 @@ describe('GuardServer.writer over a write that reads a hidden member', () => {
   // No validate here: the writer refuses on its own.
   const server = RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
     entities: [],
-    mutations: [RemoteServer.write(Probe, guarded), RemoteServer.write(ClaimAt, guarded)],
+    mutations: [
+      RemoteServer.write(Probe, guarded),
+      RemoteServer.write(ProbeThrough, guarded),
+      RemoteServer.write(ClaimAt, guarded),
+    ],
   })
   const send = (mutation: string, input: unknown) =>
     Effect.runPromise(
@@ -868,6 +885,13 @@ describe('GuardServer.writer over a write that reads a hidden member', () => {
 
   it('refuses a precondition that reads it, whatever the row holds', async () => {
     expect(await send('Probe', { id: 't1', title: 'Mine', guess: 'grace' })).toMatchObject({
+      _tag: 'Failure',
+      failure: { message: "Todo's write reads claimedBy, which a Read rule hides from its writer" },
+    })
+  })
+
+  it('refuses a precondition that reads it through an operator call', async () => {
+    expect(await send('ProbeThrough', { id: 't1', title: 'Mine', guess: 'grace' })).toMatchObject({
       _tag: 'Failure',
       failure: { message: "Todo's write reads claimedBy, which a Read rule hides from its writer" },
     })

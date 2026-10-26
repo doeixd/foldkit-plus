@@ -30,7 +30,7 @@ import {
 import { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 import { Match, Option } from 'effect'
 import { absurd } from 'effect/Function'
-import { Query, QueryEvaluateError, decided, isPredicate } from 'foldkit-entity'
+import { Expr, Query, QueryEvaluateError, decided, isPredicate } from 'foldkit-entity'
 import type {
   AnyExpr,
   AnyQuery,
@@ -40,6 +40,7 @@ import type {
   CompareOperator,
   ComparePredicate,
   Operation,
+  OperatorDescriptor,
   Predicate,
   PredicateTruth,
 } from 'foldkit-entity'
@@ -99,10 +100,19 @@ const operand = (
       return node.value
     case 'Input':
       return input[node.key]
+    // Expanded before compiling: a call left is an operator with no definition.
+    case 'Call':
+      throw unrun(node.operator, query)
     default:
       return absurd(node)
   }
 }
+
+/** An operator this compiler cannot run: one with no definition to compile instead. */
+const unrun = (operator: OperatorDescriptor, query: string): QueryCompileError =>
+  new QueryCompileError(
+    `query "${query}" calls the operator "${operator.id}", which has no definition this compiler can run`,
+  )
 
 /**
  * Whether `value` is text holding a NUL, which Postgres text cannot hold and
@@ -312,6 +322,8 @@ const undecided = (
   query: string,
 ): SQL => {
   switch (node._tag) {
+    case 'Test':
+      throw unrun(node.operator, query)
     case 'And':
       return connective(node.operands, 'and', target, input, query)
     case 'Or':
@@ -459,7 +471,9 @@ export const compilePredicates = (
   target: CompileTarget,
   input: Readonly<Record<string, unknown>>,
   query: string,
-): ReadonlyArray<SQL> => predicates.map(node => predicate(node, target, input, query))
+): ReadonlyArray<SQL> =>
+  // Each defined operator is compiled as what it means, so its SQL is what writing that out gives.
+  predicates.map(node => predicate(Expr.expanded(node), target, input, query))
 
 /**
  * The body's ordering for one input, as this package's order terms: a chosen

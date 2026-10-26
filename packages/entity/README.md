@@ -784,6 +784,54 @@ matters is that it refuses rather than skipping the operation — an interpreter
 that quietly drops a `contains` it cannot compile answers a different question
 in full confidence, and every test it does support still passes.
 
+### Naming a question: operators
+
+A predicate an application asks in many places (in a public query, a
+visitor's Read rule, an invariant) can be given a name. `Expr.operator`
+declares one by what a call of it means:
+
+```ts
+import { Schema } from 'effect'
+import { Entity, Expr, Query } from 'foldkit-entity'
+
+const Story = Entity.define(
+  'Story',
+  Schema.Struct({ id: Schema.String, publishedAt: Schema.NullOr(Schema.String) }),
+)
+
+const published = Expr.operator('acme.published', {
+  input: [Schema.Unknown],
+  output: Schema.Boolean,
+  definedAs: publishedAt => Expr.isNotNull(publishedAt),
+})
+
+const PublicStories = Query.from(Story).pipe(Query.where(published(Story.fields.publishedAt)))
+Query.show(PublicStories)
+// FROM Story
+// WHERE acme.published(Story.publishedAt)
+```
+
+- **It computes nothing of its own.** `definedAs` builds an expression from a
+  call's arguments, once per call, and every interpreter runs that expression
+  (`Expr.expanded` writes a predicate's calls out), so the operator needs no
+  SQL, no evaluator, and no support list. The SQL a body compiles to is the SQL
+  of the body written out by hand.
+- **What it adds is a name.** `Query.show` prints the call, and
+  `Query.dependencies(body).operators` lists each operator a body uses.
+- **It reads only its arguments.** A `definedAs` that closes over a field or an
+  input, instead of taking it, is refused when called: nothing asking what the
+  call reads (Guard's checks, Remote's matching) would see it.
+- **Arguments are checked by their stored form**, at compile time and when
+  called: a field, scalar or plain value of the input's stored type, or a
+  predicate where it takes a boolean. A boolean `output` makes a call a
+  predicate, usable in `and`, `or`, `not`, a guard or an invariant with no cast;
+  any other makes it a scalar of that type.
+- **Ids are namespaced** (`acme.published`), and `foldkit.` is reserved.
+  `version` (default 1) changes when what it means does; a call prints it after
+  the first (`acme.published@2(…)`).
+
+`foldkit-cms` declares one over its `published` role: `Cms.published(entity)`.
+
 ### Reading one back
 
 `Query.show(query)` renders a body as text, one clause per line:
@@ -843,6 +891,8 @@ from queries, not from what a database could express.
 | `Expr.not(predicate)` | The predicate does not hold; an unknown stays unknown, so a null matches neither side. |
 | `Expr.lt` / `lte` / `gt` / `gte(left, right, { collation? })` | One value orders before or after the other. Numbers as numbers; text only under `binary` or `asciiFold` (the field's declared collation, or the one given), and only against a field. |
 | `Expr.whenGiven(input, given => predicate)` | A filter applying only when a nullable input is given: `or(isNull(input), predicate)`, the predicate seeing the input as never null. |
+| `Expr.operator(id, { input, output, definedAs, version?, description? })` | An operator defined by what a call means; calling it builds a `Test` predicate (a boolean output) or a `Call` scalar, whose expansion every interpreter runs. |
+| `Expr.expanded(predicate)` | The predicate with every call of a defined operator written out as what it means, deeply; what an interpreter compiles. |
 | `Expr.field(field)` | One field of one Entity, as a scalar. |
 | `Expr.input(key, schema)` | A value the query is given when it runs, as a placeholder. |
 | `Expr.literal(value)` | A constant. Comparisons coerce one, so this is rarely written. |

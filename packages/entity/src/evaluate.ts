@@ -26,7 +26,16 @@ import { Match, Option } from 'effect'
 import { absurd } from 'effect/Function'
 import type { Collation } from './collation.js'
 import { Query, dependenciesOf, isPredicate } from './expr.js'
-import type { AnyExpr, AnyQuery, Operandish, Operation, OrderTerm, Predicate } from './expr.js'
+import type {
+  AnyExpr,
+  AnyQuery,
+  CallExpr,
+  Operandish,
+  Operation,
+  OrderTerm,
+  Predicate,
+  TestPredicate,
+} from './expr.js'
 
 /** A row as this interpreter reads one: values by field key. */
 export type Row = Readonly<Record<string, unknown>>
@@ -58,9 +67,28 @@ const valueOf = (node: AnyExpr, scope: Scope): unknown => {
       return node.value
     case 'Input':
       return scope.input[node.key]
+    case 'Call':
+      return valueOf(expanded(node), scope)
     default:
       return absurd(node)
   }
+}
+
+/**
+ * What a call means: its expansion. A call with none is an operator nothing
+ * here implements, refused by name rather than answered as something else.
+ */
+function expanded(call: CallExpr<unknown>): AnyExpr
+function expanded(call: TestPredicate): Predicate
+function expanded(call: CallExpr<unknown> | TestPredicate): AnyExpr | Predicate {
+  const expansion: Option.Option<AnyExpr | Predicate> = call.expansion
+  return Option.getOrThrowWith(
+    expansion,
+    () =>
+      new QueryEvaluateError(
+        `this interpreter does not run the operator "${call.operator.id}", which has no definition`,
+      ),
+  )
 }
 
 /** SQL's unknown: neither true nor false, and a row is kept only on true. */
@@ -95,6 +123,8 @@ const truthValue = (truth: Truth): unknown => (truth === 'unknown' ? null : trut
 
 const holds = (node: Predicate, scope: Scope): Truth => {
   switch (node._tag) {
+    case 'Test':
+      return holds(expanded(node), scope)
     case 'Eq': {
       const left = sideOf(node.left, scope)
       const right = sideOf(node.right, scope)

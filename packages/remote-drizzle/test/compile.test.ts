@@ -28,6 +28,7 @@ import {
   type DrizzleDatabaseService,
   type DrizzleStatement,
 } from '../src/index.js'
+import { compilePredicates } from '../src/compile.js'
 
 const posts = pgTable('posts', {
   id: uuid('id').primaryKey(),
@@ -440,6 +441,44 @@ describe('A body needing what this compiler does not run', () => {
       'not',
       'or',
     ])
+  })
+})
+
+describe('A defined operator', () => {
+  const archived = Expr.operator('acme.archived', {
+    input: [Schema.Unknown],
+    output: Schema.Boolean,
+    definedAs: at => Expr.isNotNull(at),
+  })
+
+  it('compiles to the SQL of what it means, written out', () => {
+    const called = compilePredicates(
+      [Expr.and(archived(Post.fields.archivedAt), Expr.eq(Post.fields.slug, 'hello'))],
+      PostBinding,
+      {},
+      'Called',
+    )
+    const written = compilePredicates(
+      [Expr.and(Expr.isNotNull(Post.fields.archivedAt), Expr.eq(Post.fields.slug, 'hello'))],
+      PostBinding,
+      {},
+      'Written',
+    )
+    expect(called.map(rendered)).toEqual(written.map(rendered))
+    expect(rendered(called[0])).toEqual({
+      sql: '(("posts"."archived_at" is not null) and "posts"."slug" = $1)',
+      params: ['hello'],
+    })
+  })
+
+  it('is decided per request, as its body would be, when it reads no field', () => {
+    const [decided] = compilePredicates(
+      [archived(Expr.input('at', Schema.NullOr(Schema.String)))],
+      PostBinding,
+      { at: null },
+      'Decided',
+    )
+    expect(rendered(decided)).toEqual({ sql: 'false', params: [] })
   })
 })
 

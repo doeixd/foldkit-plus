@@ -15,7 +15,7 @@ import {
   sqliteTables,
   type ServedContent,
 } from 'foldkit-cms-drizzle'
-import { Expr } from 'foldkit-entity'
+import { Cms } from 'foldkit-cms'
 import { Guards } from 'foldkit-guard'
 import { GuardDrizzle } from 'foldkit-guard/drizzle'
 import {
@@ -60,9 +60,9 @@ export const G = Guards.declare(
   guard => ({
     isAuthor: guard.principal(),
     isEditor: guard.principal(),
-    isPostPublished: guard.row(Post, () => Expr.isNotNull(Post.fields.publishedAt)),
-    isPagePublished: guard.row(Page, () => Expr.isNotNull(Page.fields.publishedAt)),
-    isArticlePublished: guard.row(Article, () => Expr.isNotNull(Article.fields.publishedAt)),
+    isPostPublished: guard.row(Post, () => Cms.published(Post)),
+    isPagePublished: guard.row(Page, () => Cms.published(Page)),
+    isArticlePublished: guard.row(Article, () => Cms.published(Article)),
   }),
   { key: author => author.name, unguarded: 'allow' },
 )

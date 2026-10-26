@@ -25,7 +25,7 @@
  * about — which is whether the query means the same thing.
  */
 import { absurd } from 'effect/Function'
-import { Query as Relational, isPredicate } from 'foldkit-entity'
+import { Expr, Query as Relational, isPredicate } from 'foldkit-entity'
 import type { AnyExpr, AnyQuery, Operation } from 'foldkit-entity'
 
 export class LiveStoreCompileError extends Error {
@@ -64,6 +64,9 @@ const operand = (
     case 'Next':
       // Refused above as unsupported: this engine reads stored rows, never a row a write would leave.
       throw new LiveStoreCompileError('this engine judges stored rows only')
+    // Expanded before compiling: a call left is an operator with no definition.
+    case 'Call':
+      throw new LiveStoreCompileError(`the operator "${node.operator.id}" has no definition to run`)
     default:
       return absurd(node)
   }
@@ -87,7 +90,9 @@ export const compile = (
   }
 
   let built = table
-  for (const node of body.where) {
+  for (const written of body.where) {
+    // A defined operator runs as what it means.
+    const node = Expr.expanded(written)
     if (node._tag !== 'Eq') throw new LiveStoreCompileError('only equality is compiled here')
     if (isPredicate(node.left) || isPredicate(node.right)) {
       throw new LiveStoreCompileError(

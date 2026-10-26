@@ -6,6 +6,8 @@ export interface ExplainedDependencies {
   readonly fields: ReadonlyArray<{ readonly entity: string; readonly key: string }>
   readonly inputs: Dependencies['inputs']
   readonly operations: Dependencies['operations']
+  /** Each operator it calls, by its id and version. */
+  readonly operators: ReadonlyArray<{ readonly id: string; readonly version: number }>
 }
 import type { Failures, PlacementMismatch, RemoteModel } from './model.js'
 import type { QueryWindow } from './query.js'

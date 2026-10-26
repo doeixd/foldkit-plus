@@ -16,7 +16,7 @@
 import { and, eq, inArray, isNull, not, type Collection } from '@tanstack/db'
 import { Option } from 'effect'
 import { absurd } from 'effect/Function'
-import { Query as Relational, isPredicate } from 'foldkit-entity'
+import { Expr, Query as Relational, isPredicate } from 'foldkit-entity'
 import type { AnyExpr, AnyQuery, Operandish, Operation, Predicate } from 'foldkit-entity'
 
 /** A row as this engine holds one. */
@@ -57,6 +57,9 @@ const operand = (node: AnyExpr, row: any, input: Readonly<Record<string, unknown
     case 'Next':
       // Refused before compiling, as unsupported: this engine reads stored rows only.
       throw new TanstackCompileError('this engine judges stored rows only')
+    // Expanded before compiling: a call left is an operator with no definition.
+    case 'Call':
+      throw new TanstackCompileError(`the operator "${node.operator.id}" has no definition to run`)
     default:
       return absurd(node)
   }
@@ -111,6 +114,8 @@ const predicate = (
     case 'Compare':
       // Refused before compiling, as unsupported, so never reached; said rather than dropped.
       throw new TanstackCompileError(`${node._tag} is not run by this interpreter`)
+    case 'Test':
+      throw new TanstackCompileError(`the operator "${node.operator.id}" has no definition to run`)
     default:
       return absurd(node)
   }
@@ -137,7 +142,9 @@ export const run = (
   }
 
   let built = query.from({ row: collection })
-  for (const node of body.where) {
+  for (const written of body.where) {
+    // A defined operator runs as what it means.
+    const node = Expr.expanded(written)
     built = built.where(({ row }: { row: any }) => predicate(node, row, input))
   }
   // One `orderBy` per term, chained: this engine takes a single expression and

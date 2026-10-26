@@ -28,11 +28,31 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **Operators defined by an expression: `Expr.operator`.** An application names
+  a question once (`Expr.operator('acme.published', { input, output, definedAs })`)
+  and calls it like a function: a boolean output makes the call a predicate
+  (`Test`), any other a scalar (`Call`). `definedAs` builds what a call means from
+  its arguments, and every interpreter runs that expansion, so an operator needs no
+  SQL or evaluator of its own and compiles to the SQL of its body written out.
+  Calls print by name, `Query.dependencies(body).operators` lists them (and Remote's
+  explanations), and `Expr.expanded(predicate)` writes them out. A body that reads
+  what no argument holds, a wrong argument, or a body of the wrong kind is refused
+  when called. Phase 1 of `expr-operations-DESIGN.md`; the conformance suite runs
+  operator cases in every interpreter.
+- **`Cms.published(entity)`**: whether a row is published, as `cms.published` over
+  the Entity's `published` role. The CMS example's two public queries and three
+  visitor Read rules use it in place of five hand-written `isNotNull`s.
 - **`EntityWriter.refuses(write)`**: the reasons a writer cannot land a write,
   asked once by `RemoteServer.write` where the write is registered, for what only
   the store knows (a column's type). `GuardServer.writer` passes its writer's on.
   `Write`'s `increments` are `WriteIncrement`s, each saying whether its amount is
   held to an integer (`integer`).
+
+### Changed
+
+- **`Dependencies` gains `operators`**, each operator a body calls, and Remote's
+  `ExplainedDependencies` carries them as `{ id, version }`. A test comparing a
+  whole `Dependencies` with `toEqual` adds `operators: []`.
 
 ## 0.33.0
 

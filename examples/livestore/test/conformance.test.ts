@@ -71,6 +71,20 @@ describe('A narrow interpreter, on the quarter of the kernel it runs', () => {
   )
 })
 
+describe('A defined operator', () => {
+  it('runs as what it means, which here is an equality', () => {
+    const scalar = cases.find(
+      one => one.what === 'a defined scalar operator compares as what it means',
+    )!
+    const { query, bindValues } = compile(scalar.body, scalar.input, table)
+    const got = database()
+      .prepare(query)
+      .all(...(bindValues as never[]))
+      .map(row => (row as { id: string }).id)
+    expect(got).toEqual(scalar.expected)
+  })
+})
+
 describe('What it refuses, which is the point of it', () => {
   it('declares one operator, because the engine offers no way to say the others', () => {
     expect(supported).toEqual(['eq'])

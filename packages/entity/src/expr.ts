@@ -61,8 +61,38 @@ export interface NextExpr<T> {
   readonly field: FieldExpr<T>
 }
 
+/**
+ * What an operator is, as the nodes that call it hold it: its identity, the
+ * stored form of what it takes and gives, and, for an operator defined by an
+ * expression, how to build that expression. It computes nothing itself.
+ * Identity is this object; `id` and `version` name it.
+ */
+export interface OperatorDescriptor {
+  readonly _tag: 'Operator'
+  readonly id: string
+  readonly version: number
+  readonly description: Option.Option<string>
+  /** One schema per argument, read as the stored form. */
+  readonly input: ReadonlyArray<Schema.Top>
+  readonly output: Schema.Top
+  /** Builds the expression a call means, from its arguments. */
+  readonly definedAs: (...args: ReadonlyArray<Operandish>) => Operandish
+}
+
+/**
+ * A call of an operator whose result is a scalar. `expansion` is the
+ * expression it means, built from its arguments when it was called: an
+ * interpreter runs that, and needs nothing of its own for the operator.
+ */
+export interface CallExpr<T> {
+  readonly _tag: 'Call'
+  readonly operator: OperatorDescriptor
+  readonly args: ReadonlyArray<Operandish>
+  readonly expansion: Option.Option<Expr<T>>
+}
+
 /** A typed scalar: what a comparison compares. */
-export type Expr<T> = LiteralExpr<T> | FieldExpr<T> | InputExpr<T> | NextExpr<T>
+export type Expr<T> = LiteralExpr<T> | FieldExpr<T> | InputExpr<T> | NextExpr<T> | CallExpr<T>
 
 /** Any scalar, for the places that hold operands without caring what they are. */
 export type AnyExpr = Expr<unknown>
@@ -84,6 +114,7 @@ export type Predicate =
   | OrPredicate
   | NotPredicate
   | ComparePredicate
+  | TestPredicate
 
 /** Two values are the same. */
 export interface EqPredicate {
@@ -166,6 +197,18 @@ export interface ComparePredicate {
   readonly left: AnyExpr
   readonly right: AnyExpr
   readonly collation: Option.Option<Collation>
+}
+
+/**
+ * A call of an operator whose result is a boolean, so it stands where any
+ * predicate does: in `and`, `or` and `not`, a guard, an invariant. `expansion`
+ * is the predicate it means, built when it was called.
+ */
+export interface TestPredicate {
+  readonly _tag: 'Test'
+  readonly operator: OperatorDescriptor
+  readonly args: ReadonlyArray<Operandish>
+  readonly expansion: Option.Option<Predicate>
 }
 
 /**
@@ -294,7 +337,17 @@ const fieldExpr = (field: EntityField<string, string, Schema.Constraint>): Field
     ),
   })
 
-const predicateTags = new Set(['Eq', 'Null', 'Contains', 'In', 'And', 'Or', 'Not', 'Compare'])
+const predicateTags = new Set([
+  'Eq',
+  'Null',
+  'Contains',
+  'In',
+  'And',
+  'Or',
+  'Not',
+  'Compare',
+  'Test',
+])
 
 /** Whether a value is a predicate, and so usable where a boolean is wanted. */
 export const isPredicate = (value: unknown): value is Predicate =>
@@ -309,7 +362,13 @@ const toOperand = <T>(value: Operand<T> | T): Operandish => {
   if (tag === 'Field') {
     return fieldExpr(value as EntityField<string, string, Schema.Constraint>)
   }
-  if (tag === 'Literal' || tag === 'Input' || tag === 'Next' || predicateTags.has(tag as string)) {
+  if (
+    tag === 'Literal' ||
+    tag === 'Input' ||
+    tag === 'Next' ||
+    tag === 'Call' ||
+    predicateTags.has(tag as string)
+  ) {
     return value as Operandish
   }
   return literal(value)
@@ -362,6 +421,8 @@ export interface Dependencies {
   readonly inputs: ReadonlyArray<string>
   /** One entry per distinct operation, so an interpreter can refuse what it cannot run. */
   readonly operations: ReadonlyArray<Operation>
+  /** Each operator it calls, once per descriptor, defined or not. */
+  readonly operators: ReadonlyArray<OperatorDescriptor>
 }
 
 /**
@@ -427,6 +488,7 @@ const sideKind = (side: AnyExpr): 'number' | 'text' | 'none' | 'null' =>
       Next: ({ field }) => orderKindOf(Schema.toEncoded(field.schema).ast),
       Input: input => orderKindOf(Schema.toEncoded(input.schema).ast),
       Literal: ({ value }) => literalKind(value),
+      Call: ({ operator }) => orderKindOf(Schema.toEncoded(operator.output).ast),
     }),
   )
 
@@ -572,7 +634,275 @@ const connective =
     return operands.length === 1 ? operands[0] : node({ _tag: kind, operands } as Node)
   }
 
+/** A schema's stored form, which is what an operator takes and gives. */
+type StoredOf<S extends Schema.Top> = Schema.Codec.Encoded<S>
+
+/**
+ * One argument an operator may be called with: a field or scalar stored as the
+ * input's stored type, a predicate where it takes a boolean, or a plain value.
+ */
+export type ArgumentOf<S extends Schema.Top> =
+  | EntityField<string, string, Schema.Constraint & Schema.Codec<any, StoredOf<S>, any, any>>
+  | Expr<StoredOf<S>>
+  | (boolean extends StoredOf<S> ? Predicate : never)
+  | StoredOf<S>
+
+/** What `definedAs` is handed for one argument: the argument as a node. */
+export type ParameterOf<S extends Schema.Top> =
+  | Expr<StoredOf<S>>
+  | (boolean extends StoredOf<S> ? Predicate : never)
+
+/** A call's node: a predicate for a boolean result, a scalar for anything else. */
+type CallOf<Out extends Schema.Top> = [StoredOf<Out>] extends [boolean]
+  ? TestPredicate
+  : CallExpr<StoredOf<Out>>
+
+/** What `definedAs` builds: a predicate for a boolean result, a scalar otherwise. */
+type BodyOf<Out extends Schema.Top> = [StoredOf<Out>] extends [boolean]
+  ? Predicate
+  : Expr<StoredOf<Out>>
+
+/**
+ * An operator: called like a function, it builds a node that holds `descriptor`
+ * and its arguments. See `Expr.operator`.
+ */
+export interface Operator<In extends ReadonlyArray<Schema.Top>, Out extends Schema.Top> {
+  <const A extends { readonly [K in keyof In]: ArgumentOf<In[K]> }>(
+    ...args: A
+  ): CallOf<Out> & Reads<ReadsOf<A[number]>>
+  readonly descriptor: OperatorDescriptor
+}
+
+/** Namespaced, lower camel case: `cms.published`, `text.startsWith`. */
+const operatorId = /^[a-z][A-Za-z0-9]*(\.[a-z][A-Za-z0-9]*)+$/
+
+/** Whether a schema's stored form is a boolean, which makes its operator a predicate. */
+const storedAsBoolean = (schema: Schema.Top): boolean =>
+  SchemaAST.isBoolean(Schema.toEncoded(schema).ast)
+
+/** Every field, field after a write, and input an expression reads, as keys to compare. */
+const readKeys = (...nodes: ReadonlyArray<Operandish>): ReadonlySet<string> => {
+  const read = dependenciesOf(...nodes)
+  const named = (prefix: string, fields: ReadonlyArray<FieldDependency>) =>
+    fields.map(field => `${prefix}${field.entity}.${field.key}`)
+  return new Set([
+    ...named('', read.fields),
+    ...named('next ', read.next),
+    ...read.inputs.map(key => `$${key}`),
+  ])
+}
+
+/** One argument, checked against the schema it is passed for, as a node. */
+const argumentFor = (
+  id: string,
+  position: number,
+  schema: Schema.Top,
+  value: unknown,
+): Operandish => {
+  const arg = toOperand(value)
+  const fail = (what: string) => {
+    throw new Error(`[foldkit-entity] ${id}: argument ${position + 1} ${what}`)
+  }
+  if (isPredicate(arg)) {
+    if (!storedAsBoolean(schema)) fail('is a predicate, but the operator does not take a boolean')
+    return arg
+  }
+  if (arg._tag === 'Literal') {
+    if (!Schema.is(Schema.toEncoded(schema))(arg.value)) {
+      fail(`is ${JSON.stringify(arg.value)}, which the operator's input schema does not admit`)
+    }
+    return arg
+  }
+  const wanted = orderKindOf(Schema.toEncoded(schema).ast)
+  const given = sideKind(arg)
+  if (wanted !== 'none' && (given === 'number' || given === 'text') && given !== wanted) {
+    fail(`is stored as ${given}, but the operator takes ${wanted}`)
+  }
+  return arg
+}
+
+/** Builds an operator: checks what it is given once, then each call. */
+const makeOperator = (
+  id: string,
+  options: {
+    readonly input: ReadonlyArray<Schema.Top>
+    readonly output: Schema.Top
+    readonly version?: number | undefined
+    readonly description?: string | undefined
+    readonly definedAs: (...args: ReadonlyArray<Operandish>) => unknown
+  },
+): Operator<ReadonlyArray<Schema.Top>, Schema.Top> => {
+  const fail = (what: string): never => {
+    throw new Error(`[foldkit-entity] Expr.operator("${id}"): ${what}`)
+  }
+  if (!operatorId.test(id)) {
+    fail('an id is namespaced lower camel case, as `cms.published`')
+  }
+  if (id.startsWith('foldkit.')) fail('ids under `foldkit.` are reserved')
+  const version = options.version ?? 1
+  if (!Number.isSafeInteger(version) || version < 1) fail('a version is a positive integer')
+  if (!Array.isArray(options.input) || !options.input.every(Schema.isSchema)) {
+    fail('`input` is one schema per argument')
+  }
+  if (!Schema.isSchema(options.output)) fail('`output` is a schema')
+  if (typeof options.definedAs !== 'function') fail('`definedAs` builds what a call means')
+  const input = Object.freeze([...options.input])
+  const predicate = storedAsBoolean(options.output)
+  const descriptor: OperatorDescriptor = Object.freeze({
+    _tag: 'Operator',
+    id,
+    version,
+    description: Option.fromUndefinedOr(options.description),
+    input,
+    output: options.output,
+    definedAs: options.definedAs as OperatorDescriptor['definedAs'],
+  })
+  const call = (...given: ReadonlyArray<unknown>) => {
+    if (given.length !== input.length) {
+      throw new Error(
+        `[foldkit-entity] ${id}: takes ${input.length} argument${input.length === 1 ? '' : 's'}, given ${given.length}`,
+      )
+    }
+    const args = Object.freeze(
+      given.map((value, position) => argumentFor(id, position, input[position]!, value)),
+    )
+    const expansion = toOperand(descriptor.definedAs(...args))
+    if (predicate !== isPredicate(expansion)) {
+      throw new Error(
+        `[foldkit-entity] ${id}: its output is ${predicate ? 'a boolean, so `definedAs` returns a predicate' : 'not a boolean, so `definedAs` returns a scalar'}`,
+      )
+    }
+    // An expansion reading what its arguments do not would hide a read from
+    // anyone asking what the call depends on: Guard's checks, Remote's matching.
+    const allowed = readKeys(...args)
+    const hidden = [...readKeys(expansion)].filter(key => !allowed.has(key))
+    if (hidden.length > 0) {
+      throw new Error(
+        `[foldkit-entity] ${id}: \`definedAs\` reads ${hidden.join(', ')}, which no argument holds; pass it as one`,
+      )
+    }
+    return isPredicate(expansion)
+      ? node<TestPredicate>({
+          _tag: 'Test',
+          operator: descriptor,
+          args,
+          expansion: Option.some(expansion),
+        })
+      : node<CallExpr<unknown>>({
+          _tag: 'Call',
+          operator: descriptor,
+          args,
+          expansion: Option.some(expansion),
+        })
+  }
+  return Object.freeze(Object.assign(call, { descriptor })) as unknown as Operator<
+    ReadonlyArray<Schema.Top>,
+    Schema.Top
+  >
+}
+
+/** Each defined call replaced by its expansion, deeply; built once per node. */
+const expandedCache = new WeakMap<object, AnyExpr | Predicate>()
+
+const expandedScalar = (scalar: AnyExpr): AnyExpr => {
+  const known = expandedCache.get(scalar)
+  if (known !== undefined) return known as AnyExpr
+  const result =
+    scalar._tag === 'Call'
+      ? Option.match(scalar.expansion, {
+          onSome: expandedScalar,
+          // An operator with no definition stays, for an interpreter to refuse by name.
+          onNone: () => scalar,
+        })
+      : scalar
+  expandedCache.set(scalar, result)
+  return result
+}
+
+const expandedSide = (side: Operandish): Operandish =>
+  isPredicate(side) ? expandedPredicate(side) : expandedScalar(side)
+
+const expandedPredicate = (predicate: Predicate): Predicate => {
+  const known = expandedCache.get(predicate)
+  if (known !== undefined) return known as Predicate
+  const result: Predicate = Match.value(predicate).pipe(
+    Match.tagsExhaustive({
+      Eq: eq =>
+        node<Predicate>({ ...eq, left: expandedSide(eq.left), right: expandedSide(eq.right) }),
+      Null: nul => node<Predicate>({ ...nul, operand: expandedScalar(nul.operand) }),
+      Contains: contains =>
+        node<Predicate>({
+          ...contains,
+          value: expandedScalar(contains.value),
+          search: expandedSide(contains.search),
+        }),
+      In: inPredicate =>
+        node<Predicate>({
+          ...inPredicate,
+          value: expandedScalar(inPredicate.value),
+          among: expandedScalar(inPredicate.among),
+        }),
+      And: and => node<Predicate>({ ...and, operands: Arr.map(and.operands, expandedPredicate) }),
+      Or: or => node<Predicate>({ ...or, operands: Arr.map(or.operands, expandedPredicate) }),
+      Not: not => node<Predicate>({ ...not, operand: expandedPredicate(not.operand) }),
+      Compare: compare =>
+        node<Predicate>({
+          ...compare,
+          left: expandedScalar(compare.left),
+          right: expandedScalar(compare.right),
+        }),
+      Test: test => Option.match(test.expansion, { onSome: expandedPredicate, onNone: () => test }),
+    }),
+  )
+  expandedCache.set(predicate, result)
+  return result
+}
+
 export const Expr = {
+  /**
+   * An operator, defined by what a call of it means: `definedAs` builds that
+   * expression from the call's arguments, once per call, and every interpreter
+   * runs it, so the operator needs no implementation anywhere. What it adds is
+   * a name: a query, a guard and an invariant that mean the same thing say so,
+   * and print it.
+   *
+   * ```ts
+   * const published = Expr.operator('cms.published', {
+   *   input: [Schema.Unknown],
+   *   output: Schema.Boolean,
+   *   definedAs: publishedAt => Expr.isNotNull(publishedAt),
+   * })
+   * Query.where(published(Post.fields.publishedAt))
+   * ```
+   *
+   * Arguments are checked by their stored form: a field, scalar or plain value
+   * of the input's stored type, or a predicate where it takes a boolean. A
+   * boolean output makes a call a predicate. `definedAs` may read only what its
+   * arguments hold: a field or input it closes over instead is refused when
+   * called, since nothing asking what the call reads would see it. The id is
+   * namespaced (`cms.published`); `foldkit.` is reserved; `version` (default 1)
+   * changes when what it means does.
+   */
+  operator: <const In extends ReadonlyArray<Schema.Top>, Out extends Schema.Top>(
+    id: string,
+    options: {
+      readonly input: In
+      readonly output: Out
+      readonly version?: number | undefined
+      readonly description?: string | undefined
+      readonly definedAs: (...args: { readonly [K in keyof In]: ParameterOf<In[K]> }) => BodyOf<Out>
+    },
+  ): Operator<In, Out> =>
+    makeOperator(id, options as Parameters<typeof makeOperator>[1]) as unknown as Operator<In, Out>,
+
+  /**
+   * The predicate with every call of a defined operator replaced by what it
+   * means, deeply. An interpreter that compiles a body expands it first, and
+   * compiles exactly what was written out. A call with no definition stays,
+   * for the interpreter to refuse by name.
+   */
+  expanded: (predicate: Predicate): Predicate => expandedPredicate(predicate),
+
   /** A constant. Comparisons coerce a plain value, so this is rarely written. */
   literal,
 
@@ -784,8 +1114,21 @@ export const Expr = {
 /** Rewrites one operand; the walk below applies it wherever a predicate holds one. */
 type OperandRewrite = (operand: AnyExpr) => AnyExpr
 
-const substitutedSide = (side: Operandish, rewrite: OperandRewrite) =>
-  isPredicate(side) ? substituted(side, rewrite) : rewrite(side)
+const substitutedSide = (side: Operandish, rewrite: OperandRewrite): Operandish =>
+  isPredicate(side) ? substituted(side, rewrite) : substitutedScalar(side, rewrite)
+
+/**
+ * A scalar rewritten: a call's arguments and expansion each, so a field read
+ * under it is rewritten as one read directly is; anything else by `rewrite`.
+ */
+const substitutedScalar = (scalar: AnyExpr, rewrite: OperandRewrite): AnyExpr =>
+  scalar._tag === 'Call'
+    ? node({
+        ...scalar,
+        args: Object.freeze(scalar.args.map(arg => substitutedSide(arg, rewrite))),
+        expansion: Option.map(scalar.expansion, expansion => substitutedScalar(expansion, rewrite)),
+      })
+    : rewrite(scalar)
 
 const substituted = (predicate: Predicate, rewrite: OperandRewrite): Predicate => {
   switch (predicate._tag) {
@@ -796,18 +1139,18 @@ const substituted = (predicate: Predicate, rewrite: OperandRewrite): Predicate =
         right: substitutedSide(predicate.right, rewrite),
       })
     case 'Null':
-      return node({ ...predicate, operand: rewrite(predicate.operand) })
+      return node({ ...predicate, operand: substitutedScalar(predicate.operand, rewrite) })
     case 'Contains':
       return node({
         ...predicate,
-        value: rewrite(predicate.value),
+        value: substitutedScalar(predicate.value, rewrite),
         search: substitutedSide(predicate.search, rewrite),
       })
     case 'In':
       return node({
         ...predicate,
-        value: rewrite(predicate.value),
-        among: rewrite(predicate.among),
+        value: substitutedScalar(predicate.value, rewrite),
+        among: substitutedScalar(predicate.among, rewrite),
       })
     case 'And':
     case 'Or':
@@ -820,8 +1163,14 @@ const substituted = (predicate: Predicate, rewrite: OperandRewrite): Predicate =
     case 'Compare':
       return node({
         ...predicate,
-        left: rewrite(predicate.left),
-        right: rewrite(predicate.right),
+        left: substitutedScalar(predicate.left, rewrite),
+        right: substitutedScalar(predicate.right, rewrite),
+      })
+    case 'Test':
+      return node({
+        ...predicate,
+        args: Object.freeze(predicate.args.map(arg => substitutedSide(arg, rewrite))),
+        expansion: Option.map(predicate.expansion, expansion => substituted(expansion, rewrite)),
       })
   }
 }
@@ -1021,6 +1370,7 @@ interface Found {
   readonly next: Map<symbol, Map<string, FieldDependency>>
   readonly nextOrder: Array<FieldDependency>
   readonly operations: Set<Operation>
+  readonly operators: Set<OperatorDescriptor>
 }
 
 /**
@@ -1101,6 +1451,16 @@ const walk = (expr: AnyExpr | Predicate | Ordering, found: Found): void => {
       walk(expr.sort, found)
       for (const choice of Object.values(expr.choices)) walk(choice, found)
       return
+    case 'Call':
+    case 'Test':
+      found.operators.add(expr.operator)
+      // What an interpreter runs is the expansion: its operations, and the reads its
+      // arguments hold. With none, the arguments are all there is to read.
+      Option.match(expansionOf(expr), {
+        onSome: expansion => walk(expansion, found),
+        onNone: () => expr.args.forEach(arg => walk(arg, found)),
+      })
+      return
     default:
       return absurd(expr)
   }
@@ -1122,6 +1482,7 @@ export const dependenciesOf = (
     next: new Map(),
     nextOrder: [],
     operations: new Set(),
+    operators: new Set(),
   }
   for (const term of nodes) walk(term, found)
   return {
@@ -1129,6 +1490,7 @@ export const dependenciesOf = (
     next: found.nextOrder,
     inputs: [...found.inputs],
     operations: [...found.operations],
+    operators: [...found.operators],
   }
 }
 
@@ -1209,6 +1571,11 @@ const fieldsIn = function* (
     case 'Chosen':
       for (const choice of Object.values(expr.choices)) yield* fieldsIn(choice, seen)
       return
+    // An expansion reads only what its arguments do, which the call checked.
+    case 'Call':
+    case 'Test':
+      for (const arg of expr.args) yield* fieldsIn(arg, seen)
+      return
     default:
       return absurd(expr)
   }
@@ -1269,6 +1636,13 @@ const childrenOf = (expr: AnyExpr | Predicate): ReadonlyArray<AnyExpr | Predicat
       return [expr.operand]
     case 'Compare':
       return [expr.left, expr.right]
+    // What an interpreter runs is the expansion, so that is what the budget counts.
+    case 'Call':
+    case 'Test':
+      return Option.match(expansionOf(expr), {
+        onSome: expansion => [expansion],
+        onNone: () => expr.args,
+      })
   }
 }
 
@@ -1514,8 +1888,19 @@ const showExpr = (node: AnyExpr | Predicate): string => {
       return `not (${showExpr(node.operand)})`
     case 'Compare':
       return `${showOperand(node.left)} ${symbols[node.operator]} ${showOperand(node.right)}`
+    case 'Call':
+    case 'Test':
+      return `${operatorName(node.operator)}(${node.args.map(showOperand).join(', ')})`
   }
 }
+
+/** A call's expansion, scalar or predicate alike. */
+const expansionOf = (call: CallExpr<unknown> | TestPredicate): Option.Option<AnyExpr | Predicate> =>
+  call.expansion
+
+/** An operator by its id, and its version when that is not the first. */
+const operatorName = (operator: OperatorDescriptor): string =>
+  operator.version === 1 ? operator.id : `${operator.id}@${operator.version}`
 
 const symbols: Readonly<Record<CompareOperator, string>> = {
   lt: '<',

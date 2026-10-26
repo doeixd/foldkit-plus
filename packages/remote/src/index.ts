@@ -64,6 +64,7 @@ const explainedDependencies = (dependencies: Domain.Dependencies): ExplainedDepe
   fields: dependencies.fields.map(({ entity, key }) => ({ entity, key })),
   inputs: dependencies.inputs,
   operations: dependencies.operations,
+  operators: dependencies.operators.map(({ id, version }) => ({ id, version })),
 })
 import {
   inspectEntity,

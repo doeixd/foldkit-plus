@@ -7,7 +7,7 @@
 import { Schema } from 'effect'
 import { Cms } from 'foldkit-cms'
 import { Composition } from 'foldkit-composition'
-import { Entity, Expr, Order } from 'foldkit-entity'
+import { Entity, Order } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
 import { BuilderView } from 'foldkit-mixins-builder'
 import { Mutation, Query } from 'foldkit-remote'
@@ -69,7 +69,7 @@ export const PageView = Entity.select(Page, { title: true, slug: true, document:
  */
 export const PublishedPages = Query.define('PublishedPages', {}, () =>
   Query.from(Page).pipe(
-    Query.where(Expr.isNotNull(Page.fields.publishedAt)),
+    Query.where(Cms.published(Page)),
     Query.orderBy(Order.asc(Page.fields.slug)),
   ),
 )

@@ -115,6 +115,17 @@ const sort = Expr.input(
     Schema.Struct({ by: Schema.Literals(['rank']), direction: Schema.Literals(['asc', 'desc']) }),
   ),
 )
+/** Defined operators: an interpreter runs what each means, and needs nothing of its own. */
+const tagged = Expr.operator('conformance.tagged', {
+  input: [Schema.Unknown],
+  output: Schema.Boolean,
+  definedAs: value => Expr.isNotNull(value),
+})
+const rankOf = Expr.operator('conformance.rankOf', {
+  input: [Schema.Number],
+  output: Schema.Number,
+  definedAs: rank => rank,
+})
 const chosen = Query.orderBy(
   Order.chosen(sort, { rank: Subject.fields.rank }),
   Order.asc(Subject.fields.id),
@@ -585,6 +596,32 @@ export const cases: ReadonlyArray<ConformanceCase> = [
   // the database was created with — and §6.0.1 puts it outside the conformant
   // subset rather than pretending one of them is the rule. A case asserting an
   // order would only pin whichever engine was written first.
+
+  // ---- defined operators -----------------------------------------------------
+  {
+    what: 'a defined operator matches the rows what it means does',
+    body: from.pipe(Query.where(tagged(Subject.fields.tag)), byId),
+    input: {},
+    expected: ['b', 'd', 'e'],
+  },
+  {
+    what: 'a defined operator under not is the negation of what it means',
+    body: from.pipe(Query.where(Expr.not(tagged(Subject.fields.tag))), byId),
+    input: {},
+    expected: ['a', 'c'],
+  },
+  {
+    what: 'a defined operator over an input only is decided by the request',
+    body: from.pipe(Query.where(Expr.or(tagged(maybeTag), Expr.eq(Subject.fields.rank, 3))), byId),
+    input: { maybeTag: null },
+    expected: ['c', 'd'],
+  },
+  {
+    what: 'a defined scalar operator compares as what it means',
+    body: from.pipe(Query.where(Expr.eq(rankOf(Subject.fields.rank), 3)), byId),
+    input: {},
+    expected: ['c', 'd'],
+  },
 ]
 
 /**

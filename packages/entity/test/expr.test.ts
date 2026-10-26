@@ -171,6 +171,7 @@ describe('dependenciesOf says what an expression reads', () => {
       inputs: ['title'],
       next: [],
       operations: ['eq'],
+      operators: [],
     })
   })
 
@@ -204,6 +205,7 @@ describe('dependenciesOf says what an expression reads', () => {
       inputs: [],
       next: [],
       operations: ['eq'],
+      operators: [],
     })
   })
 
@@ -221,6 +223,7 @@ describe('dependenciesOf says what an expression reads', () => {
       inputs: ['slug'],
       next: [],
       operations: ['eq'],
+      operators: [],
     })
   })
 })
@@ -302,6 +305,7 @@ describe('Query composes which rows, as data', () => {
       inputs: ['title'],
       next: [],
       operations: ['eq'],
+      operators: [],
       predicate: [title],
       order: [id],
     })
@@ -377,6 +381,7 @@ describe('The operations the CMS worklist needs', () => {
       inputs: ['type', 'archived', 'search'],
       next: [],
       operations: ['eq', 'isNotNull', 'contains'],
+      operators: [],
     })
   })
 
@@ -538,6 +543,7 @@ describe('and, or and not', () => {
       inputs: [],
       next: [],
       operations: ['or', 'eq', 'not', 'and', 'isNull'],
+      operators: [],
     })
   })
 
@@ -622,6 +628,7 @@ describe('comparisons', () => {
       inputs: ['n'],
       next: [],
       operations: ['compare'],
+      operators: [],
     })
   })
 

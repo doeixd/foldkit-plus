@@ -5,7 +5,7 @@
 with what gen2 offered (§13), completed as a plan, then checked against Remote,
 Guard, the server packages, Sync, CMS, Crud, Form and the example interpreters
 (§17 records what that check found). Phase 0's probes ran the same day (§17).
-Nothing else built.
+Phase 1 built 2026-10-26 (its **Built** note in §12); Phases 2 to 7 are not.
 **Packages:** `foldkit-entity` (descriptors, nodes, the reference interpreter,
 writes, invariants, laws, conformance), `foldkit-remote-drizzle` (SQL, cursor,
 writer), `foldkit-remote-server` (registration and write checks),
@@ -305,10 +305,12 @@ const startsWith = Expr.operator('text.startsWith', {
 
 - **Identity is the descriptor object.** Two descriptors with one `id@version`
   in one table are refused as ambiguous. A descriptor is frozen.
-- **Arguments are checked by their stored form at run time and by their `Type`
-  at compile time**, as `Expr.lt` reads a field's encoded AST and every
-  constructor checks `ValueOf`. Where the two differ (a `Date` stored as text) the
-  run-time check holds, and a type test covers it.
+- **Arguments are checked by their stored form, at compile time and at run
+  time.** The type takes a field whose schema's encoded side is the input's
+  stored type (`ArgumentOf`), and a call reads each argument's encoded AST as
+  `Expr.lt` does. Built so because a role's field is an `Option` in code and
+  `string | null` stored: checking `Type` would refuse the field the operator
+  is for.
 - **Untyped callers are checked.** `Expr.operator` throws for a bad id, a
   non-Schema member, `collation: 'operands'` on a non-text output, or a law
   whose witnesses do not fit (§10.1); a call throws for a wrong arity or an
@@ -770,6 +772,32 @@ mutation spec, the docs and skill references in step, and the changelog.
    list a field under a call under an `or`, and Guard's hidden-member check refuses
    a `when` reading a hidden member through a call; a capturing body is refused;
    the TanStack example refuses, not drops, a node it does not know.
+
+   **Built**, 2026-10-26 (`d456c64a` for the walkers, then the operator commit).
+   Where it departed from the sketch:
+   - **Interpreters inline rather than walk.** The compiler and both examples
+     call `Expr.expanded` at their entry, so `isColumn`, the comparisons and
+     LiveStore's `Eq`-only check see exactly the nodes they see today;
+     `evaluate` steps into the expansion in place, with no rebuild on the
+     per-row path. A call left after expansion (a primitive operator, Phase 2)
+     is refused by name in each.
+   - **`walk` reads the expansion, or the arguments when there is none**, since
+     the capture check makes the arguments' reads redundant beside it; ownership
+     (`fieldsIn`) reads the arguments, the stricter rule, matching `ReadsOf`.
+   - **`Dependencies.operators` holds descriptors**; Remote's
+     `ExplainedDependencies` holds `{ id, version }`, since it must serialise.
+   - **`definedAs` is required.** A primitive operator, and the `collation` a
+     call carries (§7), come with Phase 2, where something reads them.
+   - **The SQL is asserted through the mechanism**: a defined operator compiles to
+     the SQL of its body written out (`remote-drizzle/test/compile.test.ts`), and
+     `Cms.published(X)` expands to `isNotNull` of the role's field
+     (`cms/test/cms.test.ts`). `Cms.published` reads the role, not a field the
+     caller names (§1's finding). The CMS example's suites, `cms-drizzle`'s
+     Read-rule check included, pass unchanged.
+   - **The conformance suite gained operator cases**, so the reference
+     evaluator, Drizzle on SQLite and Postgres, the in-memory server, TanStack
+     and LiveStore each run them. LiveStore picks its cases by compiling them, so
+     its expansion has a test of its own rather than a mutation.
 2. **Memory tables, `startsWith`, collations and null** (`foldkit-entity`,
    `foldkit-form`, `foldkit-guard`). `Operators`, every memory site of §5.5's
    table, strict and handled null, NUL, the collation rule and
