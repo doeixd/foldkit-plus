@@ -31,7 +31,10 @@ const marked = Expr.operator('acme.marked', {
   definedAs: text => concat(text, '!'),
 })
 /** A sum, strict about null: a null argument makes it null. */
-const plus = Expr.operator('acme.plus', { input: [Schema.Int, Schema.Int], output: Schema.Int })
+const plus = Expr.operator('acme.plus', {
+  input: [Schema.NullOr(Schema.Int), Schema.Int],
+  output: Schema.Int,
+})
 const operators = Operators.memory(Operators.implement(concat, (left, right) => `${left}${right}`))
 
 const Relabel = Entity.input(

@@ -1310,13 +1310,18 @@ export const Expr = {
    */
   contains: <L extends TextOperand>(
     value: L,
-    search: string | Expr<string>,
-  ): ContainsPredicate & Reads<ReadsOf<L>> =>
-    node({
-      _tag: 'Contains',
-      value: toExpr(value, 'contains'),
-      search: toOperand(search as never),
-    }),
+    search: string | LiteralExpr<string> | InputExpr<string> | InputExpr<string | null>,
+  ): ContainsPredicate & Reads<ReadsOf<L>> => {
+    const operand = toOperand(search as never)
+    // A search a row decides would have to be escaped as a pattern in SQL, which
+    // no compiler here does: it is a value or an input.
+    if (operand._tag !== 'Literal' && operand._tag !== 'Input') {
+      throw new Error(
+        `[foldkit-entity] Expr.contains: the search is ${showExpr(operand)}; search for a value or an input`,
+      )
+    }
+    return node({ _tag: 'Contains', value: toExpr(value, 'contains'), search: operand })
+  },
 
   /**
    * Whether a value is one of `among`: a list written out, or an input whose

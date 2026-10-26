@@ -366,6 +366,13 @@ describe('The operations the CMS worklist needs', () => {
     ).toThrow('a predicate is already an answer')
   })
 
+  it('refuses a search a row decides, which SQL would have to escape as a pattern', () => {
+    expect(() =>
+      // @ts-expect-error a field as the search
+      Expr.contains(Post.fields.title, Post.fields.title),
+    ).toThrow('Expr.contains: the search is Post.title; search for a value or an input')
+  })
+
   it('reads the fields and inputs of a nested predicate', () => {
     const worklist = [
       Expr.eq(Post.fields.title, Expr.input('type', Schema.String)),

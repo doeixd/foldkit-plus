@@ -314,7 +314,8 @@ const report = await Conformance.operator(concat, {
 
 `Operators.describe(op)` is an operator's signature as JSON: its name and
 version, its description, each argument and its result as a JSON Schema of the
-stored side, its null and collation rules, its laws, and whether it is defined.
+stored side as JSON carries it, its null and collation rules, its laws, and
+whether it is defined.
 It never includes a defined operator's body. `OperatorDescription` is the
 Schema that checks one, so a description another server publishes can be
 decoded, and `Operators.describeTable(table)` lists a table's operators with

@@ -450,7 +450,8 @@ Query.dependencies(recent)     // every field it reads, also split into `predica
   `evaluateEach(body, input, rows)` judges each row alone: a row holding such
   text goes in `refused` and the others are answered (Remote's `matching` skips
   it); an input holding one still refuses the run.
-- `Expr.contains` takes a **text or nullable-text** operand only, checked by the
+- `Expr.contains` searches for a **value or an input**, never a field or call (SQL
+  would have to escape one as a pattern), and takes a **text or nullable-text** operand only, checked by the
   type parameter: over a number it would compile to `lower(rank) like …`, which
   SQLite coerces and Postgres rejects. The check is a constraint rather than an
   `Invalid` brand intersected onto the parameter — a conditional over the type

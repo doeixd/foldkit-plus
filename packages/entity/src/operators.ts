@@ -79,10 +79,6 @@ export interface ImplementedOperator extends OperatorDescription {
   readonly evidence: ReadonlyArray<Evidence>
 }
 
-/**
- * A schema as a JSON Schema, which describes its stored side (Effect's
- * document is of what the schema encodes to), what it refers to under `$defs`.
- */
 const described = (operator: OperatorDescriptor): OperatorDescription => ({
   name: nameOf(operator),
   id: operator.id,
@@ -321,8 +317,9 @@ export const Operators = {
   /**
    * An operator as JSON (`OperatorDescription`): its name, version and
    * description, each argument's and its result's stored side as a JSON
-   * Schema, its null and collation rules, its laws, and whether it is
-   * defined. Its signature, never its body.
+   * Schema (as JSON carries it: a number also admits the strings `"Infinity"`,
+   * `"-Infinity"` and `"NaN"`), its null and collation rules, its laws, and
+   * whether it is defined. Its signature, never its body.
    */
   describe: (operator: { readonly descriptor: OperatorDescriptor }): OperatorDescription =>
     described(operator.descriptor),
