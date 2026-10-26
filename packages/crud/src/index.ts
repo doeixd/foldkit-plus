@@ -640,7 +640,7 @@ export const Crud = {
        * (`Crud.screen` answers it given these pickers); the page as it is for a key
        * that is no picker here, or a list that shows every row.
        */
-      ask: (root: Root, key: string): Root =>
+      ask: (root: Root, key: Key): Root =>
         Option.getOrElse(
           Option.flatMap(Option.fromNullishOr(listOf.get(key)), list => list.more(root)),
           () => root,

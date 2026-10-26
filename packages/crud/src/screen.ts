@@ -55,8 +55,8 @@ export interface ScreenPieces<
   // `NoInfer`: the page's Model comes from its own `update`, so pickers over
   // another Model are the mistake reported.
   readonly pickers?:
-    | { readonly ask: (root: NoInfer<Root>, key: string) => NoInfer<Root> }
-    | undefined
+    // The key is one of the form's, read out of the Message untyped.
+    { readonly ask: (root: NoInfer<Root>, key: never) => NoInfer<Root> } | undefined
 }
 
 const isAskedForMore = Schema.is(Schema.TaggedStruct('AskedForMore', { key: Schema.String }))
@@ -92,37 +92,36 @@ export const screen = <const Name extends string, Id extends Schema.Top>(
      * every other goes to `update`; the editor's sync runs after each, so the
      * loaded value is shown whichever Message brings it.
      */
-    update:
-      <
-        Root,
-        Message extends { readonly _tag: string },
-        Result extends { readonly model: Root },
-        Out extends { readonly model: Root },
-        Asked extends { readonly model: Root } = never,
-      >(
-        pieces: ScreenPieces<Root, Id['Type'], Out, Asked>,
-        update: (model: Root, message: Message) => Result,
-      ) =>
-      (model: Root, message: Message): Result | Out | Asked =>
-        pieces.editor.after((root: Root, received: Message): Result | Out | Asked => {
-          if (isOpened(received)) return pieces.editing.helpers.open(idOf(received))(root)
-          if (isCreated(received)) return pieces.editing.helpers.blank()(root)
-          if (isClosed(received)) return pieces.editing.helpers.close()(root)
-          if (isAsked(received) && pieces.removing !== undefined)
-            return pieces.removing.helpers.ask(idOf(received))(root)
-          const { pickers } = pieces
-          if (pickers === undefined) return update(root, received)
-          const asked = Option.filter(
-            pieces.editing.link.fromParentMessage(received as never),
-            isAskedForMore,
-          )
-          return update(
-            Option.match(asked, {
-              onNone: () => root,
-              onSome: ({ key }) => pickers.ask(root, key),
-            }),
-            received,
-          )
-        })(model, message),
+    update: <
+      Root,
+      Message extends { readonly _tag: string },
+      Result extends { readonly model: Root },
+      Out extends { readonly model: Root },
+      Asked extends { readonly model: Root } = never,
+    >(
+      pieces: ScreenPieces<Root, Id['Type'], Out, Asked>,
+      update: (model: Root, message: Message) => Result,
+    ) =>
+      // Wrapped once, when the page's update is made, not on every Message.
+      pieces.editor.after((root: Root, received: Message): Result | Out | Asked => {
+        if (isOpened(received)) return pieces.editing.helpers.open(idOf(received))(root)
+        if (isCreated(received)) return pieces.editing.helpers.blank()(root)
+        if (isClosed(received)) return pieces.editing.helpers.close()(root)
+        if (isAsked(received) && pieces.removing !== undefined)
+          return pieces.removing.helpers.ask(idOf(received))(root)
+        const { pickers } = pieces
+        if (pickers === undefined) return update(root, received)
+        const asked = Option.filter(
+          pieces.editing.link.fromParentMessage(received as never),
+          isAskedForMore,
+        )
+        return update(
+          Option.match(asked, {
+            onNone: () => root,
+            onSome: ({ key }) => pickers.ask(root, key as never),
+          }),
+          received,
+        )
+      }),
   }
 }

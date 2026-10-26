@@ -214,13 +214,15 @@ keeps the form while there is something to edit (a failed save keeps the draft);
 onCancel, error? })` asks `Delete {name}?` and cannot confirm with no name;
 `Toolbar({ search?, filters?, sort?, actions? })` holds your controls in slots. For a
 dialog, draw the `EditorView` inside your `foldkit-mixins-ui` Dialog: focus in,
-trapped, and back to the opener are the Dialog's.
+trapped, and back to the opener are the Dialog's. Escape closes the Dialog alone,
+so answer its `Closed` OutMessage with the editor's `close()`.
 
 `Crud.screen('Post', { id: PostId })` names a page's four editor Messages
 (`messages`: `OpenedPost({ id })`, `CreatedPost()`, `ClosedPost()`,
 `AskedToRemovePost({ id })`, for `Bundle.withMessages`) and
 `screen.update({ editor: PostEditor, editing: Page.children.editor, removing?:
-Page.children.remover, pickers? }, placements.update(yours))` answers them through those
+Page.children.remover, pickers? }, placements.update(pageUpdate))` (the page's own
+reducer) answers them through those
 placements' `open`/`blank`/`close`/`ask` and runs the editor's `after`. It places
 nothing: children, `onOut`, query input and wiring stay the page's.
 

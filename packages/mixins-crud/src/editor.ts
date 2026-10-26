@@ -34,7 +34,7 @@ const editorWords: Required<EditorWords> = {
   saving: 'Saving…',
   saved: 'Saved.',
   saveFailed: 'Not saved: {message}',
-  conflict: 'Someone else saved this first. Reload it to see what they changed.',
+  conflict: 'Someone else saved this first, so your changes were not saved.',
   moved: 'Someone else has saved this since you opened it.',
   close: 'Close',
   retry: 'Try again',
@@ -183,8 +183,8 @@ export interface ConfirmInput<Message> {
   readonly id: string
   readonly status: RemoverStatus
   /**
-   * What is about to be deleted, in words a person knows it by: a post's title.
-   * Without one there is nothing to confirm, so the confirm button is disabled.
+   * What is about to be deleted, as the question names it: a post's title, or its
+   * id where that is all the page holds (`Remover.target`). Without one there is nothing to confirm, so the confirm button is disabled.
    */
   readonly name: Option.Option<string>
   readonly onConfirm: Message

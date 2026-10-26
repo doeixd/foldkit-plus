@@ -563,7 +563,12 @@ list, for the read entry to fetch. `Crud.screen` answers it given the pickers:
 
 ```ts
 Placed.view(model, h, { options: pickers(model), more: pickers.more(model) })
-PostScreen.update({ editor: PostEditor, editing: Placed, pickers }, placements.update(yours))
+PostScreen.update(
+  { editor: PostEditor, editing: Placed, pickers },
+  placements.update((model, message) =>
+    Remote.reduces(message) ? { model: Data.reduce(model, message) } : { model },
+  ),
+)
 ```
 
 ## Sorting a list

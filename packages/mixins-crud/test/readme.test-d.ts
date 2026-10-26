@@ -114,7 +114,7 @@ export const statuses = (slots: StatusSlots, h: HtmlBuilder<Message>): Html => {
 // ---- An editor, a delete, and a toolbar ----
 {
   type Message =
-    | { readonly _tag: 'ClosedEditor' }
+    | { readonly _tag: 'ClosedPost' }
     | { readonly _tag: 'Confirmed' }
     | { readonly _tag: 'Cancelled' }
   const h = SlotView.inertBuilder<Message>()
@@ -127,7 +127,7 @@ export const statuses = (slots: StatusSlots, h: HtmlBuilder<Message>): Html => {
       status: 'Editing',
       title: 'Edit post',
       form: h.form([], []),
-      onClose: { _tag: 'ClosedEditor' },
+      onClose: { _tag: 'ClosedPost' },
     },
     h,
   )

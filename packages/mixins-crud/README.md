@@ -245,7 +245,7 @@ PostEditorView(
     title: 'Edit post',
     form: EditForm.view(model, h, { options: pickers(model) }),
     error: PostEditor.saveError(model)?.message,
-    onClose: Message.ClosedEditor(),
+    onClose: Message.ClosedPost(),
   },
   h,
 )
@@ -283,8 +283,11 @@ thing a person can name. A failed delete asks again, with why it failed.
 
 To draw the editor in a dialog or a drawer, draw it inside the Dialog or Drawer
 your application places (`foldkit-mixins-ui`): focus going in on open, staying in
-while it is open, and back to the button that opened it is that component's, and
-Escape closes it through your Message. Every word is the view's `words`, text with
+while it is open, and back to the button that opened it is that component's.
+Escape and the backdrop close the Dialog by itself: answer its `Closed`
+OutMessage with the editor's close (`Placed.helpers.close()`), as `onClose`
+does for the Close button, or the dialog hides while the editor stays open and
+its row stays required. Every word is the view's `words`, text with
 blanks (`saveFailed: 'Not saved: {message}'`, `question: 'Delete {name}?'`).
 
 ## What is drawn

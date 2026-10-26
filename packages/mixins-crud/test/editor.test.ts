@@ -67,7 +67,7 @@ describe('EditorView', () => {
     [
       'Conflict',
       undefined,
-      ['alert', 'Someone else saved this first. Reload it to see what they changed.'],
+      ['alert', 'Someone else saved this first, so your changes were not saved.'],
       true,
       ['Close'],
     ],
@@ -114,6 +114,15 @@ describe('EditorView', () => {
     })
     expect(Inert.byTag(root, 'button')).toHaveLength(2)
     expect(Inert.unslotted(root)).toEqual([])
+    // Open, the body holds the application's form, which is the only element of its own.
+    const open = Inert.draw(Editor, {
+      id: 'post',
+      status: 'Editing',
+      title: 'Edit post',
+      form,
+      onClose: { _tag: 'Closed' },
+    })
+    expect(Inert.unslotted(open)).toEqual(['section > div > form'])
   })
 
   it('serves an open editor with its form’s names', async () => {

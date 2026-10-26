@@ -1,9 +1,10 @@
 /// <reference types="@vitest/browser-playwright" />
 /**
  * An `EditorView` drawn in the Dialog an application places, in a real
- * browser: opening it puts focus in the form, Tab stays inside, Escape closes it
- * through the application's own Message, and focus goes back to the button
- * that opened it. Each is the Dialog's rule; the editor only has to draw
+ * browser: opening it puts focus in the form, Tab stays inside, and focus goes
+ * back to the button that opened it. Escape is the Dialog's own close: the
+ * application hears it as the Dialog's `Closed` OutMessage and answers it with
+ * the editor's close, as it answers the editor's Close button. Each is the Dialog's rule; the editor only has to draw
  * inside it.
  */
 import { Dialog as UiDialog } from '@foldkit/ui'
@@ -33,6 +34,9 @@ type Message =
   | { readonly _tag: 'GotForm'; readonly message: typeof Post.Message.Type }
 
 const Editor = EditorView.forMessages<Message>().define()
+
+/** What closed the editor, in order: what an application would answer with `close()`. */
+let closes: Array<'dialog' | 'button'> = []
 
 const step = (
   model: Model,
@@ -90,6 +94,7 @@ const view = (model: Model, h: HtmlBuilder<Message>) =>
   )
 
 const mount = () => {
+  closes = []
   const container = document.createElement('div')
   container.id = 'editor-dialog'
   document.body.appendChild(container)
@@ -103,9 +108,14 @@ const mount = () => {
           case 'Opened':
             return step(model, UiDialog.open(model.dialog))
           case 'Closed':
+            closes.push('button')
             return step(model, UiDialog.close(model.dialog))
-          case 'GotDialog':
-            return step(model, UiDialog.update(model.dialog, message.message))
+          case 'GotDialog': {
+            const next = UiDialog.update(model.dialog, message.message)
+            // The Dialog closed itself (Escape, the backdrop): the editor closes with it.
+            if (next.outMessage?._tag === 'Closed') closes.push('dialog')
+            return step(model, next)
+          }
           case 'GotForm':
             return {
               model: {
@@ -140,6 +150,8 @@ test('focus enters the editor, stays in it, and returns to its opener when Escap
     await userEvent.keyboard('{Escape}')
     await vi.waitFor(() => expect(dialog().open).toBe(false))
     await vi.waitFor(() => expect(document.activeElement).toBe(opener()))
+    // The application heard it, from the Dialog, so it can close the editor too.
+    expect(closes).toEqual(['dialog'])
   } finally {
     handle.dispose()
   }
@@ -158,6 +170,7 @@ test('the editor’s close button closes it through the application’s Message'
     close.click()
     await vi.waitFor(() => expect(dialog().open).toBe(false))
     await vi.waitFor(() => expect(document.activeElement).toBe(opener()))
+    expect(closes[0]).toBe('button')
   } finally {
     handle.dispose()
   }
