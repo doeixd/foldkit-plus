@@ -114,7 +114,7 @@ export default [
     edits: [
       {
         file,
-        find: 'if (storedAsInteger(field.schema as unknown as Schema.Top) && !storedAsInteger(amount))',
+        find: 'if (storedAsInteger(field.schema as unknown as Schema.Top) && !integer)',
         replace: 'if (false)',
       },
     ],

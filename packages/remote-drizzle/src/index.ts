@@ -1030,6 +1030,10 @@ type Ledgered =
 
 const DAY = 24 * 60 * 60 * 1000
 
+/** Whether a column holds integers: Drizzle names it `number int32`, `number int53`, `number uint16`… */
+const holdsIntegers = (column: AnyColumn | undefined): boolean =>
+  column !== undefined && /^number u?int\d+$/.test(column.dataType)
+
 export const writer = <P = unknown>(
   binding: AnyEntityBinding,
   options: { readonly ledger?: WriteLedger<P> } = {},
@@ -1314,6 +1318,16 @@ export const writer = <P = unknown>(
     preconditions: true,
     increments: true,
     invariants: true,
+    // A fraction added to an integer column splits the dialects: Postgres refuses the
+    // statement, SQLite stores the fraction. A field declared Schema.Number hides the column.
+    refuses: write =>
+      write.increments.flatMap(({ key, field, integer }) =>
+        !integer && holdsIntegers(binding.columns[field.key])
+          ? [
+              `"${key}" may not be an integer, but the column for "${field.key}" holds integers; give the amount Schema.Int`,
+            ]
+          : [],
+      ),
     ...(ledger === undefined
       ? {}
       : {

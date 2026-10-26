@@ -236,7 +236,7 @@ const Publish = Write.update(
 const Restock = Write.update(
   Entity.input(
     Product,
-    Schema.Struct({ id: Schema.String, revision: Schema.Number, quantity: Schema.Number }),
+    Schema.Struct({ id: Schema.String, revision: Schema.Number, quantity: Schema.Int }),
     { quantity: Entity.unmapped },
   ),
   { id: 'id', expect: 'revision', increment: { stock: 'quantity' } },
@@ -248,7 +248,8 @@ const Restock = Write.update(
   `Unmet` in its `Refusal` type.
 - **`expect: 'revision'`** lands only on that revision and moves it on: a second write from one read is a
   `Conflict`. **`increment: { stock: 'quantity' }`** adds an unmapped number input where it commits; a
-  field declared `Schema.Int` needs a `Schema.Int` amount, or the write is refused where declared. A
+  field declared `Schema.Int` needs a `Schema.Int` amount, or the write is refused where declared, and so
+  does an `integer` column under any field, or the Drizzle `writer` refuses it at registration. A
   retry must not add twice: give it `expect`, or serve it through a writer with a ledger (a retry is
   answered from its record, so concurrent increments both land). Remote predicts the sum over the value
   it holds.

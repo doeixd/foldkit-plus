@@ -16,8 +16,23 @@ version changed; `pnpm` skips versions already in the registry.
   the databases: Postgres refused the statement, and SQLite stored `2.5` in the
   integer column, a value the field's schema does not admit. Such a write is now
   refused where it is declared, naming both keys; declare the amount
-  `Schema.Int`. A write whose field is a plain `Schema.Number` is unchanged,
-  even over an `integer` column, since the Entity does not know the column.
+  `Schema.Int`.
+- **Nor is an integer column, whatever its field says.** A field declared
+  `Schema.Number` over an `integer` column (SQLite `integer`; Postgres
+  `integer`, `smallint`, `bigint` read as a number) took a fractional amount the
+  same way. `foldkit-remote-drizzle`'s `writer` now refuses such an increment
+  where `RemoteServer.write` registers it, so a server with one does not start;
+  give the amount `Schema.Int`. A `real` or `double precision` column takes any
+  amount. Every increment in the examples and guides now declares its amount
+  `Schema.Int`.
+
+### Added
+
+- **`EntityWriter.refuses(write)`**: the reasons a writer cannot land a write,
+  asked once by `RemoteServer.write` where the write is registered, for what only
+  the store knows (a column's type). `GuardServer.writer` passes its writer's on.
+  `Write`'s `increments` are `WriteIncrement`s, each saying whether its amount is
+  held to an integer (`integer`).
 
 ## 0.33.0
 

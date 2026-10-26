@@ -1062,6 +1062,7 @@ export {
   type BoundWrite,
   type ConditionedWrite,
   type WriteCondition,
+  type WriteIncrement,
   type WriteLink,
   type WriteSet,
 } from './write.js'

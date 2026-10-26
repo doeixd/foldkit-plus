@@ -628,6 +628,8 @@ export const GuardServer = {
       ...(writer.ledger === true ? { ledger: true } : {}),
       // Invariants are the writer's to judge, over the row its statement writes.
       ...(writer.invariants === true ? { invariants: true } : {}),
+      // What the store refuses, the store knows: the guard adds no reason and drops none.
+      ...(writer.refuses === undefined ? {} : { refuses: writer.refuses }),
       ...(writer.recorded === undefined ? {} : { recorded: writer.recorded }),
       read: ({ id, fields, principal }) =>
         seenRow(

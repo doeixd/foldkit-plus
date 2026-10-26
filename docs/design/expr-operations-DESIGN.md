@@ -966,5 +966,8 @@ statement on Postgres and, on SQLite, writes a fraction into an integer column
 that the field's `Int` schema does not admit. Fixed 2026-10-26, with none of this
 plan: `incrementOf` refuses, where the write is declared, an amount whose encoded
 schema does not carry the integer check of the field it increments
-(write-increment §5). §9.3 builds on it. Still open: a field declared
-`Schema.Number` over an `integer` column, which only the Drizzle binding can see.
+(write-increment §5). The same day the Drizzle writer closed the rest: a field
+declared `Schema.Number` over an `integer` column, refused through a new
+`EntityWriter.refuses` where the write is registered. §9.3 builds on both, and
+`refuses` is where the commuting-assignment rule (§9.3) can live for writers
+other than Drizzle's.

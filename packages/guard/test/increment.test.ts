@@ -63,7 +63,7 @@ const Adjust = Mutation.write(
   Write.update(
     Entity.input(
       Item,
-      Schema.Struct({ id: Schema.String, revision: Schema.Number, by: Schema.Number }),
+      Schema.Struct({ id: Schema.String, revision: Schema.Number, by: Schema.Int }),
       { by: Entity.unmapped },
     ),
     { id: 'id', expect: 'revision', increment: { stock: 'by' } },
@@ -120,6 +120,26 @@ describe('GuardServer.writer over a write that increments a field', () => {
     })
     expect(stock('i2')).toEqual({ stock: 3 })
   })
+
+  it('passes on what its writer refuses: a fractional amount for an integer column', () => {
+    const Fractional = Mutation.write(
+      'Fractional',
+      Write.update(
+        Entity.input(
+          Item,
+          Schema.Struct({ id: Schema.String, revision: Schema.Number, by: Schema.Number }),
+          { by: Entity.unmapped },
+        ),
+        { id: 'id', expect: 'revision', increment: { stock: 'by' } },
+      ),
+    )
+    expect(() =>
+      RemoteServer.write(
+        Fractional,
+        GuardServer.writer(Item, Policy, writer(Db.Item), { revision: 'revision' }),
+      ),
+    ).toThrow('"by" may not be an integer, but the column for "stock" holds integers')
+  })
 })
 
 describe('GuardServer.writer over a writer with a ledger', () => {
@@ -138,7 +158,7 @@ describe('GuardServer.writer over a writer with a ledger', () => {
   const Bump = Mutation.write(
     'Bump',
     Write.update(
-      Entity.input(Item, Schema.Struct({ id: Schema.String, by: Schema.Number }), {
+      Entity.input(Item, Schema.Struct({ id: Schema.String, by: Schema.Int }), {
         by: Entity.unmapped,
       }),
       { id: 'id', increment: { stock: 'by' } },

@@ -746,6 +746,10 @@ only. Retries, by kind of write:
 | increments, under `writer(binding, { ledger: { table, scope } })` | found in the ledger by its operation id, not written again |
 
 An increment with neither an `expect` nor a ledger is refused. The ledger needs a transaction, which D1 lacks.
+An increment of a column that holds integers needs a `Schema.Int` amount, whatever the field is
+declared as: the writer refuses it through `EntityWriter.refuses`, which `RemoteServer.write` asks
+where the write is served (`GuardServer.writer` passes it on). Each `Write` increment says whether
+its amount is an integer (`WriteIncrement.integer`).
 Migrate `invariantChecks(binding)` (each state invariant as `check ((…) is true)`) and,
 for a guarded writer's `revision` pin, `revisionTrigger(binding, 'revision')`, so a
 handler's write and raw SQL are held to the invariants and move the revision too.

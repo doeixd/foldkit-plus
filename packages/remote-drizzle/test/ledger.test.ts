@@ -48,7 +48,7 @@ const Db = bind({ Item }, { Item: { table: items } })
 const Restock = Mutation.write(
   'Restock',
   Write.update(
-    Entity.input(Item, Schema.Struct({ id: Schema.String, quantity: Schema.Number }), {
+    Entity.input(Item, Schema.Struct({ id: Schema.String, quantity: Schema.Int }), {
       quantity: Entity.unmapped,
     }),
     { id: 'id', increment: { stock: 'quantity' } },

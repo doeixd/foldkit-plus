@@ -6,9 +6,17 @@
 import { DatabaseSync } from 'node:sqlite'
 import { PGlite } from '@electric-sql/pglite'
 import { drizzle as drizzlePg } from 'drizzle-orm/pglite'
-import { integer as pgInteger, pgTable, text as pgText } from 'drizzle-orm/pg-core'
+import {
+  bigint as pgBigint,
+  doublePrecision as pgDouble,
+  integer as pgInteger,
+  pgTable,
+  real as pgReal,
+  smallint as pgSmallint,
+  text as pgText,
+} from 'drizzle-orm/pg-core'
 import { drizzle } from 'drizzle-orm/node-sqlite'
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Schema } from 'effect'
 import { Entity, Expr, Write } from 'foldkit-entity'
 import { Mutation } from 'foldkit-remote'
@@ -35,7 +43,7 @@ const Db = bind({ Item }, { Item: { table: items } })
 
 const RestockInput = Entity.input(
   Item,
-  Schema.Struct({ id: Schema.String, revision: Schema.Number, quantity: Schema.Number }),
+  Schema.Struct({ id: Schema.String, revision: Schema.Number, quantity: Schema.Int }),
   { quantity: Entity.unmapped },
 )
 const Restock = Mutation.write(
@@ -63,7 +71,7 @@ const SellNamed = Mutation.write(
         id: Schema.String,
         name: Schema.String,
         revision: Schema.Number,
-        quantity: Schema.Number,
+        quantity: Schema.Int,
       }),
       { quantity: Entity.unmapped },
     ),
@@ -190,5 +198,80 @@ describe('A write that increments a field, on Postgres', () => {
     expect(await pgRun({ id: 'i1', revision: 1, quantity: 5 })).toMatchObject(refusedAs('Conflict'))
     const rows = await pglite.query('select stock, revision from items')
     expect(rows.rows).toEqual([{ stock: 15, revision: 2 }])
+  })
+})
+
+describe('An increment of a column that holds integers', () => {
+  // `Item` declares `stock` as `Schema.Number`, so only the column says it holds
+  // integers. A fraction added to one splits the dialects: Postgres refuses the
+  // statement, SQLite stores the fraction.
+  const Fractional = Mutation.write(
+    'Fractional',
+    Write.update(
+      Entity.input(
+        Item,
+        Schema.Struct({ id: Schema.String, revision: Schema.Number, by: Schema.Number }),
+        { by: Entity.unmapped },
+      ),
+      { id: 'id', expect: 'revision', increment: { stock: 'by' } },
+    ),
+  )
+  const Whole = Mutation.write(
+    'Whole',
+    Write.update(
+      Entity.input(
+        Item,
+        Schema.Struct({ id: Schema.String, revision: Schema.Number, by: Schema.Int }),
+        { by: Entity.unmapped },
+      ),
+      { id: 'id', expect: 'revision', increment: { stock: 'by' } },
+    ),
+  )
+
+  const sqlite = {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    revision: integer('revision').notNull(),
+  }
+  const postgres = {
+    id: pgText('id').primaryKey(),
+    name: pgText('name').notNull(),
+    revision: pgInteger('revision').notNull(),
+  }
+  const holdingIntegers = [
+    ['SQLite integer', sqliteTable('items', { ...sqlite, stock: integer('stock').notNull() })],
+    ['Postgres integer', pgTable('items', { ...postgres, stock: pgInteger('stock').notNull() })],
+    ['Postgres smallint', pgTable('items', { ...postgres, stock: pgSmallint('stock').notNull() })],
+    [
+      'Postgres bigint read as a number',
+      pgTable('items', { ...postgres, stock: pgBigint('stock', { mode: 'number' }).notNull() }),
+    ],
+  ] as const
+  const holdingReals = [
+    ['SQLite real', sqliteTable('items', { ...sqlite, stock: real('stock').notNull() })],
+    ['Postgres real', pgTable('items', { ...postgres, stock: pgReal('stock').notNull() })],
+    [
+      'Postgres double precision',
+      pgTable('items', { ...postgres, stock: pgDouble('stock').notNull() }),
+    ],
+  ] as const
+  const writerOver = (table: (typeof holdingIntegers | typeof holdingReals)[number][1]) =>
+    writer(bind({ Item }, { Item: { table } }).Item)
+
+  it.each(holdingIntegers)(
+    'refuses an amount that may be fractional over a %s column, where it is registered',
+    (_, table) => {
+      expect(() => RemoteServer.write(Fractional, writerOver(table))).toThrow(
+        'write "Fractional" cannot land through its writer for Item: "by" may not be an integer, but the column for "stock" holds integers',
+      )
+    },
+  )
+
+  it.each(holdingIntegers)('accepts an integer amount over a %s column', (_, table) => {
+    expect(() => RemoteServer.write(Whole, writerOver(table))).not.toThrow()
+  })
+
+  it.each(holdingReals)('accepts any amount over a %s column', (_, table) => {
+    expect(() => RemoteServer.write(Fractional, writerOver(table))).not.toThrow()
   })
 })

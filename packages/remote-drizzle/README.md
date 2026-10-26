@@ -826,7 +826,11 @@ alike. When nothing was written, the row read back says why: gone, moved on
 (a conflict), or else not holding the precondition (unmet). A row that already
 holds every value the write sets is the retry of one that landed, and answers as
 written. An increment is `column = column + amount` in the same statement, and
-its sum is in the answer. For a write with one, neither recognition applies: a
+its sum is in the answer. Over a column that holds integers (SQLite `integer`;
+Postgres `integer`, `smallint`, `bigint` read as a number) its amount must be
+`Schema.Int`, whatever the field is declared as: Postgres refuses a fraction
+there and SQLite would store it, so the writer refuses the write where it is
+served. For a write with one, neither recognition applies: a
 row a revision on could hold another client's increment, so a retry is a
 conflict and the field moves once. A binding with a
 `visible` rule reads the answer back through it: the row as its writer may now

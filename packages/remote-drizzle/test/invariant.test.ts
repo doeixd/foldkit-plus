@@ -76,7 +76,7 @@ const Take = Mutation.write(
   Write.update(
     Entity.input(
       Stock,
-      Schema.Struct({ id: Schema.String, revision: Schema.Number, amount: Schema.Number }),
+      Schema.Struct({ id: Schema.String, revision: Schema.Number, amount: Schema.Int }),
       { amount: Entity.unmapped },
     ),
     { id: 'id', expect: 'revision', increment: { quantity: 'amount' } },

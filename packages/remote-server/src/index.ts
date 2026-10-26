@@ -220,6 +220,12 @@ export interface EntityWriter<P, R = never> {
    */
   readonly invariants?: true
   /**
+   * Why this writer cannot land `write`, each a sentence; none when it can.
+   * `RemoteServer.write` asks once, where the write is registered, for what
+   * only the store knows: a column's type, say, which the Entity does not say.
+   */
+  readonly refuses?: (write: AnyWrite) => ReadonlyArray<string>
+  /**
    * The answer recorded for `operation`, when this writer has a ledger and
    * holds one: what a wrapping writer (a guard) answers a retry with, without
    * deciding again over a row that has moved since.
@@ -1551,6 +1557,12 @@ export const RemoteServer = {
     if (write.increments.length > 0 && writer.increments !== true) {
       throw new Error(
         `[foldkit-remote-server] write "${mutation.name}" increments a field, but its writer for ${writer.entity} does not add one (increments)`,
+      )
+    }
+    const refused = writer.refuses?.(write) ?? []
+    if (refused.length > 0) {
+      throw new Error(
+        `[foldkit-remote-server] write "${mutation.name}" cannot land through its writer for ${writer.entity}: ${refused.join('; ')}`,
       )
     }
     // An update judges every invariant; an insert, with no row before, the state ones alone.
