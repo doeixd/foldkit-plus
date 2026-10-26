@@ -218,9 +218,19 @@ form also counts a submit waiting on a check. While submitting, the `form` is
 `aria-busy` with `data-submitting`, and the button is disabled and reads
 `words.submitting`.
 
-For UI-backed Text/Multiline fields, the optional `foldkit-mixins-form/ui`
-entry exports `field({ toMessage, inputStyle, textareaStyle?, draw? })`, a
-`FormView.fields` override. Install `foldkit-mixins-ui` and `@foldkit/ui`;
+To draw every field through `foldkit-mixins-ui`'s components, the optional
+`foldkit-mixins-form/ui` entry exports `renderers(styles?)`, a renderer for every
+shipped kind: `FormView.define(Rename, { renderers: UiForm.renderers({ input,
+textarea, select, checkbox, checkboxGroup }) })`, each style optional and for that
+component's Slots (`Recipes.Input()` and the like). The field around each control,
+its name, id, accessibility state and Messages are the plain path's; Toggle and the
+choice kinds are `role="checkbox"` buttons that post through hidden inputs. A
+FieldSlots style for a control the table draws (`text`, `select`, …) no longer
+reaches it; the label, description, checking line and error keep theirs.
+
+For one key in a custom layout, the same entry exports
+`field({ toMessage, inputStyle, textareaStyle?, draw? })`, a
+`FormView.fields` override for Text/Multiline. Install `foldkit-mixins-ui` and `@foldkit/ui`;
 styles target their Input/Textarea Slots and read the field's state. It preserves
 Changed/Blurred dispatch, name, required state, hints, checking and errors.
 `draw` receives label/control/description nodes and `field` for a custom layout;

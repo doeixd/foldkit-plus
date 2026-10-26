@@ -2,7 +2,7 @@
  * A key the schema says is any number of literals, drawn as a group of
  * checkboxes, broken in turn: `pnpm mutate packages/mixins-form/test/choices.mutations.ts`.
  */
-const file = '../src/index.ts'
+const file = '../src/renderers.ts'
 const tests = ['packages/mixins-form/test/choices.test.ts']
 
 export default [
@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file,
-        find: '(Input.Choices.is(context.control) ? context.control.data.options : []).map(option => ({',
-        replace: '[].map(option => ({',
+        find: 'Choices: context => choiceGroup(context, literalOptions(context.control)),',
+        replace: 'Choices: context => choiceGroup(context, []),',
       },
     ],
     tests,

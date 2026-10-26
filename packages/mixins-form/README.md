@@ -15,9 +15,9 @@ what else it does.
 | Classes, inline style, extra attributes and events | your `Style` / `Behavior` attachments |
 | The options of a relation picker, the submit button's words | the application, as view inputs |
 
-The optional `foldkit-mixins-form/ui` entry draws Text and Multiline fields
-through `foldkit-mixins-ui`'s Input and Textarea adapters. The main entry keeps
-the plain-HTML path and does not import that integration.
+The optional `foldkit-mixins-form/ui` entry draws every control through
+`foldkit-mixins-ui`'s components. The main entry keeps the plain-HTML path and
+does not import that integration.
 
 It holds no state and adds no Messages. Every event it installs dispatches one
 of the form's own Messages (`Changed`, `Blurred`, `Submitted`).
@@ -69,10 +69,45 @@ Messages to its reducer; submitting a valid form sends its decoded value to
 
 The next example replaces this unstyled `Drawn` with field and form styles.
 
-## UI-backed fields with a custom layout
+## A form drawn through `foldkit-mixins-ui`
 
 Install `foldkit-mixins-ui` and its `@foldkit/ui` peer to use the optional
 `foldkit-mixins-form/ui` entry. Import it as `UiForm`.
+
+`UiForm.renderers(styles?)` is a renderer for every kind `foldkit-form` ships,
+given to the whole-form view like any other renderers:
+
+```ts
+import { Style } from 'foldkit-mixins'
+import { FormView } from 'foldkit-mixins-form'
+import * as UiForm from 'foldkit-mixins-form/ui'
+import { InputSlots, Recipes, SelectSlots } from 'foldkit-mixins-ui'
+
+const UiView = FormView.define(Edit, {
+  renderers: UiForm.renderers({
+    input: Style.forSlots(InputSlots)(Recipes.Input()),
+    select: Style.forSlots(SelectSlots)(Recipes.Select()),
+  }),
+})
+```
+
+Each style is optional and names its component: `input` (Text and Number),
+`textarea`, `select` (Select and RelationOne), `checkbox` (Toggle) and
+`checkboxGroup` (Choices and RelationMany). A table with no styles still draws a
+complete form, unstyled.
+
+What the table changes is the control, not the field. The label, description,
+checking line and error stay the form view's, and each control keeps the plain
+one's name, id, `aria-invalid`, `aria-required` and `aria-describedby`, so the
+same interaction sends the same Messages either way. Text, Number, Multiline and
+the selects are the plain elements under the component's Slot; a `FieldSlots`
+style for `text`, `number`, `multiline` or `select` no longer reaches them, since
+an element keeps one Slot's class. Toggle, Choices and RelationMany are the
+Checkbox's `role="checkbox"` buttons, which Space presses and their label names;
+a button posts nothing, so each checked one holds a hidden input with the key's
+name, and a form posted without scripts still carries the value.
+
+## UI-backed fields with a custom layout
 
 `UiForm.field({ toMessage, inputStyle, textareaStyle?, draw? })` returns a
 `FormView.fields` override for Text and Multiline keys. `toMessage` wraps the

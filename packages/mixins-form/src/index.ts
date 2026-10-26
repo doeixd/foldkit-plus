@@ -631,9 +631,14 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
   )
 }
 
-/** What a draft posts as: its text, each of its values, or nothing for a control's own Model. */
+/**
+ * What a draft posts as: its text, each of its values, `on` for a checked box
+ * (a checkbox's own default), or nothing for an unchecked one or a control's
+ * own Model.
+ */
 const posted = (draft: unknown): ReadonlyArray<string> => {
   if (typeof draft === 'string') return [draft]
+  if (typeof draft === 'boolean') return draft ? ['on'] : []
   return Array.isArray(draft) ? draft.map(String) : []
 }
 

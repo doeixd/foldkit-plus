@@ -7,7 +7,24 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Added
+
+- **`foldkit-mixins-form/ui`: `UiForm.renderers(styles?)`, a renderer for every
+  kind `foldkit-form` ships,** for `FormView.define(form, { renderers })`. Text,
+  Number, Multiline and the selects are the plain elements under
+  `foldkit-mixins-ui`'s Input, Textarea and Select Slots; Toggle, Choices and
+  RelationMany are its Checkbox's `role="checkbox"` buttons, with a hidden input
+  in each checked one so a post without scripts still carries the value. The
+  field around each control, its name, id and accessibility state are the plain
+  path's, and the same interaction sends the same Messages.
+
 ### Fixed
+
+- **`foldkit-mixins-form`: a Choices or RelationMany group carries the field's
+  validity and descriptions,** as every other control does: its `aria-invalid`
+  and `aria-describedby` were missing.
+- **`foldkit-mixins-form`: a locked, checked Toggle posts `on`.** The field posts a
+  locked key's value through hidden inputs, and a boolean draft posted nothing.
 
 - **`foldkit-mixins-ui`: Backspace in the Command menu deletes a character typed
   in the same frame.** It decided from the query the field was last drawn

@@ -5,7 +5,28 @@
  */
 import { Input } from 'foldkit-form'
 import type { Html, HtmlBuilder } from 'foldkit/html'
-import type { FieldAttrs, Option, RenderContext, Renderers } from './index.js'
+import type { FieldAttrs, Option, RenderContext, Renderer } from './index.js'
+
+/** A renderer for every kind of control `foldkit-form` ships and shows. */
+export type Shipped<Message> = {
+  readonly [
+    Kind in
+      | 'Text'
+      | 'Multiline'
+      | 'Number'
+      | 'Toggle'
+      | 'Select'
+      | 'RelationOne'
+      | 'Choices'
+      | 'RelationMany'
+  ]: Renderer<Message>
+}
+
+/** What a `Select` or a `Choices` control offers: the options its schema spells out. */
+export const literalOptions = (control: RenderContext<unknown>['control']): ReadonlyArray<Option> =>
+  (Input.Select.is(control) || Input.Choices.is(control) ? control.data.options : []).map(
+    option => ({ value: String(option), label: String(option) }),
+  )
 
 /** Types whose text is an address or a number, which a keyboard must not capitalize or correct. */
 export const LITERAL_TYPES: ReadonlySet<string> = new Set(['email', 'tel', 'url'])
@@ -33,7 +54,7 @@ export const withChosen = (
  * application adds `Date`, or replaces `RelationOne` with a combobox, by passing
  * its own beside them.
  */
-export const plainRenderers = <Message>(): Renderers<Message> => {
+export const plainRenderers = <Message>(): Shipped<Message> => {
   const typed = ({ state, draft, change, blurred, h }: RenderContext<Message>) => [
     ...state,
     h.Value(String(draft)),
@@ -84,7 +105,7 @@ export const plainRenderers = <Message>(): Renderers<Message> => {
     ]
   }
   return {
-    [Input.Text.kind]: context =>
+    Text: context =>
       context.h.input(
         context.slots.text.attrs([
           ...typed(context),
@@ -98,7 +119,7 @@ export const plainRenderers = <Message>(): Renderers<Message> => {
             : [context.h.Placeholder(context.attrs.placeholder)]),
         ]),
       ),
-    [Input.Multiline.kind]: context =>
+    Multiline: context =>
       // A textarea's attributes exclude `InnerHTML`, which a slot's type admits
       // and no mixin can supply, so the narrowing loses nothing.
       context.h.textarea(
@@ -115,7 +136,7 @@ export const plainRenderers = <Message>(): Renderers<Message> => {
       ),
     // A number is a text input because its draft is text: `"4."` is a fine thing to
     // have typed, and `type="number"` would refuse to report it.
-    [Input.Number.kind]: context =>
+    Number: context =>
       context.h.input(
         context.slots.number.attrs([
           ...typed(context),
@@ -129,7 +150,7 @@ export const plainRenderers = <Message>(): Renderers<Message> => {
             : [context.h.Placeholder(context.attrs.placeholder)]),
         ]),
       ),
-    [Input.Toggle.kind]: ({ state, draft, change, blurred, slots, h }) =>
+    Toggle: ({ state, draft, change, blurred, slots, h }) =>
       h.input(
         slots.toggle.attrs([
           ...state,
@@ -139,45 +160,45 @@ export const plainRenderers = <Message>(): Renderers<Message> => {
           h.OnBlur(blurred),
         ]),
       ),
-    [Input.Select.kind]: context =>
-      pick(
-        context,
-        (Input.Select.is(context.control) ? context.control.data.options : []).map(option => ({
-          value: String(option),
-          label: String(option),
-        })),
-        !context.input.control.required,
-      ),
-    [Input.RelationOne.kind]: context => pick(context, context.input.options, true),
+    Select: context =>
+      pick(context, literalOptions(context.control), !context.input.control.required),
+    RelationOne: context => pick(context, context.input.options, true),
     // A key of any number of choices, whether the options come from the schema
     // (`Choices`) or from the application's own list (`RelationMany`).
-    [Input.Choices.kind]: context =>
-      choiceGroup(
-        context,
-        (Input.Choices.is(context.control) ? context.control.data.options : []).map(option => ({
-          value: String(option),
-          label: String(option),
-        })),
-      ),
-    [Input.RelationMany.kind]: context => choiceGroup(context, context.input.options),
+    Choices: context => choiceGroup(context, literalOptions(context.control)),
+    RelationMany: context => choiceGroup(context, context.input.options),
   }
 }
 
+const GROUP_STATE: ReadonlySet<string> = new Set([
+  'Id',
+  'AriaInvalid',
+  'AriaBusy',
+  'AriaDescribedBy',
+])
+
 /**
  * A group's share of the control's state: its id, validity and descriptions.
- * The name goes on each checkbox, and a group takes no `aria-required`.
+ * The name and `disabled` go on each checkbox, and a group takes no `aria-required`.
  */
 export const groupState = <Message>(
   state: RenderContext<Message>['state'],
-): RenderContext<Message>['state'] =>
-  state.filter(attribute => attribute._tag !== 'Name' && attribute._tag !== 'AriaRequired')
+): RenderContext<Message>['state'] => state.filter(attribute => GROUP_STATE.has(attribute._tag))
+
+/** The values a choice draft holds. */
+export const chosenOf = (draft: RenderContext<unknown>['draft']): ReadonlyArray<string> =>
+  Array.isArray(draft) ? (draft as ReadonlyArray<string>) : []
+
+/** The values chosen after a press on `value`: let go if it was chosen, added if not. */
+export const pressed = (chosen: ReadonlyArray<string>, value: string): ReadonlyArray<string> =>
+  chosen.includes(value) ? chosen.filter(held => held !== value) : [...chosen, value]
 
 /** A key of any number of choices: each one a checkbox in its own label. */
 export const choiceGroup = <Message>(
   { input, draft, change, state, slots, h }: RenderContext<Message>,
   options: ReadonlyArray<Option>,
 ): Html => {
-  const chosen = Array.isArray(draft) ? (draft as ReadonlyArray<string>) : []
+  const chosen = chosenOf(draft)
   const isChosen = new Set(chosen)
   return h.div(
     slots.choices.attrs([...groupState(state), h.Role('group'), h.AriaLabel(input.control.label)]),
@@ -190,13 +211,7 @@ export const choiceGroup = <Message>(
             h.Value(option.value),
             h.Checked(isChosen.has(option.value)),
             ...(input.locked === true ? [h.Disabled(true)] : []),
-            h.OnClick(
-              change(
-                isChosen.has(option.value)
-                  ? chosen.filter(value => value !== option.value)
-                  : [...chosen, option.value],
-              ),
-            ),
+            h.OnClick(change(pressed(chosen, option.value))),
           ]),
         ),
         option.label,
