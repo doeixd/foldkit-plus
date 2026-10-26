@@ -42,7 +42,7 @@ const sandbox = () => {
             })
             .pipe(Effect.provide(database)),
         ).then(answer => answer.entities[0]?.values),
-      mutate: (mutation: 'PostChirp' | 'EditPost', input: object) =>
+      mutate: (mutation: 'PostChirp' | 'EditPost' | 'ToggleLike', input: object) =>
         Effect.runPromise(
           handlers
             .FoldkitRemoteMutate({ requestId: `r-${mutation}`, mutation, input })
@@ -131,5 +131,38 @@ describe('what each reader may do', () => {
     const may = async (id: string) => May.can(decodeMay(await ada.read(id, ['may'])).may, 'Update')
     expect(await may('p2')).toBe(true)
     expect(await may('p4')).toBe(true)
+  })
+})
+
+describe('liking', () => {
+  it('counts a like, and answers the post as it now reads', async () => {
+    const you = sandbox()('you')
+    expect(await you.mutate('ToggleLike', { postId: 'p2' })).toMatchObject({
+      _tag: 'Success',
+      success: {
+        output: { liked: true },
+        entities: [{ entity: 'Post', id: 'p2', values: { likeCount: 3 } }],
+      },
+    })
+    expect(await you.read('p2', ['likeCount'])).toEqual({ likeCount: 3 })
+  })
+
+  it('takes a like back when pressed again', async () => {
+    const you = sandbox()('you')
+    await you.mutate('ToggleLike', { postId: 'p2' })
+    expect(await you.mutate('ToggleLike', { postId: 'p2' })).toMatchObject({
+      _tag: 'Success',
+      success: { output: { liked: false } },
+    })
+    expect(await you.read('p2', ['likeCount'])).toEqual({ likeCount: 2 })
+  })
+
+  it('keeps each person’s like their own', async () => {
+    const as = sandbox()
+    // You liked p1 in the seed; Ada's like is another one.
+    await as('ada').mutate('ToggleLike', { postId: 'p1' })
+    expect(await as('you').read('p1', ['likeCount'])).toEqual({ likeCount: 4 })
+    await as('you').mutate('ToggleLike', { postId: 'p1' })
+    expect(await as('ada').read('p1', ['likeCount'])).toEqual({ likeCount: 3 })
   })
 })

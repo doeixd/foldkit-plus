@@ -98,4 +98,26 @@ export default [
     ],
     tests: server,
   },
+  {
+    name: 'a like is never taken back',
+    edits: [
+      {
+        file: '../src/server/server.ts',
+        find: '() => database.delete(likes).where(mine).returning({ postId: likes.postId }),',
+        replace: '() => Promise.resolve([]),',
+      },
+    ],
+    tests: server,
+  },
+  {
+    name: 'a like is anyone’s to take back',
+    edits: [
+      {
+        file: '../src/server/server.ts',
+        find: 'const mine = and(eq(likes.postId, input.postId), eq(likes.userId, userId))',
+        replace: 'const mine = eq(likes.postId, input.postId)',
+      },
+    ],
+    tests: server,
+  },
 ]

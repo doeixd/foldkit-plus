@@ -11,6 +11,7 @@ export const TimelinePost = Entity.select(Post, {
   body: true,
   likeCount: true,
   may: true,
+  likedBy: true,
   author: Entity.select(Chirp.User, { name: true, handle: true }),
 })
 
@@ -18,7 +19,7 @@ export type Row = Selected<typeof TimelinePost>
 // #endregion
 
 /** A profile's header: who the person is. */
-export const Person = Entity.select(Chirp.User, { name: true, handle: true })
+export const UserCard = Entity.select(Chirp.User, { name: true, handle: true })
 
 // #region query
 export const Timeline = Query.define('Timeline', {}, () =>
@@ -49,6 +50,16 @@ export const PostChirp = Mutation.write(
 export const EditInput = Schema.Struct({
   ...Entity.fields(PostFields, 'id'),
   body: PostFields.fields.body.schema.annotate({ title: 'Your chirp' }),
+})
+
+/**
+ * Likes a post, or takes the like back. One write the server makes in two
+ * steps, so it is the server's own handler, not a declared write: it answers
+ * with the post as it now reads, its count and who liked it.
+ */
+export const ToggleLike = Mutation.make('ToggleLike', {
+  Input: { postId: Schema.String },
+  Output: { liked: Schema.Boolean },
 })
 
 export const EditPost = Mutation.write(

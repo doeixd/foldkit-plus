@@ -21,13 +21,14 @@ import { Post } from './guard.js'
 import {
   ByAuthor,
   EditPost,
-  Person,
   PostChirp,
   Timeline,
   TimelinePost,
+  ToggleLike,
+  UserCard,
   type NewPost,
 } from './operations.js'
-import { PEOPLE } from './server/seed.js'
+import { PEOPLE, type Person } from './server/seed.js'
 import { AppRoute, ChirpSite, routeOf } from './site.js'
 
 type Return = Update.Return<Model, Message, RemoteClient>
@@ -43,19 +44,18 @@ const steps = {
   CompletedLoad: {},
 }
 
-/** A like pressed again takes it back. */
-const toggled = (ids: ReadonlyArray<string>, id: string) =>
-  ids.includes(id) ? ids.filter(other => other !== id) : [...ids, id]
-
 // #region loop
 export const Model = Schema.Struct({
   ...Composer.fields,
   ...Editing.fields,
   remote: Remote.Model,
   route: AppRoute,
-  liked: Schema.Array(Schema.String),
+  me: Schema.Literals(PEOPLE),
 })
-const own = { Liked: { id: Schema.String }, ...steps }
+const own = {
+  Liked: { id: Schema.String, likeCount: Schema.Number, likedBy: Schema.Array(Schema.String) },
+  ...steps,
+}
 export const Message = defineMessageUnion({
   ...Remote.messages,
   ...Composer.cases,
@@ -65,9 +65,7 @@ export const Message = defineMessageUnion({
 const Own = defineMessageUnion(own)
 const reduce = (model: Model, message: typeof Own.Type): Return =>
   Own.match(message, {
-    Liked: ({ id }) => ({
-      model: modifyFields(model, { liked: ids => toggled(ids, id) }),
-    }),
+    Liked: post => like(model, post),
     // #endregion
     MintedId: ({ id }) => ComposeForm.helpers.fill({ id })(model),
     ClickedEdit: ({ id }) => EditorForm.helpers.open(id)(model),
@@ -102,7 +100,7 @@ export const Data = Remote.make({
   model: App.model.remote,
   entities: [Chirp.User, Post],
   queries: [Timeline, ByAuthor],
-  mutations: [PostChirp, EditPost],
+  mutations: [PostChirp, EditPost, ToggleLike],
 })
 // #endregion
 
@@ -118,7 +116,7 @@ export const Home = App.surface('Home', {
 export const Profile = App.surface('Profile', {
   params: { handle: Schema.String },
   model: ({ params }) => ({
-    person: Data.get(Person, params.handle),
+    person: Data.get(UserCard, params.handle),
     posts: Data.query(ByAuthor, { authorId: params.handle }, { select: TimelinePost, first: 25 }),
   }),
 })
@@ -140,6 +138,32 @@ const post = (model: Model, value: typeof NewPost.Type): Return => {
   }
 }
 // #endregion
+
+/**
+ * A like, shown at once: the count moves and you join or leave the likers,
+ * until the server answers with the post as it now reads.
+ */
+const like = (
+  model: Model,
+  { id, likeCount, likedBy }: { id: string; likeCount: number; likedBy: ReadonlyArray<string> },
+): Return => {
+  const mine = likedBy.includes(model.me)
+  const likers = mine ? likedBy.filter(person => person !== model.me) : [...likedBy, model.me]
+  const sent = Data.mutate(
+    model,
+    ToggleLike,
+    { postId: id },
+    {
+      optimistic: [
+        Remote.patch(Post, id, {
+          likeCount: likeCount + (mine ? -1 : 1),
+          likedBy: likers.map(person => `User:${person}` as const),
+        }),
+      ],
+    },
+  )
+  return { model: sent.model, commands: [sent.command] }
+}
 
 // #region form-place
 const Page = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
@@ -184,12 +208,6 @@ export const actives = {
   editor: PostEditor.active,
 }
 
-const Navigate = Command.define('Navigate', {
-  args: { url: Schema.String },
-  messages: [Message.CompletedNavigation],
-  execute: ({ url }) => pushUrl(url).pipe(Effect.as(Message.CompletedNavigation())),
-})
-
 const Routing = Site.routing<Model, Message, AppRoute>({
   site: ChirpSite,
   route: {
@@ -209,14 +227,15 @@ export const update = PostEditor.after(placements.update(reduce))
 export const initial: Model = placements.initial({
   remote: Remote.initial,
   route: AppRoute.Home(),
-  liked: [],
+  me: 'you',
 }).model
 
-export const init = (url: Url): Return => ({
-  model: modifyFields(initial, { route: () => routeOf(url) }),
-  commands: [MintId()],
-})
+/** The page as `me` opens it at `url`. */
+export const init =
+  (me: Person) =>
+  (url: Url): Return => ({
+    model: modifyFields(initial, { route: () => routeOf(url), me: () => me }),
+    commands: [MintId()],
+  })
 
 export const subscriptions = placements.subscriptions()
-
-export { Navigate }

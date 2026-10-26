@@ -10,7 +10,7 @@ import { init, Message, Model, subscriptions, update } from './app.js'
 import { sandboxRemote } from './server/connection.js'
 import { PEOPLE, type Person } from './server/seed.js'
 import { stylesheet } from './style.js'
-import { viewAs } from './view.js'
+import { view } from './view.js'
 
 Style.install(stylesheet)
 
@@ -35,9 +35,9 @@ if (container === null) throw new Error('#app is missing from index.html')
 Runtime.run(
   Runtime.makeApplication({
     Model,
-    init,
+    init: init(person),
     update,
-    view: viewAs(person),
+    view,
     subscriptions,
     container,
     resources: sandboxRemote(person, startsAfresh()),

@@ -29,7 +29,7 @@ type H = HtmlBuilder<Message>
 type Slots = SlotBuilders<typeof ChirpPage.slots, Message>
 
 // #region card
-export const ChirpCard = (post: Row, liked: boolean, action: Html, h: H): Html =>
+export const ChirpCard = (post: Row, me: Person, action: Html, h: H): Html =>
   Card.view(
     {
       media: Avatar.view({ name: post.author.name, style: AvatarStyle }, h),
@@ -41,8 +41,12 @@ export const ChirpCard = (post: Row, liked: boolean, action: Html, h: H): Html =
       footer: Button.view(
         {
           label: `♥ ${post.likeCount}`,
-          pressed: liked,
-          onClick: Message.Liked({ id: post.id }),
+          pressed: post.likedBy.some(user => user.id === me),
+          onClick: Message.Liked({
+            id: post.id,
+            likeCount: post.likeCount,
+            likedBy: post.likedBy.map(user => user.id),
+          }),
           style: LikeStyle,
         },
         h,
@@ -78,7 +82,7 @@ const post = (row: Row, model: Model, slots: Slots, h: H): Html =>
       : [
           ChirpCard(
             row,
-            model.liked.includes(row.id),
+            model.me,
             May.can(row.may, 'Update')
               ? Button.view(
                   {
@@ -180,13 +184,23 @@ const notFound = (slots: Slots, h: H): ReadonlyArray<Html> => [
   h.p(slots.section.attrs(), [h.a(slots.link.attrs([h.Href('/')]), ['Back to the timeline'])]),
 ]
 
-const nav = (model: Model, person: Person, slots: Slots, h: H): Html => {
+const nav = (model: Model, slots: Slots, h: H): Html => {
+  const person = model.me
   const link = (label: string, href: string, current: boolean) =>
     h.a(slots.navLink.attrs([h.Href(href), ...(current ? [h.AriaCurrent('page')] : [])]), [label])
   return h.nav(slots.nav.attrs([h.AriaLabel('Chirp')]), [
     h.p(slots.brand.attrs(), ['Chirp']),
     link('Home', '/', model.route._tag === 'Home'),
-    link('Profile', profileHref(person), false),
+    link(
+      'Profile',
+      profileHref(person),
+      AppRoute.match(model.route, {
+        Home: () => false,
+        Profile: ({ handle }) => handle === person,
+        Status: () => false,
+        NotFound: () => false,
+      }),
+    ),
     h.p(slots.who.attrs(), [`Signed in as ${NAMES[person]}`]),
     h.div(
       slots.people.attrs([h.AriaLabel('Sign in as')]),
@@ -205,30 +219,26 @@ const nav = (model: Model, person: Person, slots: Slots, h: H): Html => {
 }
 
 const PageView = SlotView.forMessages<Message>()
-  .define(
-    ChirpPage.slots,
-    ({ model, person }: { readonly model: Model; readonly person: Person }, slots, h) =>
-      h.div(slots.page.attrs(), [
-        h.div(slots.frame.attrs(), [
-          nav(model, person, slots, h),
-          h.main(
-            slots.main.attrs(),
-            AppRoute.match(model.route, {
-              Home: () => home(model, slots, h),
-              Profile: ({ handle }) => profile(model, handle, slots, h),
-              Status: ({ id }) => status(model, id, slots, h),
-              NotFound: () => notFound(slots, h),
-            }),
-          ),
-        ]),
+  .define(ChirpPage.slots, (model: Model, slots, h) =>
+    h.div(slots.page.attrs(), [
+      h.div(slots.frame.attrs(), [
+        nav(model, slots, h),
+        h.main(
+          slots.main.attrs(),
+          AppRoute.match(model.route, {
+            Home: () => home(model, slots, h),
+            Profile: ({ handle }) => profile(model, handle, slots, h),
+            Status: ({ id }) => status(model, id, slots, h),
+            NotFound: () => notFound(slots, h),
+          }),
+        ),
       ]),
+    ]),
   )
   .pipe(Style.attach(ChirpPage.style))
 
-/** The page as `person` sees it. */
-export const viewAs =
-  (person: Person) =>
-  (model: Model, h: H): Document => ({
-    title: Site.titleOf(ChirpSite, model.route) ?? 'Chirp',
-    body: PageView({ model, person }, h),
-  })
+/** The page as `model.me` sees it. */
+export const view = (model: Model, h: H): Document => ({
+  title: Site.titleOf(ChirpSite, model.route) ?? 'Chirp',
+  body: PageView(model, h),
+})
