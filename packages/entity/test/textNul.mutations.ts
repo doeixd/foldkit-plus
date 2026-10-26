@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file,
-        find: "if (holdsNul(left) || holdsNul(right)) {\n        throw new QueryEvaluateError(\n          'an equality",
-        replace: "if (false) {\n        throw new QueryEvaluateError(\n          'an equality",
+        find: "refuseGivenNul(nul, [\n        [node.left, left],\n        [node.right, right],\n      ])\n      if (isNull(left) || isNull(right)) return 'unknown'\n      if (holdsNul(left) || holdsNul(right)) throw new QueryEvaluateError(nul)\n      return left === right",
+        replace: "if (isNull(left) || isNull(right)) return 'unknown'\n      return left === right",
       },
     ],
     tests,

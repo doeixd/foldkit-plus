@@ -4,7 +4,7 @@
  */
 import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Entity, Expr, Query, evaluate, truthOver } from '../src/index.js'
+import { Entity, Expr, Order, Query, evaluate, truthOver } from '../src/index.js'
 
 const Article = Entity.define(
   'Article',
@@ -224,7 +224,20 @@ describe('The node budget', () => {
     expect(once.where).toHaveLength(1)
     expect(() =>
       Query.from(Article).pipe(Query.where(wide(fields.title), wide(fields.title))),
-    ).toThrow('the predicates expand to more than 1000 nodes')
+    ).toThrow('the query expands to more than 1000 nodes')
+  })
+
+  it('counts an order term too, each node on every path that reaches it', () => {
+    const plus = Expr.operator('acme.plus', {
+      input: [Schema.Number, Schema.Number],
+      output: Schema.Number,
+    })
+    // Eleven calls written, each sharing the last twice: 4,095 nodes walked.
+    let deep: ReturnType<typeof plus> = plus(1, 1)
+    for (let level = 0; level < 10; level++) deep = plus(deep, deep)
+    expect(() => Query.from(Article).pipe(Query.orderBy(Order.asc(deep)))).toThrow(
+      'Query.orderBy: the query expands to more than 1000 nodes',
+    )
   })
 })
 

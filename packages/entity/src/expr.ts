@@ -14,6 +14,7 @@
 import { Array as Arr, Match, Option, Pipeable, Schema, SchemaAST } from 'effect'
 import { absurd } from 'effect/Function'
 import { Collation } from './collation.js'
+import { SchemaShape } from './shape.js'
 import { Law, type Side } from './law.js'
 import type { AnyEntity, EntityField, EntityIdentity } from './index.js'
 
@@ -416,6 +417,11 @@ export const isPredicate = (value: unknown): value is Predicate =>
  */
 const toOperand = <T>(value: Operand<T> | T): Operandish => {
   const tag = tagOf(value)
+  // An `EntityField` and a `FieldExpr` share the tag. A `FieldExpr` is already
+  // built, its collation with it, which its field's metadata no longer holds.
+  if (tag === 'Field' && !Object.hasOwn(value as object, 'metadata')) {
+    return value as FieldExpr<unknown>
+  }
   if (tag === 'Field') {
     return fieldExpr(value as EntityField<string, string, Schema.Constraint>)
   }
@@ -776,7 +782,8 @@ const givenCollation = (
   if (Option.isSome(descriptor.definedAs) || descriptor.collation === 'none') {
     throw new Error(`[foldkit-entity] ${id}: takes no collation; it compares no text of its own`)
   }
-  if (descriptor.collation === 'required' && collation._tag === 'Locale') {
+  // No call carries a locale: the client could not run it, and SQL compiles none.
+  if (collation._tag === 'Locale') {
     throw new Error(
       `[foldkit-entity] ${id}: compares by the backend's "${collation.locale}" collation, which only that backend has`,
     )
@@ -850,6 +857,28 @@ const lawProblem = (
 const storedAsBoolean = (schema: Schema.Top): boolean =>
   SchemaAST.isBoolean(Schema.toEncoded(schema).ast)
 
+/** What a schema stores, null aside: one kind an argument is checked by, or `other`. */
+const storedKindOf = (schema: Schema.Top): 'number' | 'text' | 'boolean' | 'other' => {
+  const present = SchemaShape.present(Schema.toEncoded(schema).ast)
+  if (present.length === 0) return 'other'
+  if (present.every(SchemaAST.isNumber)) return 'number'
+  if (present.every(SchemaShape.isText)) return 'text'
+  if (present.every(SchemaAST.isBoolean)) return 'boolean'
+  return 'other'
+}
+
+/** The schema a scalar's values are stored by. */
+const scalarSchema = (scalar: AnyExpr): Schema.Top =>
+  Match.value(scalar).pipe(
+    Match.tagsExhaustive({
+      Field: field => field.schema,
+      Next: ({ field }) => field.schema,
+      Input: input => input.schema,
+      Literal: () => Schema.Unknown,
+      Call: ({ operator }) => operator.output,
+    }),
+  )
+
 /** Every field, field after a write, and input an expression reads, as keys to compare. */
 const readKeys = (...nodes: ReadonlyArray<Operandish>): ReadonlySet<string> => {
   const read = dependenciesOf(...nodes)
@@ -883,9 +912,9 @@ const argumentFor = (
     }
     return arg
   }
-  const wanted = orderKindOf(Schema.toEncoded(schema).ast)
-  const given = sideKind(arg)
-  if (wanted !== 'none' && (given === 'number' || given === 'text') && given !== wanted) {
+  const wanted = storedKindOf(schema)
+  const given = storedKindOf(scalarSchema(arg))
+  if (wanted !== 'other' && given !== 'other' && given !== wanted) {
     fail(`is stored as ${given}, but the operator takes ${wanted}`)
   }
   return arg
@@ -917,18 +946,20 @@ const callCollation = (
   const fail = (what: string): never => {
     throw new Error(`[foldkit-entity] ${id}: ${what}`)
   }
+  // Named only in a refusal: rendering each voter on every call is exponential in a
+  // nesting of calls that share their arguments.
   const voters = args.flatMap(arg =>
     isPredicate(arg) || arg._tag === 'Literal' || arg._tag === 'Input' || sideKind(arg) !== 'text'
       ? []
-      : [{ name: showExpr(arg), collation: collationOf(arg) }],
+      : [{ arg, collation: collationOf(arg) }],
   )
-  const collations = voters.flatMap(({ name, collation }) =>
+  const collations = voters.flatMap(({ arg, collation }) =>
     Option.match(collation, {
       onSome: each => [each],
       onNone: (): ReadonlyArray<Collation> =>
         rule === 'required'
           ? fail(
-              `${name} is text with no declared collation, so backends would compare it differently; declare Collation.binary or Collation.asciiFold on it`,
+              `${showExpr(arg)} is text with no declared collation, so backends would compare it differently; declare Collation.binary or Collation.asciiFold on it`,
             )
           : [],
     }),
@@ -940,10 +971,10 @@ const callCollation = (
       : Option.none()
   }
   if (collations.some(each => each._tag !== shared._tag)) {
-    fail(`${voters.map(voter => voter.name).join(' and ')} declare different collations`)
+    fail(`${voters.map(voter => showExpr(voter.arg)).join(' and ')} declare different collations`)
   }
-  if (rule === 'required' && shared._tag === 'Locale') {
-    fail(`compares by the backend's "${shared.locale}" collation, which only that backend has`)
+  if (shared._tag === 'Locale') {
+    fail(`compares by the backend's "${shared.locale}" collation, which a call cannot carry`)
   }
   return Option.some(shared)
 }
@@ -1214,6 +1245,26 @@ export const Expr = {
    * out. A call with no definition stays, for the interpreter to run or refuse
    * by name.
    */
+  /**
+   * Whether a constant written in these expressions is text holding a NUL, or
+   * a list holding one: SQL refuses such a parameter wherever it compiles, so
+   * an interpreter refuses the run, not one row.
+   */
+  givesNul: (...nodes: ReadonlyArray<AnyExpr | Predicate>): boolean => {
+    const seen = new Set<object>()
+    const nul = (value: unknown) =>
+      typeof value === 'string' && value.includes(String.fromCharCode(0))
+    const walk = (node: AnyExpr | Predicate): boolean => {
+      if (seen.has(node)) return false
+      seen.add(node)
+      if (node._tag === 'Literal') {
+        return Array.isArray(node.value) ? node.value.some(nul) : nul(node.value)
+      }
+      return childrenOf(node).some(walk)
+    }
+    return nodes.some(walk)
+  },
+
   expanded: <N extends Predicate | AnyExpr>(node: N): N extends Predicate ? Predicate : AnyExpr =>
     (isPredicate(node) ? expandedPredicate(node) : expandedScalar(node)) as never,
 
@@ -2065,6 +2116,31 @@ const query = <E extends AnyEntity>(
     }),
   ) as Query<E>
 
+/**
+ * Refuses a query whose predicates and order terms (every chosen alternative
+ * among them) expand past `maxQueryNodes`, counting a shared node on every
+ * path that reaches it: what an interpreter walks, and SQL writes out.
+ */
+const checkSize = (
+  step: 'where' | 'orderBy',
+  where: ReadonlyArray<Predicate>,
+  orderBy: ReadonlyArray<Ordering>,
+): void => {
+  const sizes = new Map<object, number>()
+  const terms = orderBy.flatMap(ordering =>
+    Match.valueTags(ordering, {
+      Term: ({ expr }) => [expr],
+      Chosen: ({ choices }) => Object.values(choices),
+    }),
+  )
+  const size = [...where, ...terms].reduce((sum, each) => sum + expandedSize(each, sizes), 0)
+  if (size > maxQueryNodes) {
+    throw new Error(
+      `[foldkit-entity] Query.${step}: the query expands to more than ${maxQueryNodes} nodes, counting a shared node on every path that reaches it`,
+    )
+  }
+}
+
 export const Query = {
   /** Every row of an Entity: the query each transformation narrows. */
   from: <E extends AnyEntity>(entity: E): Query<E> => query(entity, [], []),
@@ -2087,13 +2163,7 @@ export const Query = {
       if (predicates.length === 0) return self
       checkOwnership('where', 'a predicate', self.entity, predicates)
       const where = [...self.where, ...predicates]
-      const sizes = new Map<object, number>()
-      const size = where.reduce((sum, predicate) => sum + expandedSize(predicate, sizes), 0)
-      if (size > maxQueryNodes) {
-        throw new Error(
-          `[foldkit-entity] Query.where: the predicates expand to more than ${maxQueryNodes} nodes, counting a shared node on every path that reaches it`,
-        )
-      }
+      checkSize('where', where, self.orderBy)
       return query(self.entity, where, self.orderBy)
     },
 
@@ -2109,7 +2179,9 @@ export const Query = {
     ): Query<E> => {
       if (terms.length === 0) return self
       checkOwnership('orderBy', 'a term', self.entity, terms)
-      return query(self.entity, self.where, [...self.orderBy, ...terms])
+      const orderBy = [...self.orderBy, ...terms]
+      checkSize('orderBy', self.where, orderBy)
+      return query(self.entity, self.where, orderBy)
     },
 
   /**

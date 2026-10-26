@@ -75,6 +75,16 @@ version changed; `pnpm` skips versions already in the registry.
 - **`Expr.contains` searches for a value or an input,** in its type and where
   it is written. A field or a call as the search was answered in memory and
   refused by the SQL compiler on every request.
+- **The reference interpreter and the call builder agree with SQL at their
+  edges.** An expression built from a field keeps its declared collation when
+  passed on, so an invariant compares or orders text over `before`. A NUL in a
+  value the query is given is refused before a null beside it answers, as SQL
+  refuses it; a constant holding one refuses `evaluateEach`'s run, not each
+  row. Order terms count toward `maxQueryNodes`. No call carries a backend's
+  locale. A boolean argument is checked by its stored kind. `evaluate` checks
+  an order over one row as over many. An operator that handles null is given
+  null, not `undefined`, for a value never given. Building calls that share
+  their arguments is linear in their depth, where it doubled per level.
 - **A rule whose operator refuses a row's value does not hold,** rather than
   ending the request: text holding a NUL in what a write supplies can deny it,
   never crash it (`Condition.holds` judges each row alone). A computed value a
