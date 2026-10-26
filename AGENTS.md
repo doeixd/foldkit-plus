@@ -1269,7 +1269,7 @@ of its own named a form field "fits the Catalog". Read words with
   record left it.** The Menu's leave test read the panel's attributes in the
   callback, so a batch that added `data-closed` beside `data-leave` and then
   moved on recorded only `leave`, and CI failed it now and then. Observe with
-  `attributeOldValue` and replay the records (`leaving` in `menu.browser.test.ts`).
+  `attributeOldValue` and replay the records (`packages/mixins-ui/test/observe.ts`).
 - **A wait is only tested where something re-evaluates it.** The Agent + Sync
   test asserted "still pending before the exchange" and passed with the
   committed view reading the optimistic value: nothing notified between persist

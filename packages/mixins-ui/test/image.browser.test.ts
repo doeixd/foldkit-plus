@@ -13,6 +13,7 @@ import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { cdp } from 'vitest/browser'
 import { Image, ImageSlots, Recipes } from '../src/index.js'
+import { valueAfter } from './observe.js'
 
 const theme = Theme.standard(Theme.make({}))
 const L = Layers.standard
@@ -161,13 +162,16 @@ test('watchLoad marks an image already complete when it mounts as loaded, never 
   first.dispose()
   document.body.replaceChildren()
   const states: Array<string | null> = []
-  const observer = new MutationObserver(records => {
-    for (const record of records) {
-      if (record.target instanceof HTMLImageElement)
-        states.push(record.target.getAttribute('data-state'))
-    }
+  const observer = new MutationObserver(records =>
+    records.forEach((record, at) => {
+      if (record.target instanceof HTMLImageElement) states.push(valueAfter(records, at))
+    }),
+  )
+  observer.observe(document.body, {
+    subtree: true,
+    attributeFilter: ['data-state'],
+    attributeOldValue: true,
   })
-  observer.observe(document.body, { subtree: true, attributeFilter: ['data-state'] })
   const second = mountWatched('second', [{ label: 'cached', provider: arriving }])
   try {
     await vi.waitFor(() => expect(imageNamed('cached').getAttribute('data-state')).toBe('loaded'))

@@ -10,6 +10,12 @@ import type { RemoteOpening } from '../src/server/opening.js'
 import type { Chair } from '../src/server/transport.js'
 
 /**
+ * The wait for an answer from the host, whose database runs in the page: a
+ * loaded runner can take seconds over what a test waits on.
+ */
+export const answered = { timeout: 10_000 }
+
+/**
  * Remote's client as `chair` over `host`, each conversation handed to it once
  * `until` resolves, so a test can hold the first answers back.
  */

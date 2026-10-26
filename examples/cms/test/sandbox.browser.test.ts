@@ -9,7 +9,7 @@ import { RemoteClient } from 'foldkit-remote'
 import { afterEach, expect, it } from 'vitest'
 import { openHost } from '../src/server/host.js'
 import { edited, read, write } from '../src/server/store.js'
-import { hostedRemote } from './hosted.js'
+import { answered, hostedRemote } from './hosted.js'
 
 /** The bytes kept now, or none. */
 const keptBytes = async () => Option.map(await read(), ({ bytes }) => bytes)
@@ -41,7 +41,7 @@ const firstCall = (remote: ReturnType<typeof hostedRemote>) =>
 
 /** Waits until what is kept is no longer `before`. */
 const keptAfter = async (before: Option.Option<Uint8Array>) => {
-  await expect.poll(async () => String(await keptBytes()) !== String(before)).toBe(true)
+  await expect.poll(async () => String(await keptBytes()) !== String(before), answered).toBe(true)
   return keptBytes()
 }
 
@@ -72,7 +72,7 @@ it('keeps its database, opens it again, and starts afresh when a page asks', asy
 it('starts from the seed over something kept that is no sandbox', async () => {
   await write({ bytes: new TextEncoder().encode('no SQLite database at all'), edited: true })
   await openHost()
-  await expect.poll(() => edited()).toBe(false)
+  await expect.poll(() => edited(), answered).toBe(false)
 })
 
 it('lets go of a sandbox kept from an older edition', async () => {
@@ -114,10 +114,10 @@ it('answers every tab from one database, the one a reset left', async () => {
       }),
     )
   await archive('r2')
-  await expect.poll(() => edited()).toBe(true)
+  await expect.poll(() => edited(), answered).toBe(true)
   // Tab B asks afresh while A's conversation is open.
   await firstCall(hostedRemote(host, 'wren', { fresh: true }))
-  await expect.poll(() => edited()).toBe(false)
+  await expect.poll(() => edited(), answered).toBe(false)
   const reset = await keptBytes()
   // A's next change lands in the database the reset made, so it is what is kept.
   await archive('r3')

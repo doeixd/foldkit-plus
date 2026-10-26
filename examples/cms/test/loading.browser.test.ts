@@ -12,7 +12,7 @@ import * as Posts from '../src/apps/app.js'
 import { openHost } from '../src/server/host.js'
 import * as Pages from '../src/apps/pageApp.js'
 import { view as pagesView } from '../src/views/pagesView.js'
-import { hostedRemote } from './hosted.js'
+import { answered, hostedRemote } from './hosted.js'
 import { view as postsView } from '../src/views/view.js'
 
 const urlOf = (search: string): Url => ({
@@ -33,9 +33,6 @@ const held = async () => {
   })
   return { remote: hostedRemote(host, 'edda', { fresh: true, until: released }), release }
 }
-
-/** The sandbox answers through a database in the page, which a loaded runner can take seconds over. */
-const answered = { timeout: 10_000 }
 
 let dispose = () => {}
 afterEach(() => {

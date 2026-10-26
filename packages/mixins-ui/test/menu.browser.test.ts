@@ -19,6 +19,7 @@ import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { Menu, MenuSlots, MenuView, Recipes } from '../src/index.js'
+import { marksThrough } from './observe.js'
 
 const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const style = Style.forSlots(MenuSlots)(Recipes.Menu({}))
@@ -340,39 +341,10 @@ test('an open panel escapes an overflow box: the top layer, not the page flow', 
  * The transition marks the panel `id` passes through until `close` has it
  * gone: they come and go within frames, so each change is recorded.
  */
-const leaving = async (id: string, close: () => Promise<void>) => {
-  const panel = byId(id)!
-  const marks = ['closed', 'enter', 'leave'].map(mark => `data-${mark}`)
-  const held = new Set(marks.filter(mark => panel.hasAttribute(mark)))
-  const states: Array<string> = []
-  // A batch of records can hold a state already gone when the callback runs, so each
-  // record's own result is replayed: an attribute's value after one record is the old
-  // value the next record of it saw, or, for the last, what the panel holds now.
-  const observer = new MutationObserver(records =>
-    records.forEach((record, at) => {
-      const name = record.attributeName ?? ''
-      if (!marks.includes(name)) return
-      const next = records.slice(at + 1).find(later => later.attributeName === name)
-      const present = next === undefined ? panel.hasAttribute(name) : next.oldValue !== null
-      if (present) held.add(name)
-      else held.delete(name)
-      states.push(
-        marks
-          .filter(mark => held.has(mark))
-          .map(mark => mark.slice('data-'.length))
-          .join(' '),
-      )
-    }),
+const leaving = (id: string, close: () => Promise<void>) =>
+  marksThrough(byId(id)!, ['closed', 'enter', 'leave'], close, () =>
+    vi.waitFor(() => expect(byId(id)).toBeNull()),
   )
-  observer.observe(panel, { attributes: true, attributeOldValue: true })
-  try {
-    await close()
-    await vi.waitFor(() => expect(byId(id)).toBeNull())
-  } finally {
-    observer.disconnect()
-  }
-  return states
-}
 
 test('an animated menu stays drawn while it leaves, marked for its fade', async () => {
   const handle = underButton('ltr', true)

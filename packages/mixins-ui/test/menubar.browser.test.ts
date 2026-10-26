@@ -14,6 +14,7 @@ import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { Menubar, MenubarSlots, MenuSlots, Recipes } from '../src/index.js'
+import { marksThrough } from './observe.js'
 
 const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const barStyle = Style.forSlots(MenubarSlots)(Recipes.Menubar({}))
@@ -121,14 +122,12 @@ test("an animated bar's menu stays drawn while it leaves, marked for its fade", 
       expect(document.activeElement).toBe(found)
       return found!
     })
-    const states: Array<string> = []
-    const observer = new MutationObserver(() =>
-      states.push(['closed', 'leave'].filter(mark => panel.hasAttribute(`data-${mark}`)).join(' ')),
+    const states = await marksThrough(
+      panel,
+      ['closed', 'leave'],
+      () => userEvent.keyboard('{Escape}'),
+      () => vi.waitFor(() => expect(document.getElementById('file-items')).toBeNull()),
     )
-    observer.observe(panel, { attributes: true })
-    await userEvent.keyboard('{Escape}')
-    await vi.waitFor(() => expect(document.getElementById('file-items')).toBeNull())
-    observer.disconnect()
     expect(states).toContain('closed leave')
   } finally {
     handle.dispose()
