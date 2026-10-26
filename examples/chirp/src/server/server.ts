@@ -133,6 +133,8 @@ const toggleLike = RemoteServer.mutation(
     }),
 )
 
+// Annotated: the like handler above reads through this server, so its type cannot be
+// inferred from an initializer that contains that handler.
 export const server: ReturnType<typeof RemoteServer.make<Option.Option<User>, DrizzleDatabase>> =
   RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
     entities: [source(Db.User), source(Db.Post, { filter: GuardServer.filter(Post, Policy) })],
