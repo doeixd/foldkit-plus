@@ -1110,8 +1110,9 @@ spot, inspecting only literal operands because its nodes carry no type.
     **Closed** 2026-10-26: it is (§17). The run is kept: `conformance.test.ts`
     and `orderCall.test.ts` in `foldkit-remote-drizzle` run on such a database
     when `FOLDKIT_LOCALE_PG` names one, and `localeCollation.mutations.ts`
-    drops each collation the compiler writes. CI runs neither (it has no
-    Postgres), so a change to how Postgres collates is checked by hand.
+    drops each collation the compiler writes. CI's `postgres-locale` job runs
+    the two test files on such a database on every push; the mutations are run
+    by hand, as every spec is.
 
 ## 16. Risks
 

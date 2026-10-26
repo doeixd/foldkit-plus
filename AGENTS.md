@@ -1188,9 +1188,10 @@ of its own named a form field "fits the Catalog". Read words with
   Three of the four `collate "C"`s the Drizzle compiler writes for Postgres
   could be deleted with every PGlite test green; on a Postgres created with
   `--locale=en_US.UTF-8` all four failed, and one needed rows the two orders
-  disagree on (`a-c`/`ab`, `é`/`f`) before it did. After touching how
-  Postgres collates, run with `FOLDKIT_LOCALE_PG` (`conformance.test.ts` says
-  how) and `localeCollation.mutations.ts`.
+  disagree on (`a-c`/`ab`, `é`/`f`) before it did. CI's `postgres-locale`
+  job runs those tests on such a database; after touching how Postgres
+  collates, run `localeCollation.mutations.ts` with `FOLDKIT_LOCALE_PG` set
+  (`conformance.test.ts` says how).
 - **Do not assert that a pure function left its input alone.** `filtered`
   returns a value and takes the Model by value, so "no connection was created"
   was structurally guaranteed and could not go red. I noticed the test was weak,
