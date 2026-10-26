@@ -11,6 +11,10 @@
     "./guide": {
       "foldkit-plus:source": "./src/guide.ts",
       "default": "./src/guide.ts"
+    },
+    "./demo-style": {
+      "foldkit-plus:source": "./src/demoStyle.ts",
+      "default": "./src/demoStyle.ts"
     }
   },
   "scripts": {
