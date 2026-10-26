@@ -83,6 +83,21 @@ version changed; `pnpm` skips versions already in the registry.
   `Remote.make`'s table, a list it cannot place being fetched instead.
   `Expr.expanded` takes a scalar too, and expands a defined operator among a
   primitive call's arguments.
+- **Laws, evidence and the conformance helper** (Phase 5 of
+  `expr-operations-DESIGN.md`). `Expr.operator(id, { laws })` declares `Law`s
+  (`associative`, `commutative`, `idempotent`, `identity`, `absorbing`,
+  `inverse`, `distributes`, `monotonic`, `preservesCollation`, narrowed with
+  `Law.within`), each checked where declared: a law of two arguments on a unary
+  operator, or a witness its schema does not store, is refused.
+  `Conformance.laws(op, table)` tests them over seeded samples and answers
+  `Holds` with `Tested` evidence or a `Counterexample`; `Operators.withEvidence`
+  records evidence (and `Evidence.Proven`), `Operators.describeTable` lists it
+  as JSON. `Conformance.operator(op, { implementations })` runs generated calls
+  (null, NUL, mixed case under each collation, astral text) through several
+  runners and reports disagreements; `foldkit-remote-drizzle`'s `compileCall`
+  compiles one call for an SQL runner, and `valueOfOperand` runs one in memory.
+  A primitive call refuses text holding NUL before a null argument answers, as
+  SQL does where it compiles.
 - **`Cms.published(entity)`**: whether a row is published, as `cms.published` over
   the Entity's `published` role. The CMS example's two public queries and three
   visitor Read rules use it in place of five hand-written `isNotNull`s.

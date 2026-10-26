@@ -1041,6 +1041,7 @@ export const Derived = {
 export * from './expr.js'
 export * from './collation.js'
 export * from './operators.js'
+export * from './law.js'
 export * from './text.js'
 export * from './readFilter.js'
 export * from './words.js'

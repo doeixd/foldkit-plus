@@ -355,6 +355,18 @@ operator a table lacks is refused by name (`Query.unsupported(body, supported,
 operators)`, `Expr.unsupported(nodes, { operations, operators })`); an invariant is
 then `Undecided` with `operators`, which a form passes.
 
+**Laws.** `Expr.operator(id, { …, laws: [Law.associative, Law.identity('')] })`
+declares equations every implementation keeps (`commutative`, `idempotent`,
+`absorbing`, `inverse`, `distributes`, `monotonic`, `preservesCollation`;
+`Law.within(law, schema)` narrows one), checked where declared; they rewrite
+nothing. `Conformance.laws(op, table)` (`foldkit-entity/conformance`) samples
+each, seeded, and answers `Holds` with `Tested` evidence or a `Counterexample`;
+`Operators.withEvidence(table, evidence)` records it and `describeTable(table)`
+lists each operator's laws and evidence as JSON. `Conformance.operator(op, {
+implementations })` runs generated calls through several runners
+(`Conformance.memory(table)`, an SQL one over `compileCall`) and reports where they
+disagree.
+
 **Asking about an input without branching on it.** An input is a placeholder, so
 a query cannot pick a shape from a value. It does not need to:
 

@@ -14,6 +14,7 @@
 import { Array as Arr, Match, Option, Pipeable, Schema, SchemaAST } from 'effect'
 import { absurd } from 'effect/Function'
 import { Collation } from './collation.js'
+import { Law, type Side } from './law.js'
 import type { AnyEntity, EntityField, EntityIdentity } from './index.js'
 
 /** A constant the query was written with. */
@@ -94,6 +95,8 @@ export interface OperatorDescriptor {
    * `Text.startsWith` does). `none`: it carries none.
    */
   readonly collation: 'none' | 'operands' | 'required'
+  /** The equations every implementation keeps (`Law`), checked where declared, tested by `Conformance.laws`. */
+  readonly laws: ReadonlyArray<Law>
 }
 
 /** What an interpreter runs, as far as a check of a body needs to know. */
@@ -760,6 +763,65 @@ const givenCollation = (
 /** Namespaced, lower camel case: `cms.published`, `text.startsWith`. */
 const operatorId = /^[a-z][A-Za-z0-9]*(\.[a-z][A-Za-z0-9]*)+$/
 
+/**
+ * Why `law` cannot be declared of an operator of this shape, if it cannot: an
+ * equation over two arguments of a unary operator, a witness that does not
+ * decode as the argument it stands in, or a collation law of an operator
+ * whose text keeps none.
+ */
+const lawProblem = (
+  law: Law,
+  input: ReadonlyArray<Schema.Top>,
+  output: Schema.Top,
+  collation: OperatorDescriptor['collation'],
+): Option.Option<string> => {
+  const name = Law.describe(law).kind
+  const binary = (): Option.Option<string> =>
+    input.length === 2
+      ? Option.none()
+      : Option.some(
+          `${name} is a law of an operator of two arguments, and this one takes ${input.length}`,
+        )
+  const decodes = (value: unknown, schema: Schema.Top, what: string): Option.Option<string> =>
+    Schema.is(Schema.toEncoded(schema))(value)
+      ? Option.none()
+      : Option.some(`${name}'s ${what} ${JSON.stringify(value)} does not decode as its schema`)
+  const sides = (value: unknown, side: Side): Option.Option<string> =>
+    Option.orElse(binary(), () =>
+      Option.orElse(
+        side === 'right' ? Option.none() : decodes(value, input[0]!, 'left witness'),
+        () => (side === 'left' ? Option.none() : decodes(value, input[1]!, 'right witness')),
+      ),
+    )
+  return Law.$match(law, {
+    Associative: binary,
+    Commutative: binary,
+    Idempotent: binary,
+    Identity: ({ value, side }) => sides(value, side),
+    Absorbing: ({ value, side }) => sides(value, side),
+    Inverse: ({ other, identity }) =>
+      Option.orElse(binary(), () =>
+        other.descriptor.input.length === 1
+          ? decodes(identity, output, 'identity')
+          : Option.some(`${name}'s other operator takes one argument`),
+      ),
+    Distributes: ({ over }) =>
+      Option.orElse(binary(), () =>
+        over.descriptor.input.length === 2
+          ? Option.none()
+          : Option.some(`${name} is over an operator of two arguments`),
+      ),
+    Monotonic: ({ position }) =>
+      Number.isSafeInteger(position) && position >= 0 && position < input.length
+        ? Option.none()
+        : Option.some(`${name}'s position ${position} is not an argument's`),
+    PreservesCollation: () =>
+      collation === 'operands'
+        ? Option.none()
+        : Option.some(`${name} is a law of an operator declared \`collation: 'operands'\``),
+  })
+}
+
 /** Whether a schema's stored form is a boolean, which makes its operator a predicate. */
 const storedAsBoolean = (schema: Schema.Top): boolean =>
   SchemaAST.isBoolean(Schema.toEncoded(schema).ast)
@@ -873,6 +935,7 @@ const makeOperator = (
     readonly definedAs?: ((...args: ReadonlyArray<Operandish>) => unknown) | undefined
     readonly nulls?: OperatorDescriptor['nulls'] | undefined
     readonly collation?: OperatorDescriptor['collation'] | undefined
+    readonly laws?: ReadonlyArray<Law> | undefined
   },
 ): Operator<ReadonlyArray<Schema.Top>, Schema.Top> => {
   const fail = (what: string): never => {
@@ -910,6 +973,13 @@ const makeOperator = (
   if (collation === 'operands' && orderKindOf(Schema.toEncoded(options.output).ast) !== 'text') {
     fail("`collation: 'operands'` describes a text result, and this one is not text")
   }
+  const laws = Object.freeze([...(options.laws ?? [])])
+  for (const law of laws) {
+    Option.match(lawProblem(law, input, options.output, collation), {
+      onNone: () => undefined,
+      onSome: fail,
+    })
+  }
   const descriptor: OperatorDescriptor = Object.freeze({
     _tag: 'Operator',
     id,
@@ -920,6 +990,7 @@ const makeOperator = (
     definedAs: definedAs as OperatorDescriptor['definedAs'],
     nulls,
     collation,
+    laws,
   })
   /** A defined call's expansion, checked: of its output's kind, reading only its arguments. */
   const expand = (
@@ -1093,6 +1164,8 @@ export const Expr = {
       readonly output: Out
       readonly version?: number | undefined
       readonly description?: string | undefined
+      /** Equations every implementation keeps (`Law.commutative`, `Law.identity('')`, …). */
+      readonly laws?: ReadonlyArray<Law> | undefined
     } & (
       | {
           readonly definedAs: (

@@ -829,6 +829,14 @@ index on the expression. An order term is `{ key, direction, nulls?, collation? 
 where `key` is a column or a Drizzle `SQL` expression; an expression says its
 collation in its own SQL, and one given beside it is refused.
 
+The two implementations must agree, and the conformance helper is how to show
+it: `compileCall(call, binding, name)` compiles one call of literals as it
+would in a body, which a runner selects (`select <call> as value`) and hands
+to `Conformance.operator` from `foldkit-entity/conformance` beside the memory
+table's, over generated calls with null, NUL, mixed case under each collation
+and astral text. `test/operatorConformance.test.ts` runs `Text.startsWith`
+and an application's `concat` that way on SQLite and Postgres.
+
 ## Computed fields
 
 The built-in computed field is a count over a collection relation:
