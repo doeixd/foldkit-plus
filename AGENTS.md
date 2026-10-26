@@ -1259,6 +1259,12 @@ of its own named a form field "fits the Catalog". Read words with
   I/O a Command started, wait for evidence it finished (a read counter),
   then settle. A runtime still starting has asked for no frame: wait for its
   first drawing before the first settle.
+- **A settle on animations passes before the animation starts.** The Sheet's
+  touch test swiped its handle, awaited `settled(panel)` (no running
+  animation), and read `releases()`: when the `Released` Message had not
+  landed yet, nothing was animating, the settle resolved at once, and CI read
+  0 about one full run in two. Wait for evidence of the step first (the count
+  above zero), then settle, then assert the exact value.
 - **A wait is only tested where something re-evaluates it.** The Agent + Sync
   test asserted "still pending before the exchange" and passed with the
   committed view reading the optimistic value: nothing notified between persist
