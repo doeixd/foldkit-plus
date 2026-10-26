@@ -110,8 +110,10 @@ breaks one is wrong even when every test passes.
    Composition already holds.
 5. **One capability, one dispatch path.** Every surface (in-app agent, MCP,
    WebMCP, A2A, HTTP, CLI) runs the same pipeline: resolve, check
-   availability, decode, authorize, dispatch, await completion, against one
-   Model snapshot per call. Adapters translate and add no authority.
+   availability, decode, authorize, wait for a person's approval when the
+   capability requires one, dispatch, await completion, against one Model
+   snapshot per call. Adapters translate and add no authority, and none may
+   skip the approval step.
 6. **Intent from outside a runtime carries domain keys, never occurrence
    identity.** A Message that is stored, replayed, sent between tabs or
    devices, or produced by an agent names its target by placement and domain
@@ -218,7 +220,7 @@ Gate: none. Starts now.
 4. Route Bundle `helpers` through the child's update (invariant 2). Each
    helper becomes a Message handled by the child; `placed.helpers.x()` returns
    the Step that dispatches it.
-5. Typed rejections in Sync (§6.5 item 4), since the replica's rejection is a
+5. Typed rejections in Sync (§6.5 item 5), since the replica's rejection is a
    `reason: string` today (`packages/sync/src/sync.ts`). This builds the
    decision already taken in
    [remote-improvement-plan.md](./remote-improvement-plan.md) (§15 decision
@@ -304,12 +306,21 @@ Gate: Phase 3.
    with OpenAPI (opt-in per entry, off by default), `effect/cli`.
 3. Per-caller visibility from principal guards alone, so a tool list needs no
    call.
-4. A conformance test that runs one scenario through every surface and fails
+4. **Approval for dangerous writes.** A catalog entry may declare
+   `needsApproval` (Domain's name for it, alchemy-run/alchemy#2585). The
+   pipeline then stops after `authorize` and before dispatch until a person
+   approves (invariant 5). In an in-app agent the pending request is Model
+   state the view draws, and approving or declining is a Message; over MCP or
+   HTTP the call answers "pending approval" with an id to poll or resume. A
+   Domain command's `needsApproval` carries over through the adapter (§6.6).
+   How each surface asks is §7 Q11.
+5. A conformance test that runs one scenario through every surface and fails
    when one answers differently (alchemy-run/alchemy#2593 does this for
    Domain).
 
 Done when: one example serves the same capability through the in-app agent,
-MCP and HTTP from one declaration, and the conformance test can fail.
+MCP and HTTP from one declaration, a capability marked `needsApproval` waits
+for a person on every surface, and the conformance test can fail.
 
 ### 6.5 Phase 5: the server side of Sync (L)
 
@@ -325,20 +336,40 @@ Gate: Phase 0 item 5. Independent of Phases 1 to 4.
 3. **Server-only state.** A part of the snapshot the journal keeps and never
    sends. Only server-only Messages may change it, so the client's `update`
    never needs it.
-4. **Typed rejections.** A durable Message declares its `Refusal` union, as a
+4. **What each reader may see.** Today a replica holds the whole shared
+   snapshot. Readers of one document may need different slices: an owner sees
+   the budget, a guest does not. The journal filters what it sends each
+   replica with Guard's row guards over that replica's principal, as
+   `foldkit-remote-server` already filters reads, and refuses an operation
+   that touches a part its sender cannot read. The hard part is replay: a
+   replica runs `update` over a partial snapshot, so an `update` must not
+   depend on a part the reader lacks. §7 Q13 asks whether that can be checked
+   or only documented.
+5. **Typed rejections.** A durable Message declares its `Refusal` union, as a
    Remote `Mutation` does; `validate` returns one; the replica's rejected
    operation carries it decoded, so a cell shows the reason the same way
    whether Remote or Sync refused the change.
-5. **Upcasters.** `Sync.migrations([...])` from Phase 0 item 6, applied
+6. **Upcasters.** `Sync.migrations([...])` from Phase 0 item 6, applied
    wherever an operation is decoded (journal load, replica outbox, exchange).
-6. **Journal Stories.** Given committed operations, when a principal submits
+7. **Deadlines and processes.** Domain runs long processes as Sagas: steps,
+   waits, undo on failure, deadlines. We do not need a Saga engine, but
+   reactions alone cannot express "if nobody accepts the invite within seven
+   days, expire it", or Phase 0 item 7's reserve-then-confirm flow with a
+   timeout. Add durable timers: `journal.schedule(key, at, message)`
+   (*Sketch*) stores a server-only Message to append at a time, fires at
+   least once (invariant 9), and is cancelled by id. A process is then
+   reactions, server-only state for its step, and timers; undo is a
+   server-only Message that `update` applies. Where the timer runs (an
+   in-process scheduler, a Durable Object alarm) is §7 Q12.
+8. **Journal Stories.** Given committed operations, when a principal submits
    one, then it commits or is rejected with this rejection. Runs without a
-   server.
+   server. Timers fire in a Story by moving its clock.
 
 Done when: an example records a payment confirmation from a webhook as a
 server-only Message, a reaction sends a notice once per commit across a
-restart, a rejection reaches the UI typed, and a renamed durable Message
-replays from an old journal.
+restart, an invite expires by a timer that survives a restart, a guest replica
+never receives the owner-only part of a document, a rejection reaches the UI
+typed, and a renamed durable Message replays from an old journal.
 
 ### 6.6 Phase 6: authorities we do not own (M)
 
@@ -348,14 +379,36 @@ Gate: Phase 3 for the graph part; the Remote part can start after Phase 1.
    guards, feeding the catalog.
 2. **A Domain adapter** (`foldkit-remote-domain`, *name to decide*): a Domain
    View is a Remote source (live, resumes from its cursor); a Domain command is
-   a mutation with typed rejections; Domain metadata (`description`, `access`,
-   `expose`) feeds the catalog.
-3. Decide what happens when an app has both Domain's `Aggregate.predict` and a
+   a mutation; Domain metadata (`description`, `access`, `expose`,
+   `needsApproval`) feeds the catalog.
+3. **Domain Rejections are Remote `Refusal`s.** Each command's `rejects` list
+   maps to the mutation's declared `Refusal` union, decoded on the client. A
+   field then shows a refusal the same way whether Remote, Sync (Phase 5
+   item 5) or Domain refused the change, and `Crud.editor` routes a field
+   refusal to its form field with no app code.
+4. **First paint without a spinner.** A Domain View read answers `{ state,
+   cursor }` (alchemy-run/alchemy#2567). On a server-rendered page, the
+   adapter puts both in `foldkit-ssr`'s resume plan, so the browser starts
+   from the rendered state and its live read resumes from the cursor instead
+   of loading again.
+5. **Domain Stories as client fixtures.** A Domain Story fixes the events and
+   replies the server gives. The adapter offers it as a fake Remote source,
+   so a Foldkit Story or Scene test drives the client against the server's
+   own scenario without a server (alchemy-run/alchemy#2570 proposes recording
+   them from traces).
+6. **One trace from browser to server.** Domain's Api calls carry the
+   browser's trace to the server. Check whether Remote's calls do the same
+   (`foldkit-remote-server` uses `effect/rpc`), and make the adapter keep
+   Domain's propagation either way.
+7. Decide what happens when an app has both Domain's `Aggregate.predict` and a
    Sync document for one fact: they are two optimistic mechanisms, and only one
    may own the pending state (§7 Q6).
 
 Done when: an example reads and writes a Domain model through Remote with no
-hand-written bridge, and its commands appear in the capability catalog.
+hand-written bridge; its commands appear in the capability catalog; a Domain
+Rejection reaches a form field typed; a server-rendered page resumes its live
+read without loading again; one client test runs against a Domain Story; and
+one trace spans browser and server.
 
 ### 6.7 Phase 7: shrink (ongoing)
 
@@ -378,6 +431,9 @@ hand-written bridge, and its commands appear in the capability catalog.
 | Q8 | What is the type budget, in seconds and in editor latency? | Phase 0 measurement |
 | Q9 | Does the Guard-filtered tool list need Effect's `McpServer.visibility` (Effect-TS/effect#9661), as Domain's does? | Phase 4 |
 | Q10 | Should `foldkit-composition` rename, or should we ask upstream to? | Ours to rename; decide the names in Phase 1 |
+| Q11 | How does each surface ask a person to approve? In-app it is Model state and a Message; MCP may offer elicitation; HTTP and CLI need a pending id. Who may approve: the caller, or a named role? | Phase 4, starting from Domain's `needsApproval` (alchemy-run/alchemy#2585) |
+| Q12 | Where do durable timers run: an in-process scheduler beside `foldkit-durable`, a Durable Object alarm on Cloudflare, or an Effect scheduling module if one fits? Each needs a fire-at-least-once guarantee across restarts | Phase 5, with a probe per host |
+| Q13 | Can we check that `update` reads nothing a reader's slice lacks, or only document it? A replay over a partial snapshot that reads a missing part diverges silently | Phase 5; try deriving each durable Message's reads from its Projection first |
 
 ## 8. Phase 0 findings
 
@@ -460,7 +516,9 @@ On 2026-10-26:
   guide's `agentContextDefine.ts`.
 - alchemy-run/alchemy `main`: `packages/domain` README, `skills/alchemy-domain`
   (SKILL.md, frontend.md), the exports of `Api.ts`, `View.ts`, `Policy.ts`,
-  `Kernel.ts`; issues #2589 and #2590.
+  `Kernel.ts`; issues #2589 and #2590. The alchemy PRs cited by number in
+  §6.4 and §6.6 (#2567, #2570, #2585, #2593) are described from those issues'
+  tables; the PRs themselves were not read.
 - This repository: `packages/bundle/src/lazy.ts`; `packages/durable/src/journal.ts`
   (`reduce`, `validate`, `authorize`, `stamp` run inside the append
   transaction); `packages/sync/src/sync.ts` (a rejection's reason is a string of
