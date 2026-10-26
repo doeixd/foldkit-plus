@@ -5,6 +5,20 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
+## Unreleased
+
+### Fixed
+
+- **An integer field is no longer incremented by an amount that may be a
+  fraction.** `Write.update` accepted `increment: { count: 'by' }` for a
+  `count` declared `Schema.Int` (or any check holding `Schema.isInt`, such as
+  `isInt32`) and a `by` declared `Schema.Number`. A fractional amount then split
+  the databases: Postgres refused the statement, and SQLite stored `2.5` in the
+  integer column, a value the field's schema does not admit. Such a write is now
+  refused where it is declared, naming both keys; declare the amount
+  `Schema.Int`. A write whose field is a plain `Schema.Number` is unchanged,
+  even over an `integer` column, since the Entity does not know the column.
+
 ## 0.33.0
 
 Declared writes that hold where they commit. A `Write` says what it sets, when it

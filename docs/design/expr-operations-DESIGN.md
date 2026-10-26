@@ -662,7 +662,7 @@ reals: `(x + a) + b` and `(x + b) + a` can differ by rounding.
   (`incrementOf` checks only that both are stored as numbers, `write.ts:274-306`),
   and the two dialects split on it: Postgres refuses `2 + 0.5` into an `integer`
   column, SQLite stores `2.5` in it, a value the field's `Int` schema does not
-  admit (§17). It is a fix of its own, ahead of this plan (§17).
+  admit (§17). Fixed on its own, ahead of this plan (§17).
 - **Under `GuardServer.writer` nothing changes**: it pins whenever there is a
   revision and refuses an unpinned increment without `expect`
   (`guard/src/server.ts:546-558`), because its rules judge a sum over the row it
@@ -963,6 +963,8 @@ conformance case in the phase named.
 (`packages/entity/src/write.ts:274-306`) accepts an integer field incremented
 by an amount whose schema is any number. A fractional amount then fails the
 statement on Postgres and, on SQLite, writes a fraction into an integer column
-that the field's `Int` schema does not admit. The fix needs none of this
-plan: refuse, where the write is declared, an amount whose encoded schema does
-not carry the integer check of the field it increments. §9.3 builds on it.
+that the field's `Int` schema does not admit. Fixed 2026-10-26, with none of this
+plan: `incrementOf` refuses, where the write is declared, an amount whose encoded
+schema does not carry the integer check of the field it increments
+(write-increment §5). §9.3 builds on it. Still open: a field declared
+`Schema.Number` over an `integer` column, which only the Drizzle binding can see.

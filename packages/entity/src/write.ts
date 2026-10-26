@@ -13,7 +13,7 @@
  * It is authority someone declared, never something derived from an Entity: an
  * Entity having a field does not mean anyone may set it.
  */
-import { Option, Schema, SchemaAST } from 'effect'
+import { Match, Option, Schema, SchemaAST } from 'effect'
 import type {
   AnyEntity,
   EntityField,
@@ -274,9 +274,25 @@ const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
 const storedAsNumber = (schema: Schema.Top): boolean =>
   SchemaAST.isNumber(Schema.toEncoded(schema).ast)
 
+/** Whether any of these checks is `Schema.isInt`, alone or inside a group (`isInt32`). */
+const checksInteger = (checks: ReadonlyArray<SchemaAST.Check<unknown>>): boolean =>
+  checks.some(check =>
+    Match.value(check).pipe(
+      Match.tagsExhaustive({
+        Filter: filter => filter.annotations?.representation?.id === 'effect/schema/isInt',
+        FilterGroup: group => checksInteger(group.checks),
+      }),
+    ),
+  )
+
+/** Whether a value's stored form is checked to be an integer. */
+const storedAsInteger = (schema: Schema.Top): boolean =>
+  checksInteger(Schema.toEncoded(schema).ast.checks ?? [])
+
 /**
  * One increment, checked: a field of the Entity stored as a number, written
- * by nothing else, moved by an unmapped input key whose value is a number.
+ * by nothing else, moved by an unmapped input key whose value is a number, and
+ * an integer when the field is one.
  */
 const incrementOf = (
   input: EntityInput<AnyEntity, any, any>,
@@ -304,6 +320,14 @@ const incrementOf = (
   }
   const amount = input.schema.fields[key] as unknown as Schema.Top
   if (!storedAsNumber(amount)) return fail(input, `"${key}" is an amount, but not a number`)
+  // The databases split over a fraction added to an integer: Postgres refuses the
+  // statement, SQLite stores it in the integer column. So it never reaches either.
+  if (storedAsInteger(field.schema as unknown as Schema.Top) && !storedAsInteger(amount)) {
+    return fail(
+      input,
+      `"${key}" may not be an integer, but "${fieldKey}" is one; give the amount Schema.Int`,
+    )
+  }
   return Object.freeze({ key, field })
 }
 

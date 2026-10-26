@@ -247,7 +247,8 @@ const Restock = Write.update(
   into the write's own `WHERE`, so it holds of the row the statement changes. Only a write with one has
   `Unmet` in its `Refusal` type.
 - **`expect: 'revision'`** lands only on that revision and moves it on: a second write from one read is a
-  `Conflict`. **`increment: { stock: 'quantity' }`** adds an unmapped number input where it commits. A
+  `Conflict`. **`increment: { stock: 'quantity' }`** adds an unmapped number input where it commits; a
+  field declared `Schema.Int` needs a `Schema.Int` amount, or the write is refused where declared. A
   retry must not add twice: give it `expect`, or serve it through a writer with a ledger (a retry is
   answered from its record, so concurrent increments both land). Remote predicts the sum over the value
   it holds.

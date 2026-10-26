@@ -101,6 +101,14 @@ a startup check deciding what the write can disclose.
   is not stored as a number, and is refused where the write is declared, as is
   `Schema.optional` (which allows `undefined`). A `Schema.optionalKey` amount
   the input leaves out adds nothing.
+- An integer field takes an integer amount (added 2026-10-26). A field whose
+  stored form carries `Schema.isInt`, alone or in a group such as `isInt32`, is
+  refused where the write is declared unless its amount does too. Without this,
+  a fractional amount split the databases: Postgres refused `2 + 0.5` into an
+  `integer` column, and SQLite stored `2.5` in it (expr-operations-DESIGN §17,
+  probe 5). The check reads the Entity's schemas, not the column: a field
+  declared `Schema.Number` over an `integer` column is still unchecked, which is
+  the binding's to refuse.
 - `keys` narrows increments as it narrows values: an increment of a key the
   author did not name is not applied.
 

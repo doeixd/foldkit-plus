@@ -109,4 +109,37 @@ export default [
     ],
     tests: ['packages/entity/test/write.test.ts'],
   },
+  {
+    name: 'an integer field takes a fractional amount',
+    edits: [
+      {
+        file,
+        find: 'if (storedAsInteger(field.schema as unknown as Schema.Top) && !storedAsInteger(amount))',
+        replace: 'if (false)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an integer check inside a group is not seen',
+    edits: [
+      {
+        file,
+        find: 'FilterGroup: group => checksInteger(group.checks)',
+        replace: 'FilterGroup: () => false',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'any check reads as the integer one',
+    edits: [
+      {
+        file,
+        find: "Filter: filter => filter.annotations?.representation?.id === 'effect/schema/isInt'",
+        replace: 'Filter: () => true',
+      },
+    ],
+    tests,
+  },
 ]
