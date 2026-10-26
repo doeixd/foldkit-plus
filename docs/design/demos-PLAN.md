@@ -15,7 +15,18 @@ at `bf6a8a94` on 2026-10-26.
 - **Phase 2 is in progress.** `auth` is done: `AppShell`, `Card`, `Input`,
   `PasswordInput`, `Button`, `Badge` and `Alert` on `demoStyle`, with its
   foundations served in the page, and its e2e and mutation specs green.
-  `entity` and `widgets` are next.
+  `entity` is done: the crud views draw with `foldkit-mixins-crud/recipes`
+  (new, built for it and moved into the CMS), and the form with
+  `UiForm.renderers`. `cloudflare`, `pages`, `registry` and the richtext demos
+  are next.
+- **A phone-width pass fixed what the audit's screenshots showed:** the site
+  guide pill no longer covers a page's last lines, the data grid's menu and sort
+  buttons are 24px targets, a todo's delete shows on touch screens, the widgets'
+  resizable panes wrap their readout and their checkboxes are 16px, the
+  registry's UPC shows whole, and the entity form's checkbox is a box rather
+  than a bar. Each has a browser or e2e test, checked against the old code.
+  `pages` says nothing while its socket is down; that needs a status of the
+  replica on screen, which is Phase 3 work.
 - **Phases 3 to 6 are not started.**
 
 ## Why
