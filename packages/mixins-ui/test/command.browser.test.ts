@@ -233,6 +233,8 @@ test('a row that opens a page steps in, and Backspace in the empty field steps o
     // With words in the field, Backspace deletes and the page stays.
     await userEvent.keyboard('d')
     await vi.waitFor(() => expect(field()!.value).toBe('d'))
+    // Backspace is read against the field as last drawn; once the rows narrow, that is the `d`.
+    await vi.waitFor(() => expect(rows()).toEqual(['Dark']))
     await userEvent.keyboard('{Backspace}')
     await vi.waitFor(() => expect(field()!.value).toBe(''))
     expect(rows()).toEqual(['Light', 'Dark'])
