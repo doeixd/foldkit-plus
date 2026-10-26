@@ -71,6 +71,8 @@ test('at a desktop’s width the side column runs down the start, beside the hea
   const [side, header, main] = [box('[data-side] > div'), box('header'), box('main')]
   expect(side.left).toBe(0)
   expect(side.height).toBe(800)
+  // What the column holds runs its height too, as a sidebar's ground should.
+  expect(box('[data-side] > div > nav').height).toBe(800)
   expect(header.left).toBeCloseTo(side.right, 0)
   expect(main.left).toBeCloseTo(side.right, 0)
   expect(main.top).toBeCloseTo(header.bottom, 0)

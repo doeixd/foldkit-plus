@@ -100,6 +100,8 @@ export const AppShell = Style.recipeFor(AppShellSlots)({
     side: component(
       Style.self({
         gridArea: 'side',
+        // A grid, so the sidebar in it stretches to the column's height.
+        display: 'grid',
         position: 'sticky',
         insetBlockStart: '0',
         // As tall as the window and pinned there, so a sidebar's footer stays in view.

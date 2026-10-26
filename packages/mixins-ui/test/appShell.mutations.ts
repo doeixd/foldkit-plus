@@ -99,4 +99,15 @@ export default [
     edits: [{ file: recipe, find: "zIndex: '2',", replace: "zIndex: '1'," }],
     tests: [browser],
   },
+  {
+    name: 'the sidebar stops where its links end',
+    edits: [
+      {
+        file: recipe,
+        find: "        display: 'grid',\n        position: 'sticky',",
+        replace: "        position: 'sticky',",
+      },
+    ],
+    tests: [browser],
+  },
 ]
