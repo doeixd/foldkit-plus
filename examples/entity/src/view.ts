@@ -5,7 +5,9 @@
  */
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { Option } from 'effect'
-import { ConfirmView, EditorView, ListView } from 'foldkit-mixins-crud'
+import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
+import { ConfirmView, EditorView, ListView, Toolbar } from 'foldkit-mixins-crud'
+import { AppShell, Input } from 'foldkit-mixins-ui'
 import { PostSort } from './operations.js'
 import { confirmWords, editorWords, words } from './words.js'
 import {
@@ -20,11 +22,22 @@ import {
   pickers,
   type Model,
 } from './app.js'
+import {
+  ConfirmStyle,
+  EditorStyle,
+  ListStyle,
+  Page,
+  SearchStyle,
+  ShellStyle,
+  ToolbarStyle,
+} from './style.js'
+
+type Slots = SlotBuilders<typeof Page.slots, Message>
 
 // The list's table is `foldkit-mixins-crud`'s: columns, labels and cell text come
 // from the list and its Displays. What a click means is this page's, so the
 // Messages arrive as inputs.
-const PostTable = ListView.forMessages<Message>().define(PostList)
+const PostTable = ListView.forMessages<Message>().define(PostList).pipe(Style.attach(ListStyle))
 
 const table = (model: Model, h: HtmlBuilder<Message>): Html =>
   PostTable(
@@ -44,43 +57,55 @@ const table = (model: Model, h: HtmlBuilder<Message>): Html =>
 
 // What the editor and the delete question say around the form; the states
 // themselves, and which of them keep the form, are the views'.
-const PostEditorView = EditorView.forMessages<Message>().define({ name: 'PostEditor' })
-const DeletePost = ConfirmView.forMessages<Message>().define({ name: 'DeletePost' })
+const PostEditorView = EditorView.forMessages<Message>()
+  .define({ name: 'PostEditor' })
+  .pipe(Style.attach(EditorStyle))
+const DeletePost = ConfirmView.forMessages<Message>()
+  .define({ name: 'DeletePost' })
+  .pipe(Style.attach(ConfirmStyle))
+const Tools = Toolbar.forMessages<Message>().define().pipe(Style.attach(ToolbarStyle))
 
-const editor = (model: Model, h: HtmlBuilder<Message>): Html => {
+const editor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
   const status = PostEditor.status(model)
-  if (status === 'Closed') return h.p([h.Class('muted')], ['Choose a post to edit.'])
-  return h.div(
-    [],
-    [
-      PostEditorView(
-        {
-          id: 'editor',
-          status,
-          title: 'Edit post',
-          form: EditForm.view(model, h, {
-            options: pickers(model),
-            more: pickers.more(model),
-            words,
-          }),
-          error: PostEditor.saveError(model)?.message,
-          onClose: Message.ClosedPost(),
-          words: editorWords,
-        },
-        h,
-      ),
-      ...remove(model, h),
-    ],
-  )
+  if (status === 'Closed') return h.p(slots.hint.attrs(), ['Choose a post to edit.'])
+  return h.div(slots.side.attrs(), [
+    PostEditorView(
+      {
+        id: 'editor',
+        status,
+        title: 'Edit post',
+        form: EditForm.view(model, h, {
+          options: pickers(model),
+          more: pickers.more(model),
+          words,
+        }),
+        error: PostEditor.saveError(model)?.message,
+        onClose: Message.ClosedPost(),
+        words: editorWords,
+      },
+      h,
+    ),
+    ...remove(model, slots, h),
+  ])
 }
 
 /** Delete, with a yes in between. Once it is gone the editor above reads that for itself. */
-const remove = (model: Model, h: HtmlBuilder<Message>): ReadonlyArray<Html> => {
+const remove = (model: Model, slots: Slots, h: HtmlBuilder<Message>): ReadonlyArray<Html> => {
   const id = PostEditor.target(model)
   if (id === null) return []
   const status = PostRemover.status(model)
   if (status === 'Idle')
-    return [h.button([h.Id('delete'), h.OnClick(Message.AskedToRemovePost({ id }))], ['Delete'])]
+    // An id, so a no puts focus back here (the remover's `returnFocus`).
+    return [
+      h.button(
+        slots.remove.attrs([
+          h.Id('delete'),
+          h.Type('button'),
+          h.OnClick(Message.AskedToRemovePost({ id })),
+        ]),
+        ['Delete'],
+      ),
+    ]
   const answer = (message: typeof RemoverMessage.Type) => Message.GotRemovePostMessage({ message })
   return [
     DeletePost(
@@ -99,23 +124,37 @@ const remove = (model: Model, h: HtmlBuilder<Message>): ReadonlyArray<Html> => {
   ]
 }
 
-export const view = (model: Model, h: HtmlBuilder<Message>): Html =>
-  h.main(
-    [],
+export const view = (model: Model, h: HtmlBuilder<Message>): Html => {
+  const slots = SlotView.buildersFor(Page.slots, [Page.style.mixin], { input: undefined, h })
+  return AppShell.view(
+    { title: 'Posts', style: ShellStyle },
     [
-      h.h1([], ['Posts']),
-      // The search is the query's input. Typing changes the Model; Remote sees a
-      // list that now requires another connection and fetches it.
-      h.input([
-        h.Id('search'),
-        h.Type('search'),
-        h.Placeholder('Search titles'),
-        h.AriaLabel('Search titles'),
-        // The box shows every keystroke; only the settled value reaches the query.
-        h.Value(model.search.latest ?? ''),
-        h.OnInput(text => searched(text)),
+      h.div(slots.content.attrs(), [
+        h.h1(slots.heading.attrs(), ['Posts']),
+        Tools(
+          {
+            // The search is the query's input. Typing changes the Model; Remote sees a
+            // list that now requires another connection and fetches it.
+            search: Input.view(
+              {
+                id: 'search',
+                type: 'search',
+                placeholder: 'Search titles',
+                // The box shows every keystroke; only the settled value reaches the query.
+                value: model.search.latest ?? '',
+                onInput: text => searched(text),
+                style: SearchStyle,
+                draw: (resolved, h) => h.input([...resolved.input, h.AriaLabel('Search titles')]),
+              },
+              h,
+            ),
+          },
+          h,
+        ),
+        table(model, h),
+        editor(model, slots, h),
       ]),
-      table(model, h),
-      editor(model, h),
     ],
+    h,
   )
+}

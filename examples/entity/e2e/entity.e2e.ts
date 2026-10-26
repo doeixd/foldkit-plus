@@ -70,3 +70,15 @@ test('a title saved from the form is the row’s, the server’s, and the reload
     .toBe('Notes on the Engine, revised')
   expect(errors).toEqual([])
 })
+
+test('on a phone the form’s checkbox is a box and its picker’s button fits its words', async () => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto(vite.resolvedUrls!.local[0]!)
+  await page.getByRole('button', { name: 'p2' }).click({ timeout: 120_000 })
+  const box = await page.getByRole('checkbox', { name: 'Published' }).boundingBox()
+  expect(box!.width).toBe(box!.height)
+  const field = await page.getByRole('textbox', { name: 'Title' }).boundingBox()
+  const more = await page.getByRole('button', { name: 'Show more' }).boundingBox()
+  expect(more!.width).toBeLessThan(field!.width / 2)
+  expect(more!.height).toBeGreaterThanOrEqual(24)
+})

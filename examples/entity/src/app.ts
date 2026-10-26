@@ -11,12 +11,14 @@ import { Crud } from 'foldkit-crud'
 import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
 import { Style } from 'foldkit-mixins'
-import { FieldSlots, FormSlots, FormView, type FieldInput } from 'foldkit-mixins-form'
+import { FormView } from 'foldkit-mixins-form'
+import * as UiForm from 'foldkit-mixins-form/ui'
 import { debounce } from 'foldkit-primitives/time'
 import { Remote, type RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import { AuthorChoice, AuthorId, AuthorPage, Blog, PostId, PostPage, PostRow } from './domain.js'
 import { EditPostForm } from './editForm.js'
+import { FieldStyle, FormStyle, controlStyles } from './style.js'
 import {
   AuthorsQuery,
   DeletePostMutation,
@@ -26,19 +28,11 @@ import {
   PostsQuery,
 } from './operations.js'
 
-// The form drawn through Mixins slots, styled where it is used.
-const Field = FormView.field(EditPostForm).pipe(
-  Style.attach(
-    Style.forSlots(FieldSlots)({
-      root: Style.class('field'),
-      text: Style.whenInput<FieldInput>(input => input.invalid, Style.class('is-invalid')),
-      error: Style.class('field-error'),
-    }),
-  ),
+// The form drawn through Mixins slots, its controls through foldkit-mixins-ui's.
+const Field = FormView.field(EditPostForm, { renderers: UiForm.renderers(controlStyles) }).pipe(
+  Style.attach(FieldStyle),
 )
-const EditPostView = FormView.define(EditPostForm, { field: Field }).pipe(
-  Style.attach(Style.forSlots(FormSlots)({ root: Style.class('form') })),
-)
+const EditPostView = FormView.define(EditPostForm, { field: Field }).pipe(Style.attach(FormStyle))
 
 // The form and the mutation its value feeds, joined, and given the form's view.
 // The editor is a Submodel of the page: a Model field and a Message variant.
