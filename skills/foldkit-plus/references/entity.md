@@ -251,8 +251,16 @@ const Restock = Write.update(
   field declared `Schema.Int` needs a `Schema.Int` amount, or the write is refused where declared, and so
   does an `integer` column under any field, or the Drizzle `writer` refuses it at registration. A
   retry must not add twice: give it `expect`, or serve it through a writer with a ledger (a retry is
-  answered from its record, so concurrent increments both land). Remote predicts the sum over the value
-  it holds.
+  answered from its record, so concurrent increments both land; of an integer only, since adding reals
+  does not associate). Remote predicts the sum over the value it holds.
+- **`compute: { label: ({ row, input }) => concat(input.prefix, row.name) }`** sets a field from the row
+  before the write and the input, never the row after or another Entity; refused for a field another key
+  writes or a kind it does not store. `Write.bind` carries it as data (`assignments`, `Computation`s:
+  operators by name), compiled by the writer and predicted by Remote with its table. Without `expect` it
+  lands only under a ledger and only by `op(field, amount)` whose commutativity and associativity are
+  tested for each implementation (`Conformance.laws`/`lawsBy`, `withEvidence`).
+  `Write.apply(row, bound, { operators })` is the row a write leaves (a null under an amount stays null),
+  which guards judge, writers explain misses by, and clients predict.
 - **An invariant's lifecycle is what it reads.** `after` only: a state invariant, judged on every create
   and update, and a `CHECK` constraint (`invariantChecks`). `before` too: a transition invariant, judged
   on updates only. `Entity.readsBefore(invariant)` tells which. One reading nothing of `after` is refused

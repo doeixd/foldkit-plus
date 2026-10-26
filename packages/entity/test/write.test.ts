@@ -149,6 +149,7 @@ describe('Write.bind', () => {
       values: { title: 'Compilers', due: '2026-03-01T00:00:00.000Z' },
       links: {},
       increments: {},
+      assignments: {},
     })
   })
 
@@ -198,6 +199,7 @@ describe('A write that points a one relation', () => {
         editor: Option.none(),
       },
       increments: {},
+      assignments: {},
     })
   })
 

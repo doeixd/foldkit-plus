@@ -24,7 +24,7 @@ import { bind, databaseLayer, writer, type DrizzleDatabase } from '../src/index.
 
 const Item = Entity.define(
   'Item',
-  Schema.Struct({ id: Schema.String, stock: Schema.Number, revision: Schema.Number }),
+  Schema.Struct({ id: Schema.String, stock: Schema.Int, revision: Schema.Number }),
 )
 const items = sqliteTable('items', {
   id: text('id').primaryKey(),
@@ -106,6 +106,29 @@ const send = (
   )
 
 describe('A writer with a ledger', () => {
+  it('refuses an increment of a real number that expects no revision, where it is served', () => {
+    // Floating-point addition does not associate, so two concurrent sums could land as two results.
+    const Real = Entity.define(
+      'Item',
+      Schema.Struct({ id: Schema.String, stock: Schema.Number, revision: Schema.Number }),
+    )
+    const Topple = Mutation.write(
+      'Topple',
+      Write.update(
+        Entity.input(Real, Schema.Struct({ id: Schema.String, quantity: Schema.Number }), {
+          quantity: Entity.unmapped,
+        }),
+        { id: 'id', increment: { stock: 'quantity' } },
+      ),
+    )
+    const ledgered = writer<string>(bind({ Real }, { Real: { table: items } }).Real, {
+      ledger: { table: ledgerTable, scope: principal => principal },
+    })
+    expect(() => RemoteServer.write(Topple, ledgered)).toThrow(
+      'write "Topple" increments "stock", a real number, and expects no revision',
+    )
+  })
+
   it('lands two increments made from one read, since neither expects a revision', async () => {
     seed()
     const server = serving()
@@ -179,6 +202,7 @@ describe('A writer with a ledger', () => {
           id: 'i1',
           values: {},
           increments: { stock: 5 },
+          assignments: {},
           links: {},
           expect: Option.none(),
           when: Option.none(),
@@ -191,7 +215,7 @@ describe('A writer with a ledger', () => {
       _tag: 'Failure',
       failure: {
         message:
-          'Item i1: an increment with no revision is written only under a ledgered operation',
+          'Item i1: an increment or computation with no revision is written only under a ledgered operation',
       },
     })
     expect(stock()).toEqual({ stock: 10 })
@@ -219,7 +243,7 @@ describe('A writer with a ledger', () => {
     expect(await send(serving(), 'ada', 5)).toMatchObject({
       _tag: 'Failure',
       failure: {
-        message: 'Restock increments a field with no revision, so it needs an operation id',
+        message: 'Restock moves a field with no revision, so it needs an operation id',
       },
     })
     expect(stock()).toEqual({ stock: 10 })
@@ -276,18 +300,20 @@ describe('A writer with a ledger, on Postgres', () => {
   const pglite = new PGlite()
   beforeAll(() => pglite.waitReady, 60_000)
   afterAll(() => pglite.close())
-  const server = RemoteServer.make<string, DrizzleDatabase>({
-    entities: [],
-    mutations: [
-      RemoteServer.write(
-        Restock,
-        writer<string>(PgDb.Item, { ledger: { table: pgLedger, scope: principal => principal } }),
-      ),
-    ],
-  })
+  // Registered when a test runs, so a registration that throws fails that test, not the file.
+  const server = () =>
+    RemoteServer.make<string, DrizzleDatabase>({
+      entities: [],
+      mutations: [
+        RemoteServer.write(
+          Restock,
+          writer<string>(PgDb.Item, { ledger: { table: pgLedger, scope: principal => principal } }),
+        ),
+      ],
+    })
   const pgSend = (quantity: number, operation: string) =>
     Effect.runPromise(
-      RemoteServer.handlers(server, 'ada')
+      RemoteServer.handlers(server(), 'ada')
         .FoldkitRemoteMutate({
           requestId: 'r',
           mutation: 'Restock',

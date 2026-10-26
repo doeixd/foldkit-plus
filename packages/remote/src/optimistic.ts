@@ -4,7 +4,7 @@
  * patched with inverses. Settling is remove-the-layer, so overlapping layers
  * rebase for free.
  */
-import { Option, Predicate } from 'effect'
+import { Operators, QueryEvaluateError, Write, type MemoryOperators } from 'foldkit-entity'
 import { type Connection, type Edge, edge, items } from './connection.js'
 import {
   reconcileMutation,
@@ -182,10 +182,14 @@ export const removeOverlay = (optimistic: OptimisticState, id: string): Optimist
  * entity only a request holds (a temporary id) is not the server's to age, and
  * is dated `Infinity`, so freshness never plans or times it.
  */
-export const visibleStore = (base: EntityStore, optimistic: OptimisticState): EntityStore =>
+export const visibleStore = (
+  base: EntityStore,
+  optimistic: OptimisticState,
+  operators: MemoryOperators = Operators.kernel,
+): EntityStore =>
   writeEntities(
     base,
-    resolvedPatches(base, optimistic).map(patch => {
+    resolvedPatches(base, optimistic, operators).map(patch => {
       const key = entityKey(patch.entity, patch.id)
       const under = base[key]
       return {
@@ -197,36 +201,48 @@ export const visibleStore = (base: EntityStore, optimistic: OptimisticState): En
   )
 
 /**
- * Every pending patch in order, each amount added to the value under it: the
- * store's, or an earlier layer's. A prediction, so only over a number the
- * client holds: a field it has not read, or holds as anything else, keeps
- * what it shows until the server answers with the sum.
+ * Every pending patch in order, each amount added and each computed field
+ * worked out over the row under it (the store's, with earlier layers over
+ * it) by `Write.apply`, with the client's table (the kernel's when not
+ * given). A prediction, so only over
+ * what the client holds: a field it has not read, an amount over anything
+ * but a number, or a computation by an operator its table lacks keeps what
+ * it shows until the server answers.
  */
 export const resolvedPatches = (
   base: EntityStore,
   optimistic: OptimisticState,
+  operators: MemoryOperators = Operators.kernel,
 ): ReadonlyArray<NormalizedPatch> => {
   const shown = new Map<EntityKey, Record<string, unknown>>()
   return optimistic.layers.flatMap(layer =>
-    layer.patches.map(({ adds, ...patch }) => {
+    layer.patches.map(({ adds, computes, ...patch }) => {
       const key = entityKey(patch.entity, patch.id)
       const earlier = shown.get(key) ?? {}
       const values: Record<string, unknown> = { ...patch.values }
-      const under = base[key]
-      // The store holds a value only for a field it has, and a tombstone none.
-      const valueUnder = (field: string): Option.Option<unknown> =>
-        Object.hasOwn(earlier, field)
-          ? Option.some(earlier[field])
-          : Option.fromUndefinedOr(under?.values[field])
-      for (const [field, amount] of Object.entries(adds ?? {})) {
-        Option.map(Option.filter(valueUnder(field), Predicate.isNumber), current => {
-          values[field] = current + amount
-        })
+      // A tombstone holds no values; what the store holds, with what earlier layers show over it.
+      const row = { ...base[key]?.values, ...earlier }
+      const moved = { values: {}, increments: adds ?? {}, assignments: computes ?? {} }
+      const predicted = predicting(() => Write.apply(row, moved, { operators }))
+      for (const field of [...Object.keys(moved.increments), ...Object.keys(moved.assignments)]) {
+        if (predicted !== undefined && !predicted.unknown.includes(field)) {
+          values[field] = predicted.row[field]
+        }
       }
       shown.set(key, { ...earlier, ...values })
       return { ...patch, values }
     }),
   )
+}
+
+/** A prediction, or none where an operator refuses the row it is given: the server will answer. */
+const predicting = <A>(predict: () => A): A | undefined => {
+  try {
+    return predict()
+  } catch (error) {
+    if (error instanceof QueryEvaluateError) return undefined
+    throw error
+  }
 }
 
 /**

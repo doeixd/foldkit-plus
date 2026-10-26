@@ -10,6 +10,7 @@ import {
   Write as DomainWrite,
   type AnyWrite,
   type BoundWrite,
+  type Computation,
   type ConditionedWrite,
   type Invariant,
   type Write,
@@ -24,12 +25,15 @@ export interface NormalizedPatch {
 }
 
 /**
- * A patch a pending request shows, and the amounts it moves fields by: each
- * added, whenever the store is read, to the value under it, so a change that
- * reaches the store meanwhile is added to, not hidden.
+ * A patch a pending request shows, the amounts it moves fields by, and the
+ * fields it computes: each worked out, whenever the store is read, over the
+ * row as it then is, so a change that reaches the store meanwhile is added
+ * to or computed from, not hidden. A computation is data (operators by name),
+ * never a descriptor, since a pending patch sits in the Model.
  */
 export interface PendingPatch extends NormalizedPatch {
   readonly adds?: Readonly<Record<string, number>>
+  readonly computes?: Readonly<Record<string, Computation>>
 }
 
 export interface MutationState {
@@ -271,8 +275,9 @@ export const patchOfWrite = (bound: BoundWrite): NormalizedPatch => ({
 /**
  * What a declared write shows before the server answers: an update's or an
  * insert's row as a patch (an update's only for the keys named, when some
- * are), and an update's increments as amounts over the value the store holds. A delete shows nothing, since no operation removes a row from every
- * list it is in; its answer does.
+ * are), and an update's increments and computed fields, worked out over the
+ * row the store holds when it is read. A delete shows nothing, since no
+ * operation removes a row from every list it is in; its answer does.
  */
 export const optimisticOfWrite = (
   write: AnyWrite,
@@ -285,7 +290,11 @@ export const optimisticOfWrite = (
         const bound = DomainWrite.bind(write, input as never, keys)
         const patch = patchOfWrite(bound)
         return [
-          Object.keys(bound.increments).length === 0 ? patch : { ...patch, adds: bound.increments },
+          {
+            ...patch,
+            ...(Object.keys(bound.increments).length === 0 ? {} : { adds: bound.increments }),
+            ...(Object.keys(bound.assignments).length === 0 ? {} : { computes: bound.assignments }),
+          },
         ]
       },
       // A new row is read like any other, so it carries its own id.

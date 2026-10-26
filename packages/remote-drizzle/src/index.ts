@@ -33,10 +33,16 @@ import {
   Entity as DomainEntity,
   Expr,
   Query,
+  Write,
+  dependenciesOf,
   evaluate,
+  isPredicate,
+  type Computation,
   type EntityRef,
   type Change,
+  type Evidence,
   type Invariant,
+  type WriteAssignment,
 } from 'foldkit-entity'
 import type { NormalizedPatch, QueryDescriptor } from 'foldkit-remote'
 import { Entity } from 'foldkit-remote'
@@ -58,6 +64,7 @@ import {
   compileOrderBy,
   compilePredicates,
   compileWhere,
+  computationSql,
   operatorProblems,
   QueryCompileError,
   requireOperators,
@@ -1066,13 +1073,18 @@ export const writer = <P = unknown>(
   const holdingInvariants = (
     values: Readonly<Record<string, unknown>>,
     increments: Readonly<Record<string, number>>,
+    assignments: Readonly<Record<string, Computation>>,
   ): Effect.Effect<ReadonlyArray<SQL>, RemoteServerError> =>
     compileFor(() => {
       const next: Record<string, AnyColumn> = Object.create(null)
+      // A moved or computed field becomes its expression, and Drizzle's operators take
+      // an expression where they take a column.
       for (const [field, amount] of Object.entries(increments)) {
-        // An incremented field is a number, compared with no collation, and Drizzle's
-        // operators take an expression where they take a column.
         next[field] = sql`(${binding.columns[field]} + ${amount})` as unknown as AnyColumn
+      }
+      for (const [field, computation] of Object.entries(assignments)) {
+        next[field] =
+          sql`(${computationSql(computation, binding, `${binding.name}'s "${field}"`)})` as unknown as AnyColumn
       }
       // The binding's operators too: a value set can leave a call over literals
       // alone, which is decided in memory rather than compiled.
@@ -1092,18 +1104,43 @@ export const writer = <P = unknown>(
       )
     })
 
-  /** The row an update would leave: the row as it is, with its values set and amounts added. */
+  /**
+   * The row an update would leave, as `Write.apply` works it out: what a
+   * guard judges and the statement writes, so a miss is explained by the
+   * same row.
+   */
   const proposedOf = (
     row: Readonly<Record<string, unknown>>,
-    values: Readonly<Record<string, unknown>>,
-    increments: Readonly<Record<string, number>>,
-  ): Readonly<Record<string, unknown>> => {
-    const proposed: Record<string, unknown> = { ...row, ...values }
-    for (const [field, amount] of Object.entries(increments)) {
-      const held = row[field]
-      proposed[field] = typeof held === 'number' ? held + amount : held
+    bound: Parameters<typeof Write.apply>[1],
+  ): Readonly<Record<string, unknown>> =>
+    Write.apply(row, bound, { operators: binding.operators.memory }).row
+
+  /**
+   * Whether `assignment` lands as one result in any order: `field := op(field,
+   * amount)`, the amount reading no field, with `op`'s commutativity and
+   * associativity tested for both of this binding's implementations of it.
+   */
+  const commutes = (assignment: WriteAssignment): boolean => {
+    const { expr, field } = assignment
+    if (expr._tag !== 'Call' || expr.args.length !== 2) return false
+    const [own, amount] = expr.args
+    if (own === undefined || amount === undefined || isPredicate(own) || own._tag !== 'Field') {
+      return false
     }
-    return proposed
+    if (own.key !== field.key || dependenciesOf(amount).fields.length > 0) return false
+    const name =
+      expr.operator.version === 1
+        ? expr.operator.id
+        : `${expr.operator.id}@${expr.operator.version}`
+    const tested = (evidence: ReadonlyArray<Evidence>, kind: string) =>
+      evidence.some(
+        record => record._tag === 'Tested' && record.operator === name && record.law.kind === kind,
+      )
+    return ['commutative', 'associative'].every(
+      kind =>
+        tested(binding.operators.memory.evidence, kind) &&
+        tested(binding.operators.sql.evidence, kind),
+    )
   }
 
   /** The first of the invariants broken, as the refusal a writer answers it with. */
@@ -1180,6 +1217,24 @@ export const writer = <P = unknown>(
         where: and(eq(idColumn(binding), id), eq(column, revision), ...holding),
         bump: { [key]: sql`${column} + 1` },
       }
+    })
+
+  /** Each assignment as its compiled computation, in the statement that writes. */
+  const assignmentsOf = (
+    assignments: Readonly<Record<string, Computation>>,
+  ): Effect.Effect<Record<string, SQL>, RemoteServerError> =>
+    Effect.gen(function* () {
+      const set: Record<string, SQL> = {}
+      for (const [field, computation] of Object.entries(assignments)) {
+        const key = keyOf(field)
+        if (binding.columns[field] === undefined || key === undefined) {
+          return yield* missing(`column for "${field}" to compute`)
+        }
+        set[key] = yield* compileFor(() =>
+          computationSql(computation, binding, `${binding.name}'s "${field}"`),
+        )
+      }
+      return set
     })
 
   /** Each increment as its column moved by the amount, in the statement that writes. */
@@ -1323,6 +1378,8 @@ export const writer = <P = unknown>(
     entity: binding.name,
     preconditions: true,
     increments: true,
+    assignments: true,
+    commutes,
     invariants: true,
     // A fraction added to an integer column splits the dialects: Postgres refuses the
     // statement, SQLite stores the fraction. A field declared Schema.Number hides the column.
@@ -1339,6 +1396,10 @@ export const writer = <P = unknown>(
         onNone: () => [],
         onSome: body => operatorProblems(body.where, binding, 'its precondition'),
       }),
+      // So does each assignment, which a miss's row is worked out by.
+      ...write.assignments.flatMap(({ field, expr }) =>
+        operatorProblems([expr], binding, `its assignment to "${field.key}"`),
+      ),
     ],
     ...(ledger === undefined
       ? {}
@@ -1359,21 +1420,24 @@ export const writer = <P = unknown>(
               )
             }),
         }),
-    update: ({ id, values, increments, links, expect, when, operation, principal }) =>
+    update: ({ id, values, increments, assignments, links, expect, when, operation, principal }) =>
       Effect.gen(function* () {
         const at = yield* rowOf(id, expect, when)
-        const where = and(at.where, ...(yield* holdingInvariants(values, increments)))
+        const where = and(at.where, ...(yield* holdingInvariants(values, increments, assignments)))
         const { bump } = at
         const set = {
           ...(yield* setOf(values, links)),
           ...(yield* incrementsOf(increments)),
+          ...(yield* assignmentsOf(assignments)),
           ...bump,
         }
-        // A row a revision on could be another's increment: only the write itself says it landed.
-        const incrementing = Object.keys(increments).length > 0
+        // A row a revision on could be another's increment or computation: only the
+        // write itself says it landed, since neither repeats without effect.
+        const incrementing = Object.keys(increments).length + Object.keys(assignments).length > 0
         const answeredFields = [
           ...Object.keys(values),
           ...Object.keys(increments),
+          ...Object.keys(assignments),
           ...Object.keys(links),
           ...Option.match(expect, { onNone: () => [], onSome: ({ field }) => [field] }),
         ]
@@ -1385,9 +1449,9 @@ export const writer = <P = unknown>(
             ? Option.map(operation, op => ({ ledger, op }))
             : Option.none()
         // Unrecorded and unrevisioned, a retry of an increment would add twice: whoever calls.
-        if (Object.keys(increments).length > 0 && Option.isNone(expect) && Option.isNone(book)) {
+        if (incrementing && Option.isNone(expect) && Option.isNone(book)) {
           return yield* new RemoteServerError({
-            message: `${binding.name} ${id}: an increment with no revision is written only under a ledgered operation`,
+            message: `${binding.name} ${id}: an increment or computation with no revision is written only under a ledgered operation`,
           })
         }
         let rows: ReadonlyArray<Record<string, unknown>>
@@ -1444,6 +1508,7 @@ export const writer = <P = unknown>(
               onSome: ({ body }) => Query.dependencies(body).predicate.map(field => field.key),
             }),
             ...invariants.flatMap(held => [...held.before, ...held.after]),
+            ...Write.boundReads({ increments, assignments }),
           ]),
         ])
         const current = yield* selectRows(yield* DrizzleDatabase, binding.table, judged.columns, {
@@ -1484,7 +1549,7 @@ export const writer = <P = unknown>(
         const retried = sets && !incrementing && holdsWritten(row, values, links)
         // Holding its precondition, it missed by the row it would leave.
         if (holdsWhen) {
-          const after = proposedOf(row, values, increments)
+          const after = proposedOf(row, { values, increments, assignments })
           const broken = brokenIn(retried ? { after } : { before: row, after })
           if (Option.isSome(broken)) return yield* broken.value
         }

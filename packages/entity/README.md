@@ -372,14 +372,37 @@ key, a number; negative takes away) to the stored `stock`, in the statement that
 writes, so no concurrent change is lost. A retry must not add twice, so either it
 expects a revision (a retry of a write that landed is then a conflict), or its
 writer keeps a ledger, which answers the retry from its record and lets two
-concurrent increments both land. `RemoteServer.write` refuses one with neither. The field must
-be stored as a number, and may not be the id, the revision, or set by another
-key. `Write.bind` gives the amounts apart from the values (`increments`), so a
+concurrent increments both land. `RemoteServer.write` refuses one with neither,
+and one of a real number with no revision even under a ledger: floating-point
+addition does not associate, so two concurrent sums could land as two results.
+The field must be stored as a number, and may not be the id, the revision, or
+set by another key. `Write.bind` gives the amounts apart from the values (`increments`), so a
 client can add them to the value it holds as it reads it (Remote does), never
 fixing a sum over a row that may since have moved. `Write.reads(write)` is what a write
-reads from its row: what its `when` reads, each field it increments, and the
-revision. How a declaration, its guard, its writer and the client fit together is
-the [declared writes guide](../../docs/declared-writes.md).
+reads from its row: what its `when` reads, each field it increments, what its
+assignments read, and the revision. How a declaration, its guard, its writer and
+the client fit together is the [declared writes guide](../../docs/declared-writes.md).
+
+An update may also compute a field from the row before it and the input:
+`compute: { label: ({ row, input }) => concat(input.prefix, row.name) }`, with an
+operator such as the `concat` [below](#operators-each-interpreter-implements). It
+reads neither the row after the write nor another Entity, so assignments never
+depend on each other, and is refused where it is declared for a field another
+key writes or a value of a kind the field does not store. A defined operator in
+it is expanded there, so `Write.bind` carries it as data (`assignments`, each a
+`Computation`: fields by key, values encoded, operators by name), which a writer
+compiles into the statement and a client predicts by its own table. A
+computation does not repeat without effect, so a retry of one is held to it as
+an increment's is; without a revision it lands under a ledger only by an
+operator whose commutativity and associativity are tested (`Conformance.laws`)
+for each implementation the writer runs.
+
+`Write.apply(row, bound, { operators })` is the row a bound write leaves over
+the row before it: values set, amounts added (a null stays null, as in SQL),
+assignments computed. It is the one computation of that row: a guard judges
+it, a writer explains a miss by it, a client predicts it. `unknown` names each
+field it could not work out (one the row lacks, or an operator the table lacks),
+which keeps what the row holds.
 
 ## What every row and change must hold: invariants
 
@@ -997,7 +1020,9 @@ from queries, not from what a database could express.
 | `Entity.page(selection, { first, after } or { last, before })` | In a Selection, a `many` relation read as a page: `items`, `hasNext`, `hasPrevious`. |
 | `Entity.fields(entity, ...keys)` | The schemas of those fields, by key, to spread into an input's struct. |
 | `Write.update(input, { id, expect?, when?, increment? })` | A declared update of one row: every key the input maps to a field, but the id and the expected revision; `when`, what the row must hold for it to land; `increment`, the number fields it moves by an input amount. |
-| `Write.reads(write)` | The fields a write reads from its row: its `when`'s, each it increments, the revision. |
+| `Write.reads(write)` | The fields a write reads from its row: its `when`'s, each it increments, its assignments', the revision. |
+| `Write.update(input, { …, compute })` / `Computation` | A field computed from the row before the write and the input, carried as data. |
+| `Write.apply(row, bound, { operators })` / `Write.boundReads(bound)` | The row a bound write leaves, and what of the row before it that needs. |
 | `Write.writes(write)` / `Write.bind(write, value, keys?)` | The fields it may change; the row and values one input writes, encoded as the store holds them. |
 | `Entity.input(entity, struct, mapping?)` | Experimental. Which member each key of an operation's input writes. |
 | `Relation.nested(relation, input)` | In an input mapping: the key holds the target itself, written through `input`. |

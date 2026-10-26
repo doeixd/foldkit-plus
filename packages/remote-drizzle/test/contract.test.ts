@@ -1,5 +1,6 @@
 import { pgTable, text } from 'drizzle-orm/pg-core'
 import { Effect } from 'effect'
+import { Operators } from 'foldkit-entity'
 import {
   Remote,
   Selection,
@@ -74,6 +75,7 @@ describe('RemoteDrizzle end to end', () => {
     const bound = {
       definition: Remote.define({ entities: [ProjectBinding, UserBinding, CommentBinding] }),
       contract: { name: 'test' },
+      operators: Operators.kernel,
       store: { get: () => ({ ...initialRemoteModel, entities: store }) },
     } as unknown as BoundRemote<unknown, RemoteModel>
 
@@ -120,6 +122,7 @@ describe('RemoteDrizzle end to end', () => {
     const bound = {
       definition: Remote.define({ entities: [ProjectBinding, UserBinding, CommentBinding] }),
       contract: { name: 'test' },
+      operators: Operators.kernel,
       store: { get: () => ({ ...initialRemoteModel, entities: store }) },
     } as unknown as BoundRemote<unknown, RemoteModel>
 

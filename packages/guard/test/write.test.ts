@@ -520,6 +520,17 @@ describe('GuardServer.validate over writes', () => {
     expect(serving(RemoteServer.write(ClaimAt, guarded))).toThrow(
       "write ClaimAt expects Todo's claimedBy, which has a Read rule",
     )
+    // A computed value is answered, so what it is computed from is disclosed with it.
+    const CopyClaim = Mutation.write(
+      'CopyClaim',
+      Write.update(
+        Entity.input(Todo, Schema.Struct({ id: Schema.String, ownerId: Schema.String })),
+        { id: 'id', expect: 'ownerId', compute: { title: ({ row }) => row.claimedBy } },
+      ),
+    )
+    expect(serving(RemoteServer.write(CopyClaim, guarded))).toThrow(
+      "write CopyClaim computes Todo's title from its claimedBy, which has a Read rule",
+    )
   })
 
   it('refuses one through a bare writer, or a writer guarded by another Policy or Entity', () => {

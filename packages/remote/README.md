@@ -1459,9 +1459,11 @@ or an insert's row until the server answers, so it needs no `optimistic` list;
 a delete shows nothing until its answer removes the row everywhere. An update's
 `increment` is shown as a prediction: its amount is added to the value the store
 holds whenever the row is read, so a change that reaches the store meanwhile is
-added to rather than hidden, and two pending increments add up. A field the
-client has not read is not guessed; it shows the server's sum when the answer
-comes. The prediction is never authority: the server decides, and its answer
+added to rather than hidden, and two pending increments add up. A computed
+field is predicted the same way, by `Remote.make`'s `operators` over the row as
+it is read (`Write.apply`), so a live change to what it reads changes the
+prediction. A field the client has not read, or a computation by an operator its
+table lacks, is not guessed; it shows the server's value when the answer comes. The prediction is never authority: the server decides, and its answer
 replaces it. The [declared writes guide](../../docs/declared-writes.md) follows
 one write from here to the statement that lands it. `keys` names the input keys
 an author changed: only those are shown, and the request carries them for the

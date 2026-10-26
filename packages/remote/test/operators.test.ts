@@ -10,11 +10,12 @@ import {
   Expr,
   Operators,
   Order,
+  Write,
   type MemoryOperators,
 } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
-import { Query, Remote, entityKey } from '../src/index.js'
+import { Query, Remote, entityKey, optimisticOfWrite } from '../src/index.js'
 
 const Project = DomainEntity.define(
   'Project',
@@ -275,5 +276,73 @@ describe('A list ordered by a call', () => {
   it('reads the fields the call reads, to order a row by, only where it can', () => {
     expect(ordered(distanceTable).asked).toContain('price')
     expect(ordered().asked).not.toContain('price')
+  })
+})
+
+describe('A pending computed assignment', () => {
+  /** Text after text. */
+  const concat = Expr.operator('acme.concat', {
+    input: [Schema.String, Schema.String],
+    output: Schema.String,
+  })
+  const concatTable = Operators.memory(
+    Operators.implement(concat, (left, right) => `${left}${right}`),
+  )
+  const Prefix = Write.update(
+    DomainEntity.input(Project, Schema.Struct({ id: Schema.String, prefix: Schema.String }), {
+      prefix: DomainEntity.unmapped,
+    }),
+    { id: 'id', compute: { name: ({ row, input }) => concat(input.prefix, row.name) } },
+  )
+  const shown = (operators?: MemoryOperators) => {
+    const Data = Remote.make({
+      model: App.model.remote,
+      entities: [Project],
+      queries: [],
+      ...(operators === undefined ? {} : { operators }),
+    })
+    const stored = Data.reduce(
+      { remote: Remote.initial },
+      {
+        _tag: 'ReadReceived',
+        requests: [{ entity: 'Project', id: 'p1', fields: ['id', 'name', 'price'] }],
+        result: {
+          settled: [],
+          entities: [{ entity: 'Project', id: 'p1', values: { id: 'p1', name: 'ned', price: 1 } }],
+        },
+        now: 0,
+      },
+    )
+    const pending = Data.overlay(
+      stored,
+      'edit',
+      optimisticOfWrite(Prefix, { id: 'p1', prefix: 'o' }, undefined),
+    )
+    // The server's live word on what the computation reads, while it is pending.
+    const patched = Data.reduce(pending, {
+      _tag: 'LiveReceived',
+      stream: 's',
+      event: {
+        _tag: 'EntityPatched',
+        cursor: 1,
+        ref: { entity: 'Project', id: 'p1' },
+        values: { name: 'bo' },
+        changed: ['name'],
+      },
+      now: 1,
+    })
+    const name = (model: Model) => {
+      const read = Data.get(Summary, 'p1').read(model)
+      return read._tag === 'Ready' ? read.value.name : read._tag
+    }
+    return { before: name(pending), after: name(patched) }
+  }
+
+  it("predicts it by the client's table, over the row as a live change leaves it", () => {
+    expect(shown(concatTable)).toEqual({ before: 'oned', after: 'obo' })
+  })
+
+  it('shows what the store holds where the client lacks the operator', () => {
+    expect(shown()).toEqual({ before: 'ned', after: 'bo' })
   })
 })

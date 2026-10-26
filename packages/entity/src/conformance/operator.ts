@@ -157,16 +157,160 @@ const callOf = (
     onSome: each => op(...args, { collation: each }),
   })
 
-/** One equation's two sides for one tuple, and whether they keep the law. */
-interface Check {
+/** One side of an equation: a call to run (its text folded first, for a collation law), or a value. */
+type Side = { readonly node: Operandish; readonly fold: boolean } | { readonly value: unknown }
+
+/** One equation for one tuple: its two sides, and what makes their outcomes keep the law. */
+interface Plan {
   readonly args: ReadonlyArray<unknown>
-  readonly left: Outcome
-  readonly right: Outcome
-  readonly holds: boolean
+  readonly left: Side
+  readonly right: Side
+  readonly holds: (left: Outcome, right: Outcome) => boolean
+}
+
+/** Each law `op` declares, with its equations: what `laws` and `lawsBy` evaluate. */
+interface LawPlans {
+  readonly law: LawDescription
+  readonly plans: ReadonlyArray<Plan>
 }
 
 const foldText = (value: unknown): unknown =>
   typeof value === 'string' ? Collation.foldAscii(value) : value
+
+const nameOf = (op: AnyOperator): string =>
+  op.descriptor.version === 1 ? op.descriptor.id : `${op.descriptor.id}@${op.descriptor.version}`
+
+/**
+ * The equations of every law `op` declares, over up to `limit` tuples a law
+ * chosen by `seed`. Nothing is run: a memory table and an SQL runner
+ * evaluate the same plans.
+ */
+const lawPlans = (op: AnyOperator, limit: number, seed: number): ReadonlyArray<LawPlans> => {
+  const { descriptor } = op
+  // The kernel compares text only under a collation, and literals bring none.
+  const collation =
+    descriptor.collation === 'none' ? Option.none<Collation>() : Option.some(Collation.binary)
+  const call = (...args: ReadonlyArray<unknown>) => callOf(op, args, collation)
+  const run = (node: Operandish): Side => ({ node, fold: false })
+  const value = (held: unknown): Side => ({ value: held })
+  const equal = (args: ReadonlyArray<unknown>, left: Side, right: Side): Plan => ({
+    args,
+    left,
+    right,
+    holds: same,
+  })
+  return descriptor.laws.map(law => {
+    const shared = samplesOf(descriptor.input, law.domain)
+    const tuples = (arity: number) =>
+      chosen(product(Array.from({ length: arity }, () => shared)), limit, seed)
+    const sided = (
+      witness: unknown,
+      side: 'left' | 'right' | 'both',
+      answer: (a: unknown) => unknown,
+    ) =>
+      tuples(1).flatMap(([a]) => [
+        ...(side === 'right' ? [] : [equal([witness, a], run(call(witness, a)), value(answer(a)))]),
+        ...(side === 'left' ? [] : [equal([a, witness], run(call(a, witness)), value(answer(a)))]),
+      ])
+    const plans: ReadonlyArray<Plan> = Law.$match(law, {
+      Associative: () =>
+        tuples(3).map(([a, b, c]) =>
+          equal([a, b, c], run(call(call(a, b), c)), run(call(a, call(b, c)))),
+        ),
+      Commutative: () => tuples(2).map(([a, b]) => equal([a, b], run(call(a, b)), run(call(b, a)))),
+      Idempotent: () => tuples(1).map(([a]) => equal([a], run(call(a, a)), value(a))),
+      Identity: ({ value: witness, side }) => sided(witness, side, a => a),
+      Absorbing: ({ value: witness, side }) => sided(witness, side, () => witness),
+      Inverse: ({ other, identity }) =>
+        tuples(1).map(([a]) => equal([a], run(call(a, other(a))), value(identity))),
+      Distributes: ({ over }) =>
+        tuples(3).map(([a, b, c]) =>
+          equal([a, b, c], run(call(a, over(b, c))), run(over(call(a, b), call(a, c)))),
+        ),
+      Monotonic: ({ direction, position }) => {
+        const each = descriptor.input.map(schema => samplesOf([schema], law.domain))
+        const pairs = each[position]!.flatMap(low =>
+          each[position]!.filter(high => order(low, high) < 0).map(high => [low, high] as const),
+        )
+        const rest = product(each.filter((_, index) => index !== position))
+        const sign = direction === 'increasing' ? 1 : -1
+        return chosen(product([pairs, rest]), limit, seed).map(([pair, others]) => {
+          const [low, high] = pair as readonly [unknown, unknown]
+          const at = (held: unknown) => {
+            const args = [...(others as ReadonlyArray<unknown>)]
+            args.splice(position, 0, held)
+            return args
+          }
+          return {
+            args: at(low),
+            left: run(call(...at(low))),
+            right: run(call(...at(high))),
+            holds: (left: Outcome, right: Outcome) =>
+              left._tag === 'Value' &&
+              right._tag === 'Value' &&
+              sign * order(left.value, right.value) <= 0,
+          }
+        })
+      },
+      PreservesCollation: () =>
+        tuples(2).map(([a, b]) => {
+          const under = (x: unknown, y: unknown): Side => ({
+            node: callOf(op, [x, y], Option.some(Collation.asciiFold)),
+            fold: true,
+          })
+          return equal([a, b], under(a, b), under(foldText(a), foldText(b)))
+        }),
+    })
+    if (plans.length === 0) {
+      throw new Error(
+        `[foldkit-entity] Conformance.laws: no sample of ${nameOf(op)}'s arguments is in ${Law.describe(law).kind}'s domain`,
+      )
+    }
+    return { law: Law.describe(law), plans }
+  })
+}
+
+/**
+ * The verdict over laws whose calls' outcomes `answered` gives: the first
+ * failure, or evidence of each.
+ */
+const verdictOf = (
+  op: AnyOperator,
+  laws: ReadonlyArray<LawPlans>,
+  answered: (node: Operandish) => Outcome,
+  options: { readonly implementation: string; readonly seed: number },
+): LawsVerdict => {
+  const outcomes = (side: Side): Outcome => {
+    if ('value' in side) return Outcome.Value({ value: side.value })
+    const outcome = answered(side.node)
+    return side.fold
+      ? Outcome.$match(outcome, {
+          Value: ({ value }) => Outcome.Value({ value: foldText(value) }),
+          Refused: refused => refused,
+        })
+      : outcome
+  }
+  const evidence: Array<TestedEvidence> = []
+  for (const { law, plans } of laws) {
+    for (const plan of plans) {
+      const left = outcomes(plan.left)
+      const right = outcomes(plan.right)
+      if (!plan.holds(left, right)) {
+        return LawsVerdict.Counterexample({ law, args: plan.args, left, right })
+      }
+    }
+    evidence.push(
+      Evidence.Tested({
+        operator: nameOf(op),
+        law,
+        implementation: options.implementation,
+        cases: plans.length,
+        seed: options.seed,
+      }),
+    )
+  }
+  return LawsVerdict.Holds({ evidence })
+}
 
 export const Conformance = {
   /** A runner of calls through a memory table: `Conformance.operator`'s for the in-memory interpreter. */
@@ -178,9 +322,9 @@ export const Conformance = {
   /**
    * Tests every law `op` declares against `operators`' implementation of it,
    * up to `cases` tuples a law (200 by default), chosen by `seed` (0); a law
-   * of both sides checks each tuple from each. Holds
-   * with a `Tested` record a law, which `Operators.withEvidence` keeps; or the
-   * first case a law fails, with both sides.
+   * of both sides checks each tuple from each. Holds with a `Tested` record a
+   * law, which `Operators.withEvidence` keeps; or the first case a law fails,
+   * with both sides.
    */
   laws: <In extends ReadonlyArray<Schema.Top>, Out extends Schema.Top>(
     op: Operator<In, Out>,
@@ -192,13 +336,7 @@ export const Conformance = {
     } = {},
   ): LawsVerdict => {
     const operator: AnyOperator = op
-    const { descriptor } = operator
-    const limit = options.cases ?? 200
     const seed = options.seed ?? 0
-    const name = descriptor.version === 1 ? descriptor.id : `${descriptor.id}@${descriptor.version}`
-    // The kernel compares text only under a collation, and literals bring none.
-    const collation =
-      descriptor.collation === 'none' ? Option.none<Collation>() : Option.some(Collation.binary)
     const outcome = (node: Operandish): Outcome => {
       try {
         return Outcome.Value({ value: valueOfOperand(node, { operators }) })
@@ -207,114 +345,45 @@ export const Conformance = {
         throw error
       }
     }
-    const call = (...args: ReadonlyArray<unknown>) => callOf(operator, args, collation)
-    const check = (args: ReadonlyArray<unknown>, left: Outcome, right: Outcome): Check => ({
-      args,
-      left,
-      right,
-      holds: same(left, right),
+    return verdictOf(operator, lawPlans(operator, options.cases ?? 200, seed), outcome, {
+      implementation: options.implementation ?? 'memory',
+      seed,
     })
-    const evidence: Array<TestedEvidence> = []
-    for (const law of descriptor.laws) {
-      const shared = samplesOf(descriptor.input, law.domain)
-      const tuples = (arity: number) =>
-        chosen(product(Array.from({ length: arity }, () => shared)), limit, seed)
-      const sided = (
-        value: unknown,
-        side: 'left' | 'right' | 'both',
-        answer: (a: unknown) => unknown,
-      ) =>
-        tuples(1).flatMap(([a]) => [
-          ...(side === 'right'
-            ? []
-            : [check([value, a], outcome(call(value, a)), Outcome.Value({ value: answer(a) }))]),
-          ...(side === 'left'
-            ? []
-            : [check([a, value], outcome(call(a, value)), Outcome.Value({ value: answer(a) }))]),
-        ])
-      const checks: ReadonlyArray<Check> = Law.$match(law, {
-        Associative: () =>
-          tuples(3).map(([a, b, c]) =>
-            check([a, b, c], outcome(call(call(a, b), c)), outcome(call(a, call(b, c)))),
-          ),
-        Commutative: () =>
-          tuples(2).map(([a, b]) => check([a, b], outcome(call(a, b)), outcome(call(b, a)))),
-        Idempotent: () =>
-          tuples(1).map(([a]) => check([a], outcome(call(a, a)), Outcome.Value({ value: a }))),
-        Identity: ({ value, side }) => sided(value, side, a => a),
-        Absorbing: ({ value, side }) => sided(value, side, () => value),
-        Inverse: ({ other, identity }) =>
-          tuples(1).map(([a]) =>
-            check([a], outcome(call(a, other(a))), Outcome.Value({ value: identity })),
-          ),
-        Distributes: ({ over }) =>
-          tuples(3).map(([a, b, c]) =>
-            check([a, b, c], outcome(call(a, over(b, c))), outcome(over(call(a, b), call(a, c)))),
-          ),
-        Monotonic: ({ direction, position }) => {
-          const each = descriptor.input.map(schema => samplesOf([schema], law.domain))
-          const pairs = each[position]!.flatMap(low =>
-            each[position]!.filter(high => order(low, high) < 0).map(high => [low, high] as const),
-          )
-          const rest = product(each.filter((_, index) => index !== position))
-          return chosen(product([pairs, rest]), limit, seed).map(([pair, others]) => {
-            const [low, high] = pair as readonly [unknown, unknown]
-            const at = (value: unknown) => {
-              const args = [...(others as ReadonlyArray<unknown>)]
-              args.splice(position, 0, value)
-              return args
-            }
-            const left = outcome(call(...at(low)))
-            const right = outcome(call(...at(high)))
-            const sign = direction === 'increasing' ? 1 : -1
-            return {
-              args: at(low),
-              left,
-              right,
-              holds:
-                left._tag === 'Value' &&
-                right._tag === 'Value' &&
-                sign * order(left.value, right.value) <= 0,
-            }
-          })
-        },
-        PreservesCollation: () =>
-          tuples(2).map(([a, b]) => {
-            const folded = (node: Operandish) =>
-              Outcome.$match(outcome(node), {
-                Value: ({ value }) => Outcome.Value({ value: foldText(value) }),
-                Refused: refused => refused,
-              })
-            const under = (x: unknown, y: unknown) =>
-              callOf(operator, [x, y], Option.some(Collation.asciiFold))
-            return check([a, b], folded(under(a, b)), folded(under(foldText(a), foldText(b))))
-          }),
-      })
-      if (checks.length === 0) {
-        throw new Error(
-          `[foldkit-entity] Conformance.laws: no sample of ${name}'s arguments is in ${Law.describe(law).kind}'s domain`,
-        )
+  },
+
+  /**
+   * As `laws`, each call run by `run` instead of a memory table: an SQL
+   * implementation selected from a database, say, whose evidence a binding's
+   * SQL table records. A throw is a refusal.
+   */
+  lawsBy: async <In extends ReadonlyArray<Schema.Top>, Out extends Schema.Top>(
+    op: Operator<In, Out>,
+    run: Runner,
+    options: {
+      readonly implementation: string
+      readonly cases?: number | undefined
+      readonly seed?: number | undefined
+    },
+  ): Promise<LawsVerdict> => {
+    const operator: AnyOperator = op
+    const seed = options.seed ?? 0
+    const laws = lawPlans(operator, options.cases ?? 200, seed)
+    const answers = new Map<Operandish, Outcome>()
+    for (const { plans } of laws) {
+      for (const side of plans.flatMap(plan => [plan.left, plan.right])) {
+        if (!('node' in side) || answers.has(side.node)) continue
+        try {
+          answers.set(side.node, Outcome.Value({ value: await run(side.node) }))
+        } catch (error) {
+          answers.set(side.node, Outcome.Refused({ reason: String(error) }))
+        }
       }
-      const failed = checks.find(each => !each.holds)
-      if (failed !== undefined) {
-        return LawsVerdict.Counterexample({
-          law: Law.describe(law),
-          args: failed.args,
-          left: failed.left,
-          right: failed.right,
-        })
-      }
-      evidence.push(
-        Evidence.Tested({
-          operator: name,
-          law: Law.describe(law),
-          implementation: options.implementation ?? 'memory',
-          cases: checks.length,
-          seed,
-        }),
-      )
     }
-    return LawsVerdict.Holds({ evidence })
+    // Every call was run above, so each has its answer.
+    return verdictOf(operator, laws, node => answers.get(node)!, {
+      implementation: options.implementation,
+      seed,
+    })
   },
 
   /**

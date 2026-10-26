@@ -428,7 +428,13 @@ writes. The guard requires each incremented member's Update rule, as for a
 member it sets, and holds the row's rules over the sum the writer will store, so
 a rule `stock >= 0` refuses a sale past zero. The row the guard summed over must
 be the row the writer writes: the input's expected revision keeps it so, or the
-writer's `revision` pin. An increment with neither is refused.
+writer's `revision` pin. An increment with neither is refused. A computed
+assignment is the same: its member's Update rule holds, the guard reads what it
+computes from, and judges the row `Write.apply` works out, which is the row the
+writer writes. With a `revision` the guarded writer `pins`, so a real-number
+increment or a computed assignment needs no `expect` of its own; `validate`
+refuses one computed from a member with a Read rule, which its answer would
+disclose.
 
 An Entity's invariants (`Entity.invariant`) are the writer's to judge, over the
 row its statement writes; the guarded writer passes them through and speaks

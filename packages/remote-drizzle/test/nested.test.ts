@@ -10,6 +10,7 @@ import { drizzle as drizzlePg } from 'drizzle-orm/pglite'
 import { pgTable, text as pgText } from 'drizzle-orm/pg-core'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect } from 'effect'
+import { Operators } from 'foldkit-entity'
 import {
   REMOTE_PROTOCOL_VERSION,
   Remote,
@@ -157,6 +158,7 @@ const boundOver = (domain: Domain, model: RemoteModel): BoundRemote<unknown, Rem
   ({
     definition: Remote.define({ entities: [domain.Project, domain.Comment, domain.User] }),
     contract: { name: 'test' },
+    operators: Operators.kernel,
     store: { get: () => model },
   }) as unknown as BoundRemote<unknown, RemoteModel>
 

@@ -60,6 +60,11 @@ export interface ImplementedOperator {
 export interface MemoryOperators extends OperatorTable {
   readonly _tag: 'MemoryOperators'
   readonly get: (operator: OperatorDescriptor) => Option.Option<MemoryImplementation['run']>
+  /**
+   * The operator it implements under a name (`id`, or `id@version` past the
+   * first): how a computed assignment carried as data finds what to run.
+   */
+  readonly named: (name: string) => Option.Option<OperatorDescriptor>
   /** Whether each answer is checked against its operator's output schema: for tests. */
   readonly checked: boolean
   readonly implementations: ReadonlyArray<MemoryImplementation>
@@ -100,6 +105,7 @@ const table = (
     _tag: 'MemoryOperators',
     has: (operator: OperatorDescriptor) => byOperator.has(operator),
     get: (operator: OperatorDescriptor) => Option.fromUndefinedOr(byOperator.get(operator)),
+    named: (name: string) => Option.fromUndefinedOr(byName.get(name)),
     checked,
     implementations: Object.freeze([...implementations]),
     evidence: Object.freeze([...evidence]),

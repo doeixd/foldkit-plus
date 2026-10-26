@@ -84,14 +84,14 @@ export default [
   edit(
     'the incremented member needs no Update rule',
     guard,
-    '[...Object.keys(context.values), ...Object.keys(context.increments)],',
-    'Object.keys(context.values),',
+    '            ...Object.keys(context.increments),\n',
+    '',
   ),
   edit(
     'the guard judges the row as it was, not with the sum',
-    guard,
-    'Number(before[field]) + amount,',
-    'Number(before[field]),',
+    '../../entity/src/write.ts',
+    "else if (typeof held === 'number') after[field] = held + amount",
+    "else if (typeof held === 'number') after[field] = held",
   ),
   edit(
     'a guarded writer hides its writer’s increments',

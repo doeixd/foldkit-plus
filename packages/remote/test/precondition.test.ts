@@ -1,6 +1,6 @@
 /** A declared write's refusal codec: it decodes unmet only for a write with a `when`. */
 import { Schema } from 'effect'
-import { Entity, Expr, Write } from 'foldkit-entity'
+import { Entity, Expr, Operators, Write } from 'foldkit-entity'
 import {
   Mutation,
   Refusal,
@@ -76,4 +76,37 @@ it('predicts a sum over the value the store holds as it is read, and only over o
   // A stock the client has not read is not guessed; the name it sets still shows.
   const unread = writeEntities({}, [{ key: 'Item:i1', values: { name: 'Old' } }])
   expect(visibleStore(unread, one)['Item:i1']?.values).toEqual({ name: 'Bolt' })
+})
+
+it('predicts a computed field over the row as it is read, by the client table, and none without it', () => {
+  const Tag = Entity.define(
+    'Tag',
+    Schema.Struct({ id: Schema.String, name: Schema.String, label: Schema.String }),
+  )
+  const concat = Expr.operator('acme.concat', {
+    input: [Schema.String, Schema.String],
+    output: Schema.String,
+  })
+  const table = Operators.memory(Operators.implement(concat, (left, right) => `${left}${right}`))
+  const Relabel = Write.update(
+    Entity.input(Tag, Schema.Struct({ id: Schema.String, prefix: Schema.String }), {
+      prefix: Entity.unmapped,
+    }),
+    { id: 'id', compute: { label: ({ row, input }) => concat(input.prefix, row.name) } },
+  )
+  const pending = beginOptimistic(
+    emptyOptimistic,
+    'r1',
+    optimisticOfWrite(Relabel, { id: 't1', prefix: 'o' }, undefined),
+  )
+  const label = (base: EntityStore, operators = table) =>
+    visibleStore(base, pending, operators)['Tag:t1']?.values['label']
+  const held = writeEntities({}, [{ key: 'Tag:t1', values: { name: 'ned', label: 'plain' } }])
+  expect(label(held)).toBe('oned')
+  // A change to what it reads reaches the store meanwhile: the prediction follows it.
+  expect(label(writeEntities(held, [{ key: 'Tag:t1', values: { name: 'bo' } }]))).toBe('obo')
+  // A client without the operator shows what the store holds until the server answers.
+  expect(label(held, Operators.kernel)).toBe('plain')
+  // And one that has not read what it computes from guesses nothing.
+  expect(label(writeEntities({}, [{ key: 'Tag:t1', values: { label: 'plain' } }]))).toBe('plain')
 })

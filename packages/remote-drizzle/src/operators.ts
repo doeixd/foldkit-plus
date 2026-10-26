@@ -8,9 +8,11 @@
 import { sql, type SQL } from 'drizzle-orm'
 import { Option } from 'effect'
 import {
+  Law,
   Operators,
   Text,
   type Collation,
+  type Evidence,
   type MemoryOperators,
   type OperatorDescriptor,
   type OperatorTable,
@@ -41,7 +43,11 @@ export interface SqlImplementation {
 export interface DrizzleOperators extends OperatorTable {
   readonly _tag: 'DrizzleOperators'
   readonly get: (operator: OperatorDescriptor) => Option.Option<SqlImplementation['build']>
+  /** The operator it implements under a name (`id`, or `id@version`): how a computed assignment as data compiles. */
+  readonly named: (name: string) => Option.Option<OperatorDescriptor>
   readonly implementations: ReadonlyArray<SqlImplementation>
+  /** What is known of its implementations' laws: `DrizzleOperators.withEvidence`. */
+  readonly evidence: ReadonlyArray<Evidence>
 }
 
 /** What a binding runs its expressions' primitive operators by, in SQL and in memory. */
@@ -57,7 +63,10 @@ const fail = (what: string): never => {
   throw new Error(`[foldkit-remote-drizzle] DrizzleOperators: ${what}`)
 }
 
-const table = (implementations: ReadonlyArray<SqlImplementation>): DrizzleOperators => {
+const table = (
+  implementations: ReadonlyArray<SqlImplementation>,
+  evidence: ReadonlyArray<Evidence>,
+): DrizzleOperators => {
   const byOperator = new Map<OperatorDescriptor, SqlImplementation['build']>()
   const byName = new Map<string, OperatorDescriptor>()
   for (const { operator, build } of implementations) {
@@ -75,7 +84,9 @@ const table = (implementations: ReadonlyArray<SqlImplementation>): DrizzleOperat
     _tag: 'DrizzleOperators',
     has: (operator: OperatorDescriptor) => byOperator.has(operator),
     get: (operator: OperatorDescriptor) => Option.fromUndefinedOr(byOperator.get(operator)),
+    named: (name: string) => Option.fromUndefinedOr(byName.get(name)),
     implementations: Object.freeze([...implementations]),
+    evidence: Object.freeze([...evidence]),
   })
 }
 
@@ -111,7 +122,7 @@ export const DrizzleOperators = {
 
   /** A table of implementations. One operator implemented twice, or two under one name, is refused. */
   make: (...implementations: ReadonlyArray<SqlImplementation>): DrizzleOperators =>
-    table(implementations),
+    table(implementations, []),
 
   /** Both tables' implementations. An operator both implement is refused: say which wins with `override`. */
   merge: (left: DrizzleOperators, right: DrizzleOperators): DrizzleOperators => {
@@ -121,23 +132,54 @@ export const DrizzleOperators = {
         `both tables implement ${both.map(({ operator }) => nameOf(operator)).join(', ')}; replace with DrizzleOperators.override`,
       )
     }
-    return table([...left.implementations, ...right.implementations])
+    return table(
+      [...left.implementations, ...right.implementations],
+      [...left.evidence, ...right.evidence],
+    )
   },
 
-  /** The table with these implementations in place of its own for the same operators. */
+  /**
+   * The table with these implementations in place of its own for the same
+   * operators, a replaced implementation's evidence going with it.
+   */
   override: (
     base: DrizzleOperators,
     ...implementations: ReadonlyArray<SqlImplementation>
   ): DrizzleOperators => {
     const replaced = new Set(implementations.map(({ operator }) => operator))
-    return table([
-      ...base.implementations.filter(({ operator }) => !replaced.has(operator)),
-      ...implementations,
-    ])
+    const names = new Set([...replaced].map(nameOf))
+    return table(
+      [
+        ...base.implementations.filter(({ operator }) => !replaced.has(operator)),
+        ...implementations,
+      ],
+      base.evidence.filter(({ operator }) => !names.has(operator)),
+    )
+  },
+
+  /**
+   * The table with what is known of its implementations' laws: records from
+   * `Conformance.lawsBy` run against the database, each of an operator it
+   * implements and a law that operator declares. A computed assignment
+   * without `expect` lands under a ledger only by an operator whose
+   * commutativity and associativity both tables record as tested.
+   */
+  withEvidence: (base: DrizzleOperators, evidence: ReadonlyArray<Evidence>): DrizzleOperators => {
+    for (const record of evidence) {
+      const operator =
+        base.implementations.find(({ operator }) => nameOf(operator) === record.operator)
+          ?.operator ??
+        fail(`evidence names ${record.operator}, which this table does not implement`)
+      const declared = operator.laws.map(law => JSON.stringify(Law.describe(law)))
+      if (!declared.includes(JSON.stringify(record.law))) {
+        fail(`evidence names a law of ${record.operator} it does not declare (${record.law.kind})`)
+      }
+    }
+    return table(base.implementations, [...base.evidence, ...evidence])
   },
 
   /** The kernel's own operators (`Text.startsWith`): every binding's default. */
-  kernel: table([startsWith]),
+  kernel: table([startsWith], []),
 }
 
 /** Both kernels: what a binding runs by when it is given no table. */
