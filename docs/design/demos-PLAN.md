@@ -4,6 +4,16 @@ The plan to bring every browser demo onto the project's own components and
 theme, and onto the features released through 0.34.0. Checked against `main`
 at `bf6a8a94` on 2026-10-26.
 
+**Status (2026-10-26):**
+
+- **Phase 0 is done**, and its findings are below.
+- **Its two bugs are fixed:** `widgets`' dark borders and `richtext-playground`'s
+  sideways scroll at 390px, which now has an e2e test.
+- **Phase 1 is in progress.** `AppShell` is built in `foldkit-mixins-ui` with its
+  tests, and so is the `width.page` token. `demoStyle` and `design-system`'s
+  `AppShell` page are next.
+- **Phases 2 to 6 are not started.**
+
 ## Why
 
 The demos are what a visitor sees first, and the published ones
