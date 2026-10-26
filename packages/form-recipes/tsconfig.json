@@ -7,13 +7,24 @@
     "composite": true,
     "noEmit": false,
     "paths": {
+      "foldkit-bundle": ["../bundle/src/index.ts"],
       "foldkit-crud": ["../crud/src/index.ts"],
       "foldkit-entity": ["../entity/src/index.ts"],
       "foldkit-entity/conformance": ["../entity/src/conformance/index.ts"],
       "foldkit-form": ["../form/src/index.ts"],
       "foldkit-form-recipes": ["./src/index.ts"],
       "foldkit-form-recipes/html": ["./src/html.ts"],
+      "foldkit-form-recipes/image": ["./src/image.ts"],
       "foldkit-form-recipes/ui": ["./src/ui.ts"],
+      "foldkit-media": ["../media/src/index.ts"],
+      "foldkit-media/browser": ["../media/src/browser/index.ts"],
+      "foldkit-media/client": ["../media/client.d.ts"],
+      "foldkit-media/cloudflare": ["../media/src/cloudflare/index.ts"],
+      "foldkit-media/icons": ["../media/src/icons/index.ts"],
+      "foldkit-media/server": ["../media/src/server/index.ts"],
+      "foldkit-media/sharp": ["../media/src/sharp/index.ts"],
+      "foldkit-media/unpic": ["../media/src/unpic/index.ts"],
+      "foldkit-media/vite": ["../media/src/vite/index.ts"],
       "foldkit-mixins": ["../mixins/src/index.ts"],
       "foldkit-mixins-form": ["../mixins-form/src/index.ts"],
       "foldkit-mixins-form/ui": ["../mixins-form/src/ui.ts"],
@@ -38,7 +49,13 @@
       "path": "../entity/tsconfig.build.json"
     },
     {
+      "path": "../bundle/tsconfig.build.json"
+    },
+    {
       "path": "../form/tsconfig.build.json"
+    },
+    {
+      "path": "../media/tsconfig.build.json"
     },
     {
       "path": "../mixins/tsconfig.build.json"

@@ -16,8 +16,8 @@ field and in its table cell, and the parsing that is easy to get quietly wrong
 | How a draft becomes a value and a value a draft; how a value reads in a list | **this package** |
 | The element that edits it | `foldkit-form-recipes/html` (or your own renderer) |
 
-A recipe owns no state and sends no Message. It attaches where any control
-does: a form's `inputs`, or Entity metadata through `Input.of` and `Display.of`.
+A recipe owns no state and sends no Message, except `image`, whose control
+holds its upload (below). It attaches where any control does: a form's `inputs`, or Entity metadata through `Input.of` and `Display.of`.
 
 ## Mental model
 
@@ -178,6 +178,42 @@ the Input recipe's. A calendar in a popover is not one of them yet: it holds an
 open month and a focused day, state a renderer has nowhere to keep, so it waits
 for a control backed by a Bundle.
 
+### An image: `foldkit-form-recipes/image`
+
+`image({ url?, headers?, id?, words?, styles? })` is a key whose value is the
+`HashedAsset` that `foldkit-media`'s upload route answers. Its control is a
+Bundle, because an upload has state of its own:
+
+```text
+Empty --choose--> Sending --201--> Kept (the value)
+                  Sending --cancel--> Empty
+                  Sending --refused--> Refused --retry--> Sending
+```
+
+```ts
+import { image } from 'foldkit-form-recipes/image'
+import { HashedAsset } from 'foldkit-media'
+
+const cover = image({ headers: { authorization: 'Bearer …' } })
+const Post = Form.make('Post', Form.input(Schema.Struct({ cover: HashedAsset })), {
+  inputs: { cover: cover.control },
+})
+```
+
+Choosing a file (dropped, or picked through the drop zone's input) sends it at
+once with `foldkit-media/browser`'s `upload`. The control draws its progress and
+a Cancel button, which ends the send's Subscription and so aborts the request.
+A refusal shows the route's reason (`words.refused`) with Try again, which
+sends the same file again. Only `Kept` is a value: a file on its way, or
+refused, is nothing entered, so a required key stays `Required` until the
+route has kept it.
+
+Who may upload stays the route's `UploadPolicy`; `headers` is only what the
+request carries. Its look comes from `styles.field` (over `ImageSlots`) and
+`styles.drop` (over `foldkit-mixins-ui`'s `FileDropSlots`), its words from
+`words`. The entry needs `foldkit-media`, `@foldkit/ui` and
+`foldkit-mixins-ui` beside the package's own.
+
 ## Displays
 
 Each recipe's `display` is a `foldkit-crud` Display, for a list or a detail:
@@ -204,6 +240,12 @@ instant reads in its recipe's zone.
   and a plain string schema accepts it. Give a moment that must be set a schema
   that refuses it: `Schema.String.check(Schema.isMinLength(1))`.
 
+- **An image control's draft is not stored mid-send.** A `File` cannot be
+  kept in a stored draft, so `settled` turns `Sending` and `Refused` into
+  `Empty`; a kept image stays.
+- **A late answer is ignored.** Every send has its own attempt number, and an
+  event from a send cancelled or replaced changes nothing.
+
 ## Limits
 
 - An email or web address that passes is well-formed, not known to exist: whether
@@ -213,3 +255,6 @@ instant reads in its recipe's zone.
   and its zone is the recipe's.
 - A browser's own date and time inputs are the default renderers; their look and
   their picker are the browser's.
+- `image` is a Bundle control, so it takes no `check` and cannot sit in a row of
+  a nested form. There is no `file` recipe: the upload route takes images
+  alone.

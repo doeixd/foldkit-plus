@@ -2519,6 +2519,9 @@ importers:
 
   packages/form-recipes:
     dependencies:
+      foldkit-bundle:
+        specifier: workspace:*
+        version: link:../bundle
       foldkit-crud:
         specifier: workspace:*
         version: link:../crud
@@ -2529,6 +2532,9 @@ importers:
       '@effect/platform-browser':
         specifier: ^4.0.5
         version: 4.0.5(effect@4.0.5)
+      '@foldkit/ui':
+        specifier: 0.169.0
+        version: 0.169.0(effect@4.0.5)(foldkit@0.169.0(@effect/platform-browser@4.0.5(effect@4.0.5))(effect@4.0.5))
       effect:
         specifier: ^4.0.5
         version: 4.0.5
@@ -2538,6 +2544,9 @@ importers:
       foldkit-entity:
         specifier: workspace:*
         version: link:../entity
+      foldkit-media:
+        specifier: workspace:*
+        version: link:../media
       foldkit-mixins:
         specifier: workspace:*
         version: link:../mixins

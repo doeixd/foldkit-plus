@@ -285,6 +285,11 @@ const View = FormView.define(Meeting, { renderers: renderers() }) // date and da
   other than the locale's, extra decimals and an unasked-for minus are refused.
 - `foldkit-form-recipes/ui`'s `renderers({ input? })` draws the same inputs under
   `foldkit-mixins-ui`'s Input Slot, beside `UiForm.renderers(...)`.
+- `foldkit-form-recipes/image`'s `image({ url?, headers?, words?, styles? })` is a
+  key holding the `HashedAsset` the upload route keeps. Its control is a Bundle:
+  `Empty -> Sending -> Kept`, Cancel back to `Empty` (aborting the request), a
+  refusal `Refused` with Try again; only `Kept` is a value. As a Bundle control
+  it takes no `check` and cannot sit in a nested row.
 
 ## Nested input
 

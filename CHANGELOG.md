@@ -37,9 +37,13 @@ version changed; `pnpm` skips versions already in the registry.
   a minus unless asked for, rather than guessing.
   `foldkit-form-recipes/html` draws each as a native input with the type, the
   autofill and the keyboard its key wants, and `foldkit-form-recipes/ui` draws the
-  same inputs under `foldkit-mixins-ui`'s Input Slot. `foldkit-plus` re-exports
-  the three entries as `foldkit-plus/form-recipes`, `/form-recipes/html` and
-  `/form-recipes/ui`.
+  same inputs under `foldkit-mixins-ui`'s Input Slot. `foldkit-form-recipes/image`'s
+  `image(options?)` is a key holding the `HashedAsset` that `foldkit-media`'s
+  upload route keeps: a Bundle control that sends a chosen file at once, shows
+  its progress with Cancel (which aborts the request), and a refusal's reason
+  with Try again; only a kept image is a value. `foldkit-plus` re-exports
+  the four entries as `foldkit-plus/form-recipes`, `/form-recipes/html`,
+  `/form-recipes/image` and `/form-recipes/ui`.
 - **`foldkit-mixins-form/ui`: `UiForm.renderers(styles?)`, a renderer for every
   kind `foldkit-form` ships,** for `FormView.define(form, { renderers })`. Text,
   Number, Multiline and the selects are the plain elements under

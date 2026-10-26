@@ -10,7 +10,13 @@
       "path": "../crud/tsconfig.build.json"
     },
     {
+      "path": "../bundle/tsconfig.build.json"
+    },
+    {
       "path": "../form/tsconfig.build.json"
+    },
+    {
+      "path": "../media/tsconfig.build.json"
     },
     {
       "path": "../mixins-form/tsconfig.build.json"

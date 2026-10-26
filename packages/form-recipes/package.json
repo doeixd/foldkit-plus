@@ -31,6 +31,11 @@
       "types": "./dist/html.d.mts",
       "import": "./dist/html.mjs"
     },
+    "./image": {
+      "foldkit-plus:source": "./src/image.ts",
+      "types": "./dist/image.d.mts",
+      "import": "./dist/image.mjs"
+    },
     "./ui": {
       "foldkit-plus:source": "./src/ui.ts",
       "types": "./dist/ui.d.mts",
@@ -52,17 +57,26 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
+    "foldkit-bundle": "workspace:*",
     "foldkit-crud": "workspace:*",
     "foldkit-form": "workspace:*"
   },
   "peerDependencies": {
+    "@foldkit/ui": "^0.169.0",
     "effect": "^4.0.0",
     "foldkit": "^0.169.0",
+    "foldkit-media": "workspace:*",
     "foldkit-mixins": "workspace:*",
     "foldkit-mixins-form": "workspace:*",
     "foldkit-mixins-ui": "workspace:*"
   },
   "peerDependenciesMeta": {
+    "@foldkit/ui": {
+      "optional": true
+    },
+    "foldkit-media": {
+      "optional": true
+    },
     "foldkit-mixins": {
       "optional": true
     },
@@ -75,9 +89,11 @@
   },
   "devDependencies": {
     "@effect/platform-browser": "^4.0.5",
+    "@foldkit/ui": "0.169.0",
     "effect": "^4.0.5",
     "foldkit": "0.169.0",
     "foldkit-entity": "workspace:*",
+    "foldkit-media": "workspace:*",
     "foldkit-mixins": "workspace:*",
     "foldkit-mixins-form": "workspace:*",
     "foldkit-mixins-ui": "workspace:*",

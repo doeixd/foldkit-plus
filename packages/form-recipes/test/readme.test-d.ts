@@ -5,11 +5,13 @@ import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
 import { FieldRecipes } from 'foldkit-form-recipes'
 import { renderers } from 'foldkit-form-recipes/html'
+import { image } from 'foldkit-form-recipes/image'
 import { renderers as uiRecipes } from 'foldkit-form-recipes/ui'
 import { Style } from 'foldkit-mixins'
 import * as UiForm from 'foldkit-mixins-form/ui'
 import { InputSlots, Recipes } from 'foldkit-mixins-ui'
 import { FormView } from 'foldkit-mixins-form'
+import { HashedAsset } from 'foldkit-media'
 import { CalendarDate } from 'foldkit/calendar'
 
 const due = FieldRecipes.date()
@@ -43,3 +45,11 @@ FieldRecipes.money({ currency: 'EUR' })
 
 // @ts-expect-error an instant names its zone
 FieldRecipes.dateTime({ stored: 'instant' })
+
+// An image, uploaded where it is chosen.
+const cover = image({ headers: { authorization: 'Bearer …' } })
+const Post = Form.make('Post', Form.input(Schema.Struct({ cover: HashedAsset })), {
+  inputs: { cover: cover.control },
+})
+const PostView = FormView.define(Post)
+void PostView
