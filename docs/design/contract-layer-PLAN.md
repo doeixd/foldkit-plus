@@ -218,7 +218,11 @@ Gate: none. Starts now.
    helper becomes a Message handled by the child; `placed.helpers.x()` returns
    the Step that dispatches it.
 5. Typed rejections in Sync (§6.5 item 4), since the replica's rejection is a
-   `reason: string` today (`packages/sync/src/sync.ts`).
+   `reason: string` today (`packages/sync/src/sync.ts`). This builds the
+   decision already taken in
+   [remote-improvement-plan.md](./remote-improvement-plan.md) (§15 decision
+   12, "a Sync rejection reads as a `Refusal`") with Remote's `Refusal`
+   vocabulary (§5.2 there), not a new one.
 6. A design note for upcasting durable Messages (invariant 7).
 7. A section in `docs/replication.md` on choosing document boundaries: a Sync
    key is the unit inside which `validate` may enforce a rule; a rule across
@@ -320,9 +324,10 @@ Gate: Phase 0 item 5. Independent of Phases 1 to 4.
 3. **Server-only state.** A part of the snapshot the journal keeps and never
    sends. Only server-only Messages may change it, so the client's `update`
    never needs it.
-4. **Typed rejections.** A durable Message declares `rejects`; `validate`
-   returns one; the replica's rejected operation carries it decoded, as
-   `Data.refusal` does for Remote mutations.
+4. **Typed rejections.** A durable Message declares its `Refusal` union, as a
+   Remote `Mutation` does; `validate` returns one; the replica's rejected
+   operation carries it decoded, so a cell shows the reason the same way
+   whether Remote or Sync refused the change.
 5. **Upcasters.** `Sync.migrations([...])` from Phase 0 item 6, applied
    wherever an operation is decoded (journal load, replica outbox, exchange).
 6. **Journal Stories.** Given committed operations, when a principal submits
