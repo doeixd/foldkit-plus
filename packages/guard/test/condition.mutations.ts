@@ -7,6 +7,22 @@ const tests = ['packages/guard/test/condition.test.ts']
 
 export default [
   {
+    name: 'a row its rule cannot judge ends the request',
+    edits: [
+      {
+        file,
+        find: 'import { Query, evaluateEach,',
+        replace: 'import { Query, evaluate, evaluateEach,',
+      },
+      {
+        file,
+        find: 'evaluateEach(guard.query, input, [values], { operators }).matched.length === 1',
+        replace: 'evaluate(guard.query, input, [values], { operators }).length === 1',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a conjunction keeps a part that can never hold',
     edits: [{ file, find: "if (condition._tag === 'Never') return never", replace: '' }],
     tests,
@@ -20,6 +36,8 @@ export default [
     name: 'a visitor is asked a row guard',
     edits: [{ file, find: 'visitor && readsPrincipal(guard)', replace: 'false' }],
     tests,
+    survives:
+      'asked, a row guard reading the principal is refused for a visitor who has none, and a refused guard does not hold: denied either way',
   },
   {
     name: 'a principal guard named twice is asked twice',
@@ -59,8 +77,8 @@ export default [
     edits: [
       {
         file,
-        find: 'evaluate(guard.query, input, [values], { operators }).length === 1',
-        replace: 'evaluate(guard.query, input, [values], { operators }).length >= 0',
+        find: 'evaluateEach(guard.query, input, [values], { operators }).matched.length === 1',
+        replace: 'evaluateEach(guard.query, input, [values], { operators }).matched.length >= 0',
       },
     ],
     tests,

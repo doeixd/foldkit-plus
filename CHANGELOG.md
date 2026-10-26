@@ -75,10 +75,12 @@ version changed; `pnpm` skips versions already in the registry.
 - **`Expr.contains` searches for a value or an input,** in its type and where
   it is written. A field or a call as the search was answered in memory and
   refused by the SQL compiler on every request.
-- **A guarded write whose operator refuses its input fails as the writer's
-  would.** `GuardServer.writer` worked out the row a write leaves outside any
-  handling, so text holding a NUL given to an operator ended the request as a
-  defect; it is now the server error the writer answers it with.
+- **A rule whose operator refuses a row's value does not hold,** rather than
+  ending the request: text holding a NUL in what a write supplies can deny it,
+  never crash it (`Condition.holds` judges each row alone). A computed value a
+  guarded write cannot work out is a server error with a fixed message, the
+  implementation's own logged, never sent; and it is worked out only after the
+  rules over the stored row pass, so a writer they refuse learns nothing of it.
 - **A computed assignment that may be null is refused for a field that stores
   none,** where it is declared: a nullable field, a null, or a strict operator
   over a nullable argument. Memory showed the null and the database refused it

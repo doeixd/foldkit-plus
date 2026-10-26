@@ -625,18 +625,28 @@ export const GuardServer = {
       })
     /**
      * The row `context` would leave `before` as. An operator's refusal (text
-     * holding NUL, an implementation that throws) is answered as the writer
-     * answers one it cannot compile, not as a defect.
+     * holding NUL, an implementation that throws) is a server error, as the
+     * writer answers what it cannot compile: logged here, and never sent, since
+     * an implementation's own message may say anything.
      */
     const leaves = (before: Readonly<Record<string, unknown>>, context: UpdateContext) =>
       Effect.suspend(() => {
         try {
           return Effect.succeed(Write.apply(before, context, { operators: policy.operators }).row)
         } catch (error) {
-          if (error instanceof QueryEvaluateError) {
-            return Effect.fail(new RemoteServerError({ message: error.message }))
-          }
-          throw error
+          if (!(error instanceof QueryEvaluateError)) throw error
+          return Effect.logError(
+            '[foldkit-guard] a computed value could not be worked out',
+            error,
+          ).pipe(
+            Effect.andThen(
+              Effect.fail(
+                new RemoteServerError({
+                  message: `${entity.name}'s write could not be worked out to judge its rules`,
+                }),
+              ),
+            ),
+          )
         }
       })
     /** The rules, over the row as it is and as the write would leave it. */
@@ -661,6 +671,9 @@ export const GuardServer = {
             }),
           ),
         )
+        // The rules over the row as stored refuse first: a writer they refuse learns
+        // nothing of what its input would compute.
+        yield* require([rules.row, ...rules.members, ...relations], before, principal)
         // What the writer will store, over the row read, which the pin keeps as the row
         // written: `Write.apply`'s, as the writer works it out.
         const after = {
@@ -669,7 +682,6 @@ export const GuardServer = {
             Object.entries(links).map(([relation, link]) => [relation, linkKey(link)]),
           ),
         }
-        yield* require([rules.row, ...rules.members, ...relations], before, principal)
         yield* require([rules.row], after, principal)
       })
     const guarded: EntityWriter<Option.Option<User>, R | RW> = {

@@ -201,8 +201,24 @@ describe('A guarded write that sets, moves and computes', () => {
       prefix: `o${String.fromCharCode(0)}`,
       by: 0,
     })
-    expect(answer).toMatchObject({ _tag: 'Failure', failure: { _tag: 'RemoteMutationError' } })
+    // A fixed message: an implementation's own may say anything.
+    expect(answer).toMatchObject({
+      _tag: 'Failure',
+      failure: {
+        _tag: 'RemoteMutationError',
+        message: "Tag's write could not be worked out to judge its rules",
+      },
+    })
     expect(row()).toEqual({ title: 'Old', label: 'plain', stock: 2, revision: 1 })
+  })
+
+  it('refuses a writer its rules refuse before working out what it would compute', async () => {
+    const { retag } = open()
+    const answer = await retag(
+      { id: 't1', revision: 1, title: 'New', prefix: `o${String.fromCharCode(0)}`, by: 0 },
+      'ada',
+    )
+    expect(answer).toMatchObject({ _tag: 'Failure', failure: { _tag: 'Forbidden' } })
   })
 
   it('refuses a sum its rule forbids beside a computed value it allows', async () => {

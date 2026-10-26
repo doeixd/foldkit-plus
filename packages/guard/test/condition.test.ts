@@ -83,6 +83,23 @@ const rowsFor = (user: Option.Option<User>, entity = Todo) => {
     .map(row => row.id)
 }
 
+describe('a row its rules cannot judge', () => {
+  it('does not hold, rather than ending the request, when the row holds a NUL', () => {
+    // `isOwner` compares the stored owner, which no interpreter answers for here.
+    const row = { ...own, ownerId: `ada${String.fromCharCode(0)}` }
+    const user = Option.some(ada)
+    expect(
+      Condition.holds(
+        readable(Todo, user),
+        row,
+        Policy.inputOf(user),
+        () => false,
+        Policy.operators,
+      ),
+    ).toBe(false)
+  })
+})
+
 describe('a body that refuses with a reason', () => {
   // `{ allowed: false, reason }` is an object, and so truthy: it must still refuse.
   const Refusing = G.implement({
