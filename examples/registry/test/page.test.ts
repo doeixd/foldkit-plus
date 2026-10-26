@@ -1410,7 +1410,7 @@ test('a fill is one edit of the cells it writes, and one step to undo', async ()
   }
 })
 
-test('a search is the query’s input: the server filters every product by description or UPC, case folded', async () => {
+test('a search is the query’s input: the server filters every product by description, case folded, or UPC prefix', async () => {
   const { dispose, latest } = await mount(serve(), memoryStorage())
   const search = (text: string) => {
     const box = document.querySelector<HTMLInputElement>('#search')!
@@ -1433,6 +1433,12 @@ test('a search is the query’s input: the server filters every product by descr
     // A UPC is searched too: twelve digits no description holds, so one product.
     search(seedOf(7).upc)
     await vi.waitFor(() => expect(descriptions()).toEqual([seedOf(7).description]))
+    // A UPC is matched from its start: its first digits find it, and its last
+    // digits, which a code is not typed from, no longer do.
+    search(seedOf(7).upc.slice(0, 9))
+    await vi.waitFor(() => expect(descriptions()).toContain(seedOf(7).description))
+    search(seedOf(7).upc.slice(4))
+    await vi.waitFor(() => expect(descriptions()).not.toContain(seedOf(7).description))
     search('')
     await vi.waitFor(() => expect(cell(productId(0), 'upc')?.textContent).toBe(seedOf(0).upc))
   } finally {

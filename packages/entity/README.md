@@ -719,7 +719,7 @@ conditions writes three `where`s. `Expr.and` is for a conjunction inside
 something else, and `Expr.or` and `Expr.not` are the other two connectives:
 
 ```ts
-// A search over two fields: the registry finds a product by description or UPC.
+// A search over two fields: a product whose description or UPC holds the text.
 Expr.or(
   Expr.contains(Product.fields.description, input.search),
   Expr.contains(Product.fields.upc, input.search),
