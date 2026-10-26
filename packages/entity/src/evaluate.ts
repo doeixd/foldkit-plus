@@ -25,7 +25,7 @@
 import { Match, Option, Schema } from 'effect'
 import { absurd } from 'effect/Function'
 import { Collation } from './collation.js'
-import { Query, dependenciesOf, isPredicate } from './expr.js'
+import { Expr, Query, dependenciesOf, isPredicate } from './expr.js'
 import type {
   AnyExpr,
   AnyQuery,
@@ -377,29 +377,44 @@ const compare = (left: unknown, right: unknown, collation: Option.Option<Collati
   return (left as number) - (right as number)
 }
 
+/** What an order's keys are worked out with: a call may read the input, and runs by the table. */
+interface OrderScope {
+  readonly input: Row
+  readonly operators: MemoryOperators
+}
+
+/** Each term's key for one row: a field's value, or what a call comes to over the row. */
+const keysOf = (row: Row, terms: ReadonlyArray<OrderTerm>, scope: OrderScope) =>
+  terms.map(term =>
+    valueOf(term.expr, { row, input: scope.input, next: {}, operators: scope.operators }),
+  )
+
 /**
  * Refuses an ordering this interpreter will not answer for, before sorting, so
  * the refusal names the first offending row in row order rather than whichever
  * pair the engine's sort happened to compare first. Every term is checked over
- * every row: a key whose kind differs from the first present one's. A null key
- * is not refused; the term says where it goes.
+ * every row's keys: a key whose kind differs from the first present one's. A
+ * null key is not refused; the term says where it goes.
  */
-const checkOrder = (rows: ReadonlyArray<Row>, terms: ReadonlyArray<OrderTerm>, query: string) => {
-  for (const term of terms) {
-    if (term.expr._tag !== 'Field') {
+const checkOrder = (
+  keys: ReadonlyArray<ReadonlyArray<unknown>>,
+  terms: ReadonlyArray<OrderTerm>,
+  query: string,
+) =>
+  terms.forEach((term, index) => {
+    if (term.expr._tag !== 'Field' && term.expr._tag !== 'Call') {
       throw new QueryEvaluateError(
-        `query "${query}" orders by something that is not a field, which this interpreter cannot run yet`,
+        `query "${query}" orders by something that is neither a field nor a call`,
       )
     }
     if (Option.exists(term.collation, declared => declared._tag === 'Locale')) {
       throw new QueryEvaluateError(
-        `query "${query}" orders "${term.expr.key}" by a backend's locale collation, which only that backend has`,
+        `query "${query}" orders ${Expr.show(term.expr)} by a backend's locale collation, which only that backend has`,
       )
     }
-    const key = term.expr.key
     let first: string | undefined
-    for (const row of rows) {
-      const value = row[key]
+    for (const row of keys) {
+      const value = row[index]
       if (isNull(value)) continue
       const kind = typeof value
       first ??= kind
@@ -409,39 +424,54 @@ const checkOrder = (rows: ReadonlyArray<Row>, terms: ReadonlyArray<OrderTerm>, q
         )
       }
     }
-  }
-}
+  })
 
-/** Two rows by checked terms: negative when `left` sorts first. */
-const byTerms = (terms: ReadonlyArray<OrderTerm>, left: Row, right: Row): number => {
-  for (const term of terms) {
-    const key = (term.expr as Extract<OrderTerm['expr'], { readonly _tag: 'Field' }>).key
-    const absentLeft = isNull(left[key])
-    const absentRight = isNull(right[key])
+/** Two rows' keys by checked terms: negative when `left` sorts first. */
+const byTerms = (
+  terms: ReadonlyArray<OrderTerm>,
+  left: ReadonlyArray<unknown>,
+  right: ReadonlyArray<unknown>,
+): number => {
+  for (const [index, term] of terms.entries()) {
+    const absentLeft = isNull(left[index])
+    const absentRight = isNull(right[index])
     // Where a row without a value goes is the term's to say, whichever the
     // direction; two such rows tie, for the next term.
     if (absentLeft || absentRight) {
       if (absentLeft && absentRight) continue
       return absentLeft === (term.nulls === 'first') ? -1 : 1
     }
-    const sign = compare(left[key], right[key], term.collation)
+    const sign = compare(left[index], right[index], term.collation)
     if (sign !== 0) return term.direction === 'asc' ? sign : -sign
   }
   return 0
 }
 
-const ordered = (rows: ReadonlyArray<Row>, terms: ReadonlyArray<OrderTerm>, query: string) => {
+const ordered = (
+  rows: ReadonlyArray<Row>,
+  terms: ReadonlyArray<OrderTerm>,
+  query: string,
+  scope: OrderScope,
+) => {
   // One row, or none, is in order whatever its keys hold.
   if (terms.length === 0 || rows.length < 2) return [...rows]
-  checkOrder(rows, terms, query)
-  return [...rows].sort((left, right) => byTerms(terms, left, right))
+  // Each row's keys worked out once, not once per comparison: a call may be dear.
+  const keyed = rows.map(row => ({ row, keys: keysOf(row, terms, scope) }))
+  checkOrder(
+    keyed.map(({ keys }) => keys),
+    terms,
+    query,
+  )
+  return keyed.sort((left, right) => byTerms(terms, left.keys, right.keys)).map(({ row }) => row)
 }
 
 /**
  * Where `left` sorts against `right` under these terms (`Query.orderFor`'s),
- * as `evaluate` sorts: negative when it comes first. Refuses what `evaluate`
- * refuses, for these two rows: a term not over a field, a locale collation,
- * or keys of different kinds. For a client placing one row among others it
+ * as `evaluate` sorts: negative when it comes first. A call among them runs
+ * over each row with `input` and `operators` (the kernel's when not given).
+ * Refuses what `evaluate` refuses, for these two rows: a term over neither a
+ * field nor a call, a locale collation, keys of different kinds, or an
+ * operator the table lacks. For a client placing one row among others it
  * holds.
  */
 export const compareRows = (
@@ -449,9 +479,15 @@ export const compareRows = (
   left: Row,
   right: Row,
   query: string,
+  options: {
+    readonly input?: Row | undefined
+    readonly operators?: MemoryOperators | undefined
+  } = {},
 ): number => {
-  checkOrder([left, right], terms, query)
-  return byTerms(terms, left, right)
+  const scope = { input: options.input ?? {}, operators: options.operators ?? Operators.kernel }
+  const keys = [keysOf(left, terms, scope), keysOf(right, terms, scope)] as const
+  checkOrder(keys, terms, query)
+  return byTerms(terms, keys[0], keys[1])
 }
 
 /**
@@ -509,5 +545,6 @@ export const evaluate = (
     rows.filter(row => matches(body, row, input, operators)),
     Query.orderFor(body, input),
     body.entity.name,
+    { input, operators },
   )
 }

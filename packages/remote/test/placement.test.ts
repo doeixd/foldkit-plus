@@ -5,7 +5,7 @@
  */
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Entity as DomainEntity, Expr, Order } from 'foldkit-entity'
+import { Entity as DomainEntity, Expr, Operators, Order } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import {
@@ -95,7 +95,7 @@ const rows = [
 ] as const
 const store = storeOf(rows)
 const at = (connection: Connection, id: string, body = ByRank.body!) =>
-  placeIn(store, connection, body, {}, entityKey('Project', id))
+  placeIn(store, connection, body, {}, entityKey('Project', id), Operators.kernel)
 
 describe('a row is placed between the edges a list has loaded', () => {
   const whole = list(segment(['a', 'b', 'c'], terminal, terminal))
@@ -111,7 +111,7 @@ describe('a row is placed between the edges a list has loaded', () => {
 
   it('where it goes now when it is one of the list’s own rows that moved', () => {
     const moved = storeOf([...rows.filter(([id]) => id !== 'a'), ['a', 25]])
-    expect(placeIn(moved, whole, ByRank.body!, {}, 'Project:a')).toEqual(
+    expect(placeIn(moved, whole, ByRank.body!, {}, 'Project:a', Operators.kernel)).toEqual(
       RowPlace.Before({ segment: 0, edge: 'Project:c' }),
     )
   })
@@ -148,6 +148,7 @@ describe('a row past what a list has loaded is outside it', () => {
         ByRank.body!,
         {},
         'Project:a',
+        Operators.kernel,
       ),
     ).toMatchObject({ _tag: 'Unknown' })
     const last = storeOf([...rows.filter(([id]) => id !== 'c'), ['c', 25]])
@@ -158,6 +159,7 @@ describe('a row past what a list has loaded is outside it', () => {
         ByRank.body!,
         {},
         'Project:c',
+        Operators.kernel,
       ),
     ).toMatchObject({ _tag: 'Unknown' })
     // Any other row past a boundary is outside, as ever.
@@ -180,7 +182,7 @@ describe('a row is placed by the order as declared', () => {
       ['n', null],
     ])
     const loaded = list(segment(['a', 'b'], terminal, terminal))
-    expect(placeIn(down, loaded, ByRankDown.body!, {}, 'Project:n')).toEqual(
+    expect(placeIn(down, loaded, ByRankDown.body!, {}, 'Project:n', Operators.kernel)).toEqual(
       RowPlace.Before({ segment: 0, edge: 'Project:a' }),
     )
   })
@@ -203,8 +205,14 @@ describe('what cannot be judged exactly is Unknown, with why', () => {
       },
     ).remote.entities
     expect(
-      placeIn(mixed, list(segment(['odd'], terminal, terminal)), ByRank.body!, {}, 'Project:x')
-        ._tag,
+      placeIn(
+        mixed,
+        list(segment(['odd'], terminal, terminal)),
+        ByRank.body!,
+        {},
+        'Project:x',
+        Operators.kernel,
+      )._tag,
     ).toBe('Unknown')
   })
 
@@ -228,10 +236,10 @@ describe('what cannot be judged exactly is Unknown, with why', () => {
       },
     ).remote.entities
     const loaded = list(segment(['a', 'p', 'c'], terminal, terminal))
-    expect(placeIn(partial, loaded, ByRank.body!, {}, 'Project:p')).toEqual(
+    expect(placeIn(partial, loaded, ByRank.body!, {}, 'Project:p', Operators.kernel)).toEqual(
       RowPlace.Unknown({ reason: 'Project:p lacks a field the order reads' }),
     )
-    expect(placeIn(partial, loaded, ByRank.body!, {}, 'Project:late')).toEqual(
+    expect(placeIn(partial, loaded, ByRank.body!, {}, 'Project:late', Operators.kernel)).toEqual(
       RowPlace.Unknown({ reason: 'Project:p lacks a field the order reads' }),
     )
   })
@@ -274,13 +282,13 @@ describe('a row whose Selection stored no id', () => {
 
   it('is placed by the id its key holds', () => {
     const whole = list(segment(['a', 'b'], terminal, terminal))
-    expect(placeIn(ranked, whole, ByRank.body!, {}, entityKey('Project', 'x'))).toEqual(
-      RowPlace.End({ segment: 0 }),
-    )
+    expect(
+      placeIn(ranked, whole, ByRank.body!, {}, entityKey('Project', 'x'), Operators.kernel),
+    ).toEqual(RowPlace.End({ segment: 0 }))
     const before = list(segment(['b', 'x'], terminal, terminal))
-    expect(placeIn(ranked, before, ByRank.body!, {}, entityKey('Project', 'a'))).toEqual(
-      RowPlace.Before({ segment: 0, edge: 'Project:b' }),
-    )
+    expect(
+      placeIn(ranked, before, ByRank.body!, {}, entityKey('Project', 'a'), Operators.kernel),
+    ).toEqual(RowPlace.Before({ segment: 0, edge: 'Project:b' }))
   })
 })
 
@@ -325,7 +333,7 @@ describe('a row with a number id', () => {
       stale: false,
     }
     // As text, '10' sorts below '9' and '8'; as a number it comes first.
-    expect(placeIn(items, loaded, Newest.body!, {}, 'Item:10')).toEqual(
+    expect(placeIn(items, loaded, Newest.body!, {}, 'Item:10', Operators.kernel)).toEqual(
       RowPlace.Before({ segment: 0, edge: 'Item:9' }),
     )
     // Read without its id, a row's key is text, and its number is not known.
@@ -338,6 +346,8 @@ describe('a row with a number id', () => {
         now: 0,
       },
     ).remote.entities
-    expect(placeIn(unread, loaded, Newest.body!, {}, 'Item:11')).toMatchObject({ _tag: 'Unknown' })
+    expect(placeIn(unread, loaded, Newest.body!, {}, 'Item:11', Operators.kernel)).toMatchObject({
+      _tag: 'Unknown',
+    })
   })
 })

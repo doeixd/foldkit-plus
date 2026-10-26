@@ -32,8 +32,8 @@ export default [
     edits: [
       {
         file: expr,
-        find: 'collation: Option.orElse(Option.fromUndefinedOr(options.collation), () =>',
-        replace: 'collation: Option.orElse(Option.none<Collation>(), () =>',
+        find: 'const collation = Option.orElse(Option.fromUndefinedOr(options.collation), () =>',
+        replace: 'const collation = Option.orElse(Option.none<Collation>(), () =>',
       },
     ],
     tests,

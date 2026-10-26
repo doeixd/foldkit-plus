@@ -11,6 +11,7 @@ import {
   Entity as DomainEntity,
   Query as Relational,
   QueryEvaluateError,
+  Operators,
   ReadFilter,
   SelectionTypeId,
   type MemoryOperators,
@@ -909,11 +910,12 @@ const readContract = <Name extends string, Input, Value, Entity extends string>(
 const placeableReadContract = <Name extends string, Input>(
   contract: ReadContract<Name, Input>,
   body: Domain.AnyQuery | undefined,
+  operators: MemoryOperators,
 ): ReadContract<Name, Input> => {
   if (body === undefined) return contract
   const { requirement, ref } = contract
   const encoded = Schema.encodeSync(ref.Input)(ref.input) as Readonly<Record<string, unknown>>
-  if (Relational.placement(body, encoded)._tag !== 'Placeable') return contract
+  if (Relational.placement(body, encoded, { operators })._tag !== 'Placeable') return contract
   const missing = Relational.dependencies(body).fields.filter(
     field => !requirement.select.fields.includes(field.key),
   )
@@ -2723,7 +2725,7 @@ const bindDomain = <
     readonly operators?: MemoryOperators | undefined
   } = {},
 ): RemoteDomain<AppModel, Store, Entities, Queries, Mutations> => {
-  const { operators } = options
+  const operators = options.operators ?? Operators.kernel
   const bound = bindRemote(definition, store)
   // Every reader any `subscriptions` call names, and every connection one keeps:
   // retention is the domain's, so each call's retain entry roots them all, and
@@ -2920,7 +2922,7 @@ const bindDomain = <
       for (const edge of inserted.values()) {
         if (held.has(edge.key)) continue
         const key = entityKey(edge.ref.entity, edge.ref.id)
-        RowPlace.$match(placeIn(store, placed, body, query.value.encoded, key), {
+        RowPlace.$match(placeIn(store, placed, body, query.value.encoded, key, operators), {
           Before: place => void (placed = withEdge(placed, edge, place)),
           End: place => void (placed = withEdge(placed, edge, place)),
           Outside: () => void outside.push(edge),
@@ -3304,6 +3306,7 @@ const bindDomain = <
       const { ref, relation, requirement } = placeableReadContract(
         readContract(query.ref(input), select, window),
         query.body,
+        operators,
       )
       const relationKey = stableStringify(relation)
       // A read shows at most its window, whatever else loaded the connection:

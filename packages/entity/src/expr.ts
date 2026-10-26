@@ -1001,8 +1001,9 @@ const expandedScalar = (scalar: AnyExpr): AnyExpr => {
     scalar._tag === 'Call'
       ? Option.match(scalar.expansion, {
           onSome: expandedScalar,
-          // An operator with no definition stays, for an interpreter to refuse by name.
-          onNone: () => scalar,
+          // An operator with no definition stays, for an interpreter to run or refuse by
+          // name; a defined one among its arguments is expanded all the same.
+          onNone: () => node<AnyExpr>({ ...scalar, args: scalar.args.map(expandedSide) }),
         })
       : scalar
   expandedCache.set(scalar, result)
@@ -1041,7 +1042,11 @@ const expandedPredicate = (predicate: Predicate): Predicate => {
           left: expandedScalar(compare.left),
           right: expandedScalar(compare.right),
         }),
-      Test: test => Option.match(test.expansion, { onSome: expandedPredicate, onNone: () => test }),
+      Test: test =>
+        Option.match(test.expansion, {
+          onSome: expandedPredicate,
+          onNone: () => node<Predicate>({ ...test, args: test.args.map(expandedSide) }),
+        }),
     }),
   )
   expandedCache.set(predicate, result)
@@ -1106,12 +1111,14 @@ export const Expr = {
     makeOperator(id, options as Parameters<typeof makeOperator>[1]) as unknown as Operator<In, Out>,
 
   /**
-   * The predicate with every call of a defined operator replaced by what it
-   * means, deeply. An interpreter that compiles a body expands it first, and
-   * compiles exactly what was written out. A call with no definition stays,
-   * for the interpreter to refuse by name.
+   * The predicate or scalar (an order term's, say) with every call of a
+   * defined operator replaced by what it means, deeply. An interpreter that
+   * compiles a body expands it first, and compiles exactly what was written
+   * out. A call with no definition stays, for the interpreter to run or refuse
+   * by name.
    */
-  expanded: (predicate: Predicate): Predicate => expandedPredicate(predicate),
+  expanded: <N extends Predicate | AnyExpr>(node: N): N extends Predicate ? Predicate : AnyExpr =>
+    (isPredicate(node) ? expandedPredicate(node) : expandedScalar(node)) as never,
 
   /**
    * What these expressions need that an interpreter lacks, as `Query.unsupported`
@@ -1427,19 +1434,49 @@ export interface TermOptions {
 }
 
 /** A term, its nulls placed by `options` or by the direction's default. */
-const term = (direction: 'asc' | 'desc', expr: AnyExpr, options: TermOptions = {}): OrderTerm =>
-  node({
+const term = (direction: 'asc' | 'desc', expr: AnyExpr, options: TermOptions = {}): OrderTerm => {
+  const collation = Option.orElse(Option.fromUndefinedOr(options.collation), () =>
+    Match.value(expr).pipe(
+      Match.tag('Field', field => field.collation),
+      Match.tag('Call', call => call.collation),
+      Match.orElse(() => Option.none<Collation>()),
+    ),
+  )
+  if (expr._tag === 'Call') orderableCall(expr, collation)
+  return node({
     _tag: 'Term',
     direction,
     expr,
     nulls: options.nulls ?? (direction === 'asc' ? 'last' : 'first'),
-    collation: Option.orElse(Option.fromUndefinedOr(options.collation), () =>
-      Match.value(expr).pipe(
-        Match.tag('Field', field => field.collation),
-        Match.orElse(() => Option.none<Collation>()),
-      ),
-    ),
+    collation,
   })
+}
+
+/**
+ * Refuses a call no interpreter could order alike (expr-operations-DESIGN §8):
+ * its result must be a number, or text under a collation every interpreter
+ * shares. A field's text may be left to the backend; a call's has no backend
+ * column to fall back on.
+ */
+const orderableCall = (call: CallExpr<unknown>, collation: Option.Option<Collation>): void => {
+  const fail = (why: string): never => {
+    throw new Error(`[foldkit-entity] Order: ${showExpr(call)} ${why}`)
+  }
+  const kind = sideKind(call)
+  if (kind === 'number') return
+  if (kind !== 'text') fail('is neither a number nor text, so it orders nowhere alike')
+  Option.match(collation, {
+    onNone: () =>
+      fail(
+        'is text with no collation, so backends would order it differently; give the term or its text Collation.binary or Collation.asciiFold',
+      ),
+    onSome: each => {
+      if (each._tag === 'Locale') {
+        fail(`is ordered by the backend's "${each.locale}" collation, which a call cannot carry`)
+      }
+    },
+  })
+}
 
 /** How a list is sorted, as its input holds it: one of its named orders, which way, or none. */
 export type ChosenSort<By extends string> = {
@@ -1455,7 +1492,7 @@ export type ChosenSort<By extends string> = {
 export interface ChosenOrder {
   readonly _tag: 'Chosen'
   readonly sort: InputExpr<ChosenSort<string>>
-  readonly choices: Readonly<Record<string, FieldExpr<unknown>>>
+  readonly choices: Readonly<Record<string, FieldExpr<unknown> | CallExpr<unknown>>>
 }
 
 /** One entry of a body's ordering: fixed, or chosen by the input. */
@@ -1471,8 +1508,8 @@ export const Order = {
 
   /**
    * The order the input names, among `choices`: every name the sort can hold
-   * maps to a field, so a name left out is a type error here, not a query that
-   * silently orders by nothing. A `null` sort chooses none, and the terms after
+   * maps to a field or a call that orders, so a name left out is a type error
+   * here, not a query that silently orders by nothing. A `null` sort chooses none, and the terms after
    * it decide.
    *
    * ```ts
@@ -1483,12 +1520,14 @@ export const Order = {
     sort: InputExpr<ChosenSort<By>>,
     choices: Choices,
   ): ChosenOrder & Reads<ReadsOf<Choices[keyof Choices]>> => {
-    const fields: Record<string, FieldExpr<unknown>> = Object.create(null)
+    const fields: Record<string, FieldExpr<unknown> | CallExpr<unknown>> = Object.create(null)
     for (const [name, choice] of Object.entries<Operand<any>>(choices)) {
       const expr = toExpr(choice as never, 'chosen')
-      if (expr._tag !== 'Field') {
-        throw new Error(`[foldkit-entity] Order.chosen: "${name}" is not a field`)
+      if (expr._tag !== 'Field' && expr._tag !== 'Call') {
+        throw new Error(`[foldkit-entity] Order.chosen: "${name}" is neither a field nor a call`)
       }
+      // Checked as a term now, so an alternative no input has chosen yet is refused where written.
+      if (expr._tag === 'Call') orderableCall(expr, expr.collation)
       fields[name] = expr
     }
     return node({
@@ -1522,9 +1561,19 @@ const ordersIntrinsically = (ast: SchemaAST.AST): boolean =>
   (SchemaAST.isUnion(ast) &&
     ast.types.every(member => SchemaAST.isNull(member) || ordersIntrinsically(member)))
 
-/** Why a term cannot be placed by a client, if it cannot. */
-const unplaceable = (orderTerm: OrderTerm): Option.Option<string> =>
+/** Why a term cannot be placed by a client running `operators`, if it cannot. */
+const unplaceable = (orderTerm: OrderTerm, operators: OperatorTable): Option.Option<string> =>
   Match.value(orderTerm.expr).pipe(
+    // Checked when the term was made: a number, or text under a shared collation.
+    // Left is whether the client runs every primitive operator it calls.
+    Match.tag('Call', call => {
+      const missing = missingFrom(dependenciesOf(call).operators, operators)
+      return missing.length === 0
+        ? Option.none<string>()
+        : Option.some(
+            `it orders by ${showExpr(call)}, and this client does not run ${missing.join(', ')}`,
+          )
+    }),
     Match.tag('Field', field =>
       Option.match(orderTerm.collation, {
         onNone: () =>
@@ -1546,7 +1595,7 @@ const unplaceable = (orderTerm: OrderTerm): Option.Option<string> =>
           ),
       }),
     ),
-    Match.orElse(() => Option.some('it orders by something that is not a field')),
+    Match.orElse(() => Option.some('it orders by something that is neither a field nor a call')),
   )
 
 /** Each Entity's id tie-break, made once, so a resolved order reuses one term. */
@@ -1979,15 +2028,21 @@ export const Query = {
   /**
    * Whether a client can order this query's rows exactly as the server does,
    * for one input: every term over a number or a boolean (a row may lack it), or over text with a
-   * portable collation (`binary`, `asciiFold`). A body that names no order
-   * leaves it to the server, and is never placeable.
+   * portable collation (`binary`, `asciiFold`), or a call whose primitive
+   * operators the client's table (`operators`; none when not given) runs. A
+   * body that names no order leaves it to the server, and is never placeable.
    */
-  placement: (self: AnyQuery, input: Readonly<Record<string, unknown>>): Placement => {
+  placement: (
+    self: AnyQuery,
+    input: Readonly<Record<string, unknown>>,
+    options: { readonly operators?: OperatorTable | undefined } = {},
+  ): Placement => {
     if (self.orderBy.length === 0) {
       return notPlaceable("its order is the server's: the body names none")
     }
+    const operators = options.operators ?? noOperators
     for (const orderTerm of Query.orderFor(self, input)) {
-      const reason = unplaceable(orderTerm)
+      const reason = unplaceable(orderTerm, operators)
       if (Option.isSome(reason)) return notPlaceable(reason.value)
     }
     return placeable
@@ -2140,11 +2195,21 @@ const unsupportedIn = (
   const runs = new Set(supported)
   return [
     ...read.operations.filter(operation => !runs.has(operation)),
-    ...read.operators
-      .filter(operator => Option.isNone(operator.definedAs) && !operators.has(operator))
-      .map(operatorName),
+    ...missingFrom(read.operators, operators),
   ]
 }
+
+/**
+ * The primitive operators among `read` that `operators` does not implement, by
+ * name. A defined one needs nothing: what it means was walked into `read`.
+ */
+const missingFrom = (
+  read: ReadonlyArray<OperatorDescriptor>,
+  operators: OperatorTable,
+): ReadonlyArray<string> =>
+  read
+    .filter(operator => Option.isNone(operator.definedAs) && !operators.has(operator))
+    .map(operatorName)
 
 /** An operator by its id, and its version when that is not the first. */
 const operatorName = (operator: OperatorDescriptor): string =>

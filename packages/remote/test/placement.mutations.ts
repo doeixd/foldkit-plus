@@ -67,7 +67,7 @@ export default [
     edits: [
       {
         file: index,
-        find: "if (Relational.placement(body, encoded)._tag !== 'Placeable') return contract",
+        find: "if (Relational.placement(body, encoded, { operators })._tag !== 'Placeable') return contract",
         replace: 'return contract',
       },
     ],
@@ -78,7 +78,7 @@ export default [
     edits: [
       {
         file: index,
-        find: "if (Relational.placement(body, encoded)._tag !== 'Placeable') return contract",
+        find: "if (Relational.placement(body, encoded, { operators })._tag !== 'Placeable') return contract",
         replace: '',
       },
     ],
@@ -89,7 +89,7 @@ export default [
     edits: [
       {
         file: '../../entity/src/evaluate.ts',
-        find: 'checkOrder([left, right], terms, query)',
+        find: 'checkOrder(keys, terms, query)',
         replace: 'void terms',
       },
     ],

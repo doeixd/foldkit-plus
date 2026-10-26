@@ -106,8 +106,8 @@ export default [
   edit(
     'expanding keeps a predicate call',
     expr,
-    'Option.match(test.expansion, { onSome: expandedPredicate, onNone: () => test }),',
-    'test,',
+    'onSome: expandedPredicate,',
+    'onSome: () => test,',
   ),
   edit('expanding keeps a scalar call', expr, 'onSome: expandedScalar,', 'onSome: () => scalar,'),
   edit(

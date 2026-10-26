@@ -126,7 +126,7 @@ export const impactOn = (
   connection: HeldConnection,
   store: EntityStore,
   change: EntityChange,
-  operators?: MemoryOperators | undefined,
+  operators: MemoryOperators,
 ): Impact => {
   const { descriptor } = connection
   const body = descriptor.body
@@ -213,7 +213,7 @@ export const impactOn = (
         )
         return sameOrder(pages, next) ? kept : Impact.Placed({ connection: next })
       }
-      return RowPlace.$match(placeIn(store, pages, body, connection.encoded, key), {
+      return RowPlace.$match(placeIn(store, pages, body, connection.encoded, key, operators), {
         Before: placedAt,
         End: placedAt,
         // It belongs to rows not loaded: gone from these, if they showed it.

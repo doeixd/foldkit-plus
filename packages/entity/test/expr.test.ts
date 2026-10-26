@@ -142,7 +142,7 @@ describe('Order.chosen orders by the field the input names', () => {
     ).toThrow(/reads Author\.name, but the query is from Post/)
   })
 
-  it('refuses a choice that is not a field', () => {
+  it('refuses a choice that is neither a field nor a call', () => {
     expect(() =>
       Order.chosen(
         Expr.input(
@@ -158,7 +158,7 @@ describe('Order.chosen orders by the field the input names', () => {
           x: Expr.literal(1),
         },
       ),
-    ).toThrow(/"x" is not a field/)
+    ).toThrow(/"x" is neither a field nor a call/)
   })
 })
 

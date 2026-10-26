@@ -380,7 +380,7 @@ Query.dependencies(recent)     // every field it reads, also split into `predica
 
 - **A sort the reader picks belongs in the body:** `Query.orderBy(Order.chosen(input.sort,
   { title: Post.fields.title }))`, where `input.sort` is `{ by, direction } | null`
-  (Crud's `Sort.make(...).Schema`). Every name needs a field, or it does not compile;
+  (Crud's `Sort.make(...).Schema`). Every name needs a field or a call, or it does not compile;
   `null` chooses none. `Query.orderFor(query, input)` resolves it for one input and
   ends every order on the id, so ties break the same way on every interpreter.
 - **A server's own read rule is declared, not run:** `Entity.annotate(ReadFilter.of(['ownerId']))`
@@ -388,8 +388,14 @@ Query.dependencies(recent)     // every field it reads, also split into `predica
   rather than placing a row whose such member changed.
 - **Text orders by a declared collation, or by the server:** `Entity.annotateMembers({ name:
   Collation.of(Collation.asciiFold) })`; `binary` (code point; ids default to it), `asciiFold`
-  (ASCII folded), `locale(name)` (server only). `Query.placement(query, input)` is `Placeable`
-  when every term is a number, boolean, or portably collated text.
+  (ASCII folded), `locale(name)` (server only). `Query.placement(query, input, { operators })`
+  is `Placeable` when every term is a number, boolean, portably collated text, or a call
+  whose primitive operators the client's table runs.
+- **A call orders when its result does:** `Order.asc(distance(Post.fields.rank, input.target))`
+  takes a number, or text under `binary`/`asciiFold` (the call's, by `collation: 'operands'`,
+  or the term's own); anything else is refused where written, `Order.chosen` alternatives
+  included. `evaluate` runs it per row by its table; `compareRows(terms, a, b, query, { input,
+  operators })` compares two rows so.
 - **Nulls are placed by the term:** last ascending, first descending, or
   `Order.asc(field, { nulls: 'first' })`. Every interpreter is told (Drizzle
   compiles `NULLS FIRST/LAST`), so SQLite and Postgres agree and page alike.
