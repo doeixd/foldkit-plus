@@ -94,8 +94,8 @@ export default [
     edits: [
       {
         file: '../src/app.ts',
-        find: "model: Data.forget(modifyFields(model, { password: () => '', notice: () => Option.none() })),",
-        replace: "model: modifyFields(model, { password: () => '', notice: () => Option.none() }),",
+        find: '  model: Data.forget(\n    modifyFields(model, {',
+        replace: '  model: (forgotten => forgotten)(\n    modifyFields(model, {',
       },
     ],
     tests: app,
@@ -105,8 +105,8 @@ export default [
     edits: [
       {
         file: '../src/app.ts',
-        find: "{ password: () => '', notice: () => Option.none() }",
-        replace: '{ notice: () => Option.none() }',
+        find: "      password: () => '',\n      passwordShown: () => false,",
+        replace: '      passwordShown: () => false,',
       },
     ],
     tests: app,
@@ -209,8 +209,8 @@ export default [
     edits: [
       {
         file: '../src/app.ts',
-        find: "password: () => '', notice: () => Option.none()",
-        replace: "password: () => ''",
+        find: '      passwordShown: () => false,\n      notice: () => Option.none(),\n    }),',
+        replace: '      passwordShown: () => false,\n    }),',
       },
     ],
     tests: app,
@@ -451,5 +451,21 @@ export default [
       },
     ],
     tests: sync,
+  },
+  {
+    name: 'a change of principal leaves the password shown',
+    edits: [{ file: '../src/app.ts', find: '      passwordShown: () => false,\n', replace: '' }],
+    tests: app,
+  },
+  {
+    name: 'the password toggle does nothing',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'passwordShown: shown => !shown',
+        replace: 'passwordShown: shown => shown',
+      },
+    ],
+    tests: app,
   },
 ]

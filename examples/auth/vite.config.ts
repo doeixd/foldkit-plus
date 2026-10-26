@@ -1,4 +1,5 @@
 import { foldkit } from '@foldkit/vite-plugin'
+import { foundations } from 'foldkit-mixins/foundations'
 import { defineConfig, type UserConfig } from 'vite'
 
 /** Where `pnpm dev` serves the page: the origin Yielded trusts a sign-in from. */
@@ -33,7 +34,11 @@ export const configFor = (options: {
       '/sync': { target: options.authServer, ws: true },
     },
   },
-  plugins: [foldkit({ ssr: { serverEntry: '/src/entry.server.ts', origin: options.origin } })],
+  plugins: [
+    // The theme's foundations in the served page, so its first paint is already styled.
+    foundations({ module: '/src/style.ts' }),
+    foldkit({ ssr: { serverEntry: '/src/entry.server.ts', origin: options.origin } }),
+  ],
 })
 
 export default defineConfig(

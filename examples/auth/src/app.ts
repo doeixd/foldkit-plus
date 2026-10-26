@@ -76,6 +76,8 @@ export type AppRoute = typeof AppRoute.Type
 export const Model = Schema.Struct({
   email: Schema.String,
   password: Schema.String,
+  /** Whether the password field shows what is typed, at the reader's asking. */
+  passwordShown: Schema.Boolean,
   /** What the last sign-in, sign-out or broadcast said went wrong, until the next try. */
   notice: Schema.Option(Schema.String),
   route: AppRoute,
@@ -86,6 +88,7 @@ export type Model = typeof Model.Type
 export const Message = defineMessageUnion({
   ChangedEmail: { value: Schema.String },
   ChangedPassword: { value: Schema.String },
+  ToggledPassword: {},
   SubmittedSignIn: {},
   SucceededSignIn: {},
   FailedSignIn: { reason: Schema.String },
@@ -115,6 +118,7 @@ export type Services = RemoteClient | AuthClient
 export const initial: Model = {
   email: '',
   password: '',
+  passwordShown: false,
   notice: Option.none(),
   route: AppRoute.Home({ returnTo: Option.none() }),
   remote: Remote.initial,
@@ -295,7 +299,13 @@ const noticed = (model: Model, notice: string) =>
  * read (`Me` among them) asks again as the new one.
  */
 const changedHere = (model: Model): Update.Return<Model, Message, Services> => ({
-  model: Data.forget(modifyFields(model, { password: () => '', notice: () => Option.none() })),
+  model: Data.forget(
+    modifyFields(model, {
+      password: () => '',
+      passwordShown: () => false,
+      notice: () => Option.none(),
+    }),
+  ),
   commands: [announce()],
 })
 
@@ -344,6 +354,9 @@ const routed = assembly.update((model, message) =>
   Message.match<Update.Return<Model, Message, Services>>(message, {
     ChangedEmail: ({ value }) => ({ model: modifyFields(model, { email: () => value }) }),
     ChangedPassword: ({ value }) => ({ model: modifyFields(model, { password: () => value }) }),
+    ToggledPassword: () => ({
+      model: modifyFields(model, { passwordShown: shown => !shown }),
+    }),
     SubmittedSignIn: () => ({
       model,
       commands: [SignIn({ email: model.email, password: Redacted.make(model.password) })],

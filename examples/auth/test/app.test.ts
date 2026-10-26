@@ -58,6 +58,12 @@ const notesOf = (model: Model) => Surface.read(NoteList, model).notes._tag
 const commandsOf = (returned: ReturnType<typeof update>) =>
   (returned.commands ?? []).map(command => ({ name: command.name, args: command.args }))
 
+it('shows the password only while the reader asks', () => {
+  const shown = update(read, Message.ToggledPassword()).model
+  expect(shown.passwordShown).toBe(true)
+  expect(update(shown, Message.ToggledPassword()).model.passwordShown).toBe(false)
+})
+
 describe('a change of principal', () => {
   it('starts from what was read as ada', () => {
     expect([meOf(read), notesOf(read)]).toEqual(['Ready', 'Ready'])
@@ -67,9 +73,11 @@ describe('a change of principal', () => {
     ['a sign-in', Message.SucceededSignIn()],
     ['a sign-out', Message.SucceededSignOut()],
   ])('forgets what was read and tells the other tabs on %s here', (_, message) => {
-    const returned = update(read, message)
+    // Shown at the reader's asking, then spent: it is hidden again for whoever comes next.
+    const returned = update(update(read, Message.ToggledPassword()).model, message)
     expect([meOf(returned.model), notesOf(returned.model)]).toEqual(['Initial', 'Initial'])
     expect(returned.model.password).toBe('')
+    expect(returned.model.passwordShown).toBe(false)
     expect(commandsOf(returned)).toEqual([
       { name: 'Broadcast.post', args: { name: PRINCIPAL_CHANNEL, data: TAB } },
     ])

@@ -104,9 +104,18 @@ importers:
       foldkit-entity:
         specifier: workspace:*
         version: link:../../packages/entity
+      foldkit-example-site:
+        specifier: workspace:*
+        version: link:../site
       foldkit-guard:
         specifier: workspace:*
         version: link:../../packages/guard
+      foldkit-mixins:
+        specifier: workspace:*
+        version: link:../../packages/mixins
+      foldkit-mixins-ui:
+        specifier: workspace:*
+        version: link:../../packages/mixins-ui
       foldkit-primitives:
         specifier: workspace:*
         version: link:../../packages/primitives
