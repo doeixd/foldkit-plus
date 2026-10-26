@@ -15,6 +15,7 @@ mechanisms compose. The kitchen sink is a later integration reference.
 | --- | --- | --- |
 | [`bundle`](./bundle) | One child placed twice, a keyed collection, OutMessages, and ownership validation | Small in-process transcript; no browser |
 | [`todo-app`](./todo-app) | How the packages fit around a real Foldkit application: local-first state, a durable server log, agents, URL/device mirrors, typed view customization, and ownership validation | Browser app + SQLite/WebSocket server; application composition |
+| [`fields`](./fields) | Every `foldkit-form-recipes` recipe through a real form: its stored form, filled draft, typed and refused drafts and display, and a server-rendered page each | In-process trace, plus pages in `dist/` (`pnpm build`) |
 | [`entity`](./entity) | One domain declaration (`foldkit-entity`) read by the Remote client, bound to SQLite by the Drizzle server, and edited through a `foldkit-crud` editor: a `foldkit-form` form feeding a mutation | In-process trace with real SQL, plus a browser mode (`pnpm dev`) |
 | [`writes`](./writes) | Declared writes that hold where they commit: a guarded rename pinned to the revision its rules saw, a transition with a precondition (`when`), and a retry-safe `increment`, through `foldkit-guard` over SQLite | In-process trace with real SQL |
 | [`cms`](./cms) | A post from its first keystroke to being taken off show (`foldkit-cms`, `foldkit-cms-drizzle`): autosaved drafts beside the row, preview, publish through the application's own mutation, a schedule that comes due, a conflict, a restore, and the audience boundary, from a writer's, an editor's and a visitor's chair | In-process trace with real SQL, plus a browser mode (`pnpm dev`) where the chair is in the address |
@@ -87,6 +88,7 @@ example directly when learning or iterating:
 pnpm --filter foldkit-example-bundle demo
 pnpm --filter foldkit-example-remote demo
 pnpm --filter foldkit-example-entity demo
+pnpm --filter foldkit-example-fields demo
 pnpm --filter foldkit-example-writes demo
 pnpm --filter foldkit-example-cms demo
 pnpm --filter foldkit-example-sync demo

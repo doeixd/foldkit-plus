@@ -58,6 +58,7 @@
     { "path": "./examples/react" },
     { "path": "./examples/remote" },
     { "path": "./examples/entity" },
+    { "path": "./examples/fields" },
     { "path": "./examples/writes" },
     { "path": "./examples/cms" },
     { "path": "./examples/tanstack" },

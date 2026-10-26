@@ -536,6 +536,46 @@ importers:
         specifier: 8.3.5
         version: 8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
+  examples/fields:
+    dependencies:
+      foldkit-crud:
+        specifier: workspace:*
+        version: link:../../packages/crud
+      foldkit-form:
+        specifier: workspace:*
+        version: link:../../packages/form
+      foldkit-form-recipes:
+        specifier: workspace:*
+        version: link:../../packages/form-recipes
+      foldkit-media:
+        specifier: workspace:*
+        version: link:../../packages/media
+      foldkit-mixins:
+        specifier: workspace:*
+        version: link:../../packages/mixins
+      foldkit-mixins-form:
+        specifier: workspace:*
+        version: link:../../packages/mixins-form
+      foldkit-mixins-ui:
+        specifier: workspace:*
+        version: link:../../packages/mixins-ui
+    devDependencies:
+      '@effect/platform-browser':
+        specifier: ^4.0.5
+        version: 4.0.5(effect@4.0.5)
+      '@foldkit/ui':
+        specifier: 0.169.0
+        version: 0.169.0(effect@4.0.5)(foldkit@0.169.0(@effect/platform-browser@4.0.5(effect@4.0.5))(effect@4.0.5))
+      effect:
+        specifier: ^4.0.5
+        version: 4.0.5
+      foldkit:
+        specifier: 0.169.0
+        version: 0.169.0(@effect/platform-browser@4.0.5(effect@4.0.5))(effect@4.0.5)
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
   examples/foldkit/api-cache:
     dependencies:
       '@foldkit/ui':

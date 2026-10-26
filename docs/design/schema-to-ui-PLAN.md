@@ -17,7 +17,7 @@
 | 4 | `EditorView`, `ConfirmView`, `Toolbar` in `foldkit-mixins-crud` | `packages/mixins-crud/test/editor.test.ts`, `editorDialog.browser.test.ts`; 6 mutations, all killed |
 | 5 | `Crud.screen`: a screen's four Messages and their `update`; `examples/entity` on it and on Phase 4's views | `packages/crud/test/screen.test.ts`, `screen.test-d.ts`; 6 mutations, all killed |
 | 6 | `foldkit-media/browser`'s `upload`; `foldkit-form-recipes/image`; a picker's `more` through `AskedForMore`, `Crud.options`' `more`/`ask` and `Crud.screen`'s `pickers` | `packages/media/test/upload.browser.test.ts`, `packages/form-recipes/test/image.test.ts`, `image.browser.test.ts`, `packages/crud/test/list.test.ts`, `screen.test.ts`, `packages/mixins-form/test/runtime.test.ts`, `examples/entity/test/page.test.ts`; 23 mutations, all killed |
-| 7 | — | not started |
+| 7 | `examples/fields`: every recipe through a real form, as a trace (`pnpm demo`) and a server-rendered page each (`pnpm build`); no benchmark (§1.10) | `examples/fields/test/demo.test.ts`, `pages.test.ts`; 3 mutations, all killed |
 
 The issue asks for a complete schema-to-UI story: reusable field recipes, UI
 renderers for every control kind, and CRUD workflow recipes. This plan keeps the
@@ -311,6 +311,20 @@ Phase 2 shipped on 2026-10-26 (§6) as a new package, `foldkit-form-recipes`.
    page, so the page test opens a post whose editor is on the second page:
    she is named first, the picker offers more, a press brings her into the
    list, and the button goes.
+
+### 1.10 What building Phase 7 changed in this plan
+
+1. **The gallery reads, it does not restate.** Each entry is a schema, a
+   stored value, a draft to type and one refused; the gallery fills a real
+   one-key form and reports what it made of each, so a recipe whose behaviour
+   moved changes the trace and fails its test. Only the call and the failures
+   are hand-written. A page per recipe is rendered on the server with the plain
+   renderers and no script, by the example's `build`, which `pnpm build` runs.
+2. **No benchmark.** §6 asks for one against a hand-built TanStack Form + Query
+   page only if it has something to measure, and there is no such page here
+   (`examples/tanstack` is an interpreter). Writing one to compare against
+   would be the synthetic benchmark §1.8 set aside; the honest measurement
+   remains `examples/entity`'s before and after.
 
 ## 2. Scope
 

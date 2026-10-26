@@ -350,5 +350,6 @@ PostForm.rows(PostForm.initial, 'comments') // [{ id, model }], each a Model of 
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/form/README.md
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/mixins-form/README.md
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/form-recipes/README.md
+- https://github.com/doeixd/foldkit-plus/blob/main/examples/fields/README.md (every recipe through a real form)
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/entity/README.md
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/bundle/README.md
