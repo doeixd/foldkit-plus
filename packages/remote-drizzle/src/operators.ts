@@ -122,7 +122,15 @@ export const DrizzleOperators = {
   implement: (
     operator: { readonly descriptor: OperatorDescriptor },
     build: (context: SqlContext) => SQL,
-  ): SqlImplementation => Object.freeze({ operator: operator.descriptor, build }),
+  ): SqlImplementation => {
+    // Memory runs what a defined operator means; SQL must too.
+    if (Option.isSome(operator.descriptor.definedAs)) {
+      fail(
+        `${nameOf(operator.descriptor)} is defined by an expression, which every interpreter runs; it takes no implementation`,
+      )
+    }
+    return Object.freeze({ operator: operator.descriptor, build })
+  },
 
   /** A table of implementations. One operator implemented twice, or two under one name, is refused. */
   make: (...implementations: ReadonlyArray<SqlImplementation>): DrizzleOperators =>

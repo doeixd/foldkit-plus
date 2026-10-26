@@ -159,17 +159,17 @@ describe('Deciding a call over the input alone', () => {
   })
 })
 
-describe('A defined operator with an implementation of its own', () => {
-  it('runs the implementation where a table has one, and its body elsewhere', () => {
+describe('A defined operator', () => {
+  it('runs what it means, and takes no implementation, which SQL would never run', () => {
     const named = Expr.operator('acme.named', {
       input: [Schema.String],
       output: Schema.Boolean,
       definedAs: name => Expr.eq(name, 'Nut'),
     })
-    const body = where(named(fields.name))
-    expect(ids(body)).toEqual(['i3'])
-    const native = Operators.memory(Operators.implement(named, name => name === 'Bolt'))
-    expect(ids(body, native)).toEqual(['i1'])
+    expect(ids(where(named(fields.name)))).toEqual(['i3'])
+    expect(() => Operators.implement(named, name => name === 'Bolt')).toThrow(
+      'acme.named is defined by an expression, which every interpreter runs; it takes no implementation',
+    )
   })
 })
 

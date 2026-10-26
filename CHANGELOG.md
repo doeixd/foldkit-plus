@@ -72,6 +72,9 @@ version changed; `pnpm` skips versions already in the registry.
   integer is cast to `bigint`, not `integer`, so a value past 32 bits that
   `Schema.Int` admits no longer fails the query; on SQLite a boolean is bound
   as 1 or 0, which SQLite stores, where it failed to bind at all.
+- **A defined operator takes no implementation.** `Operators.implement` and
+  `DrizzleOperators.implement` refuse one: SQL compiles what a defined operator
+  means, and a memory implementation was a second meaning only the client ran.
 - **An order by a number carries no collation.** A number-valued call inherited
   its text argument's collation, which Postgres refuses on a number; it is now
   dropped, and a collation written on a number term is refused where it is

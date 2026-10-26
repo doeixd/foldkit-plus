@@ -2,7 +2,7 @@
  * Laws, their evidence, and the conformance helper that tests them:
  * expr-operations-DESIGN §10.
  */
-import { Option, Schema } from 'effect'
+import { Match, Option, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { Conformance, Outcome } from '../src/conformance/index.js'
 import { Collation, Evidence, Expr, Law, Operators, Text, valueOfOperand } from '../src/index.js'
@@ -329,10 +329,14 @@ describe('Running an operator through several implementations', () => {
       output: Schema.Boolean,
       definedAs: text => Expr.eq(text, ''),
     })
-    // An implementation that also counts a space as blank disagrees with what the operator means.
-    const spaced = Operators.memory(Operators.implement(blank, text => text.trim() === ''))
+    // A database that compiled it as "blank once trimmed" disagrees with what it means.
+    const spaced = (call: Parameters<typeof valueOfOperand>[0]) =>
+      Match.value(call).pipe(
+        Match.tag('Call', 'Test', ({ args }) => String(valueOfOperand(args[0]!)).trim() === ''),
+        Match.orElse(() => null),
+      )
     const report = await Conformance.operator(blank, {
-      implementations: { spaced: Conformance.memory(spaced) },
+      implementations: { spaced },
       cases: [[''], [' '], ['a']],
     })
     expect(report.disagreements.map(each => each.args)).toEqual([[' ']])

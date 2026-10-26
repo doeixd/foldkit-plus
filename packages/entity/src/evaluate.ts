@@ -103,16 +103,16 @@ const valueOf = (node: AnyExpr, scope: Scope): unknown => {
 
 /**
  * What a call comes to, as a value (a predicate's truth as SQL's, unknown as
- * null). The table's implementation when it has one; else, for a defined
- * operator, what it means; else it is refused by name.
+ * null). A defined operator's is what it means, as SQL compiles it; a
+ * primitive one's is the table's implementation, or it is refused by name.
  */
 const called = (call: CallExpr<unknown> | TestPredicate, scope: Scope): unknown => {
   const expansion: Option.Option<AnyExpr | Predicate> = call.expansion
-  return Option.match(scope.operators.get(call.operator), {
-    onSome: run => ran(call, run, scope),
+  return Option.match(expansion, {
+    onSome: body => sideOf(body, scope),
     onNone: () =>
-      Option.match(expansion, {
-        onSome: body => sideOf(body, scope),
+      Option.match(scope.operators.get(call.operator), {
+        onSome: run => ran(call, run, scope),
         onNone: () => {
           throw new OperatorMissingError(call.operator, scope.operators)
         },

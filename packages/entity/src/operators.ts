@@ -171,6 +171,13 @@ const implementation = (
   nulls: OperatorDescriptor['nulls'],
   run: (...args: ReadonlyArray<unknown>) => unknown,
 ): MemoryImplementation => {
+  // SQL compiles what a defined operator means, so an implementation here would
+  // be a second meaning that only memory runs.
+  if (Option.isSome(operator.definedAs)) {
+    fail(
+      `${nameOf(operator)} is defined by an expression, which every interpreter runs; it takes no implementation`,
+    )
+  }
   if (operator.nulls !== nulls) {
     fail(
       nulls === 'strict'

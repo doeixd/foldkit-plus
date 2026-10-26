@@ -326,6 +326,17 @@ describe('DrizzleOperators', () => {
     ({ args: [left, right] }) => sql`(${left} + ${right})`,
   )
 
+  it('refuses an implementation of a defined operator, whose meaning it compiles', () => {
+    const named = Expr.operator('acme.named', {
+      input: [Schema.String],
+      output: Schema.Boolean,
+      definedAs: code => Expr.eq(code, 'AB'),
+    })
+    expect(() => DrizzleOperators.implement(named, () => sql`true`)).toThrow(
+      'acme.named is defined by an expression, which every interpreter runs; it takes no implementation',
+    )
+  })
+
   it('refuses one operator implemented twice, or two under one name', () => {
     expect(() => DrizzleOperators.make(sumSql, sumSql)).toThrow('acme.sum is implemented twice')
     const twin = Expr.operator('acme.sum', { input: [Schema.Int, Schema.Int], output: Schema.Int })
