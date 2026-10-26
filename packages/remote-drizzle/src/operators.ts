@@ -83,6 +83,10 @@ const table = (
   return Object.freeze({
     _tag: 'DrizzleOperators',
     has: (operator: OperatorDescriptor) => byOperator.has(operator),
+    versions: (id: string) =>
+      implementations
+        .filter(({ operator }) => operator.id === id)
+        .map(({ operator }) => operator.version),
     get: (operator: OperatorDescriptor) => Option.fromUndefinedOr(byOperator.get(operator)),
     named: (name: string) => Option.fromUndefinedOr(byName.get(name)),
     implementations: Object.freeze([...implementations]),

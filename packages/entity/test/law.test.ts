@@ -231,7 +231,7 @@ describe('Evidence in a table', () => {
       [...tested(), proof, ...addEvidence],
     )
     const described = JSON.parse(JSON.stringify(Operators.describeTable(table)))
-    expect(described.map((entry: { operator: string }) => entry.operator)).toEqual([
+    expect(described.map((entry: { name: string }) => entry.name)).toEqual([
       'acme.concat',
       'acme.add',
       'acme.neg',
@@ -240,10 +240,10 @@ describe('Evidence in a table', () => {
       'acme.sub',
     ])
     expect(described[0]).toEqual({
-      operator: 'acme.concat',
-      laws: concat.descriptor.laws.map(Law.describe),
+      ...JSON.parse(JSON.stringify(Operators.describe(concat))),
       evidence: JSON.parse(JSON.stringify([...tested(), proof])),
     })
+    expect(described[0].laws).toEqual(concat.descriptor.laws.map(Law.describe))
     expect(described[1].evidence).toEqual(JSON.parse(JSON.stringify(addEvidence)))
     expect(described[2].evidence).toEqual([])
   })

@@ -103,10 +103,29 @@ export interface OperatorDescriptor {
 export interface OperatorTable {
   /** Whether this table implements the operator. */
   readonly has: (operator: OperatorDescriptor) => boolean
+  /**
+   * The versions of the operator `id` it implements: what a refusal of a call
+   * to another version names, since a client and a server on different
+   * deploys can disagree on one.
+   */
+  readonly versions: (id: string) => ReadonlyArray<number>
 }
 
 /** A table implementing nothing: every primitive operator is unsupported by it. */
-export const noOperators: OperatorTable = Object.freeze({ has: () => false })
+export const noOperators: OperatorTable = Object.freeze({ has: () => false, versions: () => [] })
+
+/**
+ * An operator `operators` does not implement, by name, with the versions of it
+ * the table does implement: `acme.slug@2 (this table has acme.slug)`.
+ */
+export const missingName = (operator: OperatorDescriptor, operators: OperatorTable): string => {
+  const held = operators.versions(operator.id)
+  return held.length === 0
+    ? operatorName(operator)
+    : `${operatorName(operator)} (this table has ${held
+        .map(version => operatorName({ ...operator, version }))
+        .join(', ')})`
+}
 
 /**
  * A call of an operator whose result is a scalar. `expansion` is the
@@ -2122,6 +2141,14 @@ export const Query = {
   },
 
   /**
+   * Each operator the body calls, by name (`id`, or `id@version` past the
+   * first), in the order it first calls them: a defined one, and each
+   * primitive one its expansion calls.
+   */
+  operators: (self: AnyQuery): ReadonlyArray<string> =>
+    Query.dependencies(self).operators.map(operatorName),
+
+  /**
    * What the whole query reads: the fields and inputs of every predicate and
    * every ordering term, and the operations it uses, with the fields also
    * split by role.
@@ -2282,7 +2309,7 @@ const missingFrom = (
 ): ReadonlyArray<string> =>
   read
     .filter(operator => Option.isNone(operator.definedAs) && !operators.has(operator))
-    .map(operatorName)
+    .map(operator => missingName(operator, operators))
 
 /** An operator by its id, and its version when that is not the first. */
 const operatorName = (operator: OperatorDescriptor): string =>

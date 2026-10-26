@@ -25,7 +25,7 @@
 import { Match, Option, Schema, SchemaAST } from 'effect'
 import { absurd } from 'effect/Function'
 import { Collation } from './collation.js'
-import { Expr, Query, dependenciesOf, isPredicate } from './expr.js'
+import { Expr, Query, dependenciesOf, isPredicate, missingName, noOperators } from './expr.js'
 import type {
   AnyExpr,
   AnyQuery,
@@ -33,6 +33,7 @@ import type {
   Operandish,
   Operation,
   OperatorDescriptor,
+  OperatorTable,
   OrderTerm,
   Predicate,
   TestPredicate,
@@ -58,8 +59,9 @@ export class OperatorMissingError extends QueryEvaluateError {
   readonly operator: OperatorDescriptor
   /** The operator by its id, and its version past the first. */
   readonly named: string
-  constructor(operator: OperatorDescriptor) {
-    super(`this interpreter does not run the operator "${operatorName(operator)}"`)
+  /** `operators`, the table that lacks it, names the versions of it that it does hold. */
+  constructor(operator: OperatorDescriptor, operators: OperatorTable = noOperators) {
+    super(`this interpreter does not run the operator "${missingName(operator, operators)}"`)
     this.name = 'OperatorMissingError'
     this.operator = operator
     this.named = operatorName(operator)
@@ -112,7 +114,7 @@ const called = (call: CallExpr<unknown> | TestPredicate, scope: Scope): unknown 
       Option.match(expansion, {
         onSome: body => sideOf(body, scope),
         onNone: () => {
-          throw new OperatorMissingError(call.operator)
+          throw new OperatorMissingError(call.operator, scope.operators)
         },
       }),
   })
@@ -187,7 +189,7 @@ export const applyOperator = (
 ): unknown =>
   Option.match(options.operators.get(operator), {
     onNone: () => {
-      throw new OperatorMissingError(operator)
+      throw new OperatorMissingError(operator, options.operators)
     },
     onSome: run =>
       runWith(

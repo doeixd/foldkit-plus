@@ -370,10 +370,16 @@ declares equations every implementation keeps (`commutative`, `idempotent`,
 nothing. `Conformance.laws(op, table)` (`foldkit-entity/conformance`) samples
 each, seeded, and answers `Holds` with `Tested` evidence or a `Counterexample`;
 `Operators.withEvidence(table, evidence)` records it and `describeTable(table)`
-lists each operator's laws and evidence as JSON. `Conformance.operator(op, {
+lists each operator as `describe` does (its `name`, …), with its evidence. `Conformance.operator(op, {
 implementations })` runs generated calls through several runners
 (`Conformance.memory(table)`, an SQL one over `compileCall`) and reports where they
-disagree.
+disagree. `Operators.describe(op)` is an operator's signature as JSON (`OperatorDescription`,
+a Schema: name, version, each argument and the result as a JSON Schema of the stored side,
+null and collation rules, laws, `defined`; never a body); `Query.operators(body)` names the
+operators a body calls. A version is part of the name: a table holding `acme.slug` refuses
+a call to `acme.slug@2`, naming both, from the versions every `OperatorTable` lists
+(`versions(id)`, beside `has`) and `missingName(operator, table)`; a SQL table
+(`DrizzleOperators`) lists them too.
 
 **Asking about an input without branching on it.** An input is a placeholder, so
 a query cannot pick a shape from a value. It does not need to:

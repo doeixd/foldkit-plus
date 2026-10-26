@@ -982,6 +982,49 @@ defined operator's expansion runs beside the others. `foldkit-remote-drizzle`
 runs the kernel's operators and an application's through it on SQLite and
 Postgres.
 
+### One operator, from declaration to description
+
+The `concat` above, as an application ships it: declared once, implemented for
+each interpreter that runs it, held to itself, and described for whoever asks
+what a server runs.
+
+```ts
+import { sql } from 'drizzle-orm'
+import { Operators } from 'foldkit-entity'
+import { Conformance } from 'foldkit-entity/conformance'
+import { DrizzleOperators } from 'foldkit-remote-drizzle'
+
+// In memory, as above; in SQL, for a binding (`bind(…, { operators: { memory, sql } })`).
+const memory = Operators.memory(Operators.implement(concat, (left, right) => `${left}${right}`))
+const sqlTable = DrizzleOperators.make(
+  DrizzleOperators.implement(concat, ({ args: [left, right] }) => sql`(${left} || ${right})`),
+)
+
+// Its laws, against the memory implementation.
+const held = Conformance.laws(concat, memory)
+
+// The two implementations against each other: an SQL runner selects
+// `compileCall(call, binding, name)` from a database (foldkit-remote-drizzle's
+// test/operatorConformance.test.ts has one); here the memory one alone.
+const report = await Conformance.operator(concat, {
+  implementations: { memory: Conformance.memory(memory) },
+})
+
+// Its signature as JSON: name, version, each argument and the result as a JSON
+// Schema of what is stored, its null and collation rules, its laws.
+Operators.describe(concat)
+```
+
+`Operators.describe` gives an `OperatorDescription`, a Schema whose decoder
+checks a description another server publishes; it says what an operator takes
+and keeps, never a defined operator's body. `Operators.describeTable(table)`
+lists each operator a table implements so, with its evidence, and
+`Query.operators(body)` names each operator a body calls (a defined one and the
+primitive ones it calls). A version is part of an operator's name: a table
+holding `acme.slug` does not answer a body calling `acme.slug@2`, and the
+refusal names both (`acme.slug@2 (this table has acme.slug)`), so a client and a
+server on different deploys see which side is behind.
+
 ### Reading one back
 
 `Query.show(query)` renders a body as text, one clause per line:
@@ -1049,7 +1092,8 @@ from queries, not from what a database could express.
 | `Operators.memory(...)` / `implement` / `implementHandlingNulls` / `merge` / `override` / `checked` / `kernel` | Tables of in-memory implementations of primitive operators, passed to `evaluate` and every judge. |
 | `Law.associative` / `commutative` / `idempotent` / `identity` / `absorbing` / `inverse` / `distributes` / `monotonic` / `preservesCollation` / `within` / `describe` | Laws an operator declares (`Expr.operator(id, { laws })`), checked where declared, described as JSON. |
 | `Operators.withEvidence(table, evidence)` / `describeTable(table)` / `Evidence.Proven` | What is known of a table's implementations' laws, and the table as JSON. |
-| `Conformance.laws(op, table)` / `operator(op, { implementations })` / `memory(table)` (`foldkit-entity/conformance`) | Test an implementation's laws; run one set of calls through several implementations. |
+| `Conformance.laws(op, table)` / `lawsBy(op, runner)` / `operator(op, { implementations })` / `memory(table)` (`foldkit-entity/conformance`) | Test an implementation's laws, in memory or through any runner; run one set of calls through several implementations. |
+| `Operators.describe(op)` / `OperatorDescription` / `Query.operators(body)` | An operator's signature as JSON, the Schema it keeps, and the operators a body calls, by name. |
 | `valueOfOperand(node, { operators })` | What an operand, a call of literals say, comes to over no row. |
 | `Expr.expanded(predicate)` | The predicate with every call of a defined operator written out as what it means, deeply; what an interpreter compiles. |
 | `Expr.field(field)` | One field of one Entity, as a scalar. |

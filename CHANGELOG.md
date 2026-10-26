@@ -29,9 +29,21 @@ version changed; `pnpm` skips versions already in the registry.
   use, and `Write.boundReads(bound)`, what of the row it needs.
   `applyOperator` runs an operator over stored values; tables look an operator
   up by name (`named`).
+- **Operators described** (Phase 7 of `expr-operations-DESIGN.md`).
+  `Operators.describe(op)` is an operator's signature as JSON, checked by the
+  `OperatorDescription` Schema: its name and version, its description, each
+  argument and its result as a JSON Schema of the stored side, its null and
+  collation rules, its laws, and whether it is defined (never its body).
+  `Query.operators(body)` names the operators a body calls. A table lists the
+  versions it holds of an operator (`OperatorTable.versions`), and a call to
+  another version is refused naming both (`acme.slug@2 (this table has
+  acme.slug)`), where it is checked and where it runs (`missingName`).
 
 ### Changed
 
+- **`Operators.describeTable(table)` lists each operator as `Operators.describe`
+  does**, with its evidence: its name is `name`, where it was `operator`. An
+  `OperatorTable` has `versions` beside `has`.
 - **An increment of a real number expects a revision**, even under a ledger,
   unless its writer pins the row it read: floating-point addition does not
   associate, so two concurrent sums could land as two results. Declare an
