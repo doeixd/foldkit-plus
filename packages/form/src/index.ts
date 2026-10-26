@@ -1595,7 +1595,11 @@ const Core = {
             // submit waiting on it keeps waiting, and goes once nothing is asked.
             const waited =
               model.submitPending && !isEdit(inner) && plan.form.engine.isValidating(row.model)
-            if (waited) return resume({ ...edited(next), submitPending: true }, lifted)
+            if (waited)
+              return resume(
+                next === model ? model : { ...edited(next), submitPending: true },
+                lifted,
+              )
             return resume(edit ? edited(next) : next, lifted)
           }
           case 'RowAdded': {

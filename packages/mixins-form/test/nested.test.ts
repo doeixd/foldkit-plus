@@ -244,12 +244,12 @@ it('names a row inside a row through both', () => {
   const step = (model: typeof RoomForm.initial, message: typeof RoomForm.Message.Type) =>
     RoomForm.bundle.update(model, message, undefined).model
   const oneShelf = step(RoomForm.initial, RoomForm.Message.RowAdded({ key: 'shelves' }))
-  const row = oneShelf.rows.shelves![0]!
+  const [row] = RoomForm.rows(oneShelf, 'shelves')
   const withBook = step(
     oneShelf,
     RoomForm.Message.Nested({
       key: 'shelves',
-      row: row.id,
+      row: row?.id ?? '',
       message: ShelfForm.Message.RowAdded({ key: 'books' }),
     }),
   )

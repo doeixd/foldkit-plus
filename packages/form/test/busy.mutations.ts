@@ -58,8 +58,8 @@ export default [
     edits: [
       {
         file,
-        find: 'if (waited) return resume({ ...edited(next), submitPending: true }, lifted)',
-        replace: '',
+        find: 'model.submitPending && !isEdit(inner) && plan.form.engine.isValidating(row.model)',
+        replace: 'false',
       },
     ],
     tests,
@@ -82,6 +82,17 @@ export default [
         file: '../src/input.ts',
         find: 'if (spec.busy !== undefined && spec.settled === undefined)',
         replace: 'if (false)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a row Message that changes nothing copies the waiting Model',
+    edits: [
+      {
+        file,
+        find: 'next === model ? model : { ...edited(next), submitPending: true }',
+        replace: '{ ...edited(next), submitPending: true }',
       },
     ],
     tests,

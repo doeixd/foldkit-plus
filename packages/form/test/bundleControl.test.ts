@@ -493,6 +493,11 @@ describe('a busy control in a row', () => {
     const typing = step(titled.model, inRow(TagsMessage.Typed({ text: 'x' }))).model
     const waiting = step(typing, BookForm.Message.Submitted())
     expect([waiting.outMessage, waiting.model.submitPending]).toEqual([undefined, true])
+    // A row Message that changes nothing leaves the waiting Model as it is.
+    const stray = BookForm.row('author', row?.id ?? '').send(
+      AuthorForm.Message.FollowedIssue({ id: 'x' }),
+    )
+    expect(step(waiting.model, stray).model).toBe(waiting.model)
     const landed = step(waiting.model, inRow(TagsMessage.Normalized({ tags: ['x'] })))
     expect(landed.model.submitPending).toBe(true)
     const done = step(landed.model, inRow(TagsMessage.Typed({ text: '' })))
