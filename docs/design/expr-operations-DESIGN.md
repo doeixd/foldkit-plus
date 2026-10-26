@@ -1088,6 +1088,16 @@ spot, inspecting only literal operands because its nodes carry no type.
     so one refusal voids a list. A missing operator voids every row alike, but a
     NUL in one stored row would void the rest. Proposal: judge per row, a row that
     refuses being `unknown`, in Phase 3.
+
+    **Closed** 2026-10-26. `evaluateEach` in `foldkit-entity` judges each row
+    alone, setting a refusing row aside in `refused`; `matching` puts those keys
+    in `skipped`, so `filtered` answers the other rows and says it is incomplete,
+    and `belongs` (which judges one row) is unchanged. What no row causes still
+    refuses the run: an operator the table lacks, a locale order, keys of
+    different kinds across rows, and an input the body reads holding a NUL. A
+    refusal is laid to the input only when a read input holds a NUL, since every
+    row would refuse alike and none is the cause; with no rows held there is
+    nothing to refuse, as with `evaluate`.
 11. **A Postgres database in a locale.** PGlite creates its database with
     collation `C` (§17), so Phase 0 could not show what an expression without an
     explicit collation does under a locale. The plan collates every text

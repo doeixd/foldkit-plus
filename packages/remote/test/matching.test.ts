@@ -209,6 +209,19 @@ describe('What it will not judge', () => {
     expect(judged.skipped).toEqual([key('gone')])
   })
 
+  it('skips a held row holding a NUL, and still judges the rest', () => {
+    // No interpreter can answer for that row; one bad stored value says
+    // nothing about the others.
+    let store = writeEntity(emptyStore, key('a'), { id: 'a', title: 'Intro', rank: 1 })
+    store = writeEntity(store, key('b'), { id: 'b', title: `In${String.fromCharCode(0)}`, rank: 2 })
+    store = writeEntity(store, key('c'), { id: 'c', title: 'Intro', rank: 3 })
+
+    const judged = matching(store, ByTitle, { title: 'Intro' })
+
+    expect(judged.matched).toEqual([key('a'), key('c')])
+    expect(judged.skipped).toEqual([key('b')])
+  })
+
   it('refuses a descriptor with no body, by name', () => {
     const declared = Query.make('Declared', {
       Input: { title: Schema.String },

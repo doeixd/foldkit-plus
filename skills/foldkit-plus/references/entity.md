@@ -447,6 +447,9 @@ Query.dependencies(recent)     // every field it reads, also split into `predica
   `foldkit-entity/conformance`, a subpath so the fixtures stay out of the main
   bundle: `cases` each name the ids a body matches, and `refusals` are bodies
   every interpreter must refuse rather than answer (text holding NUL).
+  `evaluateEach(body, input, rows)` judges each row alone: a row holding such
+  text goes in `refused` and the others are answered (Remote's `matching` skips
+  it); an input holding one still refuses the run.
 - `Expr.contains` takes a **text or nullable-text** operand only, checked by the
   type parameter: over a number it would compile to `lower(rank) like …`, which
   SQLite coerces and Postgres rejects. The check is a constraint rather than an

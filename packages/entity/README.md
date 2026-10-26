@@ -900,7 +900,7 @@ refused where it is written.
   twice, or two under one name; `merge` refuses an overlap, and `override`
   replaces on purpose. `Operators.checked(table)` checks each answer against
   the operator's output schema, for tests. Nothing registers globally:
-  `evaluate`, `decided`, `truthOver`, `Entity.judge`, `Entity.judgeInput` and
+  `evaluate`, `evaluateEach`, `decided`, `truthOver`, `Entity.judge`, `Entity.judgeInput` and
   `Entity.check(entity, { operators })` each take the table, `Operators.kernel`
   by default.
 - **Null is strict by default.** A null argument gives null (unknown for a
@@ -921,7 +921,14 @@ refused where it is written.
 - **What a table lacks is refused by name.** `Query.unsupported(body,
   supported, operators)` and `Expr.unsupported(nodes, { operations,
   operators })` name each operation and operator missing; `evaluate` refuses
-  such a body. An invariant calling an operator its judge's table lacks is
+  such a body.
+- **One refusing row refuses the run, unless each row is judged alone.**
+  `evaluate` refuses a run when any row holds what no interpreter answers for
+  (text with a NUL). `evaluateEach(body, input, rows, { operators })` sets such
+  a row aside in `refused` and still answers the others, in order; what no one
+  row causes (an operator the table lacks, an input the body reads holding a
+  NUL, order keys of different kinds) still refuses it. A client judging the
+  rows it holds wants the second. An invariant calling an operator its judge's table lacks is
   `Undecided` with that operator in `operators`, which a form passes and a
   server refuses to start without.
 - **NUL is refused** in any text argument, and an implementation that throws

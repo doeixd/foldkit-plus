@@ -26,7 +26,7 @@
  */
 import { Schema } from 'effect'
 import { Query as Relational } from 'foldkit-entity'
-import { QueryEvaluateError, evaluate, type MemoryOperators, type Row } from 'foldkit-entity'
+import { QueryEvaluateError, evaluateEach, type MemoryOperators, type Row } from 'foldkit-entity'
 import type { QueryDescriptor } from './query.js'
 import type { EntityKey, EntityStore } from './store.js'
 
@@ -61,7 +61,10 @@ export interface Matched<A> {
 export interface Judged {
   /** Keys of the rows that satisfy the body, in the order the body asks for. */
   readonly matched: ReadonlyArray<EntityKey>
-  /** Keys of rows held but missing a field the body reads, so not judged either way. */
+  /**
+   * Keys of rows held but not judged either way: missing a field the body
+   * reads, or holding a value the interpreter refuses (text with a NUL).
+   */
   readonly skipped: ReadonlyArray<EntityKey>
 }
 
@@ -173,11 +176,12 @@ const matchingEncoded = <Name extends string, Input>(
     )
   }
 
-  const matched = evaluate(body, encoded, rows, { operators: options.operators }).map(
-    row => (row as { readonly __key: EntityKey }).__key,
-  )
+  // Each row judged alone: a refused row is one more that could not be told,
+  // not a reason to answer nothing about the others.
+  const judged = evaluateEach(body, encoded, rows, { operators: options.operators })
+  const keyOf = (row: Row) => (row as { readonly __key: EntityKey }).__key
 
-  return { matched, skipped }
+  return { matched: judged.matched.map(keyOf), skipped: [...skipped, ...judged.refused.map(keyOf)] }
 }
 
 /**

@@ -65,8 +65,12 @@ export default [
   edit(
     'evaluate ignores the table it is given',
     evaluate,
-    'const operators = options.operators ?? Operators.kernel',
-    'const operators = Operators.kernel',
+    `const operators = options.operators ?? Operators.kernel
+  assertSupported(body, operators)
+  return ordered(`,
+    `const operators = Operators.kernel
+  assertSupported(body, operators)
+  return ordered(`,
   ),
   edit(
     'deciding over the input ignores the table',

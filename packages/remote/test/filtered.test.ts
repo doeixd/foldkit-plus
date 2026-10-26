@@ -195,6 +195,24 @@ describe('Whether the answer is about the whole list', () => {
     expect(found.complete).toBe(false)
   })
 
+  it('answers the other rows, incomplete, when one held row holds a NUL', () => {
+    const tainted = Data.reduce(loaded(), {
+      _tag: 'ReadReceived',
+      requests: [{ entity: 'Project', id: 'p2', fields: ['name'] }],
+      result: {
+        settled: [],
+        entities: [
+          { entity: 'Project', id: 'p2', values: { name: `Bo${String.fromCharCode(0)}real` } },
+        ],
+      },
+      now: 1,
+    })
+    const found = Data.filtered(tainted, projects, Named, { name: 'Apollo' })
+
+    expect(found.items.map(item => item.id)).toEqual(['p1', 'p3'])
+    expect(found.complete).toBe(false)
+  })
+
   it('is complete and empty when the list is whole and nothing matches', () => {
     const None = Query.define('NoneMatch', {}, () =>
       Query.from(Project).pipe(
