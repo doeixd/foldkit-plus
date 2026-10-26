@@ -11,6 +11,7 @@
       "foldkit-bundle": ["../../packages/bundle/src/index.ts"],
       "foldkit-data-grid": ["../../packages/data-grid/src/index.ts"],
       "foldkit-data-grid/crud": ["../../packages/data-grid/src/crud.ts"],
+      "foldkit-example-site/demo-style": ["../site/src/demoStyle.ts"],
       "foldkit-example-site/demos": ["../site/src/demos.ts"],
       "foldkit-example-site/guide": ["../site/src/guide.ts"],
       "foldkit-mixins": ["../../packages/mixins/src/index.ts"],

@@ -8,6 +8,7 @@
     "noEmit": false,
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "paths": {
+      "foldkit-example-site/demo-style": ["../site/src/demoStyle.ts"],
       "foldkit-example-site/demos": ["../site/src/demos.ts"],
       "foldkit-example-site/guide": ["../site/src/guide.ts"],
       "foldkit-media": ["../../packages/media/src/index.ts"],

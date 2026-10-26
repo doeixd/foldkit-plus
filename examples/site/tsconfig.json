@@ -11,6 +11,7 @@
       "foldkit-bundle": ["../../packages/bundle/src/index.ts"],
       "foldkit-entity": ["../../packages/entity/src/index.ts"],
       "foldkit-entity/conformance": ["../../packages/entity/src/conformance/index.ts"],
+      "foldkit-example-site/demo-style": ["./src/demoStyle.ts"],
       "foldkit-example-site/demos": ["./src/demos.ts"],
       "foldkit-example-site/guide": ["./src/guide.ts"],
       "foldkit-media": ["../../packages/media/src/index.ts"],
