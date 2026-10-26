@@ -1,7 +1,8 @@
 # Operators in the expression kernel
 
 **Status:** Proposed, 2026-10-26, for
-[#185](https://github.com/doeixd/foldkit-plus/issues/185). Nothing built.
+[#185](https://github.com/doeixd/foldkit-plus/issues/185); revised the same day
+with what gen2 offered (§8a). Nothing built.
 **Package:** `foldkit-entity`, with the SQL side in `foldkit-remote-drizzle`
 and checks in `foldkit-guard`.
 **Companions:** [data-query-DESIGN.md](./data-query-DESIGN.md) §6 (the kernel
@@ -29,6 +30,8 @@ API names below are proposals. Snippets are sketches, not compiled code.
 | 3 | Effect evaluation versus Layers | Evaluation stays a pure synchronous function that takes a table of implementations. A Layer is only how a server built from Layers receives that table, once, at construction. §5. |
 | 4 | Null and case | Every operator is strict: a null operand gives null, and a predicate over null is unknown. `startsWith` compares under its operand's collation, and is refused without one. §6. |
 | 5 | Computed text's collation | An operator may declare that its text result keeps its operands' collation. The comparison rule becomes "text needs a collation" rather than "text needs a field". §7. |
+| 6 | Operators defined by an expression (from gen2) | An operator may be defined by a body over existing expressions. It needs no implementation anywhere, keeps its name in every printout, and is built first, because it adds nodes without adding semantics. Its caller is the CMS's "published", written out five times. §4.5. |
+| 7 | Which interpreters a use needs (from gen2) | Completeness is checked per use site, not per body: a Guard row rule needs SQL and memory, an invariant only memory, and a client form may leave an invariant undecided. §4.4. |
 
 ## 1. What exists
 
@@ -98,8 +101,9 @@ node, and §6.3's derived dependencies list operator ids beside operation names.
 
 ## 3. The first caller
 
-No query in the repository needs a new operator today, and that is worth saying
-before choosing one. The registry's search is the best real candidate:
+No query in the repository needs a new primitive operator today, and that is
+worth saying before choosing one. (A defined operator has a stronger caller;
+see §4.5.) The registry's search is the best real candidate:
 
 ```ts
 // examples/registry/src/operations.ts, today
@@ -232,6 +236,26 @@ const sql = DrizzleOperators.make(
 
 ### 4.4 Completeness
 
+Which interpreters must have an operator depends on where the expression is
+used, not on the expression. gen2 checks expressions by phase (a schema-phase
+expression may hold nothing opaque, a client one nothing server-only); the same
+idea here is a table of use sites, each checked where it is assembled:
+
+| Use | Interpreters it runs in | Checked | Missing means |
+| --- | --- | --- | --- |
+| A query body a server serves | SQL on the server; memory in Remote's client | the server at registration (`checkFields`) | the server does not start; on the client, the list refetches (below) |
+| A Guard row rule | SQL (the binding's `visible`) and memory (`Policy.decide`, `Condition.holds`, agents) | Guard's `visible` and `GuardServer.validate`, against both tables | the server does not start |
+| A declared write's `when` | SQL (the compare-and-set `update … where`) | where the writer is built | the server does not start |
+| An invariant | memory (the reference judge, the Schema check, a form, a writer judging the row it would leave) | where the writer is built, against the server's table | on the server, it does not start; in a client form, the invariant is `Undecided` |
+
+The last row needs a decision. The Schema check (`invariant.ts`'s `check`) and
+a form run on the client too, with the client's table. An operator that table
+lacks leaves the invariant `Undecided`, which the check already treats as
+passing (it fails only on `Invalid`), exactly as it treats a field the form
+has not filled. The server's writer, whose table must be complete, decides.
+`check` and `judge` take a table for this (`Invariant.check(entity, {
+operators })`), defaulting to `Operators.kernel`.
+
 - `Query.unsupported(body, interpreter)` names every kernel operation and every
   operator id the interpreter lacks. Each existing check site
   (`checkFields`, Guard's Drizzle `visible`, `evaluate`) reads it with that
@@ -251,6 +275,52 @@ const sql = DrizzleOperators.make(
   needs. Tracking them would add a parameter to `Query` and every interpreter
   signature, and an Effect requirement on a service would not prove per-operator
   coverage anyway. Startup checks are the guarantee, and the README says so.
+
+### 4.5 Operators defined by an expression
+
+gen2 lets an operation's implementation be a static expression over other
+operations rather than code (an `ImplementationBody` of kind `static_ast`, later
+an "operation lowers to" edge), and makes a named boolean expression, its
+`Rule`, a first-class thing auth, validation and docs all read. Data-query §7
+expected the same `Rule` here and never built it. Both fit as one option on a
+descriptor:
+
+```ts
+const published = Expr.operator('cms.published', {
+  input: [Schema.NullOr(Schema.String)],
+  output: Schema.Boolean,
+  definedAs: publishedAt => Expr.isNotNull(publishedAt),
+})
+```
+
+- **The body is built per call, from the real operands.** Calling
+  `published(Post.fields.publishedAt)` runs `definedAs` with that field and
+  stores the result on the node as its expansion. Every check the kernel makes
+  at construction (ownership, collations, `Expr.lt`'s kinds, the budget) runs
+  against the real fields, so a defined operator can be no less checked than
+  the expression it names.
+- **Interpreters walk the expansion.** No interpreter needs an implementation;
+  dependencies, settling and `Query.unsupported` read through it, so a defined
+  operator is supported wherever its body is. An interpreter may still supply
+  its own implementation (a native function, say); the expansion is then the
+  reference that implementation is tested against.
+- **The name survives.** `Query.show` and refusal messages print
+  `cms.published(Post.publishedAt)`, not the body, and the contract graph
+  ([contract-layer-PLAN.md](./contract-layer-PLAN.md) Phase 3) can say which
+  rules a query and a guard share.
+- **No new semantics, so no §6.0.2 obligations.** Its meaning is its body's,
+  and the body's operators already meet the rule. That is why it is built first.
+- **Pure and closed.** The body may read only its arguments, the same as any
+  operator: no field captured from outside, no input it was not passed. A
+  "published" that also means "not in the future" takes the time as an
+  argument (`published(at, input.now)`); the kernel has no clock.
+
+**Caller.** "Published" is written out five times in the CMS: `RecentPosts`
+and `PublishedPages` (`examples/cms/src/content/domain.ts:122`,
+`pageDomain.ts:72`) and the Guard rules `isPostPublished`, `isPagePublished`
+and `isArticlePublished` (`examples/cms/src/server/server.ts:63-65`). A
+TypeScript helper would give one definition; the operator also gives every
+printout and the graph one name for the five, which a helper cannot.
 
 ## 5. Evaluation stays synchronous
 
@@ -387,8 +457,29 @@ const concat = Expr.operator('acme.concat', {
 
 ## 8. Laws and evidence
 
-Laws are built last, because nothing consumes them: there is no optimiser and
-query-logic forbids rewriting. Their first use is testing and documentation.
+Laws are built last. There is no optimiser and query-logic forbids rewriting,
+so no query reads one. But something in the repository already depends on a
+law without saying so:
+
+**Increments assume addition commutes and associates.** A ledgered binding
+lets an increment skip `expect` (write-improvement-PLAN Phase 3), so two
+concurrent restocks both land, in whichever order they commit. And the client
+predicts a pending increment by adding its amount to the stored value as it is
+read (`adds`, write-improvement §3), in its own order. Both are sound only if
+the order of additions does not change the result. For an integer column within
+range it does not. For a real column it can: `(x + a) + b` and `(x + b) + a`
+differ by rounding, so the stored value depends on commit order and the
+prediction can disagree with the answer. write-increment-DESIGN §5 allows a real
+column ("a real one as a real"). This is the case gen2 warns about
+(floating-point addition declared associative because real addition is), and
+it is the first place a declared law would carry weight: §11 question 5.
+
+Otherwise, laws serve testing and documentation.
+
+- **`collation: 'operands'` (§7) is a law.** "Folding the result equals the
+  result of folding the operands" is what gen2 calls order-preserving. It is
+  declared as a flag because §7 reads it, and checked by the same helper as any
+  law.
 
 - **A law is a typed descriptor on the operator**, naming what it needs:
   `Law.associative`, `Law.commutative`, `Law.identity(value)` (left, right or
@@ -413,6 +504,44 @@ query-logic forbids rewriting. Their first use is testing and documentation.
   of its own. Algebraic idempotence is not a write's retry safety; that is the
   write ledger's (write-improvement-PLAN Phase 3).
 
+## 8a. What gen2 gave this design, and what it did not
+
+gen2 (`C:\Users\Patrick\gen2`, `src/types/operation.ts`,
+`src/expression/checks.ts`, `src/dialects/core/type-operation.ts`,
+`docs/revision/revised_phases.md`) is the prior art #185 cites.
+
+**Taken:**
+
+- **Operators defined by an expression** (its `static_ast` implementation body
+  and "lowers to" edge) and **named rules** (its `Rule`): §4.5.
+- **Completeness by where an expression runs** (its phase checks,
+  `checkClientNoServerEffects`, `checkPlanImplementations`): §4.4's table.
+- **Laws with witnesses**: an identity names its value, an inverse its operator
+  (its later `LawIdentity { identity }`, `LawInverse { inverse }`), and a claim
+  is not a proof (`claim | tested | proven`): §8.
+- **Refusing rather than falling back.** Its `FallbackPolicy` can allow running
+  elsewhere; Foldkit Plus keeps only its `deny`, for the reason #185 gives about
+  authorization.
+- **Duplicate implementations are an error** (`types:duplicate-implementation`):
+  §4.3.
+
+**Not taken:**
+
+- **The capability, effect and kind vocabularies** (some forty capability
+  kinds, thirteen effect kinds, seven operation kinds). An operator here is
+  pure by rule, its types are Schemas, and where it runs is a table's presence;
+  a flag such as `pure` or `client_safe` would be a claim nothing checks.
+- **Effectful operators** (`effectOp`). Out, as §4.3 says.
+- **Representations below the Schema** (`u8`, `fixed_string`): the encoded
+  Schema is the representation here.
+- **Operation traits with no reader yet** (`patchable`, `incrementalizable`,
+  `retry_safe`, `offline_replay_safe`). Each waits for the code that would
+  read it: Sync's operations, aggregates (data-query Phase 13), the write
+  ledger. Its own list warns against this: idempotence is not retry safety.
+- **Its checks' blind spot.** `checkStringOps` inspects only literal operands,
+  because its AST nodes carry no type. Here every node is typed and checked
+  when built, which is why §4.1 validates operands at construction.
+
 ## 9. What this does not do
 
 - No change to existing nodes. `contains`, `eq` and the rest stay fixed nodes
@@ -435,14 +564,20 @@ mutation spec, the docs and skill references in step, and the changelog.
    resolves or needs a `cast(? as text)`, which the SQL implementation helper
    then adds. Whether `RemoteServer`, `GuardServer` and the Drizzle binding are
    built where a service can be read (§5). Findings go in §12.
-1. **Descriptors and nodes** (`foldkit-entity`). `Expr.operator`, `Call` and
-   `Test`, every walker, ownership, the budget, `ReadsOf`, runtime validation.
-   Type tests: a call over another Entity's field, a wrong-typed operand and a
-   wrong arity are `@ts-expect-error`; a `Test` in `Expr.and` needs no cast.
-   Unit tests: dependencies list a field under a call under an `or`; a shared
-   call counts on each path.
+1. **Descriptors, nodes and defined operators** (`foldkit-entity`).
+   `Expr.operator` with `definedAs` only, `Call` and `Test` carrying their
+   expansion, every walker, ownership, the budget, `ReadsOf`, runtime
+   validation, `Query.show` printing the name. No implementation tables yet:
+   nothing needs one. Type tests: a call over another Entity's field, a
+   wrong-typed operand and a wrong arity are `@ts-expect-error`; a `Test` in
+   `Expr.and` needs no cast. Unit tests: dependencies list a field under a call
+   under an `or`; a shared call counts on each path; a body that captures a
+   field instead of reading its argument is refused. The CMS adopts
+   `cms.published` in its two queries and three guard rules, and the SQL each
+   compiles to is unchanged.
 2. **The memory implementation and `startsWith`** (`foldkit-entity`).
-   `Operators`, `Operators.kernel`, `evaluate`'s table argument, the strict null
+   `Operators`, `Operators.kernel`, `evaluate`'s and `Invariant.check`'s table
+   argument, the strict null
    and NUL checks, `startsWith` with its row in data-query §6.0.1, the
    generalised collation rule (§7), and conformance cases: mixed case under both
    collations, empty prefix, null in each position, a non-ASCII prefix.
@@ -474,6 +609,16 @@ mutation spec, the docs and skill references in step, and the changelog.
    it would need a declared null rule and conformance cases for it.
 4. **Where `Operators.kernel` lives once there are several text operators.**
    Proposal: `foldkit-entity/text`, a subpath, so the kernel module stays the IR.
+5. **Increments of a real column without `expect`** (§8). Proposal: a ledgered
+   binding lets an increment skip `expect` only on a column stored as an
+   integer, and the README says why; an increment of a real column keeps its
+   `expect`. This changes write-increment and write-improvement, so it is
+   decided there, not here, and does not wait for laws.
+6. **Can a defined operator capture what it was not passed?** A `definedAs`
+   that closes over a field (`() => Expr.isNotNull(Post.fields.publishedAt)`)
+   would hide a read from anyone reading the call. Proposal: refused at call
+   time, by comparing the expansion's fields and inputs with those of its
+   arguments, as §4.5 requires.
 
 ## 12. Findings
 
