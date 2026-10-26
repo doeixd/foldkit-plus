@@ -120,6 +120,11 @@ export const noOperators: OperatorTable = Object.freeze({ has: () => false, vers
  */
 export const missingName = (operator: OperatorDescriptor, operators: OperatorTable): string => {
   const held = operators.versions(operator.id)
+  // The same name and version from another `Expr.operator` call: a table holds
+  // declarations, not names, so it is a different operator.
+  if (held.includes(operator.version)) {
+    return `${operatorName(operator)} (this table has another declaration of it; declare an operator once and import it)`
+  }
   return held.length === 0
     ? operatorName(operator)
     : `${operatorName(operator)} (this table has ${held

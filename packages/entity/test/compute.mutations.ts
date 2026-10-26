@@ -89,4 +89,14 @@ export default [
     'const keys = new Set(Object.keys(bound.increments))',
     'const keys = new Set<string>()',
   ),
+  edit(
+    'an assignment that may be null is let into a field storing none',
+    "if (!stored.has('null') && mayBeNull(expr)) {",
+    'if (false) {',
+  ),
+  edit(
+    'a strict call over a nullable argument reads as never null',
+    "expr.operator.nulls === 'strict' &&",
+    'false &&',
+  ),
 ]

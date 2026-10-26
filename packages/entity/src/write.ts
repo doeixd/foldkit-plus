@@ -400,6 +400,17 @@ const kindsOf = (expr: AnyExpr): ReadonlySet<string> => {
   }
 }
 
+/**
+ * Whether `expr` may come to null: a nullable field or input, a null literal,
+ * an operator answering one, or a strict operator given an argument that may
+ * be null, which it answers with null.
+ */
+const mayBeNull = (expr: AnyExpr): boolean =>
+  kindsOf(expr).has('null') ||
+  (expr._tag === 'Call' &&
+    expr.operator.nulls === 'strict' &&
+    expr.args.some(arg => !isPredicate(arg) && mayBeNull(arg)))
+
 /** Whether a predicate is anywhere in `expr`, which data carries only as a value. */
 const holdsPredicate = (expr: Operandish): boolean =>
   isPredicate(expr) || (expr._tag === 'Call' && expr.args.some(holdsPredicate))
@@ -459,6 +470,10 @@ const assignmentOf = (
   const comes = [...kindsOf(expr)].filter(kind => kind !== 'null' && !stored.has(kind))
   if (comes.length > 0) {
     return fail(input, `computes "${fieldKey}" as ${comes.join(' or ')}, which it does not store`)
+  }
+  // Memory would show the null, and the database refuse it as NOT NULL.
+  if (!stored.has('null') && mayBeNull(expr)) {
+    return fail(input, `computes "${fieldKey}" as possibly null, which it does not store`)
   }
   return Object.freeze({ field, expr })
 }

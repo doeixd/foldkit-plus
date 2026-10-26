@@ -2,7 +2,7 @@
  * Computed assignments and the one row a write leaves: `Write.update`'s
  * `compute`, its data form, and `Write.apply`. expr-operations-DESIGN §9.
  */
-import { Option, Schema } from 'effect'
+import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { Computation, Entity, Expr, Operators, Write } from '../src/index.js'
 
@@ -30,6 +30,8 @@ const marked = Expr.operator('acme.marked', {
   output: Schema.String,
   definedAs: text => concat(text, '!'),
 })
+/** A sum, strict about null: a null argument makes it null. */
+const plus = Expr.operator('acme.plus', { input: [Schema.Int, Schema.Int], output: Schema.Int })
 const operators = Operators.memory(Operators.implement(concat, (left, right) => `${left}${right}`))
 
 const Relabel = Entity.input(
@@ -101,6 +103,17 @@ describe('A computed assignment', () => {
       { label: () => Expr.literal(3) },
       'as number, which it does not store',
     ],
+    [
+      'a nullable field, into one that stores no null',
+      { revision: () => Post.fields.views },
+      '"revision" as possibly null',
+    ],
+    [
+      'a strict operator over a nullable field, which answers it with null',
+      { revision: () => plus(Post.fields.views, 1) },
+      '"revision" as possibly null',
+    ],
+    ['a null', { label: () => Expr.literal(null) }, '"label" as possibly null'],
   ] as const)('is refused over %s', (_, compute, message) => {
     expect(() =>
       Write.update(Relabel, {
@@ -172,9 +185,13 @@ describe('The row a write leaves', () => {
 })
 
 describe('Computation', () => {
-  it('is JSON, so a pending patch can hold it', () => {
-    const data = Write.bind(relabel, { id: 'p1', suffix: '+', by: 1 }).assignments
-    expect(JSON.parse(JSON.stringify(data))).toEqual(JSON.parse(JSON.stringify(data)))
-    expect(Option.isSome(Option.some(data.label))).toBe(true)
+  it('is JSON, so a pending patch can hold it and work it out after', () => {
+    const bound = Write.bind(relabel, { id: 'p1', suffix: '+', by: 1 })
+    const carried = JSON.parse(JSON.stringify(bound.assignments))
+    expect(carried).toEqual(bound.assignments)
+    const row = { id: 'p1', title: 'Hi', label: 'old', views: null, score: 1, revision: 1 }
+    expect(Write.apply(row, { ...bound, assignments: carried }, { operators }).row.label).toBe(
+      'Hi+',
+    )
   })
 })

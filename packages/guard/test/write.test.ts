@@ -525,11 +525,11 @@ describe('GuardServer.validate over writes', () => {
       'CopyClaim',
       Write.update(
         Entity.input(Todo, Schema.Struct({ id: Schema.String, ownerId: Schema.String })),
-        { id: 'id', expect: 'ownerId', compute: { title: ({ row }) => row.claimedBy } },
+        { id: 'id', expect: 'ownerId', compute: { claimedBy: ({ row }) => row.claimedBy } },
       ),
     )
     expect(serving(RemoteServer.write(CopyClaim, guarded))).toThrow(
-      "write CopyClaim computes Todo's title from its claimedBy, which has a Read rule",
+      "write CopyClaim computes Todo's claimedBy from its claimedBy, which has a Read rule",
     )
   })
 

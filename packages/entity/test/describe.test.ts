@@ -126,6 +126,13 @@ describe('A call to another version than a table holds', () => {
     ).toThrow('acme.slug@2 (this table has acme.slug)')
   })
 
+  it('says it is another declaration where the table holds the same name and version', () => {
+    // `slug(1)` declares a second operator by the name the table's `first` has.
+    expect(() => valueOfOperand(slug(1)('X'), { operators: table })).toThrow(
+      'acme.slug (this table has another declaration of it; declare an operator once and import it)',
+    )
+  })
+
   it('is named alone where the table holds no version of it', () => {
     expect(Query.unsupported(body, [], Operators.kernel)).toContain('acme.slug@2')
     expect(Query.unsupported(body, [], Operators.kernel)).not.toContain(

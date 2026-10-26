@@ -85,4 +85,10 @@ export default [
     ': { ...document.schema, $defs: document.definitions }',
     ': document.schema',
   ),
+  edit(
+    'another declaration reads as a version mismatch',
+    expr,
+    'if (held.includes(operator.version)) {',
+    'if (false) {',
+  ),
 ]

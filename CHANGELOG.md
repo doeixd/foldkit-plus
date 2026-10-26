@@ -72,6 +72,13 @@ version changed; `pnpm` skips versions already in the registry.
   integer is cast to `bigint`, not `integer`, so a value past 32 bits that
   `Schema.Int` admits no longer fails the query; on SQLite a boolean is bound
   as 1 or 0, which SQLite stores, where it failed to bind at all.
+- **A computed assignment that may be null is refused for a field that stores
+  none,** where it is declared: a nullable field, a null, or a strict operator
+  over a nullable argument. Memory showed the null and the database refused it
+  as `NOT NULL`.
+- **A refusal names another declaration of an operator as such.** A table
+  holding an operator of the same name and version from another
+  `Expr.operator` call read `acme.slug (this table has acme.slug)`.
 - **Evidence is tied to the implementation it was tested on.**
   `Operators.withEvidence` refuses a `Tested` record `Conformance.laws` did not
   make of the table's own implementation (`Operators.testedOn(record)` names
