@@ -111,6 +111,22 @@ describe('An order term over a call', () => {
     )
   })
 
+  it('carries no collation for a number, and refuses one written on it', () => {
+    // A number from text inherits the text's collation, which Postgres refuses on a number.
+    const width = Expr.operator('acme.width', {
+      input: [Schema.String],
+      output: Schema.Int,
+      collation: 'required',
+    })
+    expect(Order.asc(width(fields.name)).collation).toEqual(Option.none())
+    expect(() => Order.asc(fields.rank, { collation: Collation.asciiFold })).toThrow(
+      /is a number, which needs no collation/,
+    )
+    expect(() => Order.asc(distance(fields.rank, 1), { collation: Collation.binary })).toThrow(
+      /is a number, which needs no collation/,
+    )
+  })
+
   it('refuses, where it is written, a chosen alternative that orders nowhere alike', () => {
     const sort = Expr.input(
       'sort',

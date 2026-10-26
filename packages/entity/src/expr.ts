@@ -1527,13 +1527,23 @@ export interface TermOptions {
 
 /** A term, its nulls placed by `options` or by the direction's default. */
 const term = (direction: 'asc' | 'desc', expr: AnyExpr, options: TermOptions = {}): OrderTerm => {
-  const collation = Option.orElse(Option.fromUndefinedOr(options.collation), () =>
-    Match.value(expr).pipe(
-      Match.tag('Field', field => field.collation),
-      Match.tag('Call', call => call.collation),
-      Match.orElse(() => Option.none<Collation>()),
-    ),
-  )
+  // A number orders alike everywhere, and Postgres refuses a collation on one: a
+  // collation it would inherit from a call's text arguments is dropped.
+  const number = sideKind(expr) === 'number'
+  if (number && options.collation !== undefined) {
+    throw new Error(
+      `[foldkit-entity] Order: ${showExpr(expr)} is a number, which needs no collation; a collation orders text`,
+    )
+  }
+  const collation = number
+    ? Option.none<Collation>()
+    : Option.orElse(Option.fromUndefinedOr(options.collation), () =>
+        Match.value(expr).pipe(
+          Match.tag('Field', field => field.collation),
+          Match.tag('Call', call => call.collation),
+          Match.orElse(() => Option.none<Collation>()),
+        ),
+      )
   if (expr._tag === 'Call') orderableCall(expr, collation)
   return node({
     _tag: 'Term',

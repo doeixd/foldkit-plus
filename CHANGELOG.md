@@ -67,6 +67,11 @@ version changed; `pnpm` skips versions already in the registry.
   integer is cast to `bigint`, not `integer`, so a value past 32 bits that
   `Schema.Int` admits no longer fails the query; on SQLite a boolean is bound
   as 1 or 0, which SQLite stores, where it failed to bind at all.
+- **An order by a number carries no collation.** A number-valued call inherited
+  its text argument's collation, which Postgres refuses on a number; it is now
+  dropped, and a collation written on a number term is refused where it is
+  written. A raw order term folding a Postgres column that is not text no
+  longer lowers it.
 - **A computed value compared under a collation compiles on Postgres.** An
   invariant ordering the value an assignment computes wrote SQLite's
   `collate binary` there, which Postgres refuses.

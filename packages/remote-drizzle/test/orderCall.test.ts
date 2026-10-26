@@ -42,6 +42,12 @@ const joined = Expr.operator('acme.joined', {
   output: Schema.String,
   collation: 'operands',
 })
+/** How many characters a code has: a number that inherits its text's collation. */
+const width = Expr.operator('acme.width', {
+  input: [Schema.String],
+  output: Schema.Int,
+  collation: 'required',
+})
 /** A distance from zero, defined by the primitive one: compiled as what it means. */
 const size = Expr.operator('acme.size', {
   input: [Schema.Int],
@@ -54,6 +60,7 @@ const operators = {
     Operators.memory(
       Operators.implement(distance, (rank, target) => Math.abs(rank - target)),
       Operators.implement(joined, (left, right) => `${left}${right}`),
+      Operators.implement(width, code => [...code].length),
     ),
   ),
   sql: DrizzleOperators.merge(
@@ -64,6 +71,7 @@ const operators = {
         ({ args: [rank, target] }) => sql`abs(${rank} - ${target})`,
       ),
       DrizzleOperators.implement(joined, ({ args: [left, right] }) => sql`(${left} || ${right})`),
+      DrizzleOperators.implement(width, ({ args: [code] }) => sql`length(${code})`),
     ),
   ),
 }
@@ -90,6 +98,7 @@ const bodies = {
   Bigger: Relational.from(Part).pipe(Relational.orderBy(Order.desc(size(fields.rank)))),
   // Binary, the collation `code` gives the call.
   Joined: Relational.from(Part).pipe(Relational.orderBy(Order.asc(joined(fields.code, '!')))),
+  Widest: Relational.from(Part).pipe(Relational.orderBy(Order.desc(width(fields.code)))),
   CodeFolded: Relational.from(Part).pipe(
     Relational.orderBy(Order.asc(fields.code, { collation: Collation.asciiFold })),
   ),
@@ -235,6 +244,7 @@ const cases: ReadonlyArray<readonly [keyof typeof bodies, Readonly<Record<string
   ['Bigger', {}],
   ['Joined', {}],
   ['CodeFolded', {}],
+  ['Widest', {}],
   ['Chosen', { target: 6, sort: { by: 'near', direction: 'desc' } }],
 ]
 
