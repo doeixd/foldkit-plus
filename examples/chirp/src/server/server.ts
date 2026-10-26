@@ -19,8 +19,8 @@ import {
 } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import { Chirp } from '../domain.js'
-import { G, Me, Post, type User } from '../guard.js'
-import { EditPost, PostChirp, Timeline } from '../operations.js'
+import { G, Post, type User } from '../guard.js'
+import { ByAuthor, EditPost, PostChirp, Timeline } from '../operations.js'
 import { SEED } from './seed.js'
 
 /** A SQLite database the server runs on, and whether it is new, so needs its tables. */
@@ -81,31 +81,27 @@ const Db = bind(
         author: { field: posts.authorId },
         likedBy: { through: likes, localColumn: likes.postId, foreignColumn: likes.userId },
       },
-      derived: { likeCount: { relation: 'likedBy' } },
+      derived: { likeCount: { relation: 'likedBy' }, may: { supplied: true } },
     },
   },
 )
 
-// Every write of a post is decided by its rules before it lands; the server, not
-// the browser, says when a chirp was posted.
+// Every write of a post is decided by its rules before it lands. Who wrote a
+// chirp, and when, are the server's to say: the browser sends neither.
 const guarded = GuardServer.writer(Post, Policy, writer(Db.Post), {
-  presets: { createdAt: () => Date.now() },
+  presets: { authorId: user => user.id, createdAt: () => Date.now() },
 })
 
 export const server = RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
-  entities: [
-    source(Db.User),
-    source(Db.Post, { filter: GuardServer.filter(Post, Policy) }),
-    GuardServer.me(Me, Policy),
-  ],
-  queries: [query(Timeline, { entity: Db.Post })],
+  entities: [source(Db.User), source(Db.Post, { filter: GuardServer.filter(Post, Policy) })],
+  queries: [query(Timeline, { entity: Db.Post }), query(ByAuthor, { entity: Db.Post })],
   mutations: [RemoteServer.write(PostChirp, guarded), RemoteServer.write(EditPost, guarded)],
 })
 
 // A guarded Entity served without its rule would serve every row: refuse to start.
 GuardServer.validate(Policy, {
-  entities: [Post, Me],
-  domain: Remote.define({ entities: [Chirp.User, Post], queries: [Timeline] }),
+  entities: [Post],
+  domain: Remote.define({ entities: [Chirp.User, Post], queries: [Timeline, ByAuthor] }),
   server,
 })
 

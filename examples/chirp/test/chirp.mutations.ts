@@ -10,8 +10,8 @@ export default [
     edits: [
       {
         file: '../src/operations.ts',
-        find: 'Order.desc(Post.fields.createdAt)',
-        replace: 'Order.asc(Post.fields.createdAt)',
+        find: 'Query.from(Post).pipe(Query.orderBy(Order.desc(Post.fields.createdAt)))',
+        replace: 'Query.from(Post).pipe(Query.orderBy(Order.asc(Post.fields.createdAt)))',
       },
     ],
     tests: server,
@@ -72,6 +72,28 @@ export default [
         file: '../src/server/server.ts',
         find: 'body text not null check (length(body) <= 280),',
         replace: 'body text not null,',
+      },
+    ],
+    tests: server,
+  },
+  {
+    name: 'a chirp is stamped with someone other than its poster',
+    edits: [
+      {
+        file: '../src/server/server.ts',
+        find: 'authorId: user => user.id',
+        replace: "authorId: () => 'ada'",
+      },
+    ],
+    tests: server,
+  },
+  {
+    name: 'a profile lists everyone’s posts',
+    edits: [
+      {
+        file: '../src/operations.ts',
+        find: 'Query.where(Expr.eq(Post.fields.authorId, input.authorId)),',
+        replace: '',
       },
     ],
     tests: server,

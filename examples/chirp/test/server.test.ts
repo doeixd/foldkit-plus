@@ -4,10 +4,13 @@
  * posting, and editing, each asked as one person. The guards decide who may
  * write a post; the body's rule refuses one too long.
  */
-import { Effect } from 'effect'
+import { Effect, Schema } from 'effect'
+import { Entity } from 'foldkit-entity'
+import { May } from 'foldkit-guard'
 import { REMOTE_PROTOCOL_VERSION } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
+import { Post } from '../src/guard.js'
 import { openServer, principalOf } from '../src/server/server.js'
 import type { Person } from '../src/server/seed.js'
 import { memorySqlite } from '../src/server/sqlite-node.js'
@@ -22,6 +25,12 @@ const sandbox = () => {
         Effect.runPromise(
           handlers
             .FoldkitRemoteQuery({ query: 'Timeline', input: {}, window: { first: 25 } })
+            .pipe(Effect.provide(database)),
+        ).then(page => page.edges.map(edge => edge.id)),
+      byAuthor: (authorId: string) =>
+        Effect.runPromise(
+          handlers
+            .FoldkitRemoteQuery({ query: 'ByAuthor', input: { authorId }, window: { first: 25 } })
             .pipe(Effect.provide(database)),
         ).then(page => page.edges.map(edge => edge.id)),
       read: (id: string, fields: ReadonlyArray<string>) =>
@@ -57,30 +66,22 @@ describe('the timeline', () => {
 })
 
 describe('posting', () => {
-  it('puts a chirp written as yourself at the top', async () => {
+  it('puts a new chirp at the top, written by whoever posted it', async () => {
     const you = sandbox()('you')
-    expect((await you.mutate('PostChirp', { id: 'n1', authorId: 'you', body: 'Hi' }))._tag).toBe(
-      'Success',
-    )
+    expect((await you.mutate('PostChirp', { id: 'n1', body: 'Hi' }))._tag).toBe('Success')
     expect((await you.timeline())[0]).toBe('n1')
+    expect(await you.read('n1', ['authorId'])).toEqual({ authorId: 'you' })
   })
 
-  it('refuses a chirp written in someone else’s name', async () => {
+  it('keeps the poster as the author, whatever the browser names', async () => {
     const you = sandbox()('you')
-    expect(await you.mutate('PostChirp', { id: 'n1', authorId: 'ada', body: 'Hi' })).toMatchObject({
-      _tag: 'Failure',
-      failure: { _tag: 'Forbidden' },
-    })
-    expect(await you.timeline()).not.toContain('n1')
+    await you.mutate('PostChirp', { id: 'n1', authorId: 'ada', body: 'Hi' })
+    expect(await you.read('n1', ['authorId'])).toEqual({ authorId: 'you' })
   })
 
   it('refuses a body over 280 characters', async () => {
     const you = sandbox()('you')
-    const result = await you.mutate('PostChirp', {
-      id: 'n1',
-      authorId: 'you',
-      body: 'x'.repeat(281),
-    })
+    const result = await you.mutate('PostChirp', { id: 'n1', body: 'x'.repeat(281) })
     expect(result._tag).toBe('Failure')
     expect(await you.timeline()).not.toContain('n1')
   })
@@ -108,5 +109,27 @@ describe('editing', () => {
     const ada = sandbox()('ada')
     expect((await ada.mutate('EditPost', { id: 'p2', body: 'Moderated' }))._tag).toBe('Success')
     expect(await ada.read('p2', ['body'])).toEqual({ body: 'Moderated' })
+  })
+})
+
+const decodeMay = Schema.decodeUnknownSync(Entity.select(Post, { may: true }).schema)
+
+describe('what each reader may do', () => {
+  it('lists one person’s posts on their profile', async () => {
+    expect(await sandbox()('you').byAuthor('ada')).toEqual(['p1', 'p5'])
+  })
+
+  it('tells an author they may edit their own posts and no one else’s', async () => {
+    const you = sandbox()('you')
+    const may = async (id: string) => May.can(decodeMay(await you.read(id, ['may'])).may, 'Update')
+    expect(await may('p4')).toBe(true)
+    expect(await may('p1')).toBe(false)
+  })
+
+  it('tells the admin they may edit every post', async () => {
+    const ada = sandbox()('ada')
+    const may = async (id: string) => May.can(decodeMay(await ada.read(id, ['may'])).may, 'Update')
+    expect(await may('p2')).toBe(true)
+    expect(await may('p4')).toBe(true)
   })
 })

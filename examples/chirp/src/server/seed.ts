@@ -36,7 +36,7 @@ export const SEED = `
     ('you', 'you', 'You'),
     ('ada', 'ada', 'Ada Lovelace'),
     ('grace', 'grace', 'Grace Hopper'),
-    ('linus', 'lkay', 'Linus Kay');
+    ('linus', 'linus', 'Linus Kay');
   insert into posts values
     ${posts.map(([id, author, body], i) => `(${quote(id)}, ${quote(author)}, ${quote(body)}, ${at(i * 10)})`).join(',\n    ')};
   insert into likes values

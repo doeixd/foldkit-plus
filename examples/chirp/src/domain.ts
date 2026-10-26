@@ -1,6 +1,6 @@
 /** The domain, declared once: what client and server both interpret. */
 import { Schema } from 'effect'
-import { Derived, Entity, Relation, type Selected } from 'foldkit-entity'
+import { Derived, Entity, Relation } from 'foldkit-entity'
 
 // #region entity
 export const UserFields = Entity.define(
@@ -34,15 +34,4 @@ export const Chirp = Entity.relate(
     User: { posts: Relation.many(PostFields) },
   },
 )
-// #endregion
-
-// #region select
-export const TimelinePost = Entity.select(Chirp.Post, {
-  id: true,
-  body: true,
-  likeCount: true,
-  author: Entity.select(Chirp.User, { name: true, handle: true }),
-})
-
-export type Row = Selected<typeof TimelinePost>
 // #endregion

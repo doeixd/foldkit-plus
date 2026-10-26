@@ -20,8 +20,10 @@ export const G = Guards.declare(
 // #endregion
 
 // #region guard-attach
-export const Post = Chirp.Post.pipe(Guards.attach(G, { row: { Write: [G.isAuthor, G.isAdmin] } }))
+export const Post = Chirp.Post.pipe(
+  Guards.attach(G, { row: { Write: [G.isAuthor, G.isAdmin] } }),
+  // What the reader may do with each row, answered by the server: a hint for the
+  // page (which posts show Edit), never the check.
+  Guards.may,
+)
 // #endregion
-
-/** Who the server answered as: one row, read like any other. */
-export const Me = Guards.me(G)
