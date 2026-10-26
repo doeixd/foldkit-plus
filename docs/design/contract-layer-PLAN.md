@@ -301,7 +301,12 @@ Gate: Phase 3.
 1. A capability catalog: UI Messages from `Agent.expose`, exposed operations,
    Remote mutations and queries, and Domain commands when the adapter is
    present, each with `description`, input and output JSON Schemas, `access`
-   (Guard), and `expose` per surface.
+   (Guard), and `expose` per surface. The catalog's JSON form is the one
+   Domain's `Api.describe` produces (alchemy-run/alchemy#2578), with the same
+   field names, so a generator reads a Foldkit Plus catalog and a Domain one
+   alike and neither project keeps a second format. If `describe` changes
+   before it merges, follow it; if it does not merge, ours is the format and
+   Domain's adapter maps into it.
 2. Generators producing Effect values: MCP server and AI Toolkit, `HttpApi`
    with OpenAPI (opt-in per entry, off by default), `effect/cli`.
 3. Per-caller visibility from principal guards alone, so a tool list needs no
@@ -332,7 +337,9 @@ Gate: Phase 0 item 5. Independent of Phases 1 to 4.
 2. **Reactions.** `journal.react(set, handler)` (*Sketch*) runs after commit in
    journal order, resumes from a stored cursor, keys each run by
    `opId:reaction` (invariant 9), and appends server-only Messages or calls an
-   external system.
+   external system. Nothing more: a reaction holds no state of its own, waits
+   for nothing, and starts no process. Anything longer belongs to item 7's
+   answer.
 3. **Server-only state.** A part of the snapshot the journal keeps and never
    sends. Only server-only Messages may change it, so the client's `update`
    never needs it.
@@ -351,32 +358,44 @@ Gate: Phase 0 item 5. Independent of Phases 1 to 4.
    whether Remote or Sync refused the change.
 6. **Upcasters.** `Sync.migrations([...])` from Phase 0 item 6, applied
    wherever an operation is decoded (journal load, replica outbox, exchange).
-7. **Deadlines and processes.** Domain runs long processes as Sagas: steps,
-   waits, undo on failure, deadlines. We do not need a Saga engine, but
-   reactions alone cannot express "if nobody accepts the invite within seven
+7. **Deadlines and processes: deferred until a Sync application needs one.**
+   Reactions alone cannot express "if nobody accepts the invite within seven
    days, expire it", or Phase 0 item 7's reserve-then-confirm flow with a
-   timeout. Add durable timers: `journal.schedule(key, at, message)`
-   (*Sketch*) stores a server-only Message to append at a time, fires at
-   least once (invariant 9), and is cancelled by id. A process is then
-   reactions, server-only state for its step, and timers; undo is a
-   server-only Message that `update` applies. Where the timer runs (an
-   in-process scheduler, a Durable Object alarm) is §7 Q12.
+   timeout. Durable timers and multi-step processes are a server runtime,
+   which [remote-improvement-plan.md](./remote-improvement-plan.md) §13
+   declines, and which Domain's Sagas, Effect's workflow modules and Durable
+   Object alarms already provide. So we build none of our own. When a Sync
+   application needs a deadline, a reaction hands the process to whichever of
+   those the application already runs, and the result returns as a
+   server-only Message. Only if none fits do we add a timer:
+   `journal.schedule(key, at, message)` (*Sketch*), storing a server-only
+   Message to append at a time, fired at least once (invariant 9), cancelled
+   by id. Where it would run is §7 Q12.
 8. **Journal Stories.** Given committed operations, when a principal submits
    one, then it commits or is rejected with this rejection. Runs without a
-   server. Timers fire in a Story by moving its clock.
+   server.
 
 Done when: an example records a payment confirmation from a webhook as a
 server-only Message, a reaction sends a notice once per commit across a
-restart, an invite expires by a timer that survives a restart, a guest replica
-never receives the owner-only part of a document, a rejection reaches the UI
-typed, and a renamed durable Message replays from an old journal.
+restart, a guest replica never receives the owner-only part of a document, a
+rejection reaches the UI typed, and a renamed durable Message replays from an
+old journal.
 
 ### 6.6 Phase 6: authorities we do not own (M)
 
-Gate: Phase 3 for the graph part; the Remote part can start after Phase 1.
+Gate: Phase 3 for the graph part; `RemoteServer.describe` can start after
+Phase 1. The Domain adapter waits for alchemy-run/alchemy#2567 (`View.snapshot`)
+and #2569 (live reads that carry cursors) to merge; until then, at most a spike
+against the current Domain beta, kept out of the published packages.
+
+Domain is never a dependency of `foldkit-remote-server` or any existing
+package. Remote's server stays independent of the backend (§9.2), and Domain,
+in beta with its key APIs in open PRs, would bring that churn to every Remote
+user. The adapter is a package of its own, with `@alchemy.run/domain` as a
+peer.
 
 1. **`RemoteServer.describe`**: every query and mutation with JSON Schemas and
-   guards, feeding the catalog.
+   guards, feeding the catalog in Phase 4's format.
 2. **A Domain adapter** (`foldkit-remote-domain`, *name to decide*): a Domain
    View is a Remote source (live, resumes from its cursor); a Domain command is
    a mutation; Domain metadata (`description`, `access`, `expose`,
@@ -432,7 +451,7 @@ one trace spans browser and server.
 | Q9 | Does the Guard-filtered tool list need Effect's `McpServer.visibility` (Effect-TS/effect#9661), as Domain's does? | Phase 4 |
 | Q10 | Should `foldkit-composition` rename, or should we ask upstream to? | Ours to rename; decide the names in Phase 1 |
 | Q11 | How does each surface ask a person to approve? In-app it is Model state and a Message; MCP may offer elicitation; HTTP and CLI need a pending id. Who may approve: the caller, or a named role? | Phase 4, starting from Domain's `needsApproval` (alchemy-run/alchemy#2585) |
-| Q12 | Where do durable timers run: an in-process scheduler beside `foldkit-durable`, a Durable Object alarm on Cloudflare, or an Effect scheduling module if one fits? Each needs a fire-at-least-once guarantee across restarts | Phase 5, with a probe per host |
+| Q12 | When a Sync application first needs a deadline, which process runtime does a reaction hand it to: Domain's Sagas, Effect's workflow modules, or a Durable Object alarm? Each must fire at least once across restarts. Only if none fits: where does our own timer run? | Phase 5, when that application exists, with a probe of the runtime it already uses |
 | Q13 | Can we check that `update` reads nothing a reader's slice lacks, or only document it? A replay over a partial snapshot that reads a missing part diverges silently | Phase 5; try deriving each durable Message's reads from its Projection first |
 
 ## 8. Phase 0 findings
@@ -473,7 +492,10 @@ source:
   separate kinds because it has no client `update`; we add labels to Messages
   (durable, server-only, rejects), not new kinds.
 - Remote stays independent of the backend. Domain is a source, not what Remote
-  becomes.
+  becomes, and no existing package depends on it.
+- No server runtime. We build no Saga engine, scheduler or process manager
+  ([remote-improvement-plan.md](./remote-improvement-plan.md) §13 declines
+  one); reactions hand longer work to a runtime the application already has.
 - Event sourcing is not a goal. The Sync journal is a log of Messages for one
   document, not an event store for the application.
 
@@ -498,6 +520,7 @@ source:
 | The graph becomes a second declaration to keep in step | It drifts and lies | Invariant 4: derive everything the Composition knows |
 | Server-only state splits `update` into two shapes | Sync's "no second reducer" weakens | Only server-only Messages touch server-only fields; the client's update never sees them |
 | Scope: seven phases over many packages | Nothing finishes | Phases 0 and 5 do not wait on upstream; each phase ends with a working example |
+| Domain changes under the adapter: it is in beta, and `describe`, `View.snapshot`, live cursors and `predict` are open PRs | The adapter and the shared catalog format are redone | The adapter waits for the PRs it reads to merge and stays a separate package with Domain as a peer; the catalog follows `describe` only once it merges |
 
 ## 11. How this was checked
 
@@ -517,7 +540,7 @@ On 2026-10-26:
 - alchemy-run/alchemy `main`: `packages/domain` README, `skills/alchemy-domain`
   (SKILL.md, frontend.md), the exports of `Api.ts`, `View.ts`, `Policy.ts`,
   `Kernel.ts`; issues #2589 and #2590. The alchemy PRs cited by number in
-  §6.4 and §6.6 (#2567, #2570, #2585, #2593) are described from those issues'
+  §6.4 and §6.6 (#2567, #2569, #2570, #2578, #2585, #2593) are described from those issues'
   tables; the PRs themselves were not read.
 - This repository: `packages/bundle/src/lazy.ts`; `packages/durable/src/journal.ts`
   (`reduce`, `validate`, `authorize`, `stamp` run inside the append
