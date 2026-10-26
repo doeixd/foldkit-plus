@@ -48,4 +48,26 @@ export default [
     edits: [{ file: view, find: '(Input.RelationOne.is(control.control) ||', replace: '(true ||' }],
     tests: ['packages/mixins-form/test/view.test.ts'],
   },
+  {
+    name: 'an issue in a row does not name its row',
+    edits: [
+      {
+        file: view,
+        find: "Maybe.some(cardinality === 'many' ? `${label} ${index + 1}` : label),",
+        replace: 'Maybe.none(),',
+      },
+    ],
+    tests: ['packages/mixins-form/test/nested.test.ts'],
+  },
+  {
+    name: 'two rows are named alike',
+    edits: [
+      {
+        file: view,
+        find: "cardinality === 'many' ? `${label} ${index + 1}` : label",
+        replace: 'label',
+      },
+    ],
+    tests: ['packages/mixins-form/test/nested.test.ts'],
+  },
 ]

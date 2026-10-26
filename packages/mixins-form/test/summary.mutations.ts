@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file,
-        find: "issues.push({ id: here, label, error: errorsOf(state).join(' ') })",
-        replace: 'void 0',
+        find: 'if (FieldValidation.isInvalid(state))\n                  issues.push({',
+        replace: 'if (false)\n                  issues.push({',
       },
     ],
     tests: [unit],

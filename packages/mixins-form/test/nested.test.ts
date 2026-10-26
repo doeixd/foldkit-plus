@@ -195,3 +195,26 @@ it('offers no picker in a row more, whatever the view names', () => {
   expect(Inert.all(root).some(node => Inert.value(node, 'name') === 'countryId')).toBe(true)
   expect(Inert.byTag(root, 'button').map(Inert.text)).not.toContain('Show more')
 })
+
+it('names the row of each field to fix, so two rows’ links differ', () => {
+  const step = (model: typeof Create.initial, message: typeof Create.Message.Type) =>
+    Create.bundle.update(model, message, undefined).model
+  const twoComments = step(
+    step(Create.initial, Create.Message.RowAdded({ key: 'comments' })),
+    Create.Message.RowAdded({ key: 'comments' }),
+  )
+  const checked = step(twoComments, Create.Message.ValidatedAll())
+  const root = FormView.define(Create)(
+    { model: checked, errors: [], canSubmit: false },
+    SlotView.inertBuilder(),
+  )
+  const summary = Inert.all(root).find(node =>
+    Inert.children(node).some(child => child.sel === 'ul'),
+  )
+  expect(Inert.byTag(summary, 'a').map(Inert.text)).toEqual([
+    'title: Required',
+    'author, name: Required',
+    'comments 1, body: Required',
+    'comments 2, body: Required',
+  ])
+})

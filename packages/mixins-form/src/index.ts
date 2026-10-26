@@ -6,6 +6,8 @@
  * application styles and extends a generated form the way it does any other
  * SlotView, and the form stays free of a view dependency.
  */
+// `Option` is this package's own name, a picker's choice: Effect's goes by another here.
+import { Option as Maybe } from 'effect'
 import {
   Input,
   fillWords,
@@ -63,6 +65,12 @@ export interface FormViewWords {
   readonly summary?: string | undefined
   /** One field to fix, a link to it. Default `{label}: {error}`. */
   readonly issue?: string | undefined
+  /**
+   * A field of a row as the fields to fix name it, so two rows' links differ:
+   * `{row}` is the nested key's label, with the row's position when it holds
+   * many. Default `{row}, {label}`.
+   */
+  readonly inRow?: string | undefined
   /** On the button under a picker whose list has more rows than it shows. Default `Show more`. */
   readonly more?: string | undefined
 }
@@ -759,7 +767,13 @@ export const FormView = {
         }> = []
 
         /** The controls of a form or of a row. `id` and `path` say where: both are empty for the form itself. */
-        const draw = (walk: Walk<Message>, id: string, path: string): ReadonlyArray<Html> =>
+        /** `row` names the row being drawn, for its issues; none for the form itself. */
+        const draw = (
+          walk: Walk<Message>,
+          id: string,
+          path: string,
+          row: Maybe.Option<string> = Maybe.none(),
+        ): ReadonlyArray<Html> =>
           walk.controls
             .filter(control => control.control.shown)
             .map((control): Html => {
@@ -770,7 +784,15 @@ export const FormView = {
                 const held = bundled ? walk.controlField(key) : walk.field(key)
                 const state = bundled ? withoutDraft(held) : (held as FieldValidation.Field<Draft>)
                 if (FieldValidation.isInvalid(state))
-                  issues.push({ id: here, label, error: errorsOf(state).join(' ') })
+                  issues.push({
+                    id: here,
+                    label: Maybe.match(row, {
+                      onNone: () => label,
+                      onSome: named =>
+                        fillWords(input.words?.inRow ?? '{row}, {label}', { row: named, label }),
+                    }),
+                    error: errorsOf(state).join(' '),
+                  })
                 return fieldView(
                   {
                     control: control as FormControl<Key>,
@@ -825,7 +847,12 @@ export const FormView = {
                 h.legend(slots.legend.attrs(), [label]),
                 ...rows.map((row, index) =>
                   h.div(slots.row.attrs([h.Id(`${here}-${row.id}`)]), [
-                    ...draw(rowWalk(walk, key, row, nested), `${here}-${row.id}`, `${path}${key}.`),
+                    ...draw(
+                      rowWalk(walk, key, row, nested),
+                      `${here}-${row.id}`,
+                      `${path}${key}.`,
+                      Maybe.some(cardinality === 'many' ? `${label} ${index + 1}` : label),
+                    ),
                     // A row that must be there has no way out.
                     ...(optional
                       ? [

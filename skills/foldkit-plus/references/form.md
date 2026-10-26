@@ -214,7 +214,8 @@ blank choice of a picker; a chosen value the choices lack is shown as `? value`.
 `summary` (with `summaryTitle`, `issues`, `issue`, `issueLink`), `submit`. While any field is invalid, `summary` lists each
 one above the submit button as a link to its control (`href="#id"`; a press focuses the
 control and sends `FollowedIssue({ id })`, which changes nothing), worded by `words.summary`
-and `words.issue` (`{label}: {error}`). The view owns `id`, `label for`, `aria-invalid`, `aria-required`,
+and `words.issue` (`{label}: {error}`), a row's field named with its row by `words.inRow`
+(`{row}, {label}`). The view owns `id`, `label for`, `aria-invalid`, `aria-required`,
 `aria-describedby`, and `role="alert"` on errors; a Behavior that supplies one of
 those throws a two-owners conflict at render.
 

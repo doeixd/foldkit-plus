@@ -104,6 +104,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **The fields to fix name a row's field with its row** (`comments 2, body:
+  Required`, worded by the new `words.inRow`), so two rows' links no longer read
+  the same.
+
 - **`foldkit-form-recipes`' amounts read back what they show in every locale.**
   A currency or a percentage can group and separate decimals otherwise than a
   plain number (`de-AT`, `fr-CH`, Indian currencies), and rtl locales write bidi

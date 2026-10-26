@@ -216,8 +216,8 @@ the view inputs' `more` names (`more: { authorId: true }`, which
 the form's `AskedForMore({ key })`, for the page that owns the list to answer.
 All of the view's words (`submit`,
 `submitting`, `checking`, `search`, `none`, `add`, `remove`, `more`, `summary`,
-`issue`) are text: `add` fills `{label}`, `remove` `{label}` and `{position}`,
-and `issue` `{label}` and `{error}`; the others are said as written. See [words in one place](../form/README.md#words-as-text-in-one-place).
+`issue`, `inRow`) are text: `add` fills `{label}`, `remove` `{label}` and `{position}`,
+`issue` `{label}` and `{error}`, and `inRow` `{row}` and `{label}`; the others are said as written. See [words in one place](../form/README.md#words-as-text-in-one-place).
 
 A chosen value its choices lack stays in sight: after the choices comes
 `? value`, chosen, in a `select` and in a `RelationMany`'s checkboxes. It is a
@@ -320,7 +320,9 @@ belong to no one field), `summary`, `summaryTitle`, `issues`, `issue` and
 While any field is invalid, the form draws the fields to fix above its submit
 button, beside `errors`: `words.summary` (default `Check these fields:`), then a
 link to each invalid field in the order the fields are drawn, rows' too, each
-worded by `words.issue` (default `{label}: {error}`). It sits low in the form,
+worded by `words.issue` (default `{label}: {error}`); a field of a row is named
+with its row by `words.inRow` (default `{row}, {label}`: `comments 2, body`),
+so two rows' links differ. It sits low in the form,
 so a field turning invalid never moves the fields above it, and it is no live
 region: each field's own error already is. A link's `href` is the control's
 `#id`, so with scripts off it goes there; with them on, a press focuses the
