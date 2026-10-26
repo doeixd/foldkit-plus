@@ -147,7 +147,7 @@ export default [
     edits: [
       {
         file: compile,
-        find: "if (collation?._tag === 'Locale' && !is(column, PgColumn)) {",
+        find: "if (each._tag === 'Locale' && !is(column, PgColumn)) {",
         replace: 'if (false) {',
       },
     ],

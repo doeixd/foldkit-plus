@@ -68,10 +68,13 @@ version changed; `pnpm` skips versions already in the registry.
   by the policy's table, and a computed value that table could not work out was
   judged as the field's old value, so a rule over it could be passed while the
   database wrote the new one.
-- **Operator arguments bind as each database takes them.** On Postgres an
-  integer is cast to `bigint`, not `integer`, so a value past 32 bits that
-  `Schema.Int` admits no longer fails the query; on SQLite a boolean is bound
-  as 1 or 0, which SQLite stores, where it failed to bind at all.
+- **Operator arguments and compared values bind as each database takes
+  them.** On Postgres an integer is cast to `integer` while its value fits one
+  (so a function taking one, `left(text, int)`, resolves) and to `bigint` past
+  32 bits, which `Schema.Int` admits and an `integer` cast failed. On SQLite a
+  boolean is bound as 1 or 0, as it stores one, wherever a value is compared
+  with what no column encodes (a computed value, a call), where it failed to
+  bind at all.
 - **`Expr.contains` searches for a value or an input,** in its type and where
   it is written. A field or a call as the search was answered in memory and
   refused by the SQL compiler on every request.
@@ -121,13 +124,19 @@ version changed; `pnpm` skips versions already in the registry.
   dropped, and a collation written on a number term is refused where it is
   written. A raw order term folding a Postgres column that is not text no
   longer lowers it.
-- **A computed value compared under a collation compiles on Postgres.** An
-  invariant ordering the value an assignment computes wrote SQLite's
-  `collate binary` there, which Postgres refuses.
+- **A computed value compared under a collation compiles on Postgres,** on
+  either side of the comparison. An invariant ordering the value an assignment
+  computes wrote SQLite's `collate binary` there, which Postgres refuses.
+- **An order SQLite cannot compile is refused where the query is registered,**
+  each `Order.chosen` alternative too, not on every request.
+- **A Read rule compiles by the tables it was checked against** in
+  `GuardDrizzle.visible` (its SQL table, and the policy's for what the input
+  alone decides), so a server that starts can compile it whatever table its
+  bindings were given.
 
 ### Changed
 
-- **`Remote.matching` skips a held row holding text with a NUL** rather than
+- **`matching` skips a held row holding text with a NUL** rather than
   refusing the whole list, so one bad stored row no longer blanks a local
   filter (`filtered`). An input holding one still refuses, as the server
   does.

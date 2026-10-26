@@ -32,7 +32,7 @@ export default [
   edit(
     'an invariant is compiled over the field as it was',
     writerFile,
-    '        next[field] =\n          sql`(${computationSql(computation, binding, `${binding.name}\'s "${field}"`)})` as unknown as AnyColumn\n',
+    '        next[field] = sql`(${computationSql(computation, binding, `${binding.name}\'s "${field}"`)})`\n',
     '        void computation\n',
     drizzleTests,
   ),

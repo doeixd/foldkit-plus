@@ -69,10 +69,11 @@ export interface CompileTarget {
   readonly columns: Record<string, AnyColumn>
   /**
    * Each field as the row a write would leave holds it, where a rule over a
-   * change reads one (`Next`): a field it does not name is its column, which
-   * a write that leaves the field alone leaves as it is.
+   * change reads one (`Next`): a moved or computed field is its expression, and
+   * a field it does not name is its column, which a write that leaves the field
+   * alone leaves as it is.
    */
-  readonly next?: Readonly<Record<string, AnyColumn>>
+  readonly next?: Readonly<Record<string, AnyColumn | SQL>>
   /**
    * How primitive operators are run: in SQL, and in memory for a predicate
    * decided from the input alone. Both kernels when not given.
@@ -113,15 +114,16 @@ const collateFor =
 /**
  * The SQL type a parameter is cast to on Postgres, which reads an untyped
  * parameter as text: `$1 + $2` is refused as "operator is not unique". An
- * integer is a `bigint`, since `Schema.Int` admits every safe integer and an
- * `integer` holds 32 bits. Text needs none.
+ * integer is an `integer` while the value fits one, which every function
+ * taking an integer resolves for (`left(text, int)` resolves no `bigint`), and
+ * a `bigint` past 32 bits, which `Schema.Int` admits. Text needs none.
  */
-const castFor = (schema: Schema.Top): Option.Option<SQL> => {
+const castFor = (schema: Schema.Top, value: unknown): Option.Option<SQL> => {
   const present = SchemaShape.present(Schema.toEncoded(schema).ast)
   if (present.length > 0 && present.every(SchemaAST.isNumber)) {
-    return Option.some(
-      present.every(SchemaShape.holdsIntegers) ? sql.raw('bigint') : sql.raw('double precision'),
-    )
+    if (!present.every(SchemaShape.holdsIntegers)) return Option.some(sql.raw('double precision'))
+    const fits = typeof value !== 'number' || (value >= -(2 ** 31) && value < 2 ** 31)
+    return Option.some(fits ? sql.raw('integer') : sql.raw('bigint'))
   }
   if (present.length > 0 && present.every(SchemaAST.isBoolean))
     return Option.some(sql.raw('boolean'))
@@ -131,8 +133,7 @@ const castFor = (schema: Schema.Top): Option.Option<SQL> => {
 /**
  * A literal or input value an operator takes, as a parameter: cast by the input
  * it fills on Postgres. SQLite takes no cast (its `cast(? as integer)` would
- * truncate `0.5` silently) and binds no boolean, so a boolean is 1 or 0, as
- * SQLite stores one.
+ * truncate `0.5` silently), and is given it as it binds (`bindable`).
  */
 const parameterSql = (
   value: unknown,
@@ -140,11 +141,14 @@ const parameterSql = (
   target: CompileTarget,
 ): SQL =>
   dialectOf(target) === 'sqlite'
-    ? sql`${typeof value === 'boolean' ? Number(value) : value}`
-    : Option.match(Option.flatMap(schema, castFor), {
-        onNone: () => sql`${value}`,
-        onSome: type => sql`cast(${value} as ${type})`,
-      })
+    ? sql`${bindable(value, target)}`
+    : Option.match(
+        Option.flatMap(schema, each => castFor(each, value)),
+        {
+          onNone: () => sql`${value}`,
+          onSome: type => sql`cast(${value} as ${type})`,
+        },
+      )
 
 /** One argument of a call, as SQL: a column, a parameter, a call's SQL or a predicate's. */
 const argumentSql = (
@@ -275,9 +279,9 @@ const operand = (
         ? target.next![node.field.key]!
         : columnFor(target, node.field.key, query)
     case 'Literal':
-      return node.value
+      return bindable(node.value, target)
     case 'Input':
-      return input[node.key]
+      return bindable(input[node.key], target)
     // Expanded before compiling: a call left is a primitive operator, built here.
     case 'Call':
       return callSql(node, target, input, query)
@@ -285,6 +289,14 @@ const operand = (
       return absurd(node)
   }
 }
+
+/**
+ * A value as the database binds it. SQLite binds no boolean and stores one as 1
+ * or 0, which a boolean column's own encoder writes too; so a value compared
+ * with what no column encodes (a computed value, a call) is 1 or 0 already.
+ */
+const bindable = (value: unknown, target: CompileTarget): unknown =>
+  typeof value === 'boolean' && dialectOf(target) === 'sqlite' ? Number(value) : value
 
 /** An operator this compiler cannot run: one with no definition to compile instead. */
 const unrun = (operator: OperatorDescriptor, query: string): QueryCompileError =>
@@ -460,8 +472,9 @@ const comparison = (
     // Text compares only against a field or a call carrying a collation, which the
     // swap above put first. A call is no column, so its collation is applied by rule.
     onSome: collation => {
-      // A computed `Next` is an expression, not a column, so it is collated as a call is.
-      if (first._tag === 'Call' || second._tag === 'Call' || !is(left, Column)) {
+      // A call, or a computed `Next`, on either side is an expression, not a
+      // column, so its collation is applied by rule.
+      if (!is(left, Column) || (isColumn(second) && !is(right, Column))) {
         const collate = collateFor(Option.some(collation), dialectOf(target))
         return sql`${collate(sql`${left}`)} ${symbol} ${collate(sql`${right}`)}`
       }
@@ -622,16 +635,45 @@ export const supported: ReadonlyArray<Operation> = [
 ]
 
 /**
- * Every field the body reads has a column here, and every operation it needs is
- * one this compiler runs. Checked once, when the source is registered, so a
- * server that starts is a server whose queries can be answered — rather than
- * one that fails on whichever request first runs this query. Ordering is
- * checked by compiling it, which happens at registration for the same reason.
+ * Every field the body reads has a column here, every operation it needs is
+ * one this compiler runs, and every order it may take (each `Order.chosen`
+ * alternative too) compiles here. Checked once, when the source is registered,
+ * so a server that starts is a server whose queries can be answered — rather
+ * than one that fails on whichever request first runs this query.
  */
 export const checkFields = (body: AnyQuery, target: CompileTarget, query: string): void => {
   requireOperators([...body.where, ...body.orderBy], target, `query "${query}"`)
   for (const field of Query.dependencies(body).fields) columnFor(target, field.key, query)
+  const ordered = body.orderBy.flatMap(ordering =>
+    Match.valueTags(ordering, {
+      Term: ({ expr, collation }) => [{ expr, collation }],
+      Chosen: ({ choices }) =>
+        Object.values(choices).map(expr => ({ expr, collation: expr.collation })),
+    }),
+  )
+  for (const { expr, collation } of ordered) {
+    if (expr._tag === 'Field')
+      localeOnSqlite(columnFor(target, expr.key, query), expr.key, collation, query)
+  }
 }
+
+/** Refuses ordering a column by a locale where the database has none: SQLite. */
+const localeOnSqlite = (
+  column: AnyColumn,
+  key: string,
+  collation: Option.Option<Collation>,
+  query: string,
+): void =>
+  Option.match(collation, {
+    onNone: () => undefined,
+    onSome: each => {
+      if (each._tag === 'Locale' && !is(column, PgColumn)) {
+        throw new QueryCompileError(
+          `query "${query}" orders "${key}" by the "${each.locale}" collation, and SQLite has no locales`,
+        )
+      }
+    },
+  })
 
 /**
  * Refuses expressions needing an operation or operator the binding cannot run:
@@ -736,12 +778,7 @@ export const compileOrderBy = (
       )
     }
     const column = columnFor(target, term.expr.key, query)
-    const collation = Option.getOrUndefined(term.collation)
-    if (collation?._tag === 'Locale' && !is(column, PgColumn)) {
-      throw new QueryCompileError(
-        `query "${query}" orders "${term.expr.key}" by the "${collation.locale}" collation, and SQLite has no locales`,
-      )
-    }
-    return { key: column, direction, nulls, collation }
+    localeOnSqlite(column, term.expr.key, term.collation, query)
+    return { key: column, direction, nulls, collation: Option.getOrUndefined(term.collation) }
   })
 }

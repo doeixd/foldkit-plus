@@ -86,7 +86,9 @@ const ranked = Relational.from(Item).pipe(
 describe('A primitive operator in SQL', () => {
   it('compiles by its implementation, each parameter cast to its stored type on Postgres', () => {
     const [onPg] = compilePredicates(ranked.where, onPostgres, { a: 1, b: 2 }, 'Ranked')
-    expect(renderedPg(onPg!).sql).toBe('"items"."rank" = (cast($1 as bigint) + cast($2 as bigint))')
+    expect(renderedPg(onPg!).sql).toBe(
+      '"items"."rank" = (cast($1 as integer) + cast($2 as integer))',
+    )
     // SQLite takes no cast: its `cast(? as integer)` would truncate a fraction silently.
     const [onLite] = compilePredicates(ranked.where, onSqlite, { a: 1, b: 2 }, 'Ranked')
     expect(renderedSqlite(onLite!).sql).toBe('"items"."rank" = (? + ?)')
@@ -138,6 +140,23 @@ describe('A primitive operator in SQL', () => {
       'Ranked',
     )
     expect(renderedPg(compiled!).sql).toBe('("items"."rank" > 0 and cast($1 as boolean))')
+  })
+
+  it('binds a boolean compared with what no column encodes as SQLite stores one', () => {
+    const flags = sqliteTable('flags', {
+      id: text('id').primaryKey(),
+      flag: integer('flag', { mode: 'boolean' }).notNull(),
+    })
+    const Flag = Entity.define('Flag', Schema.Struct({ id: Schema.String, flag: Schema.Boolean }))
+    // The flag a write would leave, computed: an expression no column encoder sees.
+    const target = { ...entity('Flag', flags), next: { flag: sql`(not ${flags.flag})` } }
+    const [compiled] = compilePredicates(
+      [Expr.eq(Expr.next(Flag.fields.flag), false)],
+      target,
+      {},
+      'Flagged',
+    )
+    expect(renderedSqlite(compiled!).params).toEqual([0])
   })
 
   it("compares a call's text under the collation it carries", () => {
@@ -202,6 +221,36 @@ describe('A primitive operator in SQL', () => {
     expect(() => query(descriptor, { entity: onSqlite })).toThrow(
       'query "Later" needs acme.sum@2 (this table has acme.sum), which this compiler does not run',
     )
+  })
+
+  it('is refused at registration, a chosen alternative too, for an order SQLite cannot compile', () => {
+    const Localized = Item.pipe(
+      Entity.annotateMembers({ code: Collation.of(Collation.locale('en_US')) }),
+    )
+    const sort = Expr.input(
+      'sort',
+      Schema.NullOr(
+        Schema.Struct({
+          by: Schema.Literals(['code']),
+          direction: Schema.Literals(['asc', 'desc']),
+        }),
+      ),
+    )
+    for (const ordering of [
+      Order.asc(Localized.fields.code),
+      Order.chosen(sort, { code: Localized.fields.code }),
+    ]) {
+      const descriptor = {
+        ...Query.make('ByCode', {
+          Input: { sort: sort.schema },
+          Result: Query.connection(Localized),
+        }),
+        body: Relational.from(Localized).pipe(Relational.orderBy(ordering)),
+      }
+      expect(() => query(descriptor, { entity: entity('Item', sqliteItems) })).toThrow(
+        'orders "code" by the "en_US" collation, and SQLite has no locales',
+      )
+    }
   })
 
   it('is refused at registration where only the memory table lacks it', () => {
@@ -309,6 +358,33 @@ describe('A primitive operator run by the database', () => {
 
     it('answers, its parameters cast where Postgres cannot type them', async () => {
       expect(await ids(onPostgres, databaseLayer(drizzlePg({ client: pglite })))).toEqual(['i1'])
+    })
+
+    it('casts an integer that fits 32 bits as one, which a function taking one resolves', async () => {
+      const leftOf = Expr.operator('acme.leftOf', {
+        input: [Schema.String, Schema.Int],
+        output: Schema.String,
+        collation: 'operands',
+      })
+      const tables = {
+        memory: Operators.memory(Operators.implement(leftOf, (text, n) => text.slice(0, n))),
+        sql: DrizzleOperators.make(
+          DrizzleOperators.implement(leftOf, ({ args: [text, n] }) => sql`left(${text}, ${n})`),
+        ),
+      }
+      const Leading = {
+        ...Query.make('Leading', { Input: { n: Schema.Int }, Result: Query.connection(Item) }),
+        body: Relational.from(Item).pipe(
+          Relational.where(Expr.eq(leftOf(Item.fields.code, Expr.input('n', Schema.Int)), 'A')),
+          Relational.orderBy(Order.asc(Item.fields.id)),
+        ),
+      }
+      const page = await Effect.runPromise(
+        query(Leading, { entity: entity('Item', pgItems, { operators: tables }) })
+          .run({ input: { n: 1 }, window: { first: 5 }, principal: null })
+          .pipe(Effect.provide(databaseLayer(drizzlePg({ client: pglite })))),
+      )
+      expect(page.edges.map(edge => edge.id)).toEqual(['i1'])
     })
 
     it('takes any integer Schema.Int admits, past the 32 bits of an integer', async () => {

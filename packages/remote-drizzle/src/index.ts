@@ -1076,15 +1076,14 @@ export const writer = <P = unknown>(
     assignments: Readonly<Record<string, Computation>>,
   ): Effect.Effect<ReadonlyArray<SQL>, RemoteServerError> =>
     compileFor(() => {
-      const next: Record<string, AnyColumn> = Object.create(null)
+      const next: Record<string, AnyColumn | SQL> = Object.create(null)
       // A moved or computed field becomes its expression, and Drizzle's operators take
       // an expression where they take a column.
       for (const [field, amount] of Object.entries(increments)) {
-        next[field] = sql`(${binding.columns[field]} + ${amount})` as unknown as AnyColumn
+        next[field] = sql`(${binding.columns[field]} + ${amount})`
       }
       for (const [field, computation] of Object.entries(assignments)) {
-        next[field] =
-          sql`(${computationSql(computation, binding, `${binding.name}'s "${field}"`)})` as unknown as AnyColumn
+        next[field] = sql`(${computationSql(computation, binding, `${binding.name}'s "${field}"`)})`
       }
       // The binding's operators too: a value set can leave a call over literals
       // alone, which is decided in memory rather than compiled.

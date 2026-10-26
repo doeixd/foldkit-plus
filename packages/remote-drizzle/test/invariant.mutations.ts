@@ -30,7 +30,7 @@ export default [
   edit(
     'an increment is judged unmoved',
     drizzle,
-    'next[field] = sql`(${binding.columns[field]} + ${amount})` as unknown as AnyColumn',
+    'next[field] = sql`(${binding.columns[field]} + ${amount})`',
     '',
   ),
   edit(
