@@ -34,6 +34,9 @@ const held = async () => {
   return { remote: hostedRemote(host, 'edda', { fresh: true, until: released }), release }
 }
 
+/** The sandbox answers through a database in the page, which a loaded runner can take seconds over. */
+const answered = { timeout: 10_000 }
+
 let dispose = () => {}
 afterEach(() => {
   dispose()
@@ -69,7 +72,7 @@ it('shows an entry being read with no state, not as New, until its state is read
   await expect.poll(() => document.querySelector('#status')?.getAttribute('aria-busy')).toBe('true')
   expect(document.querySelector('#editor [data-cms-state]')).toBeNull()
   release()
-  await expect.poll(() => text('#editor [data-cms-state]')).toBe('Published')
+  await expect.poll(() => text('#editor [data-cms-state]'), answered).toBe('Published')
   expect(document.querySelector('#status')?.hasAttribute('aria-busy')).toBe(false)
 })
 
@@ -97,7 +100,7 @@ it('says the pages are loading, busy, and never that there are none, until they 
     .poll(() => document.querySelector('#pages [aria-busy="true"]')?.textContent)
     .toBe('Loading…')
   release()
-  await expect.poll(() => document.querySelectorAll('#pages li').length).toBe(2)
+  await expect.poll(() => document.querySelectorAll('#pages li').length, answered).toBe(2)
   observer.disconnect()
   expect(said.some(each => each.includes('Nothing yet.'))).toBe(false)
 })
@@ -119,9 +122,9 @@ it('opens a post previewed when its address says so, once the post has loaded', 
   )
   dispose = () => handle.dispose()
   release()
-  await expect.poll(() => text('#editor [data-cms-state]')).toBe('Published')
+  await expect.poll(() => text('#editor [data-cms-state]'), answered).toBe('Published')
   await expect
-    .poll(() => document.querySelector('#preview')?.getAttribute('aria-pressed'))
+    .poll(() => document.querySelector('#preview')?.getAttribute('aria-pressed'), answered)
     .toBe('true')
 })
 
@@ -153,7 +156,7 @@ const postsAt = async (search: string) => {
 
 it('comes back to something new on a reload, under the id its address names', async () => {
   const model = await postsAt('as=edda&new=entry-never-saved')
-  await expect.poll(() => text('#editor [data-cms-state]')).toBe('New')
+  await expect.poll(() => text('#editor [data-cms-state]'), answered).toBe('New')
   expect(Posts.PostEditor.entry(model())).toEqual(Option.some('entry-never-saved'))
   // Still new: the address goes on naming it `new` until its first save.
   expect(Posts.PostEditor.storedEntry(model())).toEqual(Option.none())
@@ -161,7 +164,7 @@ it('comes back to something new on a reload, under the id its address names', as
 
 it('opens what a first save already made, rather than beginning it again', async () => {
   await postsAt('as=edda&new=entry-post-drafts')
-  await expect.poll(() => text('#editor [data-cms-state]')).toBe('Published')
+  await expect.poll(() => text('#editor [data-cms-state]'), answered).toBe('Published')
   expect(document.querySelector<HTMLTextAreaElement>('#editor textarea')?.value).toBe(
     'Saving is not publishing',
   )
