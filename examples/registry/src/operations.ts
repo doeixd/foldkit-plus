@@ -1,8 +1,7 @@
 /**
  * What the client may read from the server: the products whose description
  * holds the search, or whose UPC begins with it, in the order the list's sort
- * names. Edits do not go this
- * way; they are the Sync document's.
+ * names. Edits do not go this way; they are the Sync document's.
  */
 import { Schema } from 'effect'
 import { Sort } from 'foldkit-crud'
@@ -20,9 +19,9 @@ const { fields } = Registry.Product
  * binding: a search finds the text anywhere in a description, folding case,
  * ASCII only, the same in SQLite and Postgres; a UPC is typed from its start,
  * so it is matched from its start (`Text.startsWith`, exactly, as the UPC's
- * `binary` collation says), not by digits in its middle. `sort` picks the column, or
- * none for the server's id order. The client reads the same body, so it knows
- * which edits can move a row.
+ * `binary` collation says), not by digits in its middle. `sort` picks the
+ * column, or none for the server's id order. The client reads the same body, so
+ * it knows which edits can move a row.
  */
 export const ProductsQuery = Query.define(
   'Products',
