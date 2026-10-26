@@ -1210,7 +1210,10 @@ of its own named a form field "fits the Catalog". Read words with
   edit: "Dowel" became "l". A browser test caught it only some runs. When a
   key opens something that takes the keys after it, make the Message carry
   enough for `update` to continue what is open (`EditTyped` adds to an open
-  draft), since the view's own state may be a frame old.
+  draft), since the view's own state may be a frame old. When a key handler
+  must decide on what an input holds (Command's Backspace in an empty field),
+  let that drawing's own `OnInput` record the text in a cell the drawing
+  makes, and read the cell: both handlers belong to the same drawing.
 - **A synthetic event moves no focus.** `dispatchEvent(new MouseEvent('click'))`
   and a `keydown` sent to an element leave focus where it was, so a jsdom test
   of the Builder kept focus in the layers through a crumb click and a key on

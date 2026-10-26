@@ -276,6 +276,10 @@ export const view = <Value extends string, Message>(
     ]),
   ])
   const trail = options.page?.trail ?? []
+  // What the field holds since this drawing: a key handler reads the query it was drawn with,
+  // so a character typed before the next frame would leave Backspace deciding on an empty field.
+  // This drawing's own input handler keeps it, and the next drawing starts from the query again.
+  const typed = { query: options.query }
   const search = h.div(builders.search.attrs(), [
     ...(trail.length === 0
       ? []
@@ -307,7 +311,10 @@ export const view = <Value extends string, Message>(
           onSome: value => [h.AriaActiveDescendant(rowId(value))],
         }),
         h.Value(options.query),
-        h.OnInput(options.onQuery),
+        h.OnInput(query => {
+          typed.query = query
+          return options.onQuery(query)
+        }),
         h.OnKeyDownPreventDefault(key => {
           switch (key) {
             case 'ArrowDown':
@@ -317,7 +324,7 @@ export const view = <Value extends string, Message>(
             case 'Enter':
               return Option.map(current, options.onRun)
             case 'Backspace':
-              return options.query === ''
+              return typed.query === ''
                 ? Option.map(Option.fromNullishOr(options.page), page => page.onBack)
                 : Option.none()
             default:

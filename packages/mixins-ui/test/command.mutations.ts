@@ -141,7 +141,17 @@ export default [
   },
   {
     name: 'Backspace leaves a page with words in the field',
-    edits: [{ file, find: "return options.query === ''", replace: 'return true' }],
+    edits: [{ file, find: "return typed.query === ''", replace: 'return true' }],
+    tests: [browser],
+  },
+  {
+    name: 'Backspace decides on the query the field was drawn with',
+    edits: [{ file, find: "return typed.query === ''", replace: "return options.query === ''" }],
+    tests: [browser],
+  },
+  {
+    name: 'what is typed before the next frame is not kept for Backspace',
+    edits: [{ file, find: '          typed.query = query\n', replace: '' }],
     tests: [browser],
   },
   {

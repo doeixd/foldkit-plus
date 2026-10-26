@@ -5,6 +5,16 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
+## Unreleased
+
+### Fixed
+
+- **`foldkit-mixins-ui`: Backspace in the Command menu deletes a character typed
+  in the same frame.** It decided from the query the field was last drawn
+  with, so a character typed and deleted before the next frame left it
+  reading an empty field: Backspace stepped out of the page instead of
+  deleting. It now reads what the field holds.
+
 ## 0.33.0
 
 Declared writes that hold where they commit. A `Write` says what it sets, when it
