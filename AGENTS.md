@@ -1640,6 +1640,14 @@ of its own named a form field "fits the Catalog". Read words with
   package's last build (`mixins-richtext` did, for `foldkit-primitives`). A
   `tsconfig.build.json` does not inherit `references` from the config it
   extends: `richtext-code` and `richtext-markdown` had none.
+- **A Vite config's import of a workspace plugin runs in Node, past the source
+  condition.** `examples/chirp` imported `icons` from `foldkit-media/vite`:
+  locally that read a `dist` built before a fix and failed with the very error
+  the fix removed, and on CI, which builds no `dist`, Node loaded the plugin's
+  TypeScript source and could not find its `.js` imports, so `main`'s e2e went
+  red. A plugin whose source imports only types (`foldkit-mixins/foundations`)
+  survives; import any other by relative path to its source, which Vite bundles
+  into the config itself.
 - **Vitest's resolve conditions are its own, not Vite's.** Adding the source
   condition to Vite's defaults brought in `module`, which loaded
   `@opentelemetry/api`'s extensionless ESM build, and `browser`, which gave
