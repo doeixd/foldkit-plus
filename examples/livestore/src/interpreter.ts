@@ -24,6 +24,7 @@
  * operator through, and none of it is what the conformance suite is asking
  * about — which is whether the query means the same thing.
  */
+import { absurd } from 'effect/Function'
 import { Query as Relational, isPredicate } from 'foldkit-entity'
 import type { AnyExpr, AnyQuery, Operation } from 'foldkit-entity'
 
@@ -49,7 +50,10 @@ export class LiveStoreCompileError extends Error {
 export const supported: ReadonlyArray<Operation> = ['eq']
 
 /** A column name, or the value an operand stands for at this request. */
-const operand = (node: AnyExpr, input: Readonly<Record<string, unknown>>) => {
+const operand = (
+  node: AnyExpr,
+  input: Readonly<Record<string, unknown>>,
+): { readonly column: string } | { readonly value: unknown } => {
   switch (node._tag) {
     case 'Field':
       return { column: node.key }
@@ -60,6 +64,8 @@ const operand = (node: AnyExpr, input: Readonly<Record<string, unknown>>) => {
     case 'Next':
       // Refused above as unsupported: this engine reads stored rows, never a row a write would leave.
       throw new LiveStoreCompileError('this engine judges stored rows only')
+    default:
+      return absurd(node)
   }
 }
 

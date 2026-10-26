@@ -15,6 +15,7 @@
  */
 import { and, eq, inArray, isNull, not, type Collection } from '@tanstack/db'
 import { Option } from 'effect'
+import { absurd } from 'effect/Function'
 import { Query as Relational, isPredicate } from 'foldkit-entity'
 import type { AnyExpr, AnyQuery, Operandish, Operation, Predicate } from 'foldkit-entity'
 
@@ -53,6 +54,11 @@ const operand = (node: AnyExpr, row: any, input: Readonly<Record<string, unknown
       return node.value
     case 'Input':
       return input[node.key]
+    case 'Next':
+      // Refused before compiling, as unsupported: this engine reads stored rows only.
+      throw new TanstackCompileError('this engine judges stored rows only')
+    default:
+      return absurd(node)
   }
 }
 
@@ -99,6 +105,14 @@ const predicate = (
       if (Array.isArray(among) && among.length === 0) return eq(0 as never, 1 as never)
       return inArray(operand(node.value, row, input) as never, among as never)
     }
+    case 'And':
+    case 'Or':
+    case 'Not':
+    case 'Compare':
+      // Refused before compiling, as unsupported, so never reached; said rather than dropped.
+      throw new TanstackCompileError(`${node._tag} is not run by this interpreter`)
+    default:
+      return absurd(node)
   }
 }
 

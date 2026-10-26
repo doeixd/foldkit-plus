@@ -12,6 +12,7 @@
  * from queries, not from what a database could express.
  */
 import { Array as Arr, Match, Option, Pipeable, Schema, SchemaAST } from 'effect'
+import { absurd } from 'effect/Function'
 import { Collation } from './collation.js'
 import type { AnyEntity, EntityField, EntityIdentity } from './index.js'
 
@@ -1100,6 +1101,8 @@ const walk = (expr: AnyExpr | Predicate | Ordering, found: Found): void => {
       walk(expr.sort, found)
       for (const choice of Object.values(expr.choices)) walk(choice, found)
       return
+    default:
+      return absurd(expr)
   }
 }
 
@@ -1206,6 +1209,8 @@ const fieldsIn = function* (
     case 'Chosen':
       for (const choice of Object.values(expr.choices)) yield* fieldsIn(choice, seen)
       return
+    default:
+      return absurd(expr)
   }
 }
 

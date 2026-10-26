@@ -29,6 +29,7 @@ import {
 } from 'drizzle-orm'
 import { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 import { Match, Option } from 'effect'
+import { absurd } from 'effect/Function'
 import { Query, QueryEvaluateError, decided, isPredicate } from 'foldkit-entity'
 import type {
   AnyExpr,
@@ -98,6 +99,8 @@ const operand = (
       return node.value
     case 'Input':
       return input[node.key]
+    default:
+      return absurd(node)
   }
 }
 

@@ -23,6 +23,7 @@
  * JavaScript would happily call the two equal.
  */
 import { Match, Option } from 'effect'
+import { absurd } from 'effect/Function'
 import type { Collation } from './collation.js'
 import { Query, dependenciesOf, isPredicate } from './expr.js'
 import type { AnyExpr, AnyQuery, Operandish, Operation, OrderTerm, Predicate } from './expr.js'
@@ -57,6 +58,8 @@ const valueOf = (node: AnyExpr, scope: Scope): unknown => {
       return node.value
     case 'Input':
       return scope.input[node.key]
+    default:
+      return absurd(node)
   }
 }
 
