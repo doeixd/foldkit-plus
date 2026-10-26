@@ -5,6 +5,10 @@ import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
 import { FieldRecipes } from 'foldkit-form-recipes'
 import { renderers } from 'foldkit-form-recipes/html'
+import { renderers as uiRecipes } from 'foldkit-form-recipes/ui'
+import { Style } from 'foldkit-mixins'
+import * as UiForm from 'foldkit-mixins-form/ui'
+import { InputSlots, Recipes } from 'foldkit-mixins-ui'
 import { FormView } from 'foldkit-mixins-form'
 import { CalendarDate } from 'foldkit/calendar'
 
@@ -19,6 +23,12 @@ const Meeting = Form.make(
 
 const View = FormView.define(Meeting, { renderers: renderers() })
 void View
+
+const input = Style.forSlots(InputSlots)(Recipes.Input())
+const UiView = FormView.define(Meeting, {
+  renderers: { ...UiForm.renderers({ input }), ...uiRecipes({ input }) },
+})
+void UiView
 
 const Task = Entity.define('Task', Schema.Struct({ id: Schema.String, due: CalendarDate }))
 void Task.pipe(Entity.annotateMembers({ due: Display.of(due.display) }))

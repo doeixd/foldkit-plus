@@ -6,8 +6,20 @@
   },
   "include": ["src/**/*.ts"],
   "references": [
-    { "path": "../crud/tsconfig.build.json" },
-    { "path": "../form/tsconfig.build.json" },
-    { "path": "../mixins-form/tsconfig.build.json" }
+    {
+      "path": "../crud/tsconfig.build.json"
+    },
+    {
+      "path": "../form/tsconfig.build.json"
+    },
+    {
+      "path": "../mixins-form/tsconfig.build.json"
+    },
+    {
+      "path": "../mixins-ui/tsconfig.build.json"
+    },
+    {
+      "path": "../mixins/tsconfig.build.json"
+    }
   ]
 }

@@ -27,6 +27,7 @@
       "foldkit-form": ["../../packages/form/src/index.ts"],
       "foldkit-form-recipes": ["../../packages/form-recipes/src/index.ts"],
       "foldkit-form-recipes/html": ["../../packages/form-recipes/src/html.ts"],
+      "foldkit-form-recipes/ui": ["../../packages/form-recipes/src/ui.ts"],
       "foldkit-guard": ["../../packages/guard/src/index.ts"],
       "foldkit-guard/agent": ["../../packages/guard/src/agent.ts"],
       "foldkit-guard/drizzle": ["../../packages/guard/src/drizzle.ts"],

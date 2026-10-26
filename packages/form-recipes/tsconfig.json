@@ -13,9 +13,11 @@
       "foldkit-form": ["../form/src/index.ts"],
       "foldkit-form-recipes": ["./src/index.ts"],
       "foldkit-form-recipes/html": ["./src/html.ts"],
+      "foldkit-form-recipes/ui": ["./src/ui.ts"],
       "foldkit-mixins": ["../mixins/src/index.ts"],
       "foldkit-mixins-form": ["../mixins-form/src/index.ts"],
       "foldkit-mixins-form/ui": ["../mixins-form/src/ui.ts"],
+      "foldkit-mixins-ui": ["../mixins-ui/src/index.ts"],
       "foldkit-mixins/app": ["../mixins/src/app.ts"],
       "foldkit-mixins/defaults": ["../mixins/src/defaults.ts"],
       "foldkit-mixins/foundations": ["../mixins/src/foundations.ts"],
@@ -43,6 +45,9 @@
     },
     {
       "path": "../mixins-form/tsconfig.build.json"
+    },
+    {
+      "path": "../mixins-ui/tsconfig.build.json"
     }
   ]
 }

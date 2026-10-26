@@ -279,6 +279,8 @@ const View = FormView.define(Meeting, { renderers: renderers() }) // date and da
   what was typed; their renderers set the input type, `autocomplete` and keyboard.
   A slug's control is a `ControlChange` (form `inputs` only); a password has no
   reveal toggle and is hidden in a list.
+- `foldkit-form-recipes/ui`'s `renderers({ input? })` draws the same inputs under
+  `foldkit-mixins-ui`'s Input Slot, beside `UiForm.renderers(...)`.
 
 ## Nested input
 

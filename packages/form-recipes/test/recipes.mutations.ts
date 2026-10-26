@@ -178,4 +178,15 @@ export default [
     edits: [{ file: html, find: '[dataOf(Kinds.Slug, context.control).prefix]', replace: '[]' }],
     tests: text,
   },
+  {
+    name: 'the UI renderers keep the plain Slot',
+    edits: [
+      {
+        file: '../src/ui.ts',
+        find: 'text: builders(InputSlots, styles.input, context).input,',
+        replace: 'text: context.slots.text,',
+      },
+    ],
+    tests: ['packages/form-recipes/test/ui.test.ts'],
+  },
 ]

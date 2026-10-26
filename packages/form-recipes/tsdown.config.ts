@@ -1,12 +1,20 @@
 import { defineConfig } from 'tsdown'
 
 export default defineConfig({
-  entry: ['src/index.ts', 'src/html.ts'],
+  entry: ['src/index.ts', 'src/html.ts', 'src/ui.ts'],
   format: ['esm'],
   dts: true,
   clean: true,
   target: 'es2022',
   deps: {
-    neverBundle: ['effect', 'foldkit', 'foldkit-crud', 'foldkit-form', 'foldkit-mixins-form'],
+    neverBundle: [
+      'effect',
+      'foldkit',
+      'foldkit-crud',
+      'foldkit-form',
+      'foldkit-mixins',
+      'foldkit-mixins-form',
+      'foldkit-mixins-ui',
+    ],
   },
 })

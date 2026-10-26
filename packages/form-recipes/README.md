@@ -125,6 +125,29 @@ toggle: whether the text shows is state the form does not hold, and
 password out of any saved draft: a form cannot leave a key out of `partial()`,
 so that rule is the application's.
 
+### Drawn through `foldkit-mixins-ui`
+
+`foldkit-form-recipes/ui`'s `renderers({ input? })` draws the same native inputs
+under `foldkit-mixins-ui`'s Input Slot, for a form drawn with
+`foldkit-mixins-form/ui`'s table:
+
+```ts
+import { renderers as uiRecipes } from 'foldkit-form-recipes/ui'
+import { Style } from 'foldkit-mixins'
+import * as UiForm from 'foldkit-mixins-form/ui'
+import { InputSlots, Recipes } from 'foldkit-mixins-ui'
+
+const input = Style.forSlots(InputSlots)(Recipes.Input())
+const UiView = FormView.define(Meeting, {
+  renderers: { ...UiForm.renderers({ input }), ...uiRecipes({ input }) },
+})
+```
+
+The inputs, their names and their Messages are the plain ones; only the look is
+the Input recipe's. A calendar in a popover is not one of them yet: it holds an
+open month and a focused day, state a renderer has nowhere to keep, so it waits
+for a control backed by a Bundle.
+
 ## Displays
 
 Each recipe's `display` is a `foldkit-crud` Display, for a list or a detail:

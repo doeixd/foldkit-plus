@@ -1,9 +1,9 @@
 # Schema to UI: field recipes and CRUD workflow recipes
 
-> **Status:** Phases 0 (2026-10-22) and 1 (2026-10-26) built; Phases 2 to 7
+> **Status:** Phases 0 (2026-10-22), 1 and 2 (2026-10-26) built; Phases 3 to 7
 > proposed. Written from
 > [#188](https://github.com/doeixd/foldkit-plus/issues/188) and an audit of the
-> code on 2026-10-22 (§1, §11). §1.3 and §1.4 record what building Phases 0 and 1
+> code on 2026-10-22 (§1, §11). §1.3 to §1.5 record what building Phases 0 to 2
 > changed in the plan. Blocks marked *Sketch* are shapes to review, not APIs; the phase that
 > builds each one fixes its real signature. Where this plan and a package README
 > disagree, the README and the source win.
@@ -12,7 +12,8 @@
 | --- | --- | --- |
 | 0 | `Control.format`, `Control.parseList`, `Input.Choices`, array-of-literal resolution, and the plain `Choices` renderer | `packages/form/test/format.test.ts`, `packages/form/test/choices.test.ts`, `packages/mixins-form/test/choices.test.ts`; 9 mutations, all killed |
 | 1 | `UiForm.renderers` for every shipped kind, the form's `summary` of fields to fix, `FollowedIssue`, `UiForm.field`'s `words` | `packages/mixins-form/test/uiRenderers.test.ts`, `uiRenderers.browser.test.ts`, `summary.test.ts`, `summary.browser.test.ts`, `ui.test.ts`; 23 mutations, all killed |
-| 2 to 7 | — | not started |
+| 2 | `foldkit-form-recipes`: `date`, `dateTime` (`local`, or `instant` in a named zone), `email`, `url`, `tel`, `password`, `slug`; `./html` and `./ui` renderers; the CMS on them | `packages/form-recipes/test/*.test.ts`; 22 mutations, all killed |
+| 3 to 7 | — | not started |
 
 The issue asks for a complete schema-to-UI story: reusable field recipes, UI
 renderers for every control kind, and CRUD workflow recipes. This plan keeps the
@@ -174,6 +175,36 @@ and §6.
    `NonEmptyArray` of literals resolves to a required Choices key; the wiring
    check tried `[]` and an id, and such a schema takes neither. It now also tries
    one of the control's own options.
+
+### 1.5 What building Phase 2 changed in this plan
+
+Phase 2 shipped on 2026-10-26 (§6) as a new package, `foldkit-form-recipes`.
+
+1. **An instant is read in a named zone.** Converting an instant to the text a
+   `datetime-local` shows needs a zone, and §7 says locale-like things are
+   parameters, never globals: `dateTime({ stored: 'instant', zone })` takes an IANA
+   name and refuses an unknown one when it is made. A time the clocks skip is
+   refused (a browser's `new Date` silently moves it an hour), and one they repeat
+   reads as the earlier. §10.5 still holds: there is no zone-aware value type, and
+   no arithmetic across zones. `CmsDateTime` read the browser's zone on every draw,
+   which also made a server render disagree with the browser's.
+2. **A recipe is `{ control, display }`; `pack` and `merge` are not built.** §4.1's
+   sketch put `kind`, `words` and `render` on the recipe and a `pack` over named
+   keys. `kind` repeats `control.kind`, and a renderer cannot sit on a value the
+   DOM-free entry holds, so renderers are one table per entry (`./html`, `./ui`)
+   keyed by kind. With one table per entry nothing yet merges two, so `merge` and
+   `pack` wait for an application that needs them.
+3. **`slug`'s control is a `ControlChange`.** It follows another key, which only a
+   form's `inputs` can say, so `FieldRecipe` is generic in its control and `slug`'s
+   cannot go through `Input.of`.
+4. **A password has no reveal toggle.** Whether its text shows is state, and a
+   renderer has nowhere to keep it; `foldkit-mixins-ui`'s `PasswordInput` keeps it
+   in the application. Likewise the `/ui` calendar in a popover (an open month, a
+   focused day) waits for a control backed by a Bundle (Phase 6); `./ui` draws the
+   native inputs under the Input Slot meanwhile.
+5. **The CMS's controls moved rather than being wrapped.** `Cms.slug`,
+   `Cms.dateTime`, `Cms.slugify`, `Cms.Input` and `Cms.controlRenderers` are
+   removed, so there is one way to make a slug.
 
 ## 2. Scope
 
@@ -561,7 +592,12 @@ is the form-level counterpart to the per-field error the view already draws.
 **Kills.** A renderer dropped from the table (must throw by name, not draw a
 text box); `aria-describedby` removed; a summary link pointing at the wrong id.
 
-### Phase 2 — dates, times, and the text-shaped pack (M)
+### Phase 2 — dates, times, and the text-shaped pack (M) — **built 2026-10-26**
+
+**Built.** `foldkit-form-recipes` with `date`, `dateTime`, `email`, `url`, `tel`,
+`password`, `slug` and `slugify`; its `./html` and `./ui` renderers; the CMS and
+its example on them. §1.5 says where it departs from the text below, which is
+kept as it was planned.
 
 **Build.** `FieldRecipes.date` (a `CalendarDate` ↔ `YYYY-MM-DD`), and
 `FieldRecipes.dateTime` with an explicit stored form: `'local'` (naive

@@ -92,8 +92,8 @@ export const jobs: ReadonlyArray<{
     guide: 'mirror',
   },
   {
-    job: 'Forms: drafts, validation, a decoded value',
-    imports: ['form', 'mixins-form'],
+    job: 'Forms: drafts, validation, a decoded value, and dates, times and addresses in them',
+    imports: ['form', 'mixins-form', 'form-recipes'],
     guide: 'form',
   },
   {
