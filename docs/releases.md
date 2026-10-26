@@ -28,7 +28,7 @@ declaration; `npm view <name> version` says what the registry serves.
 | [`foldkit-mixins-data-grid`](../packages/mixins-data-grid) | 0.2.13 | Published | Draws a `foldkit-data-grid` grid as an accessible, virtualized WAI-ARIA grid through Mixins slots. Experimental. |
 | [`foldkit-cms`](../packages/cms) | 0.7.12 | Published | What a CMS adds to a declared domain: roles, content types, drafts beside the row, a lifecycle derived from facts, and the authoring editor's state. |
 | [`foldkit-mixins-form`](../packages/mixins-form) | 0.8.0 | Published | Draws a `foldkit-form` form as accessible HTML with every element a Mixins Slot. |
-| [`foldkit-form-recipes`](../packages/form-recipes) | 0.1.0 | First published by the next tag | Field recipes for `foldkit-form`: dates, times and text-shaped keys (email, web address, telephone, password, slug), each a control, a display and a plain renderer. |
+| [`foldkit-form-recipes`](../packages/form-recipes) | 0.1.0 | First published by the next tag | Field recipes for `foldkit-form`: dates, times, amounts (money, decimal, percent) and text-shaped keys (email, web address, telephone, password, slug), each a control, a display and a plain renderer. |
 | [`foldkit-surface`](../packages/surface) | 0.10.2 | Published | Observation boundary: pure Model projections, field references, and typed Message subsets. |
 | [`foldkit-remote`](../packages/remote) | 0.19.0 | Published | Normalized server state as a Foldkit Submodel: entities, selections, queries, connections, mutations, and live changes. |
 | [`foldkit-remote-server`](../packages/remote-server) | 0.16.0 | Published | Server sources and handler compilation for Remote: entities, queries, mutations, live, and selection authorization. |

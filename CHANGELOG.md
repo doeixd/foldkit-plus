@@ -18,6 +18,10 @@ version changed; `pnpm` skips versions already in the registry.
   the earlier of one they repeat. `email`, `url` (a scheme allowlist, so no
   `javascript:`), `tel`, `password` (named for the password manager, hidden in a
   list) and `slug` (following another key until written) keep what was typed.
+  `money` (in exact minor units or decimal text, with the currency's own
+  decimals), `decimal` and `percent` read and show an amount as the locale writes
+  it, refusing grouping other than the locale's, more decimals than the scale and
+  a minus unless asked for, rather than guessing.
   `foldkit-form-recipes/html` draws each as a native input with the type, the
   autofill and the keyboard its key wants, and `foldkit-form-recipes/ui` draws the
   same inputs under `foldkit-mixins-ui`'s Input Slot. `foldkit-plus` re-exports

@@ -125,6 +125,36 @@ toggle: whether the text shows is state the form does not hold, and
 password out of any saved draft: a form cannot leave a key out of `partial()`,
 so that rule is the application's.
 
+### Amounts: `money`, `decimal`, `percent`
+
+```ts
+const price = FieldRecipes.money({ currency: 'EUR', unit: 'minor', locale: 'de-DE' })
+const weight = FieldRecipes.decimal({ scale: 3 })
+const discount = FieldRecipes.percent({ unit: 'fraction' })
+```
+
+An amount is read and shown as `locale` writes it, and built from its digits, so
+no floating point stands between what was typed and what is stored:
+
+- **`money({ currency, unit, locale?, negative? })`**: `unit: 'minor'` stores an
+  integer of the currency's smallest unit (`123456` for 1.234,56 €), `'decimal'` a
+  decimal text (`'1234.56'`); the key's schema says which, and a value of the other
+  form fails the fill rather than being converted. The currency sets the decimals:
+  none for JPY, three for KWD. A filled field shows `1.234,56 €`, and typing
+  `1.234,56` or `1234,56` reads the same.
+- **`decimal({ scale, locale?, negative? })`**: a number with at most `scale`
+  decimals.
+- **`percent({ unit, scale?, locale?, negative? })`**: shown as `12.5%`, stored as
+  the share (`unit: 'fraction'`, `0.125`) or the points (`'points'`, `12.5`).
+
+What is refused rather than guessed at: grouping other than the locale's (`12,3`
+in `en-US` is not `123`, and `12.3` in `de-DE` is not either), more decimals than
+the scale (never rounded), a minus unless `negative: true`, and a minor amount
+past what a JavaScript number holds exactly (use `'decimal'` for those). A
+partial amount (`-`, `1,2`) reads `Enter an amount`: the form checks a key as it
+changes. The inputs are text with a numeric keypad (`inputmode`), since `"4."`
+is a fine draft that `type="number"` would refuse to report.
+
 ### Drawn through `foldkit-mixins-ui`
 
 `foldkit-form-recipes/ui`'s `renderers({ input? })` draws the same native inputs

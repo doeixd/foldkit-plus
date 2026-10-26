@@ -243,7 +243,7 @@ view's native button. Real adopters:
 https://github.com/doeixd/foldkit-plus/blob/main/examples/foldkit/form/src/main.ts
 and https://github.com/doeixd/foldkit-plus/blob/main/examples/foldkit/auth/src/page/loggedOut/page/login.ts.
 
-## Recipes: dates, times and text-shaped keys
+## Recipes: dates, times, amounts and text-shaped keys
 
 `foldkit-form-recipes` holds the controls whose parsing is easy to get wrong. A
 recipe is `{ control, display }`, made from one set of options: `control` goes in
@@ -279,6 +279,10 @@ const View = FormView.define(Meeting, { renderers: renderers() }) // date and da
   what was typed; their renderers set the input type, `autocomplete` and keyboard.
   A slug's control is a `ControlChange` (form `inputs` only); a password has no
   reveal toggle and is hidden in a list.
+- `money({ currency, unit: 'minor' | 'decimal', locale?, negative? })`,
+  `decimal({ scale })`, `percent({ unit: 'fraction' | 'points' })`: read and shown in
+  the locale, exact (minor units are integers, `'decimal'` is text); grouping
+  other than the locale's, extra decimals and an unasked-for minus are refused.
 - `foldkit-form-recipes/ui`'s `renderers({ input? })` draws the same inputs under
   `foldkit-mixins-ui`'s Input Slot, beside `UiForm.renderers(...)`.
 

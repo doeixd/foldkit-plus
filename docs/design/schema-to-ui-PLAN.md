@@ -1,9 +1,9 @@
 # Schema to UI: field recipes and CRUD workflow recipes
 
-> **Status:** Phases 0 (2026-10-22), 1 and 2 (2026-10-26) built; Phases 3 to 7
+> **Status:** Phases 0 (2026-10-22), 1 to 3 (2026-10-26) built; Phases 4 to 7
 > proposed. Written from
 > [#188](https://github.com/doeixd/foldkit-plus/issues/188) and an audit of the
-> code on 2026-10-22 (§1, §11). §1.3 to §1.5 record what building Phases 0 to 2
+> code on 2026-10-22 (§1, §11). §1.3 to §1.6 record what building Phases 0 to 3
 > changed in the plan. Blocks marked *Sketch* are shapes to review, not APIs; the phase that
 > builds each one fixes its real signature. Where this plan and a package README
 > disagree, the README and the source win.
@@ -13,7 +13,8 @@
 | 0 | `Control.format`, `Control.parseList`, `Input.Choices`, array-of-literal resolution, and the plain `Choices` renderer | `packages/form/test/format.test.ts`, `packages/form/test/choices.test.ts`, `packages/mixins-form/test/choices.test.ts`; 9 mutations, all killed |
 | 1 | `UiForm.renderers` for every shipped kind, the form's `summary` of fields to fix, `FollowedIssue`, `UiForm.field`'s `words` | `packages/mixins-form/test/uiRenderers.test.ts`, `uiRenderers.browser.test.ts`, `summary.test.ts`, `summary.browser.test.ts`, `ui.test.ts`; 23 mutations, all killed |
 | 2 | `foldkit-form-recipes`: `date`, `dateTime` (`local`, or `instant` in a named zone), `email`, `url`, `tel`, `password`, `slug`; `./html` and `./ui` renderers; the CMS on them | `packages/form-recipes/test/*.test.ts`; 22 mutations, all killed |
-| 3 to 7 | — | not started |
+| 3 | `money` (minor units or decimal text), `decimal`, `percent` (a share or points) | `packages/form-recipes/test/money.test.ts`; 11 mutations, all killed |
+| 4 to 7 | — | not started |
 
 The issue asks for a complete schema-to-UI story: reusable field recipes, UI
 renderers for every control kind, and CRUD workflow recipes. This plan keeps the
@@ -205,6 +206,29 @@ Phase 2 shipped on 2026-10-26 (§6) as a new package, `foldkit-form-recipes`.
 5. **The CMS's controls moved rather than being wrapped.** `Cms.slug`,
    `Cms.dateTime`, `Cms.slugify`, `Cms.Input` and `Cms.controlRenderers` are
    removed, so there is one way to make a slug.
+
+### 1.6 What building Phase 3 changed in this plan
+
+1. **A partial amount is an error as it is typed.** §6 asked for `'-'` to be a
+   draft, not an error, until submit. The form checks a key on every change, for
+   every kind (a required text key emptied reads `Required` at once), so `'-'`
+   reads `Enter an amount` as soon as it is typed. It is never a number, and the
+   form never throws on it; when errors show is the form's policy (#188's
+   "configurable policy for blur/change/submit validation"), which no recipe should
+   change on its own.
+2. **Grouping is accepted only as the locale writes it.** `12,3` and `12.3` are
+   refused unless the locale's decimal separator makes them a decimal, which is
+   §6's "never `123`". Rather than a separator heuristic, a grouped draft must be
+   exactly what `Intl.NumberFormat` writes for its digits, so `en-IN`'s grouping
+   is right as well.
+3. **No floating point anywhere an amount passes.** Digits are read as text, minor
+   units through `BigInt`, and a value is formatted from a decimal string, which
+   `Intl.NumberFormat` formats exactly. A minor amount past
+   `Number.MAX_SAFE_INTEGER` is refused; `unit: 'decimal'` holds any size.
+4. **`decimal`'s value is a number and `percent` has a unit.** `percent` stores
+   the share (`0.125`) or the points (`12.5`), both shown `12.5%`; a stored
+   number with more decimals than the scale fails the fill rather than being
+   rounded into it.
 
 ## 2. Scope
 
@@ -632,7 +656,11 @@ new mechanics.
 **Kills.** `format` returning `String(value)`; the local/instant distinction
 collapsed; `date` parsing month-first; a duplicate kind accepted by `merge`.
 
-### Phase 3 — money and numbers (M)
+### Phase 3 — money and numbers (M) — **built 2026-10-26**
+
+**Built.** `money`, `decimal` and `percent` in `foldkit-form-recipes`, with their
+displays and `inputmode` renderers. §1.6 says where it departs from the text
+below.
 
 **Build.** `money({ currency, unit, locale })`, `decimal({ scale, locale })`,
 `percent({ unit, locale })`. Parse is conservative and locale-aware; `format`

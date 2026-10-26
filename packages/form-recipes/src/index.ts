@@ -11,6 +11,7 @@ import { Match, Option } from 'effect'
 import { Display } from 'foldkit-crud'
 import { Input, type Control, type ControlChange } from 'foldkit-form'
 import { isCalendarDate, type CalendarDate } from 'foldkit/calendar'
+import { decimalText, digitsOf, readDigits, shifted, writeAmount, type Digits } from './number.js'
 import { instantOf, knownZone, readWall, wallOf, writeWall } from './wall.js'
 
 /**
@@ -205,6 +206,213 @@ const slugify = (text: string): string =>
 
 const text = Display.text()
 
+/** Whether an amount may be below zero. Default not: a minus is then refused, not dropped. */
+export interface Signed {
+  readonly negative?: boolean | undefined
+}
+
+/**
+ * How an amount of money is stored. `minor` is an integer of the currency's
+ * smallest unit (cents: `123456` for $1,234.56); `decimal` is a decimal text
+ * (`'1234.56'`). The key's schema says which it holds; a value of the other form
+ * is the schema's error, never rounded into it.
+ */
+export interface MoneyOptions extends Locale, Signed {
+  /** An ISO 4217 code: `USD`, `EUR`, `JPY`. */
+  readonly currency: string
+  readonly unit: 'minor' | 'decimal'
+}
+
+type MoneyData = MoneyOptions & { readonly scale: number }
+
+const currencyOf = (data: MoneyData) => ({ style: 'currency', currency: data.currency }) as const
+
+/** Digits of an integer number of minor units, or none for one that is not a safe integer. */
+const minorDigits = (value: number, scale: number): Option.Option<Digits> => {
+  if (!Number.isSafeInteger(value)) return Option.none()
+  const all = String(Math.abs(value)).padStart(scale + 1, '0')
+  return Option.some({
+    negative: value < 0,
+    whole: all.slice(0, all.length - scale),
+    fraction: all.slice(all.length - scale),
+  })
+}
+
+/** The decimal text a stored amount of money stands for, or none for a value of the wrong form. */
+const moneyText = (value: unknown, data: MoneyData): Option.Option<string> =>
+  Option.map(
+    Match.value(data.unit).pipe(
+      Match.when('minor', () =>
+        typeof value === 'number' ? minorDigits(value, data.scale) : Option.none(),
+      ),
+      Match.when('decimal', () =>
+        typeof value === 'string' ? digitsOf(value, data.scale) : Option.none(),
+      ),
+      Match.exhaustive,
+    ),
+    decimalText,
+  )
+
+/** The value a typed amount of money stands for, in the stored form. */
+const moneyValue = (digits: Digits, data: MoneyData): Option.Option<unknown> =>
+  Match.value(data.unit).pipe(
+    Match.when('decimal', () => Option.some<unknown>(decimalText(digits))),
+    Match.when('minor', () => {
+      const sign = digits.negative ? '-' : ''
+      const minor = Number(BigInt(`${sign}${digits.whole}${digits.fraction}`))
+      return Number.isSafeInteger(minor) ? Option.some<unknown>(minor) : Option.none()
+    }),
+    Match.exhaustive,
+  )
+
+const MoneyKind = Input.kind<MoneyData>('Money', {
+  draft: 'text',
+  parse: (draft, data) =>
+    Option.getOrUndefined(
+      Option.flatMap(
+        readDigits(
+          draft,
+          data.locale ?? 'en',
+          currencyOf(data),
+          data.scale,
+          data.negative === true,
+        ),
+        digits => moneyValue(digits, data),
+      ),
+    ),
+  format: (value, data) =>
+    Option.match(moneyText(value, data), {
+      onNone: () => {
+        throw new Error(
+          `an amount of ${data.currency} in ${data.unit} units is ${data.unit === 'minor' ? 'an integer' : 'decimal text'} of at most ${data.scale} decimals, not ${JSON.stringify(value)}`,
+        )
+      },
+      onSome: amount => writeAmount(amount, data.locale ?? 'en', currencyOf(data)),
+    }),
+  unparsed: 'Enter an amount',
+})
+
+const MoneyDisplay = Display.kind<MoneyData>('Money', {
+  text: (data, value) =>
+    Option.match(moneyText(value, data), {
+      onNone: () => String(value),
+      onSome: amount => writeAmount(amount, data.locale ?? 'en', currencyOf(data)),
+    }),
+})
+
+/** A number with at most `scale` decimals, kept as a number. */
+export interface DecimalOptions extends Locale, Signed {
+  readonly scale: number
+}
+
+/** A number's decimal text with `scale` decimals, or none when that would round it. */
+const fixed = (value: unknown, scale: number): Option.Option<string> => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return Option.none()
+  const text = value.toFixed(scale)
+  return Number(text) === value ? Option.some(text) : Option.none()
+}
+
+const decimalOf = (data: DecimalOptions) => ({ maximumFractionDigits: data.scale }) as const
+
+const DecimalKind = Input.kind<DecimalOptions>('Decimal', {
+  draft: 'text',
+  parse: (draft, data) =>
+    Option.getOrUndefined(
+      Option.map(
+        readDigits(draft, data.locale ?? 'en', decimalOf(data), data.scale, data.negative === true),
+        digits => Number(decimalText(digits)),
+      ),
+    ),
+  format: (value, data) =>
+    Option.match(fixed(value, data.scale), {
+      onNone: () => {
+        throw new Error(`a number of at most ${data.scale} decimals, not ${JSON.stringify(value)}`)
+      },
+      onSome: amount => writeAmount(amount, data.locale ?? 'en', decimalOf(data)),
+    }),
+  unparsed: 'Enter a number',
+})
+
+const DecimalDisplay = Display.kind<DecimalOptions>('Decimal', {
+  text: (data, value) =>
+    Option.match(fixed(value, data.scale), {
+      onNone: () => String(value),
+      onSome: amount => writeAmount(amount, data.locale ?? 'en', decimalOf(data)),
+    }),
+})
+
+/**
+ * A percentage, drawn as `12.5%`. `fraction` stores it as the share (`0.125`),
+ * `points` as the number before the sign (`12.5`). `scale` is the decimals of
+ * the percentage as shown (default 2).
+ */
+export interface PercentOptions extends Locale, Signed {
+  readonly unit: 'fraction' | 'points'
+  readonly scale?: number | undefined
+}
+
+const percentOf = (data: PercentOptions) =>
+  ({ style: 'percent', maximumFractionDigits: data.scale ?? 2 }) as const
+
+/** The share a stored percentage stands for, as decimal text, or none for one that would round. */
+const shareText = (value: unknown, data: PercentOptions): Option.Option<string> => {
+  const scale = data.scale ?? 2
+  return Match.value(data.unit).pipe(
+    Match.when('fraction', () => fixed(value, scale + 2)),
+    Match.when('points', () =>
+      Option.map(
+        Option.flatMap(fixed(value, scale), points => digitsOf(points, scale)),
+        points => decimalText(shifted(points, 2)),
+      ),
+    ),
+    Match.exhaustive,
+  )
+}
+
+const PercentKind = Input.kind<PercentOptions>('Percent', {
+  draft: 'text',
+  parse: (draft, data) =>
+    Option.getOrUndefined(
+      Option.map(
+        readDigits(
+          draft,
+          data.locale ?? 'en',
+          percentOf(data),
+          data.scale ?? 2,
+          data.negative === true,
+        ),
+        points =>
+          Number(
+            decimalText(
+              Match.value(data.unit).pipe(
+                Match.when('points', () => points),
+                Match.when('fraction', () => shifted(points, 2)),
+                Match.exhaustive,
+              ),
+            ),
+          ),
+      ),
+    ),
+  format: (value, data) =>
+    Option.match(shareText(value, data), {
+      onNone: () => {
+        throw new Error(
+          `a percentage of at most ${data.scale ?? 2} decimals, not ${JSON.stringify(value)}`,
+        )
+      },
+      onSome: share => writeAmount(share, data.locale ?? 'en', percentOf(data)),
+    }),
+  unparsed: 'Enter a percentage',
+})
+
+const PercentDisplay = Display.kind<PercentOptions>('Percent', {
+  text: (data, value) =>
+    Option.match(shareText(value, data), {
+      onNone: () => String(value),
+      onSome: share => writeAmount(share, data.locale ?? 'en', percentOf(data)),
+    }),
+})
+
 export const FieldRecipes = {
   /** The control kinds, so a renderer table is keyed by them and `is` narrows a control. */
   Kinds: {
@@ -215,9 +423,18 @@ export const FieldRecipes = {
     Tel: TelKind,
     Password: PasswordKind,
     Slug: SlugKind,
+    Money: MoneyKind,
+    Decimal: DecimalKind,
+    Percent: PercentKind,
   },
   /** The display kinds, likewise. */
-  Displays: { Date: DateDisplay, DateTime: DateTimeDisplay },
+  Displays: {
+    Date: DateDisplay,
+    DateTime: DateTimeDisplay,
+    Money: MoneyDisplay,
+    Decimal: DecimalDisplay,
+    Percent: PercentDisplay,
+  },
 
   /**
    * A calendar date: a key whose value is a `CalendarDate` (`Calendar.CalendarDate`,
@@ -296,4 +513,35 @@ export const FieldRecipes = {
 
   /** Text as an address: lower case, unaccented, words joined by `-`. What `slug` follows with. */
   slugify,
+
+  /**
+   * An amount of money in `currency`, shown and read as `locale` writes it
+   * (`$1,234.56`, `1.234,56 €`, `￥1,235`), with the currency's own decimals: none
+   * for JPY, three for KWD. More decimals than that are refused, not rounded, and
+   * grouping other than the locale's (`12,3`) is refused, not read as `123`. An
+   * unknown currency code throws here.
+   */
+  money: (options: MoneyOptions): FieldRecipe<Control<MoneyData>> => {
+    if (!/^[A-Z]{3}$/.test(options.currency))
+      throw new Error(`FieldRecipes.money: "${options.currency}" is not an ISO 4217 code`)
+    const scale =
+      new Intl.NumberFormat(options.locale ?? 'en', {
+        style: 'currency',
+        currency: options.currency,
+      }).resolvedOptions().maximumFractionDigits ?? 2
+    const data = { ...options, scale }
+    return { control: MoneyKind.of(data), display: MoneyDisplay.of(data) }
+  },
+
+  /** A number with at most `scale` decimals, read and shown in `locale`'s separators. */
+  decimal: (options: DecimalOptions): FieldRecipe<Control<DecimalOptions>> => ({
+    control: DecimalKind.of(options),
+    display: DecimalDisplay.of(options),
+  }),
+
+  /** A percentage, stored as a share or as points (see `PercentOptions`). */
+  percent: (options: PercentOptions): FieldRecipe<Control<PercentOptions>> => ({
+    control: PercentKind.of(options),
+    display: PercentDisplay.of(options),
+  }),
 }

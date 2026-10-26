@@ -50,6 +50,22 @@ const dataOf = <Data>(
   return control.data
 }
 
+/**
+ * An amount's text input: text, since `"4."` and `"-"` are fine drafts that
+ * `type="number"` would refuse to report. Its keypad has a minus only when the
+ * amount may be negative (`decimal` has none on iOS), and no point for a whole one.
+ */
+const amount = <Message>(
+  of: (control: Control) => { readonly negative?: boolean | undefined; readonly scale: number },
+): Renderer<Message> =>
+  native('text', context => {
+    const { negative, scale } = of(context.control)
+    return [
+      context.h.InputMode(negative === true ? 'text' : scale === 0 ? 'numeric' : 'decimal'),
+      context.h.Attribute('autocomplete', 'off'),
+    ]
+  })
+
 /** A renderer for each recipe kind. */
 export const renderers = <Message>(): Renderers<Message> => ({
   [Kinds.Date.kind]: native('date'),
@@ -72,6 +88,12 @@ export const renderers = <Message>(): Renderers<Message> => ({
         : 'current-password',
     ),
   ),
+  [Kinds.Money.kind]: amount(control => dataOf(Kinds.Money, control)),
+  [Kinds.Decimal.kind]: amount(control => dataOf(Kinds.Decimal, control)),
+  [Kinds.Percent.kind]: amount(control => {
+    const data = dataOf(Kinds.Percent, control)
+    return { negative: data.negative, scale: data.scale ?? 2 }
+  }),
   // The address before the slug is text beside its input, in the field's affix.
   [Kinds.Slug.kind]: context =>
     context.h.div(context.slots.group.attrs(), [

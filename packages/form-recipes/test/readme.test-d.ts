@@ -33,5 +33,13 @@ void UiView
 const Task = Entity.define('Task', Schema.Struct({ id: Schema.String, due: CalendarDate }))
 void Task.pipe(Entity.annotateMembers({ due: Display.of(due.display) }))
 
+const price = FieldRecipes.money({ currency: 'EUR', unit: 'minor', locale: 'de-DE' })
+const weight = FieldRecipes.decimal({ scale: 3 })
+const discount = FieldRecipes.percent({ unit: 'fraction' })
+void [price, weight, discount]
+
+// @ts-expect-error money names how it is stored
+FieldRecipes.money({ currency: 'EUR' })
+
 // @ts-expect-error an instant names its zone
 FieldRecipes.dateTime({ stored: 'instant' })
