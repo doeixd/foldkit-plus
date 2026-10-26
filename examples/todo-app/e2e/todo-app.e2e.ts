@@ -108,3 +108,30 @@ test('the same person in a second browser adds a todo, and another marks it done
   await alice.page.close()
   await bob.page.close()
 })
+
+// A phone has no hover: what a pointer reveals on hover must already be there for a finger.
+test('on a touch phone a todo’s delete button shows, is a finger’s size, and deletes', async () => {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+  })
+  const page = await context.newPage()
+  const errors: Array<string> = []
+  page.on('pageerror', error => errors.push(String(error)))
+  await page.goto(`${url}?token=carol`)
+  await page.waitForSelector('input[aria-label="New todo"]', { timeout: 120_000 })
+  await page.fill('input[aria-label="New todo"]', 'Call the plumber')
+  await page.press('input[aria-label="New todo"]', 'Enter')
+  const remove = page.getByRole('button', { name: 'Delete "Call the plumber"' })
+  await expect.poll(() => remove.count()).toBe(1)
+  expect(await remove.evaluate(button => getComputedStyle(button).opacity)).toBe('1')
+  const box = (await remove.boundingBox())!
+  expect([box.width, box.height].every(side => side >= 24)).toBe(true)
+  const priority = page.getByRole('button', { name: /^Priority .*, click to change$/ }).first()
+  expect((await priority.boundingBox())!.height).toBeGreaterThanOrEqual(24)
+  await remove.tap()
+  await expect.poll(() => titles(page)).not.toContain('Call the plumber')
+  expect(errors).toEqual([])
+  await context.close()
+})
