@@ -22,7 +22,10 @@ describe.each(Object.entries(scrollers))('%s overlayBars', (_, { mount, scroller
       )
       const parts = partsOf(scroller)
       expect(getComputedStyle(parts.scroller).scrollbarWidth).toBe('none')
-      expect(parts.scroller.scrollHeight).toBeGreaterThan(parts.scroller.clientHeight)
+      // The bars can mark the scroller before a VirtualList has drawn the rows that overflow it.
+      await vi.waitFor(() =>
+        expect(parts.scroller.scrollHeight).toBeGreaterThan(parts.scroller.clientHeight),
+      )
       const length =
         (parts.bar.clientHeight * parts.scroller.clientHeight) / parts.scroller.scrollHeight
       await vi.waitFor(() =>
