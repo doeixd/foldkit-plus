@@ -10,6 +10,7 @@ import {
   Entity,
   Expr,
   Query,
+  QueryEvaluateError,
   Write,
   dependenciesOf,
   supported,
@@ -622,6 +623,22 @@ export const GuardServer = {
         ),
         principal: context.principal,
       })
+    /**
+     * The row `context` would leave `before` as. An operator's refusal (text
+     * holding NUL, an implementation that throws) is answered as the writer
+     * answers one it cannot compile, not as a defect.
+     */
+    const leaves = (before: Readonly<Record<string, unknown>>, context: UpdateContext) =>
+      Effect.suspend(() => {
+        try {
+          return Effect.succeed(Write.apply(before, context, { operators: policy.operators }).row)
+        } catch (error) {
+          if (error instanceof QueryEvaluateError) {
+            return Effect.fail(new RemoteServerError({ message: error.message }))
+          }
+          throw error
+        }
+      })
     /** The rules, over the row as it is and as the write would leave it. */
     const decideUpdate = (
       context: UpdateContext,
@@ -647,7 +664,7 @@ export const GuardServer = {
         // What the writer will store, over the row read, which the pin keeps as the row
         // written: `Write.apply`'s, as the writer works it out.
         const after = {
-          ...Write.apply(before, context, { operators: policy.operators }).row,
+          ...(yield* leaves(before, context)),
           ...Object.fromEntries(
             Object.entries(links).map(([relation, link]) => [relation, linkKey(link)]),
           ),

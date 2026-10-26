@@ -72,6 +72,10 @@ version changed; `pnpm` skips versions already in the registry.
   integer is cast to `bigint`, not `integer`, so a value past 32 bits that
   `Schema.Int` admits no longer fails the query; on SQLite a boolean is bound
   as 1 or 0, which SQLite stores, where it failed to bind at all.
+- **A guarded write whose operator refuses its input fails as the writer's
+  would.** `GuardServer.writer` worked out the row a write leaves outside any
+  handling, so text holding a NUL given to an operator ended the request as a
+  defect; it is now the server error the writer answers it with.
 - **A computed assignment that may be null is refused for a field that stores
   none,** where it is declared: a nullable field, a null, or a strict operator
   over a nullable argument. Memory showed the null and the database refused it

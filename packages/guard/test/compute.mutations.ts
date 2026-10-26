@@ -14,4 +14,15 @@ export default [
     ],
     tests: ['packages/guard/test/compute.test.ts'],
   },
+  {
+    name: 'an operator refusing its input ends the request as a defect',
+    edits: [
+      {
+        file: '../src/server.ts',
+        find: 'if (error instanceof QueryEvaluateError) {',
+        replace: 'if (false) {',
+      },
+    ],
+    tests: ['packages/guard/test/compute.test.ts'],
+  },
 ]
