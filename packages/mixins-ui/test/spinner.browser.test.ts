@@ -117,6 +117,11 @@ test('each kind draws with the parts it says', async () => {
     expect(parts('pulse').some(shown)).toBe(false)
     const [dot, ...rest] = parts('orbit')
     expect(rest.some(shown)).toBe(false)
+    // Where it starts: measured later, a loaded page has already turned it some way.
+    for (const animation of wheel('orbit').getAnimations({ subtree: true })) {
+      animation.pause()
+      animation.currentTime = 0
+    }
     const [track, mark] = [box(wheel('orbit')), box(dot!)]
     // Centred on the track at the top, in the middle of its 2px line.
     expect(Math.abs(mark.left + mark.width / 2 - (track.left + track.width / 2))).toBeLessThan(0.5)
