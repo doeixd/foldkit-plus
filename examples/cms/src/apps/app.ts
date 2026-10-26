@@ -7,6 +7,7 @@
 import { Effect, Equal, Match, Option, Schema, Stream } from 'effect'
 import { Bundle, follow as followPending } from 'foldkit-bundle'
 import { Cms, EntryId } from 'foldkit-cms'
+import { renderers as recipeRenderers } from 'foldkit-form-recipes/html'
 import { Crud } from 'foldkit-crud'
 import { Entity } from 'foldkit-entity'
 import { Mirror } from 'foldkit-mirror'
@@ -63,9 +64,9 @@ const Placeholders = Behavior.forSlots(FieldSlots)<
 )
 
 // The form is drawn by `foldkit-mixins-form`, laid out as a page to write on; the
-// CMS adds renderers for its two kinds.
+// recipes add renderers for the slug's kind.
 const PostFormView = FormView.define(PostForm, {
-  field: FormView.field(PostForm, { renderers: Cms.controlRenderers() }).pipe(
+  field: FormView.field(PostForm, { renderers: recipeRenderers() }).pipe(
     Style.attach(WritingFieldStyle),
     Behavior.attach(Placeholders),
   ),

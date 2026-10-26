@@ -431,10 +431,10 @@ export const Cms = {
   addressFree,
 
   /**
-   * The kinds a CMS adds, and a renderer for each: `Cms.slug('title')` and
-   * `Cms.dateTime()` for a form's `inputs`; `Cms.Display.State` and
-   * `Cms.Display.Moment` for a list's columns; `Cms.controlRenderers()` and `Cms.displayRenderers()` to spread
-   * beside the mixins' own.
+   * The displays a CMS adds, and a renderer for each: `Cms.Display.State` and
+   * `Cms.Display.Moment` for a list's columns, `Cms.displayRenderers()` to spread
+   * beside the mixins' own. A slug and a moment are `foldkit-form-recipes`'
+   * `FieldRecipes.slug` and `FieldRecipes.dateTime`.
    */
   ...Kinds,
 
@@ -488,5 +488,5 @@ export type {
   EditorStatus,
   Resumed,
 } from './editor.js'
-export type { ControlContext, DisplayContext, StateWords } from './kinds.js'
+export type { DisplayContext, StateWords } from './kinds.js'
 export type { HistoryCardSlots, MoreCardSlots, RevisionHistory, RevisionRow } from './views.js'

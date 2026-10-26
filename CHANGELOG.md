@@ -39,6 +39,20 @@ version changed; `pnpm` skips versions already in the registry.
   its checking line reads `words.checking` as the plain field does, rather
   than a fixed `Checking…`.
 
+### Changed
+
+- **Breaking: `foldkit-cms`'s slug and moment controls are `foldkit-form-recipes`'.**
+  `Cms.slug`, `Cms.slugify`, `Cms.dateTime`, `Cms.Input` and `Cms.controlRenderers`
+  (with its `ControlContext` type) are removed: use `FieldRecipes.slug(from, {
+  prefix }).control`, `FieldRecipes.slugify`, `FieldRecipes.dateTime({ stored:
+  'instant', zone }).control`, `FieldRecipes.Kinds` and `foldkit-form-recipes/html`'s
+  `renderers()`. The kinds are now named `Slug` and `DateTime`, not `CmsSlug` and
+  `CmsDateTime`. A moment is read in the `zone` you name, where `Cms.dateTime()`
+  read it in the browser's own zone (and a server's, when rendered there); pass
+  `Intl.DateTimeFormat().resolvedOptions().timeZone` to keep that. A draft is no
+  longer rewritten as it is drawn: a stored instant becomes the zone's local text
+  when the form is filled.
+
 ### Fixed
 
 - **`foldkit-form`: a choice of literals that must hold one is a form key.** A

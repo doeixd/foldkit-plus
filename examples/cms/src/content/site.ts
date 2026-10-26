@@ -10,6 +10,7 @@
 import { Array as Arr, Option, Schema } from 'effect'
 import { Builder } from 'foldkit-builder'
 import { Cms } from 'foldkit-cms'
+import { renderers as recipeRenderers } from 'foldkit-form-recipes/html'
 import { Block, Catalog, Content, Region, Url } from 'foldkit-composition'
 import { Appearance } from 'foldkit-composition/appearance'
 import { PAGE_CONTAINER, Renderer } from 'foldkit-composition/foldkit'
@@ -1063,7 +1064,7 @@ export const PageEditing = BuilderView.define(PageBuilder, {
   settings: {
     field: Style.attach(InspectorFieldStyle),
     form: Style.attach(InspectorFormStyle),
-    // The CMS's own control kinds, as its entry forms draw them.
-    renderers: Cms.controlRenderers,
+    // The recipes' control kinds, as the entry forms draw them.
+    renderers: recipeRenderers,
   },
 }).pipe(Style.attach(BuilderStyle), Style.attach(BuilderView.narrow(narrowWidth)))

@@ -92,7 +92,29 @@ describe('FieldRecipes.tel and password', () => {
   })
 })
 
+describe('FieldRecipes.slugify', () => {
+  it.each([
+    ['Hello, World!', 'hello-world'],
+    ['  Crème brûlée  ', 'creme-brulee'],
+    ['a--b__c', 'a-b-c'],
+    ['!!!', ''],
+  ])('%s', (from, to) => expect(FieldRecipes.slugify(from)).toBe(to))
+})
+
 describe('FieldRecipes.slug', () => {
+  it('is following while it follows', () => {
+    const titled = send(Account.initial, Account.Message.Changed({ key: 'title', value: 'Hello' }))
+    expect(Account.isFollowing(titled, 'slug')).toBe(true)
+  })
+
+  it('refuses a key that holds no text', () => {
+    expect(() =>
+      Form.make('Bad', Form.input(Schema.Struct({ on: Schema.Boolean })), {
+        inputs: { on: FieldRecipes.slug('on').control },
+      }),
+    ).toThrow('holds no text')
+  })
+
   it('follows its key until it is written', () => {
     const titled = send(
       Account.initial,

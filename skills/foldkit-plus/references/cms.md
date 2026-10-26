@@ -116,12 +116,15 @@ Bundle.declare(Editor.bundle.pipe(Bundle.withView(Cms.editorView(FormView.submod
 
 ## Kinds
 
-- Form `inputs`: `slug: Cms.slug('title', { prefix: '/blog/' })` (follows the title
-  through `Cms.slugify` until written; a filled slug never follows),
-  `goesLiveAt: Cms.dateTime()` (ISO string out).
+- Form `inputs` come from `foldkit-form-recipes`:
+  `slug: FieldRecipes.slug('title', { prefix: '/blog/' }).control` (follows the title
+  through `FieldRecipes.slugify` until written; a filled slug never follows),
+  `goesLiveAt: FieldRecipes.dateTime({ stored: 'instant', zone }).control` (ISO
+  instant out, read in the IANA `zone`); see [form.md](form.md).
 - Columns: `Cms.Entities` are already annotated, so an entry's `state` and times
   show as `Cms.Display.State` / `Cms.Display.Moment`; `Moment.of({ now })` is relative.
-- Draw them: `FormView.define(form, { renderers: Cms.controlRenderers() })`,
+- Draw them: `FormView.define(form, { renderers: renderers() })` (from
+  `foldkit-form-recipes/html`),
   `ListView(...)({ page, renderers: Cms.displayRenderers() }, h)`. The state badge
   carries `data-cms-state` and `data-cms-schedule`.
 - Entry views draw on your own slot builders: `Cms.stateBadge(badge, h, state)`
@@ -133,7 +136,7 @@ Bundle.declare(Editor.bundle.pipe(Bundle.withView(Cms.editorView(FormView.submod
   rows, `Loading`, or `Failed`), so the card never mistakes a failed or
   pending read for nothing published. Who published and the archive icon
   are yours to name.
-- Narrow with `Cms.Input.Slug.is(control)`, as with `Input.Text.is`.
+- Narrow with `FieldRecipes.Kinds.Slug.is(control)`, as with `Input.Text.is`.
 
 ## The server
 

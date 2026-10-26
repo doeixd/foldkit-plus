@@ -299,6 +299,9 @@ importers:
       foldkit-form:
         specifier: workspace:*
         version: link:../../packages/form
+      foldkit-form-recipes:
+        specifier: workspace:*
+        version: link:../../packages/form-recipes
       foldkit-guard:
         specifier: workspace:*
         version: link:../../packages/guard
@@ -2251,6 +2254,9 @@ importers:
       foldkit:
         specifier: 0.169.0
         version: 0.169.0(@effect/platform-browser@4.0.5(effect@4.0.5))(effect@4.0.5)
+      foldkit-form-recipes:
+        specifier: workspace:*
+        version: link:../form-recipes
       foldkit-mixins-crud:
         specifier: workspace:*
         version: link:../mixins-crud
@@ -2529,6 +2535,9 @@ importers:
       foldkit:
         specifier: 0.169.0
         version: 0.169.0(@effect/platform-browser@4.0.5(effect@4.0.5))(effect@4.0.5)
+      foldkit-entity:
+        specifier: workspace:*
+        version: link:../entity
       foldkit-mixins:
         specifier: workspace:*
         version: link:../mixins

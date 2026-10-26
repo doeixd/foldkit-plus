@@ -6,6 +6,7 @@
  */
 import { Schema } from 'effect'
 import { Cms } from 'foldkit-cms'
+import { FieldRecipes } from 'foldkit-form-recipes'
 import { Composition } from 'foldkit-composition'
 import { Entity, Expr, Order } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
@@ -37,7 +38,7 @@ export const PageInput = Schema.Struct({
 
 export const PageForm = Form.make('PageForm', Entity.input(Page, PageInput), {
   inputs: {
-    slug: Cms.slug('title', { prefix: '/' }),
+    slug: FieldRecipes.slug('title', { prefix: '/' }).control,
     document: PageBuilder.inputWith(BuilderView.submodel(PageEditing)),
   },
   debounce: 0,

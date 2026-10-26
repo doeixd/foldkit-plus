@@ -519,7 +519,7 @@ export interface SettingsLook {
   /**
    * Renderers for control kinds of the application's own, beside the shipped
    * ones, as a form view takes them. A function of the Message, since each
-   * Block's settings form has Messages of its own: `Cms.controlRenderers`.
+   * Block's settings form has Messages of its own: `foldkit-form-recipes/html`'s `renderers`.
    */
   readonly renderers?: <Message>() => Renderers<Message>
 }

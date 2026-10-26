@@ -1,105 +1,10 @@
-import { Schema } from 'effect'
 import { Crud, Display } from 'foldkit-crud'
 import { Entity } from 'foldkit-entity'
-import { Form } from 'foldkit-form'
-import { SlotView, Style } from 'foldkit-mixins'
+import { SlotView } from 'foldkit-mixins'
 import { ListView } from 'foldkit-mixins-crud'
-import { FieldSlots, FormView } from 'foldkit-mixins-form'
+import { Inert } from 'foldkit-mixins/testing'
 import { describe, expect, it } from 'vitest'
 import { Cms, type State } from '../src/index.js'
-import { Inert, type Node } from 'foldkit-mixins/testing'
-import type { Html } from 'foldkit/html'
-
-describe('Cms.slugify', () => {
-  it.each([
-    ['Hello, World!', 'hello-world'],
-    ['  Crème brûlée  ', 'creme-brulee'],
-    ['a--b__c', 'a-b-c'],
-    ['!!!', ''],
-  ])('%s', (from, to) => expect(Cms.slugify(from)).toBe(to))
-})
-
-const Post = Entity.define(
-  'Post',
-  Schema.Struct({
-    id: Schema.String,
-    title: Schema.String,
-    slug: Schema.String,
-    goesLiveAt: Schema.NullOr(Schema.String),
-  }),
-)
-const PostForm = Form.make(
-  'PostForm',
-  Entity.input(
-    Post,
-    Schema.Struct({
-      title: Schema.String,
-      slug: Schema.String,
-      goesLiveAt: Schema.NullOr(Schema.String),
-    }),
-  ),
-  { inputs: { slug: Cms.slug('title', { prefix: '/blog/' }), goesLiveAt: Cms.dateTime() } },
-)
-const send = (...messages: ReadonlyArray<typeof PostForm.Message.Type>) =>
-  messages.reduce(
-    (model, message) => PostForm.bundle.update(model, message, undefined).model,
-    PostForm.initial,
-  )
-const change = (key: 'title' | 'slug' | 'goesLiveAt', value: string) =>
-  PostForm.Message.Changed({ key, value })
-
-describe('Cms.slug', () => {
-  it('follows the title as an address until the author writes it, then is theirs', () => {
-    const typed = send(change('title', 'Hello, World!'))
-    expect(PostForm.field(typed, 'slug').value).toBe('hello-world')
-    expect(PostForm.isFollowing(typed, 'slug')).toBe(true)
-
-    const own = send(change('title', 'Hello'), change('slug', 'mine'), change('title', 'Goodbye'))
-    expect(PostForm.field(own, 'slug').value).toBe('mine')
-  })
-
-  it('does not move a published address because its title did', () => {
-    const filled = PostForm.fill(PostForm.initial, { title: 'Hello', slug: 'hello' }).model
-    const retitled = PostForm.bundle.update(filled, change('title', 'Goodbye'), undefined).model
-    expect(PostForm.field(retitled, 'slug').value).toBe('hello')
-  })
-
-  it('is its own kind, carrying the address it completes', () => {
-    const control = PostForm.controls.find(found => found.key === 'slug')!.control
-    expect(Cms.Input.Slug.is(control) && control.data.prefix).toBe('/blog/')
-  })
-
-  it('refuses a key that holds no text', () => {
-    expect(() =>
-      Form.make(
-        'Bad',
-        Entity.input(
-          Entity.define('Flag', Schema.Struct({ id: Schema.String, on: Schema.Boolean })),
-          Schema.Struct({ on: Schema.Boolean }),
-        ),
-        { inputs: { on: Cms.slug('on') } },
-      ),
-    ).toThrow('holds no text')
-  })
-})
-
-describe('Cms.dateTime', () => {
-  it('submits what a datetime-local input wrote as a moment', () => {
-    const model = send(change('title', 'T'), change('goesLiveAt', '2026-03-02T10:00'))
-    expect(PostForm.engine.value(model)?.goesLiveAt).toBe(
-      new Date('2026-03-02T10:00').toISOString(),
-    )
-  })
-
-  it('says text that is no moment is none, and submits nothing for an empty one', () => {
-    const bad = send(change('goesLiveAt', 'next tuesday'))
-    expect(PostForm.field(bad, 'goesLiveAt')).toMatchObject({
-      _tag: 'Invalid',
-      errors: ['Enter a date and a time'],
-    })
-    expect(PostForm.engine.value(send(change('title', 'T')))?.goesLiveAt).toBeNull()
-  })
-})
 
 const state = (tag: State['_tag'], schedule: State['schedule'] = null): State => ({
   _tag: tag,
@@ -154,41 +59,7 @@ describe('Cms.Display.Moment', () => {
   })
 })
 
-describe('the renderers, beside the mixins’ own', () => {
-  it('draw a slug after its address, and a moment as a datetime-local input', () => {
-    const View = FormView.define(PostForm, { renderers: Cms.controlRenderers() })
-    const model = send(change('title', 'Hello'), change('goesLiveAt', at))
-    const root = View({ model, errors: model.errors, canSubmit: true }, SlotView.inertBuilder())
-    const byId = (id: string) => Inert.all(root).find(node => node.data?.props?.id === id)
-
-    expect(byId('PostForm-slug')?.data?.props?.value).toBe('hello')
-    expect(Inert.all(root).some(node => Inert.text(node) === '/blog/')).toBe(true)
-    const moment = byId('PostForm-goesLiveAt')
-    expect(moment?.data?.props?.type).toBe('datetime-local')
-    // An ISO moment is shown as the input writes one, in the viewer's zone.
-    expect(String(moment?.data?.props?.value)).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d$/)
-    expect(new Date(String(moment?.data?.props?.value)).toISOString()).toBe(at)
-    // The shipped renderers still draw the rest.
-    expect(byId('PostForm-title')?.sel).toBe('input')
-  })
-
-  it('draw a slug’s address and input in the field’s group and affix Slots', () => {
-    const Field = FormView.field(PostForm, { renderers: Cms.controlRenderers() }).pipe(
-      Style.attach(
-        Style.forSlots(FieldSlots)({ group: Style.class('group'), affix: Style.class('affix') }),
-      ),
-    )
-    const View = FormView.define(PostForm, { field: Field })
-    const model = send(change('title', 'Hello'))
-    const root = View({ model, errors: model.errors, canSubmit: true }, SlotView.inertBuilder())
-    const group = Inert.all(root).find(node => node.data?.class?.['group'] === true)
-    expect(Inert.children(group).map(child => [child.sel, Inert.text(child)])).toEqual([
-      ['span', '/blog/'],
-      ['input', ''],
-    ])
-    expect(Inert.children(group)[0]?.data?.class?.['affix']).toBe(true)
-  })
-
+describe('the display renderers, beside the mixins’ own', () => {
   it('draw an entry’s state as a badge and its times as times, with nothing said in the list', () => {
     const Rows = Entity.select(Cms.Entities.Entry, { label: true, state: true, createdAt: true })
     const List = Crud.list('Entries', { query: Cms.Entries, selection: Rows })

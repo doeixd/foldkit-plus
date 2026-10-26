@@ -25,6 +25,8 @@
       "foldkit-example-site/demos": ["../site/src/demos.ts"],
       "foldkit-example-site/guide": ["../site/src/guide.ts"],
       "foldkit-form": ["../../packages/form/src/index.ts"],
+      "foldkit-form-recipes": ["../../packages/form-recipes/src/index.ts"],
+      "foldkit-form-recipes/html": ["../../packages/form-recipes/src/html.ts"],
       "foldkit-guard": ["../../packages/guard/src/index.ts"],
       "foldkit-guard/agent": ["../../packages/guard/src/agent.ts"],
       "foldkit-guard/drizzle": ["../../packages/guard/src/drizzle.ts"],
@@ -130,6 +132,9 @@
     },
     {
       "path": "../../packages/form/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/form-recipes/tsconfig.build.json"
     },
     {
       "path": "../../packages/guard/tsconfig.build.json"

@@ -225,26 +225,33 @@ PostEditor.storedEntry(model) // Option: the entry the server knows, none until 
 
 ## Kinds, and how they are drawn
 
-Two controls and two displays, made with `Input.kind` and `Display.kind` exactly
-as you make your own. There is no CMS view package: a kind and its renderer are
-all a view needs.
+An entry's address and its publish time are
+[`foldkit-form-recipes`](../form-recipes/README.md)' `slug` and `dateTime`; the CMS
+adds two displays, made with `Display.kind` exactly as you make your own. There is
+no CMS view package: a kind and its renderer are all a view needs.
 
 ```ts
+import { FieldRecipes } from 'foldkit-form-recipes'
+import { renderers } from 'foldkit-form-recipes/html'
+
 const PostForm = Form.make('PostForm', Entity.input(Post, PostInput), {
   inputs: {
-    slug: Cms.slug('title', { prefix: '/blog/' }), // follows the title until the author writes it
-    goesLiveAt: Cms.dateTime(), // a datetime-local input, submitted as an ISO string
+    // follows the title until the author writes it
+    slug: FieldRecipes.slug('title', { prefix: '/blog/' }).control,
+    // a datetime-local input, read in London, submitted as an ISO instant
+    goesLiveAt: FieldRecipes.dateTime({ stored: 'instant', zone: 'Europe/London' }).control,
   },
 })
 
-FormView.define(PostForm, { renderers: Cms.controlRenderers() })
+FormView.define(PostForm, { renderers: renderers() })
 EntryTable({ page, renderers: Cms.displayRenderers() }, h)
 ```
 
+A slug follows its title until the author writes it, and a form filled with a
+published slug does not follow: an address must not move because its title did.
+
 | Kind | What it is |
 | --- | --- |
-| `Cms.Input.Slug` | Text shown after the address it completes. `Cms.slug(from, { prefix?, through? })` makes one that follows `from` through `Cms.slugify`. A form filled with a published slug does not follow: an address must not move because its title did. Drawn as the prefix in `FieldSlots.affix` and the input in `text`, together in `group`. |
-| `Cms.Input.DateTime` | A moment. Text that is none is `Invalid`, not submitted. |
 | `Cms.Display.State` | An entry's state as words: `Changed, scheduled`, `New, overdue`. `of({ words })` takes yours, text with blanks as every words object is: each state, `scheduled`, `overdue`, and `withSchedule` (`'{state}, {schedule}'`). Its renderer is a `span` with `data-cms-state` and `data-cms-schedule` to style. |
 | `Cms.Display.Moment` | A time. `of({ now })` reads relative to that clock (`3 days ago`), and you decide how often it moves; without one it is the date and time. Its renderer is a `time`. |
 
@@ -296,9 +303,8 @@ nobody has makes the entry, so an editor need not wait to learn what it edits.
 | `Cms.editor(name, { content, rest?, version?, untitled? })` | The authoring editor: `bundle`, `Message`, and `at({ data, model })`. |
 | `Cms.newEntryId()` | An id for something new. |
 | `Cms.editorView(view)` | A form's Submodel view as its editor's, for `Bundle.withView`. |
-| `Cms.slug(from, options?)`, `Cms.dateTime()`, `Cms.slugify(text)` | Controls for a form's `inputs`. |
-| `Cms.Input.{Slug, DateTime}`, `Cms.Display.{State, Moment}` | The kinds: `.of(data)`, `.is(x)`. |
-| `Cms.controlRenderers()`, `Cms.displayRenderers()` | Their renderers, to spread beside the mixins' own. |
+| `Cms.Display.{State, Moment}` | The display kinds: `.of(data)`, `.is(x)`. |
+| `Cms.displayRenderers()` | Their renderers, to spread beside the mixins' own. |
 | `Cms.state(facts, now)` | The state of an entry, with its schedule. |
 | `Cms.offers(facts, now, content)` | The transitions it offers now. |
 | `Cms.Entities`, `Cms.Operations`, `Cms.operations` | The CMS's own Entities and mutations. |
