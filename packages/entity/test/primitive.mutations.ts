@@ -41,8 +41,8 @@ export default [
   edit(
     'a checked table checks nothing',
     evaluate,
-    'if (scope.operators.checked && !unknownTruth && ',
-    'if (false && ',
+    '    scope.operators.checked &&',
+    '    false &&',
   ),
   edit(
     'a predicate may answer something that is not a truth',
@@ -98,8 +98,8 @@ export default [
   edit(
     'an override keeps what it replaces',
     operators,
-    '[...base.implementations.filter(({ operator }) => !replaced.has(operator)), ...implementations],',
-    '[...base.implementations, ...implementations],',
+    '...base.implementations.filter(({ operator }) => !replaced.has(operator)),',
+    '...base.implementations,',
   ),
   edit(
     'an implementation may break its null rule',
@@ -118,8 +118,8 @@ export default [
   edit(
     'a defined operator may declare a null rule',
     expr,
-    'if (Option.isSome(definedAs) && (options.nulls !== undefined || options.collation !== undefined)) {',
-    'if (false) {',
+    '(options.nulls !== undefined || options.collation !== undefined)',
+    'false',
   ),
   edit(
     'a result that is not text may carry a collation',
