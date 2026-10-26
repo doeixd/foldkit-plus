@@ -15,8 +15,11 @@ version changed; `pnpm` skips versions already in the registry.
   `FieldRecipes.dateTime({ stored })` keeps either the wall-clock text a
   `datetime-local` writes (`'local'`) or an ISO instant read and shown in an
   explicit IANA `zone` (`'instant'`), refusing a time the clocks skip and taking
-  the earlier of one they repeat. `foldkit-form-recipes/html` draws both as native
-  inputs.
+  the earlier of one they repeat. `email`, `url` (a scheme allowlist, so no
+  `javascript:`), `tel`, `password` (named for the password manager, hidden in a
+  list) and `slug` (following another key until written) keep what was typed.
+  `foldkit-form-recipes/html` draws each as a native input with the type, the
+  autofill and the keyboard its key wants.
 - **`foldkit-mixins-form/ui`: `UiForm.renderers(styles?)`, a renderer for every
   kind `foldkit-form` ships,** for `FormView.define(form, { renderers })`. Text,
   Number, Multiline and the selects are the plain elements under

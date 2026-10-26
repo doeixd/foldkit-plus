@@ -98,6 +98,33 @@ same text. To follow the person's own zone, pass it:
 `locale` (default `en`) is what a display says the value in. It changes no
 draft: the inputs' text is the same in every locale.
 
+### Text-shaped keys
+
+Each keeps what was typed, unchanged: none trims, lower-cases or rewrites it.
+Their renderers give the input its type, what the browser may fill it with, and
+turn off capitalization and spelling correction where a correction would be a
+wrong address.
+
+| Recipe | Takes | Input |
+| --- | --- | --- |
+| `email({ autocomplete? })` | one `@`, something either side, no space; else `Enter an email address` | `type="email"`, `autocomplete="email"` |
+| `url({ protocols?, autocomplete? })` | an address that parses with a scheme in `protocols` (default `https:`, `http:`), so `javascript:` is refused | `type="url"` |
+| `tel({ autocomplete? })` | anything: a number is too varied to check without refusing a real one, so leave it to the schema | `type="tel"`, `inputmode="tel"` |
+| `password({ purpose })` | anything | `type="password"`, `autocomplete` `current-password` or `new-password` |
+| `slug(from, { prefix?, through? })` | anything | a text input after `prefix` |
+
+A `slug` follows the key `from`, made into a slug by `through` (default
+`FieldRecipes.slugify`: lower case, unaccented, words joined by `-`), until the
+person writes it; a form filled with a stored slug does not follow, so a
+published address does not move because its title did. Its control is a
+`ControlChange`, which only a form's `inputs` takes.
+
+A `password` never shows in a list (its display is hidden) and has no reveal
+toggle: whether the text shows is state the form does not hold, and
+`foldkit-mixins-ui`'s `PasswordInput` keeps it in the application. Keep a
+password out of any saved draft: a form cannot leave a key out of `partial()`,
+so that rule is the application's.
+
 ## Displays
 
 Each recipe's `display` is a `foldkit-crud` Display, for a list or a detail:
@@ -125,6 +152,9 @@ instant reads in its recipe's zone.
   that refuses it: `Schema.String.check(Schema.isMinLength(1))`.
 
 ## Limits
+
+- An email or web address that passes is well-formed, not known to exist: whether
+  it receives mail or answers is the server's to find out.
 
 - No arithmetic across zones and no zone-aware value type: an instant is text,
   and its zone is the recipe's.

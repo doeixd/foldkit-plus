@@ -9,14 +9,18 @@
  */
 import { Match, Option } from 'effect'
 import { Display } from 'foldkit-crud'
-import { Input, type Control } from 'foldkit-form'
+import { Input, type Control, type ControlChange } from 'foldkit-form'
 import { isCalendarDate, type CalendarDate } from 'foldkit/calendar'
 import { instantOf, knownZone, readWall, wallOf, writeWall } from './wall.js'
 
-/** One kind of key: how it is edited, and how it reads. */
-export interface FieldRecipe<Data = unknown> {
-  /** For a form's `inputs`, or for Entity metadata through `Input.of`. */
-  readonly control: Control<Data>
+/**
+ * One kind of key: how it is edited, and how it reads. Most recipes' control is
+ * a `Control`; one that follows another key (`slug`) is a `ControlChange`, which
+ * only a form's `inputs` takes.
+ */
+export interface FieldRecipe<C extends Control<any> | ControlChange = Control> {
+  /** For a form's `inputs`, or (a `Control`) for Entity metadata through `Input.of`. */
+  readonly control: C
   /** For Entity metadata through `Display.of`: how a list or a detail shows the value. */
   readonly display: Display
 }
@@ -140,9 +144,78 @@ const DateTimeDisplay = Display.kind<DateTimeData>('DateTime', {
   text: (data, value) => modeOf(data).text(String(value), data.locale ?? 'en'),
 })
 
+/** What the browser may fill a text-shaped key with: an `autocomplete` token. */
+export interface Autofill {
+  readonly autocomplete?: string | undefined
+}
+
+// One `@`, something either side, no space: an address, without guessing at
+// what a server will deliver to. Whether it exists is the server's to say.
+const address = /^[^\s@]+@[^\s@]+$/
+
+const EmailKind = Input.kind<Autofill>('Email', {
+  draft: 'text',
+  parse: draft => (address.test(draft) ? draft : undefined),
+  unparsed: 'Enter an email address',
+})
+
+/** Which schemes a web address may have. Default `https:` and `http:`. */
+export interface Schemes extends Autofill {
+  readonly protocols?: ReadonlyArray<string> | undefined
+}
+
+const UrlKind = Input.kind<Schemes>('Url', {
+  draft: 'text',
+  // Kept as typed, once it parses with an allowed scheme: a reader's spelling is
+  // not rewritten, and `javascript:` is not a link.
+  parse: (draft, data) => {
+    if (!URL.canParse(draft)) return undefined
+    return (data.protocols ?? ['https:', 'http:']).includes(new URL(draft).protocol)
+      ? draft
+      : undefined
+  },
+  unparsed: 'Enter a web address, starting https://',
+})
+
+// A telephone number is too varied to check here without refusing a real one;
+// the schema may, and the kind gives the keypad and the autofill.
+const TelKind = Input.kind<Autofill>('Tel', { draft: 'text' })
+
+/** Whether the password is one the person has (`current`) or is choosing (`new`). */
+export interface Purpose {
+  readonly purpose: 'current' | 'new'
+}
+
+const PasswordKind = Input.kind<Purpose>('Password', { draft: 'text' })
+
+/** A slug's address before it: `/blog/`. */
+export interface Prefix {
+  readonly prefix: string
+}
+
+const SlugKind = Input.kind<Prefix>('Slug', { draft: 'text' })
+
+const slugify = (text: string): string =>
+  text
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
+const text = Display.text()
+
 export const FieldRecipes = {
   /** The control kinds, so a renderer table is keyed by them and `is` narrows a control. */
-  Kinds: { Date: DateKind, DateTime: DateTimeKind },
+  Kinds: {
+    Date: DateKind,
+    DateTime: DateTimeKind,
+    Email: EmailKind,
+    Url: UrlKind,
+    Tel: TelKind,
+    Password: PasswordKind,
+    Slug: SlugKind,
+  },
   /** The display kinds, likewise. */
   Displays: { Date: DateDisplay, DateTime: DateTimeDisplay },
 
@@ -151,7 +224,7 @@ export const FieldRecipes = {
    * or `Calendar.CalendarDateFromIsoString` to store it as text), edited as the
    * `YYYY-MM-DD` a date input writes. A partly typed date reads `Enter a date`.
    */
-  date: (options: Locale = {}): FieldRecipe<Locale> => ({
+  date: (options: Locale = {}): FieldRecipe<Control<Locale>> => ({
     control: DateKind.of(options),
     display: DateDisplay.of(options),
   }),
@@ -161,8 +234,66 @@ export const FieldRecipes = {
    * `instant`, a time the zone's clocks skip is refused, and one they repeat
    * reads as the earlier of the two. An unknown zone throws here.
    */
-  dateTime: (options: Stored & Locale): FieldRecipe<DateTimeData> => {
+  dateTime: (options: Stored & Locale): FieldRecipe<Control<DateTimeData>> => {
     if (options.stored === 'instant') knownZone(options.zone, 'FieldRecipes.dateTime')
     return { control: DateTimeKind.of(options), display: DateTimeDisplay.of(options) }
   },
+
+  /**
+   * An email address: one `@` with something either side and no space, kept as
+   * typed (neither trimmed nor lower-cased: a local part may be case-sensitive).
+   */
+  email: (options: Autofill = {}): FieldRecipe<Control<Autofill>> => ({
+    control: EmailKind.of(options),
+    display: text,
+  }),
+
+  /** A web address with one of `options.protocols`, kept as typed. */
+  url: (options: Schemes = {}): FieldRecipe<Control<Schemes>> => ({
+    control: UrlKind.of(options),
+    display: text,
+  }),
+
+  /** A telephone number, as typed: the phone's keypad and the browser's autofill, no check. */
+  tel: (options: Autofill = {}): FieldRecipe<Control<Autofill>> => ({
+    control: TelKind.of(options),
+    display: text,
+  }),
+
+  /**
+   * A password, drawn masked and named for the browser's password manager by
+   * `purpose`. It never shows in a list. Keep it out of any saved draft: a form
+   * cannot leave a key out of `partial()`, so that rule is the application's.
+   */
+  password: (options: Purpose): FieldRecipe<Control<Purpose>> => ({
+    control: PasswordKind.of(options),
+    display: Display.hidden(),
+  }),
+
+  /**
+   * An address that follows the key `from` (made into a slug) until the person
+   * writes it, shown after `prefix`. A form filled with a stored slug does not
+   * follow it: a published address must not move because its title did.
+   */
+  slug: (
+    from: string,
+    options: { readonly prefix?: string; readonly through?: (text: string) => string } = {},
+  ): FieldRecipe<ControlChange> => ({
+    control: {
+      change: (resolved, inputKey) => {
+        const following = Input.following(from, options.through ?? slugify).change(
+          resolved,
+          inputKey,
+        )
+        return Object.freeze({
+          ...SlugKind.of({ prefix: options.prefix ?? '/' }),
+          follows: following.follows,
+        })
+      },
+    },
+    display: text,
+  }),
+
+  /** Text as an address: lower case, unaccented, words joined by `-`. What `slug` follows with. */
+  slugify,
 }

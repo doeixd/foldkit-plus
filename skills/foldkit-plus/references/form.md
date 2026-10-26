@@ -243,7 +243,7 @@ view's native button. Real adopters:
 https://github.com/doeixd/foldkit-plus/blob/main/examples/foldkit/form/src/main.ts
 and https://github.com/doeixd/foldkit-plus/blob/main/examples/foldkit/auth/src/page/loggedOut/page/login.ts.
 
-## Recipes: dates and times
+## Recipes: dates, times and text-shaped keys
 
 `foldkit-form-recipes` holds the controls whose parsing is easy to get wrong. A
 recipe is `{ control, display }`, made from one set of options: `control` goes in
@@ -274,6 +274,11 @@ const View = FormView.define(Meeting, { renderers: renderers() }) // date and da
   repeated one reads as the earlier, and an unknown zone throws at definition.
 - A fill with a value of the wrong form throws, naming the key. `locale` changes
   only what a display says.
+- `email()`, `url({ protocols? })` (https/http by default), `tel()`,
+  `password({ purpose: 'current' | 'new' })` and `slug(from, { prefix? })` keep
+  what was typed; their renderers set the input type, `autocomplete` and keyboard.
+  A slug's control is a `ControlChange` (form `inputs` only); a password has no
+  reveal toggle and is hidden in a list.
 
 ## Nested input
 

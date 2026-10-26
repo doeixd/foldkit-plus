@@ -4,6 +4,8 @@
 const index = '../src/index.ts'
 const wall = '../src/wall.ts'
 const date = ['packages/form-recipes/test/date.test.ts']
+const text = ['packages/form-recipes/test/text.test.ts']
+const html = '../src/html.ts'
 const dateTime = ['packages/form-recipes/test/dateTime.test.ts']
 
 export default [
@@ -116,5 +118,64 @@ export default [
       { file: '../src/html.ts', find: "native('datetime-local')", replace: "native('text')" },
     ],
     tests: ['packages/form-recipes/test/html.test.ts'],
+  },
+  {
+    name: 'an email address is any text',
+    edits: [{ file: index, find: 'address.test(draft) ? draft : undefined', replace: 'draft' }],
+    tests: text,
+  },
+  {
+    name: 'a web address may have any scheme',
+    edits: [
+      {
+        file: index,
+        find: "(data.protocols ?? ['https:', 'http:']).includes(new URL(draft).protocol)",
+        replace: 'true',
+      },
+    ],
+    tests: text,
+  },
+  {
+    name: 'a web address may run script by default',
+    edits: [
+      { file: index, find: "['https:', 'http:']", replace: "['https:', 'http:', 'javascript:']" },
+    ],
+    tests: text,
+  },
+  {
+    name: 'a password shows in a list',
+    edits: [{ file: index, find: 'display: Display.hidden(),', replace: 'display: text,' }],
+    tests: text,
+  },
+  {
+    name: 'a slug follows its key unchanged',
+    edits: [
+      {
+        file: index,
+        find: 'options.through ?? slugify',
+        replace: 'options.through ?? ((t: string) => t)',
+      },
+    ],
+    tests: text,
+  },
+  {
+    name: 'a keyboard capitalizes an address',
+    edits: [{ file: html, find: "  h.Attribute('autocapitalize', 'none'),\n", replace: '' }],
+    tests: text,
+  },
+  {
+    name: 'a new password is filled as the current one',
+    edits: [{ file: html, find: "purpose === 'new'", replace: "purpose === 'current'" }],
+    tests: text,
+  },
+  {
+    name: 'a telephone number gets the letters keyboard',
+    edits: [{ file: html, find: "context.h.InputMode('tel'),", replace: '' }],
+    tests: text,
+  },
+  {
+    name: 'a slug is drawn without its address',
+    edits: [{ file: html, find: '[dataOf(Kinds.Slug, context.control).prefix]', replace: '[]' }],
+    tests: text,
   },
 ]
