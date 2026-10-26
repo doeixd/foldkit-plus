@@ -119,6 +119,29 @@ describe('A primitive operator in SQL', () => {
     expect(renderedPg(glued!).sql).toBe('("items"."code" || $1) = $2')
   })
 
+  it('casts a boolean as one', () => {
+    const ranked = Expr.operator('acme.ranked', {
+      input: [Schema.Int, Schema.Boolean],
+      output: Schema.Boolean,
+    })
+    const table = {
+      memory: Operators.memory(Operators.implement(ranked, (rank, flag) => rank > 0 && flag)),
+      sql: DrizzleOperators.make(
+        DrizzleOperators.implement(
+          ranked,
+          ({ args: [rank, flag] }) => sql`(${rank} > 0 and ${flag})`,
+        ),
+      ),
+    }
+    const [compiled] = compilePredicates(
+      [ranked(Item.fields.rank, Expr.input('flag', Schema.Boolean))],
+      entity('Item', pgItems, { operators: table }),
+      { flag: true },
+      'Ranked',
+    )
+    expect(renderedPg(compiled!).sql).toBe('("items"."rank" > 0 and cast($1 as boolean))')
+  })
+
   it("compares a call's text under the collation it carries", () => {
     const [ordered] = compilePredicates(
       [Expr.lt(joined(Item.fields.code, '!'), 'B')],
@@ -293,5 +316,60 @@ describe('A writer over a binding', () => {
       'Item\'s invariant "bounded" needs acme.sum, which this compiler does not run',
     )
     expect(() => writer(bind({ Bounded }, storage, { operators }).Bounded)).not.toThrow()
+  })
+
+  it("judges a write's row in memory by its binding's table, naming the invariant it breaks", async () => {
+    const Bounded = Item.pipe(
+      Entity.invariant('bounded', ({ after }) => Expr.lt(sum(after.rank, 1), 100), {
+        message: 'Too high',
+      }),
+    )
+    const Db = bind({ Bounded }, { Bounded: { table: sqliteItems } }, { operators })
+    const Create = Mutation.write(
+      'Create',
+      Write.insert(
+        Entity.input(
+          Bounded,
+          Schema.Struct({ id: Schema.String, code: Schema.String, rank: Schema.Int }),
+        ),
+        { id: 'id' },
+      ),
+    )
+    // Its precondition calls the operator too, so a miss is explained in memory.
+    const Raise = Mutation.write(
+      'Raise',
+      Write.update(Entity.input(Bounded, Schema.Struct({ id: Schema.String, rank: Schema.Int })), {
+        id: 'id',
+        when: () => Expr.eq(Bounded.fields.rank, sum(1, 2)),
+      }),
+    )
+    const handlers = RemoteServer.handlers(
+      RemoteServer.make({
+        entities: [],
+        mutations: [
+          RemoteServer.write(Create, writer(Db.Bounded)),
+          RemoteServer.write(Raise, writer(Db.Bounded)),
+        ],
+      }),
+      undefined,
+    )
+    const sqlite = new DatabaseSync(':memory:')
+    sqlite.exec(
+      "create table items (id text primary key, code text not null, rank integer not null); insert into items values ('i1', 'AB', 3)",
+    )
+    const send = (mutation: string, input: unknown) =>
+      Effect.runPromise(
+        handlers
+          .FoldkitRemoteMutate({ requestId: mutation, mutation, input })
+          .pipe(Effect.result, Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
+      )
+    const broken = {
+      _tag: 'Failure',
+      failure: { refusal: { _tag: 'Invalid', rule: 'bounded' } },
+    }
+    expect(await send('Create', { id: 'i2', code: 'CD', rank: 200 })).toMatchObject(broken)
+    // The statement misses; the precondition held, so the invariant is why.
+    expect(await send('Raise', { id: 'i1', rank: 200 })).toMatchObject(broken)
+    sqlite.close()
   })
 })

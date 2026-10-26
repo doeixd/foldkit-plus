@@ -1083,7 +1083,14 @@ export const writer = <P = unknown>(
         // operators take an expression where they take a column.
         next[field] = sql`(${binding.columns[field]} + ${amount})` as unknown as AnyColumn
       }
-      const target = { table: binding.table, columns: binding.columns, next }
+      // The binding's operators too: a value set can leave a call over literals
+      // alone, which is decided in memory rather than compiled.
+      const target = {
+        table: binding.table,
+        columns: binding.columns,
+        next,
+        operators: binding.operators,
+      }
       return invariants.flatMap(held =>
         compilePredicates(
           [Expr.substituteNext(held.predicate, values)],
