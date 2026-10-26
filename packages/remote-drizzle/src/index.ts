@@ -58,7 +58,10 @@ import {
   compileOrderBy,
   compilePredicates,
   compileWhere,
+  operatorProblems,
   QueryCompileError,
+  requireOperators,
+  supported,
 } from './compile.js'
 import {
   cursorSelection,
@@ -1055,9 +1058,13 @@ export const writer = <P = unknown>(
 
   const { invariants } = binding
   const invariantName = (held: Invariant) => `${binding.name}'s invariant "${held.id}"`
-  // Compiled once over the columns, so one this compiler cannot run fails where it is defined.
-  for (const held of invariants)
+  // Checked and compiled once, so one this binding cannot run, in SQL or in
+  // memory, fails where the writer is built.
+  for (const held of invariants) {
+    // An invariant reads the row after the write (`next`), which a query does not.
+    requireOperators([held.predicate], binding, invariantName(held), [...supported, 'next'])
     compilePredicates([held.predicate], binding, {}, invariantName(held))
+  }
 
   /**
    * Each invariant over the change an update makes, for its `where`: a field
@@ -1109,7 +1116,7 @@ export const writer = <P = unknown>(
 
   /** The refusal for the first invariant a row or a change breaks; none for what it cannot judge. */
   const brokenIn = (change: Change) =>
-    Match.value(DomainEntity.judgeAgainst(invariants, change)).pipe(
+    Match.value(DomainEntity.judgeAgainst(invariants, change, binding.operators.memory)).pipe(
       Match.tagsExhaustive({
         Valid: () => Option.none(),
         Undecided: () => Option.none(),
@@ -1321,14 +1328,20 @@ export const writer = <P = unknown>(
     invariants: true,
     // A fraction added to an integer column splits the dialects: Postgres refuses the
     // statement, SQLite stores the fraction. A field declared Schema.Number hides the column.
-    refuses: write =>
-      write.increments.flatMap(({ key, field, integer }) =>
+    refuses: write => [
+      ...write.increments.flatMap(({ key, field, integer }) =>
         !integer && holdsIntegers(binding.columns[field.key])
           ? [
               `"${key}" may not be an integer, but the column for "${field.key}" holds integers; give the amount Schema.Int`,
             ]
           : [],
       ),
+      // Its precondition compiles into the statement and explains a miss in memory.
+      ...Option.match(write.when, {
+        onNone: () => [],
+        onSome: body => operatorProblems(body.where, binding, 'its precondition'),
+      }),
+    ],
     ...(ledger === undefined
       ? {}
       : {
@@ -1462,7 +1475,8 @@ export const writer = <P = unknown>(
         }
         const holdsWhen = Option.match(when, {
           onNone: () => true,
-          onSome: ({ body, input }) => evaluate(body, input, [row]).length > 0,
+          onSome: ({ body, input }) =>
+            evaluate(body, input, [row], { operators: binding.operators.memory }).length > 0,
         })
         // A row already holding what this write sets is a retry of one that
         // landed, which neither its precondition nor a transition invariant
@@ -1487,7 +1501,11 @@ export const writer = <P = unknown>(
       Effect.gen(function* () {
         // There is no row yet: the row it would make is its values, judged before it is written.
         yield* Match.value(
-          DomainEntity.judgeAgainst(invariants, { after: { ...values, id } }),
+          DomainEntity.judgeAgainst(
+            invariants,
+            { after: { ...values, id } },
+            binding.operators.memory,
+          ),
         ).pipe(
           Match.tagsExhaustive({
             Valid: () => Effect.void,

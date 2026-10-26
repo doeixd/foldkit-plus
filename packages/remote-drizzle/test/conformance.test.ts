@@ -15,7 +15,14 @@ import { DatabaseSync } from 'node:sqlite'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Expr, Order } from 'foldkit-entity'
 import { Query } from 'foldkit-remote'
-import { Subject, cases, refusals, rows } from 'foldkit-entity/conformance'
+import {
+  Subject,
+  cases,
+  primitiveCases,
+  primitiveRefusals,
+  refusals,
+  rows,
+} from 'foldkit-entity/conformance'
 import { databaseLayer, entity, query } from '../src/index.js'
 
 const table = sqliteTable('conformance_rows', {
@@ -49,7 +56,9 @@ const answer = (
   )
 }
 
-const named = cases.map((c, i) => ({ c, i, name: c.what }))
+// The kernel's primitive operators too: the binding's tables are both kernels.
+const all = [...cases, ...primitiveCases]
+const named = all.map((c, i) => ({ c, i, name: c.what }))
 
 /**
  * The ids a case's query answers two at a time, each page after the last's
@@ -122,7 +131,11 @@ describe('foldkit-remote-drizzle conforms to the query semantics', () => {
   })
 })
 
-const refused = refusals.map((c, i) => ({ c, i: cases.length + i, name: c.what }))
+const refused = [...refusals, ...primitiveRefusals].map((c, i) => ({
+  c,
+  i: all.length + i,
+  name: c.what,
+}))
 
 describe('foldkit-remote-drizzle refuses what no two interpreters agree on', () => {
   it.each(refused)('$name', async ({ c, i }) => {

@@ -7,6 +7,7 @@ import { and, or, sql, type SQL } from 'drizzle-orm'
 import { Effect, Match, Option } from 'effect'
 import { Query, type AnyEntity } from 'foldkit-entity'
 import {
+  DrizzleOperators,
   compileWhere,
   idColumn,
   supported,
@@ -39,6 +40,9 @@ export const GuardDrizzle = {
    * returned them, by name, for `bind`'s storage. Checked here, before any
    * request: a row guard this compiler cannot run, and an inherited Read whose
    * Entity is not listed, has no Read rule, or leads back to itself, throw.
+   * `operators` is the SQL table the bindings compile by (`bind(…, { operators })`),
+   * so a rule calling an operator it lacks is refused here; the kernel's when
+   * not given. Give both the same table.
    *
    * ```ts
    * const visible = GuardDrizzle.visible(Policy, [Todo, Project])
@@ -48,7 +52,9 @@ export const GuardDrizzle = {
   visible: <User, const Es extends ReadonlyArray<AnyEntity>>(
     policy: Policy<User>,
     entities: Es,
+    options: { readonly operators?: DrizzleOperators | undefined } = {},
   ): { readonly [K in Es[number]['name']]: Visible } => {
+    const sqlOperators = options.operators ?? DrizzleOperators.kernel
     const byName = new Map(entities.map(entity => [entity.name, entity] as const))
     const inherits = new Map<string, ReadonlyArray<string>>()
     for (const entity of entities) {
@@ -57,7 +63,7 @@ export const GuardDrizzle = {
         Match.valueTags(rule, {
           PrincipalGuard: () => {},
           RowGuard: guard => {
-            const missing = Query.unsupported(guard.query, supported)
+            const missing = Query.unsupported(guard.query, supported, sqlOperators)
             if (missing.length > 0) {
               fail(
                 `${entity.name}'s ${guard.name} needs ${missing.join(', ')}, which SQL here does not run`,

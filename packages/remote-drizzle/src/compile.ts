@@ -573,20 +573,27 @@ export const requireOperators = (
   nodes: ReadonlyArray<Predicate | Ordering>,
   target: CompileTarget,
   what: string,
+  operations: ReadonlyArray<Operation> = supported,
 ): void => {
+  const [problem] = operatorProblems(nodes, target, what, operations)
+  if (problem !== undefined) throw new QueryCompileError(problem)
+}
+
+/** As `requireOperators`, each problem a sentence, for a check that gathers them. */
+export const operatorProblems = (
+  nodes: ReadonlyArray<Predicate | Ordering>,
+  target: CompileTarget,
+  what: string,
+  operations: ReadonlyArray<Operation> = supported,
+): ReadonlyArray<string> => {
   const tables = operatorsOf(target)
-  const inSql = Expr.unsupported(nodes, { operations: supported, operators: tables.sql })
-  if (inSql.length > 0) {
-    throw new QueryCompileError(
-      `${what} needs ${inSql.join(', ')}, which this compiler does not run`,
-    )
-  }
-  const inMemory = Expr.unsupported(nodes, { operations: supported, operators: tables.memory })
-  if (inMemory.length > 0) {
-    throw new QueryCompileError(
-      `${what} needs ${inMemory.join(', ')}, which this binding's memory operators do not run`,
-    )
-  }
+  const inSql = Expr.unsupported(nodes, { operations, operators: tables.sql })
+  if (inSql.length > 0)
+    return [`${what} needs ${inSql.join(', ')}, which this compiler does not run`]
+  const inMemory = Expr.unsupported(nodes, { operations, operators: tables.memory })
+  return inMemory.length > 0
+    ? [`${what} needs ${inMemory.join(', ')}, which this binding's memory operators do not run`]
+    : []
 }
 
 /**
