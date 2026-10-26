@@ -6,7 +6,30 @@ const renderers = '../src/renderers.ts'
 const index = '../src/index.ts'
 const tests = ['packages/mixins-form/test/uiRenderers.test.ts']
 
+const keys = ['packages/mixins-form/test/uiRenderers.browser.test.ts']
+
 export default [
+  {
+    name: 'the Toggle is no button, so Space presses nothing',
+    edits: [{ file: ui, find: 'return h.button(', replace: 'return h.span(' }],
+    tests: keys,
+  },
+  {
+    name: 'a choice is no button, so Space presses nothing',
+    edits: [{ file: ui, find: '            h.button(\n', replace: '            h.span(\n' }],
+    tests: keys,
+  },
+  {
+    name: 'the select sends no change',
+    edits: [
+      {
+        file: renderers,
+        find: 'h.select(slots.select.attrs([...state, h.OnChange(change), h.OnBlur(blurred)])',
+        replace: 'h.select(slots.select.attrs([...state, h.OnBlur(blurred)])',
+      },
+    ],
+    tests: keys,
+  },
   {
     name: 'the UI field says its checking line in its own words',
     edits: [

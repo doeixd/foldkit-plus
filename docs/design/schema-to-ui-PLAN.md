@@ -11,7 +11,7 @@
 | Phase | Ships | Evidence |
 | --- | --- | --- |
 | 0 | `Control.format`, `Control.parseList`, `Input.Choices`, array-of-literal resolution, and the plain `Choices` renderer | `packages/form/test/format.test.ts`, `packages/form/test/choices.test.ts`, `packages/mixins-form/test/choices.test.ts`; 9 mutations, all killed |
-| 1 | `UiForm.renderers` for every shipped kind, the form's `summary` of fields to fix, `FollowedIssue`, `UiForm.field`'s `words` | `packages/mixins-form/test/uiRenderers.test.ts`, `summary.test.ts`, `summary.browser.test.ts`, `ui.test.ts`; 20 mutations, all killed |
+| 1 | `UiForm.renderers` for every shipped kind, the form's `summary` of fields to fix, `FollowedIssue`, `UiForm.field`'s `words` | `packages/mixins-form/test/uiRenderers.test.ts`, `uiRenderers.browser.test.ts`, `summary.test.ts`, `summary.browser.test.ts`, `ui.test.ts`; 23 mutations, all killed |
 | 2 to 7 | — | not started |
 
 The issue asks for a complete schema-to-UI story: reusable field recipes, UI
