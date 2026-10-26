@@ -2,7 +2,8 @@
  * The shipped looks in a real browser. A list row opens wherever it is pressed,
  * as its highlight promises, and its sorting heading is a finger's height. An
  * editor's failure reads in the error's ink, and a delete's yes in the error's
- * fill.
+ * fill. A row list's row is a finger's height, its parts side by side, and the
+ * way into one it opens reaches across it.
  */
 import { Option, Schema } from 'effect'
 import { Crud } from 'foldkit-crud'
@@ -22,8 +23,10 @@ import {
   EditorView,
   ListSlots,
   ListView,
+  RowListSlots,
+  RowListView,
 } from '../src/index.js'
-import { Confirm, Editor, List } from '../src/recipes.js'
+import { Confirm, Editor, List, RowList } from '../src/recipes.js'
 
 afterEach(() => {
   document.head.querySelectorAll('style[data-test]').forEach(element => element.remove())
@@ -60,6 +63,9 @@ type Message = typeof Message.Type
 const Table = ListView.forMessages<Message>()
   .define(Posts)
   .pipe(Style.attach(Style.forSlots(ListSlots)(List({}))))
+const Rows = RowListView.forMessages<Message>()
+  .define<Row>({ name: 'Rows' })
+  .pipe(Style.attach(Style.forSlots(RowListSlots)(RowList({}))))
 const EditorStyled = EditorView.forMessages<Message>()
   .define()
   .pipe(Style.attach(Style.forSlots(EditorSlots)(Editor({}))))
@@ -168,4 +174,46 @@ test('an editor’s failure reads in the error’s ink, and a delete’s yes in 
   expect(getComputedStyle(alert).color).not.toBe(plain)
   const [yes, no] = Array.from(document.querySelectorAll('#remove button'))
   expect(getComputedStyle(yes!).backgroundColor).not.toBe(getComputedStyle(no!).backgroundColor)
+})
+
+test('a row list’s rows are a finger’s height, side by side, and open across their width', async () => {
+  const row = (item: Row, h: HtmlBuilder<Message>) => [
+    h.input([h.Type('checkbox'), h.AriaLabel(`Done: ${item.title}`)]),
+    h.span([], [item.title]),
+  ]
+  await mount((_, h) =>
+    h.div(
+      [],
+      [
+        h.div([h.Id('plain')], [Rows({ page, row }, h)]),
+        h.div(
+          [h.Id('opens')],
+          [Rows({ page, row, onOpen: item => Message.Opened({ id: item.id }) }, h)],
+        ),
+      ],
+    ),
+  )
+  const plain = await vi.waitFor(() => {
+    const found = document.querySelector<HTMLElement>('#plain li')
+    expect(found).not.toBeNull()
+    return found!
+  })
+  const box = plain.getBoundingClientRect()
+  expect(box.height).toBeGreaterThanOrEqual(40)
+  // Beside each other, both on the row's middle line.
+  const middle = (element: Element) => {
+    const rect = element.getBoundingClientRect()
+    return rect.top + rect.height / 2
+  }
+  const check = plain.querySelector('input')!
+  const words = plain.querySelector('span')!
+  expect(words.getBoundingClientRect().left).toBeGreaterThan(check.getBoundingClientRect().right)
+  expect(Math.abs(middle(check) - middle(plain))).toBeLessThanOrEqual(2)
+  expect(Math.abs(middle(words) - middle(plain))).toBeLessThanOrEqual(2)
+  const opens = document.querySelector('#opens li')!
+  const open = opens.querySelector('button')!
+  expect(open.getBoundingClientRect().width).toBeGreaterThanOrEqual(
+    opens.getBoundingClientRect().width - 1,
+  )
+  expect(open.getBoundingClientRect().height).toBeGreaterThanOrEqual(40)
 })

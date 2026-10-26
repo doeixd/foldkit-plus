@@ -6,7 +6,7 @@
 import { Layers, Style, type StyleValue } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 import { ConfirmSlots, EditorSlots, ToolbarSlots } from './editor.js'
-import { ListSlots, Loading } from './index.js'
+import { ListSlots, Loading, RowListSlots } from './index.js'
 
 const ref = Theme.ref(Theme.standard())
 const component = (...pieces: ReadonlyArray<StyleValue>): StyleValue =>
@@ -37,6 +37,24 @@ const quiet = Style.compose(
     outlineOffset: '2px',
   }),
 )
+
+/** What a list says in place of its rows: an empty one in a dashed box, a wait plainly. */
+const listStatus = component(
+  Style.self({
+    margin: `${ref.space.md} 0 0`,
+    padding: `${ref.space['2xl']} ${ref.space.lg}`,
+    border: `${ref.border.thin} dashed ${ref.outline.default}`,
+    borderRadius: ref.radius.lg,
+    color: ref.text.muted,
+    fontSize: ref.size.sm,
+    textAlign: 'center',
+  }),
+  // A wait is not an empty list: no box around it.
+  Style.nest('&[aria-busy="true"]', { borderColor: 'transparent' }),
+  Loading.shown,
+)
+const listMore = component(quiet, Style.self({ marginBlockStart: ref.space.sm }))
+const listRetry = component(quiet, Style.self({ marginInlineStart: ref.space.sm }))
 
 /**
  * A list as a quiet table: small uppercase headings over rows divided by a
@@ -103,22 +121,9 @@ export const List = Style.recipeFor(ListSlots)({
       }),
       Style.pseudo(':hover', { color: ref.accent.ink }),
     ),
-    status: component(
-      Style.self({
-        margin: `${ref.space.md} 0 0`,
-        padding: `${ref.space['2xl']} ${ref.space.lg}`,
-        border: `${ref.border.thin} dashed ${ref.outline.default}`,
-        borderRadius: ref.radius.lg,
-        color: ref.text.muted,
-        fontSize: ref.size.sm,
-        textAlign: 'center',
-      }),
-      // A wait is not an empty list: no box around it.
-      Style.nest('&[aria-busy="true"]', { borderColor: 'transparent' }),
-      Loading.shown,
-    ),
-    more: component(quiet, Style.self({ marginBlockStart: ref.space.sm })),
-    retry: component(quiet, Style.self({ marginInlineStart: ref.space.sm })),
+    status: listStatus,
+    more: listMore,
+    retry: listRetry,
   },
   variants: {
     open: {
@@ -139,6 +144,53 @@ export const List = Style.recipeFor(ListSlots)({
     },
   },
   defaults: { open: 'row' },
+})
+
+/**
+ * A row list as lines divided by a rule: each row's drawing in a row of its
+ * own, its parts beside each other and vertically centred, a finger's height
+ * at least. A row the list opens (`onOpen`) is a button across the row, lit
+ * under the pointer. Empty, failed and loading say so as `List` does.
+ */
+export const RowList = Style.recipeFor(RowListSlots)({
+  base: {
+    list: component(Style.self({ margin: '0', padding: '0', listStyle: 'none' })),
+    row: component(
+      Style.self({
+        display: 'flex',
+        alignItems: 'center',
+        gap: ref.space.sm,
+        minBlockSize: '2.5rem',
+        paddingBlock: ref.space['2xs'],
+        borderBlockEnd: `${ref.border.thin} solid ${ref.outline.subtle}`,
+      }),
+    ),
+    open: component(
+      Style.self({
+        display: 'flex',
+        alignItems: 'center',
+        gap: ref.space.sm,
+        flex: '1',
+        minBlockSize: '2.5rem',
+        padding: `0 ${ref.space.xs}`,
+        border: '0',
+        borderRadius: ref.radius.sm,
+        background: 'none',
+        color: 'inherit',
+        font: 'inherit',
+        textAlign: 'start',
+        cursor: 'pointer',
+      }),
+      Style.pseudo(':hover', { background: ref.surface.muted }),
+      Style.pseudo(':focus-visible', {
+        outline: `${ref.border.thick} solid ${ref.outline.focus}`,
+        outlineOffset: '-2px',
+      }),
+    ),
+    status: listStatus,
+    more: listMore,
+    retry: listRetry,
+  },
 })
 
 /** A delete's yes: the error's fill, for the one action that cannot be taken back. */

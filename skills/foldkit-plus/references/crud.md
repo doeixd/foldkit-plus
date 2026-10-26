@@ -221,7 +221,8 @@ so answer its `Closed` OutMessage with the editor's `close()`.
 
 The views ship unstyled; `foldkit-mixins-crud/recipes` has a look for each over the
 theme's tokens: `Style.forSlots(ListSlots)(List({ open: 'row' }))` (a quiet table whose
-rows open wherever pressed; `open: 'link'` keeps it to the title), `Editor({})`,
+rows open wherever pressed; `open: 'link'` keeps it to the title), `RowList({})` (for
+`RowListView`: lines a finger's height, divided by a rule), `Editor({})`,
 `Confirm({})` (the yes in the error's fill) and `Toolbar({})`. Adjust one with
 `.extend({ base: { cell: { padding: … } } })`.
 

@@ -310,6 +310,9 @@ const PostTable = ListView.forMessages<Message>()
   row across it, so a press anywhere on the row opens it; `open: 'link'` keeps it to
   the title, drawn as a link, for rows with controls of their own. Nothing to list
   says so in a dashed box; a wait says so only once it is noticeable.
+- `RowList({})` is `RowListView`'s rows as lines divided by a rule, each a finger's
+  height, its parts side by side; a row the list opens is a button across it. It
+  says what `List` says in place of its rows.
 - `Editor({})` is a card: the title, what the editor says (a failure in the error's
   ink), the form, and the actions.
 - `Confirm({})` asks, with the yes in the error's fill.
