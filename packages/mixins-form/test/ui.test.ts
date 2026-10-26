@@ -124,6 +124,7 @@ it('says its checking line in the form’s words', () => {
       invalid: false,
       errors: [],
       changed: value => Signup.Message.Changed({ key: 'email', value }),
+      toggled: () => Signup.Message.Toggled({ key: 'email' }),
       blurred: Signup.Message.Blurred({ key: 'email' }),
       attrs: {},
     },

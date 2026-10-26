@@ -465,6 +465,11 @@ export interface FieldOverrideInput<Key extends string = string, Changed = unkno
   readonly invalid: boolean
   readonly errors: ReadonlyArray<string>
   readonly changed: (value: Draft) => Changed
+  /**
+   * A press on a flag (no `choice`) or one choice, applied to the draft as it
+   * lands: send it for a press, so two before the next draw both count.
+   */
+  readonly toggled: (choice?: string) => Changed
   readonly blurred: Changed
   /** What the key's element takes beyond the base field view. */
   readonly attrs: FieldAttrs
@@ -562,6 +567,18 @@ const changedOf =
   value =>
     (send === undefined ? form.Message.Changed({ key, value }) : send.changed(value)) as Message
 
+/** The press Message of one key, through its row's send or the form's own. */
+const toggledOf =
+  <Key extends string, Model, Message>(
+    form: FormLike<Key, Model, Message>,
+    key: Key,
+    send: FieldInput<Key>['send'],
+  ): ((choice?: string) => Message) =>
+  choice =>
+    (send === undefined
+      ? form.Message.Toggled(choice === undefined ? { key } : { key, choice })
+      : send.toggled(choice)) as Message
+
 /** The blur Message of one key, through its row's send or the form's own. */
 const blurredOf = <Key extends string, Model, Message>(
   form: FormLike<Key, Model, Message>,
@@ -589,18 +606,18 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
       const { send } = input
       const change = changedOf(form, key, send)
       const blurred = blurredOf(form, key, send)
-      const toggled = (choice?: string): Message =>
-        (send === undefined
-          ? form.Message.Toggled(choice === undefined ? { key } : { key, choice })
-          : send.toggled(choice)) as Message
+      const toggled = toggledOf(form, key, send)
       const searched = (text: string): Message =>
         send === undefined ? form.Message.Searched({ key, text }) : (send.searched(text) as Message)
       const searches = control.control.searches
       // A check is running: the control is neither valid nor invalid yet.
       const checking = input.field._tag === 'Validating'
+      // A Bundle's control says its own state (an upload's "Sending"), so the
+      // field adds no second live line for it; it is still marked busy.
+      const saysChecking = checking && input.bundle === undefined
       const describedBy = [
         ...(description === undefined ? [] : [`${id}-description`]),
-        ...(checking ? [`${id}-checking`] : []),
+        ...(saysChecking ? [`${id}-checking`] : []),
         ...(invalid ? [`${id}-error`] : []),
       ]
       const state = [
@@ -690,7 +707,7 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
         ...(description === undefined
           ? []
           : [h.p(slots.description.attrs([h.Id(`${id}-description`)]), [description])]),
-        ...(checking
+        ...(saysChecking
           ? [
               h.p(slots.checking.attrs([h.Id(`${id}-checking`), h.Role('status')]), [
                 input.checkingWord ?? 'Checking…',
@@ -767,12 +784,12 @@ export const FormView = {
         }> = []
 
         /** The controls of a form or of a row. `id` and `path` say where: both are empty for the form itself. */
-        /** `row` names the row being drawn, for its issues; none for the form itself. */
+        /** `within` names the row being drawn, for its issues; none for the form itself. */
         const draw = (
           walk: Walk<Message>,
           id: string,
           path: string,
-          row: Maybe.Option<string> = Maybe.none(),
+          within: Maybe.Option<string> = Maybe.none(),
         ): ReadonlyArray<Html> =>
           walk.controls
             .filter(control => control.control.shown)
@@ -786,7 +803,7 @@ export const FormView = {
                 if (FieldValidation.isInvalid(state))
                   issues.push({
                     id: here,
-                    label: Maybe.match(row, {
+                    label: Maybe.match(within, {
                       onNone: () => label,
                       onSome: named =>
                         fillWords(input.words?.inRow ?? '{row}, {label}', { row: named, label }),
@@ -841,6 +858,8 @@ export const FormView = {
                 )
               }
               const { form: nested, cardinality, optional } = control.control.data
+              const rowName = (index: number) =>
+                cardinality === 'many' ? `${label} ${index + 1}` : label
               const rows = walk.rows(key)
               const addLabel = fillWords(input.words?.add ?? 'Add {label}', { label })
               return h.fieldset(slots.group.attrs([h.Id(here)]), [
@@ -851,7 +870,13 @@ export const FormView = {
                       rowWalk(walk, key, row, nested),
                       `${here}-${row.id}`,
                       `${path}${key}.`,
-                      Maybe.some(cardinality === 'many' ? `${label} ${index + 1}` : label),
+                      // Named through every row it is in: `authors 1, books 2`.
+                      Maybe.some(
+                        Maybe.match(within, {
+                          onNone: () => rowName(index),
+                          onSome: outer => `${outer}, ${rowName(index)}`,
+                        }),
+                      ),
                     ),
                     // A row that must be there has no way out.
                     ...(optional
@@ -1021,6 +1046,7 @@ export const FormView = {
           invalid: input.invalid,
           errors: input.errors,
           changed: changedOf(form, input.control.key, input.send),
+          toggled: toggledOf(form, input.control.key, input.send),
           blurred: blurredOf(form, input.control.key, input.send),
           attrs: options.attrs?.[input.control.key] ?? {},
         },
@@ -1052,6 +1078,7 @@ export const FormView = {
               invalid: FieldValidation.isInvalid(state),
               errors: errorsOf(state),
               changed: value => form.Message.Changed({ key: control.key, value }),
+              toggled: toggledOf(form, control.key, undefined),
               blurred: form.Message.Blurred({ key: control.key }),
               attrs: options.attrs?.[control.key] ?? {},
             },

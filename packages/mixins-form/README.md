@@ -286,7 +286,7 @@ Fields.field(control, formModel, control.key, h, (input, draw) =>
 ```
 
 A override receives the control, its field, id, validity, errors, element
-attrs, and the `changed`/`blurred` Messages, so a custom layout reconstructs
+attrs, and the `changed`/`blurred`/`toggled` Messages, so a custom layout reconstructs
 no form plumbing. A renderer reads the attrs that fit its element — `type` and
 `placeholder` on a text input, `placeholder` and `rows` on a textarea, and on
 both, and a number, `autocomplete`, `inputMode`, `enterKeyHint`,
@@ -322,7 +322,8 @@ button, beside `errors`: `words.summary` (default `Check these fields:`), then a
 link to each invalid field in the order the fields are drawn, rows' too, each
 worded by `words.issue` (default `{label}: {error}`); a field of a row is named
 with its row by `words.inRow` (default `{row}, {label}`: `comments 2, body`),
-so two rows' links differ. It sits low in the form,
+so two rows' links differ; a row inside a row is named through both
+(`shelves 1, books 2, title`). It sits low in the form,
 so a field turning invalid never moves the fields above it, and it is no live
 region: each field's own error already is. A link's `href` is the control's
 `#id`, so with scripts off it goes there; with them on, a press focuses the
@@ -348,7 +349,9 @@ same for every row), and `words.add` / `words.remove` word the buttons (defaults
 A form's own check ([`checks`](../form/README.md)) leaves its key `Validating`
 until it answers. Meanwhile the control carries `aria-busy`, and under it a line
 in the `checking` slot, `role="status"`, says so (`words.checking`, default
-`Checking…`); the control names that line in `aria-describedby`. Each field's
+`Checking…`); the control names that line in `aria-describedby`. A Bundle
+control's own work (an upload) marks it `aria-busy` with no such line: the
+control says what it is doing itself. Each field's
 `root` carries `data-validation`, the field's state by Foldkit's own tag
 (`NotValidated`, `Validating`, `Valid` or `Invalid`), so a stylesheet can mark it
 without a Style: `[data-validation='Valid'] label::after { content: ' ✓' }`. A

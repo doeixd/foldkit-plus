@@ -7,6 +7,8 @@ import { Schema } from 'effect'
 import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
 import { HashedAsset } from 'foldkit-media'
+import { FormView } from 'foldkit-mixins-form'
+import { Inert } from 'foldkit-mixins/testing'
 import { describe, expect, it } from 'vitest'
 import { image, ImageMessage, ImageUpload, type ImageModel } from '../src/image.js'
 
@@ -259,5 +261,23 @@ describe('a submit made while a file is on its way', () => {
       ImageMessage.Failed({ attempt: 1, reason: 'TooLarge', status: 413 }),
     )
     expect([refused.outMessage, refused.model.submitPending]).toEqual([undefined, false])
+  })
+})
+
+describe('the image field drawn while a submit waits for it', () => {
+  it('is marked busy, and says nothing of checking beside its own status', () => {
+    const waiting = PostForm.bundle.update(
+      update(PostForm.initial, dropped(file())),
+      PostForm.Message.Submitted(),
+      undefined,
+    ).model
+    const root = Inert.draw(FormView.define(PostForm), {
+      model: waiting,
+      errors: [],
+      canSubmit: false,
+    })
+    const group = Inert.all(root).find(node => Inert.value(node, 'id') === 'PostForm-cover')
+    expect(Inert.value(group, 'aria-busy')).toBe('true')
+    expect(Inert.all(root).some(node => Inert.text(node) === 'Checking…')).toBe(false)
   })
 })

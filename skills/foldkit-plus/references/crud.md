@@ -147,7 +147,7 @@ const RemoveForm = Page.at(RemoveSlot, { onOut: PostRemover.onOut })
   answer; `dismiss()` clears. `PostRemover.status(model)` is `Idle`, `Confirming`,
   `Deleting`, `Deleted`, or `DeleteFailed`; `target(model)`, `error(model)`.
 - `Crud.remover(name, config, { returnFocus: '#delete' })` focuses what asked again after a no,
-  which takes the question's buttons away.
+  which takes the question's buttons away; `returnFocus` may be a function of the id (`id => '#delete-' + id`).
 - The server's mutation returns `deleted: [{ entity, id }]` and names no list.
   Remote drops the entity from every list and relation, and an open editor or a
   detail of it reads `NotFound`.

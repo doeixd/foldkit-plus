@@ -109,6 +109,18 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A busy control in a row holds the submit.** A submit made while a row's
+  upload ran went out without waiting; it now waits as a top-level one does.
+  `Input.bundle` throws for `busy` without `settled`, which left a stored form
+  shown again waiting for good.
+- **A busy key that is already valid stays valid** when the form validates
+  every key, rather than reading `Validating`.
+- **A Bundle field draws no `Checking…` line** under its own busy control; it
+  keeps `aria-busy`.
+- **A field override is given `toggled`** beside `changed` and `blurred`.
+- **A row inside a row is named through both** in the fields to fix.
+- **`Crud.remover`'s `returnFocus` may be a function of the id**, and a no
+  with nothing asked moves no focus.
 - **The fields to fix name a row's field with its row** (`comments 2, body:
   Required`, worded by the new `words.inRow`), so two rows' links no longer read
   the same.

@@ -390,7 +390,9 @@ const RemoveForm = Page.children.remover
   clears it.
 - A no takes the question, and the button pressed, away. Give the remover
   `{ returnFocus: '#delete' }` as its third argument (the selector of what
-  asked) and a no focuses it again; without it focus falls to the page. Where
+  asked), or a function of the id asked about (`id => '#delete-' + id`, for
+  a button per row), and a no focuses it again; without it focus falls to the
+  page. Where
   focus goes after a delete is the page's: the row that asked may be gone.
 - `Remover.Message.Confirmed()` and `Cancelled()` are the yes and the no. A
   yes with nothing asked does nothing.

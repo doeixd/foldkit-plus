@@ -119,3 +119,39 @@ describe('A choice that must hold one', () => {
     expect(choose(['news', 'events'])).toEqual({ topics: ['news', 'events'] })
   })
 })
+
+describe('Toggled', () => {
+  const Mixed = Form.make(
+    'Mixed',
+    Form.input(
+      Schema.Struct({
+        flag: Schema.Boolean,
+        name: Schema.String,
+        colours: Schema.Array(Schema.Literals(['red', 'green'])),
+      }),
+    ),
+  )
+  const press = (message: typeof Mixed.Message.Type) =>
+    Mixed.bundle.update(Mixed.initial, message, undefined).model
+
+  it('flips a flag, and lets go of or adds one choice', () => {
+    expect(Mixed.field(press(Mixed.Message.Toggled({ key: 'flag' })), 'flag').value).toBe(true)
+    const red = press(Mixed.Message.Toggled({ key: 'colours', choice: 'red' }))
+    expect(Mixed.field(red, 'colours').value).toEqual(['red'])
+    const none = Mixed.bundle.update(
+      red,
+      Mixed.Message.Toggled({ key: 'colours', choice: 'red' }),
+      undefined,
+    ).model
+    expect(Mixed.field(none, 'colours').value).toEqual([])
+  })
+
+  it.each([
+    ['a flag pressed with a choice', { key: 'flag', choice: 'red' }],
+    ['a text key pressed with a choice', { key: 'name', choice: 'red' }],
+    ['a text key pressed with none', { key: 'name' }],
+    ['a list pressed with no choice', { key: 'colours' }],
+  ] as const)('changes nothing for %s', (_, payload) => {
+    expect(press(Mixed.Message.Toggled(payload))).toBe(Mixed.initial)
+  })
+})

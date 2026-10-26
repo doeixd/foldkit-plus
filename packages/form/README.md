@@ -250,7 +250,10 @@ What the form does with it:
   waits for a check: the key reads `Validating` rather than missing, the
   submit goes out when the work lands with a value, and when the work ends
   without one the key is validated (a required key then says `Required`) and
-  nothing is submitted.
+  nothing is submitted. A control in a row holds the submit the same way. Give
+  a busy control `settled` too, which says whether a stored value shown again
+  needs work: `Input.bundle` throws without it, since such a form would wait
+  for good.
 - **Nothing entered** is `value` giving `undefined` or `null`, which a required
   key refuses as it would an empty text box.
 - **Types follow the control.** `model.fields.color.value` is the picker's

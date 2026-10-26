@@ -124,7 +124,7 @@ const RenameForm = Page.at(Slot, {
   same table replaces a shipped renderer.
 - **A control with a Model of its own** (a color picker with a popover, a page
   builder, a rich-text editor): `Input.bundle('ColorPicker', { bundle, value, fill, settled?, busy? })`
-  (`busy`: work the value waits on, such as an upload; a submit waits for it, as for a check)
+  (`busy`: work the value waits on, such as an upload; a submit waits for it, as for a check, in a row too; `busy` needs `settled`)
   over an ordinary Bundle. The key's draft is the Bundle's Model
   (`model.fields.color.value`, typed); `form.control('color').send(message)`
   wraps one of its Messages as the form's `Control`; its Commands,

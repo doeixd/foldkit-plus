@@ -58,10 +58,32 @@ export default [
     edits: [
       {
         file: '../src/index.ts',
-        find: ': [FocusAsker({ selector: options.returnFocus })],',
-        replace: ': [],',
+        find: 'return { model: idle, commands: [FocusAsker({ selector })] }',
+        replace: 'return { model: idle }',
       },
     ],
     tests: ['examples/entity/test/page.test.ts'],
+  },
+  {
+    name: 'a no to no question moves focus',
+    edits: [
+      {
+        file: '../src/index.ts',
+        find: 'if (model.target === null || returnFocus === undefined) return { model: idle }',
+        replace: 'if (returnFocus === undefined) return { model: idle }',
+      },
+    ],
+    tests: ['packages/crud/test/remover.test.ts'],
+  },
+  {
+    name: 'focus ignores the id asked about',
+    edits: [
+      {
+        file: '../src/index.ts',
+        find: "typeof returnFocus === 'string' ? returnFocus : returnFocus(model.target)",
+        replace: "typeof returnFocus === 'string' ? returnFocus : '#delete'",
+      },
+    ],
+    tests: ['packages/crud/test/remover.test.ts'],
   },
 ]

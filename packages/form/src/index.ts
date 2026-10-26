@@ -1314,7 +1314,9 @@ const Core = {
         // A key whose work is in flight is being found out, as a checked one is:
         // it is validated when the work lands or ends, not called missing now.
         if (isBusy(next, key)) {
-          next = withField(next, key, FieldValidation.Validating({ value: state.value }))
+          // A key already being found out, or valid, keeps its state and identity.
+          if (state._tag === 'NotValidated' || state._tag === 'Invalid')
+            next = withField(next, key, FieldValidation.Validating({ value: state.value }))
           continue
         }
         // Any other state already answers for this draft: an edit always revalidates.
@@ -1589,6 +1591,11 @@ const Core = {
                   )
             const edit =
               isEdit(inner) || plan.form.engine.authoredChanged(row.model, answered.model)
+            // A row's own work or check that lands is no edit of the person's: a
+            // submit waiting on it keeps waiting, and goes once nothing is asked.
+            const waited =
+              model.submitPending && !isEdit(inner) && plan.form.engine.isValidating(row.model)
+            if (waited) return resume({ ...edited(next), submitPending: true }, lifted)
             return resume(edit ? edited(next) : next, lifted)
           }
           case 'RowAdded': {

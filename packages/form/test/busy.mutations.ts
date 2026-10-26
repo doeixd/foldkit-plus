@@ -25,8 +25,8 @@ export default [
     edits: [
       {
         file,
-        find: 'next = withField(next, key, FieldValidation.Validating({ value: state.value }))\n          continue',
-        replace: '',
+        find: 'if (isBusy(next, key)) {',
+        replace: 'if (false) {',
       },
     ],
     tests,
@@ -49,6 +49,39 @@ export default [
         file,
         find: '? resume({ ...edit.model, submitPending: true }, [...lifted, ...edit.commands])',
         replace: '? { model: edit.model, commands: [...lifted, ...edit.commands] }',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a row’s work landing drops the waiting submit',
+    edits: [
+      {
+        file,
+        find: 'if (waited) return resume({ ...edited(next), submitPending: true }, lifted)',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a busy key that is valid is marked as being found out',
+    edits: [
+      {
+        file,
+        find: "if (state._tag === 'NotValidated' || state._tag === 'Invalid')",
+        replace: 'if (true)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'busy needs no settled',
+    edits: [
+      {
+        file: '../src/input.ts',
+        find: 'if (spec.busy !== undefined && spec.settled === undefined)',
+        replace: 'if (false)',
       },
     ],
     tests,

@@ -332,10 +332,12 @@ export const Crud = {
         },
     options: {
       /**
-       * Where focus goes after a no takes the question away: the button that
-       * asked (`'#delete'`). Without it focus falls to the page.
+       * Where focus goes after a no takes the question away: the selector of the
+       * button that asked (`'#delete'`), or one for the id asked about, for a
+       * list with a button per row (`id => '#delete-' + id`). Without it focus
+       * falls to the page.
        */
-      readonly returnFocus?: string | undefined
+      readonly returnFocus?: string | ((id: string) => string) | undefined
     } = {},
   ) => {
     type AskedId = [Key] extends [never] ? Id : Input[Key] & string
@@ -352,13 +354,14 @@ export const Crud = {
         RemoverMessage.match<
           Update.ReturnWithOutMessage<RemoverModel, RemoverMessage, ConfirmedRemoval, never>
         >(message, {
-          Cancelled: () => ({
-            model: idle,
-            commands:
-              options.returnFocus === undefined
-                ? []
-                : [FocusAsker({ selector: options.returnFocus })],
-          }),
+          Cancelled: () => {
+            const { returnFocus } = options
+            // A no to no question took nothing away: focus stays where it is.
+            if (model.target === null || returnFocus === undefined) return { model: idle }
+            const selector =
+              typeof returnFocus === 'string' ? returnFocus : returnFocus(model.target)
+            return { model: idle, commands: [FocusAsker({ selector })] }
+          },
           Confirmed: () =>
             model.target === null
               ? { model: idle }

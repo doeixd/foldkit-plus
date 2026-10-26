@@ -245,7 +245,9 @@ export type BundleControlSpec<
   /**
    * Whether work the key's value waits on is in flight, such as an upload. A
    * submit made meanwhile waits, as it waits for a check, and goes when the work
-   * lands or ends. Default: never.
+   * lands or ends. Default: never. Give `settled` beside it: a stored form shown
+   * again has no work in flight, and one left busy would hold every submit back,
+   * so `Input.bundle` refuses `busy` without it.
    */
   readonly busy?: (model: Model) => boolean
 } & ([Args] extends [void] ? { readonly args?: undefined } : { readonly args: Args })
@@ -388,8 +390,12 @@ export const Input = {
   >(
     kind: string,
     spec: BundleControlSpec<Args, Model, Message, Value, Resources>,
-  ): BundleControl<Model, Message, Value, Resources> =>
-    Object.freeze({
+  ): BundleControl<Model, Message, Value, Resources> => {
+    if (spec.busy !== undefined && spec.settled === undefined)
+      throw new Error(
+        `Input.bundle("${kind}"): give busy a settled too, or a stored form shown again waits for good`,
+      )
+    return Object.freeze({
       kind,
       draft: 'model' as const,
       shown: true,
@@ -402,7 +408,8 @@ export const Input = {
         settled: spec.settled ?? ((model: Model) => model),
         busy: spec.busy ?? (() => false),
       }),
-    }),
+    })
+  },
 
   /** Whether a control is backed by a Bundle, whatever its kind is called. */
   isBundle: (control: Control): control is Control<BundleData> => control.draft === 'model',
