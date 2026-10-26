@@ -239,15 +239,17 @@ const retitle = Write.update(Retitle, {
 })
 ```
 
-- `Write.apply(row, bound, { operators })` is the row the write leaves, the
-  one function the writer explains a miss by, a guard judges and Remote shows
-  while the write is pending. A live update to the row meanwhile is computed
+- `Write.apply(row, bound, { operators })` gives the row the write leaves
+  (`row`, beside the fields it could not work out, `unknown`): the one function
+  the writer explains a miss by, a guard judges and Remote shows while the
+  write is pending. A live update to the row meanwhile is computed
   from, not hidden.
 - A retry must not apply a computation twice. Without `expect` (a revision the
   row must still hold), a computed assignment lands only through a writer with
-  a ledger, and only as `op(field, amount)` whose operator was *tested*
-  commutative and associative for each implementation, so two concurrent
-  writes give the same row in either order.
+  a ledger, and then only where the writer pins the row it read (a guarded
+  writer with a `revision`) or as `op(field, amount)` whose operator was
+  *tested* commutative and associative, over every value, for each
+  implementation, so two concurrent writes give the same row in either order.
 
 ### The client agrees with the server
 
@@ -255,10 +257,12 @@ Because the client runs the same body by the same meaning, it can answer
 questions about the rows it already holds without asking:
 
 ```text
-Remote.matching(store, Query, input) ──▶ { matched, skipped }
+matching(store, Query, input, { operators }) ──▶ { matched, skipped }
 ```
 
-`matched` is in the body's order; `skipped` is what it could not judge: a row
+`matching` (from `foldkit-remote`) runs the body by the table it is given,
+`Remote.make`'s for a domain's own reads. `matched` is in the body's order;
+`skipped` is what it could not judge: a row
 missing a field the body reads, or holding text no interpreter answers for (a
 NUL). Each row is judged alone, so one such row never blanks the rest.
 `Data.filtered(model, list, Query, input)` filters a loaded list with it and

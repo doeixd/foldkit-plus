@@ -371,6 +371,8 @@ const published = Expr.operator('cms.published', {
   no table entry. `Query.unsupported` reads through it.
 - **An interpreter may supply its own implementation**; the expansion is then the
   reference it is tested against (§10.4), and the table's entry wins there.
+  *Superseded 2026-10-26:* `Operators.implement` and `DrizzleOperators.implement`
+  refuse a defined operator, since SQL always compiles its expansion.
 - **Its output schema is checked against the body's** at call time.
 - **It may take inputs**: a "published" that also means "not in the future"
   takes the time, `published(at, input.now)`. The kernel has no clock.
@@ -868,7 +870,9 @@ mutation spec, the docs and skill references in step, and the changelog.
    - **Casts by stored kind, on Postgres only.** A literal or input argument is
      cast by the operator's input schema (`integer` where it holds integers,
      `SchemaShape.holdsIntegers`; `double precision`; `boolean`); text takes
-     none, and SQLite none at all, since its cast would drop a fraction.
+     none, and SQLite none at all, since its cast would drop a fraction. Since
+     2026-10-26 an integer past 32 bits is cast to `bigint`, and SQLite binds a
+     boolean as 1 or 0.
    - **The update's invariant target carried no operators.** It was built by
      hand beside the binding, so a value set leaving a call over literals was
      decided by the kernel and refused. Found by the writer test the mutation
@@ -937,7 +941,8 @@ mutation spec, the docs and skill references in step, and the changelog.
      dependency is added, and a run is repeatable from its seed.
    - **`Conformance.laws` tests a memory table.** An SQL implementation is held
      to the memory one by `Conformance.operator` instead, whose agreement
-     carries the laws over. `foldkit-remote-drizzle`'s `compileCall` compiles a
+     carries the laws over. *Superseded in Phase 6:* `Conformance.lawsBy` tests
+     an SQL implementation's laws directly, which commuting writes require. `foldkit-remote-drizzle`'s `compileCall` compiles a
      call of literals for an SQL runner, never deciding it in memory.
    - **Generated calls hold no CHECK constraint and no keyset page.** Those
      need a table and rows; Phase 4's paging tests cover the keyset, and
@@ -976,6 +981,7 @@ mutation spec, the docs and skill references in step, and the changelog.
      law plans as `laws` through any runner (`compileCall` selected from the
      database). `commutes` requires `Tested` commutativity and associativity
      in both tables; a law's narrowed domain is not compared with the field's.
+     *Since 2026-10-26* a law narrowed by `Law.within` does not count at all.
    - **An assignment holds no predicate.** A computation is data, and a
      predicate's three-valued truth is not a stored value; one is refused
      where it is declared.
@@ -1084,6 +1090,10 @@ spot, inspecting only literal operands because its nodes carry no type.
    integers, and an increment's field and amount schemas must be bounded to it for
    the law to count; otherwise the increment keeps its `expect`. A 64-bit column is
    a `bigint` field and a separate operator.
+
+   **Closed** 2026-10-26 by Phase 6: no `number.*` operator ships, and an integer
+   increment lands under a ledger by `Schema.Int`, its field and amount checked
+   where the write is declared. A 64-bit column stays a `bigint` field.
 10. **Judging candidates per row.** `matching` evaluates every candidate at once,
     so one refusal voids a list. A missing operator voids every row alike, but a
     NUL in one stored row would void the rest. Proposal: judge per row, a row that
@@ -1143,7 +1153,7 @@ in the code before it changed this plan). What it changed:
 - The row after a write is computed three ways that only agree on admitted rows
   (§9.1, invariant 15).
 - The increment rule lives at registration, per request and in the writer, not at
-  declaration; Guard's writer always pins (§9.3).
+  declaration; Guard's writer pins where it has a `revision` (§9.3).
 - Ordering is fields-only in every interpreter, and the cursor holds columns
   (§8).
 - `Undecided` cannot yet say "missing operator" (§5.6).

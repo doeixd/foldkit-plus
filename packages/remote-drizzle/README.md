@@ -804,8 +804,9 @@ do. It must agree with the memory implementation, nulls included. The
 compiler adds what SQL cannot say for itself:
 
 - On Postgres, a literal or input argument the operator takes as a number or a
-  boolean is cast (`cast($1 as bigint)` for an integer, which holds every
-  value `Schema.Int` admits; `double precision`; `boolean`): Postgres reads an
+  boolean is cast (`cast($1 as integer)` while the value fits one, so a function
+  taking one resolves, and `bigint` past 32 bits, which `Schema.Int` admits;
+  `double precision`; `boolean`): Postgres reads an
   untyped parameter as text, and refuses `$1 + $2`. SQLite takes no cast, since
   its `cast(? as integer)` would drop a fraction silently, and binds a boolean
   as 1 or 0, as it stores one.
@@ -990,7 +991,7 @@ record instead of writing again. So an increment of an integer needs no
 `expect`: two made from one read both land, and a lost answer's retry is not
 written again. A computed assignment `field := op(field, amount)`, its amount
 reading no field, lands without one too when both of the binding's tables record
-`op`'s commutativity and associativity as tested (`Operators.withEvidence`,
+`op`'s commutativity and associativity as tested over every value (`Operators.withEvidence`,
 `DrizzleOperators.withEvidence`, from `Conformance.laws` and `Conformance.lawsBy`
 over `compileCall`); any other needs `expect`. It is
 answered, as every write is, with the row as it now is, read back under its
@@ -1067,8 +1068,8 @@ Workers requests, a live source reads the table instead.
 
 ### Writing in a handler
 
-Anything a declared write cannot say (several rows, a computed value, another
-table) is a
+Anything a declared write cannot say (several rows, a value computed from
+another row, another table) is a
 `RemoteServer.mutation` handler using Drizzle directly. The adapter helps
 normalize rows you already chose to return, and runs each statement so a
 database error fails as a `RemoteServerError` saying only what failed, the

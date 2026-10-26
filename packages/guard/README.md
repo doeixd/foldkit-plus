@@ -431,8 +431,9 @@ be the row the writer writes: the input's expected revision keeps it so, or the
 writer's `revision` pin. An increment with neither is refused. A computed
 assignment is the same: its member's Update rule holds, the guard reads what it
 computes from, and judges the row `Write.apply` works out, which is the row the
-writer writes. With a `revision` the guarded writer `pins`, so a real-number
-increment or a computed assignment needs no `expect` of its own; `validate`
+writer writes. With a `revision` the guarded writer `pins`, so under a ledger a
+real-number increment or a computed assignment needs no `expect` of its own (no
+writer lands one without either); `validate`
 refuses one computed from a member with a Read rule, which its answer would
 disclose.
 
