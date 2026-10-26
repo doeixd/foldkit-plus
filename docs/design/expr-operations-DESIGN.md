@@ -4,7 +4,8 @@
 [#185](https://github.com/doeixd/foldkit-plus/issues/185). Revised the same day
 with what gen2 offered (§13), completed as a plan, then checked against Remote,
 Guard, the server packages, Sync, CMS, Crud, Form and the example interpreters
-(§17 records what that check found). Nothing built.
+(§17 records what that check found). Phase 0's probes ran the same day (§17).
+Nothing else built.
 **Packages:** `foldkit-entity` (descriptors, nodes, the reference interpreter,
 writes, invariants, laws, conformance), `foldkit-remote-drizzle` (SQL, cursor,
 writer), `foldkit-remote-server` (registration and write checks),
@@ -396,16 +397,22 @@ const sql = DrizzleOperators.make(
 - **A memory implementation is a pure synchronous function** over stored values;
   under `nulls: 'strict'` it never sees null; it may not return an Effect.
 - **A SQL implementation builds Drizzle `SQL`** from its compiled arguments, with
-  the dialect and a `collate` helper (§7). It must also say whether it can be
-  **inlined**, with no parameters, for a CHECK constraint (`invariantChecks`
-  inlines parameters today); one that cannot is refused in an invariant the
-  binding emits as a constraint.
+  the dialect and a `collate` helper (§7), and adds no parameter of its own: a
+  value it needs is an argument or a SQL literal. That is all a CHECK constraint
+  needs, because `invariantChecks` already inlines every parameter of the
+  compiled condition and refuses the constraint if any is left
+  (`remote-drizzle/src/index.ts:900-919`); Phase 0 found both dialects take an
+  inlined call and refuse a parameter (§17). No "inlinable" flag is needed.
 - **The compiler builds scalar SQL.** Today `operand` returns a column or a value
   and `comparison` assumes a column on its left (`compile.ts:84-102, 251-282`).
-  Phase 3 adds a scalar compiler: a field is its column, a literal or input a
-  parameter cast to its stored type where Phase 0 finds Postgres needs it, a call
-  its implementation's SQL; comparisons, `contains`, `in` and order terms take
-  any scalar.
+  Phase 3 adds a scalar compiler: a field is its column, a call its
+  implementation's SQL, and a literal or input a parameter. **On Postgres, a
+  parameter whose stored kind is not text is cast to its SQL type**
+  (`cast($1 as integer)`, `double precision`, `boolean`): Postgres resolves an
+  untyped parameter as text, so `$1 || $2` works but `$1 + $2` is refused as
+  "operator is not unique" (§17). Text parameters need no cast. SQLite takes no
+  cast, since its `cast(? as integer)` would truncate `0.5` to `0` silently.
+  Comparisons, `contains`, `in` and order terms take any scalar.
 - **Nothing translates a JavaScript function into SQL.**
 
 ### 5.5 Where tables are passed
@@ -649,6 +656,13 @@ reals: `(x + a) + b` and `(x + b) + a` can differ by rounding.
   second with commutativity tested and associativity not declared, so a real
   column's increment keeps its `expect` (breaking; changelog and write-increment
   §5 say so).
+- **An integer field's amount must be an integer.** `number.addInteger`'s input
+  is `Schema.Int`, so an increment of an integer field by an amount the schema
+  lets be fractional is refused where declared. Today it is accepted
+  (`incrementOf` checks only that both are stored as numbers, `write.ts:274-306`),
+  and the two dialects split on it: Postgres refuses `2 + 0.5` into an `integer`
+  column, SQLite stores `2.5` in it, a value the field's `Int` schema does not
+  admit (§17). It is a fix of its own, ahead of this plan (§17).
 - **Under `GuardServer.writer` nothing changes**: it pins whenever there is a
   revision and refuses an unpinned increment without `expect`
   (`guard/src/server.ts:546-558`), because its rules judge a sum over the row it
@@ -706,8 +720,8 @@ Evidence belongs to an implementation, recorded in its table
   every implementation given (memory, and SQL over a real database), comparing
   results and failures. For a defined operator the expansion is one of them.
 - **Generated cases** for strict null, NUL, the empty string, mixed case under
-  each collation, inlined SQL where the implementation claims it, and each law's
-  equation over its domain.
+  each collation, non-ASCII and astral text, a CHECK constraint built from the
+  call, a null key under keyset paging, and each law's equation over its domain.
 - **`Conformance.laws(op, implementation)`** returns evidence records or the
   counterexample.
 - The kernel's operators run it in `foldkit-entity`'s and
@@ -737,12 +751,12 @@ Evidence belongs to an implementation, recorded in its table
 Each phase is one change in its owning package, with tests shown to fail by a
 mutation spec, the docs and skill references in step, and the changelog.
 
-0. **Probes.** Postgres with untyped parameters on each side of `||`, the prefix
-   comparison and an ordering by an expression; whether each needs a cast.
-   Whether ordering by a collated `substr(…)` pages correctly with the cursor's
-   keyset comparison on both dialects. Whether every SQL implementation planned
-   can be inlined for a CHECK constraint. *Done when* §17 records each answer with
-   its probe. (Where tables can be read is answered in §17 already.)
+0. **Probes.** **Done, 2026-10-26** (§17). Postgres with untyped parameters on
+   each side of `||`, the prefix comparison and an ordering by an expression;
+   keyset paging over an expression with ties and null keys on both dialects;
+   CHECK constraints built from calls; where tables can be read. One probe is
+   left for Phase 3: the same cases on a Postgres database created in a locale
+   (§15 question 11).
 1. **Exhaustive walkers, nodes and defined operators** (`foldkit-entity`,
    `foldkit-remote-drizzle`, `foldkit-remote`, the two examples, `foldkit-cms`).
    First, each walker §5.2 lists becomes an exhaustive match, with no behaviour
@@ -868,6 +882,14 @@ spot, inspecting only literal operands because its nodes carry no type.
     so one refusal voids a list. A missing operator voids every row alike, but a
     NUL in one stored row would void the rest. Proposal: judge per row, a row that
     refuses being `unknown`, in Phase 3.
+11. **A Postgres database in a locale.** PGlite creates its database with
+    collation `C` (§17), so Phase 0 could not show what an expression without an
+    explicit collation does under a locale. The plan collates every text
+    comparison and order explicitly, and equality under a deterministic collation
+    is byte equality, so nothing is expected to change. Proposal: Phase 3's suite
+    runs the prefix and ordering cases once on a Postgres created with
+    `LC_COLLATE=en_US.UTF-8` (Docker is available here), to prove the explicit
+    collation is what decides.
 
 ## 16. Risks
 
@@ -907,3 +929,40 @@ in the code before it changed this plan). What it changed:
 - The TanStack interpreter silently drops an unknown node (§1, Phase 1).
 - **Phase 0's assembly question is answered:** every server piece is built by
   plain functions, so tables are options and no Layer is added (§5.5).
+
+**2026-10-26, Phase 0 probes.** Run against PostgreSQL 18.6 (PGlite 0.5.11, the
+`remote-drizzle` test dependency; database encoding UTF8, collation `C`) and
+SQLite 3.49.1 (`node:sqlite`, Node 26.5), through parameterised queries, so
+Postgres infers each parameter's type as it does for `pg` and Drizzle. The
+scripts are kept outside the repository; each case below is to become a
+conformance case in the phase named.
+
+| # | Probe | Postgres | SQLite | Consequence |
+| --- | --- | --- | --- | --- |
+| 1 | `$1 \|\| $2`, `col \|\| $1`, `$1 \|\| col` | text, no cast needed | works | Text parameters need no cast (§5.4) |
+| 2 | `null \|\| x`; Postgres `concat(null, x)` | null; `concat` gives `x` | null | `concat` compiles to `\|\|` (§6.3) |
+| 3 | `$1 \|\| $2` with a number bound | `1b` | `1.0b` (a JS number binds as a real) | Arguments must be checked by stored kind before SQL sees them (§5.1) |
+| 4 | `$1 + $2` untyped | refused: "operator is not unique: unknown + unknown" | works | Postgres casts non-text parameters (§5.4) |
+| 5 | `int_col + $1` with `0.5` | refused: invalid input for integer | stores `2.5` in the integer column | Integer amounts are `Schema.Int`; a gap in shipped increments (below) |
+| 6 | `$1 < $2` with 9 and 10 | `false` (compared as text) | — | Confirms query-logic's rule: field-free predicates are settled in memory |
+| 7 | `left(col, length($1)) = $1` / `substr(col, 1, length(?)) = ?`, ASCII, `binary` | rows 1, 2, 4, 6, 9 | the same | Untyped `length($1)` resolves; no cast |
+| 8 | the same under `asciiFold` (`lower(… collate "C")` / `collate nocase`) | adds row 3 (`A/`) | the same | Both fold ASCII only: `É` is left as it is in both |
+| 9 | prefixes `é`, `😀`, `''` | row 5; row 8; all 9 rows | the same | Character counting agrees on non-ASCII and astral text; the empty prefix holds for every non-null row |
+| 10 | a prefix over a call, `left(dir \|\| name, …)` | rows 1, 6, 9 | — | A call as the text operand compiles as a column does |
+| 11 | `starts_with(col, $1)` | exists, same rows | no such function | The `left`/`substr` form is kept for parity |
+| 12 | `order by (dir \|\| name) collate "C"`, ties, keyset pages of 2 and 3, untyped and cast cursor values | paged order equals the full order | the same with `collate binary` | Keyset paging over an expression works with the cursor's comparison shape (§8) |
+| 13 | the same with null keys, `nulls last`, the cursor's `or … is null` clause | equal to the full order | equal | The cursor's null handling carries over to an expression key |
+| 14 | the order against JavaScript, with U+FB00 against an astral emoji | equals code-point order | equals code-point order | Matches the evaluator, which compares `binary` text by code point (`evaluate.ts:244`); a plain JavaScript `<` (UTF-16 units) would not |
+| 15 | ordering under `asciiFold` | `lower(x collate "C")` | `collate nocase` | the same order, ties by id |
+| 16 | CHECK built from a call, values inlined (`left`, `\|\|`, `lower … collate "C"`) | enforced | enforced (`substr`, `\|\|`, `collate nocase`) | Calls work in constraints with no flag (§5.4) |
+| 17 | CHECK with a parameter | refused (a DDL statement binds none) | "parameters prohibited in CHECK constraints" | Why `invariantChecks` inlines and refuses leftovers |
+| 18 | CHECK over a null column | passes | passes | A constraint passes on unknown; `invariantChecks` wraps `(…) is true` for this, and calls need it too |
+| 19 | the database's default collation | `C` (`datlocprovider` `c`) | — | Not proven under a locale: §15 question 11 |
+
+**A gap in shipped code, found by probe 5.** `Write.update`'s `incrementOf`
+(`packages/entity/src/write.ts:274-306`) accepts an integer field incremented
+by an amount whose schema is any number. A fractional amount then fails the
+statement on Postgres and, on SQLite, writes a fraction into an integer column
+that the field's `Int` schema does not admit. The fix needs none of this
+plan: refuse, where the write is declared, an amount whose encoded schema does
+not carry the integer check of the field it increments. §9.3 builds on it.
