@@ -21,10 +21,10 @@ export const Editor = Crud.editor('PostEditor', {
 })
 // #endregion
 
-const EditView = FormView.define(EditForm, {
-  field: FormView.field(EditForm).pipe(Style.attach(FieldStyle)),
+const EditField = FormView.field(EditForm, {
   renderers: UiForm.renderers({ textarea: TextareaStyle }),
-}).pipe(Style.attach(FormStyle))
+}).pipe(Style.attach(FieldStyle))
+const EditView = FormView.define(EditForm, { field: EditField }).pipe(Style.attach(FormStyle))
 const Drawn = Editor.bundle.pipe(
   Bundle.withView(Crud.editorView(FormView.submodel(EditForm, EditView))),
 )

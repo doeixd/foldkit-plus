@@ -65,16 +65,16 @@ test('posting, editing what you may, and liking, kept by the server in the brows
   await expect.poll(() => post(you, 'Shipping Chirp today. Edited.').count()).toBe(1)
 
   // A like: shown at once, kept, and taken back.
-  const heart = () => post(you, 'A ship in port').getByRole('button', { name: /♥/ })
-  await expect.poll(() => heart().textContent()).toBe('♥ 2')
+  const heart = () => post(you, 'A ship in port').getByRole('button', { name: /^Like/ })
+  await expect.poll(() => heart().textContent()).toBe('2')
   await heart().click()
-  await expect.poll(() => heart().textContent()).toBe('♥ 3')
+  await expect.poll(() => heart().textContent()).toBe('3')
   expect(await heart().getAttribute('aria-pressed')).toBe('true')
   await you.reload()
   await post(you, 'The engine weaves').waitFor()
-  await expect.poll(() => heart().textContent()).toBe('♥ 3')
+  await expect.poll(() => heart().textContent()).toBe('3')
   await heart().click()
-  await expect.poll(() => heart().textContent()).toBe('♥ 2')
+  await expect.poll(() => heart().textContent()).toBe('2')
 
   // Ada, the admin, in another tab of the same sandbox: Edit on every post,
   // the edited chirp among them.

@@ -211,6 +211,9 @@ importers:
       foldkit-guard:
         specifier: workspace:*
         version: link:../../packages/guard
+      foldkit-media:
+        specifier: workspace:*
+        version: link:../../packages/media
       foldkit-mixins:
         specifier: workspace:*
         version: link:../../packages/mixins
@@ -245,6 +248,9 @@ importers:
       '@foldkit/ui':
         specifier: 0.169.0
         version: 0.169.0(effect@4.0.5)(foldkit@0.169.0(@effect/platform-browser@4.0.5(effect@4.0.5))(effect@4.0.5))
+      '@iconify-json/lucide':
+        specifier: ^1.2.147
+        version: 1.2.147
       '@types/sql.js':
         specifier: 1.4.11
         version: 1.4.11

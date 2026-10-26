@@ -10,6 +10,7 @@ export const TimelinePost = Entity.select(Post, {
   id: true,
   body: true,
   likeCount: true,
+  createdAt: true,
   may: true,
   likedBy: true,
   author: Entity.select(Chirp.User, { name: true, handle: true }),

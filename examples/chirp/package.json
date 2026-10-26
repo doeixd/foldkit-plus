@@ -16,6 +16,7 @@
     "foldkit-example-site": "workspace:*",
     "foldkit-form": "workspace:*",
     "foldkit-guard": "workspace:*",
+    "foldkit-media": "workspace:*",
     "foldkit-mixins": "workspace:*",
     "foldkit-mixins-form": "workspace:*",
     "foldkit-mixins-ui": "workspace:*",
@@ -29,6 +30,7 @@
   },
   "devDependencies": {
     "@foldkit/ui": "0.169.0",
+    "@iconify-json/lucide": "^1.2.147",
     "@types/sql.js": "1.4.11",
     "effect": "^4.0.5",
     "foldkit": "0.169.0",

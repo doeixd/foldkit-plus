@@ -19,10 +19,11 @@ export const Compose = Form.make('Compose', Entity.input(Post, NewPost), {
 // #endregion
 
 // #region form-view
-const ComposeView = FormView.define(Compose, {
-  field: FormView.field(Compose).pipe(Style.attach(FieldStyle)),
+const ComposeField = FormView.field(Compose, {
   renderers: UiForm.renderers({ textarea: TextareaStyle }),
-}).pipe(Style.attach(FormStyle))
+  attrs: { body: { placeholder: "What's happening?", rows: 2 } },
+}).pipe(Style.attach(FieldStyle))
+const ComposeView = FormView.define(Compose, { field: ComposeField }).pipe(Style.attach(FormStyle))
 const Drawn = Compose.bundle.pipe(Bundle.withView(FormView.submodel(Compose, ComposeView)))
 export const Composer = Bundle.declare(Drawn, 'compose')
 // #endregion

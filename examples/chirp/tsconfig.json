@@ -73,7 +73,7 @@
       "foldkit-sync/remote": ["../../packages/sync/src/remote.ts"]
     }
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "e2e/**/*.ts", "vite.config.ts"],
+  "include": ["src/**/*.ts", "test/**/*.ts", "e2e/**/*.ts", "vite.config.ts", "foldkit-icons.d.ts"],
   "references": [
     {
       "path": "../../packages/bundle/tsconfig.build.json"

@@ -83,8 +83,13 @@ multiline field; the editor is `Crud.editor` over the edit's input and
 mutation, which loads the post, fills the form, saves, and reports its status.
 Both are drawn with the UI kit's components (`foldkit-mixins-form/ui`).
 
-**The page** (`view.ts`). Each post is a `Card` with an `Avatar` and a like
-`Button`, drawn through the slots and recipes in `style.ts`.
+**The page** (`view.ts`, `style.ts`). Laid out as the site people know: a
+column of posts between hairlines, each a row with its author's `Avatar`, the
+nav down the left and the accounts on the right. Below 70rem the nav keeps only
+its icons and the accounts move above the posts; on a phone the nav is a bar
+along the bottom. Every part is drawn through a slot of `style.ts`, and the
+icons are Lucide's, imported by name through `foldkit-media/vite`
+(`virtual:foldkit-icons/lucide`): only those imported ship.
 
 ## When something fails
 
