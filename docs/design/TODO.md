@@ -187,6 +187,23 @@ item is one step of [ssr-PLAN.md](./ssr-PLAN.md) Phase S, with its test.
   read-only, and Sync must write the slice it installs.
   [#64](https://github.com/doeixd/foldkit-plus/issues/64)
 
+## Schema to UI
+
+[schema-to-ui-PLAN.md](./schema-to-ui-PLAN.md), for
+[#188](https://github.com/doeixd/foldkit-plus/issues/188).
+
+- [x] **Phases 0 to 7.** Built: `Control.format`, `UiForm.renderers` and the
+  fields to fix, `foldkit-form-recipes` (dates, times, amounts, text-shaped keys,
+  an image uploaded where it is chosen), `EditorView`, `ConfirmView`, `Toolbar`
+  and `Crud.screen`, `foldkit-media/browser`'s `upload`, a relation picker's
+  `AskedForMore`, and `examples/fields`. Released in 0.34.0.
+- [ ] **A `file` recipe.** It waits for an upload route that takes any file;
+  `foldkit-media`'s route takes images.
+- [ ] **`busy` without `settled` as a type error.** `Input.bundle` refuses it
+  when the control is made; a union of the two specs broke inference of `fill`.
+- [ ] **A picker's "Show more" typed by relation keys.** `FormView`'s `more` is
+  keyed by every form key, so a key with no picker type-checks and draws nothing.
+
 ## Guards
 
 Who may do what, declared once on the domain. Slices 1 to 11 of

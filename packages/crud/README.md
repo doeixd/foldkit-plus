@@ -388,6 +388,12 @@ const RemoveForm = Page.children.remover
 
 - `RemoveForm.helpers.ask(id)` asks; nothing is deleted yet. `dismiss()`
   clears it.
+- A no takes the question, and the button pressed, away. Give the remover
+  `{ returnFocus: '#delete' }` as its third argument (the selector of what
+  asked), or a function of the id asked about (`id => '#delete-' + id`, for
+  a button per row), and a no focuses it again; without it focus falls to the
+  page. Where
+  focus goes after a delete is the page's: the row that asked may be gone.
 - `Remover.Message.Confirmed()` and `Cancelled()` are the yes and the no. A
   yes with nothing asked does nothing.
 - `PostRemover.status(model)` is `Idle`, `Confirming`, `Deleting`, `Deleted`
@@ -398,6 +404,36 @@ The server's mutation says what is gone, with `deleted` in its outcome, and
 names no list. Remote then knows the record absent: it leaves every list and
 relation it was in with no refetch, a detail of it reads `NotFound`, and an
 editor open on it reports `NotFound`.
+
+## A screen's Messages
+
+A page with an editor and a remover answers the same four Messages every time:
+open a row, start a new one, close, and ask to delete. `Crud.screen` states them
+once, named after the screen, and answers them through the placements' helpers:
+
+```ts
+const PostScreen = Crud.screen('Post', { id: Schema.String })
+// In the page: Bundle.withMessages({ ...PostScreen.messages }), beside its own:
+// OpenedPost({ id }), CreatedPost(), ClosedPost(), AskedToRemovePost({ id }).
+
+const update = PostScreen.update(
+  { editor: PostEditor, editing: Placed, removing: RemoveForm },
+  placements.update((model, message) =>
+    Remote.reduces(message) ? { model: Data.reduce(model, message) } : { model },
+  ),
+)
+```
+
+`update` answers `OpenedPost` with `Placed.helpers.open(id)`, `CreatedPost` with
+`blank()`, `ClosedPost` with `close()` and `AskedToRemovePost` with
+`RemoveForm.helpers.ask(id)`; every other Message goes to your `update`, and
+`PostEditor.after` runs after each. Leave `removing` out for a screen that cannot
+delete. Given `pickers` (from `Crud.options`), it also answers a picker's
+`AskedForMore` with `pickers.ask`, read out of the page's Message through the
+editor placement's link, and the form still hears it (a page that also
+answers `AskedForMore` itself would show two pages more: do one or the other). The screen places nothing and holds no state: the children, their `onOut`,
+the query's input and the wiring stay the page's, and a page that writes these
+cases itself works the same.
 
 ## Detail
 
@@ -523,6 +559,24 @@ in it. With `chosen`, those rows stay among the choices, first, and
 `pickers.active` makes them a requirement so Remote reads them and they can be
 named. Without it a `select` would show a post's author as blank the moment a
 search stopped finding them.
+
+A list shows one page at a time (`pageSize`, 25 by default), so a picker can
+offer fewer rows than there are. `pickers.more(model)` names the pickers whose
+list has another page (`{ authorId: true }`), and a form view given it as `more`
+draws a "Show more" button under each, which sends the form's
+`AskedForMore({ key })`. The form changes nothing for it: the list is the
+page's, and `pickers.ask(model, key)` is the page with one more page of that
+list, for the read entry to fetch. `Crud.screen` answers it given the pickers:
+
+```ts
+Placed.view(model, h, { options: pickers(model), more: pickers.more(model) })
+PostScreen.update(
+  { editor: PostEditor, editing: Placed, pickers },
+  placements.update((model, message) =>
+    Remote.reduces(message) ? { model: Data.reduce(model, message) } : { model },
+  ),
+)
+```
 
 ## Sorting a list
 

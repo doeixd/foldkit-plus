@@ -85,3 +85,73 @@ describe('A key that is any number of a fixed set', () => {
     expect(() => Form.make('Words', Form.input(Words))).toThrow('no control for "words"')
   })
 })
+
+describe('A choice that must hold one', () => {
+  const Topics = Schema.Literals(['news', 'offers'])
+  it.each([
+    ['a non-empty array', Schema.NonEmptyArray(Topics)],
+    ['an array with a length check', Schema.Array(Topics).check(Schema.isMinLength(1))],
+  ])('is %s: a required choice group, valid once one is chosen', (_, topics) => {
+    const form = Form.make('Signup', Form.input(Schema.Struct({ topics })))
+    const control = form.controls.find(control => control.key === 'topics')!
+    expect([control.control.kind, control.required]).toEqual(['Choices', true])
+    const empty = form.bundle.update(form.initial, form.Message.ValidatedAll(), undefined).model
+    expect(form.engine.value(empty)).toBeUndefined()
+    const chosen = form.bundle.update(
+      empty,
+      form.Message.Changed({ key: 'topics', value: ['offers'] }),
+      undefined,
+    ).model
+    expect(form.engine.value(chosen)).toEqual({ topics: ['offers'] })
+  })
+
+  it('is a choice group that must hold two, valid once two are chosen', () => {
+    const topics = Schema.Array(Schema.Literals(['news', 'offers', 'events'])).check(
+      Schema.isMinLength(2),
+    )
+    const form = Form.make('Signup', Form.input(Schema.Struct({ topics })))
+    const choose = (value: Array<string>) =>
+      form.engine.value(
+        form.bundle.update(form.initial, form.Message.Changed({ key: 'topics', value }), undefined)
+          .model,
+      )
+    expect(choose(['news'])).toBeUndefined()
+    expect(choose(['news', 'events'])).toEqual({ topics: ['news', 'events'] })
+  })
+})
+
+describe('Toggled', () => {
+  const Mixed = Form.make(
+    'Mixed',
+    Form.input(
+      Schema.Struct({
+        flag: Schema.Boolean,
+        name: Schema.String,
+        colours: Schema.Array(Schema.Literals(['red', 'green'])),
+      }),
+    ),
+  )
+  const press = (message: typeof Mixed.Message.Type) =>
+    Mixed.bundle.update(Mixed.initial, message, undefined).model
+
+  it('flips a flag, and lets go of or adds one choice', () => {
+    expect(Mixed.field(press(Mixed.Message.Toggled({ key: 'flag' })), 'flag').value).toBe(true)
+    const red = press(Mixed.Message.Toggled({ key: 'colours', choice: 'red' }))
+    expect(Mixed.field(red, 'colours').value).toEqual(['red'])
+    const none = Mixed.bundle.update(
+      red,
+      Mixed.Message.Toggled({ key: 'colours', choice: 'red' }),
+      undefined,
+    ).model
+    expect(Mixed.field(none, 'colours').value).toEqual([])
+  })
+
+  it.each([
+    ['a flag pressed with a choice', { key: 'flag', choice: 'red' }],
+    ['a text key pressed with a choice', { key: 'name', choice: 'red' }],
+    ['a text key pressed with none', { key: 'name' }],
+    ['a list pressed with no choice', { key: 'colours' }],
+  ] as const)('changes nothing for %s', (_, payload) => {
+    expect(press(Mixed.Message.Toggled(payload))).toBe(Mixed.initial)
+  })
+})

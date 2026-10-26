@@ -374,3 +374,136 @@ describe('a control inside a nested form', () => {
     expect(BookForm.partial(retagged).author).toEqual({ tags: ['novelist'] })
   })
 })
+
+describe('a Bundle control with work in flight', () => {
+  // Busy while something is typed and not yet committed into the tags.
+  const BusyTags = Input.bundle('Tags', {
+    bundle: TagEditor,
+    value: model => (model.tags.length === 0 ? undefined : model.tags),
+    fill: (model, tags) => ({ ...model, tags, typing: '' }),
+    busy: model => model.typing !== '',
+    settled: model => ({ ...model, typing: '' }),
+  })
+  const Busy = Form.make('BusyForm', PostInput, { inputs: { tags: BusyTags } })
+  const step = (model: typeof Busy.initial, message: typeof Busy.Message.Type) =>
+    Busy.bundle.update(model, message, undefined)
+  const titled = step(Busy.initial, Busy.Message.Changed({ key: 'title', value: 'Hello' })).model
+  const typing = step(
+    titled,
+    Busy.control('tags').send(TagsMessage.Typed({ text: 'effect' })),
+  ).model
+
+  it('holds a submit until the work lands, then submits what it left', () => {
+    const waiting = step(typing, Busy.Message.Submitted())
+    expect([waiting.outMessage, waiting.model.submitPending]).toEqual([undefined, true])
+    expect(Busy.control('tags').field(waiting.model)._tag).toBe('Validating')
+    const landed = step(
+      waiting.model,
+      Busy.control('tags').send(TagsMessage.Normalized({ tags: ['effect'] })),
+    )
+    // Normalized leaves `typing` as it was, so the work is still in flight.
+    expect(landed.outMessage).toBeUndefined()
+    const done = step(landed.model, Busy.control('tags').send(TagsMessage.Typed({ text: '' })))
+    expect(done.outMessage).toEqual({
+      _tag: 'Submitted',
+      value: { title: 'Hello', tags: ['effect'] },
+    })
+  })
+
+  it('says a required key is missing once the work ends without a value', () => {
+    const waiting = step(typing, Busy.Message.Submitted()).model
+    const ended = step(waiting, Busy.control('tags').send(TagsMessage.Typed({ text: '' })))
+    expect([ended.outMessage, ended.model.submitPending]).toEqual([undefined, false])
+    expect(Busy.control('tags').field(ended.model)).toMatchObject({
+      _tag: 'Invalid',
+      errors: ['Required'],
+    })
+  })
+
+  it('leaves a busy key that is already valid as it is', () => {
+    const tagged = step(titled, Busy.control('tags').send(TagsMessage.Normalized({ tags: ['a'] })))
+    const busy = step(tagged.model, Busy.control('tags').send(TagsMessage.Typed({ text: 'b' })))
+    expect(Busy.control('tags').field(busy.model)._tag).toBe('Valid')
+    const waiting = step(busy.model, Busy.Message.Submitted())
+    expect(Busy.control('tags').field(waiting.model)._tag).toBe('Valid')
+    expect(waiting.model.submitPending).toBe(true)
+  })
+
+  it('submits at once when nothing is in flight', () => {
+    const tagged = step(titled, Busy.control('tags').send(TagsMessage.Normalized({ tags: ['a'] })))
+    expect(step(tagged.model, Busy.Message.Submitted()).outMessage).toEqual({
+      _tag: 'Submitted',
+      value: { title: 'Hello', tags: ['a'] },
+    })
+  })
+})
+
+describe('a busy control made without a settled', () => {
+  it('is refused, since a stored form shown again would wait for good', () => {
+    expect(() =>
+      Input.bundle('Tags', {
+        bundle: TagEditor,
+        value: model => (model.tags.length === 0 ? undefined : model.tags),
+        fill: (model, tags) => ({ ...model, tags, typing: '' }),
+        busy: model => model.typing !== '',
+      }),
+    ).toThrow('give busy a settled too')
+  })
+})
+
+describe('a busy control in a row', () => {
+  const Author = Entity.define(
+    'Author',
+    Schema.Struct({ id: Schema.String, tags: Schema.Array(Schema.String) }),
+  )
+  const Book = Entity.define('Book', Schema.Struct({ id: Schema.String, title: Schema.String }))
+  const Library = Entity.relate({ Author, Book }, { Book: { author: Relation.one(Author) } })
+  const AuthorInput = Entity.input(
+    Library.Author,
+    Schema.Struct({ tags: Library.Author.fields.tags.schema }),
+  )
+  const AuthorForm = Form.make('AuthorForm', AuthorInput, {
+    inputs: {
+      tags: Input.bundle('Tags', {
+        bundle: QuietTagEditor,
+        value: model => (model.tags.length === 0 ? undefined : model.tags),
+        fill: (model, tags) => ({ ...model, tags, typing: '' }),
+        busy: model => model.typing !== '',
+        settled: model => ({ ...model, typing: '' }),
+      }),
+    },
+  })
+  const BookForm = Form.make(
+    'BookForm',
+    Entity.input(
+      Library.Book,
+      Schema.Struct({ title: Library.Book.fields.title.schema, author: AuthorInput.schema }),
+      { author: Relation.nested(Library.Book.relations.author, AuthorInput) },
+    ),
+    { nested: { author: AuthorForm } },
+  )
+  const step = (model: typeof BookForm.initial, message: typeof BookForm.Message.Type) =>
+    BookForm.bundle.update(model, message, undefined)
+  const [row] = BookForm.rows(BookForm.initial, 'author')
+  const inRow = (message: TagsMessage) =>
+    BookForm.row('author', row?.id ?? '').send(AuthorForm.control('tags').send(message))
+
+  it('holds the whole form’s submit until the row’s work lands', () => {
+    const titled = step(BookForm.initial, BookForm.Message.Changed({ key: 'title', value: 'A' }))
+    const typing = step(titled.model, inRow(TagsMessage.Typed({ text: 'x' }))).model
+    const waiting = step(typing, BookForm.Message.Submitted())
+    expect([waiting.outMessage, waiting.model.submitPending]).toEqual([undefined, true])
+    // A row Message that changes nothing leaves the waiting Model as it is.
+    const stray = BookForm.row('author', row?.id ?? '').send(
+      AuthorForm.Message.FollowedIssue({ id: 'x' }),
+    )
+    expect(step(waiting.model, stray).model).toBe(waiting.model)
+    const landed = step(waiting.model, inRow(TagsMessage.Normalized({ tags: ['x'] })))
+    expect(landed.model.submitPending).toBe(true)
+    const done = step(landed.model, inRow(TagsMessage.Typed({ text: '' })))
+    expect(done.outMessage).toEqual({
+      _tag: 'Submitted',
+      value: { title: 'A', author: { tags: ['x'] } },
+    })
+  })
+})

@@ -146,6 +146,8 @@ const RemoveForm = Page.at(RemoveSlot, { onOut: PostRemover.onOut })
 - `RemoveForm.helpers.ask(id)` asks; `Remover.Message.Confirmed()` / `Cancelled()`
   answer; `dismiss()` clears. `PostRemover.status(model)` is `Idle`, `Confirming`,
   `Deleting`, `Deleted`, or `DeleteFailed`; `target(model)`, `error(model)`.
+- `Crud.remover(name, config, { returnFocus: '#delete' })` focuses what asked again after a no,
+  which takes the question's buttons away; `returnFocus` may be a function of the id (`id => '#delete-' + id`).
 - The server's mutation returns `deleted: [{ entity, id }]` and names no list.
   Remote drops the entity from every list and relation, and an open editor or a
   detail of it reads `NotFound`.
@@ -205,6 +207,27 @@ PageList(
 )
 ```
 
+`EditorView`, `ConfirmView` and `Toolbar` (all `.forMessages<Message>().define()`)
+draw around an editor and a remover, given their state: `EditorView({ id, status:
+Editor.status(model), title, form: EditForm.view(model, h, inputs), error:
+Editor.saveError(model)?.message, onClose?, onRetry? })` draws each status's line and
+keeps the form while there is something to edit (a failed save keeps the draft);
+`ConfirmView({ id, status: Remover.status(model), name: Option<string>, onConfirm,
+onCancel, error? })` asks `Delete {name}?` and cannot confirm with no name;
+`Toolbar({ search?, filters?, sort?, actions? })` holds your controls in slots. For a
+dialog, draw the `EditorView` inside your `foldkit-mixins-ui` Dialog: focus in,
+trapped, and back to the opener are the Dialog's. Escape closes the Dialog alone,
+so answer its `Closed` OutMessage with the editor's `close()`.
+
+`Crud.screen('Post', { id: PostId })` names a page's four editor Messages
+(`messages`: `OpenedPost({ id })`, `CreatedPost()`, `ClosedPost()`,
+`AskedToRemovePost({ id })`, for `Bundle.withMessages`) and
+`screen.update({ editor: PostEditor, editing: Page.children.editor, removing?:
+Page.children.remover, pickers? }, placements.update(pageUpdate))` (the page's own
+reducer) answers them through those
+placements' `open`/`blank`/`close`/`ask` and runs the editor's `after`. It places
+nothing: children, `onOut`, query input and wiring stay the page's.
+
 Slots: `ListSlots` (`root`, `status`, `table`, `head`, `headRow`, `body`, `headCell`, `sort`, `row`, `cell`,
 `open`, `more`, `retry`) and `DetailSlots` (`root`, a `div` in every state;
 `list`, the `dl`; `status`, `term`, `value`, `retry`); `RowListSlots` is
@@ -229,6 +252,10 @@ Data.subscriptions({ authors: AuthorList.active, chosen: pickers.active })
 
 `chosen` keeps what a picker holds among its choices when the search no longer
 finds it, and `pickers.active` has Remote read those rows so they can be named.
+`pickers.more(model)` (for the form view's `more` input) names the pickers whose
+list has another page; each draws a "Show more" button sending the form's
+`AskedForMore({ key })`, which `Crud.screen` answers with `pickers.ask(model, key)`
+when given `pickers`.
 A placed list also gives `row(id)` (a Projection of one row through the list's
 Selection), `choiceOf(model, id)` (that row as a choice once read), and `owner`.
 

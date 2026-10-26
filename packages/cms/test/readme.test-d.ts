@@ -3,6 +3,7 @@ import { Schema, Option } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
+import { FieldRecipes } from 'foldkit-form-recipes'
 import { Mutation, Remote, type RemoteClient, type RemoteData } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import type { Html, HtmlBuilder } from 'foldkit/html'
@@ -126,8 +127,10 @@ export const ScheduledForm = Form.make(
   ),
   {
     inputs: {
-      slug: Cms.slug('title', { prefix: '/blog/' }), // follows the title until the author writes it
-      goesLiveAt: Cms.dateTime(), // a datetime-local input, submitted as an ISO string
+      // follows the title until the author writes it
+      slug: FieldRecipes.slug('title', { prefix: '/blog/' }).control,
+      // a datetime-local input, read in London, submitted as an ISO instant
+      goesLiveAt: FieldRecipes.dateTime({ stored: 'instant', zone: 'Europe/London' }).control,
     },
   },
 )

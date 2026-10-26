@@ -51,12 +51,17 @@ const EditorBundle = Editor.bundle.pipe(
 )
 
 // Deleting is a mutation with a yes in between.
-const Remover = Crud.remover('PostRemover', {
-  mutation: DeletePostMutation,
-  // The input is `{ id }`, so naming the key is enough: the remover is asked about a
-  // PostId, the key's own type, and an AuthorId would not compile.
-  id: 'id',
-})
+const Remover = Crud.remover(
+  'PostRemover',
+  {
+    mutation: DeletePostMutation,
+    // The input is `{ id }`, so naming the key is enough: the remover is asked about a
+    // PostId, the key's own type, and an AuthorId would not compile.
+    id: 'id',
+  },
+  // A no takes the question away: focus goes back to the button that asked it.
+  { returnFocus: '#delete' },
+)
 export const RemoverMessage = Remover.Message
 
 /**
@@ -73,6 +78,10 @@ export const RemoverMessage = Remover.Message
  */
 const SearchInput = debounce({ name: 'PostSearch', value: Schema.String })
 
+// Opening a post, starting a new one, closing, and asking to delete: the screen's
+// Messages, answered through the editor's and the remover's placements below.
+const PostScreen = Crud.screen('Post', { id: PostId })
+
 // The page, stated once: its own fields and Messages, and the three bundles it
 // places. The editor and the remover save through Remote, whose domain is made
 // from this page's Model below, so their `onOut` is given once it exists.
@@ -84,9 +93,7 @@ const Base = Bundle.compose({
 }).pipe(
   Bundle.withMessages({
     ...Remote.messages,
-    AskedToDeletePost: { id: PostId },
-    OpenedPost: { id: PostId },
-    ClosedEditor: {},
+    ...PostScreen.messages,
     RequestedMorePosts: {},
     RetriedPosts: {},
     CompletedFocusPosts: {},
@@ -149,6 +156,8 @@ export const Authors = Crud.list('Authors', {
   selection: AuthorChoice,
   // How an author reads as a choice: this list feeds the editor's picker.
   choice: { value: row => row.id, label: row => row.name },
+  // One author a page, so the picker shows its "more" with the two seeded here.
+  pageSize: 1,
 }).at({
   data: Data,
   // The picker's search text is the form's; here it becomes the query's input.
@@ -187,16 +196,13 @@ export const RemoveForm = Page.children.removePost
 export const Search = Page.children.search
 export const placements = Page.placements
 
-// `after` lets the editor show the loaded value whichever Message brings it.
-export const update = PostEditor.after(
+// The screen answers its own Messages, and a picker's ask for more authors, and
+// runs the editor's sync after every Message, so the editor shows the loaded
+// value whichever Message brings it.
+export const update = PostScreen.update(
+  { editor: PostEditor, editing: EditForm, removing: RemoveForm, pickers },
   placements.update((model: Model, message: Message) => {
     switch (message._tag) {
-      case 'OpenedPost':
-        return EditForm.helpers.open(message.id)(model)
-      case 'AskedToDeletePost':
-        return RemoveForm.helpers.ask(message.id)(model)
-      case 'ClosedEditor':
-        return EditForm.helpers.close()(model)
       case 'RequestedMorePosts': {
         return { model: Option.getOrElse(Posts.more(model), () => model), commands: [] }
       }

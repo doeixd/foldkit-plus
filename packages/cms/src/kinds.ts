@@ -1,14 +1,14 @@
 /**
- * The kinds a CMS adds: two controls and two displays, made with `Input.kind`
- * and `Display.kind` exactly as an application makes its own, and a renderer for
- * each to spread beside `foldkit-mixins-form`'s and `foldkit-mixins-crud`'s.
+ * The displays a CMS adds, made with `Display.kind` exactly as an application
+ * makes its own, and a renderer for each to spread beside `foldkit-mixins-crud`'s.
+ * Its controls, a slug and a moment, are `foldkit-form-recipes`'.
  * Entry-level views (its state badge, published history, remaining
  * transitions) live in `./views.js`: they draw on the application's own slot
  * builders, so the application keeps its slots and styles.
  */
 import { Display, type DisplayWords } from 'foldkit-crud'
-import { Input, fillWords, type Control, type ControlChange, type Draft } from 'foldkit-form'
-import type { Attribute, Html, HtmlBuilder } from 'foldkit/html'
+import { fillWords } from 'foldkit-form'
+import type { Html, HtmlBuilder } from 'foldkit/html'
 import type { State } from './lifecycle.js'
 
 /**
@@ -16,28 +16,6 @@ import type { State } from './lifecycle.js'
  * list's state cell, `stateBadge`): one name, so one tone rule styles both.
  */
 export const stateAttribute = 'data-cms-state'
-
-/** Text as an address: lower case, unaccented, words joined by `-`. */
-export const slugify = (text: string): string =>
-  text
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-
-/** A slug: text, shown after the address it completes. */
-const Slug = Input.kind<{ readonly prefix: string }>('CmsSlug', { draft: 'text' })
-
-/** A moment: the text of a `datetime-local` input, submitted as an ISO string. */
-const DateTime = Input.kind('CmsDateTime', {
-  draft: 'text',
-  parse: draft => {
-    const at = new Date(draft)
-    return Number.isNaN(at.getTime()) ? undefined : at.toISOString()
-  },
-  unparsed: 'Enter a date and a time',
-})
 
 export interface StateWords {
   readonly New?: string
@@ -114,21 +92,6 @@ const Moment = Display.kind<{
   },
 })
 
-/** What `foldkit-mixins-form` gives a control's renderer, as far as these read it. */
-export interface ControlContext<Message> {
-  readonly control: Control
-  readonly draft: Draft
-  readonly change: (value: Draft) => Message
-  readonly blurred: Message
-  readonly state: ReadonlyArray<Attribute<Message>>
-  readonly slots: {
-    readonly text: { readonly attrs: (attrs: ReadonlyArray<any>) => any }
-    readonly group: { readonly attrs: () => any }
-    readonly affix: { readonly attrs: () => any }
-  }
-  readonly h: HtmlBuilder<Message>
-}
-
 /** What `foldkit-mixins-crud` gives a display's renderer, as far as these read it. */
 export interface DisplayContext<Message> {
   readonly display: {
@@ -141,70 +104,9 @@ export interface DisplayContext<Message> {
   readonly badge: { readonly attrs: (attrs: ReadonlyArray<any>) => any }
 }
 
-/** An ISO moment as a `datetime-local` input writes one, in the viewer's zone; other text as it is. */
-const localText = (draft: string): string => {
-  const at = new Date(draft)
-  if (!/Z$|[+-]\d\d:\d\d$/.test(draft) || Number.isNaN(at.getTime())) return draft
-  const local = new Date(at.getTime() - at.getTimezoneOffset() * 60_000)
-  return local.toISOString().slice(0, 16)
-}
-
 export const Kinds = {
-  /** The control kinds: `Cms.Input.Slug.is(control)` narrows one, as `Input.Text.is` does. */
-  Input: { Slug, DateTime },
   /** The display kinds. */
   Display: { State: StateDisplay, Moment },
-
-  slugify,
-
-  /**
-   * Under a form's `inputs`: the key is a slug that follows `from` until the
-   * author writes it, and is shown after `prefix`. A form filled with a published
-   * slug does not follow: an address must not move because its title did.
-   */
-  slug: (
-    from: string,
-    options: { readonly prefix?: string; readonly through?: (text: string) => string } = {},
-  ): ControlChange => ({
-    change: (resolved, inputKey) => {
-      const following = Input.following(from, options.through ?? slugify).change(resolved, inputKey)
-      return Object.freeze({
-        ...Slug.of({ prefix: options.prefix ?? '/' }),
-        follows: following.follows,
-      })
-    },
-  }),
-  /** Under a form's `inputs`, or as Entity metadata with `Input.of`: a moment. */
-  dateTime: (): Control => DateTime.of({}),
-
-  /** For `FormView`'s `renderers`, beside its own. */
-  controlRenderers: <Message>(): Readonly<
-    Record<string, (context: ControlContext<Message>) => Html>
-  > => ({
-    [Slug.kind]: ({ control, state, draft, change, blurred, slots, h }) =>
-      h.div(slots.group.attrs(), [
-        h.span(slots.affix.attrs(), [Slug.is(control) ? control.data.prefix : '']),
-        h.input(
-          slots.text.attrs([
-            ...state,
-            h.Type('text'),
-            h.Value(String(draft)),
-            h.OnInput(change),
-            h.OnBlur(blurred),
-          ]),
-        ),
-      ]),
-    [DateTime.kind]: ({ state, draft, change, blurred, slots, h }) =>
-      h.input(
-        slots.text.attrs([
-          ...state,
-          h.Type('datetime-local'),
-          h.Value(localText(String(draft))),
-          h.OnInput(change),
-          h.OnBlur(blurred),
-        ]),
-      ),
-  }),
 
   /** For `ListView`'s and `DetailView`'s `renderers`: a state as a badge, a moment as a `time`. */
   displayRenderers: <Message>(): Readonly<

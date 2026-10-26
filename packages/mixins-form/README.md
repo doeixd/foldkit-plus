@@ -15,12 +15,14 @@ what else it does.
 | Classes, inline style, extra attributes and events | your `Style` / `Behavior` attachments |
 | The options of a relation picker, the submit button's words | the application, as view inputs |
 
-The optional `foldkit-mixins-form/ui` entry draws Text and Multiline fields
-through `foldkit-mixins-ui`'s Input and Textarea adapters. The main entry keeps
-the plain-HTML path and does not import that integration.
+The optional `foldkit-mixins-form/ui` entry draws every control through
+`foldkit-mixins-ui`'s components. The main entry keeps the plain-HTML path and
+does not import that integration.
 
 It holds no state and adds no Messages. Every event it installs dispatches one
-of the form's own Messages (`Changed`, `Blurred`, `Submitted`).
+of the form's own Messages: `Changed`, `Toggled` (a press on a flag or a choice,
+applied to the draft as it lands), `Blurred`, `Searched`, `Submitted`, the row
+Messages, `FollowedIssue` and `AskedForMore`.
 
 ## Mental model
 
@@ -69,12 +71,49 @@ Messages to its reducer; submitting a valid form sends its decoded value to
 
 The next example replaces this unstyled `Drawn` with field and form styles.
 
-## UI-backed fields with a custom layout
+## A form drawn through `foldkit-mixins-ui`
 
 Install `foldkit-mixins-ui` and its `@foldkit/ui` peer to use the optional
 `foldkit-mixins-form/ui` entry. Import it as `UiForm`.
 
-`UiForm.field({ toMessage, inputStyle, textareaStyle?, draw? })` returns a
+`UiForm.renderers(styles?)` is a renderer for every kind `foldkit-form` ships,
+given to the whole-form view like any other renderers:
+
+```ts
+import { Style } from 'foldkit-mixins'
+import { FormView } from 'foldkit-mixins-form'
+import * as UiForm from 'foldkit-mixins-form/ui'
+import { InputSlots, Recipes, SelectSlots } from 'foldkit-mixins-ui'
+
+const UiView = FormView.define(Edit, {
+  renderers: UiForm.renderers({
+    input: Style.forSlots(InputSlots)(Recipes.Input()),
+    select: Style.forSlots(SelectSlots)(Recipes.Select()),
+  }),
+})
+```
+
+Each style is optional and names its component: `input` (Text and Number),
+`textarea`, `select` (Select and RelationOne), `checkbox` (Toggle) and
+`checkboxGroup` (Choices and RelationMany). A table with no styles still draws a
+complete form, unstyled.
+
+What the table changes is the control, not the field. The label, description,
+checking line and error stay the form view's, and each control keeps the plain
+one's name, id, `aria-invalid`, `aria-required` and `aria-describedby`, so the
+same interaction sends the same Messages either way. Text, Number, Multiline and
+the selects are the plain elements under the component's Slot; a `FieldSlots`
+style for `text`, `number`, `multiline` or `select` no longer reaches them, since
+an element keeps one Slot's class. Toggle, Choices and RelationMany are the
+Checkbox's `role="checkbox"` buttons, which Space presses and their label names;
+a button posts nothing, so each checked one holds a hidden input with the key's
+name, and a form posted without scripts still carries the value it was drawn
+with; unlike the plain checkboxes, those buttons cannot be changed until a script
+runs.
+
+## UI-backed fields with a custom layout
+
+`UiForm.field({ toMessage, inputStyle, textareaStyle?, draw?, words? })` returns a
 `FormView.fields` override for Text and Multiline keys. `toMessage` wraps the
 form's Changed/Blurred Messages in the caller's Message universe (use an
 identity function for a whole-form view). Styles target `InputSlots` and
@@ -169,9 +208,16 @@ A `RelationOne` or `RelationMany` that searches (`Input.search()`) gets an
 `input type="search"` above it, in the `search` slot, labelled `Search <label>`
 and naming the picker it controls with `aria-controls`. `words.search` in the
 view inputs replaces the word. The blank choice of a `select` has no words
-unless `words.none` gives it some ("none"). All of the view's words (`submit`,
-`submitting`, `checking`, `search`, `none`, `add`, `remove`) are text, with `{label}` and `{position}` as
-blanks; see [words in one place](../form/README.md#words-as-text-in-one-place).
+unless `words.none` gives it some ("none"). A picker of the form itself that
+the view inputs' `more` names (`more: { authorId: true }`, which
+`foldkit-crud`'s `Crud.options` gives as `pickers.more(model)`) gets a
+`button type="button"` under it, in the `more` slot, worded by `words.more`
+(default `Show more`) and naming the picker with `aria-controls`; a press sends
+the form's `AskedForMore({ key })`, for the page that owns the list to answer.
+All of the view's words (`submit`,
+`submitting`, `checking`, `search`, `none`, `add`, `remove`, `more`, `summary`,
+`issue`, `inRow`) are text: `add` fills `{label}`, `remove` `{label}` and `{position}`,
+`issue` `{label}` and `{error}`, and `inRow` `{row}` and `{label}`; the others are said as written. See [words in one place](../form/README.md#words-as-text-in-one-place).
 
 A chosen value its choices lack stays in sight: after the choices comes
 `? value`, chosen, in a `select` and in a `RelationMany`'s checkboxes. It is a
@@ -240,7 +286,7 @@ Fields.field(control, formModel, control.key, h, (input, draw) =>
 ```
 
 A override receives the control, its field, id, validity, errors, element
-attrs, and the `changed`/`blurred` Messages, so a custom layout reconstructs
+attrs, and the `changed`/`blurred`/`toggled` Messages, so a custom layout reconstructs
 no form plumbing. A renderer reads the attrs that fit its element — `type` and
 `placeholder` on a text input, `placeholder` and `rows` on a textarea, and on
 both, and a number, `autocomplete`, `inputMode`, `enterKeyHint`,
@@ -267,7 +313,23 @@ Around each control, `FieldSlots` also publishes `root`, `label`, `description`,
 `checking`, `error`, `control` (around a Bundle's own view), and `group` and `affix`, for a
 renderer that draws text beside its control (a prefix, a unit) with the two
 together. `FormSlots` publishes `root` (the `form`), `errors` (failures that
-belong to no one field), `submit`, and the five slots of a nested key.
+belong to no one field), `summary`, `summaryTitle`, `issues`, `issue` and
+`issueLink` (the fields to fix, below),
+`submit`, and the five slots of a nested key.
+
+While any field is invalid, the form draws the fields to fix above its submit
+button, beside `errors`: `words.summary` (default `Check these fields:`), then a
+link to each invalid field in the order the fields are drawn, rows' too, each
+worded by `words.issue` (default `{label}: {error}`); a field of a row is named
+with its row by `words.inRow` (default `{row}, {label}`: `comments 2, body`),
+so two rows' links differ; a row inside a row is named through both
+(`shelves 1, books 2, title`). It sits low in the form,
+so a field turning invalid never moves the fields above it, and it is no live
+region: each field's own error already is. A link's `href` is the control's
+`#id`, so with scripts off it goes there; with them on, a press focuses the
+control itself (a choice group's first box) and goes nowhere, since an
+application takes a link press as a navigation. The press sends the form's
+`FollowedIssue({ id })`, which changes nothing.
 
 A Bundle's own view that takes inputs gets them from the view input
 `controls`, by key: `placed.view(model, h, { controls: { document: inputs } })`.
@@ -287,7 +349,9 @@ same for every row), and `words.add` / `words.remove` word the buttons (defaults
 A form's own check ([`checks`](../form/README.md)) leaves its key `Validating`
 until it answers. Meanwhile the control carries `aria-busy`, and under it a line
 in the `checking` slot, `role="status"`, says so (`words.checking`, default
-`Checking…`); the control names that line in `aria-describedby`. Each field's
+`Checking…`); the control names that line in `aria-describedby`. A Bundle
+control's own work (an upload) marks it `aria-busy` with no such line: the
+control says what it is doing itself. Each field's
 `root` carries `data-validation`, the field's state by Foldkit's own tag
 (`NotValidated`, `Validating`, `Valid` or `Invalid`), so a stylesheet can mark it
 without a Style: `[data-validation='Valid'] label::after { content: ' ✓' }`. A

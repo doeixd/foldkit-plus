@@ -1,6 +1,6 @@
 {
   "name": "foldkit-plus",
-  "version": "0.15.0",
+  "version": "0.16.0",
   "description": "Every Foldkit Plus package in one install, and `npx foldkit-plus setup`, which tells a coding agent how to start.",
   "keywords": [
     "foldkit",
@@ -162,6 +162,26 @@
       "foldkit-plus:source": "./src/form.ts",
       "types": "./dist/form.d.mts",
       "import": "./dist/form.mjs"
+    },
+    "./form-recipes/html": {
+      "foldkit-plus:source": "./src/form-recipes/html.ts",
+      "types": "./dist/form-recipes/html.d.mts",
+      "import": "./dist/form-recipes/html.mjs"
+    },
+    "./form-recipes/image": {
+      "foldkit-plus:source": "./src/form-recipes/image.ts",
+      "types": "./dist/form-recipes/image.d.mts",
+      "import": "./dist/form-recipes/image.mjs"
+    },
+    "./form-recipes/ui": {
+      "foldkit-plus:source": "./src/form-recipes/ui.ts",
+      "types": "./dist/form-recipes/ui.d.mts",
+      "import": "./dist/form-recipes/ui.mjs"
+    },
+    "./form-recipes": {
+      "foldkit-plus:source": "./src/form-recipes.ts",
+      "types": "./dist/form-recipes.d.mts",
+      "import": "./dist/form-recipes.mjs"
     },
     "./guard": {
       "foldkit-plus:source": "./src/guard.ts",
@@ -569,6 +589,7 @@
     "foldkit-durable": "workspace:*",
     "foldkit-entity": "workspace:*",
     "foldkit-form": "workspace:*",
+    "foldkit-form-recipes": "workspace:*",
     "foldkit-guard": "workspace:*",
     "foldkit-media": "workspace:*",
     "foldkit-metadata": "workspace:*",

@@ -22,6 +22,7 @@
     "foldkit-entity": "workspace:*",
     "foldkit-example-site": "workspace:*",
     "foldkit-form": "workspace:*",
+    "foldkit-form-recipes": "workspace:*",
     "foldkit-guard": "workspace:*",
     "foldkit-media": "workspace:*",
     "foldkit-mirror": "workspace:*",

@@ -233,8 +233,6 @@ test('a row that opens a page steps in, and Backspace in the empty field steps o
     // With words in the field, Backspace deletes and the page stays.
     await userEvent.keyboard('d')
     await vi.waitFor(() => expect(field()!.value).toBe('d'))
-    // Backspace is read against the field as last drawn; once the rows narrow, that is the `d`.
-    await vi.waitFor(() => expect(rows()).toEqual(['Dark']))
     await userEvent.keyboard('{Backspace}')
     await vi.waitFor(() => expect(field()!.value).toBe(''))
     expect(rows()).toEqual(['Light', 'Dark'])
@@ -242,6 +240,25 @@ test('a row that opens a page steps in, and Backspace in the empty field steps o
     await vi.waitFor(() => expect(rows()).toEqual(['Change theme…', 'Invite members']))
     expect(document.getElementById('palette-page')).toBeNull()
     expect(document.activeElement).toBe(field())
+  } finally {
+    handle.dispose()
+  }
+})
+
+test('a character typed before the next frame is still there for Backspace, which deletes it', async () => {
+  const handle = mount()
+  try {
+    await opened()
+    await userEvent.keyboard('{Enter}')
+    await vi.waitFor(() => expect(rows()).toEqual(['Light', 'Dark']))
+    // Typed and Backspace pressed in one task, so no frame draws the `d` between them.
+    const input = field()!
+    input.value = 'd'
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true }))
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    expect(document.getElementById('palette-page')?.textContent).toBe('Theme')
+    expect(rows()).toEqual(['Dark'])
   } finally {
     handle.dispose()
   }

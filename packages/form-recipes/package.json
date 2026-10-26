@@ -1,0 +1,104 @@
+{
+  "name": "foldkit-form-recipes",
+  "version": "0.1.0",
+  "description": "Field recipes for foldkit-form: dates, times, amounts, text-shaped keys and an uploaded image, each a control, a display and a renderer.",
+  "keywords": [
+    "foldkit",
+    "effect",
+    "form",
+    "date",
+    "recipes",
+    "typescript"
+  ],
+  "type": "module",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "author": "Patrick Glenn <doeixd@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/doeixd/foldkit-plus.git",
+    "directory": "packages/form-recipes"
+  },
+  "bugs": {
+    "url": "https://github.com/doeixd/foldkit-plus/issues"
+  },
+  "sideEffects": false,
+  "exports": {
+    "./html": {
+      "foldkit-plus:source": "./src/html.ts",
+      "types": "./dist/html.d.mts",
+      "import": "./dist/html.mjs"
+    },
+    "./image": {
+      "foldkit-plus:source": "./src/image.ts",
+      "types": "./dist/image.d.mts",
+      "import": "./dist/image.mjs"
+    },
+    "./ui": {
+      "foldkit-plus:source": "./src/ui.ts",
+      "types": "./dist/ui.d.mts",
+      "import": "./dist/ui.mjs"
+    },
+    ".": {
+      "foldkit-plus:source": "./src/index.ts",
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "foldkit-bundle": "workspace:*",
+    "foldkit-crud": "workspace:*",
+    "foldkit-form": "workspace:*"
+  },
+  "peerDependencies": {
+    "@foldkit/ui": "^0.169.0",
+    "effect": "^4.0.0",
+    "foldkit": "^0.169.0",
+    "foldkit-media": "workspace:*",
+    "foldkit-mixins": "workspace:*",
+    "foldkit-mixins-form": "workspace:*",
+    "foldkit-mixins-ui": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "@foldkit/ui": {
+      "optional": true
+    },
+    "foldkit-media": {
+      "optional": true
+    },
+    "foldkit-mixins": {
+      "optional": true
+    },
+    "foldkit-mixins-form": {
+      "optional": true
+    },
+    "foldkit-mixins-ui": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@effect/platform-browser": "^4.0.5",
+    "@foldkit/ui": "0.169.0",
+    "effect": "^4.0.5",
+    "foldkit": "0.169.0",
+    "foldkit-entity": "workspace:*",
+    "foldkit-media": "workspace:*",
+    "foldkit-mixins": "workspace:*",
+    "foldkit-mixins-form": "workspace:*",
+    "foldkit-mixins-ui": "workspace:*",
+    "jsdom": "30.1.3",
+    "tsdown": "^0.23.1",
+    "typescript": "7.0.2"
+  }
+}

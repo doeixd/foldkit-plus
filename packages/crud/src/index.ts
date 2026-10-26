@@ -8,7 +8,7 @@
  * ordinary Foldkit: a Bundle, an ActiveSurface, Update Steps. Nothing is
  * generated from an Entity alone; each capability is declared.
  */
-import { Match, Option, Schema } from 'effect'
+import { Effect, Match, Option, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import {
   Entity,
@@ -24,6 +24,7 @@ import {
 } from 'foldkit-entity'
 import { Form, Input, type FormControl, type Submitted } from 'foldkit-form'
 import { Display, type DisplayColumn } from './display.js'
+import { screen } from './screen.js'
 import {
   Refusal,
   RemoteData,
@@ -36,7 +37,8 @@ import {
   type RemoteMessage,
 } from 'foldkit-remote'
 import { Projection, type ActiveSurface, type ModelRef } from 'foldkit-surface'
-import type { Command } from 'foldkit/command'
+import { define as defineCommand, type Command } from 'foldkit/command'
+import * as Dom from 'foldkit/dom'
 import { defineMessageUnion } from 'foldkit/message'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import * as Submodel from 'foldkit/submodel'
@@ -232,10 +234,23 @@ const columnsOf = <Members>(
   })
 }
 
-const RemoverMessage = defineMessageUnion({ Confirmed: {}, Cancelled: {} })
+const RemoverMessage = defineMessageUnion({
+  Confirmed: {},
+  Cancelled: {},
+  /** Focus went back to what asked, after a no took the question away. */
+  CompletedFocus: {},
+})
 type RemoverMessage = typeof RemoverMessage.Type
 
 const idle: RemoverModel = { target: null, requestId: null }
+
+const FocusAsker = defineCommand('Crud.remover.Focus', {
+  args: { selector: Schema.String },
+  messages: [RemoverMessage.CompletedFocus],
+  // What asked may be gone by now, and nothing to focus is nothing to do.
+  execute: ({ selector }) =>
+    Dom.focus(selector).pipe(Effect.ignore, Effect.as(RemoverMessage.CompletedFocus())),
+})
 
 export const Crud = {
   /**
@@ -284,6 +299,13 @@ export const Crud = {
   }),
 
   /**
+   * A screen's Messages (`OpenedPost`, `CreatedPost`, `ClosedPost`,
+   * `AskedToRemovePost`) and an `update` that answers them through the editor's
+   * and the remover's placements, for a page that places both itself.
+   */
+  screen,
+
+  /**
    * Deleting through one mutation, with a yes in between: asked, confirmed,
    * deleted. What the mutation's input is for an id is `input`'s to say, and the
    * id it names there (`(id: PostId) => ...`) is the id `ask` takes.
@@ -308,6 +330,15 @@ export const Crud = {
            */
           readonly id: Key & (Input extends Readonly<Record<Key, string>> ? Key : never)
         },
+    options: {
+      /**
+       * Where focus goes after a no takes the question away: the selector of the
+       * button that asked (`'#delete'`), or one for the id asked about, for a
+       * list with a button per row (`id => '#delete-' + id`). Without it focus
+       * falls to the page.
+       */
+      readonly returnFocus?: string | ((id: string) => string) | undefined
+    } = {},
   ) => {
     type AskedId = [Key] extends [never] ? Id : Input[Key] & string
     const inputFor = (id: string): Input =>
@@ -320,9 +351,23 @@ export const Crud = {
       Message: RemoverMessage,
       init: () => ({ model: idle }),
       update: (model: RemoverModel, message: RemoverMessage) =>
-        message._tag === 'Cancelled' || model.target === null
-          ? { model: idle }
-          : { model, outMessage: { _tag: 'Confirmed', id: model.target } as ConfirmedRemoval },
+        RemoverMessage.match<
+          Update.ReturnWithOutMessage<RemoverModel, RemoverMessage, ConfirmedRemoval, never>
+        >(message, {
+          Cancelled: () => {
+            const { returnFocus } = options
+            // A no to no question took nothing away: focus stays where it is.
+            if (model.target === null || returnFocus === undefined) return { model: idle }
+            const selector =
+              typeof returnFocus === 'string' ? returnFocus : returnFocus(model.target)
+            return { model: idle, commands: [FocusAsker({ selector })] }
+          },
+          Confirmed: () =>
+            model.target === null
+              ? { model: idle }
+              : { model, outMessage: { _tag: 'Confirmed', id: model.target } as ConfirmedRemoval },
+          CompletedFocus: () => ({ model }),
+        }),
       helpers: {
         /** Asks whether to delete `id`. Nothing is deleted until `Confirmed`. */
         ask: (_: RemoverModel, id: AskedId) => ({ model: { target: id, requestId: null } }),
@@ -459,6 +504,12 @@ export const Crud = {
           more: (root: Root): Option.Option<Root> =>
             Option.flatMap(projectionOf(root), projection => data.more(root, projection)),
 
+          /** Whether the page read says more rows follow it: what a picker's "more" offers. */
+          hasMore: (root: Root): boolean => {
+            const read = page(root)
+            return (read._tag === 'Ready' || read._tag === 'Refreshing') && read.value.hasNext
+          },
+
           /**
            * Asks for the list again: `Data.refresh` over its page and rows, for a
            * retry button. A failed read is not retried on its own. Unchanged while
@@ -559,6 +610,8 @@ export const Crud = {
       readonly choices: (root: Root) => ReadonlyArray<Choice>
       readonly row: (id: string) => Projection<Root, RemoteData<any>>
       readonly choiceOf: (root: Root, id: string) => Choice | undefined
+      readonly more: (root: Root) => Option.Option<Root>
+      readonly hasMore: (root: Root) => boolean
     }>,
     options: { readonly chosen?: (root: Root) => FormModel | undefined } = {},
   ) => {
@@ -612,7 +665,23 @@ export const Crud = {
       throw new Error(
         'Crud.options: give it the lists its pickers pick from; with none, it has nothing to read',
       )
+    const listOf = new Map<string, (typeof lists)[number]>(pickers)
     return Object.assign(choices, {
+      /** For `FormView`'s `more`: the pickers whose list has more rows than it shows. */
+      more: (root: Root): { readonly [K in Key]?: boolean } =>
+        Object.fromEntries(
+          pickers.flatMap(([key, list]) => (list.hasMore(root) ? [[key, true]] : [])),
+        ) as { readonly [K in Key]?: boolean },
+      /**
+       * The page with one more page of `key`'s list, for the form's `AskedForMore`
+       * (`Crud.screen` answers it given these pickers); the page as it is for a key
+       * that is no picker here, or a list that shows every row.
+       */
+      ask: (root: Root, key: Key): Root =>
+        Option.getOrElse(
+          Option.flatMap(Option.fromNullishOr(listOf.get(key)), list => list.more(root)),
+          () => root,
+        ),
       /** For `Data.subscriptions`: what the pickers hold is read, so it can be named. */
       active: {
         name: `${pickers.map(([key]) => key).join('+')} chosen`,

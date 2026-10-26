@@ -10,7 +10,17 @@ import {
   type FieldInput,
   type FormViewInputs,
 } from '../src/index.js'
+import * as UiForm from '../src/ui.js'
+import { InputSlots, Recipes, SelectSlots } from 'foldkit-mixins-ui'
 import { Edit } from './fixture.js'
+
+const UiView = FormView.define(Edit, {
+  renderers: UiForm.renderers({
+    input: Style.forSlots(InputSlots)(Recipes.Input()),
+    select: Style.forSlots(SelectSlots)(Recipes.Select()),
+  }),
+})
+void UiView
 
 const Field = FormView.field(Edit).pipe(
   Style.attach(

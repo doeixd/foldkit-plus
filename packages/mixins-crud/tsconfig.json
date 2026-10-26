@@ -15,6 +15,9 @@
       "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-mixins": ["../mixins/src/index.ts"],
       "foldkit-mixins-crud": ["./src/index.ts"],
+      "foldkit-mixins-form": ["../mixins-form/src/index.ts"],
+      "foldkit-mixins-form/ui": ["../mixins-form/src/ui.ts"],
+      "foldkit-mixins-ui": ["../mixins-ui/src/index.ts"],
       "foldkit-mixins/app": ["../mixins/src/app.ts"],
       "foldkit-mixins/defaults": ["../mixins/src/defaults.ts"],
       "foldkit-mixins/foundations": ["../mixins/src/foundations.ts"],
@@ -54,6 +57,12 @@
     },
     {
       "path": "../surface/tsconfig.build.json"
+    },
+    {
+      "path": "../mixins-form/tsconfig.build.json"
+    },
+    {
+      "path": "../mixins-ui/tsconfig.build.json"
     }
   ]
 }

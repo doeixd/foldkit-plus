@@ -8,6 +8,7 @@ import { Effect, Equal, Match, Option, Schema, Stream } from 'effect'
 import { Message as BuilderMessage, Panel, Viewport } from 'foldkit-builder'
 import { Bundle, follow as followPending } from 'foldkit-bundle'
 import { Cms, EntryId } from 'foldkit-cms'
+import { renderers as recipeRenderers } from 'foldkit-form-recipes/html'
 import { Entity } from 'foldkit-entity'
 import { BuilderView, type BuilderViewInputs } from 'foldkit-mixins-builder'
 import { Style } from 'foldkit-mixins'
@@ -42,7 +43,7 @@ export const Editor = Cms.editor('PageEditor', { content: Pages, rest: '800 mill
 
 // The Builder is drawn with its own view, inside the page form.
 const PageFormView = FormView.define(PageForm, {
-  field: FormView.field(PageForm, { renderers: Cms.controlRenderers() }).pipe(
+  field: FormView.field(PageForm, { renderers: recipeRenderers() }).pipe(
     Style.attach(PageFieldStyle),
   ),
 }).pipe(Style.attach(PageFormStyle))

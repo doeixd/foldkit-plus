@@ -1163,6 +1163,16 @@ of its own named a form field "fits the Catalog". Read words with
 - **A check against a reference is only as good as the reference.** `print` accepts a styled
   text when it parses like the canonical text, and the canonical text merged two adjacent lists
   into one, so the check trusted a wrong answer. Read the reference itself back too.
+- **`toEqual` cannot tell two `File`s apart.** It reads own properties, and a
+  File's `name`, `size` and `type` are prototype getters, so a test that the
+  first of two dropped files was sent passed when the last was. Compare a File
+  by identity (`toBe`).
+- **`pnpm exec` and `npx` can run different Nodes, with different ICU.** Here
+  `npx` ran `/opt/node22` (ICU 77) and `pnpm exec`, which `pnpm mutate` uses, ran
+  pnpm's own Node 22.23 (ICU 78), where Swiss francs group with `'` rather than
+  `’`. A mutation of the apostrophe handling survived one and died in the other.
+  Code reading what `Intl` writes must take every spelling an ICU release uses,
+  and a test pinning `Intl` output should hold under both (`process.versions.icu`).
 - **A constant `mint` makes a refusal test pass for any reason.** A test that an
   `InsertText` with bad link props is refused used `mint: () => 'x'`; the insert
   split a run twice, `apply` refused the duplicate id, and the case stayed green
@@ -1214,7 +1224,10 @@ of its own named a form field "fits the Catalog". Read words with
   edit: "Dowel" became "l". A browser test caught it only some runs. When a
   key opens something that takes the keys after it, make the Message carry
   enough for `update` to continue what is open (`EditTyped` adds to an open
-  draft), since the view's own state may be a frame old.
+  draft), since the view's own state may be a frame old. When a key handler
+  must decide on what an input holds (Command's Backspace in an empty field),
+  let that drawing's own `OnInput` record the text in a cell the drawing
+  makes, and read the cell: both handlers belong to the same drawing.
 - **A synthetic event moves no focus.** `dispatchEvent(new MouseEvent('click'))`
   and a `keydown` sent to an element leave focus where it was, so a jsdom test
   of the Builder kept focus in the layers through a crumb click and a key on
@@ -1647,6 +1660,13 @@ of its own named a form field "fits the Catalog". Read words with
   take a debug line back out of a test, it also took the session's new tests
   in that file, which had to be written again. Copy the file aside (`cp`)
   before a temporary edit, and copy it back.
+- **A rebase- or squash-merged PR leaves its branch behind `main` in name only.**
+  GitHub's rebase merge writes every commit again under a new hash, so after
+  PR #189 the session branch held the old copies and restarting it from `main`
+  could only be pushed by force, which auto-mode refuses unless the user allows
+  it. Keep the history linear and let GitHub delete a branch when its PR
+  merges (Settings, General, "Automatically delete head branches"): restarting
+  it is then a plain push that recreates it.
 - **Flags go before `--`, and new files need `git add`.** `git commit --
   <paths> -m` parses `-m` as a pathspec and fails, and a pathspec commit skips
   untracked files, so a new module rode an `--amend` into the wrong commit.

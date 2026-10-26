@@ -21,7 +21,7 @@ export default [
     name: 'a locked many picker’s choices are editable',
     edits: [
       {
-        file,
+        file: '../src/renderers.ts',
         find: '...(input.locked === true ? [h.Disabled(true)] : []),\n            h.OnClick(',
         replace: 'h.OnClick(',
       },

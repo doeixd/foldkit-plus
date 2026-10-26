@@ -6,6 +6,8 @@
  * application styles and extends a generated form the way it does any other
  * SlotView, and the form stays free of a view dependency.
  */
+// `Option` is this package's own name, a picker's choice: Effect's goes by another here.
+import { Option as Maybe } from 'effect'
 import {
   Input,
   fillWords,
@@ -29,6 +31,7 @@ import {
 import * as FieldValidation from 'foldkit/fieldValidation'
 import type { Attribute, Html, HtmlBuilder } from 'foldkit/html'
 import * as Submodel from 'foldkit/submodel'
+import { plainRenderers } from './renderers.js'
 
 /** One thing a select or a relation picker offers. */
 export interface Option {
@@ -58,6 +61,18 @@ export interface FormViewWords {
   readonly checking?: string | undefined
   /** On the submit button while the form is submitting. Default `Submitting…`. */
   readonly submitting?: string | undefined
+  /** Above the list of fields to fix. Default `Check these fields:`. */
+  readonly summary?: string | undefined
+  /** One field to fix, a link to it. Default `{label}: {error}`. */
+  readonly issue?: string | undefined
+  /**
+   * A field of a row as the fields to fix name it, so two rows' links differ:
+   * `{row}` is the nested key's label, with the row's position when it holds
+   * many. Default `{row}, {label}`.
+   */
+  readonly inRow?: string | undefined
+  /** On the button under a picker whose list has more rows than it shows. Default `Show more`. */
+  readonly more?: string | undefined
 }
 
 /**
@@ -66,6 +81,13 @@ export interface FormViewWords {
  */
 export interface FormViewInputs<Key extends string = string> {
   readonly options?: { readonly [K in Key]?: ReadonlyArray<Option> } | undefined
+  /**
+   * The pickers whose list has more rows than `options` holds (`Crud.options`'
+   * `more`): each draws a button that sends the form's `AskedForMore`, for the
+   * page that owns the list to answer. Relation pickers of the form itself
+   * only, and none while locked.
+   */
+  readonly more?: { readonly [K in Key]?: boolean } | undefined
   /**
    * The choices of a picker inside a nested key, by its path, the same for every
    * row: `'author.country'`.
@@ -116,6 +138,10 @@ export interface FieldInput<Key extends string = string> {
   readonly noneWord?: string | undefined
   /** What is said while the key's check runs: the view's `words.checking`. */
   readonly checkingWord?: string | undefined
+  /** The Message a press of the picker's "more" button sends; none draws no button. */
+  readonly more?: unknown
+  /** On that button: the view's `words.more`. */
+  readonly moreWord?: string | undefined
   /**
    * Set for a field in a row of a nested key: its Messages, wrapped for the row.
    * A field of the form itself sends the form's own.
@@ -125,6 +151,7 @@ export interface FieldInput<Key extends string = string> {
         readonly changed: (value: Draft) => unknown
         readonly blurred: unknown
         readonly searched: (text: string) => unknown
+        readonly toggled: (choice?: string) => unknown
       }
     | undefined
   /**
@@ -207,6 +234,8 @@ export const FieldSlots = Slots.define({
   choiceLabel: Slot.make({ capability: Capability.Base }),
   /** Over a relation picker that searches: where the user types to find a choice. */
   search: Slot.make({ capability: Capability.TextInput, events: [Event.Input] }),
+  /** Under a relation picker whose list has more rows: asks for them. */
+  more: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
 })
 
 /** The form around its fields. */
@@ -214,6 +243,17 @@ export const FormSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container, events: [Event.Submit] }),
   /** Failures that belong to no one field: a rule that spans keys. */
   errors: Slot.make({ capability: Capability.Base }),
+  /**
+   * The fields to fix, while any is invalid: its words (`summaryTitle`), then a
+   * list (`issues`) of `issue`s, each holding an `issueLink` to one field's
+   * control. Beside `errors`, above the submit button.
+   */
+  summary: Slot.make({ capability: Capability.Container }),
+  summaryTitle: Slot.make({ capability: Capability.Base }),
+  issues: Slot.make({ capability: Capability.Collection }),
+  issue: Slot.make({ capability: Capability.Base }),
+  /** A link to one field's control, which a press focuses. */
+  issueLink: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
   submit: Slot.make({
     capability: Capability.Interactive,
     events: [Event.Click],
@@ -247,7 +287,10 @@ interface FormLike<Key extends string, Model, Message> {
     readonly Changed: (payload: { readonly key: Key; readonly value: Draft }) => NoInfer<Message>
     readonly Blurred: (payload: { readonly key: Key }) => NoInfer<Message>
     readonly Searched: (payload: { readonly key: Key; readonly text: string }) => NoInfer<Message>
+    readonly Toggled: (payload: { readonly key: Key; readonly choice?: string }) => NoInfer<Message>
     readonly Submitted: () => NoInfer<Message>
+    readonly FollowedIssue: (payload: { readonly id: string }) => NoInfer<Message>
+    readonly AskedForMore: (payload: { readonly key: Key }) => NoInfer<Message>
     readonly Control: (payload: {
       readonly key: never
       readonly message: unknown
@@ -337,6 +380,13 @@ export interface RenderContext<Message> {
   readonly control: Control
   readonly draft: Draft
   readonly change: (value: Draft) => Message
+  /**
+   * A press on a flag (no `choice`) or on one choice of a list, applied to the
+   * draft as it stands when it lands: send it for a press, rather than a
+   * `change` built from the draft as drawn, which a second press before the
+   * next draw would undo.
+   */
+  readonly toggled: (choice?: string) => Message
   readonly blurred: Message
   /**
    * For a control backed by a Bundle: its Model, and the Message carrying one of
@@ -374,211 +424,34 @@ const bundleRenderer =
       throw new Error(
         `FormView: the "${control.kind}" control ("${input.control.key}") has no view; pass a renderer under "renderers"`,
       )
-    return h.div(slots.control.attrs(state.filter(attribute => attribute._tag !== 'Name')), [
-      h.submodel(
-        bundle.viewInputs === undefined
-          ? { slotId: input.id, model: bundle.model, view, toParentMessage: bundle.send }
-          : // A Bundle's view takes the inputs its application gives it in `controls`,
-            // whose type the form cannot know. A view given inputs is called with them.
-            ({
-              slotId: input.id,
-              model: bundle.model,
-              view,
-              toParentMessage: bundle.send,
-              viewInputs: bundle.viewInputs,
-            } as Parameters<typeof h.submodel>[0]),
-      ),
-    ])
+    // The label's `for` names this div, which labels nothing: as a group named by
+    // the label, the controls the Bundle draws inside are announced under it.
+    return h.div(
+      slots.control.attrs([
+        ...state.filter(attribute => attribute._tag !== 'Name'),
+        h.Role('group'),
+        h.AriaLabelledBy(`${input.id}-label`),
+      ]),
+      [
+        h.submodel(
+          bundle.viewInputs === undefined
+            ? { slotId: input.id, model: bundle.model, view, toParentMessage: bundle.send }
+            : // A Bundle's view takes the inputs its application gives it in `controls`,
+              // whose type the form cannot know. A view given inputs is called with them.
+              ({
+                slotId: input.id,
+                model: bundle.model,
+                view,
+                toParentMessage: bundle.send,
+                viewInputs: bundle.viewInputs,
+              } as Parameters<typeof h.submodel>[0]),
+        ),
+      ],
+    )
   }
 
 /** Renderers by the `kind` of control they draw. */
 export type Renderers<Message> = Readonly<Record<string, Renderer<Message>>>
-
-/**
- * The choices, and after them each chosen value they lack, as `? value`: a
- * stored id whose row is gone, or a value the choices have not loaded yet,
- * stays shown and can be let go, rather than dropped from sight.
- */
-const withChosen = (
-  options: ReadonlyArray<Option>,
-  chosen: ReadonlyArray<string>,
-): ReadonlyArray<Option> => {
-  const known = new Set(options.map(option => option.value))
-  return [
-    ...options,
-    ...chosen
-      .filter(value => value !== '' && !known.has(value))
-      .map(value => ({ value, label: `? ${value}` })),
-  ]
-}
-
-/**
- * The renderers this package ships, by kind. They are entries like any other: an
- * application adds `Date`, or replaces `RelationOne` with a combobox, by passing
- * its own beside them.
- */
-const defaultRenderers = <Message>(): Renderers<Message> => {
-  const typed = ({ state, draft, change, blurred, h }: RenderContext<Message>) => [
-    ...state,
-    h.Value(String(draft)),
-    h.OnInput(change),
-    h.OnBlur(blurred),
-  ]
-  // A blank option whenever nothing is chosen, required or not: without one the
-  // browser shows its first option as chosen while the draft is still empty.
-  const pick = (
-    { state, draft, change, blurred, input, slots, h }: RenderContext<Message>,
-    options: ReadonlyArray<Option>,
-    blank: boolean,
-  ): Html =>
-    h.select(slots.select.attrs([...state, h.OnChange(change), h.OnBlur(blurred)]), [
-      ...(blank || draft === ''
-        ? [
-            h.option(slots.option.attrs([h.Value(''), h.Selected(draft === '')]), [
-              input.noneWord ?? '',
-            ]),
-          ]
-        : []),
-      ...withChosen(options, typeof draft === 'string' ? [draft] : []).map(option =>
-        h.option(slots.option.attrs([h.Value(option.value), h.Selected(draft === option.value)]), [
-          option.label,
-        ]),
-      ),
-    ])
-  /** What a phone's keyboard and the browser's autofill should offer, from the key's attrs. */
-  const keyboard = <M>({
-    attrs,
-    h,
-  }: {
-    readonly attrs: FieldAttrs
-    readonly h: HtmlBuilder<M>
-  }) => {
-    const literal = attrs.type !== undefined && LITERAL_TYPES.has(attrs.type)
-    const capitalize = attrs.autocapitalize ?? (literal ? 'none' : undefined)
-    const spellcheck = attrs.spellcheck ?? (literal ? false : undefined)
-    return [
-      ...(attrs.autocomplete === undefined
-        ? []
-        : [h.Attribute('autocomplete', attrs.autocomplete)]),
-      ...(attrs.enterKeyHint === undefined
-        ? []
-        : [h.Attribute('enterkeyhint', attrs.enterKeyHint)]),
-      ...(capitalize === undefined ? [] : [h.Attribute('autocapitalize', capitalize)]),
-      ...(spellcheck === undefined ? [] : [h.Attribute('spellcheck', String(spellcheck))]),
-    ]
-  }
-  return {
-    [Input.Text.kind]: context =>
-      context.h.input(
-        context.slots.text.attrs([
-          ...typed(context),
-          ...keyboard(context),
-          ...(context.attrs.inputMode === undefined
-            ? []
-            : [context.h.InputMode(context.attrs.inputMode)]),
-          context.h.Type(context.attrs.type ?? 'text'),
-          ...(context.attrs.placeholder === undefined
-            ? []
-            : [context.h.Placeholder(context.attrs.placeholder)]),
-        ]),
-      ),
-    [Input.Multiline.kind]: context =>
-      // A textarea's attributes exclude `InnerHTML`, which a slot's type admits
-      // and no mixin can supply, so the narrowing loses nothing.
-      context.h.textarea(
-        context.slots.multiline.attrs([
-          ...typed(context),
-          ...keyboard(context),
-          ...(context.attrs.placeholder === undefined
-            ? []
-            : [context.h.Placeholder(context.attrs.placeholder)]),
-          ...(context.attrs.rows === undefined
-            ? []
-            : [context.h.Attribute('rows', String(context.attrs.rows))]),
-        ]) as Parameters<typeof context.h.textarea>[0],
-      ),
-    // A number is a text input because its draft is text: `"4."` is a fine thing to
-    // have typed, and `type="number"` would refuse to report it.
-    [Input.Number.kind]: context =>
-      context.h.input(
-        context.slots.number.attrs([
-          ...typed(context),
-          ...keyboard(context),
-          context.h.Type('text'),
-          // `decimal` has no minus on iOS: a field that takes negatives says `text`, and one of
-          // whole numbers `numeric`.
-          context.h.InputMode(context.attrs.inputMode ?? 'decimal'),
-          ...(context.attrs.placeholder === undefined
-            ? []
-            : [context.h.Placeholder(context.attrs.placeholder)]),
-        ]),
-      ),
-    [Input.Toggle.kind]: ({ state, draft, change, blurred, slots, h }) =>
-      h.input(
-        slots.toggle.attrs([
-          ...state,
-          h.Type('checkbox'),
-          h.Checked(draft === true),
-          h.OnClick(change(draft !== true)),
-          h.OnBlur(blurred),
-        ]),
-      ),
-    [Input.Select.kind]: context =>
-      pick(
-        context,
-        (Input.Select.is(context.control) ? context.control.data.options : []).map(option => ({
-          value: String(option),
-          label: String(option),
-        })),
-        !context.input.control.required,
-      ),
-    [Input.RelationOne.kind]: context => pick(context, context.input.options, true),
-    // A key of any number of choices, whether the options come from the schema
-    // (`Choices`) or from the application's own list (`RelationMany`).
-    [Input.Choices.kind]: context =>
-      choiceGroup(
-        context,
-        (Input.Choices.is(context.control) ? context.control.data.options : []).map(option => ({
-          value: String(option),
-          label: String(option),
-        })),
-      ),
-    [Input.RelationMany.kind]: context => choiceGroup(context, context.input.options),
-  }
-}
-
-/** A key of any number of choices: each one a checkbox in its own label. */
-const choiceGroup = <Message>(
-  { input, draft, change, slots, h }: RenderContext<Message>,
-  options: ReadonlyArray<Option>,
-): Html => {
-  const chosen = Array.isArray(draft) ? (draft as ReadonlyArray<string>) : []
-  const isChosen = new Set(chosen)
-  return h.div(
-    slots.choices.attrs([h.Id(input.id), h.Role('group'), h.AriaLabel(input.control.label)]),
-    withChosen(options, chosen).map(option =>
-      h.label(slots.choiceLabel.attrs(), [
-        h.input(
-          slots.choice.attrs([
-            h.Type('checkbox'),
-            h.Name(input.control.key),
-            h.Value(option.value),
-            h.Checked(isChosen.has(option.value)),
-            ...(input.locked === true ? [h.Disabled(true)] : []),
-            h.OnClick(
-              change(
-                isChosen.has(option.value)
-                  ? chosen.filter(value => value !== option.value)
-                  : [...chosen, option.value],
-              ),
-            ),
-          ]),
-        ),
-        option.label,
-      ]),
-    ),
-  )
-}
 
 /**
  * What a per-key override receives: everything to draw the control, and the
@@ -592,6 +465,11 @@ export interface FieldOverrideInput<Key extends string = string, Changed = unkno
   readonly invalid: boolean
   readonly errors: ReadonlyArray<string>
   readonly changed: (value: Draft) => Changed
+  /**
+   * A press on a flag (no `choice`) or one choice, applied to the draft as it
+   * lands: send it for a press, so two before the next draw both count.
+   */
+  readonly toggled: (choice?: string) => Changed
   readonly blurred: Changed
   /** What the key's element takes beyond the base field view. */
   readonly attrs: FieldAttrs
@@ -629,9 +507,6 @@ export interface FieldAttrs {
   /** Off by default for an `email`, `tel` or `url` type, where a correction is a wrong address. */
   readonly spellcheck?: boolean | undefined
 }
-
-/** Types whose text is an address or a number, which a keyboard must not capitalize or correct. */
-const LITERAL_TYPES: ReadonlySet<string> = new Set(['email', 'tel', 'url'])
 
 /**
  * Per-key overrides for `FormView.fields`. `overrides` draw through the
@@ -692,6 +567,18 @@ const changedOf =
   value =>
     (send === undefined ? form.Message.Changed({ key, value }) : send.changed(value)) as Message
 
+/** The press Message of one key, through its row's send or the form's own. */
+const toggledOf =
+  <Key extends string, Model, Message>(
+    form: FormLike<Key, Model, Message>,
+    key: Key,
+    send: FieldInput<Key>['send'],
+  ): ((choice?: string) => Message) =>
+  choice =>
+    (send === undefined
+      ? form.Message.Toggled(choice === undefined ? { key } : { key, choice })
+      : send.toggled(choice)) as Message
+
 /** The blur Message of one key, through its row's send or the form's own. */
 const blurredOf = <Key extends string, Model, Message>(
   form: FormLike<Key, Model, Message>,
@@ -709,7 +596,7 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
     readonly attrs?: { readonly [K in Key]?: FieldAttrs }
   } = {},
 ): FieldView<Key, Message> => {
-  const renderers: Renderers<Message> = { ...defaultRenderers<Message>(), ...options.renderers }
+  const renderers: Renderers<Message> = { ...plainRenderers<Message>(), ...options.renderers }
   return SlotView.forMessages<Message>().define(
     FieldSlots,
     (input: FieldInput<Key>, slots, h) => {
@@ -719,14 +606,18 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
       const { send } = input
       const change = changedOf(form, key, send)
       const blurred = blurredOf(form, key, send)
+      const toggled = toggledOf(form, key, send)
       const searched = (text: string): Message =>
         send === undefined ? form.Message.Searched({ key, text }) : (send.searched(text) as Message)
       const searches = control.control.searches
       // A check is running: the control is neither valid nor invalid yet.
       const checking = input.field._tag === 'Validating'
+      // A Bundle's control says its own state (an upload's "Sending"), so the
+      // field adds no second live line for it; it is still marked busy.
+      const saysChecking = checking && input.bundle === undefined
       const describedBy = [
         ...(description === undefined ? [] : [`${id}-description`]),
-        ...(checking ? [`${id}-checking`] : []),
+        ...(saysChecking ? [`${id}-checking`] : []),
         ...(invalid ? [`${id}-error`] : []),
       ]
       const state = [
@@ -761,6 +652,7 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
         control: control.control,
         draft,
         change,
+        toggled,
         blurred,
         bundle,
         state,
@@ -771,7 +663,7 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
 
       // The field's state by Foldkit's own tag, for a stylesheet: `[data-validation='Valid']`.
       return h.div(slots.root.attrs([h.DataAttribute('validation', input.field._tag)]), [
-        h.label(slots.label.attrs([h.For(id)]), [label]),
+        h.label(slots.label.attrs([h.Id(`${id}-label`), h.For(id)]), [label]),
         // Typing here changes which choices the picker below is offered.
         ...(searches
           ? [
@@ -788,6 +680,18 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
             ]
           : []),
         body,
+        ...(input.more === undefined
+          ? []
+          : [
+              h.button(
+                slots.more.attrs([
+                  h.Type('button'),
+                  h.AriaControls(id),
+                  h.OnClick(input.more as Message),
+                ]),
+                [input.moreWord ?? 'Show more'],
+              ),
+            ]),
         // A disabled control is left out of a post, so a locked key's value goes
         // as hidden inputs: a form posted with scripts off still carries it.
         // Attributes, not properties, so a server's markup holds them.
@@ -803,7 +707,7 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
         ...(description === undefined
           ? []
           : [h.p(slots.description.attrs([h.Id(`${id}-description`)]), [description])]),
-        ...(checking
+        ...(saysChecking
           ? [
               h.p(slots.checking.attrs([h.Id(`${id}-checking`), h.Role('status')]), [
                 input.checkingWord ?? 'Checking…',
@@ -819,9 +723,25 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
   )
 }
 
-/** What a draft posts as: its text, each of its values, or nothing for a control's own Model. */
+/**
+ * The control drawn with this id, or the first one inside it, such as a choice
+ * group's first box. The id is quoted, since it may hold what a selector reads
+ * as syntax.
+ */
+const controlAt = (id: string): string => {
+  const at = `[id=${JSON.stringify(id)}]`
+  const control = ':is(input, select, textarea, button)'
+  return `${at}${control}, ${at} ${control}`
+}
+
+/**
+ * What a draft posts as: its text, each of its values, `on` for a checked box
+ * (a checkbox's own default), or nothing for an unchecked one or a control's
+ * own Model.
+ */
 const posted = (draft: unknown): ReadonlyArray<string> => {
   if (typeof draft === 'string') return [draft]
+  if (typeof draft === 'boolean') return draft ? ['on'] : []
   return Array.isArray(draft) ? draft.map(String) : []
 }
 
@@ -854,9 +774,23 @@ export const FormView = {
         }
         const controls: Readonly<Record<string, unknown>> = input.controls ?? {}
         const locked: ReadonlySet<string> = new Set(input.locked ?? [])
+        const more: Readonly<Record<string, boolean | undefined>> = input.more ?? {}
+
+        // Each invalid field, in the order drawn, for the summary.
+        const issues: Array<{
+          readonly id: string
+          readonly label: string
+          readonly error: string
+        }> = []
 
         /** The controls of a form or of a row. `id` and `path` say where: both are empty for the form itself. */
-        const draw = (walk: Walk<Message>, id: string, path: string): ReadonlyArray<Html> =>
+        /** `within` names the row being drawn, for its issues; none for the form itself. */
+        const draw = (
+          walk: Walk<Message>,
+          id: string,
+          path: string,
+          within: Maybe.Option<string> = Maybe.none(),
+        ): ReadonlyArray<Html> =>
           walk.controls
             .filter(control => control.control.shown)
             .map((control): Html => {
@@ -866,6 +800,16 @@ export const FormView = {
                 const bundled = Input.isBundle(control.control)
                 const held = bundled ? walk.controlField(key) : walk.field(key)
                 const state = bundled ? withoutDraft(held) : (held as FieldValidation.Field<Draft>)
+                if (FieldValidation.isInvalid(state))
+                  issues.push({
+                    id: here,
+                    label: Maybe.match(within, {
+                      onNone: () => label,
+                      onSome: named =>
+                        fillWords(input.words?.inRow ?? '{row}, {label}', { row: named, label }),
+                    }),
+                    error: errorsOf(state).join(' '),
+                  })
                 return fieldView(
                   {
                     control: control as FormControl<Key>,
@@ -887,23 +831,53 @@ export const FormView = {
                     searchWord: input.words?.search,
                     noneWord: input.words?.none,
                     checkingWord: input.words?.checking,
+                    // Only the form's own pickers, and only while they can be used: a
+                    // row's are named by path, and a locked key takes no choice.
+                    more:
+                      path === '' &&
+                      more[key] === true &&
+                      !locked.has(key) &&
+                      (Input.RelationOne.is(control.control) ||
+                        Input.RelationMany.is(control.control))
+                        ? form.Message.AskedForMore({ key: key as Key })
+                        : undefined,
+                    moreWord: input.words?.more,
                     send: {
                       changed: value => walk.wrap((walk.make.Changed as Make)({ key, value })),
                       blurred: walk.wrap((walk.make.Blurred as Make)({ key })),
                       searched: text => walk.wrap((walk.make.Searched as Make)({ key, text })),
+                      toggled: choice =>
+                        walk.wrap(
+                          (walk.make.Toggled as Make)(
+                            choice === undefined ? { key } : { key, choice },
+                          ),
+                        ),
                     },
                   },
                   h,
                 )
               }
               const { form: nested, cardinality, optional } = control.control.data
+              const rowName = (index: number) =>
+                cardinality === 'many' ? `${label} ${index + 1}` : label
               const rows = walk.rows(key)
               const addLabel = fillWords(input.words?.add ?? 'Add {label}', { label })
               return h.fieldset(slots.group.attrs([h.Id(here)]), [
                 h.legend(slots.legend.attrs(), [label]),
                 ...rows.map((row, index) =>
                   h.div(slots.row.attrs([h.Id(`${here}-${row.id}`)]), [
-                    ...draw(rowWalk(walk, key, row, nested), `${here}-${row.id}`, `${path}${key}.`),
+                    ...draw(
+                      rowWalk(walk, key, row, nested),
+                      `${here}-${row.id}`,
+                      `${path}${key}.`,
+                      // Named through every row it is in: `authors 1, books 2`.
+                      Maybe.some(
+                        Maybe.match(within, {
+                          onNone: () => rowName(index),
+                          onSome: outer => `${outer}, ${rowName(index)}`,
+                        }),
+                      ),
+                    ),
                     // A row that must be there has no way out.
                     ...(optional
                       ? [
@@ -951,13 +925,50 @@ export const FormView = {
           make: form.Message as unknown as NestedForm['Message'],
         }
         const submitting = input.submitting === true
+        const fields = draw(top, form.bundle.name, '')
         return h.form(
           slots.root.attrs([
             h.OnSubmit(form.Message.Submitted()),
             ...(submitting ? [h.AriaBusy(true), h.DataAttribute('submitting', '')] : []),
           ]),
           [
-            ...draw(top, form.bundle.name, ''),
+            ...fields,
+            ...(issues.length === 0
+              ? []
+              : [
+                  // No id of its own: a key named `summary` would hold it already.
+                  h.div(slots.summary.attrs(), [
+                    h.p(slots.summaryTitle.attrs(), [
+                      input.words?.summary ?? 'Check these fields:',
+                    ]),
+                    h.ul(
+                      slots.issues.attrs(),
+                      issues.map(issue =>
+                        h.li(slots.issue.attrs(), [
+                          // A link, so with scripts off it still goes to the field.
+                          // With them on, the press focuses the control itself and
+                          // goes nowhere, since an application takes a link as a
+                          // navigation.
+                          h.a(
+                            slots.issueLink.attrs([
+                              h.Href(`#${issue.id}`),
+                              h.OnClick(form.Message.FollowedIssue({ id: issue.id }), {
+                                defaultAction: 'Prevent',
+                                focusSelector: controlAt(issue.id),
+                              }),
+                            ]),
+                            [
+                              fillWords(input.words?.issue ?? '{label}: {error}', {
+                                label: issue.label,
+                                error: issue.error,
+                              }),
+                            ],
+                          ),
+                        ]),
+                      ),
+                    ),
+                  ]),
+                ]),
             ...(input.errors.length === 0
               ? []
               : [h.p(slots.errors.attrs([h.Role('alert')]), [...input.errors])]),
@@ -1035,6 +1046,7 @@ export const FormView = {
           invalid: input.invalid,
           errors: input.errors,
           changed: changedOf(form, input.control.key, input.send),
+          toggled: toggledOf(form, input.control.key, input.send),
           blurred: blurredOf(form, input.control.key, input.send),
           attrs: options.attrs?.[input.control.key] ?? {},
         },
@@ -1066,6 +1078,7 @@ export const FormView = {
               invalid: FieldValidation.isInvalid(state),
               errors: errorsOf(state),
               changed: value => form.Message.Changed({ key: control.key, value }),
+              toggled: toggledOf(form, control.key, undefined),
               blurred: form.Message.Blurred({ key: control.key }),
               attrs: options.attrs?.[control.key] ?? {},
             },

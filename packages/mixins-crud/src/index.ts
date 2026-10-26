@@ -568,3 +568,17 @@ export const RowListView = {
    */
   forMessages: rowList,
 }
+
+export {
+  ConfirmSlots,
+  ConfirmView,
+  EditorSlots,
+  EditorView,
+  Toolbar,
+  ToolbarSlots,
+  type ConfirmInput,
+  type ConfirmWords,
+  type EditorInput,
+  type EditorWords,
+  type ToolbarInput,
+} from './editor.js'

@@ -228,3 +228,23 @@ describe('Crud.detail', () => {
     ])
   })
 })
+
+describe('where focus goes after a no', () => {
+  const answer = (returnFocus: string | ((id: string) => string), asked: boolean) => {
+    const remover = Crud.remover(
+      'Focused',
+      { mutation: DeletePost, input: id => ({ postId: id }) },
+      { returnFocus },
+    )
+    const model = { target: asked ? 'p1' : null, requestId: null }
+    const out = remover.bundle.update(model, remover.Message.Cancelled(), undefined)
+    return (out.commands ?? []).map(command => command.args)
+  }
+  it('goes to the selector given, or to the one for the id asked about', () => {
+    expect(answer('#delete', true)).toEqual([{ selector: '#delete' }])
+    expect(answer(id => `#delete-${id}`, true)).toEqual([{ selector: '#delete-p1' }])
+  })
+  it('stays put for a no to no question', () => {
+    expect(answer('#delete', false)).toEqual([])
+  })
+})

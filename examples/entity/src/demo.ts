@@ -175,10 +175,22 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     model = PostEditor.sync(fetched).model
     // Nothing here says what to load or how to fill: both follow from the form's input.
     lines.push(`filled: ${describeForm(model)}; status ${PostEditor.status(model)}`)
-    const choices = pickers(model).editorId ?? []
+    const editorChoices = (root: Model) =>
+      (pickers(root).editorId ?? []).map(choice => `${choice.value} ${choice.label}`).join(', ')
+    // The author list's first page holds one author, and says another follows.
     lines.push(
-      `editor choices: ${choices.map(choice => `${choice.value} ${choice.label}`).join(', ')}`,
+      `editor choices: ${editorChoices(model)}; more ${pickers.more(model).editorId === true}`,
     )
+    // The picker's "more" button sends the form's `AskedForMore`, which the screen
+    // answers with this; the list's read fetches the page it now shows.
+    const asked = pickers.ask(model, 'editorId')
+    model = await Effect.runPromise(
+      Data.prefetch(asked, Option.getOrThrow(Authors.active.projectionOf(asked))).pipe(
+        Effect.provide(client),
+      ),
+    )
+    lines.push(`after more: ${editorChoices(model)}; more ${pickers.more(model).editorId === true}`)
+    const choices = pickers(model).editorId ?? []
 
     // Clearing the title fails the input's own schema, so the submit goes nowhere.
     model = await form(EditPostForm.Message.Changed({ key: 'title', value: '' }))(model)
@@ -208,7 +220,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     // --- Deleting ---
     const remover = (message: typeof RemoverMessage.Type) => (root: Model) =>
       dispatch(root, Message.GotRemovePostMessage({ message }))
-    model = await dispatch(model, Message.AskedToDeletePost({ id: PostId.make('p1') }))
+    model = await dispatch(model, Message.AskedToRemovePost({ id: PostId.make('p1') }))
     lines.push(
       `asked to delete p1: ${PostRemover.status(model)}; rows ${backend.count('posts')} posts, ${backend.count('comments')} comments`,
     )

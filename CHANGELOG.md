@@ -5,28 +5,114 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
-## Unreleased
+## 0.34.0
 
-### Fixed
+Fields from a schema, and operators an application defines. `foldkit-form-recipes`
+is new: dates, times, money, decimals, percentages, text-shaped keys and an image
+uploaded where it is chosen, each a control, a display and a renderer.
+`UiForm.renderers` draws every form control through `foldkit-mixins-ui`, a form
+lists the fields to fix above its submit button, and `Crud.screen` composes an
+editor, a list and a delete question into one page with `EditorView`,
+`ConfirmView` and `Toolbar`. `examples/fields` shows every recipe in a real form.
+`Expr.operator` names an operator by an expression, and primitive operators run
+by a table in memory and in SQL, through to ordering and paging by a call; an
+operator's laws are checked by `Conformance.laws`.
 
-- **An integer field is no longer incremented by an amount that may be a
-  fraction.** `Write.update` accepted `increment: { count: 'by' }` for a
-  `count` declared `Schema.Int` (or any check holding `Schema.isInt`, such as
-  `isInt32`) and a `by` declared `Schema.Number`. A fractional amount then split
-  the databases: Postgres refused the statement, and SQLite stored `2.5` in the
-  integer column, a value the field's schema does not admit. Such a write is now
-  refused where it is declared, naming both keys; declare the amount
-  `Schema.Int`.
-- **Nor is an integer column, whatever its field says.** A field declared
-  `Schema.Number` over an `integer` column (SQLite `integer`; Postgres
-  `integer`, `smallint`, `bigint` read as a number) took a fractional amount the
-  same way. `foldkit-remote-drizzle`'s `writer` now refuses such an increment
-  where `RemoteServer.write` registers it, so a server with one does not start;
-  give the amount `Schema.Int`. A `real` or `double precision` column takes any
-  amount. Every increment in the examples and guides now declares its amount
-  `Schema.Int`.
+Breaking: `foldkit-cms`'s slug and moment controls moved to `foldkit-form-recipes`;
+a Drizzle order term is `{ key, … }`, not `{ column, … }`; `Query.unsupported`,
+`Condition.holds` and `Dependencies` changed shape for operators (see Changed).
+New: `foldkit-form-recipes` 0.1.0. New minors: `foldkit-entity` 0.12.0,
+`foldkit-remote` 0.20.0, `foldkit-remote-server` 0.17.0, `foldkit-remote-drizzle`
+0.14.0, `foldkit-guard` 0.5.0, `foldkit-form` 0.8.0, `foldkit-mixins-form` 0.9.0,
+`foldkit-crud` 0.10.0, `foldkit-mixins-crud` 0.8.0, `foldkit-media` 0.3.0 and
+`foldkit-cms` 0.8.0. Fixed: `foldkit-mixins-ui` 0.20.2, `foldkit-cms-drizzle`
+0.6.16 and `foldkit-mixins-builder` 0.3.15. Republished for the new versions they
+depend on: `foldkit-auth` 0.1.4, `foldkit-builder` 0.3.13, `foldkit-composition`
+0.3.11, `foldkit-data-grid` 0.3.1, `foldkit-mixins-data-grid` 0.2.14,
+`foldkit-mixins-richtext` 0.5.6, `foldkit-richtext` 0.5.2, `foldkit-richtext-code`
+0.2.4, `foldkit-richtext-code-shiki` 0.2.4, `foldkit-richtext-dom` 0.6.5,
+`foldkit-richtext-markdown` 0.3.3 and `foldkit-sync` 0.12.3. `foldkit-plus` is
+0.16.0.
 
 ### Added
+
+- **`foldkit-crud`: `Crud.remover(name, config, { returnFocus })`.** A no takes
+  the delete question and its buttons away; with `returnFocus`, the selector of
+  what asked, focus goes back there rather than to the page. `examples/entity`
+  returns it to its Delete button.
+
+- **`foldkit-form`: `Input.bundle`'s `busy`.** A control with work its value
+  waits on (an upload) says so, and a submit made meanwhile waits for it as for a
+  check: the key reads `Validating`, the submit goes out when the work lands with
+  a value, and the key is validated when it ends without one.
+  `foldkit-form-recipes/image` is busy while it sends.
+
+- **`foldkit-crud`: `Crud.screen(name, { id })`.** A page's four editor Messages,
+  named after the screen (`OpenedPost({ id })`, `CreatedPost()`, `ClosedPost()`,
+  `AskedToRemovePost({ id })`), and an `update` that answers them through the
+  editor's and the remover's placements and runs the editor's sync after every
+  Message. It places nothing and holds no state. Given `pickers`, it also answers
+  a picker's `AskedForMore`.
+- **A relation picker asks for more.** `foldkit-crud`'s `Crud.options` gains
+  `more(model)` (the pickers whose list has another page) and `ask(model, key)`
+  (the page with one more page of that list), and a list gains `hasMore(model)`.
+  `foldkit-mixins-form`'s view input `more` draws a "Show more" button under each
+  such picker (`FieldSlots.more`, `words.more`), which sends `foldkit-form`'s new
+  `AskedForMore({ key })`; the form changes nothing for it, and the page that
+  owns the list answers.
+- **`foldkit-mixins-crud`: `EditorView`, `ConfirmView` and `Toolbar`.** `EditorView`
+  draws what a `Crud.editor` says around its form in each status (busy while
+  loading or saving, a failed save as an alert that keeps the form, a conflict,
+  a row moved on) with its title and a close button; `ConfirmView` asks
+  `Delete {name}?` before a `Crud.remover` deletes, and cannot confirm without a
+  name; `Toolbar` holds a list's search, filters, order and actions in slots. Each
+  is given its state and Messages and owns neither; in a dialog, focus is the
+  Dialog's.
+- **`foldkit-form-recipes` 0.1.0, its first release: field recipes for
+  `foldkit-form`.** A recipe is a control and a display made from the same
+  options. `FieldRecipes.date()` edits a `CalendarDate` as `YYYY-MM-DD`;
+  `FieldRecipes.dateTime({ stored })` keeps either the wall-clock text a
+  `datetime-local` writes (`'local'`) or an ISO instant read and shown in an
+  explicit IANA `zone` (`'instant'`), refusing a time the clocks skip and taking
+  the earlier of one they repeat. `email`, `url` (a scheme allowlist, so no
+  `javascript:`), `tel`, `password` (named for the password manager, hidden in a
+  list) and `slug` (following another key until written) keep what was typed.
+  `money` (in exact minor units or decimal text, with the currency's own
+  decimals), `decimal` and `percent` read and show an amount as the locale writes
+  it, refusing grouping other than the locale's, more decimals than the scale and
+  a minus unless asked for, rather than guessing.
+  `foldkit-form-recipes/html` draws each as a native input with the type, the
+  autofill and the keyboard its key wants, and `foldkit-form-recipes/ui` draws the
+  same inputs under `foldkit-mixins-ui`'s Input Slot. `foldkit-form-recipes/image`'s
+  `image({ id, ... })` is a key holding the `HashedAsset` that `foldkit-media`'s
+  upload route keeps: a Bundle control that sends a chosen file at once, shows
+  its progress with Cancel (which aborts the request), and a refusal's reason
+  with Try again; only a kept image is a value. `foldkit-plus` re-exports
+  the four entries as `foldkit-plus/form-recipes`, `/form-recipes/html`,
+  `/form-recipes/image` and `/form-recipes/ui`.
+- **`foldkit-mixins-form/ui`: `UiForm.renderers(styles?)`, a renderer for every
+  kind `foldkit-form` ships,** for `FormView.define(form, { renderers })`. Text,
+  Number, Multiline and the selects are the plain elements under
+  `foldkit-mixins-ui`'s Input, Textarea and Select Slots; Toggle, Choices and
+  RelationMany are its Checkbox's `role="checkbox"` buttons, with a hidden input
+  in each checked one so a post without scripts still carries the value. The
+  field around each control, its name, id and accessibility state are the plain
+  path's, and the same interaction sends the same Messages.
+- **`foldkit-mixins-form`: the fields to fix.** While any field is invalid, the
+  form view draws a `summary` above its submit button: `words.summary`, then a
+  link to each invalid field's control, rows' too, worded by `words.issue`
+  (`{label}: {error}`). A link's `href` is the control's `#id`, so it works
+  with scripts off; with them on, a press focuses the control (a choice
+  group's first box) without navigating, and sends **`foldkit-form`'s new
+  `FollowedIssue({ id })`**, which changes nothing.
+- **`foldkit-media/browser`: `upload(file, { url?, headers? })`,** a browser
+  client for `POST /_media/upload`: a `Stream` of `Progressed` and one
+  `Uploaded` with the facts, failing with `UploadFailed`, whose `reason`
+  names the route's refusal, `Network` or `Unexpected`. Interrupting it
+  aborts the request.
+- **`foldkit-mixins-form/ui`: `UiForm.field` takes the form view's `words`,** so
+  its checking line reads `words.checking` as the plain field does, rather
+  than a fixed `Checking…`.
 
 - **Operators defined by an expression: `Expr.operator`.** An application names
   a question once (`Expr.operator('acme.published', { input, output, definedAs })`)
@@ -109,6 +195,22 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`foldkit-form-recipes`' kinds and displays are named `FieldRecipes.Date`,
+  `FieldRecipes.Money`, …**, so an application's own `Date` kind no longer meets
+  a recipe's renderer. The image's default `sending` words are `Sending {name}`.
+- **A control backed by a Bundle is drawn in a `role="group"` named by its
+  field's label**, which now has an id (`{id}-label`).
+- **Breaking: `foldkit-cms`'s slug and moment controls are `foldkit-form-recipes`'.**
+  `Cms.slug`, `Cms.slugify`, `Cms.dateTime`, `Cms.Input` and `Cms.controlRenderers`
+  (with its `ControlContext` type) are removed: use `FieldRecipes.slug(from, {
+  prefix }).control`, `FieldRecipes.slugify`, `FieldRecipes.dateTime({ stored:
+  'instant', zone }).control`, `FieldRecipes.Kinds` and `foldkit-form-recipes/html`'s
+  `renderers()`. The kinds are now named `Slug` and `DateTime`, not `CmsSlug` and
+  `CmsDateTime`. A moment is read in the `zone` you name, where `Cms.dateTime()`
+  read it in the browser's own zone (and a server's, when rendered there); pass
+  `Intl.DateTimeFormat().resolvedOptions().timeZone` to keep that. A draft is no
+  longer rewritten as it is drawn: a stored instant becomes the zone's local text
+  when the form is filled.
 - **A Drizzle order term is `{ key, direction, nulls?, collation? }`**, where it
   was `{ column, … }`: `key` is a column or a Drizzle `SQL` expression, which
   says its own collation (one given beside it is refused). `cursorSelection`
@@ -130,6 +232,101 @@ version changed; `pnpm` skips versions already in the registry.
 - **`Dependencies` gains `operators`**, each operator a body calls, and Remote's
   `ExplainedDependencies` carries them as `{ id, version }`. A test comparing a
   whole `Dependencies` with `toEqual` adds `operators: []`.
+
+### Fixed
+
+- **A busy control in a row holds the submit.** A submit made while a row's
+  upload ran went out without waiting; it now waits as a top-level one does.
+  `Input.bundle` throws for `busy` without `settled`, which left a stored form
+  shown again waiting for good.
+- **A busy key that is already valid stays valid** when the form validates
+  every key, rather than reading `Validating`.
+- **A Bundle field draws no `Checking…` line** under its own busy control; it
+  keeps `aria-busy`.
+- **A field override is given `toggled`** beside `changed` and `blurred`.
+- **A row inside a row is named through both** in the fields to fix.
+- **`Crud.remover`'s `returnFocus` may be a function of the id**, and a no
+  with nothing asked moves no focus.
+- **The fields to fix name a row's field with its row** (`comments 2, body:
+  Required`, worded by the new `words.inRow`), so two rows' links no longer read
+  the same.
+
+- **`foldkit-form-recipes`' amounts read back what they show in every locale.**
+  A currency or a percentage can group and separate decimals otherwise than a
+  plain number (`de-AT`, `fr-CH`, Indian currencies), and rtl locales write bidi
+  marks; a filled amount there was refused. The symbols now come from the field's
+  own format, and the keyboard's `¥`, `'` and full-width digits read as the format's.
+  A space or a symbol inside an amount is refused, and a `decimal` or `percent` a
+  JavaScript number would round is refused rather than stored rounded, while one
+  it holds is taken at any scale (`0.1` at 17 decimals). Only full-width forms are
+  folded, so `10²` is refused rather than read as `102`, and an override or a
+  zero-width space in an amount is refused.
+- **A year under 100 is that year** in `date`, `dateTime` and their displays,
+  not 19xx.
+- **A recipe's bad option throws when it is made**: a scale that is no whole
+  number from 0 to 20, a currency code that is not three capital letters (any ISO
+  4217 code is taken, `XAU` and `CLF` too), a `url` scheme without its colon.
+  `email` refuses control and invisible characters; `slugify` writes `ß`, `ı`,
+  `æ`, `ø`, `ł`, `ħ`, `ə` as Latin letters; an instant is read only as ISO text,
+  and one past year 9999 is refused.
+- **`foldkit-form-recipes/image`:** the field's label names the group the
+  control is drawn in; one live region says each state once, and the progress is
+  named by it; Cancel, Remove and Try again move focus on; a dropped file that
+  is no image is refused before it is sent; an `id` no selector can name, a
+  header a browser would refuse or drop, or a bad `url` throws when the
+  recipe is made; the root carries `data-upload`. The docs no longer suggest a
+  deployment's secret as a browser's header: a page's session cookie answers the
+  application's `UploadPolicy`.
+- **`foldkit-mixins-crud`:** Escape closes a Dialog by itself, so the README says
+  to answer its `Closed` OutMessage with the editor's close; the default conflict
+  words no longer offer a reload nothing does.
+
+- **Two presses on a form's checkboxes before the next draw both count.** Each
+  press sent the whole draft as drawn, so the second undid the first.
+  `foldkit-form` gains `Toggled({ key, choice? })`, which flips a flag or lets go
+  of or adds one choice to the draft as it stands, and both of
+  `foldkit-mixins-form`'s renderer tables send it (`RenderContext.toggled`).
+- **A choice group that must hold two or more no longer fails `Form.make`.**
+  Its schema is tried with the first one, two, … of its options.
+- **The fields-to-fix summary has no id**, so a key named `summary` no longer
+  shares one with it.
+- **"Show more" is drawn only under the form's own relation pickers**, and none
+  while a picker is locked.
+
+- **`foldkit-form`: a choice of literals that must hold one is a form key.** A
+  `Schema.NonEmptyArray` of literals, or an `Array` of them with a length check,
+  threw at `Form.make` ("its schema accepts no such value"): the wiring check
+  tried `[]` and an id, and such a schema takes neither. It is now a required
+  Choices key.
+- **`foldkit-mixins-form`: a Choices or RelationMany group carries the field's
+  validity and descriptions,** as every other control does: its `aria-invalid`
+  and `aria-describedby` were missing.
+- **`foldkit-mixins-form`: a locked, checked Toggle posts `on`.** The field posts a
+  locked key's value through hidden inputs, and a boolean draft posted nothing.
+
+- **`foldkit-mixins-ui`: Backspace in the Command menu deletes a character typed
+  in the same frame.** It decided from the query the field was last drawn
+  with, so a character typed and deleted before the next frame left it
+  reading an empty field: Backspace stepped out of the page instead of
+  deleting. It now reads what the field holds.
+
+- **An integer field is no longer incremented by an amount that may be a
+  fraction.** `Write.update` accepted `increment: { count: 'by' }` for a
+  `count` declared `Schema.Int` (or any check holding `Schema.isInt`, such as
+  `isInt32`) and a `by` declared `Schema.Number`. A fractional amount then split
+  the databases: Postgres refused the statement, and SQLite stored `2.5` in the
+  integer column, a value the field's schema does not admit. Such a write is now
+  refused where it is declared, naming both keys; declare the amount
+  `Schema.Int`.
+- **Nor is an integer column, whatever its field says.** A field declared
+  `Schema.Number` over an `integer` column (SQLite `integer`; Postgres
+  `integer`, `smallint`, `bigint` read as a number) took a fractional amount the
+  same way. `foldkit-remote-drizzle`'s `writer` now refuses such an increment
+  where `RemoteServer.write` registers it, so a server with one does not start;
+  give the amount `Schema.Int`. A `real` or `double precision` column takes any
+  amount. Every increment in the examples and guides now declares its amount
+  `Schema.Int`.
+
 
 ## 0.33.0
 

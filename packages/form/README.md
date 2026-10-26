@@ -91,7 +91,13 @@ const RenameForm = Page.children.rename
   never dropped by omission.
 - `Rename.Message` builds the form's Messages for your view to dispatch:
   `Changed({ key, value })`, `Blurred({ key })`, `Submitted()`, `Reset()`,
-  and `ValidatedAll()` (see [Validation](#validation)).
+  and `ValidatedAll()` (see [Validation](#validation)). `Toggled({ key })`
+  flips a flag and `Toggled({ key, choice })` lets go of or adds one choice of a
+  list, both to the draft as it stands when the Message lands, so a view sends
+  them for a press: two presses before the next draw both count. `FollowedIssue({ id })`
+  says a view's link to a field was followed, and `AskedForMore({ key })` that a
+  relation picker's reader wants more choices; the form changes nothing for
+  either, and the page that owns the list answers the second.
 - `Rename.controls` lists the keys in the input's order, each with its
   `control`, `label`, `description`, `required`, and the Entity `member`.
 - `Rename.field(model.rename, key)` reads one key's state as `Field<Draft>`, for
@@ -239,6 +245,15 @@ What the form does with it:
   and `init` starts the control's init Commands.
 - **`fill`, `partial`, `settled`, submit and `Reset`** all go through `value`,
   `fill` and `settled`. `Reset` returns the Bundle's initial Model.
+- **Work the value waits on** (an upload, a lookup the Bundle runs) is `busy`:
+  `busy: model => model.sending`. A submit made while it is true waits, as it
+  waits for a check: the key reads `Validating` rather than missing, the
+  submit goes out when the work lands with a value, and when the work ends
+  without one the key is validated (a required key then says `Required`) and
+  nothing is submitted. A control in a row holds the submit the same way. Give
+  a busy control `settled` too, which says whether a stored value shown again
+  needs work: `Input.bundle` throws without it, since such a form would wait
+  for good.
 - **Nothing entered** is `value` giving `undefined` or `null`, which a required
   key refuses as it would an empty text box.
 - **Types follow the control.** `model.fields.color.value` is the picker's

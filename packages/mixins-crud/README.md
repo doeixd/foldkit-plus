@@ -223,6 +223,73 @@ PostLines({ value: Shown.value(model) }, h) // Shown = PostDetail.at({ data, id 
 A `dl` with a `dt` per shown field and its value in a `dd`. It takes `cells` and
 `words` as a list does.
 
+## An editor, a delete, and a toolbar
+
+`EditorView` draws what an editor says around its form in each of its states;
+`ConfirmView` asks before a delete; `Toolbar` lays out a list's controls. Each is
+given its state and Messages and owns neither: saving is `Crud.editor`'s,
+deleting `Crud.remover`'s, closing the application's.
+
+```ts
+import { ConfirmView, EditorView, Toolbar } from 'foldkit-mixins-crud'
+
+const PostEditorView = EditorView.forMessages<Message>().define()
+const DeletePost = ConfirmView.forMessages<Message>().define()
+const PostTools = Toolbar.forMessages<Message>().define()
+
+// The names are examples/entity's: its editor, remover, form and Messages.
+PostEditorView(
+  {
+    id: 'post-editor',
+    status: PostEditor.status(model),
+    title: 'Edit post',
+    form: EditForm.view(model, h, { options: pickers(model) }),
+    error: PostEditor.saveError(model)?.message,
+    onClose: Message.ClosedPost(),
+  },
+  h,
+)
+DeletePost(
+  {
+    id: 'delete-post',
+    status: PostRemover.status(model),
+    name: Option.fromNullishOr(PostRemover.target(model)),
+    onConfirm: Message.GotRemovePostMessage({ message: RemoverMessage.Confirmed() }),
+    onCancel: Message.GotRemovePostMessage({ message: RemoverMessage.Cancelled() }),
+    error: PostRemover.error(model)?.message,
+  },
+  h,
+)
+PostTools({ search: h.input([h.Type('search'), h.AriaLabel('Search titles')]) }, h)
+```
+
+Each editor state draws its own line, and the form stays while there is
+something to edit:
+
+| Status | Says | Form |
+| --- | --- | --- |
+| `Closed` | nothing is drawn | — |
+| `Loading` | `Loading…`, busy | no |
+| `NotFound`, `LoadFailed` | a status; a failed read as an alert, with `onRetry`'s button | no |
+| `Editing` | nothing | yes |
+| `Saving`, `Saved` | `Saving…` (busy), `Saved.` | yes |
+| `SaveFailed`, `Conflict` | an alert: the error, or that someone saved first | yes: a failed save keeps the draft |
+| `Moved` | that someone else has saved since | yes |
+
+The root is a `section` named by its title (`h2`), with the status in
+`data-status`. `ConfirmView` asks `Delete {name}?` in a `role="group"`, and its
+confirm button is disabled while `name` is none: a delete is confirmed only for a
+thing a person can name. A failed delete asks again, with why it failed.
+
+To draw the editor in a dialog or a drawer, draw it inside the Dialog or Drawer
+your application places (`foldkit-mixins-ui`): focus going in on open, staying in
+while it is open, and back to the button that opened it is that component's.
+Escape and the backdrop close the Dialog by itself: answer its `Closed`
+OutMessage with the editor's close (`Placed.helpers.close()`), as `onClose`
+does for the Close button, or the dialog hides while the editor stays open and
+its row stays required. Every word is the view's `words`, text with
+blanks (`saveFailed: 'Not saved: {message}'`, `question: 'Delete {name}?'`).
+
 ## What is drawn
 
 | Part | Element | Slot |

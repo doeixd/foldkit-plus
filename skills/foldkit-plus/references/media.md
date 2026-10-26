@@ -127,6 +127,10 @@ one it cannot read). `UploadPolicy` is required and asked first by both, told th
 application's own (`foldkit-guard/media`'s `GuardMedia.uploadPolicy` decides by guards, for
 who `AuthServer.resolver` says is asking), and `uploadPolicyAny(a, b, …)` for several (the first
 to admit wins);
+a browser sends a file with `upload(file, { url?, headers? })` (`foldkit-media/browser`), a
+`Stream` of `Progressed { loaded, total }` then one `Uploaded { asset }`, failing with
+`UploadFailed { reason, status }` (`Forbidden`, `Unauthenticated`, `TooLarge`, `Unsupported`,
+`Malformed`, `Network`, `Unexpected`); interrupting it aborts the request;
 the application registers the facts in its own data, as its server read them: `HashedAsset`
 checks their shape, not that they are true, so a registering mutation takes the hash and reads
 `StoredFacts.get(hash)` (kept beside the bytes by `Uploads`; `storedFactsKeyValueStore()`,

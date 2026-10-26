@@ -11,6 +11,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
 import { Mutation, type MutationStatus } from 'foldkit-remote'
 import { describe, expect, it } from 'vitest'
+import { FieldRecipes } from 'foldkit-form-recipes'
 import { Cms } from '../src/index.js'
 
 const Post = Entity.define(
@@ -29,7 +30,7 @@ const PostInput = Schema.Struct({
   slug: Schema.String,
 })
 const PostForm = Form.make('PostForm', Entity.input(Post, PostInput), {
-  inputs: { slug: Cms.slug('title') },
+  inputs: { slug: FieldRecipes.slug('title').control },
   debounce: 0,
 })
 const Posts = Cms.content('posts', {
@@ -300,7 +301,7 @@ describe('a form control backed by a Bundle', () => {
   })
   const ColorForm = Form.make('ColorForm', Entity.input(ColorPost, ColorInput), {
     inputs: {
-      slug: Cms.slug('title'),
+      slug: FieldRecipes.slug('title').control,
       color: Input.bundle('Swatch', {
         bundle: Swatch,
         value: model => model.hex,

@@ -8,6 +8,8 @@ import { Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Entity, Relation } from 'foldkit-entity'
 import { Form, Input } from 'foldkit-form'
+import { SlotView } from 'foldkit-mixins'
+import { Inert } from 'foldkit-mixins/testing'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
@@ -176,4 +178,87 @@ it('draws rows, adds and removes them, and submits what they hold', async () => 
   } finally {
     handle.dispose()
   }
+})
+
+it('offers no picker in a row more, whatever the view names', () => {
+  const root = FormView.define(Create)(
+    {
+      model: Create.initial,
+      errors: [],
+      canSubmit: false,
+      // @ts-expect-error a row's key is not one of the form's own
+      more: { countryId: true },
+    },
+    SlotView.inertBuilder(),
+  )
+  // The row's picker is drawn, and given nothing more.
+  expect(Inert.all(root).some(node => Inert.value(node, 'name') === 'countryId')).toBe(true)
+  expect(Inert.byTag(root, 'button').map(Inert.text)).not.toContain('Show more')
+})
+
+it('names the row of each field to fix, so two rows’ links differ', () => {
+  const step = (model: typeof Create.initial, message: typeof Create.Message.Type) =>
+    Create.bundle.update(model, message, undefined).model
+  const twoComments = step(
+    step(Create.initial, Create.Message.RowAdded({ key: 'comments' })),
+    Create.Message.RowAdded({ key: 'comments' }),
+  )
+  const checked = step(twoComments, Create.Message.ValidatedAll())
+  const root = FormView.define(Create)(
+    { model: checked, errors: [], canSubmit: false },
+    SlotView.inertBuilder(),
+  )
+  const summary = Inert.all(root).find(node =>
+    Inert.children(node).some(child => child.sel === 'ul'),
+  )
+  expect(Inert.byTag(summary, 'a').map(Inert.text)).toEqual([
+    'title: Required',
+    'author, name: Required',
+    'comments 1, body: Required',
+    'comments 2, body: Required',
+  ])
+})
+
+it('names a row inside a row through both', () => {
+  const Book = Entity.define('Book', Schema.Struct({ id: Schema.String, title: Schema.String }))
+  const Shelf = Entity.define('Shelf', Schema.Struct({ id: Schema.String }))
+  const Room = Entity.define('Room', Schema.Struct({ id: Schema.String }))
+  const Library = Entity.relate(
+    { Book, Shelf, Room },
+    { Shelf: { books: Relation.many(Book) }, Room: { shelves: Relation.many(Shelf) } },
+  )
+  const NewBook = Entity.input(Library.Book, Schema.Struct({ title: Filled }))
+  const NewShelf = Entity.input(
+    Library.Shelf,
+    Schema.Struct({ books: Schema.Array(NewBook.schema) }),
+    { books: Relation.nested(Library.Shelf.relations.books, NewBook) },
+  )
+  const ShelfForm = Form.make('Room.shelves', NewShelf)
+  const RoomForm = Form.make(
+    'Room',
+    Entity.input(Library.Room, Schema.Struct({ shelves: Schema.Array(NewShelf.schema) }), {
+      shelves: Relation.nested(Library.Room.relations.shelves, NewShelf),
+    }),
+    { nested: { shelves: ShelfForm } },
+  )
+  const step = (model: typeof RoomForm.initial, message: typeof RoomForm.Message.Type) =>
+    RoomForm.bundle.update(model, message, undefined).model
+  const oneShelf = step(RoomForm.initial, RoomForm.Message.RowAdded({ key: 'shelves' }))
+  const [row] = RoomForm.rows(oneShelf, 'shelves')
+  const withBook = step(
+    oneShelf,
+    RoomForm.Message.Nested({
+      key: 'shelves',
+      row: row?.id ?? '',
+      message: ShelfForm.Message.RowAdded({ key: 'books' }),
+    }),
+  )
+  const root = FormView.define(RoomForm)(
+    { model: step(withBook, RoomForm.Message.ValidatedAll()), errors: [], canSubmit: false },
+    SlotView.inertBuilder(),
+  )
+  const summary = Inert.all(root).find(node =>
+    Inert.children(node).some(child => child.sel === 'ul'),
+  )
+  expect(Inert.byTag(summary, 'a').map(Inert.text)).toEqual(['shelves 1, books 1, title: Required'])
 })

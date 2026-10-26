@@ -5,6 +5,7 @@
  */
 import { Schema } from 'effect'
 import { Cms } from 'foldkit-cms'
+import { FieldRecipes } from 'foldkit-form-recipes'
 import { Entity, Expr, Order } from 'foldkit-entity'
 import { Form, Input } from 'foldkit-form'
 import { Mutation, Query } from 'foldkit-remote'
@@ -56,7 +57,7 @@ export const PostInput = Schema.Struct({
 export const PostForm = Form.make('PostForm', Entity.input(Post, PostInput), {
   // The address follows the title until the author writes it themselves.
   inputs: {
-    slug: Cms.slug('title', { prefix: '/blog/' }),
+    slug: FieldRecipes.slug('title', { prefix: '/blog/' }).control,
     // A long title wraps, as it will on the page.
     title: Input.multiline(),
     excerpt: Input.multiline(),

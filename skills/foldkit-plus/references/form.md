@@ -69,6 +69,8 @@ const RenameForm = Page.at(Slot, {
 ## Common tasks
 
 - **Dispatch from a view:** `Rename.Message.Changed({ key, value })`,
+  `Toggled({ key, choice? })` (a press on a flag or one choice, applied to the draft
+  as it lands, so presses faster than a frame all count),
   `Blurred({ key })`, `Submitted()`, `Reset()`, `ValidatedAll()`, wrapped in the placement's
   Message (`Message.GotRenameMessage({ message })`).
 - **Posting without scripts:** `foldkit-mixins-form` names every control by
@@ -123,7 +125,8 @@ const RenameForm = Page.at(Slot, {
   Draw it with `FormView.define(form, { renderers: { Cents: ctx => ... } })`; the
   same table replaces a shipped renderer.
 - **A control with a Model of its own** (a color picker with a popover, a page
-  builder, a rich-text editor): `Input.bundle('ColorPicker', { bundle, value, fill, settled? })`
+  builder, a rich-text editor): `Input.bundle('ColorPicker', { bundle, value, fill, settled?, busy? })`
+  (`busy`: work the value waits on, such as an upload; a submit waits for it, as for a check, in a row too; `busy` needs `settled`)
   over an ordinary Bundle. The key's draft is the Bundle's Model
   (`model.fields.color.value`, typed); `form.control('color').send(message)`
   wraps one of its Messages as the form's `Control`; its Commands,
@@ -207,9 +210,14 @@ choices (`{ value, label }`); loading them is the application's query.
 the server still checks). `FormView.define(Rename)` alone is a complete unstyled form. `words.none` words the
 blank choice of a picker; a chosen value the choices lack is shown as `? value`. `FieldSlots`: `root`,
 `label`, `description`, `error`, `checking`, and one per control kind (`text`, `multiline`,
-`number`, `toggle`, `select` with its `option`s, `choices`, `choiceLabel`, `choice`), plus `control`, `search`, and
+`number`, `toggle`, `select` with its `option`s, `choices`, `choiceLabel`, `choice`), plus `control`, `search`, `more` (the
+"Show more" button under a picker the view's `more` input names), and
 `group`/`affix` for a renderer's control with text beside it. `FormSlots`: `root`, `errors`,
-`submit`. The view owns `id`, `label for`, `aria-invalid`, `aria-required`,
+`summary` (with `summaryTitle`, `issues`, `issue`, `issueLink`), `submit`. While any field is invalid, `summary` lists each
+one above the submit button as a link to its control (`href="#id"`; a press focuses the
+control and sends `FollowedIssue({ id })`, which changes nothing), worded by `words.summary`
+and `words.issue` (`{label}: {error}`), a row's field named with its row by `words.inRow`
+(`{row}, {label}`). The view owns `id`, `label for`, `aria-invalid`, `aria-required`,
 `aria-describedby`, and `role="alert"` on errors; a Behavior that supplies one of
 those throws a two-owners conflict at render.
 
@@ -220,9 +228,19 @@ form also counts a submit waiting on a check. While submitting, the `form` is
 `aria-busy` with `data-submitting`, and the button is disabled and reads
 `words.submitting`.
 
-For UI-backed Text/Multiline fields, the optional `foldkit-mixins-form/ui`
-entry exports `field({ toMessage, inputStyle, textareaStyle?, draw? })`, a
-`FormView.fields` override. Install `foldkit-mixins-ui` and `@foldkit/ui`;
+To draw every field through `foldkit-mixins-ui`'s components, the optional
+`foldkit-mixins-form/ui` entry exports `renderers(styles?)`, a renderer for every
+shipped kind: `FormView.define(Rename, { renderers: UiForm.renderers({ input,
+textarea, select, checkbox, checkboxGroup }) })`, each style optional and for that
+component's Slots (`Recipes.Input()` and the like). The field around each control,
+its name, id, accessibility state and Messages are the plain path's; Toggle and the
+choice kinds are `role="checkbox"` buttons that post through hidden inputs. A
+FieldSlots style for a control the table draws (`text`, `select`, …) no longer
+reaches it; the label, description, checking line and error keep theirs.
+
+For one key in a custom layout, the same entry exports
+`field({ toMessage, inputStyle, textareaStyle?, draw?, words? })`, a
+`FormView.fields` override for Text/Multiline; its checking line reads `words.checking`. Install `foldkit-mixins-ui` and `@foldkit/ui`;
 styles target their Input/Textarea Slots and read the field's state. It preserves
 Changed/Blurred dispatch, name, required state, hints, checking and errors.
 `draw` receives label/control/description nodes and `field` for a custom layout;
@@ -231,6 +249,63 @@ submit buttons use `Button.view`; this integration does not replace the generate
 view's native button. Real adopters:
 https://github.com/doeixd/foldkit-plus/blob/main/examples/foldkit/form/src/main.ts
 and https://github.com/doeixd/foldkit-plus/blob/main/examples/foldkit/auth/src/page/loggedOut/page/login.ts.
+
+## Recipes: dates, times, amounts, text-shaped keys and an image
+
+`foldkit-form-recipes` holds the controls whose parsing is easy to get wrong. A
+recipe is `{ control, display }`, made from one set of options: `control` goes in
+a form's `inputs` (or `Input.of`), `display` in `Display.of`.
+
+```ts
+import { Schema } from 'effect'
+import { Form } from 'foldkit-form'
+import { FieldRecipes } from 'foldkit-form-recipes'
+import { renderers } from 'foldkit-form-recipes/html'
+import { FormView } from 'foldkit-mixins-form'
+import { CalendarDate } from 'foldkit/calendar'
+
+const due = FieldRecipes.date() // a CalendarDate key, edited as YYYY-MM-DD
+const startsAt = FieldRecipes.dateTime({ stored: 'instant', zone: 'Europe/London' })
+const MeetingInput = Schema.Struct({ due: CalendarDate, startsAt: Schema.String })
+const Meeting = Form.make('Meeting', Form.input(MeetingInput), {
+  inputs: { due: due.control, startsAt: startsAt.control },
+})
+const View = FormView.define(Meeting, { renderers: renderers() }) // date and datetime-local inputs
+```
+
+- `date()`: value `CalendarDate` (`Calendar.CalendarDate` or
+  `CalendarDateFromIsoString`); anything but `YYYY-MM-DD` reads `Enter a date`.
+- `dateTime({ stored: 'local' })`: the value is the wall-clock text, kept as typed.
+  `{ stored: 'instant', zone }`: an ISO instant, shown and read in the IANA
+  `zone` (a parameter, never the runtime's); a time the clocks skip is refused, a
+  repeated one reads as the earlier, and an unknown zone throws at definition.
+- A fill with a value of the wrong form throws, naming the key. `locale` changes
+  only what a display says.
+- `email()`, `url({ protocols? })` (https/http by default), `tel()`,
+  `password({ purpose: 'current' | 'new' })` and `slug(from, { prefix? })` keep
+  what was typed; their renderers set the input type, `autocomplete` and keyboard.
+  A slug's control is a `ControlChange` (form `inputs` only); a password has no
+  reveal toggle and is hidden in a list.
+- `money({ currency, unit: 'minor' | 'decimal', locale?, negative? })`,
+  `decimal({ scale })`, `percent({ unit: 'fraction' | 'points' })`: read and shown in
+  the locale, exact (minor units are integers, `'decimal'` is text), in its own
+  currency or percent format (`de-AT`, `fr-CH`, rtl locales round-trip); grouping
+  other than the locale's, extra decimals, an unasked-for minus and a value a
+  double would round are refused. A bad scale or a malformed currency code throws when
+  the recipe is made.
+- Kinds are named `FieldRecipes.Date`, `FieldRecipes.Money`, …, so an
+  application's own `Date` kind does not meet a recipe's renderer.
+- `foldkit-form-recipes/ui`'s `renderers({ input? })` draws the same inputs under
+  `foldkit-mixins-ui`'s Input Slot, beside `UiForm.renderers(...)`.
+- `foldkit-form-recipes/image`'s `image({ id, url?, headers?, words?, styles? })` is a
+  key holding the `HashedAsset` the upload route keeps. Its control is a Bundle:
+  `Empty -> Sending -> Kept`, Cancel back to `Empty` (aborting the request), a
+  refusal `Refused` with Try again; only `Kept` is a value. It is `busy` while it
+  sends, so a submit waits for it. The page's session cookie answers the
+  route's `UploadPolicy`: never a deployment secret in `headers`. As a Bundle
+  control it takes no `check` and cannot sit in a nested row.
+- Every recipe through a real form, as a trace and a page each:
+  https://github.com/doeixd/foldkit-plus/blob/main/examples/fields/README.md
 
 ## Nested input
 
@@ -290,5 +365,7 @@ PostForm.rows(PostForm.initial, 'comments') // [{ id, model }], each a Model of 
 
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/form/README.md
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/mixins-form/README.md
+- https://github.com/doeixd/foldkit-plus/blob/main/packages/form-recipes/README.md
+- https://github.com/doeixd/foldkit-plus/blob/main/examples/fields/README.md (every recipe through a real form)
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/entity/README.md
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/bundle/README.md

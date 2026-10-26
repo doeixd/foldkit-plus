@@ -15,6 +15,7 @@ import { eq } from 'drizzle-orm'
 import { Effect, Match, Option, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Cms } from 'foldkit-cms'
+import { FieldRecipes } from 'foldkit-form-recipes'
 import { Display } from 'foldkit-crud'
 import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
@@ -40,7 +41,7 @@ const ArticleInput = Schema.Struct({
 
 const ArticleForm = Form.make('ArticleForm', Entity.input(Article, ArticleInput), {
   inputs: {
-    slug: Cms.slug('title', { prefix: '/articles/' }),
+    slug: FieldRecipes.slug('title', { prefix: '/articles/' }).control,
     // The body's control is the editor, in the standard vocabulary with Markdown's markers.
     body: richTextInput('article-body', {
       vocabulary: {

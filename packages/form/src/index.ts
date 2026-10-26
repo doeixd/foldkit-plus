@@ -279,6 +279,7 @@ type RowConstructor =
   | 'Blurred'
   | 'ValidatedAll'
   | 'Searched'
+  | 'Toggled'
   | 'Submitted'
   | 'Reset'
   | 'RowAdded'
@@ -384,6 +385,18 @@ interface AnyForm extends NestedForm {
   readonly authoredChanged: (before: any, after: any) => boolean
 }
 
+/**
+ * A draft after a press: a flag flipped, or a list with `choice` let go if it is
+ * held and added if not. None when the press does not fit the draft's kind.
+ */
+const toggled = (kind: string, draft: Draft, choice: string | undefined): Option.Option<Draft> => {
+  if (choice === undefined) return kind === 'flag' ? Option.some(draft !== true) : Option.none()
+  if (kind !== 'list' || !Array.isArray(draft)) return Option.none()
+  return Option.some(
+    draft.includes(choice) ? draft.filter(held => held !== choice) : [...draft, choice],
+  )
+}
+
 /** Assigned once `Form` exists: a form builds the forms of its nested keys with itself. */
 let makeNested: (name: string, input: unknown, options: unknown) => AnyForm
 
@@ -429,10 +442,13 @@ const edits = {
   Refused: false,
   About: false,
   Searched: false,
+  Toggled: true,
   Nested: false,
   Control: false,
   RowAdded: true,
   RowRemoved: true,
+  FollowedIssue: false,
+  AskedForMore: false,
 } as const
 
 /** A form's tags. Every form has these, so a nested form's Message, known only at runtime, is read by them. */
@@ -626,8 +642,20 @@ const planOf = (
   }
 
   // A control whose draft can never become the key's value is a wiring mistake.
+  // A choice of literals is tried with the first one, two, … of its own options,
+  // since an array that must hold some refuses `[]` and an id alike.
   const samples: ReadonlyArray<unknown> =
-    kind === 'flag' ? [true, false] : kind === 'list' ? [[], ['id']] : []
+    kind === 'flag'
+      ? [true, false]
+      : kind === 'list'
+        ? [
+            [],
+            ['id'],
+            ...(Input.Choices.is(control)
+              ? control.data.options.map((_, index) => control.data.options.slice(0, index + 1))
+              : []),
+          ]
+        : []
   if (samples.length > 0 && !samples.some(accepts))
     fail(name, `"${key}" is edited as ${control.kind}, but its schema accepts no such value`)
 
@@ -899,6 +927,13 @@ const Core = {
       About: { subject: Schema.Record(Schema.String, Schema.String) },
       /** What was typed to find a choice for a relation key. It changes no draft and validates nothing. */
       Searched: { key: KeySchema, text: Schema.String },
+      /**
+       * A press on a flag (no `choice`), or on one choice of a list: the key's
+       * draft as it stands now, flipped, or with `choice` let go if held and added
+       * if not. A view sends this rather than `Changed`, so two presses before the
+       * next draw both land.
+       */
+      Toggled: { key: KeySchema, choice: Schema.optional(Schema.String) },
       /** A Message of the nested form in one row of a nested key. One that row does not take is dropped. */
       Nested: { key: Schema.String, row: Schema.String, message: Schema.Unknown },
       /**
@@ -911,6 +946,18 @@ const Core = {
       RowAdded: { key: Schema.String },
       /** Removes a row. A `one` that must be there stays. */
       RowRemoved: { key: Schema.String, row: Schema.String },
+      /**
+       * A link to the field drawn with this id was followed, such as one in a
+       * view's list of fields to fix. The view moves focus there itself, in the
+       * press; the form changes nothing.
+       */
+      FollowedIssue: { id: Schema.String },
+      /**
+       * A relation picker's reader asked for more choices than the list shows. The
+       * list is the page's, so the page answers (`Crud.screen` does, given
+       * `Crud.options`); the form changes nothing.
+       */
+      AskedForMore: { key: KeySchema },
     } satisfies Record<FormTag, Schema.Struct.Fields>)
     type Message = typeof Message.Type
     type Commands = ReadonlyArray<Command<Message, never, R>>
@@ -1225,9 +1272,13 @@ const Core = {
           (field._tag !== 'NotValidated' || Result.isSuccess(plans[key].check(field.value)))
         )
       })
-    /** A check is running, in this form or in a row of it. */
+    /** A key's Bundle has work in flight its value waits on (`Input.bundle`'s `busy`). */
+    const isBusy = (model: Model, key: Key): boolean =>
+      plans[key].bundled?.busy(drafts(model)[key].value) === true
+
+    /** A check is running, or a Bundle's work, in this form or in a row of it. */
     const isValidating = (model: Model): boolean =>
-      keys.some(key => drafts(model)[key]._tag === 'Validating') ||
+      keys.some(key => drafts(model)[key]._tag === 'Validating' || isBusy(model, key)) ||
       rowsKeys.some(key =>
         rowsOf(model)[key]!.some(row => nestedPlans[key].form.engine.isValidating(row.model)),
       )
@@ -1270,6 +1321,14 @@ const Core = {
       const commands: Array<Command<Message, never, R>> = []
       for (const key of keys) {
         const state = drafts(next)[key]
+        // A key whose work is in flight is being found out, as a checked one is:
+        // it is validated when the work lands or ends, not called missing now.
+        if (isBusy(next, key)) {
+          // A key already being found out, or valid, keeps its state and identity.
+          if (state._tag === 'NotValidated' || state._tag === 'Invalid')
+            next = withField(next, key, FieldValidation.Validating({ value: state.value }))
+          continue
+        }
         // Any other state already answers for this draft: an edit always revalidates.
         if (state._tag !== 'NotValidated') continue
         const validated = validateKey(next, key, state.value)
@@ -1436,6 +1495,14 @@ const Core = {
             return kindOf(message.value) !== plans[message.key].kind
               ? { model }
               : changed(edited(model), message.key, message.value)
+          case 'Toggled':
+            return Option.match(
+              toggled(plans[message.key].kind, drafts(model)[message.key].value, message.choice),
+              {
+                onNone: () => ({ model }),
+                onSome: value => changed(edited(model), message.key, value),
+              },
+            )
           case 'Blurred': {
             const state = drafts(model)[message.key]
             // Only a key not validated yet: any other state already answers for this draft.
@@ -1494,9 +1561,22 @@ const Core = {
             const after = drafts(moved)[message.key].value
             // A Message that leaves the key's value as it was, such as a selection, is not an edit.
             const lifted = commands as Commands
-            if (sameValue(message.key, before, after)) return { model: moved, commands: lifted }
+            // A submit waiting on this key's work goes once the work lands or ends:
+            // work that ended with the value unchanged leaves the key to be validated.
+            if (sameValue(message.key, before, after)) {
+              const ended =
+                isBusy(model, message.key) &&
+                !isBusy(moved, message.key) &&
+                drafts(moved)[message.key]._tag === 'Validating'
+              if (!ended) return resume(moved, lifted)
+              const validated = validateKey(moved, message.key, after)
+              return resume(validated.model, [...lifted, ...validated.commands])
+            }
+            const waited = model.submitPending && isBusy(model, message.key)
             const edit = changed(edited(moved), message.key, after)
-            return { model: edit.model, commands: [...lifted, ...edit.commands] }
+            return waited
+              ? resume({ ...edit.model, submitPending: true }, [...lifted, ...edit.commands])
+              : { model: edit.model, commands: [...lifted, ...edit.commands] }
           }
           case 'Nested': {
             const plan: NestedPlan | undefined = nestedPlans[message.key as RowsKey]
@@ -1521,6 +1601,15 @@ const Core = {
                   )
             const edit =
               isEdit(inner) || plan.form.engine.authoredChanged(row.model, answered.model)
+            // A row's own work or check that lands is no edit of the person's: a
+            // submit waiting on it keeps waiting, and goes once nothing is asked.
+            const waited =
+              model.submitPending && !isEdit(inner) && plan.form.engine.isValidating(row.model)
+            if (waited)
+              return resume(
+                next === model ? model : { ...edited(next), submitPending: true },
+                lifted,
+              )
             return resume(edit ? edited(next) : next, lifted)
           }
           case 'RowAdded': {
@@ -1551,6 +1640,9 @@ const Core = {
             return { model: { ...initial, subject: model.subject } }
           case 'Submitted':
             return submitted(model)
+          case 'FollowedIssue':
+          case 'AskedForMore':
+            return { model }
         }
       },
       helpers: { fill },
@@ -1689,6 +1781,7 @@ const Core = {
                 'Blurred',
                 'ValidatedAll',
                 'Searched',
+                'Toggled',
                 'Submitted',
                 'Reset',
                 'RowAdded',

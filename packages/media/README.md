@@ -488,6 +488,41 @@ pixel limit, and `400` for a body that broke off. Because the body must be
 preflight, and the route answers no preflight, a cookie alone cannot upload
 from another site.
 
+From a browser, `upload(file, { url?, headers? })` (`foldkit-media/browser`)
+sends one file to the route and is a `Stream`: `Progressed { loaded, total }`
+as the bytes go, then one `Uploaded { asset }` with the route's facts, and it
+ends. A refusal fails it with `UploadFailed { reason, status }`, whose
+`reason` names the route's answer (`Forbidden`, `Unauthenticated`,
+`TooLarge`, `Unsupported`, `Malformed`), `Network` when nothing answered,
+or `Unexpected` for an answer that is not the route's. It is an
+`XMLHttpRequest`, since `fetch` reports no upload progress, and interrupting
+the stream aborts it: a Command or Subscription that runs it cancels by
+ending.
+
+```ts
+import { Effect, Match, Stream } from 'effect'
+import { upload } from 'foldkit-media/browser'
+
+const send = (file: File) =>
+  upload(file).pipe(
+    Stream.runForEach(event =>
+      Effect.sync(() =>
+        Match.valueTags(event, {
+          Progressed: ({ loaded, total }) => console.log(`${loaded} of ${total} bytes`),
+          Uploaded: ({ asset }) => console.log('kept as', asset.key),
+        }),
+      ),
+    ),
+  )
+```
+
+A browser authenticates as the page does: a same-origin request carries the
+session cookie, which the application's own `UploadPolicy` reads (as
+`GuardMedia.uploadPolicy` does). `uploadPolicyBearer`'s secret is a deployment's,
+for a script; a page that sends it in `headers` gives it to every visitor. No
+timeout is set: a stalled server shows the send on its way until it is
+interrupted.
+
 An image a page names only by URL gets its facts from the same route set:
 `GET /_media/facts?url=` reads it with `factsOf`, behind the same
 `UploadPolicy`, asked for `'DescribeUrl'`, and answers them keyed by the URL (`200`). Only `https` on a

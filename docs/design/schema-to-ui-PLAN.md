@@ -1,16 +1,23 @@
 # Schema to UI: field recipes and CRUD workflow recipes
 
-> **Status:** Phase 0 built (2026-10-22); Phases 1 to 7 proposed. Written from
+> **Status:** built: Phase 0 on 2026-10-22, Phases 1 to 7 on 2026-10-26, with a
+> review's fixes after (§1.11). Written from
 > [#188](https://github.com/doeixd/foldkit-plus/issues/188) and an audit of the
-> code on the same date (§1, §11). §1.3 records what building Phase 0 changed in
-> the plan. Blocks marked *Sketch* are shapes to review, not APIs; the phase that
+> code on 2026-10-22 (§1, §11). §1.3 to §1.11 record what building Phases 0 to 7, and
+> reviewing them, changed in the plan. Blocks marked *Sketch* are shapes to review, not APIs; the phase that
 > builds each one fixes its real signature. Where this plan and a package README
 > disagree, the README and the source win.
 
 | Phase | Ships | Evidence |
 | --- | --- | --- |
 | 0 | `Control.format`, `Control.parseList`, `Input.Choices`, array-of-literal resolution, and the plain `Choices` renderer | `packages/form/test/format.test.ts`, `packages/form/test/choices.test.ts`, `packages/mixins-form/test/choices.test.ts`; 9 mutations, all killed |
-| 1 to 7 | — | not started |
+| 1 | `UiForm.renderers` for every shipped kind, the form's `summary` of fields to fix, `FollowedIssue`, `UiForm.field`'s `words` | `packages/mixins-form/test/uiRenderers.test.ts`, `uiRenderers.browser.test.ts`, `summary.test.ts`, `summary.browser.test.ts`, `ui.test.ts`; 23 mutations, all killed |
+| 2 | `foldkit-form-recipes`: `date`, `dateTime` (`local`, or `instant` in a named zone), `email`, `url`, `tel`, `password`, `slug`; `./html` and `./ui` renderers; the CMS on them | `packages/form-recipes/test/*.test.ts`; 22 mutations, all killed |
+| 3 | `money` (minor units or decimal text), `decimal`, `percent` (a share or points) | `packages/form-recipes/test/money.test.ts`; 11 mutations, all killed |
+| 4 | `EditorView`, `ConfirmView`, `Toolbar` in `foldkit-mixins-crud` | `packages/mixins-crud/test/editor.test.ts`, `editorDialog.browser.test.ts`; 6 mutations, all killed |
+| 5 | `Crud.screen`: a screen's four Messages and their `update`; `examples/entity` on it and on Phase 4's views | `packages/crud/test/screen.test.ts`, `screen.test-d.ts`; 6 mutations, all killed |
+| 6 | `foldkit-media/browser`'s `upload`; `foldkit-form-recipes/image`; a picker's `more` through `AskedForMore`, `Crud.options`' `more`/`ask` and `Crud.screen`'s `pickers` | `packages/media/test/upload.browser.test.ts`, `packages/form-recipes/test/image.test.ts`, `image.browser.test.ts`, `packages/crud/test/list.test.ts`, `screen.test.ts`, `packages/mixins-form/test/runtime.test.ts`, `examples/entity/test/page.test.ts`; 23 mutations, all killed |
+| 7 | `examples/fields`: every recipe through a real form, as a trace (`pnpm demo`) and a server-rendered page each (`pnpm build`); no benchmark (§1.10) | `examples/fields/test/demo.test.ts`, `pages.test.ts`; 3 mutations, all killed |
 
 The issue asks for a complete schema-to-UI story: reusable field recipes, UI
 renderers for every control kind, and CRUD workflow recipes. This plan keeps the
@@ -139,6 +146,209 @@ an `Arrays` node with `elements: []` and `rest: [X]` (a `Tuple` is the reverse,
 `elements` set and `rest: []`; a `NonEmptyArray` sets both), and an array admits
 `[]`. So `rest.length === 1` is the right test for "an array of one thing", and a
 `Choices` key is required only when its own schema refuses the empty one.
+
+### 1.4 What building Phase 1 changed in this plan
+
+Phase 1 shipped on 2026-10-26 (§6). Five things came out differently from §4.4
+and §6.
+
+1. **The table is the plain renderers under other Slots, not the components'
+   views.** `Input.view` writes its own `aria-describedby` (one id), where a
+   field names its description, checking line and error; drawing through it
+   would have made the two paths differ in what they announce. So Text, Number,
+   Multiline and the selects are the plain renderers given `InputSlots`,
+   `TextareaSlots` and `SelectSlots` builders in place of FieldSlots', which is
+   what makes "the same Messages on both paths" true by construction. An element
+   keeps one Slot's class, so a FieldSlots style for those controls no longer
+   reaches them; the field around them keeps its own.
+2. **Choices and RelationMany use `CheckboxGroupSlots`, not `CheckboxGroup.view`.**
+   The view draws a `fieldset` and `legend` of its own, which would name the group
+   twice under the field's label. Like Toggle, its boxes are the Checkbox's
+   `role="checkbox"` buttons, which post nothing: each checked one holds a hidden
+   input named by the key, so a post without scripts carries it.
+3. **The summary sits above the submit button and is no live region.** Drawn at
+   the top, a field turning invalid on blur would push every field below it
+   while the person tabs; each field's error already announces itself.
+4. **A link in an application is a navigation.** Foldkit takes every link press
+   in a `makeApplication` as a URL request, so an `href="#id"` alone would not
+   focus anything once scripts run. The link keeps the `href` for a post without
+   scripts, and a press uses `OnClick`'s `focusSelector` (in the press, so a
+   phone's keyboard opens) with the default prevented. `OnClick` needs a
+   Message, so `foldkit-form` has `FollowedIssue({ id })`, which changes nothing.
+5. **A choice that must hold one threw at `Form.make`.** §4.3 said a
+   `NonEmptyArray` of literals resolves to a required Choices key; the wiring
+   check tried `[]` and an id, and such a schema takes neither. It now also tries
+   one of the control's own options.
+
+### 1.5 What building Phase 2 changed in this plan
+
+Phase 2 shipped on 2026-10-26 (§6) as a new package, `foldkit-form-recipes`.
+
+1. **An instant is read in a named zone.** Converting an instant to the text a
+   `datetime-local` shows needs a zone, and §7 says locale-like things are
+   parameters, never globals: `dateTime({ stored: 'instant', zone })` takes an IANA
+   name and refuses an unknown one when it is made. A time the clocks skip is
+   refused (a browser's `new Date` silently moves it an hour), and one they repeat
+   reads as the earlier. §10.5 still holds: there is no zone-aware value type, and
+   no arithmetic across zones. `CmsDateTime` read the browser's zone on every draw,
+   which also made a server render disagree with the browser's.
+2. **A recipe is `{ control, display }`; `pack` and `merge` are not built.** §4.1's
+   sketch put `kind`, `words` and `render` on the recipe and a `pack` over named
+   keys. `kind` repeats `control.kind`, and a renderer cannot sit on a value the
+   DOM-free entry holds, so renderers are one table per entry (`./html`, `./ui`)
+   keyed by kind. With one table per entry nothing yet merges two, so `merge` and
+   `pack` wait for an application that needs them.
+3. **`slug`'s control is a `ControlChange`.** It follows another key, which only a
+   form's `inputs` can say, so `FieldRecipe` is generic in its control and `slug`'s
+   cannot go through `Input.of`.
+4. **A password has no reveal toggle.** Whether its text shows is state, and a
+   renderer has nowhere to keep it; `foldkit-mixins-ui`'s `PasswordInput` keeps it
+   in the application. Likewise the `/ui` calendar in a popover (an open month, a
+   focused day) would be a control backed by a Bundle, which Phase 6 made
+   possible for `image` and did not build for dates; `./ui` draws the native
+   inputs under the Input Slot.
+5. **The CMS's controls moved rather than being wrapped.** `Cms.slug`,
+   `Cms.dateTime`, `Cms.slugify`, `Cms.Input` and `Cms.controlRenderers` are
+   removed, so there is one way to make a slug.
+
+### 1.6 What building Phase 3 changed in this plan
+
+1. **A partial amount is an error as it is typed.** §6 asked for `'-'` to be a
+   draft, not an error, until submit. The form checks a key on every change, for
+   every kind (a required text key emptied reads `Required` at once), so `'-'`
+   reads `Enter an amount` as soon as it is typed. It is never a number, and the
+   form never throws on it; when errors show is the form's policy (#188's
+   "configurable policy for blur/change/submit validation"), which no recipe should
+   change on its own.
+2. **Grouping is accepted only as the locale writes it.** `12,3` and `12.3` are
+   refused unless the locale's decimal separator makes them a decimal, which is
+   §6's "never `123`". Rather than a separator heuristic, a grouped draft must be
+   exactly what `Intl.NumberFormat` writes for its digits, so `en-IN`'s grouping
+   is right as well.
+3. **No floating point anywhere an amount passes.** Digits are read as text, minor
+   units through `BigInt`, and a value is formatted from a decimal string, which
+   `Intl.NumberFormat` formats exactly. A minor amount past
+   `Number.MAX_SAFE_INTEGER` is refused; `unit: 'decimal'` holds any size.
+4. **`decimal`'s value is a number and `percent` has a unit.** `percent` stores
+   the share (`0.125`) or the points (`12.5`), both shown `12.5%`; a stored
+   number with more decimals than the scale fails the fill rather than being
+   rounded into it.
+
+### 1.7 What building Phase 4 changed in this plan
+
+1. **The views take their state, not a placed editor.** §4.5 had
+   `EditorView.define(placedEditor)`. Each view is instead given what it draws:
+   `status` (`Editor.status(model)`), the form already drawn by its own view, and
+   the save error. A placed handle would have bound the view to `Crud.editor`'s
+   generics for one call each, and a hand-composed editor could not use it.
+2. **There is no `presentation`.** A Dialog's and a Drawer's open state is a Model
+   the application holds (`@foldkit/ui`'s), so a view that drew one would own a
+   second copy of it. The application draws the `EditorView` inside the Dialog or
+   Drawer it places. The browser test does that with a real Dialog: focus enters
+   on open, stays through Tab, Escape closes through the application's Message,
+   and focus returns to the opener. Each is the Dialog's, so §6's "focus
+   restoration removed" kill has no line here to mutate; the test is what shows
+   the editor does not break it.
+3. **`ConfirmView` takes the thing's `name` as an `Option`.** It is what a person
+   recognises (a title), which the remover does not know; with none the confirm
+   button is disabled.
+
+### 1.8 What building Phase 5 changed in this plan
+
+1. **The screen is Messages and an `update`, not a Model slice.** §4.6 had the
+   screen own `{ editor, remover }` and return a placed handle with `active` and
+   `after`. A Bundle composed with `Bundle.compose` cannot itself be placed as a
+   child, so owning the slice meant writing the children's routing (their
+   Messages, Commands, Subscriptions and Resources) a second time, or generating
+   the page's field names through template-literal types inside Bundle's own
+   pipe steps. `Crud.screen(name, { id })` instead names the four Messages for
+   `Bundle.withMessages` and wraps `update`; the page keeps its two `withChild`,
+   two `configure`, two `at` and its `active`.
+2. **The measurement, on `examples/entity`.** `app.ts` went from 242 lines to
+   240: three Message cases and three `update` cases left, a declaration and its
+   comment came in, and the `after` wrap became the screen's. `view.ts` went from
+   114 to 117 drawing its editor and delete question through `EditorView` and
+   `ConfirmView`, and now says every editor state: `Conflict` and `Moved` said
+   nothing before, and a failed save was a status line rather than an alert. (The
+   commit that made that change says the old view drew five states' lines; it
+   drew six.) The shorthand's value is that the
+   four cases are stated once and named after the screen, not that the page is
+   shorter; §6's "the example's app file shrinks" is met, by two lines.
+3. **No remover sync to compose.** A remover has no sync of its own (its state is
+   the mutation's), so §6's "`after` skipping the remover's sync" has no line to
+   mutate; "`close` clearing the wrong slice" is the `ClosedPost` routing mutation.
+
+### 1.9 What building Phase 6 changed in this plan
+
+1. **No upload client existed.** `foldkit-media` had the route and no browser
+   side, so Phase 6 begins with `foldkit-media/browser`'s `upload(file, { url?,
+   headers? })`: a `Stream` of `Progressed` and one `Uploaded`, failing with
+   `UploadFailed` whose `reason` names the route's refusal. It is an
+   `XMLHttpRequest`, since `fetch` reports no upload progress, and interrupting
+   the stream aborts it. Chromium reports no upload progress for a request CDP
+   holds, so its progress is tested against the dev server, and its answers
+   through CDP.
+2. **`image` only, in an entry of its own.** The route takes images alone, so
+   there is no `file` recipe until a route takes other files. `image` is
+   `foldkit-form-recipes/image`, not `FieldRecipes.image`, because it brings
+   `foldkit-media`, `@foldkit/ui` and `foldkit-mixins-ui` with it. Its control
+   is a Bundle whose upload is a Subscription keyed by the send's attempt
+   number: Cancel ends it, and so aborts the request, and a cancelled send's
+   late events are ignored. Words and styles are the recipe's options, since a
+   form draws a Bundle control with no view inputs unless `controls` gives
+   some. The drop zone's `id` is required: two keys sharing a default would
+   share ids.
+3. **The picker stays a `select`, and asks with a button.** A `Combobox` holds
+   its open state and highlight in the application's Model, which a renderer
+   has nowhere to keep; a picker that searches already has its search box. What
+   was missing was the list's next page. A list's `more` changes the page's
+   Model, which a form cannot reach, so the press is the form's no-op
+   `AskedForMore({ key })` (as `FollowedIssue` is), and `Crud.screen`, given
+   `Crud.options`' pickers, reads it out of the page's Message through the
+   editor placement's link and answers with `pickers.ask`. `pickers.more(model)`
+   says which pickers to offer it, from the page read's `hasNext`. A picker in
+   a nested row is not offered more: `Crud.options` keys only the form's own.
+4. **Measured on `examples/entity`.** Its author list now shows one author a
+   page, so the page test opens a post whose editor is on the second page:
+   she is named first, the picker offers more, a press brings her into the
+   list, and the button goes.
+
+### 1.10 What building Phase 7 changed in this plan
+
+1. **The gallery reads, it does not restate.** Each entry is a schema, a
+   stored value, a draft to type and one refused; the gallery fills a real
+   one-key form and reports what it made of each, so a recipe whose behaviour
+   moved changes the trace and fails its test. Only the call and the failures
+   are hand-written. A page per recipe is rendered on the server with the plain
+   renderers and no script, by the example's `build`, which `pnpm build` runs.
+2. **No benchmark.** §6 asks for one against a hand-built TanStack Form + Query
+   page only if it has something to measure, and there is no such page here
+   (`examples/tanstack` is an interpreter). Writing one to compare against
+   would be the synthetic benchmark Phase 5's text sets aside; the honest
+   measurement remains `examples/entity`'s before and after.
+
+### 1.11 What reviewing the build found
+
+Five reviews of Phases 1 to 7 found no blocking defect in the composition, and
+one in the amounts: a currency or a percentage can group and separate decimals
+otherwise than a plain number (`de-AT`, `fr-CH`, Indian currencies), and rtl
+locales write bidi marks, so a filled amount could not be submitted again in
+those locales. The symbols now come from the format the field writes with, and
+a test sweeps sixteen locales from format back to value. The rest, each fixed
+with a test that fails without it:
+
+- Two presses before a draw lost the first, so a press is the form's
+  `Toggled`, applied to the draft as it lands; a choice group that must hold
+  two could not be made.
+- A year under 100 was read as 19xx; a decimal past what a double holds was
+  rounded; a recipe's bad option threw on every keystroke, not when made; kind
+  names (`Date`) could collide with an application's own, and are prefixed.
+- The image control's label named nothing, its live region said every
+  percentage, a press left focus on the page, and a dropped file that is no
+  image was sent to be refused; the docs suggested a deployment's secret as a
+  browser's header.
+- A Dialog closed by Escape left its editor open; the summary's id could
+  collide with a key; the default conflict words offered a reload nothing does.
 
 ## 2. Scope
 
@@ -493,7 +703,13 @@ existing form changes behaviour.
 `Choices.parse` replaced by `() => options[0]`; the array resolution disabled;
 the group drawn with no options, unnamed, or nothing checked.
 
-### Phase 1 — renderers for every kind (M)
+### Phase 1 — renderers for every kind (M) — **built 2026-10-26**
+
+**Built.** `UiForm.renderers(styles?)`, typed by every shipped kind; the
+`summary`, `summaryTitle`, `issues`, `issue` and `issueLink` slots with
+`words.summary` and `words.issue`; `foldkit-form`'s `FollowedIssue`; and
+`UiForm.field`'s `words`. §1.4 says where it departs from the text below,
+which is kept as it was planned.
 
 **Build.** The `/ui` renderer table (§4.4), including the `/ui` drawing of
 `Choices` (the plain one shipped in Phase 0); `field()` rebuilt on the table; a
@@ -520,7 +736,12 @@ is the form-level counterpart to the per-field error the view already draws.
 **Kills.** A renderer dropped from the table (must throw by name, not draw a
 text box); `aria-describedby` removed; a summary link pointing at the wrong id.
 
-### Phase 2 — dates, times, and the text-shaped pack (M)
+### Phase 2 — dates, times, and the text-shaped pack (M) — **built 2026-10-26**
+
+**Built.** `foldkit-form-recipes` with `date`, `dateTime`, `email`, `url`, `tel`,
+`password`, `slug` and `slugify`; its `./html` and `./ui` renderers; the CMS and
+its example on them. §1.5 says where it departs from the text below, which is
+kept as it was planned.
 
 **Build.** `FieldRecipes.date` (a `CalendarDate` ↔ `YYYY-MM-DD`), and
 `FieldRecipes.dateTime` with an explicit stored form: `'local'` (naive
@@ -555,7 +776,11 @@ new mechanics.
 **Kills.** `format` returning `String(value)`; the local/instant distinction
 collapsed; `date` parsing month-first; a duplicate kind accepted by `merge`.
 
-### Phase 3 — money and numbers (M)
+### Phase 3 — money and numbers (M) — **built 2026-10-26**
+
+**Built.** `money`, `decimal` and `percent` in `foldkit-form-recipes`, with their
+displays and `inputmode` renderers. §1.6 says where it departs from the text
+below.
 
 **Build.** `money({ currency, unit, locale })`, `decimal({ scale, locale })`,
 `percent({ unit, locale })`. Parse is conservative and locale-aware; `format`
@@ -581,7 +806,10 @@ already a fine draft.
 **Kills.** `format` replaced by `String(value)`; minor-unit scaling removed;
 the locale parameter ignored.
 
-### Phase 4 — CRUD presentation (M)
+### Phase 4 — CRUD presentation (M) — **built 2026-10-26**
+
+**Built.** `EditorView`, `ConfirmView` and `Toolbar` in `foldkit-mixins-crud`.
+§1.7 says where it departs from the text below.
 
 **Build.** `EditorView` (page, drawer, dialog), `ConfirmView`, `Toolbar` in
 `foldkit-mixins-crud` (§4.5).
@@ -603,7 +831,10 @@ the applications that already compose `Crud.editor` by hand.
 **Kills.** Focus restoration removed; a status arm dropped; the confirm
 button enabled with no target.
 
-### Phase 5 — the screen composition (L)
+### Phase 5 — the screen composition (L) — **built 2026-10-26**
+
+**Built.** `Crud.screen`, and `examples/entity` on it and on Phase 4's views.
+§1.8 says where it departs from the text below, and what it measured.
 
 **Build.** `Crud.screen` (§4.6), and `examples/entity` rewritten on it.
 
@@ -625,7 +856,11 @@ freeze an API around the parts that Phase 2 to 4 still change.
 **Kills.** `after` skipping the remover's sync; `active` dropping the editor;
 `close` clearing the wrong slice.
 
-### Phase 6 — files and asynchronous relations (L)
+### Phase 6 — files and asynchronous relations (L) — **built 2026-10-26**
+
+**Built.** `foldkit-media/browser`'s `upload`, `foldkit-form-recipes/image`, and
+a picker's "Show more" through `AskedForMore`. §1.9 says where it departs from
+the text below: no `file` recipe, an entry of its own, and no `Combobox`.
 
 **Build.** `FieldRecipes.file` and `.image` as `Bundle` controls over
 `foldkit-media`'s upload: `mixins-ui.FileDrop` for the drop zone, upload
@@ -650,7 +885,9 @@ earlier would have implied those limits were temporary.
 **Kills.** cancel ignored; a failed upload set as a value; `more` never
 requested.
 
-### Phase 7 — gallery, docs, benchmark (M)
+### Phase 7 — gallery, docs, benchmark (M) — **built 2026-10-26**
+
+**Built.** `examples/fields`, and no benchmark; §1.10 says why.
 
 **Build.** `examples/fields`: one page per recipe showing the schema, the
 derived control, the draft, the value, and the renderer options, rendered

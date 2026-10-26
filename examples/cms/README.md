@@ -118,7 +118,7 @@ fixed day, so both show the same dates.
 | In the transcript                                                    | What it is                                                                                                     |
 | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | `no title yet … and it is saved`                                     | Autosave keeps a form that does not validate. Publishing would refuse it.                                      |
-| `the address follows the title`                                      | `Cms.slug('title')`: the slug follows until the writer writes it.                                              |
+| `the address follows the title`                                      | `FieldRecipes.slug('title')`: the slug follows until the writer writes it.                                     |
 | `a visitor at /blog/hello-world: 404`, `a visitor's worklist: empty` | The audience boundary: to a visitor, entries and drafts are empty tables.                                      |
 | `the writer's page: … / preview off: NotFound`                       | In-app preview is the form laid over Remote's store. Nothing is sent, and with it off there is no row to read. |
 | `writer: PublishFailed (This author may not publish…)`               | The server asks your guards: any author may write, an editor (`transitions`) puts it in front of visitors.     |

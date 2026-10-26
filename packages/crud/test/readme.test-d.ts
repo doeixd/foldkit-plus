@@ -92,6 +92,17 @@ expectTypeOf(Placed.helpers.open('p2')(root).model).toEqualTypeOf<Root>()
 void Placed.helpers.blank()
 void Placed.helpers.close()
 
+// A screen's Messages, answered through the placements.
+const PostScreen = Crud.screen('Post', { id: Schema.String })
+const screenUpdate = PostScreen.update(
+  { editor: PostEditor, editing: Placed, removing: RemoveForm },
+  placements.update((model, message) =>
+    Remote.reduces(message) ? { model: Data.reduce(model, message) } : { model },
+  ),
+)
+expectTypeOf(screenUpdate).parameter(0).toEqualTypeOf<Root>()
+void PostScreen.messages
+
 // The form's value has to be the mutation's input.
 const Other = Mutation.make('Other', { Input: { slug: Schema.String }, Output: {} })
 // @ts-expect-error EditPostForm submits an EditPostInput, which `Other` does not take
@@ -183,4 +194,17 @@ Crud.editor('Mismatched', { form: EditPostForm, mutation: Other })
   expectTypeOf(searching(model).authorId).toEqualTypeOf<ReadonlyArray<Choice> | undefined>()
   void Data.subscriptions({ authors: AuthorList.active, chosen: searching.active })
   expectTypeOf(EditPostForm.search(EditPostForm.initial, 'authorId')).toEqualTypeOf<string>()
+
+  // A picker's "more": which keys have it, and the page with one more page shown.
+  expectTypeOf(searching.more(model)).toEqualTypeOf<{
+    readonly id?: boolean
+    readonly title?: boolean
+    readonly authorId?: boolean
+  }>()
+  expectTypeOf(searching.ask(model, 'authorId')).toEqualTypeOf<typeof ListModel.Type>()
+  PostScreen.update(
+    // @ts-expect-error these pickers read another page's Model than the screen's
+    { editor: PostEditor, editing: Placed, pickers: searching },
+    placements.update(model => ({ model })),
+  )
 }

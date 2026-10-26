@@ -13,6 +13,10 @@
       "foldkit-entity": ["../entity/src/index.ts"],
       "foldkit-entity/conformance": ["../entity/src/conformance/index.ts"],
       "foldkit-form": ["../form/src/index.ts"],
+      "foldkit-form-recipes": ["../form-recipes/src/index.ts"],
+      "foldkit-form-recipes/html": ["../form-recipes/src/html.ts"],
+      "foldkit-form-recipes/image": ["../form-recipes/src/image.ts"],
+      "foldkit-form-recipes/ui": ["../form-recipes/src/ui.ts"],
       "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-mixins": ["../mixins/src/index.ts"],
       "foldkit-mixins-crud": ["../mixins-crud/src/index.ts"],
@@ -63,6 +67,9 @@
     },
     {
       "path": "../surface/tsconfig.build.json"
+    },
+    {
+      "path": "../form-recipes/tsconfig.build.json"
     }
   ]
 }

@@ -1,6 +1,6 @@
 {
   "name": "foldkit-richtext-code-shiki",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Shiki grammars as foldkit-richtext code tokenizers, producing syntax decorations.",
   "keywords": [
     "foldkit",

@@ -95,3 +95,13 @@ export const inspectorBrowser = (
       ),
   })
 }
+
+export {
+  Progressed,
+  UploadEvent,
+  UploadFailed,
+  UploadRefusal,
+  Uploaded,
+  upload,
+  type UploadOptions,
+} from './upload.js'

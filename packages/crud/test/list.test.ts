@@ -193,6 +193,29 @@ describe('Crud.list', () => {
     )
   })
 
+  it('offers a picker more while its list has more rows, and shows them when asked', async () => {
+    const EditPost = Form.make(
+      'EditPost',
+      Entity.input(Blog.Post, Schema.Struct({ title: Schema.String, authorId: Schema.String }), {
+        authorId: Relation.input(Blog.Post.relations.author),
+      }),
+    )
+    const pickers = Crud.options(EditPost, [AuthorList])
+    // Nothing read is nothing more to offer.
+    expect(pickers.more({ ...initial, search: 'a' })).toEqual({})
+
+    const first = await load({ ...initial, search: 'a' })
+    expect(pickers(first).authorId?.map(choice => choice.label)).toEqual(['Ada', 'Alan'])
+    expect(pickers.more(first)).toEqual({ authorId: true })
+
+    const second = await load(pickers.ask(first, 'authorId'))
+    expect(pickers(second).authorId?.map(choice => choice.label)).toEqual(['Ada', 'Alan', 'Annie'])
+    expect(pickers.more(second)).toEqual({})
+    // With every row shown, or for a key that is no picker, the page stays as it is.
+    expect(pickers.ask(second, 'authorId')).toBe(second)
+    expect(pickers.ask(first, 'title')).toBe(first)
+  })
+
   it('gathers the requirement of every piece handed over, by the names given', () => {
     const EditPost = Form.make(
       'EditPost',
