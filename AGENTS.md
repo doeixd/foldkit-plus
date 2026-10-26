@@ -1646,6 +1646,13 @@ of its own named a form field "fits the Catalog". Read words with
   take a debug line back out of a test, it also took the session's new tests
   in that file, which had to be written again. Copy the file aside (`cp`)
   before a temporary edit, and copy it back.
+- **A rebase- or squash-merged PR leaves its branch behind `main` in name only.**
+  GitHub's rebase merge writes every commit again under a new hash, so after
+  PR #189 the session branch held the old copies and restarting it from `main`
+  could only be pushed by force, which auto-mode refuses unless the user allows
+  it. Keep the history linear and let GitHub delete a branch when its PR
+  merges (Settings, General, "Automatically delete head branches"): restarting
+  it is then a plain push that recreates it.
 - **Flags go before `--`, and new files need `git add`.** `git commit --
   <paths> -m` parses `-m` as a pathspec and fails, and a pathspec commit skips
   untracked files, so a new module rode an `--amend` into the wrong commit.
