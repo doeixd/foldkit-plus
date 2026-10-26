@@ -1,5 +1,8 @@
-import { icons } from 'foldkit-media/vite'
 import { defineConfig } from 'vite'
+// From source, by path: Vite bundles a config's relative imports itself, while
+// a package import of the plugin runs in Node, which reads its `dist` (absent on
+// CI, stale after a change) or cannot load its TypeScript source.
+import { icons } from '../../packages/media/src/vite/index.js'
 
 export default defineConfig({
   // Workspace packages resolve to their source, so an edit shows without a build.
