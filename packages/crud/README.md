@@ -428,7 +428,8 @@ const update = PostScreen.update(
 `PostEditor.after` runs after each. Leave `removing` out for a screen that cannot
 delete. Given `pickers` (from `Crud.options`), it also answers a picker's
 `AskedForMore` with `pickers.ask`, read out of the page's Message through the
-editor placement's link, and the form still hears it. The screen places nothing and holds no state: the children, their `onOut`,
+editor placement's link, and the form still hears it (a page that also
+answers `AskedForMore` itself would show two pages more: do one or the other). The screen places nothing and holds no state: the children, their `onOut`,
 the query's input and the wiring stay the page's, and a page that writes these
 cases itself works the same.
 
