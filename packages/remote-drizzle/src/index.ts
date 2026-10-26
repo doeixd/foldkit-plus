@@ -1118,7 +1118,9 @@ export const writer = <P = unknown>(
   /**
    * Whether `assignment` lands as one result in any order: `field := op(field,
    * amount)`, the amount reading no field, with `op`'s commutativity and
-   * associativity tested for both of this binding's implementations of it.
+   * associativity tested for both of this binding's implementations of it,
+   * over every value (a law narrowed by `Law.within` holds of less than a
+   * column may store).
    */
   const commutes = (assignment: WriteAssignment): boolean => {
     const { expr, field } = assignment
@@ -1134,7 +1136,11 @@ export const writer = <P = unknown>(
         : `${expr.operator.id}@${expr.operator.version}`
     const tested = (evidence: ReadonlyArray<Evidence>, kind: string) =>
       evidence.some(
-        record => record._tag === 'Tested' && record.operator === name && record.law.kind === kind,
+        record =>
+          record._tag === 'Tested' &&
+          record.operator === name &&
+          record.law.kind === kind &&
+          record.law.domain === null,
       )
     return ['commutative', 'associative'].every(
       kind =>

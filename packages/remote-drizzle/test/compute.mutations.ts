@@ -233,4 +233,19 @@ export default [
     'return visibleStoreOf(remote.entities, remote.optimistic, Operators.kernel)',
     remoteTests,
   ),
+  edit(
+    'a SQL table takes evidence tested in memory',
+    operatorsFile,
+    'if (Option.isSome(Operators.testedOn(record))) {',
+    'if (false) {',
+    drizzleTests,
+  ),
+  edit(
+    'a law narrowed to a domain admits a commuting write',
+    writerFile,
+    `record.law.kind === kind &&
+          record.law.domain === null,`,
+    'record.law.kind === kind,',
+    drizzleTests,
+  ),
 ]

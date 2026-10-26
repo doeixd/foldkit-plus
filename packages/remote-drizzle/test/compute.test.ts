@@ -368,6 +368,61 @@ describe("A SQL table's evidence", () => {
     ).toThrow('evidence names a law of acme.add it does not declare (idempotent)')
   })
 
+  it('refuses a record tested on a memory implementation, which says nothing of its SQL', () => {
+    const verdict = Conformance.laws(add, memory)
+    const evidence = verdict._tag === 'Holds' ? verdict.evidence : []
+    expect(() => DrizzleOperators.withEvidence(sqlTable, evidence)).toThrow(
+      "evidence of acme.add's commutative law was tested on a memory implementation",
+    )
+  })
+
+  it('does not let a law tested over less than every value admit a write with no revision', async () => {
+    // Associative over the positive integers only: a column may hold any.
+    const addSome = Expr.operator('acme.addSome', {
+      input: [Schema.Int, Schema.Int],
+      output: Schema.Int,
+      laws: [
+        Law.commutative,
+        Law.within(Law.associative, Schema.Int.check(Schema.isGreaterThan(0))),
+      ],
+    })
+    const tables = {
+      memory: Operators.memory(Operators.implement(addSome, (left, right) => left + right)),
+      sql: DrizzleOperators.make(
+        DrizzleOperators.implement(addSome, ({ args: [left, right] }) => sql`(${left} + ${right})`),
+      ),
+    }
+    const memoryVerdict = Conformance.laws(addSome, tables.memory)
+    const sqlVerdict = await Conformance.lawsBy(
+      addSome,
+      selectingSqlite(bind({ Part }, { Part: { table: sqliteParts } }, { operators: tables })),
+      { implementation: 'sqlite' },
+    )
+    if (memoryVerdict._tag !== 'Holds' || sqlVerdict._tag !== 'Holds') {
+      throw new Error('addition did not hold its laws')
+    }
+    const evidenced = {
+      memory: Operators.withEvidence(tables.memory, memoryVerdict.evidence),
+      sql: DrizzleOperators.withEvidence(tables.sql, sqlVerdict.evidence),
+    }
+    const ScoreSome = Mutation.write(
+      'ScoreSome',
+      Write.update(
+        Entity.input(Part, Schema.Struct({ id: Schema.String, by: Schema.Int }), {
+          by: Entity.unmapped,
+        }),
+        { id: 'id', compute: { score: ({ row, input }) => addSome(row.score, input.by) } },
+      ),
+    )
+    const Db = bind({ Part }, { Part: { table: sqliteParts } }, { operators: evidenced })
+    expect(() =>
+      RemoteServer.write(
+        ScoreSome,
+        writer<string>(Db.Part, { ledger: { table: ledgerTable, scope: principal => principal } }),
+      ),
+    ).toThrow('write "ScoreSome" computes "score" and expects no revision')
+  })
+
   it('keeps its records through a merge, and drops a replaced implementation’s', async () => {
     const table = DrizzleOperators.withEvidence(sqlTable, await record())
     expect(DrizzleOperators.merge(table, DrizzleOperators.kernel).evidence).toHaveLength(2)

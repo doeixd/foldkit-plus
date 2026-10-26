@@ -300,9 +300,11 @@ const report = await Conformance.operator(concat, {
   seeded sampling: the empty string, mixed case, non-ASCII and astral text,
   zero, negatives, fractions. Declaring `concat` commutative fails with
   `"a"` and `"A"`.
-- **Evidence belongs to an implementation.** `withEvidence` records what was
-  tested for this table; a table that overrides the implementation drops it.
-  The commuting writes above require it in both the memory and the SQL table.
+- **Evidence belongs to an implementation.** `withEvidence` takes only what
+  was tested on this table's own implementation: a record of another, or of a
+  memory implementation handed to an SQL table, is refused, and a table that
+  overrides the implementation drops it. The commuting writes above require it
+  in both the memory and the SQL table, for laws tested over every value.
 - **`Conformance.operator`** runs one set of generated calls through every
   implementation given (null where admitted, NUL text, each collation) and
   reports where they disagree, a refusal included. Give it an SQL runner

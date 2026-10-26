@@ -72,6 +72,14 @@ version changed; `pnpm` skips versions already in the registry.
   integer is cast to `bigint`, not `integer`, so a value past 32 bits that
   `Schema.Int` admits no longer fails the query; on SQLite a boolean is bound
   as 1 or 0, which SQLite stores, where it failed to bind at all.
+- **Evidence is tied to the implementation it was tested on.**
+  `Operators.withEvidence` refuses a `Tested` record `Conformance.laws` did not
+  make of the table's own implementation (`Operators.testedOn(record)` names
+  it), and `DrizzleOperators.withEvidence` one tested in memory; before, a
+  verdict for one implementation could be recorded for another that breaks
+  the law. A computed assignment commutes only by laws tested over every
+  value, not one narrowed by `Law.within`. `Law.describe` keeps a domain's
+  `$defs`.
 - **Laws are tested under every collation an operator is called with.**
   `Conformance.laws` and `lawsBy` ran an operator that compares text under
   `binary` alone, so an implementation that broke a law only under `asciiFold`

@@ -24,6 +24,7 @@ import {
   type Operator,
   type TestedEvidence,
 } from '../index.js'
+import { stampTested } from '../tested.js'
 
 type AnyOperator = Operator<ReadonlyArray<Schema.Top>, Schema.Top>
 
@@ -411,10 +412,16 @@ export const Conformance = {
         throw error
       }
     }
-    return verdictOf(operator, lawPlans(operator, options.cases ?? 200, seed), outcome, {
+    const verdict = verdictOf(operator, lawPlans(operator, options.cases ?? 200, seed), outcome, {
       implementation: options.implementation ?? 'memory',
       seed,
     })
+    // Each record is of this table's implementation, which `withEvidence` checks.
+    const tested = operators.implementations.find(each => each.operator === operator.descriptor)
+    if (verdict._tag === 'Holds' && tested !== undefined) {
+      verdict.evidence.forEach(record => stampTested(record, tested))
+    }
+    return verdict
   },
 
   /**

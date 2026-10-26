@@ -8,6 +8,8 @@ import { Data, Option, Schema } from 'effect'
 import { Collation } from './collation.js'
 import type { Operator, OperatorDescriptor, OperatorTable } from './expr.js'
 import { Law, LawDescription } from './law.js'
+import { jsonSchemaOf } from './jsonSchema.js'
+import { implementationTested } from './tested.js'
 import { Text } from './text.js'
 
 /** What an implementation is told besides its arguments. */
@@ -81,13 +83,6 @@ export interface ImplementedOperator extends OperatorDescription {
  * A schema as a JSON Schema, which describes its stored side (Effect's
  * document is of what the schema encodes to), what it refers to under `$defs`.
  */
-const jsonSchemaOf = (schema: Schema.Top): Readonly<Record<string, unknown>> => {
-  const document = Schema.toJsonSchemaDocument(schema)
-  return Object.keys(document.definitions).length === 0
-    ? document.schema
-    : { ...document.schema, $defs: document.definitions }
-}
-
 const described = (operator: OperatorDescriptor): OperatorDescription => ({
   name: nameOf(operator),
   id: operator.id,
@@ -280,26 +275,37 @@ export const Operators = {
   /**
    * The table with what is known of its implementations' laws recorded: each
    * record of an operator it implements and a law that operator declares.
-   * `Conformance.laws` gives `Tested` records; `Evidence.Proven` says a proof
-   * elsewhere covers one.
+   * `Conformance.laws` gives `Tested` records, each of the implementation it
+   * ran, and a table takes only those of its own; `Evidence.Proven` says a
+   * proof elsewhere covers one.
    */
   withEvidence: (base: MemoryOperators, evidence: ReadonlyArray<Evidence>): MemoryOperators => {
-    const declared = new Map(
-      base.implementations.map(({ operator }) => [
-        nameOf(operator),
-        operator.laws.map(Law.describe),
-      ]),
-    )
+    const own = new Map(base.implementations.map(each => [nameOf(each.operator), each]))
     for (const record of evidence) {
-      const laws =
-        declared.get(record.operator) ??
+      const implemented =
+        own.get(record.operator) ??
         fail(`evidence names ${record.operator}, which this table does not implement`)
-      if (!laws.some(law => sameLaw(law, record.law))) {
+      if (!implemented.operator.laws.map(Law.describe).some(law => sameLaw(law, record.law))) {
         fail(`evidence names a law of ${record.operator} it does not declare (${record.law.kind})`)
+      }
+      // Evidence of another implementation, or of a runner, says nothing of this one.
+      if (
+        record._tag === 'Tested' &&
+        !Option.exists(implementationTested(record), tested => tested === implemented)
+      ) {
+        fail(
+          `evidence of ${record.operator}'s ${record.law.kind} law was not tested on this table's implementation; test it with Conformance.laws(op, table)`,
+        )
       }
     }
     return table(base.implementations, base.checked, [...base.evidence, ...evidence])
   },
+
+  /**
+   * The memory implementation `Conformance.laws` tested a record on; none for
+   * a record of a runner (`Conformance.lawsBy`) or a proof.
+   */
+  testedOn: (record: Evidence): Option.Option<MemoryImplementation> => implementationTested(record),
 
   /**
    * Each operator the table implements, by name, with the laws it declares and

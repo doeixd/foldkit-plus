@@ -982,9 +982,14 @@ Operators.describeTable(recorded) // [{ name: 'acme.concat', …, laws, evidence
   first `Counterexample` with both sides and its collation: declaring `concat` commutative
   finds `"a"` and `"A"`, which give `"aA"` and `"Aa"`.
 - **Evidence is an implementation's.** `Operators.withEvidence` refuses a record
-  of an operator the table lacks or a law it does not declare; `override` drops
-  a replaced implementation's records, `merge` keeps both tables'.
-  `Evidence.Proven` records a proof made elsewhere, never checked here.
+  of an operator the table lacks or a law it does not declare, and a `Tested`
+  record `Conformance.laws` did not make of this table's own implementation
+  (`Operators.testedOn(record)` names the one it did); `override` drops a
+  replaced implementation's records, `merge` keeps both tables'. An SQL table
+  (`DrizzleOperators.withEvidence`) takes `Conformance.lawsBy`'s records and
+  refuses one tested in memory. `Evidence.Proven` records a proof made
+  elsewhere, never checked here. A law's domain is described as a JSON Schema
+  with the definitions it refers to.
 
 `Conformance.operator(op, { implementations })` runs one set of calls through
 every implementation given and reports where they disagree, a refusal included:

@@ -59,12 +59,7 @@ export default [
     'position >= 0',
   ),
   edit('a collation law of any operator', expr, "      collation === 'operands'", '      true'),
-  edit(
-    'a domain is not described',
-    law,
-    'onSome: domain => Schema.toJsonSchemaDocument(domain).schema,',
-    'onSome: () => null,',
-  ),
+  edit('a domain is not described', law, 'onSome: jsonSchemaOf,', 'onSome: () => null,'),
   edit(
     'a law is never narrowed',
     law,
@@ -82,7 +77,7 @@ export default [
   edit(
     'evidence of an undeclared law is kept',
     operators,
-    'if (!laws.some(law => sameLaw(law, record.law))) {',
+    'if (!implemented.operator.laws.map(Law.describe).some(law => sameLaw(law, record.law))) {',
     'if (false) {',
   ),
   edit(
@@ -207,4 +202,16 @@ export default [
     ],
     tests,
   },
+  edit(
+    'a table takes evidence of another implementation',
+    operators,
+    '!Option.exists(implementationTested(record), tested => tested === implemented)',
+    'false',
+  ),
+  edit(
+    "a law's domain drops its definitions",
+    law,
+    'onSome: jsonSchemaOf,',
+    'onSome: domain => Schema.toJsonSchemaDocument(domain).schema,',
+  ),
 ]

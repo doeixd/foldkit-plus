@@ -6,6 +6,7 @@
  */
 import { Data, Option, Schema } from 'effect'
 import type { Operator } from './expr.js'
+import { jsonSchemaOf } from './jsonSchema.js'
 
 /** An operator a law names as a witness: the inverse, or the operator distributed over. */
 type AnyOperator = Operator<ReadonlyArray<Schema.Top>, Schema.Top>
@@ -126,7 +127,7 @@ export const Law = {
       witnesses,
       domain: Option.match(law.domain, {
         onNone: () => null,
-        onSome: domain => Schema.toJsonSchemaDocument(domain).schema,
+        onSome: jsonSchemaOf,
       }),
     }
   },

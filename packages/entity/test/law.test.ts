@@ -93,6 +93,12 @@ describe('Declaring a law', () => {
     ])
     const narrowed = Law.within(Law.commutative, Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)))
     expect(Law.describe(narrowed).domain).toMatchObject({ type: 'integer', minimum: 0 })
+    // A named domain is a reference, so its definition travels with it.
+    const named = Law.within(Law.commutative, Schema.Int.annotate({ identifier: 'Count' }))
+    expect(Law.describe(named).domain).toMatchObject({
+      $ref: '#/$defs/Count',
+      $defs: { Count: { type: 'integer' } },
+    })
   })
 })
 
@@ -304,6 +310,13 @@ describe('Evidence in a table', () => {
         Evidence.Proven({ ...proof, law: Law.describe(Law.commutative) }),
       ]),
     ).toThrow('evidence names a law of acme.concat it does not declare (commutative)')
+  })
+
+  it('refuses evidence tested on another implementation of the operator', () => {
+    const another = Operators.memory(Operators.implement(concat, (left, right) => right + left))
+    expect(() => Operators.withEvidence(another, tested())).toThrow(
+      "evidence of acme.concat's associative law was not tested on this table's implementation",
+    )
   })
 
   it('keeps evidence through a merge, and drops a replaced implementation’s', () => {

@@ -186,6 +186,12 @@ export const DrizzleOperators = {
       if (!declared.includes(JSON.stringify(record.law))) {
         fail(`evidence names a law of ${record.operator} it does not declare (${record.law.kind})`)
       }
+      // A memory implementation's says nothing of the SQL this table compiles.
+      if (Option.isSome(Operators.testedOn(record))) {
+        fail(
+          `evidence of ${record.operator}'s ${record.law.kind} law was tested on a memory implementation; test this table's SQL with Conformance.lawsBy`,
+        )
+      }
     }
     return table(base.implementations, [...base.evidence, ...evidence])
   },
