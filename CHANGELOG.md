@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-form`: `Input.bundle`'s `busy`.** A control with work its value
+  waits on (an upload) says so, and a submit made meanwhile waits for it as for a
+  check: the key reads `Validating`, the submit goes out when the work lands with
+  a value, and the key is validated when it ends without one.
+  `foldkit-form-recipes/image` is busy while it sends.
+
 - **`foldkit-crud`: `Crud.screen(name, { id })`.** A page's four editor Messages,
   named after the screen (`OpenedPost({ id })`, `CreatedPost()`, `ClosedPost()`,
   `AskedToRemovePost({ id })`), and an `update` that answers them through the

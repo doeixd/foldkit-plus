@@ -230,10 +230,11 @@ moves focus on: Cancel and Remove to the file input, Try again to Cancel. Its lo
 `foldkit-mixins-ui` beside the package's own; `./ui` needs `foldkit-mixins`,
 `foldkit-mixins-ui` and `foldkit-mixins-form`, and `./html` `foldkit-mixins-form`.
 
-**A submit while a file is on its way** goes without it: the form cannot see a
-Bundle's send. A required key reads `Required` beside the progress; an optional
-one is submitted empty and the upload lands after. Hold the submit button back
-while the key's `data-upload` is `Sending` if that matters. In `vite dev`, a
+**A submit while a file is on its way** waits for it (the control is `busy`
+while `Sending`): the key reads as being checked, the form says
+`words.checking` under it, and the submit goes out with the image once the
+route keeps it. A cancel or a refusal ends the wait with nothing submitted, a
+required key then saying `Required`. In `vite dev`, a
 Model holding a `File` cannot be kept across a reload, so a send on its way is
 lost by one.
 

@@ -1262,9 +1262,13 @@ const Core = {
           (field._tag !== 'NotValidated' || Result.isSuccess(plans[key].check(field.value)))
         )
       })
-    /** A check is running, in this form or in a row of it. */
+    /** A key's Bundle has work in flight its value waits on (`Input.bundle`'s `busy`). */
+    const isBusy = (model: Model, key: Key): boolean =>
+      plans[key].bundled?.busy(drafts(model)[key].value) === true
+
+    /** A check is running, or a Bundle's work, in this form or in a row of it. */
     const isValidating = (model: Model): boolean =>
-      keys.some(key => drafts(model)[key]._tag === 'Validating') ||
+      keys.some(key => drafts(model)[key]._tag === 'Validating' || isBusy(model, key)) ||
       rowsKeys.some(key =>
         rowsOf(model)[key]!.some(row => nestedPlans[key].form.engine.isValidating(row.model)),
       )
@@ -1307,6 +1311,12 @@ const Core = {
       const commands: Array<Command<Message, never, R>> = []
       for (const key of keys) {
         const state = drafts(next)[key]
+        // A key whose work is in flight is being found out, as a checked one is:
+        // it is validated when the work lands or ends, not called missing now.
+        if (isBusy(next, key)) {
+          next = withField(next, key, FieldValidation.Validating({ value: state.value }))
+          continue
+        }
         // Any other state already answers for this draft: an edit always revalidates.
         if (state._tag !== 'NotValidated') continue
         const validated = validateKey(next, key, state.value)
@@ -1539,9 +1549,22 @@ const Core = {
             const after = drafts(moved)[message.key].value
             // A Message that leaves the key's value as it was, such as a selection, is not an edit.
             const lifted = commands as Commands
-            if (sameValue(message.key, before, after)) return { model: moved, commands: lifted }
+            // A submit waiting on this key's work goes once the work lands or ends:
+            // work that ended with the value unchanged leaves the key to be validated.
+            if (sameValue(message.key, before, after)) {
+              const ended =
+                isBusy(model, message.key) &&
+                !isBusy(moved, message.key) &&
+                drafts(moved)[message.key]._tag === 'Validating'
+              if (!ended) return resume(moved, lifted)
+              const validated = validateKey(moved, message.key, after)
+              return resume(validated.model, [...lifted, ...validated.commands])
+            }
+            const waited = model.submitPending && isBusy(model, message.key)
             const edit = changed(edited(moved), message.key, after)
-            return { model: edit.model, commands: [...lifted, ...edit.commands] }
+            return waited
+              ? resume({ ...edit.model, submitPending: true }, [...lifted, ...edit.commands])
+              : { model: edit.model, commands: [...lifted, ...edit.commands] }
           }
           case 'Nested': {
             const plan: NestedPlan | undefined = nestedPlans[message.key as RowsKey]

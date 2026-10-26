@@ -203,6 +203,8 @@ export interface BundleData<Model = any, Value = any> {
   readonly fill: (model: Model, value: Value) => Model
   /** The Model with nothing in flight, for a stored form shown again. */
   readonly settled: (model: Model) => Model
+  /** Whether work the key's value waits on is in flight: a submit waits for it, as for a check. */
+  readonly busy: (model: Model) => boolean
 }
 
 /**
@@ -240,6 +242,12 @@ export type BundleControlSpec<
   readonly fill: (model: Model, value: Value) => Model
   /** The Model with nothing in flight, for a stored form shown again. Default: as it is. */
   readonly settled?: (model: Model) => Model
+  /**
+   * Whether work the key's value waits on is in flight, such as an upload. A
+   * submit made meanwhile waits, as it waits for a check, and goes when the work
+   * lands or ends. Default: never.
+   */
+  readonly busy?: (model: Model) => boolean
 } & ([Args] extends [void] ? { readonly args?: undefined } : { readonly args: Args })
 
 /** A relation picker: what it chooses from, and whether it searches. */
@@ -392,6 +400,7 @@ export const Input = {
         value: spec.value,
         fill: spec.fill,
         settled: spec.settled ?? ((model: Model) => model),
+        busy: spec.busy ?? (() => false),
       }),
     }),
 

@@ -245,6 +245,12 @@ What the form does with it:
   and `init` starts the control's init Commands.
 - **`fill`, `partial`, `settled`, submit and `Reset`** all go through `value`,
   `fill` and `settled`. `Reset` returns the Bundle's initial Model.
+- **Work the value waits on** (an upload, a lookup the Bundle runs) is `busy`:
+  `busy: model => model.sending`. A submit made while it is true waits, as it
+  waits for a check: the key reads `Validating` rather than missing, the
+  submit goes out when the work lands with a value, and when the work ends
+  without one the key is validated (a required key then says `Required`) and
+  nothing is submitted.
 - **Nothing entered** is `value` giving `undefined` or `null`, which a required
   key refuses as it would an empty text box.
 - **Types follow the control.** `model.fields.color.value` is the picker's

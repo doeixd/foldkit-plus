@@ -398,6 +398,8 @@ export const image = (
       value: model =>
         ImageUpload.matchOrElse(model.upload, { Kept: ({ asset }) => asset }, () => undefined),
       fill: keep,
+      // A submit made while a file is on its way waits for the route's answer.
+      busy: model => ImageUpload.matchOrElse(model.upload, { Sending: () => true }, () => false),
       // A stored draft holds no File: what was on its way, or refused, is gone with it.
       settled: model =>
         modifyFields(model, {

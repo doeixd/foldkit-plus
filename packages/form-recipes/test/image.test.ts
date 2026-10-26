@@ -223,3 +223,35 @@ describe('an image recipe made wrong', () => {
     expect(() => image({ id: 'cover', ...options })).toThrow(/^image: /),
   )
 })
+
+describe('a submit made while a file is on its way', () => {
+  const submit = (model: Model) =>
+    PostForm.bundle.update(model, PostForm.Message.Submitted(), undefined)
+  const step = (model: Model, message: ImageMessage) =>
+    PostForm.bundle.update(model, cover.send(message), undefined)
+
+  it('waits for the route, and goes with what it kept', () => {
+    const waiting = submit(update(PostForm.initial, dropped(file())))
+    expect([waiting.outMessage, waiting.model.submitPending]).toEqual([undefined, true])
+    // Being found out, as a checked key is: not called missing beside its progress.
+    expect(cover.field(waiting.model)._tag).toBe('Validating')
+    const landed = step(waiting.model, ImageMessage.Uploaded({ attempt: 1, asset }))
+    expect(landed.outMessage).toEqual({ _tag: 'Submitted', value: { cover: asset } })
+  })
+
+  it('goes nowhere when the send is cancelled, and says the key is missing', () => {
+    const waiting = submit(update(PostForm.initial, dropped(file()))).model
+    const cancelled = step(waiting, ImageMessage.Cancelled())
+    expect([cancelled.outMessage, cancelled.model.submitPending]).toEqual([undefined, false])
+    expect(cover.field(cancelled.model)).toMatchObject({ _tag: 'Invalid', errors: ['Required'] })
+  })
+
+  it('goes nowhere when the route refuses it', () => {
+    const waiting = submit(update(PostForm.initial, dropped(file()))).model
+    const refused = step(
+      waiting,
+      ImageMessage.Failed({ attempt: 1, reason: 'TooLarge', status: 413 }),
+    )
+    expect([refused.outMessage, refused.model.submitPending]).toEqual([undefined, false])
+  })
+})

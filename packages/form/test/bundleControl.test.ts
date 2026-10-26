@@ -374,3 +374,56 @@ describe('a control inside a nested form', () => {
     expect(BookForm.partial(retagged).author).toEqual({ tags: ['novelist'] })
   })
 })
+
+describe('a Bundle control with work in flight', () => {
+  // Busy while something is typed and not yet committed into the tags.
+  const BusyTags = Input.bundle('Tags', {
+    bundle: TagEditor,
+    value: model => (model.tags.length === 0 ? undefined : model.tags),
+    fill: (model, tags) => ({ ...model, tags, typing: '' }),
+    busy: model => model.typing !== '',
+  })
+  const Busy = Form.make('BusyForm', PostInput, { inputs: { tags: BusyTags } })
+  const step = (model: typeof Busy.initial, message: typeof Busy.Message.Type) =>
+    Busy.bundle.update(model, message, undefined)
+  const titled = step(Busy.initial, Busy.Message.Changed({ key: 'title', value: 'Hello' })).model
+  const typing = step(
+    titled,
+    Busy.control('tags').send(TagsMessage.Typed({ text: 'effect' })),
+  ).model
+
+  it('holds a submit until the work lands, then submits what it left', () => {
+    const waiting = step(typing, Busy.Message.Submitted())
+    expect([waiting.outMessage, waiting.model.submitPending]).toEqual([undefined, true])
+    expect(Busy.control('tags').field(waiting.model)._tag).toBe('Validating')
+    const landed = step(
+      waiting.model,
+      Busy.control('tags').send(TagsMessage.Normalized({ tags: ['effect'] })),
+    )
+    // Normalized leaves `typing` as it was, so the work is still in flight.
+    expect(landed.outMessage).toBeUndefined()
+    const done = step(landed.model, Busy.control('tags').send(TagsMessage.Typed({ text: '' })))
+    expect(done.outMessage).toEqual({
+      _tag: 'Submitted',
+      value: { title: 'Hello', tags: ['effect'] },
+    })
+  })
+
+  it('says a required key is missing once the work ends without a value', () => {
+    const waiting = step(typing, Busy.Message.Submitted()).model
+    const ended = step(waiting, Busy.control('tags').send(TagsMessage.Typed({ text: '' })))
+    expect([ended.outMessage, ended.model.submitPending]).toEqual([undefined, false])
+    expect(Busy.control('tags').field(ended.model)).toMatchObject({
+      _tag: 'Invalid',
+      errors: ['Required'],
+    })
+  })
+
+  it('submits at once when nothing is in flight', () => {
+    const tagged = step(titled, Busy.control('tags').send(TagsMessage.Normalized({ tags: ['a'] })))
+    expect(step(tagged.model, Busy.Message.Submitted()).outMessage).toEqual({
+      _tag: 'Submitted',
+      value: { title: 'Hello', tags: ['a'] },
+    })
+  })
+})
