@@ -553,6 +553,11 @@ test('Ctrl+U underlines a selection, and Ctrl+K opens its link editor', async ()
   await expect
     .poll(() => page.locator('[contenteditable=true] h1 + p u').count())
     .toBeGreaterThan(0)
+  // Ctrl+K reads the selection the page was last drawn with; the pressed Underline is that
+  // drawing, with the selection over the underlined text, where the marks alone come earlier.
+  await expect
+    .poll(() => page.locator('button[aria-label="Underline"][aria-pressed="true"]').count())
+    .toBeGreaterThan(0)
   await page.keyboard.press('Control+k')
   await expect
     .poll(() => page.evaluate(() => document.activeElement?.getAttribute('data-link')))
