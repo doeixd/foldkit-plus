@@ -14,6 +14,28 @@ const edit = (name: string, file: string, find: string, replace: string) => ({
 })
 
 export default [
+  edit(
+    'laws are tested under binary alone',
+    helper,
+    `      ? [Option.none<Collation>()]
+      : [Option.some(Collation.binary), Option.some(Collation.asciiFold)]
+  const run`,
+    `      ? [Option.none<Collation>()]
+      : [Option.some(Collation.binary)]
+  const run`,
+  ),
+  edit(
+    'outcomes are compared as JSON',
+    helper,
+    'sameValue(left.value, right.value)',
+    'JSON.stringify(left.value) === JSON.stringify(right.value)',
+  ),
+  edit(
+    'a witness is called with no collation',
+    helper,
+    "other.descriptor.collation === 'none' ? Option.none() : collation",
+    'Option.none()',
+  ),
   // ---- declaring
   edit('a law of two arguments fits any operator', expr, '    input.length === 2', '    true'),
   edit(
@@ -106,14 +128,14 @@ export default [
   edit(
     'an inverse answers the operator itself',
     helper,
-    'run(call(a, other(a))), value(identity))',
-    'run(call(a, other(a))), run(call(a, other(a))))',
+    'run(call(a, witness(other, a))), value(identity))',
+    'run(call(a, witness(other, a))), run(call(a, witness(other, a))))',
   ),
   edit(
     'distributing compares a side with itself',
     helper,
-    'run(over(call(a, b), call(a, c)))',
-    'run(call(a, over(b, c)))',
+    'run(witness(over, call(a, b), call(a, c))),',
+    'run(call(a, witness(over, b, c))),',
   ),
   edit(
     'monotonic ignores its direction',
@@ -127,12 +149,7 @@ export default [
     'Value: ({ value }) => Outcome.Value({ value: foldText(value) }),',
     'Value: ({ value }) => Outcome.Value({ value }),',
   ),
-  edit(
-    'every two values are alike',
-    helper,
-    ': JSON.stringify(left.value) === JSON.stringify(right.value)',
-    ': true',
-  ),
+  edit('every two values are alike', helper, ': sameValue(left.value, right.value)', ': true'),
   edit('a failed law is not reported', helper, 'if (!plan.holds(left, right)) {', 'if (false) {'),
 
   // ---- choosing and running cases
@@ -152,8 +169,10 @@ export default [
   edit(
     'text is run under binary alone',
     helper,
-    ': [Option.some(Collation.binary), Option.some(Collation.asciiFold)]',
-    ': [Option.some(Collation.binary)]',
+    `: [Option.some(Collation.binary), Option.some(Collation.asciiFold)]
+    const disagreements`,
+    `: [Option.some(Collation.binary)]
+    const disagreements`,
   ),
   edit(
     'null is never generated',

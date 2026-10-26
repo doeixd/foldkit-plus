@@ -72,6 +72,13 @@ version changed; `pnpm` skips versions already in the registry.
   integer is cast to `bigint`, not `integer`, so a value past 32 bits that
   `Schema.Int` admits no longer fails the query; on SQLite a boolean is bound
   as 1 or 0, which SQLite stores, where it failed to bind at all.
+- **Laws are tested under every collation an operator is called with.**
+  `Conformance.laws` and `lawsBy` ran an operator that compares text under
+  `binary` alone, so an implementation that broke a law only under `asciiFold`
+  passed; a `Counterexample` now names its `collation`. A witness that compares
+  text (`Law.inverse`, `Law.distributes`) is called under it too, where it
+  threw. Outcomes are compared as values, not as JSON, which wrote `Infinity`
+  and `NaN` as `null`.
 - **A defined operator takes no implementation.** `Operators.implement` and
   `DrizzleOperators.implement` refuse one: SQL compiles what a defined operator
   means, and a memory implementation was a second meaning only the client ran.

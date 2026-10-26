@@ -977,8 +977,9 @@ Operators.describeTable(recorded) // [{ name: 'acme.concat', …, laws, evidence
 - **Testing is sampling, seeded.** Cases come from a fixed sample of each kind
   (the empty string, mixed case, non-ASCII and astral text; zero, negatives, a
   fraction), kept where the schemas decode them, up to `cases` (200) a law
-  chosen by `seed` (0). The verdict is `Holds` with one `Tested` record a law,
-  or the first `Counterexample` with both sides: declaring `concat` commutative
+  chosen by `seed` (0), under `binary` and `asciiFold` for an operator that
+  compares text. The verdict is `Holds` with one `Tested` record a law, or the
+  first `Counterexample` with both sides and its collation: declaring `concat` commutative
   finds `"a"` and `"A"`, which give `"aA"` and `"Aa"`.
 - **Evidence is an implementation's.** `Operators.withEvidence` refuses a record
   of an operator the table lacks or a law it does not declare; `override` drops

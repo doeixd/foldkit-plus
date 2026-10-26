@@ -40,6 +40,8 @@ export type LawsVerdict = Data.TaggedEnum<{
   Counterexample: {
     readonly law: LawDescription
     readonly args: ReadonlyArray<unknown>
+    /** The collation the calls were made under, for an operator that compares text. */
+    readonly collation: Option.Option<Collation>
     readonly left: Outcome
     readonly right: Outcome
   }
@@ -130,20 +132,51 @@ const chosen = <A>(tuples: ReadonlyArray<A>, limit: number, seed: number): Reado
   return shuffled.slice(0, limit)
 }
 
+const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+/**
+ * Two stored values alike, structurally. Not by their JSON, which writes
+ * `Infinity` and `NaN` as `null`: a division by zero answering `Infinity` in
+ * memory and null in SQL would read as agreeing.
+ */
+const sameValue = (left: unknown, right: unknown): boolean => {
+  if (typeof left === 'number' && typeof right === 'number') {
+    return left === right || (Number.isNaN(left) && Number.isNaN(right))
+  }
+  if (Array.isArray(left) && Array.isArray(right)) {
+    return left.length === right.length && left.every((each, i) => sameValue(each, right[i]))
+  }
+  if (isRecord(left) && isRecord(right)) {
+    const keys = Object.keys(left)
+    return (
+      keys.length === Object.keys(right).length &&
+      keys.every(key => Object.hasOwn(right, key) && sameValue(left[key], right[key]))
+    )
+  }
+  return left === right
+}
+
 /** Two outcomes alike: equal values as stored, or both refusals. */
 const same = (left: Outcome, right: Outcome): boolean =>
   left._tag === 'Refused' || right._tag === 'Refused'
     ? left._tag === right._tag
-    : JSON.stringify(left.value) === JSON.stringify(right.value)
+    : sameValue(left.value, right.value)
+
+/** Text by code point, as every interpreter's `binary` orders it; `<` compares UTF-16 units. */
+const byCodePoint = (left: string, right: string): number => {
+  const [a, b] = [[...left], [...right]]
+  for (let i = 0; i < Math.min(a.length, b.length); i++) {
+    const sign = a[i]!.codePointAt(0)! - b[i]!.codePointAt(0)!
+    if (sign !== 0) return sign
+  }
+  return a.length - b.length
+}
 
 /** Two values of one kind in order: numbers, booleans, text by code point. */
-const order = (left: unknown, right: unknown): number =>
+const orderOf = (left: unknown, right: unknown): number =>
   typeof left === 'string' && typeof right === 'string'
-    ? left < right
-      ? -1
-      : left > right
-        ? 1
-        : 0
+    ? byCodePoint(left, right)
     : Number(left) - Number(right)
 
 /** A call of `op`, given `collation` when its rule takes one. */
@@ -163,6 +196,7 @@ type Side = { readonly node: Operandish; readonly fold: boolean } | { readonly v
 /** One equation for one tuple: its two sides, and what makes their outcomes keep the law. */
 interface Plan {
   readonly args: ReadonlyArray<unknown>
+  readonly collation: Option.Option<Collation>
   readonly left: Side
   readonly right: Side
   readonly holds: (left: Outcome, right: Outcome) => boolean
@@ -187,79 +221,105 @@ const nameOf = (op: AnyOperator): string =>
  */
 const lawPlans = (op: AnyOperator, limit: number, seed: number): ReadonlyArray<LawPlans> => {
   const { descriptor } = op
-  // The kernel compares text only under a collation, and literals bring none.
-  const collation =
-    descriptor.collation === 'none' ? Option.none<Collation>() : Option.some(Collation.binary)
-  const call = (...args: ReadonlyArray<unknown>) => callOf(op, args, collation)
+  // The kernel compares text only under a collation, and literals bring none. An
+  // implementation is told the collation, and may answer differently under each.
+  const collations =
+    descriptor.collation === 'none'
+      ? [Option.none<Collation>()]
+      : [Option.some(Collation.binary), Option.some(Collation.asciiFold)]
   const run = (node: Operandish): Side => ({ node, fold: false })
   const value = (held: unknown): Side => ({ value: held })
-  const equal = (args: ReadonlyArray<unknown>, left: Side, right: Side): Plan => ({
-    args,
-    left,
-    right,
-    holds: same,
-  })
   return descriptor.laws.map(law => {
     const shared = samplesOf(descriptor.input, law.domain)
     const tuples = (arity: number) =>
       chosen(product(Array.from({ length: arity }, () => shared)), limit, seed)
-    const sided = (
-      witness: unknown,
-      side: 'left' | 'right' | 'both',
-      answer: (a: unknown) => unknown,
-    ) =>
-      tuples(1).flatMap(([a]) => [
-        ...(side === 'right' ? [] : [equal([witness, a], run(call(witness, a)), value(answer(a)))]),
-        ...(side === 'left' ? [] : [equal([a, witness], run(call(a, witness)), value(answer(a)))]),
-      ])
-    const plans: ReadonlyArray<Plan> = Law.$match(law, {
-      Associative: () =>
-        tuples(3).map(([a, b, c]) =>
-          equal([a, b, c], run(call(call(a, b), c)), run(call(a, call(b, c)))),
-        ),
-      Commutative: () => tuples(2).map(([a, b]) => equal([a, b], run(call(a, b)), run(call(b, a)))),
-      Idempotent: () => tuples(1).map(([a]) => equal([a], run(call(a, a)), value(a))),
-      Identity: ({ value: witness, side }) => sided(witness, side, a => a),
-      Absorbing: ({ value: witness, side }) => sided(witness, side, () => witness),
-      Inverse: ({ other, identity }) =>
-        tuples(1).map(([a]) => equal([a], run(call(a, other(a))), value(identity))),
-      Distributes: ({ over }) =>
-        tuples(3).map(([a, b, c]) =>
-          equal([a, b, c], run(call(a, over(b, c))), run(over(call(a, b), call(a, c)))),
-        ),
-      Monotonic: ({ direction, position }) => {
-        const each = descriptor.input.map(schema => samplesOf([schema], law.domain))
-        const pairs = each[position]!.flatMap(low =>
-          each[position]!.filter(high => order(low, high) < 0).map(high => [low, high] as const),
-        )
-        const rest = product(each.filter((_, index) => index !== position))
-        const sign = direction === 'increasing' ? 1 : -1
-        return chosen(product([pairs, rest]), limit, seed).map(([pair, others]) => {
-          const [low, high] = pair as readonly [unknown, unknown]
-          const at = (held: unknown) => {
-            const args = [...(others as ReadonlyArray<unknown>)]
-            args.splice(position, 0, held)
-            return args
-          }
-          return {
-            args: at(low),
-            left: run(call(...at(low))),
-            right: run(call(...at(high))),
-            holds: (left: Outcome, right: Outcome) =>
-              left._tag === 'Value' &&
-              right._tag === 'Value' &&
-              sign * order(left.value, right.value) <= 0,
-          }
-        })
-      },
-      PreservesCollation: () =>
-        tuples(2).map(([a, b]) => {
-          const under = (x: unknown, y: unknown): Side => ({
-            node: callOf(op, [x, y], Option.some(Collation.asciiFold)),
-            fold: true,
+    const plans = collations.flatMap((collation): ReadonlyArray<Plan> => {
+      const call = (...args: ReadonlyArray<unknown>) => callOf(op, args, collation)
+      // A witness operator is called as `op` is: under the collation when it compares text.
+      const witness = (other: AnyOperator, ...args: ReadonlyArray<unknown>) =>
+        callOf(other, args, other.descriptor.collation === 'none' ? Option.none() : collation)
+      const equal = (args: ReadonlyArray<unknown>, left: Side, right: Side): Plan => ({
+        args,
+        collation,
+        left,
+        right,
+        holds: same,
+      })
+      const sided = (
+        witness: unknown,
+        side: 'left' | 'right' | 'both',
+        answer: (a: unknown) => unknown,
+      ) =>
+        tuples(1).flatMap(([a]) => [
+          ...(side === 'right'
+            ? []
+            : [equal([witness, a], run(call(witness, a)), value(answer(a)))]),
+          ...(side === 'left'
+            ? []
+            : [equal([a, witness], run(call(a, witness)), value(answer(a)))]),
+        ])
+      return Law.$match(law, {
+        Associative: () =>
+          tuples(3).map(([a, b, c]) =>
+            equal([a, b, c], run(call(call(a, b), c)), run(call(a, call(b, c)))),
+          ),
+        Commutative: () =>
+          tuples(2).map(([a, b]) => equal([a, b], run(call(a, b)), run(call(b, a)))),
+        Idempotent: () => tuples(1).map(([a]) => equal([a], run(call(a, a)), value(a))),
+        Identity: ({ value: witness, side }) => sided(witness, side, a => a),
+        Absorbing: ({ value: witness, side }) => sided(witness, side, () => witness),
+        Inverse: ({ other, identity }) =>
+          tuples(1).map(([a]) => equal([a], run(call(a, witness(other, a))), value(identity))),
+        Distributes: ({ over }) =>
+          tuples(3).map(([a, b, c]) =>
+            equal(
+              [a, b, c],
+              run(call(a, witness(over, b, c))),
+              run(witness(over, call(a, b), call(a, c))),
+            ),
+          ),
+        Monotonic: ({ direction, position }) => {
+          // Text in order as the collation orders it, folded under asciiFold.
+          const under = (held: unknown) =>
+            Option.exists(collation, each => each._tag === 'AsciiFold') ? foldText(held) : held
+          const order = (left: unknown, right: unknown) => orderOf(under(left), under(right))
+          const each = descriptor.input.map(schema => samplesOf([schema], law.domain))
+          const pairs = each[position]!.flatMap(low =>
+            each[position]!.filter(high => order(low, high) < 0).map(high => [low, high] as const),
+          )
+          const rest = product(each.filter((_, index) => index !== position))
+          const sign = direction === 'increasing' ? 1 : -1
+          return chosen(product([pairs, rest]), limit, seed).map(([pair, others]) => {
+            const [low, high] = pair as readonly [unknown, unknown]
+            const at = (held: unknown) => {
+              const args = [...(others as ReadonlyArray<unknown>)]
+              args.splice(position, 0, held)
+              return args
+            }
+            return {
+              args: at(low),
+              collation,
+              left: run(call(...at(low))),
+              right: run(call(...at(high))),
+              holds: (left: Outcome, right: Outcome) =>
+                left._tag === 'Value' &&
+                right._tag === 'Value' &&
+                sign * order(left.value, right.value) <= 0,
+            }
           })
-          return equal([a, b], under(a, b), under(foldText(a), foldText(b)))
-        }),
+        },
+        // A law about the fold itself: its equations are made once, in the asciiFold pass.
+        PreservesCollation: () =>
+          Option.exists(collation, each => each._tag === 'AsciiFold')
+            ? tuples(2).map(([a, b]) =>
+                equal(
+                  [a, b],
+                  { node: call(a, b), fold: true },
+                  { node: call(foldText(a), foldText(b)), fold: true },
+                ),
+              )
+            : [],
+      })
     })
     if (plans.length === 0) {
       throw new Error(
@@ -296,7 +356,13 @@ const verdictOf = (
       const left = outcomes(plan.left)
       const right = outcomes(plan.right)
       if (!plan.holds(left, right)) {
-        return LawsVerdict.Counterexample({ law, args: plan.args, left, right })
+        return LawsVerdict.Counterexample({
+          law,
+          args: plan.args,
+          collation: plan.collation,
+          left,
+          right,
+        })
       }
     }
     evidence.push(

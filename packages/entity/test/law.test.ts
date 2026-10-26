@@ -211,6 +211,53 @@ describe('Testing laws', () => {
   })
 })
 
+describe('Testing laws under each collation', () => {
+  /** The lesser of two texts, the left one when they tie: commutative under binary only. */
+  const least = Expr.operator('acme.least', {
+    input: [Schema.String, Schema.String],
+    output: Schema.String,
+    collation: 'operands',
+    laws: [Law.commutative],
+  })
+  const leastLive = Operators.memory(
+    Operators.implement(least, (left, right, { collation }) => {
+      const key = (text: string) =>
+        Option.exists(collation, each => each._tag === 'AsciiFold')
+          ? Collation.foldAscii(text)
+          : text
+      return key(right) < key(left) ? right : left
+    }),
+  )
+
+  it('finds a law that holds under binary and breaks under asciiFold', () => {
+    // Folded, 'a' and 'A' tie, so each order keeps its own left.
+    expect(Conformance.laws(least, leastLive)).toMatchObject({
+      _tag: 'Counterexample',
+      collation: Option.some(Collation.asciiFold),
+    })
+  })
+
+  it('calls a witness that compares text under the collation', () => {
+    const swap = Expr.operator('acme.swapCase', {
+      input: [Schema.String],
+      output: Schema.String,
+      collation: 'required',
+    })
+    const glue = Expr.operator('acme.glue', {
+      input: [Schema.String, Schema.String],
+      output: Schema.String,
+      collation: 'operands',
+      laws: [Law.inverse(swap, 'x')],
+    })
+    const table = Operators.memory(
+      Operators.implement(glue, (left, right) => `${left}${right}`),
+      Operators.implement(swap, text => text),
+    )
+    // A verdict, not a refusal of the witness's call for want of a collation.
+    expect(Conformance.laws(glue, table)._tag).toBe('Counterexample')
+  })
+})
+
 describe('Evidence in a table', () => {
   const tested = () => {
     const verdict = Conformance.laws(concat, Operators.memory(concatLive), { implementation: 'js' })
@@ -291,6 +338,18 @@ describe('Running an operator through several implementations', () => {
         Text.startsWith(null, `a${String.fromCharCode(0)}`, { collation: Collation.binary }),
       ),
     ).toThrow('was given text holding a NUL character')
+  })
+
+  it('tells Infinity and NaN from null, which JSON writes them as', async () => {
+    const ratio = Expr.operator('acme.ratio', {
+      input: [Schema.Number, Schema.Number],
+      output: Schema.NullOr(Schema.Number),
+    })
+    const report = await Conformance.operator(ratio, {
+      implementations: { memory: () => Infinity, sql: () => null, again: () => NaN },
+      cases: [[1, 0]],
+    })
+    expect(report.disagreements).toHaveLength(1)
   })
 
   it('names the calls where one folds case and the other does not', async () => {
