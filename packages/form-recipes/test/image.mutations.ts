@@ -87,4 +87,12 @@ export default [
     ],
     tests: [browser],
   },
+  one('any id is taken', 'if (!/^[A-Za-z_][\\w-]*$/.test(options.id))', 'if (false)', [unit]),
+  one('a header the browser sets is taken', 'forbidden.test(name) ||', '', [unit]),
+  one(
+    'a header past Latin-1 is taken',
+    '/[\\r\\n\\0]|[^\\x00-\\xff]/.test(value)',
+    '/[\\r\\n\\0]/.test(value)',
+    [unit],
+  ),
 ]

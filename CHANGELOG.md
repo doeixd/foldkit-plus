@@ -119,17 +119,23 @@ version changed; `pnpm` skips versions already in the registry.
   marks; a filled amount there was refused. The symbols now come from the field's
   own format, and the keyboard's `¥`, `'` and full-width digits read as the format's.
   A space or a symbol inside an amount is refused, and a `decimal` or `percent` a
-  JavaScript number would round is refused rather than stored rounded.
+  JavaScript number would round is refused rather than stored rounded, while one
+  it holds is taken at any scale (`0.1` at 17 decimals). Only full-width forms are
+  folded, so `10²` is refused rather than read as `102`, and an override or a
+  zero-width space in an amount is refused.
 - **A year under 100 is that year** in `date`, `dateTime` and their displays,
   not 19xx.
 - **A recipe's bad option throws when it is made**: a scale that is no whole
-  number from 0 to 20, a currency `Intl` does not know, a `url` scheme without
-  its colon. `email` refuses control and invisible characters; `slugify` writes
-  `ß`, `ı`, `æ`, `ø`, `ł` as Latin letters; an instant is read only as ISO text.
+  number from 0 to 20, a currency code that is not three capital letters (any ISO
+  4217 code is taken, `XAU` and `CLF` too), a `url` scheme without its colon.
+  `email` refuses control and invisible characters; `slugify` writes `ß`, `ı`,
+  `æ`, `ø`, `ł`, `ħ`, `ə` as Latin letters; an instant is read only as ISO text,
+  and one past year 9999 is refused.
 - **`foldkit-form-recipes/image`:** the field's label names the group the
   control is drawn in; one live region says each state once, and the progress is
   named by it; Cancel, Remove and Try again move focus on; a dropped file that
-  is no image is refused before it is sent; bad `headers` or `url` throw when the
+  is no image is refused before it is sent; an `id` no selector can name, a
+  header a browser would refuse or drop, or a bad `url` throws when the
   recipe is made; the root carries `data-upload`. The docs no longer suggest a
   deployment's secret as a browser's header: a page's session cookie answers the
   application's `UploadPolicy`.

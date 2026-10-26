@@ -157,8 +157,11 @@ a minor amount past what a JavaScript number holds exactly (use `'decimal'` for
 those), and a `decimal` or `percent` a JavaScript number would round. A partial
 amount (`-`, or `1,2` in `en-US`) reads `Enter an amount`: the form checks a key
 as it changes. What a keyboard types for what a format writes is read alike: `¥`
-for `￥`, `'` for the Swiss `’`, full-width digits, and the bidi marks an rtl
-locale writes around an amount are not part of it. The inputs are text with a numeric keypad (`inputmode`), since `"4."`
+for `￥`, `'` for the Swiss `’`, full-width digits and punctuation, and the bidi
+marks an rtl locale writes around an amount are not part of it. Nothing else is
+folded: `10²` and `①②` are refused rather than read as `102` and `12`, and so is
+an amount holding an override or a zero-width space, which would show one
+number and mean another. The inputs are text with a numeric keypad (`inputmode`), since `"4."`
 is a fine draft that `type="number"` would refuse to report.
 
 ### Drawn through `foldkit-mixins-ui`
@@ -232,7 +235,8 @@ refused, is nothing entered.
 - **For a stylist:** the root's `data-upload` is the state (`Empty`, `Sending`,
   `Refused`, `Kept`); `styles.field` styles `ImageSlots` and `styles.drop`
   `foldkit-mixins-ui`'s `FileDropSlots`; `words` words it. `id` is the drop
-  zone's and its file input's, so it is unique on the page.
+  zone's and its file input's, and where focus is sent, so it is unique on the
+  page and an identifier a selector names (`cover`, not `1cover` or `a.b`).
 - **What it needs:** `foldkit-media`, `@foldkit/ui`, `foldkit-mixins` and
   `foldkit-mixins-ui` beside the package's own (`./ui` needs `foldkit-mixins`,
   `foldkit-mixins-ui` and `foldkit-mixins-form`; `./html` `foldkit-mixins-form`).

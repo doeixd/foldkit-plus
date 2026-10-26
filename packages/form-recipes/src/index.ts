@@ -107,7 +107,12 @@ const local: Mode = {
 const instant = (zone: string): Mode => ({
   parse: draft =>
     Option.map(
-      Option.flatMap(readWall(draft), wall => instantOf(wall, zone)),
+      // An instant whose UTC year is past 9999 would be written `+010000-…`, which
+      // no form reads back: refused, as a date past 9999 is.
+      Option.filter(
+        Option.flatMap(readWall(draft), wall => instantOf(wall, zone)),
+        at => new Date(at).getUTCFullYear() <= 9999,
+      ),
       at => new Date(at).toISOString(),
     ),
   format: value => {
@@ -203,12 +208,18 @@ const unaccented: Readonly<Record<string, string>> = {
   đ: 'd',
   ð: 'd',
   þ: 'th',
+  ħ: 'h',
+  ŧ: 't',
+  ŋ: 'n',
+  ə: 'e',
+  ĸ: 'k',
 }
+const spelled = new RegExp(`[${Object.keys(unaccented).join('')}]`, 'g')
 
 const slugify = (text: string): string =>
   text
     .toLowerCase()
-    .replace(/[ıßæœøłđðþ]/g, letter => unaccented[letter] ?? letter)
+    .replace(spelled, letter => unaccented[letter] ?? letter)
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
@@ -324,12 +335,28 @@ const scaleOf = (recipe: string, scale: number, most: number): void => {
     )
 }
 
-/** A number's decimal text with `scale` decimals, or none when that would round it. */
-const fixed = (value: unknown, scale: number): Option.Option<string> => {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return Option.none()
-  const text = value.toFixed(scale)
-  return Number(text) === value ? Option.some(text) : Option.none()
+/**
+ * A number's shortest decimal text, the one `String` writes, never in exponent
+ * form. `toFixed` would print the double's binary expansion instead past 17
+ * significant digits: `1234.1` at 13 decimals is `1234.0999999999999`.
+ */
+const plainOf = (value: number): string => {
+  const written = String(value)
+  const parts = /^(-?)(\d+)(?:\.(\d+))?e([+-]\d+)$/.exec(written)
+  if (parts === null) return written
+  const [, sign = '', whole = '', fraction = '', exponent = '0'] = parts
+  const digits = whole + fraction
+  const point = whole.length + Number(exponent)
+  if (point <= 0) return `${sign}0.${'0'.repeat(-point)}${digits}`
+  if (point >= digits.length) return sign + digits + '0'.repeat(point - digits.length)
+  return `${sign}${digits.slice(0, point)}.${digits.slice(point)}`
 }
+
+/** A number's decimal text with `scale` decimals, or none when it has more. */
+const fixed = (value: unknown, scale: number): Option.Option<string> =>
+  typeof value === 'number' && Number.isFinite(value)
+    ? Option.map(digitsOf(plainOf(value), scale), decimalText)
+    : Option.none()
 
 /**
  * A decimal text as a number, or none when no number holds it exactly: past
@@ -550,12 +577,14 @@ export const FieldRecipes = {
    * An amount of money in `currency`, shown and read as `locale` writes it
    * (`$1,234.56`, `1.234,56 €`, `￥1,235`), with the currency's own decimals: none
    * for JPY, three for KWD. More decimals than that are refused, not rounded, and
-   * grouping other than the locale's (`12,3`) is refused, not read as `123`. An
-   * unknown currency code throws here.
+   * grouping other than the locale's (`12,3`) is refused, not read as `123`. A
+   * code that is not three capital letters throws here.
    */
   money: (options: MoneyOptions): FieldRecipe<Control<MoneyData>> => {
-    if (!Intl.supportedValuesOf('currency').includes(options.currency))
-      throw new Error(`FieldRecipes.money: "${options.currency}" is not a currency Intl knows`)
+    // The shape only: `Intl.supportedValuesOf('currency')` lists current tender,
+    // which leaves out `XAU` and `CLF` and differs between ICU releases.
+    if (!/^[A-Z]{3}$/.test(options.currency))
+      throw new Error(`FieldRecipes.money: "${options.currency}" is not an ISO 4217 code`)
     const scale =
       new Intl.NumberFormat(options.locale ?? 'en', {
         style: 'currency',

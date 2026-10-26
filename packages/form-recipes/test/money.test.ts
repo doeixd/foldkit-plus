@@ -80,7 +80,7 @@ describe('FieldRecipes.money', () => {
 
   it('refuses a currency code that is not one, when it is made', () => {
     expect(() => FieldRecipes.money({ currency: 'dollars', unit: 'minor' })).toThrow(
-      /"dollars" is not a currency Intl knows/,
+      /"dollars" is not an ISO 4217 code/,
     )
   })
 
@@ -218,5 +218,47 @@ describe('what a keyboard types, and what no number holds', () => {
     expect(read(decimal.control, '12345678901234567.89')).toBeUndefined()
     expect(read(decimal.control, '9007199254740993')).toBeUndefined()
     expect(read(decimal.control, '1234.56')).toBe(1234.56)
+  })
+})
+
+describe('what is refused rather than guessed at', () => {
+  const usdText = FieldRecipes.money({
+    currency: 'USD',
+    unit: 'decimal',
+    locale: 'en-US',
+    negative: true,
+  })
+  const eurText = FieldRecipes.money({ currency: 'EUR', unit: 'decimal', locale: 'de-DE' })
+  it.each([
+    ['a superscript', usdText, '10²'],
+    ['circled digits', usdText, '①②'],
+    ['a one-dot leader for a point', usdText, '1․5'],
+    ['an override, which shows another order', usdText, '\u202e21'],
+    ['a zero-width space', usdText, '1\u200b2'],
+    ['a symbol at both ends', eurText, '€12€'],
+    ['a symbol twice', eurText, '€€12'],
+    ['a symbol around a minus twice', usdText, '$-$12'],
+  ] as const)('%s', (_, recipe, draft) => expect(read(recipe.control, draft)).toBeUndefined())
+
+  it('reads a value at any scale as the number holding it', () => {
+    const fine = FieldRecipes.decimal({ scale: 17 })
+    expect(read(fine.control, '0.1')).toBe(0.1)
+    expect(shown(fine.control, 0.1)).toBe('0.1')
+    const thirteen = FieldRecipes.decimal({ scale: 13 })
+    expect(read(thirteen.control, '1234.1')).toBe(1234.1)
+    expect(shown(thirteen.control, 1234.1)).toBe('1,234.1')
+    expect(shown(FieldRecipes.decimal({ scale: 7 }).control, 1e-7)).toBe('0.0000001')
+  })
+
+  it('takes any ISO 4217 code, a metal or a fund too', () => {
+    expect(
+      read(
+        FieldRecipes.money({ currency: 'XAU', unit: 'decimal', locale: 'en-US' }).control,
+        '1.5',
+      ),
+    ).toBe('1.50')
+    expect(FieldRecipes.money({ currency: 'CLF', unit: 'minor' }).control.data).toMatchObject({
+      scale: 4,
+    })
   })
 })

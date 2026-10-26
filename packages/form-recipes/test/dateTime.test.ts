@@ -131,3 +131,11 @@ describe('a year under 100', () => {
     )
   })
 })
+
+describe('an instant past year 9999', () => {
+  it('is refused, since it could not be shown again', () => {
+    const instant = FieldRecipes.dateTime({ stored: 'instant', zone: 'America/New_York' }).control
+    expect(instant.parse!('9999-12-31T23:30', instant.data)).toBeUndefined()
+    expect(instant.parse!('9999-12-31T18:00', instant.data)).toBe('9999-12-31T23:00:00.000Z')
+  })
+})

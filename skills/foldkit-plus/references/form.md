@@ -289,7 +289,7 @@ const View = FormView.define(Meeting, { renderers: renderers() }) // date and da
   the locale, exact (minor units are integers, `'decimal'` is text), in its own
   currency or percent format (`de-AT`, `fr-CH`, rtl locales round-trip); grouping
   other than the locale's, extra decimals, an unasked-for minus and a value a
-  double would round are refused. A bad scale or an unknown currency throws when
+  double would round are refused. A bad scale or a malformed currency code throws when
   the recipe is made.
 - Kinds are named `FieldRecipes.Date`, `FieldRecipes.Money`, …, so an
   application's own `Date` kind does not meet a recipe's renderer.

@@ -223,4 +223,16 @@ export default [
     edits: [{ file: index, find: "  ı: 'i',\n", replace: '' }],
     tests: text,
   },
+  {
+    name: 'an instant past 9999 is taken',
+    edits: [
+      { file: index, find: 'at => new Date(at).getUTCFullYear() <= 9999,', replace: '() => true,' },
+    ],
+    tests: dateTime,
+  },
+  {
+    name: 'slugify drops a Maltese h',
+    edits: [{ file: index, find: "  ħ: 'h',\n", replace: '' }],
+    tests: text,
+  },
 ]

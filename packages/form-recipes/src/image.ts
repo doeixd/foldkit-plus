@@ -24,6 +24,20 @@ import * as Submodel from 'foldkit/submodel'
 import * as Subscription from 'foldkit/subscription'
 import type { FieldRecipe } from './index.js'
 
+/** The request headers a browser sets itself, and drops from a script (Fetch, "forbidden request-header"). */
+const forbidden =
+  /^(?:accept-charset|accept-encoding|access-control-request-headers|access-control-request-method|connection|content-length|cookie2?|date|dnt|expect|host|keep-alive|origin|referer|set-cookie|te|trailer|transfer-encoding|upgrade|via|proxy-.*|sec-.*)$/i
+
+/** Whether `url` is an address, relative or not; `URL.canParse` is too new for some browsers. */
+const parses = (url: string): boolean => {
+  try {
+    new URL(url, 'http://localhost')
+    return true
+  } catch {
+    return false
+  }
+}
+
 /** A chosen file, held while it is sent. */
 const FileSchema = Schema.instanceOf(File)
 
@@ -369,12 +383,20 @@ export const image = (
     ...options.words,
     refused: { ...imageWords.refused, ...options.words?.refused },
   }
-  // A header or an address XMLHttpRequest refuses would throw at the first upload,
-  // inside the Subscription, and take the runtime with it: refuse it here.
+  // What a browser refuses would throw at the first upload, inside the
+  // Subscription, and take the runtime with it; what it drops would go unsent
+  // without a word. Both are refused here, when the recipe is made.
+  // The id is also a focus selector (`#cover`), so it is an identifier CSS takes.
+  if (!/^[A-Za-z_][\w-]*$/.test(options.id))
+    throw new Error(`image: "${options.id}" is not an id a selector can name, such as "cover"`)
   for (const [name, value] of Object.entries(options.headers ?? {}))
-    if (!/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(name) || /[\r\n\0]/.test(value))
-      throw new Error(`image: "${name}" is not a header a browser can send`)
-  if (options.url !== undefined && !URL.canParse(options.url, 'http://localhost'))
+    if (
+      !/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(name) ||
+      forbidden.test(name) ||
+      /[\r\n\0]|[^\x00-\xff]/.test(value)
+    )
+      throw new Error(`image: "${name}" is not a header a browser sends as given`)
+  if (options.url !== undefined && !parses(options.url))
     throw new Error(`image: "${options.url}" is not an address`)
   const uploadOptions: UploadOptions = { url: options.url, headers: options.headers }
   const bundle = Bundle.make({

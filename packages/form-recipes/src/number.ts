@@ -29,7 +29,10 @@ const apostrophes = /['’]/g
 const spaces = /[\s\u00a0\u202f]/
 const allSpaces = /[\s\u00a0\u202f]/g
 /** Marks a format writes and a person does not type: bidi marks around an amount in rtl locales. */
-const invisible = /\p{Cf}/gu
+/** The marks a format writes around an amount in an rtl locale: the bidi marks and isolates. */
+const bidi = /[\u061c\u200e\u200f\u2066-\u2069]/g
+/** The full-width forms a keyboard in East Asia types: `１２，３`. Only these are folded. */
+const fullWidth = /[\uff01-\uff5e\uffe0-\uffe6]/g
 
 const symbolsCache = new Map<string, Symbols>()
 
@@ -95,25 +98,23 @@ export const readDigits = (
   negative: boolean,
 ): Option.Option<Digits> => {
   const symbols = symbolsOf(locale, options)
-  let text = draft.normalize('NFKC').replace(invisible, '').trim()
-  let signed = false
-  for (let moved = true; moved;) {
-    moved = false
-    if (!signed && minus.test(text)) {
-      signed = true
-      text = text.slice(1).trim()
-      moved = true
-    }
-    for (const affix of symbols.affixes) {
-      if (text.startsWith(affix)) {
-        text = text.slice(affix.length).trim()
-        moved = true
-      }
-      if (text.endsWith(affix)) {
-        text = text.slice(0, -affix.length).trim()
-        moved = true
-      }
-    }
+  // Only the full-width forms are folded: NFKC of the whole draft would also read
+  // `10²` as `102` and `①②` as `12`, a guess where a refusal is due.
+  // Any other invisible character, an override that shows `21` as `12`, stays in
+  // and is no digit, so the amount is refused.
+  let text = draft
+    .replace(fullWidth, form => form.normalize('NFKC'))
+    .replace(bidi, '')
+    .trim()
+  // A minus, then at most one symbol at one end, then a minus after a leading symbol.
+  let signed = minus.test(text)
+  if (signed) text = text.slice(1).trim()
+  const affix = symbols.affixes.find(held => text.startsWith(held) || text.endsWith(held))
+  if (affix !== undefined)
+    text = (text.startsWith(affix) ? text.slice(affix.length) : text.slice(0, -affix.length)).trim()
+  if (!signed && minus.test(text)) {
+    signed = true
+    text = text.slice(1).trim()
   }
   if (signed && !negative) return Option.none()
   // A locale that groups with a space groups with any space a person types; in

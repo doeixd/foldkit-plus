@@ -219,8 +219,14 @@ describe('an image recipe made wrong', () => {
     ['a header name with a space', { headers: { 'x token': 'a' } }],
     ['a header value with a line break', { headers: { 'x-token': 'a\r\nb' } }],
     ['an address that is none', { url: 'http://[' }],
+    ['a header value past what a request holds', { headers: { 'x-name': '€' } }],
+    ['a header the browser sets itself', { headers: { Cookie: 'a=b' } }],
   ])('throws when it is made, for %s', (_, options) =>
     expect(() => image({ id: 'cover', ...options })).toThrow(/^image: /),
+  )
+  // The id is also the selector focus goes to: `#1cover` throws, `#cover.main` names a class.
+  it.each(['1cover', 'cover.main', 'cover:main'])('throws for an id %s no selector names', id =>
+    expect(() => image({ id })).toThrow(/^image: /),
   )
 })
 

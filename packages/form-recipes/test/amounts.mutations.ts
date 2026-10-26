@@ -101,8 +101,8 @@ export default [
     edits: [
       {
         file: index,
-        find: 'return Number(text) === value ? Option.some(text) : Option.none()',
-        replace: 'return Option.some(text)',
+        find: '? Option.map(digitsOf(plainOf(value), scale), decimalText)',
+        replace: '? Option.some(value.toFixed(scale))',
       },
     ],
     tests,
@@ -116,7 +116,7 @@ export default [
   },
   {
     name: 'bidi marks are read as part of the amount',
-    edits: [{ file: number, find: ".replace(invisible, '')", replace: '' }],
+    edits: [{ file: number, find: ".replace(bidi, '')", replace: '' }],
     tests,
   },
   {
@@ -146,9 +146,9 @@ export default [
     edits: [
       {
         file: number,
-        find: 'if (text.startsWith(affix)) {',
+        find: 'const affix = symbols.affixes.find(',
         replace:
-          "if (text.includes(affix)) { text = text.split(affix).join('') }\n      if (text.startsWith(affix)) {",
+          "for (const held of symbols.affixes) text = text.split(held).join('')\n  const affix = symbols.affixes.find(",
       },
     ],
     tests,
@@ -185,5 +185,38 @@ export default [
       },
     ],
     tests: ['packages/form-recipes/test/text.test.ts'],
+  },
+  {
+    name: 'the whole draft is folded, superscripts to digits',
+    edits: [
+      {
+        file: number,
+        find: ".replace(fullWidth, form => form.normalize('NFKC'))",
+        replace: ".normalize('NFKC')",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a symbol is taken at both ends',
+    edits: [
+      {
+        file: number,
+        find: 'text = (text.startsWith(affix) ? text.slice(affix.length) : text.slice(0, -affix.length)).trim()',
+        replace: "text = text.split(affix).join('').trim()",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a currency must be one Intl lists as current',
+    edits: [
+      {
+        file: index,
+        find: 'if (!/^[A-Z]{3}$/.test(options.currency))',
+        replace: "if (!Intl.supportedValuesOf('currency').includes(options.currency))",
+      },
+    ],
+    tests,
   },
 ]

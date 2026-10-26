@@ -109,6 +109,8 @@ describe('FieldRecipes.slugify', () => {
     ['Straße', 'strasse'],
     ['Æsir Øl', 'aesir-ol'],
     ['Łódź', 'lodz'],
+    ['Ħamrun', 'hamrun'],
+    ['Bakı ərazi', 'baki-erazi'],
     // A script with no Latin spelling has none here: such a title's slug is written.
     ['東京タワー', ''],
   ])('%s', (from, to) => expect(FieldRecipes.slugify(from)).toBe(to))
@@ -117,7 +119,10 @@ describe('FieldRecipes.slugify', () => {
 describe('a recipe made wrong', () => {
   it.each([
     ['a scheme without its colon', () => FieldRecipes.url({ protocols: ['https'] })],
-    ['a currency Intl does not know', () => FieldRecipes.money({ currency: 'ZZZ', unit: 'minor' })],
+    [
+      'a currency code that is no code',
+      () => FieldRecipes.money({ currency: 'usd', unit: 'minor' }),
+    ],
     ['a scale that is no whole number', () => FieldRecipes.decimal({ scale: 1.5 })],
     ['a scale past what a format writes', () => FieldRecipes.decimal({ scale: 200 })],
     ['a negative percent scale', () => FieldRecipes.percent({ unit: 'points', scale: -1 })],
