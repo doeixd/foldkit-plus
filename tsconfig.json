@@ -24,6 +24,7 @@
     { "path": "./packages/guard" },
     { "path": "./packages/auth" },
     { "path": "./packages/form" },
+    { "path": "./packages/form-recipes" },
     { "path": "./packages/crud" },
     { "path": "./packages/data-grid" },
     { "path": "./packages/surface" },

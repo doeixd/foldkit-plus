@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-form-recipes` 0.1.0, its first release: field recipes for
+  `foldkit-form`.** A recipe is a control and a display made from the same
+  options. `FieldRecipes.date()` edits a `CalendarDate` as `YYYY-MM-DD`;
+  `FieldRecipes.dateTime({ stored })` keeps either the wall-clock text a
+  `datetime-local` writes (`'local'`) or an ISO instant read and shown in an
+  explicit IANA `zone` (`'instant'`), refusing a time the clocks skip and taking
+  the earlier of one they repeat. `foldkit-form-recipes/html` draws both as native
+  inputs.
 - **`foldkit-mixins-form/ui`: `UiForm.renderers(styles?)`, a renderer for every
   kind `foldkit-form` ships,** for `FormView.define(form, { renderers })`. Text,
   Number, Multiline and the selects are the plain elements under

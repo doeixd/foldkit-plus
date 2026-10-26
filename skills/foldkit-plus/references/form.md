@@ -243,6 +243,38 @@ view's native button. Real adopters:
 https://github.com/doeixd/foldkit-plus/blob/main/examples/foldkit/form/src/main.ts
 and https://github.com/doeixd/foldkit-plus/blob/main/examples/foldkit/auth/src/page/loggedOut/page/login.ts.
 
+## Recipes: dates and times
+
+`foldkit-form-recipes` holds the controls whose parsing is easy to get wrong. A
+recipe is `{ control, display }`, made from one set of options: `control` goes in
+a form's `inputs` (or `Input.of`), `display` in `Display.of`.
+
+```ts
+import { Schema } from 'effect'
+import { Form } from 'foldkit-form'
+import { FieldRecipes } from 'foldkit-form-recipes'
+import { renderers } from 'foldkit-form-recipes/html'
+import { FormView } from 'foldkit-mixins-form'
+import { CalendarDate } from 'foldkit/calendar'
+
+const due = FieldRecipes.date() // a CalendarDate key, edited as YYYY-MM-DD
+const startsAt = FieldRecipes.dateTime({ stored: 'instant', zone: 'Europe/London' })
+const MeetingInput = Schema.Struct({ due: CalendarDate, startsAt: Schema.String })
+const Meeting = Form.make('Meeting', Form.input(MeetingInput), {
+  inputs: { due: due.control, startsAt: startsAt.control },
+})
+const View = FormView.define(Meeting, { renderers: renderers() }) // date and datetime-local inputs
+```
+
+- `date()`: value `CalendarDate` (`Calendar.CalendarDate` or
+  `CalendarDateFromIsoString`); anything but `YYYY-MM-DD` reads `Enter a date`.
+- `dateTime({ stored: 'local' })`: the value is the wall-clock text, kept as typed.
+  `{ stored: 'instant', zone }`: an ISO instant, shown and read in the IANA
+  `zone` (a parameter, never the runtime's); a time the clocks skip is refused, a
+  repeated one reads as the earlier, and an unknown zone throws at definition.
+- A fill with a value of the wrong form throws, naming the key. `locale` changes
+  only what a display says.
+
 ## Nested input
 
 A key mapped with `Relation.nested(relation, input)` holds rows of a form built
@@ -301,5 +333,6 @@ PostForm.rows(PostForm.initial, 'comments') // [{ id, model }], each a Model of 
 
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/form/README.md
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/mixins-form/README.md
+- https://github.com/doeixd/foldkit-plus/blob/main/packages/form-recipes/README.md
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/entity/README.md
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/bundle/README.md
