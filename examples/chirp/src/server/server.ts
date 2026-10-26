@@ -91,9 +91,11 @@ const Db = bind(
 
 // Every write of a post is decided by its rules before it lands. Who wrote a
 // chirp, and when, are the server's to say: the browser sends neither.
+// #region presets
 const guarded = GuardServer.writer(Post, Policy, writer(Db.Post), {
   presets: { authorId: user => user.id, createdAt: () => Date.now() },
 })
+// #endregion
 
 /**
  * A like, toggled: taken back where the asker had one, made where not. The

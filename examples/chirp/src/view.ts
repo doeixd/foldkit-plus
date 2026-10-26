@@ -48,7 +48,6 @@ const icon = (data: IconData, h: H): Html => Icon.draw(data, h)
 const when = (createdAt: number): string =>
   new Date(createdAt).toLocaleDateString('en', { month: 'short', day: 'numeric' })
 
-// #region card
 /** A post as a row: who wrote it and when, what it says, and what you may do with it. */
 const chirp = (post: Row, model: Model, slots: Slots, h: H): ReadonlyArray<Html> => {
   const liked = post.likedBy.some(liker => liker.id === model.me)
@@ -63,6 +62,7 @@ const chirp = (post: Row, model: Model, slots: Slots, h: H): ReadonlyArray<Html>
     ]),
     h.p(slots.body.attrs(), [post.body]),
     h.div(slots.actions.attrs(), [
+      // #region like
       h.button(
         slots.like.attrs([
           h.Type('button'),
@@ -78,6 +78,7 @@ const chirp = (post: Row, model: Model, slots: Slots, h: H): ReadonlyArray<Html>
         ]),
         [h.span(slots.round.attrs(), [icon(heart, h)]), h.span([], [String(post.likeCount)])],
       ),
+      // #endregion
       ...(May.can(post.may, 'Update')
         ? [
             h.button(
@@ -89,8 +90,6 @@ const chirp = (post: Row, model: Model, slots: Slots, h: H): ReadonlyArray<Html>
     ]),
   ]
 }
-// #endregion
-
 const editorNote = (model: Model): string => {
   switch (PostEditor.status(model)) {
     case 'Loading':

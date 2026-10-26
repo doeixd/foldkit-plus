@@ -83,10 +83,12 @@ export const openHost = async (): Promise<ConversationHandler<RemoteOpening>> =>
 
   /** Remote's handlers as `person`, each call answered by the sandbox as it is then. */
   const handlersAs = (person: Person): RemoteRpcClient => {
+    // #region person
     const now = () => ({
       handlers: RemoteServer.handlers(sandbox.backend.server, principalOf(person)),
       database: sandbox.backend.database,
     })
+    // #endregion
     return {
       FoldkitRemoteRead: payload =>
         Effect.suspend(() => {
