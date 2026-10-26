@@ -214,9 +214,7 @@ describe('the same interaction on both paths', () => {
       choose('Edit-editorId', 'a2')
       element('Edit-featured').click()
       named('Databases').click()
-      // A press's Message carries the choices as drawn, so the next waits for this one's.
-      await vi.waitFor(() => expect(sent).toHaveLength(8))
-      await frames.settle()
+      // A press is applied to the draft as it lands, so the next need not wait for a draw.
       named('TypeScript').click()
       await vi.waitFor(() => expect(sent).toHaveLength(9))
       return sent
@@ -231,6 +229,34 @@ describe('the same interaction on both paths', () => {
     const plain = await drive()
     const drawn = await drive(ui)
     expect(drawn).toEqual(plain)
-    expect(plain.at(-1)).toEqual(Edit.Message.Changed({ key: 'tagIds', value: ['t2', 't1'] }))
+    expect(plain.slice(-2)).toEqual([
+      Edit.Message.Toggled({ key: 'tagIds', choice: 't2' }),
+      Edit.Message.Toggled({ key: 'tagIds', choice: 't1' }),
+    ])
+  })
+})
+
+describe('an invalid choice group', () => {
+  const Topics = Form.make(
+    'Topics',
+    Form.input(
+      Schema.Struct({
+        topics: Schema.NonEmptyArray(Schema.Literals(['news', 'offers'])).annotate({
+          description: 'Pick what you want to hear about',
+        }),
+      }),
+    ),
+  )
+  const model = Topics.bundle.update(Topics.initial, Topics.Message.ValidatedAll(), undefined).model
+  it.each([
+    ['plain', FormView.define(Topics)],
+    ['UI', FormView.define(Topics, { renderers: UiForm.renderers(styles) })],
+  ] as const)('is described by its description and its error on the %s path', (_, view) => {
+    const root = view({ model, errors: [], canSubmit: false }, SlotView.inertBuilder())
+    const group = Inert.all(root).find(node => Inert.value(node, 'role') === 'group')
+    expect([Inert.value(group, 'aria-invalid'), Inert.value(group, 'aria-describedby')]).toEqual([
+      'true',
+      'Topics-topics-description Topics-topics-error',
+    ])
   })
 })

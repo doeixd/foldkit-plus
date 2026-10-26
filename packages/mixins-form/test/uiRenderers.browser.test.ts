@@ -2,7 +2,7 @@
 /**
  * `UiForm.renderers` under the keyboard, in a real browser: Space presses the
  * Toggle's and a choice's `role="checkbox"` button, and the arrows move the
- * select, each sending the form's own `Changed`.
+ * select, sending the form's own `Toggled` and `Changed`.
  */
 import type { HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
@@ -39,7 +39,8 @@ const mount = async () => {
     }),
   )
   await vi.waitFor(() => expect(document.getElementById('Edit-featured')).not.toBeNull())
-  const changed = () => sent.filter(message => message._tag === 'Changed')
+  const changed = () =>
+    sent.filter(message => message._tag === 'Changed' || message._tag === 'Toggled')
   return {
     changed,
     dispose: () => {
@@ -56,7 +57,7 @@ it('presses the Toggle with Space', async () => {
     document.getElementById('Edit-featured')!.focus()
     await userEvent.keyboard(' ')
     await vi.waitFor(() =>
-      expect(page.changed()).toEqual([Edit.Message.Changed({ key: 'featured', value: true })]),
+      expect(page.changed()).toEqual([Edit.Message.Toggled({ key: 'featured' })]),
     )
     await page.settle()
     expect(document.getElementById('Edit-featured')!.getAttribute('aria-checked')).toBe('true')
@@ -71,7 +72,7 @@ it('presses a choice with Space', async () => {
     document.getElementById('Edit-tagIds-1')!.focus()
     await userEvent.keyboard(' ')
     await vi.waitFor(() =>
-      expect(page.changed()).toEqual([Edit.Message.Changed({ key: 'tagIds', value: ['t2'] })]),
+      expect(page.changed()).toEqual([Edit.Message.Toggled({ key: 'tagIds', choice: 't2' })]),
     )
   } finally {
     page.dispose()

@@ -76,7 +76,8 @@ export interface FormViewInputs<Key extends string = string> {
   /**
    * The pickers whose list has more rows than `options` holds (`Crud.options`'
    * `more`): each draws a button that sends the form's `AskedForMore`, for the
-   * page that owns the list to answer. Pickers of the form itself only.
+   * page that owns the list to answer. Relation pickers of the form itself
+   * only, and none while locked.
    */
   readonly more?: { readonly [K in Key]?: boolean } | undefined
   /**
@@ -142,6 +143,7 @@ export interface FieldInput<Key extends string = string> {
         readonly changed: (value: Draft) => unknown
         readonly blurred: unknown
         readonly searched: (text: string) => unknown
+        readonly toggled: (choice?: string) => unknown
       }
     | undefined
   /**
@@ -277,6 +279,7 @@ interface FormLike<Key extends string, Model, Message> {
     readonly Changed: (payload: { readonly key: Key; readonly value: Draft }) => NoInfer<Message>
     readonly Blurred: (payload: { readonly key: Key }) => NoInfer<Message>
     readonly Searched: (payload: { readonly key: Key; readonly text: string }) => NoInfer<Message>
+    readonly Toggled: (payload: { readonly key: Key; readonly choice?: string }) => NoInfer<Message>
     readonly Submitted: () => NoInfer<Message>
     readonly FollowedIssue: (payload: { readonly id: string }) => NoInfer<Message>
     readonly AskedForMore: (payload: { readonly key: Key }) => NoInfer<Message>
@@ -369,6 +372,13 @@ export interface RenderContext<Message> {
   readonly control: Control
   readonly draft: Draft
   readonly change: (value: Draft) => Message
+  /**
+   * A press on a flag (no `choice`) or on one choice of a list, applied to the
+   * draft as it stands when it lands: send it for a press, rather than a
+   * `change` built from the draft as drawn, which a second press before the
+   * next draw would undo.
+   */
+  readonly toggled: (choice?: string) => Message
   readonly blurred: Message
   /**
    * For a control backed by a Bundle: its Model, and the Message carrying one of
@@ -562,6 +572,10 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
       const { send } = input
       const change = changedOf(form, key, send)
       const blurred = blurredOf(form, key, send)
+      const toggled = (choice?: string): Message =>
+        (send === undefined
+          ? form.Message.Toggled(choice === undefined ? { key } : { key, choice })
+          : send.toggled(choice)) as Message
       const searched = (text: string): Message =>
         send === undefined ? form.Message.Searched({ key, text }) : (send.searched(text) as Message)
       const searches = control.control.searches
@@ -604,6 +618,7 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
         control: control.control,
         draft,
         change,
+        toggled,
         blurred,
         bundle,
         state,
@@ -768,9 +783,14 @@ export const FormView = {
                     searchWord: input.words?.search,
                     noneWord: input.words?.none,
                     checkingWord: input.words?.checking,
-                    // Only the form's own pickers are offered more: a row's are named by path.
+                    // Only the form's own pickers, and only while they can be used: a
+                    // row's are named by path, and a locked key takes no choice.
                     more:
-                      path === '' && more[key] === true
+                      path === '' &&
+                      more[key] === true &&
+                      !locked.has(key) &&
+                      (Input.RelationOne.is(control.control) ||
+                        Input.RelationMany.is(control.control))
                         ? form.Message.AskedForMore({ key: key as Key })
                         : undefined,
                     moreWord: input.words?.more,
@@ -778,6 +798,12 @@ export const FormView = {
                       changed: value => walk.wrap((walk.make.Changed as Make)({ key, value })),
                       blurred: walk.wrap((walk.make.Blurred as Make)({ key })),
                       searched: text => walk.wrap((walk.make.Searched as Make)({ key, text })),
+                      toggled: choice =>
+                        walk.wrap(
+                          (walk.make.Toggled as Make)(
+                            choice === undefined ? { key } : { key, choice },
+                          ),
+                        ),
                     },
                   },
                   h,
@@ -849,7 +875,8 @@ export const FormView = {
             ...(issues.length === 0
               ? []
               : [
-                  h.div(slots.summary.attrs([h.Id(`${form.bundle.name}-summary`)]), [
+                  // No id of its own: a key named `summary` would hold it already.
+                  h.div(slots.summary.attrs(), [
                     h.p(slots.summaryTitle.attrs(), [
                       input.words?.summary ?? 'Check these fields:',
                     ]),

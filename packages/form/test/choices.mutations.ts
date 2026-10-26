@@ -10,8 +10,8 @@ export default [
     edits: [
       {
         file,
-        find: "[[], ['id'], ...(Input.Choices.is(control) ? [control.data.options.slice(0, 1)] : [])]",
-        replace: "[[], ['id']]",
+        find: 'control.data.options.map((_, index) => control.data.options.slice(0, index + 1))',
+        replace: '[]',
       },
     ],
     tests,

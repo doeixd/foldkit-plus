@@ -278,6 +278,7 @@ type RowConstructor =
   | 'Blurred'
   | 'ValidatedAll'
   | 'Searched'
+  | 'Toggled'
   | 'Submitted'
   | 'Reset'
   | 'RowAdded'
@@ -376,6 +377,18 @@ interface AnyForm extends NestedForm {
   readonly authoredChanged: (before: any, after: any) => boolean
 }
 
+/**
+ * A draft after a press: a flag flipped, or a list with `choice` let go if it is
+ * held and added if not. None when the press does not fit the draft's kind.
+ */
+const toggled = (kind: string, draft: Draft, choice: string | undefined): Option.Option<Draft> => {
+  if (choice === undefined) return kind === 'flag' ? Option.some(draft !== true) : Option.none()
+  if (kind !== 'list' || !Array.isArray(draft)) return Option.none()
+  return Option.some(
+    draft.includes(choice) ? draft.filter(held => held !== choice) : [...draft, choice],
+  )
+}
+
 /** Assigned once `Form` exists: a form builds the forms of its nested keys with itself. */
 let makeNested: (name: string, input: unknown, options: unknown) => AnyForm
 
@@ -421,6 +434,7 @@ const edits = {
   Refused: false,
   About: false,
   Searched: false,
+  Toggled: true,
   Nested: false,
   Control: false,
   RowAdded: true,
@@ -620,13 +634,19 @@ const planOf = (
   }
 
   // A control whose draft can never become the key's value is a wiring mistake.
-  // A choice of literals is tried with one of its own, since an array that must
-  // hold one refuses `[]` and an id alike.
+  // A choice of literals is tried with the first one, two, … of its own options,
+  // since an array that must hold some refuses `[]` and an id alike.
   const samples: ReadonlyArray<unknown> =
     kind === 'flag'
       ? [true, false]
       : kind === 'list'
-        ? [[], ['id'], ...(Input.Choices.is(control) ? [control.data.options.slice(0, 1)] : [])]
+        ? [
+            [],
+            ['id'],
+            ...(Input.Choices.is(control)
+              ? control.data.options.map((_, index) => control.data.options.slice(0, index + 1))
+              : []),
+          ]
         : []
   if (samples.length > 0 && !samples.some(accepts))
     fail(name, `"${key}" is edited as ${control.kind}, but its schema accepts no such value`)
@@ -899,6 +919,13 @@ const Core = {
       About: { subject: Schema.Record(Schema.String, Schema.String) },
       /** What was typed to find a choice for a relation key. It changes no draft and validates nothing. */
       Searched: { key: KeySchema, text: Schema.String },
+      /**
+       * A press on a flag (no `choice`), or on one choice of a list: the key's
+       * draft as it stands now, flipped, or with `choice` let go if held and added
+       * if not. A view sends this rather than `Changed`, so two presses before the
+       * next draw both land.
+       */
+      Toggled: { key: KeySchema, choice: Schema.optional(Schema.String) },
       /** A Message of the nested form in one row of a nested key. One that row does not take is dropped. */
       Nested: { key: Schema.String, row: Schema.String, message: Schema.Unknown },
       /**
@@ -1446,6 +1473,14 @@ const Core = {
             return kindOf(message.value) !== plans[message.key].kind
               ? { model }
               : changed(edited(model), message.key, message.value)
+          case 'Toggled':
+            return Option.match(
+              toggled(plans[message.key].kind, drafts(model)[message.key].value, message.choice),
+              {
+                onNone: () => ({ model }),
+                onSome: value => changed(edited(model), message.key, value),
+              },
+            )
           case 'Blurred': {
             const state = drafts(model)[message.key]
             // Only a key not validated yet: any other state already answers for this draft.
@@ -1702,6 +1737,7 @@ const Core = {
                 'Blurred',
                 'ValidatedAll',
                 'Searched',
+                'Toggled',
                 'Submitted',
                 'Reset',
                 'RowAdded',

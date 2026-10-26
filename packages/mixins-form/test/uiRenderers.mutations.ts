@@ -86,7 +86,7 @@ export default [
   },
   {
     name: 'a press on the toggle sends what it holds',
-    edits: [{ file: ui, find: 'h.OnClick(change(!on))', replace: 'h.OnClick(change(on))' }],
+    edits: [{ file: ui, find: 'h.OnClick(toggled()),', replace: "h.OnClick(toggled('on'))," }],
     tests,
   },
   {

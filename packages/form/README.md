@@ -91,7 +91,10 @@ const RenameForm = Page.children.rename
   never dropped by omission.
 - `Rename.Message` builds the form's Messages for your view to dispatch:
   `Changed({ key, value })`, `Blurred({ key })`, `Submitted()`, `Reset()`,
-  and `ValidatedAll()` (see [Validation](#validation)). `FollowedIssue({ id })`
+  and `ValidatedAll()` (see [Validation](#validation)). `Toggled({ key })`
+  flips a flag and `Toggled({ key, choice })` lets go of or adds one choice of a
+  list, both to the draft as it stands when the Message lands, so a view sends
+  them for a press: two presses before the next draw both count. `FollowedIssue({ id })`
   says a view's link to a field was followed, and `AskedForMore({ key })` that a
   relation picker's reader wants more choices; the form changes nothing for
   either, and the page that owns the list answers the second.

@@ -22,8 +22,9 @@ const draw = (model: Model, words?: FormViewWords): Html =>
     { model, errors: [], canSubmit: false, options, words },
     SlotView.inertBuilder(),
   )
+/** The summary: what holds the only list a form draws. */
 const summary = (root: Html) =>
-  Inert.all(root).find(node => Inert.value(node, 'id') === 'Edit-summary')
+  Inert.all(root).find(node => Inert.children(node).some(child => child.sel === 'ul'))
 const links = (root: Html) =>
   Inert.byTag(summary(root), 'a').map(link => [Inert.value(link, 'href'), Inert.text(link)])
 
@@ -99,12 +100,9 @@ describe('the fields to fix', () => {
       SlotView.inertBuilder(),
     )
     const [row] = BookForm.rows(model, 'author')
-    expect(
-      Inert.byTag(
-        Inert.all(root).find(node => Inert.value(node, 'id') === 'Book-summary'),
-        'a',
-      ).map(link => Inert.value(link, 'href')),
-    ).toEqual([`#Book-author-${row!.id}-name`])
+    expect(Inert.byTag(summary(root), 'a').map(link => Inert.value(link, 'href'))).toEqual([
+      `#Book-author-${row!.id}-name`,
+    ])
   })
 })
 

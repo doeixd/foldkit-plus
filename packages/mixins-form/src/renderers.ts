@@ -150,13 +150,13 @@ export const plainRenderers = <Message>(): Shipped<Message> => {
             : [context.h.Placeholder(context.attrs.placeholder)]),
         ]),
       ),
-    Toggle: ({ state, draft, change, blurred, slots, h }) =>
+    Toggle: ({ state, draft, toggled, blurred, slots, h }) =>
       h.input(
         slots.toggle.attrs([
           ...state,
           h.Type('checkbox'),
           h.Checked(draft === true),
-          h.OnClick(change(draft !== true)),
+          h.OnClick(toggled()),
           h.OnBlur(blurred),
         ]),
       ),
@@ -170,7 +170,10 @@ export const plainRenderers = <Message>(): Shipped<Message> => {
   }
 }
 
-const GROUP_STATE: ReadonlySet<string> = new Set([
+type StateTag = RenderContext<unknown>['state'][number]['_tag']
+
+// Typed by the attributes' own tags, so a misspelt one does not compile.
+const GROUP_STATE: ReadonlySet<StateTag> = new Set<StateTag>([
   'Id',
   'AriaInvalid',
   'AriaBusy',
@@ -189,13 +192,9 @@ export const groupState = <Message>(
 export const chosenOf = (draft: RenderContext<unknown>['draft']): ReadonlyArray<string> =>
   Array.isArray(draft) ? (draft as ReadonlyArray<string>) : []
 
-/** The values chosen after a press on `value`: let go if it was chosen, added if not. */
-export const pressed = (chosen: ReadonlyArray<string>, value: string): ReadonlyArray<string> =>
-  chosen.includes(value) ? chosen.filter(held => held !== value) : [...chosen, value]
-
 /** A key of any number of choices: each one a checkbox in its own label. */
 export const choiceGroup = <Message>(
-  { input, draft, change, state, slots, h }: RenderContext<Message>,
+  { input, draft, toggled, state, slots, h }: RenderContext<Message>,
   options: ReadonlyArray<Option>,
 ): Html => {
   const chosen = chosenOf(draft)
@@ -211,7 +210,7 @@ export const choiceGroup = <Message>(
             h.Value(option.value),
             h.Checked(isChosen.has(option.value)),
             ...(input.locked === true ? [h.Disabled(true)] : []),
-            h.OnClick(change(pressed(chosen, option.value))),
+            h.OnClick(toggled(option.value)),
           ]),
         ),
         option.label,

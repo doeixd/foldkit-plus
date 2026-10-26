@@ -16,7 +16,7 @@ export default [
     edits: [
       {
         file: screen,
-        find: 'onSome: ({ key }) => pickers.ask(root, key)',
+        find: 'onSome: ({ key }) => pickers.ask(root, key as never)',
         replace: 'onSome: () => root',
       },
     ],
@@ -27,8 +27,8 @@ export default [
     edits: [
       {
         file: screen,
-        find: '            isAskedForMore,\n',
-        replace: '            (_: unknown): _ is { readonly key: string } => true,\n',
+        find: '          isAskedForMore,\n',
+        replace: '          (_: unknown): _ is { readonly key: string } => true,\n',
       },
     ],
     tests: screenTests,
@@ -47,12 +47,12 @@ export default [
   },
   {
     name: 'no picker draws its more',
-    edits: [{ file: view, find: "path === '' && more[key] === true", replace: 'false' }],
+    edits: [{ file: view, find: 'more[key] === true &&', replace: 'false &&' }],
     tests: [...viewTests, ...page],
   },
   {
     name: 'every picker draws its more',
-    edits: [{ file: view, find: "path === '' && more[key] === true", replace: "path === ''" }],
+    edits: [{ file: view, find: 'more[key] === true &&', replace: '' }],
     tests: viewTests,
   },
 ]

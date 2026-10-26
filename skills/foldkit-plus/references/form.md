@@ -67,6 +67,8 @@ const RenameForm = Page.at(Slot, {
 ## Common tasks
 
 - **Dispatch from a view:** `Rename.Message.Changed({ key, value })`,
+  `Toggled({ key, choice? })` (a press on a flag or one choice, applied to the draft
+  as it lands, so presses faster than a frame all count),
   `Blurred({ key })`, `Submitted()`, `Reset()`, `ValidatedAll()`, wrapped in the placement's
   Message (`Message.GotRenameMessage({ message })`).
 - **Posting without scripts:** `foldkit-mixins-form` names every control by

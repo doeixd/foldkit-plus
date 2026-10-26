@@ -8,6 +8,8 @@ import { Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Entity, Relation } from 'foldkit-entity'
 import { Form, Input } from 'foldkit-form'
+import { SlotView } from 'foldkit-mixins'
+import { Inert } from 'foldkit-mixins/testing'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
@@ -176,4 +178,20 @@ it('draws rows, adds and removes them, and submits what they hold', async () => 
   } finally {
     handle.dispose()
   }
+})
+
+it('offers no picker in a row more, whatever the view names', () => {
+  const root = FormView.define(Create)(
+    {
+      model: Create.initial,
+      errors: [],
+      canSubmit: false,
+      // @ts-expect-error a row's key is not one of the form's own
+      more: { countryId: true },
+    },
+    SlotView.inertBuilder(),
+  )
+  // The row's picker is drawn, and given nothing more.
+  expect(Inert.all(root).some(node => Inert.value(node, 'name') === 'countryId')).toBe(true)
+  expect(Inert.byTag(root, 'button').map(Inert.text)).not.toContain('Show more')
 })

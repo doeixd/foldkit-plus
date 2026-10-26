@@ -47,11 +47,11 @@ const mount = async () => {
         View({ model, errors: [], canSubmit: false }, h),
     }),
   )
-  await vi.waitFor(() => expect(document.querySelectorAll('#Signup-summary a')).toHaveLength(2))
+  await vi.waitFor(() => expect(document.querySelectorAll('form ul a')).toHaveLength(2))
   return handle
 }
 const link = (words: string) =>
-  Array.from(document.querySelectorAll<HTMLAnchorElement>('#Signup-summary a')).find(link =>
+  Array.from(document.querySelectorAll<HTMLAnchorElement>('form ul a')).find(link =>
     link.textContent!.startsWith(words),
   )!
 

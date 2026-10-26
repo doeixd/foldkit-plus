@@ -252,6 +252,19 @@ describe('FormView markup', () => {
 })
 
 describe('locked keys', () => {
+  it.each([
+    ['a picker the view names', { editorId: true }, [], ['Edit-editorId']],
+    ['a key that is no picker', { title: true }, [], []],
+    ['a locked picker', { editorId: true }, ['editorId'], []],
+  ] as const)('offers more to %s only when it can use it', (_, more, locked, controls) => {
+    const root = FormView.define(Edit)(
+      { model: initial, errors: [], canSubmit: false, options, more, locked },
+      SlotView.inertBuilder(),
+    )
+    const buttons = Inert.byTag(root, 'button').filter(button => Inert.text(button) === 'Show more')
+    expect(buttons.map(button => Inert.value(button, 'aria-controls'))).toEqual(controls)
+  })
+
   it('draws a locked key disabled, whatever its kind, and leaves the rest editable', () => {
     const root = FormView.define(Edit)(
       {

@@ -25,7 +25,6 @@ import {
   groupState,
   literalOptions,
   plainRenderers,
-  pressed,
   withChosen,
   type Shipped,
 } from './renderers.js'
@@ -88,7 +87,7 @@ export const renderers = <Message>(styles: UiStyles = {}): Renderers<Message> =>
     RelationOne: context =>
       plain.RelationOne({ ...context, slots: { ...context.slots, select: select(context) } }),
     Toggle: context => {
-      const { state, draft, change, blurred, input, h } = context
+      const { state, draft, toggled, blurred, input, h } = context
       const on = draft === true
       return h.button(
         builders(CheckboxSlots, styles.checkbox, context).checkbox.attrs([
@@ -97,7 +96,7 @@ export const renderers = <Message>(styles: UiStyles = {}): Renderers<Message> =>
           h.Type('button'),
           h.Role('checkbox'),
           h.AriaChecked(on),
-          h.OnClick(change(!on)),
+          h.OnClick(toggled()),
           h.OnBlur(blurred),
         ]),
         // A locked key's value is posted by the field already.
@@ -119,7 +118,7 @@ const checkboxes = <Message>(
   options: ReadonlyArray<Option>,
   styles: UiStyles,
 ): Html => {
-  const { input, draft, change, state, h } = context
+  const { input, draft, toggled, state, h } = context
   const group = SlotView.buildersFor(
     CheckboxGroupSlots,
     styles.checkboxGroup === undefined ? [] : [styles.checkboxGroup.mixin],
@@ -145,7 +144,7 @@ const checkboxes = <Message>(
                 h.AriaChecked(on),
                 ...(locked
                   ? [h.Disabled(true), h.AriaDisabled(true)]
-                  : [h.OnClick(change(pressed(chosen, option.value)))]),
+                  : [h.OnClick(toggled(option.value))]),
               ]),
               on && !locked ? [hidden(h, input.control.key, option.value)] : [],
             ),

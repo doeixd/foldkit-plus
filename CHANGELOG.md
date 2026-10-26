@@ -92,6 +92,18 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **Two presses on a form's checkboxes before the next draw both count.** Each
+  press sent the whole draft as drawn, so the second undid the first.
+  `foldkit-form` gains `Toggled({ key, choice? })`, which flips a flag or lets go
+  of or adds one choice to the draft as it stands, and both of
+  `foldkit-mixins-form`'s renderer tables send it (`RenderContext.toggled`).
+- **A choice group that must hold two or more no longer fails `Form.make`.**
+  Its schema is tried with the first one, two, … of its options.
+- **The fields-to-fix summary has no id**, so a key named `summary` no longer
+  shares one with it.
+- **"Show more" is drawn only under the form's own relation pickers**, and none
+  while a picker is locked.
+
 - **`foldkit-form`: a choice of literals that must hold one is a form key.** A
   `Schema.NonEmptyArray` of literals, or an `Array` of them with a length check,
   threw at `Form.make` ("its schema accepts no such value"): the wiring check

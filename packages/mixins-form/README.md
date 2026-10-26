@@ -20,7 +20,9 @@ The optional `foldkit-mixins-form/ui` entry draws every control through
 does not import that integration.
 
 It holds no state and adds no Messages. Every event it installs dispatches one
-of the form's own Messages (`Changed`, `Blurred`, `Submitted`).
+of the form's own Messages: `Changed`, `Toggled` (a press on a flag or a choice,
+applied to the draft as it lands), `Blurred`, `Searched`, `Submitted`, the row
+Messages, `FollowedIssue` and `AskedForMore`.
 
 ## Mental model
 
@@ -105,7 +107,9 @@ style for `text`, `number`, `multiline` or `select` no longer reaches them, sinc
 an element keeps one Slot's class. Toggle, Choices and RelationMany are the
 Checkbox's `role="checkbox"` buttons, which Space presses and their label names;
 a button posts nothing, so each checked one holds a hidden input with the key's
-name, and a form posted without scripts still carries the value.
+name, and a form posted without scripts still carries the value it was drawn
+with; unlike the plain checkboxes, those buttons cannot be changed until a script
+runs.
 
 ## UI-backed fields with a custom layout
 
@@ -211,8 +215,9 @@ the view inputs' `more` names (`more: { authorId: true }`, which
 (default `Show more`) and naming the picker with `aria-controls`; a press sends
 the form's `AskedForMore({ key })`, for the page that owns the list to answer.
 All of the view's words (`submit`,
-`submitting`, `checking`, `search`, `none`, `add`, `remove`, `more`) are text, with `{label}` and `{position}` as
-blanks; see [words in one place](../form/README.md#words-as-text-in-one-place).
+`submitting`, `checking`, `search`, `none`, `add`, `remove`, `more`, `summary`,
+`issue`) are text: `add` fills `{label}`, `remove` `{label}` and `{position}`,
+and `issue` `{label}` and `{error}`; the others are said as written. See [words in one place](../form/README.md#words-as-text-in-one-place).
 
 A chosen value its choices lack stays in sight: after the choices comes
 `? value`, chosen, in a `select` and in a `RelationMany`'s checkboxes. It is a

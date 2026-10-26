@@ -104,4 +104,18 @@ describe('A choice that must hold one', () => {
     ).model
     expect(form.engine.value(chosen)).toEqual({ topics: ['offers'] })
   })
+
+  it('is a choice group that must hold two, valid once two are chosen', () => {
+    const topics = Schema.Array(Schema.Literals(['news', 'offers', 'events'])).check(
+      Schema.isMinLength(2),
+    )
+    const form = Form.make('Signup', Form.input(Schema.Struct({ topics })))
+    const choose = (value: Array<string>) =>
+      form.engine.value(
+        form.bundle.update(form.initial, form.Message.Changed({ key: 'topics', value }), undefined)
+          .model,
+      )
+    expect(choose(['news'])).toBeUndefined()
+    expect(choose(['news', 'events'])).toEqual({ topics: ['news', 'events'] })
+  })
 })

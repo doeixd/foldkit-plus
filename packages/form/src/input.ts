@@ -117,6 +117,7 @@ export interface NestedForm {
     readonly Control: (payload: never) => unknown
     readonly Blurred: (payload: never) => unknown
     readonly Searched: (payload: never) => unknown
+    readonly Toggled: (payload: never) => unknown
     readonly Nested: (payload: never) => unknown
     readonly RowAdded: (payload: never) => unknown
     readonly RowRemoved: (payload: never) => unknown
