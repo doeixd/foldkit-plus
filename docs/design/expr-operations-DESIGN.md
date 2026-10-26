@@ -5,7 +5,7 @@
 with what gen2 offered (§13), completed as a plan, then checked against Remote,
 Guard, the server packages, Sync, CMS, Crud, Form and the example interpreters
 (§17 records what that check found). Phase 0's probes ran the same day (§17).
-Phases 1 to 3 built 2026-10-26 (their **Built** notes in §12); Phases 4 to 7
+Phases 1 to 4 built 2026-10-26 (their **Built** notes in §12); Phases 5 to 7
 are not.
 **Packages:** `foldkit-entity` (descriptors, nodes, the reference interpreter,
 writes, invariants, laws, conformance), `foldkit-remote-drizzle` (SQL, cursor,
@@ -885,6 +885,38 @@ mutation spec, the docs and skill references in step, and the changelog.
    needing a missing operator stops registration; placement is refused with a
    reason naming the operator; a text call without a collation is refused as a
    term; `verifyPlacement` passes over a call-ordered list.
+
+   **Built**, 2026-10-26 (`9aaeef50` for memory and placement, `378dc125` for
+   SQL). Where it departed from the sketch:
+   - **A call term is checked where it is written.** `Order.asc`, `Order.desc`
+     and each `Order.chosen` alternative refuse a call that is neither a number
+     nor text under `binary` or `asciiFold`; the term takes the call's
+     collation unless it gives its own. A boolean result was never a candidate:
+     it makes the call a predicate, refused as one.
+   - **The cursor's term is `{ key }`, not `{ key, alias }`.** Aliases are
+     positional, given by `cursorSelection` (`key0`, `key1`, …) and read back by
+     `keysOf`, so no term carries one. A column's collation is still applied by
+     the cursor; an expression's is in its own SQL, which the compiler writes
+     with `collate` (so under `asciiFold` on Postgres the cursor holds the
+     lowered text, and compares it with the lowered key).
+   - **Values read back for a call are not decoded.** A cursor carries them as
+     JSON and binds them back as parameters, which Postgres types by the
+     expression they are compared with (Phase 0, probe 12); the output schema
+     is never consulted, and no test needed it.
+   - **Registration needed nothing new.** Phase 3's check walks every ordering
+     term and `Order.chosen` alternative; a test shows both refused.
+   - **`Query.placement` takes `{ operators }`, none by default.** `expr.ts`
+     cannot import the kernel (`operators.ts` reaches it through `text.ts`), and
+     the kernel holds no orderable operator, so none and the kernel agree;
+     Remote resolves its table to the kernel once and always passes it.
+   - **Expansion missed a primitive call's arguments.** A defined operator
+     inside one stayed unexpanded, which the SQL compiler would refuse by name;
+     `Expr.expanded` now expands them, and takes a scalar.
+   - **`verifyPlacement` is tested in Remote**, the server's page made by the
+     reference interpreter with the server's table: agreeing records nothing,
+     and a server implementing the call otherwise is recorded. That SQL pages
+     equal the reference is the remote-drizzle suite's to show, on both
+     dialects.
 5. **Laws, evidence and the helper.** §10 whole. *Done when* declaring `concat`
    commutative yields a counterexample; a witness that does not decode is refused;
    evidence round-trips through `describeTable`.

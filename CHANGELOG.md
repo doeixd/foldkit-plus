@@ -74,6 +74,15 @@ version changed; `pnpm` skips versions already in the registry.
   table. `GuardDrizzle.visible(Policy, entities, { operators })` checks Read rules
   against the SQL table it is given. `SchemaShape.holdsIntegers` says whether a
   number schema holds integers. The registry finds a product by its UPC's prefix.
+- **Ordering by a call** (Phase 4 of `expr-operations-DESIGN.md`). An order term,
+  or an `Order.chosen` alternative, may be a call whose result orders alike
+  everywhere: a number, or text under `binary` or `asciiFold` (the call's, or the
+  term's); anything else is refused where it is written. `evaluate` orders by it
+  per row with its table, Drizzle compiles it under its collation and pages by
+  its value on SQLite and Postgres, and Remote places rows by it with
+  `Remote.make`'s table, a list it cannot place being fetched instead.
+  `Expr.expanded` takes a scalar too, and expands a defined operator among a
+  primitive call's arguments.
 - **`Cms.published(entity)`**: whether a row is published, as `cms.published` over
   the Entity's `published` role. The CMS example's two public queries and three
   visitor Read rules use it in place of five hand-written `isNotNull`s.
@@ -85,6 +94,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **A Drizzle order term is `{ key, direction, nulls?, collation? }`**, where it
+  was `{ column, … }`: `key` is a column or a Drizzle `SQL` expression, which
+  says its own collation (one given beside it is refused). `cursorSelection`
+  selects each key under a positional alias (`key0`, `key1`, …), read back with
+  `keysOf`.
+- **`Query.placement(body, input, { operators })`** places a call only by a
+  client table that runs it (none when not given), and **`compareRows(terms,
+  left, right, query, { input, operators })`** runs a call by them.
 - **`Query.unsupported(body, supported, operators?)` names primitive operators
   too**, so its result is `ReadonlyArray<string>`, not `Operation`s; without a
   table every primitive operator is named. **Comparing text needs a

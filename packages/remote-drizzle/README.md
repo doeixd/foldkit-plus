@@ -820,6 +820,15 @@ operators })` checks Read rules against the SQL table it is given, since it is
 built before `bind`. The client runs the same memory table through
 `Remote.make({ operators })`.
 
+A body may order by a call whose result orders alike everywhere: a number, or
+text under `binary` or `asciiFold`. The call is compiled as an expression under
+its collation, selected beside each row, and pages by its value as a column
+does, so a cursor resumes after the last row read on SQLite and Postgres alike.
+Nothing indexes it for you: a list that must page fast over many rows wants an
+index on the expression. An order term is `{ key, direction, nulls?, collation? }`,
+where `key` is a column or a Drizzle `SQL` expression; an expression says its
+collation in its own SQL, and one given beside it is refused.
+
 ## Computed fields
 
 The built-in computed field is a count over a collection relation:

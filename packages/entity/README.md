@@ -708,10 +708,11 @@ Query.placement(byName, {}) // { _tag: 'Placeable' }
   never by a client.
 
 A term overrides its field's: `Order.asc(field, { collation })`.
-`Query.placement(query, input)` says whether a client can order the rows exactly
-as the server does: every term over a number or a boolean (a row may lack it), or over text with a
-portable collation. A body with no order, text with none declared, or a locale
-is `NotPlaceable`, with the reason.
+`Query.placement(query, input, { operators })` says whether a client can order the rows exactly
+as the server does: every term over a number or a boolean (a row may lack it), over text with a
+portable collation, or a call whose primitive operators the client's table runs. A body with no
+order, text with none declared, a locale, or an operator the table lacks is `NotPlaceable`, with
+the reason.
 `foldkit-crud`'s `Sort.make(['title', 'id']).Schema` is such a sort.
 
 The list of predicates **is** the conjunction: a query wanting three
@@ -888,6 +889,12 @@ refused where it is written.
   `Expr.lt(joined(a, b), x)` compares under it; `'required'` (as
   `startsWith`) refuses text with none. A call may be given one:
   `op(a, b, { collation })`.
+- **A call orders when its result does.** `Order.asc(joined(Product.fields.upc, '!'))`
+  orders by the call's text under the collation it carries, and a call giving a
+  number orders as one; anything else, text with no collation included, is
+  refused where the term or `Order.chosen` alternative is written. `evaluate`
+  runs it per row by its table, and `compareRows(terms, a, b, query, { input,
+  operators })` compares two rows the same way.
 - **What a table lacks is refused by name.** `Query.unsupported(body,
   supported, operators)` and `Expr.unsupported(nodes, { operations,
   operators })` name each operation and operator missing; `evaluate` refuses
@@ -967,8 +974,8 @@ from queries, not from what a database could express.
 | `Order.asc(expr, { nulls? })` / `Order.desc(expr, { nulls? })` | One term of an ordering, over a field or a scalar. Rows without a value go last ascending and first descending unless `nulls` says otherwise; every interpreter is told, since databases disagree when it is unsaid. |
 | `Collation.binary` / `.asciiFold` / `.locale(name)` / `.of(collation)` | How a text field orders, as member metadata; see above. |
 | `ReadFilter.of(members)` / `.members(metadata)` | Entity metadata: the members a server filters rows by under a rule the client does not run (an authorization rule; `foldkit-guard` attaches it). A client placing rows in a list fetches the list instead when one changes. Annotations add up. |
-| `Query.placement(query, input)` | `Placeable`, or `NotPlaceable` with why: whether a client can order as the server does. |
-| `Order.chosen(sort, choices)` | The field an input's sort names (`{ by, direction }`, or `null` for none), among `choices`. |
+| `Query.placement(query, input, { operators })` | `Placeable`, or `NotPlaceable` with why: whether a client running `operators` can order as the server does. |
+| `Order.chosen(sort, choices)` | The field or call an input's sort names (`{ by, direction }`, or `null` for none), among `choices`. |
 | `dependenciesOf(...nodes)` | The distinct fields, inputs, and operations those expressions use. |
 | `Query.from(entity)` | Every row of an Entity: the query each step narrows. |
 | `Query.where(...predicates)` | Pipe step keeping the rows those hold for; conjoins with what is there. |
