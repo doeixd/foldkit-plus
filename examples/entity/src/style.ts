@@ -1,13 +1,14 @@
 /**
  * The page's look: the demos' theme (`demoStyle`), the frame and controls from
  * `foldkit-mixins-ui`, the list, editor and delete question from
- * `foldkit-mixins-crud/recipes`, and the form's parts over the theme's tokens.
+ * `foldkit-mixins-crud/recipes`, and the form's from `foldkit-mixins-form/recipes`.
  */
 import { Style } from 'foldkit-mixins'
 import { Layout } from 'foldkit-mixins/layout'
 import { ConfirmSlots, EditorSlots, ListSlots, ToolbarSlots } from 'foldkit-mixins-crud'
 import { Confirm, Editor, List, Toolbar } from 'foldkit-mixins-crud/recipes'
-import { FieldSlots, FormSlots, type FieldInput } from 'foldkit-mixins-form'
+import { FieldSlots, FormSlots } from 'foldkit-mixins-form'
+import { Field, Form } from 'foldkit-mixins-form/recipes'
 import { AppShellSlots, CheckboxSlots, InputSlots, Recipes, SelectSlots } from 'foldkit-mixins-ui'
 import { demoStyle } from 'foldkit-example-site/demo-style'
 
@@ -34,36 +35,8 @@ export const controlStyles = {
   checkbox: demoStyle.forSlots(CheckboxSlots)(Recipes.Checkbox({}), { name: 'FormCheckbox' }),
 }
 
-/**
- * A field: its label over its control, then what it says about it. A grid, not
- * `Layout.stack`, whose full-width children would stretch the checkbox into a bar.
- */
-export const FieldStyle = Style.forSlots(FieldSlots)(
-  {
-    root: L.in('layouts', Style.self({ display: 'grid', gap: t.space['2xs'] })),
-    search: Recipes.Input({}).input ?? Style.empty,
-    more: Style.compose(
-      Recipes.Button({ tone: 'neutral', variant: 'outline', size: 'sm' }).button ?? Style.empty,
-      Style.self({ justifySelf: 'start' }),
-    ),
-    label: Style.self({ fontSize: t.size.sm, fontWeight: t.weight.medium, color: t.text.overt }),
-    description: Style.self({ margin: '0', fontSize: t.size.sm, color: t.text.muted }),
-    checking: Style.self({ margin: '0', fontSize: t.size.sm, color: t.text.muted }),
-    error: Style.compose(
-      Style.self({ margin: '0', fontSize: t.size.sm, color: t.error.ink }),
-      Style.whenInput<FieldInput>(input => !input.invalid, Style.self({ display: 'none' })),
-    ),
-  },
-  { name: 'EntityField', layer: L.layer('app') },
-)
-
-export const FormStyle = Style.forSlots(FormSlots)(
-  {
-    root: L.in('layouts', Layout.stack({ gap: t.space.md })),
-    submit: Recipes.Button({}).button ?? Style.empty,
-  },
-  { name: 'EntityForm', layer: L.layer('app') },
-)
+export const FieldStyle = demoStyle.forSlots(FieldSlots)(Field({}), { name: 'EntityField' })
+export const FormStyle = demoStyle.forSlots(FormSlots)(Form({}), { name: 'EntityForm' })
 
 export const Page = demoStyle.slots(
   {
