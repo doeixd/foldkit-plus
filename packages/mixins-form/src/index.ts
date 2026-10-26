@@ -59,6 +59,10 @@ export interface FormViewWords {
   readonly checking?: string | undefined
   /** On the submit button while the form is submitting. Default `Submitting…`. */
   readonly submitting?: string | undefined
+  /** Above the list of fields to fix. Default `Check these fields:`. */
+  readonly summary?: string | undefined
+  /** One field to fix, a link to it. Default `{label}: {error}`. */
+  readonly issue?: string | undefined
 }
 
 /**
@@ -215,6 +219,17 @@ export const FormSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container, events: [Event.Submit] }),
   /** Failures that belong to no one field: a rule that spans keys. */
   errors: Slot.make({ capability: Capability.Base }),
+  /**
+   * The fields to fix, while any is invalid: its words (`summaryTitle`), then a
+   * list (`issues`) of `issue`s, each holding an `issueLink` to one field's
+   * control. Beside `errors`, above the submit button.
+   */
+  summary: Slot.make({ capability: Capability.Container }),
+  summaryTitle: Slot.make({ capability: Capability.Base }),
+  issues: Slot.make({ capability: Capability.Collection }),
+  issue: Slot.make({ capability: Capability.Base }),
+  /** A link to one field's control, which a press focuses. */
+  issueLink: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
   submit: Slot.make({
     capability: Capability.Interactive,
     events: [Event.Click],
@@ -249,6 +264,7 @@ interface FormLike<Key extends string, Model, Message> {
     readonly Blurred: (payload: { readonly key: Key }) => NoInfer<Message>
     readonly Searched: (payload: { readonly key: Key; readonly text: string }) => NoInfer<Message>
     readonly Submitted: () => NoInfer<Message>
+    readonly FollowedIssue: (payload: { readonly id: string }) => NoInfer<Message>
     readonly Control: (payload: {
       readonly key: never
       readonly message: unknown
@@ -632,6 +648,17 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
 }
 
 /**
+ * The control drawn with this id, or the first one inside it, such as a choice
+ * group's first box. The id is quoted, since it may hold what a selector reads
+ * as syntax.
+ */
+const controlAt = (id: string): string => {
+  const at = `[id=${JSON.stringify(id)}]`
+  const control = ':is(input, select, textarea, button)'
+  return `${at}${control}, ${at} ${control}`
+}
+
+/**
  * What a draft posts as: its text, each of its values, `on` for a checked box
  * (a checkbox's own default), or nothing for an unchecked one or a control's
  * own Model.
@@ -672,6 +699,13 @@ export const FormView = {
         const controls: Readonly<Record<string, unknown>> = input.controls ?? {}
         const locked: ReadonlySet<string> = new Set(input.locked ?? [])
 
+        // Each invalid field, in the order drawn, for the summary.
+        const issues: Array<{
+          readonly id: string
+          readonly label: string
+          readonly error: string
+        }> = []
+
         /** The controls of a form or of a row. `id` and `path` say where: both are empty for the form itself. */
         const draw = (walk: Walk<Message>, id: string, path: string): ReadonlyArray<Html> =>
           walk.controls
@@ -683,6 +717,8 @@ export const FormView = {
                 const bundled = Input.isBundle(control.control)
                 const held = bundled ? walk.controlField(key) : walk.field(key)
                 const state = bundled ? withoutDraft(held) : (held as FieldValidation.Field<Draft>)
+                if (FieldValidation.isInvalid(state))
+                  issues.push({ id: here, label, error: errorsOf(state).join(' ') })
                 return fieldView(
                   {
                     control: control as FormControl<Key>,
@@ -768,13 +804,49 @@ export const FormView = {
           make: form.Message as unknown as NestedForm['Message'],
         }
         const submitting = input.submitting === true
+        const fields = draw(top, form.bundle.name, '')
         return h.form(
           slots.root.attrs([
             h.OnSubmit(form.Message.Submitted()),
             ...(submitting ? [h.AriaBusy(true), h.DataAttribute('submitting', '')] : []),
           ]),
           [
-            ...draw(top, form.bundle.name, ''),
+            ...fields,
+            ...(issues.length === 0
+              ? []
+              : [
+                  h.div(slots.summary.attrs([h.Id(`${form.bundle.name}-summary`)]), [
+                    h.p(slots.summaryTitle.attrs(), [
+                      input.words?.summary ?? 'Check these fields:',
+                    ]),
+                    h.ul(
+                      slots.issues.attrs(),
+                      issues.map(issue =>
+                        h.li(slots.issue.attrs(), [
+                          // A link, so with scripts off it still goes to the field.
+                          // With them on, the press focuses the control itself and
+                          // goes nowhere, since an application takes a link as a
+                          // navigation.
+                          h.a(
+                            slots.issueLink.attrs([
+                              h.Href(`#${issue.id}`),
+                              h.OnClick(form.Message.FollowedIssue({ id: issue.id }), {
+                                defaultAction: 'Prevent',
+                                focusSelector: controlAt(issue.id),
+                              }),
+                            ]),
+                            [
+                              fillWords(input.words?.issue ?? '{label}: {error}', {
+                                label: issue.label,
+                                error: issue.error,
+                              }),
+                            ],
+                          ),
+                        ]),
+                      ),
+                    ),
+                  ]),
+                ]),
             ...(input.errors.length === 0
               ? []
               : [h.p(slots.errors.attrs([h.Role('alert')]), [...input.errors])]),

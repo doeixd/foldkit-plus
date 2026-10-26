@@ -425,6 +425,7 @@ const edits = {
   Control: false,
   RowAdded: true,
   RowRemoved: true,
+  FollowedIssue: false,
 } as const
 
 /** A form's tags. Every form has these, so a nested form's Message, known only at runtime, is read by them. */
@@ -909,6 +910,12 @@ const Core = {
       RowAdded: { key: Schema.String },
       /** Removes a row. A `one` that must be there stays. */
       RowRemoved: { key: Schema.String, row: Schema.String },
+      /**
+       * A link to the field drawn with this id was followed, such as one in a
+       * view's list of fields to fix. The view moves focus there itself, in the
+       * press; the form changes nothing.
+       */
+      FollowedIssue: { id: Schema.String },
     } satisfies Record<FormTag, Schema.Struct.Fields>)
     type Message = typeof Message.Type
     type Commands = ReadonlyArray<Command<Message, never, R>>
@@ -1547,6 +1554,8 @@ const Core = {
             return { model: { ...initial, subject: model.subject } }
           case 'Submitted':
             return submitted(model)
+          case 'FollowedIssue':
+            return { model }
         }
       },
       helpers: { fill },

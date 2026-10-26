@@ -17,6 +17,13 @@ version changed; `pnpm` skips versions already in the registry.
   in each checked one so a post without scripts still carries the value. The
   field around each control, its name, id and accessibility state are the plain
   path's, and the same interaction sends the same Messages.
+- **`foldkit-mixins-form`: the fields to fix.** While any field is invalid, the
+  form view draws a `summary` above its submit button: `words.summary`, then a
+  link to each invalid field's control, rows' too, worded by `words.issue`
+  (`{label}: {error}`). A link's `href` is the control's `#id`, so it works
+  with scripts off; with them on, a press focuses the control (a choice
+  group's first box) without navigating, and sends **`foldkit-form`'s new
+  `FollowedIssue({ id })`**, which changes nothing.
 
 ### Fixed
 

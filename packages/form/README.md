@@ -91,7 +91,8 @@ const RenameForm = Page.children.rename
   never dropped by omission.
 - `Rename.Message` builds the form's Messages for your view to dispatch:
   `Changed({ key, value })`, `Blurred({ key })`, `Submitted()`, `Reset()`,
-  and `ValidatedAll()` (see [Validation](#validation)).
+  and `ValidatedAll()` (see [Validation](#validation)). `FollowedIssue({ id })`
+  says a view's link to a field was followed; the form changes nothing.
 - `Rename.controls` lists the keys in the input's order, each with its
   `control`, `label`, `description`, `required`, and the Entity `member`.
 - `Rename.field(model.rename, key)` reads one key's state as `Field<Draft>`, for

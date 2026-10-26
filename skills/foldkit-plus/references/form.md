@@ -207,7 +207,10 @@ blank choice of a picker; a chosen value the choices lack is shown as `? value`.
 `label`, `description`, `error`, `checking`, and one per control kind (`text`, `multiline`,
 `number`, `toggle`, `select` with its `option`s, `choices`, `choiceLabel`, `choice`), plus `control`, `search`, and
 `group`/`affix` for a renderer's control with text beside it. `FormSlots`: `root`, `errors`,
-`submit`. The view owns `id`, `label for`, `aria-invalid`, `aria-required`,
+`summary` (with `summaryTitle`, `issues`, `issue`, `issueLink`), `submit`. While any field is invalid, `summary` lists each
+one above the submit button as a link to its control (`href="#id"`; a press focuses the
+control and sends `FollowedIssue({ id })`, which changes nothing), worded by `words.summary`
+and `words.issue` (`{label}: {error}`). The view owns `id`, `label for`, `aria-invalid`, `aria-required`,
 `aria-describedby`, and `role="alert"` on errors; a Behavior that supplies one of
 those throws a two-owners conflict at render.
 

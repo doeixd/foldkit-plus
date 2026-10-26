@@ -302,7 +302,20 @@ Around each control, `FieldSlots` also publishes `root`, `label`, `description`,
 `checking`, `error`, `control` (around a Bundle's own view), and `group` and `affix`, for a
 renderer that draws text beside its control (a prefix, a unit) with the two
 together. `FormSlots` publishes `root` (the `form`), `errors` (failures that
-belong to no one field), `submit`, and the five slots of a nested key.
+belong to no one field), `summary`, `summaryTitle`, `issues`, `issue` and
+`issueLink` (the fields to fix, below),
+`submit`, and the five slots of a nested key.
+
+While any field is invalid, the form draws the fields to fix above its submit
+button, beside `errors`: `words.summary` (default `Check these fields:`), then a
+link to each invalid field in the order the fields are drawn, rows' too, each
+worded by `words.issue` (default `{label}: {error}`). It sits low in the form,
+so a field turning invalid never moves the fields above it, and it is no live
+region: each field's own error already is. A link's `href` is the control's
+`#id`, so with scripts off it goes there; with them on, a press focuses the
+control itself (a choice group's first box) and goes nowhere, since an
+application takes a link press as a navigation. The press sends the form's
+`FollowedIssue({ id })`, which changes nothing.
 
 A Bundle's own view that takes inputs gets them from the view input
 `controls`, by key: `placed.view(model, h, { controls: { document: inputs } })`.
