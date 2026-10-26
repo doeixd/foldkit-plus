@@ -15,6 +15,8 @@
       "foldkit-durable/core": ["../../packages/durable/src/core.ts"],
       "foldkit-entity": ["../../packages/entity/src/index.ts"],
       "foldkit-entity/conformance": ["../../packages/entity/src/conformance/index.ts"],
+      "foldkit-example-site/demos": ["../site/src/demos.ts"],
+      "foldkit-example-site/guide": ["../site/src/guide.ts"],
       "foldkit-form": ["../../packages/form/src/index.ts"],
       "foldkit-guard": ["../../packages/guard/src/index.ts"],
       "foldkit-guard/agent": ["../../packages/guard/src/agent.ts"],
@@ -126,6 +128,9 @@
     },
     {
       "path": "../../packages/sync/tsconfig.build.json"
+    },
+    {
+      "path": "../site/tsconfig.json"
     }
   ]
 }

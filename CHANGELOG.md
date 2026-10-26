@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`examples/chirp`: a Twitter clone, published as a demo.** A timeline, a
+  profile per person and a page per post; posting, editing your own posts in
+  place, and likes. Posts are Entities with a guarded write (its author or an
+  admin) whose `may` decides where the page shows Edit; the server stamps a
+  chirp's author and time from who is asking; the compose box and the editor
+  are forms over the writes' inputs, drawn with `foldkit-mixins-form/ui`; a like
+  is one server handler answering the post as it now reads. The server runs in
+  the browser on SQLite compiled to WebAssembly, in a SharedWorker every tab
+  shares, and the demo is listed with the others.
 - **Computed assignments** (Phase 6 of `expr-operations-DESIGN.md`).
   `Write.update(input, { compute: { label: ({ row, input }) => … } })` sets a
   field from the row before the write and the input, refused where declared for

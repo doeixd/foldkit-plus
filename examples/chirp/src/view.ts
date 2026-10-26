@@ -4,6 +4,8 @@
  * `foldkit-mixins-ui` with its recipe.
  */
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
+import { chirpDemo } from 'foldkit-example-site/demos'
+import { demoGuide } from 'foldkit-example-site/guide'
 import { May } from 'foldkit-guard'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import { Avatar, Button, Card } from 'foldkit-mixins-ui'
@@ -66,8 +68,8 @@ const NAMES: Record<Person, string> = {
 
 /** A post, keyed by its id: edited in place, or its card with Edit where the server says you may. */
 const post = (row: Row, model: Model, slots: Slots, h: H): Html =>
-  h.div(
-    slots.post.attrs([h.Key(row.id)]),
+  h.article(
+    slots.post.attrs([h.Key(row.id), h.AriaLabel(`Post by ${row.author.name}`)]),
     PostEditor.target(model) === row.id
       ? [
           EditorForm.view(model, h, { words: { submit: 'Save' } }),
@@ -218,6 +220,8 @@ const nav = (model: Model, slots: Slots, h: H): Html => {
   ])
 }
 
+const DemoGuide = demoGuide<Message>()
+
 const PageView = SlotView.forMessages<Message>()
   .define(ChirpPage.slots, (model: Model, slots, h) =>
     h.div(slots.page.attrs(), [
@@ -233,6 +237,15 @@ const PageView = SlotView.forMessages<Message>()
           }),
         ),
       ]),
+      // Fixed in the corner, out of the timeline's way.
+      DemoGuide(
+        {
+          demo: chirpDemo,
+          more: [`You are signed in as ${NAMES[model.me]}.`],
+          links: [{ label: 'Start again', href: `/?reset&as=${model.me}` }],
+        },
+        h,
+      ),
     ]),
   )
   .pipe(Style.attach(ChirpPage.style))
