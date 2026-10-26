@@ -2760,6 +2760,9 @@ importers:
       '@effect/platform-browser':
         specifier: ^4.0.5
         version: 4.0.5(effect@4.0.5)
+      '@foldkit/ui':
+        specifier: 0.169.0
+        version: 0.169.0(effect@4.0.5)(foldkit@0.169.0(@effect/platform-browser@4.0.5(effect@4.0.5))(effect@4.0.5))
       effect:
         specifier: ^4.0.5
         version: 4.0.5
@@ -2769,6 +2772,12 @@ importers:
       foldkit-entity:
         specifier: workspace:*
         version: link:../entity
+      foldkit-mixins-form:
+        specifier: workspace:*
+        version: link:../mixins-form
+      foldkit-mixins-ui:
+        specifier: workspace:*
+        version: link:../mixins-ui
       foldkit-surface:
         specifier: workspace:*
         version: link:../surface

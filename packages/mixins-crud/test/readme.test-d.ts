@@ -8,7 +8,16 @@ import { Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import { Query, Remote } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import { expectTypeOf } from 'vitest'
-import { DetailView, Empty, Failure, ListView, Loading } from '../src/index.js'
+import {
+  ConfirmView,
+  DetailView,
+  EditorView,
+  Empty,
+  Failure,
+  ListView,
+  Loading,
+  Toolbar,
+} from '../src/index.js'
 
 const PostSort = Schema.Literals(['oldest', 'title'])
 const Post = Entity.define(
@@ -100,4 +109,48 @@ export const statuses = (slots: StatusSlots, h: HtmlBuilder<Message>): Html => {
   const styled = Style.forSlots(StatusSlots)({ status: Loading.shown })
   void styled
   return h.div([], [loading, empty, failure])
+}
+
+// ---- An editor, a delete, and a toolbar ----
+{
+  type Message =
+    | { readonly _tag: 'ClosedEditor' }
+    | { readonly _tag: 'Confirmed' }
+    | { readonly _tag: 'Cancelled' }
+  const h = SlotView.inertBuilder<Message>()
+  const PostEditorView = EditorView.forMessages<Message>().define()
+  const DeletePost = ConfirmView.forMessages<Message>().define()
+  const PostTools = Toolbar.forMessages<Message>().define()
+  PostEditorView(
+    {
+      id: 'post-editor',
+      status: 'Editing',
+      title: 'Edit post',
+      form: h.form([], []),
+      onClose: { _tag: 'ClosedEditor' },
+    },
+    h,
+  )
+  DeletePost(
+    {
+      id: 'delete-post',
+      status: 'Confirming',
+      name: Option.some('Hello'),
+      onConfirm: { _tag: 'Confirmed' },
+      onCancel: { _tag: 'Cancelled' },
+    },
+    h,
+  )
+  PostTools({ search: h.input([]), actions: [h.button([], ['New post'])] }, h)
+  DeletePost(
+    {
+      id: 'd',
+      status: 'Confirming',
+      // @ts-expect-error a delete names what it deletes as an Option, never a bare string
+      name: 'Hello',
+      onConfirm: { _tag: 'Confirmed' },
+      onCancel: { _tag: 'Cancelled' },
+    },
+    h,
+  )
 }

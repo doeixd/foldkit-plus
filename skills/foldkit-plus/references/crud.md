@@ -205,6 +205,17 @@ PageList(
 )
 ```
 
+`EditorView`, `ConfirmView` and `Toolbar` (all `.forMessages<Message>().define()`)
+draw around an editor and a remover, given their state: `EditorView({ id, status:
+Editor.status(model), title, form: EditForm.view(model, h, inputs), error:
+Editor.saveError(model)?.message, onClose?, onRetry? })` draws each status's line and
+keeps the form while there is something to edit (a failed save keeps the draft);
+`ConfirmView({ id, status: Remover.status(model), name: Option<string>, onConfirm,
+onCancel, error? })` asks `Delete {name}?` and cannot confirm with no name;
+`Toolbar({ search?, filters?, sort?, actions? })` holds your controls in slots. For a
+dialog, draw the `EditorView` inside your `foldkit-mixins-ui` Dialog: focus in,
+trapped, and back to the opener are the Dialog's.
+
 Slots: `ListSlots` (`root`, `status`, `table`, `head`, `headRow`, `body`, `headCell`, `sort`, `row`, `cell`,
 `open`, `more`, `retry`) and `DetailSlots` (`root`, a `div` in every state;
 `list`, the `dl`; `status`, `term`, `value`, `retry`); `RowListSlots` is

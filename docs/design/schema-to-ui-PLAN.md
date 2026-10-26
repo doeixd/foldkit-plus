@@ -1,9 +1,9 @@
 # Schema to UI: field recipes and CRUD workflow recipes
 
-> **Status:** Phases 0 (2026-10-22), 1 to 3 (2026-10-26) built; Phases 4 to 7
+> **Status:** Phases 0 (2026-10-22), 1 to 4 (2026-10-26) built; Phases 5 to 7
 > proposed. Written from
 > [#188](https://github.com/doeixd/foldkit-plus/issues/188) and an audit of the
-> code on 2026-10-22 (§1, §11). §1.3 to §1.6 record what building Phases 0 to 3
+> code on 2026-10-22 (§1, §11). §1.3 to §1.7 record what building Phases 0 to 4
 > changed in the plan. Blocks marked *Sketch* are shapes to review, not APIs; the phase that
 > builds each one fixes its real signature. Where this plan and a package README
 > disagree, the README and the source win.
@@ -14,7 +14,8 @@
 | 1 | `UiForm.renderers` for every shipped kind, the form's `summary` of fields to fix, `FollowedIssue`, `UiForm.field`'s `words` | `packages/mixins-form/test/uiRenderers.test.ts`, `uiRenderers.browser.test.ts`, `summary.test.ts`, `summary.browser.test.ts`, `ui.test.ts`; 23 mutations, all killed |
 | 2 | `foldkit-form-recipes`: `date`, `dateTime` (`local`, or `instant` in a named zone), `email`, `url`, `tel`, `password`, `slug`; `./html` and `./ui` renderers; the CMS on them | `packages/form-recipes/test/*.test.ts`; 22 mutations, all killed |
 | 3 | `money` (minor units or decimal text), `decimal`, `percent` (a share or points) | `packages/form-recipes/test/money.test.ts`; 11 mutations, all killed |
-| 4 to 7 | — | not started |
+| 4 | `EditorView`, `ConfirmView`, `Toolbar` in `foldkit-mixins-crud` | `packages/mixins-crud/test/editor.test.ts`, `editorDialog.browser.test.ts`; 6 mutations, all killed |
+| 5 to 7 | — | not started |
 
 The issue asks for a complete schema-to-UI story: reusable field recipes, UI
 renderers for every control kind, and CRUD workflow recipes. This plan keeps the
@@ -229,6 +230,25 @@ Phase 2 shipped on 2026-10-26 (§6) as a new package, `foldkit-form-recipes`.
    the share (`0.125`) or the points (`12.5`), both shown `12.5%`; a stored
    number with more decimals than the scale fails the fill rather than being
    rounded into it.
+
+### 1.7 What building Phase 4 changed in this plan
+
+1. **The views take their state, not a placed editor.** §4.5 had
+   `EditorView.define(placedEditor)`. Each view is instead given what it draws:
+   `status` (`Editor.status(model)`), the form already drawn by its own view, and
+   the save error. A placed handle would have bound the view to `Crud.editor`'s
+   generics for one call each, and a hand-composed editor could not use it.
+2. **There is no `presentation`.** A Dialog's and a Drawer's open state is a Model
+   the application holds (`@foldkit/ui`'s), so a view that drew one would own a
+   second copy of it. The application draws the `EditorView` inside the Dialog or
+   Drawer it places. The browser test does that with a real Dialog: focus enters
+   on open, stays through Tab, Escape closes through the application's Message,
+   and focus returns to the opener. Each is the Dialog's, so §6's "focus
+   restoration removed" kill has no line here to mutate; the test is what shows
+   the editor does not break it.
+3. **`ConfirmView` takes the thing's `name` as an `Option`.** It is what a person
+   recognises (a title), which the remover does not know; with none the confirm
+   button is disabled.
 
 ## 2. Scope
 
@@ -686,7 +706,10 @@ already a fine draft.
 **Kills.** `format` replaced by `String(value)`; minor-unit scaling removed;
 the locale parameter ignored.
 
-### Phase 4 — CRUD presentation (M)
+### Phase 4 — CRUD presentation (M) — **built 2026-10-26**
+
+**Built.** `EditorView`, `ConfirmView` and `Toolbar` in `foldkit-mixins-crud`.
+§1.7 says where it departs from the text below.
 
 **Build.** `EditorView` (page, drawer, dialog), `ConfirmView`, `Toolbar` in
 `foldkit-mixins-crud` (§4.5).

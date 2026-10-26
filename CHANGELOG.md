@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-mixins-crud`: `EditorView`, `ConfirmView` and `Toolbar`.** `EditorView`
+  draws what a `Crud.editor` says around its form in each status (busy while
+  loading or saving, a failed save as an alert that keeps the form, a conflict,
+  a row moved on) with its title and a close button; `ConfirmView` asks
+  `Delete {name}?` before a `Crud.remover` deletes, and cannot confirm without a
+  name; `Toolbar` holds a list's search, filters, order and actions in slots. Each
+  is given its state and Messages and owns neither; in a dialog, focus is the
+  Dialog's.
 - **`foldkit-form-recipes` 0.1.0, its first release: field recipes for
   `foldkit-form`.** A recipe is a control and a display made from the same
   options. `FieldRecipes.date()` edits a `CalendarDate` as `YYYY-MM-DD`;
