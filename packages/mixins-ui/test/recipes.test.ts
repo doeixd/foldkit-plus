@@ -13,6 +13,7 @@ import {
   Slots,
   Style,
   type SlotAttributes,
+  type SlotRecipeSelection,
   type StyleValue,
   type StyleValues,
 } from 'foldkit-mixins'
@@ -164,12 +165,17 @@ const defined = new Set([
 ])
 
 /** Every selection of a recipe: the defaults, then each value of each axis. */
-const selections = (variants: Readonly<Record<string, Readonly<Record<string, unknown>>>>) => [
-  {},
-  ...Object.entries(variants).flatMap(([axis, values]) =>
-    Object.keys(values).map(value => ({ [axis]: value })),
-  ),
-]
+const selections = <V extends Readonly<Record<string, Readonly<Record<string, unknown>>>>>(
+  variants: V,
+): ReadonlyArray<SlotRecipeSelection<V>> =>
+  // Read from the recipe's own axes and values, so each is one of its
+  // selections; the keys are only known at run time, so the type cannot see it.
+  [
+    {},
+    ...Object.entries(variants).flatMap(([axis, values]) =>
+      Object.keys(values).map(value => ({ [axis]: value })),
+    ),
+  ] as unknown as ReadonlyArray<SlotRecipeSelection<V>>
 
 /** Top-level blocks of a stylesheet, split by brace depth. */
 const blocks = (css: string): ReadonlyArray<string> => {

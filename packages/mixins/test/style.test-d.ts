@@ -110,3 +110,24 @@ const Placed = Style.forSlots(LayerRoot)(
 Layers.standard.layer('ap')
 // @ts-expect-error Layers.in no longer takes a NamedStyle
 Layers.standard.in('app', Placed)
+
+// A slot recipe's selection names its axes and nothing else, with or without variants.
+const BaseOnly = Style.recipeFor(LayerRoot)({ base: { root: Style.class('b') } })
+BaseOnly()
+BaseOnly({})
+// @ts-expect-error a recipe with no variants takes no selection.
+BaseOnly({ tone: 'quiet' })
+const Toned = Style.recipeFor(LayerRoot)({
+  variants: { tone: { quiet: { root: Style.class('q') } } },
+})
+Toned({ tone: 'quiet' })
+Toned({ tone: null })
+// @ts-expect-error a misspelled axis.
+Toned({ tones: 'quiet' })
+// @ts-expect-error an unknown value.
+Toned({ tone: 'loud' })
+
+const PlainBase = Style.recipe({ base: Style.class('b') })
+PlainBase({})
+// @ts-expect-error a recipe with no variants takes no selection.
+PlainBase({ tone: 'quiet' })

@@ -143,6 +143,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **A recipe with no variants refuses a selection** (`Style.recipeFor`,
+  `Style.recipe`): `Field({ tone: 'quiet' })` compiled and did nothing, since an
+  empty selection type accepted any key; it is now a type error. Call such a
+  recipe with `{}` or nothing. `SlotRecipeSelection` is exported.
 - **`Remote.matching` skips a held row holding text with a NUL** rather than
   refusing the whole list, so one bad stored row no longer blanks a local
   filter (`filtered`). An input holding one still refuses, as the server
