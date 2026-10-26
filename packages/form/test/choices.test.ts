@@ -85,3 +85,23 @@ describe('A key that is any number of a fixed set', () => {
     expect(() => Form.make('Words', Form.input(Words))).toThrow('no control for "words"')
   })
 })
+
+describe('A choice that must hold one', () => {
+  const Topics = Schema.Literals(['news', 'offers'])
+  it.each([
+    ['a non-empty array', Schema.NonEmptyArray(Topics)],
+    ['an array with a length check', Schema.Array(Topics).check(Schema.isMinLength(1))],
+  ])('is %s: a required choice group, valid once one is chosen', (_, topics) => {
+    const form = Form.make('Signup', Form.input(Schema.Struct({ topics })))
+    const control = form.controls.find(control => control.key === 'topics')!
+    expect([control.control.kind, control.required]).toEqual(['Choices', true])
+    const empty = form.bundle.update(form.initial, form.Message.ValidatedAll(), undefined).model
+    expect(form.engine.value(empty)).toBeUndefined()
+    const chosen = form.bundle.update(
+      empty,
+      form.Message.Changed({ key: 'topics', value: ['offers'] }),
+      undefined,
+    ).model
+    expect(form.engine.value(chosen)).toEqual({ topics: ['offers'] })
+  })
+})

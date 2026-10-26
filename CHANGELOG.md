@@ -20,6 +20,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-form`: a choice of literals that must hold one is a form key.** A
+  `Schema.NonEmptyArray` of literals, or an `Array` of them with a length check,
+  threw at `Form.make` ("its schema accepts no such value"): the wiring check
+  tried `[]` and an id, and such a schema takes neither. It is now a required
+  Choices key.
 - **`foldkit-mixins-form`: a Choices or RelationMany group carries the field's
   validity and descriptions,** as every other control does: its `aria-invalid`
   and `aria-describedby` were missing.

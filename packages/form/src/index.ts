@@ -618,8 +618,14 @@ const planOf = (
   }
 
   // A control whose draft can never become the key's value is a wiring mistake.
+  // A choice of literals is tried with one of its own, since an array that must
+  // hold one refuses `[]` and an id alike.
   const samples: ReadonlyArray<unknown> =
-    kind === 'flag' ? [true, false] : kind === 'list' ? [[], ['id']] : []
+    kind === 'flag'
+      ? [true, false]
+      : kind === 'list'
+        ? [[], ['id'], ...(Input.Choices.is(control) ? [control.data.options.slice(0, 1)] : [])]
+        : []
   if (samples.length > 0 && !samples.some(accepts))
     fail(name, `"${key}" is edited as ${control.kind}, but its schema accepts no such value`)
 
