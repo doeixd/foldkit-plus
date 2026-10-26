@@ -63,6 +63,13 @@ version changed; `pnpm` skips versions already in the registry.
   by the policy's table, and a computed value that table could not work out was
   judged as the field's old value, so a rule over it could be passed while the
   database wrote the new one.
+- **Operator arguments bind as each database takes them.** On Postgres an
+  integer is cast to `bigint`, not `integer`, so a value past 32 bits that
+  `Schema.Int` admits no longer fails the query; on SQLite a boolean is bound
+  as 1 or 0, which SQLite stores, where it failed to bind at all.
+- **A computed value compared under a collation compiles on Postgres.** An
+  invariant ordering the value an assignment computes wrote SQLite's
+  `collate binary` there, which Postgres refuses.
 
 ### Changed
 

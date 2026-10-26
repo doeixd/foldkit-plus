@@ -261,7 +261,7 @@ describe('A call order compiled', () => {
     )
     const [first] = orderByTerms(terms, 'forward')
     expect(new PgDialect().sqlToQuery(first!).sql).toBe(
-      'abs("parts"."rank" - cast($1 as integer)) asc nulls last',
+      'abs("parts"."rank" - cast($1 as bigint)) asc nulls last',
     )
   })
 

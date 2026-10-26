@@ -741,7 +741,7 @@ bodies' primitive operators run by, each its kernel (`Text.startsWith`) when not
 given: `sql` from `DrizzleOperators.make(DrizzleOperators.implement(op, ({ args,
 dialect, collate }) => …))`, whose function returns Drizzle `SQL` (`merge`,
 `override`, `kernel`), `memory` from `Operators`. A literal or input argument taken as a number or boolean is cast on
-Postgres (`cast($1 as integer)`); SQLite takes none. A query, an invariant or a
+Postgres (`cast($1 as bigint)` for an integer); SQLite takes none, and binds a boolean as 1 or 0. A query, an invariant or a
 write's `when` calling one either table lacks is refused where it is registered
 or the writer built; `GuardDrizzle.visible(Policy, entities, { operators })`
 checks Read rules against the SQL table it is given. A body ordered by a call

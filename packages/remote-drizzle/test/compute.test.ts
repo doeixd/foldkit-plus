@@ -13,7 +13,7 @@ import { drizzle as drizzlePg } from 'drizzle-orm/pglite'
 import { integer as pgInteger, pgTable, text as pgText } from 'drizzle-orm/pg-core'
 import { SQLiteDialect, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Schema } from 'effect'
-import { Entity, Expr, Law, Operators, Write, isPredicate } from 'foldkit-entity'
+import { Collation, Entity, Expr, Law, Operators, Write, isPredicate } from 'foldkit-entity'
 import { Conformance } from 'foldkit-entity/conformance'
 import { Mutation } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
@@ -55,10 +55,15 @@ const Fields = Entity.define(
     score: Schema.Int,
     revision: Schema.Int,
   }),
-)
+).pipe(Entity.annotateMembers({ label: Collation.of(Collation.binary) }))
 const Part = Fields.pipe(
   Entity.invariant('notBanned', ({ after }) => Expr.not(Expr.eq(after.label, 'banned')), {
     message: 'That label is banned',
+    path: ['label'],
+  }),
+  // Orders the computed label under its collation, which each dialect writes its own way.
+  Entity.invariant('beforeX', ({ after }) => Expr.lt(after.label, 'x'), {
+    message: 'Labels sort before x',
     path: ['label'],
   }),
 )
@@ -183,6 +188,14 @@ describe.each(backends)('A computed assignment on %s', (_, backend) => {
       failure: { refusal: { _tag: 'Invalid', rule: 'notBanned', path: ['label'] } },
     })
     expect(await backend.row()).toEqual({ label: 'plain', score: 10, revision: 1 })
+  })
+
+  it('orders the value it computes under the field’s collation', async () => {
+    await backend.fresh()
+    expect(await send({ id: 'p1', revision: 1, prefix: 'y' })).toMatchObject({
+      _tag: 'Failure',
+      failure: { refusal: { _tag: 'Invalid', rule: 'beforeX' } },
+    })
   })
 
   it('is not computed twice by a retry of one that landed', async () => {
