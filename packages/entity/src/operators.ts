@@ -4,9 +4,10 @@
  * immutable and implements each operator once; nothing registers anything
  * globally. See `docs/design/expr-operations-DESIGN.md` §5.4.
  */
-import { Option, type Schema } from 'effect'
+import { Data, Option, type Schema } from 'effect'
 import { Collation } from './collation.js'
 import type { Operator, OperatorDescriptor, OperatorTable } from './expr.js'
+import { Law, type LawDescription } from './law.js'
 import { Text } from './text.js'
 
 /** What an implementation is told besides its arguments. */
@@ -21,6 +22,40 @@ export interface MemoryImplementation {
   readonly run: (args: ReadonlyArray<unknown>, context: OperatorContext) => unknown
 }
 
+/**
+ * What is known of a law of an implementation, past its operator claiming it
+ * (expr-operations-DESIGN §10.3): `Tested`, it passed `Conformance.laws`'
+ * cases; `Proven`, a proof elsewhere says so under its assumptions, recorded
+ * and never checked here.
+ */
+export type Evidence = Data.TaggedEnum<{
+  Tested: {
+    readonly operator: string
+    readonly law: LawDescription
+    readonly implementation: string
+    readonly cases: number
+    readonly seed: number
+  }
+  Proven: {
+    readonly operator: string
+    readonly law: LawDescription
+    readonly reference: string
+    readonly assumptions: ReadonlyArray<string>
+  }
+}>
+export const Evidence = Data.taggedEnum<Evidence>()
+
+/** A record of a law passing `Conformance.laws`' cases. */
+export type TestedEvidence = Extract<Evidence, { readonly _tag: 'Tested' }>
+
+/** One operator a table implements, as `Operators.describeTable` lists it. */
+export interface ImplementedOperator {
+  /** By id, and `@version` past the first. */
+  readonly operator: string
+  readonly laws: ReadonlyArray<LawDescription>
+  readonly evidence: ReadonlyArray<Evidence>
+}
+
 /** The in-memory interpreter's implementations, by operator. */
 export interface MemoryOperators extends OperatorTable {
   readonly _tag: 'MemoryOperators'
@@ -28,6 +63,8 @@ export interface MemoryOperators extends OperatorTable {
   /** Whether each answer is checked against its operator's output schema: for tests. */
   readonly checked: boolean
   readonly implementations: ReadonlyArray<MemoryImplementation>
+  /** What is known of its implementations' laws: `Operators.withEvidence`. */
+  readonly evidence: ReadonlyArray<Evidence>
 }
 
 type StoredOf<S extends Schema.Top> = Schema.Codec.Encoded<S>
@@ -43,6 +80,7 @@ const fail = (what: string): never => {
 const table = (
   implementations: ReadonlyArray<MemoryImplementation>,
   checked: boolean,
+  evidence: ReadonlyArray<Evidence>,
 ): MemoryOperators => {
   const byOperator = new Map<OperatorDescriptor, MemoryImplementation['run']>()
   const byName = new Map<string, OperatorDescriptor>()
@@ -64,8 +102,13 @@ const table = (
     get: (operator: OperatorDescriptor) => Option.fromUndefinedOr(byOperator.get(operator)),
     checked,
     implementations: Object.freeze([...implementations]),
+    evidence: Object.freeze([...evidence]),
   })
 }
+
+/** Whether two laws, as JSON, are the same law. */
+const sameLaw = (left: LawDescription, right: LawDescription): boolean =>
+  JSON.stringify(left) === JSON.stringify(right)
 
 /** An implementation, its operator's null rule checked against the function chosen for it. */
 const implementation = (
@@ -134,7 +177,7 @@ export const Operators = {
 
   /** A table of implementations. One operator implemented twice, or two under one name, is refused. */
   memory: (...implementations: ReadonlyArray<MemoryImplementation>): MemoryOperators =>
-    table(implementations, false),
+    table(implementations, false, []),
 
   /** Both tables' implementations. An operator both implement is refused: say which wins with `override`. */
   merge: (left: MemoryOperators, right: MemoryOperators): MemoryOperators => {
@@ -144,31 +187,78 @@ export const Operators = {
         `both tables implement ${both.map(({ operator }) => nameOf(operator)).join(', ')}; replace with Operators.override`,
       )
     }
-    return table([...left.implementations, ...right.implementations], left.checked || right.checked)
+    return table(
+      [...left.implementations, ...right.implementations],
+      left.checked || right.checked,
+      [...left.evidence, ...right.evidence],
+    )
   },
 
-  /** The table with these implementations in place of its own for the same operators. */
+  /**
+   * The table with these implementations in place of its own for the same
+   * operators. Evidence of a replaced implementation goes with it: it was
+   * that implementation's.
+   */
   override: (
     base: MemoryOperators,
     ...implementations: ReadonlyArray<MemoryImplementation>
   ): MemoryOperators => {
     const replaced = new Set(implementations.map(({ operator }) => operator))
+    const names = new Set([...replaced].map(nameOf))
     return table(
       [
         ...base.implementations.filter(({ operator }) => !replaced.has(operator)),
         ...implementations,
       ],
       base.checked,
+      base.evidence.filter(({ operator }) => !names.has(operator)),
     )
   },
+
+  /**
+   * The table with what is known of its implementations' laws recorded: each
+   * record of an operator it implements and a law that operator declares.
+   * `Conformance.laws` gives `Tested` records; `Evidence.Proven` says a proof
+   * elsewhere covers one.
+   */
+  withEvidence: (base: MemoryOperators, evidence: ReadonlyArray<Evidence>): MemoryOperators => {
+    const declared = new Map(
+      base.implementations.map(({ operator }) => [
+        nameOf(operator),
+        operator.laws.map(Law.describe),
+      ]),
+    )
+    for (const record of evidence) {
+      const laws =
+        declared.get(record.operator) ??
+        fail(`evidence names ${record.operator}, which this table does not implement`)
+      if (!laws.some(law => sameLaw(law, record.law))) {
+        fail(`evidence names a law of ${record.operator} it does not declare (${record.law.kind})`)
+      }
+    }
+    return table(base.implementations, base.checked, [...base.evidence, ...evidence])
+  },
+
+  /**
+   * Each operator the table implements, by name, with the laws it declares and
+   * the evidence the table records of them: what a server can publish of how
+   * it runs a body. JSON as it is.
+   */
+  describeTable: (base: MemoryOperators): ReadonlyArray<ImplementedOperator> =>
+    base.implementations.map(({ operator }) => ({
+      operator: nameOf(operator),
+      laws: operator.laws.map(Law.describe),
+      evidence: base.evidence.filter(record => record.operator === nameOf(operator)),
+    })),
 
   /**
    * The table, checking every answer against its operator's output schema, so
    * an implementation that answers the wrong kind fails where it answered. For
    * tests: it costs a decode per call.
    */
-  checked: (base: MemoryOperators): MemoryOperators => table(base.implementations, true),
+  checked: (base: MemoryOperators): MemoryOperators =>
+    table(base.implementations, true, base.evidence),
 
   /** The kernel's own operators (`Text.startsWith`): every memory interpreter's default. */
-  kernel: table([startsWith], false),
+  kernel: table([startsWith], false, []),
 }

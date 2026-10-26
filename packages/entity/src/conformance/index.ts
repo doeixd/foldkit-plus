@@ -729,3 +729,4 @@ export const primitiveRefusals: ReadonlyArray<ConformanceRefusal> = [
     input: { prefix: `In${NUL}` },
   },
 ]
+export * from './operator.js'

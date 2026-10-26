@@ -119,7 +119,13 @@ export default [
   },
   {
     name: 'compareRows ignores the input it is given',
-    edits: [{ file: evaluate, find: 'input: options.input ?? {},', replace: 'input: {},' }],
+    edits: [
+      {
+        file: evaluate,
+        find: 'const scope = { input: options.input ?? {},',
+        replace: 'const scope = { input: {},',
+      },
+    ],
     tests,
   },
   {

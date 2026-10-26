@@ -904,6 +904,61 @@ refused where it is written.
 - **NUL is refused** in any text argument, and an implementation that throws
   is reported as a `QueryEvaluateError` naming its operator.
 
+### Laws, and holding an implementation to them
+
+An operator may declare the equations every implementation of it keeps. A law
+describes: nothing rewrites a body by one. `Conformance.laws` tests an
+implementation against them, and what it finds is evidence its table records.
+
+```ts
+import { Schema } from 'effect'
+import { Expr, Law, Operators } from 'foldkit-entity'
+import { Conformance } from 'foldkit-entity/conformance'
+
+const concat = Expr.operator('acme.concat', {
+  input: [Schema.String, Schema.String],
+  output: Schema.String,
+  collation: 'operands',
+  laws: [Law.associative, Law.identity(''), Law.preservesCollation],
+})
+const table = Operators.memory(Operators.implement(concat, (left, right) => `${left}${right}`))
+
+const verdict = Conformance.laws(concat, table) // { _tag: 'Holds', evidence: [...] }
+const recorded =
+  verdict._tag === 'Holds' ? Operators.withEvidence(table, verdict.evidence) : table
+Operators.describeTable(recorded) // [{ operator: 'acme.concat', laws, evidence }]
+```
+
+- **A law is checked where it is declared.** `Law.commutative`, `associative`,
+  `idempotent`, `identity(value, side?)`, `absorbing(value, side?)`,
+  `inverse(other, identity)` and `distributes(over)` are laws of an operator of
+  two arguments; `monotonic(direction, position)` names an argument it has, and
+  `preservesCollation` needs `collation: 'operands'`. A witness that is not a
+  value the argument's schema stores is refused.
+- **Its domain** is every non-null value of the input schemas, narrowed with
+  `Law.within(law, schema)` where a law holds of less (a square is increasing
+  over the non-negative numbers only). Strict null makes both sides null, so no
+  law needs a null case.
+- **Testing is sampling, seeded.** Cases come from a fixed sample of each kind
+  (the empty string, mixed case, non-ASCII and astral text; zero, negatives, a
+  fraction), kept where the schemas decode them, up to `cases` (200) a law
+  chosen by `seed` (0). The verdict is `Holds` with one `Tested` record a law,
+  or the first `Counterexample` with both sides: declaring `concat` commutative
+  finds `"a"` and `"A"`, which give `"aA"` and `"Aa"`.
+- **Evidence is an implementation's.** `Operators.withEvidence` refuses a record
+  of an operator the table lacks or a law it does not declare; `override` drops
+  a replaced implementation's records, `merge` keeps both tables'.
+  `Evidence.Proven` records a proof made elsewhere, never checked here.
+
+`Conformance.operator(op, { implementations })` runs one set of calls through
+every implementation given and reports where they disagree, a refusal included:
+generated from each argument's samples, null where its schema admits one, and
+text holding NUL, under `binary` and `asciiFold` where the operator compares
+text. `Conformance.memory(table)` is the reference interpreter's runner; a
+defined operator's expansion runs beside the others. `foldkit-remote-drizzle`
+runs the kernel's operators and an application's through it on SQLite and
+Postgres.
+
 ### Reading one back
 
 `Query.show(query)` renders a body as text, one clause per line:
@@ -967,6 +1022,10 @@ from queries, not from what a database could express.
 | `Expr.unsupported(nodes, { operations, operators })` | What these expressions need that an interpreter lacks: operations, then primitive operators by name. |
 | `Text.startsWith(text, prefix, { collation? })` | Whether text begins with a prefix, under its collation; the kernel's primitive operator. |
 | `Operators.memory(...)` / `implement` / `implementHandlingNulls` / `merge` / `override` / `checked` / `kernel` | Tables of in-memory implementations of primitive operators, passed to `evaluate` and every judge. |
+| `Law.associative` / `commutative` / `idempotent` / `identity` / `absorbing` / `inverse` / `distributes` / `monotonic` / `preservesCollation` / `within` / `describe` | Laws an operator declares (`Expr.operator(id, { laws })`), checked where declared, described as JSON. |
+| `Operators.withEvidence(table, evidence)` / `describeTable(table)` / `Evidence.Proven` | What is known of a table's implementations' laws, and the table as JSON. |
+| `Conformance.laws(op, table)` / `operator(op, { implementations })` / `memory(table)` (`foldkit-entity/conformance`) | Test an implementation's laws; run one set of calls through several implementations. |
+| `valueOfOperand(node, { operators })` | What an operand, a call of literals say, comes to over no row. |
 | `Expr.expanded(predicate)` | The predicate with every call of a defined operator written out as what it means, deeply; what an interpreter compiles. |
 | `Expr.field(field)` | One field of one Entity, as a scalar. |
 | `Expr.input(key, schema)` | A value the query is given when it runs, as a placeholder. |

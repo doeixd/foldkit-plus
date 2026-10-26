@@ -619,6 +619,22 @@ export const compilePredicates = (
   predicates.map(node => predicate(Expr.expanded(node), target, input, query))
 
 /**
+ * One call of a primitive operator as SQL, by the binding's table, its
+ * arguments compiled and cast as in a body: what a conformance check selects
+ * to ask the database one question (`select <call>`). Never decided in memory,
+ * though its arguments read no row; a call of a defined operator, which has no
+ * SQL of its own, is refused, as is anything that is not a call.
+ */
+export const compileCall = (call: Operandish, target: CompileTarget, query: string): SQL => {
+  if (isPredicate(call)) {
+    if (call._tag === 'Test') return callSql(call, target, {}, query)
+  } else if (call._tag === 'Call') {
+    return callSql(call, target, {}, query)
+  }
+  throw new QueryCompileError(`${query}: only a call of an operator compiles alone`)
+}
+
+/**
  * The body's ordering for one input, as this package's order terms: a chosen
  * order resolved to the field or call the input names, a call compiled to its
  * SQL under its collation. An input naming no order it offers is the

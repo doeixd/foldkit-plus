@@ -133,12 +133,14 @@ const ran = (
 ): unknown => {
   const { operator } = call
   const values = call.args.map(arg => sideOf(arg, scope))
-  if (operator.nulls === 'strict' && values.some(isNull)) return null
+  // NUL before null: SQL refuses text holding it where it is compiled, whatever
+  // else the call is given, so a null beside it must not answer first.
   if (values.some(holdsNul)) {
     throw new QueryEvaluateError(
       `the operator "${operatorName(operator)}" was given text holding a NUL character, which SQL text cannot hold portably`,
     )
   }
+  if (operator.nulls === 'strict' && values.some(isNull)) return null
   let answer: unknown
   try {
     answer = run(values, { collation: call.collation })
@@ -191,6 +193,27 @@ const holdsNul = (value: unknown): boolean => typeof value === 'string' && value
 /** A predicate used as a value is its own truth; anything else is its value. */
 const sideOf = (node: Operandish, scope: Scope): unknown =>
   isPredicate(node) ? truthValue(holds(node, scope)) : valueOf(node, scope)
+
+/**
+ * What an operand comes to over no row: a call of literals and inputs, run by
+ * `operators` (the kernel's when not given), a predicate as its truth with
+ * unknown as null. How a conformance check asks an implementation one
+ * question; refuses what `evaluate` refuses (an operator the table lacks,
+ * text holding NUL).
+ */
+export const valueOfOperand = (
+  node: Operandish,
+  options: {
+    readonly input?: Row | undefined
+    readonly operators?: MemoryOperators | undefined
+  } = {},
+): unknown =>
+  sideOf(node, {
+    row: {},
+    input: options.input ?? {},
+    next: {},
+    operators: options.operators ?? Operators.kernel,
+  })
 
 /**
  * A predicate compared as a value. SQL's unknown is null there too, so an
