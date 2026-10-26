@@ -58,6 +58,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-media/vite` reads Lucide.** An Iconify alias spelt only
+  differently from the icon it names (Lucide's `arrow-down-01` for
+  `arrow-down-0-1`) was taken for a second icon imported by the same name, and
+  `icons({ iconify: ['lucide'] })` failed to start. Such an alias is now left
+  out; two different icons under one name still fail the build.
 - **A guarded write whose policy cannot run an assignment's operator is refused
   where it is registered.** `GuardServer.writer` judged the row a write leaves
   by the policy's table, and a computed value that table could not work out was

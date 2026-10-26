@@ -34,7 +34,8 @@ const iconifySet = {
     import: { body: '<path d="M2 2"/>' },
     spinner: { body: '<circle r="1"><animate attributeName="r"/></circle>' },
   },
-  aliases: { back: { parent: 'arrow-left' } },
+  // `arrow_left` is imported as `arrowLeft`, the icon it names: one import, not a clash.
+  aliases: { back: { parent: 'arrow-left' }, arrow_left: { parent: 'arrow-left' } },
 }
 
 /** A root with the set installed, the given SVGs in `icons/`, and an entry of `source`. */
@@ -170,6 +171,17 @@ export { spinner } from 'virtual:foldkit-icons/test'
     )
     await expect(bundle(root, { iconify: ['missing'] })).rejects.toThrow(
       /add @iconify-json\/missing/,
+    )
+  }, 60_000)
+
+  it('fails the build on an alias imported by the name of another icon', async () => {
+    const root = rootWith(`export { back } from 'virtual:foldkit-icons/test'`)
+    writeFileSync(
+      join(root, 'node_modules', '@iconify-json', 'test', 'icons.json'),
+      JSON.stringify({ ...iconifySet, aliases: { arrow_left: { parent: 'unused' } } }),
+    )
+    await expect(bundle(root, { iconify: ['test'] })).rejects.toThrow(
+      /"test:arrow-left" and "test:arrow_left" would both be imported as arrowLeft/,
     )
   }, 60_000)
 

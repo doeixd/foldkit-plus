@@ -131,7 +131,27 @@ export const icons = (options: IconsOptions = {}): Plugin => {
     }
     const icons: Array<readonly [string, IconData]> = []
     const refused: Array<readonly [string, string]> = []
+    // The icon each name draws in the end, through its aliases.
+    const drawn = (name: string): string => {
+      let current = name
+      for (
+        let step = 0;
+        step < 16 && set.aliases !== undefined && Object.hasOwn(set.aliases, current);
+        step++
+      )
+        current = set.aliases[current]!.parent
+      return current
+    }
+    // Which icon each export name already stands for.
+    const exported = new Map<string, string>()
     for (const name of namesOf(set)) {
+      // An alias spelt only differently from the icon it names (Lucide's
+      // `arrow-down-01` for `arrow-down-0-1`) would be imported by the same
+      // name as that icon, and it is that icon: leave the alias out. Two
+      // different icons under one name still fail, in `named`.
+      const as = exportName(name)
+      if (exported.get(as) === drawn(name)) continue
+      exported.set(as, drawn(name))
       try {
         icons.push([name, fromIconify(set, name)])
       } catch (error) {
