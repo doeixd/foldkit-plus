@@ -5,7 +5,33 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
-## Unreleased
+## 0.34.0
+
+Fields from a schema, and operators an application defines. `foldkit-form-recipes`
+is new: dates, times, money, decimals, percentages, text-shaped keys and an image
+uploaded where it is chosen, each a control, a display and a renderer.
+`UiForm.renderers` draws every form control through `foldkit-mixins-ui`, a form
+lists the fields to fix above its submit button, and `Crud.screen` composes an
+editor, a list and a delete question into one page with `EditorView`,
+`ConfirmView` and `Toolbar`. `examples/fields` shows every recipe in a real form.
+`Expr.operator` names an operator by an expression, and primitive operators run
+by a table in memory and in SQL, through to ordering and paging by a call.
+
+Breaking: `foldkit-cms`'s slug and moment controls moved to `foldkit-form-recipes`;
+a Drizzle order term is `{ key, … }`, not `{ column, … }`; `Query.unsupported`,
+`Condition.holds` and `Dependencies` changed shape for operators (see Changed).
+New: `foldkit-form-recipes` 0.1.0. New minors: `foldkit-entity` 0.12.0,
+`foldkit-remote` 0.20.0, `foldkit-remote-server` 0.17.0, `foldkit-remote-drizzle`
+0.14.0, `foldkit-guard` 0.5.0, `foldkit-form` 0.8.0, `foldkit-mixins-form` 0.9.0,
+`foldkit-crud` 0.10.0, `foldkit-mixins-crud` 0.8.0, `foldkit-media` 0.3.0 and
+`foldkit-cms` 0.8.0. Fixed: `foldkit-mixins-ui` 0.20.2, `foldkit-cms-drizzle`
+0.6.16 and `foldkit-mixins-builder` 0.3.15. Republished for the new versions they
+depend on: `foldkit-auth` 0.1.4, `foldkit-builder` 0.3.13, `foldkit-composition`
+0.3.11, `foldkit-data-grid` 0.3.1, `foldkit-mixins-data-grid` 0.2.14,
+`foldkit-mixins-richtext` 0.5.6, `foldkit-richtext` 0.5.2, `foldkit-richtext-code`
+0.2.4, `foldkit-richtext-code-shiki` 0.2.4, `foldkit-richtext-dom` 0.6.5,
+`foldkit-richtext-markdown` 0.3.3 and `foldkit-sync` 0.12.3. `foldkit-plus` is
+0.16.0.
 
 ### Added
 
@@ -158,7 +184,6 @@ version changed; `pnpm` skips versions already in the registry.
   a recipe's renderer. The image's default `sending` words are `Sending {name}`.
 - **A control backed by a Bundle is drawn in a `role="group"` named by its
   field's label**, which now has an id (`{id}-label`).
-
 - **Breaking: `foldkit-cms`'s slug and moment controls are `foldkit-form-recipes`'.**
   `Cms.slug`, `Cms.slugify`, `Cms.dateTime`, `Cms.Input` and `Cms.controlRenderers`
   (with its `ControlContext` type) are removed: use `FieldRecipes.slug(from, {
@@ -170,7 +195,6 @@ version changed; `pnpm` skips versions already in the registry.
   `Intl.DateTimeFormat().resolvedOptions().timeZone` to keep that. A draft is no
   longer rewritten as it is drawn: a stored instant becomes the zone's local text
   when the form is filled.
-
 - **A Drizzle order term is `{ key, direction, nulls?, collation? }`**, where it
   was `{ column, … }`: `key` is a column or a Drizzle `SQL` expression, which
   says its own collation (one given beside it is refused). `cursorSelection`
