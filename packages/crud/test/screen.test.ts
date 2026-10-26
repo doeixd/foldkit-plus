@@ -3,14 +3,19 @@
  * placement helper it names, every other Message reaches the page's `update`,
  * and the editor's sync runs after all of them.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { describe, expect, it } from 'vitest'
 import { Crud } from '../src/index.js'
 
 const PostId = Schema.String.pipe(Schema.brand('PostId'))
 const Posts = Crud.screen('Post', { id: PostId })
-const Message = defineMessageUnion({ ...Posts.messages, Searched: { text: Schema.String } })
+const Message = defineMessageUnion({
+  ...Posts.messages,
+  Searched: { text: Schema.String },
+  /** The editor's Messages, which are its form's, as the page carries them. */
+  GotPostEditorMessage: { message: Schema.Unknown },
+})
 type Message = typeof Message.Type
 
 /** A page Model that records what reached it, in order. */
@@ -33,6 +38,13 @@ const pieces = {
       open: (id: string) => noted(`open ${id}`),
       blank: () => noted('blank'),
       close: () => noted('close'),
+    },
+    link: {
+      fromParentMessage: (message: Message): Option.Option<unknown> =>
+        Option.map(
+          Option.liftPredicate(message, Schema.is(Message.GotPostEditorMessage)),
+          got => got.message,
+        ),
     },
   },
   removing: { helpers: { ask: (id: string) => noted(`ask ${id}`) } },
@@ -76,5 +88,31 @@ describe('Crud.screen', () => {
     expect(
       withoutRemover({ log: [] }, Message.AskedToRemovePost({ id: PostId.make('p2') })).model.log,
     ).toEqual(['page AskedToRemovePost', 'synced'])
+  })
+
+  describe('with the pickers given', () => {
+    const paging = Posts.update(
+      { ...pieces, pickers: { ask: (root, key) => noted(`more ${key}`)(root).model } },
+      page,
+    )
+    const form = (message: unknown) => Message.GotPostEditorMessage({ message })
+
+    it('shows one more page of the list a picker asks for, and the form still hears it', () => {
+      expect(
+        paging({ log: [] }, form({ _tag: 'AskedForMore', key: 'authorId' })).model.log,
+      ).toEqual(['more authorId', 'page GotPostEditorMessage', 'synced'])
+    })
+
+    it('asks for nothing on any other Message of the form', () => {
+      expect(
+        paging({ log: [] }, form({ _tag: 'Searched', key: 'authorId', text: 'a' })).model.log,
+      ).toEqual(['page GotPostEditorMessage', 'synced'])
+    })
+  })
+
+  it('leaves an ask to the page without the pickers', () => {
+    expect(
+      run(Message.GotPostEditorMessage({ message: { _tag: 'AskedForMore', key: 'authorId' } })),
+    ).toEqual(['page GotPostEditorMessage', 'synced'])
   })
 })

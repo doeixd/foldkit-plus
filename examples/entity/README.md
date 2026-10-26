@@ -101,7 +101,8 @@ post list: p1 "Notes on the Engine", p2 "Compilers" (draft)
 row before: {"id":"p2","headline":"Compilers","published":0,"author_id":"a1","editor_id":"a2"}
 editor plan: Post:p2 [editor]; status Loading
 filled: Title="Compilers", Published=false, Editor="a2"; status Editing
-editor choices: a1 Ada, a2 Grace
+editor choices: a1 Ada; more true
+after more: a1 Ada, a2 Grace; more false
 invalid submit: Title="" (Title is required), Published=false ok, Editor="a2" ok; status Editing
 valid submit:
   command Remote.mutate(EditPost): MutationSucceeded

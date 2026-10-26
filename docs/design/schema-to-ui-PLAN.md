@@ -16,7 +16,8 @@
 | 3 | `money` (minor units or decimal text), `decimal`, `percent` (a share or points) | `packages/form-recipes/test/money.test.ts`; 11 mutations, all killed |
 | 4 | `EditorView`, `ConfirmView`, `Toolbar` in `foldkit-mixins-crud` | `packages/mixins-crud/test/editor.test.ts`, `editorDialog.browser.test.ts`; 6 mutations, all killed |
 | 5 | `Crud.screen`: a screen's four Messages and their `update`; `examples/entity` on it and on Phase 4's views | `packages/crud/test/screen.test.ts`, `screen.test-d.ts`; 6 mutations, all killed |
-| 6 and 7 | — | not started |
+| 6 | `foldkit-media/browser`'s `upload`; `foldkit-form-recipes/image`; a picker's `more` through `AskedForMore`, `Crud.options`' `more`/`ask` and `Crud.screen`'s `pickers` | `packages/media/test/upload.browser.test.ts`, `packages/form-recipes/test/image.test.ts`, `image.browser.test.ts`, `packages/crud/test/list.test.ts`, `screen.test.ts`, `packages/mixins-form/test/runtime.test.ts`, `examples/entity/test/page.test.ts`; 23 mutations, all killed |
+| 7 | — | not started |
 
 The issue asks for a complete schema-to-UI story: reusable field recipes, UI
 renderers for every control kind, and CRUD workflow recipes. This plan keeps the
@@ -275,6 +276,41 @@ Phase 2 shipped on 2026-10-26 (§6) as a new package, `foldkit-form-recipes`.
 3. **No remover sync to compose.** A remover has no sync of its own (its state is
    the mutation's), so §6's "`after` skipping the remover's sync" has no line to
    mutate; "`close` clearing the wrong slice" is the `ClosedPost` routing mutation.
+
+### 1.9 What building Phase 6 changed in this plan
+
+1. **No upload client existed.** `foldkit-media` had the route and no browser
+   side, so Phase 6 begins with `foldkit-media/browser`'s `upload(file, { url?,
+   headers? })`: a `Stream` of `Progressed` and one `Uploaded`, failing with
+   `UploadFailed` whose `reason` names the route's refusal. It is an
+   `XMLHttpRequest`, since `fetch` reports no upload progress, and interrupting
+   the stream aborts it. Chromium reports no upload progress for a request CDP
+   holds, so its progress is tested against the dev server, and its answers
+   through CDP.
+2. **`image` only, in an entry of its own.** The route takes images alone, so
+   there is no `file` recipe until a route takes other files. `image` is
+   `foldkit-form-recipes/image`, not `FieldRecipes.image`, because it brings
+   `foldkit-media`, `@foldkit/ui` and `foldkit-mixins-ui` with it. Its control
+   is a Bundle whose upload is a Subscription keyed by the send's attempt
+   number: Cancel ends it, and so aborts the request, and a cancelled send's
+   late events are ignored. Words and styles are the recipe's options, since a
+   form draws a Bundle control with no view inputs unless `controls` gives
+   some. The drop zone's `id` is required: two keys sharing a default would
+   share ids.
+3. **The picker stays a `select`, and asks with a button.** A `Combobox` holds
+   its open state and highlight in the application's Model, which a renderer
+   has nowhere to keep; a picker that searches already has its search box. What
+   was missing was the list's next page. A list's `more` changes the page's
+   Model, which a form cannot reach, so the press is the form's no-op
+   `AskedForMore({ key })` (as `FollowedIssue` is), and `Crud.screen`, given
+   `Crud.options`' pickers, reads it out of the page's Message through the
+   editor placement's link and answers with `pickers.ask`. `pickers.more(model)`
+   says which pickers to offer it, from the page read's `hasNext`. A picker in
+   a nested row is not offered more: `Crud.options` keys only the form's own.
+4. **Measured on `examples/entity`.** Its author list now shows one author a
+   page, so the page test opens a post whose editor is on the second page:
+   she is named first, the picker offers more, a press brings her into the
+   list, and the button goes.
 
 ## 2. Scope
 

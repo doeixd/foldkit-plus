@@ -58,7 +58,11 @@ const editor = (model: Model, h: HtmlBuilder<Message>): Html => {
           id: 'editor',
           status,
           title: 'Edit post',
-          form: EditForm.view(model, h, { options: pickers(model), words }),
+          form: EditForm.view(model, h, {
+            options: pickers(model),
+            more: pickers.more(model),
+            words,
+          }),
           error: PostEditor.saveError(model)?.message,
           onClose: Message.ClosedPost(),
           words: editorWords,

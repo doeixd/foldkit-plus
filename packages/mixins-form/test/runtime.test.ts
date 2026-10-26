@@ -179,3 +179,57 @@ it('shows a check running under its control, and a submit waiting for it', async
     handle.dispose()
   }
 })
+
+it('asks for more choices from a picker the view says has more, and from no other', async () => {
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+    setTimeout(() => callback(performance.now()), 0),
+  )
+  vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+  const container = document.createElement('div')
+  container.id = 'form-more'
+  document.body.appendChild(container)
+
+  const received: Array<Message> = []
+  const update = placements.update()
+  const handle = Runtime.embed(
+    Runtime.makeElement(
+      placements.complete({
+        Model,
+        container,
+        init: () => placements.initial({ saved: [] }),
+        update: (model: Model, message: Message) => {
+          received.push(message)
+          return update(model, message)
+        },
+        view: (model: Model, h: HtmlBuilder<Message>) =>
+          h.main(
+            [],
+            [
+              EditForm.view(model, h, {
+                options,
+                more: { editorId: true },
+                words: { more: 'More' },
+              }),
+            ],
+          ),
+        subscriptions: placements.subscriptions(),
+      }),
+    ),
+  )
+  try {
+    await vi.waitFor(() => expect(element('Edit-editorId')).not.toBeNull())
+    const buttons = Array.from(document.querySelectorAll('button')).filter(
+      button => button.textContent === 'More',
+    )
+    // One button, for the one picker said to have more, controlling that picker.
+    expect(buttons.map(button => button.getAttribute('aria-controls'))).toEqual(['Edit-editorId'])
+    buttons[0]!.click()
+    await vi.waitFor(() =>
+      expect(received).toContainEqual(
+        Message.GotEditMessage({ message: Edit.Message.AskedForMore({ key: 'editorId' }) }),
+      ),
+    )
+  } finally {
+    handle.dispose()
+  }
+})

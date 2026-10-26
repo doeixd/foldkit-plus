@@ -101,32 +101,42 @@ it('lists posts, edits one through the drawn form, and shows the save in the lis
       expect(element<HTMLInputElement>('#EditPost-title')?.value).toBe('Compilers'),
     )
     expect(element<HTMLSelectElement>('#EditPost-editorId').value).toBe('a2')
-    expect(
-      Array.from(element('#EditPost-editorId').querySelectorAll('option'), o => o.textContent),
-    ).toEqual(['', 'Ada', 'Grace'])
-
-    // The picker searches: the text is the form's, and the author list's query input.
-    // Grace is this post's editor, so she stays a choice though the search finds only Ada.
     const offered = () =>
       Array.from(element('#EditPost-editorId').querySelectorAll('option'), o => o.textContent)
+    // The list's first page is Ada alone; Grace is this post's editor, so she is
+    // named and offered first, and the picker offers the list's next page.
+    await vi.waitFor(() => expect(offered()).toEqual(['', 'Grace', 'Ada']))
+    const more = () =>
+      Array.from(document.querySelectorAll<HTMLButtonElement>('#editor button')).find(
+        button => button.textContent === 'Show more',
+      )
+    more()!.click()
+    await vi.waitFor(() => expect(offered()).toEqual(['', 'Ada', 'Grace']))
+    // Every author is shown: nothing more to ask for.
+    expect(more()).toBeUndefined()
+
+    // The picker searches: the text is the form's, and the author list's query input.
+    // Grace stays a choice though the search finds only Ada.
     type('#EditPost-editorId-search', 'Ada')
     await vi.waitFor(() => expect(offered()).toEqual(['', 'Grace', 'Ada']))
     expect(element<HTMLSelectElement>('#EditPost-editorId').value).toBe('a2')
+    // The unsearched list was let go while unused, so it is read again from its
+    // first page, and Grace leads again as the held choice.
     type('#EditPost-editorId-search', '')
-    await vi.waitFor(() => expect(offered()).toEqual(['', 'Ada', 'Grace']))
+    await vi.waitFor(() => expect(offered()).toEqual(['', 'Grace', 'Ada']))
 
     type('#EditPost-title', '')
     element('#EditPost-title').dispatchEvent(new Event('blur'))
     await vi.waitFor(() =>
       expect(element('#EditPost-title-error')?.textContent).toBe('Title is required'),
     )
-    expect(element<HTMLButtonElement>('#editor form button').disabled).toBe(true)
+    expect(element<HTMLButtonElement>('#editor form button[type="submit"]').disabled).toBe(true)
 
     type('#EditPost-title', 'Compilers, revised')
     element('#EditPost-published').click()
     choose('#EditPost-editorId', 'a1')
     await vi.waitFor(() =>
-      expect(element<HTMLButtonElement>('#editor form button').disabled).toBe(false),
+      expect(element<HTMLButtonElement>('#editor form button[type="submit"]').disabled).toBe(false),
     )
     element('#editor form').dispatchEvent(new Event('submit', { cancelable: true }))
 

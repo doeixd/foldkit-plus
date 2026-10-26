@@ -13,7 +13,15 @@ version changed; `pnpm` skips versions already in the registry.
   named after the screen (`OpenedPost({ id })`, `CreatedPost()`, `ClosedPost()`,
   `AskedToRemovePost({ id })`), and an `update` that answers them through the
   editor's and the remover's placements and runs the editor's sync after every
-  Message. It places nothing and holds no state.
+  Message. It places nothing and holds no state. Given `pickers`, it also answers
+  a picker's `AskedForMore`.
+- **A relation picker asks for more.** `foldkit-crud`'s `Crud.options` gains
+  `more(model)` (the pickers whose list has another page) and `ask(model, key)`
+  (the page with one more page of that list), and a list gains `hasMore(model)`.
+  `foldkit-mixins-form`'s view input `more` draws a "Show more" button under each
+  such picker (`FieldSlots.more`, `words.more`), which sends `foldkit-form`'s new
+  `AskedForMore({ key })`; the form changes nothing for it, and the page that
+  owns the list answers.
 - **`foldkit-mixins-crud`: `EditorView`, `ConfirmView` and `Toolbar`.** `EditorView`
   draws what a `Crud.editor` says around its form in each status (busy while
   loading or saving, a failed save as an alert that keeps the form, a conflict,

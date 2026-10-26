@@ -63,6 +63,8 @@ export interface FormViewWords {
   readonly summary?: string | undefined
   /** One field to fix, a link to it. Default `{label}: {error}`. */
   readonly issue?: string | undefined
+  /** On the button under a picker whose list has more rows than it shows. Default `Show more`. */
+  readonly more?: string | undefined
 }
 
 /**
@@ -71,6 +73,12 @@ export interface FormViewWords {
  */
 export interface FormViewInputs<Key extends string = string> {
   readonly options?: { readonly [K in Key]?: ReadonlyArray<Option> } | undefined
+  /**
+   * The pickers whose list has more rows than `options` holds (`Crud.options`'
+   * `more`): each draws a button that sends the form's `AskedForMore`, for the
+   * page that owns the list to answer. Pickers of the form itself only.
+   */
+  readonly more?: { readonly [K in Key]?: boolean } | undefined
   /**
    * The choices of a picker inside a nested key, by its path, the same for every
    * row: `'author.country'`.
@@ -121,6 +129,10 @@ export interface FieldInput<Key extends string = string> {
   readonly noneWord?: string | undefined
   /** What is said while the key's check runs: the view's `words.checking`. */
   readonly checkingWord?: string | undefined
+  /** The Message a press of the picker's "more" button sends; none draws no button. */
+  readonly more?: unknown
+  /** On that button: the view's `words.more`. */
+  readonly moreWord?: string | undefined
   /**
    * Set for a field in a row of a nested key: its Messages, wrapped for the row.
    * A field of the form itself sends the form's own.
@@ -212,6 +224,8 @@ export const FieldSlots = Slots.define({
   choiceLabel: Slot.make({ capability: Capability.Base }),
   /** Over a relation picker that searches: where the user types to find a choice. */
   search: Slot.make({ capability: Capability.TextInput, events: [Event.Input] }),
+  /** Under a relation picker whose list has more rows: asks for them. */
+  more: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),
 })
 
 /** The form around its fields. */
@@ -265,6 +279,7 @@ interface FormLike<Key extends string, Model, Message> {
     readonly Searched: (payload: { readonly key: Key; readonly text: string }) => NoInfer<Message>
     readonly Submitted: () => NoInfer<Message>
     readonly FollowedIssue: (payload: { readonly id: string }) => NoInfer<Message>
+    readonly AskedForMore: (payload: { readonly key: Key }) => NoInfer<Message>
     readonly Control: (payload: {
       readonly key: never
       readonly message: unknown
@@ -616,6 +631,18 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
             ]
           : []),
         body,
+        ...(input.more === undefined
+          ? []
+          : [
+              h.button(
+                slots.more.attrs([
+                  h.Type('button'),
+                  h.AriaControls(id),
+                  h.OnClick(input.more as Message),
+                ]),
+                [input.moreWord ?? 'Show more'],
+              ),
+            ]),
         // A disabled control is left out of a post, so a locked key's value goes
         // as hidden inputs: a form posted with scripts off still carries it.
         // Attributes, not properties, so a server's markup holds them.
@@ -698,6 +725,7 @@ export const FormView = {
         }
         const controls: Readonly<Record<string, unknown>> = input.controls ?? {}
         const locked: ReadonlySet<string> = new Set(input.locked ?? [])
+        const more: Readonly<Record<string, boolean | undefined>> = input.more ?? {}
 
         // Each invalid field, in the order drawn, for the summary.
         const issues: Array<{
@@ -740,6 +768,12 @@ export const FormView = {
                     searchWord: input.words?.search,
                     noneWord: input.words?.none,
                     checkingWord: input.words?.checking,
+                    // Only the form's own pickers are offered more: a row's are named by path.
+                    more:
+                      path === '' && more[key] === true
+                        ? form.Message.AskedForMore({ key: key as Key })
+                        : undefined,
+                    moreWord: input.words?.more,
                     send: {
                       changed: value => walk.wrap((walk.make.Changed as Make)({ key, value })),
                       blurred: walk.wrap((walk.make.Blurred as Make)({ key })),

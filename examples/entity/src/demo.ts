@@ -175,10 +175,22 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     model = PostEditor.sync(fetched).model
     // Nothing here says what to load or how to fill: both follow from the form's input.
     lines.push(`filled: ${describeForm(model)}; status ${PostEditor.status(model)}`)
-    const choices = pickers(model).editorId ?? []
+    const editorChoices = (root: Model) =>
+      (pickers(root).editorId ?? []).map(choice => `${choice.value} ${choice.label}`).join(', ')
+    // The author list's first page holds one author, and says another follows.
     lines.push(
-      `editor choices: ${choices.map(choice => `${choice.value} ${choice.label}`).join(', ')}`,
+      `editor choices: ${editorChoices(model)}; more ${pickers.more(model).editorId === true}`,
     )
+    // The picker's "more" button sends the form's `AskedForMore`, which the screen
+    // answers with this; the list's read fetches the page it now shows.
+    const asked = pickers.ask(model, 'editorId')
+    model = await Effect.runPromise(
+      Data.prefetch(asked, Option.getOrThrow(Authors.active.projectionOf(asked))).pipe(
+        Effect.provide(client),
+      ),
+    )
+    lines.push(`after more: ${editorChoices(model)}; more ${pickers.more(model).editorId === true}`)
+    const choices = pickers(model).editorId ?? []
 
     // Clearing the title fails the input's own schema, so the submit goes nowhere.
     model = await form(EditPostForm.Message.Changed({ key: 'title', value: '' }))(model)

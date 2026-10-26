@@ -6,7 +6,7 @@
  * owns no Model: the children, their `onOut`, the query's input and the wiring
  * stay the page's, so the pieces are as usable without it as with it.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 
 /** The four Messages a screen answers, named after it: `OpenedPost`, `CreatedPost`, … */
 export type ScreenCases<Name extends string, Id extends Schema.Top> = {
@@ -32,19 +32,34 @@ export interface ScreenPieces<
       update: (model: Root, message: M) => R,
     ) => (model: Root, message: M) => R
   }
-  /** The editor's placement (`Page.children.editor`): its `open`, `blank` and `close`. */
+  /**
+   * The editor's placement (`Page.children.editor`): its `open`, `blank` and
+   * `close`, and its link, which reads the form's Messages out of the page's.
+   */
   readonly editing: {
     readonly helpers: {
       readonly open: (id: Id) => (model: Root) => Out
       readonly blank: () => (model: Root) => Out
       readonly close: () => (model: Root) => Out
     }
+    readonly link: { readonly fromParentMessage: (message: never) => Option.Option<unknown> }
   }
   /** The remover's placement, when the screen can delete: its `ask`. */
   readonly removing?:
     | { readonly helpers: { readonly ask: (id: Id) => (model: Root) => Asked } }
     | undefined
+  /**
+   * The form's pickers (`Crud.options`), when they page: a picker's
+   * `AskedForMore` shows one more page of its list, and still reaches the form.
+   */
+  // `NoInfer`: the page's Model comes from its own `update`, so pickers over
+  // another Model are the mistake reported.
+  readonly pickers?:
+    | { readonly ask: (root: NoInfer<Root>, key: string) => NoInfer<Root> }
+    | undefined
 }
+
+const isAskedForMore = Schema.is(Schema.TaggedStruct('AskedForMore', { key: Schema.String }))
 
 export const screen = <const Name extends string, Id extends Schema.Top>(
   name: Name,
@@ -95,7 +110,19 @@ export const screen = <const Name extends string, Id extends Schema.Top>(
           if (isClosed(received)) return pieces.editing.helpers.close()(root)
           if (isAsked(received) && pieces.removing !== undefined)
             return pieces.removing.helpers.ask(idOf(received))(root)
-          return update(root, received)
+          const { pickers } = pieces
+          if (pickers === undefined) return update(root, received)
+          const asked = Option.filter(
+            pieces.editing.link.fromParentMessage(received as never),
+            isAskedForMore,
+          )
+          return update(
+            Option.match(asked, {
+              onNone: () => root,
+              onSome: ({ key }) => pickers.ask(root, key),
+            }),
+            received,
+          )
         })(model, message),
   }
 }

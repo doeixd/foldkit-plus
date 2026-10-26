@@ -194,4 +194,17 @@ Crud.editor('Mismatched', { form: EditPostForm, mutation: Other })
   expectTypeOf(searching(model).authorId).toEqualTypeOf<ReadonlyArray<Choice> | undefined>()
   void Data.subscriptions({ authors: AuthorList.active, chosen: searching.active })
   expectTypeOf(EditPostForm.search(EditPostForm.initial, 'authorId')).toEqualTypeOf<string>()
+
+  // A picker's "more": which keys have it, and the page with one more page shown.
+  expectTypeOf(searching.more(model)).toEqualTypeOf<{
+    readonly id?: boolean
+    readonly title?: boolean
+    readonly authorId?: boolean
+  }>()
+  expectTypeOf(searching.ask(model, 'authorId')).toEqualTypeOf<typeof ListModel.Type>()
+  PostScreen.update(
+    // @ts-expect-error these pickers read another page's Model than the screen's
+    { editor: PostEditor, editing: Placed, pickers: searching },
+    placements.update(model => ({ model })),
+  )
 }

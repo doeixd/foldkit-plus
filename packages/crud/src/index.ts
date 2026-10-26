@@ -467,6 +467,12 @@ export const Crud = {
           more: (root: Root): Option.Option<Root> =>
             Option.flatMap(projectionOf(root), projection => data.more(root, projection)),
 
+          /** Whether the page read says more rows follow it: what a picker's "more" offers. */
+          hasMore: (root: Root): boolean => {
+            const read = page(root)
+            return (read._tag === 'Ready' || read._tag === 'Refreshing') && read.value.hasNext
+          },
+
           /**
            * Asks for the list again: `Data.refresh` over its page and rows, for a
            * retry button. A failed read is not retried on its own. Unchanged while
@@ -567,6 +573,8 @@ export const Crud = {
       readonly choices: (root: Root) => ReadonlyArray<Choice>
       readonly row: (id: string) => Projection<Root, RemoteData<any>>
       readonly choiceOf: (root: Root, id: string) => Choice | undefined
+      readonly more: (root: Root) => Option.Option<Root>
+      readonly hasMore: (root: Root) => boolean
     }>,
     options: { readonly chosen?: (root: Root) => FormModel | undefined } = {},
   ) => {
@@ -620,7 +628,23 @@ export const Crud = {
       throw new Error(
         'Crud.options: give it the lists its pickers pick from; with none, it has nothing to read',
       )
+    const listOf = new Map<string, (typeof lists)[number]>(pickers)
     return Object.assign(choices, {
+      /** For `FormView`'s `more`: the pickers whose list has more rows than it shows. */
+      more: (root: Root): { readonly [K in Key]?: boolean } =>
+        Object.fromEntries(
+          pickers.flatMap(([key, list]) => (list.hasMore(root) ? [[key, true]] : [])),
+        ) as { readonly [K in Key]?: boolean },
+      /**
+       * The page with one more page of `key`'s list, for the form's `AskedForMore`
+       * (`Crud.screen` answers it given these pickers); the page as it is for a key
+       * that is no picker here, or a list that shows every row.
+       */
+      ask: (root: Root, key: string): Root =>
+        Option.getOrElse(
+          Option.flatMap(Option.fromNullishOr(listOf.get(key)), list => list.more(root)),
+          () => root,
+        ),
       /** For `Data.subscriptions`: what the pickers hold is read, so it can be named. */
       active: {
         name: `${pickers.map(([key]) => key).join('+')} chosen`,

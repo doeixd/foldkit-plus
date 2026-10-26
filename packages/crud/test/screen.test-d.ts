@@ -1,4 +1,4 @@
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Crud } from 'foldkit-crud'
 
@@ -8,6 +8,7 @@ const Posts = Crud.screen('Post', { id: PostId })
 const Message = defineMessageUnion({ ...Posts.messages })
 type Root = { readonly n: number }
 const step = () => (model: Root) => ({ model })
+const link = { fromParentMessage: () => Option.none() }
 const after =
   <M, R extends { readonly model: Root }>(update: (model: Root, message: M) => R) =>
   (model: Root, message: M) =>
@@ -21,7 +22,7 @@ Message.OpenedPost({ id: AuthorId.make('a1') })
 Posts.update(
   {
     editor: { after },
-    editing: { helpers: { open: (_: string) => step(), blank: step, close: step } },
+    editing: { helpers: { open: (_: string) => step(), blank: step, close: step }, link },
   },
   (model: Root, _: typeof Message.Type) => ({ model }),
 )
@@ -30,7 +31,7 @@ Posts.update(
   {
     editor: { after },
     // @ts-expect-error the editor's placement opens a post by its id, not by a number
-    editing: { helpers: { open: (_: number) => step(), blank: step, close: step } },
+    editing: { helpers: { open: (_: number) => step(), blank: step, close: step }, link },
   },
   (model: Root, _: typeof Message.Type) => ({ model }),
 )

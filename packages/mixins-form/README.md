@@ -204,8 +204,14 @@ A `RelationOne` or `RelationMany` that searches (`Input.search()`) gets an
 `input type="search"` above it, in the `search` slot, labelled `Search <label>`
 and naming the picker it controls with `aria-controls`. `words.search` in the
 view inputs replaces the word. The blank choice of a `select` has no words
-unless `words.none` gives it some ("none"). All of the view's words (`submit`,
-`submitting`, `checking`, `search`, `none`, `add`, `remove`) are text, with `{label}` and `{position}` as
+unless `words.none` gives it some ("none"). A picker of the form itself that
+the view inputs' `more` names (`more: { authorId: true }`, which
+`foldkit-crud`'s `Crud.options` gives as `pickers.more(model)`) gets a
+`button type="button"` under it, in the `more` slot, worded by `words.more`
+(default `Show more`) and naming the picker with `aria-controls`; a press sends
+the form's `AskedForMore({ key })`, for the page that owns the list to answer.
+All of the view's words (`submit`,
+`submitting`, `checking`, `search`, `none`, `add`, `remove`, `more`) are text, with `{label}` and `{position}` as
 blanks; see [words in one place](../form/README.md#words-as-text-in-one-place).
 
 A chosen value its choices lack stays in sight: after the choices comes

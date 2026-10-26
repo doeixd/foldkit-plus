@@ -151,6 +151,8 @@ export const Authors = Crud.list('Authors', {
   selection: AuthorChoice,
   // How an author reads as a choice: this list feeds the editor's picker.
   choice: { value: row => row.id, label: row => row.name },
+  // One author a page, so the picker shows its "more" with the two seeded here.
+  pageSize: 1,
 }).at({
   data: Data,
   // The picker's search text is the form's; here it becomes the query's input.
@@ -189,10 +191,11 @@ export const RemoveForm = Page.children.removePost
 export const Search = Page.children.search
 export const placements = Page.placements
 
-// The screen answers its own Messages and runs the editor's sync after every
-// Message, so the editor shows the loaded value whichever Message brings it.
+// The screen answers its own Messages, and a picker's ask for more authors, and
+// runs the editor's sync after every Message, so the editor shows the loaded
+// value whichever Message brings it.
 export const update = PostScreen.update(
-  { editor: PostEditor, editing: EditForm, removing: RemoveForm },
+  { editor: PostEditor, editing: EditForm, removing: RemoveForm, pickers },
   placements.update((model: Model, message: Message) => {
     switch (message._tag) {
       case 'RequestedMorePosts': {

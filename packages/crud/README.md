@@ -422,7 +422,9 @@ const update = PostScreen.update(
 `blank()`, `ClosedPost` with `close()` and `AskedToRemovePost` with
 `RemoveForm.helpers.ask(id)`; every other Message goes to your `update`, and
 `PostEditor.after` runs after each. Leave `removing` out for a screen that cannot
-delete. The screen places nothing and holds no state: the children, their `onOut`,
+delete. Given `pickers` (from `Crud.options`), it also answers a picker's
+`AskedForMore` with `pickers.ask`, read out of the page's Message through the
+editor placement's link, and the form still hears it. The screen places nothing and holds no state: the children, their `onOut`,
 the query's input and the wiring stay the page's, and a page that writes these
 cases itself works the same.
 
@@ -550,6 +552,19 @@ in it. With `chosen`, those rows stay among the choices, first, and
 `pickers.active` makes them a requirement so Remote reads them and they can be
 named. Without it a `select` would show a post's author as blank the moment a
 search stopped finding them.
+
+A list shows one page at a time (`pageSize`, 25 by default), so a picker can
+offer fewer rows than there are. `pickers.more(model)` names the pickers whose
+list has another page (`{ authorId: true }`), and a form view given it as `more`
+draws a "Show more" button under each, which sends the form's
+`AskedForMore({ key })`. The form changes nothing for it: the list is the
+page's, and `pickers.ask(model, key)` is the page with one more page of that
+list, for the read entry to fetch. `Crud.screen` answers it given the pickers:
+
+```ts
+Placed.view(model, h, { options: pickers(model), more: pickers.more(model) })
+PostScreen.update({ editor: PostEditor, editing: Placed, pickers }, placements.update(yours))
+```
 
 ## Sorting a list
 

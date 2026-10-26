@@ -426,6 +426,7 @@ const edits = {
   RowAdded: true,
   RowRemoved: true,
   FollowedIssue: false,
+  AskedForMore: false,
 } as const
 
 /** A form's tags. Every form has these, so a nested form's Message, known only at runtime, is read by them. */
@@ -916,6 +917,12 @@ const Core = {
        * press; the form changes nothing.
        */
       FollowedIssue: { id: Schema.String },
+      /**
+       * A relation picker's reader asked for more choices than the list shows. The
+       * list is the page's, so the page answers (`Crud.screen` does, given
+       * `Crud.options`); the form changes nothing.
+       */
+      AskedForMore: { key: KeySchema },
     } satisfies Record<FormTag, Schema.Struct.Fields>)
     type Message = typeof Message.Type
     type Commands = ReadonlyArray<Command<Message, never, R>>
@@ -1555,6 +1562,7 @@ const Core = {
           case 'Submitted':
             return submitted(model)
           case 'FollowedIssue':
+          case 'AskedForMore':
             return { model }
         }
       },

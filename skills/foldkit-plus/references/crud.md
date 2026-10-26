@@ -220,7 +220,7 @@ trapped, and back to the opener are the Dialog's.
 (`messages`: `OpenedPost({ id })`, `CreatedPost()`, `ClosedPost()`,
 `AskedToRemovePost({ id })`, for `Bundle.withMessages`) and
 `screen.update({ editor: PostEditor, editing: Page.children.editor, removing?:
-Page.children.remover }, placements.update(yours))` answers them through those
+Page.children.remover, pickers? }, placements.update(yours))` answers them through those
 placements' `open`/`blank`/`close`/`ask` and runs the editor's `after`. It places
 nothing: children, `onOut`, query input and wiring stay the page's.
 
@@ -248,6 +248,10 @@ Data.subscriptions({ authors: AuthorList.active, chosen: pickers.active })
 
 `chosen` keeps what a picker holds among its choices when the search no longer
 finds it, and `pickers.active` has Remote read those rows so they can be named.
+`pickers.more(model)` (for the form view's `more` input) names the pickers whose
+list has another page; each draws a "Show more" button sending the form's
+`AskedForMore({ key })`, which `Crud.screen` answers with `pickers.ask(model, key)`
+when given `pickers`.
 A placed list also gives `row(id)` (a Projection of one row through the list's
 Selection), `choiceOf(model, id)` (that row as a choice once read), and `owner`.
 
