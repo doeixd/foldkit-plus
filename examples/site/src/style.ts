@@ -387,6 +387,25 @@ export const SiteStyle = slots(
       gap: t.space.xs,
     },
     setupLabel: { margin: '0', color: t.text.muted, fontSize: '0.9375rem' },
+    film: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: t.space.sm,
+      margin: `${t.space.md} 0 0`,
+    },
+    // The width and height attributes give the box its ratio before the poster loads.
+    filmVideo: {
+      display: 'block',
+      width: '100%',
+      height: 'auto',
+      borderRadius: t.radius.md,
+      border: rule,
+      background: t.surface.muted,
+    },
+    filmCaption: [
+      { margin: '0', color: t.text.muted, fontSize: '0.875rem', lineHeight: '1.55' },
+      Style.nest('a', { color: t.text.overt, textUnderlineOffset: '0.2em' }),
+    ],
     // Above previews drawn in a theme the reader made, with the way back. In the
     // default it keeps its place, hidden, so making or dropping a theme moves nothing.
     themeNotice: [

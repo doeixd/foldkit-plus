@@ -8,7 +8,7 @@ import type { Html } from 'foldkit/html'
 import { SSR } from 'foldkit-ssr/client'
 
 import { shelves, subsites, type Subsite } from '../catalog.js'
-import { demos, onGitHub, packageName } from '../demos.js'
+import { chirpDemo, demos, onGitHub, packageName } from '../demos.js'
 import type { Library } from '../library.js'
 import { Message, type Example, type Model } from '../main.js'
 import type { H, Slots } from './layout.js'
@@ -78,6 +78,31 @@ const hero = (model: Model, slots: Slots, h: H): Html =>
         ]),
         [SETUP, h.span(slots.installHint.attrs(), [model.copied ? 'Copied' : 'Copy'])],
       ),
+    ]),
+    film(slots, h),
+  ])
+
+/** The walkthrough: Chirp built package by package, from an empty folder to a deploy. */
+const film = (slots: Slots, h: H): Html =>
+  h.figure(slots.film.attrs(), [
+    // No preload: the file is 12 MB, fetched only when the reader plays it.
+    h.video(
+      slots.filmVideo.attrs([
+        h.Src('/film/build-chirp.mp4'),
+        h.Poster('/film/build-chirp.jpg'),
+        h.Controls(true),
+        h.Preload('none'),
+        h.Playsinline(true),
+        h.Width('1920'),
+        h.Height('1080'),
+        h.AriaLabel('Building Chirp, a Twitter clone, with Foldkit Plus'),
+      ]),
+      [],
+    ),
+    h.figcaption(slots.filmCaption.attrs(), [
+      'Build ',
+      h.a([h.Href(chirpDemo.url)], ['Chirp']),
+      ', a Twitter clone, from an empty folder to a deploy: Entity, Guard, Remote, forms, Crud, Site and the components. Three minutes, music only.',
     ]),
   ])
 
