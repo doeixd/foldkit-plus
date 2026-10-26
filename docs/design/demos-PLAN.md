@@ -17,8 +17,16 @@ at `bf6a8a94` on 2026-10-26.
   foundations served in the page, and its e2e and mutation specs green.
   `entity` is done: the crud views draw with `foldkit-mixins-crud/recipes`
   (new, built for it and moved into the CMS), and the form with
-  `UiForm.renderers`. `cloudflare`, `pages`, `registry` and the richtext demos
-  are next.
+  `UiForm.renderers`. `cloudflare` is done, on `RowList` (new in
+  `foldkit-mixins-crud/recipes`) and `Field`/`Form` (new,
+  `foldkit-mixins-form/recipes`, which `entity` now uses too), with an e2e test
+  over miniflare. Restyling it found a `foldkit-remote` bug: a row created in
+  an empty list never showed. That is fixed and tested. `pages`, `registry` and the
+  richtext demos are next.
+- **Open question for the owner:** `foldkit-form` validates a key on its first
+  blur, so tabbing out of an emptied quick-add field says "Required", and the
+  form's summary repeats it. Validating an untouched key only on submit would
+  change every form, so it waits on a decision.
 - **A phone-width pass fixed what the audit's screenshots showed:** the site
   guide pill no longer covers a page's last lines, the data grid's menu and sort
   buttons are 24px targets, a todo's delete shows on touch screens, the widgets'
