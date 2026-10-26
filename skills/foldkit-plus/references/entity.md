@@ -503,6 +503,7 @@ Query.dependencies(recent)     // every field it reads, also split into `predica
 ## See also
 
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/entity/README.md
+- https://github.com/doeixd/foldkit-plus/blob/main/docs/operators.md (operators end to end)
 - https://github.com/doeixd/foldkit-plus/tree/main/examples/entity
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/metadata/README.md
 - https://github.com/doeixd/foldkit-plus/blob/main/docs/design/entity-DESIGN.md

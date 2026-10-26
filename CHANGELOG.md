@@ -38,6 +38,9 @@ version changed; `pnpm` skips versions already in the registry.
   versions it holds of an operator (`OperatorTable.versions`), and a call to
   another version is refused naming both (`acme.slug@2 (this table has
   acme.slug)`), where it is checked and where it runs (`missingName`).
+- **An operators guide** (`docs/operators.md`, on the site under Entity): what
+  an application's operators enable, from a rule named once to computed writes
+  and one meaning checked across the client and the server.
 - **`evaluateEach(body, input, rows, { operators })`** in `foldkit-entity`:
   the reference interpreter judging each row alone, so a row holding text with
   a NUL goes in `refused` and the others are still answered. What no one row

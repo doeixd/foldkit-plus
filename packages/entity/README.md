@@ -810,6 +810,11 @@ in full confidence, and every test it does support still passes.
 
 ### Naming a question: operators
 
+What operators make possible, end to end (a rule named once, search and order
+the kernel lacks, writes that compute, one meaning checked across
+interpreters), is the [operators guide](../../docs/operators.md); this section
+and the next three are the reference.
+
 A predicate an application asks in many places (in a public query, a
 visitor's Read rule, an invariant) can be given a name. `Expr.operator`
 declares one by what a call of it means:
@@ -921,16 +926,16 @@ refused where it is written.
 - **What a table lacks is refused by name.** `Query.unsupported(body,
   supported, operators)` and `Expr.unsupported(nodes, { operations,
   operators })` name each operation and operator missing; `evaluate` refuses
-  such a body.
+  such a body. An invariant calling an operator its judge's table lacks is
+  `Undecided` with that operator in `operators`, which a form passes and a
+  server refuses to start without.
 - **One refusing row refuses the run, unless each row is judged alone.**
   `evaluate` refuses a run when any row holds what no interpreter answers for
   (text with a NUL). `evaluateEach(body, input, rows, { operators })` sets such
   a row aside in `refused` and still answers the others, in order; what no one
   row causes (an operator the table lacks, an input the body reads holding a
   NUL, order keys of different kinds) still refuses it. A client judging the
-  rows it holds wants the second. An invariant calling an operator its judge's table lacks is
-  `Undecided` with that operator in `operators`, which a form passes and a
-  server refuses to start without.
+  rows it holds wants the second.
 - **NUL is refused** in any text argument, and an implementation that throws
   is reported as a `QueryEvaluateError` naming its operator.
 
@@ -956,7 +961,7 @@ const table = Operators.memory(Operators.implement(concat, (left, right) => `${l
 const verdict = Conformance.laws(concat, table) // { _tag: 'Holds', evidence: [...] }
 const recorded =
   verdict._tag === 'Holds' ? Operators.withEvidence(table, verdict.evidence) : table
-Operators.describeTable(recorded) // [{ operator: 'acme.concat', laws, evidence }]
+Operators.describeTable(recorded) // [{ name: 'acme.concat', …, laws, evidence }]
 ```
 
 - **A law is checked where it is declared.** `Law.commutative`, `associative`,
