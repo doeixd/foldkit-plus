@@ -102,6 +102,36 @@ Before changing anything, see what a visitor sees.
 
 Exit: a table of findings per demo, each pointing at a fix in a later phase.
 
+### Findings (2026-10-26)
+
+Taken from each demo's dev server with Playwright: 1280×800 and 390×844, light
+and dark, first screen only, with a check for page errors and for scrolling
+sideways. `cloudflare` (which runs under Wrangler) and the interactive states
+(empty, error, offline, a dialog open) are still to do.
+
+| Demo | Now | Fix, and its phase |
+| --- | --- | --- |
+| `auth` | No styling at all: browser-default serif text, unlabelled inputs run together on one line, links in default blue, nothing in dark. | `demoStyle`, `AppShell`, the sign-in through `UiForm` with `PasswordInput`, the person as `Avatar` (2). |
+| `entity` | A plain table: ids drawn as grey buttons, the sortable header as a button, "Published" as bare yes/no, an unstyled search box. Dark works. | `AppShell`; `Table` recipe; `Badge` for published; `Input` with a search icon; ids as row links (2). |
+| `todo-app` | Clean in both schemes and widths. The Add button reads as disabled, with white text on a pale accent. Each row carries a "normal" badge that says nothing. No sync or offline state is shown, though replication is what it demonstrates. | A primary `Button` recipe; drop or vary the priority badge; status `Badge` in the `AppShell` status slot (2). |
+| `pages` | Fine but sparse: a side list and an empty state. It needs its sync server (`pnpm run server`) beside `dev`, or the socket fails silently with no state shown. | `AppShell` with `nav`; an offline/connecting `Badge` and `Alert` when the socket is down (2). |
+| `registry` | Polished. At 390px the status legend wraps unevenly and the toolbar stacks. | `AppShell` status slot for the legend; `Layout.cluster` for the toolbar (2). |
+| `richtext-playground` | Polished at 1280px. **At 390px the page scrolls sideways**: the document column is cut off on the right (`Shape the n…`). | Fix the editor column's minimum width at narrow widths, with a browser test asserting no sideways scroll (2, then 4). |
+| `cms` | Polished; it already has a sidebar, avatars and badges. At 390px the guide pill covers the last row. | `AppShell` (its frame is the model for it); bottom padding equal to the pill's height in the main region (2). |
+| `data-grid` | Clean. At 390px only two columns show, which is the grid scrolling inside itself, as it should. | `AppShell`; nothing else (2). |
+| `design-system` | Clean in both schemes. At 390px the section links wrap onto three lines. | Draw the sections with `AppShell`'s `nav` (1, its first use). |
+| `widgets` | **In dark, the section separators and the line under the subtitle are bright white**: those borders are not drawn from the theme. | Read the border from `Theme.ref` (a token, not a literal); `demoStyle` (2). |
+| `site` | Polished, dark-first. The dev server never goes network-idle (a live connection stays open), and its first load can paint unstyled while Vite compiles. | Check the deployed build, not dev (6). |
+
+What the findings change in the plan:
+
+- `auth`, `entity` and `widgets` need the most work, so they move to the front of
+  Phase 2.
+- `richtext-playground`'s sideways scroll and `widgets`' dark borders are bugs,
+  fixed before any restyle.
+- `cms`'s frame (a sidebar of sections, the signed-in people at its foot, a header
+  that turns into a top bar at 390px) is the reference for `AppShell`'s layouts.
+
 ## Phase 1: `AppShell`, a reusable frame, and one theme for the demos
 
 A demo should not hand-write its frame, and neither should an application: the
