@@ -38,7 +38,13 @@ export default [
   },
   {
     name: 'text holding NUL reaches an operator',
-    edits: [{ file: compile, find: 'if (holdsNul(value)) {', replace: 'if (false) {' }],
+    edits: [
+      {
+        file: compile,
+        find: 'return sql`${value}`\n  if (holdsNul(value)) {',
+        replace: 'return sql`${value}`\n  if (false) {',
+      },
+    ],
     tests,
   },
   {

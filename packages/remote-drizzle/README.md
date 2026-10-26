@@ -910,7 +910,10 @@ Postgres `integer`, `smallint`, `bigint` read as a number) its amount must be
 there and SQLite would store it, so the writer refuses the write where it is
 served. For a write with one, neither recognition applies: a
 row a revision on could hold another client's increment, so a retry is a
-conflict and the field moves once. A binding with a
+conflict and the field moves once. A computed assignment is its compiled
+computation in the same `set` (`computationSql`, its operators by the binding's
+SQL table, its values cast as a call's arguments are), held to a retry as an
+increment is, and its operators are checked where the write is served. A binding with a
 `visible` rule reads the answer back through it: the row as its writer may now
 see it, or, when the write hid it from them, a deletion.
 
@@ -919,8 +922,8 @@ see it, or, when the write hid it from them, a deletion.
 An Entity's invariants (`Entity.invariant`, kept on the binding by `bind`) are
 judged over the row a write would leave, in the statement that writes it. Each
 is compiled into the update's `WHERE` with the fields the write sets read as
-their new values and each incremented field as its column moved by the amount;
-every other field is its column. So `quantity = 3` against `reserved <= quantity`
+their new values, each incremented field as its column moved by the amount and
+each computed one as its computation; every other field is its column. So `quantity = 3` against `reserved <= quantity`
 is `… where id = ? and reserved <= 3`, and a `reserved` another writer raised
 after the client read the row is judged too. A row whose invariant comes to SQL's
 unknown (a null) is not written, as a `WHERE` drops it.
@@ -981,8 +984,13 @@ Where it sits beside expected revisions and plain assignments is in the
 under the operation that asked for it (the client's `operation` id) and the row
 it wrote, in the
 transaction that writes the row, and answers a retry of that operation from the
-record instead of writing again. So an increment needs no `expect`: two made
-from one read both land, and a lost answer's retry is not written again. It is
+record instead of writing again. So an increment of an integer needs no
+`expect`: two made from one read both land, and a lost answer's retry is not
+written again. A computed assignment `field := op(field, amount)`, its amount
+reading no field, lands without one too when both of the binding's tables record
+`op`'s commutativity and associativity as tested (`Operators.withEvidence`,
+`DrizzleOperators.withEvidence`, from `Conformance.laws` and `Conformance.lawsBy`
+over `compileCall`); any other needs `expect`. It is
 answered, as every write is, with the row as it now is, read back under its
 reader's rules: a later write's values, and none it may no longer see.
 

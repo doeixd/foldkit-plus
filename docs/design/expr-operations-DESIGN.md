@@ -5,8 +5,8 @@
 with what gen2 offered (§13), completed as a plan, then checked against Remote,
 Guard, the server packages, Sync, CMS, Crud, Form and the example interpreters
 (§17 records what that check found). Phase 0's probes ran the same day (§17).
-Phases 1 to 5 built 2026-10-26 (their **Built** notes in §12); Phases 6 and 7
-are not.
+Phases 1 to 7 built 2026-10-26 (their **Built** notes in §12); §15's
+questions 10 and 11 are open.
 **Packages:** `foldkit-entity` (descriptors, nodes, the reference interpreter,
 writes, invariants, laws, conformance), `foldkit-remote-drizzle` (SQL, cursor,
 writer), `foldkit-remote-server` (registration and write checks),
@@ -956,12 +956,65 @@ mutation spec, the docs and skill references in step, and the changelog.
    ledgered integer increments both land without `expect`; a real-column increment
    without `expect` is refused at registration; Remote predicts a computed
    assignment over a live change and shows none when the client lacks its operator.
+
+   **Built**, 2026-10-26. Where it departed from the sketch:
+   - **Increments stay their own form.** They were to become sugar for
+     assignments of kernel `number.addInteger` and `number.addReal`; instead
+     the rule those laws stand for is stated directly: an increment of an
+     integer lands without `expect` under a ledger, one of a real number does
+     not (`RemoteServer.write` refuses it). The protocol carries `increments`
+     and `assignments` side by side, and no `number.*` operator ships. Folding
+     them would change every writer and the prediction for no difference in
+     what lands.
+   - **A writer that pins needs no law.** `EntityWriter.pins`, set by a
+     guarded writer with a `revision`, lands an update only over the row it
+     read, so concurrent writes cannot interleave: a real increment or any
+     computed assignment needs no `expect` there. `commutes` is asked only of
+     a writer that does not pin.
+   - **Evidence for SQL** is recorded on the `DrizzleOperators` table
+     (`withEvidence`), produced by `Conformance.lawsBy`, which runs the same
+     law plans as `laws` through any runner (`compileCall` selected from the
+     database). `commutes` requires `Tested` commutativity and associativity
+     in both tables; a law's narrowed domain is not compared with the field's.
+   - **An assignment holds no predicate.** A computation is data, and a
+     predicate's three-valued truth is not a stored value; one is refused
+     where it is declared.
+   - **The client's table reaches every read of the store.** `BoundRemote`
+     carries `operators`, which `Remote.make` sets and `Remote.at` takes, and
+     the visible store is memoized by it as well as by the layers and the store.
+   - **Guard's sum over a null was the amount.** `Number(null) + amount`; it
+     now judges `Write.apply`'s null, the row the database writes. A declared
+     increment of a nullable field is refused, so only a stored null meets it,
+     and the test is at `Write.apply`.
+   - **Guard's request-time checks of an assignment** (unpinned, disclosing)
+     are reached only by calling its writer outside `RemoteServer`, whose
+     registration refuses both first; they are kept for that caller and not
+     tested.
 7. **Description and docs.** §5.7; the Entity README's operator section with
    `concat` declared by an application, implemented in memory and SQL, checked by
    the helper; the skill's Entity, Remote and Guard references; data-query and
    write-increment updated. *Done when* the README's snippets compile in a
    `*.test-d.ts` and every kernel operator's description validates against its
    JSON Schema.
+
+   **Built**, 2026-10-26. Where it departed from the sketch:
+   - **A description's contract is a Schema.** `OperatorDescription` is what
+     a description must decode by (every kernel operator's does, through
+     JSON); its own JSON Schema is `Schema.toJsonSchemaDocument` of it, so no
+     second copy is kept by hand. Effect's document describes a schema's
+     stored side already, which is what a description gives.
+   - **`describeTable` describes each operator in full**, with `name` where
+     it said `operator`: one shape for an operator, described alone or in a
+     table.
+   - **A version refusal names what the table holds** through
+     `OperatorTable.versions` and `missingName`, at every check and run in
+     memory and at registration in SQL; the SQL compiler's own per-request
+     refusal, after registration has checked, is unchanged.
+   - **The Remote and Guard references needed nothing new here**: their
+     operator tables were documented by the phases that gave them one; the
+     Entity reference carries the description and the version rule.
+   - **write-increment-DESIGN** was brought up to date by Phase 6 (§5's
+     real-number rule and the null under an amount).
 
 ## 13. What gen2 gave this design
 

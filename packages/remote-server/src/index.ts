@@ -9,6 +9,7 @@ import { Context, Effect, Layer, Match, Option, Queue, Schema, Stream } from 'ef
 import {
   Entity,
   Operators,
+  SchemaShape,
   Write,
   assertSupported,
   evaluate,
@@ -16,8 +17,10 @@ import {
   type MemoryOperators,
   type AnyWrite,
   type BoundWrite,
+  type Computation,
   type EntityRef,
   type Row,
+  type WriteAssignment,
 } from 'foldkit-entity'
 import {
   REMOTE_PROTOCOL_VERSION,
@@ -209,6 +212,27 @@ export interface EntityWriter<P, R = never> {
    */
   readonly increments?: true
   /**
+   * Whether `update` computes `assignments` where it writes, over the row it
+   * writes. `RemoteServer.write` refuses a write computing a field over a
+   * writer without it.
+   */
+  readonly assignments?: true
+  /**
+   * Whether `update` writes only the row it read, at the revision it read it,
+   * whatever the write `expect`s: what a guard does so its rules judge the row
+   * written. Concurrent writes then cannot interleave, so an increment of a
+   * real number, or any computed assignment, needs no `expect` of its own.
+   */
+  readonly pins?: true
+  /**
+   * Whether `assignment`, landed without `expect`, gives one result whatever
+   * order concurrent writes land in: its operator `op(field, amount)`, with
+   * commutativity and associativity tested for the implementations this
+   * writer runs. `RemoteServer.write` asks of each computed assignment a
+   * write lands without a revision.
+   */
+  readonly commutes?: (assignment: WriteAssignment) => boolean
+  /**
    * Whether `update` records each write it lands under its `operation`, in
    * the transaction that writes, and answers a retry of it from that record
    * rather than writing again. An increment that expects no revision needs one.
@@ -249,6 +273,11 @@ export interface EntityWriter<P, R = never> {
      * the statement that writes, never computed from a value read before it.
      */
     readonly increments: Readonly<Record<string, number>>
+    /**
+     * Each field to compute, as data (`Write.bind`'s): run in the statement
+     * that writes, over the row as it is there.
+     */
+    readonly assignments: Readonly<Record<string, Computation>>
     /** Each `one` relation it points, by the relation's key: the row, or none. */
     readonly links: Readonly<Record<string, Option.Option<EntityRef>>>
     readonly expect: Option.Option<{ readonly field: string; readonly revision: unknown }>
@@ -1575,6 +1604,36 @@ export const RemoteServer = {
         `[foldkit-remote-server] write "${mutation.name}" increments a field, but its writer for ${writer.entity} does not add one (increments)`,
       )
     }
+    // Concurrent increments land in either order: one result only where adding
+    // associates, which integers do and floating-point reals do not.
+    const real = write.increments.find(
+      increment => !SchemaShape.holdsIntegers(Schema.toEncoded(increment.field.schema).ast),
+    )
+    if (real !== undefined && write.expect === undefined && writer.pins !== true) {
+      throw new Error(
+        `[foldkit-remote-server] write "${mutation.name}" increments "${real.field.key}", a real number, and expects no revision; adding reals does not associate, so concurrent increments could land as two different sums. Give it \`expect\``,
+      )
+    }
+    if (write.assignments.length > 0 && writer.assignments !== true) {
+      throw new Error(
+        `[foldkit-remote-server] write "${mutation.name}" computes a field, but its writer for ${writer.entity} does not compute one (assignments)`,
+      )
+    }
+    if (write.assignments.length > 0 && write.expect === undefined) {
+      if (writer.ledger !== true) {
+        throw new Error(
+          `[foldkit-remote-server] write "${mutation.name}" computes a field and expects no revision, so a retry could compute twice; give it \`expect\`, or a writer with a ledger`,
+        )
+      }
+      const order = write.assignments.find(
+        assignment => writer.pins !== true && writer.commutes?.(assignment) !== true,
+      )
+      if (order !== undefined) {
+        throw new Error(
+          `[foldkit-remote-server] write "${mutation.name}" computes "${order.field.key}" and expects no revision, but its writer does not show concurrent writes of it land as one result (its operator commuting and associating, tested); give it \`expect\``,
+        )
+      }
+    }
     const refused = writer.refuses?.(write) ?? []
     if (refused.length > 0) {
       throw new Error(
@@ -1716,13 +1775,13 @@ export const RemoteServer = {
               Effect.gen(function* () {
                 const bound = Write.bind(write, given, keys)
                 if (
-                  write.increments.length > 0 &&
+                  write.increments.length + write.assignments.length > 0 &&
                   write.expect === undefined &&
                   Option.isNone(operation)
                 ) {
                   // The ledger keys a write by its operation: with none, a retry could add twice.
                   return yield* new RemoteServerError({
-                    message: `${mutation.name} increments a field with no revision, so it needs an operation id`,
+                    message: `${mutation.name} moves a field with no revision, so it needs an operation id`,
                   })
                 }
                 const written = yield* invalid(
@@ -1733,6 +1792,7 @@ export const RemoteServer = {
                       operation,
                       values: bound.values,
                       increments: bound.increments,
+                      assignments: bound.assignments,
                       links: bound.links,
                       expect,
                       when: yield* when,

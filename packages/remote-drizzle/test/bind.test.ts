@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { Effect, Schema } from 'effect'
-import { Derived, Entity, Relation } from 'foldkit-entity'
+import { Derived, Entity, Operators, Relation } from 'foldkit-entity'
 import {
   REMOTE_PROTOCOL_VERSION,
   Remote,
@@ -187,6 +187,7 @@ describe('one Entity declaration, client to database', () => {
     const bound = {
       definition,
       contract: { name: 'test' },
+      operators: Operators.kernel,
       store: { get: () => ({ ...initialRemoteModel, entities: store.current }) },
     } as unknown as BoundRemote<unknown, RemoteModel>
     const projection = Remote.select(bound, Selection.from(selection))('p1')
@@ -241,6 +242,7 @@ describe('one Entity declaration, client to database', () => {
     const bound = {
       definition,
       contract: { name: 'test' },
+      operators: Operators.kernel,
       store: { get: () => ({ ...initialRemoteModel, entities: store.current }) },
     } as unknown as BoundRemote<unknown, RemoteModel>
     const whole = Remote.select(bound, Selection.from(Both.whole))('p1')

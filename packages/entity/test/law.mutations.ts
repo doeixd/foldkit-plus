@@ -81,44 +81,39 @@ export default [
   edit(
     'associativity compares a side with itself',
     helper,
-    'outcome(call(call(a, b), c)), outcome(call(a, call(b, c)))',
-    'outcome(call(call(a, b), c)), outcome(call(call(a, b), c))',
+    'run(call(call(a, b), c)), run(call(a, call(b, c)))',
+    'run(call(call(a, b), c)), run(call(call(a, b), c))',
   ),
-  edit(
-    'commutativity compares a side with itself',
-    helper,
-    'outcome(call(b, a))',
-    'outcome(call(a, b))',
-  ),
+  edit('commutativity compares a side with itself', helper, 'run(call(b, a))', 'run(call(a, b))'),
   edit(
     'idempotence asks for the call itself',
     helper,
-    'Outcome.Value({ value: a }))),',
-    'outcome(call(a, a)))),',
+    'run(call(a, a)), value(a))',
+    'run(call(a, a)), run(call(a, a)))',
   ),
   edit(
     'an identity answers itself',
     helper,
-    'sided(value, side, a => a)',
-    'sided(value, side, () => value)',
+    'sided(witness, side, a => a)',
+    'sided(witness, side, () => witness)',
   ),
   edit(
     'an absorbing value answers the other',
     helper,
-    'sided(value, side, () => value)',
-    'sided(value, side, a => a)',
+    'sided(witness, side, () => witness)',
+    'sided(witness, side, a => a)',
   ),
   edit(
     'an inverse answers the operator itself',
     helper,
-    'Outcome.Value({ value: identity })),',
-    'outcome(call(a, other(a)))),',
+    'run(call(a, other(a))), value(identity))',
+    'run(call(a, other(a))), run(call(a, other(a))))',
   ),
   edit(
     'distributing compares a side with itself',
     helper,
-    'outcome(over(call(a, b), call(a, c)))',
-    'outcome(call(a, over(b, c)))',
+    'run(over(call(a, b), call(a, c)))',
+    'run(call(a, over(b, c)))',
   ),
   edit(
     'monotonic ignores its direction',
@@ -138,7 +133,7 @@ export default [
     ': JSON.stringify(left.value) === JSON.stringify(right.value)',
     ': true',
   ),
-  edit('a failed law is not reported', helper, 'if (failed !== undefined) {', 'if (false) {'),
+  edit('a failed law is not reported', helper, 'if (!plan.holds(left, right)) {', 'if (false) {'),
 
   // ---- choosing and running cases
   edit(

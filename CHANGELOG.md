@@ -5,6 +5,55 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
+## Unreleased
+
+### Added
+
+- **Computed assignments** (Phase 6 of `expr-operations-DESIGN.md`).
+  `Write.update(input, { compute: { label: ({ row, input }) => … } })` sets a
+  field from the row before the write and the input, refused where declared for
+  the row after, another Entity, a field another key writes or a kind it does
+  not store; defined operators are expanded there. `Write.bind` carries it as
+  data (`BoundWrite.assignments`, `Computation`), which `EntityWriter.update`
+  receives (`assignments`, a writer saying `assignments: true`): the Drizzle
+  writer compiles it into the `set` and its invariants (`computationSql`),
+  Guard judges and member-rules it and `validate` refuses one computed from a
+  Read-ruled member, and Remote predicts it with `Remote.make`'s `operators`
+  over the row as read (`Remote.at(…, { operators })`). Without `expect` it
+  lands only under a ledger, where the writer `pins` the row it read or
+  `commutes` it: `op(field, amount)` with commutativity and associativity tested
+  in both of the binding's tables (`DrizzleOperators.withEvidence`, from
+  `Conformance.lawsBy`, which tests laws through any runner).
+- **`Write.apply(row, bound, { operators })`**, the one computation of the row a
+  write leaves, which Guard, the Drizzle writer and Remote's prediction now all
+  use, and `Write.boundReads(bound)`, what of the row it needs.
+  `applyOperator` runs an operator over stored values; tables look an operator
+  up by name (`named`).
+- **Operators described** (Phase 7 of `expr-operations-DESIGN.md`).
+  `Operators.describe(op)` is an operator's signature as JSON, checked by the
+  `OperatorDescription` Schema: its name and version, its description, each
+  argument and its result as a JSON Schema of the stored side, its null and
+  collation rules, its laws, and whether it is defined (never its body).
+  `Query.operators(body)` names the operators a body calls. A table lists the
+  versions it holds of an operator (`OperatorTable.versions`), and a call to
+  another version is refused naming both (`acme.slug@2 (this table has
+  acme.slug)`), where it is checked and where it runs (`missingName`).
+
+### Changed
+
+- **`Operators.describeTable(table)` lists each operator as `Operators.describe`
+  does**, with its evidence: its name is `name`, where it was `operator`. An
+  `OperatorTable` has `versions` beside `has`.
+- **An increment of a real number expects a revision**, even under a ledger,
+  unless its writer pins the row it read: floating-point addition does not
+  associate, so two concurrent sums could land as two results. Declare an
+  integer field `Schema.Int` to keep landing increments without `expect`.
+- **Guard judges a null under an amount as null**, as SQL writes it, where it
+  summed `Number(null) + amount`.
+- **`BoundWrite.assignments`, `EntityWriter.update`'s `assignments`**, and
+  `visibleStore`/`resolvedPatches`' `operators` (the kernel by default) are new
+  parts of these shapes; a hand-built `BoundRemote` needs `operators`.
+
 ## 0.34.0
 
 Fields from a schema, and operators an application defines. `foldkit-form-recipes`

@@ -57,14 +57,17 @@ export type Law = Data.TaggedEnum<{
 const Laws = Data.taggedEnum<Law>()
 const unnarrowed = { domain: Option.none<Schema.Top>() }
 
-/** A law as JSON says it: what `describeTable` lists and evidence names. */
-export interface LawDescription {
-  readonly kind: string
-  /** Its witnesses: values as stored, operators by name. */
-  readonly witnesses: Readonly<Record<string, unknown>>
-  /** Its domain as a JSON Schema, or `null` for the operator's whole input. */
-  readonly domain: unknown
-}
+/**
+ * A law as JSON says it: what `Operators.describe` lists and evidence names.
+ * Its witnesses are values as stored and operators by name; its domain is a
+ * JSON Schema, or `null` for the operator's whole input.
+ */
+export const LawDescription = Schema.Struct({
+  kind: Schema.String,
+  witnesses: Schema.Record(Schema.String, Schema.Unknown),
+  domain: Schema.Unknown,
+})
+export type LawDescription = typeof LawDescription.Type
 
 /** An operator by its id, and its version when that is not the first. */
 const nameOf = (operator: AnyOperator): string =>

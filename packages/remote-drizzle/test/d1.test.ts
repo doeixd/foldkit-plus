@@ -248,7 +248,7 @@ describe('RemoteDrizzle over D1', () => {
 describe('A declared write over D1', () => {
   const Item = Entity.define(
     'Item',
-    Schema.Struct({ id: Schema.String, stock: Schema.Number, revision: Schema.Number }),
+    Schema.Struct({ id: Schema.String, stock: Schema.Int, revision: Schema.Number }),
   )
   const items = sqliteTable('items', {
     id: text('id').primaryKey(),
@@ -338,7 +338,7 @@ describe('A declared write over D1', () => {
   it('refuses an update that would leave the row breaking an invariant, in the one statement', async () => {
     const Guarded = Entity.define(
       'Item',
-      Schema.Struct({ id: Schema.String, stock: Schema.Number, revision: Schema.Number }),
+      Schema.Struct({ id: Schema.String, stock: Schema.Int, revision: Schema.Number }),
     ).pipe(
       Entity.invariant('stockNotNegative', ({ after }) => Expr.gte(after.stock, 0), {
         message: 'Stock cannot go below zero',

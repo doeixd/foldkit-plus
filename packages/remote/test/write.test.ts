@@ -120,6 +120,7 @@ describe('patchOfWrite', () => {
           editor: Option.none(),
         },
         increments: {},
+        assignments: {},
       }),
     ).toEqual({
       entity: 'Post',

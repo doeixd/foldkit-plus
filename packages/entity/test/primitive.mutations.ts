@@ -41,8 +41,8 @@ export default [
   edit(
     'a checked table checks nothing',
     evaluate,
-    '    scope.operators.checked &&',
-    '    false &&',
+    'if (checked && !unknownTruth',
+    'if (false && !unknownTruth',
   ),
   edit(
     'a predicate may answer something that is not a truth',

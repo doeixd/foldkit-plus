@@ -433,8 +433,9 @@ loaded rows, or out of them when it sorts past a `Cursor` (a row that was
 itself the edge beside that `Cursor` cannot be told, and invalidates). What
 cannot be placed is invalidated, restarting any read of it in flight, so its read entry
 refetches it. A body's primitive operators run on the client by
-`Remote.make({ operators })` (`Operators.kernel` by default); one the table lacks
-is the server's to judge. `Remote.make({ verifyPlacement: true })` (dev and tests) also
+`Remote.make({ operators })` (`Operators.kernel` by default; a domain bound by hand
+takes it as `Remote.at(definition, store, { operators })`), which also predicts a
+pending computed assignment; one the table lacks is the server's to judge. `Remote.make({ verifyPlacement: true })` (dev and tests) also
 fetches each list it placed an answer, a read or a live patch in, and keeps
 any disagreement with the server's first page in
 `remote.placementMismatches`: an order it does not share, or a row placing
@@ -454,9 +455,10 @@ order (the server's `orderBy` decides it) by any change to a row it holds. `Data
 mutation whose effect is data: `Data.mutate` derives its optimistic patch
 (`Write.bind`), and `options.keys` narrows it to the input keys an author
 changed and sends them with the request. A write may ask of its row (`when`, `expect`)
-and compute where it commits (`increment`); Remote shows an increment as an amount
-added to whatever the store holds when it is read, so a live update meanwhile is added
-to, not hidden. `Data.mutate` also sends an operation id, kept across a retry with the
+and compute where it commits (`increment`, `compute`); Remote shows an increment as an
+amount added to whatever the store holds when it is read, and a computed field worked
+out by `Remote.make`'s `operators` over the row as read, so a live update meanwhile is
+added to or computed from, not hidden; without the operator it shows the stored value. `Data.mutate` also sends an operation id, kept across a retry with the
 same `requestId`, which a ledgered writer answers from its record. Declaring them, and
 invariants: [entity.md](entity.md).
 
@@ -762,7 +764,12 @@ only. Retries, by kind of write:
 | `expect`s a revision | `Conflict`; the client re-reads |
 | increments, under `writer(binding, { ledger: { table, scope } })` | found in the ledger by its operation id, not written again |
 
-An increment with neither an `expect` nor a ledger is refused. The ledger needs a transaction, which D1 lacks.
+An increment with neither an `expect` nor a ledger is refused, and so is one of a real number without
+`expect` even under a ledger (unless the writer `pins`, as a guard with a revision does). A computed
+assignment (`compute`) is its compiled computation in the same `set`; without `expect` it needs a ledger
+and an operator the writer `commutes`: `op(field, amount)` with commutativity and associativity tested
+in both of the binding's tables (`Operators.withEvidence`, `DrizzleOperators.withEvidence`). The ledger
+needs a transaction, which D1 lacks.
 An increment of a column that holds integers needs a `Schema.Int` amount, whatever the field is
 declared as: the writer refuses it through `EntityWriter.refuses`, which `RemoteServer.write` asks
 where the write is served (`GuardServer.writer` passes it on). Each `Write` increment says whether

@@ -13,7 +13,7 @@
  * It is authority someone declared, never something derived from an Entity: an
  * Entity having a field does not mean anyone may set it.
  */
-import { Option, Schema, SchemaAST } from 'effect'
+import { Data, Option, Schema, SchemaAST } from 'effect'
 import type {
   AnyEntity,
   EntityField,
@@ -22,7 +22,22 @@ import type {
   EntityRelation,
   InputMember,
 } from './index.js'
-import { Expr, Query, type AnyQuery, type InputExpr, type Predicate, type Reads } from './expr.js'
+import type { Collation } from './collation.js'
+import { applyOperator } from './evaluate.js'
+import {
+  Expr,
+  Query,
+  dependenciesOf,
+  isPredicate,
+  type AnyExpr,
+  type AnyQuery,
+  type InputExpr,
+  type Operandish,
+  type Predicate,
+  type Reads,
+} from './expr.js'
+import type { BeforeRow } from './invariant.js'
+import type { MemoryOperators } from './operators.js'
 import { SchemaShape } from './shape.js'
 
 type AnyField = EntityField<string, string, Schema.Constraint>
@@ -42,6 +57,34 @@ export interface WriteSet {
 export interface WriteIncrement extends WriteSet {
   readonly integer: boolean
 }
+
+/**
+ * One field the write computes (`label := concat(title, ' draft')`): an
+ * expression over the row before the write and the input, every defined
+ * operator in it expanded, so what is carried is primitive calls alone.
+ */
+export interface WriteAssignment {
+  readonly field: AnyField
+  readonly expr: AnyExpr
+}
+
+/**
+ * A computed assignment as data, bound to one input: what travels to a server
+ * and sits in a client's pending patch, which holds no descriptor and no
+ * function. A field of the row before the write, a stored value, or a call of
+ * a primitive operator by name (`id`, or `id@version`), with the collation it
+ * compares text under (`null` for none: this is JSON).
+ */
+export type Computation = Data.TaggedEnum<{
+  Field: { readonly key: string }
+  Value: { readonly value: unknown }
+  Call: {
+    readonly operator: string
+    readonly args: ReadonlyArray<Computation>
+    readonly collation: Collation | null
+  }
+}>
+export const Computation = Data.taggedEnum<Computation>()
 
 /** One input key the write points at another row with: a `one` relation, by the target's id. */
 export interface WriteLink {
@@ -76,6 +119,8 @@ export interface Write<E extends AnyEntity, Fields extends Schema.Struct.Fields>
    * computed where the write commits: the input key, and the field it moves.
    */
   readonly increments: ReadonlyArray<WriteIncrement>
+  /** The fields it computes, each from the row before the write and the input. */
+  readonly assignments: ReadonlyArray<WriteAssignment>
   /** The `one` relations it points elsewhere, in the input's order. */
   readonly links: ReadonlyArray<WriteLink>
 }
@@ -109,12 +154,27 @@ export type WriteIncrements<E extends AnyEntity, Fields extends Schema.Struct.Fi
   ]?: NumberKeys<Fields>
 }
 
-/** An update's options: a row's, and what it moves by an amount. */
+/**
+ * An update's computed fields: each a field of the Entity, by what it comes
+ * to over the row before the write (`row`, each field as `Expr.field`) and
+ * the input. Its kind is checked against the field's where it is declared.
+ */
+export type WriteComputations<E extends AnyEntity, Fields extends Schema.Struct.Fields> = {
+  readonly [F in keyof E['fields'] & string]?: (context: {
+    readonly row: BeforeRow<E>
+    readonly input: {
+      readonly [K in keyof Fields & string]: InputExpr<Schema.Schema.Type<Fields[K]>>
+    }
+  }) => AnyExpr
+}
+
+/** An update's options: a row's, what it moves by an amount, and what it computes. */
 type UpdateOptions<
   E extends AnyEntity,
   Fields extends Schema.Struct.Fields,
 > = RowOptions<Fields> & {
   readonly increment?: WriteIncrements<E, Fields>
+  readonly compute?: WriteComputations<E, Fields>
 }
 
 /** `update`: conditioned when given `when`, which the overloads tell apart. */
@@ -179,6 +239,8 @@ export interface BoundWrite {
   readonly links: Readonly<Record<string, Option.Option<EntityRef>>>
   /** Each field it moves, by the amount, encoded: added by the server, and predicted over what a client holds. */
   readonly increments: Readonly<Record<string, number>>
+  /** Each field it computes, as data: run by the server where it writes, predicted by a client. */
+  readonly assignments: Readonly<Record<string, Computation>>
 }
 
 const fail = (input: EntityInput<AnyEntity, any, any>, message: string): never => {
@@ -222,6 +284,7 @@ const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
     readonly expect?: keyof Fields & string
     readonly when?: WriteCondition<E, Fields> | undefined
     readonly increment?: Readonly<Record<string, string | undefined>>
+    readonly compute?: WriteComputations<E, Fields> | undefined
   },
 ): Write<E, Fields> => {
   const id = fieldAt(input, options.id, 'id')
@@ -255,11 +318,11 @@ const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
         fail(input, `"${key}" writes a nested row; a write writes its own row only`)
     }
   }
+  const placeholders: Record<string, InputExpr<unknown>> = Object.create(null)
+  for (const [key, schema] of Object.entries(input.schema.fields)) {
+    placeholders[key] = Expr.input(key, schema as unknown as Schema.Codec<unknown, unknown>)
+  }
   const when = Option.map(Option.fromUndefinedOr(options.when), condition => {
-    const placeholders: Record<string, InputExpr<unknown>> = Object.create(null)
-    for (const [key, schema] of Object.entries(input.schema.fields)) {
-      placeholders[key] = Expr.input(key, schema as unknown as Schema.Codec<unknown, unknown>)
-    }
     // `where` refuses a predicate over another Entity, which the type allows when it is unmarked.
     return Query.from(input.entity).pipe(
       Query.where(condition({ input: placeholders as never }) as Predicate),
@@ -267,6 +330,24 @@ const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
   })
   const increments = Object.entries(options.increment ?? {}).flatMap(([fieldKey, key]) =>
     key === undefined ? [] : [incrementOf(input, fieldKey, key, { expect, sets })],
+  )
+  const fields = input.entity.fields as Readonly<Record<string, E['fields'][string]>>
+  const row = Object.fromEntries(
+    Object.entries(fields).map(([key, field]) => [key, Expr.field(field)]),
+  ) as unknown as BeforeRow<E>
+  const computes: ReadonlyArray<
+    readonly [string, WriteComputations<E, Fields>[keyof E['fields'] & string]]
+  > = Object.entries(options.compute ?? {})
+  const assignments = computes.flatMap(([fieldKey, compute]) =>
+    compute === undefined
+      ? []
+      : [
+          assignmentOf(input, fieldKey, () => compute({ row, input: placeholders as never }), {
+            expect,
+            sets,
+            increments,
+          }),
+        ],
   )
   return Object.freeze({
     _tag: kind,
@@ -276,9 +357,165 @@ const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
     when,
     sets: Object.freeze(sets),
     increments: Object.freeze(increments),
+    assignments: Object.freeze(assignments),
     links: Object.freeze(links),
   })
 }
+
+/** The kind of one stored form, as far as an assignment must agree with its field. */
+const storedKind = (ast: SchemaAST.AST): string => {
+  if (SchemaAST.isNull(ast)) return 'null'
+  const literal = SchemaAST.isLiteral(ast) ? typeof ast.literal : undefined
+  if (SchemaAST.isNumber(ast) || literal === 'number') return 'number'
+  if (SchemaAST.isString(ast) || SchemaAST.isTemplateLiteral(ast) || literal === 'string') {
+    return 'text'
+  }
+  if (SchemaAST.isBoolean(ast) || literal === 'boolean') return 'boolean'
+  return 'other'
+}
+
+/** Every kind a stored form may hold: a union's members' kinds. */
+const storedKinds = (ast: SchemaAST.AST): ReadonlySet<string> =>
+  new Set(
+    SchemaAST.isUnion(ast)
+      ? ast.types.flatMap(member => [...storedKinds(member)])
+      : [storedKind(ast)],
+  )
+
+/** The stored kinds a scalar may come to, by what it is. */
+const kindsOf = (expr: AnyExpr): ReadonlySet<string> => {
+  switch (expr._tag) {
+    case 'Field':
+      return storedKinds(Schema.toEncoded(expr.schema).ast)
+    case 'Next':
+      return storedKinds(Schema.toEncoded(expr.field.schema).ast)
+    case 'Input':
+      return storedKinds(Schema.toEncoded(expr.schema).ast)
+    case 'Literal':
+      return new Set([
+        expr.value === null ? 'null' : typeof expr.value === 'string' ? 'text' : typeof expr.value,
+      ])
+    case 'Call':
+      return storedKinds(Schema.toEncoded(expr.operator.output).ast)
+  }
+}
+
+/** Whether a predicate is anywhere in `expr`, which data carries only as a value. */
+const holdsPredicate = (expr: Operandish): boolean =>
+  isPredicate(expr) || (expr._tag === 'Call' && expr.args.some(holdsPredicate))
+
+/**
+ * One computed field, checked: a field of the Entity written by nothing else,
+ * computed from this Entity's row before the write and the input alone
+ * (never `Next`, so assignments do not depend on each other), to a value of
+ * the field's stored kind, with no predicate in it.
+ */
+const assignmentOf = (
+  input: EntityInput<AnyEntity, any, any>,
+  fieldKey: string,
+  compute: () => AnyExpr,
+  declared: {
+    readonly expect: WriteSet | undefined
+    readonly sets: ReadonlyArray<WriteSet>
+    readonly increments: ReadonlyArray<WriteIncrement>
+  },
+): WriteAssignment => {
+  const fields = input.entity.fields as Readonly<Record<string, AnyField>>
+  const field = Object.hasOwn(fields, fieldKey) ? fields[fieldKey] : undefined
+  if (field === undefined) return fail(input, `computes "${fieldKey}", which is not a field`)
+  if (fieldKey === 'id') return fail(input, 'computes the id')
+  if (declared.expect?.field.key === fieldKey) {
+    return fail(input, `computes "${fieldKey}", the revision it expects`)
+  }
+  if (
+    declared.sets.some(set => set.field.key === fieldKey) ||
+    declared.increments.some(increment => increment.field.key === fieldKey)
+  ) {
+    return fail(input, `computes "${fieldKey}", which the write also sets`)
+  }
+  const operand: Operandish = compute()
+  const expr = isPredicate(operand) ? operand : Expr.expanded(operand)
+  if (isPredicate(expr) || holdsPredicate(expr)) {
+    return fail(
+      input,
+      `computes "${fieldKey}" with a predicate, which an assignment carries only as a value`,
+    )
+  }
+  const reads = dependenciesOf(expr)
+  if (reads.next.length > 0) {
+    return fail(
+      input,
+      `computes "${fieldKey}" from the row after the write, which an assignment never reads`,
+    )
+  }
+  const stranger = reads.fields.find(read => read.owner.name !== input.entity.name)
+  if (stranger !== undefined) {
+    return fail(
+      input,
+      `computes "${fieldKey}" from ${stranger.owner.name}.${stranger.key}, another Entity's field`,
+    )
+  }
+  const stored = storedKinds(Schema.toEncoded(field.schema as unknown as Schema.Top).ast)
+  const comes = [...kindsOf(expr)].filter(kind => kind !== 'null' && !stored.has(kind))
+  if (comes.length > 0) {
+    return fail(input, `computes "${fieldKey}" as ${comes.join(' or ')}, which it does not store`)
+  }
+  return Object.freeze({ field, expr })
+}
+
+/** An assignment's expression, bound to one input, as data. */
+const computationOf = (
+  write: AnyWrite,
+  expr: AnyExpr,
+  input: Readonly<Record<string, unknown>>,
+): Computation => {
+  switch (expr._tag) {
+    // `Next` is refused where an assignment is declared.
+    case 'Field':
+    case 'Next':
+      return Computation.Field({ key: expr._tag === 'Field' ? expr.key : expr.field.key })
+    case 'Literal':
+      return Computation.Value({ value: expr.value })
+    case 'Input':
+      return Computation.Value({
+        value: Schema.encodeUnknownSync(
+          write.input.schema.fields[expr.key] as unknown as Schema.Codec<unknown, unknown>,
+        )(input[expr.key]),
+      })
+    case 'Call':
+      return Computation.Call({
+        operator:
+          expr.operator.version === 1
+            ? expr.operator.id
+            : `${expr.operator.id}@${expr.operator.version}`,
+        args: expr.args.map(arg => computationOf(write, arg as AnyExpr, input)),
+        collation: Option.getOrNull(expr.collation),
+      })
+  }
+}
+
+/**
+ * What a computation comes to over `row`, the row before the write: none when
+ * the row lacks a field it reads, or `operators` lacks an operator it calls.
+ */
+const computed = (
+  computation: Computation,
+  row: Readonly<Record<string, unknown>>,
+  operators: MemoryOperators,
+): Option.Option<unknown> =>
+  Computation.$match(computation, {
+    Field: ({ key }) => (Object.hasOwn(row, key) ? Option.some(row[key]) : Option.none()),
+    Value: ({ value }) => Option.some(value),
+    Call: ({ operator, args, collation }) =>
+      Option.flatMap(operators.named(operator), descriptor =>
+        Option.map(Option.all(args.map(arg => computed(arg, row, operators))), values =>
+          applyOperator(descriptor, values, {
+            collation: Option.fromNullOr(collation),
+            operators,
+          }),
+        ),
+      ),
+  })
 
 /** Whether a value's stored form is a plain number. */
 const storedAsNumber = (schema: Schema.Top): boolean =>
@@ -335,7 +572,10 @@ const incrementOf = (
 const settingSomething = <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
   write: Write<E, Fields>,
 ): Write<E, Fields> =>
-  write.sets.length === 0 && write.links.length === 0 && write.increments.length === 0
+  write.sets.length === 0 &&
+  write.links.length === 0 &&
+  write.increments.length === 0 &&
+  write.assignments.length === 0
     ? fail(write.input, 'it sets no field')
     : write
 
@@ -357,6 +597,12 @@ export const Write = {
    * `when` is what the row must hold for the update to land, checked where it
    * commits (`({ input }) => Expr.eq(Post.fields.status, 'draft')`); a row it
    * does not hold of is refused as unmet.
+   *
+   * `compute` sets a field to what an expression comes to over the row before
+   * the write and the input, run where it commits
+   * (`{ label: ({ row }) => concat(row.title, ' draft') }`). It is refused for
+   * a field another key writes, an expression over the row after the write or
+   * another Entity, or one of a kind the field does not store.
    */
   update,
 
@@ -399,13 +645,15 @@ export const Write = {
   writes: (write: AnyWrite): ReadonlyArray<AnyField | OneRelation> => [
     ...write.sets.map(set => set.field),
     ...write.increments.map(increment => increment.field),
+    ...write.assignments.map(assignment => assignment.field),
     ...write.links.map(link => link.relation),
   ],
 
   /**
    * The fields a write reads from the row it writes: those its `when` reads,
-   * each it increments, and the revision it expects. What an interpreter
-   * must read, and what a startup check judges it could disclose.
+   * each it increments, each its assignments read, and the revision it
+   * expects. What an interpreter must read, and what a startup check judges
+   * it could disclose.
    */
   reads: (write: AnyWrite): ReadonlyArray<AnyField> => {
     const fields = new Map<string, AnyField>()
@@ -414,6 +662,9 @@ export const Write = {
       Query.dependencies(body).predicate.forEach(field => add(field as unknown as AnyField)),
     )
     write.increments.forEach(increment => add(increment.field))
+    write.assignments.forEach(assignment =>
+      dependenciesOf(assignment.expr).fields.forEach(field => add(field as unknown as AnyField)),
+    )
     if (write.expect !== undefined) add(write.expect.field)
     return [...fields.values()]
   },
@@ -458,12 +709,70 @@ export const Write = {
         increments[field.key] = Schema.encodeUnknownSync(schema)(held)
       })
     }
+    // Every assignment: it reads the row as well as the input, so no key alone asks for it.
+    const assignments: Record<string, Computation> = {}
+    for (const { field, expr } of write.assignments) {
+      assignments[field.key] = computationOf(write, expr, input)
+    }
     return {
       entity: write.input.entity.name,
       id: String(encoded(write.id.field, input[write.id.key])),
       values,
       links,
       increments,
+      assignments,
     }
+  },
+
+  /**
+   * The fields of the row before it that a bound write's amounts and
+   * assignments read: what to read to work out the row it leaves.
+   */
+  boundReads: (bound: Pick<BoundWrite, 'increments' | 'assignments'>): ReadonlyArray<string> => {
+    const keys = new Set(Object.keys(bound.increments))
+    const walk = (computation: Computation): void =>
+      Computation.$match(computation, {
+        Field: ({ key }) => void keys.add(key),
+        Value: () => undefined,
+        Call: ({ args }) => args.forEach(walk),
+      })
+    Object.values(bound.assignments).forEach(walk)
+    return [...keys]
+  },
+
+  /**
+   * The row a bound write leaves over `row`, the row before it: its values
+   * set, each amount added (a null stays null, as in SQL), and each
+   * assignment computed by `operators` over the row before. `unknown` names
+   * each field it could not work out: one `row` lacks, or holds as no number
+   * for an amount, or an assignment calling an operator the table lacks. That
+   * field keeps what `row` holds. The one computation of this row: a guard
+   * judges it, a writer explains a miss with it, a client predicts it.
+   */
+  apply: (
+    row: Readonly<Record<string, unknown>>,
+    bound: Pick<BoundWrite, 'values' | 'increments' | 'assignments'>,
+    options: { readonly operators: MemoryOperators },
+  ): {
+    readonly row: Readonly<Record<string, unknown>>
+    readonly unknown: ReadonlyArray<string>
+  } => {
+    const after: Record<string, unknown> = { ...row, ...bound.values }
+    const unknown: Array<string> = []
+    for (const [field, amount] of Object.entries(bound.increments)) {
+      const held = Object.hasOwn(row, field) ? row[field] : undefined
+      if (held === null) after[field] = null
+      else if (typeof held === 'number') after[field] = held + amount
+      else unknown.push(field)
+    }
+    for (const [field, computation] of Object.entries(bound.assignments)) {
+      Option.match(computed(computation, row, options.operators), {
+        onNone: () => unknown.push(field),
+        onSome: value => {
+          after[field] = value
+        },
+      })
+    }
+    return { row: after, unknown }
   },
 }

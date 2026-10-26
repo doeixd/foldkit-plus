@@ -251,8 +251,16 @@ const Restock = Write.update(
   field declared `Schema.Int` needs a `Schema.Int` amount, or the write is refused where declared, and so
   does an `integer` column under any field, or the Drizzle `writer` refuses it at registration. A
   retry must not add twice: give it `expect`, or serve it through a writer with a ledger (a retry is
-  answered from its record, so concurrent increments both land). Remote predicts the sum over the value
-  it holds.
+  answered from its record, so concurrent increments both land; of an integer only, since adding reals
+  does not associate). Remote predicts the sum over the value it holds.
+- **`compute: { label: ({ row, input }) => concat(input.prefix, row.name) }`** sets a field from the row
+  before the write and the input, never the row after or another Entity; refused for a field another key
+  writes or a kind it does not store. `Write.bind` carries it as data (`assignments`, `Computation`s:
+  operators by name), compiled by the writer and predicted by Remote with its table. Without `expect` it
+  lands only under a ledger and only by `op(field, amount)` whose commutativity and associativity are
+  tested for each implementation (`Conformance.laws`/`lawsBy`, `withEvidence`).
+  `Write.apply(row, bound, { operators })` is the row a write leaves (a null under an amount stays null),
+  which guards judge, writers explain misses by, and clients predict.
 - **An invariant's lifecycle is what it reads.** `after` only: a state invariant, judged on every create
   and update, and a `CHECK` constraint (`invariantChecks`). `before` too: a transition invariant, judged
   on updates only. `Entity.readsBefore(invariant)` tells which. One reading nothing of `after` is refused
@@ -362,10 +370,16 @@ declares equations every implementation keeps (`commutative`, `idempotent`,
 nothing. `Conformance.laws(op, table)` (`foldkit-entity/conformance`) samples
 each, seeded, and answers `Holds` with `Tested` evidence or a `Counterexample`;
 `Operators.withEvidence(table, evidence)` records it and `describeTable(table)`
-lists each operator's laws and evidence as JSON. `Conformance.operator(op, {
+lists each operator as `describe` does (its `name`, …), with its evidence. `Conformance.operator(op, {
 implementations })` runs generated calls through several runners
 (`Conformance.memory(table)`, an SQL one over `compileCall`) and reports where they
-disagree.
+disagree. `Operators.describe(op)` is an operator's signature as JSON (`OperatorDescription`,
+a Schema: name, version, each argument and the result as a JSON Schema of the stored side,
+null and collation rules, laws, `defined`; never a body); `Query.operators(body)` names the
+operators a body calls. A version is part of the name: a table holding `acme.slug` refuses
+a call to `acme.slug@2`, naming both, from the versions every `OperatorTable` lists
+(`versions(id)`, beside `has`) and `missingName(operator, table)`; a SQL table
+(`DrizzleOperators`) lists them too.
 
 **Asking about an input without branching on it.** An input is a placeholder, so
 a query cannot pick a shape from a value. It does not need to:

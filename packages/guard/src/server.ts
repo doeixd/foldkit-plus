@@ -6,7 +6,15 @@
  * brings the server along.
  */
 import { Effect, Match, Option, Schema, SchemaAST } from 'effect'
-import { Entity, Query, supported, type AnyEntity, type AnyQuery } from 'foldkit-entity'
+import {
+  Entity,
+  Query,
+  Write,
+  dependenciesOf,
+  supported,
+  type AnyEntity,
+  type AnyQuery,
+} from 'foldkit-entity'
 import type { MutationDescriptor, RemoteForbidden } from 'foldkit-remote'
 import {
   RemoteInvalid,
@@ -488,13 +496,15 @@ export const GuardServer = {
         ? RemoteServer.invalid('The row would be invalid')
         : error
     /**
-     * Fails a write whose `when` reads, or whose `expect` names, a member with
-     * a Read rule: Unmet or written, Conflict or not, would answer for it.
+     * Fails a write whose `when` reads, whose `expect` names, or whose
+     * computed assignment reads, a member with a Read rule: Unmet or written,
+     * Conflict or not, and the computed value answered, would answer for it.
      * `validate` refuses the same at startup; this holds where it was not run.
      */
     const discloses = (
       expect: Expect,
       when: Option.Option<WriteWhen>,
+      assignments: UpdateContext['assignments'] = {},
     ): Effect.Effect<void, RemoteServerError> =>
       Option.match(attachment, {
         onNone: () => Effect.void,
@@ -513,7 +523,10 @@ export const GuardServer = {
             onNone: () => [],
             onSome: ({ field }) => (readRuled(ruled, field) ? [field] : []),
           })
-          const hidden = [...new Set([...read, ...expected])]
+          const computed = Write.boundReads({ increments: {}, assignments }).filter(field =>
+            readRuled(ruled, field),
+          )
+          const hidden = [...new Set([...read, ...expected, ...computed])]
           return hidden.length === 0
             ? Effect.void
             : Effect.fail(
@@ -560,14 +573,14 @@ export const GuardServer = {
     }
     /** Refused before any rule, for what the write declares rather than what the row holds. */
     const admitUpdate = (context: UpdateContext): Effect.Effect<void, RemoteServerError> =>
-      Effect.andThen(discloses(context.expect, context.when), () =>
+      Effect.andThen(discloses(context.expect, context.when, context.assignments), () =>
         // The rules judge a sum over the row read: unpinned, that is not the row written.
-        Object.keys(context.increments).length > 0 &&
+        Object.keys(context.increments).length + Object.keys(context.assignments).length > 0 &&
         Option.isNone(context.expect) &&
         revision === undefined
           ? Effect.fail(
               new RemoteServerError({
-                message: `${entity.name}'s increment expects no revision and its writer pins none, so its rules would judge a sum over a row that may move; give the writer a revision`,
+                message: `${entity.name}'s write moves a field and expects no revision, and its writer pins none, so its rules would judge a value over a row that may move; give the writer a revision`,
               }),
             )
           : Effect.void,
@@ -576,23 +589,35 @@ export const GuardServer = {
     const updateRules = (context: UpdateContext) =>
       Effect.gen(function* () {
         const row = yield* policy.writable(entity, context.principal, 'Update')
-        // An incremented field is set as surely as a written one: its Update rule holds.
+        // A field moved or computed is set as surely as a written one: its Update rule holds.
         const members = yield* policy.writeMembers(
           entity,
           context.principal,
-          [...Object.keys(context.values), ...Object.keys(context.increments)],
+          [
+            ...Object.keys(context.values),
+            ...Object.keys(context.increments),
+            ...Object.keys(context.assignments),
+          ],
           'Update',
         )
         const relating = yield* linkRules(context.principal, context.links)
         return { row, members, relating } satisfies UpdateRules
       })
-    /** The row as its writer may see it, with every field the rules and the version read. */
+    /**
+     * The row as its writer may see it, with every field the rules and the
+     * version read, and those the write's amounts and assignments read to
+     * work out the row it leaves.
+     */
     const readBefore = (context: UpdateContext, rules: UpdateRules) =>
       read({
         id: context.id,
         fields: fieldsOf(
           [rules.row, ...rules.members, ...ruleOf(rules.relating)],
-          [...Object.keys(context.links), ...versionFields(context.expect)],
+          [
+            ...Object.keys(context.links),
+            ...versionFields(context.expect),
+            ...Write.boundReads(context),
+          ],
         ),
         principal: context.principal,
       })
@@ -603,7 +628,7 @@ export const GuardServer = {
       before: Readonly<Record<string, unknown>>,
     ) =>
       Effect.gen(function* () {
-        const { principal, values, increments, links } = context
+        const { principal, links } = context
         const linked = Object.keys(links)
         const stored =
           writer.linked === undefined || linked.length === 0
@@ -618,17 +643,10 @@ export const GuardServer = {
             }),
           ),
         )
-        // The sum the writer will store, over the row read, which the pin keeps as the row
-        // written. Only a rule reads it, and `fieldsOf` read every field a rule reads.
+        // What the writer will store, over the row read, which the pin keeps as the row
+        // written: `Write.apply`'s, as the writer works it out.
         const after = {
-          ...before,
-          ...values,
-          ...Object.fromEntries(
-            Object.entries(increments).map(([field, amount]) => [
-              field,
-              Number(before[field]) + amount,
-            ]),
-          ),
+          ...Write.apply(before, context, { operators: policy.operators }).row,
           ...Object.fromEntries(
             Object.entries(links).map(([relation, link]) => [relation, linkKey(link)]),
           ),
@@ -641,6 +659,10 @@ export const GuardServer = {
       // The precondition is the writer's to check, in the statement that writes.
       ...(writer.preconditions === true ? { preconditions: true } : {}),
       ...(writer.increments === true ? { increments: true } : {}),
+      ...(writer.assignments === true ? { assignments: true } : {}),
+      // With a revision every update lands over the row its rules read. Without one an
+      // unpinned move is refused, so what the writer would say commutes is not passed on.
+      ...(revision === undefined ? {} : { pins: true }),
       ...(writer.ledger === true ? { ledger: true } : {}),
       // Invariants are the writer's to judge, over the row its statement writes.
       ...(writer.invariants === true ? { invariants: true } : {}),
@@ -979,6 +1001,12 @@ export const GuardServer = {
               onNone: () => [],
               onSome: body => hiddenOf(attachment, Query.dependencies(body).predicate),
             })
+            const computed = write.assignments.flatMap(assignment =>
+              hiddenOf(attachment, dependenciesOf(assignment.expr).fields).map(
+                member =>
+                  `write ${mutation} computes ${name}'s ${assignment.field.key} from its ${member}, which has a Read rule`,
+              ),
+            )
             const expected = write.expect?.field.key
             const pin = typeof writer === 'object' && writer !== null ? pins.get(writer) : undefined
             return [
@@ -986,6 +1014,7 @@ export const GuardServer = {
                 member =>
                   `write ${mutation}'s precondition reads ${name}'s ${member}, which has a Read rule`,
               ),
+              ...computed,
               ...(expected !== undefined && readRuled(attachment, expected)
                 ? [`write ${mutation} expects ${name}'s ${expected}, which has a Read rule`]
                 : []),

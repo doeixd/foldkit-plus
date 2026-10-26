@@ -22,10 +22,10 @@
  * `null = null` is unknown in SQL and a row is not matched by it, where
  * JavaScript would happily call the two equal.
  */
-import { Match, Option, Schema } from 'effect'
+import { Match, Option, Schema, SchemaAST } from 'effect'
 import { absurd } from 'effect/Function'
 import { Collation } from './collation.js'
-import { Expr, Query, dependenciesOf, isPredicate } from './expr.js'
+import { Expr, Query, dependenciesOf, isPredicate, missingName, noOperators } from './expr.js'
 import type {
   AnyExpr,
   AnyQuery,
@@ -33,11 +33,12 @@ import type {
   Operandish,
   Operation,
   OperatorDescriptor,
+  OperatorTable,
   OrderTerm,
   Predicate,
   TestPredicate,
 } from './expr.js'
-import { Operators, type MemoryOperators } from './operators.js'
+import { Operators, type MemoryImplementation, type MemoryOperators } from './operators.js'
 
 /** A row as this interpreter reads one: values by field key. */
 export type Row = Readonly<Record<string, unknown>>
@@ -58,8 +59,9 @@ export class OperatorMissingError extends QueryEvaluateError {
   readonly operator: OperatorDescriptor
   /** The operator by its id, and its version past the first. */
   readonly named: string
-  constructor(operator: OperatorDescriptor) {
-    super(`this interpreter does not run the operator "${operatorName(operator)}"`)
+  /** `operators`, the table that lacks it, names the versions of it that it does hold. */
+  constructor(operator: OperatorDescriptor, operators: OperatorTable = noOperators) {
+    super(`this interpreter does not run the operator "${missingName(operator, operators)}"`)
     this.name = 'OperatorMissingError'
     this.operator = operator
     this.named = operatorName(operator)
@@ -112,27 +114,40 @@ const called = (call: CallExpr<unknown> | TestPredicate, scope: Scope): unknown 
       Option.match(expansion, {
         onSome: body => sideOf(body, scope),
         onNone: () => {
-          throw new OperatorMissingError(call.operator)
+          throw new OperatorMissingError(call.operator, scope.operators)
         },
       }),
   })
 }
 
-/**
- * A primitive operator run: strict about null and NUL before it is asked, a
- * throw it makes named as its own, and, in a checked table, its answer held to
- * its output schema.
- */
+/** A call of a primitive operator run, its arguments worked out over the scope. */
 const ran = (
   call: CallExpr<unknown> | TestPredicate,
-  run: (
-    args: ReadonlyArray<unknown>,
-    context: { readonly collation: Option.Option<Collation> },
-  ) => unknown,
+  run: MemoryImplementation['run'],
   scope: Scope,
+): unknown =>
+  runWith(
+    call.operator,
+    run,
+    call.args.map(arg => sideOf(arg, scope)),
+    call.collation,
+    call._tag === 'Test',
+    scope.operators.checked,
+  )
+
+/**
+ * A primitive operator run over values: strict about null and NUL before it
+ * is asked, a throw it makes named as its own, and, in a checked table, its
+ * answer held to its output schema (a predicate's null is its unknown).
+ */
+const runWith = (
+  operator: OperatorDescriptor,
+  run: MemoryImplementation['run'],
+  values: ReadonlyArray<unknown>,
+  collation: Option.Option<Collation>,
+  predicate: boolean,
+  checked: boolean,
 ): unknown => {
-  const { operator } = call
-  const values = call.args.map(arg => sideOf(arg, scope))
   // NUL before null: SQL refuses text holding it where it is compiled, whatever
   // else the call is given, so a null beside it must not answer first.
   if (values.some(holdsNul)) {
@@ -143,26 +158,49 @@ const ran = (
   if (operator.nulls === 'strict' && values.some(isNull)) return null
   let answer: unknown
   try {
-    answer = run(values, { collation: call.collation })
+    answer = run(values, { collation })
   } catch (error) {
     if (error instanceof QueryEvaluateError) throw error
     throw new QueryEvaluateError(
       `the operator "${operatorName(operator)}" failed: ${error instanceof Error ? error.message : String(error)}`,
     )
   }
-  // A predicate answers null for unknown, whatever its output schema says.
-  const unknownTruth = call._tag === 'Test' && answer === null
-  if (
-    scope.operators.checked &&
-    !unknownTruth &&
-    !Schema.is(Schema.toEncoded(operator.output))(answer)
-  ) {
+  const unknownTruth = predicate && answer === null
+  if (checked && !unknownTruth && !Schema.is(Schema.toEncoded(operator.output))(answer)) {
     throw new QueryEvaluateError(
       `the operator "${operatorName(operator)}" answered ${JSON.stringify(answer)}, which its output schema does not admit`,
     )
   }
   return answer
 }
+
+/**
+ * A primitive operator over stored values, as a call of it is run: what a
+ * computed assignment comes to (`Write.apply`). Refused, as a call is, when
+ * `operators` does not implement it.
+ */
+export const applyOperator = (
+  operator: OperatorDescriptor,
+  values: ReadonlyArray<unknown>,
+  options: {
+    readonly collation: Option.Option<Collation>
+    readonly operators: MemoryOperators
+  },
+): unknown =>
+  Option.match(options.operators.get(operator), {
+    onNone: () => {
+      throw new OperatorMissingError(operator, options.operators)
+    },
+    onSome: run =>
+      runWith(
+        operator,
+        run,
+        values,
+        options.collation,
+        SchemaAST.isBoolean(Schema.toEncoded(operator.output).ast),
+        options.operators.checked,
+      ),
+  })
 
 /** A predicate operator's answer as a truth: null is unknown, anything but a boolean refused. */
 const truthOf = (call: TestPredicate, answer: unknown): Truth => {

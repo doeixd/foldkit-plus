@@ -295,6 +295,11 @@ export interface BoundRemote<AppModel, Store extends RemoteModel, Names extends 
   readonly store: ModelRef<AppModel, Store>
   /** For `Module`: owns the store's Model path. */
   readonly contract: Contract
+  /**
+   * How the client runs primitive operators: `Remote.make`'s table, which a
+   * pending computed assignment is predicted by wherever the store is read.
+   */
+  readonly operators: MemoryOperators
   /** Phantom: the entity names this Remote definition registers. */
   readonly [boundRemoteNames]?: Names
 }
@@ -945,8 +950,8 @@ export interface ReadMeta {
   readonly loading: boolean
 }
 
-const metaOf = (remote: RemoteModel, asked: Asked): ReadMeta => {
-  const visible = visibleStoreOf(remote.entities, remote.optimistic)
+const metaOf = (remote: RemoteModel, asked: Asked, operators: MemoryOperators): ReadMeta => {
+  const visible = visibleStoreOf(remote.entities, remote.optimistic, operators)
   let updatedAt: number | undefined
   let stale = false
   let loading = false
@@ -1006,7 +1011,7 @@ const storeOf = <AppModel, Store extends RemoteModel, Names extends string>(
   model: AppModel,
 ): EntityStore => {
   const remote = bound.store.get(model)
-  return visibleStoreOf(remote.entities, remote.optimistic)
+  return visibleStoreOf(remote.entities, remote.optimistic, bound.operators)
 }
 
 /**
@@ -1036,17 +1041,30 @@ const confirmed = <AppModel, Store extends RemoteModel, P extends Projection<App
 // change, so reads and plans across renders of one Model share it. Keyed on
 // the layers rather than the whole optimistic state, which also changes with
 // every overlay (a live insert, a page pruning one) that no layer is part of.
-const visibleStores = new WeakMap<object, WeakMap<EntityStore, EntityStore>>()
+// By the client's table, then the layers, then the store: a prediction depends on all three.
+const visibleStores = new WeakMap<
+  MemoryOperators,
+  WeakMap<object, WeakMap<EntityStore, EntityStore>>
+>()
 
-const visibleStoreOf = (entities: EntityStore, optimistic: OptimisticState): EntityStore => {
-  let byStore = visibleStores.get(optimistic.layers)
+const visibleStoreOf = (
+  entities: EntityStore,
+  optimistic: OptimisticState,
+  operators: MemoryOperators,
+): EntityStore => {
+  let byLayers = visibleStores.get(operators)
+  if (byLayers === undefined) {
+    byLayers = new WeakMap()
+    visibleStores.set(operators, byLayers)
+  }
+  let byStore = byLayers.get(optimistic.layers)
   if (byStore === undefined) {
     byStore = new WeakMap()
-    visibleStores.set(optimistic.layers, byStore)
+    byLayers.set(optimistic.layers, byStore)
   }
   let visible = byStore.get(entities)
   if (visible === undefined) {
-    visible = visibleStore(entities, optimistic)
+    visible = visibleStore(entities, optimistic, operators)
     byStore.set(entities, visible)
   }
   return visible
@@ -1259,9 +1277,11 @@ const bindRemote = <
 >(
   definition: RemoteDescriptor<Entities, Queries, Mutations>,
   store: ModelRef<AppModel, Store>,
+  operators: MemoryOperators,
 ): BoundRemote<AppModel, Store, EntityName<Entities[number]>> => ({
   definition,
   store,
+  operators,
   contract: {
     kind: 'remote',
     name: store.dependency.join('.') || 'remote',
@@ -1421,7 +1441,12 @@ const missingRows = (
   return forward ? { first: lacking, after: to.cursor } : { last: lacking, before: to.cursor }
 }
 
-const planAsked = (remote: RemoteModel, asked: Asked, options: PlanOptions): Planned => {
+const planAsked = (
+  remote: RemoteModel,
+  asked: Asked,
+  options: PlanOptions,
+  operators: MemoryOperators,
+): Planned => {
   const queries: QueryRequirement[] = []
   const items: Requirement[] = []
   const connections = Requirement.mergeConnections(
@@ -1460,7 +1485,7 @@ const planAsked = (remote: RemoteModel, asked: Asked, options: PlanOptions): Pla
       ),
     )
   }
-  const visible = visibleStoreOf(remote.entities, remote.optimistic)
+  const visible = visibleStoreOf(remote.entities, remote.optimistic, operators)
   const read = [...asked.requirements, ...items]
   const planned = plan(visible, read, options)
   return {
@@ -1751,7 +1776,7 @@ const observeEntry = <AppModel, Store extends RemoteModel, Message>(
       let byAsked = planned.get(remote)
       const known = byAsked?.get(askedKey)
       if (known !== undefined && at < known.until) return known.dependencies
-      const plan = planAsked(remote, asked, RemotePolicy.toPlan(policy, at))
+      const plan = planAsked(remote, asked, RemotePolicy.toPlan(policy, at), bound.operators)
       const dependencies: ReadDependencies = {
         refresh: refreshedAt(
           remote.refresh,
@@ -2140,9 +2165,22 @@ export const Remote = {
   /**
    * Binds a Remote domain to its store's location in the application Model. The
    * registered entity names are carried on the returned value, so `Remote.select`
-   * rejects a selection for an entity this domain never declared.
+   * rejects a selection for an entity this domain never declared. `operators`
+   * is the client's table, which a pending computed assignment is predicted by
+   * (`Operators.kernel` when not given), as `Remote.make`'s is.
    */
-  at: bindRemote,
+  at: <
+    AppModel,
+    Store extends RemoteModel,
+    Entities extends readonly EntityLike[],
+    Queries extends readonly QueryDescriptor<any, any, any>[],
+    Mutations extends readonly MutationDescriptor<any, any, any>[],
+  >(
+    definition: RemoteDescriptor<Entities, Queries, Mutations>,
+    store: ModelRef<AppModel, Store>,
+    options: { readonly operators?: MemoryOperators | undefined } = {},
+  ): BoundRemote<AppModel, Store, EntityName<Entities[number]>> =>
+    bindRemote(definition, store, options.operators ?? Operators.kernel),
 
   /**
    * The resume part for this domain, for `foldkit-ssr`'s `SSR.plan({ parts })`:
@@ -2242,7 +2280,7 @@ export const Remote = {
     bound: BoundRemote<AppModel, Store>,
     model: AppModel,
     projection: Projection<AppModel, Value>,
-  ): ReadMeta => metaOf(bound.store.get(model), askedOf(projection)),
+  ): ReadMeta => metaOf(bound.store.get(model), askedOf(projection), bound.operators),
 
   /**
    * The pure plan for a projection against a Model: the requirements its
@@ -2255,7 +2293,8 @@ export const Remote = {
     projection: Projection<AppModel, Value>,
     options?: PlanOptions,
   ): ReadonlyArray<Requirement> =>
-    planAsked(bound.store.get(model), askedOf(projection), options ?? {}).requirements,
+    planAsked(bound.store.get(model), askedOf(projection), options ?? {}, bound.operators)
+      .requirements,
 
   /**
    * The queries a projection needs run before its connections read: those the
@@ -2267,9 +2306,12 @@ export const Remote = {
     projection: Projection<AppModel, Value>,
     options?: PlanOptions,
   ): ReadonlyArray<QueryRef<string, unknown>> =>
-    planAsked(bound.store.get(model), askedOf(projection), options ?? {}).queries.flatMap(query =>
-      query.ref === undefined ? [] : [query.ref],
-    ),
+    planAsked(
+      bound.store.get(model),
+      askedOf(projection),
+      options ?? {},
+      bound.operators,
+    ).queries.flatMap(query => (query.ref === undefined ? [] : [query.ref])),
 
   /**
    * The store reads see: the base store under the pending optimistic layers.
@@ -2363,7 +2405,7 @@ export const Remote = {
           )
     })
     const requirements = plan(
-      visibleStoreOf(remote.entities, remote.optimistic),
+      visibleStoreOf(remote.entities, remote.optimistic, bound.operators),
       [...asked.requirements, ...items],
       { force: true },
     )
@@ -2726,7 +2768,7 @@ const bindDomain = <
   } = {},
 ): RemoteDomain<AppModel, Store, Entities, Queries, Mutations> => {
   const operators = options.operators ?? Operators.kernel
-  const bound = bindRemote(definition, store)
+  const bound = bindRemote(definition, store, operators)
   // Every reader any `subscriptions` call names, and every connection one keeps:
   // retention is the domain's, so each call's retain entry roots them all, and
   // one call with its own policy does not collect what another call reads.
@@ -2867,10 +2909,10 @@ const bindDomain = <
         identity,
         pages,
         changesOf(
-          { entities: resolvedPatches(remote.entities, remote.optimistic) },
+          { entities: resolvedPatches(remote.entities, remote.optimistic, operators) },
           remote.entities,
         ),
-        visibleStoreOf(remote.entities, remote.optimistic),
+        visibleStoreOf(remote.entities, remote.optimistic, operators),
       ),
     )
   }
@@ -2904,7 +2946,7 @@ const bindDomain = <
     pages: Connection,
   ): { readonly pages: Connection; readonly overlays: ReadonlyArray<ConnectionOverlay> } => {
     const { overlays } = remote.optimistic
-    const store = visibleStoreOf(remote.entities, remote.optimistic)
+    const store = visibleStoreOf(remote.entities, remote.optimistic, operators)
     return memoRead([pages, overlays, store], `inserted:${identity}`, () => {
       const query = queryOf(identity)
       const body = Option.isSome(query) ? query.value.descriptor.body : undefined
@@ -3005,7 +3047,7 @@ const bindDomain = <
       keys.add(change.edge.key)
       named.set(change.connection, keys)
     }
-    const visible = visibleStoreOf(remote.entities, remote.optimistic)
+    const visible = visibleStoreOf(remote.entities, remote.optimistic, operators)
     const placed: Record<string, Connection> = {}
     const invalidated: Array<string> = []
     for (const identity of Object.keys(remote.connections)) {
@@ -3121,7 +3163,8 @@ const bindDomain = <
       // The pages first, so their items join the one entity read below. A
       // page with a payload already writes its items' selected fields, so
       // the read below is only for what the server left out.
-      for (const query of planAsked(store.get(current), askedOf(projection), planOptions).queries) {
+      for (const query of planAsked(store.get(current), askedOf(projection), planOptions, operators)
+        .queries) {
         const page = yield* queryRequestOf(query).pipe(
           Effect.flatMap(request => client.query(request)),
         )
@@ -3134,6 +3177,7 @@ const bindDomain = <
         store.get(current),
         askedOf(projection),
         planOptions,
+        operators,
       ).requirements
       if (requirements.length === 0) return current
       const at = now()
@@ -3159,7 +3203,12 @@ const bindDomain = <
         current: AppModel,
         projections: ReadonlyArray<Projection<AppModel, unknown>>,
       ) => {
-        const planned = planAsked(store.get(current), askedUnion(projections), planOptions)
+        const planned = planAsked(
+          store.get(current),
+          askedUnion(projections),
+          planOptions,
+          operators,
+        )
         return planned.queries.length > 0 || planned.requirements.length > 0
       }
       let current = model
@@ -3350,7 +3399,7 @@ const bindDomain = <
         remote: RemoteModel,
         connection: Connection,
       ): RemoteData<Page<Value>> | undefined => {
-        const visible = visibleStoreOf(remote.entities, remote.optimistic)
+        const visible = visibleStoreOf(remote.entities, remote.optimistic, operators)
         return memoRead<RemoteData<Page<Value>> | undefined>(
           [visible, connection, remote.optimistic.overlays],
           `${ref.identity}\u0000${relationKey}\u0000${String(sizeOf(remote))}`,
@@ -3572,7 +3621,7 @@ const bindDomain = <
       }
       const remote = store.get(model)
       const connection = remote.connections[over.ref.identity]
-      const visible = visibleStoreOf(remote.entities, remote.optimistic)
+      const visible = visibleStoreOf(remote.entities, remote.optimistic, operators)
       const edges =
         connection === undefined ? [] : shownEdges(remote, over.ref.identity, connection)
       const among = edges.map(edge => entityKey(edge.ref.entity, edge.ref.id))

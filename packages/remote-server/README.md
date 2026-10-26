@@ -488,10 +488,15 @@ writer that does not is refused where it is served, rather than written whatever
 the row holds. A write's increments reach the writer apart from its values
 (`increments`, each field's amount, encoded), to be added in the statement that
 writes; a writer says it adds them (`increments: true`), and a write with one
-over a writer that does not is refused where it is served. An increment that
-expects no revision is served only over a writer with a ledger (`ledger: true`),
-which records each update under its `operation` and answers a retry from the
-record (`recorded`), and only for a request carrying an operation id. A writer
+over a writer that does not is refused where it is served; so are computed
+assignments (`assignments`, each a `Computation`), over a writer that computes
+them (`assignments: true`). An increment or a computed assignment that expects
+no revision is served only over a writer with a ledger (`ledger: true`), which
+records each update under its `operation` and answers a retry from the record
+(`recorded`), and only for a request carrying an operation id. Even so, a
+concurrent pair must land as one result: an increment only of an integer, and a
+computed assignment only where the writer `commutes` it, unless the writer pins
+the row it read (`pins: true`, a guard with a revision). A writer
 may refuse a write for what only its store knows (`refuses`, asked once where
 the write is served): the Drizzle writer refuses an amount that may be a
 fraction for a column that holds integers. An update of no row fails; an insert of an id

@@ -17,20 +17,25 @@ export default [
   edit(
     'a write predicts no increment',
     '../src/mutation.ts',
-    ': { ...patch, adds: bound.increments }',
-    ': patch',
+    '...(Object.keys(bound.increments).length === 0 ? {} : { adds: bound.increments }),',
+    '',
   ),
-  edit('the amount is not added', '../src/optimistic.ts', 'current + amount', 'current'),
+  edit(
+    'the amount is not added',
+    '../src/optimistic.ts',
+    'increments: adds ?? {}',
+    'increments: {}',
+  ),
   edit(
     'an earlier layer is not added to',
     '../src/optimistic.ts',
-    'Object.hasOwn(earlier, field)',
-    'false',
+    'const row = { ...base[key]?.values, ...earlier }',
+    'const row = { ...base[key]?.values }',
   ),
   edit(
     'a list places the amount, not the sum',
     '../src/index.ts',
-    '{ entities: resolvedPatches(remote.entities, remote.optimistic) },',
+    '{ entities: resolvedPatches(remote.entities, remote.optimistic, operators) },',
     '{ entities: layers.flatMap(layer => layer.patches) },',
   ),
 ]

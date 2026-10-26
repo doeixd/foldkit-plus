@@ -30,7 +30,7 @@ const Fields = Entity.define(
   Schema.Struct({
     id: Schema.String,
     ownerId: Schema.String,
-    stock: Schema.Number,
+    stock: Schema.Int,
     revision: Schema.Number,
   }),
 )
@@ -121,24 +121,33 @@ describe('GuardServer.writer over a write that increments a field', () => {
     expect(stock('i2')).toEqual({ stock: 3 })
   })
 
-  it('passes on what its writer refuses: a fractional amount for an integer column', () => {
-    const Fractional = Mutation.write(
-      'Fractional',
+  it('passes on what its writer refuses: a precondition its binding cannot run', () => {
+    const above = Expr.operator('acme.above', {
+      input: [Schema.Int, Schema.Int],
+      output: Schema.Boolean,
+    })
+    const Guarded = Mutation.write(
+      'Guarded',
       Write.update(
         Entity.input(
           Item,
-          Schema.Struct({ id: Schema.String, revision: Schema.Number, by: Schema.Number }),
+          Schema.Struct({ id: Schema.String, revision: Schema.Number, by: Schema.Int }),
           { by: Entity.unmapped },
         ),
-        { id: 'id', expect: 'revision', increment: { stock: 'by' } },
+        {
+          id: 'id',
+          expect: 'revision',
+          increment: { stock: 'by' },
+          when: () => above(Item.fields.stock, 1),
+        },
       ),
     )
     expect(() =>
       RemoteServer.write(
-        Fractional,
+        Guarded,
         GuardServer.writer(Item, Policy, writer(Db.Item), { revision: 'revision' }),
       ),
-    ).toThrow('"by" may not be an integer, but the column for "stock" holds integers')
+    ).toThrow('its precondition needs acme.above, which this compiler does not run')
   })
 })
 

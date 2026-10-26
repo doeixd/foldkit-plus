@@ -31,6 +31,7 @@ import { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 import { Match, Option, Schema, SchemaAST } from 'effect'
 import { absurd } from 'effect/Function'
 import {
+  Computation,
   Expr,
   Query,
   QueryEvaluateError,
@@ -148,6 +149,65 @@ const argumentSql = (
     onSome: type => sql`cast(${value} as ${type})`,
   })
 }
+
+/**
+ * A computed assignment, as data, as the SQL that writes it: a field its
+ * column, a value a parameter (cast as a call's argument is, by the operator
+ * input it fills), a call by the binding's SQL operators under the collation
+ * it carries. What `writer` sets, in the statement that writes.
+ */
+export const computationSql = (
+  computation: Computation,
+  target: CompileTarget,
+  query: string,
+): SQL => computedSql(computation, Option.none(), target, query)
+
+const computedSql = (
+  computation: Computation,
+  schema: Option.Option<Schema.Top>,
+  target: CompileTarget,
+  query: string,
+): SQL =>
+  Computation.$match(computation, {
+    Field: ({ key }) => sql`${columnFor(target, key, query)}`,
+    Value: ({ value }) => {
+      if (holdsNul(value)) {
+        throw new QueryCompileError(
+          `${query} computes from text holding a NUL character, which SQL text cannot hold portably`,
+        )
+      }
+      return Option.match(
+        Option.flatMap(schema, each => castFor(each, dialectOf(target))),
+        {
+          onNone: () => sql`${value}`,
+          onSome: type => sql`cast(${value} as ${type})`,
+        },
+      )
+    },
+    Call: ({ operator, args, collation }) => {
+      const tables = operatorsOf(target)
+      const descriptor = Option.getOrThrowWith(
+        tables.sql.named(operator),
+        () =>
+          new QueryCompileError(
+            `${query} computes by the operator "${operator}", which this binding's SQL operators do not run`,
+          ),
+      )
+      const build = Option.getOrThrowWith(tables.sql.get(descriptor), () =>
+        unrun(descriptor, query),
+      )
+      const dialect = dialectOf(target)
+      const under = Option.fromNullOr(collation)
+      return build({
+        args: args.map((arg, position) =>
+          computedSql(arg, Option.fromUndefinedOr(descriptor.input[position]), target, query),
+        ),
+        dialect,
+        collation: under,
+        collate: collateFor(under, dialect),
+      })
+    },
+  })
 
 /** A call of a primitive operator, as its SQL implementation builds it. */
 const callSql = (
@@ -570,7 +630,7 @@ export const checkFields = (body: AnyQuery, target: CompileTarget, query: string
  * registered or built, so a server that starts can run what it serves.
  */
 export const requireOperators = (
-  nodes: ReadonlyArray<Predicate | Ordering>,
+  nodes: ReadonlyArray<AnyExpr | Predicate | Ordering>,
   target: CompileTarget,
   what: string,
   operations: ReadonlyArray<Operation> = supported,
@@ -581,7 +641,7 @@ export const requireOperators = (
 
 /** As `requireOperators`, each problem a sentence, for a check that gathers them. */
 export const operatorProblems = (
-  nodes: ReadonlyArray<Predicate | Ordering>,
+  nodes: ReadonlyArray<AnyExpr | Predicate | Ordering>,
   target: CompileTarget,
   what: string,
   operations: ReadonlyArray<Operation> = supported,

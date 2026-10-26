@@ -115,6 +115,18 @@ a startup check deciding what the write can disclose.
   once where the write is declared.
 - `keys` narrows increments as it narrows values: an increment of a key the
   author did not name is not applied.
+- An increment of a real number expects a revision (added 2026-10-26, by
+  expr-operations-DESIGN §9.3). Under a ledger two increments that expect none
+  land in either order, which is one result only where adding associates:
+  integers do, floating-point reals do not (`(x + a) + b` and `(x + b) + a` can
+  round apart). `RemoteServer.write` refuses one of a field not stored as an
+  integer without `expect`, unless its writer pins the row it read (`pins`, a
+  guarded writer with a `revision`), where concurrent writes cannot interleave.
+  This breaks a ledgered real-number increment that relied on the ledger alone.
+- `Write.apply` is the one computation of the row an increment leaves (added
+  2026-10-26, expr-operations-DESIGN §9.1): a null under an amount stays null,
+  as SQL's `null + 1` does. Guard summed it as `Number(null) + amount`, the
+  amount itself, and now judges the null the database writes.
 
 ## 6. Tests that must be able to fail
 

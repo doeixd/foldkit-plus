@@ -4,10 +4,10 @@
  * immutable and implements each operator once; nothing registers anything
  * globally. See `docs/design/expr-operations-DESIGN.md` §5.4.
  */
-import { Data, Option, type Schema } from 'effect'
+import { Data, Option, Schema } from 'effect'
 import { Collation } from './collation.js'
 import type { Operator, OperatorDescriptor, OperatorTable } from './expr.js'
-import { Law, type LawDescription } from './law.js'
+import { Law, LawDescription } from './law.js'
 import { Text } from './text.js'
 
 /** What an implementation is told besides its arguments. */
@@ -48,18 +48,68 @@ export const Evidence = Data.taggedEnum<Evidence>()
 /** A record of a law passing `Conformance.laws`' cases. */
 export type TestedEvidence = Extract<Evidence, { readonly _tag: 'Tested' }>
 
-/** One operator a table implements, as `Operators.describeTable` lists it. */
-export interface ImplementedOperator {
-  /** By id, and `@version` past the first. */
-  readonly operator: string
-  readonly laws: ReadonlyArray<LawDescription>
+/** A JSON Schema document's root: an object (`$defs` holds what it refers to). */
+const JsonSchema = Schema.Record(Schema.String, Schema.Unknown)
+
+/**
+ * An operator as JSON, by its signature and never its body (a defined
+ * operator says `defined`, not what it means): what a server can publish of
+ * what a body may call, and a client compare with what it runs. Its schemas
+ * are each argument's and the result's stored side, as JSON Schemas.
+ */
+export const OperatorDescription = Schema.Struct({
+  /** By id, and `@version` past the first: what tables, evidence and refusals name. */
+  name: Schema.String,
+  id: Schema.String,
+  version: Schema.Int.check(Schema.isGreaterThanOrEqualTo(1)),
+  description: Schema.NullOr(Schema.String),
+  input: Schema.Array(JsonSchema),
+  output: JsonSchema,
+  nulls: Schema.Literals(['strict', 'handled']),
+  collation: Schema.Literals(['none', 'operands', 'required']),
+  laws: Schema.Array(LawDescription),
+  defined: Schema.Boolean,
+})
+export type OperatorDescription = typeof OperatorDescription.Type
+
+/** One operator a table implements, as `Operators.describeTable` lists it: described, with its evidence. */
+export interface ImplementedOperator extends OperatorDescription {
   readonly evidence: ReadonlyArray<Evidence>
 }
+
+/**
+ * A schema as a JSON Schema, which describes its stored side (Effect's
+ * document is of what the schema encodes to), what it refers to under `$defs`.
+ */
+const jsonSchemaOf = (schema: Schema.Top): Readonly<Record<string, unknown>> => {
+  const document = Schema.toJsonSchemaDocument(schema)
+  return Object.keys(document.definitions).length === 0
+    ? document.schema
+    : { ...document.schema, $defs: document.definitions }
+}
+
+const described = (operator: OperatorDescriptor): OperatorDescription => ({
+  name: nameOf(operator),
+  id: operator.id,
+  version: operator.version,
+  description: Option.getOrNull(operator.description),
+  input: operator.input.map(jsonSchemaOf),
+  output: jsonSchemaOf(operator.output),
+  nulls: operator.nulls,
+  collation: operator.collation,
+  laws: operator.laws.map(Law.describe),
+  defined: Option.isSome(operator.definedAs),
+})
 
 /** The in-memory interpreter's implementations, by operator. */
 export interface MemoryOperators extends OperatorTable {
   readonly _tag: 'MemoryOperators'
   readonly get: (operator: OperatorDescriptor) => Option.Option<MemoryImplementation['run']>
+  /**
+   * The operator it implements under a name (`id`, or `id@version` past the
+   * first): how a computed assignment carried as data finds what to run.
+   */
+  readonly named: (name: string) => Option.Option<OperatorDescriptor>
   /** Whether each answer is checked against its operator's output schema: for tests. */
   readonly checked: boolean
   readonly implementations: ReadonlyArray<MemoryImplementation>
@@ -99,7 +149,12 @@ const table = (
   return Object.freeze({
     _tag: 'MemoryOperators',
     has: (operator: OperatorDescriptor) => byOperator.has(operator),
+    versions: (id: string) =>
+      implementations
+        .filter(({ operator }) => operator.id === id)
+        .map(({ operator }) => operator.version),
     get: (operator: OperatorDescriptor) => Option.fromUndefinedOr(byOperator.get(operator)),
+    named: (name: string) => Option.fromUndefinedOr(byName.get(name)),
     checked,
     implementations: Object.freeze([...implementations]),
     evidence: Object.freeze([...evidence]),
@@ -246,10 +301,18 @@ export const Operators = {
    */
   describeTable: (base: MemoryOperators): ReadonlyArray<ImplementedOperator> =>
     base.implementations.map(({ operator }) => ({
-      operator: nameOf(operator),
-      laws: operator.laws.map(Law.describe),
+      ...described(operator),
       evidence: base.evidence.filter(record => record.operator === nameOf(operator)),
     })),
+
+  /**
+   * An operator as JSON (`OperatorDescription`): its name, version and
+   * description, each argument's and its result's stored side as a JSON
+   * Schema, its null and collation rules, its laws, and whether it is
+   * defined. Its signature, never its body.
+   */
+  describe: (operator: { readonly descriptor: OperatorDescriptor }): OperatorDescription =>
+    described(operator.descriptor),
 
   /**
    * The table, checking every answer against its operator's output schema, so

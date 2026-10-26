@@ -136,8 +136,12 @@ const Todo = TodoFields.pipe(
   it (a handler, raw SQL) is not seen, unless the table carries
   `revisionTrigger(binding, 'revision')` (`foldkit-remote-drizzle`, run with its
   migration), which moves it on every other update; without `revision`, none is, and
-  `GuardServer.validate` warns. A `when` or `expect` over a member with a Read
-  rule is refused by the writer itself, and by `validate` at startup.
+  `GuardServer.validate` warns. With `revision` the guarded writer `pins`, so a
+  real-number increment or a computed assignment needs no `expect` of its own;
+  a computed field needs its member's Update rule, and its rules judge the row
+  `Write.apply` works out, which the writer writes. A `when`, an `expect` or a
+  computed assignment over a member with a Read rule is refused by the writer
+  itself, and by `validate` at startup.
 - `may`: `TodoFields.pipe(Guards.attach(G, { … }), Guards.may)` adds a derived
   member `GuardServer.filter` answers per row (over Drizzle, bind it
   `derived: { may: { supplied: true } }`); select `may: true` and read it with

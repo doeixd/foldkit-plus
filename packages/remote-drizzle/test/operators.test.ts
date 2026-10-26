@@ -188,6 +188,24 @@ describe('A primitive operator in SQL', () => {
     )
   })
 
+  it('is refused naming the version the binding holds, for a body calling another', () => {
+    const later = Expr.operator('acme.sum', {
+      input: [Schema.Int, Schema.Int],
+      output: Schema.Int,
+      version: 2,
+    })
+    const descriptor = {
+      ...Query.make('Later', { Input: {}, Result: Query.connection(Item) }),
+      body: Relational.from(Item).pipe(
+        Relational.where(Expr.eq(Item.fields.rank, later(1, 2))),
+        Relational.orderBy(Order.asc(Item.fields.id)),
+      ),
+    }
+    expect(() => query(descriptor, { entity: onSqlite })).toThrow(
+      'query "Later" needs acme.sum@2 (this table has acme.sum), which this compiler does not run',
+    )
+  })
+
   it('is refused at registration where only the memory table lacks it', () => {
     const sqlOnly = entity('Item', sqliteItems, {
       operators: { sql: operators.sql },

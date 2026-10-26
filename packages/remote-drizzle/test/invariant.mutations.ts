@@ -18,8 +18,8 @@ export default [
   edit(
     'the statement does not judge the row',
     drizzle,
-    'const where = and(at.where, ...(yield* holdingInvariants(values, increments)))',
-    'const where = at.where',
+    '...(yield* holdingInvariants(values, increments, assignments))',
+    '',
   ),
   edit(
     'the statement judges the row before the write',
@@ -43,8 +43,8 @@ export default [
   edit(
     'a miss judges the row without its amounts',
     drizzle,
-    "typeof held === 'number' ? held + amount : held",
-    'held',
+    'proposedOf(row, { values, increments, assignments })',
+    'proposedOf(row, { values, increments: {}, assignments })',
   ),
   edit(
     'a miss judges no transition',

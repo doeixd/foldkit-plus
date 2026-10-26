@@ -769,6 +769,15 @@ implementation:
    `contains` bug lived behind eight passing differential cases whose values
    were all lowercase.
 
+An application's own operator follows the same steps without changing the
+kernel (expr-operations-DESIGN): its descriptor states its null and collation
+rules and the laws it keeps, `Operators.implement` and
+`DrizzleOperators.implement` are its two implementations, and
+`foldkit-entity/conformance`'s `Conformance.operator` runs the differential
+cases (null, NUL, mixed case under each collation, astral text) and
+`Conformance.laws`/`lawsBy` its laws. `Operators.describe` is what a server
+publishes of it.
+
 ### 6.1 Prefer a functional core
 
 Canonical:
