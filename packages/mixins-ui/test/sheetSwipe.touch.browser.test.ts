@@ -49,6 +49,8 @@ test('a finger on the handle is the handle’s: one drag, not two', async () => 
   const { panel, grabber, releases, dispose } = await open({ points: [0.5, 1], opensAt: 1 })
   try {
     swipe(grabber, 40, { pointers: true })
+    // The release lands after the swipe returns; settling alone can finish before it starts.
+    await vi.waitFor(() => expect(releases()).toBeGreaterThan(0))
     await settled(panel)
     expect(releases()).toBe(1)
   } finally {
