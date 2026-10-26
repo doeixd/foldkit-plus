@@ -1159,6 +1159,10 @@ of its own named a form field "fits the Catalog". Read words with
 - **A check against a reference is only as good as the reference.** `print` accepts a styled
   text when it parses like the canonical text, and the canonical text merged two adjacent lists
   into one, so the check trusted a wrong answer. Read the reference itself back too.
+- **`toEqual` cannot tell two `File`s apart.** It reads own properties, and a
+  File's `name`, `size` and `type` are prototype getters, so a test that the
+  first of two dropped files was sent passed when the last was. Compare a File
+  by identity (`toBe`).
 - **A constant `mint` makes a refusal test pass for any reason.** A test that an
   `InsertText` with bad link props is refused used `mint: () => 'x'`; the insert
   split a run twice, `apply` refused the duplicate id, and the case stayed green
