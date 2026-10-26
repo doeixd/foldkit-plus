@@ -120,6 +120,10 @@ pnpm demo     # the loop, printed, on a real workerd
 pnpm test     # the same loop, asserted
 ```
 
+From the repository root, `npx vitest run --config vitest.e2e.config.ts
+examples/cloudflare` starts the worker on miniflare and the page on Vite, and
+drives the page in Chromium (`e2e/page.e2e.ts`).
+
 `src/schema.ts` holds the table, the Drizzle binding, the Sync contract, the
 journal, `settle`, the polling source, and the Remote mutation handlers.
 `src/domain.ts` is the Entity, `src/operations.ts` the query and the
@@ -130,7 +134,10 @@ routes. `src/client.ts` drives the wire for the test and the demo;
 
 ## The page
 
-`index.html` loads `src/browser.ts`. One Foldkit application:
+`index.html` loads `src/browser.ts`. One Foldkit application, drawn with the
+demos' theme (`src/style.ts`): an `AppShell` frame, the rows and the rename
+editor in `foldkit-mixins-crud/recipes`' looks, and the forms in
+`foldkit-mixins-form/recipes`':
 
 - `Todo` is `Entity.define`. `done` is the integer `0 | 1` the column stores.
 - `AddTodoForm` and `RenameTodoForm` are `Form.make` over `Entity.input`.

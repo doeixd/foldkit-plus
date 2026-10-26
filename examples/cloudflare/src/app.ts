@@ -13,7 +13,7 @@ import * as Command from 'foldkit/command'
 import * as Dom from 'foldkit/dom'
 import { Crud } from 'foldkit-crud'
 import { Style } from 'foldkit-mixins'
-import { FieldSlots, FormSlots, FormView, type FieldInput } from 'foldkit-mixins-form'
+import { FormView } from 'foldkit-mixins-form'
 import { ConnectionChange, Remote, type RemoteClient } from 'foldkit-remote'
 import { modifyFields } from 'foldkit/struct'
 import { Surface, type Projection } from 'foldkit-surface'
@@ -28,15 +28,10 @@ import {
   TODO_PAGE_SIZE,
   ToggleTodo,
 } from './operations.js'
+import { FieldStyle, FormStyle } from './style.js'
 
-const field = Style.attach(
-  Style.forSlots(FieldSlots)({
-    root: Style.class('field'),
-    text: Style.whenInput<FieldInput>(input => input.invalid, Style.class('is-invalid')),
-    error: Style.class('field-error'),
-  }),
-)
-const form = Style.attach(Style.forSlots(FormSlots)({ root: Style.class('form') }))
+const field = Style.attach(FieldStyle)
+const form = Style.attach(FormStyle)
 
 const AddView = FormView.define(AddTodoForm, {
   field: FormView.field(AddTodoForm).pipe(field),

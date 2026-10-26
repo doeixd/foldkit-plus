@@ -220,6 +220,9 @@ importers:
       foldkit-entity:
         specifier: workspace:*
         version: link:../../packages/entity
+      foldkit-example-site:
+        specifier: workspace:*
+        version: link:../site
       foldkit-form:
         specifier: workspace:*
         version: link:../../packages/form
@@ -235,6 +238,9 @@ importers:
       foldkit-mixins-form:
         specifier: workspace:*
         version: link:../../packages/mixins-form
+      foldkit-mixins-ui:
+        specifier: workspace:*
+        version: link:../../packages/mixins-ui
       foldkit-primitives:
         specifier: workspace:*
         version: link:../../packages/primitives

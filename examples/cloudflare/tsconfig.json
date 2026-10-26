@@ -12,6 +12,9 @@
       "foldkit-durable/core": ["../../packages/durable/src/core.ts"],
       "foldkit-entity": ["../../packages/entity/src/index.ts"],
       "foldkit-entity/conformance": ["../../packages/entity/src/conformance/index.ts"],
+      "foldkit-example-site/demo-style": ["../site/src/demoStyle.ts"],
+      "foldkit-example-site/demos": ["../site/src/demos.ts"],
+      "foldkit-example-site/guide": ["../site/src/guide.ts"],
       "foldkit-form": ["../../packages/form/src/index.ts"],
       "foldkit-media": ["../../packages/media/src/index.ts"],
       "foldkit-media/browser": ["../../packages/media/src/browser/index.ts"],
@@ -28,6 +31,7 @@
       "foldkit-mixins-form": ["../../packages/mixins-form/src/index.ts"],
       "foldkit-mixins-form/recipes": ["../../packages/mixins-form/src/recipes.ts"],
       "foldkit-mixins-form/ui": ["../../packages/mixins-form/src/ui.ts"],
+      "foldkit-mixins-ui": ["../../packages/mixins-ui/src/index.ts"],
       "foldkit-mixins/app": ["../../packages/mixins/src/app.ts"],
       "foldkit-mixins/defaults": ["../../packages/mixins/src/defaults.ts"],
       "foldkit-mixins/foundations": ["../../packages/mixins/src/foundations.ts"],
@@ -108,6 +112,12 @@
     },
     {
       "path": "../../packages/primitives/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/mixins-ui/tsconfig.build.json"
+    },
+    {
+      "path": "../site/tsconfig.json"
     }
   ]
 }
