@@ -39,8 +39,8 @@ interface Common<Own extends ThemeTokens> {
 }
 
 export interface AppStyleOptions<Own extends ThemeTokens> extends Common<Own> {
-  /** The application's one theme: `Theme.make({ … })`. */
-  readonly theme: KnobTheme<Standard>
+  /** The application's one theme: `Theme.make({ … })`. Default the shipped one, `Theme.make({})`. */
+  readonly theme?: KnobTheme<Standard>
 }
 
 /**
@@ -79,7 +79,8 @@ const app = standard.layer('app')
 
 /**
  * The application's tokens, layer and page stylesheet:
- * `const { t, slots, stylesheet } = AppStyle.make({ theme: Theme.make({ … }) })`.
+ * `const { t, slots, stylesheet } = AppStyle.make({ theme: Theme.make({ … }) })`,
+ * or `AppStyle.make({})` on the shipped theme.
  * Slot styles are no longer in the stylesheet: a Slot injects its classes' CSS
  * when it first draws them.
  */

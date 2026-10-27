@@ -216,59 +216,61 @@ follows another knob until a theme sets it.
 
 | Knob | Kind | Default | Range | Variables |
 | --- | --- | --- | --- | --- |
-| `accent.hue` | angle | 264 | 0 to 360 | `accent-h` |
-| `accent.chroma` | schemed number | 0.17, dark `min(0.4, c + 0.03)` | 0 to 0.4 | `accent-c`, `accent-c-dark` |
-| `accent.lightness` | schemed percent | 52, dark 70 | 15 to 90 | `accent-l`, `accent-l-dark` |
+| `accent.hue` | angle | 235 | 0 to 360 | `accent-h` |
+| `accent.chroma` | schemed number | 0.225, dark `min(0.4, c + 0.03)` | 0 to 0.4 | `accent-c`, `accent-c-dark` |
+| `accent.lightness` | schemed percent | 55, dark 70 | 15 to 90 | `accent-l`, `accent-l-dark` |
 | `accent.secondaryShift` | angle | 60 | | `secondary-shift` |
 | `accent.tertiaryShift` | angle | -90 | | `tertiary-shift` |
 | `surface.hue` | angle | follows `accent.hue` | 0 to 360 | `neutral-h` |
-| `surface.saturation` | schemed number | 0.015, dark 4/3 of it | 0 to 0.04 | `surface-c`, `surface-c-dark` |
-| `surface.lightness` | schemed percent | 97.5, dark 22 | 75 to 100, dark 6 to 36 | `base-l`, `base-l-dark` |
-| `surface.contrast` | percent | 26 | 0 to 100 | `surface-contrast` |
+| `surface.saturation` | schemed number | 0, dark 4/3 of it | 0 to 0.04 | `surface-c`, `surface-c-dark` |
+| `surface.lightness` | schemed percent | 100, dark 24.5 | 75 to 100, dark 6 to 36 | `base-l`, `base-l-dark` |
+| `surface.contrast` | percent | 80 | 0 to 100 | `surface-contrast` |
 | `surface.textContrast` | number | 1 | | `contrast-factor` |
 | `surface.hover` | choice | `surface` | `surface`, `neutral`, `accent` | `surface-ink`, `state-ink` |
 | `surface.hoverStrength` | percent | 12 | 4 to 24 | `state-hover`; a press lays 1.75 of it |
 | `state.disabledOpacity` | number | 0.5 | 0.3 to 0.7 | `state-disabled` |
-| `shape.radius` | number | 1 | 0 to 2.5 | `radius-factor` |
-| `shape.density` | number | 1 | 0.75 to 1.3 | `density` |
+| `shape.radius` | number | 0.45 | 0 to 2.5 | `radius-factor` |
+| `shape.density` | number | 1.1 | 0.75 to 1.3 | `density` |
 | `shape.size` | choice | `default` | `default`, `compact` | `step` |
 | `shape.controls` | choice | `rounded` | `rounded`, `pill` | `control-round` |
 | `shape.border` | length px | 1 | 1 to 3 | `border-width`; `border.thick` and `heavy` step up from it |
 | `shape.outlines` | choice | `soft` | `soft`, `strong`, `ink` | the outline inks |
 | `type.body` | font | `system-ui, sans-serif` | | `font-body` |
 | `type.heading` | font | follows `type.body` | | `font-heading` |
-| `type.scale` | number | 1 | 0.8 to 1.3 | `text-scale` |
-| `type.headingScale` | number | 1 | 0.4 to 1.8 | `heading-scale` |
-| `type.leading` | number | 1 | 0.85 to 1.3 | `leading` |
-| `type.headingWeight` | number | 600 | 300 to 900, by 100 | `heading-weight` |
-| `type.headingTracking` | length em | -0.01 | -0.05 to 0.05 | `heading-tracking` |
-| `type.fluid` | number | 0 | 0 to 1 | `fluid`; 0 keeps one size, 1 uses the whole range |
+| `type.scale` | number | 1.025 | 0.8 to 1.3 | `text-scale` |
+| `type.headingScale` | number | 1.2 | 0.4 to 1.8 | `heading-scale` |
+| `type.leading` | number | 1.05 | 0.85 to 1.3 | `leading` |
+| `type.headingWeight` | number | 700 | 300 to 900, by 100 | `heading-weight` |
+| `type.headingTracking` | length em | -0.025 | -0.05 to 0.05 | `heading-tracking` |
+| `type.fluid` | number | 1 | 0 to 1 | `fluid`; 0 keeps one size, 1 uses the whole range |
 | `type.viewportMin` | length px | 320 | 240 to 800 | `fluid-viewport-min` |
 | `type.viewportMax` | length px | 1440 | 900 to 2560 | `fluid-viewport-max` |
-| `reading.measure` | length ch | 65 | 30 to 100 | `measure`; the line length `Prose` and reading text keep |
+| `reading.measure` | length ch | 68 | 30 to 100 | `measure`; the line length `Prose` and reading text keep |
 | `reading.headingWrap` | choice | `balance` | `balance`, `pretty`, `wrap` | `heading-wrap` |
 | `reading.bodyWrap` | choice | `pretty` | `pretty`, `wrap`, `balance` | `body-wrap` |
 | `reading.align` | choice | `start` | `start`, `center`, `end`, `justify` | `reading-align` |
 | `icon.size` | number | 1 | 0.75 to 1.5 | `icon-scale`; the `icon` rung of `ladder` multiplies by it |
 | `icon.stroke` | length px | 2 | 1 to 3 | `glyph-width`; `border.glyph`, what recipes draw in CSS, not a pack's masks. `Icons.tokens(pack, { width })` restrokes a pack's own drawings |
-| `motion.scale` | number | 1 | 0 to 2 | `motion` |
-| `motion.easing` | choice | `ease` (`ease-out`) | `ease`, `spring` | `ease` |
-| `shadow.strength` | percent | 100 | 0 to 100 | `shadow-strength` |
+| `motion.scale` | number | 0.5 | 0 to 2 | `motion` |
+| `motion.easing` | choice | `spring` | `ease`, `spring` | `ease` |
+| `shadow.strength` | percent | 0 | 0 to 100 | `shadow-strength` |
 | `shadow.style` | choice | `soft` | `soft`, `hard` | the elevation shadows |
 | `shadow.relief` | choice | `flat` | `flat`, `soft`, `hard`, `bevel` | the control shadows |
 | `shadow.hue` | angle | follows `surface.hue` | | `shadow-h` |
 | `shadow.chroma` | number | follows `surface.saturation` × 2 | | `shadow-c` |
 | `menu.highlight` | choice | `subtle` | `subtle`, `bold` | `popup-bold` |
-| `menu.panel` | choice | `default` | `default`, `inverted`, `translucent`, `inverted-translucent` | `popup-invert`, `popup-alpha`, `popup-blur` |
+| `menu.panel` | choice | `inverted` | `default`, `inverted`, `translucent`, `inverted-translucent` | `popup-invert`, `popup-alpha`, `popup-blur` |
 | `feedback.success` ... `info` | angle | 145, 75, 25, 245 | | `success-h` ... |
 | `code.chroma` | number | 0.14 | 0 to 0.4 | `syntax-c` |
 | `chart.hue` | angle | 255 | | `chart-h` |
-| `scales.chroma` | number | 1 | 0 to 1.5 | `scale-c` |
+| `scales.chroma` | number | 1.1 | 0 to 1.5 | `scale-c` |
 | `scales.red` ... `purple` | angle | 25, 55, 90, 145, 185, 255, 300 | | `red-h` ... |
 
-Variables written without a prefix above are `--fk-knob-...`. The defaults of
-`accent` and `type.headingWeight` / `headingTracking` are Iris's and the
-shipped heading's; the rest are today's.
+Variables written without a prefix above are `--fk-knob-...`. The defaults are
+the theme #255 made the shipped one
+([design](./design/255-default-theme-DESIGN.md)): a vivid blue on pure greys,
+tight corners, roomy spacing, bold fluid headings, no resting shadows,
+inverted menus and a spring.
 
 ### Fluid type
 
@@ -276,7 +278,7 @@ Every `size.*` token is its fixed value times `1 + growth * progress`, where
 `progress` is the viewport's place between `type.viewportMin` and
 `type.viewportMax`, multiplied by `type.fluid`. The growth rises with the step's
 distance from the body, so headings move more than body text. At
-`type.fluid: 0` every size is today's value.
+`type.fluid: 0` every size is its fixed value.
 
 `--fk-fluid-ratio` is the viewport's place alone, 0 to 1, and
 `--fk-fluid-progress` is that place at the theme's strength. Both are tokens, so

@@ -47,14 +47,12 @@ test('a hard shadow style drops a solid copy, a soft one blurs', () => {
   expect(soft).not.toMatch(/ 0px 0px$/)
 })
 
-test('the spring easing is the spring’s curve', () => {
-  const spring = drawn(
-    { motion: { easing: 'spring' } },
-    'transition-timing-function',
-    'var(--fk-motion-ease)',
-  )
+test('the spring easing is the spring’s curve, and the default', () => {
+  const spring = drawn({}, 'transition-timing-function', 'var(--fk-motion-ease)')
   expect(spring).toMatch(/^linear\(/)
-  expect(drawn({}, 'transition-timing-function', 'var(--fk-motion-ease)')).toBe('ease-out')
+  expect(
+    drawn({ motion: { easing: 'ease' } }, 'transition-timing-function', 'var(--fk-motion-ease)'),
+  ).toBe('ease-out')
 })
 
 test('ink outlines are the text’s own ink at their strength, not the palette’s line', () => {

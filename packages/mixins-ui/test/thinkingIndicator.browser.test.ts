@@ -21,8 +21,10 @@ import {
   type ThinkingIndicatorView,
 } from '../src/thinkingIndicator.js'
 import { ThinkingIndicator } from '../src/recipes/thinkingIndicator.js'
+import { unitKnobs } from './fixture.js'
 
-const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
+// At unit knobs: what is measured here is the scale's nominal size or time.
+const theme = Theme.standard(Theme.make({ ...unitKnobs, accent: { hue: 265, chroma: 0.16 } }))
 const L = Layers.standard
 const Model = Schema.Struct({})
 const styleOf = (selection: Parameters<typeof ThinkingIndicator>[0]) =>

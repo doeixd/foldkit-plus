@@ -14,8 +14,13 @@ import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { DialogSlots, MenuSlots, Recipes } from '../src/index.js'
+import { unitKnobs } from './fixture.js'
 
-const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
+// The page's own panel, not the default's inverted one, which takes the
+// other scheme's surface wherever it is raised to.
+const theme = Theme.standard(
+  Theme.make({ ...unitKnobs, accent: { hue: 265, chroma: 0.16 }, menu: { panel: 'default' } }),
+)
 const menu = Style.forSlots(MenuSlots)(Recipes.Menu({}))
 const dialog = Style.forSlots(DialogSlots)(Recipes.Dialog({}))
 const Model = Schema.Struct({})

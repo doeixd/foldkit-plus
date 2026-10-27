@@ -41,24 +41,21 @@ const text = (rem: number, step: number) => {
 const leading = (ratio: number) => `calc(${ratio} * var(--fk-knob-leading, 1))`
 export const tokens = define({
   knob: {
-    density: '1',
-    'radius-factor': '1',
-    motion: '1',
+    // What the tokens below read, at each knob's default: the size ladder's
+    // `step` (0 default, 1 compact), the reading type's multipliers
+    // (`text-scale`, `heading-scale`, `leading`), and `control-round`, which
+    // at 1 rounds a pressable control to a pill whatever the radius factor.
+    ...standard.shape.density.unset,
+    ...standard.shape.radius.unset,
+    ...standard.motion.scale.unset,
+    // The reset zeroes it under reduced motion; no theme sets it.
     travel: '1',
-    // The size ladder's step: 0 default, 1 compact; `ladder` reads it.
-    step: '0',
-    'shadow-strength': '100%',
-    // The reading type: every size of the scale (`text-scale`), how far the
-    // headings stand above the body (`heading-scale`), and the line height
-    // (`leading`), each a multiplier.
-    'text-scale': '1',
-    'heading-scale': '1',
-    leading: '1',
-    // 1 rounds a pressable control (a button, a segmented tray) to a pill,
-    // whatever the radius factor; 0 keeps its corner (`radius-md`, or
-    // concentric inside a card: `concentric`).
-    'control-round': '0',
-    // What the tokens below read, at each knob's default.
+    ...standard.shape.size.unset,
+    ...standard.shape.controls.unset,
+    ...standard.shadow.strength.unset,
+    ...standard.type.scale.unset,
+    ...standard.type.headingScale.unset,
+    ...standard.type.leading.unset,
     ...standard.shape.border.unset,
     ...standard.type.body.unset,
     ...standard.type.heading.unset,
@@ -233,9 +230,9 @@ export const tokens = define({
     page: '72rem',
   },
   // The icons the components draw themselves, each a CSS mask `url()` an
-  // element paints in its text's color: Lucide's by default, written by
-  // `pnpm icons`. An application's own pack replaces them as its own tokens
-  // (`Icons.tokens` in `foldkit-mixins-ui`).
+  // element paints in its text's color: Heroicons' outline set at a 2px
+  // stroke by default, written by `pnpm icons`. An application's own pack
+  // replaces them as its own tokens (`Icons.tokens` in `foldkit-mixins-ui`).
   icon: masks,
   // `glyph` strokes what a recipe draws in CSS as an icon (a check, a
   // chevron): apart from the borders, so thicker borders do not blot them.

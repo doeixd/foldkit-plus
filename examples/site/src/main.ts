@@ -55,6 +55,7 @@ import {
   knobAt,
   presets,
   sameTheme,
+  shippedPack,
   shuffled,
   valueAt,
   withValue,
@@ -670,7 +671,7 @@ export const initial: Model = placements.initial({
   canvasTabs: initialCanvasTabs,
   drawer: Drawer.init({ id: 'theme-panes' }),
   scheme: 'system',
-  pack: 'lucide',
+  pack: shippedPack,
   pageScheme: 'system',
 }).model
 

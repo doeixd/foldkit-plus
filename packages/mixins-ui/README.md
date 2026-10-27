@@ -984,8 +984,9 @@ const TileStyle = Style.forSlots(TileSlots)(
 ```
 
 The icons the components draw themselves (a search field's magnifier, a
-toast's mark, a locked cell's padlock) are the theme's `icon` tokens, Lucide's
-by default. An application's own pack replaces them as its own tokens:
+toast's mark, a locked cell's padlock) are the theme's `icon` tokens:
+Heroicons' outline set (MIT), restroked to 2px, by default. An application's
+own pack replaces them as its own tokens:
 `AppStyle.make({ theme, tokens: Icons.tokens(pack, { width?, corners? }) })`,
 where `pack` holds an `IconData` for each name the components draw
 (`ChromeIcon` from `foldkit-mixins/theme`; one missing is a type error), and

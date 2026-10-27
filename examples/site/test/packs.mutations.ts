@@ -12,7 +12,7 @@ export default [
     edits: [
       {
         file: theme,
-        find: "if (pack === 'lucide' && stroke === knobAt('icon.stroke').default) return {}",
+        find: "if (pack === shippedPack && stroke === knobAt('icon.stroke').default) return {}",
         replace: "if (pack !== '') return {}",
       },
     ],
@@ -23,8 +23,8 @@ export default [
     edits: [
       {
         file: theme,
-        find: "if (pack === 'lucide' && stroke === knobAt('icon.stroke').default)\n    return { imports: [], tokens: '' }",
-        replace: "return { imports: [], tokens: '' }",
+        find: "if (pack === shippedPack && stroke === knobAt('icon.stroke').default)\n    return { imports: [], tokens: [] }",
+        replace: 'return { imports: [], tokens: [] }',
       },
     ],
     tests,

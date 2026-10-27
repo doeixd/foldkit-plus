@@ -16,8 +16,13 @@ import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { Badge, BadgeSlots, Card, CardGroupSlots, CardSlots, Recipes } from '../src/index.js'
+import { unitKnobs } from './fixture.js'
 
-const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
+// At unit knobs, and on an off-white light page: the default's is pure
+// white, where nothing can stand toward white.
+const theme = Theme.standard(
+  Theme.make({ ...unitKnobs, accent: { hue: 265, chroma: 0.16 }, surface: { lightness: 97.5 } }),
+)
 const L = Layers.standard
 const Model = Schema.Struct({})
 const Message = defineMessageUnion({ Dismissed: {} })

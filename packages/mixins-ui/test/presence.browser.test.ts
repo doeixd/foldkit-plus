@@ -12,8 +12,10 @@ import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { DialogSlots, MenuSlots, Recipes, TooltipSlots } from '../src/index.js'
+import { unitKnobs } from './fixture.js'
 
-const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
+// At unit knobs: what is measured here is the scale's nominal size or time.
+const theme = Theme.standard(Theme.make({ ...unitKnobs, accent: { hue: 265, chroma: 0.16 } }))
 const menu = Style.forSlots(MenuSlots)(Recipes.Menu({}))
 const dialog = Style.forSlots(DialogSlots)(Recipes.Dialog({}))
 const tooltip = Style.forSlots(TooltipSlots)(Recipes.Tooltip({}))

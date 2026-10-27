@@ -7,8 +7,13 @@ import { afterEach, describe, expect, test } from 'vitest'
 import { Layers, Style } from '../src/index.js'
 import { Theme, type Standard, type Values } from '../src/theme.js'
 
+// A tinted page at the contrast the steps' chroma was tuned at: the default's
+// page is untinted, so its steps have no tint to keep.
 const theme = Theme.standard(
-  Theme.make({ accent: { hue: 265, chroma: 0.16 }, surface: { saturation: 0.008 } }),
+  Theme.make({
+    accent: { hue: 265, chroma: 0.16 },
+    surface: { saturation: 0.008, contrast: 26 },
+  }),
 )
 const L = Layers.standard
 
@@ -267,8 +272,8 @@ describe('a menu panel', () => {
     Math.abs(chromaOf(a) - chromaOf(b)) < 0.005 &&
     (chromaOf(b) < 0.02 || distance(hueOf(a), hueOf(b)) < 2)
 
-  test('is the page’s surface and text, its lit row a faint tint, by default', () => {
-    install({})
+  test('is the page’s surface and text, its lit row a faint tint, when default', () => {
+    install({ panel: 'default' })
     expect(same(computed('popup-surface'), computed('surface-base'))).toBe(true)
     expect(same(computed('popup-ink'), computed('text-default'))).toBe(true)
     expect(alphaOf(computed('popup-highlight'))).toBeLessThan(0.2)
@@ -280,8 +285,8 @@ describe('a menu panel', () => {
     expect(same(computed('popup-highlight-ink'), computed('accent-on-fill'))).toBe(true)
   })
 
-  test('takes the other scheme’s surface and text when inverted', () => {
-    install({ panel: 'inverted' })
+  test('takes the other scheme’s surface and text when inverted, as by default', () => {
+    install({})
     expect(lightnessOf(computed('popup-surface'))).toBeLessThan(0.4)
     expect(lightnessOf(computed('popup-ink'))).toBeGreaterThan(0.8)
   })
@@ -383,7 +388,9 @@ test('the type knobs scale the text, spread the headings and open the lines', ()
   /** A token as the browser computes it, in pixels, under `knobs` set on the root. */
   const measured = (token: string, knobs: Readonly<Record<string, string>>) => {
     const root = document.documentElement.style
-    for (const [name, value] of Object.entries(knobs)) root.setProperty(`--fk-knob-${name}`, value)
+    // Measured from a scale of 1 and no fluid growth, not the default's.
+    const set = { 'text-scale': '1', 'heading-scale': '1', leading: '1', fluid: '0', ...knobs }
+    for (const [name, value] of Object.entries(set)) root.setProperty(`--fk-knob-${name}`, value)
     const box = document.createElement('div')
     box.style.fontSize = 'var(--fk-size-4xl)'
     box.style.lineHeight = token === 'leading' ? 'var(--fk-leading-normal)' : 'normal'
@@ -398,7 +405,7 @@ test('the type knobs scale the text, spread the headings and open the lines', ()
           : computed.fontSize,
     )
     box.remove()
-    for (const name of Object.keys(knobs)) root.removeProperty(`--fk-knob-${name}`)
+    for (const name of Object.keys(set)) root.removeProperty(`--fk-knob-${name}`)
     return value
   }
   // The shipped sizes, unchanged.
@@ -455,7 +462,9 @@ test('fluid type is the viewport’s place between two ranges, and the strength 
     L.in(
       'theme',
       Theme.root(
-        Theme.standard(Theme.make({ type: { fluid: 1, viewportMin: 320, viewportMax: 1440 } })),
+        Theme.standard(
+          Theme.make({ type: { scale: 1, fluid: 1, viewportMin: 320, viewportMax: 1440 } }),
+        ),
         { colorScheme: 'light' },
       ),
     ),

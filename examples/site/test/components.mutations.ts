@@ -104,7 +104,7 @@ export default [
     edits: [
       {
         file: '../src/gallery/theme.ts',
-        find: '`const theme = ${Theme.print(Theme.make(values))}`',
+        find: '`const theme = ${source}`',
         replace: '`const theme = ${Theme.print(Theme.make({}))}`',
       },
     ],
@@ -170,8 +170,8 @@ export default [
     edits: [
       {
         file: '../src/gallery/theme.ts',
-        find: '{ base: iris, ...knobsPlace }',
-        replace: '{ base: Theme.make({}), ...knobsPlace }',
+        find: '{ base: shipped, ...knobsPlace }',
+        replace: '{ base: Theme.make({ shape: { radius: 1 } }), ...knobsPlace }',
       },
     ],
     tests: ['examples/site/test/knobs.browser.test.ts'],

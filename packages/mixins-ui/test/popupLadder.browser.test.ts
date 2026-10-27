@@ -13,8 +13,10 @@ import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { Listbox, ListboxSlots, ListboxView, Recipes } from '../src/index.js'
+import { unitKnobs } from './fixture.js'
 
-const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
+// At unit knobs: what is measured here is the scale's nominal size or time.
+const theme = Theme.standard(Theme.make({ ...unitKnobs, accent: { hue: 265, chroma: 0.16 } }))
 const Model = Schema.Struct({ listbox: UiListbox.Model })
 type Model = typeof Model.Type
 const Frequencies = ListboxView.create<string>()

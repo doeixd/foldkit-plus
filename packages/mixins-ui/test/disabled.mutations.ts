@@ -44,7 +44,11 @@ export default [
   {
     name: 'the disabled knob’s default is another value',
     edits: [
-      { file: '../../mixins/src/theme/knobs.ts', find: 'default: 0.5,', replace: 'default: 0.4,' },
+      {
+        file: '../../mixins/src/theme/knobs.ts',
+        find: "variable: 'state-disabled',\n      default: 0.5,",
+        replace: "variable: 'state-disabled',\n      default: 0.4,",
+      },
     ],
     tests: browser,
   },

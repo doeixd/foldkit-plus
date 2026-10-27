@@ -10,6 +10,7 @@ import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test } from 'vitest'
 import { cdp } from 'vitest/browser'
 import { glide } from '../src/recipes/design.js'
+import { unitKnobs } from './fixture.js'
 
 const L = Layers.standard
 const overlay = Style.self(glide('fast', '1'))
@@ -17,7 +18,8 @@ const overlay = Style.self(glide('fast', '1'))
 const sheet = Style.stylesheet(
   L.declare,
   L.in('reset', Defaults.reset),
-  L.in('tokens', Theme.root(Theme.tokens)),
+  // At unit knobs: each tier's duration as written.
+  L.in('tokens', Theme.root(Theme.standard(Theme.make(unitKnobs)))),
   L.in('components', overlay),
 )
 // A rule's class is a hash of its text, named when the sheet is written.

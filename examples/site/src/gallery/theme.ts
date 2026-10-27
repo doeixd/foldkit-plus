@@ -136,15 +136,35 @@ export const withBase = (values: ThemeValues, base: Base): ThemeValues => {
     : { ...values, surface: { ...surface, hue: bases[base].h, saturation: bases[base].c } }
 }
 
-/** The default theme, Iris: violet-blue on a cool page, in Geist. */
+/** The shipped theme: what every preview declares, and where `/create` starts. */
+const shipped = Theme.make({})
+
+export const defaults: ThemeValues = shipped.values
+
+/**
+ * Iris, the site's default until #255: violet-blue on a cool page, in Geist.
+ * It pins every knob it took from the old defaults, so it and the presets
+ * built on it keep their look.
+ */
 const iris = Theme.make({
   accent: { hue: 264, chroma: 0.17, lightness: 52 },
-  surface: { saturation: 0.006, contrast: 24 },
-  shape: { radius: 1.4 },
-  type: { body: Theme.fonts.geist },
+  surface: { saturation: 0.006, contrast: 24, lightness: { light: 97.5, dark: 22 } },
+  shape: { radius: 1.4, density: 1 },
+  type: {
+    body: Theme.fonts.geist,
+    headingWeight: 600,
+    headingTracking: -0.01,
+    scale: 1,
+    headingScale: 1,
+    leading: 1,
+    fluid: 0,
+  },
+  reading: { measure: 65 },
+  motion: { scale: 1, easing: 'ease' },
+  shadow: { strength: 100 },
+  menu: { panel: 'default' },
+  scales: { chroma: 1 },
 })
-
-export const defaults: ThemeValues = iris.values
 
 /** A style, as shadcn's: the shape and type knobs it moves, the colors left as they are. */
 export interface Look {
@@ -254,7 +274,12 @@ export interface Preset {
 const fromIris = (over: ThemeValues): ThemeValues => iris.pipe(Theme.set(over)).values
 
 export const presets: ReadonlyArray<Preset> = [
-  { name: 'Iris', description: 'The default: violet-blue on a cool page', values: defaults },
+  {
+    name: 'Default',
+    description: 'The shipped theme: a vivid blue on pure greys, bold headings, inverted menus',
+    values: defaults,
+  },
+  { name: 'Iris', description: 'Violet-blue on a cool page, in Geist', values: iris.values },
   {
     name: 'shadcn',
     description: 'Zinc neutrals, a near-black primary and tight headings, after shadcn/ui',
@@ -427,31 +452,12 @@ export const presets: ReadonlyArray<Preset> = [
   },
   {
     name: 'Cobalt',
-    description:
-      'A vivid blue on pure greys: round, roomy and flat, bold headings, menus inverted, on the spring',
-    values: fromIris({
-      accent: { hue: 235, chroma: 0.225, lightness: 55 },
-      surface: {
-        hue: bases.neutral.h,
-        saturation: 0,
-        contrast: 24,
-        lightness: { light: 97, dark: 24.5 },
-      },
-      menu: { highlight: 'subtle', panel: 'inverted' },
-      shape: { radius: 1.8, density: 1.1 },
-      motion: { scale: 0.5, easing: 'spring' },
-      shadow: { strength: 0 },
-      type: {
-        scale: 1.025,
-        headingScale: 1.2,
-        leading: 1.05,
-        headingWeight: 700,
-        headingTracking: -0.025,
-        fluid: 1,
-      },
-      reading: { measure: 68, headingWrap: 'balance', bodyWrap: 'pretty', align: 'start' },
-      scales: { chroma: 1.1 },
-    }),
+    description: 'The default, rounder, on a quieter page, in Geist',
+    values: {
+      surface: { lightness: 97, contrast: 24 },
+      shape: { radius: 1.8 },
+      type: { body: Theme.fonts.geist },
+    },
   },
 ]
 
@@ -530,8 +536,8 @@ export const shuffled = (random: () => number): ThemeValues => {
   return withBase(drawn, pick(Base.literals))
 }
 
-/** The palette's derivations with the default theme's knobs: what every preview declares. */
-const theme = Theme.standard(iris)
+/** The palette's derivations with the shipped theme's knobs: what every preview declares. */
+const theme = Theme.standard(shipped)
 
 const declarationsOf = (
   tokens: Readonly<Record<string, Readonly<Record<string, string>>>>,
@@ -555,22 +561,25 @@ export const knobsPlace = { key: 'foldkit-site-knobs', selector: '[data-size]' }
 
 /** `values`' knobs on every preview frame, and kept for the next page: the default keeps nothing. */
 export const keepKnobs = (values: ThemeValues) =>
-  Theme.chooseKnobs(Theme.make(values), { base: iris, ...knobsPlace })
+  Theme.chooseKnobs(Theme.make(values), { base: shipped, ...knobsPlace })
 
 /** A preview's color scheme, on its frame: `system` follows the reader's. */
 export const schemeStyleOf = (scheme: Scheme): Record<string, string> => ({
   colorScheme: scheme === 'system' ? 'light dark' : scheme,
 })
 
-/** The icon packs `/create` offers for the components' own icons; Lucide's are the theme's. */
-export const Pack = Schema.Literals(['lucide', 'tabler', 'phosphor', 'heroicons', 'hugeicons'])
+/** The icon packs `/create` offers for the components' own icons. */
+export const Pack = Schema.Literals(['heroicons', 'lucide', 'tabler', 'phosphor', 'hugeicons'])
 export type Pack = typeof Pack.Type
 
+/** The pack the theme ships, at the default glyph stroke: Heroicons' outline set. */
+export const shippedPack: Pack = 'heroicons'
+
 export const packs = {
+  heroicons: { label: 'Heroicons', ...heroicons },
   lucide: { label: 'Lucide', ...lucide },
   tabler: { label: 'Tabler', ...tabler },
   phosphor: { label: 'Phosphor', ...phosphor },
-  heroicons: { label: 'Heroicons', ...heroicons },
   hugeicons: { label: 'Hugeicons', ...hugeicons },
 } as const satisfies Record<Pack, { readonly label: string }>
 
@@ -603,7 +612,7 @@ export const packIconsAt = (pack: Pack, stroke: number): ReadonlyArray<IconData>
  * drawing already on the frame, so only another stroke needs it restroked.
  */
 export const packStyleOf = (pack: Pack, stroke: number): Readonly<Record<string, string>> => {
-  if (pack === 'lucide' && stroke === knobAt('icon.stroke').default) return {}
+  if (pack === shippedPack && stroke === knobAt('icon.stroke').default) return {}
   const key = `${pack}:${stroke}`
   const made = styles.get(key)
   if (made !== undefined) return made
@@ -624,9 +633,9 @@ export const packStyleOf = (pack: Pack, stroke: number): Readonly<Record<string,
 const packLines = (
   pack: Pack,
   stroke: number,
-): { readonly imports: ReadonlyArray<string>; readonly tokens: string } => {
-  if (pack === 'lucide' && stroke === knobAt('icon.stroke').default)
-    return { imports: [], tokens: '' }
+): { readonly imports: ReadonlyArray<string>; readonly tokens: ReadonlyArray<string> } => {
+  if (pack === shippedPack && stroke === knobAt('icon.stroke').default)
+    return { imports: [], tokens: [] }
   const entries = Object.entries(packs[pack].imports)
   const sets = [...new Set(entries.map(([, from]) => from.set))]
   return {
@@ -640,27 +649,34 @@ const packLines = (
             .join(', ')} } from 'virtual:foldkit-icons/${set}'`,
       ),
     ],
-    tokens: `, tokens: Icons.tokens({ ${entries
-      .map(([name, from]) => {
-        // Quoted only where a key cannot stand bare, as a person would write it.
-        const key = /^[A-Za-z_$][\w$]*$/.test(name) ? name : `'${name}'`
-        return name === from.name ? name : `${key}: ${from.name}`
-      })
-      .join(', ')} }, { width: ${stroke} })`,
+    tokens: [
+      `tokens: Icons.tokens({ ${entries
+        .map(([name, from]) => {
+          // Quoted only where a key cannot stand bare, as a person would write it.
+          const key = /^[A-Za-z_$][\w$]*$/.test(name) ? name : `'${name}'`
+          return name === from.name ? name : `${key}: ${from.name}`
+        })
+        .join(', ')} }, { width: ${stroke} })`,
+    ],
   }
 }
 
-/** `values` and the icon pack at its stroke, as an application's style module. */
-export const codeOf = (values: ThemeValues, pack: Pack = 'lucide'): string => {
+/**
+ * `values` and the icon pack at its stroke, as an application's style module:
+ * the shipped theme is `AppStyle.make`'s own, so it writes no theme for it.
+ */
+export const codeOf = (values: ThemeValues, pack: Pack = shippedPack): string => {
   const icons = packLines(pack, valueAt(values, 'icon.stroke'))
+  const source = Theme.print(Theme.make(values))
+  const shippedTheme = source === Theme.print(shipped)
+  const options = [...(shippedTheme ? [] : ['theme']), ...icons.tokens]
   return [
     "import { AppStyle } from 'foldkit-mixins/app'",
-    "import { Theme } from 'foldkit-mixins/theme'",
+    ...(shippedTheme ? [] : ["import { Theme } from 'foldkit-mixins/theme'"]),
     ...icons.imports,
     '',
-    `const theme = ${Theme.print(Theme.make(values))}`,
-    '',
-    `export const { t, slots, forSlots, stylesheet } = AppStyle.make({ theme${icons.tokens} })`,
+    ...(shippedTheme ? [] : [`const theme = ${source}`, '']),
+    `export const { t, slots, forSlots, stylesheet } = AppStyle.make({${options.length === 0 ? '' : ` ${options.join(', ')} `}})`,
     '',
   ].join('\n')
 }

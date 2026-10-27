@@ -57,8 +57,8 @@ describe('the theme creator', () => {
   })
 
   it('writes the fluid knobs into the code, and leaves a still theme alone', () => {
-    const code = codeOf(withValue(defaults, 'type.fluid', 1))
-    expect(code).toContain('fluid: 1')
+    const code = codeOf(withValue(defaults, 'type.fluid', 0))
+    expect(code).toContain('fluid: 0')
     expect(codeOf(withValue(defaults, 'type.viewportMax', 1600))).toContain('viewportMax: 1600')
     expect(codeOf(defaults)).not.toContain('fluid')
   })
@@ -68,7 +68,7 @@ describe('the theme creator', () => {
     expect(declared['--fk-fluid-progress']).toBe(
       'calc(var(--fk-fluid-ratio) * var(--fk-knob-fluid))',
     )
-    expect(declared['--fk-knob-fluid']).toBe('0')
+    expect(declared['--fk-knob-fluid']).toBe('1')
     expect(declared['--fk-knob-fluid-viewport-min']).toBe('320px')
     expect(declared['--fk-knob-fluid-viewport-max']).toBe('1440px')
   })
@@ -86,13 +86,13 @@ describe('the theme creator', () => {
     expect(declared['--fk-reading-heading-wrap']).toBe('var(--fk-knob-heading-wrap)')
     expect(declared['--fk-reading-body-wrap']).toBe('var(--fk-knob-body-wrap)')
     expect(declared['--fk-reading-align']).toBe('var(--fk-knob-reading-align)')
-    expect(declared['--fk-knob-measure']).toBe('65ch')
+    expect(declared['--fk-knob-measure']).toBe('68ch')
     expect(declared['--fk-knob-heading-wrap']).toBe('balance')
     expect(declared['--fk-knob-body-wrap']).toBe('pretty')
     expect(declared['--fk-knob-reading-align']).toBe('start')
   })
 
-  it('writes a pack beside the theme as the icons an application imports, and Lucide as nothing', () => {
+  it('writes a pack beside the theme as the icons an application imports, and Heroicons as nothing', () => {
     const code = codeOf(defaults, 'tabler')
     expect(code).toContain("import { Icons } from 'foldkit-mixins-ui'")
     expect(code).toContain(
@@ -101,7 +101,7 @@ describe('the theme creator', () => {
     expect(code).toContain(
       "tokens: Icons.tokens({ search, eye, 'eye-off': eyeOff, pipette: colorPicker, 'rotate-ccw': rotate, 'rotate-cw': rotateClockwise, success: circleCheck, warning: alertTriangle, error: circleX, info: infoCircle, lock, close: x }, { width: 2 })",
     )
-    expect(codeOf(defaults, 'lucide')).toBe(codeOf(defaults))
+    expect(codeOf(defaults, 'heroicons')).toBe(codeOf(defaults))
   })
 
   it('imports each pack icon by a name the icons plugin exports from its set', () => {
@@ -120,24 +120,24 @@ describe('the theme creator', () => {
 
   it('draws a pack’s icons on a preview at the glyph stroke, the shipped pack’s too', () => {
     // The theme already draws the shipped pack at its own stroke.
-    expect(packStyleOf('lucide', 2)).toEqual({})
+    expect(packStyleOf('heroicons', 2)).toEqual({})
     const tabler = packStyleOf('tabler', 2)
     expect(Object.keys(tabler)).toHaveLength(12)
     expect(tabler['--fk-icon-search']).toMatch(/^url\("data:image\/svg\+xml,/)
     expect(tabler['--fk-icon-search']).not.toBe(packStyleOf('phosphor', 2)['--fk-icon-search'])
     // A stroke redraws every pack's drawings, the shipped pack's included.
-    expect(packStyleOf('lucide', 3)['--fk-icon-search']).toContain('stroke-width=%223%22')
-    expect(packStyleOf('lucide', 3)['--fk-icon-search']).not.toBe(declared['--fk-icon-search'])
+    expect(packStyleOf('heroicons', 3)['--fk-icon-search']).toContain('stroke-width=%223%22')
+    expect(packStyleOf('heroicons', 3)['--fk-icon-search']).not.toBe(declared['--fk-icon-search'])
   })
 
   it('writes the pack it hands out at the icon stroke’s width', () => {
     const thicker = withValue(defaults, 'icon.stroke', 3)
     expect(codeOf(thicker, 'tabler')).toContain('}, { width: 3 })')
     // The shipped pack needs its own drawing only once the stroke leaves its own.
-    expect(codeOf(defaults, 'lucide')).not.toContain('Icons.tokens')
-    expect(codeOf(thicker, 'lucide')).toContain("from 'virtual:foldkit-icons/lucide'")
-    expect(codeOf(thicker, 'lucide')).toContain('Icons.tokens({ search, eye')
-    expect(codeOf(thicker, 'lucide')).toContain('}, { width: 3 })')
+    expect(codeOf(defaults, 'heroicons')).not.toContain('Icons.tokens')
+    expect(codeOf(thicker, 'heroicons')).toContain("from 'virtual:foldkit-icons/heroicons'")
+    expect(codeOf(thicker, 'heroicons')).toContain('Icons.tokens({ search: magnifyingGlass, eye')
+    expect(codeOf(thicker, 'heroicons')).toContain('}, { width: 3 })')
   })
 
   it("draws a preview in the scheme chosen, or the reader's for system", () => {
@@ -147,7 +147,7 @@ describe('the theme creator', () => {
 
   it('declares on the preview every derived token, over the default theme’s knobs', () => {
     expect(declared['--fk-radius-md']).toBe('calc(6px * var(--fk-knob-radius-factor))')
-    expect(declared['--fk-knob-radius-factor']).toBe('1.4')
+    expect(declared['--fk-knob-radius-factor']).toBe('0.45')
     expect(declared['--fk-accent-default']).toContain('var(--fk-knob-accent-l)')
   })
 

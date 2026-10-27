@@ -57,30 +57,30 @@ describe('Theme.scoped', () => {
 describe('Theme.tokens', () => {
   it('scales space, radius, and durations by their knobs', () => {
     expect(Theme.tokens.knob).toMatchObject({
-      density: '1',
-      'radius-factor': '1',
-      motion: '1',
+      density: '1.1',
+      'radius-factor': '0.45',
+      motion: '0.5',
       travel: '1',
       step: '0',
-      'shadow-strength': '100%',
-      'text-scale': '1',
-      'heading-scale': '1',
-      leading: '1',
+      'shadow-strength': '0%',
+      'text-scale': '1.025',
+      'heading-scale': '1.2',
+      leading: '1.05',
       'control-round': '0',
       // The standard knobs' defaults the tokens below read.
       'border-width': '1px',
       'font-body': 'system-ui, sans-serif',
       'font-heading': 'inherit',
-      'heading-weight': '600',
-      'heading-tracking': '-0.01em',
-      fluid: '0',
+      'heading-weight': '700',
+      'heading-tracking': '-0.025em',
+      fluid: '1',
       'fluid-viewport-min': '320px',
       'fluid-viewport-max': '1440px',
-      measure: '65ch',
+      measure: '68ch',
       'heading-wrap': 'balance',
       'body-wrap': 'pretty',
       'reading-align': 'start',
-      ease: 'ease-out',
+      ease: 'var(--fk-motion-spring)',
     })
     expect(Theme.tokens.border.thick).toBe('calc(var(--fk-knob-border-width) + 1px)')
     expect(Theme.tokens.font.body).toBe('var(--fk-knob-font-body)')
@@ -450,7 +450,7 @@ describe('the palette', () => {
     expect(knob['accent-l']).toBe('60%')
     expect(knob['accent-l-dark']).toBe('70%')
     expect(knob['accent-c-dark']).toBe('min(0.4, calc(var(--fk-knob-accent-c) + 0.03))')
-    expect(knob['surface-contrast']).toBe('26%')
+    expect(knob['surface-contrast']).toBe('80%')
     expect(knob['success-h']).toBe('145')
     const set = Theme.standard(Theme.make({ accent: { chroma: { light: 0.27, dark: 0.3 } } }))
     expect(set.knob['accent-c-dark']).toBe('0.3')
@@ -501,10 +501,8 @@ describe('the palette', () => {
     )
   })
 
-  it('derives links from the accent with relative color syntax', () => {
-    expect(brand.text.link).toBe(
-      'oklch(from var(--fk-accent-default) calc(l + 0.1) calc(c + 0.05) h)',
-    )
+  it('draws links in the accent’s ink, and darkens them on hover', () => {
+    expect(brand.text.link).toBe('var(--fk-accent-ink)')
     expect(brand.text['link-hover']).toBe(
       'oklch(from var(--fk-text-link) calc(l - 0.1) calc(c + 0) h)',
     )
@@ -525,7 +523,7 @@ describe('the palette', () => {
         `oklch(from var(--fk-${name}-default) clamp(0.1, (0.65 / l - 1) * 999, 0.98) min(c, 0.08) h)`,
       )
       expect(brand[name].ink).toBe(
-        `light-dark(oklch(from var(--fk-${name}-default) 0.5 c h), oklch(from var(--fk-${name}-default) 0.8 c h))`,
+        `light-dark(oklch(from var(--fk-${name}-default) 0.45 c h), oklch(from var(--fk-${name}-default) 0.8 c h))`,
       )
     }
   })
@@ -536,7 +534,7 @@ describe('the palette', () => {
     const after = cssOf(Theme.root(ocean)).split(';')
     expect(after.length).toBe(before.length)
     const changed = before.filter((line, index) => line !== after[index])
-    expect(changed).toEqual([':root{--fk-knob-accent-h:264'])
+    expect(changed).toEqual([':root{--fk-knob-accent-h:235'])
   })
 
   it('is a concrete type: a known token autocompletes, an unknown one is refused', () => {
@@ -571,7 +569,7 @@ describe('the page sheet', () => {
         '@layer reset, tokens, theme, defaults, components, layouts, variants, utilities, app;',
       ),
     ).toBe(true)
-    expect(sheet).toContain('@layer tokens{:root{--fk-knob-density:1;')
+    expect(sheet).toContain('@layer tokens{:root{--fk-knob-density:1.1;')
     // Both themes carry a `knob` group; only the scales' knobs are omitted.
     expect(sheet).toContain('@layer theme{:root{--fk-knob-accent-h:280;')
     expect(sheet).not.toContain('--fk-knob-density:1;--fk-knob-radius-factor:1;--fk-knob-accent-h')

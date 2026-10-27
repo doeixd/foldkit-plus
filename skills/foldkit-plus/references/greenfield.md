@@ -40,16 +40,19 @@ back two things:
 
 - **The code** under the preview: a module importing `AppStyle` from
   `foldkit-mixins/app` and `Theme` from `foldkit-mixins/theme`, holding
-  `const theme = Theme.make({ … })` and exporting `t`, `slots`, `forSlots` and
+  `const theme = Theme.make({ … })` (none for the shipped theme) and exporting `t`, `slots`, `forSlots` and
   `stylesheet` from `AppStyle.make`. With `foldkit-plus` installed, change those
   two imports to `foldkit-plus/mixins/app` and `foldkit-plus/mixins/theme`.
 - **The page's address**: the theme is in its query, so the link reopens it
   for a later change.
 
-If they would rather not design one, ask a few questions instead (a calm or a
-bold look; light, dark or both; dense or roomy; sharp or round; one accent
-colour; a typeface they like) and choose the nearest of the page's presets
-with them. Either way, write the answers, the link and the code into
+If they would rather not design one, start from the shipped theme: the
+style module is `export const { t, slots, forSlots, stylesheet } =
+AppStyle.make({})`, a vivid blue on pure greys with bold headings, inverted
+menus and Heroicons, what `/create` opens on as its Default preset. Ask a few
+questions only if that is not the look they want (a calm or a bold look;
+light, dark or both; dense or roomy; sharp or round; one accent colour; a
+typeface they like), and choose the nearest of the page's presets with them. Either way, write the answers, the link and the code into
 `docs/domain/brief.md` under **Look**; phase 3 saves the code as the
 application's style module.
 

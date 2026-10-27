@@ -17,7 +17,7 @@ describe('Theme.make', () => {
     expect(variables['step']).toBe('1')
     expect(variables['text-scale']).toBe('1.025')
     // Unset: a default, or the expression it follows.
-    expect(variables['density']).toBe('1')
+    expect(variables['density']).toBe('1.1')
     expect(variables['neutral-h']).toBe('var(--fk-hue-accent)')
   })
 
@@ -113,24 +113,24 @@ describe('AppStyle with themes', () => {
 
 describe('Theme.print', () => {
   it('writes the knobs a theme sets that differ from their defaults, a group to a line', () => {
-    const cobalt = Theme.make({
-      accent: { hue: 235, chroma: 0.225, lightness: { light: 55, dark: 70 } },
+    const iris = Theme.make({
+      accent: { hue: 264, chroma: 0.17, lightness: { light: 52, dark: 70 } },
       // The default radius, which the source leaves out.
-      shape: { radius: 1, density: 1.1 },
-      menu: { panel: 'inverted' },
+      shape: { radius: 0.45, density: 1 },
+      menu: { panel: 'default' },
       type: { body: Theme.fonts.geist },
     })
-    expect(Theme.print(cobalt)).toBe(
+    expect(Theme.print(iris)).toBe(
       [
         'Theme.make({',
-        '  accent: { hue: 235, chroma: 0.225, lightness: { light: 55, dark: 70 } },',
-        '  shape: { density: 1.1 },',
+        '  accent: { hue: 264, chroma: 0.17, lightness: { light: 52, dark: 70 } },',
+        '  shape: { density: 1 },',
         `  type: { body: '"Geist", ui-sans-serif, system-ui, sans-serif' },`,
-        "  menu: { panel: 'inverted' },",
+        "  menu: { panel: 'default' },",
         '})',
       ].join('\n'),
     )
-    expect(Theme.print(Theme.make({ shape: { radius: 1 } }))).toBe('Theme.make({})')
+    expect(Theme.print(Theme.make({ shape: { radius: 0.45 } }))).toBe('Theme.make({})')
   })
 
   it('quotes a font stack whatever it holds', () => {
@@ -165,9 +165,9 @@ describe('Theme.print of a long group', () => {
       Theme.make({
         type: {
           body: Theme.fonts.geist,
-          headingWeight: 700,
-          headingTracking: -0.025,
-          scale: 1.025,
+          headingWeight: 600,
+          headingTracking: -0.01,
+          scale: 1.1,
         },
       }),
     )
@@ -176,9 +176,9 @@ describe('Theme.print of a long group', () => {
         'Theme.make({',
         '  type: {',
         `    body: '"Geist", ui-sans-serif, system-ui, sans-serif',`,
-        '    headingWeight: 700,',
-        '    headingTracking: -0.025,',
-        '    scale: 1.025,',
+        '    headingWeight: 600,',
+        '    headingTracking: -0.01,',
+        '    scale: 1.1,',
         '  },',
         '})',
       ].join('\n'),

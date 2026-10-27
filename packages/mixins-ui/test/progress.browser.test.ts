@@ -21,8 +21,10 @@ import { cdp } from 'vitest/browser'
 import * as Progress from '../src/progress.js'
 import { ProgressSlots, type ProgressView } from '../src/progress.js'
 import * as Recipes from '../src/recipes/progress.js'
+import { unitKnobs } from './fixture.js'
 
-const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
+// At unit knobs: what is measured here is the scale's nominal size or time.
+const theme = Theme.standard(Theme.make({ ...unitKnobs, accent: { hue: 265, chroma: 0.16 } }))
 const style = Style.forSlots(ProgressSlots)(Recipes.Progress({}))
 const Model = Schema.Struct({})
 type Model = typeof Model.Type

@@ -16,8 +16,10 @@ import { cdp, userEvent } from 'vitest/browser'
 import * as Marquee from '../src/marquee.js'
 import { MarqueeSlots } from '../src/marquee.js'
 import { Marquee as Recipe } from '../src/recipes/marquee.js'
+import { unitKnobs } from './fixture.js'
 
-const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
+// At unit knobs: what is measured here is the scale's nominal size or time.
+const theme = Theme.standard(Theme.make({ ...unitKnobs, accent: { hue: 265, chroma: 0.16 } }))
 const style = Style.forSlots(MarqueeSlots)(Recipe({}))
 
 const reduce = (value: 'reduce' | 'no-preference') =>

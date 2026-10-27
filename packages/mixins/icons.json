@@ -1,18 +1,19 @@
 {
   "out": "src/theme/iconMasks.ts",
   "as": "masks",
+  "stroke": { "width": 2 },
   "icons": {
-    "search": "lucide:search",
-    "eye": "lucide:eye",
-    "eye-off": "lucide:eye-off",
-    "pipette": "lucide:pipette",
-    "rotate-ccw": "lucide:rotate-ccw",
-    "rotate-cw": "lucide:rotate-cw",
-    "success": "lucide:circle-check",
-    "warning": "lucide:triangle-alert",
-    "error": "lucide:circle-x",
-    "info": "lucide:info",
-    "lock": "lucide:lock",
-    "close": "lucide:x"
+    "search": "heroicons:magnifying-glass",
+    "eye": "heroicons:eye",
+    "eye-off": "heroicons:eye-slash",
+    "pipette": "heroicons:eye-dropper",
+    "rotate-ccw": "heroicons:arrow-uturn-left",
+    "rotate-cw": "heroicons:arrow-uturn-right",
+    "success": "heroicons:check-circle",
+    "warning": "heroicons:exclamation-triangle",
+    "error": "heroicons:x-circle",
+    "info": "heroicons:information-circle",
+    "lock": "heroicons:lock-closed",
+    "close": "heroicons:x-mark"
   }
 }

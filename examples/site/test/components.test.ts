@@ -64,7 +64,7 @@ describe('the component pages', () => {
     expect(
       valueAt(after(initial, set('surface.lightness', 30, true)).theme, 'surface.lightness'),
     ).toEqual({
-      light: 97.5,
+      light: 100,
       dark: 30,
     })
     // A word where a choice goes is refused.

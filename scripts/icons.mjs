@@ -8,7 +8,8 @@
  *
  * or an array of such specs, one file each. `"as"` picks what a file holds:
  * `IconData` (`data`, the default), CSS mask `url()`s (`masks`), or `IconData`
- * and where an application imports each from (`pack`).
+ * and where an application imports each from (`pack`). `"stroke": { "width": 2 }`
+ * redraws every icon's strokes at that width.
  *
  * The set is the root's `@iconify-json/<prefix>`, read through the same
  * parser as the plugin's, so a package's icons meet the same allowlist.
@@ -21,7 +22,7 @@ import { join, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { format } from 'oxfmt'
 import { Schema } from 'effect'
-import { maskUrl } from '../packages/media/src/icon.ts'
+import { maskUrl, withStroke } from '../packages/media/src/icon.ts'
 import { fromIconify, IconifySet } from '../packages/media/src/icons/index.ts'
 import { exportName } from '../packages/media/src/vite/index.ts'
 
@@ -40,6 +41,9 @@ const Spec = Schema.Struct({
   // in `virtual:foldkit-icons/<set>`), for a page that writes that import.
   as: Schema.optional(Schema.Literals(['data', 'masks', 'pack'])),
   icons: Schema.Record(Schema.String, Schema.String),
+  // Each icon's strokes redrawn at this width, for a set drawn at another
+  // than the one a package ships (Heroicons' 1.5px under a 2px default).
+  stroke: Schema.optional(Schema.Struct({ width: Schema.Number })),
 })
 
 const sets = new Map()
@@ -80,7 +84,12 @@ for (const dir of specs) {
         throw new Error(`${where}: "${name}" names "${source}", not "<set>:<icon>".`)
       }
       used.add(prefix)
-      return [name, fromIconify(setOf(prefix).set, icon), { set: prefix, name: exportName(icon) }]
+      const drawn = fromIconify(setOf(prefix).set, icon)
+      return [
+        name,
+        spec.stroke === undefined ? drawn : withStroke(drawn, spec.stroke),
+        { set: prefix, name: exportName(icon) },
+      ]
     })
     const credits = [...used].sort().map(prefix => {
       const { info, version } = setOf(prefix)

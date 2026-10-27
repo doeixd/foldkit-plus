@@ -149,7 +149,10 @@ tabindex, press, dismiss layers) are Bundles in `foldkit-primitives/interaction`
 ### 3b. An application's own look
 
 An application styling its own markup declares the Slots by their style and fixes theme, layer
-and sheet once (`forSlots` stays for a contract someone else published, such as `ButtonSlots`):
+and sheet once (`forSlots` stays for a contract someone else published, such as `ButtonSlots`).
+`theme` is optional: `AppStyle.make({})` is the shipped theme (a vivid blue on pure greys, bold
+fluid headings, no resting shadows, inverted menus, a spring, Heroicons), and a theme that sets
+knobs keeps the rest of it:
 
 ```ts
 import { Event, Style, SlotView } from 'foldkit-mixins'

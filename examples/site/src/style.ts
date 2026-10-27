@@ -14,12 +14,14 @@ import { STATIC_ATTRIBUTE } from 'foldkit-ssr/client'
 
 import { declared } from './gallery/theme.js'
 
+// The site's own colors, black on white and white on near-black, over the
+// shipped theme: the components' look is theirs, the chrome's brand is the site's.
 const { t, slots, stylesheet } = AppStyle.make({
   theme: Theme.make({
     accent: { hue: 270, chroma: { light: 0, dark: 0 }, lightness: { light: 14, dark: 96 } },
     // A white page, and a near-black one, as plain as the content.
-    surface: { saturation: 0, lightness: { light: 100, dark: 14 } },
-    type: { body: '"Geist", ui-sans-serif, system-ui, sans-serif', fluid: 1 },
+    surface: { lightness: { light: 100, dark: 14 } },
+    type: { body: '"Geist", ui-sans-serif, system-ui, sans-serif' },
   }),
   tokens: Theme.define({
     // Grey that steps back: the second half of a heading, a label's number.

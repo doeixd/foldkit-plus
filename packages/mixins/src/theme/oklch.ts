@@ -25,8 +25,12 @@ const rehue = (color: string, hue: string) => `oklch(from ${color} l c ${hue})`
 /** Near-black or near-white text over `color`. */
 const contrast = (color: string) =>
   `oklch(from ${color} clamp(0.1, (0.65 / l - 1) * 999, 0.98) min(c, 0.08) h)`
-/** `color` as text on the base surface: dark in a light scheme, light in a dark one. */
-const ink = (color: string) => ld(from(color, '0.5', 'c'), from(color, '0.8', 'c'))
+/**
+ * `color` as text on the base surface: dark in a light scheme, light in a
+ * dark one. 0.45 reads at WCAG AA on the muted surface too, where 0.5 fell
+ * short (4.1:1) once the default surfaces stood further apart.
+ */
+const ink = (color: string) => ld(from(color, '0.45', 'c'), from(color, '0.8', 'c'))
 /**
  * `color` tinted onto the base surface, the same in both schemes. Mixed in
  * OKLab, not OKLCH: OKLCH interpolates hue, so a mix mostly of the base keeps
@@ -44,8 +48,8 @@ const contrastFactor = v('knob', 'contrast-factor')
 type Step = readonly [lightness: number, chroma: number]
 
 /**
- * How far a step's target lies past the offset it names: at the default
- * contrast (26%) a step sits where its offset says, and the whole knob spans
+ * How far a step's target lies past the offset it names: at a contrast of
+ * 26% (the default until #255) a step sits where its offset says, and the whole knob spans
  * 2.5 times that, so its range is one a reader sees. At a reach of 1 the knob
  * at its top moved the muted surface four points of lightness.
  */
@@ -222,7 +226,8 @@ export const palette = define({
     muted: text([45, 1.5], [65, 1.2]),
     subtle: text([35, 1.8], [75, 1]),
     overt: text([10, 2.2], [95, 0.6]),
-    link: shift(accent, 0.1, 0.05),
+    // The accent's ink: a link lighter than the accent read at 2.9:1 on a white page.
+    link: v('accent', 'ink'),
     'link-hover': shift(v('text', 'link'), -0.1, 0),
   },
   // Steps from the base, as the surfaces are: darker in a light scheme,

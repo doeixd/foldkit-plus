@@ -12,10 +12,12 @@ import { Defaults } from 'foldkit-mixins/defaults'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { ButtonSlots, InputSlots, Recipes } from '../src/index.js'
+import { unitKnobs } from './fixture.js'
 import { force, nodeOf } from './pseudoState.js'
 
 const accent = { hue: 265, chroma: 0.16 }
-const palette = Theme.standard(Theme.make({ accent }))
+// At unit knobs: a control's corner is `md`'s nominal 6px.
+const palette = Theme.standard(Theme.make({ ...unitKnobs, accent }))
 const relieved = (relief: 'bevel' | 'hard') =>
   Theme.standard(Theme.make({ accent, shadow: { relief } }))
 const solid = Style.forSlots(ButtonSlots)(Recipes.Button({}))

@@ -32,8 +32,8 @@ export default [
     edits: [
       {
         file: '../src/gallery/theme.ts',
-        find: "if (pack === 'lucide' && stroke === knobAt('icon.stroke').default)\n    return { imports: [], tokens: '' }",
-        replace: "if (pack === 'lucide')\n    return { imports: [], tokens: '' }",
+        find: "if (pack === shippedPack && stroke === knobAt('icon.stroke').default)\n    return { imports: [], tokens: [] }",
+        replace: 'if (pack === shippedPack)\n    return { imports: [], tokens: [] }',
       },
     ],
     tests,
@@ -43,8 +43,8 @@ export default [
     edits: [
       {
         file: '../src/gallery/theme.ts',
-        find: "if (pack === 'lucide' && stroke === knobAt('icon.stroke').default) return {}",
-        replace: "if (pack === 'lucide') return {}",
+        find: "if (pack === shippedPack && stroke === knobAt('icon.stroke').default) return {}",
+        replace: 'if (pack === shippedPack) return {}',
       },
     ],
     tests,

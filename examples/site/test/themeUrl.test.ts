@@ -31,7 +31,7 @@ describe("/create's address", () => {
       'accent.hue=145&type.body=mono&scheme=dark',
     )
     // A schemed knob's dark value under a name of its own.
-    const dark = withValue(defaults, 'surface.lightness', { light: 97.5, dark: 30 })
+    const dark = withValue(defaults, 'surface.lightness', { light: 100, dark: 30 })
     expect(queryOf({ ...home, values: dark })).toBe('surface.lightness.dark=30')
   })
 
@@ -65,7 +65,7 @@ describe("/create's address", () => {
     )
     expect(sameTheme(address.values, expected)).toBe(true)
     // A font by its name only: a link sets no stack of its own.
-    expect(valueAt(address.values, 'type.body')).toBe(Theme.fonts.geist)
+    expect(valueAt(address.values, 'type.body')).toBe(valueAt(defaults, 'type.body'))
     expect(address.scheme).toBe('system')
     expect(address.canvas).toBe('components')
     expect(Object.getPrototypeOf(address.values)).toBe(Object.prototype)
@@ -77,7 +77,7 @@ describe("/create's address", () => {
     )
     expect(valueAt(address.values, 'accent.hue')).toBe(145)
     expect(valueAt(address.values, 'type.body')).toBe(Theme.fonts.mono)
-    expect(valueAt(address.values, 'surface.lightness')).toEqual({ light: 97.5, dark: 30 })
+    expect(valueAt(address.values, 'surface.lightness')).toEqual({ light: 100, dark: 30 })
     expect(valueAt(address.values, 'shape.controls')).toBe('pill')
     expect(address.values.surface?.hue).toBe(75)
     expect(address.direction).toBe('rtl')

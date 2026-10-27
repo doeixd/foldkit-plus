@@ -88,8 +88,8 @@ test('a bold menu accent fills the active row with the accent, and an inverted p
     Theme.standard(Theme.make({ accent, menu: { highlight: 'bold', panel: 'inverted' } })),
   )
   try {
-    // The accent at 52% lightness, its text near white, on a panel of the dark scheme's base.
-    expect(lightness(fill('active'))).toBeCloseTo(0.52, 2)
+    // The accent at its default 55% lightness, its text near white, on a panel of the dark scheme's base.
+    expect(lightness(fill('active'))).toBeCloseTo(0.55, 2)
     expect(lightness(computed('active').color)).toBeGreaterThan(0.9)
     expect(lightness(fill('panel'))).toBeLessThan(0.4)
     expect(lightness(computed('resting').color)).toBeGreaterThan(0.8)

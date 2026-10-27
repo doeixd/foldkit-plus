@@ -97,7 +97,13 @@ const read = (values: ThemeValues, path: KnobPath, raw: string, dark: boolean): 
   valueOf(path, raw, dark).pipe(
     Option.map(value => {
       const current = valueAt(values, path)
-      if (typeof current !== 'object' || current === null) return dark ? current : value
+      if (typeof current !== 'object' || current === null)
+        return dark ? { light: current, dark: value } : value
+      // A light half over a knob the theme leaves unset is bare, so a dark
+      // half that follows it (the accent's chroma) keeps following.
+      const [group, name] = path.split('.') as [string, string]
+      const set = Object.hasOwn((values as Readonly<Record<string, object>>)[group] ?? {}, name)
+      if (!dark && !set) return value
       return dark ? { ...current, dark: value } : { ...current, light: value }
     }),
     Option.flatMap(Schema.decodeUnknownOption(knobAt(path).schema)),

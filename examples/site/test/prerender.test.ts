@@ -518,7 +518,7 @@ describe('the generated site', () => {
         tab => tab.textContent?.trim(),
       ),
     ).toEqual(['Themes'])
-    expect(pressed('#theme-panes')).toEqual(['Iris'])
+    expect(pressed('#theme-panes')).toEqual(['Default'])
     expect(create.getElementById('knob-hue')).toBeNull()
     const canvas = create.querySelector('[data-size="canvas"]')
     // The default theme is the preview's own rule: nothing to override inline.

@@ -39,7 +39,7 @@ export const standard = {
     hue: Knob.angle({
       title: 'Hue',
       variable: 'accent-h',
-      default: 264,
+      default: 235,
       min: 0,
       max: 360,
       description:
@@ -49,7 +49,7 @@ export const standard = {
       Knob.number({
         title: 'Chroma',
         variable: 'accent-c',
-        default: 0.17,
+        default: 0.225,
         min: 0,
         max: 0.4,
         step: 0.005,
@@ -59,7 +59,7 @@ export const standard = {
       Knob.number({
         title: 'Chroma, dark',
         variable: 'accent-c-dark',
-        default: 0.2,
+        default: 0.255,
         // A little stronger on a dark page, where the same chroma reads duller.
         follows: `min(0.4, calc(${ref('knob', 'accent-c')} + 0.03))`,
         min: 0,
@@ -72,7 +72,7 @@ export const standard = {
       Knob.percent({
         title: 'Lightness',
         variable: 'accent-l',
-        default: 52,
+        default: 55,
         min: 5,
         max: 98,
         step: 1,
@@ -106,7 +106,7 @@ export const standard = {
     hue: Knob.angle({
       title: 'Neutral hue',
       variable: 'neutral-h',
-      default: 264,
+      default: 235,
       follows: ref('hue', 'accent'),
       min: 0,
       max: 360,
@@ -117,7 +117,7 @@ export const standard = {
       Knob.number({
         title: 'Surface tint',
         variable: 'surface-c',
-        default: 0.015,
+        default: 0,
         min: 0,
         max: 0.04,
         step: 0.001,
@@ -126,7 +126,7 @@ export const standard = {
       Knob.number({
         title: 'Surface tint, dark',
         variable: 'surface-c-dark',
-        default: 0.02,
+        default: 0,
         follows: `calc(${ref('knob', 'surface-c')} * 4 / 3)`,
         min: 0,
         max: 0.04,
@@ -138,7 +138,7 @@ export const standard = {
       Knob.percent({
         title: 'Page lightness',
         variable: 'base-l',
-        default: 97.5,
+        default: 100,
         min: 75,
         max: 100,
         step: 0.5,
@@ -148,7 +148,7 @@ export const standard = {
       Knob.percent({
         title: 'Page lightness, dark',
         variable: 'base-l-dark',
-        default: 22,
+        default: 24.5,
         min: 6,
         max: 36,
         step: 0.5,
@@ -159,7 +159,7 @@ export const standard = {
     contrast: Knob.percent({
       title: 'Surface contrast',
       variable: 'surface-contrast',
-      default: 26,
+      default: 80,
       min: 0,
       max: 100,
       step: 1,
@@ -212,7 +212,7 @@ export const standard = {
     radius: Knob.number({
       title: 'Radius',
       variable: 'radius-factor',
-      default: 1,
+      default: 0.45,
       min: 0,
       max: 2.5,
       step: 0.05,
@@ -222,7 +222,7 @@ export const standard = {
     density: Knob.number({
       title: 'Density',
       variable: 'density',
-      default: 1,
+      default: 1.1,
       min: 0.75,
       max: 1.3,
       step: 0.05,
@@ -295,7 +295,7 @@ export const standard = {
     headingWeight: Knob.number({
       title: 'Heading weight',
       variable: 'heading-weight',
-      default: 600,
+      default: 700,
       min: 100,
       max: 900,
       step: 100,
@@ -304,7 +304,7 @@ export const standard = {
     headingTracking: Knob.length('em')({
       title: 'Heading tracking',
       variable: 'heading-tracking',
-      default: -0.01,
+      default: -0.025,
       min: -0.05,
       max: 0.05,
       step: 0.005,
@@ -314,7 +314,7 @@ export const standard = {
     scale: Knob.number({
       title: 'Text size',
       variable: 'text-scale',
-      default: 1,
+      default: 1.025,
       min: 0.8,
       max: 1.3,
       step: 0.025,
@@ -323,7 +323,7 @@ export const standard = {
     headingScale: Knob.number({
       title: 'Heading scale',
       variable: 'heading-scale',
-      default: 1,
+      default: 1.2,
       min: 0.4,
       max: 1.8,
       step: 0.05,
@@ -333,7 +333,7 @@ export const standard = {
     leading: Knob.number({
       title: 'Line height',
       variable: 'leading',
-      default: 1,
+      default: 1.05,
       min: 0.85,
       max: 1.3,
       step: 0.05,
@@ -342,7 +342,7 @@ export const standard = {
     fluid: Knob.number({
       title: 'Fluid type',
       variable: 'fluid',
-      default: 0,
+      default: 1,
       min: 0,
       max: 1,
       step: 0.05,
@@ -372,7 +372,7 @@ export const standard = {
     measure: Knob.length('ch')({
       title: 'Reading measure',
       variable: 'measure',
-      default: 65,
+      default: 68,
       min: 30,
       max: 100,
       step: 1,
@@ -440,7 +440,7 @@ export const standard = {
     scale: Knob.number({
       title: 'Motion',
       variable: 'motion',
-      default: 1,
+      default: 0.5,
       min: 0,
       max: 2,
       step: 0.1,
@@ -448,7 +448,7 @@ export const standard = {
     }),
     easing: Knob.choice({
       title: 'Easing',
-      default: 'ease',
+      default: 'spring',
       options: { ease: { ease: 'ease-out' }, spring: { ease: ref('motion', 'spring') } },
       description: 'How transitions move: along an easing curve, or on a spring that settles.',
     }),
@@ -478,7 +478,7 @@ export const standard = {
     strength: Knob.percent({
       title: 'Shadow',
       variable: 'shadow-strength',
-      default: 100,
+      default: 0,
       min: 0,
       max: 100,
       step: 1,
@@ -487,7 +487,7 @@ export const standard = {
     hue: Knob.angle({
       title: 'Shadow hue',
       variable: 'shadow-h',
-      default: 264,
+      default: 235,
       follows: ref('hue', 'neutral'),
       min: 0,
       max: 360,
@@ -496,7 +496,7 @@ export const standard = {
     chroma: Knob.number({
       title: 'Shadow tint',
       variable: 'shadow-c',
-      default: 0.03,
+      default: 0,
       follows: `calc(${ref('knob', 'surface-c')} * 2)`,
       min: 0,
       max: 0.1,
@@ -514,7 +514,7 @@ export const standard = {
     }),
     panel: Knob.choice({
       title: 'Menu color',
-      default: 'default',
+      default: 'inverted',
       options: {
         default: { 'popup-invert': '0', 'popup-alpha': '1', 'popup-blur': '0px' },
         inverted: { 'popup-invert': '1', 'popup-alpha': '1', 'popup-blur': '0px' },
@@ -554,7 +554,7 @@ export const standard = {
     chroma: Knob.number({
       title: 'Scale vividness',
       variable: 'scale-c',
-      default: 1,
+      default: 1.1,
       min: 0,
       max: 1.5,
       step: 0.05,
