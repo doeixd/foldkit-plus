@@ -4,8 +4,12 @@
  * reader is declared here: the Yielded application, its Layer, and the
  * Remote server.
  */
-import { Auth, AuthContract, Password, Sessions } from '@yielded/auth'
-import { Context, Effect, Layer, type Option, Schema } from 'effect'
+import { Auth, AuthContract, EmailDelivery, Password, Sessions } from '@yielded/auth'
+import * as Client from '@yielded/auth/Client'
+import { Email } from '@yielded/auth/Schema'
+import type { WorkerdServices } from '@yielded/auth/WorkerdServices'
+import { AuthPersistence } from '@yielded/auth-persistence'
+import { Context, Effect, Layer, type Option, Redacted, Schema } from 'effect'
 import { Remote } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { serveFetch } from 'foldkit-remote-server/fetch'
@@ -118,3 +122,118 @@ export const entry = SSR.entry(config, plan, {
   resources: request =>
     Layer.effect(Principal, whoPosted(request)).pipe(Layer.provide(AppAuthLive), Layer.orDie),
 })
+
+// ## Signing up
+// Its own block: the section names its contract and service as the others do.
+{
+  /** What sign-up asks beyond an email and a password: the application's own fields. */
+  const Registration = Schema.Struct({ displayName: Schema.NonEmptyString })
+
+  const AuthApi = AuthContract.make('app/Auth', {
+    claims: Schema.Struct({}),
+    actions: sessions => ({
+      signIn: AuthContract.passwordSignIn(sessions),
+      register: AuthContract.action({
+        payload: Schema.Struct({
+          requestId: Password.PasswordCommandId,
+          email: Email,
+          newPassword: Schema.RedactedFromValue(Schema.String),
+          registration: Registration,
+        }),
+        success: Schema.TaggedStruct('RegistrationAccepted', {}),
+        error: Schema.Union([
+          Password.NewPasswordRejected,
+          Password.PasswordCheckUnavailable,
+          Password.PasswordRejected,
+          Password.PasswordUnavailable,
+          Password.PasswordMethodUnsupported,
+          Password.PasswordActionRequired,
+        ]),
+        mode: 'mutation',
+        replay: 'idempotent',
+      }),
+    }),
+  })
+
+  const AppAuth = Auth.make(AuthApi, {
+    sessions: Sessions.stateful({ idleTimeout: '1 hour', maxAge: '1 day' }),
+    strategies: {
+      password: Password.make({
+        registration: Registration,
+        reset: Password.resetLink({ url: 'https://app.example/reset' }),
+      }),
+    },
+    defaultStrategy: 'password',
+  })
+
+  const Persistence = AuthPersistence.make(AppAuth)
+
+  const Provisioning = Layer.succeed(Persistence.Provisioning, {
+    password: {
+      values: ({ identifier, registration }) =>
+        Effect.sync(() => ({
+          id: crypto.randomUUID(),
+          status: 'active', // the subject table's `activeValue`
+          securityRevision: crypto.randomUUID(),
+          email: identifier.value,
+          displayName: registration.displayName,
+        })),
+    },
+  })
+
+  const common = new Set(['password password', 'correct horse battery staple'])
+
+  const PasswordOnly = Layer.mergeAll(
+    Layer.succeed(Password.CompromisedPasswords, {
+      check: password =>
+        Effect.succeed(
+          common.has(Redacted.value(password))
+            ? { _tag: 'Rejected', reason: 'common' }
+            : { _tag: 'Allowed' },
+        ),
+    }),
+    Layer.succeed(Password.PasswordActionEvidence, {
+      verify: () => Effect.fail(Password.PasswordActionRequired.make({})),
+    }),
+    Layer.succeed(EmailDelivery.EmailDelivery, {
+      send: () => Effect.fail(EmailDelivery.EmailNotAccepted.make({})),
+    }),
+  )
+
+  // The prose's claim: once both are given, what is left is sign-in's own.
+  type Left = Exclude<
+    Layer.Services<typeof AppAuth.layer>,
+    Layer.Success<typeof PasswordOnly> | Layer.Success<typeof Persistence.layer>
+  >
+  const onlySignInNeeds: [Left] extends [
+    WorkerdServices | Context.Service.Identifier<typeof AppAuth.strategies.password.SessionClaims>,
+  ]
+    ? true
+    : false = true
+  // and `Persistence.layer` asks for `Provisioning`.
+  const persistenceNeeds: [Layer.Success<typeof Provisioning>] extends [
+    Layer.Services<typeof Persistence.layer>,
+  ]
+    ? true
+    : false = true
+
+  const AppClient = Client.make(AuthApi, { baseUrl: location.origin })
+
+  const signUp = (form: {
+    readonly requestId: string // one per submission, handed to `values` as `requestId`
+    readonly email: string
+    readonly password: Redacted.Redacted<string>
+    readonly displayName: string
+  }) =>
+    Effect.gen(function* () {
+      const { auth } = yield* AppClient
+      yield* auth.register({
+        requestId: form.requestId,
+        email: form.email,
+        newPassword: Redacted.value(form.password),
+        registration: { displayName: form.displayName },
+      })
+      return yield* auth.signIn({ email: form.email, password: Redacted.value(form.password) })
+    })
+  void [onlySignInNeeds, persistenceNeeds, signUp]
+}

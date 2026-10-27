@@ -319,6 +319,198 @@ Two settings that a server on one machine never needs:
   ```ts
   Layer.provideMerge(Operations.AuthenticationClock.layer({ futureToleranceMillis: 1000 }))
   ```
+- **Expect the sign-in limit to be per isolate.** Yielded counts password
+  attempts, successful ones included, per email and per account: by default
+  10, then one more every 6 seconds. It counts in memory unless the layer is
+  given an Effect `RateLimiterStore` (`effect/persistence/RateLimiter`), so
+  each isolate keeps its own count, which is lost when the isolate is evicted.
+  Give the layer a shared store for a limit that holds across isolates. A test
+  that signs one account in more than ten times in quick succession is refused as
+  `PasswordRejected`, so sign each test account in once.
+
+## Signing up
+
+`foldkit-auth` reads sessions; it creates no accounts. Sign-up is Yielded's
+password strategy, and the application's own account row is written in the
+same commit, by a hook the application supplies. Wiring it to
+`@yielded/auth@0.1.0-beta.43` takes four pieces.
+
+**The contract names the action.** `AuthContract` has a helper for password
+sign-in but none for registration, so `register` is declared with the schemas
+of the strategy's own `register` operation. An action calls the strategy method
+of its own name, so the name is `register`:
+
+```ts
+import { AuthContract, Password } from '@yielded/auth'
+import { Email } from '@yielded/auth/Schema'
+import { Schema } from 'effect'
+
+/** What sign-up asks beyond an email and a password: the application's own fields. */
+export const Registration = Schema.Struct({ displayName: Schema.NonEmptyString })
+
+export const AuthApi = AuthContract.make('app/Auth', {
+  claims: Schema.Struct({}),
+  actions: sessions => ({
+    signIn: AuthContract.passwordSignIn(sessions),
+    register: AuthContract.action({
+      payload: Schema.Struct({
+        requestId: Password.PasswordCommandId,
+        email: Email,
+        newPassword: Schema.RedactedFromValue(Schema.String),
+        registration: Registration,
+      }),
+      success: Schema.TaggedStruct('RegistrationAccepted', {}),
+      error: Schema.Union([
+        Password.NewPasswordRejected,
+        Password.PasswordCheckUnavailable,
+        Password.PasswordRejected,
+        Password.PasswordUnavailable,
+        Password.PasswordMethodUnsupported,
+        Password.PasswordActionRequired,
+      ]),
+      mode: 'mutation',
+      replay: 'idempotent',
+    }),
+  }),
+})
+```
+
+**The strategy takes `registration` only beside `reset`.** Registration
+comes with Yielded's password management (add, change, reset), not alone.
+`Http.layer` serves only the actions the contract names, so an application
+whose contract names no reset action serves none. It must still configure
+one. `Password.resetLink({ url })` checks its URL when the layer is built.
+The URL must be `https:`, with no query or fragment, and exactly its own
+`href`, so `https://app.example/reset` is accepted, while
+`https://app.example` (whose `href` adds a slash) and `http://localhost:5173/reset`
+fail with `ProofConfigurationError { reason: 'delivery' }`.
+`Password.resetCode()` takes no URL, but requires `Proofs.ProofKeys`:
+
+```ts
+import { Auth, Sessions } from '@yielded/auth'
+
+export const AppAuth = Auth.make(AuthApi, {
+  sessions: Sessions.stateful({ idleTimeout: '1 hour', maxAge: '1 day' }),
+  strategies: {
+    password: Password.make({
+      registration: Registration,
+      reset: Password.resetLink({ url: 'https://app.example/reset' }),
+    }),
+  },
+  defaultStrategy: 'password',
+})
+```
+
+**Provisioning writes the account row.** `AuthPersistence.make(AppAuth)`
+asks for `Provisioning`. Its `values` returns the new subject row, keyed by
+the column keys of the subject table given `Persistence.Config`: the id, the
+active status, the first security revision, and the application's own
+columns. Yielded inserts that row in the commit that binds the email and
+password, so an account never exists without its row. `values` must not
+write or call out; on D1 only this form is accepted (an interactive driver
+also takes a callback that inserts the row itself):
+
+```ts
+import { AuthPersistence } from '@yielded/auth-persistence'
+import { Effect, Layer } from 'effect'
+
+const Persistence = AuthPersistence.make(AppAuth)
+
+export const Provisioning = Layer.succeed(Persistence.Provisioning, {
+  password: {
+    values: ({ identifier, registration }) =>
+      Effect.sync(() => ({
+        id: crypto.randomUUID(),
+        status: 'active', // the subject table's `activeValue`
+        securityRevision: crypto.randomUUID(),
+        email: identifier.value,
+        displayName: registration.displayName,
+      })),
+  },
+})
+```
+
+**Management needs three services that sign-in does not.** Yielded gives
+them no default:
+
+- `Password.CompromisedPasswords` screens every new password, so it is
+  asked at each sign-up. Yielded makes no network call of its own and
+  allows nothing by default: check a local list here, or Pwned Passwords'
+  range API. It is given the email too (`accountName`), to refuse a password
+  that contains it (`'contextual'`).
+- `Password.PasswordActionEvidence` and `EmailDelivery.EmailDelivery` serve
+  password change and reset. A contract without those actions never asks
+  them, so refusing stubs are enough.
+
+```ts
+import { EmailDelivery } from '@yielded/auth'
+import { Redacted } from 'effect'
+
+const common = new Set(['password password', 'correct horse battery staple'])
+
+export const PasswordOnly = Layer.mergeAll(
+  Layer.succeed(Password.CompromisedPasswords, {
+    check: password =>
+      Effect.succeed(
+        common.has(Redacted.value(password))
+          ? { _tag: 'Rejected', reason: 'common' }
+          : { _tag: 'Allowed' },
+      ),
+  }),
+  Layer.succeed(Password.PasswordActionEvidence, {
+    verify: () => Effect.fail(Password.PasswordActionRequired.make({})),
+  }),
+  Layer.succeed(EmailDelivery.EmailDelivery, {
+    send: () => Effect.fail(EmailDelivery.EmailNotAccepted.make({})),
+  }),
+)
+```
+
+Provide `PasswordOnly` to `AppAuth.layer`, and `Provisioning` to
+`Persistence.layer`, alongside what sign-in already needs: the persistence
+layer and its `Config`, `SessionClaims`, and the platform's crypto and
+hashing (`WorkerdServices.layer` on Workers). Yielded's `Testing` store
+refuses password management when it is built, so a sign-up test needs SQL
+persistence, such as SQLite in memory.
+
+**The client registers, then signs in.** `register` answers
+`RegistrationAccepted` both when it creates an account and when the email
+already has one, so it does not reveal which emails are taken. It does not
+sign in either:
+
+```ts
+import * as Client from '@yielded/auth/Client'
+
+const AppClient = Client.make(AuthApi, { baseUrl: location.origin })
+
+export const signUp = (form: {
+  readonly requestId: string // one per submission, handed to `values` as `requestId`
+  readonly email: string
+  readonly password: Redacted.Redacted<string>
+  readonly displayName: string
+}) =>
+  Effect.gen(function* () {
+    const { auth } = yield* AppClient
+    yield* auth.register({
+      requestId: form.requestId,
+      email: form.email,
+      newPassword: Redacted.value(form.password),
+      registration: { displayName: form.displayName },
+    })
+    return yield* auth.signIn({ email: form.email, password: Redacted.value(form.password) })
+  })
+```
+
+- `register` fails with `NewPasswordRejected` for a password the policy or the
+  screening refuses, whether the email is taken or not. By default a new password needs 15
+  code points (NIST SP 800-63B for a single factor), so say so on the form, or
+  supply `Password.NewPasswordCheck.layer(policy)` with another
+  `minimumCodePoints`.
+- With a taken email, the sign-in after it fails with `PasswordRejected`,
+  unless the password is that account's own.
+- A retried `register` creates nothing twice: by then the email is taken, and
+  the retry is answered `RegistrationAccepted` like the first.
+- Call `belief.forget()` after the sign-in succeeds, as for any sign-in.
 
 ## Limits
 

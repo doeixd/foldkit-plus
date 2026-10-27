@@ -88,9 +88,40 @@ on every Remote call kind.
   `requests: 'browser'`, and a trusted `Origin` alone vouches for the
   cookie. Sync takes the resolver with `layer: () => AppAuthLive`; SSR builds
   a post's `resources` from it, behind `SSR.entry`'s `origins`.
+- Yielded counts password attempts (10 per email and per account, then one
+  every 6s, successes included) in memory unless given an Effect
+  `RateLimiterStore`: on Workers that is per isolate, and a test that signs
+  one account in more than ten times quickly is refused `PasswordRejected`.
 - Only cookie sessions so far; `Me` is `foldkit-guard`'s (`Guards.me`), and
   the client's sign-in and sign-out are the application's Commands over
   Yielded's client (`examples/auth`).
+
+## Sign-up
+
+Creating an account is Yielded's password strategy (`@yielded/auth@0.1.0-beta.43`),
+not `foldkit-auth`'s. The README's
+[Signing up](https://github.com/doeixd/foldkit-plus/blob/main/packages/auth/README.md#signing-up)
+has the compiled wiring; what it takes:
+
+- A `register` action in the contract, declared with `AuthContract.action`
+  (payload `{ requestId: Password.PasswordCommandId, email, newPassword,
+  registration }`, success `RegistrationAccepted`), since Yielded has no helper.
+- `Password.make({ registration, reset })`: registration is accepted only
+  beside `reset`. `Password.resetLink({ url })` fails the layer build with
+  `ProofConfigurationError { reason: 'delivery' }` unless `url` is `https:`
+  and exactly its own `href`; `Password.resetCode()` needs `Proofs.ProofKeys`
+  instead. With no reset action in the contract, none is served.
+- `Persistence.Provisioning` (from `AuthPersistence.make(AppAuth)`) returns
+  the application's account row as `{ values }`, keyed by the subject
+  table's column keys; Yielded inserts it in the same commit as the
+  credential. D1 accepts only this form.
+- `Password.CompromisedPasswords` (asked at every sign-up; no permissive
+  default), and refusing stubs of `Password.PasswordActionEvidence` and
+  `EmailDelivery.EmailDelivery` when the contract has no change or reset.
+- The client calls `register`, then `signIn`. `register` answers alike for a
+  new and a taken email and signs no one in. New passwords need 15 code points
+  by default (`NewPasswordRejected`). Yielded's `Testing` store refuses
+  password management, so sign-up tests need SQL persistence.
 
 ## See also
 
