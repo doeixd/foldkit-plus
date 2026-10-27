@@ -19,7 +19,7 @@ export const RegistryHost = SharedHost.define({ name: 'foldkit-registry', openin
 
 /**
  * Where a device's edits stand, as its frame tells the page around it, for
- * the card's dot and badge. Decoded on arrival, like any message.
+ * the card's badge. Decoded on arrival, like any message.
  */
 export const DeviceStatus = Schema.TaggedStruct('DeviceStatus', {
   device: Schema.String,

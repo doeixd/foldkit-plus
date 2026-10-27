@@ -1,12 +1,20 @@
 /**
  * The page's look: the demos' theme (`demoStyle`), the frame, the search box
  * and the notices from `foldkit-mixins-ui`, and the grid's frame over the
- * grid's own style.
+ * grid's own style; and the sandbox's page around the two devices, a card
+ * for each with its status.
  */
 import { Style } from 'foldkit-mixins'
 import { Layout } from 'foldkit-mixins/layout'
 import { GridSlots } from 'foldkit-mixins-data-grid'
-import { AlertSlots, AppShellSlots, InputSlots, Recipes } from 'foldkit-mixins-ui'
+import {
+  AlertSlots,
+  AppShellSlots,
+  BadgeSlots,
+  CardSlots,
+  InputSlots,
+  Recipes,
+} from 'foldkit-mixins-ui'
 import { demoStyle } from 'foldkit-example-site/demo-style'
 
 const { t, L } = demoStyle
@@ -118,4 +126,53 @@ export const Page = demoStyle.slots(
     value: Style.self({ margin: '0' }),
   },
   { name: 'Page' },
+)
+
+/** A device's card: its frame flush to the edges, under a header that keeps its padding. */
+export const DeviceCardStyle = demoStyle.forSlots(CardSlots)(
+  Recipes.Card.extend({
+    base: {
+      // The header meets the frame: no gap between the regions.
+      root: { gap: '0' },
+      header: {
+        padding: `${t.space.xs} ${t.space.md}`,
+        borderBlockEnd: `1px solid ${t.outline.subtle}`,
+        background: t.surface.subtle,
+      },
+    },
+  })({ padding: 'flush' }),
+  { name: 'DeviceCardStyle' },
+)
+/** Where a device's edits stand: settled, or waiting on the device. */
+export const DeviceBadgeStyle = demoStyle.forSlots(BadgeSlots)(
+  Recipes.Badge({ attribute: 'data-tone', tones: { synced: 'success', waiting: 'warning' } }),
+  { name: 'DeviceBadgeStyle' },
+)
+
+export const Sandbox = demoStyle.slots(
+  {
+    content: L.in('layouts', Layout.stack({ gap: t.space.lg })),
+    intro: L.in('layouts', Layout.stack({ gap: t.space['2xs'] })),
+    eyebrow: Style.self({
+      margin: '0',
+      fontSize: t.size.sm,
+      fontWeight: t.weight.medium,
+      color: t.text.subtle,
+    }),
+    heading: Style.self({ margin: '0', fontSize: t.size['2xl'], color: t.text.overt }),
+    lede: Style.self({ margin: '0', maxInlineSize: '44rem', color: t.text.muted }),
+    devices: Style.self({
+      display: 'grid',
+      gap: t.space.md,
+      gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 36rem), 1fr))',
+    }),
+    frame: Style.self({
+      display: 'block',
+      inlineSize: '100%',
+      blockSize: '80vh',
+      minBlockSize: '34rem',
+      border: '0',
+    }),
+  },
+  { name: 'Sandbox' },
 )

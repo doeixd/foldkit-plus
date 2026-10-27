@@ -25,7 +25,11 @@ at `bf6a8a94` on 2026-10-26.
   styles on `demoStyle` instead of the `<style>` in `index.html` (`1926a0dc`), and
   a line in its sidebar from the replica's status that says whether an edit
   reached the server, with an e2e test that takes the server down. `registry`
-  and the richtext demos are next.
+  is done: its device page is an `AppShell` with Slot styles in place of its 22
+  inline styles, an `Input`, and an `Alert` per notice; the sandbox's page draws
+  each device as a `Card` with a status `Badge`. Moving it found a
+  `foldkit-mixins/foundations` bug, now fixed: a build compiled the sheet from
+  the current directory rather than Vite's root. The richtext demos are next.
 - **Open question for the owner:** `foldkit-form` validates a key on its first
   blur, so tabbing out of an emptied quick-add field says "Required", and the
   form's summary repeats it. Validating an untouched key only on submit would

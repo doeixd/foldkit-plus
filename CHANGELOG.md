@@ -24,7 +24,10 @@ version changed; `pnpm` skips versions already in the registry.
 - **`examples/registry` draws on the demos' theme.** Its device page is an
   `AppShell` with the edits' status in the header, a mixins-ui `Input` for the
   search, and an `Alert` for each refused, replaced or held-back edit; its 22
-  inline styles are Slot styles, and its foundations are in the page.
+  inline styles are Slot styles, and its foundations are in the page. The
+  sandbox's page around the two devices, plain DOM with colours of its own
+  before, is a runtime that draws each device as a `Card` with a status
+  `Badge`, from the statuses its frames post.
 - **Every example keeps its Model across an edit.** The CMS and Foldkit's
   sixteen ported examples now load `@foldkit/vite-plugin`, as the other demos
   do, so a save no longer reloads the page from `init` or logs "No response

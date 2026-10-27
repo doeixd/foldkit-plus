@@ -4,13 +4,18 @@
  * to one server that runs in the browser (`host.ts`, in a SharedWorker).
  * Every tab of the sandbox meets the same server.
  */
-import { Option, Schema } from 'effect'
-import type { HtmlBuilder } from 'foldkit/html'
+import { Option, Schema, Stream } from 'effect'
+import type { Html, HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
+import * as Subscription from 'foldkit/subscription'
+import { SlotView } from 'foldkit-mixins'
+import { AppShell, Badge, Card } from 'foldkit-mixins-ui'
 import { registryDemo } from 'foldkit-example-site/demos'
 import { demoGuide } from 'foldkit-example-site/guide'
 import { Sync } from 'foldkit-sync'
 import { startDevice } from '../device.js'
+import { DeviceBadgeStyle, DeviceCardStyle, Sandbox, ShellStyle } from '../style.js'
 import { connectSandbox } from './connection.js'
 import { DeviceStatus } from './protocol.js'
 
@@ -19,114 +24,107 @@ const devices = [
   { id: 'device-b', name: 'Device B' },
 ] as const
 
-/** An element with its style and its children: the outer page is plain DOM, outside both runtimes. */
-const element = (
-  tag: string,
-  style: string,
-  children: ReadonlyArray<Node | string> = [],
-): HTMLElement => {
-  const node = document.createElement(tag)
-  node.style.cssText = style
-  node.append(...children)
-  return node
-}
+/** What each device's frame last said of its edits; a device yet to say is absent. */
+const Model = Schema.Struct({ statuses: Schema.Array(DeviceStatus) })
+type Model = typeof Model.Type
 
-/**
- * The outer page's colours, each for a light page and a dark one: it follows
- * the reader's preference, as the devices' themes inside it do.
- */
-const c = {
-  ink: 'light-dark(#18181b, #f4f4f5)',
-  muted: 'light-dark(#52525b, #a1a1aa)',
-  faint: 'light-dark(#71717a, #8e8e96)',
-  page: 'light-dark(#fafafa, #111113)',
-  card: 'light-dark(#fff, #18181b)',
-  bar: 'light-dark(#fafafa, #1f1f23)',
-  line: 'light-dark(#e4e4e7, #2e2e33)',
-  chip: 'light-dark(#f4f4f5, #27272a)',
-  warnChip: 'light-dark(#fef3c7, #3b2a0a)',
-  warnInk: 'light-dark(#92400e, #fcd34d)',
-}
+const Message = defineMessageUnion({ GotStatus: { status: DeviceStatus } })
+type Message = typeof Message.Type
 
-const font = `font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color: ${c.ink}`
-
-const intro = (): HTMLElement =>
-  element(
-    'header',
-    'display: grid; gap: .375rem; max-width: 96rem; margin: 0 auto; padding: 2.25rem 1.5rem 1.5rem',
-    [
-      element('p', `margin: 0; font-size: .8125rem; font-weight: 500; color: ${c.faint}`, [
-        'Remote, Sync and Durable',
-      ]),
-      element(
-        'h1',
-        'margin: 0; font-size: 1.5rem; font-weight: 600; line-height: 1.25; letter-spacing: -.015em',
-        ['Two devices, one registry'],
-      ),
-      element('p', `margin: 0; max-width: 44rem; color: ${c.muted}; font-size: .9375rem`, [
-        '10,000 products on a server that runs in this browser. Each device keeps its own replica, so its edits wait while it is offline and reach the other when it is back.',
-      ]),
-    ],
-  )
-
-/**
- * The guide every demo offers, in the corner: the same view the applications
- * draw, run by a runtime of its own, since this page is plain DOM. It sends no
- * Messages and keeps no state.
- */
-const guide = (): HTMLElement => {
-  const container = element('div', '')
-  container.id = 'demo-guide'
-  const Guide = demoGuide<never>()
-  queueMicrotask(() =>
-    Runtime.run(
-      Runtime.makeElement({
-        Model: Schema.Struct({}),
-        container,
-        init: () => ({ model: {} }),
-        update: (model: {}) => ({ model }),
-        view: (_: {}, h: HtmlBuilder<never>) => Guide({ demo: registryDemo }, h),
-      }),
-    ),
-  )
-  return container
-}
-
-/** A device's card: its name and status above its page, a frame of its own. */
-const card = (id: string, name: string): HTMLElement => {
-  const dot = element(
-    'span',
-    'width: .5rem; height: .5rem; border-radius: 50%; background: #22c55e',
-  )
-  const badge = element(
-    'span',
-    `margin-inline-start: auto; padding: .125rem .625rem; border-radius: 999px; background: ${c.chip}; color: ${c.muted}; font-size: .75rem; font-weight: 500`,
-    ['Synced'],
-  )
-  badge.setAttribute('role', 'status')
-  window.addEventListener('message', event => {
-    if (event.origin !== location.origin) return
-    Option.match(decodeStatus(event.data), {
-      onNone: () => {},
-      onSome: status => {
-        if (status.device === id) showStatus(dot, badge, status)
+const update = (model: Model, message: Message): { readonly model: Model } =>
+  Message.match(message, {
+    GotStatus: ({ status }) => ({
+      model: {
+        statuses: [...model.statuses.filter(({ device }) => device !== status.device), status],
       },
-    })
+    }),
   })
-  const frame = document.createElement('iframe')
-  frame.src = `?pane=${id}`
-  frame.title = name
-  frame.style.cssText = 'display: block; width: 100%; height: 80vh; min-height: 34rem; border: 0'
-  return element(
-    'section',
-    `background: ${c.card}; border: 1px solid ${c.line}; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgb(0 0 0 / .05)`,
+
+const decodeStatus = Schema.decodeUnknownOption(DeviceStatus)
+
+/**
+ * The frames' statuses, from this page's own origin and naming one of its
+ * devices: anything else posted to the window is not a device speaking.
+ */
+const subscriptions = Subscription.make<Model, Message>()(() => ({
+  statuses: Subscription.persistentEntry(
+    Stream.fromEventListener<MessageEvent>(window, 'message').pipe(
+      Stream.filter(event => event.origin === location.origin),
+      Stream.map(event => decodeStatus(event.data)),
+      Stream.filter(Option.isSome),
+      Stream.map(({ value }) => value),
+      Stream.filter(({ device }) => devices.some(({ id }) => id === device)),
+      Stream.map(status => Message.GotStatus({ status })),
+    ),
+  ),
+}))
+
+/** A card's badge for a device's status: settled once all is sent, waiting while edits are kept. */
+const statusOf = (status: Option.Option<DeviceStatus>) =>
+  Option.match(status, {
+    onNone: () => ({ text: 'Starting…', tone: 'waiting' }),
+    onSome: ({ offline, waiting, unreachable }) => {
+      const edits = `${waiting} ${waiting === 1 ? 'edit' : 'edits'}`
+      if (offline)
+        return { text: waiting === 0 ? 'Offline' : `Offline · ${edits} waiting`, tone: 'waiting' }
+      if (unreachable) return { text: `No server · ${edits} waiting`, tone: 'waiting' }
+      if (waiting > 0) return { text: `Sending ${edits}…`, tone: 'waiting' }
+      return { text: 'Synced', tone: 'synced' }
+    },
+  })
+
+const Guide = demoGuide<Message>()
+
+const view = (model: Model, h: HtmlBuilder<Message>): Html => {
+  const slots = SlotView.buildersFor(Sandbox.slots, [Sandbox.style.mixin], { input: undefined, h })
+  return h.div(
+    [],
     [
-      element(
-        'div',
-        `display: flex; align-items: center; gap: .5rem; padding: .625rem 1rem; border-bottom: 1px solid ${c.line}; background: ${c.bar}; font-size: .875rem; font-weight: 600`,
-        [dot, name, badge],
+      AppShell.view(
+        { title: 'Product registry', style: ShellStyle },
+        [
+          h.div(slots.content.attrs(), [
+            h.header(slots.intro.attrs(), [
+              h.p(slots.eyebrow.attrs(), ['Remote, Sync and Durable']),
+              h.h1(slots.heading.attrs(), ['Two devices, one registry']),
+              h.p(slots.lede.attrs(), [
+                '10,000 products on a server that runs in this browser. Each device keeps its own replica, so its edits wait while it is offline and reach the other when it is back.',
+              ]),
+            ]),
+            h.div(
+              slots.devices.attrs(),
+              devices.map(({ id, name }) => {
+                const { text, tone } = statusOf(
+                  Option.fromUndefinedOr(model.statuses.find(({ device }) => device === id)),
+                )
+                // A region per device, named for it, holding its frame: its page of its own.
+                return h.section(
+                  [h.Key(id), h.AriaLabel(name)],
+                  [
+                    Card.view(
+                      {
+                        title: name,
+                        action: h.span(
+                          [h.Role('status')],
+                          [Badge.view({ text, tone, style: DeviceBadgeStyle }, h)],
+                        ),
+                        content: h.iframe(
+                          slots.frame.attrs([h.Src(`?pane=${id}`), h.Title(name)]),
+                          [],
+                        ),
+                        style: DeviceCardStyle,
+                      },
+                      h,
+                    ),
+                  ],
+                )
+              }),
+            ),
+          ]),
+        ],
+        h,
       ),
-      frame,
+      Guide({ demo: registryDemo }, h),
     ],
   )
 }
@@ -143,16 +141,15 @@ export const startSandbox = async (container: HTMLElement): Promise<void> => {
   // Where a browser has no SharedWorker, this page runs the host, and both
   // device frames send their conversations here, so they meet one server.
   connectSandbox()
-  document.documentElement.style.colorScheme = 'light dark'
-  document.body.style.cssText = `margin: 0; background: ${c.page}; ${font}`
-  container.append(
-    intro(),
-    element(
-      'div',
-      'display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 36rem), 1fr)); max-width: 96rem; margin: 0 auto; padding: 0 1.5rem 2.5rem',
-      devices.map(({ id, name }) => card(id, name)),
-    ),
-    guide(),
+  Runtime.run(
+    Runtime.makeElement({
+      Model,
+      container,
+      init: () => ({ model: { statuses: [] } }),
+      update,
+      view,
+      subscriptions,
+    }),
   )
 }
 
@@ -162,8 +159,6 @@ const startPane = async (
 ): Promise<void> => {
   // The card around the frame names the device. An application draws in
   // place of its container, which needs an id.
-  document.documentElement.style.colorScheme = 'light dark'
-  document.body.style.cssText = `margin: 0; background: ${c.card}; ${font}`
   const app = document.createElement('div')
   app.id = id
   container.append(app)
@@ -197,22 +192,3 @@ const startPane = async (
 }
 
 const encodeStatus = Schema.encodeSync(DeviceStatus)
-const decodeStatus = Schema.decodeUnknownOption(DeviceStatus)
-
-/** A card's dot and badge for a device's status: green when all is sent, amber while edits wait. */
-const showStatus = (dot: HTMLElement, badge: HTMLElement, status: DeviceStatus) => {
-  const { label, waiting } = statusOf(status)
-  dot.style.background = waiting ? '#f59e0b' : '#22c55e'
-  badge.textContent = label
-  badge.style.background = waiting ? c.warnChip : c.chip
-  badge.style.color = waiting ? c.warnInk : c.muted
-}
-
-const statusOf = ({ offline, waiting, unreachable }: DeviceStatus) => {
-  const edits = `${waiting} ${waiting === 1 ? 'edit' : 'edits'}`
-  if (offline)
-    return { label: waiting === 0 ? 'Offline' : `Offline · ${edits} waiting`, waiting: true }
-  if (unreachable) return { label: `No server · ${edits} waiting`, waiting: true }
-  if (waiting > 0) return { label: `Sending ${edits}…`, waiting: true }
-  return { label: 'Synced', waiting: false }
-}
