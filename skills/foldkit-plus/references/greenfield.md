@@ -290,9 +290,8 @@ browser.
 - **Effect — the backend.** Each request is one Effect program whose Layers
   provide the database (`foldkit-remote-drizzle`'s Effect SQL) and `Auth`,
   built from the Worker's `env` (its bindings and secrets), with typed failures
-  and `Schema` at every boundary. The
-  Worker entry is one composed `fetch` (`src/worker.ts`), not a set of ad-hoc
-  handlers.
+  and `Schema` at every boundary. The Worker entry is one composed `fetch`
+  (`src/worker.ts`), not a set of ad-hoc handlers.
 - **Yielded Auth — the sign-in.** `AuthContract`, `Auth.make` and `Http.layer`
   give the account routes and the session cookie, and `foldkit-auth`'s
   `AuthServer.resolver` turns that session into the principal Remote, Sync,
