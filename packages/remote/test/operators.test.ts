@@ -345,4 +345,41 @@ describe('A pending computed assignment', () => {
   it('shows what the store holds where the client lacks the operator', () => {
     expect(shown()).toEqual({ before: 'ned', after: 'bo' })
   })
+
+  it('predicts nothing from a value an earlier pending write could not work out', () => {
+    // The client runs concat but not upper: after `upper`, `name` is not known,
+    // so concat over it would be computed from the store's stale value.
+    const upper = Expr.operator('acme.upper', { input: [Schema.String], output: Schema.String })
+    const Upper = Write.update(DomainEntity.input(Project, Schema.Struct({ id: Schema.String })), {
+      id: 'id',
+      compute: { name: ({ row }) => upper(row.name) },
+    })
+    const Data = Remote.make({
+      model: App.model.remote,
+      entities: [Project],
+      queries: [],
+      operators: concatTable,
+    })
+    const stored = Data.reduce(
+      { remote: Remote.initial },
+      {
+        _tag: 'ReadReceived',
+        requests: [{ entity: 'Project', id: 'p1', fields: ['id', 'name', 'price'] }],
+        result: {
+          settled: [],
+          entities: [{ entity: 'Project', id: 'p1', values: { id: 'p1', name: 'ned', price: 1 } }],
+        },
+        now: 0,
+      },
+    )
+    const first = Data.overlay(stored, 'first', optimisticOfWrite(Upper, { id: 'p1' }, undefined))
+    const both = Data.overlay(
+      first,
+      'second',
+      optimisticOfWrite(Prefix, { id: 'p1', prefix: 'o' }, undefined),
+    )
+    const read = Data.get(Summary, 'p1').read(both)
+    // Not 'oned': the server will answer 'oNED'.
+    expect(read._tag === 'Ready' ? read.value.name : read._tag).toBe('ned')
+  })
 })

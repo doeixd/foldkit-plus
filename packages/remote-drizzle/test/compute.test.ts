@@ -13,7 +13,16 @@ import { drizzle as drizzlePg } from 'drizzle-orm/pglite'
 import { integer as pgInteger, pgTable, text as pgText } from 'drizzle-orm/pg-core'
 import { SQLiteDialect, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Schema } from 'effect'
-import { Collation, Entity, Expr, Law, Operators, Write, isPredicate } from 'foldkit-entity'
+import {
+  Collation,
+  Entity,
+  Evidence,
+  Expr,
+  Law,
+  Operators,
+  Write,
+  isPredicate,
+} from 'foldkit-entity'
 import { Conformance } from 'foldkit-entity/conformance'
 import { Mutation } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
@@ -55,7 +64,12 @@ const Fields = Entity.define(
     score: Schema.Int,
     revision: Schema.Int,
   }),
-).pipe(Entity.annotateMembers({ label: Collation.of(Collation.binary) }))
+).pipe(
+  Entity.annotateMembers({
+    name: Collation.of(Collation.binary),
+    label: Collation.of(Collation.binary),
+  }),
+)
 const Part = Fields.pipe(
   Entity.invariant('notBanned', ({ after }) => Expr.not(Expr.eq(after.label, 'banned')), {
     message: 'That label is banned',
@@ -64,6 +78,17 @@ const Part = Fields.pipe(
   // Orders the computed label under its collation, which each dialect writes its own way.
   Entity.invariant('beforeX', ({ after }) => Expr.lt(after.label, 'x'), {
     message: 'Labels sort before x',
+    path: ['label'],
+  }),
+)
+/**
+ * The same with the computed value second, beside a stored field. Its own
+ * Entity: an invariant reading `name` would make every miss of `Part` read it,
+ * hiding whether a miss reads what its computation reads.
+ */
+const Ordered = Part.pipe(
+  Entity.invariant('afterName', ({ after }) => Expr.lte(after.name, after.label), {
+    message: 'Labels sort after the name',
     path: ['label'],
   }),
 )
@@ -109,6 +134,22 @@ const Relabel = Mutation.write(
     },
   ),
 )
+/** `Relabel`, over `Ordered`. */
+const RelabelOrdered = Mutation.write(
+  'RelabelOrdered',
+  Write.update(
+    Entity.input(
+      Ordered,
+      Schema.Struct({ id: Schema.String, revision: Schema.Int, prefix: Schema.String }),
+      { prefix: Entity.unmapped },
+    ),
+    {
+      id: 'id',
+      expect: 'revision',
+      compute: { label: ({ row, input }) => concat(input.prefix, row.name) },
+    },
+  ),
+)
 /** The score moved by an amount through `add`, expecting no revision. */
 const Score = Mutation.write(
   'Score',
@@ -143,6 +184,12 @@ const backends = [
       layer: () => databaseLayer(drizzle({ client: sqlite })),
       Db: () =>
         bind({ Part }, { Part: { table: sqliteParts } }, { operators: { memory, sql: sqlTable } }),
+      Ordered: () =>
+        bind(
+          { Part: Ordered },
+          { Part: { table: sqliteParts } },
+          { operators: { memory, sql: sqlTable } },
+        ),
     },
   ],
   [
@@ -155,6 +202,12 @@ const backends = [
       layer: () => databaseLayer(drizzlePg({ client: pglite })),
       Db: () =>
         bind({ Part }, { Part: { table: pgParts } }, { operators: { memory, sql: sqlTable } }),
+      Ordered: () =>
+        bind(
+          { Part: Ordered },
+          { Part: { table: pgParts } },
+          { operators: { memory, sql: sqlTable } },
+        ),
     },
   ],
 ] as const
@@ -195,6 +248,28 @@ describe.each(backends)('A computed assignment on %s', (_, backend) => {
     expect(await send({ id: 'p1', revision: 1, prefix: 'y' })).toMatchObject({
       _tag: 'Failure',
       failure: { refusal: { _tag: 'Invalid', rule: 'beforeX' } },
+    })
+  })
+
+  it('orders a computed value second, beside a stored field, under its collation', async () => {
+    await backend.fresh()
+    const server = RemoteServer.make<null, DrizzleDatabase>({
+      entities: [],
+      mutations: [RemoteServer.write(RelabelOrdered, writer(backend.Ordered().Part))],
+    })
+    const answer = await Effect.runPromise(
+      RemoteServer.handlers(server, null)
+        .FoldkitRemoteMutate({
+          requestId: 'r',
+          mutation: 'RelabelOrdered',
+          // 'aned' sorts before 'ned'.
+          input: { id: 'p1', revision: 1, prefix: 'a' },
+        })
+        .pipe(Effect.result, Effect.provide(backend.layer())),
+    )
+    expect(answer).toMatchObject({
+      _tag: 'Failure',
+      failure: { refusal: { _tag: 'Invalid', rule: 'afterName' } },
     })
   })
 
@@ -368,12 +443,26 @@ describe("A SQL table's evidence", () => {
     ).toThrow('evidence names a law of acme.add it does not declare (idempotent)')
   })
 
-  it('refuses a record tested on a memory implementation, which says nothing of its SQL', () => {
-    const verdict = Conformance.laws(add, memory)
-    const evidence = verdict._tag === 'Holds' ? verdict.evidence : []
-    expect(() => DrizzleOperators.withEvidence(sqlTable, evidence)).toThrow(
-      "evidence of acme.add's commutative law was tested on a memory implementation",
-    )
+  it('takes only what Conformance.lawsBy made: not memory evidence, a copy, or a record by hand', async () => {
+    const message = "evidence of acme.add's commutative law was not made by Conformance.lawsBy"
+    const inMemory = Conformance.laws(add, memory)
+    expect(() =>
+      DrizzleOperators.withEvidence(sqlTable, inMemory._tag === 'Holds' ? inMemory.evidence : []),
+    ).toThrow(message)
+    const [run] = await record()
+    expect(() => DrizzleOperators.withEvidence(sqlTable, [{ ...run! }])).toThrow(message)
+    expect(() =>
+      DrizzleOperators.withEvidence(sqlTable, [
+        Evidence.Tested({
+          operator: 'acme.add',
+          law: Law.describe(Law.commutative),
+          implementation: 'sqlite',
+          cases: 200,
+          seed: 0,
+        }),
+      ]),
+    ).toThrow(message)
+    expect(() => DrizzleOperators.withEvidence(sqlTable, [run!])).not.toThrow()
   })
 
   it('does not let a law tested over less than every value admit a write with no revision', async () => {

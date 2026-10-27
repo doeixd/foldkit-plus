@@ -228,28 +228,26 @@ describe('GuardServer.writer over a writer with a ledger', () => {
       create table write_ledger (scope text not null, operation text not null, target text not null, answer text not null, at integer not null, primary key (scope, operation, target));
       insert into items values ('i1', 'mo', 3, 1);
     `)
-    const server = RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
-      entities: [],
-      mutations: [
-        RemoteServer.write(
-          Bump,
-          GuardServer.writer(
-            Item,
-            Policy,
-            writer<Option.Option<User>>(Db.Item, {
-              ledger: { table: ledger, scope: () => 'mo' },
-            }),
-          ),
-        ),
-      ],
-    })
+    const unpinned = GuardServer.writer(
+      Item,
+      Policy,
+      writer<Option.Option<User>>(Db.Item, { ledger: { table: ledger, scope: () => 'mo' } }),
+    )
+    // Refused where it is registered…
+    expect(() => RemoteServer.write(Bump, unpinned)).toThrow('the guarded writer pins none')
+    // …and per request, for a caller that registers nothing.
     const failed = await Effect.runPromise(
-      RemoteServer.handlers(server, mo)
-        .FoldkitRemoteMutate({
-          requestId: 'r',
-          mutation: 'Bump',
-          input: { id: 'i1', by: 2 },
-          operation: 'op',
+      unpinned
+        .update({
+          id: 'i1',
+          operation: Option.some('op'),
+          values: {},
+          increments: { stock: 2 },
+          assignments: {},
+          links: {},
+          expect: Option.none(),
+          when: Option.none(),
+          principal: mo,
         })
         .pipe(Effect.result, Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
     )

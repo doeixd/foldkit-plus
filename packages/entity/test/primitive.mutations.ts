@@ -146,7 +146,7 @@ export default [
   edit(
     'a declared locale is taken where a collation is required',
     expr,
-    "if (rule === 'required' && shared._tag === 'Locale') {",
+    "if (shared._tag === 'Locale') {",
     'if (false) {',
   ),
   edit(
@@ -158,7 +158,7 @@ export default [
   edit(
     'a given locale is taken where a collation is required',
     expr,
-    "if (descriptor.collation === 'required' && collation._tag === 'Locale') {",
+    "if (collation._tag === 'Locale') {",
     'if (false) {',
   ),
   edit(

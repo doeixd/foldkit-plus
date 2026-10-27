@@ -143,6 +143,7 @@ const post = (model: Model, value: typeof NewPost.Type): Return => {
  * A like, shown at once: the count moves and you join or leave the likers,
  * until the server answers with the post as it now reads.
  */
+// #region optimistic
 const like = (
   model: Model,
   { id, likeCount, likedBy }: { id: string; likeCount: number; likedBy: ReadonlyArray<string> },
@@ -164,6 +165,7 @@ const like = (
   )
   return { model: sent.model, commands: [sent.command] }
 }
+// #endregion
 
 // #region form-place
 const Page = Bundle.parent({ Model, Message }).withServices<RemoteClient>()

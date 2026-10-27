@@ -393,9 +393,11 @@ it is expanded there, so `Write.bind` carries it as data (`assignments`, each a
 `Computation`: fields by key, values encoded, operators by name), which a writer
 compiles into the statement and a client predicts by its own table. A
 computation does not repeat without effect, so a retry of one is held to it as
-an increment's is; without a revision it lands under a ledger only by an
-operator whose commutativity and associativity are tested (`Conformance.laws`)
-for each implementation the writer runs.
+an increment's is; without a revision it lands only under a ledger, and there
+only where the writer pins the row it read (a guarded writer with a `revision`)
+or by an operator whose commutativity and associativity are tested over every
+value for each implementation the writer runs (`Conformance.laws` in memory,
+`Conformance.lawsBy` in SQL).
 
 `Write.apply(row, bound, { operators })` is the row a bound write leaves over
 the row before it: values set, amounts added (a null stays null, as in SQL),
@@ -977,19 +979,27 @@ Operators.describeTable(recorded) // [{ name: 'acme.concat', …, laws, evidence
 - **Testing is sampling, seeded.** Cases come from a fixed sample of each kind
   (the empty string, mixed case, non-ASCII and astral text; zero, negatives, a
   fraction), kept where the schemas decode them, up to `cases` (200) a law
-  chosen by `seed` (0), under `binary` and `asciiFold` for an operator that
-  compares text. The verdict is `Holds` with one `Tested` record a law, or the
+  chosen by `seed` (0), under each of `binary` and `asciiFold` where the
+  operator or a witness its law calls compares text (so a record of such a law
+  counts twice the cases). The verdict is `Holds` with one `Tested` record a law, or the
   first `Counterexample` with both sides and its collation: declaring `concat` commutative
   finds `"a"` and `"A"`, which give `"aA"` and `"Aa"`.
 - **Evidence is an implementation's.** `Operators.withEvidence` refuses a record
   of an operator the table lacks or a law it does not declare, and a `Tested`
   record `Conformance.laws` did not make of this table's own implementation
   (`Operators.testedOn(record)` names the one it did); `override` drops a
-  replaced implementation's records, `merge` keeps both tables'. An SQL table
-  (`DrizzleOperators.withEvidence`) takes `Conformance.lawsBy`'s records and
-  refuses one tested in memory. `Evidence.Proven` records a proof made
-  elsewhere, never checked here. A law's domain is described as a JSON Schema
-  with the definitions it refers to.
+  replaced implementation's records, and those of a law that called it as a
+  witness (`inverse`, `distributes`); `merge` keeps both tables'. An SQL table
+  (`DrizzleOperators.withEvidence`) takes only records `Conformance.lawsBy`
+  made (`Operators.testedByRunner`): not one built by hand, copied, or tested
+  in memory. Which runner made it, the database's or another, is the caller's
+  word, so run it over the table's own SQL (`compileCall`). `Evidence.Proven`
+  records a proof made elsewhere, never checked here. A law's domain is
+  described as a JSON Schema with the definitions it refers to.
+- **A defined operator's laws describe it; nothing records them.** It has no
+  implementation to hold evidence. A write computing through it is expanded
+  first, so it commutes by the primitive operator it calls, by that one's
+  evidence.
 
 `Conformance.operator(op, { implementations })` runs one set of calls through
 every implementation given and reports where they disagree, a refusal included:
@@ -1098,13 +1108,13 @@ from queries, not from what a database could express.
 | `Entity.is(value)` | Whether a value is an Entity descriptor. |
 | `Expr.eq(left, right)` | Two values are the same: a field (or an expression) on the left, and the value on the right, which is typed from it; a predicate may stand where a boolean is wanted. A plain value on the left is a compile error that says so. |
 | `Expr.isNull(field)` / `Expr.isNotNull(field)` | Whether a value is absent; one node, with the answer absence gives flipped. |
-| `Expr.contains(field, search)` | Whether text contains text, over a text or nullable-text operand only. Containing the empty string is everything, but a null contains nothing. |
+| `Expr.contains(field, search)` | Whether text contains a value or an input's text, over a text or nullable-text operand only. Containing the empty string is everything, but a null contains nothing. |
 | `Expr.in(field, among)` | Whether a value is one of a list (written out, or an input), each compared as `eq` compares; SQL's `in`, an empty list matching nothing. |
 | `Expr.and(a, b, …)` / `Expr.or(a, b, …)` | Every operand holds / at least one does, as SQL's three-valued `and` and `or`. At least one operand; a nested one of the same kind is flattened in. |
 | `Expr.not(predicate)` | The predicate does not hold; an unknown stays unknown, so a null matches neither side. |
 | `Expr.lt` / `lte` / `gt` / `gte(left, right, { collation? })` | One value orders before or after the other. Numbers as numbers; text only under `binary` or `asciiFold` (the field's declared collation, or the one given), and only against a field. |
 | `Expr.whenGiven(input, given => predicate)` | A filter applying only when a nullable input is given: `or(isNull(input), predicate)`, the predicate seeing the input as never null. |
-| `Expr.operator(id, { input, output, definedAs, version?, description? })` | An operator defined by what a call means; calling it builds a `Test` predicate (a boolean output) or a `Call` scalar, whose expansion every interpreter runs. |
+| `Expr.operator(id, { input, output, definedAs?, version?, description?, nulls?, collation?, laws? })` | An operator: defined by what a call means (`definedAs`, whose expansion every interpreter runs) or primitive (each interpreter's table implements it). Calling it builds a `Test` predicate (a boolean output) or a `Call` scalar. |
 | `Expr.unsupported(nodes, { operations, operators })` | What these expressions need that an interpreter lacks: operations, then primitive operators by name. |
 | `Text.startsWith(text, prefix, { collation? })` | Whether text begins with a prefix, under its collation; the kernel's primitive operator. |
 | `Operators.memory(...)` / `implement` / `implementHandlingNulls` / `merge` / `override` / `checked` / `kernel` | Tables of in-memory implementations of primitive operators, passed to `evaluate` and every judge. |

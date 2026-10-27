@@ -66,7 +66,7 @@ Its unit is the collection; a screen queries what is already local. Remote's
 unit is the field: a screen declares which fields of which entities it reads,
 and only those are fetched, so there is no collection to load first and a page
 carries what it shows. Remote has no live query engine: `Data.filtered` and
-`Remote.matching` judge the rows a list already holds, and a new list is a
+`matching` judge the rows a list already holds, and a new list is a
 server query. Where TanStack DB syncs client-authored writes through a sync
 engine, that job here belongs to [`foldkit-sync`](../sync), and Remote stays
 the disposable cache of what the server owns.
@@ -1122,10 +1122,11 @@ The server stays authoritative for which rows exist.
 
 A connection's rows are edges the server delivered, and a query body describes
 *which rows* — so until something evaluates the body on the client, nothing here
-can say whether a row belongs to a query. `Remote.matching` says:
+can say whether a row belongs to a query. `matching`, exported by
+`foldkit-remote`, says:
 
 ```ts
-const judged = Remote.matching(Data.storeOf(model), ProjectsByOwner, { ownerId: 'u1' })
+const judged = matching(Data.storeOf(model), ProjectsByOwner, { ownerId: 'u1' })
 
 judged.matched  // keys satisfying the body, in the order it asks for
 judged.skipped  // keys held, but not judged either way

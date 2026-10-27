@@ -17,12 +17,10 @@ export default [
   edit(
     'laws are tested under binary alone',
     helper,
-    `      ? [Option.none<Collation>()]
-      : [Option.some(Collation.binary), Option.some(Collation.asciiFold)]
-  const run`,
-    `      ? [Option.none<Collation>()]
-      : [Option.some(Collation.binary)]
-  const run`,
+    `const collations = [op, ...witnesses].some(comparesText)
+      ? [Option.some(Collation.binary), Option.some(Collation.asciiFold)]`,
+    `const collations = [op, ...witnesses].some(comparesText)
+      ? [Option.some(Collation.binary)]`,
   ),
   edit(
     'outcomes are compared as JSON',
@@ -33,8 +31,8 @@ export default [
   edit(
     'a witness is called with no collation',
     helper,
-    "other.descriptor.collation === 'none' ? Option.none() : collation",
-    'Option.none()',
+    'callOf(other, args, under(other, collation))',
+    'callOf(other, args, Option.none())',
   ),
   // ---- declaring
   edit('a law of two arguments fits any operator', expr, '    input.length === 2', '    true'),
@@ -83,8 +81,8 @@ export default [
   edit(
     'a replaced implementation keeps its evidence',
     operators,
-    'base.evidence.filter(({ operator }) => !names.has(operator)),',
-    'base.evidence,',
+    '!names.has(operator) && !Law.witnessesNamed(law).some(name => names.has(name)),',
+    'true,',
   ),
   edit('a merge drops evidence', operators, '[...left.evidence, ...right.evidence],', '[],'),
   edit(
@@ -213,5 +211,29 @@ export default [
     law,
     'onSome: jsonSchemaOf,',
     'onSome: domain => Schema.toJsonSchemaDocument(domain).schema,',
+  ),
+  edit(
+    'a witness replaced keeps the evidence it was part of',
+    operators,
+    '!names.has(operator) && !Law.witnessesNamed(law).some(name => names.has(name)),',
+    '!names.has(operator),',
+  ),
+  edit(
+    'a witness comparing text gets no pass under a collation',
+    helper,
+    'const collations = [op, ...witnesses].some(comparesText)',
+    'const collations = [op].some(comparesText)',
+  ),
+  edit(
+    'an object that is not plain is compared by its own keys',
+    helper,
+    'return prototype === Object.prototype || prototype === null',
+    'return prototype !== undefined',
+  ),
+  edit(
+    'a field holding undefined counts as present',
+    helper,
+    'Object.keys(record).filter(key => record[key] !== undefined)',
+    'Object.keys(record)',
   ),
 ]

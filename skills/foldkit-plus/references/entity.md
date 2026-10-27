@@ -257,8 +257,9 @@ const Restock = Write.update(
   before the write and the input, never the row after or another Entity; refused for a field another key
   writes or a kind it does not store. `Write.bind` carries it as data (`assignments`, `Computation`s:
   operators by name), compiled by the writer and predicted by Remote with its table. Without `expect` it
-  lands only under a ledger and only by `op(field, amount)` whose commutativity and associativity are
-  tested for each implementation (`Conformance.laws`/`lawsBy`, `withEvidence`).
+  lands only under a ledger, and there only where the writer pins the row it read (a guarded writer with a
+  `revision`) or by `op(field, amount)` whose commutativity and associativity are tested over every value
+  for each implementation (`Conformance.laws`/`lawsBy`, `withEvidence`).
   `Write.apply(row, bound, { operators })` is the row a write leaves (a null under an amount stays null),
   which guards judge, writers explain misses by, and clients predict.
 - **An invariant's lifecycle is what it reads.** `after` only: a state invariant, judged on every create
@@ -369,7 +370,7 @@ declares equations every implementation keeps (`commutative`, `idempotent`,
 `Law.within(law, schema)` narrows one), checked where declared; they rewrite
 nothing. `Conformance.laws(op, table)` (`foldkit-entity/conformance`) samples
 each, seeded, and answers `Holds` with `Tested` evidence or a `Counterexample`;
-`Operators.withEvidence(table, evidence)` records it, only for the implementation it was tested on (`Operators.testedOn`), and `describeTable(table)`
+`Operators.withEvidence(table, evidence)` records it, only for the implementation it was tested on (`Operators.testedOn`; an SQL table takes only `Conformance.lawsBy`'s records, `Operators.testedByRunner`), and `describeTable(table)`
 lists each operator as `describe` does (its `name`, …), with its evidence. `Conformance.operator(op, {
 implementations })` runs generated calls through several runners
 (`Conformance.memory(table)`, an SQL one over `compileCall`) and reports where they

@@ -109,6 +109,16 @@ export const Law = {
 
   $match: Laws.$match,
 
+  /**
+   * The operators a law, as JSON, calls besides its own (`inverse`'s and
+   * `distributes`' witnesses), by name: evidence of it is of their
+   * implementations too, and goes when one of them is replaced.
+   */
+  witnessesNamed: (law: LawDescription): ReadonlyArray<string> =>
+    [law.witnesses['other'], law.witnesses['over']].filter(
+      (name): name is string => typeof name === 'string',
+    ),
+
   /** The law as JSON: its kind, its witnesses (operators by name) and its domain's JSON Schema. */
   describe: (law: Law): LawDescription => {
     const witnesses: Record<string, unknown> = Laws.$match(law, {

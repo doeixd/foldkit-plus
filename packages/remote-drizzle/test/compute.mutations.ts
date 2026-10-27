@@ -32,7 +32,7 @@ export default [
   edit(
     'an invariant is compiled over the field as it was',
     writerFile,
-    '        next[field] =\n          sql`(${computationSql(computation, binding, `${binding.name}\'s "${field}"`)})` as unknown as AnyColumn\n',
+    '        next[field] = sql`(${computationSql(computation, binding, `${binding.name}\'s "${field}"`)})`\n',
     '        void computation\n',
     drizzleTests,
   ),
@@ -111,8 +111,8 @@ export default [
   edit(
     'a replaced SQL implementation keeps its evidence',
     operatorsFile,
-    'base.evidence.filter(({ operator }) => !names.has(operator)),',
-    'base.evidence,',
+    '!names.has(operator) && !Law.witnessesNamed(law).some(name => names.has(name)),',
+    'true,',
     drizzleTests,
   ),
   edit(
@@ -178,8 +178,8 @@ export default [
   edit(
     'the guard judges the row before the computation',
     guard,
-    'return Effect.succeed(Write.apply(before, context, { operators: policy.operators }).row)',
-    'return Effect.succeed({ ...before, ...context.values })',
+    'const applied = Write.apply(before, context, { operators: computing })',
+    'const applied = { row: { ...before, ...context.values }, unknown: [] }',
     guardTests,
   ),
   edit(
@@ -234,9 +234,9 @@ export default [
     remoteTests,
   ),
   edit(
-    'a SQL table takes evidence tested in memory',
+    'a SQL table takes evidence Conformance.lawsBy did not make',
     operatorsFile,
-    'if (Option.isSome(Operators.testedOn(record))) {',
+    "if (record._tag === 'Tested' && !Operators.testedByRunner(record)) {",
     'if (false) {',
     drizzleTests,
   ),
@@ -246,6 +246,13 @@ export default [
     `record.law.kind === kind &&
           record.law.domain === null,`,
     'record.law.kind === kind,',
+    drizzleTests,
+  ),
+  edit(
+    'lawsBy marks nothing it made',
+    '../../entity/src/conformance/operator.ts',
+    "if (verdict._tag === 'Holds') verdict.evidence.forEach(stampRun)",
+    '',
     drizzleTests,
   ),
 ]

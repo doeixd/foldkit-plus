@@ -50,7 +50,7 @@ export default [
   edit(
     'an argument stored as another kind is taken',
     expr,
-    "if (wanted !== 'none' && (given === 'number' || given === 'text') && given !== wanted) {",
+    "if (wanted !== 'other' && given !== 'other' && given !== wanted) {",
     'if (false) {',
   ),
   edit('any id is taken', expr, 'if (!operatorId.test(id)) {', 'if (false) {'),

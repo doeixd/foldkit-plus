@@ -23,7 +23,7 @@ export default [
     edits: [
       {
         file: '../src/evaluate.ts',
-        find: 'if (!(error instanceof QueryEvaluateError) || inputHoldsNul(body, input)) throw error',
+        find: 'if (!(error instanceof QueryEvaluateError) || givenNul(body, terms, input)) throw error',
         replace: 'throw error',
       },
     ],
@@ -34,7 +34,7 @@ export default [
     edits: [
       {
         file: '../src/evaluate.ts',
-        find: '|| inputHoldsNul(body, input)) throw error',
+        find: '|| givenNul(body, terms, input)) throw error',
         replace: ') throw error',
       },
     ],

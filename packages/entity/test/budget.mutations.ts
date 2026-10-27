@@ -26,8 +26,8 @@ export default [
     edits: [
       {
         file: expr,
-        find: 'const size = where.reduce(',
-        replace: 'const size = predicates.reduce(',
+        find: "checkSize('where', where, self.orderBy)",
+        replace: "checkSize('where', predicates, self.orderBy)",
       },
     ],
     tests,

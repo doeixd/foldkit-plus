@@ -514,14 +514,14 @@ Local execution is not a second authority: `matching` and `filtered` conclude
 from held facts (this row matches) and never claim the whole dataset (the list
 is these rows) unless the connection is terminal at both ends (`complete`).
 
-`Remote.matching` and `Remote.belongsEncoded` are the two entry points, and the
+`matching` and `belongsEncoded` (both exported by `foldkit-remote`) are the two entry points, and the
 asymmetry is deliberate: `matching` takes the input **decoded** (an application
 writes it that way), `belongsEncoded` takes it **encoded** (its caller holds a
 connection identity, which carries the encoded input). A decoded `belongs` and
 an exported `matchingEncoded` were written first and removed — nothing called
 them.
 
-`Remote.matching(store, descriptor, input, { among? })` runs a query body over
+`matching(store, descriptor, input, { among?, operators? })` runs a query body, its primitive operators by `operators` (the kernel's when not given; `Remote.make`'s on a domain's own paths), over
 the rows the store already holds, returning `{ matched, skipped }` — keys that
 satisfy it in the body's order, and keys held but missing a field the body reads
 or holding a value no interpreter answers for, such as text with a NUL (neither a
@@ -741,7 +741,7 @@ bodies' primitive operators run by, each its kernel (`Text.startsWith`) when not
 given: `sql` from `DrizzleOperators.make(DrizzleOperators.implement(op, ({ args,
 dialect, collate }) => …))`, whose function returns Drizzle `SQL` (`merge`,
 `override`, `kernel`), `memory` from `Operators`. A literal or input argument taken as a number or boolean is cast on
-Postgres (`cast($1 as bigint)` for an integer); SQLite takes none, and binds a boolean as 1 or 0. A query, an invariant or a
+Postgres (`cast($1 as integer)` while the value fits one, `bigint` past 32 bits); SQLite takes none, and binds a boolean as 1 or 0. A query, an invariant or a
 write's `when` calling one either table lacks is refused where it is registered
 or the writer built; `GuardDrizzle.visible(Policy, entities, { operators })`
 checks Read rules against the SQL table it is given. A body ordered by a call
@@ -768,8 +768,8 @@ only. Retries, by kind of write:
 An increment with neither an `expect` nor a ledger is refused, and so is one of a real number without
 `expect` even under a ledger (unless the writer `pins`, as a guard with a revision does). A computed
 assignment (`compute`) is its compiled computation in the same `set`; without `expect` it needs a ledger
-and an operator the writer `commutes`: `op(field, amount)` with commutativity and associativity tested
-in both of the binding's tables (`Operators.withEvidence`, `DrizzleOperators.withEvidence`). The ledger
+and a writer that `pins` the row it read, or an operator the writer `commutes`: `op(field, amount)` with
+commutativity and associativity tested over every value in both of the binding's tables (`Operators.withEvidence`, `DrizzleOperators.withEvidence`). The ledger
 needs a transaction, which D1 lacks.
 An increment of a column that holds integers needs a `Schema.Int` amount, whatever the field is
 declared as: the writer refuses it through `EntityWriter.refuses`, which `RemoteServer.write` asks

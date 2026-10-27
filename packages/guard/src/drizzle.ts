@@ -40,9 +40,11 @@ export const GuardDrizzle = {
    * returned them, by name, for `bind`'s storage. Checked here, before any
    * request: a row guard this compiler cannot run, and an inherited Read whose
    * Entity is not listed, has no Read rule, or leads back to itself, throw.
-   * `operators` is the SQL table the bindings compile by (`bind(…, { operators })`),
-   * so a rule calling an operator it lacks is refused here; the kernel's when
-   * not given. Give both the same table.
+   * `operators` is the SQL table each rule is checked against here and compiled
+   * by (the kernel's when not given), and the policy's table decides what a rule
+   * reads from the input alone, so a server that starts can compile every rule
+   * whatever table its bindings were given. Give it the bindings' SQL table, so
+   * a rule and a query over one operator compile it alike.
    *
    * ```ts
    * const visible = GuardDrizzle.visible(Policy, [Todo, Project])
@@ -105,8 +107,17 @@ export const GuardDrizzle = {
         Match.valueTags(condition, {
           Always: () => undefined,
           Never: () => nothing,
+          // By the tables the rule was checked against: the SQL one given here, and
+          // the policy's for what is decided from the input alone, as Guard judges.
           Row: ({ guard }) =>
-            and(...compileWhere(guard.query, binding, input, `${name}.${guard.name}`)),
+            and(
+              ...compileWhere(
+                guard.query,
+                { ...binding, operators: { memory: policy.operators, sql: sqlOperators } },
+                input,
+                `${name}.${guard.name}`,
+              ),
+            ),
           And: ({ conditions: parts }) => and(...parts.map(of)),
           // `Condition.or` folds away a part that admits every row, so each part here is SQL.
           Or: ({ conditions: parts }) => or(...parts.map(of)),

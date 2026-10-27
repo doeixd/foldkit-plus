@@ -29,8 +29,8 @@ export default [
   edit(
     'an earlier layer is not added to',
     '../src/optimistic.ts',
-    'const row = { ...base[key]?.values, ...earlier }',
-    'const row = { ...base[key]?.values }',
+    'Object.entries({ ...base[key]?.values, ...earlier })',
+    'Object.entries({ ...base[key]?.values })',
   ),
   edit(
     'a list places the amount, not the sum',
@@ -38,4 +38,15 @@ export default [
     '{ entities: resolvedPatches(remote.entities, remote.optimistic, operators) },',
     '{ entities: layers.flatMap(layer => layer.patches) },',
   ),
+  {
+    name: 'a field an earlier layer could not work out is read as the store holds it',
+    edits: [
+      {
+        file: '../src/optimistic.ts',
+        find: '([field]) => !unknown.has(field),',
+        replace: '() => true,',
+      },
+    ],
+    tests: ['packages/remote/test/operators.test.ts'],
+  },
 ]

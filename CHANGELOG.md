@@ -123,17 +123,44 @@ the new versions they depend on: `foldkit-auth` 0.1.5, `foldkit-builder`
   by the policy's table, and a computed value that table could not work out was
   judged as the field's old value, so a rule over it could be passed while the
   database wrote the new one.
-- **Operator arguments bind as each database takes them.** On Postgres an
-  integer is cast to `bigint`, not `integer`, so a value past 32 bits that
-  `Schema.Int` admits no longer fails the query; on SQLite a boolean is bound
-  as 1 or 0, which SQLite stores, where it failed to bind at all.
+- **Operator arguments and compared values bind as each database takes
+  them.** On Postgres an integer is cast to `integer` while its value fits one
+  (so a function taking one, `left(text, int)`, resolves) and to `bigint` past
+  32 bits, which `Schema.Int` admits and an `integer` cast failed. On SQLite a
+  boolean is bound as 1 or 0, as it stores one, wherever a value is compared
+  with what no column encodes (a computed value, a call), where it failed to
+  bind at all.
 - **`Expr.contains` searches for a value or an input,** in its type and where
   it is written. A field or a call as the search was answered in memory and
   refused by the SQL compiler on every request.
-- **A guarded write whose operator refuses its input fails as the writer's
-  would.** `GuardServer.writer` worked out the row a write leaves outside any
-  handling, so text holding a NUL given to an operator ended the request as a
-  defect; it is now the server error the writer answers it with.
+- **A guarded write is judged by the value its database writes.** A writer
+  names the memory table its statement's row is worked out by
+  (`EntityWriter.operators`; the Drizzle writer gives its binding's), and
+  `GuardServer.writer` works the row out by it, so a policy whose table
+  differed judged one value while the database wrote another. A field it
+  cannot work out fails the write, where its old value was judged, so a writer
+  called outside `RemoteServer.write` no longer lets a rule over it pass. A
+  guarded writer with no `revision` is refused at registration for a write
+  that moves a field and expects none, rather than on every request.
+- **Remote predicts nothing from a value an earlier pending write could not
+  work out.** A later pending computation read the store's stale value under
+  it, and showed a value the server would not write.
+- **The reference interpreter and the call builder agree with SQL at their
+  edges.** An expression built from a field keeps its declared collation when
+  passed on, so an invariant compares or orders text over `before`. A NUL in a
+  value the query is given is refused before a null beside it answers, as SQL
+  refuses it; a constant holding one refuses `evaluateEach`'s run, not each
+  row. Order terms count toward `maxQueryNodes`. No call carries a backend's
+  locale. A boolean argument is checked by its stored kind. `evaluate` checks
+  an order over one row as over many. An operator that handles null is given
+  null, not `undefined`, for a value never given. Building calls that share
+  their arguments is linear in their depth, where it doubled per level.
+- **A rule whose operator refuses a row's value does not hold,** rather than
+  ending the request: text holding a NUL in what a write supplies can deny it,
+  never crash it (`Condition.holds` judges each row alone). A computed value a
+  guarded write cannot work out is a server error with a fixed message, the
+  implementation's own logged, never sent; and it is worked out only after the
+  rules over the stored row pass, so a writer they refuse learns nothing of it.
 - **A computed assignment that may be null is refused for a field that stores
   none,** where it is declared: a nullable field, a null, or a strict operator
   over a nullable argument. Memory showed the null and the database refused it
@@ -144,9 +171,11 @@ the new versions they depend on: `foldkit-auth` 0.1.5, `foldkit-builder`
 - **Evidence is tied to the implementation it was tested on.**
   `Operators.withEvidence` refuses a `Tested` record `Conformance.laws` did not
   make of the table's own implementation (`Operators.testedOn(record)` names
-  it), and `DrizzleOperators.withEvidence` one tested in memory; before, a
-  verdict for one implementation could be recorded for another that breaks
-  the law. A computed assignment commutes only by laws tested over every
+  it), and `DrizzleOperators.withEvidence` any `Conformance.lawsBy` did not
+  make (`Operators.testedByRunner`): one built by hand, copied, or tested in
+  memory; before, a verdict for one implementation could be recorded for
+  another that breaks the law. Replacing an operator drops the evidence of a
+  law that called it as a witness. A computed assignment commutes only by laws tested over every
   value, not one narrowed by `Law.within`. `Law.describe` keeps a domain's
   `$defs`.
 - **Laws are tested under every collation an operator is called with.**
@@ -154,8 +183,10 @@ the new versions they depend on: `foldkit-auth` 0.1.5, `foldkit-builder`
   `binary` alone, so an implementation that broke a law only under `asciiFold`
   passed; a `Counterexample` now names its `collation`. A witness that compares
   text (`Law.inverse`, `Law.distributes`) is called under it too, where it
-  threw. Outcomes are compared as values, not as JSON, which wrote `Infinity`
-  and `NaN` as `null`.
+  threw, and an operator comparing no text gets a pass under each collation
+  when its law's witness compares text. Outcomes are compared as values, not
+  as JSON, which wrote `Infinity` and `NaN` as `null`: a Date by its time, a
+  field holding `undefined` as absent.
 - **A defined operator takes no implementation.** `Operators.implement` and
   `DrizzleOperators.implement` refuse one: SQL compiles what a defined operator
   means, and a memory implementation was a second meaning only the client ran.
@@ -164,9 +195,15 @@ the new versions they depend on: `foldkit-auth` 0.1.5, `foldkit-builder`
   dropped, and a collation written on a number term is refused where it is
   written. A raw order term folding a Postgres column that is not text no
   longer lowers it.
-- **A computed value compared under a collation compiles on Postgres.** An
-  invariant ordering the value an assignment computes wrote SQLite's
-  `collate binary` there, which Postgres refuses.
+- **A computed value compared under a collation compiles on Postgres,** on
+  either side of the comparison. An invariant ordering the value an assignment
+  computes wrote SQLite's `collate binary` there, which Postgres refuses.
+- **An order SQLite cannot compile is refused where the query is registered,**
+  each `Order.chosen` alternative too, not on every request.
+- **A Read rule compiles by the tables it was checked against** in
+  `GuardDrizzle.visible` (its SQL table, and the policy's for what the input
+  alone decides), so a server that starts can compile it whatever table its
+  bindings were given.
 - **`Layout.stack` keeps a width a child sets.** Its child rule gave every child
   `inline-size: 100%` from the `layouts` layer, which beats `components`, so a
   checkbox in a stack drew 308 by 16; it now stretches each child
@@ -189,7 +226,7 @@ the new versions they depend on: `foldkit-auth` 0.1.5, `foldkit-builder`
   `Style.recipe`): `Field({ tone: 'quiet' })` compiled and did nothing, since an
   empty selection type accepted any key; it is now a type error. Call such a
   recipe with `{}` or nothing. `SlotRecipeSelection` is exported.
-- **`Remote.matching` skips a held row holding text with a NUL** rather than
+- **`matching` skips a held row holding text with a NUL** rather than
   refusing the whole list, so one bad stored row no longer blanks a local
   filter (`filtered`). An input holding one still refuses, as the server
   does.

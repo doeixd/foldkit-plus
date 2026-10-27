@@ -262,6 +262,48 @@ describe('Testing laws under each collation', () => {
     // A verdict, not a refusal of the witness's call for want of a collation.
     expect(Conformance.laws(glue, table)._tag).toBe('Counterexample')
   })
+
+  it('calls a witness that compares text under a collation, though the operator compares none', () => {
+    const fold = Expr.operator('acme.fold', {
+      input: [Schema.String],
+      output: Schema.String,
+      collation: 'required',
+    })
+    const pad = Expr.operator('acme.pad', {
+      input: [Schema.String, Schema.String],
+      output: Schema.String,
+      laws: [Law.inverse(fold, '')],
+    })
+    const table = Operators.memory(
+      Operators.implement(pad, (left, right) => `${left}${right}`),
+      Operators.implement(fold, text => text),
+    )
+    expect(Conformance.laws(pad, table)._tag).toBe('Counterexample')
+  })
+})
+
+describe('Evidence of a law calling another operator', () => {
+  it('goes when that operator is replaced, as its own implementation is part of it', () => {
+    const neg = Expr.operator('acme.neg2', { input: [Schema.Int], output: Schema.Int })
+    const sum = Expr.operator('acme.sum2', {
+      input: [Schema.Int, Schema.Int],
+      output: Schema.Int,
+      laws: [Law.inverse(neg, 0)],
+    })
+    const table = Operators.memory(
+      Operators.implement(sum, (left, right) => left + right),
+      Operators.implement(neg, value => -value),
+    )
+    const verdict = Conformance.laws(sum, table)
+    const recorded = Operators.withEvidence(table, verdict._tag === 'Holds' ? verdict.evidence : [])
+    expect(recorded.evidence).toHaveLength(1)
+    // `neg` replaced by one that breaks the law: its record of `sum` goes too.
+    const replaced = Operators.override(
+      recorded,
+      Operators.implement(neg, value => value),
+    )
+    expect(replaced.evidence).toEqual([])
+  })
 })
 
 describe('Evidence in a table', () => {
@@ -351,6 +393,21 @@ describe('Running an operator through several implementations', () => {
         Text.startsWith(null, `a${String.fromCharCode(0)}`, { collation: Collation.binary }),
       ),
     ).toThrow('was given text holding a NUL character')
+  })
+
+  it('compares a Date by its time, and a field holding undefined as one absent', async () => {
+    const at = Expr.operator('acme.at', { input: [Schema.Number], output: Schema.Date })
+    const dates = await Conformance.operator(at, {
+      implementations: { memory: () => new Date(0), sql: () => new Date(1e12) },
+      cases: [[1]],
+    })
+    expect(dates.disagreements).toHaveLength(1)
+    const shaped = Expr.operator('acme.shaped', { input: [Schema.Number], output: Schema.Unknown })
+    const records = await Conformance.operator(shaped, {
+      implementations: { memory: () => ({ a: 1, b: undefined }), sql: () => ({ a: 1 }) },
+      cases: [[1]],
+    })
+    expect(records.disagreements).toEqual([])
   })
 
   it('tells Infinity and NaN from null, which JSON writes them as', async () => {

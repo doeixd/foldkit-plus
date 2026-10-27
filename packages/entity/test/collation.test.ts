@@ -20,6 +20,21 @@ const high = String.fromCodePoint(0xfffd)
 const ids = (body: ReturnType<typeof Query.from>, rows: ReadonlyArray<Record<string, unknown>>) =>
   evaluate(body, {}, rows).map(row => row.id)
 
+describe('a field expression passed on', () => {
+  it('keeps the collation its field declared, as an invariant over `before` passes it', () => {
+    const before = Expr.field(Named.fields.name)
+    expect(Expr.lt(before, 'b').collation).toEqual(Option.some(Collation.asciiFold))
+    expect(Order.asc(before).collation).toEqual(Option.some(Collation.asciiFold))
+    expect(() =>
+      Named.pipe(
+        Entity.invariant('ordered', ({ before, after }) => Expr.lte(before.name, after.name), {
+          message: 'Names only grow',
+        }),
+      ),
+    ).not.toThrow()
+  })
+})
+
 describe('the reference evaluator orders text as a byte-ordered backend does', () => {
   it('by code point, putting a character past U+FFFF after U+FFFD', () => {
     const rows = [

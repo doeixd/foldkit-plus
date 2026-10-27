@@ -239,7 +239,7 @@ describe('A compiled body is the query the binding used to spell out', () => {
     ).toEqual(['"posts"."slug" collate "en-US" desc nulls first', '"posts"."id" asc nulls last'])
   })
 
-  it('refuses a locale collation on SQLite, which has none', () => {
+  it('refuses a locale collation on SQLite, which has none, where the query is registered', () => {
     const notes = sqliteTable('notes', {
       id: sqliteText('id').primaryKey(),
       slug: sqliteText('slug'),
@@ -253,14 +253,7 @@ describe('A compiled body is the query the binding used to spell out', () => {
         Query.orderBy(Order.asc(Note.fields.slug, { collation: Collation.locale('en-US') })),
       ),
     )
-    const { database } = fakeDatabase()
-    return expect(
-      Effect.runPromise(
-        query(Ordered, { entity: entity('Note', notes) })
-          .run({ input: {}, window: { first: 5 }, principal: null })
-          .pipe(Effect.provideService(DrizzleDatabase, database)),
-      ),
-    ).rejects.toThrow(/SQLite has no locales/)
+    expect(() => query(Ordered, { entity: entity('Note', notes) })).toThrow(/SQLite has no locales/)
   })
 
   it('refuses an orderBy beside a body that declares its order, which the client reads', () => {

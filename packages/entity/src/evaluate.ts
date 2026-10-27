@@ -158,7 +158,12 @@ const runWith = (
   if (operator.nulls === 'strict' && values.some(isNull)) return null
   let answer: unknown
   try {
-    answer = run(values, { collation })
+    // A value never given (an input left out, a key the row lacks) is null to an
+    // implementation that handles null, as SQL binds it.
+    answer = run(
+      values.map(value => (value === undefined ? null : value)),
+      { collation },
+    )
   } catch (error) {
     if (error instanceof QueryEvaluateError) throw error
     throw new QueryEvaluateError(
@@ -254,6 +259,26 @@ export const valueOfOperand = (
   })
 
 /**
+ * Refuses a value the query was given (a literal or an input) holding a NUL,
+ * before any null beside it can answer: SQL refuses such a parameter where it
+ * compiles, whatever the row holds. A NUL stored in a row is refused after,
+ * as SQL meets it only beside a value that is not null.
+ */
+const refuseGivenNul = (
+  message: string,
+  sides: ReadonlyArray<readonly [Operandish, unknown]>,
+): void => {
+  if (
+    sides.some(
+      ([side, value]) =>
+        !isPredicate(side) && (side._tag === 'Literal' || side._tag === 'Input') && holdsNul(value),
+    )
+  ) {
+    throw new QueryEvaluateError(message)
+  }
+}
+
+/**
  * A predicate compared as a value. SQL's unknown is null there too, so an
  * unknown compared to anything stays unknown rather than becoming false.
  */
@@ -270,12 +295,14 @@ const holds = (node: Predicate, scope: Scope): Truth => {
       // kept only when a comparison is true, so an unknown drops it either way;
       // saying so explicitly is what keeps this honest about three-valued logic
       // rather than accidentally right about it.
+      const nul =
+        'an equality was given text holding a NUL character, which SQL text cannot hold portably'
+      refuseGivenNul(nul, [
+        [node.left, left],
+        [node.right, right],
+      ])
       if (isNull(left) || isNull(right)) return 'unknown'
-      if (holdsNul(left) || holdsNul(right)) {
-        throw new QueryEvaluateError(
-          'an equality was given text holding a NUL character, which SQL text cannot hold portably',
-        )
-      }
+      if (holdsNul(left) || holdsNul(right)) throw new QueryEvaluateError(nul)
       return left === right
     }
     case 'Null':
@@ -287,6 +314,13 @@ const holds = (node: Predicate, scope: Scope): Truth => {
       const search = sideOf(node.search, scope)
       // `null like anything` is unknown, which is why an empty search is not
       // the same as no filter over a column that can be null.
+      refuseGivenNul(
+        'a containment test was given text holding a NUL character, which SQL text cannot hold portably',
+        [
+          [node.search, search],
+          [node.value, value],
+        ],
+      )
       if (isNull(value) || isNull(search)) return 'unknown'
       if (typeof value !== 'string' || typeof search !== 'string') {
         throw new QueryEvaluateError('a containment test was given something that is not text')
@@ -340,12 +374,14 @@ const holds = (node: Predicate, scope: Scope): Truth => {
     case 'Compare': {
       const left = valueOf(node.left, scope)
       const right = valueOf(node.right, scope)
+      const nul =
+        'a comparison was given text holding a NUL character, which SQL text cannot hold portably'
+      refuseGivenNul(nul, [
+        [node.left, left],
+        [node.right, right],
+      ])
       if (isNull(left) || isNull(right)) return 'unknown'
-      if (holdsNul(left) || holdsNul(right)) {
-        throw new QueryEvaluateError(
-          'a comparison was given text holding a NUL character, which SQL text cannot hold portably',
-        )
-      }
+      if (holdsNul(left) || holdsNul(right)) throw new QueryEvaluateError(nul)
       // Numbers with numbers and text with text, as `orderBy` compares them,
       // so a comparison and an ordering never disagree about what is first.
       const kind = typeof left
@@ -514,8 +550,9 @@ const ordered = (
   query: string,
   scope: OrderScope,
 ) => {
-  // One row, or none, is in order whatever its keys hold.
-  if (terms.length === 0 || rows.length < 2) return [...rows]
+  // Keys are worked out and checked however few the rows, so a term refused over
+  // one row is refused as it is over many, as `evaluateEach` refuses it.
+  if (terms.length === 0) return [...rows]
   // Each row's keys worked out once, not once per comparison: a call may be dear.
   const keyed = rows.map(row => ({ row, keys: keysOf(row, terms, scope) }))
   checkOrder(
@@ -643,7 +680,7 @@ export const evaluateEach = (
     try {
       if (matches(body, row, input, operators)) keyed.push({ row, keys: keysOf(row, terms, scope) })
     } catch (error) {
-      if (!(error instanceof QueryEvaluateError) || inputHoldsNul(body, input)) throw error
+      if (!(error instanceof QueryEvaluateError) || givenNul(body, terms, input)) throw error
       refused.push(row)
     }
   }
@@ -660,8 +697,9 @@ export const evaluateEach = (
   }
 }
 
-/** Whether an input the body reads is text holding a NUL, or a list holding one. */
-const inputHoldsNul = (body: AnyQuery, input: Row): boolean =>
+/** Whether a constant or an input the body reads is text holding a NUL, or a list holding one. */
+const givenNul = (body: AnyQuery, terms: ReadonlyArray<OrderTerm>, input: Row): boolean =>
+  Expr.givesNul(...body.where, ...terms.map(term => term.expr)) ||
   Query.dependencies(body).inputs.some(key => {
     const value = input[key]
     return Array.isArray(value) ? value.some(holdsNul) : holdsNul(value)

@@ -165,7 +165,11 @@ export const DrizzleOperators = {
         ...base.implementations.filter(({ operator }) => !replaced.has(operator)),
         ...implementations,
       ],
-      base.evidence.filter(({ operator }) => !names.has(operator)),
+      // A replaced operator's evidence goes, and so does a law's that called it as a witness.
+      base.evidence.filter(
+        ({ operator, law }) =>
+          !names.has(operator) && !Law.witnessesNamed(law).some(name => names.has(name)),
+      ),
     )
   },
 
@@ -186,10 +190,11 @@ export const DrizzleOperators = {
       if (!declared.includes(JSON.stringify(record.law))) {
         fail(`evidence names a law of ${record.operator} it does not declare (${record.law.kind})`)
       }
-      // A memory implementation's says nothing of the SQL this table compiles.
-      if (Option.isSome(Operators.testedOn(record))) {
+      // Only a run of `Conformance.lawsBy` speaks of SQL: not a record built by hand
+      // or copied, nor one of a memory implementation, which says nothing of it.
+      if (record._tag === 'Tested' && !Operators.testedByRunner(record)) {
         fail(
-          `evidence of ${record.operator}'s ${record.law.kind} law was tested on a memory implementation; test this table's SQL with Conformance.lawsBy`,
+          `evidence of ${record.operator}'s ${record.law.kind} law was not made by Conformance.lawsBy; test this table's SQL with it`,
         )
       }
     }

@@ -7,6 +7,7 @@
 import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import {
+  Collation,
   Entity,
   Expr,
   Order,
@@ -150,6 +151,29 @@ describe('contains in the reference interpreter (#136)', () => {
     expect(() => evaluate(among, { ids: ['b', 'a\u0000'] }, rows)).toThrow(QueryEvaluateError)
     // Text without one is answered as ever.
     expect(evaluate(among, { ids: ['b', 'a'] }, rows)).toHaveLength(1)
+  })
+
+  it('refuses a given NUL beside a stored null, which SQL refuses where it compiles', () => {
+    const given = Expr.input('given', Schema.String)
+    const NullText = Entity.define(
+      'NullText',
+      Schema.Struct({ id: Schema.String, text: Schema.NullOr(Schema.String) }),
+    )
+    const rows = [{ id: 'a', text: null }]
+    const nul = { given: `a${String.fromCharCode(0)}` }
+    for (const predicate of [
+      Expr.eq(NullText.fields.text, given),
+      Expr.contains(NullText.fields.text, given),
+      Expr.lt(NullText.fields.text, given, { collation: Collation.binary }),
+    ]) {
+      const body = Query.from(NullText).pipe(Query.where(predicate))
+      expect(() => evaluate(body, nul, rows)).toThrow(QueryEvaluateError)
+    }
+    // A NUL stored beside a null given is unknown, as SQL answers it.
+    const stored = Query.from(NullText).pipe(
+      Query.where(Expr.eq(NullText.fields.text, Expr.input('maybe', Schema.NullOr(Schema.String)))),
+    )
+    expect(evaluate(stored, { maybe: null }, [{ id: 'a', text: nul.given }])).toEqual([])
   })
 })
 

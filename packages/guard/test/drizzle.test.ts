@@ -360,18 +360,25 @@ describe('GuardDrizzle.visible over a rule calling a primitive operator', () => 
     )
   })
 
-  it('compiles by the binding’s table, so the database reads only the rows it allows', async () => {
-    const visible = GuardDrizzle.visible(policy, [Plain], { operators: operators.sql })
-    const Db = bind({ Plain }, { Plain: { table: items, visible: visible.Plain } }, { operators })
-    const sqlite = new DatabaseSync(':memory:')
-    sqlite.exec('create table items (id text primary key, name text not null)')
-    sqlite.exec("insert into items values ('x1', 'Bolt'), ('x2', 'Bolt cutter')")
-    const read = await Effect.runPromise(
-      source<Option.Option<User>>(Db.Plain)
-        .read({ ids: ['x1', 'x2'], fields: ['name'], principal: Option.none() })
-        .pipe(Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
-    )
-    expect(read.map(row => row.id)).toEqual(['x1'])
-    sqlite.close()
-  })
+  it.each([
+    ['given its table too', { operators }],
+    // A binding given no table must not fail a rule the check above passed.
+    ['given none', {}],
+  ] as const)(
+    'compiles by the table it was checked against, a binding %s, reading only the rows it allows',
+    async (_, bindOptions) => {
+      const visible = GuardDrizzle.visible(policy, [Plain], { operators: operators.sql })
+      const Db = bind({ Plain }, { Plain: { table: items, visible: visible.Plain } }, bindOptions)
+      const sqlite = new DatabaseSync(':memory:')
+      sqlite.exec('create table items (id text primary key, name text not null)')
+      sqlite.exec("insert into items values ('x1', 'Bolt'), ('x2', 'Bolt cutter')")
+      const read = await Effect.runPromise(
+        source<Option.Option<User>>(Db.Plain)
+          .read({ ids: ['x1', 'x2'], fields: ['name'], principal: Option.none() })
+          .pipe(Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
+      )
+      expect(read.map(row => row.id)).toEqual(['x1'])
+      sqlite.close()
+    },
+  )
 })

@@ -218,6 +218,12 @@ export interface EntityWriter<P, R = never> {
    */
   readonly assignments?: true
   /**
+   * The memory table this writer works out the row a write leaves by
+   * (`Write.apply`'s), where its own statement computes it: what a wrapping
+   * writer (a guard) judges by, so it judges the value the database writes.
+   */
+  readonly operators?: MemoryOperators | undefined
+  /**
    * Whether `update` writes only the row it read, at the revision it read it,
    * whatever the write `expect`s: what a guard does so its rules judge the row
    * written. Concurrent writes then cannot interleave, so an increment of a
