@@ -33,10 +33,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
-- **The skill's greenfield guide deploys with Wrangler,** as `examples/cloudflare`
-  does and tests, instead of Alchemy, which no example uses. It says no
-  example yet runs Yielded's routes or `foldkit-ssr` inside a Worker, and keeps
-  Alchemy as the intended direction, offered on request (#207).
+- **The skill has an Alchemy guide (`references/alchemy.md`),** and the greenfield
+  guide's CAFE stack (Cloudflare, Alchemy, Foldkit, Effect) points at it. Its
+  `alchemy.run.ts` deploys `examples/cloudflare`'s Worker as one
+  `Cloudflare.Website.Foldkit`; against `alchemy@2.0.0-beta.84` it type-checks
+  and plans, but has not been deployed. Wrangler, which `examples/cloudflare`
+  publishes with, is the fallback (#207).
 - **Going back to a page shows what it held.** Retention now keeps what the
   Surfaces most recently left reached, up to `departedLimit` (16 lists and 256
   entity reads), not only what the active ones reach. A list left is held
