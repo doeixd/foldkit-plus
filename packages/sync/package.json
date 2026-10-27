@@ -1,6 +1,6 @@
 {
   "name": "foldkit-sync",
-  "version": "0.12.3",
+  "version": "0.12.4",
   "description": "A local-first replica of a shared Foldkit projection: offline outbox, optimistic updates, and reconciliation.",
   "keywords": [
     "foldkit",

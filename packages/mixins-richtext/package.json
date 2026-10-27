@@ -1,6 +1,6 @@
 {
   "name": "foldkit-mixins-richtext",
-  "version": "0.5.6",
+  "version": "0.5.7",
   "description": "The rich-text editor's chrome, drawn through Mixins slots.",
   "keywords": [
     "foldkit",
