@@ -120,4 +120,26 @@ export default [
     ],
     tests: server,
   },
+  {
+    name: 'a like answers without the post',
+    edits: [
+      {
+        file: '../src/server/server.ts',
+        find: 'entities: [Remote.patch(Post, input.postId, {})],',
+        replace: 'entities: [],',
+      },
+    ],
+    tests: server,
+  },
+  {
+    name: 'a write answers only what it stored',
+    edits: [
+      {
+        file: '../../../packages/remote-server/src/index.ts',
+        find: '...Option.match(read, { onNone: () => ({}), onSome: value => ({ read: value }) }),',
+        replace: '',
+      },
+    ],
+    tests: server,
+  },
 ]

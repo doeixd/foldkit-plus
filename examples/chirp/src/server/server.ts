@@ -9,7 +9,7 @@ import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Option } from 'effect'
 import { GuardDrizzle } from 'foldkit-guard/drizzle'
 import { GuardServer } from 'foldkit-guard/server'
-import { Remote, REMOTE_PROTOCOL_VERSION } from 'foldkit-remote'
+import { Remote } from 'foldkit-remote'
 import {
   bind,
   databaseLayer,
@@ -20,7 +20,7 @@ import {
   writer,
   type DrizzleDatabase,
 } from 'foldkit-remote-drizzle'
-import { RemoteServer, RemoteServerError } from 'foldkit-remote-server'
+import { RemoteServer } from 'foldkit-remote-server'
 import { Chirp } from '../domain.js'
 import { G, Post, type User } from '../guard.js'
 import { ByAuthor, EditPost, PostChirp, Timeline, ToggleLike } from '../operations.js'
@@ -103,8 +103,9 @@ const guarded = GuardServer.writer(Post, Policy, writer(Db.Post), {
 
 /**
  * A like, toggled: taken back where the asker had one, made where not. The
- * answer is the post read back as the asker would read it, so the client's
- * store learns the new count and who liked it.
+ * like is a row of a join table, which the server cannot see change, so the
+ * answer names the post: the server answers it with what the client shows of
+ * it, read as the asker reads it, its new count and who liked it included.
  */
 const toggleLike = RemoteServer.mutation(
   ToggleLike,
@@ -129,28 +130,22 @@ const toggleLike = RemoteServer.mutation(
           () => database.insert(likes).values({ postId: input.postId, userId }),
           'Could not like the post',
         )
-      const answer = yield* RemoteServer.handlers(server, principal)
-        .FoldkitRemoteRead({
-          version: REMOTE_PROTOCOL_VERSION,
-          requests: [{ entity: 'Post', id: input.postId, fields: ['likeCount', 'likedBy'] }],
-        })
-        .pipe(Effect.mapError(error => new RemoteServerError({ message: error.message })))
-      return { output: { liked: taken.length === 0 }, entities: answer.entities }
+      return {
+        output: { liked: taken.length === 0 },
+        entities: [Remote.patch(Post, input.postId, {})],
+      }
     }),
 )
 
-// Annotated: the like handler above reads through this server, so its type cannot be
-// inferred from an initializer that contains that handler.
-export const server: ReturnType<typeof RemoteServer.make<Option.Option<User>, DrizzleDatabase>> =
-  RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
-    entities: [source(Db.User), source(Db.Post, { filter: GuardServer.filter(Post, Policy) })],
-    queries: [query(Timeline, { entity: Db.Post }), query(ByAuthor, { entity: Db.Post })],
-    mutations: [
-      RemoteServer.write(PostChirp, guarded),
-      RemoteServer.write(EditPost, guarded),
-      toggleLike,
-    ],
-  })
+export const server = RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
+  entities: [source(Db.User), source(Db.Post, { filter: GuardServer.filter(Post, Policy) })],
+  queries: [query(Timeline, { entity: Db.Post }), query(ByAuthor, { entity: Db.Post })],
+  mutations: [
+    RemoteServer.write(PostChirp, guarded),
+    RemoteServer.write(EditPost, guarded),
+    toggleLike,
+  ],
+})
 
 // A guarded Entity served without its rule would serve every row: refuse to start.
 GuardServer.validate(Policy, {

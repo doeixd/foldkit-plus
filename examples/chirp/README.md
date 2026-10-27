@@ -70,7 +70,10 @@ through Drizzle (`bind`); the timeline and a person's posts are queries
 writes: the guarded writer lands them, and `presets` stamp a new chirp's
 author and time from who is asking, so the browser sends neither. A like is
 the server's own handler (`ToggleLike`): it takes your like back or makes it,
-and answers with the post read back as you read it.
+and names the post in its answer. Every answer carries what the page shows of
+the rows it names: the page sends what its Surfaces read with each write, and
+the server reads those fields after the write, so a new chirp lands with its
+count and author, and a like with the post's new count.
 
 **The client** (`app.ts`). `Remote.make` registers the domain; each page
 declares what it reads with a Surface (`Home`, `Profile`, `Status`), and is

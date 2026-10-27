@@ -7,13 +7,19 @@
 import { Effect, Schema } from 'effect'
 import { Entity } from 'foldkit-entity'
 import { May } from 'foldkit-guard'
-import { REMOTE_PROTOCOL_VERSION } from 'foldkit-remote'
+import { REMOTE_PROTOCOL_VERSION, Selection, relationOf, type MutationResult } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
 import { Post } from '../src/guard.js'
+import { TimelinePost } from '../src/operations.js'
 import { openServer, principalOf } from '../src/server/server.js'
 import type { Person } from '../src/server/seed.js'
 import { memorySqlite } from '../src/server/sqlite-node.js'
+
+/** What the timeline shows of a post: its row, and its author's name and handle. */
+const shown = relationOf(Selection.from(TimelinePost))
+
+type Asker = ReturnType<ReturnType<typeof sandbox>>
 
 /** A fresh seeded server, and Remote's handlers as `person` on it. */
 const sandbox = () => {
@@ -42,11 +48,30 @@ const sandbox = () => {
             })
             .pipe(Effect.provide(database)),
         ).then(answer => answer.entities[0]?.values),
+      /** A read of what the timeline shows of post `id`, as the page asks it. */
+      readShown: (id: string) =>
+        Effect.runPromise(
+          handlers
+            .FoldkitRemoteRead({ version: REMOTE_PROTOCOL_VERSION, requests: [{ ...shown, id }] })
+            .pipe(Effect.provide(database)),
+        ),
       mutate: (mutation: 'PostChirp' | 'EditPost' | 'ToggleLike', input: object) =>
         Effect.runPromise(
           handlers
             .FoldkitRemoteMutate({ requestId: `r-${mutation}`, mutation, input })
             .pipe(Effect.result, Effect.provide(database)),
+        ),
+      /** The mutation as the page sends it, saying what its timeline shows of a post. */
+      mutateShown: (mutation: 'PostChirp' | 'EditPost' | 'ToggleLike', input: object) =>
+        Effect.runPromise(
+          handlers
+            .FoldkitRemoteMutate({
+              requestId: `r-${mutation}`,
+              mutation,
+              input,
+              shown: [shown],
+            })
+            .pipe(Effect.provide(database)),
         ),
     }
   }
@@ -137,13 +162,15 @@ describe('what each reader may do', () => {
 describe('liking', () => {
   it('counts a like, and answers the post as it now reads', async () => {
     const you = sandbox()('you')
-    expect(await you.mutate('ToggleLike', { postId: 'p2' })).toMatchObject({
-      _tag: 'Success',
-      success: {
-        output: { liked: true },
-        entities: [{ entity: 'Post', id: 'p2', values: { likeCount: 3 } }],
-      },
-    })
+    const answer = await you.mutateShown('ToggleLike', { postId: 'p2' })
+    expect(answer.output).toEqual({ liked: true })
+    expect(answer.read?.result.entities).toContainEqual(
+      expect.objectContaining({
+        entity: 'Post',
+        id: 'p2',
+        values: expect.objectContaining({ likeCount: 3 }),
+      }),
+    )
     expect(await you.read('p2', ['likeCount'])).toEqual({ likeCount: 3 })
   })
 
@@ -164,5 +191,35 @@ describe('liking', () => {
     expect(await as('you').read('p1', ['likeCount'])).toEqual({ likeCount: 4 })
     await as('you').mutate('ToggleLike', { postId: 'p1' })
     expect(await as('ada').read('p1', ['likeCount'])).toEqual({ likeCount: 3 })
+  })
+})
+
+/**
+ * The law #245 keeps: a write's answer, on what the timeline shows of the
+ * rows it names, is what a fresh read of them says after the write.
+ */
+describe('each write answers what the timeline shows', () => {
+  /** What the answer says of `id`: its patch, then its read, field by field. */
+  const answered = (answer: typeof MutationResult.Type, id: string) =>
+    Object.assign(
+      {},
+      ...[...answer.entities, ...(answer.read?.result.entities ?? [])]
+        .filter(row => row.entity === 'Post' && row.id === id)
+        .map(row => row.values),
+    )
+  /** A fresh read of `id`, on the fields the timeline shows. */
+  const fresh = async (you: Asker, id: string) =>
+    (await you.readShown(id)).entities.find(row => row.entity === 'Post' && row.id === id)?.values
+
+  it.each([
+    ['PostChirp', { id: 'n1', body: 'Hi' }, 'n1'],
+    ['EditPost', { id: 'p4', body: 'Edited' }, 'p4'],
+    ['ToggleLike', { postId: 'p2' }, 'p2'],
+  ] as const)('%s', async (mutation, input, id) => {
+    const you = sandbox()('you')
+    const answer = await you.mutateShown(mutation, input)
+    const reference = await fresh(you, id)
+    expect(Object.keys(reference ?? {}).sort()).toEqual([...shown.fields].sort())
+    expect(answered(answer, id)).toMatchObject(reference ?? {})
   })
 })
