@@ -39,7 +39,7 @@
       "foldkit-primitives/time": ["../../packages/primitives/src/time/index.ts"]
     }
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "vite.config.ts"],
+  "include": ["e2e/**/*.ts", "src/**/*.ts", "test/**/*.ts", "vite.config.ts"],
   "references": [
     {
       "path": "../site/tsconfig.json"
