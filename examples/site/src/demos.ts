@@ -88,12 +88,16 @@ export const pagesDemo: Demo = {
     },
     {
       title: 'Edit together',
-      text: 'Type in the page from both tabs; each sees the other’s typing.',
+      text: 'Type in the page from both tabs; each sees the other’s caret and typing.',
+    },
+    {
+      title: 'Write',
+      text: 'Type / on a line for a heading, a checklist, a callout or a table; select words for the formatting bar, or drag a block by its ⠿ handle.',
     },
     { title: 'Reload', text: 'Reload a tab: the page is read back from the journal.' },
   ],
   readFirst: 'examples/pages/src/app.ts',
-  packages: ['richtext', 'richtext-dom', 'richtext-markdown', 'sync', 'durable'],
+  packages: ['richtext', 'richtext-dom', 'mixins-richtext', 'richtext-markdown', 'sync', 'durable'],
 }
 
 export const richtextDemo: Demo = {

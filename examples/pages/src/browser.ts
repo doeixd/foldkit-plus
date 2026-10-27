@@ -1,9 +1,13 @@
 import { Context, Effect, Layer, Schema, Scope } from 'effect'
+import { Style } from 'foldkit-mixins'
 import { ReplicaId, Sync, Transport } from 'foldkit-sync'
 import { Message, PeerPresence } from './app.js'
 import { mountPages, PagesSync } from './contract.js'
 import { sandboxSocket } from './sandbox/connection.js'
+import { stylesheet } from './style.js'
 import { view } from './view.js'
+
+Style.install(stylesheet)
 
 /** Holds a tab's name for the page's lifetime; false when another tab holds it already. */
 const claim = (name: string): Promise<boolean> =>

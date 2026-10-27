@@ -1501,6 +1501,12 @@ importers:
       foldkit-example-site:
         specifier: workspace:*
         version: link:../site
+      foldkit-mixins:
+        specifier: workspace:*
+        version: link:../../packages/mixins
+      foldkit-mixins-richtext:
+        specifier: workspace:*
+        version: link:../../packages/mixins-richtext
       foldkit-primitives:
         specifier: workspace:*
         version: link:../../packages/primitives
@@ -5094,7 +5100,6 @@ packages:
   '@opentelemetry/sdk-trace-base@2.11.0':
     resolution: {integrity: sha512-H19x/TX/LZdqiYOjM7fqtSxwlplC5pgelavqbQdHbhdq0q/AI/TGkM2dfGuuynTXmJPeF2HoZVoPDu+TGoW78A==}
     engines: {node: ^18.19.0 || >=20.6.0}
-    deprecated: Use @opentelemetry/sdk-trace package
     peerDependencies:
       '@opentelemetry/api': '>=1.3.0 <1.10.0'
 

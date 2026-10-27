@@ -2,8 +2,9 @@
 
 A small page editor in the spirit of Notion: a list of pages, each a rich-text document
 that two people can edit at the same time, online or not. It shows how
-`foldkit-richtext`'s `Replicated` state, the editor from `foldkit-richtext-dom`, and
-`foldkit-sync` with `foldkit-durable` fit together, and what each one owns.
+`foldkit-richtext`'s `Replicated` state, the editor from `foldkit-richtext-dom` with the menus
+and toolbars of `foldkit-mixins-richtext`, and `foldkit-sync` with `foldkit-durable` fit
+together, and what each one owns.
 
 **Try it:** the sandbox is at
 [foldkit-pages-demo.pages.dev](https://foldkit-pages-demo.pages.dev/). Its journal
@@ -17,6 +18,7 @@ foldkit-durable     the order: one journal every edit is appended to
 foldkit-sync        the replica: its outbox, what is committed, what is pending
 RichText.Replicated character identity: edits restated so they survive others' edits
 foldkit-richtext-dom the contenteditable subtree, patched in place rather than rebuilt
+foldkit-mixins-richtext the slash menu, the style menu, the link editor, the table tools
 this application    the pages in its Model, and turning editor edits into durable ones
 ```
 
@@ -63,7 +65,22 @@ Undo applies those ops as a new edit, which travels and converges like any other
 their own inverse for redo. A snapshot undo would restore a document the others have moved on
 from, so the editor's own history is not used.
 
-## Run it
+## Around the editor
+
+The page is written the way a Notion page is. `/` on a line opens a menu of blocks (headings,
+lists, a checklist, quote, code, a callout, a table, a divider), which the arrows move through
+and Escape closes; selected words get a bar of marks, the block style and a link; a ⠿ handle
+beside the block under the pointer drags it elsewhere or opens a menu to turn it into another
+kind, move, duplicate or delete it; a task's checkbox ticks it.
+
+None of it is shared. Which menu is open, the block under the pointer, the slash menu's
+highlighted entry and the query Escape closed are fields of the tab's Model, beside the caret.
+What a menu does is an editor Message (`RetypedBlock`, `InsertedBlock`, `MovedBlock`,
+`ChangedProps` from the checkbox), so it goes through `GotEditor` like a keystroke: the editor runs
+it on the projection, `translate` restates it as ops, and it is shared, undone and converged as
+typing is. The slash catalogue (`src/vocabulary.ts`) is handed to `placeEditor`, so the menu
+the view draws and what Enter chooses are one list.
+
 
 The two-replica trace, which is what CI runs:
 
@@ -113,7 +130,11 @@ build, which makes a DOM element as it loads.
   exchange (`journalExchange`), and the collection of deleted text, wherever it runs.
 - `src/journal.ts`: that journal on a SQLite file, for the Node server.
 - `src/sandbox/`: the same journal in the browser, served to each tab's conversation.
-- `src/view.ts`: the page list, title, toolbar, editor, and a Markdown preview.
+- `src/vocabulary.ts`: what a page may hold (the standard kinds, a callout, two marks), how it
+  draws, and the slash catalogue.
+- `src/view.ts`: the page list, who else is here, the title, the toolbar, the editor with its
+  handle and menus, and a Markdown preview; `src/style.ts` its look, on the demos' theme;
+  `src/canvas.ts` the block under the pointer and a press outside a menu.
 - `src/demo.ts`, `src/browser.ts`, `src/server.ts`, `src/serverMain.ts`: the trace, the
   browser entry, the sync server, and the script that runs it on the journal's file.
 - `test/pages.test.ts`: one tab mounted, another replica headless, meeting in the

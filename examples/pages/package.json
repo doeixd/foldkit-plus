@@ -17,6 +17,8 @@
     "foldkit": "0.169.0",
     "foldkit-durable": "workspace:*",
     "foldkit-example-site": "workspace:*",
+    "foldkit-mixins": "workspace:*",
+    "foldkit-mixins-richtext": "workspace:*",
     "foldkit-primitives": "workspace:*",
     "foldkit-richtext": "workspace:*",
     "foldkit-richtext-dom": "workspace:*",

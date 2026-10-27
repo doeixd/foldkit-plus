@@ -5,6 +5,20 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
+## Unreleased
+
+### Changed
+
+- **`examples/pages` is written like a Notion page.** `/` on a line opens the
+  slash menu, which the page used to promise and never draw: the arrows move through it,
+  Enter chooses, Escape closes it. Selected words get a bar of marks, the block
+  style and a link; a ⠿ handle beside a block drags it, or opens a menu to
+  retype, move, duplicate or delete it; a task's checkbox ticks it. The page
+  holds a callout, a table and a divider besides the standard kinds. Every
+  menu sends an editor Message, so its edit is shared and undone as typing is.
+  The page shows who else has it open, and is styled on the demos' theme
+  instead of a stylesheet in `index.html`.
+
 ## 0.35.0
 
 Computed writes, and demos that look like one product. A declared update can

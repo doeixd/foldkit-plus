@@ -9,7 +9,7 @@ import * as RichText from 'foldkit-richtext'
 import { Message as EditorMessage } from 'foldkit-richtext-dom/editor'
 import { ReplicaId, Sequence, Sync, type Mounted, type Replica, type Storage } from 'foldkit-sync'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { initialModel, Message, pageOf, update, type Model, type Shared } from '../src/app.js'
+import { initialModel, Menu, Message, pageOf, update, type Model, type Shared } from '../src/app.js'
 import { mountPages, PagesSync } from '../src/contract.js'
 import { openJournal } from '../src/journal.js'
 import { view } from '../src/view.js'
@@ -417,7 +417,10 @@ describe('two people on one page', () => {
     )
     const task = () => document.querySelector('#page-body [data-task]')
     await vi.waitFor(() => expect(task()?.getAttribute('data-task')).toBe('unchecked'))
-    tab.dispatch(Message.ToggledTask())
+    // The checkbox is the rendering's adornment: a click on it is the editor's own edit.
+    const box = document.querySelector('#page-body [data-task] input')
+    if (!(box instanceof HTMLElement)) throw new Error('the task has no checkbox')
+    box.click()
     await vi.waitFor(() => expect(task()?.getAttribute('data-task')).toBe('checked'))
     await synchronize(aliceReplica, 'alice')
     const stored = Replicated.project(journal.snapshot().pages[0]!.body)
@@ -534,10 +537,27 @@ describe('two people on one page', () => {
       selection: { type: 'Range', anchor: at, focus: at },
       storedMarks: ['Bold'],
       menuIndex: 2,
+      slashDismissed: Option.some({
+        node: RichText.NodeId.make('x'),
+        offset: 0,
+        affinity: 'after',
+      }),
+      menu: Option.some(Menu.Block({ node: RichText.NodeId.make('x') })),
+      hovered: Option.some(RichText.NodeId.make('x')),
+      linkDraft: 'https://example.com',
       undoGroup: 'typing',
     }
   }
-  const nothingCarried = { selection: null, storedMarks: null, menuIndex: 0, undoGroup: null }
+  const nothingCarried = {
+    selection: null,
+    storedMarks: null,
+    menuIndex: 0,
+    slashDismissed: Option.none(),
+    menu: Option.none(),
+    hovered: Option.none(),
+    linkDraft: '',
+    undoGroup: null,
+  }
 
   it('starts a page it opens without what the editor carried for the last', () => {
     expect(update(carried(), Message.OpenedPage({ id: 'other' })).model).toMatchObject({
@@ -563,6 +583,11 @@ describe('two people on one page', () => {
     ],
     ['opening the page already open', model => Message.OpenedPage({ id: model.open! })],
     ['the same peers again', model => Message.GotPeers({ peers: model.peers })],
+    ['closing a menu when none is open', () => Message.ClosedMenu()],
+    [
+      'the slash menu moved to where it is',
+      model => Message.SlashMoved({ index: model.menuIndex }),
+    ],
   ])('keeps the Model itself for %s', (_, message) => {
     const created = update(
       initialModel('alice'),
@@ -625,18 +650,102 @@ describe('two people on one page', () => {
   })
 })
 
-describe('an editor Message that changes nothing', () => {
-  /** `update`, with each fact it returns applied as `Sync.mount` would apply it. */
-  const settle = (model: Model, message: Message): Model => {
-    const result = update(model, message)
-    let next = result.model
-    for (const command of result.commands ?? []) {
-      if (command.name === 'foldkit-sync/fact')
-        next = update(next, Effect.runSync(command.effect)).model
-    }
-    return next
+/** `update`, with each fact it returns applied as `Sync.mount` would apply it. */
+const settle = (model: Model, message: Message): Model => {
+  const result = update(model, message)
+  let next = result.model
+  for (const command of result.commands ?? []) {
+    if (command.name === 'foldkit-sync/fact')
+      next = update(next, Effect.runSync(command.effect)).model
   }
+  return next
+}
 
+/** Editor Messages, each settled in turn. */
+const edited = (model: Model, ...messages: ReadonlyArray<EditorMessage>): Model =>
+  messages.reduce((done, message) => settle(done, Message.GotEditor({ message })), model)
+
+/** A new page with the caret in its one line, which holds `text`. */
+const pageWith = (text: string): Model => {
+  const added = settle(initialModel('bob'), Message.AddedPage({ title: 'P' }))
+  const run = Replicated.project(added.pages[0]!.body).children[0]!.children[0]!.id
+  return edited(
+    added,
+    EditorMessage.Selected({ selection: caretAt(run, 0) }),
+    ...(text === '' ? [] : [EditorMessage.Typed({ text })]),
+  )
+}
+
+/** The open page as the editor shows it. */
+const shown = (model: Model): RichText.Document =>
+  Replicated.project(pageOf(model, model.open)!.body)
+
+const kinds = (model: Model): ReadonlyArray<string> =>
+  shown(model).children.map(block => (block.type === 'Node' ? block.kind : block.type))
+
+describe('the menus around the editor', () => {
+  it('turns a line into a block this vocabulary adds, from the slash menu', () => {
+    const chosen = edited(pageWith('/call'), EditorMessage.Entered())
+    expect(kinds(chosen)).toContain('Callout')
+    // The query is spent: no line still says it.
+    expect(RichText.toText(shown(chosen).children)).not.toContain('/call')
+  })
+
+  it('keeps a query Escape closed as text, so Enter breaks the line', () => {
+    const dismissed = edited(pageWith('/he'), EditorMessage.DismissedSlash())
+    expect(Option.isSome(dismissed.slashDismissed)).toBe(true)
+    const entered = edited(dismissed, EditorMessage.Entered())
+    expect(kinds(entered)).toEqual(['Paragraph', 'Paragraph'])
+    expect(RichText.toText(shown(entered).children)).toContain('/he')
+  })
+
+  it('chooses the entry the arrows moved to', () => {
+    // `/` alone lists every entry, Paragraph first and Heading 1 next.
+    const moved = settle(pageWith('/'), Message.SlashMoved({ index: 1 }))
+    const entered = edited(moved, EditorMessage.Entered())
+    expect(shown(entered).children[0]).toMatchObject({ type: 'Heading', level: 1 })
+  })
+
+  it('retypes the block a handle stands for, and closes its menu', () => {
+    // The caret is on the second line; the handle stands for the first.
+    const model = edited(
+      pageWith('Plan'),
+      EditorMessage.Entered(),
+      EditorMessage.Typed({ text: 'Next' }),
+    )
+    const node = shown(model).children[0]!.id
+    const opened = settle(model, Message.OpenedMenu({ menu: Menu.Block({ node }) }))
+    const retyped = settle(
+      opened,
+      Message.RetypedBlock({ node, block: { type: 'Heading', level: 2 } }),
+    )
+    expect(kinds(retyped)).toEqual(['Heading', 'Paragraph'])
+    expect(shown(retyped).children[0]).toMatchObject({ level: 2 })
+    expect(Option.isNone(retyped.menu)).toBe(true)
+  })
+
+  it('duplicates the block a handle stands for, under identities of its own', () => {
+    const model = pageWith('Plan')
+    const node = shown(model).children[0]!.id
+    const twice = settle(model, Message.DuplicatedBlock({ node }))
+    const [first, second] = shown(twice).children
+    expect([first, second].map(block => block?.children.map(run => run.text).join(''))).toEqual([
+      'Plan',
+      'Plan',
+    ])
+    expect(second!.id).not.toBe(first!.id)
+  })
+
+  it('names the block under the pointer once, and again only when it changes', () => {
+    const model = pageWith('Plan')
+    const node = shown(model).children[0]!.id
+    const hovered = settle(model, Message.HoveredBlock({ node }))
+    expect(Option.getOrUndefined(hovered.hovered)).toBe(node)
+    expect(update(hovered, Message.HoveredBlock({ node })).model).toBe(hovered)
+  })
+})
+
+describe('an editor Message that changes nothing', () => {
   it.each<[string, (run: RichText.NodeId) => EditorMessage]>([
     ['the patch Command’s completion', () => EditorMessage.Patched()],
     [

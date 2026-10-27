@@ -1,10 +1,16 @@
 import { Effect, Option, Schema } from 'effect'
+import * as Command from 'foldkit/command'
+import * as Dom from 'foldkit/dom'
 import { defineMessageUnion } from 'foldkit/message'
+import { defineTaggedUnion } from 'foldkit/schema'
+import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
+import { linkEdit } from 'foldkit-mixins-richtext'
 import * as RichText from 'foldkit-richtext'
 import { Message as EditorMessage } from 'foldkit-richtext-dom/editor'
 import {
   Editor,
+  focus,
   overlay,
   patchTo,
   placeEditor,
@@ -12,6 +18,7 @@ import {
 } from 'foldkit-richtext-dom/editor-bundle'
 import { markdownInputRules } from 'foldkit-richtext-markdown'
 import { Sync } from 'foldkit-sync'
+import { pageSlashEntries, rendering, vocabulary } from './vocabulary.js'
 
 const { Replicated } = RichText
 
@@ -56,6 +63,19 @@ type UndoStep = typeof UndoStep.Type
 /** How many steps undo keeps. */
 const UNDO_DEPTH = 200
 
+/** The one popover open at a time. */
+export const Menu = defineTaggedUnion({
+  /** A block handle's menu, for the block it stands beside. */
+  Block: { node: RichText.NodeId },
+  /** A text style menu: the toolbar's, or the one over selected text. */
+  Style: { place: Schema.Literals(['toolbar', 'floating']) },
+  /** The toolbar's insert menu. */
+  Insert: {},
+  /** The link editor over the selection. */
+  Link: {},
+})
+export type Menu = typeof Menu.Type
+
 export const Model = Schema.Struct({
   ...Shared.fields,
   /** The page in the editor. */
@@ -70,7 +90,14 @@ export const Model = Schema.Struct({
   /** The caret, held by the characters around it rather than an offset another edit moves. */
   selection: Schema.NullOr(Replicated.AnchoredSelection),
   storedMarks: Schema.NullOr(Schema.Array(Schema.String)),
+  /** The slash menu's highlighted entry, and the query Escape closed it on. */
   menuIndex: Schema.Number,
+  slashDismissed: Schema.Option(RichText.Position),
+  menu: Schema.Option(Menu),
+  /** The top-level block under the pointer, which the block handle stands beside. */
+  hovered: Schema.Option(RichText.NodeId),
+  /** The address in the link editor, while it is open. */
+  linkDraft: Schema.String,
   /**
    * This tab's own edits, newest last, each as the ops that take it back: undo applies
    * them as a new edit, so it reverses only what this tab did and keeps everyone else's.
@@ -97,24 +124,43 @@ export const Message = defineMessageUnion({
   OpenedPage: { id: Schema.String },
   TrashedPage: { id: Schema.String },
   GotEditor: { message: EditorMessage },
-  ToggledTask: {},
   GotPeers: { peers: Schema.Array(Peer) },
+  SlashMoved: { index: Schema.Number },
+  HoveredBlock: { node: RichText.NodeId },
+  OpenedMenu: { menu: Menu },
+  ClosedMenu: {},
+  /** An edit chosen from a menu, which closes as the edit is made. */
+  MenuEdit: { message: EditorMessage },
+  /** A handle's Turn into: the block, retyped as a text block. */
+  RetypedBlock: { node: RichText.NodeId, block: RichText.TextBlock },
+  /** A handle's Turn into, for a container: the block, wrapped. */
+  WrappedBlock: { node: RichText.NodeId, containers: Schema.Array(RichText.Container) },
+  DuplicatedBlock: { node: RichText.NodeId },
+  LinkDrafted: { href: Schema.String },
+  /** Enter in the link editor: the draft, as the Model holds it, applied. */
+  LinkSubmitted: {},
+  /** The link editor's edit: the link applied or removed, the editor closed, the text focused. */
+  LinkEdited: { message: EditorMessage },
+  /** The link editor's field has the focus. */
+  FocusedField: {},
 })
 export type Message = typeof Message.Type
 type Return = Update.Return<Model, Message>
 
 export const hostId = 'page-body'
 
-const nodes = RichText.nodeRegistry(RichText.standardNodes)
-
 placeEditor(hostId, {
-  rendering: RichText.standardRendering,
-  vocabulary: {
-    marks: RichText.markRegistry(RichText.standardMarks),
-    nodes,
-  },
+  rendering,
+  vocabulary,
   inputRules: markdownInputRules,
   placeholder: 'Type / for blocks, or start writing…',
+  lineHint: 'Type / for blocks',
+  slashEntries: pageSlashEntries,
+  // This vocabulary's own marks, beside the editor's chords for the standard ones.
+  keymap: [
+    { chord: 'Mod-u', command: { type: 'ToggleMark', mark: 'Underline' } },
+    { chord: 'Mod-Shift-h', command: { type: 'ToggleMark', mark: 'Highlight' } },
+  ],
 })
 
 const blank = RichText.decodeDocument({
@@ -132,31 +178,36 @@ export const initialModel = (session: string): Model => ({
   selection: null,
   storedMarks: null,
   menuIndex: 0,
+  slashDismissed: Option.none(),
+  menu: Option.none(),
+  hovered: Option.none(),
+  linkDraft: '',
   undo: [],
   redo: [],
   undoGroup: null,
   peers: [],
 })
 
-/** A page opened: the caret and what the editor carried for the last one start afresh. */
-const opened = (model: Model, id: string): Model => ({
-  ...model,
-  open: id,
-  selection: null,
-  storedMarks: null,
-  menuIndex: 0,
-  undoGroup: null,
-})
+/**
+ * A page opened, or none: what the editor and its menus carried for the last one means nothing
+ * on another, so it starts afresh.
+ */
+const afresh = (model: Model, open: string | null): Model =>
+  modifyFields(model, {
+    open: () => open,
+    selection: () => null,
+    storedMarks: () => null,
+    menuIndex: () => 0,
+    slashDismissed: () => Option.none(),
+    menu: () => Option.none(),
+    hovered: () => Option.none(),
+    linkDraft: () => '',
+    undoGroup: () => null,
+  })
 
-/** No page open: nothing of the last one is carried on. */
-const closed = (model: Model): Model => ({
-  ...model,
-  open: null,
-  selection: null,
-  storedMarks: null,
-  menuIndex: 0,
-  undoGroup: null,
-})
+/** The open menu closed; the Model itself when none is. */
+const menuClosed = (model: Model): Model =>
+  Option.isNone(model.menu) ? model : modifyFields(model, { menu: () => Option.none() })
 
 /**
  * One keystroke's inverse prepended to its typing group's step. Deleting what a run of typing
@@ -225,8 +276,7 @@ export const editorViewOf = (model: Model, page: Page): EditorView => ({
   history: RichText.emptyHistory,
   storedMarks: model.storedMarks,
   menuIndex: model.menuIndex,
-  // No menu is drawn here, so nothing dismisses one.
-  slashDismissed: Option.none(),
+  slashDismissed: model.slashDismissed,
   hostId,
 })
 
@@ -388,15 +438,54 @@ const replay = (model: Model, page: Page, direction: 'undo' | 'redo'): Return =>
 /** The editor Messages that are typing, so a run of them is one undo step. */
 const typing = new Set(['Typed', 'Backspace', 'DeletedForward'])
 
-const taskAround = (document: RichText.Document, selection: RichText.Selection | null) => {
-  if (selection?.type !== 'Range') return undefined
-  const run = RichText.locateRun(document, selection.anchor.node)
-  for (let depth = run?.path.length ?? 0; depth > 0; depth--) {
-    const block = RichText.blockAtPath(document, run!.path.slice(0, depth))
-    if (block?.type === 'Node' && block.kind === 'TaskItem') return block
-  }
-  return undefined
+/** Editor Messages in order, as one transition: a caret placed, then what acts on it. */
+const editing = (model: Model, messages: ReadonlyArray<EditorMessage>): Return =>
+  messages.reduce<Return>(
+    (done, message) => {
+      const next = update(done.model, Message.GotEditor({ message }))
+      return { model: next.model, commands: [...(done.commands ?? []), ...(next.commands ?? [])] }
+    },
+    { model },
+  )
+
+/** The open page's block with this identity, as the editor shows it. */
+const blockOf = (model: Model, node: RichText.NodeId): RichText.Block | undefined => {
+  const page = pageOf(model, model.open)
+  return page === undefined
+    ? undefined
+    : RichText.locateBlock(Replicated.project(page.body), node)?.block
 }
+
+const caretAtStart = (block: RichText.Block): RichText.Selection | undefined => {
+  let first: RichText.Text | undefined
+  RichText.eachBlock([block], inner => {
+    first ??= inner.children[0]
+  })
+  return first === undefined
+    ? undefined
+    : {
+        type: 'Range',
+        anchor: { node: first.id, offset: 0, affinity: 'after' },
+        focus: { node: first.id, offset: 0, affinity: 'after' },
+      }
+}
+
+/** A handle's edit of its block: the caret put at the block's start, then the edit made there. */
+const onBlock = (model: Model, node: RichText.NodeId, message: EditorMessage): Return => {
+  const block = blockOf(model, node)
+  const caret = block === undefined ? undefined : caretAtStart(block)
+  return caret === undefined
+    ? { model: menuClosed(model) }
+    : editing(menuClosed(model), [EditorMessage.Selected({ selection: caret }), message])
+}
+
+/** Gives the focus to the field a control just opened, so its keys go there at once. */
+const FocusField = Command.define('FocusField', {
+  args: { selector: Schema.String },
+  messages: [Message.FocusedField],
+  execute: ({ selector }) =>
+    Dom.focus(selector).pipe(Effect.ignore, Effect.as(Message.FocusedField())),
+})
 
 export const update = (model: Model, message: Message): Return =>
   Message.match<Return>(message, {
@@ -433,19 +522,19 @@ export const update = (model: Model, message: Message): Return =>
     AddedPage: ({ title }) => {
       const id = `${model.session}:${model.minted}`
       return {
-        model: { ...opened(model, id), minted: model.minted + 1 },
+        model: { ...afresh(model, id), minted: model.minted + 1 },
         commands: [Sync.fact(Message.CreatedPage({ id, title, key: `${id}:seed` }))],
       }
     },
     // Closes the page here if it is open, then trashes it everywhere.
     TrashedPage: ({ id }) => ({
-      model: model.open === id ? closed(model) : model,
+      model: model.open === id ? afresh(model, null) : model,
       commands: [Sync.fact(Message.DeletedPage({ id }))],
     }),
     OpenedPage: ({ id }) => {
       if (id === model.open) return { model }
       const page = pageOf(model, id)
-      const next = opened(model, id)
+      const next = afresh(model, id)
       return { model: next, commands: page === undefined ? [] : [carets(next, id, page.body)] }
     },
     GotPeers: ({ peers }) => {
@@ -465,9 +554,15 @@ export const update = (model: Model, message: Message): Return =>
       const view = editorViewOf(model, page)
       const result = Editor.update(view, incoming, { hostId })
       const interaction =
-        result.model.storedMarks === model.storedMarks && result.model.menuIndex === model.menuIndex
+        result.model.storedMarks === model.storedMarks &&
+        result.model.menuIndex === model.menuIndex &&
+        result.model.slashDismissed === model.slashDismissed
           ? model
-          : { ...model, storedMarks: result.model.storedMarks, menuIndex: result.model.menuIndex }
+          : modifyFields(model, {
+              storedMarks: () => result.model.storedMarks,
+              menuIndex: () => result.model.menuIndex,
+              slashDismissed: () => result.model.slashDismissed,
+            })
       const commands = (result.commands ?? []).map(toApp)
       const out = result.outMessage
       if (out?._tag !== 'Edited') return { model: interaction, commands }
@@ -480,21 +575,65 @@ export const update = (model: Model, message: Message): Return =>
         typing.has(incoming._tag) ? 'typing' : null,
       )
     },
-    ToggledTask: () => {
+    SlashMoved: ({ index }) =>
+      index === model.menuIndex
+        ? { model }
+        : { model: modifyFields(model, { menuIndex: () => index }) },
+    HoveredBlock: ({ node }) =>
+      Option.getOrUndefined(model.hovered) === node
+        ? { model }
+        : { model: modifyFields(model, { hovered: () => Option.some(node) }) },
+    OpenedMenu: ({ menu }) => {
+      const shown = modifyFields(model, { menu: () => Option.some(menu) })
+      return Menu.match<Return>(menu, {
+        Block: () => ({ model: shown }),
+        Style: () => ({ model: shown }),
+        Insert: () => ({ model: shown }),
+        Link: () => {
+          const page = pageOf(model, model.open)
+          const view = page === undefined ? undefined : editorViewOf(model, page)
+          const href =
+            view === undefined ? undefined : RichText.linkAt(view.document, view.selection)?.href
+          return {
+            model: modifyFields(shown, { linkDraft: () => href ?? '' }),
+            commands: [FocusField({ selector: '[data-link="address"]' })],
+          }
+        },
+      })
+    },
+    ClosedMenu: () => ({ model: menuClosed(model) }),
+    MenuEdit: ({ message }) => update(menuClosed(model), Message.GotEditor({ message })),
+    RetypedBlock: ({ node, block }) => onBlock(model, node, EditorMessage.RetypedBlock({ block })),
+    WrappedBlock: ({ node, containers }) =>
+      onBlock(model, node, EditorMessage.WrappedBlock({ containers })),
+    DuplicatedBlock: ({ node }) => {
+      const block = blockOf(model, node)
+      return block === undefined
+        ? { model: menuClosed(model) }
+        : editing(menuClosed(model), [EditorMessage.InsertedBlock({ block, to: { after: node } })])
+    },
+    LinkDrafted: ({ href }) => ({ model: modifyFields(model, { linkDraft: () => href }) }),
+    LinkSubmitted: () => {
       const page = pageOf(model, model.open)
       if (page === undefined) return { model }
       const view = editorViewOf(model, page)
-      const task = taskAround(view.document, view.selection)
-      if (task?.type !== 'Node') return { model }
-      const result = RichText.run(
-        { document: view.document, selection: view.selection },
-        { type: 'SetProps', node: task.id, props: { checked: task.props.checked !== true } },
-        { mint: () => 'unused' },
-        { nodes },
-      )
-      if (!result.ok) return { model }
-      return commit(model, page, result, view.document, [], null)
+      return Option.match(linkEdit(view.document, view.selection, model.linkDraft), {
+        onNone: () => ({ model }),
+        onSome: message => update(model, Message.LinkEdited({ message })),
+      })
     },
+    LinkEdited: ({ message }) => {
+      const result = update(menuClosed(model), Message.GotEditor({ message }))
+      const page = pageOf(result.model, result.model.open)
+      const selection = page === undefined ? null : editorViewOf(result.model, page).selection
+      return selection === null
+        ? result
+        : {
+            ...result,
+            commands: [...(result.commands ?? []), toApp(focus(hostId, selection))],
+          }
+    },
+    FocusedField: () => ({ model }),
   })
 
 /**
@@ -505,7 +644,7 @@ export const update = (model: Model, message: Message): Return =>
 export const reinstalled = (next: Model, previous: Model): Return => {
   const before = pageOf(previous, previous.open)
   const after = pageOf(next, next.open)
-  if (after === undefined) return { model: closed(next) }
+  if (after === undefined) return { model: afresh(next, null) }
   if (before === undefined || before.body === after.body) return { model: next }
   return {
     model: next,
