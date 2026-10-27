@@ -1,15 +1,16 @@
 // @vitest-environment node
 /**
- * The host's page answers, against the real auth server: each page is read
- * as whoever the request's cookie says, a page that refuses its reader is a
- * 303 before anything renders, and one that allows them carries what was
- * read in its HTML.
+ * The page answers as Vite's dev server gives them, against the real auth
+ * server over HTTP (`httpReader`): each page is read as whoever the
+ * request's cookie says, a page that refuses its reader is a 303 before
+ * anything renders, and one that allows them carries what was read in its
+ * HTML. `host.test.ts` reads the same pages in one process.
  */
 import { readFile } from 'node:fs/promises'
 import { toResponse } from 'foldkit/experimental/server'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { startHttpServer } from '../src/http.js'
-import { makeRenderPage } from '../src/page.js'
+import { PageContext, httpReader, makeRenderPage } from '../src/page.js'
 import { notes } from '../src/server.js'
 import { PAGE_ORIGIN, signIn as signInAt } from './accounts.js'
 
@@ -20,28 +21,28 @@ let server: Awaited<ReturnType<typeof startHttpServer>>
 let renderPage: ReturnType<typeof makeRenderPage>
 beforeAll(async () => {
   server = await startHttpServer(0, origin)
-  renderPage = makeRenderPage({ buildId: 'test', authServer: server.url })
+  renderPage = makeRenderPage({ buildId: 'test' })
 })
 afterAll(() => server.close())
 
 const signIn = (subjectId: 'ada' | 'grace') => signInAt(server.url, subjectId)
 
-/** The page at `path` as the host would send it. */
-const answer = async (path: string, init: { cookie?: string; method?: string } = {}) =>
-  toResponse(
+/** The page at `path` as the dev server would send it, read over HTTP. */
+const answer = async (path: string, init: { cookie?: string; method?: string } = {}) => {
+  const request = new Request(`${origin}${path}`, {
+    method: init.method ?? 'GET',
+    headers: init.cookie === undefined ? {} : { cookie: init.cookie },
+  })
+  return toResponse(
     template,
-    await renderPage(
-      new Request(`${origin}${path}`, {
-        method: init.method ?? 'GET',
-        headers: init.cookie === undefined ? {} : { cookie: init.cookie },
-      }),
-    ),
+    await renderPage(PageContext.attach(request, { reader: httpReader(request, server.url) })),
   )
+}
 
 const titlesBy = (author: string) =>
   notes.filter(note => note.authorId === author).map(note => note.title)
 
-describe('the host', () => {
+describe('a page read over HTTP', () => {
   it('sends a visitor asking for the notes home with a 303, returning to them after', async () => {
     const response = await answer('/notes')
     expect(response.status).toBe(303)

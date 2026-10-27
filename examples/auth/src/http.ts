@@ -1,7 +1,8 @@
 /**
- * One Node server for both handlers: Yielded's routes under `/auth`, Remote
- * at `/remote`. Vite proxies both, so the page, its cookie and these
- * requests share one origin.
+ * The host (`host.ts`) as a Node server, with the board's socket beside it:
+ * Yielded's routes under `/auth`, Remote at `/remote`, and an upgrade to
+ * `/sync`. Vite draws the pages and proxies the rest here, so the page, its
+ * cookie and these requests share one origin.
  */
 import {
   STATUS_CODES,
@@ -15,7 +16,7 @@ import { Result } from 'effect'
 import type { HostSocket } from 'foldkit-sync/journal'
 import { WebSocketServer, type WebSocket } from 'ws'
 import type { AddressInfo } from 'node:net'
-import { openServer } from './server.js'
+import { openHost } from './host.js'
 
 /** The headers of a Node request, as a Fetch API `Headers`. */
 const headersOf = (request: IncomingMessage): Headers => {
@@ -94,14 +95,13 @@ export const startHttpServer = async (
   port: number,
   origin: string,
 ): Promise<{ readonly url: string; readonly close: () => Promise<void> }> => {
-  const handlers = await openServer(origin)
-  const answerOf = (path: string) =>
-    path.startsWith('/auth/')
-      ? handlers.auth
-      : (request: Request) => handlers.remote(request, undefined)
+  // Vite draws the pages in development, and proxies the rest here.
+  const host = await openHost(origin, {
+    fetch: async () => Response.json({ error: 'not found' }, { status: 404 }),
+  })
 
   const server: Server = createServer((request, response) => {
-    respond(answerOf(request.url ?? '/'), origin, request, response).catch((error: unknown) => {
+    respond(host.fetch, origin, request, response).catch((error: unknown) => {
       console.error('examples/auth: a request failed', error)
       if (!response.headersSent) response.writeHead(500)
       response.end()
@@ -114,7 +114,7 @@ export const startHttpServer = async (
     // Node takes its own error listener off an upgraded connection; a reset must not crash it.
     connection.on('error', () => connection.destroy())
     if (new URL(request.url ?? '/', origin).pathname !== '/sync') return void connection.destroy()
-    handlers
+    host
       .sync(new Request(`${origin}${request.url}`, { headers: headersOf(request) }))
       .then(answered =>
         Result.match(answered, {
@@ -148,7 +148,7 @@ export const startHttpServer = async (
       new Promise<void>(resolve => {
         for (const socket of sockets.clients) socket.terminate()
         server.closeAllConnections()
-        server.close(() => void handlers.close().finally(resolve))
+        server.close(() => void host.close().finally(resolve))
       }),
   }
 }

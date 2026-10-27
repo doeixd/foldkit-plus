@@ -1,7 +1,6 @@
 # A page render's request context and its in-process reader (#212)
 
-Status: designed (2026-10-27), being built. What is left is under
-[Deferred](#deferred).
+Status: built (2026-10-27). What is left is under [Deferred](#deferred).
 
 ## The problem
 

@@ -40,8 +40,9 @@ tab's own sign-in or sign-out, and another tab's broadcast.
 A page request is read the same way before it is drawn:
 
 ```text
-GET /notes ─> page.ts: Data.satisfy over Remote.http to the auth server,
-                with the request's cookie, its origin and the CSRF header
+GET /notes ─> page.ts: Data.satisfy through the reader the host attached
+                (PageContext): in process from host.ts, as the cookie's reader,
+                or, under Vite's dev server, over HTTP to the auth server
            ─> accessOf(model): Site.accessOf(AppSite, route, Me)
                 Denied({ url })  ─> 303 to /?returnTo=%2Fnotes, nothing rendered
                 Allowed, Pending ─> SSR renders the page from what was read
@@ -86,11 +87,16 @@ Read the files in this order.
    Sources skip a Read rule. `openServer(origin)` builds Yielded's routes and
    Remote's `serveFetch` over one store, so the sign-in route and the resolver
    see the same sessions.
-3. [`src/http.ts`](src/http.ts). One Node server: `/auth/…` to Yielded,
-   everything else to `serveFetch` (which answers `/remote`), and an upgrade
-   to `/sync` to the board's `documentHost`. Vite proxies all three
-   ([`vite.config.ts`](vite.config.ts)), so the page, its cookie and its
-   requests share one origin.
+3. [`src/host.ts`](src/host.ts) and [`src/http.ts`](src/http.ts). The host
+   is the site behind one fetch handler, as one Worker serves it: `/auth/…`
+   to Yielded, `/remote` to `serveFetch`, and every other request a page,
+   handed its reader through `PageContext`: `pageReader`, made from the same
+   config as `/remote`, which reads in this process as the request's cookie
+   says (`requests: 'navigation'`, since a page carries no CSRF header) and
+   never writes. `http.ts` serves the host on Node, with an upgrade to
+   `/sync` going to the board's `documentHost`. In development Vite draws the
+   pages and proxies the rest there ([`vite.config.ts`](vite.config.ts)), so
+   the page, its cookie and its requests share one origin.
 4. [`src/app.ts`](src/app.ts). The Model, the Messages and `update`. `SignIn`
    and `SignOut` are Commands that run Yielded's client (`yield* AppClient`)
    and answer with the application's Messages. `AppSite` holds two pages,
@@ -100,11 +106,14 @@ Read the files in this order.
    `NoteList` the query on the notes page. The `principal` Subscription
    turns another tab's post on `PRINCIPAL_CHANNEL` into a Message.
 5. [`src/page.ts`](src/page.ts) and [`src/entry.server.ts`](src/entry.server.ts).
-   The host: each page request is read as its cookie says, answered `303`
-   when `accessOf` refuses it, and otherwise rendered by `SSR.entry` from
-   that Model, so the decision and the page come from one read. A cookie the
-   server no longer holds reads nothing, and the browser reads again and
-   says why.
+   The page: each page request is read through the reader the host
+   attached, answered `303` when `accessOf` refuses it, and otherwise
+   rendered by `SSR.entry` from that Model, so the decision and the page
+   come from one read. A cookie the server no longer holds reads nothing,
+   and the browser reads again and says why; a request with no reader is a
+   500. Vite renders in a process of its own, so `entry.server.ts` attaches
+   `httpReader`, Remote over HTTP with the cookie, the page's origin and
+   the CSRF header.
 6. [`src/view.ts`](src/view.ts) and [`src/client.ts`](src/client.ts). The page,
    and `SSR.hydrate` with its two services: `Remote.http('/remote')`,
    sending Yielded's CSRF header through `belief.fetch`, and
@@ -199,9 +208,13 @@ only for an `http:` origin.
   visitor's exchange refused, a foreign Origin and an ended session `401`
   before any socket opens, one reader's pin ordered for another, and an
   open socket closed with 4401 once its session ends.
-- `test/page.test.ts`: the host over the real server: a visitor's `303`, a
-  reader's notes rendered into the page, a session that ended left to the
-  browser.
+- `test/page.test.ts`: pages read over HTTP from the real server, as the
+  dev server reads them: a visitor's `303`, a reader's notes rendered into
+  the page, a session that ended left to the browser.
+- `test/host.test.ts`: the one fetch handler with no network at all: a
+  reader's notes read in process, from a link on another site; a visitor's
+  `303`; `/remote` still refusing a script's cookie without the CSRF header;
+  a page with no reader a 500.
 - `test/auth.mutations.ts`: `pnpm mutate examples/auth/test/auth.mutations.ts`
   breaks what `update` and the server decide in turn; what only a page shows
   is the e2e test's.
@@ -217,7 +230,10 @@ only for an `http:` origin.
   seeded, lost on restart. A deployment uses its SQL persistence.
 - Remote's reads never renew the session: it ends an hour after its last
   renewal, however busy the page is. Yielded's `renewSession` is not wired.
-- The page server is Vite's dev server; there is no production host.
+- `host.ts` is the production shape, but nothing builds and serves it: a
+  build's `fetch.js` needs Foldkit's `renderDocument` pipeline, which this
+  example does not use, so its test serves pages with `handleRequest` and
+  `index.html`.
 - No page draws the board: its socket and host are tested with replicas, and
   mounting Sync beside Remote and the Site's routing in this page is not
   shown here (`examples/registry` mounts both).

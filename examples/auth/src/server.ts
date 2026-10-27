@@ -13,7 +13,7 @@ import { AuthServer } from 'foldkit-auth/server'
 import { GuardServer } from 'foldkit-guard/server'
 import { Remote } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
-import { serveFetch } from 'foldkit-remote-server/fetch'
+import { pageReader, serveFetch } from 'foldkit-remote-server/fetch'
 import { ActorId, Journal, OpId } from 'foldkit-durable'
 import type { Operation, Sync } from 'foldkit-sync'
 import { documentHost } from 'foldkit-sync/journal'
@@ -129,7 +129,8 @@ export const SYNC_REVALIDATE = '1 second'
 
 /**
  * Both servers over one store: Yielded's routes (`/auth/…`), which set and
- * clear the cookie, and Remote's endpoint (`/remote`), which reads it.
+ * clear the cookie, and Remote's endpoint (`/remote`), which reads it, with
+ * `read`, the reader a page's own reads go through in this process.
  * `origin` is the page's: Yielded trusts a sign-in from it alone, and the
  * resolver reads a cookie only from a request that shows it came from there.
  */
@@ -150,11 +151,18 @@ export const openServer = async (origin: string) => {
   )
   // `key` names the principal as `Me` does, for the answer's header and the check of it.
   const resolving = { auth: App, http, principal: principalOf, key: Policy.key }
-  const remote = serveFetch({
+  const remoteConfig = {
     server,
     resolvePrincipal: AuthServer.resolver(resolving),
     headers: AuthServer.answered(resolving),
     layer: () => shared,
+  }
+  const remote = serveFetch(remoteConfig)
+  // A page's own reads, in this process. A page request is a navigation,
+  // which carries no CSRF header; the reader it resolves cannot write.
+  const read = pageReader({
+    ...remoteConfig,
+    resolvePrincipal: AuthServer.resolver({ ...resolving, requests: 'navigation' }),
   })
   // The board's journal: in memory, as the sessions are, and gone on restart.
   const scope = Effect.runSync(Scope.make())
@@ -183,6 +191,7 @@ export const openServer = async (origin: string) => {
   return {
     auth: routes.handler,
     remote,
+    read,
     sync,
     close: async () => {
       await routes.dispose()

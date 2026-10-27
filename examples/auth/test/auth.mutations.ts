@@ -8,6 +8,7 @@ const server = ['examples/auth/test/server.test.ts']
 const app = ['examples/auth/test/app.test.ts']
 const sync = ['examples/auth/test/sync.test.ts']
 const page = ['examples/auth/test/page.test.ts']
+const host = ['examples/auth/test/host.test.ts']
 
 export default [
   {
@@ -69,12 +70,12 @@ export default [
     name: "Yielded's routes are never reached",
     edits: [
       {
-        file: '../src/http.ts',
+        file: '../src/host.ts',
         find: "path.startsWith('/auth/')",
         replace: "path.startsWith('/nowhere/')",
       },
     ],
-    tests: server,
+    tests: [...server, ...host],
   },
   {
     name: 'only the last Set-Cookie of an answer is sent',
@@ -351,6 +352,39 @@ export default [
       },
     ],
     tests: page,
+  },
+  {
+    name: 'the host hands a page no reader',
+    edits: [
+      {
+        file: '../src/host.ts',
+        find: 'PageContext.attach(request, { reader: server.read(request, undefined) })',
+        replace: 'request',
+      },
+    ],
+    tests: host,
+  },
+  {
+    name: "a page's own reads ask for a script's headers",
+    edits: [
+      {
+        file: '../src/server.ts',
+        find: "resolvePrincipal: AuthServer.resolver({ ...resolving, requests: 'navigation' }),",
+        replace: 'resolvePrincipal: AuthServer.resolver(resolving),',
+      },
+    ],
+    tests: host,
+  },
+  {
+    name: 'a page reads over HTTP whatever the host attached',
+    edits: [
+      {
+        file: '../src/page.ts',
+        find: 'readAs(request, context.value.reader)',
+        replace: "readAs(request, httpReader(request, 'http://127.0.0.1:9'))",
+      },
+    ],
+    tests: host,
   },
   {
     name: 'a page may be kept by a shared cache',
