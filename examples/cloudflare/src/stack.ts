@@ -139,7 +139,7 @@ export const startStack = async (): Promise<CloudflareStack> => {
     images: { binding: 'IMAGES' },
     ratelimits: { LIMITER: { namespace_id: '1001', simple: { limit: 100, period: 60 } } },
     bindings: { UPLOAD_TOKEN, AUTH_ORIGIN: PAGE_ORIGIN },
-    // Near `wrangler.toml`'s date (the latest this workerd knows): an old one
+    // `wrangler.toml`'s date and flags (the latest date this workerd knows): an old one
     // lacks `URL.canParse`, which the auth resolver checks its origins with,
     // and stream constructors, on by default since 2022.
     compatibilityDate: '2026-07-30',

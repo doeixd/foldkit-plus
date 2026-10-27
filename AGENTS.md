@@ -795,6 +795,16 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   every Remote POST carries never reaches a Sync upgrade; a resolver asking
   for one answers every socket as a visitor. Check `Origin` alone there (the
   browser always sends it on an upgrade), or a credential in a subprotocol.
+- **Yielded's core `AuthPersistence` cannot commit on D1.** It signs in and up
+  inside a transaction, and `@effect/sql-d1` refuses transactions; use
+  `@yielded/auth-persistence-drizzle/D1`, which commits in D1 batches. Its
+  `@yielded/auth/WorkerdServices` imports a `.wasm` and `node:crypto`, so Node
+  cannot load it: keep what a test reads from Node in a module apart, and
+  bundle it with `loader: { '.wasm': 'copy' }` and `nodejs_compat`.
+- **Miniflare with no `compatibilityDate` runs an old runtime.** It lacked
+  `URL.canParse`, which the auth resolver needs; at a recent date,
+  `streams_enable_constructors` stops workerd starting. Give the local stack
+  and `wrangler.toml` one date and one set of flags.
 - **An adapter's library is a peer, not a dependency.** `foldkit-remote-drizzle`
   depended on `drizzle-orm`, so an application whose Drizzle resolved with
   other optional peers (it had `@effect/sql-sqlite-wasm`) got a second copy,
@@ -1549,6 +1559,10 @@ of its own named a form field "fits the Catalog". Read words with
   can stop at "Failed to fetch dynamically imported module", before any
   mutation runs, and pass when run again unchanged. Rerun once before reading it as a
   red baseline; a second failure is real.
+- **`pnpm mutate` reaches only modules Vitest loads.** A worker esbuild bundles
+  for miniflare was never mutated, so a mutation of worker code read as "not
+  applied". `examples/cloudflare/src/stack.ts` applies the same edits in an
+  esbuild `onLoad` plugin; another esbuild-bundled stack needs the same.
 - **Vitest 5 caches transformed modules on disk, keyed without the environment.**
   `fsModuleCache` is on by default in 5.0.4 (5.0.1 ran without it), so a
   plugin whose output depends on an environment variable (`pnpm mutate`'s

@@ -3,10 +3,11 @@ name = "foldkit-cloudflare"
 # Already bundled the way the tests bundle it, source condition included.
 main = "dist/worker.js"
 no_bundle = true
-compatibility_date = "2026-10-01"
-# Live streams build a `ReadableStream`, which needs this flag on older
-# compatibility dates; recent dates enable it by default.
-compatibility_flags = ["streams_enable_constructors"]
+# The date and flags the local stack runs with (`src/stack.ts`), so a deploy
+# runs what the tests ran. `nodejs_compat` is for Yielded's password hashing;
+# `ReadableStream`'s constructor, which live streams use, is on by this date.
+compatibility_date = "2026-07-30"
+compatibility_flags = ["nodejs_compat"]
 
 # Local runs use miniflare (`pnpm demo`, `pnpm test`), which needs no account.
 # `database_id` is the D1 database behind the public demo. A fork creates its

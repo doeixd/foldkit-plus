@@ -121,6 +121,25 @@ Step 2 and 3 are separated on purpose: the journal is the authority on what
 happened, and the table is a projection of it. A crash between them recovers
 by replay, not by re-deriving.
 
+## Signing in
+
+The Worker also serves Yielded Auth's routes (`/auth/…`: sign up, sign in,
+sign out) and `/me`, which answers who a session cookie is through
+`AuthServer.resolver`, for the page at `AUTH_ORIGIN`; unset, both answer 404.
+Auth is built once per isolate (`src/authRoutes.ts`) over
+`@yielded/auth-persistence-drizzle/D1`, whose commits are D1 batches: Yielded's
+core `AuthPersistence` commits in a transaction, which D1 refuses. Sign-up
+writes the application's `accounts` row in the batch that binds the email
+(`src/auth.ts`). `migrations/0005_auth.sql` creates `accounts` and Yielded's
+tables, and `test/auth.test.ts` signs up, signs in, reads `/me` and signs out
+on miniflare.
+
+The Worker runs with `nodejs_compat` for Yielded's password hashing, and the
+build writes its Argon2 `.wasm` beside `dist/worker.js`. The deployed page's
+`_worker.js` forwards only `/remote` and `/sync`, so the public demo has no
+sign-in: forwarding `/auth/…` and `/me` and setting `AUTH_ORIGIN` to the
+Pages origin would add it.
+
 ## Run it
 
 ```bash

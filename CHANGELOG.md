@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`examples/cloudflare` signs people in with Yielded Auth on D1.** The Worker
+  serves Yielded's routes (`/auth/…`) and `/me` beside Remote, built once per
+  isolate over `@yielded/auth-persistence-drizzle/D1`, whose commits are D1
+  batches; sign-up writes the application's `accounts` row in the batch that
+  binds the email. Migration `0005` creates the tables, and a miniflare test
+  signs up, in, and out. The Worker now runs with `nodejs_compat` at the local
+  stack's compatibility date, and needs `AUTH_ORIGIN` set (#208).
 - **A Site node's Surface may read the signed-in viewer.** `surface: { surface,
   viewer: model => Option<Viewer>, params: (route, viewer) => params }` is
   active on its route only once `viewer` gives one, and inactive again when it
