@@ -37,6 +37,11 @@ export default [
     tests: page,
   },
   {
+    name: 'a dispatched Message never reaches the runtime',
+    edits: [{ file, find: 'return Stream.fromQueue(queue)', replace: 'return Stream.never' }],
+    tests: [...page, 'packages/agent/test/host.browser.test.ts'],
+  },
+  {
     name: 'every boot shares one queue',
     edits: [
       {
