@@ -116,9 +116,11 @@ version changed; `pnpm` skips versions already in the registry.
 - **Evidence is tied to the implementation it was tested on.**
   `Operators.withEvidence` refuses a `Tested` record `Conformance.laws` did not
   make of the table's own implementation (`Operators.testedOn(record)` names
-  it), and `DrizzleOperators.withEvidence` one tested in memory; before, a
-  verdict for one implementation could be recorded for another that breaks
-  the law. A computed assignment commutes only by laws tested over every
+  it), and `DrizzleOperators.withEvidence` any `Conformance.lawsBy` did not
+  make (`Operators.testedByRunner`): one built by hand, copied, or tested in
+  memory; before, a verdict for one implementation could be recorded for
+  another that breaks the law. Replacing an operator drops the evidence of a
+  law that called it as a witness. A computed assignment commutes only by laws tested over every
   value, not one narrowed by `Law.within`. `Law.describe` keeps a domain's
   `$defs`.
 - **Laws are tested under every collation an operator is called with.**
@@ -126,8 +128,10 @@ version changed; `pnpm` skips versions already in the registry.
   `binary` alone, so an implementation that broke a law only under `asciiFold`
   passed; a `Counterexample` now names its `collation`. A witness that compares
   text (`Law.inverse`, `Law.distributes`) is called under it too, where it
-  threw. Outcomes are compared as values, not as JSON, which wrote `Infinity`
-  and `NaN` as `null`.
+  threw, and an operator comparing no text gets a pass under each collation
+  when its law's witness compares text. Outcomes are compared as values, not
+  as JSON, which wrote `Infinity` and `NaN` as `null`: a Date by its time, a
+  field holding `undefined` as absent.
 - **A defined operator takes no implementation.** `Operators.implement` and
   `DrizzleOperators.implement` refuse one: SQL compiles what a defined operator
   means, and a memory implementation was a second meaning only the client ran.

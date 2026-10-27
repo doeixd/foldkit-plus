@@ -111,8 +111,8 @@ export default [
   edit(
     'a replaced SQL implementation keeps its evidence',
     operatorsFile,
-    'base.evidence.filter(({ operator }) => !names.has(operator)),',
-    'base.evidence,',
+    '!names.has(operator) && !Law.witnessesNamed(law).some(name => names.has(name)),',
+    'true,',
     drizzleTests,
   ),
   edit(
@@ -234,9 +234,9 @@ export default [
     remoteTests,
   ),
   edit(
-    'a SQL table takes evidence tested in memory',
+    'a SQL table takes evidence Conformance.lawsBy did not make',
     operatorsFile,
-    'if (Option.isSome(Operators.testedOn(record))) {',
+    "if (record._tag === 'Tested' && !Operators.testedByRunner(record)) {",
     'if (false) {',
     drizzleTests,
   ),
@@ -246,6 +246,13 @@ export default [
     `record.law.kind === kind &&
           record.law.domain === null,`,
     'record.law.kind === kind,',
+    drizzleTests,
+  ),
+  edit(
+    'lawsBy marks nothing it made',
+    '../../entity/src/conformance/operator.ts',
+    "if (verdict._tag === 'Holds') verdict.evidence.forEach(stampRun)",
+    '',
     drizzleTests,
   ),
 ]

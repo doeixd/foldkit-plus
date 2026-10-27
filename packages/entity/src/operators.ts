@@ -9,7 +9,7 @@ import { Collation } from './collation.js'
 import type { Operator, OperatorDescriptor, OperatorTable } from './expr.js'
 import { Law, LawDescription } from './law.js'
 import { jsonSchemaOf } from './jsonSchema.js'
-import { implementationTested } from './tested.js'
+import { implementationTested, testedByRunner } from './tested.js'
 import { Text } from './text.js'
 
 /** What an implementation is told besides its arguments. */
@@ -264,7 +264,11 @@ export const Operators = {
         ...implementations,
       ],
       base.checked,
-      base.evidence.filter(({ operator }) => !names.has(operator)),
+      // A replaced operator's evidence goes, and so does a law's that called it as a witness.
+      base.evidence.filter(
+        ({ operator, law }) =>
+          !names.has(operator) && !Law.witnessesNamed(law).some(name => names.has(name)),
+      ),
     )
   },
 
@@ -302,6 +306,13 @@ export const Operators = {
    * a record of a runner (`Conformance.lawsBy`) or a proof.
    */
   testedOn: (record: Evidence): Option.Option<MemoryImplementation> => implementationTested(record),
+
+  /**
+   * Whether `Conformance.lawsBy` made a record, through a runner: what an SQL
+   * table takes. Which runner it was, the database's or another, is the
+   * caller's word; a record built by hand, copied, or tested in memory is not.
+   */
+  testedByRunner,
 
   /**
    * Each operator the table implements, by name, with the laws it declares and

@@ -24,7 +24,7 @@ import {
   type Operator,
   type TestedEvidence,
 } from '../index.js'
-import { stampTested } from '../tested.js'
+import { stampRun, stampTested } from '../tested.js'
 
 type AnyOperator = Operator<ReadonlyArray<Schema.Top>, Schema.Top>
 
@@ -133,13 +133,22 @@ const chosen = <A>(tuples: ReadonlyArray<A>, limit: number, seed: number): Reado
   return shuffled.slice(0, limit)
 }
 
-const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
+/** A plain object: what JSON makes, and nothing whose data sits in a prototype. */
+const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> => {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
+  const prototype = Object.getPrototypeOf(value)
+  return prototype === Object.prototype || prototype === null
+}
+
+/** A plain object's keys holding a value: one holding `undefined` is as absent, as JSON writes it. */
+const keysOf = (record: Readonly<Record<string, unknown>>): ReadonlyArray<string> =>
+  Object.keys(record).filter(key => record[key] !== undefined)
 
 /**
  * Two stored values alike, structurally. Not by their JSON, which writes
  * `Infinity` and `NaN` as `null`: a division by zero answering `Infinity` in
- * memory and null in SQL would read as agreeing.
+ * memory and null in SQL would read as agreeing. An object that is not plain
+ * (its data in a prototype: a Date) is compared by its JSON, a Date's its time.
  */
 const sameValue = (left: unknown, right: unknown): boolean => {
   if (typeof left === 'number' && typeof right === 'number') {
@@ -149,11 +158,14 @@ const sameValue = (left: unknown, right: unknown): boolean => {
     return left.length === right.length && left.every((each, i) => sameValue(each, right[i]))
   }
   if (isRecord(left) && isRecord(right)) {
-    const keys = Object.keys(left)
+    const keys = keysOf(left)
     return (
-      keys.length === Object.keys(right).length &&
+      keys.length === keysOf(right).length &&
       keys.every(key => Object.hasOwn(right, key) && sameValue(left[key], right[key]))
     )
+  }
+  if (typeof left === 'object' && left !== null && typeof right === 'object' && right !== null) {
+    return JSON.stringify(left) === JSON.stringify(right)
   }
   return left === right
 }
@@ -222,23 +234,38 @@ const nameOf = (op: AnyOperator): string =>
  */
 const lawPlans = (op: AnyOperator, limit: number, seed: number): ReadonlyArray<LawPlans> => {
   const { descriptor } = op
-  // The kernel compares text only under a collation, and literals bring none. An
-  // implementation is told the collation, and may answer differently under each.
-  const collations =
-    descriptor.collation === 'none'
-      ? [Option.none<Collation>()]
-      : [Option.some(Collation.binary), Option.some(Collation.asciiFold)]
+  const comparesText = (each: AnyOperator) => each.descriptor.collation !== 'none'
+  // Each operator is called under a collation only where it compares text.
+  const under = (each: AnyOperator, collation: Option.Option<Collation>) =>
+    comparesText(each) ? collation : Option.none<Collation>()
   const run = (node: Operandish): Side => ({ node, fold: false })
   const value = (held: unknown): Side => ({ value: held })
   return descriptor.laws.map(law => {
     const shared = samplesOf(descriptor.input, law.domain)
     const tuples = (arity: number) =>
       chosen(product(Array.from({ length: arity }, () => shared)), limit, seed)
+    // The kernel compares text only under a collation, and literals bring none. An
+    // implementation is told the collation, and may answer differently under each:
+    // a pass under each where `op`, or a witness the law calls, compares text.
+    const witnesses = Law.$match(law, {
+      Inverse: ({ other }) => [other],
+      Distributes: ({ over }) => [over],
+      Associative: () => [],
+      Commutative: () => [],
+      Idempotent: () => [],
+      Identity: () => [],
+      Absorbing: () => [],
+      Monotonic: () => [],
+      PreservesCollation: () => [],
+    })
+    const collations = [op, ...witnesses].some(comparesText)
+      ? [Option.some(Collation.binary), Option.some(Collation.asciiFold)]
+      : [Option.none<Collation>()]
     const plans = collations.flatMap((collation): ReadonlyArray<Plan> => {
-      const call = (...args: ReadonlyArray<unknown>) => callOf(op, args, collation)
+      const call = (...args: ReadonlyArray<unknown>) => callOf(op, args, under(op, collation))
       // A witness operator is called as `op` is: under the collation when it compares text.
       const witness = (other: AnyOperator, ...args: ReadonlyArray<unknown>) =>
-        callOf(other, args, other.descriptor.collation === 'none' ? Option.none() : collation)
+        callOf(other, args, under(other, collation))
       const equal = (args: ReadonlyArray<unknown>, left: Side, right: Side): Plan => ({
         args,
         collation,
@@ -453,10 +480,13 @@ export const Conformance = {
       }
     }
     // Every call was run above, so each has its answer.
-    return verdictOf(operator, laws, node => answers.get(node)!, {
+    const verdict = verdictOf(operator, laws, node => answers.get(node)!, {
       implementation: options.implementation,
       seed,
     })
+    // Each record is a runner's, which an SQL table's `withEvidence` checks.
+    if (verdict._tag === 'Holds') verdict.evidence.forEach(stampRun)
+    return verdict
   },
 
   /**

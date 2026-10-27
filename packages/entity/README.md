@@ -979,19 +979,27 @@ Operators.describeTable(recorded) // [{ name: 'acme.concat', …, laws, evidence
 - **Testing is sampling, seeded.** Cases come from a fixed sample of each kind
   (the empty string, mixed case, non-ASCII and astral text; zero, negatives, a
   fraction), kept where the schemas decode them, up to `cases` (200) a law
-  chosen by `seed` (0), under `binary` and `asciiFold` for an operator that
-  compares text. The verdict is `Holds` with one `Tested` record a law, or the
+  chosen by `seed` (0), under each of `binary` and `asciiFold` where the
+  operator or a witness its law calls compares text (so a record of such a law
+  counts twice the cases). The verdict is `Holds` with one `Tested` record a law, or the
   first `Counterexample` with both sides and its collation: declaring `concat` commutative
   finds `"a"` and `"A"`, which give `"aA"` and `"Aa"`.
 - **Evidence is an implementation's.** `Operators.withEvidence` refuses a record
   of an operator the table lacks or a law it does not declare, and a `Tested`
   record `Conformance.laws` did not make of this table's own implementation
   (`Operators.testedOn(record)` names the one it did); `override` drops a
-  replaced implementation's records, `merge` keeps both tables'. An SQL table
-  (`DrizzleOperators.withEvidence`) takes `Conformance.lawsBy`'s records and
-  refuses one tested in memory. `Evidence.Proven` records a proof made
-  elsewhere, never checked here. A law's domain is described as a JSON Schema
-  with the definitions it refers to.
+  replaced implementation's records, and those of a law that called it as a
+  witness (`inverse`, `distributes`); `merge` keeps both tables'. An SQL table
+  (`DrizzleOperators.withEvidence`) takes only records `Conformance.lawsBy`
+  made (`Operators.testedByRunner`): not one built by hand, copied, or tested
+  in memory. Which runner made it, the database's or another, is the caller's
+  word, so run it over the table's own SQL (`compileCall`). `Evidence.Proven`
+  records a proof made elsewhere, never checked here. A law's domain is
+  described as a JSON Schema with the definitions it refers to.
+- **A defined operator's laws describe it; nothing records them.** It has no
+  implementation to hold evidence. A write computing through it is expanded
+  first, so it commutes by the primitive operator it calls, by that one's
+  evidence.
 
 `Conformance.operator(op, { implementations })` runs one set of calls through
 every implementation given and reports where they disagree, a refusal included:

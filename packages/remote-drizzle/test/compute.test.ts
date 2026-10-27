@@ -13,7 +13,16 @@ import { drizzle as drizzlePg } from 'drizzle-orm/pglite'
 import { integer as pgInteger, pgTable, text as pgText } from 'drizzle-orm/pg-core'
 import { SQLiteDialect, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Schema } from 'effect'
-import { Collation, Entity, Expr, Law, Operators, Write, isPredicate } from 'foldkit-entity'
+import {
+  Collation,
+  Entity,
+  Evidence,
+  Expr,
+  Law,
+  Operators,
+  Write,
+  isPredicate,
+} from 'foldkit-entity'
 import { Conformance } from 'foldkit-entity/conformance'
 import { Mutation } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
@@ -434,12 +443,26 @@ describe("A SQL table's evidence", () => {
     ).toThrow('evidence names a law of acme.add it does not declare (idempotent)')
   })
 
-  it('refuses a record tested on a memory implementation, which says nothing of its SQL', () => {
-    const verdict = Conformance.laws(add, memory)
-    const evidence = verdict._tag === 'Holds' ? verdict.evidence : []
-    expect(() => DrizzleOperators.withEvidence(sqlTable, evidence)).toThrow(
-      "evidence of acme.add's commutative law was tested on a memory implementation",
-    )
+  it('takes only what Conformance.lawsBy made: not memory evidence, a copy, or a record by hand', async () => {
+    const message = "evidence of acme.add's commutative law was not made by Conformance.lawsBy"
+    const inMemory = Conformance.laws(add, memory)
+    expect(() =>
+      DrizzleOperators.withEvidence(sqlTable, inMemory._tag === 'Holds' ? inMemory.evidence : []),
+    ).toThrow(message)
+    const [run] = await record()
+    expect(() => DrizzleOperators.withEvidence(sqlTable, [{ ...run! }])).toThrow(message)
+    expect(() =>
+      DrizzleOperators.withEvidence(sqlTable, [
+        Evidence.Tested({
+          operator: 'acme.add',
+          law: Law.describe(Law.commutative),
+          implementation: 'sqlite',
+          cases: 200,
+          seed: 0,
+        }),
+      ]),
+    ).toThrow(message)
+    expect(() => DrizzleOperators.withEvidence(sqlTable, [run!])).not.toThrow()
   })
 
   it('does not let a law tested over less than every value admit a write with no revision', async () => {
