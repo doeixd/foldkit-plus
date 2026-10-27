@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`npx foldkit-plus setup` gives a `.gitattributes` that keeps LF.** When none
+  applies to the project (in its folder or above it, up to the repository's
+  root), step 1 tells the agent to write one with `* text=auto eol=lf` and
+  `*.wasm binary`, so a Windows checkout does not warn of every file; one the
+  project has is left as it is (#254). For an existing project, step 3 points
+  at the skill's `AGENTS.md` block (#256).
 - **The skill has a recommended `AGENTS.md` block for applications**
   (`references/agents-md.md`): use what the packages provide, prefer Effect,
   read the installed types, which skills to load, house rules, and one-line

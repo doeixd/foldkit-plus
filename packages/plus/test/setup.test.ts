@@ -74,6 +74,12 @@ describe('setupGuide', () => {
       'npx skills add doeixd/foldkit-plus --skill foldkit-plus',
     )
   })
+
+  it("gives a project the skill's AGENTS.md block, and an empty folder the greenfield guide's", () => {
+    expect(guide(project({}))).toContain('references/agents-md.md')
+    // The greenfield guide pastes it as a later step.
+    expect(guide(Option.none())).not.toContain('references/agents-md.md')
+  })
 })
 
 describe('addCommand', () => {

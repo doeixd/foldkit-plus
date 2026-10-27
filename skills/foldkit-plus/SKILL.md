@@ -152,7 +152,7 @@ App.model.remote, … })`, `Mirror.url(App, …)`, and `SurfaceView.define(TodoL
   `foldkit-plus/entity`), which resolve only where a package is installed on its own. Adapters that need a library of their own (`foldkit-react`, the
   Drizzle packages, `foldkit-mixins-ui`, `-richtext-code-shiki`, `-agent-native`) are
   added with it. `npx foldkit-plus setup` prints all of this for the project it runs
-  in. `foldkit-durable` needs Node >= 22.
+  in, and a `.gitattributes` that keeps LF where none applies. `foldkit-durable` needs Node >= 22.
 - **A new application** starts with the user, not with code: the brief, the look
   (a theme from foldkit-plus.pages.dev/create), the domain
   in rounds, recorded in `docs/domain/` and mapped to these packages (the user,

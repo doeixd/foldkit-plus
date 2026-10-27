@@ -41,6 +41,7 @@ const REPOSITORY = 'https://github.com/doeixd/foldkit-plus'
 export const SCAFFOLDER = 'create-foldkit-app@0.40.0'
 
 const GREENFIELD = `${REPOSITORY}/blob/main/skills/foldkit-plus/references/greenfield.md`
+const AGENTS_BLOCK = `${REPOSITORY}/blob/main/skills/foldkit-plus/references/agents-md.md`
 
 /** What each job needs, where to import it from, and where it is explained. */
 export const jobs: ReadonlyArray<{
@@ -314,6 +315,8 @@ export const setupGuide = ({ project, manager, versions }: SetupInput): string =
     ...Option.match(project, {
       onNone: () => [],
       onSome: () => [
+        '',
+        `Paste the block in its \`references/agents-md.md\` (${AGENTS_BLOCK}) under Project Notes in the project's \`AGENTS.md\`: the house rules and known traps for an application on these packages.`,
         '',
         `Building a new application rather than extending one? Follow its \`references/greenfield.md\` (${GREENFIELD}): goals and the look, then the domain with the user, recorded in the project and mapped to these packages, then a plan for architecture, performance, SEO, testing, CI and deployment, before implementing.`,
       ],

@@ -131,4 +131,10 @@ export default [
     ],
     tests: ['packages/plus/test/cli.test.ts'],
   },
+  edit(
+    "a project is not given the skill's AGENTS.md block",
+    '../src/setup.ts',
+    'Paste the block in its \\`references/agents-md.md\\` (${AGENTS_BLOCK})',
+    'Paste the block',
+  ),
 ]
