@@ -36,6 +36,11 @@
       "foldkit-plus:source": "./src/port.ts",
       "types": "./dist/port.d.mts",
       "import": "./dist/port.mjs"
+    },
+    "./testing": {
+      "foldkit-plus:source": "./src/testing.ts",
+      "types": "./dist/testing.d.mts",
+      "import": "./dist/testing.mjs"
     }
   },
   "files": [

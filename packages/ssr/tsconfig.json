@@ -14,6 +14,7 @@
       "foldkit-mirror": ["../mirror/src/index.ts"],
       "foldkit-remote": ["../remote/src/index.ts"],
       "foldkit-remote/port": ["../remote/src/port.ts"],
+      "foldkit-remote/testing": ["../remote/src/testing.ts"],
       "foldkit-ssr": ["./src/index.ts"],
       "foldkit-ssr/client": ["./src/client.ts"],
       "foldkit-ssr/vite": ["./src/vite.ts"],

@@ -16,6 +16,7 @@
       "foldkit-remote-server/fetch": ["../remote-server/src/fetch.ts"],
       "foldkit-remote-server/port": ["../remote-server/src/port.ts"],
       "foldkit-remote/port": ["../remote/src/port.ts"],
+      "foldkit-remote/testing": ["../remote/src/testing.ts"],
       "foldkit-ssr": ["../ssr/src/index.ts"],
       "foldkit-ssr/client": ["../ssr/src/client.ts"],
       "foldkit-ssr/vite": ["../ssr/src/vite.ts"],

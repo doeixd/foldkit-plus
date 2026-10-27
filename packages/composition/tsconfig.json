@@ -30,6 +30,7 @@
       "foldkit-react": ["../react/src/index.ts"],
       "foldkit-remote": ["../remote/src/index.ts"],
       "foldkit-remote/port": ["../remote/src/port.ts"],
+      "foldkit-remote/testing": ["../remote/src/testing.ts"],
       "foldkit-richtext": ["../richtext/src/index.ts"],
       "foldkit-richtext-dom": ["../richtext-dom/src/index.ts"],
       "foldkit-richtext-dom/editor": ["../richtext-dom/src/editor.ts"],

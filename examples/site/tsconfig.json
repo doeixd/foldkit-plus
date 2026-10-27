@@ -50,6 +50,7 @@
       "foldkit-primitives/time": ["../../packages/primitives/src/time/index.ts"],
       "foldkit-remote": ["../../packages/remote/src/index.ts"],
       "foldkit-remote/port": ["../../packages/remote/src/port.ts"],
+      "foldkit-remote/testing": ["../../packages/remote/src/testing.ts"],
       "foldkit-richtext": ["../../packages/richtext/src/index.ts"],
       "foldkit-richtext-code-shiki": ["../../packages/richtext-code-shiki/src/index.ts"],
       "foldkit-ssr": ["../../packages/ssr/src/index.ts"],

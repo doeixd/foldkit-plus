@@ -5,12 +5,22 @@
  * reads of the Surfaces most recently left stay held, a list stale, so going
  * back shows its rows as `Refreshing` while the list refetches.
  */
-import { Schema } from 'effect'
+import { Effect, Option, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
+import type * as Update from 'foldkit/update'
 import { Entity as DomainEntity, Expr, Order } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
-import { Query, Remote, departedLimit, type RemoteMessage } from '../src/index.js'
+import {
+  Query,
+  Remote,
+  departedLimit,
+  isRemoteMessage,
+  type RemoteClient,
+  type RemoteMessage,
+} from '../src/index.js'
+import { Respond, Trace } from '../src/testing.js'
 
 const Project = DomainEntity.define(
   'Project',
@@ -25,9 +35,12 @@ const ProjectsByOwner = Query.define('ProjectsByOwner', { ownerId: Schema.String
   ),
 )
 
-const Model = Schema.Struct({ remote: Remote.Model })
+const Model = Schema.Struct({ remote: Remote.Model, owners: Schema.Array(Schema.String) })
 type Model = typeof Model.Type
-const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
+const own = { Showed: { owners: Schema.Array(Schema.String) } }
+const Message = defineMessageUnion({ ...Remote.messages, ...own })
+type Message = typeof Message.Type
+const App = Surface.application({ Model, Message })
 const Data = Remote.make({
   model: App.model.remote,
   entities: [Project],
@@ -47,7 +60,7 @@ const reduceAll = (model: Model, messages: ReadonlyArray<RemoteMessage>): Model 
 /** The Message `Remote.retain` sends while `shown` are the active Surfaces' projections. */
 const showing = (...shown: ReadonlyArray<ReturnType<typeof listOf>>): RemoteMessage => ({
   _tag: 'RetentionChanged',
-  roots: Remote.retain(shown).modelToDependencies({ remote: Remote.initial }),
+  roots: Remote.retain(shown).modelToDependencies({ remote: Remote.initial, owners: [] }),
 })
 
 /** `list` answered with `ids`, each row read. */
@@ -69,50 +82,102 @@ const loaded = (list: ReturnType<typeof listOf>, ids: ReadonlyArray<string>): Re
   },
 ]
 
-/** The u1 list loaded and shown, then its Surface left for one showing nothing. */
-const left = (): Model =>
-  reduceAll({ remote: Remote.initial }, [
-    ...loaded(projects, ['p1', 'p2']),
-    showing(projects),
-    showing(),
-  ])
+const Own = defineMessageUnion(own)
+const update = (model: Model, message: Message): Update.Return<Model, Message> => {
+  if (isRemoteMessage(message)) return { model: Data.reduce(model, message) }
+  return Own.match(message, {
+    Showed: ({ owners }) => ({ model: modifyFields(model, { owners: () => owners }) }),
+  })
+}
+
+/** A list's page for each owner shown: what a Surface reading `listOf(owner)` reads. */
+const active = Object.fromEntries(
+  ['u1', 'u2'].map(owner => [
+    owner,
+    Data.active(owner, (model: Model) =>
+      model.owners.includes(owner) ? Option.some(listOf(owner)) : Option.none(),
+    ),
+  ]),
+)
+
+/** A server answering each query with the next of `pages`, its rows' fields riding on it. */
+const server = (pages: Array<ReadonlyArray<string>>): RemoteClient['Service'] => ({
+  read: () => Effect.die('every row arrives with its page'),
+  query: request => {
+    const ids = pages.shift() ?? []
+    const row = (id: string): Readonly<Record<string, string>> => ({
+      id,
+      name: `Project ${id}`,
+      ownerId: 'u1',
+    })
+    return Effect.succeed({
+      edges: ids.map(id => ({ entity: 'Project', id, key: `Project:${id}` })),
+      start: terminal,
+      end: terminal,
+      entities: ids.map(id => ({
+        entity: 'Project',
+        id,
+        values: Object.fromEntries(
+          (request.select?.fields ?? []).map(field => [field, row(id)[field]]),
+        ),
+      })),
+    })
+  },
+  mutate: () => Effect.die('unused'),
+  live: () => Stream.empty,
+})
+
+/** The u1 list loaded and shown, its Surface left, then gone back to. */
+const back = (then: ReadonlyArray<Message | Respond> = []) =>
+  Trace.run(Data, {
+    start: { remote: Remote.initial, owners: ['u1'] },
+    update,
+    active,
+    client: server([['p1', 'p2'], ['p2']]),
+    steps: [
+      Respond.all,
+      Message.Showed({ owners: [] }),
+      Message.Showed({ owners: ['u1'] }),
+      ...then,
+    ],
+  })
 
 describe('A list whose Surface was left', () => {
-  it('shows its rows on going back, reading Refreshing', () => {
-    const back = Data.reduce(left(), showing(projects))
+  it('shows its rows on going back, reading Refreshing', async () => {
+    const trace = await back()
 
-    expect(projects.read(back)).toMatchObject({
+    expect(Trace.tags(trace, projects)).toEqual(['Initial', 'Loading', 'Ready', 'Refreshing'])
+    expect(Trace.regressions(trace, { projects })).toEqual([])
+    expect(projects.read(trace.entries.at(-1)!.model)).toMatchObject({
       _tag: 'Refreshing',
       value: { items: [{ id: 'p1' }, { id: 'p2' }] },
     })
   })
 
-  it('is refetched on going back, and the page replaces what it held', () => {
-    const back = Data.reduce(left(), showing(projects))
+  it('is refetched on going back, and the page replaces what it held', async () => {
+    const trace = await back([Respond.query(projects.ref)])
 
-    expect(Remote.planQueries(Data, back, projects).map(ref => ref.identity)).toEqual([
-      projects.ref.identity,
-    ])
-    const answered = reduceAll(back, loaded(projects, ['p2']))
-    expect(projects.read(answered)).toMatchObject({
+    expect(projects.read(trace.entries.at(-1)!.model)).toMatchObject({
       _tag: 'Ready',
       value: { items: [{ id: 'p2' }] },
     })
   })
 
-  it('is not marked stale while a Surface still shows it', () => {
-    const shown = reduceAll({ remote: Remote.initial }, [
-      ...loaded(projects, ['p1']),
-      showing(projects),
-      showing(projects, listOf('u2')),
-    ])
+  it('is not marked stale while a Surface still shows it', async () => {
+    const trace = await Trace.run(Data, {
+      start: { remote: Remote.initial, owners: ['u1'] },
+      update,
+      active,
+      client: server([['p1'], []]),
+      steps: [Respond.all, Message.Showed({ owners: ['u1', 'u2'] }), Respond.all],
+    })
 
-    expect(projects.read(shown)._tag).toBe('Ready')
+    expect(Trace.tags(trace, projects)).toEqual(['Initial', 'Loading', 'Ready'])
   })
 
   it(`is collected once ${departedLimit.connections} lists have been left after it`, () => {
     const lists = Array.from({ length: departedLimit.connections + 1 }, (_, i) => listOf(`o${i}`))
-    const visited = reduceAll({ remote: Remote.initial }, [
+    const visited = reduceAll({ remote: Remote.initial, owners: [] }, [
       ...lists.flatMap(list => [...loaded(list, ['p1']), showing(list)]),
       showing(),
     ])
@@ -140,7 +205,7 @@ describe('A read whose Surface was left', () => {
   })
 
   it('keeps its value', () => {
-    const after = reduceAll({ remote: Remote.initial }, [
+    const after = reduceAll({ remote: Remote.initial, owners: [] }, [
       received(['p3']),
       retaining([read('p3')]),
       retaining([]),
@@ -151,7 +216,7 @@ describe('A read whose Surface was left', () => {
 
   it(`is collected once ${departedLimit.requirements} reads have been left after it`, () => {
     const ids = Array.from({ length: departedLimit.requirements + 1 }, (_, i) => `r${i}`)
-    const after = reduceAll({ remote: Remote.initial }, [
+    const after = reduceAll({ remote: Remote.initial, owners: [] }, [
       ...ids.flatMap(id => [received([id]), retaining([read(id)])]),
       retaining([]),
     ])
@@ -161,7 +226,10 @@ describe('A read whose Surface was left', () => {
   })
 
   it('is collected when it was never a root', () => {
-    const after = reduceAll({ remote: Remote.initial }, [received(['p4']), retaining([])])
+    const after = reduceAll({ remote: Remote.initial, owners: [] }, [
+      received(['p4']),
+      retaining([]),
+    ])
 
     expect(after.remote.entities['Project:p4']).toBeUndefined()
   })
