@@ -9,7 +9,16 @@ import * as RichText from 'foldkit-richtext'
 import { Message as EditorMessage } from 'foldkit-richtext-dom/editor'
 import { ReplicaId, Sequence, Sync, type Mounted, type Replica, type Storage } from 'foldkit-sync'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { initialModel, Menu, Message, pageOf, update, type Model, type Shared } from '../src/app.js'
+import {
+  initialModel,
+  Menu,
+  Message,
+  pageOf,
+  savedOf,
+  update,
+  type Model,
+  type Shared,
+} from '../src/app.js'
 import { mountPages, PagesSync } from '../src/contract.js'
 import { openJournal } from '../src/journal.js'
 import { view } from '../src/view.js'
@@ -761,5 +770,36 @@ describe('an editor Message that changes nothing', () => {
     )
     expect(placed.selection).not.toBeNull()
     expect(settle(placed, Message.GotEditor({ message: message(run) }))).toBe(placed)
+  })
+})
+
+describe('the line that says whether edits reached the server', () => {
+  const exchanged = (pending: number, error: Option.Option<string>) =>
+    update(initialModel('alice'), Message.ExchangeChanged({ pending, error })).model
+
+  it.each([
+    [0, Option.none(), 'saved', 'All changes saved.'],
+    [2, Option.none(), 'saving', 'Saving 2 edits…'],
+    [
+      1,
+      Option.some('refused'),
+      'offline',
+      'Offline: 1 edit kept in this tab until the server is back.',
+    ],
+    [0, Option.some('refused'), 'offline', 'Offline: the server cannot be reached.'],
+  ] as const)('with %i pending and error %o it reads %s', (pending, error, state, text) => {
+    expect(savedOf(exchanged(pending, error))).toEqual({ state, text })
+  })
+
+  it('takes a status that changed, and keeps the Model for one that did not', () => {
+    const offline = exchanged(1, Option.some('refused'))
+    expect(
+      update(offline, Message.ExchangeChanged({ pending: 1, error: Option.some('refused') })).model,
+    ).toBe(offline)
+    const back = update(
+      offline,
+      Message.ExchangeChanged({ pending: 1, error: Option.none() }),
+    ).model
+    expect(savedOf(back).state).toBe('saving')
   })
 })

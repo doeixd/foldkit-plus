@@ -52,6 +52,7 @@ const open = async () => {
   return { page, errors }
 }
 const body = (page: Page) => page.locator('#page-body [contenteditable]')
+const saved = (page: Page) => page.locator('#saved').textContent()
 const openPage = async (page: Page, title: string) => {
   await page.getByRole('button', { name: title }).click({ timeout: 10_000 })
   await page.waitForSelector('#page-body')
@@ -83,4 +84,36 @@ test('two tabs edit one page, and a new browser reads it from the server', async
     .poll(() => body(cleo.page).textContent(), { timeout: 10_000 })
     .toBe('Milk and eggs, and bread')
   expect([...ada.errors, ...ben.errors, ...cleo.errors]).toEqual([])
+})
+
+test('with the server down an edit says it is kept, and saved once the server is up', async () => {
+  // A port nothing listens on, until a server starts there again below.
+  const later = openJournal()
+  const first = await startPagesServer({ journal: later })
+  const port = Number(new URL(first.url).port)
+  await first.close()
+  const offline = await createServer({
+    root: fileURLToPath(new URL('..', import.meta.url)),
+    configFile: fileURLToPath(new URL('../vite.config.ts', import.meta.url)),
+    logLevel: 'silent',
+    server: { port: 0, proxy: { '/sync': { target: `ws://127.0.0.1:${port}`, ws: true } } },
+  })
+  await offline.listen()
+  let up: Awaited<ReturnType<typeof startPagesServer>> | undefined
+  try {
+    const page = await browser.newPage()
+    await page.goto(offline.resolvedUrls!.local[0]!)
+    await page.waitForSelector('#new-page', { timeout: 120_000 })
+    await page.click('#new-page')
+    await expect
+      .poll(() => saved(page), { timeout: 30_000 })
+      .toMatch(/^Offline: \d+ edits? kept in this tab until the server is back\.$/)
+
+    up = await startPagesServer({ journal: later, port })
+    await expect.poll(() => saved(page), { timeout: 60_000 }).toBe('All changes saved.')
+  } finally {
+    await up?.close()
+    await offline.close()
+    later.close()
+  }
 })

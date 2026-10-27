@@ -387,6 +387,16 @@ export const Page = demoStyle.slots({
     }),
     Style.media(NARROW, { display: 'none' }),
   ),
+  // Whether this tab's edits reached the server; shown at every width, unlike who is here.
+  saved: Style.compose(
+    Style.self({
+      margin: '0',
+      paddingInline: t.space.xs,
+      color: t.text.muted,
+      fontSize: t.size.xs,
+    }),
+    Style.states({ offline: { color: t.warning.ink } }),
+  ),
   main: Style.self({ minInlineSize: '0' }),
   // Above the page: where it is, who else has it open, and deleting it.
   topbar: Style.compose(

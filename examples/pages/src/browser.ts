@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, Schema, Scope } from 'effect'
+import { Context, Effect, Layer, Option, Schema, Scope, Stream } from 'effect'
 import { Style } from 'foldkit-mixins'
 import { ReplicaId, Sync, Transport } from 'foldkit-sync'
 import { Message, PeerPresence } from './app.js'
@@ -64,6 +64,16 @@ const transport = Context.get(
   Transport,
 )
 Effect.runFork(replica.start.pipe(Effect.provideService(Transport, transport)))
+// Its status counts an edit only once storage has it, so "saved" never runs ahead of the disk.
+Effect.runFork(
+  Stream.runForEach(replica.statusChanges, ({ pending, lastError }) =>
+    Effect.sync(() =>
+      mounted.dispatch(
+        Message.ExchangeChanged({ pending, error: Option.fromUndefinedOr(lastError) }),
+      ),
+    ),
+  ),
+)
 
 // Presence, on the same connection: where this tab's caret is, and where the others' are.
 // It is ephemeral, so nothing of it is journaled; a tab that goes quiet drops out.

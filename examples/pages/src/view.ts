@@ -32,6 +32,7 @@ import {
   Menu,
   Message,
   pageOf,
+  savedOf,
   type Model,
   type Page as PageState,
   type Peer,
@@ -123,6 +124,7 @@ export const PagesView = SlotView.forMessages<Message>()
 const sidebar = (model: Model, slots: Slots, h: H): Html => {
   const trash = model.pages.filter(page => page.trashed === true)
   const here = (page: string) => model.peers.filter(peer => peer.page === page).length
+  const saved = savedOf(model)
   return h.nav(slots.sidebar.attrs([h.AriaLabel('Pages')]), [
     h.p(slots.brand.attrs(), [h.span(slots.logo.attrs([h.AriaHidden(true)]), ['P']), 'Pages']),
     h.button(
@@ -198,6 +200,10 @@ const sidebar = (model: Model, slots: Slots, h: H): Html => {
         ? 'Only you here. Open another tab to edit together.'
         : `${model.peers.length} ${model.peers.length === 1 ? 'other' : 'others'} online`,
     ]),
+    h.p(
+      slots.saved.attrs([h.Id('saved'), h.Role('status'), h.DataAttribute('state', saved.state)]),
+      [saved.text],
+    ),
   ])
 }
 

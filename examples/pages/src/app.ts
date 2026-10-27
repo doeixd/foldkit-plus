@@ -1,4 +1,4 @@
-import { Effect, Option, Schema } from 'effect'
+import { Effect, Equal, Option, Schema } from 'effect'
 import * as Command from 'foldkit/command'
 import * as Dom from 'foldkit/dom'
 import { defineMessageUnion } from 'foldkit/message'
@@ -56,6 +56,14 @@ export type PeerPresence = typeof PeerPresence.Type
 export const Peer = Schema.Struct({ id: Schema.String, ...PeerPresence.fields })
 export type Peer = typeof Peer.Type
 
+/** Where this tab's edits stand with the server, as its replica's status last said. */
+const Exchange = Schema.Struct({
+  /** Edits stored in this tab that the server has not taken yet. */
+  pending: Schema.Number,
+  /** Why the last exchange failed, until one succeeds. */
+  error: Schema.OptionFromNullOr(Schema.String),
+})
+
 /** One of this tab's edits, as the ops that take it back. */
 const UndoStep = Schema.Struct({ page: Schema.String, ops: Schema.Array(Replicated.ReplicatedOp) })
 type UndoStep = typeof UndoStep.Type
@@ -109,6 +117,8 @@ export const Model = Schema.Struct({
   undoGroup: Schema.NullOr(Schema.String),
   /** The other people presence reports, local to the tab and never shared. */
   peers: Schema.Array(Peer),
+  /** The replica's status, for the line that says whether edits reached the server. */
+  exchange: Exchange,
 })
 export type Model = typeof Model.Type
 
@@ -125,6 +135,7 @@ export const Message = defineMessageUnion({
   TrashedPage: { id: Schema.String },
   GotEditor: { message: EditorMessage },
   GotPeers: { peers: Schema.Array(Peer) },
+  ExchangeChanged: Exchange.fields,
   SlashMoved: { index: Schema.Number },
   HoveredBlock: { node: RichText.NodeId },
   OpenedMenu: { menu: Menu },
@@ -186,6 +197,7 @@ export const initialModel = (session: string): Model => ({
   redo: [],
   undoGroup: null,
   peers: [],
+  exchange: { pending: 0, error: Option.none() },
 })
 
 /**
@@ -256,6 +268,30 @@ const samePlace = (
 /** The page with this id, unless it is in the trash. */
 export const pageOf = (model: Model, id: string | null): Page | undefined =>
   id === null ? undefined : model.pages.find(page => page.id === id && page.trashed !== true)
+
+/**
+ * Whether this tab's edits reached the server. No pending edit means the server has every
+ * one, connected or not; an edit the server has not taken is kept in this tab, across a
+ * reload too, and goes when an exchange succeeds.
+ */
+export const savedOf = ({
+  exchange: { pending, error },
+}: Model): { readonly state: 'saved' | 'saving' | 'offline'; readonly text: string } => {
+  const edits = `${pending} ${pending === 1 ? 'edit' : 'edits'}`
+  return Option.match(error, {
+    onSome: () => ({
+      state: 'offline',
+      text:
+        pending === 0
+          ? 'Offline: the server cannot be reached.'
+          : `Offline: ${edits} kept in this tab until the server is back.`,
+    }),
+    onNone: () =>
+      pending === 0
+        ? { state: 'saved', text: 'All changes saved.' }
+        : { state: 'saving', text: `Saving ${edits}…` },
+  })
+}
 
 /** The Model with one page changed; the Model itself when that changes nothing. */
 const withPage = (model: Model, id: string, change: (page: Page) => Page): Model => {
@@ -544,6 +580,11 @@ export const update = (model: Model, message: Message): Return =>
       const page = pageOf(next, next.open)
       return { model: next, commands: page === undefined ? [] : [carets(next, page.id, page.body)] }
     },
+    ExchangeChanged: ({ pending, error }) =>
+      // The status is re-sent after every exchange, mostly unchanged; that is not a render.
+      pending === model.exchange.pending && Equal.equals(error, model.exchange.error)
+        ? { model }
+        : { model: modifyFields(model, { exchange: () => ({ pending, error }) }) },
     GotEditor: ({ message: incoming }) => {
       const page = pageOf(model, model.open)
       if (page === undefined) return { model }

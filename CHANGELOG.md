@@ -18,6 +18,9 @@ version changed; `pnpm` skips versions already in the registry.
   menu sends an editor Message, so its edit is shared and undone as typing is.
   The page shows who else has it open, and is styled on the demos' theme
   instead of a stylesheet in `index.html`.
+- **`examples/pages` says whether an edit reached the server.** A line in the
+  sidebar reads the replica's status: all saved, saving, or offline with the
+  edits kept in the tab. With the sync server down an edit used to look saved.
 - **Every example keeps its Model across an edit.** The CMS and Foldkit's
   sixteen ported examples now load `@foldkit/vite-plugin`, as the other demos
   do, so a save no longer reloads the page from `init` or logs "No response
