@@ -206,6 +206,14 @@ served page stays in view while the fresh one draws hidden, and is swapped once 
   Commands do not settle within 100 steps (a Command that reschedules itself,
   a poll, cannot run on the server); a Command yielding no Message folds
   nothing in.
+- `renderPage(request)` gets nothing but the request, so what the host holds
+  (a Worker's `env`, a reader built from it) rides on it:
+  `const PageContext = SSR.requestContext<C>('app/page')` in a module both
+  import; the host calls `pages.fetch(PageContext.attach(request, value))`,
+  and `renderPage` reads `PageContext.of(request)`, an `Option` (none under
+  Vite's dev server, which builds its own `Request`). It crosses bundles by
+  name. The reader for `Data.satisfy` is `foldkit-remote-server/fetch`'s
+  `pageReader`; `examples/auth/src/host.ts` wires both.
 - `SSR.entry`'s `resources: request => Layer` gives a post's Commands its own
   services (who posted: `AuthServer.resolver({ …, requests: 'browser' })`
   from `foldkit-auth`). A plan with a server fallback requires `origins`: a

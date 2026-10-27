@@ -36,6 +36,7 @@ import type {
 import { withContext, type Binding, type Region, type UnnamedHandler } from './context.js'
 import { type EncodedBinding } from './listen.js'
 import { FALLBACK_DEPTH_FIELD, FALLBACK_FIELD } from './resumable.js'
+import { requestContext } from './requestContext.js'
 import { SSR as Client } from './client.js'
 import {
   PROTOCOL,
@@ -1462,7 +1463,10 @@ export const SSR = {
   serializeJsonScript,
   sitemap,
   robots,
+  requestContext,
 }
+
+export type { RequestContext } from './requestContext.js'
 
 export {
   FOLDKIT_APP_ATTRIBUTE,

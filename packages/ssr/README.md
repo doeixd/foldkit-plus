@@ -336,6 +336,60 @@ owns its template.
 [foldkit#1448](https://github.com/foldkit/foldkit/issues/1448) asks Foldkit
 for a per-request head channel beside the envelope.
 
+### What the host hands the page: `SSR.requestContext`
+
+`handleRequest` calls `renderPage(request)` and nothing more, and the
+`fetch(request)` a build emits passes on no Worker's `env`. A page that reads
+before it renders (`Data.satisfy`) needs what only the host holds: the
+bindings, or a reader built from them. `SSR.requestContext` carries it on the
+request. The host attaches a value, and `renderPage`, given the same request
+by `handleRequest`, reads it back:
+
+```ts
+import { Effect, Option, type Layer } from 'effect'
+import { Responded } from 'foldkit/experimental/server'
+import type { RemoteClient, RemoteUnauthenticated } from 'foldkit-remote'
+import { SSR } from 'foldkit-ssr'
+
+// One module the host and the server entry both import.
+export const PageContext = SSR.requestContext<{
+  readonly reader: Layer.Layer<RemoteClient, RemoteUnauthenticated>
+}>('app/page')
+
+// The host, a Worker's fetch say:
+//   pages.fetch(PageContext.attach(request, { reader: pageReader(page)(request, env) }))
+
+// The server entry. `actives` is the record `Data.wiring` takes.
+export const renderPage = (request: Request) =>
+  Option.match(PageContext.of(request), {
+    onNone: async () => Responded(new Response('No reader for this page.', { status: 500 })),
+    onSome: async ({ reader }) => {
+      const model = await Effect.runPromise(
+        Data.satisfy(App.initial, actives).pipe(Effect.provide(reader)),
+      )
+      return SSR.entry({ ...config, init: () => ({ model }) }, Post, { buildId }).renderPage(
+        request,
+      )
+    },
+  })
+```
+
+The value is kept for that request alone, in a `WeakMap` on `globalThis`
+under a registered symbol, so a Worker's bundle and the page bundle Vite
+built, each with its own copy of `foldkit-ssr`, find each other's values by
+the context's name. Nothing outlives the request, and no request reads
+another's. `of` is `Option.none()` for a request the host attached nothing
+to: Vite's dev server builds its own `Request`, and a host that passes on a
+copy (`new Request(request)`) drops it. A second value under one name on one
+request throws. The value is not checked at run time: its type is the one the
+shared module declares.
+
+The reader is `pageReader` from `foldkit-remote-server/fetch`: the request's
+Remote client, answered in the same process by the server `serveFetch`
+serves. [`examples/auth`](../../examples/auth)'s `src/host.ts` is the whole
+site behind one handler; its development server, another process, attaches
+an HTTP reader instead.
+
 ### At build time
 
 ```ts
