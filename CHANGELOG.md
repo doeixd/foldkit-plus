@@ -68,6 +68,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`Expr.field` given an expression says what to write.** Wrapping an
+  invariant's `before.x` in `Expr.field` failed with a long error about
+  missing `owner`, `key` and `schema`. A second signature now refuses it with
+  "before.x and after.x are expressions already, so compare them as they
+  are", and the entity README shows the two forms side by side (#209).
 - **`GuardServer.validate` warns only of a write a change can come between.**
   It named every write through a writer with no `revision`, inserts and
   deletes of an Entity nothing updates included, where no change can come

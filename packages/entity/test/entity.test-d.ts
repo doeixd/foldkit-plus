@@ -109,4 +109,19 @@ Post.pipe(Entity.annotate(Tags.of(1)))
   // Without it, what it reads is unknown to it.
   // @ts-expect-error a field of no known Entity
   Entity.invariant('loose', ({ after }) => Expr.gte(after.quantity, 0), { message: 'x' })
+  // `before` and `after` compare as they are: each is an expression already (#209).
+  Entity.invariant<typeof StockFields>(
+    'neverLess',
+    ({ before, after }) => Expr.gte(after.quantity, before.quantity),
+    { message: 'x' },
+  )
+  Entity.invariant<typeof StockFields>(
+    'wrapped',
+    ({ before, after }) =>
+      // @ts-expect-error Expr.field takes an Entity field, and before.x is an expression
+      Expr.gte(after.quantity, Expr.field(before.quantity)),
+    { message: 'x' },
+  )
+  // An Entity's own field is what Expr.field wraps.
+  Expr.field(StockFields.fields.quantity)
 }

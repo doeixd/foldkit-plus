@@ -1179,6 +1179,20 @@ const expandedPredicate = (predicate: Predicate): Predicate => {
   return result
 }
 
+/** `Expr.field`: an Entity field, or an expression refused with what to write instead. */
+interface FieldOf {
+  <Name extends string, Key extends string, S extends Schema.Constraint>(
+    field: EntityField<Name, Key, S>,
+  ): FieldExpr<Schema.Schema.Type<S>> & Reads<Name>
+  (
+    expression: Expr<unknown> &
+      Invalid<'foldkit-entity: Expr.field takes an Entity field (Post.fields.title); before.x and after.x are expressions already, so compare them as they are'>,
+  ): never
+}
+// The second signature only refuses, at compile time: nothing but a field reaches here.
+const fieldOf = ((field: EntityField<string, string, Schema.Constraint>) =>
+  fieldExpr(field)) as FieldOf
+
 export const Expr = {
   /**
    * An operator, defined by what a call of it means: `definedAs` builds that
@@ -1302,11 +1316,12 @@ export const Expr = {
   ): NextExpr<Schema.Schema.Type<S>> & Reads<Name> =>
     node({ _tag: 'Next', field: fieldExpr(field) }) as NextExpr<Schema.Schema.Type<S>>,
 
-  /** One field of one Entity, as a scalar. */
-  field: <Name extends string, Key extends string, S extends Schema.Constraint>(
-    field: EntityField<Name, Key, S>,
-  ): FieldExpr<Schema.Schema.Type<S>> & Reads<Name> =>
-    fieldExpr(field) as FieldExpr<Schema.Schema.Type<S>>,
+  /**
+   * One field of one Entity, as a scalar. An expression is one already: an
+   * invariant's `before.x` and `after.x` compare as they are, so wrapping one
+   * is refused with that sentence.
+   */
+  field: fieldOf,
 
   /**
    * Two scalars are the same value: a field (or an expression) on the left,

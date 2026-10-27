@@ -482,7 +482,13 @@ Refusal.isInvalidBy(refusal, reservedWithinQuantity)
 ```
 
 - `before` is each field as the row before holds it (`Expr.field`), and `after`
-  each as the row after holds it (`Expr.next`), both typed as the field.
+  each as the row after holds it (`Expr.next`), both typed as the field. Each
+  is an expression already, so it goes on either side as it is; `Expr.field`
+  wraps an Entity's own field, and refuses one of these:
+
+  | Write | Not |
+  | --- | --- |
+  | `Expr.gte(after.quantity, before.quantity)` | `Expr.gte(after.quantity, Expr.field(before.quantity))` |
 - It is declared once, on the Entity's metadata, and attaching more adds to it;
   the Entity stays the same (`Entity.same`). Its interpreters read it from there.
 - It reads stored rows only: one over another Entity, or reading an input, is

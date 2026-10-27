@@ -325,7 +325,9 @@ database, runs no query, and nothing can change it after `Query.where` checked i
 An interpreter compiles it (`foldkit-remote-drizzle` to SQL, an in-memory
 evaluator to a row predicate). `Expr.eq` takes the field on the left and the
 value on the right, typed from it (a comparison takes a field second as
-`Expr.field(…)`); a field compared to the wrong type is an error where it is written.
+`Expr.field(Post.fields.x)`; in an invariant `before.x` and `after.x` are
+expressions already and go second as they are, `Expr.eq(after.authorId,
+before.authorId)`); a field compared to the wrong type is an error where it is written.
 `Query.where` refuses, at compile time, a predicate over another Entity than the
 query's (its type names the Entities its fields belong to). It also refuses predicates that expand past `maxQueryNodes` (1,000) nodes,
 counting a shared node (`Expr.eq(n, n)`) on every path, since interpreters read
