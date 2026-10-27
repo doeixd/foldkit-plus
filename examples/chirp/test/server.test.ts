@@ -134,6 +134,25 @@ describe('posting', () => {
   })
 })
 
+describe('the database', () => {
+  // Raw SQL passes the server's checks; the tables' CHECKs, compiled from the domain, do not.
+  it("holds the domain's rules against a write that skips the server", () => {
+    const sqlite = memorySqlite()
+    openServer(sqlite)
+    const insert = (statement: string) => () => sqlite.exec(statement)
+    expect(insert(`insert into posts values ('n1', 'you', '${'x'.repeat(281)}', 0)`)).toThrow(
+      'CHECK constraint failed: posts_body_check',
+    )
+    // 280 characters, each two UTF-16 units: the rule counts characters, as SQL does.
+    expect(insert(`insert into posts values ('n2', 'you', '${'😀'.repeat(280)}', 0)`)).not.toThrow()
+    expect(insert("insert into users values ('u1', 'ab', 'Al')")).toThrow('users_handle_check')
+    expect(insert("insert into users values ('u2', 'Bad handle', 'Bo')")).toThrow(
+      'users_handle_check',
+    )
+    expect(insert("insert into users values ('u3', 'cy_3', 'Cy')")).not.toThrow()
+  })
+})
+
 describe('editing', () => {
   it('lets an author edit their own post', async () => {
     const you = sandbox()('you')

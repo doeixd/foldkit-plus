@@ -7,7 +7,12 @@ export const UserFields = Entity.define(
   'User',
   Schema.Struct({
     id: Schema.String,
-    handle: Schema.String,
+    // A pattern of ASCII alone, so its lengths are the database's too (its CHECK).
+    handle: Schema.String.check(
+      Schema.isPattern(/^[a-z0-9_]+$/),
+      Schema.isMinLength(3),
+      Schema.isMaxLength(15),
+    ),
     name: Schema.String,
   }),
 )
@@ -17,7 +22,8 @@ export const PostFields = Entity.define(
   Schema.Struct({
     id: Schema.String,
     authorId: Schema.String,
-    body: Schema.String.check(Schema.isMaxLength(280)),
+    // Characters as people count them (code points), which is what SQL counts too.
+    body: Schema.String.check(Schema.isMaxCodePoints(280)),
     createdAt: Schema.Number,
   }),
 ).pipe(Entity.derived({ likeCount: Derived.make(Schema.Number) }))

@@ -13,7 +13,7 @@ const KEY = 'sandbox'
  * The seed's edition. Raise it when the seed or the tables change: a sandbox
  * kept from an older edition is then let go, and everyone starts from the new one.
  */
-const EDITION = 1
+const EDITION = 2
 
 const settled = <A>(request: IDBRequest<A>): Promise<A> =>
   new Promise((resolve, reject) => {

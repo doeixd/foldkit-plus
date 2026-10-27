@@ -62,10 +62,13 @@ const fail = (message: string): never => {
 
 const dialectOf = (table: Table): Dialect => (is(table, PgTable) ? 'postgres' : 'sqlite')
 
-/** SQL as its dialect writes it, with no parameter left: a constraint binds none. */
+/**
+ * SQL as its dialect writes it, with no parameter left: a constraint binds none.
+ * Wrapped, so a table's own check is read without being marked to inline.
+ */
 const render = (table: Table, condition: SQL, what: string): string => {
   const query = (is(table, PgTable) ? new PgDialect() : new SQLiteDialect()).sqlToQuery(
-    condition.inlineParams(),
+    sql`${condition}`.inlineParams(),
   )
   if (query.params.length > 0)
     throw new QueryCompileError(`${what} compares a value a constraint cannot hold`)
@@ -341,9 +344,10 @@ const fieldRules = (
       })
     }
   }
-  for (const member of present)
-    if (SchemaAST.isEnum(member) || SchemaAST.isTemplateLiteral(member))
-      shapes.push(`a ${member._tag === 'Enum' ? 'value of an enum' : 'template literal'}`)
+  for (const member of present) {
+    if (SchemaAST.isEnum(member)) shapes.push('a value of an enum')
+    if (SchemaAST.isTemplateLiteral(member)) shapes.push('a template literal')
+  }
   const every = new Set([...filtersOf(SchemaAST.toType(ast)), ...filtersOf(encoded)])
   return {
     parts,

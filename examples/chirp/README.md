@@ -12,7 +12,7 @@ browser, so nothing you post leaves it.
 
 | Fact | Owner | Where |
 | --- | --- | --- |
-| What a user and a post are, and that a body holds at most 280 characters | the domain, declared once | `domain.ts` (`foldkit-entity`) |
+| What a user and a post are, that a body holds at most 280 characters, and what a handle may be | the domain, declared once; the tables' `CHECK`s are compiled from it | `domain.ts` (`foldkit-entity`), `server/server.ts` (`checkConstraints`) |
 | Who may write a post: its author, or an admin | the domain declares it; the server decides | `guard.ts`, `server/server.ts` (`foldkit-guard`) |
 | The posts, their like counts, who liked each | the server's database | `server/server.ts` (`foldkit-remote-server`, `foldkit-remote-drizzle`) |
 | The posts the page shows, cached in the Model | Remote, inside the Model | `app.ts` (`foldkit-remote`) |
@@ -58,8 +58,11 @@ relations between them (`Entity.relate`). A person's `postCount` is
 server's binding needs no entry for it, and a new chirp's answer carries its
 author's new count with no code naming it. `likeCount` counts a join table
 with no Entity, so it stays `Derived.make` with the binding's count. The 280-character rule is the
-body's own Schema check, so the server's decode, the form, and the database's
-`CHECK` all refuse the same thing.
+body's own Schema check (`isMaxCodePoints`, characters as SQL counts them), and a
+handle's is a pattern with its lengths. The server's decode and the form read
+them, and `server/server.ts` makes each table's `CHECK`s from them with
+`checkConstraints`, so the database refuses the same thing and no rule is
+written twice.
 
 **The guards** (`guard.ts`). `Guards.declare` names two guards: `isAuthor`, a
 row guard over the post's `authorId`, and `isAdmin`, whose body only the

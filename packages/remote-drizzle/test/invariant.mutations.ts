@@ -92,8 +92,8 @@ export default [
   edit(
     'a constraint is sent its values as parameters',
     checks,
-    'condition.inlineParams(),',
-    'condition,',
+    'sql`${condition}`.inlineParams(),',
+    'sql`${condition}`,',
   ),
   {
     ...edit(

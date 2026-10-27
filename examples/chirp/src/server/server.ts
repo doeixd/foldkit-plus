@@ -12,12 +12,14 @@ import { GuardServer } from 'foldkit-guard/server'
 import { Remote } from 'foldkit-remote'
 import {
   bind,
+  checkConstraints,
   databaseLayer,
   drizzleWrites,
   query,
   runStatement,
   source,
   writer,
+  type AnyEntityBinding,
   type DrizzleDatabase,
 } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
@@ -52,21 +54,6 @@ const likes = sqliteTable('likes', {
 })
 // #endregion
 
-const SCHEMA = `
-  create table users (id text primary key, handle text not null, name text not null);
-  create table posts (
-    id text primary key,
-    author_id text not null references users(id),
-    body text not null check (length(body) <= 280),
-    created_at integer not null
-  );
-  create table likes (
-    post_id text not null references posts(id),
-    user_id text not null references users(id),
-    primary key (post_id, user_id)
-  );
-`
-
 // #region implement
 const admins = new Set(['ada'])
 
@@ -91,6 +78,31 @@ const Db = bind(
     },
   },
 )
+// #endregion
+
+// #region checks
+/** A table's CHECKs, compiled from its Entity's rules: none is written here by hand. */
+const checksOf = (binding: AnyEntityBinding) =>
+  checkConstraints(binding)
+    .constraints.map(({ constraint }) => `, ${constraint}`)
+    .join('')
+
+const SCHEMA = `
+  create table users (
+    id text primary key, handle text not null, name text not null${checksOf(Db.User)}
+  );
+  create table posts (
+    id text primary key,
+    author_id text not null references users(id),
+    body text not null,
+    created_at integer not null${checksOf(Db.Post)}
+  );
+  create table likes (
+    post_id text not null references posts(id),
+    user_id text not null references users(id),
+    primary key (post_id, user_id)
+  );
+`
 // #endregion
 
 // Every write of a post is decided by its rules before it lands. Who wrote a

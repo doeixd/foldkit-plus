@@ -61,17 +61,24 @@ export default [
     tests: server,
   },
   {
+    // One edit, to the domain: the database's CHECK follows it.
     name: 'a post may be any length',
     edits: [
       {
         file: '../src/domain.ts',
-        find: 'body: Schema.String.check(Schema.isMaxLength(280)),',
+        find: 'body: Schema.String.check(Schema.isMaxCodePoints(280)),',
         replace: 'body: Schema.String,',
       },
+    ],
+    tests: server,
+  },
+  {
+    name: 'a handle may be anything',
+    edits: [
       {
-        file: '../src/server/server.ts',
-        find: 'body text not null check (length(body) <= 280),',
-        replace: 'body text not null,',
+        file: '../src/domain.ts',
+        find: 'Schema.isPattern(/^[a-z0-9_]+$/),',
+        replace: '',
       },
     ],
     tests: server,
