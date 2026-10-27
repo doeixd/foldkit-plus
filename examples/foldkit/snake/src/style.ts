@@ -15,14 +15,13 @@ import { Utilities as U } from 'foldkit-mixins/utilities'
 import type { Cell } from './main.js'
 
 /**
- * A gray palette read in its dark scheme, for the page's text, and the board's
- * own colors: the Tailwind shades upstream names (`green-700` head,
+ * The shipped theme read in its dark scheme, for the page's text, and the
+ * board's own colors: the Tailwind shades upstream names (`green-700` head,
  * `green-500` body, `red-500` apple, `gray-800` cells, `gray-600` edge) on
  * a black page. `colorScheme: 'dark'` reads the palette's light text, since
  * upstream's page is black in any browser.
  */
 const { t, L, slots, stylesheet } = AppStyle.make({
-  theme: Theme.make({ accent: { hue: 0, chroma: 0, lightness: 50 }, surface: { saturation: 0 } }),
   tokens: Theme.define({
     game: {
       page: 'oklch(0% 0 0)',

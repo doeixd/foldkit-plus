@@ -9,16 +9,11 @@
 import { Style, type StyleValue } from 'foldkit-mixins'
 import { AppStyle } from 'foldkit-mixins/app'
 import { Layout } from 'foldkit-mixins/layout'
-import { Theme } from 'foldkit-mixins/theme'
 import { Utilities as U } from 'foldkit-mixins/utilities'
 import { ButtonSlots, Recipes, TabsSlots } from 'foldkit-mixins-ui'
 
-/** Indigo accent over near-neutral slate surfaces, like upstream's palette. */
+/** The shipped theme (`AppStyle.make`'s default), not upstream's Tailwind palette. */
 const { t, L, slots, forSlots, stylesheet } = AppStyle.make({
-  theme: Theme.make({
-    accent: { hue: 277, chroma: 0.2, lightness: 51 },
-    surface: { saturation: 0.01 },
-  }),
   colorScheme: 'light',
 })
 

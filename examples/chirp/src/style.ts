@@ -17,11 +17,6 @@ import { AvatarSlots, Recipes, TextareaSlots } from 'foldkit-mixins-ui'
 
 // #region theme
 export const { t, slots, forSlots, stylesheet } = AppStyle.make({
-  theme: Theme.make({
-    accent: { hue: 240, chroma: 0.16, lightness: 66 },
-    surface: { saturation: 0, lightness: 100 },
-    type: { body: 'system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' },
-  }),
   tokens: Theme.define({ chirp: { like: 'oklch(62% 0.24 0)' } }),
   colorScheme: 'light',
 })

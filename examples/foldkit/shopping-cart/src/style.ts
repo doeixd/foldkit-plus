@@ -10,19 +10,11 @@
 import { Style, type Piece, type StyleValue } from 'foldkit-mixins'
 import { AppStyle } from 'foldkit-mixins/app'
 import { Layout } from 'foldkit-mixins/layout'
-import { Theme } from 'foldkit-mixins/theme'
 import { Utilities as U } from 'foldkit-mixins/utilities'
 import { ButtonSlots, InputSlots, Recipes, TextareaSlots } from 'foldkit-mixins-ui'
 
-/**
- * Blue, as upstream's `blue-500` nav bar, links and buttons are.
- * A white base, so the cards stand out from the gray page.
- */
+/** The shipped theme (`AppStyle.make`'s default), not upstream's Tailwind palette. */
 const { t, L, slots, forSlots, stylesheet } = AppStyle.make({
-  theme: Theme.make({
-    accent: { hue: 260, chroma: 0.21, lightness: 62 },
-    surface: { lightness: 100 },
-  }),
   colorScheme: 'light',
 })
 

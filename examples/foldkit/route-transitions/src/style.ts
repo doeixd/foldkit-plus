@@ -10,7 +10,6 @@
 import { Capability, Event, Style } from 'foldkit-mixins'
 import { AppStyle } from 'foldkit-mixins/app'
 import { Layout } from 'foldkit-mixins/layout'
-import { Theme } from 'foldkit-mixins/theme'
 import { Utilities as U } from 'foldkit-mixins/utilities'
 
 /** Upstream's Tailwind `sm` and `lg`: two columns of paintings, and the log beside the page. */
@@ -18,17 +17,10 @@ const sm = '(min-width: 40rem)'
 const lg = '(min-width: 64rem)'
 
 /**
- * Indigo, as upstream's nav bar and links are. The secondary hue is violet,
- * for the cold-load badge; success is shifted to emerald, for the entered one.
- * A white base, so the cards and the log stand out from the gray page.
+ * The shipped theme (`AppStyle.make`'s default), not upstream's Tailwind palette.
  * `colorScheme: 'light'` keeps the page light in a dark browser, as upstream's is.
  */
 const { t, L, slots, stylesheet } = AppStyle.make({
-  theme: Theme.make({
-    accent: { hue: 277, chroma: 0.24, lightness: 51, secondaryShift: 16 },
-    feedback: { success: 163 },
-    surface: { lightness: 100 },
-  }),
   colorScheme: 'light',
 })
 

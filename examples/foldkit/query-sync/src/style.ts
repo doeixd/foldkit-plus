@@ -9,23 +9,11 @@
 import { Style, type StyleValue } from 'foldkit-mixins'
 import { AppStyle } from 'foldkit-mixins/app'
 import { Layout } from 'foldkit-mixins/layout'
-import { Theme } from 'foldkit-mixins/theme'
 import { Utilities as U } from 'foldkit-mixins/utilities'
 import { ButtonSlots, InputSlots } from 'foldkit-mixins-ui'
 
-/**
- * Emerald, as upstream's Tailwind classes are. The hue shifts and the info
- * hue give the six badge tones their own families: the page shows no info
- * messages, so the info family is free to carry the orange one.
- * A white base, so the controls and the table stand out from the page's
- * `surface.subtle`.
- */
+/** The shipped theme (`AppStyle.make`'s default), not upstream's Tailwind palette. */
 const { t, L, slots, forSlots, stylesheet } = AppStyle.make({
-  theme: Theme.make({
-    accent: { hue: 163, chroma: 0.145, lightness: 59.6, secondaryShift: 67, tertiaryShift: 140 },
-    surface: { saturation: 0.003, lightness: 100 },
-    feedback: { info: 50 },
-  }),
   colorScheme: 'light',
 })
 

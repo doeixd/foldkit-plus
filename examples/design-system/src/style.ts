@@ -1,11 +1,10 @@
 /**
- * The demo's shadcn-like appearance, as `foldkit-mixins` data.
+ * The demo's appearance, as `foldkit-mixins` data.
  *
  * The look comes from two decisions, both in this file:
  *
- * - **Theme knobs.** `surfaceSaturation` near zero gives zinc-like neutrals,
- *   and `radius-factor` above one grows every recipe's corners to shadcn's
- *   `0.625rem` cards and `0.5rem` controls, with no forked CSS.
+ * - **The shipped theme.** No knob is set, so the components look as a new
+ *   application gets them.
  * - **Recipe selections.** Each shadcn intent is one selection: `primary` is
  *   Default, `neutral` solid/outline/ghost are Secondary/Outline/Ghost, and
  *   `danger` solid is Destructive.
@@ -60,16 +59,8 @@ import {
   Touch,
 } from 'foldkit-mixins-ui'
 
-const theme = Theme.make({
-  accent: { hue: 222, chroma: { light: 0.09, dark: 0.1 } },
-  // Zinc-like neutrals: barely any chroma in the surfaces.
-  surface: { saturation: 0.003, contrast: 24 },
-  // shadcn's corners: cards at 0.625rem, controls near 0.5rem.
-  shape: { radius: 1.4 },
-  type: { fluid: 1 },
-})
-
-const app = AppStyle.make({ theme })
+// The shipped theme: the system shows the components as a new application gets them.
+const app = AppStyle.make({})
 
 export const { t, L } = app
 export const stylesheet = app.stylesheet

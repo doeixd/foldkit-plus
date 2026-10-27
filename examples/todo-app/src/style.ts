@@ -38,21 +38,14 @@ import { ButtonSlots, CheckboxSlots, Recipes } from 'foldkit-mixins-ui'
 import { Message, type Filter, type Priority, type Todo } from './app.js'
 import type { BoardMessage } from './surface.js'
 
-// --- theme: a palette from one accent color --------------------------------------
+// --- theme: the shipped one ------------------------------------------------------
 
 /**
- * Every color is derived in the browser from these knobs with relative color
- * syntax and `light-dark()`, so the dark scheme needs no override of its own.
+ * Every shipped token at the shipped theme's knobs. Every color is derived in
+ * the browser with relative color syntax and `light-dark()`, so the dark
+ * scheme needs no override of its own.
  */
-const knobs = Theme.make({
-  accent: { hue: 277, chroma: { light: 0.23, dark: 0.18 }, lightness: { light: 51, dark: 68 } },
-  feedback: { info: 220 },
-  // Near-neutral surfaces, as the hand-picked grays were.
-  surface: { saturation: 0.006 },
-})
-
-/** Every shipped token, with this app's knobs. */
-const shipped = Theme.standard(knobs)
+const shipped = Theme.standard()
 const shippedRef = Theme.ref(shipped)
 
 /** What only this app names, derived from the palette so it follows the scheme too. */

@@ -16,16 +16,12 @@ import { ButtonSlots, DialogSlots, RadioGroupSlots, Recipes, SwitchSlots } from 
 import { THUMBNAIL_CELL_SIZE } from './constant.js'
 
 /**
- * The recipes' palette, indigo as upstream's accent, read in its dark scheme;
- * and the page's own colors, the Tailwind shades upstream names, as `forge`
- * tokens on a `gray-900` page. `colorScheme: 'dark'` reads the dark scheme in
- * any browser, since upstream's page is `gray-900` everywhere.
+ * The shipped theme read in its dark scheme, and the page's own colors, the
+ * Tailwind shades upstream names, as `forge` tokens on a `gray-900` page.
+ * `colorScheme: 'dark'` reads the dark scheme in any browser, since upstream's
+ * page is `gray-900` everywhere.
  */
 const { t, L, slots, forSlots, stylesheet } = AppStyle.make({
-  theme: Theme.make({
-    accent: { hue: 277, chroma: 0.262, lightness: 51.1 },
-    surface: { saturation: 0.03 },
-  }),
   tokens: Theme.define({
     forge: {
       page: 'oklch(21% 0.034 264.665)',

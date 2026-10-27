@@ -1,6 +1,6 @@
 /**
- * The example's shared look, as `foldkit-mixins` Style: one theme, derived
- * from an accent color, and the pieces several owners dress their Slots with
+ * The example's shared look, as `foldkit-mixins` Style: the shipped theme,
+ * and the pieces several owners dress their Slots with
  * (links, buttons, badges, disclosures, touch targets). Each owner's Slots
  * live beside their Style: `adminStyle.ts` for the authoring shell,
  * `formStyles.ts` for the mixins' form and list Slots, `builderStyle.ts` for
@@ -13,13 +13,7 @@ import { Recipes, Touch } from 'foldkit-mixins-ui'
 import { Cms, type StateTag } from 'foldkit-cms'
 import { Theme } from 'foldkit-mixins/theme'
 
-export const theme = Theme.standard(
-  Theme.make({
-    accent: { hue: 265, chroma: { light: 0.16, dark: 0.13 }, lightness: { dark: 72 } },
-    surface: { saturation: 0.012 },
-    type: { fluid: 1 },
-  }),
-)
+export const theme = Theme.standard()
 /** Every token as a typed `var(--fk-…)` reference: the admin's and the site's styles read these. */
 export const t = Theme.ref(theme)
 

@@ -9,19 +9,11 @@
 import { Style, type StyleValue } from 'foldkit-mixins'
 import { AppStyle } from 'foldkit-mixins/app'
 import { Layout } from 'foldkit-mixins/layout'
-import { Theme } from 'foldkit-mixins/theme'
 import { Utilities as U } from 'foldkit-mixins/utilities'
 import { ButtonSlots, CheckboxSlots, InputSlots, Recipes } from 'foldkit-mixins-ui'
 
-/**
- * Blue over near-gray surfaces, as upstream's Tailwind `blue-500` and `gray-*`.
- * A white base, so the card stands out from the page's `surface.muted`.
- */
+/** The shipped theme (`AppStyle.make`'s default), not upstream's Tailwind palette. */
 const { t, L, slots, forSlots, stylesheet } = AppStyle.make({
-  theme: Theme.make({
-    accent: { hue: 260, chroma: 0.214, lightness: 62.3 },
-    surface: { saturation: 0.003, lightness: 100 },
-  }),
   colorScheme: 'light',
 })
 

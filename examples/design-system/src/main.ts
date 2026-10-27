@@ -1424,11 +1424,7 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
   const slots = SlotView.buildersFor(PageSlots, [PageStyle.style.mixin], { input: model, h })
   const rootOverride = rootOverrideOf(model)
   const tokensCode = [
-    'theme = Theme.make((',
-    '  accent: { hue: 222, chroma: 0.09 },',
-    '  surface: { saturation: 0.003, contrast: 24 },',
-    '  shape: { radius: 1.4 },',
-    '))',
+    'AppStyle.make({})   the shipped theme',
     '',
     'Default     -> Button variant primary',
     'Secondary   -> tone neutral, solid',

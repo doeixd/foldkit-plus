@@ -15,15 +15,8 @@ import { Theme } from 'foldkit-mixins/theme'
 import { Utilities as U } from 'foldkit-mixins/utilities'
 import { DialogSlots } from 'foldkit-mixins-ui'
 
-/**
- * Indigo, as upstream's `accent-600` (`#4f46e5`) is, on a white base, as
- * upstream's `bg-white` page is, with Tailwind's gray steps around it.
- */
+/** The shipped theme (`AppStyle.make`'s default), not upstream's Tailwind palette. */
 const { t, slots, forSlots, stylesheet } = AppStyle.make({
-  theme: Theme.make({
-    accent: { hue: 277, chroma: 0.24, lightness: 51 },
-    surface: { saturation: 0.004, lightness: 100 },
-  }),
   colorScheme: 'light',
 })
 

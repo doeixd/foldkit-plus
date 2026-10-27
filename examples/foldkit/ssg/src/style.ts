@@ -9,16 +9,13 @@
 import { Capability, Style } from 'foldkit-mixins'
 import { AppStyle } from 'foldkit-mixins/app'
 import { Layout } from 'foldkit-mixins/layout'
-import { Theme } from 'foldkit-mixins/theme'
 import { Utilities as U } from 'foldkit-mixins/utilities'
 
 /**
- * A colorless, near-black accent, so the button is black on white like
- * upstream's. `colorScheme: 'light'` keeps the page white in a dark browser,
- * as upstream's is.
+ * The shipped theme (`AppStyle.make`'s default), not upstream's Tailwind palette.
+ * `colorScheme: 'light'` keeps the page light in a dark browser, as upstream's is.
  */
 const { t, L, slots, stylesheet } = AppStyle.make({
-  theme: Theme.make({ accent: { hue: 0, chroma: 0, lightness: 12 } }),
   colorScheme: 'light',
 })
 

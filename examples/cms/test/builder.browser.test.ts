@@ -14,7 +14,7 @@ import { Theme } from 'foldkit-mixins/theme'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
-import { userEvent } from 'vitest/browser'
+import { page, userEvent } from 'vitest/browser'
 import { afterEach, expect, it, vi } from 'vitest'
 import { PageBuilder, PageEditing } from '../src/content/site.js'
 import { stylesheet } from '../src/styles/sheet.js'
@@ -328,6 +328,9 @@ it('edits a heading where it is: the caret kept through each redraw, Backspace a
 })
 
 it('draws a look for the width of its frame, not of the window', async () => {
+  // Wide enough that the wide frame, beside the default theme's roomier
+  // panels, is past `md`: at 1440px it is 2px short.
+  await page.viewport(1680, 900)
   const hero = NodeId.make('hero')
   unmount = mount(
     stylesheet,
@@ -356,6 +359,7 @@ it('draws a look for the width of its frame, not of the window', async () => {
   // The window stays as wide as it was; only the frame is a phone's.
   await vi.waitFor(() => expect(gap()).toBe(wide / 4))
   expect(window.innerWidth).toBeGreaterThan(1000)
+  await page.viewport(1440, 900)
 })
 
 it('shows one panel at a time when the editor is narrow, chosen by tabs and by selecting on the page', async () => {
