@@ -9,6 +9,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`AppStyle.make`'s `theme` is optional**: `AppStyle.make({})` is the shipped
+  theme. `pnpm icons` takes `"stroke": { "width": n }` in `icons.json` to redraw
+  a set's strokes when it is generated (#255).
 - **`examples/cloudflare`'s local stack runs `wrangler.toml`** through Wrangler's
   test harness, so bindings, the compatibility date and flags, `.dev.vars` and
   D1 migrations are the ones `wrangler deploy` uses. It refuses a date the
@@ -94,6 +97,21 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **The shipped theme is #255's.** `Theme.make({})` is a vivid blue (accent
+  235/0.225/55) on pure greys, radius 0.45, density 1.1, bolder tighter
+  headings, fluid type, a 68ch measure, motion 0.5 on a spring, no resting
+  shadows and inverted menus; a knob a theme sets keeps its value. For the
+  previous look, set `Theme.make({ accent: { hue: 264, chroma: 0.17, lightness:
+  52 }, surface: { saturation: 0.015, lightness: { light: 97.5, dark: 22 },
+  contrast: 26 }, shape: { radius: 1, density: 1 }, type: { headingWeight:
+  600, headingTracking: -0.01, scale: 1, headingScale: 1, leading: 1, fluid: 0
+  }, reading: { measure: 65 }, motion: { scale: 1, easing: 'ease' }, shadow: {
+  strength: 100 }, menu: { panel: 'default' }, scales: { chroma: 1 } })`. The
+  components' own icons are Heroicons' outline set (MIT) at a 2px stroke; to
+  keep Lucide, pass `tokens: Icons.tokens(lucidePack)`. `text.link` is the
+  accent's ink, whose light lightness is 0.45, so links and accent text read
+  at WCAG AA. The site's previews and every example use the shipped theme
+  (#255).
 - **A `Mutation.write` over `Write.delete` shows its row deleted while
   pending**, where it showed nothing until the answer. Breaking: `EntityLayer`
   carries `deletes`, and `visibleItems`'s fourth parameter is a `gone` check

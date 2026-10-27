@@ -2094,9 +2094,6 @@ expect(Trace.tags(trace, list)).toEqual(['Ready', 'Refreshing', 'Ready'])
   and `entry.skipped` names the others. It drives a domain whose Messages are
   in your union, not a `Remote.fold`.
 
-The design, and what is deferred, is in
-[`docs/design/250-data-trace-DESIGN.md`](../../docs/design/250-data-trace-DESIGN.md).
-
 ## Advanced: the kernel
 
 Everything above compiles to the lower-level exports below; there is not a
