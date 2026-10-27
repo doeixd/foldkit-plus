@@ -1611,6 +1611,12 @@ of its own named a form field "fits the Catalog". Read words with
   hunk (`git apply --reverse --cached`) does not keep it out, and it rode a
   Dialog test into an unrelated commit that way. Extract the foreign hunk
   from the file first (or wait), then commit.
+- **A commit built from HEAD's copy goes stale when HEAD moves.** A README
+  built for a temporary-index commit from HEAD lost another session's text,
+  committed between the read and `commit-tree`: `update-ref <new> <old>` checks
+  only that HEAD did not move after OLD was read, not that the blob's base is
+  HEAD. Read the base and `commit-tree` in one command, and diff the result
+  against the previous commit before pushing.
 - **`git apply --cached --unidiff-zero` places an insertion by the wrong line.** To commit
   only my hunks of files another session was editing too, I applied a zero-context patch
   holding just mine; a pure insertion (`@@ -4698,0 +5460,401 @@`) landed at its new-side

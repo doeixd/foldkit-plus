@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-remote/testing`: `Trace` and `Respond`.** `Trace.run(Data, { start,
+  update, active, client, steps })` runs the application's `update` and the
+  domain's own Subscriptions from a Model, holding every request;
+  `Respond.query`, `Respond.read`, `Respond.mutation` (each with `{ fail }`) and
+  `Respond.all` let held requests go on, and every Model between is recorded.
+  `Trace.regressions` names each time a shown read went to `Loading`, `Initial`
+  or `Failed` without its value, with the step, the Message and `Data.why`, so
+  a list that blinks for one frame is tested without a browser (#250).
 - **`Remote.tombstone(entity, id)`, a pending delete.** In a mutation's
   `optimistic` list or `Data.overlay`, the row reads `NotFound` and leaves
   every list and every relation that lists it until the request settles, as an
