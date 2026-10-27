@@ -4,6 +4,7 @@
  * change it, and the pure reducer over them.
  */
 import { Option, Schema } from 'effect'
+import type { AnswerGap } from './answerGaps.js'
 import type { RelationRequirement, Requirement } from './requirement.js'
 import {
   emptyConnection,
@@ -134,6 +135,8 @@ export interface RemoteModel {
   readonly placed: Readonly<Record<string, PlacedOrder>>
   /** Under `verifyPlacement`, each placement the server's page disagreed with. */
   readonly placementMismatches: ReadonlyArray<PlacementMismatch>
+  /** Under `verifyAnswers`, each row an answer left without fields the client showed. */
+  readonly answerGaps: ReadonlyArray<AnswerGap>
   /**
    * What retention keeps: the active Surfaces' roots, after those of the
    * Surfaces most recently left (`departedLimit`). A list left is held stale,
@@ -244,6 +247,7 @@ export const initialRemoteModel: RemoteModel = {
   restoredFrom: Option.none(),
   placed: {},
   placementMismatches: [],
+  answerGaps: [],
   recent: { requirements: [], connections: [] },
 }
 
@@ -270,6 +274,7 @@ export const remoteModelSchema = (): Schema.Codec<RemoteModel, unknown> =>
     restoredFrom: runtimeSchema,
     placed: runtimeSchema,
     placementMismatches: runtimeSchema,
+    answerGaps: runtimeSchema,
     recent: runtimeSchema,
   }) as unknown as Schema.Codec<RemoteModel, unknown>
 

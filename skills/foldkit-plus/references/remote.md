@@ -236,6 +236,13 @@ case 'SignedOut': {
   where `projects` is the `Data.query(...)` Projection above. `Remote.patch`
   values are wire-shaped: a relation is its ref key, typed `RefKey<'User'>`
   (`` `User:${string}` ``), so a ref to the wrong entity is a type error.
+- A row that reads `Loading` for a frame after a mutation settles is a field
+  the answer left out: the layer came off and the store lacks it, so it is
+  fetched again. `Remote.make({ verifyAnswers: true })` (dev and tests) settles
+  as usual and keeps `{ requestId, entity, id, fields }` in
+  `remote.answerGaps` (`Data.inspect`) for each field the request's optimistic
+  patch wrote, or an active Surface reads of a row it patched or listed, that
+  the answer left out and the store does not hold. Answer with those fields.
 - `Query.define(name, Input, ({ input }) => body, options?)` declares a query by
   what it *means*: `Query.from(Task).pipe(Query.where(Expr.eq(Task.fields.ownerId,
   input.ownerId)), Query.orderBy(Order.asc(Task.fields.id)))`. Returns an ordinary

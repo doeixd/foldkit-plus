@@ -674,6 +674,14 @@ what the server said:
 
 See [Mutations and optimistic state](#mutations-and-optimistic-state).
 
+### Why does a row read `Loading` for a frame after a mutation?
+
+The answer left out fields the row showed while the request was pending. Once
+the layer comes off, the store lacks them, so the read entry fetches them and
+the row reads `Loading` until they arrive. `Remote.make({ verifyAnswers: true
+})` names each one: see
+[Checking an answer against what was shown](#checking-an-answer-against-what-was-shown).
+
 ### Why does a page I went back to read `Refreshing`?
 
 Remote keeps what the screens you most recently left reached: the last 16
@@ -1545,6 +1553,31 @@ const { model: started, command } = Data.mutate(model, AddComment, input, {
 
 A successful server result can replace the request's temporary connection
 overlays with confirmed ones in place.
+
+### Checking an answer against what was shown
+
+When the answer comes, the request's layer comes off, and what the row shows
+is what the store holds. A field the layer showed that the answer left out,
+and the store does not hold, is then missing: an active Surface that reads it
+fetches it again, and the row reads `Loading` meanwhile. `Remote.make({ ...,
+verifyAnswers: true })` settles every mutation as usual and also keeps each
+such row in `model.remote.answerGaps` (and `Data.inspect(model).answerGaps`):
+
+```ts
+// requestId: the one Data.mutate returned
+{ requestId, entity: 'Post', id: 'p9', fields: ['editedAt', 'author'] }
+```
+
+A row's shown fields are those the request's optimistic patch wrote, added
+to or computed (a declared write's own included), plus those the active
+Surfaces (every `Data.subscriptions` call) read of a row the request patched
+or put in a list. A field the store still holds (an older value, or another
+pending request's) is not reported, nor is a row the answer deleted, or a
+temporary id it replaced. A repeated answer is not checked again. It changes
+nothing but `answerGaps`, so turn it on in development and tests, and assert
+in a test that `answerGaps` is empty. To close a gap, answer with the fields
+(a mutation `Output` that returns the changed row), or re-read them in the
+writer.
 
 ### Showing a change nobody has made
 

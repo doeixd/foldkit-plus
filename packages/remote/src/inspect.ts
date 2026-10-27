@@ -9,6 +9,7 @@ export interface ExplainedDependencies {
   /** Each operator it calls, by its id and version. */
   readonly operators: ReadonlyArray<{ readonly id: string; readonly version: number }>
 }
+import type { AnswerGap } from './answerGaps.js'
 import type { Failures, PlacementMismatch, RemoteModel } from './model.js'
 import type { QueryWindow } from './query.js'
 import type { RemoteData } from './remoteData.js'
@@ -31,6 +32,8 @@ export interface RemoteInspection {
   readonly gaps: ReadonlyArray<string>
   /** Under `verifyPlacement`, each placement the server's page disagreed with. */
   readonly placementMismatches: ReadonlyArray<PlacementMismatch>
+  /** Under `verifyAnswers`, each row an answer left without fields the client showed. */
+  readonly answerGaps: ReadonlyArray<AnswerGap>
   /**
    * The `entity\0id\0field` marks of reads in flight, and a
    * `\0connection\0identity` mark for each query in flight. This is what "Remote is
@@ -68,6 +71,7 @@ export const inspectRemote = (model: RemoteModel): RemoteInspection => ({
   live: Object.keys(model.live),
   gaps: [...model.gaps],
   placementMismatches: model.placementMismatches,
+  answerGaps: model.answerGaps,
   loading: [...model.loading],
   failures: model.failures,
   mutations: {

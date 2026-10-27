@@ -172,11 +172,13 @@ import {
   type RelationRequirement,
 } from './requirement.js'
 import { markAll, resumePart } from './resume.js'
+import { answerGaps } from './answerGaps.js'
 
 import { http as httpClient, json as jsonClient } from './json.js'
 import { httpWithLive as httpWithLiveClient } from './sse.js'
 export * from './client.js'
 export type { RemoteResumePart } from './resume.js'
+export type { AnswerGap } from './answerGaps.js'
 export * from './coalesce.js'
 export { RemoteJsonAnswer, RemoteJsonRequest, type RemoteJsonSend } from './json.js'
 export { httpWithLive, liveFetch, type LiveFetchOptions } from './sse.js'
@@ -2143,6 +2145,15 @@ export const Remote = {
      */
     readonly verifyPlacement?: boolean | undefined
     /**
+     * Settles each mutation as usual, and also keeps in `answerGaps`
+     * (`Data.inspect`) each row whose answer left out fields the client
+     * showed while it was pending (those its optimistic layer patched, and
+     * those the active Surfaces read of the rows it touched) and the store
+     * does not otherwise hold: they are read again, so the row reads
+     * `Loading` meanwhile. For development and tests.
+     */
+    readonly verifyAnswers?: boolean | undefined
+    /**
      * How the client runs a body's primitive operators when it judges rows it
      * holds (`Operators`): the kernel's when not given. A body calling one this
      * table lacks is judged by the server instead, as any row the client cannot
@@ -2152,6 +2163,7 @@ export const Remote = {
   }): RemoteDomain<AppModel, Store, Entities, Queries, Mutations> =>
     bindDomain(defineRemote(config), config.model, {
       verifyPlacement: config.verifyPlacement,
+      verifyAnswers: config.verifyAnswers,
       operators: config.operators,
     }),
 
@@ -2764,6 +2776,7 @@ const bindDomain = <
   store: ModelRef<AppModel, Store>,
   options: {
     readonly verifyPlacement?: boolean | undefined
+    readonly verifyAnswers?: boolean | undefined
     readonly operators?: MemoryOperators | undefined
   } = {},
 ): RemoteDomain<AppModel, Store, Entities, Queries, Mutations> => {
@@ -2847,7 +2860,34 @@ const bindDomain = <
       answer === undefined
         ? placedNews(reduced, newsOf(message), remote.entities)
         : impactOf(reduced, answer, remote.entities)
-    return next === remote ? model : store.set(model, next as Store)
+    const checked =
+      answer === undefined || options.verifyAnswers !== true
+        ? next
+        : withAnswerGaps(model, remote, next, answer.requestId)
+    return checked === remote ? model : store.set(model, checked as Store)
+  }
+
+  /** `after` with the rows its answer left without fields the client showed (`verifyAnswers`). */
+  const withAnswerGaps = (
+    model: AppModel,
+    before: RemoteModel,
+    after: RemoteModel,
+    requestId: string,
+  ): RemoteModel => {
+    // A repeated answer writes nothing, so it leaves nothing out.
+    if (before.mutations.applied.has(requestId)) return after
+    const settled = store.set(model, after as Store)
+    const projections = [...readers.values()].flatMap(resolvedAt =>
+      resolvedAt(settled).map(({ projection }) => projection),
+    )
+    const gaps = answerGaps(
+      requestId,
+      before.optimistic,
+      after.optimistic,
+      visibleStoreOf(after.entities, after.optimistic, operators),
+      planAsked(after, askedUnion(projections), {}, operators).requirements,
+    )
+    return gaps.length === 0 ? after : { ...after, answerGaps: [...after.answerGaps, ...gaps] }
   }
 
   /** The registered query a connection identity names, and its encoded input. */
