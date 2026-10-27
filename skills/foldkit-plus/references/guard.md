@@ -138,7 +138,8 @@ const Todo = TodoFields.pipe(
   it (a handler, raw SQL) is not seen, unless the table carries
   `revisionTrigger(binding, 'revision')` (`foldkit-remote-drizzle`, run with its
   migration), which moves it on every other update; without `revision`, none is, and
-  `GuardServer.validate` warns. With `revision` the guarded writer `pins`, so under a
+  `GuardServer.validate` warns of an update, or a delete of an Entity something
+  updates (never an insert). With `revision` the guarded writer `pins`, so under a
   ledger a real-number increment or a computed assignment needs no `expect` of its own;
   a computed field needs its member's Update rule, and its rules judge the row
   `Write.apply` works out by the writer's table (`EntityWriter.operators`), which the writer writes. A `when`, an `expect` or a

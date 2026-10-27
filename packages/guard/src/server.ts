@@ -293,7 +293,8 @@ export const GuardServer = {
    * between the check and the write is never written over; it is decided
    * again against the row as it now is, up to three times. A change that does
    * not move the revision (a handler's, `applyEdits`', raw SQL) is not seen.
-   * Without `revision`, none is, and `validate` warns. An input that expects a
+   * Without `revision`, none is, and `validate` warns of an update, or a delete
+   * of an Entity the server updates (an insert has no row). An input that expects a
    * revision the row read is not at is a `Conflict`, decided before any rule;
    * an input may expect only the field the writer pins.
    *
@@ -1166,10 +1167,26 @@ export const GuardServer = {
       throw new Error(`[foldkit-guard] GuardServer.validate: ${problems.join('; ')}`)
     }
     // Not refused yet: a writer given no revision is how every writer was made before it.
+    // Named only where a change between the check and the write can happen: an update
+    // always, a delete where the server updates that Entity, an insert, with no row, never.
+    const updated = new Set(
+      [...config.server.mutations.values()]
+        .flatMap(source => (source.writes === undefined ? [] : [source.writes]))
+        .filter(writes => writes.write._tag === 'Update')
+        .map(writes => writes.entity),
+    )
     const unpinnedWrites = [...config.server.mutations].flatMap(([mutation, source]) => {
-      const writer = source.writes?.writer
+      const writes = source.writes
+      if (writes === undefined) return []
+      const writer = writes.writer
       const pin = typeof writer === 'object' && writer !== null ? pins.get(writer) : undefined
-      return pin !== undefined && Option.isNone(pin) ? [mutation] : []
+      if (pin === undefined || Option.isSome(pin)) return []
+      const races = Match.valueTags(writes.write, {
+        Update: () => true,
+        Delete: () => updated.has(writes.entity),
+        Insert: () => false,
+      })
+      return races ? [mutation] : []
     })
     if (unpinnedWrites.length > 0) {
       console.warn(

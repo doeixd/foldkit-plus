@@ -72,6 +72,23 @@ const EditAt = Mutation.write(
     expect: 'revision',
   }),
 )
+const Add = Mutation.write(
+  'Add',
+  Write.insert(
+    Entity.input(
+      Todo,
+      Schema.Struct({
+        id: Schema.String,
+        ownerId: Schema.String,
+        title: Schema.String,
+        revision: Schema.Number,
+      }),
+    ),
+    {
+      id: 'id',
+    },
+  ),
+)
 const Remove = Mutation.write(
   'Remove',
   Write.delete(Entity.input(Todo, Schema.Struct({ id: Schema.String })), { id: 'id' }),
@@ -335,6 +352,27 @@ describe('GuardServer.validate over an unpinned writer', () => {
     warn.mockClear()
     validate({ revision: 'revision' })
     expect(warn).not.toHaveBeenCalled()
+  })
+
+  // Only a write a change can come between the check and: an update, or a delete of an
+  // Entity the server updates. An insert has no row before it (#223).
+  it.each([
+    ['an insert and a delete, with nothing updating the Entity', [Add, Remove], []],
+    ['a delete beside an update of its Entity', [Add, Remove, Edit], ['Remove', 'Edit']],
+  ] as const)('names %s', (_, mutations, named) => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const unpinned = GuardServer.writer(Todo, Policy, writer(Db.Todo))
+    GuardServer.validate(Policy, {
+      entities: [Todo],
+      domain: Remote.define({ entities: [Todo] }),
+      server: RemoteServer.make({
+        entities: [],
+        mutations: mutations.map(mutation => RemoteServer.write(mutation, unpinned)),
+      }),
+    })
+    expect(warn.mock.calls.map(([message]) => message)).toEqual(
+      named.length === 0 ? [] : [expect.stringContaining(`${named.join(', ')} write through`)],
+    )
   })
 })
 

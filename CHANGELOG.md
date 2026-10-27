@@ -68,6 +68,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`GuardServer.validate` warns only of a write a change can come between.**
+  It named every write through a writer with no `revision`, inserts and
+  deletes of an Entity nothing updates included, where no change can come
+  between the guard's check and the write (#223). It now names an update, and
+  a delete of an Entity the server also updates.
 - **`setup` scaffolds with `create-foldkit-app` 0.40.0**, whose templates install
   Foldkit 0.169, `@foldkit/ui` 0.169 and `@foldkit/vite-plugin` 0.28, this
   release's own. 0.39.1 wrote 0.168, which `foldkit-mixins-ui` then refused

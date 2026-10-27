@@ -409,7 +409,9 @@ rule, and not retried. An input may expect only the revision the writer pins:
 one expecting another field is refused, at startup by `GuardServer.validate`
 and at run time, since the pin would leave that field where it was. A writer
 with no `revision` keeps the window, and `GuardServer.validate` warns of each
-write through one.
+write through one that a change can come between: an update, or a delete of
+an Entity the server also updates. An insert has no row before it, so an
+Entity that is only inserted and deleted needs no revision.
 
 A declared write's `when` (`foldkit-entity`) is the writer's to check, in the
 statement that writes; the guarded writer passes it through and speaks first.

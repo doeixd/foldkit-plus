@@ -55,4 +55,20 @@ export default [
     'Option.exists(pin, field => field !== expected)',
     'false',
   ),
+  edit(
+    'an unpinned insert is named, with no row to race',
+    'Insert: () => false,',
+    'Insert: () => true,',
+  ),
+  edit(
+    'an unpinned delete is named though nothing updates its Entity',
+    'Delete: () => updated.has(writes.entity),',
+    'Delete: () => true,',
+  ),
+  edit(
+    'an unpinned delete beside an update is not named',
+    'Delete: () => updated.has(writes.entity),',
+    'Delete: () => false,',
+  ),
+  edit('an unpinned update is not named', 'Update: () => true,', 'Update: () => false,'),
 ]
