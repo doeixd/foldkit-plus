@@ -36,7 +36,8 @@ agent reads all of it at the start of every session.
   `Duration`, `effect/persistence` (`KeyValueStore`). No ad-hoc fetch wrappers,
   retry loops, `process.env` reads or other validation libraries.
 - **Check the installed API, not memory.** Read the `.d.mts` / `.d.ts` in
-  `node_modules` (and the README shipped in the package) before using a call.
+  `node_modules` (and the README shipped in the package) before using a call;
+  `npx foldkit-plus docs <symbol or words>` finds the section and declaration.
   This is Effect 4, not 3, and Foldkit Plus is `0.x`: APIs move between
   minors. Unsure how a call behaves? Probe it in a scratch test first.
 

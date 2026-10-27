@@ -59,7 +59,13 @@ list under the rules below. APIs are `0.x` and may break between minors.
 | Syntax highlighting for a rich-text code block | nobody: tokens are derived decorations, never stored | `foldkit-richtext-code` (JSON) or `foldkit-richtext-code-shiki` (any Shiki grammar) (early) | [richtext.md](references/richtext.md) |
 
 Read only the reference for the package you are working with. Each has the
-mental model, a minimal example, common tasks, and gotchas. An application's
+mental model, a minimal example, common tasks, and gotchas. To find one
+symbol or topic, query the docs instead of reading a long file:
+`npx foldkit-plus docs Data.preload` (or `"optimistic delete"`) prints the
+best sections of the installed packages' READMEs and this skill, with the
+symbol's declaration from the installed types, each with its file and line;
+`docs --list remote` prints an outline. `npx foldkit-plus mcp` serves the
+same as MCP tools. An application's
 own `AGENTS.md` takes the working rules and traps in [agents-md.md](references/agents-md.md).
 
 ## How they connect
