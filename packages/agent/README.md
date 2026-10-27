@@ -101,21 +101,23 @@ const AppAgent = TodoAgent.make({
 Exposure is opt-in, and there is deliberately no `exposeAll()`.
 
 The contract is a declaration: it does not run `update` or register tools.
-Bind it to your existing runtime using three host functions: `currentModel`
-reads the current immutable Model, `sendToRuntime` dispatches a Message, and
-`onModelChange` subscribes a callback and returns an unsubscribe function.
-[The todo host](../../examples/todo/src/store.ts) implements that seam.
+Bind it to the running application. `Agent.host` takes the config you give
+Foldkit and returns it with a host beside it; start the config as you already
+do (`run`, `hydrate`, `embed`, or `SSR.hydrate`):
 
 ```ts
-const agentRuntime = TodoAgent.bind({
-  definition: AppAgent,
-  host: {
-    model: currentModel,
-    dispatch: sendToRuntime,
-    subscribe: onModelChange,
-  },
-})
+import * as Runtime from 'foldkit/runtime'
+
+const { config, host } = Agent.host({ Model, init, update, view, container })
+Runtime.run(Runtime.makeApplication(config))
+
+const agentRuntime = TodoAgent.bind({ definition: AppAgent, host })
 ```
+
+The runtime still owns the Model. The host reads the Model it committed and
+sends a Message into the runtime's own queue, so an agent's Message runs
+`update`, its Commands and its Subscriptions exactly as a click's does. See
+[The host](#the-host) for what it guarantees.
 
 Once bound, an in-process invocation uses the same path as a protocol adapter:
 
@@ -133,6 +135,48 @@ save completed. Add completion when the application's later result matters.
 The host must accept every Message the contract can construct -- a wider union
 is fine, a narrower one is a type error -- and a contract whose hooks read a
 principal must be given a `principal` provider of the matching type.
+
+### The host
+
+`bind` takes any `{ model, dispatch, subscribe?, observe?, principal? }`. Three
+things give one:
+
+| Where the application runs | Host |
+| --- | --- |
+| A page, on Foldkit's runtime | `Agent.host(config).host` |
+| A test or a server, with no view | `Agent.headless({ init, update, subscriptions?, resources? }).host` |
+| A local-first replica | what `Sync.mount` returns |
+
+Both hosts here behave the same:
+
+- `model()` is the Model the runtime committed last. It throws until the
+  runtime is running.
+- `dispatch(message)` returns a Promise that resolves once `update` has applied
+  that Message. It rejects while the runtime is not running, and when it stops
+  or crashes first, saying which. A capability without a completion contract
+  therefore reports success after its transition, not before it.
+- `subscribe` hears every transition that changed the Model; `observe` hears
+  every Message `update` applies, from the page, a Subscription, a Command or
+  an agent, so completion contracts work.
+
+A host has no policy: authorization lives in the contract, so pass the host to
+`bind`, never to an agent. Give the principal beside it:
+`host: { ...host, principal: () => principal }`.
+
+`Agent.host` refuses a config it has already hosted, and a second runtime
+started from one hosted config fails to boot: host each runtime with its own
+call.
+
+`Agent.headless` runs the same `init`, `update`, Commands and Subscriptions,
+with `resources` built once for its life, and no DOM. One per session is the
+server shape: give each the `RemoteClient` for that session's principal, and the
+server's Guards decide its writes as they do a browser's.
+[examples/kitchen-sink](https://github.com/doeixd/foldkit-plus/tree/main/examples/kitchen-sink)
+binds its agent to one, over the in-process Remote server. It does not run
+`managedResources`, `routing` or `ports` (each is a type error), and an
+interruptible Command (one with a `key`) crashes it, since Foldkit keeps its
+interrupt registry internal. A crash rejects every pending and later dispatch;
+`dispose()` stops it and releases `resources`.
 
 ### Wiring
 
@@ -174,6 +218,8 @@ Read current state before deciding whether to retry an effectful operation.
 | `Agent.forApplication(App)` / `Agent.forApplication(App).withPrincipal<Principal>()` | The above, with `Model` inferred from a `Surface.application`; `withPrincipal` fixes the `Principal` type, or takes it from the Context key a server reads it from (`withPrincipal(G.Principal)`), so the two are one type. |
 | `Agent.forModel<Model>()` | The same, when only a Model (no application) is available. |
 | `Agent.bind({ definition, host })` | Binds the contract to a live Runtime. |
+| `Agent.host(config)` | `{ config, host }`: the application config to start, and the host over the runtime started from it. |
+| `Agent.headless(config)` | `{ host, dispose }`: the application's `init`, `update`, Commands and Subscriptions run with no view. |
 | `Agent.schema/messages/resources/contextSchema` | Introspection, as plain data. |
 | `Agent.toManifest(definition)` | The contract as `agent.json`, for committing and diffing. |
 | `Agent.toMarkdown(definition)` | The contract as documentation. |
@@ -551,13 +597,17 @@ needs it, and adding it early would fix semantics nothing has asked for.
 
 ## Why the API looks like this
 
-**Why `bind` and a host, rather than a runtime option.** Foldkit `0.163.0`
+**Why `bind` and a host, rather than a runtime option.** Foldkit `0.169.0`
 accepts no `agent` option on `makeApplication`, and its runtime handle exposes
-neither the current Model nor a dispatch function, so an agent seam cannot be
-installed from outside Foldkit. `Agent.bind({ definition, host })` is that seam,
-with the application supplying `model` and `dispatch`. `Sync.mount` returns a
-host of the right shape; [examples/todo](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo) writes one
-by hand. If Foldkit later grows the option, it can construct the same seam.
+neither the current Model nor a dispatch function. `Agent.host` wraps the config
+instead, before any starter sees it, so one seam serves `run`, `hydrate`,
+`embed` and `SSR.hydrate` alike: its `update` records each commit, and one
+Subscription entry carries dispatched Messages into the runtime's queue.
+`Agent.bind({ definition, host })` then takes any host, which is why
+`Sync.mount` and a hand-written one ([examples/todo](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo))
+fit as well. The
+[design note](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/258-agent-host-DESIGN.md)
+records the alternatives.
 
 **Why `forApplication` and `forModel`, rather than plain `make`.** TypeScript
 cannot infer `Model` from an `available` callback alone, so `available: model =>
@@ -584,4 +634,5 @@ transition semantics or diverge from what replay shows.
   [`foldkit-agent-mcp`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent-mcp) over MCP, [`foldkit-agent-a2a`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent-a2a) over A2A, and
   [`foldkit-agent-native`](https://github.com/doeixd/foldkit-plus/tree/main/packages/agent-native) as Agent Native actions.
 - [`examples/todo`](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo) — a worked contract with a hand-written host; [`examples/todo-app`](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo-app)
-  binds one to a local-first application.
+  binds one to a local-first application; [`examples/kitchen-sink`](https://github.com/doeixd/foldkit-plus/tree/main/examples/kitchen-sink)
+  binds one to `Agent.headless`, its Remote over the in-process server.

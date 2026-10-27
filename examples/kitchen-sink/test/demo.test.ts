@@ -24,7 +24,8 @@ describe('kitchen sink', () => {
     // foldkit-durable + foldkit-sync
     expect(lines).toContain('replicated (durable journal): First note')
 
-    // foldkit-agent, driven by the agent and by a human
+    // foldkit-agent, bound to the application's own runtime
+    expect(lines).toContain('headless board (read by its Subscription): Ready Apollo II')
     expect(lines).toContain('capabilities: requested_create_note, rename_note, selected_note')
     expect(lines).toContain('notes after agent: First note, From the agent')
 

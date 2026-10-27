@@ -2,12 +2,11 @@ import type { Agent } from 'foldkit-agent'
 import { type Message, type Model, initialModel, update } from './app.js'
 
 /**
- * The seam between the agent contract and a running application.
- *
- * Foldkit `0.158.2` accepts no `agent` option on `makeApplication` and exposes
- * no Model or dispatch handle, so the application provides this. In a real app
- * `dispatch` would push a Message into the live Foldkit Runtime and `model`
- * would read the Model it holds; here it is a tiny loop over the same `update`.
+ * The seam between the agent contract and a running application, written by
+ * hand to show its shape: a tiny loop over the same `update`, running no
+ * Commands. A real application takes its host from `Agent.host(config)` (a
+ * page) or `Agent.headless(config)` (a test or a server), which read the
+ * Model the runtime holds and send Messages into it.
  */
 export interface Store {
   readonly host: Agent.AgentHost<Model, Message>

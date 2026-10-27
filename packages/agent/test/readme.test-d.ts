@@ -5,6 +5,9 @@
 import { Effect, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Action, Projection, Surface, type Wiring } from 'foldkit-surface'
+import type { Document, HtmlBuilder } from 'foldkit/html'
+import * as Runtime from 'foldkit/runtime'
+import type * as Update from 'foldkit/update'
 import { Agent } from '../src/index.js'
 
 const Todo = Schema.Struct({
@@ -48,18 +51,22 @@ const AppAgent = TodoAgent.make({
   }),
 })
 
-declare const currentModel: () => Model
-declare const sendToRuntime: (message: Message) => void
-declare const onModelChange: (listener: () => void) => () => void
+declare const init: () => Update.Return<Model, Message>
+declare const update: (model: Model, message: Message) => Update.Return<Model, Message>
+declare const view: (model: Model, h: HtmlBuilder<Message>) => Document
+declare const container: HTMLElement
 
-export const agentRuntime = TodoAgent.bind({
-  definition: AppAgent,
-  host: {
-    model: currentModel,
-    dispatch: sendToRuntime,
-    subscribe: onModelChange,
-  },
-})
+const { config, host } = Agent.host({ Model, init, update, view, container })
+Runtime.run(Runtime.makeApplication(config))
+
+export const agentRuntime = TodoAgent.bind({ definition: AppAgent, host })
+
+// The same application with no view, for a test or a server.
+{
+  const app = Agent.headless({ init, update })
+  TodoAgent.bind({ definition: AppAgent, host: app.host })
+  await app.dispose()
+}
 
 // The contract joins an assembly contract-only, so the Module sees it.
 const agentWiring: Wiring<Model, never> = AppAgent.wiring()

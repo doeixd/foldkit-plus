@@ -23,18 +23,24 @@ Agent.forApplication(App)[.withPrincipal<P>()]   builder: infers Model (and fixe
   .make({ context, messages, resources })        Definition: pure data, no I/O, no state
   .bind({ definition, host, audit? })            AgentRuntime: live policy over a host
       host = { model, dispatch, subscribe?, observe?, principal? }
+           = Agent.host(config).host       a page: the Foldkit runtime started from config
+           | Agent.headless(config).host   a test or server: init/update/Commands/Subscriptions, no view
+           | Sync.mount(...)               a local-first replica
   -> adapter (WebMCP / MCP / A2A / Agent Native)  translation only
 ```
 
 Each call runs the same pipeline: **resolve** the capability (by constructor or name), check **`available(model)`**, **decode** the input, check **`authorize`**, **construct and dispatch** the Message, then **await completion** if one is declared. A refusal before dispatch sends no Message. Steps 2 to 5 read **one Model snapshot**, taken once per invocation.
 
-Host fields: `model()` returns an immutable current Model. `dispatch(message)` may return void, a Promise, or an Effect. `subscribe` is needed for `Agent.when({ projection })` and for tools that follow the Model. `observe` sees every applied Message and is needed for Message completion. `principal(invocation)` is required when any hook reads a principal. `Sync.mount` returns a host of this shape.
+Host fields: `model()` returns an immutable current Model. `dispatch(message)` may return void, a Promise, or an Effect. `subscribe` is needed for `Agent.when({ projection })` and for tools that follow the Model. `observe` sees every applied Message and is needed for Message completion. `principal(invocation)` is required when any hook reads a principal. Never write one by hand over a copy of the Model: `Agent.host(config)` returns `{ config, host }`, the config to start with `run`/`hydrate`/`embed`/`SSR.hydrate` and a host over the runtime started from it; `Agent.headless({ init, update, subscriptions?, resources? })` returns `{ host, dispose }`; `Sync.mount` returns a host too. Their `dispatch` resolves once `update` applied the Message and rejects when the runtime is not running or stops first; `model()` throws until it runs. The runtime owns the Model; the host only reads it and queues Messages, and has no policy, so it goes to `bind`, never to an agent. `Agent.headless` refuses `managedResources`/`routing`/`ports` (type errors) and crashes on an interruptible Command.
 
 ## 3. Minimal example
 
 ```ts
 import { Effect, Option, Schema } from 'effect'
+import type { Document, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
+import * as Runtime from 'foldkit/runtime'
+import type * as Update from 'foldkit/update'
 import { Agent } from 'foldkit-agent'
 import { Projection, Surface } from 'foldkit-surface'
 
@@ -70,14 +76,16 @@ const AppAgent = TodoAgent.make({
 // The contract joins an assembly contract-only, so the Module sees it.
 const wiring = AppAgent.wiring()
 
-declare const currentModel: () => Model
-declare const sendToRuntime: (message: Message) => void
-declare const onModelChange: (listener: () => void) => () => void
+declare const init: () => Update.Return<Model, Message>
+declare const update: (model: Model, message: Message) => Update.Return<Model, Message>
+declare const view: (model: Model, h: HtmlBuilder<Message>) => Document
+declare const container: HTMLElement
 
-const agentRuntime = TodoAgent.bind({
-  definition: AppAgent,
-  host: { model: currentModel, dispatch: sendToRuntime, subscribe: onModelChange },
-})
+// The application starts the config as before; the host reads and drives that runtime.
+const { config, host } = Agent.host({ Model, init, update, view, container })
+Runtime.run(Runtime.makeApplication(config))
+
+const agentRuntime = TodoAgent.bind({ definition: AppAgent, host })
 
 // Both forms are type-checked. The constructor form survives renames.
 await Effect.runPromise(agentRuntime.messages.dispatch(Message.RequestedDeleteTodo, { id: 't1' }))
@@ -110,7 +118,7 @@ const Owned = OwnedAgent.make({
 declare const principalFromSession: () => Principal
 const ownedRuntime = OwnedAgent.bind({
   definition: Owned,
-  host: { model: currentModel, dispatch: sendToRuntime, principal: principalFromSession },
+  host: { ...host, principal: principalFromSession },
 })
 ```
 
@@ -237,7 +245,7 @@ registerPackageActions(AgentNative.actions({
   definition: Owned,
   resolveRuntime: context => OwnedAgent.bind({ // runs per invocation
     definition: Owned,
-    host: { model: currentModel, dispatch: sendToRuntime, principal: () => principalFor(context) },
+    host: { ...host, principal: () => principalFor(context) },
   }),
 }))
 ```

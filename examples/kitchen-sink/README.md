@@ -14,7 +14,11 @@ For URL and browser-storage mirroring, see
 2. Follow `notes` through the Sync contract and journal. These are
    client-authored operations; losing a pending outbox entry loses intent.
 3. Follow one agent capability back to the same application Message. The
-   protocol adapters change how it is called, not who owns the transition.
+   agent is bound to `Agent.headless`, the application's own `update`,
+   Commands and Subscriptions run with no view (Remote's read of the Board
+   among them), so the runtime owns the Model and the agent only sends
+   Messages. The protocol adapters change how it is called, not who owns the
+   transition.
 
 Start with [Remote](../remote/README.md) or [Sync](../sync/README.md) if the
 first two paths are unfamiliar. The kitchen sink is a composition example,
@@ -48,6 +52,7 @@ retained with the page: Project:p1, User:u1, Project:p2, Project:p3
 retained by the Board alone: Project:p1, User:u1
 hydrated: Ready Apollo II, plan empty
 replicated (durable journal): First note
+headless board (read by its Subscription): Ready Apollo II
 capabilities: requested_create_note, rename_note, selected_note
 agent context: {"notes":[{"id":"n1","body":"First note"}],"selectedNoteId":null}
 notes after agent: First note, From the agent
@@ -74,7 +79,7 @@ quietly stop demonstrating them.
 | Server SQL | `foldkit-remote-drizzle` | `Project` and `User` are Drizzle bindings over in-memory SQLite tables; the nested `owner` selection, the reads, and the query compile to SQL. |
 | Client-owned state | `foldkit-durable` | A `Journal.make` over the Sync contract orders the `notes` operations. |
 | Replication | `foldkit-sync` | A replica, an in-memory `Storage`, and `replica.start` exchanging through a `TransportClient`. |
-| Agent | `foldkit-agent` | One contract projected from the same Model and Messages. |
+| Agent | `foldkit-agent` | One contract projected from the same Model and Messages, bound to a headless runtime of the application. |
 | Agent browser | `foldkit-agent-webmcp` | The contract registered into a `document.modelContext` stand-in. |
 | Agent external | `foldkit-agent-mcp` | The transport-free MCP handler answers `initialize` and `tools/list`. |
 | Agent A2A | `foldkit-agent-a2a` | An Agent Card and a `message/send` task. |

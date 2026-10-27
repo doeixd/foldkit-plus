@@ -43,6 +43,7 @@ import {
   openReplica,
   serverClient,
   update,
+  wiring,
 } from './stack.js'
 import { AppAgent, bindAgent } from './agent.js'
 
@@ -261,25 +262,33 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   say(`replicated (durable journal): ${replicated.notes.map(note => note.body).join(', ')}`)
 
   // -------------------------------------------------------------------------
-  // The agent contract, driven by a human and by the agent
+  // The agent contract, bound to the application's own runtime
   // -------------------------------------------------------------------------
-  let live = { ...confirmed, notes: replicated.notes }
-  const listeners = new Set<() => void>()
-  const dispatch = (message: typeof Message.Type): void => {
-    live = update(live, message).model
-    for (const listener of listeners) listener()
-  }
+  // The runtime a server runs per session: `update`, its Commands, and the
+  // assembly's Subscriptions (Remote's reads among them) over the in-process
+  // server, with no view. It owns the Model; the agent only sends Messages.
+  const app = Agent.headless({
+    init: () => ({ model: { ...App.initial, notes: replicated.notes } }),
+    update,
+    subscriptions: wiring.subscriptions(),
+    resources: client,
+  })
+  const board = Data.live(ProjectSummary, 'p1')
+  const boardRead = await new Promise<string>(resolve => {
+    const check = () => {
+      const data = board.read(app.host.model())
+      if (data._tag !== 'Ready') return
+      stop()
+      resolve(describeData(data))
+    }
+    const stop = app.host.subscribe(check)
+    check()
+  })
+  say(`headless board (read by its Subscription): ${boardRead}`)
+
   const agent = bindAgent({
     definition: AppAgent,
-    host: {
-      model: () => live,
-      dispatch,
-      subscribe: listener => {
-        listeners.add(listener)
-        return () => listeners.delete(listener)
-      },
-      principal: () => ({ canWrite: true }),
-    },
+    host: { ...app.host, principal: () => ({ canWrite: true }) },
   })
 
   say(
@@ -291,7 +300,12 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   await Effect.runPromise(
     agent.messages.dispatch(Message.RequestedCreateNote, { id: 'n2', body: 'From the agent' }),
   )
-  say(`notes after agent: ${live.notes.map(note => note.body).join(', ')}`)
+  say(
+    `notes after agent: ${app.host
+      .model()
+      .notes.map(note => note.body)
+      .join(', ')}`,
+  )
 
   // -------------------------------------------------------------------------
   // The same contract, through each adapter
@@ -338,7 +352,12 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
       },
     },
   })
-  say(`notes after A2A: ${live.notes.map(note => note.body).join(', ')}`)
+  say(
+    `notes after A2A: ${app.host
+      .model()
+      .notes.map(note => note.body)
+      .join(', ')}`,
+  )
 
   const native = AgentNative.actions({ definition: AppAgent, resolveRuntime: () => agent })
   say(`native actions: ${Object.keys(native).join(', ')}`)
@@ -351,7 +370,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     rendered = slots.root.attrs()
     return h.article(slots.root.attrs(), [h.h2(slots.name.attrs(), [describeData(model.project)])])
   }).pipe(Style.attach(BoardStyle))
-  SurfaceView.render(BoardView, BoardSurface, undefined, live)
+  SurfaceView.render(BoardView, BoardSurface, undefined, app.host.model())
   say(`rendered classes: ${Attributes.find(rendered ?? [], 'Class')?.value ?? ''}`)
 
   // A `@foldkit/ui` component customised through `foldkit-mixins-ui`: the
@@ -377,5 +396,6 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   say(`mixins-ui button classes: ${buttonClasses || '(none)'}`)
 
   registration.unregister()
+  await app.dispose()
   return lines
 }

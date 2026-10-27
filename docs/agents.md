@@ -216,6 +216,14 @@ The contract is static application architecture. The host supplies runtime
 facts: the current Model, how to dispatch, how to follow Model changes, how to
 observe Messages for completion, and who the current principal is.
 
+`mounted` above is what `Sync.mount` returns. An application on Foldkit's own
+runtime gets its host from `Agent.host(config)`, which returns the config to
+start and a host over the runtime started from it; a test or a server runs the
+same `init`, `update`, Commands and Subscriptions with no view through
+`Agent.headless(config)`. Either way the runtime owns the Model, and the host
+only reads what it committed and queues Messages into it
+([the package README](../packages/agent/README.md#the-host)).
+
 A host only needs the capabilities the contract actually uses. For example,
 `observe` matters when a capability declares completion, while `subscribe`
 lets adapters such as WebMCP follow capabilities whose availability changes with

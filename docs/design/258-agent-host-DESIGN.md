@@ -55,7 +55,7 @@ its queue, so an agent's Message runs exactly as a click's does: through
 const { config, host } = Agent.host({ Model, init, update, view, container, subscriptions })
 Runtime.run(Runtime.makeApplication(config))   // or hydrate, embed, SSR.hydrate
 
-const agent = AppAgent_.bind({ definition: AppAgent, host: { ...host, principal } })
+const agent = TodoAgent.bind({ definition: AppAgent, host: { ...host, principal: () => principal } })
 ```
 
 `Agent.host` returns the config with three additions:
@@ -67,16 +67,25 @@ const agent = AppAgent_.bind({ definition: AppAgent, host: { ...host, principal 
   time-travel replays `update` over older Models, and those are not commits.
 - **One Subscription entry, `foldkit-agent/host`.** Its stream is the host's
   queue, so a dispatched Message enters through `enqueueMessage`, the queue the
-  DOM's events use. Its `modelToDependencies` runs first, synchronously, with
-  the Model the runtime booted with (fresh, hydrated, or restored by a
-  development reload, which skips `init`), which is when the host learns of it.
-  The stream's end is when the host learns the runtime stopped.
+  DOM's events use. The runtime reads its `modelToDependencies` first with the
+  Model it booted with (fresh, hydrated, or restored by a development reload,
+  which skips `init`, so wrapping `init` would miss it), before it processes any
+  Message. The stream's start is when the host starts accepting Messages, and
+  its end when the host learns the runtime stopped.
+
+  A runtime disposed before its Subscriptions start never starts that stream,
+  so never reports stopping. The host therefore tells a lagging read of the
+  Model (one `update` produced in this boot) from the next runtime's first
+  read, and a read of a Model it never produced while running is a second
+  runtime started from the same config, which it refuses by failing that
+  runtime's boot.
 - **`crash.report`, wrapped.** A crash stops the runtime processing Messages, so
   the host stops accepting them, then calls the application's own `report`.
 
-`model()` throws before the runtime has booted. `dispatch` returns a Promise
+`model()` throws until the runtime is running. `dispatch` returns a Promise
 that resolves once `update` has applied that Message, and rejects when the
-runtime is not running or stops first. A config already hosted is refused.
+runtime is not running or stops first, saying which. A config already hosted
+is refused.
 
 ## The headless runtime
 
@@ -101,7 +110,8 @@ What it does not run, and refuses rather than half-runs: `managedResources`,
 `routing` and `ports` are type errors, and an interruptible Command (one with a
 `key`) crashes it, since Foldkit's interrupt registry is internal and a
 shared one would let one session interrupt another's work. A Command that waits
-for a render (`Render.afterCommit`) has none to wait for.
+for a render (`Render.afterCommit`) falls back to the next animation frame, which
+a server does not have.
 
 This is a second implementation of Foldkit's loop, the cost the issue accepts
 for running an application where there is no document. It is kept to the
@@ -115,7 +125,7 @@ One headless runtime per session, signed in as that session's principal:
 ```ts
 createAgent: ({ principal }) => {
   const app = Agent.headless({ init, update, subscriptions, resources: clientFor(principal) })
-  return AppAgent_.bind({ definition: AppAgent, host: { ...app.host, principal: () => principal } })
+  return TodoAgent.bind({ definition: AppAgent, host: { ...app.host, principal: () => principal } })
 }
 ```
 
