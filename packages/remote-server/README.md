@@ -515,6 +515,43 @@ it where the server would not list it. A writer may refuse with
 rows they point at, so such a guard can tell a write that unlinks a hidden row
 from one that changes nothing; `foldkit-remote-drizzle`'s `writer` has both.
 
+### What an answer carries
+
+A Source answers the rows it changed; the client says what it shows of them.
+`Data.mutate` sends, with each request, what its active Surfaces read of each
+entity (`shown`). After the Source runs, the handler reads, of each row the
+outcome names (a patch, or a list insert), the shown fields the patch left out
+and every shown relation, and answers that read beside the patch (`read`):
+
+```text
+outcome rows × client's shown fields − fields the patch carries -> read -> answer
+```
+
+So a declared write, which answers the columns it stored, also answers the
+derived count, the `may` and the author's name the page reads of the row, and
+the client releases its optimistic layer with nothing left to fetch. The read
+is an ordinary one: the Sources' `read`, `authorize` and `filter` decide it, a
+field the asker may not read comes back settled, and a row they cannot see is
+left out of it, keeping what the patch gave.
+
+A Source whose write the server cannot see (a row of a join table, a count it
+keeps itself) names the row with no values, and the read answers all of it:
+
+```ts
+// A like in a join table changes its post: name the post, read nothing yourself.
+return { output: { liked: true }, entities: [Remote.patch(Post, input.postId, {})] }
+```
+
+The read runs after the write commits, outside its transaction. If it fails,
+the failure is logged and the mutation is answered without it: the write has
+landed, and the client fetches what it lacks as it would have. A deleted row is
+not read. A row the write changed that the outcome does not name (a post's
+`likeCount` after a `Like` is inserted) is not read either; name it, until a
+derived member that says what it counts lets the server find it
+([#245](https://github.com/doeixd/foldkit-plus/issues/245),
+[#233](https://github.com/doeixd/foldkit-plus/issues/233)). Live subscribers
+hear the outcome's own patches, not the read, which is one asker's view.
+
 Remote mutations are immediate requests against **server-owned** state. They are
 not a durable offline intent log; client-authored edits that must survive offline
 belong to `foldkit-sync`.

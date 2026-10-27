@@ -1119,10 +1119,14 @@ to Remote ref keys.
 `selectColumns` and `normalize` are the lower-level halves when you need them
 separately.
 
-**Return the whole row you wrote.** The client's store learns only what a
-mutation's `entities` patch, so a handler that updates a title and returns
-`{ output: {} }` leaves every screen showing the old title. When a handler
-writes more than it wants to list, `returning.row(binding, id)` reads the row
+**Name every row you wrote.** The client's store learns only of the rows a
+mutation's `entities` name, so a handler that updates a title and returns
+`{ output: {} }` leaves every screen showing the old title. Of each row named,
+the answer carries what the client's Surfaces show, read after the write
+([What an answer carries](../remote-server/README.md#what-an-answer-carries)),
+so `Remote.patch(Post, input.id, {})` is enough for the page that asked.
+Return the row's values too when live subscribers should hear them, since they
+hear the patch, not that read: `returning.row(binding, id)` reads the row
 back, every column with each `one` relation as its ref:
 
 ```ts
