@@ -217,6 +217,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-mixins-ui` is published one file per module,** so an application's
+  bundler keeps only the components and recipes it reads. Reading
+  `Recipes.Avatar` kept every recipe, `@foldkit/ui` and floating-ui; an
+  Avatar-only page fell from 238.6 kB to 99.2 kB gzipped. The entry is now
+  `dist/index.js` and `dist/index.d.ts` (#241).
 - **TagsInput keeps a draft typed across a frame drawn mid-burst.** When a
   frame was drawn while keys still arrived after a commit, and the draft it
   showed began like the tag just added (`react{Enter}react{Enter}`), the

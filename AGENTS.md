@@ -654,6 +654,13 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   rows, and a test that drew the slots as static markup passed. Set what a
   panel needs on the panel's own slot, and test a popup by opening the real
   component (`popupLadder.browser.test.ts`).
+- **A linked `export * as` is an object, and a page keeps all of it.** tsdown
+  linked `foldkit-mixins-ui` into one file, and rolldown wrote `export * as
+  Recipes` as an object of getters; reading `Recipes.Avatar` kept every recipe,
+  `@foldkit/ui` and floating-ui (238.6 kB gzipped, not 99.2). `sideEffects:
+  false` cannot help, and the examples never showed it because they resolve
+  source. Keep namespaces ESM (one entry per file, relative imports external,
+  `mixins-ui/tsdown.config.ts`), and measure a package's `dist`, not its source.
 - **An element holds one Mount.** Foldkit's `OnMount` replaces the vnode's
   `insert` hook, so a second one on an element silently drops the first. The
   mixins resolver composes the Mounts that Mixins contribute, but not one
@@ -1600,7 +1607,9 @@ of its own named a form field "fits the Catalog". Read words with
   tests import (`project.ts`, `docs.ts`).
 - **A new package export needs `pnpm --filter foldkit-plus generate`.**
   `foldkit-remote/testing` went in without it, and `generated.test.ts` failed
-  until `foldkit-plus` re-exported it.
+  until `foldkit-plus` re-exported it. Then run `pnpm paths`: the generator
+  adds the subpath but not its `paths` entry, and `paths:check` failed on the
+  generated `packages/plus/tsconfig.json`.
 - **Vitest 5 caches transformed modules on disk, keyed without the environment.**
   `fsModuleCache` is on by default in 5.0.4 (5.0.1 ran without it), so a
   plugin whose output depends on an environment variable (`pnpm mutate`'s
