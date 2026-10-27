@@ -261,12 +261,41 @@ That Layer cannot fail, so a post whose session ended is a `500` for now,
 not a way back to sign-in. Resolve the session in the host before calling
 `renderPage`, as `Site.access`'s 303 does, to answer it with a redirect.
 
+## SSR's page reads
+
+A server-rendered page reads what it shows before it renders, as whoever
+asked for it. The request is the page's own navigation: it carries no CSRF
+header, and, followed from a link elsewhere or typed into the address bar, no
+`Origin` and no `Sec-Fetch-Site: same-origin` either, so the resolver above
+refuses its cookie. `requests: 'navigation'` reads the cookie of a `GET` or
+`HEAD` without asking for either, as any server-rendered site reads its
+reader's session for the page they asked for, and refuses it on any other
+method:
+
+```ts
+import { pageReader } from 'foldkit-remote-server/fetch'
+
+const resolving = { auth: AppAuth, http, principal }
+const reader = pageReader({
+  server,
+  resolvePrincipal: AuthServer.resolver({ ...resolving, requests: 'navigation' }),
+  layer: () => AppAuthLive,
+})
+```
+
+It is for that reader alone. `pageReader` answers reads and refuses every
+write and live stream, so the checks this drops guard nothing there; given
+to `serveFetch`, it would let a page elsewhere post as the reader, so never
+give it there. [`examples/auth`](../../examples/auth)'s `src/host.ts` serves
+both from one fetch handler.
+
 ## Refusals
 
 | Request | Answer |
 | --- | --- |
 | No session cookie | a visitor |
 | A cookie, from a request without a trusted `Origin` or, lacking one, `Sec-Fetch-Site: same-origin` (and, for `'scripted'`, the CSRF header) | 401, `The request did not show it came from this application.` |
+| For `'navigation'`, a cookie on any method but `GET` and `HEAD` | 401, `The request did not show it came from this application.` |
 | A cookie that no longer verifies (signed out, expired, idle, revoked) | 401, `Your session ended.` |
 | Two session cookies | 401, `Sign in again.` |
 | `x-foldkit-subject` naming someone other than the session | 401, `Who is signed in changed.` (`SUBJECT_CHANGED`) |

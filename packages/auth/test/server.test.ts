@@ -395,6 +395,45 @@ describe("AuthServer.resolver for requests: 'browser'", () => {
   })
 })
 
+describe("AuthServer.resolver for requests: 'navigation'", () => {
+  const navigate = (method: string, headers: Record<string, string>) =>
+    Effect.runPromiseExit(
+      AuthServer.resolver({
+        requests: 'navigation',
+        auth: Verifier,
+        http,
+        principal: session => Effect.succeed(session.subjectId),
+      })(
+        new Request('https://app.test/notes', {
+          method,
+          headers: { cookie: '__Host-effect-auth-session=good', ...headers },
+        }),
+      ).pipe(Effect.provide(verifier(new Sessions.SessionInvalid()))),
+    )
+
+  it.each([
+    ['GET', 'followed from another site', { 'sec-fetch-site': 'cross-site' }],
+    ['GET', 'typed into the address bar', { 'sec-fetch-site': 'none' }],
+    ['HEAD', 'with no Fetch Metadata', {}],
+  ])(
+    'reads the cookie of a %s page %s, which sends no Origin or header',
+    async (method, _, headers) => {
+      expect(await navigate(method, headers)).toEqual(Exit.succeed(Option.some('ada')))
+    },
+  )
+
+  it('refuses the cookie of any other method, from wherever it came', async () => {
+    expect(await navigate('POST', fromApplication)).toEqual(
+      Exit.fail(
+        new RemoteUnauthenticated({
+          message: 'The request did not show it came from this application.',
+          reason: 'The request did not show it came from this application.',
+        }),
+      ),
+    )
+  })
+})
+
 describe('AuthServer.resolver with a key', () => {
   const believing = (believed: string) =>
     Effect.runPromiseExit(

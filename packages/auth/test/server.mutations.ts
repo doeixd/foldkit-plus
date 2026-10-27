@@ -285,4 +285,31 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a navigation must show it came from the application',
+    edits: [{ file, find: "    config.requests === 'navigation'\n", replace: '    false\n' }],
+    tests,
+  },
+  {
+    name: "a navigation's cookie is read on any method",
+    edits: [
+      {
+        file,
+        find: "      ? request.method === 'GET' || request.method === 'HEAD'\n",
+        replace: '      ? true\n',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a navigation is read on GET alone',
+    edits: [
+      {
+        file,
+        find: "request.method === 'GET' || request.method === 'HEAD'",
+        replace: "request.method === 'GET'",
+      },
+    ],
+    tests,
+  },
 ]

@@ -12,7 +12,7 @@ import { AuthPersistence } from '@yielded/auth-persistence'
 import { Context, Effect, Layer, type Option, Redacted, Schema } from 'effect'
 import { Remote } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
-import { serveFetch } from 'foldkit-remote-server/fetch'
+import { pageReader, serveFetch } from 'foldkit-remote-server/fetch'
 import { SSR } from 'foldkit-ssr'
 import { defineDocumentHost, type DocumentHostConfig } from 'foldkit-sync/do'
 import { believing } from 'foldkit-auth'
@@ -122,6 +122,17 @@ export const entry = SSR.entry(config, plan, {
   resources: request =>
     Layer.effect(Principal, whoPosted(request)).pipe(Layer.provide(AppAuthLive), Layer.orDie),
 })
+
+// ## SSR's page reads
+{
+  const resolving = { auth: AppAuth, http, principal }
+  const reader = pageReader({
+    server,
+    resolvePrincipal: AuthServer.resolver({ ...resolving, requests: 'navigation' }),
+    layer: () => AppAuthLive,
+  })
+  void reader
+}
 
 // ## Signing up
 // Its own block: the section names its contract and service as the others do.

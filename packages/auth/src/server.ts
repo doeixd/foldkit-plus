@@ -87,8 +87,13 @@ export interface ResolverConfig<I, S extends VerifiedSession, User, R> {
    * `Origin`. `'browser'`: what a browser sends on the page's behalf, a
    * WebSocket upgrade or a posted form, which carries no header of the
    * page's; its `Origin`, which every browser sends on one, vouches alone.
+   * `'navigation'`: a page the browser navigates to, for a render's reader
+   * that cannot write (`pageReader`): the cookie of a `GET` or `HEAD` is used
+   * with no `Origin` or header asked, as any server-rendered page reads its
+   * reader's session, since a link from anywhere opens one; on any other
+   * method it is refused.
    */
-  readonly requests?: 'scripted' | 'browser' | undefined
+  readonly requests?: 'scripted' | 'browser' | 'navigation' | undefined
   /**
    * Who the principal is, for the `x-foldkit-subject` check: the client
    * says who it believes it is by this, as `foldkit-guard`'s `Me` shows it
@@ -116,8 +121,10 @@ const resolver = <I, S extends VerifiedSession, User, R = never>(
   }
   const csrf = config.http.csrf ?? { header: 'x-effect-auth-csrf', value: '1' }
   const vouched = (request: Request): boolean =>
-    cameFrom(request, trusted) &&
-    (config.requests === 'browser' || request.headers.get(csrf.header) === csrf.value)
+    config.requests === 'navigation'
+      ? request.method === 'GET' || request.method === 'HEAD'
+      : cameFrom(request, trusted) &&
+        (config.requests === 'browser' || request.headers.get(csrf.header) === csrf.value)
   return request =>
     Effect.gen(function* () {
       const credentials = cookieValues(request.headers.get('cookie'), name)
