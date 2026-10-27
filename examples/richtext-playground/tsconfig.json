@@ -8,8 +8,10 @@
     "noEmit": false,
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "paths": {
+      "foldkit-example-site/demo-style": ["../site/src/demoStyle.ts"],
       "foldkit-example-site/demos": ["../site/src/demos.ts"],
       "foldkit-example-site/guide": ["../site/src/guide.ts"],
+      "foldkit-example-site/phone-audit": ["../site/src/phoneAudit.ts"],
       "foldkit-media": ["../../packages/media/src/index.ts"],
       "foldkit-media/browser": ["../../packages/media/src/browser/index.ts"],
       "foldkit-media/client": ["../../packages/media/client.d.ts"],

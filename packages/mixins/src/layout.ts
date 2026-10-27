@@ -46,7 +46,7 @@ export const intrinsic: StyleValue = self({
 
 export interface StackOptions {
   readonly gap?: string
-  /** `align-items`; children are full width unless they compose `intrinsic`. */
+  /** `align-items`; children are full width unless they compose `intrinsic` or set a width. */
   readonly align?: string
   /** Children after this one-based index are pushed to the end (`margin-block-start: auto`). */
   readonly split?: number
@@ -61,7 +61,10 @@ export const stack = (options: StackOptions = {}): StyleValue =>
       alignItems: 'var(--fk-l-align, stretch)',
       gap: GAP,
     }),
-    nest(`> :not(.${classOf(intrinsic)})`, { inlineSize: '100%', marginBlock: '0' }),
+    // Stretched, not `inline-size: 100%`: a child with no width of its own fills
+    // the stack, and one with a width (a checkbox's box) keeps it, which this
+    // layer would otherwise override.
+    nest(`> :not(.${classOf(intrinsic)})`, { alignSelf: 'stretch', marginBlock: '0' }),
     options.split === undefined
       ? empty
       : nest(`> :nth-child(${options.split})`, { marginBlockEnd: 'auto' }),

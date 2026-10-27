@@ -9,15 +9,19 @@ import { Query, Remote } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import { expectTypeOf } from 'vitest'
 import {
+  ConfirmSlots,
   ConfirmView,
   DetailView,
+  EditorSlots,
   EditorView,
   Empty,
   Failure,
+  ListSlots,
   ListView,
   Loading,
   Toolbar,
 } from '../src/index.js'
+import { Confirm, Editor, List } from '../src/recipes.js'
 
 const PostSort = Schema.Literals(['oldest', 'title'])
 const Post = Entity.define(
@@ -154,3 +158,13 @@ export const statuses = (slots: StatusSlots, h: HtmlBuilder<Message>): Html => {
     h,
   )
 }
+
+// A look for each view: the recipes over the views' Slots, and one extended.
+export const StyledTable = ListView.forMessages<Message>()
+  .define(PostList)
+  .pipe(Style.attach(Style.forSlots(ListSlots)(List({}))))
+export const roomier = List.extend({ base: { cell: { padding: '1rem 0.5rem' } } })({})
+export const editorLook = Style.forSlots(EditorSlots)(Editor({}))
+export const confirmLook = Style.forSlots(ConfirmSlots)(Confirm({}))
+// @ts-expect-error a List's open is 'row' or 'link'
+List({ open: 'cell' })

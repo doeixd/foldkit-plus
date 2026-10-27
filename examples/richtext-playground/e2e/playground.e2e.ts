@@ -62,6 +62,21 @@ const newLine = async (page: Page) => {
   await page.keyboard.press('Enter')
 }
 
+test('at a phone’s width nothing reaches past the edge of the page', async () => {
+  const errors: Array<string> = []
+  const page = await open(errors, { width: 390, height: 844 })
+  // What sticks out, named, so a failure says which element pushed it.
+  const past = await page.evaluate(() => {
+    const edge = document.documentElement.clientWidth
+    return [...document.querySelectorAll('body *')]
+      .filter(element => element.getBoundingClientRect().right > edge + 0.5)
+      .map(element => element.getAttribute('aria-label') ?? element.tagName.toLowerCase())
+  })
+  expect(past).toEqual([])
+  expect(errors).toEqual([])
+  await page.close()
+})
+
 test('an adornment flips its block’s prop: a task’s checkbox, a toggle’s arrow', async () => {
   const errors: Array<string> = []
   const page = await open(errors)

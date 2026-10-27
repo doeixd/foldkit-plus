@@ -32,6 +32,7 @@
     "ws": "^8.22.0"
   },
   "devDependencies": {
+    "@foldkit/vite-plugin": "0.28.0",
     "@effect/platform-browser": "^4.0.5",
     "@types/sql.js": "1.4.11",
     "@types/ws": "^8.18.2",

@@ -10,8 +10,9 @@
  */
 import { Option } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
-import { Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
-import { Loading, RowListSlots, RowListView } from 'foldkit-mixins-crud'
+import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
+import { EditorView, RowListView } from 'foldkit-mixins-crud'
+import { AppShell, Input } from 'foldkit-mixins-ui'
 import {
   AddForm,
   Data,
@@ -22,105 +23,59 @@ import {
   type Model,
   type TodoItem,
 } from './app.js'
+import { EditorStyle, NameStyle, Page, RowsStyle, ShellStyle } from './style.js'
 
-/** Busy words fade in only once the wait has lasted. The line's box is page.css. */
-const held = Loading.shown
-
-const IndicatorSlots = Slots.define({
-  line: Slot.make({ capability: Capability.Base }),
-})
-
-const Indicator = SlotView.forMessages<Message>()
-  .define(
-    IndicatorSlots,
-    (
-      input: {
-        readonly id: string
-        readonly busy: boolean
-        readonly alert: boolean
-        readonly text: string
-        readonly dismiss: boolean
-      },
-      slots,
-      h,
-    ) =>
-      h.p(
-        slots.line.attrs([
-          h.Id(input.id),
-          h.Role(input.alert ? 'alert' : 'status'),
-          ...(input.busy ? [h.AriaBusy(true)] : []),
-        ]),
-        [
-          input.text,
-          ...(input.dismiss
-            ? [' ', h.button([h.Type('button'), h.OnClick(Message.DismissedNotice())], ['Dismiss'])]
-            : []),
-        ],
-      ),
-  )
-  .pipe(Style.attach(Style.forSlots(IndicatorSlots)({ line: held })))
+type Slots = SlotBuilders<typeof Page.slots, Message>
 
 const TodoRows = RowListView.forMessages<Message>()
   .define<TodoItem>({ name: 'Todos' })
-  .pipe(Style.attach(Style.forSlots(RowListSlots)({ status: held })))
+  .pipe(Style.attach(RowsStyle))
 
-const status = (model: Model, h: HtmlBuilder<Message>): Html =>
+const RenameEditor = EditorView.forMessages<Message>()
+  .define({ name: 'Rename' })
+  .pipe(Style.attach(EditorStyle))
+
+/** The line above the form: a failure to dismiss, or "Saving…" while a write is out. */
+const status = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html =>
   Option.match(model.notice, {
     onSome: message =>
-      Indicator({ id: 'status', busy: false, alert: true, text: message, dismiss: true }, h),
+      h.p(slots.status.attrs([h.Id('status'), h.Role('alert')]), [
+        message,
+        h.button(slots.dismiss.attrs([h.Type('button'), h.OnClick(Message.DismissedNotice())]), [
+          'Dismiss',
+        ]),
+      ]),
     onNone: () => {
       const busy = Data.inspect(model).mutations.pending.length > 0
-      return Indicator(
-        {
-          id: 'status',
-          busy,
-          alert: false,
-          // Absent while idle: the line stays, and the words are busy-only,
-          // so a finished save does not leave "Saving…" on screen.
-          text: busy ? 'Saving…' : '',
-          dismiss: false,
-        },
-        h,
+      // Empty while idle: the line stays, and the words are busy-only, so a
+      // finished save does not leave "Saving…" on screen.
+      return h.p(
+        slots.status.attrs([h.Id('status'), h.Role('status'), ...(busy ? [h.AriaBusy(true)] : [])]),
+        busy ? ['Saving…'] : [],
       )
     },
   })
 
-const saveLine: Readonly<Record<string, string>> = {
-  Loading: 'Loading…',
-  NotFound: 'That todo does not exist.',
-  LoadFailed: 'The todo could not be read.',
-  Saving: 'Saving…',
-  Saved: 'Saved.',
-}
-
-const editor = (model: Model, h: HtmlBuilder<Message>): Html => {
+const editor = (model: Model, h: HtmlBuilder<Message>): ReadonlyArray<Html> => {
   const state = Rename.status(model)
-  if (state === 'Closed') return h.span([h.Hidden(true)], [])
-  const error = Rename.saveError(model)
-  const busy = state === 'Loading' || state === 'Saving'
-  return h.section(
-    [h.Id('editor')],
-    [
-      Indicator(
-        {
-          id: 'editor-status',
-          busy,
-          alert: state === 'SaveFailed' || state === 'NotFound' || state === 'LoadFailed',
-          text:
-            state === 'SaveFailed' ? `Not saved: ${error?.message ?? ''}` : (saveLine[state] ?? ''),
-          dismiss: false,
-        },
-        h,
-      ),
-      ...(state === 'Loading' || state === 'NotFound' || state === 'LoadFailed'
-        ? []
-        : [RenameForm.view(model, h, { words: { submit: 'Save' } })]),
-      h.button([h.Type('button'), h.OnClick(Message.ClosedEditor())], ['Close']),
-    ],
-  )
+  if (state === 'Closed') return []
+  return [
+    RenameEditor(
+      {
+        id: 'editor',
+        status: state,
+        title: 'Rename',
+        form: RenameForm.view(model, h, { words: { submit: 'Save' } }),
+        error: Rename.saveError(model)?.message,
+        onClose: Message.ClosedEditor(),
+        words: { notFound: 'That todo does not exist.', loadFailed: 'The todo could not be read.' },
+      },
+      h,
+    ),
+  ]
 }
 
-const rows = (model: Model, h: HtmlBuilder<Message>): Html =>
+const rows = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html =>
   TodoRows(
     {
       // Remote draws each row where `AllTodos`' order puts it, an inserted one too.
@@ -129,26 +84,28 @@ const rows = (model: Model, h: HtmlBuilder<Message>): Html =>
       onRetry: Message.RetriedTodos(),
       words: { empty: 'Nothing to do.', loading: 'Loading…' },
       row: (row, html) => [
-        html.input([
-          html.Type('checkbox'),
-          html.Checked(row.done === 1),
-          html.AriaLabel(`Done: ${row.title}`),
-          html.OnClick(Message.ToggledTodo({ id: row.id, title: row.title, done: row.done })),
-        ]),
+        html.input(
+          slots.done.attrs([
+            html.Type('checkbox'),
+            html.Checked(row.done === 1),
+            html.AriaLabel(`Done: ${row.title}`),
+            html.OnClick(Message.ToggledTodo({ id: row.id, title: row.title, done: row.done })),
+          ]),
+        ),
         html.button(
-          [
+          slots.title.attrs([
             html.Type('button'),
-            html.Class(row.done === 1 ? 'done' : 'title'),
+            html.DataAttribute('done', String(row.done === 1)),
             html.OnClick(Message.OpenedTodo({ id: row.id })),
-          ],
+          ]),
           [row.title],
         ),
         html.button(
-          [
+          slots.remove.attrs([
             html.Type('button'),
             html.AriaLabel(`Delete ${row.title}`),
             html.OnClick(Message.RemovedTodo({ id: row.id })),
-          ],
+          ]),
           ['Delete'],
         ),
       ],
@@ -156,32 +113,40 @@ const rows = (model: Model, h: HtmlBuilder<Message>): Html =>
     h,
   )
 
-export const view = (model: Model, h: HtmlBuilder<Message>): Html =>
-  h.main(
-    [],
-    [
-      h.h1([], ['Todos']),
-      h.p(
-        [h.Class('lede')],
-        [
-          'An edit shows at once. A slow save says Saving… without moving the list. Another tab sees it on the live stream.',
-        ],
-      ),
-      h.label(
-        [],
-        [
-          'Name ',
-          h.input([
-            h.Id('actor'),
-            h.Value(model.actorDraft),
-            h.OnInput(name => Message.ActorEdited({ name })),
-            h.OnBlur(Message.ActorCommitted()),
-          ]),
-        ],
-      ),
-      status(model, h),
-      AddForm.view(model, h, { words: { submit: 'Add' } }),
-      rows(model, h),
-      editor(model, h),
-    ],
+/** Who this tab writes as: sent as `x-actor`, and the key of the rows it keeps. */
+const actor = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html =>
+  Input.view(
+    {
+      id: 'actor',
+      value: model.actorDraft,
+      onInput: name => Message.ActorEdited({ name }),
+      style: NameStyle,
+      draw: (resolved, h) =>
+        h.label(slots.actor.attrs(), [
+          'Name',
+          h.input([...resolved.input, h.OnBlur(Message.ActorCommitted())]),
+        ]),
+    },
+    h,
   )
+
+export const view = (model: Model, h: HtmlBuilder<Message>): Html => {
+  const slots = SlotView.buildersFor(Page.slots, [Page.style.mixin], { input: undefined, h })
+  return AppShell.view(
+    { title: 'Todos', style: ShellStyle },
+    [
+      h.div(slots.content.attrs(), [
+        h.h1(slots.heading.attrs(), ['Todos']),
+        h.p(slots.lede.attrs(), [
+          'An edit shows at once. A slow save says Saving… without moving the list. Another tab sees it on the live stream.',
+        ]),
+        actor(model, slots, h),
+        status(model, slots, h),
+        AddForm.view(model, h, { words: { submit: 'Add' } }),
+        rows(model, slots, h),
+        ...editor(model, h),
+      ]),
+    ],
+    h,
+  )
+}

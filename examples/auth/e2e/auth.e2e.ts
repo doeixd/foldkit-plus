@@ -62,7 +62,8 @@ const open = async (errors: Array<string>, path = '/'): Promise<Page> => {
 }
 const who = (page: Page) => page.locator('#who').textContent({ timeout: 120_000 })
 const listed = (page: Page) => page.locator('#notes li').allTextContents()
-const admin = (page: Page) => page.locator('#admin').count()
+// The server's word on the row, drawn as a badge.
+const admin = (page: Page) => page.getByText('Admin', { exact: true }).count()
 const pathOf = (page: Page) => new URL(page.url()).pathname
 const titlesBy = (author: string) =>
   notes.filter(note => note.authorId === author).map(note => `${note.title} (${note.authorId})`)
@@ -91,7 +92,7 @@ const refusals = (page: Page): Array<number> => {
 const signIn = async (page: Page, subjectId: 'ada' | 'grace') => {
   const account = accounts.find(each => each.subjectId === subjectId)!
   await page.getByLabel('Email').fill(account.email)
-  await page.getByLabel('Password').fill(account.password)
+  await page.getByLabel('Password', { exact: true }).fill(account.password)
   await page.getByRole('button', { name: 'Sign in' }).click()
 }
 
@@ -208,10 +209,11 @@ test('a session the server no longer holds is refused, and a wrong password is t
   const page = await open(errors)
   await expect.poll(() => who(page)).toBe('Your session ended. Sign in again.')
   await page.getByLabel('Email').fill('ada@example.invalid')
-  await page.getByLabel('Password').fill('not her password')
+  await page.getByLabel('Password', { exact: true }).fill('not her password')
   await page.getByRole('button', { name: 'Sign in' }).click()
   await expect
-    .poll(() => page.locator('#notice').textContent())
+    // The notice, not the line saying who this tab is, which is an alert of its own here.
+    .poll(() => page.getByRole('alert').and(page.locator(':not(#who)')).textContent())
     .toBe('That email and password do not match.')
   // A sign-in reads `Me` once: this tab hears its own broadcast, and neither
   // forgets twice nor is refused for the change it made.

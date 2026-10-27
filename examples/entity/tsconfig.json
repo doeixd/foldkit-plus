@@ -12,12 +12,19 @@
       "foldkit-crud": ["../../packages/crud/src/index.ts"],
       "foldkit-entity": ["../../packages/entity/src/index.ts"],
       "foldkit-entity/conformance": ["../../packages/entity/src/conformance/index.ts"],
+      "foldkit-example-site/demo-style": ["../site/src/demoStyle.ts"],
+      "foldkit-example-site/demos": ["../site/src/demos.ts"],
+      "foldkit-example-site/guide": ["../site/src/guide.ts"],
+      "foldkit-example-site/phone-audit": ["../site/src/phoneAudit.ts"],
       "foldkit-form": ["../../packages/form/src/index.ts"],
       "foldkit-metadata": ["../../packages/metadata/src/index.ts"],
       "foldkit-mixins": ["../../packages/mixins/src/index.ts"],
       "foldkit-mixins-crud": ["../../packages/mixins-crud/src/index.ts"],
+      "foldkit-mixins-crud/recipes": ["../../packages/mixins-crud/src/recipes.ts"],
       "foldkit-mixins-form": ["../../packages/mixins-form/src/index.ts"],
+      "foldkit-mixins-form/recipes": ["../../packages/mixins-form/src/recipes.ts"],
       "foldkit-mixins-form/ui": ["../../packages/mixins-form/src/ui.ts"],
+      "foldkit-mixins-ui": ["../../packages/mixins-ui/src/index.ts"],
       "foldkit-mixins/app": ["../../packages/mixins/src/app.ts"],
       "foldkit-mixins/defaults": ["../../packages/mixins/src/defaults.ts"],
       "foldkit-mixins/foundations": ["../../packages/mixins/src/foundations.ts"],
@@ -49,6 +56,12 @@
   },
   "include": ["e2e/**/*.ts", "src/**/*.ts", "test/**/*.ts"],
   "references": [
+    {
+      "path": "../../packages/mixins-ui/tsconfig.build.json"
+    },
+    {
+      "path": "../site/tsconfig.json"
+    },
     {
       "path": "../../packages/metadata/tsconfig.build.json"
     },

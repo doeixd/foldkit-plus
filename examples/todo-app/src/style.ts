@@ -290,6 +290,10 @@ const badge = Style.recipe({
       border: '0',
       borderRadius: t.radius.full,
       padding: '0.1rem 0.55rem',
+      // A finger's target: the chip is as tall as one, its words centred in it.
+      minBlockSize: '1.5rem',
+      display: 'inline-flex',
+      alignItems: 'center',
       font: 'inherit',
       fontSize: '0.75rem',
       cursor: 'pointer',
@@ -320,8 +324,9 @@ export const ItemStyle = Style.forSlots(ItemSlots)(
       // A rule between rows only: the footer draws the line below the last.
       Style.pseudo(':not(:first-child)', { borderTop: `1px solid ${t.outline.subtle}` }),
       // `nest` styles a descendant from the row's own class, so hovering the
-      // row reveals its delete button without the view knowing.
-      Style.nest(' .item-remove', { opacity: '0' }),
+      // row reveals its delete button without the view knowing. Only where a
+      // pointer can hover: on a touch screen it would never show.
+      Style.at('@media (hover: hover)', Style.nest(' .item-remove', { opacity: '0' })),
       Style.pseudo(':is(:hover, :focus-within) .item-remove', { opacity: '1' }),
     ),
     title: Style.compose(
@@ -347,7 +352,9 @@ export const ItemStyle = Style.forSlots(ItemSlots)(
         lineHeight: '1',
         // Flush with the row's edge, where the footer's Clear completed ends.
         padding: '0',
-        inlineSize: '1.25rem',
+        // A finger's target, however small the ×.
+        inlineSize: '1.5rem',
+        blockSize: '1.5rem',
         cursor: 'pointer',
       }),
       Style.pseudo(':hover', { color: t.error.ink }),

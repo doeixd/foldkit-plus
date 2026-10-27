@@ -29,6 +29,7 @@ export const ResizableSlots = Slots.define({
   first: Slot.make({ capability: Capability.Container }),
   handle: Slot.make({ capability: Capability.Interactive }),
   second: Slot.make({ capability: Capability.Container }),
+  status: Slot.make({ capability: Capability.Container }),
 })
 
 const steps = new Map([
@@ -74,7 +75,7 @@ export const Resizable = SlotView.forMessages<Message>()
       h.div(slots.second.attrs([h.Style({ flex: '1', overflow: 'auto' })]), [
         h.p([], ['Pick a file to preview it.']),
       ]),
-      h.p([], [`First panel ${pct}%.`]),
+      h.p(slots.status.attrs(), [`First panel ${pct}%.`]),
     ])
   })
   .pipe(Style.attach(resizableStyle(ResizableSlots)))

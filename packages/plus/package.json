@@ -1,6 +1,6 @@
 {
   "name": "foldkit-plus",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "description": "Every Foldkit Plus package in one install, and `npx foldkit-plus setup`, which tells a coding agent how to start.",
   "keywords": [
     "foldkit",
@@ -323,6 +323,11 @@
       "types": "./dist/mixins-crud.d.mts",
       "import": "./dist/mixins-crud.mjs"
     },
+    "./mixins-crud/recipes": {
+      "foldkit-plus:source": "./src/mixins-crud/recipes.ts",
+      "types": "./dist/mixins-crud/recipes.d.mts",
+      "import": "./dist/mixins-crud/recipes.mjs"
+    },
     "./mixins-data-grid": {
       "foldkit-plus:source": "./src/mixins-data-grid.ts",
       "types": "./dist/mixins-data-grid.d.mts",
@@ -332,6 +337,11 @@
       "foldkit-plus:source": "./src/mixins-form/ui.ts",
       "types": "./dist/mixins-form/ui.d.mts",
       "import": "./dist/mixins-form/ui.mjs"
+    },
+    "./mixins-form/recipes": {
+      "foldkit-plus:source": "./src/mixins-form/recipes.ts",
+      "types": "./dist/mixins-form/recipes.d.mts",
+      "import": "./dist/mixins-form/recipes.mjs"
     },
     "./mixins-form": {
       "foldkit-plus:source": "./src/mixins-form.ts",

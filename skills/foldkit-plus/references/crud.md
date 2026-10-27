@@ -122,6 +122,9 @@ const subscriptions = Data.subscriptions({ authors: AuthorList.active })
 - `AuthorList.refresh(model)` (and a placed detail's `refresh`): the Model with
   it asked for again. Failed reads are not retried automatically; this is the
   retry.
+- `AuthorList.connection(model)`: the connection the list reads (`Option`), for
+  a write's `ConnectionChange.prepend/append/remove(list, ref)`; never rebuild
+  it with `Query.ref(input)`.
 - `Crud.options(EditPostForm, [AuthorList])(model)`: every relation picker of
   the form fed by the list over its target, keyed by the form's keys, for
   `foldkit-mixins-form`'s `options`. Needs `choice` on the list. A picker with no
@@ -218,6 +221,13 @@ onCancel, error? })` asks `Delete {name}?` and cannot confirm with no name;
 dialog, draw the `EditorView` inside your `foldkit-mixins-ui` Dialog: focus in,
 trapped, and back to the opener are the Dialog's. Escape closes the Dialog alone,
 so answer its `Closed` OutMessage with the editor's `close()`.
+
+The views ship unstyled; `foldkit-mixins-crud/recipes` has a look for each over the
+theme's tokens: `Style.forSlots(ListSlots)(List({ open: 'row' }))` (a quiet table whose
+rows open wherever pressed; `open: 'link'` keeps it to the title), `RowList({})` (for
+`RowListView`: lines a finger's height, divided by a rule), `Editor({})`,
+`Confirm({})` (the yes in the error's fill) and `Toolbar({})`. Adjust one with
+`.extend({ base: { cell: { padding: … } } })`.
 
 `Crud.screen('Post', { id: PostId })` names a page's four editor Messages
 (`messages`: `OpenedPost({ id })`, `CreatedPost()`, `ClosedPost()`,

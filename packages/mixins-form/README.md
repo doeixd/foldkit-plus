@@ -71,6 +71,32 @@ Messages to its reducer; submitting a valid form sends its decoded value to
 
 The next example replaces this unstyled `Drawn` with field and form styles.
 
+## A look for the field and the form
+
+The views draw unstyled Slots. `foldkit-mixins-form/recipes` gives both a look
+over the theme's tokens, as `foldkit-mixins-ui`'s `Recipes` do for its
+components (it needs `foldkit-mixins-ui` installed, as `/ui` does):
+
+```ts
+import { Style } from 'foldkit-mixins'
+import { FieldSlots, FormSlots, FormView } from 'foldkit-mixins-form'
+import { Field, Form } from 'foldkit-mixins-form/recipes'
+
+const Looked = FormView.define(Edit, {
+  field: FormView.field(Edit).pipe(Style.attach(Style.forSlots(FieldSlots)(Field({})))),
+}).pipe(Style.attach(Style.forSlots(FormSlots)(Form({}))))
+```
+
+- `Field({})` puts the label over the control and what the field says under it,
+  in a grid: a control with no width of its own stretches, a checkbox keeps its
+  box. Text, number, a select and a picker's search box take
+  `foldkit-mixins-ui`'s field looks, so a form drawn with `UiForm.renderers`
+  below looks the same. A failure reads in the error's ink.
+- `Form({})` sets the fields in a column, the list of fields to fix in the
+  error's colours, and the submit as the primary button, as wide as its words.
+
+Adjust one with `.extend`, never a fork, as `foldkit-mixins-crud/recipes` are.
+
 ## A form drawn through `foldkit-mixins-ui`
 
 Install `foldkit-mixins-ui` and its `@foldkit/ui` peer to use the optional

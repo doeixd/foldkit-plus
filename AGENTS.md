@@ -1348,6 +1348,11 @@ of its own named a form field "fits the Catalog". Read words with
   Playwright image passed. Put the caret at a block's end with a press past
   its last line (`caretAtEnd` in `playground.e2e.ts`), and reproduce in the
   Playwright image with `fonts-dejavu-core` installed.
+- **A phone zooms out to fit a page that overflows.** Under Playwright's
+  `isMobile`, a page 664px wide at 390px reported `innerWidth` 664, so a
+  sideways-scroll check of `scrollWidth - innerWidth` read 0 with the fault in
+  place. Measure against `document.documentElement.clientWidth`, the layout
+  viewport, and break a demo once to see the check fail.
 - **A moving element is never stable to Playwright.** `userEvent.hover` on
   a running Marquee's copy timed out ("element is not stable"), since the
   locator waits for the box to stop. Hover the still region around it.
@@ -1640,6 +1645,14 @@ of its own named a form field "fits the Catalog". Read words with
   package's last build (`mixins-richtext` did, for `foldkit-primitives`). A
   `tsconfig.build.json` does not inherit `references` from the config it
   extends: `richtext-code` and `richtext-markdown` had none.
+- **A Vite config's import of a workspace plugin runs in Node, past the source
+  condition.** `examples/chirp` imported `icons` from `foldkit-media/vite`:
+  locally that read a `dist` built before a fix and failed with the very error
+  the fix removed, and on CI, which builds no `dist`, Node loaded the plugin's
+  TypeScript source and could not find its `.js` imports, so `main`'s e2e went
+  red. A plugin whose source imports only types (`foldkit-mixins/foundations`)
+  survives; import any other by relative path to its source, which Vite bundles
+  into the config itself.
 - **Vitest's resolve conditions are its own, not Vite's.** Adding the source
   condition to Vite's defaults brought in `module`, which loaded
   `@opentelemetry/api`'s extensionless ESM build, and `browser`, which gave

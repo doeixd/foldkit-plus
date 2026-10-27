@@ -290,6 +290,37 @@ does for the Close button, or the dialog hides while the editor stays open and
 its row stays required. Every word is the view's `words`, text with
 blanks (`saveFailed: 'Not saved: {message}'`, `question: 'Delete {name}?'`).
 
+## A look for each view
+
+The views draw unstyled Slots. `foldkit-mixins-crud/recipes` gives each a look over
+the theme's tokens, as `foldkit-mixins-ui`'s `Recipes` do for its components:
+
+```ts
+import { Style } from 'foldkit-mixins'
+import { ConfirmSlots, EditorSlots, ListSlots, ListView } from 'foldkit-mixins-crud'
+import { Confirm, Editor, List } from 'foldkit-mixins-crud/recipes'
+
+const PostTable = ListView.forMessages<Message>()
+  .define(PostList)
+  .pipe(Style.attach(Style.forSlots(ListSlots)(List({}))))
+```
+
+- `List({ open })` is a quiet table: small headings over rows divided by a line,
+  each lit under the pointer. `open: 'row'` (the default) stretches the way into a
+  row across it, so a press anywhere on the row opens it; `open: 'link'` keeps it to
+  the title, drawn as a link, for rows with controls of their own. Nothing to list
+  says so in a dashed box; a wait says so only once it is noticeable.
+- `RowList({})` is `RowListView`'s rows as lines divided by a rule, each a finger's
+  height, its parts side by side; a row the list opens is a button across it. It
+  says what `List` says in place of its rows.
+- `Editor({})` is a card: the title, what the editor says (a failure in the error's
+  ink), the form, and the actions.
+- `Confirm({})` asks, with the yes in the error's fill.
+- `Toolbar({})` lays the controls in a row that wraps, the search widest.
+
+Adjust one with `.extend`, never a fork: `List.extend({ base: { cell: { padding:
+'1rem 0.5rem' } } })({})`, as the CMS example does for roomier rows.
+
 ## What is drawn
 
 | Part | Element | Slot |

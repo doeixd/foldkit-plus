@@ -17,6 +17,10 @@
       "foldkit-durable/core": ["../../packages/durable/src/core.ts"],
       "foldkit-entity": ["../../packages/entity/src/index.ts"],
       "foldkit-entity/conformance": ["../../packages/entity/src/conformance/index.ts"],
+      "foldkit-example-site/demo-style": ["../site/src/demoStyle.ts"],
+      "foldkit-example-site/demos": ["../site/src/demos.ts"],
+      "foldkit-example-site/guide": ["../site/src/guide.ts"],
+      "foldkit-example-site/phone-audit": ["../site/src/phoneAudit.ts"],
       "foldkit-guard": ["../../packages/guard/src/index.ts"],
       "foldkit-guard/agent": ["../../packages/guard/src/agent.ts"],
       "foldkit-guard/drizzle": ["../../packages/guard/src/drizzle.ts"],
@@ -24,6 +28,17 @@
       "foldkit-guard/server": ["../../packages/guard/src/server.ts"],
       "foldkit-guard/sync": ["../../packages/guard/src/sync.ts"],
       "foldkit-metadata": ["../../packages/metadata/src/index.ts"],
+      "foldkit-mixins": ["../../packages/mixins/src/index.ts"],
+      "foldkit-mixins-ui": ["../../packages/mixins-ui/src/index.ts"],
+      "foldkit-mixins/app": ["../../packages/mixins/src/app.ts"],
+      "foldkit-mixins/defaults": ["../../packages/mixins/src/defaults.ts"],
+      "foldkit-mixins/foundations": ["../../packages/mixins/src/foundations.ts"],
+      "foldkit-mixins/layers": ["../../packages/mixins/src/layers.ts"],
+      "foldkit-mixins/layout": ["../../packages/mixins/src/layout.ts"],
+      "foldkit-mixins/prose": ["../../packages/mixins/src/prose.ts"],
+      "foldkit-mixins/testing": ["../../packages/mixins/src/testing.ts"],
+      "foldkit-mixins/theme": ["../../packages/mixins/src/theme.ts"],
+      "foldkit-mixins/utilities": ["../../packages/mixins/src/utilities.ts"],
       "foldkit-primitives": ["../../packages/primitives/src/index.ts"],
       "foldkit-primitives/device": ["../../packages/primitives/src/device/index.ts"],
       "foldkit-primitives/dom": ["../../packages/primitives/src/dom/index.ts"],
@@ -54,6 +69,15 @@
   },
   "include": ["e2e/**/*.ts", "src/**/*.ts", "test/**/*.ts", "vite.config.ts"],
   "references": [
+    {
+      "path": "../site/tsconfig.json"
+    },
+    {
+      "path": "../../packages/mixins/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/mixins-ui/tsconfig.build.json"
+    },
     {
       "path": "../../packages/metadata/tsconfig.build.json"
     },

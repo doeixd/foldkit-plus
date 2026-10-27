@@ -3,7 +3,7 @@ name: foldkit-plus
 description: Explains Foldkit Plus packages (foldkit-surface, foldkit-remote with -server and -drizzle, foldkit-sync, foldkit-durable, foldkit-mirror, foldkit-site, foldkit-agent and its adapters, foldkit-mixins with -surface, -ui, -form and -crud, foldkit-react, foldkit-bundle, foldkit-primitives, foldkit-entity, foldkit-guard, foldkit-auth, foldkit-form with -recipes, foldkit-crud, foldkit-cms, foldkit-data-grid, foldkit-media), which owns which state, basic use. Use when starting a new Foldkit app, writing or reviewing one with a foldkit-* package, picking one for server data, offline sync, URL or storage state, route topology, AI agent tools, view styling, React interop, reusable Submodels, domain entities and invariants, authorization, Yielded Auth, forms, admin screens, a data grid, a CMS, images, icons, or when the user names Foldkit Plus, Surface, Projection, Remote, Sync, Mirror, Site.target, Agent.expose, Mixins, Bundle, Entity.select, Guards.declare, Form.make, Crud.editor, DataGrid.make, or Cms.content.
 license: MIT
 metadata:
-  version: '0.34.0'
+  version: '0.35.0'
   repository: https://github.com/doeixd/foldkit-plus
 ---
 

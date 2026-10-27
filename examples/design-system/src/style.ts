@@ -18,6 +18,7 @@ import { Utilities as U } from 'foldkit-mixins/utilities'
 import { masks } from './iconMasks.js'
 import {
   AlertSlots,
+  AppShellSlots,
   AvatarSlots,
   BreadcrumbSlots,
   ButtonGroupSlots,
@@ -46,6 +47,7 @@ import {
   SegmentedSlots,
   SelectSlots,
   SeparatorSlots,
+  SidebarSlots,
   SkeletonSlots,
   SliderSlots,
   SpinnerSlots,
@@ -83,8 +85,6 @@ export const PageSlots = Slots.define({
   controls: Slot.make({ capability: Capability.Container }),
   controlGroup: Slot.make({ capability: Capability.Container }),
   controlLabel: Slot.make({ capability: Capability.Container }),
-  nav: Slot.make({ capability: Capability.Container }),
-  navLink: Slot.make({ capability: Capability.Container }),
   section: Slot.make({ capability: Capability.Container }),
   sectionTitle: Slot.make({ capability: Capability.Container }),
   sectionText: Slot.make({ capability: Capability.Container }),
@@ -97,17 +97,21 @@ export const PageSlots = Slots.define({
   footer: Slot.make({ capability: Capability.Container }),
 })
 
+// The frame: the sections in a sidebar, which a phone opens as a sheet.
+export const AppShellStyle = app.forSlots(AppShellSlots)(Recipes.AppShell({ width: 'contained' }), {
+  name: 'AppShellStyle',
+})
+export const SidebarStyle = app.forSlots(SidebarSlots)(Recipes.Sidebar({}), {
+  name: 'SidebarStyle',
+})
+export const SidebarSheetStyle = app.forSlots(DialogSlots)(Recipes.Sheet({}), {
+  name: 'SidebarSheetStyle',
+})
+
 export const PageStyle = app.slots(
   {
-    root: [
-      L.in('layouts', Layout.stack({ gap: t.space.xl })),
-      U.mx('auto'),
-      {
-        boxSizing: 'border-box',
-        maxWidth: '64rem',
-        padding: `clamp(2rem, 6vw, 4rem) ${t.space.lg} ${t.space['2xl']}`,
-      },
-    ],
+    // The frame (AppShell) sets the page's width and margins; this stacks what is in it.
+    root: L.in('layouts', Layout.stack({ gap: t.space.xl })),
     header: L.in('layouts', Layout.stack({ gap: t.space.xs })),
     eyebrow: [U.m('0'), U.text('sm'), U.font('semibold'), U.color('text.muted')],
     title: [
@@ -131,23 +135,6 @@ export const PageStyle = app.slots(
     ],
     controlGroup: L.in('layouts', Layout.stack({ gap: t.space['2xs'] })),
     controlLabel: [U.m('0'), U.text('xs'), U.font('semibold'), U.color('text.muted')],
-    nav: [
-      L.in('layouts', Layout.cluster({ gap: t.space.sm })),
-      {
-        position: 'sticky',
-        top: '0',
-        zIndex: '10',
-        paddingBlock: t.space.xs,
-        background: t.surface.base,
-        borderBlockEnd: `${t.border.thin} solid ${t.outline.subtle}`,
-      },
-    ],
-    navLink: [
-      U.text('sm'),
-      U.font('medium'),
-      { color: t.text.muted, textDecoration: 'none' },
-      Style.pseudo(':hover', { color: t.text.overt }),
-    ],
     section: [L.in('layouts', Layout.stack({ gap: t.space.md })), { scrollMarginTop: '4rem' }],
     sectionTitle: [
       U.m('0'),

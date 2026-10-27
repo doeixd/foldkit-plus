@@ -1,6 +1,6 @@
 {
   "name": "foldkit-guard",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Who may do what, declared once on a Foldkit Plus domain: principal guards implemented on the server, row guards as query expressions.",
   "keywords": [
     "foldkit",

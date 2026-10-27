@@ -52,6 +52,21 @@ describe('Connection.merge', () => {
     expect(merged).toEqual(connection)
   })
 
+  it('keeps an empty, whole page as evidence the list is empty, until a page with rows', () => {
+    const empty = merge(emptyConnection, segment([], terminal, terminal))
+    expect(empty.segments).toEqual([segment([], terminal, terminal)])
+    expect(hasNext(empty)).toBe(false)
+    const filled = merge(empty, page(['a', 'b'], terminal, cursor('c1')))
+    expect(filled.segments).toEqual([page(['a', 'b'], terminal, cursor('c1'))])
+  })
+
+  it('ignores an empty page that is not the whole list, or arrives over held rows', () => {
+    expect(merge(emptyConnection, segment([], terminal, cursor('c1')))).toEqual(emptyConnection)
+    expect(merge(emptyConnection, segment([], cursor('c1'), terminal))).toEqual(emptyConnection)
+    const held = merge(emptyConnection, page(['a'], terminal, cursor('c1')))
+    expect(merge(held, segment([], terminal, terminal))).toEqual(held)
+  })
+
   it('reports no next/previous for an empty connection', () => {
     expect(hasPrevious(emptyConnection)).toBe(false)
     expect(hasNext(emptyConnection)).toBe(false)

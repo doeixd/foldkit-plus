@@ -5,6 +5,7 @@
  * and `resolve` applies them to bundles already in hand.
  */
 export * as Alert from './alert.js'
+export * as AppShell from './appShell.js'
 export * as AspectRatio from './aspectRatio.js'
 export * as Anchor from './anchor.js'
 export * as Avatar from './avatar.js'
@@ -98,6 +99,7 @@ export * as FloatingPanel from './floatingPanel.js'
 export * as Tour from './tour.js'
 
 export { AlertSlots } from './alert.js'
+export { AppShellSlots } from './appShell.js'
 export type { AlertAction, AlertView, BannerAlert, InlineAlert } from './alert.js'
 export { AspectRatioSlots } from './aspectRatio.js'
 export { AvatarGroupSlots, AvatarSlots } from './avatar.js'

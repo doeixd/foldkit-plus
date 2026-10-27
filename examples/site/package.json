@@ -11,6 +11,14 @@
     "./guide": {
       "foldkit-plus:source": "./src/guide.ts",
       "default": "./src/guide.ts"
+    },
+    "./demo-style": {
+      "foldkit-plus:source": "./src/demoStyle.ts",
+      "default": "./src/demoStyle.ts"
+    },
+    "./phone-audit": {
+      "foldkit-plus:source": "./src/phoneAudit.ts",
+      "default": "./src/phoneAudit.ts"
     }
   },
   "scripts": {

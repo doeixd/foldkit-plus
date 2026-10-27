@@ -36,6 +36,7 @@ import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import {
   Alert,
   Anchor,
+  AppShell,
   Avatar,
   Breadcrumb,
   Button,
@@ -68,6 +69,7 @@ import {
   SegmentedSlots,
   Select,
   Separator,
+  Sidebar,
   Skeleton,
   Slider,
   Spinner,
@@ -148,6 +150,9 @@ import {
   ToastStyle,
   ToggleStyle,
   TooltipStyle,
+  AppShellStyle,
+  SidebarStyle,
+  SidebarSheetStyle,
 } from './style.js'
 
 // --- model -------------------------------------------------------------------
@@ -260,6 +265,7 @@ export const Model = Schema.Struct({
   files: Schema.Array(File.File),
   popover: UiPopover.Model,
   address: Schema.String,
+  sidebar: Sidebar.Model,
 })
 export type Model = typeof Model.Type
 
@@ -298,6 +304,7 @@ export const Message = defineMessageUnion({
   RemoveFile: { index: Schema.Number },
   Popover: { message: UiPopover.Message },
   AddressTyped: { value: Schema.String },
+  GotSidebar: { message: Sidebar.Message },
 })
 export type Message = typeof Message.Type
 
@@ -348,6 +355,7 @@ export const initModel = (today: CalendarDate): Model => ({
   files: [],
   popover: UiPopover.init({ id: 'details-popover' }),
   address: 'about',
+  sidebar: Sidebar.init({ id: 'sections', rows: [] }),
 })
 
 export const update = (model: Model, message: Message) =>
@@ -402,6 +410,7 @@ export const update = (model: Model, message: Message) =>
       model: modifyFields(model, { files: files => files.filter((_, at) => at !== index) }),
     }),
     Popover: ({ message }) => foldPopover(model, message),
+    GotSidebar: ({ message }) => foldSidebar(model, message),
     AddressTyped: ({ value }) => ({ model: modifyFields(model, { address: () => value }) }),
   })
 
@@ -520,6 +529,11 @@ const foldPopover = Update.foldChild({
     Opened: () => model => ({ model }),
     Closed: () => model => ({ model }),
   }),
+})
+
+const foldSidebar = Update.foldChild({
+  ...own('sidebar', Message.GotSidebar),
+  update: Sidebar.update,
 })
 
 /** The chosen action is the parent's fact; the menu already closed itself. */
@@ -1388,6 +1402,24 @@ const textSwatch = (slots: PageBuilders, h: HtmlBuilder<Message>, name: string):
     h.p(slots.swatchName.attrs(), [`${name}`]),
   ])
 
+/** The page's sections, in order: the sidebar links to each by its id. */
+const sections = [
+  ['colors', 'Colors'],
+  ['buttons', 'Buttons'],
+  ['form', 'Form'],
+  ['choice', 'Choice'],
+  ['menu', 'Menu'],
+  ['feedback', 'Feedback'],
+  ['overlays', 'Overlays'],
+  ['navigation', 'Navigation'],
+  ['calendar', 'Date'],
+  ['card', 'Card'],
+  ['display', 'Display'],
+  ['collections', 'Collections'],
+  ['utilities', 'Utilities'],
+  ['tokens', 'Tokens'],
+] as const
+
 export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
   const slots = SlotView.buildersFor(PageSlots, [PageStyle.style.mixin], { input: model, h })
   const rootOverride = rootOverrideOf(model)
@@ -1406,641 +1438,642 @@ export const view = (model: Model, h: HtmlBuilder<Message>): Document => {
   ].join('\n')
   return {
     title: 'Design system · Foldkit Plus',
-    body: h.main(
-      slots.root.attrs([
-        h.Style({
-          background: 'var(--fk-surface-base)',
-          color: 'var(--fk-text-default)',
-        }),
-      ]),
+    body: AppShell.view(
+      {
+        title: 'Design system',
+        side: Sidebar.view(
+          {
+            model: model.sidebar,
+            onMessage: message => Message.GotSidebar({ message }),
+            label: 'Sections',
+            groups: [
+              {
+                id: 'sections',
+                rows: sections.map(([id, label]) => ({ id, label, href: `#${id}` })),
+              },
+            ],
+            style: SidebarStyle,
+            sheet: [SidebarSheetStyle.mixin],
+          },
+          h,
+        ),
+        style: AppShellStyle,
+      },
       [
         h.style([], [rootOverride]),
-        h.header(slots.header.attrs(), [
-          h.p(slots.eyebrow.attrs(), ['Foldkit Plus · Design system']),
-          h.h1(slots.title.attrs(), ['Components in a shadcn skin']),
-          h.p(slots.lede.attrs(), [
-            'Every control below draws through a shipped foldkit-mixins-ui recipe over the shipped tokens. The shadcn look is two decisions: near-zero surface saturation with a larger radius, and one recipe selection per intent.',
-          ]),
-        ]),
-        h.div(slots.controls.attrs(), [
-          h.div(slots.controlGroup.attrs(), [
-            h.p(slots.controlLabel.attrs(), ['Accent hue (re-derives live)']),
-            h.div(slots.row.attrs(), [
-              ...hues.map(preset =>
-                Button.view(
-                  {
-                    label: preset.label,
-                    style: model.hue === preset.hue ? SecondaryButtonStyle : GhostButtonStyle,
-                    onClick: Message.HueSelected({ hue: preset.hue }),
-                  },
-                  h,
-                ),
-              ),
+        h.div(slots.root.attrs(), [
+          h.header(slots.header.attrs(), [
+            h.p(slots.eyebrow.attrs(), ['Foldkit Plus · Design system']),
+            h.h1(slots.title.attrs(), ['Components in a shadcn skin']),
+            h.p(slots.lede.attrs(), [
+              'Every control below draws through a shipped foldkit-mixins-ui recipe over the shipped tokens. The shadcn look is two decisions: near-zero surface saturation with a larger radius, and one recipe selection per intent.',
             ]),
           ]),
-          h.div(slots.controlGroup.attrs(), [
-            h.p(slots.controlLabel.attrs(), ['Scheme']),
-            h.div(slots.row.attrs(), [
-              ...schemes.map(entry =>
-                Button.view(
-                  {
-                    label: entry.label,
-                    style: model.scheme === entry.scheme ? SecondaryButtonStyle : GhostButtonStyle,
-                    onClick: Message.SchemeSelected({ scheme: entry.scheme }),
-                  },
-                  h,
-                ),
-              ),
-            ]),
-          ]),
-          h.div(slots.controlGroup.attrs(), [
-            h.p(slots.controlLabel.attrs(), ['Shadow strength (dims every shadow)']),
-            h.div(slots.row.attrs(), [
-              ...shadows.map(preset =>
-                Button.view(
-                  {
-                    label: preset.label,
-                    style:
-                      model.shadow === preset.strength ? SecondaryButtonStyle : GhostButtonStyle,
-                    onClick: Message.ShadowSelected({ strength: preset.strength }),
-                  },
-                  h,
-                ),
-              ),
-            ]),
-          ]),
-        ]),
-        h.nav(slots.nav.attrs([h.AriaLabel('Sections')]), [
-          ...(
-            [
-              ['colors', 'Colors'],
-              ['buttons', 'Buttons'],
-              ['form', 'Form'],
-              ['choice', 'Choice'],
-              ['menu', 'Menu'],
-              ['feedback', 'Feedback'],
-              ['overlays', 'Overlays'],
-              ['navigation', 'Navigation'],
-              ['calendar', 'Date'],
-              ['card', 'Card'],
-              ['display', 'Display'],
-              ['collections', 'Collections'],
-              ['utilities', 'Utilities'],
-              ['tokens', 'Tokens'],
-            ] as const
-          ).map(([id, label]) => h.a(slots.navLink.attrs([h.Href(`#${id}`)]), [label])),
-        ]),
-        h.section(slots.section.attrs([h.Id('colors')]), [
-          h.h2(slots.sectionTitle.attrs(), ['Colors']),
-          h.p(slots.sectionText.attrs(), [
-            'Token families, as var(--fk-group-name) references. Picking a hue above rewrites one knob and every family follows.',
-          ]),
-          h.div(slots.swatchGrid.attrs(), [
-            ...['bedrock', 'base', 'subtle', 'muted', 'default', 'overt'].map(name =>
-              fillSwatch(slots, h, 'surface', name),
-            ),
-          ]),
-          h.div(slots.swatchGrid.attrs(), [
-            ...['subtle', 'default', 'overt', 'focus'].map(name =>
-              fillSwatch(slots, h, 'outline', name),
-            ),
-            ...['overt', 'default', 'muted', 'subtle', 'link'].map(name =>
-              textSwatch(slots, h, name),
-            ),
-          ]),
-          ...['accent', 'secondary', 'tertiary', 'success', 'warning', 'error', 'info'].map(
-            family =>
-              h.div(slots.swatchGrid.attrs(), [
-                ...['subtle', 'default', 'hover', 'outline', 'ink'].map(name =>
-                  fillSwatch(slots, h, family, name),
+          h.div(slots.controls.attrs(), [
+            h.div(slots.controlGroup.attrs(), [
+              h.p(slots.controlLabel.attrs(), ['Accent hue (re-derives live)']),
+              h.div(slots.row.attrs(), [
+                ...hues.map(preset =>
+                  Button.view(
+                    {
+                      label: preset.label,
+                      style: model.hue === preset.hue ? SecondaryButtonStyle : GhostButtonStyle,
+                      onClick: Message.HueSelected({ hue: preset.hue }),
+                    },
+                    h,
+                  ),
                 ),
               ]),
-          ),
-        ]),
-        h.section(slots.section.attrs([h.Id('buttons')]), [
-          h.h2(slots.sectionTitle.attrs(), ['Buttons']),
-          h.p(slots.sectionText.attrs(), [
-            `Default is primary ink, Secondary a neutral fill, then Outline, Ghost, and Destructive. Pressed ${model.clicks} ${model.clicks === 1 ? 'time' : 'times'} — every button dispatches.`,
+            ]),
+            h.div(slots.controlGroup.attrs(), [
+              h.p(slots.controlLabel.attrs(), ['Scheme']),
+              h.div(slots.row.attrs(), [
+                ...schemes.map(entry =>
+                  Button.view(
+                    {
+                      label: entry.label,
+                      style:
+                        model.scheme === entry.scheme ? SecondaryButtonStyle : GhostButtonStyle,
+                      onClick: Message.SchemeSelected({ scheme: entry.scheme }),
+                    },
+                    h,
+                  ),
+                ),
+              ]),
+            ]),
+            h.div(slots.controlGroup.attrs(), [
+              h.p(slots.controlLabel.attrs(), ['Shadow strength (dims every shadow)']),
+              h.div(slots.row.attrs(), [
+                ...shadows.map(preset =>
+                  Button.view(
+                    {
+                      label: preset.label,
+                      style:
+                        model.shadow === preset.strength ? SecondaryButtonStyle : GhostButtonStyle,
+                      onClick: Message.ShadowSelected({ strength: preset.strength }),
+                    },
+                    h,
+                  ),
+                ),
+              ]),
+            ]),
           ]),
-          h.div(slots.row.attrs(), [
-            Button.view(
-              { label: 'Default', style: PrimaryButtonStyle, onClick: Message.ButtonClicked() },
-              h,
+          h.section(slots.section.attrs([h.Id('colors')]), [
+            h.h2(slots.sectionTitle.attrs(), ['Colors']),
+            h.p(slots.sectionText.attrs(), [
+              'Token families, as var(--fk-group-name) references. Picking a hue above rewrites one knob and every family follows.',
+            ]),
+            h.div(slots.swatchGrid.attrs(), [
+              ...['bedrock', 'base', 'subtle', 'muted', 'default', 'overt'].map(name =>
+                fillSwatch(slots, h, 'surface', name),
+              ),
+            ]),
+            h.div(slots.swatchGrid.attrs(), [
+              ...['subtle', 'default', 'overt', 'focus'].map(name =>
+                fillSwatch(slots, h, 'outline', name),
+              ),
+              ...['overt', 'default', 'muted', 'subtle', 'link'].map(name =>
+                textSwatch(slots, h, name),
+              ),
+            ]),
+            ...['accent', 'secondary', 'tertiary', 'success', 'warning', 'error', 'info'].map(
+              family =>
+                h.div(slots.swatchGrid.attrs(), [
+                  ...['subtle', 'default', 'hover', 'outline', 'ink'].map(name =>
+                    fillSwatch(slots, h, family, name),
+                  ),
+                ]),
             ),
-            Button.view(
+          ]),
+          h.section(slots.section.attrs([h.Id('buttons')]), [
+            h.h2(slots.sectionTitle.attrs(), ['Buttons']),
+            h.p(slots.sectionText.attrs(), [
+              `Default is primary ink, Secondary a neutral fill, then Outline, Ghost, and Destructive. Pressed ${model.clicks} ${model.clicks === 1 ? 'time' : 'times'} — every button dispatches.`,
+            ]),
+            h.div(slots.row.attrs(), [
+              Button.view(
+                { label: 'Default', style: PrimaryButtonStyle, onClick: Message.ButtonClicked() },
+                h,
+              ),
+              Button.view(
+                {
+                  label: 'Secondary',
+                  style: SecondaryButtonStyle,
+                  onClick: Message.ButtonClicked(),
+                },
+                h,
+              ),
+              Button.view(
+                { label: 'Outline', style: OutlineButtonStyle, onClick: Message.ButtonClicked() },
+                h,
+              ),
+              Button.view(
+                { label: 'Ghost', style: GhostButtonStyle, onClick: Message.ButtonClicked() },
+                h,
+              ),
+              Button.view(
+                {
+                  label: 'Destructive',
+                  style: DestructiveButtonStyle,
+                  onClick: Message.ButtonClicked(),
+                },
+                h,
+              ),
+            ]),
+            h.div(slots.row.attrs(), [
+              Button.view(
+                { label: 'Small', style: SmallButtonStyle, onClick: Message.ButtonClicked() },
+                h,
+              ),
+              Button.view(
+                { label: 'Large', style: LargeButtonStyle, onClick: Message.ButtonClicked() },
+                h,
+              ),
+              Button.view({ label: 'Disabled', style: PrimaryButtonStyle, disabled: true }, h),
+            ]),
+            h.p(slots.sectionText.attrs(), [
+              'A joined group toggles real style: bold, italic, and underline write the Model, and the line below reads it back.',
+            ]),
+            ButtonGroup.view(
               {
-                label: 'Secondary',
-                style: SecondaryButtonStyle,
-                onClick: Message.ButtonClicked(),
+                label: 'Text style',
+                items: [
+                  Button.view(
+                    {
+                      label: 'B',
+                      style: model.bold ? SecondaryButtonStyle : OutlineButtonStyle,
+                      onClick: Message.BoldToggled({ value: !model.bold }),
+                    },
+                    h,
+                  ),
+                  Button.view(
+                    {
+                      label: 'I',
+                      style: model.italic ? SecondaryButtonStyle : OutlineButtonStyle,
+                      onClick: Message.ItalicToggled({ value: !model.italic }),
+                    },
+                    h,
+                  ),
+                  Button.view(
+                    {
+                      label: 'U',
+                      style: model.underline ? SecondaryButtonStyle : OutlineButtonStyle,
+                      onClick: Message.UnderlineToggled({ value: !model.underline }),
+                    },
+                    h,
+                  ),
+                ],
+                style: ButtonGroupStyle,
+              },
+              neverH,
+            ),
+            h.p(
+              slots.sectionText.attrs([
+                h.Style({
+                  fontWeight: model.bold ? '700' : '400',
+                  fontStyle: model.italic ? 'italic' : 'normal',
+                  textDecoration: model.underline ? 'underline' : 'none',
+                }),
+              ]),
+              ['The quick brown fox'],
+            ),
+          ]),
+          h.section(slots.section.attrs([h.Id('form')]), [
+            h.h2(slots.sectionTitle.attrs(), ['Form']),
+            h.p(slots.sectionText.attrs(), [
+              'Input, Textarea, Checkbox, and Switch, each a headless component resolved through its slot contract — plus a drop zone for attachments.',
+            ]),
+            Input.view(
+              {
+                id: 'name',
+                value: model.name,
+                onInput: (value: string) => Message.NameTyped({ value }),
+                placeholder: 'Ada Lovelace',
+                style: FieldStyle,
+                described: true,
+                draw: (resolved, h) =>
+                  h.div(
+                    [],
+                    [
+                      h.label(resolved.label, ['Name']),
+                      h.input(resolved.input),
+                      h.span(resolved.description, [
+                        `Hello${model.name === '' ? '' : `, ${model.name}`}.`,
+                      ]),
+                    ],
+                  ),
               },
               h,
             ),
-            Button.view(
-              { label: 'Outline', style: OutlineButtonStyle, onClick: Message.ButtonClicked() },
-              h,
-            ),
-            Button.view(
-              { label: 'Ghost', style: GhostButtonStyle, onClick: Message.ButtonClicked() },
-              h,
-            ),
-            Button.view(
+            Input.view(
               {
-                label: 'Destructive',
-                style: DestructiveButtonStyle,
-                onClick: Message.ButtonClicked(),
+                id: 'slug',
+                value: 'design-system',
+                placeholder: 'slug',
+                style: FilledFieldStyle,
+                draw: (resolved, h) =>
+                  h.div(
+                    [],
+                    [
+                      h.label(resolved.label, ['Slug (filled, read-only)']),
+                      h.input(resolved.input),
+                    ],
+                  ),
               },
               h,
             ),
-          ]),
-          h.div(slots.row.attrs(), [
-            Button.view(
-              { label: 'Small', style: SmallButtonStyle, onClick: Message.ButtonClicked() },
+            Textarea.view(
+              {
+                id: 'bio',
+                value: model.bio,
+                onInput: (value: string) => Message.BioTyped({ value }),
+                placeholder: 'What is this space for?',
+                rows: 3,
+                style: AreaStyle,
+                draw: (resolved, h) =>
+                  h.div([], [h.label(resolved.label, ['Bio']), h.textarea(resolved.textarea)]),
+              },
               h,
             ),
-            Button.view(
-              { label: 'Large', style: LargeButtonStyle, onClick: Message.ButtonClicked() },
+            UiCheckbox.view(
+              {
+                id: 'marketing',
+                isChecked: model.marketing,
+                onToggle: (value: boolean) => Message.MarketingToggled({ value }),
+                toView: Checkbox.toView([CheckStyle.mixin], { h }, resolved =>
+                  h.div(slots.row.attrs(), [
+                    h.button(resolved.checkbox, []),
+                    h.label(resolved.label, ['Marketing emails']),
+                    h.span(resolved.description, ['Product news, monthly.']),
+                  ]),
+                ),
+              },
               h,
             ),
-            Button.view({ label: 'Disabled', style: PrimaryButtonStyle, disabled: true }, h),
+            UiSwitch.view(
+              {
+                id: 'notifications',
+                isChecked: model.notifications,
+                onToggle: (value: boolean) => Message.NotificationsToggled({ value }),
+                toView: Switch.toView([ToggleStyle.mixin], { h }, resolved =>
+                  h.div(slots.row.attrs(), [
+                    h.button(resolved.button, []),
+                    h.label(resolved.label, ['Email notifications']),
+                    h.span(resolved.description, [
+                      model.notifications ? 'On: digests on Monday.' : 'Off.',
+                    ]),
+                  ]),
+                ),
+              },
+              h,
+            ),
+            FileDropDemo(model, slots, h),
           ]),
-          h.p(slots.sectionText.attrs(), [
-            'A joined group toggles real style: bold, italic, and underline write the Model, and the line below reads it back.',
+          h.section(slots.section.attrs([h.Id('choice')]), [
+            h.h2(slots.sectionTitle.attrs(), ['Choice']),
+            h.p(slots.sectionText.attrs(), [
+              'One value from many: a native Select, radio circles, a live slider — drag it or use the arrow keys — a listbox, a filtering combobox, and a Disclosure, each through its slot contract.',
+            ]),
+            UiSelect.view(
+              {
+                id: 'country',
+                value: model.country,
+                onChange: (value: string) => Message.CountrySelected({ value }),
+                hasDescription: true,
+                toView: Select.toView([SelectStyle.mixin], { h }, resolved =>
+                  h.div(
+                    [],
+                    [
+                      h.label(resolved.label, ['Country']),
+                      h.select(
+                        resolved.select,
+                        countries.map(([value, label]) => h.option([h.Value(value)], [label])),
+                      ),
+                      h.span(resolved.description, ['Where you currently reside.']),
+                    ],
+                  ),
+                ),
+              },
+              h,
+            ),
+            UiDisclosure.view(
+              {
+                id: 'details',
+                isOpen: model.detailsOpen,
+                onToggle: (value: boolean) => Message.DetailsToggled({ value }),
+                toView: Disclosure.toView([DisclosureStyle.mixin], { h }, resolved =>
+                  h.div(
+                    [],
+                    [
+                      h.button(resolved.button, [
+                        model.detailsOpen ? 'Hide project details' : 'Show project details',
+                      ]),
+                      model.detailsOpen
+                        ? h.div(resolved.panel, [
+                            'Six people, three open milestones, and one demo that keeps growing.',
+                          ])
+                        : h.empty,
+                    ],
+                  ),
+                ),
+              },
+              h,
+            ),
+            UiFieldset.view(
+              {
+                id: 'contact-prefs',
+                hasDescription: true,
+                toView: Fieldset.toView([FieldsetStyle.mixin], { h }, resolved =>
+                  h.fieldset(resolved.fieldset, [
+                    h.legend(resolved.legend, ['Preferred contact']),
+                    RadioDemo(model, h),
+                    h.span(resolved.description, [
+                      `Currently ${model.contact}. The group is a live radio: arrow keys move, the choice stays in the Model.`,
+                    ]),
+                  ]),
+                ),
+              },
+              h,
+            ),
+            SliderDemo(model, h),
+            ListboxDemo(model, h),
+            ComboboxDemo(model, h),
           ]),
-          ButtonGroup.view(
-            {
-              label: 'Text style',
-              items: [
-                Button.view(
-                  {
-                    label: 'B',
-                    style: model.bold ? SecondaryButtonStyle : OutlineButtonStyle,
-                    onClick: Message.BoldToggled({ value: !model.bold }),
-                  },
-                  h,
-                ),
-                Button.view(
-                  {
-                    label: 'I',
-                    style: model.italic ? SecondaryButtonStyle : OutlineButtonStyle,
-                    onClick: Message.ItalicToggled({ value: !model.italic }),
-                  },
-                  h,
-                ),
-                Button.view(
-                  {
-                    label: 'U',
-                    style: model.underline ? SecondaryButtonStyle : OutlineButtonStyle,
-                    onClick: Message.UnderlineToggled({ value: !model.underline }),
-                  },
-                  h,
-                ),
-              ],
-              style: ButtonGroupStyle,
-            },
-            neverH,
-          ),
-          h.p(
-            slots.sectionText.attrs([
-              h.Style({
-                fontWeight: model.bold ? '700' : '400',
-                fontStyle: model.italic ? 'italic' : 'normal',
-                textDecoration: model.underline ? 'underline' : 'none',
+          h.section(slots.section.attrs([h.Id('menu')]), [
+            h.h2(slots.sectionTitle.attrs(), ['Menu']),
+            h.p(slots.sectionText.attrs(), [
+              model.menuChoice === ''
+                ? 'Grouped actions with one disabled. Open it and pick one.'
+                : `Chose ${model.menuChoice}.`,
+            ]),
+            MenuDemo(model, h),
+          ]),
+          h.section(slots.section.attrs([h.Id('feedback')]), [
+            h.h2(slots.sectionTitle.attrs(), ['Feedback']),
+            h.p(slots.sectionText.attrs(), [
+              'One badge style serves every tone through data-state; alerts speak up in their own tones; toasts stack bottom-right and dismiss themselves.',
+            ]),
+            BadgesView(undefined, h),
+            Alert.view(
+              {
+                layout: 'inline',
+                title: 'Storage almost full',
+                description: 'Only 2 GB left on this project.',
+                icon: h.span([h.AriaHidden(true)], ['!']),
+                assertive: true,
+                style: AlertWarningStyle,
+              },
+              neverH,
+            ),
+            Alert.view(
+              {
+                layout: 'inline',
+                title: 'All checks passed',
+                description: 'The deploy finished in 42 seconds.',
+                icon: h.span([h.AriaHidden(true)], ['✓']),
+                style: AlertSuccessStyle,
+              },
+              neverH,
+            ),
+            h.div(slots.row.attrs(), [
+              Button.view(
+                {
+                  label: 'Delete this project?',
+                  style: DestructiveButtonStyle,
+                  onClick: Message.OpenDeleteDialog(),
+                },
+                h,
+              ),
+            ]),
+            DialogDemo(model, h),
+            h.div(slots.row.attrs(), [
+              Button.view(
+                { label: 'Notify', style: PrimaryButtonStyle, onClick: Message.NotifyPressed() },
+                h,
+              ),
+            ]),
+            ToastDemo(model, h),
+          ]),
+          h.section(slots.section.attrs([h.Id('overlays')]), [
+            h.h2(slots.sectionTitle.attrs(), ['Overlays']),
+            h.p(slots.sectionText.attrs(), [
+              'Floating UI with real state: a popover that anchors, a tooltip that shows on hover or focus, and a hover card. Escape or an outside press dismisses them.',
+            ]),
+            PopoverDemo(model, h),
+            TooltipDemo(model, h),
+            HoverDemo(model, h),
+          ]),
+          h.section(slots.section.attrs([h.Id('navigation')]), [
+            h.h2(slots.sectionTitle.attrs(), ['Navigation']),
+            h.p(slots.sectionText.attrs(), [
+              'Tabs in line and pill variants, and a Segmented plan picker — all driven by this page\u2019s own tab state.',
+            ]),
+            LineTabsView(model, h),
+            PillTabsView(model, h),
+            PlanView(model.plan, h),
+            h.p(slots.sectionText.attrs(), [
+              `Showing ${model.lineTab}, ${model.pillTab} view, ${model.plan} plan.`,
+            ]),
+            Pagination.view(
+              {
+                page: model.page,
+                pageCount: 10,
+                onPage: page => Message.PageSelected({ page }),
+                style: PaginationStyle,
+              },
+              h,
+            ),
+            h.p(slots.sectionText.attrs(), [`Page ${model.page} of 10.`]),
+            Breadcrumb.view(
+              {
+                steps: [
+                  { label: 'Projects', href: '#' },
+                  { label: 'Website', href: '#' },
+                  { label: 'Launch checklist', current: true },
+                ],
+                style: BreadcrumbStyle,
+              },
+              neverH,
+            ),
+          ]),
+          h.section(slots.section.attrs([h.Id('calendar')]), [
+            h.h2(slots.sectionTitle.attrs(), ['Date']),
+            h.p(slots.sectionText.attrs(), [
+              'A month grid preview through the Calendar slots, and a live picker that writes the due date. The picker shell rides attribute bundles; its grid draws through the same Calendar slots as the preview.',
+            ]),
+            CalendarPreview(15, h),
+            DatePickerDemo(model, h),
+            h.p(slots.sectionText.attrs(), [
+              Option.match(model.maybeDue, {
+                onNone: () => 'No due date yet.',
+                onSome: date => `Due ${formatIsoDate(date)}.`,
               }),
             ]),
-            ['The quick brown fox'],
-          ),
-        ]),
-        h.section(slots.section.attrs([h.Id('form')]), [
-          h.h2(slots.sectionTitle.attrs(), ['Form']),
-          h.p(slots.sectionText.attrs(), [
-            'Input, Textarea, Checkbox, and Switch, each a headless component resolved through its slot contract — plus a drop zone for attachments.',
           ]),
-          Input.view(
-            {
-              id: 'name',
-              value: model.name,
-              onInput: (value: string) => Message.NameTyped({ value }),
-              placeholder: 'Ada Lovelace',
-              style: FieldStyle,
-              described: true,
-              draw: (resolved, h) =>
-                h.div(
-                  [],
-                  [
-                    h.label(resolved.label, ['Name']),
-                    h.input(resolved.input),
-                    h.span(resolved.description, [
-                      `Hello${model.name === '' ? '' : `, ${model.name}`}.`,
-                    ]),
-                  ],
-                ),
-            },
-            h,
-          ),
-          Input.view(
-            {
-              id: 'slug',
-              value: 'design-system',
-              placeholder: 'slug',
-              style: FilledFieldStyle,
-              draw: (resolved, h) =>
-                h.div(
-                  [],
-                  [h.label(resolved.label, ['Slug (filled, read-only)']), h.input(resolved.input)],
-                ),
-            },
-            h,
-          ),
-          Textarea.view(
-            {
-              id: 'bio',
-              value: model.bio,
-              onInput: (value: string) => Message.BioTyped({ value }),
-              placeholder: 'What is this space for?',
-              rows: 3,
-              style: AreaStyle,
-              draw: (resolved, h) =>
-                h.div([], [h.label(resolved.label, ['Bio']), h.textarea(resolved.textarea)]),
-            },
-            h,
-          ),
-          UiCheckbox.view(
-            {
-              id: 'marketing',
-              isChecked: model.marketing,
-              onToggle: (value: boolean) => Message.MarketingToggled({ value }),
-              toView: Checkbox.toView([CheckStyle.mixin], { h }, resolved =>
-                h.div(slots.row.attrs(), [
-                  h.button(resolved.checkbox, []),
-                  h.label(resolved.label, ['Marketing emails']),
-                  h.span(resolved.description, ['Product news, monthly.']),
-                ]),
-              ),
-            },
-            h,
-          ),
-          UiSwitch.view(
-            {
-              id: 'notifications',
-              isChecked: model.notifications,
-              onToggle: (value: boolean) => Message.NotificationsToggled({ value }),
-              toView: Switch.toView([ToggleStyle.mixin], { h }, resolved =>
-                h.div(slots.row.attrs(), [
-                  h.button(resolved.button, []),
-                  h.label(resolved.label, ['Email notifications']),
-                  h.span(resolved.description, [
-                    model.notifications ? 'On: digests on Monday.' : 'Off.',
-                  ]),
-                ]),
-              ),
-            },
-            h,
-          ),
-          FileDropDemo(model, slots, h),
-        ]),
-        h.section(slots.section.attrs([h.Id('choice')]), [
-          h.h2(slots.sectionTitle.attrs(), ['Choice']),
-          h.p(slots.sectionText.attrs(), [
-            'One value from many: a native Select, radio circles, a live slider — drag it or use the arrow keys — a listbox, a filtering combobox, and a Disclosure, each through its slot contract.',
+          h.section(slots.section.attrs([h.Id('card')]), [
+            h.h2(slots.sectionTitle.attrs(), ['Card']),
+            h.p(slots.sectionText.attrs(), [
+              'The shadcn card: base surface, hairline border, large radius, soft shadow.',
+            ]),
+            CardView(model.clicks, h),
           ]),
-          UiSelect.view(
-            {
-              id: 'country',
-              value: model.country,
-              onChange: (value: string) => Message.CountrySelected({ value }),
-              hasDescription: true,
-              toView: Select.toView([SelectStyle.mixin], { h }, resolved =>
-                h.div(
-                  [],
-                  [
-                    h.label(resolved.label, ['Country']),
-                    h.select(
-                      resolved.select,
-                      countries.map(([value, label]) => h.option([h.Value(value)], [label])),
-                    ),
-                    h.span(resolved.description, ['Where you currently reside.']),
-                  ],
-                ),
-              ),
-            },
-            h,
-          ),
-          UiDisclosure.view(
-            {
-              id: 'details',
-              isOpen: model.detailsOpen,
-              onToggle: (value: boolean) => Message.DetailsToggled({ value }),
-              toView: Disclosure.toView([DisclosureStyle.mixin], { h }, resolved =>
-                h.div(
-                  [],
-                  [
-                    h.button(resolved.button, [
-                      model.detailsOpen ? 'Hide project details' : 'Show project details',
-                    ]),
-                    model.detailsOpen
-                      ? h.div(resolved.panel, [
-                          'Six people, three open milestones, and one demo that keeps growing.',
-                        ])
-                      : h.empty,
-                  ],
-                ),
-              ),
-            },
-            h,
-          ),
-          UiFieldset.view(
-            {
-              id: 'contact-prefs',
-              hasDescription: true,
-              toView: Fieldset.toView([FieldsetStyle.mixin], { h }, resolved =>
-                h.fieldset(resolved.fieldset, [
-                  h.legend(resolved.legend, ['Preferred contact']),
-                  RadioDemo(model, h),
-                  h.span(resolved.description, [
-                    `Currently ${model.contact}. The group is a live radio: arrow keys move, the choice stays in the Model.`,
-                  ]),
-                ]),
-              ),
-            },
-            h,
-          ),
-          SliderDemo(model, h),
-          ListboxDemo(model, h),
-          ComboboxDemo(model, h),
-        ]),
-        h.section(slots.section.attrs([h.Id('menu')]), [
-          h.h2(slots.sectionTitle.attrs(), ['Menu']),
-          h.p(slots.sectionText.attrs(), [
-            model.menuChoice === ''
-              ? 'Grouped actions with one disabled. Open it and pick one.'
-              : `Chose ${model.menuChoice}.`,
+          h.section(slots.section.attrs([h.Id('display')]), [
+            h.h2(slots.sectionTitle.attrs(), ['Display']),
+            h.p(slots.sectionText.attrs(), [
+              'Status at a glance, each in one view call: who is here, which keys to press, rules between things, placeholders while content loads, and a spinner that announces itself.',
+            ]),
+            h.div(slots.row.attrs(), [
+              Avatar.view({ name: 'Ada Lovelace', src: avatarTile, style: AvatarSmStyle }, neverH),
+              Avatar.view({ name: 'Grace Hopper', src: avatarTile, style: AvatarMdStyle }, neverH),
+              Avatar.view({ name: 'Alan Turing', src: avatarTile, style: AvatarLgStyle }, neverH),
+            ]),
+            h.p(slots.sectionText.attrs(), [
+              'Press ',
+              Kbd.view({ key: '⌘', style: KbdStyle }, neverH),
+              Kbd.view({ key: 'K', style: KbdStyle }, neverH),
+              ' to search.',
+            ]),
+            h.p(slots.sectionText.attrs(), ['Shipped']),
+            Separator.view({ style: SeparatorStyle }, neverH),
+            h.p(slots.sectionText.attrs(), ['Archived']),
+            h.div(slots.row.attrs(), [
+              h.span([], ['Draft']),
+              Separator.view({ orientation: 'vertical', style: SeparatorStyle }, neverH),
+              h.span([], ['Live']),
+            ]),
+            Skeleton.view({ label: 'Loading title', style: SkeletonStyle }, neverH),
+            Skeleton.view({ label: 'Loading body', style: SkeletonStyle }, neverH),
+            Skeleton.view({ label: 'Loading avatar', style: SkeletonCircleStyle }, neverH),
+            h.div(slots.row.attrs(), [
+              Spinner.view({ label: 'Loading projects', style: SpinnerStyle }, neverH),
+              h.span([], ['Loading projects']),
+            ]),
           ]),
-          MenuDemo(model, h),
-        ]),
-        h.section(slots.section.attrs([h.Id('feedback')]), [
-          h.h2(slots.sectionTitle.attrs(), ['Feedback']),
-          h.p(slots.sectionText.attrs(), [
-            'One badge style serves every tone through data-state; alerts speak up in their own tones; toasts stack bottom-right and dismiss themselves.',
-          ]),
-          BadgesView(undefined, h),
-          Alert.view(
-            {
-              layout: 'inline',
-              title: 'Storage almost full',
-              description: 'Only 2 GB left on this project.',
-              icon: h.span([h.AriaHidden(true)], ['!']),
-              assertive: true,
-              style: AlertWarningStyle,
-            },
-            neverH,
-          ),
-          Alert.view(
-            {
-              layout: 'inline',
-              title: 'All checks passed',
-              description: 'The deploy finished in 42 seconds.',
-              icon: h.span([h.AriaHidden(true)], ['✓']),
-              style: AlertSuccessStyle,
-            },
-            neverH,
-          ),
-          h.div(slots.row.attrs(), [
-            Button.view(
+          h.section(slots.section.attrs([h.Id('collections')]), [
+            h.h2(slots.sectionTitle.attrs(), ['Collections']),
+            h.p(slots.sectionText.attrs(), [
+              'Structured content: an empty state, a notification list, and a plain table with a numeric column.',
+            ]),
+            Empty.view(
               {
-                label: 'Delete this project?',
-                style: DestructiveButtonStyle,
-                onClick: Message.OpenDeleteDialog(),
+                title: 'No projects yet',
+                description: 'Create one to get started.',
+                icon: neverH.span([neverH.AriaHidden(true)], ['∅']),
+                style: EmptyStyle,
               },
-              h,
+              neverH,
+            ),
+            h.div(
+              SlotView.buildersFor(NoticeListSlots, [NoticeListStyle.style.mixin], {
+                input: undefined,
+                h,
+              }).list.attrs(),
+              [
+                Item.view(
+                  {
+                    media: neverH.span([neverH.AriaHidden(true)], ['●']),
+                    title: 'Deploy finished',
+                    description: '2 minutes ago',
+                    content: neverH.span([], ['Production is live.']),
+                    style: ItemStyle,
+                  },
+                  neverH,
+                ),
+                Separator.view({ style: SeparatorStyle }, neverH),
+                Item.view(
+                  {
+                    media: neverH.span([neverH.AriaHidden(true)], ['●']),
+                    title: 'Review requested',
+                    description: '1 hour ago',
+                    content: neverH.span([], ['The website redesign is ready.']),
+                    style: ItemStyle,
+                  },
+                  neverH,
+                ),
+                Separator.view({ style: SeparatorStyle }, neverH),
+                Item.view(
+                  {
+                    media: neverH.span([neverH.AriaHidden(true)], ['●']),
+                    title: 'Mentioned by Wren',
+                    description: 'Yesterday',
+                    content: neverH.span([], ['Feedback on the onboarding flow.']),
+                    style: ItemStyle,
+                  },
+                  neverH,
+                ),
+              ],
+            ),
+            Table.view(
+              {
+                caption: 'Team plans',
+                columns: [
+                  { header: 'Plan', value: row => row.plan },
+                  { header: 'Seats', numeric: true, value: row => String(row.seats) },
+                  { header: 'Price', value: row => row.price },
+                ],
+                rows: [
+                  { plan: 'Starter', seats: 5, price: 'Free' },
+                  { plan: 'Pro', seats: 25, price: '$20' },
+                  { plan: 'Enterprise', seats: 500, price: 'Custom' },
+                ],
+                style: TableStyle,
+              },
+              neverH,
             ),
           ]),
-          DialogDemo(model, h),
-          h.div(slots.row.attrs(), [
-            Button.view(
-              { label: 'Notify', style: PrimaryButtonStyle, onClick: Message.NotifyPressed() },
-              h,
+          h.section(slots.section.attrs([h.Id('utilities')]), [
+            h.h2(slots.sectionTitle.attrs(), ['Utilities']),
+            h.p(slots.sectionText.attrs(), [
+              'Mechanisms, not components: an InputGroup address field, attribute-dispatched icons with coarse-pointer touch targets, and the accessibility pattern catalog every adapter is gated against.',
+            ]),
+            InputGroupDemo(model.address, h),
+            h.p(slots.sectionText.attrs(), [`Previewing “/${model.address}”.`]),
+            h.p(slots.sectionText.attrs(), [
+              'A scroll area chains at its edge: the box scrolls instead of the page.',
+            ]),
+            ScrollArea.view(
+              {
+                content: h.div(
+                  [],
+                  [
+                    'The first line stays put while the rest moves.',
+                    'Chained scrolling stops here instead of taking the page with it.',
+                    'The bars stay thin in both schemes.',
+                    'Keyboard users reach it by Tab: the viewport is a stop.',
+                    'Twelve rems of box; the rest is overflow.',
+                    'Short lines, many of them: the box never grows.',
+                    'Each line is ordinary section text in a plain div.',
+                    'Nothing here dispatches; the demo scrolls, nothing more.',
+                    'Nine lines at this measure clear twelve rems.',
+                  ].map(line => h.p(slots.sectionText.attrs(), [line])),
+                ),
+                style: ScrollAreaStyle,
+              },
+              neverH,
             ),
+            IconsDemo(undefined, h),
+            h.div(slots.code.attrs(), [
+              Patterns.catalog
+                .map(
+                  entry =>
+                    `${entry.name} (${entry.tier}): roles [${entry.roles.join(', ')}] floor [${entry.floor.join(', ') || 'none'}]`,
+                )
+                .join('\n'),
+            ]),
           ]),
-          ToastDemo(model, h),
-        ]),
-        h.section(slots.section.attrs([h.Id('overlays')]), [
-          h.h2(slots.sectionTitle.attrs(), ['Overlays']),
-          h.p(slots.sectionText.attrs(), [
-            'Floating UI with real state: a popover that anchors, a tooltip that shows on hover or focus, and a hover card. Escape or an outside press dismisses them.',
+          h.section(slots.section.attrs([h.Id('tokens')]), [
+            h.h2(slots.sectionTitle.attrs(), ['Tokens']),
+            h.p(slots.sectionText.attrs(), [
+              'The whole skin, as application code. No forked CSS: knobs plus selections.',
+            ]),
+            h.div(slots.code.attrs(), [tokensCode]),
           ]),
-          PopoverDemo(model, h),
-          TooltipDemo(model, h),
-          HoverDemo(model, h),
-        ]),
-        h.section(slots.section.attrs([h.Id('navigation')]), [
-          h.h2(slots.sectionTitle.attrs(), ['Navigation']),
-          h.p(slots.sectionText.attrs(), [
-            'Tabs in line and pill variants, and a Segmented plan picker — all driven by this page\u2019s own tab state.',
+          h.p(slots.footer.attrs(), [
+            'Recipes, tokens, and the full specimen page live in foldkit-mixins-ui. This demo is local state plus selections.',
           ]),
-          LineTabsView(model, h),
-          PillTabsView(model, h),
-          PlanView(model.plan, h),
-          h.p(slots.sectionText.attrs(), [
-            `Showing ${model.lineTab}, ${model.pillTab} view, ${model.plan} plan.`,
-          ]),
-          Pagination.view(
-            {
-              page: model.page,
-              pageCount: 10,
-              onPage: page => Message.PageSelected({ page }),
-              style: PaginationStyle,
-            },
-            h,
-          ),
-          h.p(slots.sectionText.attrs(), [`Page ${model.page} of 10.`]),
-          Breadcrumb.view(
-            {
-              steps: [
-                { label: 'Projects', href: '#' },
-                { label: 'Website', href: '#' },
-                { label: 'Launch checklist', current: true },
-              ],
-              style: BreadcrumbStyle,
-            },
-            neverH,
-          ),
-        ]),
-        h.section(slots.section.attrs([h.Id('calendar')]), [
-          h.h2(slots.sectionTitle.attrs(), ['Date']),
-          h.p(slots.sectionText.attrs(), [
-            'A month grid preview through the Calendar slots, and a live picker that writes the due date. The picker shell rides attribute bundles; its grid draws through the same Calendar slots as the preview.',
-          ]),
-          CalendarPreview(15, h),
-          DatePickerDemo(model, h),
-          h.p(slots.sectionText.attrs(), [
-            Option.match(model.maybeDue, {
-              onNone: () => 'No due date yet.',
-              onSome: date => `Due ${formatIsoDate(date)}.`,
-            }),
-          ]),
-        ]),
-        h.section(slots.section.attrs([h.Id('card')]), [
-          h.h2(slots.sectionTitle.attrs(), ['Card']),
-          h.p(slots.sectionText.attrs(), [
-            'The shadcn card: base surface, hairline border, large radius, soft shadow.',
-          ]),
-          CardView(model.clicks, h),
-        ]),
-        h.section(slots.section.attrs([h.Id('display')]), [
-          h.h2(slots.sectionTitle.attrs(), ['Display']),
-          h.p(slots.sectionText.attrs(), [
-            'Status at a glance, each in one view call: who is here, which keys to press, rules between things, placeholders while content loads, and a spinner that announces itself.',
-          ]),
-          h.div(slots.row.attrs(), [
-            Avatar.view({ name: 'Ada Lovelace', src: avatarTile, style: AvatarSmStyle }, neverH),
-            Avatar.view({ name: 'Grace Hopper', src: avatarTile, style: AvatarMdStyle }, neverH),
-            Avatar.view({ name: 'Alan Turing', src: avatarTile, style: AvatarLgStyle }, neverH),
-          ]),
-          h.p(slots.sectionText.attrs(), [
-            'Press ',
-            Kbd.view({ key: '⌘', style: KbdStyle }, neverH),
-            Kbd.view({ key: 'K', style: KbdStyle }, neverH),
-            ' to search.',
-          ]),
-          h.p(slots.sectionText.attrs(), ['Shipped']),
-          Separator.view({ style: SeparatorStyle }, neverH),
-          h.p(slots.sectionText.attrs(), ['Archived']),
-          h.div(slots.row.attrs(), [
-            h.span([], ['Draft']),
-            Separator.view({ orientation: 'vertical', style: SeparatorStyle }, neverH),
-            h.span([], ['Live']),
-          ]),
-          Skeleton.view({ label: 'Loading title', style: SkeletonStyle }, neverH),
-          Skeleton.view({ label: 'Loading body', style: SkeletonStyle }, neverH),
-          Skeleton.view({ label: 'Loading avatar', style: SkeletonCircleStyle }, neverH),
-          h.div(slots.row.attrs(), [
-            Spinner.view({ label: 'Loading projects', style: SpinnerStyle }, neverH),
-            h.span([], ['Loading projects']),
-          ]),
-        ]),
-        h.section(slots.section.attrs([h.Id('collections')]), [
-          h.h2(slots.sectionTitle.attrs(), ['Collections']),
-          h.p(slots.sectionText.attrs(), [
-            'Structured content: an empty state, a notification list, and a plain table with a numeric column.',
-          ]),
-          Empty.view(
-            {
-              title: 'No projects yet',
-              description: 'Create one to get started.',
-              icon: neverH.span([neverH.AriaHidden(true)], ['∅']),
-              style: EmptyStyle,
-            },
-            neverH,
-          ),
-          h.div(
-            SlotView.buildersFor(NoticeListSlots, [NoticeListStyle.style.mixin], {
-              input: undefined,
-              h,
-            }).list.attrs(),
-            [
-              Item.view(
-                {
-                  media: neverH.span([neverH.AriaHidden(true)], ['●']),
-                  title: 'Deploy finished',
-                  description: '2 minutes ago',
-                  content: neverH.span([], ['Production is live.']),
-                  style: ItemStyle,
-                },
-                neverH,
-              ),
-              Separator.view({ style: SeparatorStyle }, neverH),
-              Item.view(
-                {
-                  media: neverH.span([neverH.AriaHidden(true)], ['●']),
-                  title: 'Review requested',
-                  description: '1 hour ago',
-                  content: neverH.span([], ['The website redesign is ready.']),
-                  style: ItemStyle,
-                },
-                neverH,
-              ),
-              Separator.view({ style: SeparatorStyle }, neverH),
-              Item.view(
-                {
-                  media: neverH.span([neverH.AriaHidden(true)], ['●']),
-                  title: 'Mentioned by Wren',
-                  description: 'Yesterday',
-                  content: neverH.span([], ['Feedback on the onboarding flow.']),
-                  style: ItemStyle,
-                },
-                neverH,
-              ),
-            ],
-          ),
-          Table.view(
-            {
-              caption: 'Team plans',
-              columns: [
-                { header: 'Plan', value: row => row.plan },
-                { header: 'Seats', numeric: true, value: row => String(row.seats) },
-                { header: 'Price', value: row => row.price },
-              ],
-              rows: [
-                { plan: 'Starter', seats: 5, price: 'Free' },
-                { plan: 'Pro', seats: 25, price: '$20' },
-                { plan: 'Enterprise', seats: 500, price: 'Custom' },
-              ],
-              style: TableStyle,
-            },
-            neverH,
-          ),
-        ]),
-        h.section(slots.section.attrs([h.Id('utilities')]), [
-          h.h2(slots.sectionTitle.attrs(), ['Utilities']),
-          h.p(slots.sectionText.attrs(), [
-            'Mechanisms, not components: an InputGroup address field, attribute-dispatched icons with coarse-pointer touch targets, and the accessibility pattern catalog every adapter is gated against.',
-          ]),
-          InputGroupDemo(model.address, h),
-          h.p(slots.sectionText.attrs(), [`Previewing “/${model.address}”.`]),
-          h.p(slots.sectionText.attrs(), [
-            'A scroll area chains at its edge: the box scrolls instead of the page.',
-          ]),
-          ScrollArea.view(
-            {
-              content: h.div(
-                [],
-                [
-                  'The first line stays put while the rest moves.',
-                  'Chained scrolling stops here instead of taking the page with it.',
-                  'The bars stay thin in both schemes.',
-                  'Keyboard users reach it by Tab: the viewport is a stop.',
-                  'Twelve rems of box; the rest is overflow.',
-                  'Short lines, many of them: the box never grows.',
-                  'Each line is ordinary section text in a plain div.',
-                  'Nothing here dispatches; the demo scrolls, nothing more.',
-                  'Nine lines at this measure clear twelve rems.',
-                ].map(line => h.p(slots.sectionText.attrs(), [line])),
-              ),
-              style: ScrollAreaStyle,
-            },
-            neverH,
-          ),
-          IconsDemo(undefined, h),
-          h.div(slots.code.attrs(), [
-            Patterns.catalog
-              .map(
-                entry =>
-                  `${entry.name} (${entry.tier}): roles [${entry.roles.join(', ')}] floor [${entry.floor.join(', ') || 'none'}]`,
-              )
-              .join('\n'),
-          ]),
-        ]),
-        h.section(slots.section.attrs([h.Id('tokens')]), [
-          h.h2(slots.sectionTitle.attrs(), ['Tokens']),
-          h.p(slots.sectionText.attrs(), [
-            'The whole skin, as application code. No forked CSS: knobs plus selections.',
-          ]),
-          h.div(slots.code.attrs(), [tokensCode]),
-        ]),
-        h.p(slots.footer.attrs(), [
-          'Recipes, tokens, and the full specimen page live in foldkit-mixins-ui. This demo is local state plus selections.',
         ]),
       ],
+      h,
     ),
   }
 }

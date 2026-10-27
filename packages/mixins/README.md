@@ -577,8 +577,8 @@ pieces: `unfilledHover`, `pressedHover`, `hover()`, `focusRing` and `disabled`.
 
 `foldkit-mixins/layout` ships the common arrangements as pieces: `Layout.stack`, `cluster`,
 `split`, `sidebar`, `switcher`, `reel`, `center`, `frame`, `pad`, and `autoGrid`, plus
-`Layout.intrinsic` (a stack child that keeps its own width) and `Layout.aside` (the sidebar
-child). Each compiles to rule text that is the same for every caller and reads `--fk-l-*`
+`Layout.intrinsic` (a stack child as wide as its content; one that sets a width keeps it
+anyway) and `Layout.aside` (the sidebar child). Each compiles to rule text that is the same for every caller and reads `--fk-l-*`
 variables with token fallbacks; the options only write those variables inline, so ten stacks
 with ten gaps are one rule and ten inline declarations. The pieces are unlayered; put them in
 `layouts`:

@@ -1,50 +1,27 @@
 /**
- * The resizable example, broken in turn:
- * `pnpm mutate examples/widgets/test/resizable.mutations.ts` checks that a
- * test fails for every one.
+ * The resizable split's layout, broken in turn: `pnpm mutate examples/widgets/test/resizable.mutations.ts`.
  */
-const tests = ['examples/widgets/test/resizable.test.ts']
+const file = '../src/style.ts'
+const tests = ['examples/widgets/test/resizable.browser.test.ts']
 
 export default [
   {
-    name: 'shares escape their bounds',
+    name: 'the status is a third column beside the panels',
     edits: [
       {
-        file: '../src/resizable/app.ts',
-        find: 'const clamped = Math.min(MAX, Math.max(MIN, share))',
-        replace: 'const clamped = share',
+        file,
+        find: "status: Style.self({ flexBasis: '100%', margin: '0' }),",
+        replace: "status: Style.self({ margin: '0' }),",
       },
     ],
     tests,
   },
   {
-    name: 'drags accumulate instead of measuring from the start',
+    name: 'the handle can be pressed only where it is drawn',
     edits: [
       {
-        file: '../src/resizable/app.ts',
-        find: 'const first = clampShare(model.from.value + message.delta / model.width)',
-        replace: 'const first = clampShare(model.first + message.delta / model.width)',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'moves size the unknown',
-    edits: [
-      {
-        file: '../src/resizable/app.ts',
-        find: 'if (Option.isNone(model.from) || model.width <= 0) return { model }',
-        replace: 'if (Option.isNone(model.from)) return { model }',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'the separator reports no range',
-    edits: [
-      {
-        file: '../src/resizable/view.ts',
-        find: 'h.AriaValuenow(pct),',
+        file,
+        find: "Style.nest('&::before', { content: '\"\"', position: 'absolute', inset: '0 -0.5rem' }),",
         replace: '',
       },
     ],

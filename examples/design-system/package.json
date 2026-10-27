@@ -16,6 +16,7 @@
     "foldkit-mixins-ui": "workspace:*"
   },
   "devDependencies": {
+    "@foldkit/vite-plugin": "0.28.0",
     "jsdom": "30.1.3",
     "typescript": "7.0.2",
     "vite": "8.3.5"

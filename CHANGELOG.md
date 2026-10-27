@@ -5,10 +5,65 @@ All notable changes to this project are recorded here. The project follows
 released from a version tag (`vX.Y.Z`). A release only republishes packages whose
 version changed; `pnpm` skips versions already in the registry.
 
-## Unreleased
+## 0.35.0
+
+Computed writes, and demos that look like one product. A declared update can
+set a field from the row and the input (`Write.update(input, { compute })`),
+which the Drizzle writer compiles into its `set`, Guard judges and Remote
+predicts; an operator describes itself as JSON, and its laws are evidence tied
+to the implementation they were tested on. `AppShell` is an application's page
+frame in `foldkit-mixins-ui`; `foldkit-mixins-crud/recipes` and
+`foldkit-mixins-form/recipes` give the CRUD views and forms a look over the
+theme's tokens; a placed CRUD list hands out the connection a write's
+optimistic insert names. A row created in an empty list now shows, and every
+published demo is audited on a phone in the e2e suite.
+
+Breaking: a style recipe with no variants refuses a selection (a type error
+where it compiled and did nothing); `Layout.stack` keeps a width a child sets;
+`Operators.describeTable` names each operator `name`; an increment of a real
+number expects a revision; `BoundWrite`, `EntityWriter.update` and a
+hand-built `BoundRemote` gain fields (see Changed). New minors:
+`foldkit-entity` 0.13.0, `foldkit-remote` 0.21.0, `foldkit-remote-server`
+0.18.0, `foldkit-remote-drizzle` 0.15.0, `foldkit-guard` 0.6.0, `foldkit-crud`
+0.11.0, `foldkit-mixins` 0.20.0, `foldkit-mixins-ui` 0.21.0,
+`foldkit-mixins-crud` 0.9.0 and `foldkit-mixins-form` 0.10.0. Fixed:
+`foldkit-media` 0.3.1 and `foldkit-mixins-data-grid` 0.2.15. Republished for
+the new versions they depend on: `foldkit-auth` 0.1.5, `foldkit-builder`
+0.3.14, `foldkit-cms` 0.8.1, `foldkit-cms-drizzle` 0.6.17,
+`foldkit-composition` 0.3.12, `foldkit-data-grid` 0.3.2, `foldkit-form` 0.8.1,
+`foldkit-form-recipes` 0.1.1, `foldkit-mixins-builder` 0.3.16,
+`foldkit-mixins-richtext` 0.5.7, `foldkit-mixins-surface` 0.6.9,
+`foldkit-primitives` 0.15.4, `foldkit-richtext` 0.5.3, `foldkit-richtext-code`
+0.2.5, `foldkit-richtext-code-shiki` 0.2.5, `foldkit-richtext-dom` 0.6.6,
+`foldkit-richtext-markdown` 0.3.4 and `foldkit-sync` 0.12.4. `foldkit-plus` is
+0.17.0.
 
 ### Added
 
+- **`foldkit-crud`: a placed list hands out its connection.**
+  `AuthorList.connection(model)` is the key the list reads, for a write's
+  optimistic insert or remove, so an application no longer rebuilds it from the
+  list's input (the Cloudflare example spelt `AllTodos.ref({})`), where another
+  input names a list nothing reads.
+- **`foldkit-mixins-form/recipes`: a look for the field and the form.** `Field({})`
+  (label over control, a checkbox kept its size, text, number, select and a
+  picker's search box in `foldkit-mixins-ui`'s field looks, a failure in the error's
+  ink) and `Form({})` (fields in a column, the list of fields to fix in the error's
+  colours, the submit as wide as its words), over the theme's tokens.
+- **`foldkit-mixins-crud/recipes`: a look for each view.** `List({ open })` (a quiet
+  table whose rows open wherever pressed), `RowList`, `Editor`, `Confirm` and `Toolbar`, over the
+  theme's tokens, for `Style.forSlots(ListSlots)(List({}))`. The views stay unstyled
+  without them. The CMS example's worklist now extends `List` rather than drawing its
+  own.
+- **`foldkit-mixins-ui`: `AppShell`, an application's page frame.** A skip link,
+  a header bar with the title, status and actions, an optional side column for a
+  `Sidebar`, the main region the skip link focuses, and a footer, from
+  `AppShell.view({ title, … }, main, h)`. It holds no state and draws the same on
+  a server. `Recipes.AppShell({ width })` keeps the header and side column in view
+  while the page scrolls and puts a Sidebar's phone opener in the header's row
+  below `md`. `Patterns.AppShell` is its accessibility contract.
+- **`foldkit-mixins`: a `width.page` token** (`72rem`), the widest a page's content
+  runs. `AppShell`'s `width: 'contained'` reads it.
 - **`examples/chirp`: a Twitter clone, published as a demo.** A timeline, a
   profile per person and a page per post; posting, editing your own posts in
   place, and likes. Posts are Entities with a guarded write (its author or an
@@ -149,9 +204,28 @@ version changed; `pnpm` skips versions already in the registry.
   `GuardDrizzle.visible` (its SQL table, and the policy's for what the input
   alone decides), so a server that starts can compile it whatever table its
   bindings were given.
+- **`Layout.stack` keeps a width a child sets.** Its child rule gave every child
+  `inline-size: 100%` from the `layouts` layer, which beats `components`, so a
+  checkbox in a stack drew 308 by 16; it now stretches each child
+  (`align-self: stretch`), which fills one with no width of its own as before
+  and leaves a set width alone. A text field no longer spills past the stack by
+  its padding where no `border-box` reset applies.
+- **`foldkit-mixins-data-grid`: a header's sort label and column menu button are
+  finger targets**, at least 24px (the menu button each way), where they were the
+  height of their words and glyph (about 21px tall and 30 by 23).
+- **`foldkit-remote`: a row created in an empty list shows.** An empty, complete
+  answer was stored as no segments at all, so placing a created row by the
+  list's declared order found nothing that ends the list and left the row out,
+  pending and confirmed: the Cloudflare example's first todo never appeared in
+  the tab that added it. Such an answer is now kept as one empty segment while
+  the list holds nothing else.
 
 ### Changed
 
+- **A recipe with no variants refuses a selection** (`Style.recipeFor`,
+  `Style.recipe`): `Field({ tone: 'quiet' })` compiled and did nothing, since an
+  empty selection type accepted any key; it is now a type error. Call such a
+  recipe with `{}` or nothing. `SlotRecipeSelection` is exported.
 - **`matching` skips a held row holding text with a NUL** rather than
   refusing the whole list, so one bad stored row no longer blanks a local
   filter (`filtered`). An input holding one still refuses, as the server

@@ -1,6 +1,6 @@
 {
   "name": "foldkit-form-recipes",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Field recipes for foldkit-form: dates, times, amounts, text-shaped keys and an uploaded image, each a control, a display and a renderer.",
   "keywords": [
     "foldkit",

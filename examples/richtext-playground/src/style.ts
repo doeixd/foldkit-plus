@@ -428,6 +428,10 @@ export const Page = A.slots({
       marginBlockEnd: t.space.md,
     }),
   ),
+  // The title and lede give way to the reset button: a flex item will not shrink
+  // below its content's width unless told, and at a phone's width it pushed the
+  // button past the edge.
+  intro: Style.self({ flex: '1 1 0', minInlineSize: '0' }),
   title: Style.self({ margin: '0', fontSize: t.size.lg, letterSpacing: '-0.02em' }),
   lede: Style.self({
     margin: `${t.space['2xs']} 0 0`,

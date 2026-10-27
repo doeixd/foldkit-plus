@@ -225,7 +225,21 @@ export const checkboxGroupStyle = (slots: typeof CheckboxGroupSlots) =>
     {
       root: Style.self({ display: 'grid', gap: '0.375rem', border: 'none', padding: '0' }),
       option: Style.compose(
-        Style.self({ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }),
+        // The whole row is the label, so it is the finger's target: at least 24px tall.
+        Style.self({
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          minBlockSize: '1.5rem',
+          cursor: 'pointer',
+        }),
+        // The box in the theme's accent, larger than the browser's 13px.
+        Style.nest('& > input', {
+          inlineSize: '1rem',
+          blockSize: '1rem',
+          margin: '0',
+          accentColor: accent,
+        }),
         focus,
       ),
     },
@@ -630,7 +644,14 @@ export const sidebarStyle = (slots: typeof SidebarSlots) =>
 export const resizableStyle = (slots: typeof ResizableSlots) =>
   Style.forSlots(slots)(
     {
-      root: Style.self({ display: 'flex', gap: '0.5rem', maxWidth: '40rem', minHeight: '12rem' }),
+      // The status wraps onto a row of its own, below the panels rather than beside them.
+      root: Style.self({
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '0.5rem',
+        maxWidth: '40rem',
+        minHeight: '12rem',
+      }),
       first: Style.self({ minWidth: '0' }),
       handle: Style.compose(
         Style.self({
@@ -639,11 +660,17 @@ export const resizableStyle = (slots: typeof ResizableSlots) =>
           borderRadius: '9999px',
           background: line,
           cursor: 'col-resize',
+          position: 'relative',
+          // A drag on the handle moves the split, not the page.
+          touchAction: 'none',
         }),
+        // A finger's target: the handle stays thin, its pressable area does not.
+        Style.nest('&::before', { content: '""', position: 'absolute', inset: '0 -0.5rem' }),
         focus,
         Style.pseudo(':hover', { background: accent }),
       ),
       second: Style.self({ minWidth: '0', color: muted }),
+      status: Style.self({ flexBasis: '100%', margin: '0' }),
     },
     { name: 'ShowcaseResizable' },
   )

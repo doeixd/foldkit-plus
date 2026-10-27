@@ -81,7 +81,8 @@ export const columns = GridCrud.columns(ProductList, {
     // Hidden, as its Display says; named, for the menu that shows it.
     id: { header: 'Product id', width: 110 },
     // Widths that fit a device's pane in the sandbox, two side by side.
-    upc: { pinned: 'start', width: 130, hideable: false },
+    // Wide enough for a UPC's twelve digits and the cell's padding, so none is cut.
+    upc: { pinned: 'start', width: 150, hideable: false },
     description: {
       width: 220,
       minWidth: 120,

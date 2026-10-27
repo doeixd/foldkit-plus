@@ -61,6 +61,16 @@ const counts = () => page.locator('#counts').textContent()
 const rowsInPage = () =>
   page.locator('#products [role="row"][aria-rowindex]:not([aria-rowindex="1"])').count()
 
+test('a UPC shows whole, every digit in its cell', async () => {
+  await open()
+  const cut = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('#products [role="gridcell"][id$=":upc"]'))
+      .filter(cell => cell.scrollWidth > cell.clientWidth)
+      .map(cell => cell.textContent),
+  )
+  expect(cut).toEqual([])
+})
+
 test('reads on as the end comes into view, and sorts over every product', async () => {
   const errors = await open()
   // The strip's count of rows drawn is the rows in the page, laid out for real.

@@ -456,15 +456,12 @@ export const PlaygroundView = SlotView.forMessages<Message>()
     // --- the page ---
     return h.main(slots.page.attrs([h.OnMount(findShortcut())]), [
       h.header(slots.header.attrs(), [
-        h.div(
-          [],
-          [
-            h.h1(slots.title.attrs(), ['Rich text playground']),
-            h.p(slots.lede.attrs(), [
-              'One document to try foldkit-richtext on: blocks to move, text to discuss, tables, code, media and footnotes. Type / to add anything.',
-            ]),
-          ],
-        ),
+        h.div(slots.intro.attrs(), [
+          h.h1(slots.title.attrs(), ['Rich text playground']),
+          h.p(slots.lede.attrs(), [
+            'One document to try foldkit-richtext on: blocks to move, text to discuss, tables, code, media and footnotes. Type / to add anything.',
+          ]),
+        ]),
         anchored(
           tool(
             'reset',

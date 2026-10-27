@@ -13,7 +13,7 @@ import * as Command from 'foldkit/command'
 import * as Dom from 'foldkit/dom'
 import { Crud } from 'foldkit-crud'
 import { Style } from 'foldkit-mixins'
-import { FieldSlots, FormSlots, FormView, type FieldInput } from 'foldkit-mixins-form'
+import { FormView } from 'foldkit-mixins-form'
 import { ConnectionChange, Remote, type RemoteClient } from 'foldkit-remote'
 import { modifyFields } from 'foldkit/struct'
 import { Surface, type Projection } from 'foldkit-surface'
@@ -28,15 +28,10 @@ import {
   TODO_PAGE_SIZE,
   ToggleTodo,
 } from './operations.js'
+import { FieldStyle, FormStyle } from './style.js'
 
-const field = Style.attach(
-  Style.forSlots(FieldSlots)({
-    root: Style.class('field'),
-    text: Style.whenInput<FieldInput>(input => input.invalid, Style.class('is-invalid')),
-    error: Style.class('field-error'),
-  }),
-)
-const form = Style.attach(Style.forSlots(FormSlots)({ root: Style.class('form') }))
+const field = Style.attach(FieldStyle)
+const form = Style.attach(FormStyle)
 
 const AddView = FormView.define(AddTodoForm, {
   field: FormView.field(AddTodoForm).pipe(field),
@@ -104,6 +99,12 @@ export const Todos = Listed.at({
 })
 
 export const Rename = Editor.at({ data: Data, model: App.model.rename })
+
+/** A write's change to the list, through the list's own connection; none while it is not shown. */
+const inList = (
+  model: Model,
+  change: (list: { readonly identity: string }) => ConnectionChange,
+): ReadonlyArray<ConnectionChange> => Option.toArray(Option.map(Todos.connection(model), change))
 
 /**
  * One stable row the live stream subscribes to. The id is not a todo, and the
@@ -177,7 +178,7 @@ const Page = Base.pipe(
           {
             optimistic: [
               Remote.patch(Todo, id, { id, title: value.title, done: 0 }),
-              ConnectionChange.prepend(AllTodos.ref({}), Remote.ref(Todo, id)),
+              ...inList(model, list => ConnectionChange.prepend(list, Remote.ref(Todo, id))),
             ],
           },
         )
@@ -243,7 +244,9 @@ export const update = Rename.after(
           DeleteTodo,
           { id: message.id },
           {
-            optimistic: [ConnectionChange.remove(AllTodos.ref({}), Remote.ref(Todo, message.id))],
+            optimistic: inList(model, list =>
+              ConnectionChange.remove(list, Remote.ref(Todo, message.id)),
+            ),
           },
         )
         const closed =

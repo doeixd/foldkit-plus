@@ -413,9 +413,21 @@ export interface RecipeDef<Variants extends Readonly<Record<string, RecipeVarian
 
 export type AnyRecipeDef = RecipeDef<Record<string, RecipeVariantDef>>
 
-export type RecipeSelection<D extends AnyRecipeDef> = {
-  readonly [K in keyof NonNullable<D['variants']>]?: keyof NonNullable<D['variants']>[K] & string
-}
+/**
+ * The selection of a recipe with no axes. An empty mapped type is `{}`, and
+ * TypeScript checks no excess keys against `{}`, so `{ tone: 'quiet' }`
+ * compiled and did nothing.
+ */
+type NoAxes = { readonly [key: string]: never }
+
+export type RecipeSelection<D extends AnyRecipeDef> = [keyof NonNullable<D['variants']>] extends [
+  never,
+]
+  ? NoAxes
+  : {
+      readonly [K in keyof NonNullable<D['variants']>]?: keyof NonNullable<D['variants']>[K] &
+        string
+    }
 
 /** A recipe is just Style data: base, one piece per selected variant, then any
  *  matching compound. `compound.when` is keyed by the recipe's variants, so a
@@ -459,9 +471,9 @@ export interface SlotRecipeDef<Slots, Variants extends SlotRecipeVariants<Slots>
 }
 
 /** A selection; `null` unsets an axis that has a default. */
-export type SlotRecipeSelection<Variants> = {
-  readonly [K in keyof Variants]?: (keyof Variants[K] & string) | null
-}
+export type SlotRecipeSelection<Variants> = [keyof Variants] extends [never]
+  ? NoAxes
+  : { readonly [K in keyof Variants]?: (keyof Variants[K] & string) | null }
 
 export interface SlotRecipePatch<Slots, Variants extends SlotRecipeVariants<Slots>> {
   readonly base?: StylePieces<Slots>
