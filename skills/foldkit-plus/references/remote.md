@@ -601,7 +601,8 @@ declare const principal: Principal // authentication happens outside this packag
 const handlers = RemoteServer.handlers(Server, principal) // once per authenticated principal
 const inProcess = Remote.clientLayer(handlers)            // tests/SSR/worker
 // Over JSON: RemoteServer.answer(handlers, parsedBody) -> { status: 200 | 400 | 500, body }.
-// It decodes the request by the protocol's schemas first; a defect answers 'Internal error'.
+// It decodes the request by the protocol's schemas first; a defect answers 'Internal error',
+// its cause logged (answer's third argument, onDefect; serveFetch's onError(cause, request)).
 // No server yet: RemoteServer.memory({ domain: Data, rows: { Project: [...] } }).layer.
 // Rows in wire shape (a relation is 'User:u1'); Query.define bodies run over them;
 // mutations: store => [...] write through store.write. No live.

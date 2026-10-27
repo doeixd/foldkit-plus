@@ -31,7 +31,7 @@ import {
   type RemoteRpcClient,
   type RemoteUnauthenticated,
 } from 'foldkit-remote'
-import { RemoteServer, type LiveHub, type ServerDefinition } from './index.js'
+import { logDefect, RemoteServer, type LiveHub, type ServerDefinition } from './index.js'
 import { unauthenticatedAnswer } from './refusal.js'
 
 /** What `serveFetch` needs of the host runtime, per request. */
@@ -83,6 +83,15 @@ export interface FetchConfig<P, R, Env, RP = never> {
     | undefined
   /** A heartbeat comment every this often, keeping idle streams alive through proxies. Default 15 seconds. */
   readonly liveHeartbeat?: Duration.Input | undefined
+  /**
+   * Given each failure answered "Internal error", or a live stream's error
+   * frame: a broken layer or resolver, a handler's defect. The caller is told
+   * nothing of it; this is how whoever runs the server is. Default
+   * `logDefect`, which logs the cause.
+   */
+  readonly onError?:
+    | ((cause: Cause.Cause<unknown>, request: Request) => Effect.Effect<void>)
+    | undefined
   /** A read batch may not name more ids of one entity than this; default 1000. */
   readonly maxIdsPerEntity?: number | undefined
   /** A nested selection may not reach further than this many levels; default 8. */
@@ -117,6 +126,7 @@ const liveBytes = <R, RC>(
   payload: Schema.Schema.Type<typeof LiveRequirement>,
   heartbeat: Duration.Input,
   checked: Stream.Stream<never, RemoteUnauthenticated | RemoteLiveError, RC>,
+  report: (cause: Cause.Cause<unknown>) => Effect.Effect<void>,
 ): Stream.Stream<Uint8Array, never, R | RC> =>
   Stream.unwrap(
     Effect.gen(function* () {
@@ -136,12 +146,12 @@ const liveBytes = <R, RC>(
               }),
             ),
         }),
-        // A defect says nothing of itself, as a 500 does; an interruption is
-        // the client leaving, with no one to tell.
+        // A defect says nothing of itself to the client, as a 500 does, and is
+        // reported; an interruption is the client leaving, with no one to tell.
         Stream.catchCause(cause =>
           Cause.hasInterruptsOnly(cause)
             ? Stream.failCause(cause)
-            : Stream.succeed(errorFrame('Internal error')),
+            : Stream.fromEffect(Effect.as(report(cause), errorFrame('Internal error'))),
         ),
         Stream.ensuring(Deferred.succeed(ended, undefined)),
       )
@@ -179,6 +189,7 @@ const liveResponse = <R, RC>(
   payload: unknown,
   heartbeat: Duration.Input,
   checked: Stream.Stream<never, RemoteUnauthenticated | RemoteLiveError, RC>,
+  report: (cause: Cause.Cause<unknown>) => Effect.Effect<void>,
   release: Effect.Effect<void>,
   headers: Readonly<Record<string, string>>,
 ): Effect.Effect<Response, never, R | RC> =>
@@ -194,7 +205,9 @@ const liveResponse = <R, RC>(
       onSuccess: requirement =>
         Effect.map(
           Stream.toReadableStreamEffect(
-            liveBytes(handlers, requirement, heartbeat, checked).pipe(Stream.ensuring(release)),
+            liveBytes(handlers, requirement, heartbeat, checked, report).pipe(
+              Stream.ensuring(release),
+            ),
           ),
           body =>
             new Response(body, {
@@ -239,6 +252,16 @@ export const serveFetch = <P, R, Env, RP = never>(
     !Duration.isGreaterThan(Duration.fromInputUnsafe(config.revalidate.every), Duration.zero)
   )
     throw new Error('serveFetch: revalidate.every must be longer than zero')
+  /**
+   * Hands `request`'s failure to `onError`, or logs it. Never fails: a hook
+   * that breaks must not turn the answer into something else.
+   */
+  const reportFor =
+    (request: Request) =>
+    (cause: Cause.Cause<unknown>): Effect.Effect<void> =>
+      (config.onError === undefined ? logDefect(cause) : config.onError(cause, request)).pipe(
+        Effect.catchCause(() => Effect.void),
+      )
   /** The live stream's principal, asked again of its request while it runs. */
   const revalidation = (
     request: Request,
@@ -287,13 +310,14 @@ export const serveFetch = <P, R, Env, RP = never>(
           body.value.payload,
           heartbeat,
           revalidation(request, env, principal),
+          reportFor(request),
           Scope.close(scope, Exit.void),
           headers,
         )
         // A 400 for a payload no stream speaks has no stream to close it.
         return { response, live: response.status === 200 }
       }
-      const answered = yield* RemoteServer.answer(handlers, body.value)
+      const answered = yield* RemoteServer.answer(handlers, body.value, reportFor(request))
       return {
         response: Response.json(answered.body, { status: answered.status, headers }),
         live: false,
@@ -308,27 +332,26 @@ export const serveFetch = <P, R, Env, RP = never>(
     if (request.method !== 'POST' || new URL(request.url).pathname !== path) {
       return Response.json({ error: 'not found' }, { status: 404 })
     }
-    try {
-      return await Effect.runPromise(
-        Effect.gen(function* () {
-          // Not Effect.provide(layer), which closes it when `respond` returns,
-          // before a live stream has served a frame: the stream's re-reads and
-          // revalidation would run on released resources.
-          const scope = yield* Scope.make()
-          const answered = yield* Layer.buildWithScope(config.layer(env), scope).pipe(
-            Effect.flatMap(context => Effect.provide(respond(request, env, scope), context)),
-            Effect.onExit(exit =>
-              Exit.isSuccess(exit) && exit.value.live ? Effect.void : Scope.close(scope, exit),
-            ),
-          )
-          return answered.response
-        }),
-      )
-    } catch {
-      // A failure of the layer, or a defect anywhere: this side broke, and the
-      // caller learns that it did, not what. `answer` already maps its own
-      // failures and defects to 400/500 answers.
-      return Response.json({ error: 'Internal error' }, { status: 500 })
-    }
+    const exit = await Effect.runPromiseExit(
+      Effect.gen(function* () {
+        // Not Effect.provide(layer), which closes it when `respond` returns,
+        // before a live stream has served a frame: the stream's re-reads and
+        // revalidation would run on released resources.
+        const scope = yield* Scope.make()
+        const answered = yield* Layer.buildWithScope(config.layer(env), scope).pipe(
+          Effect.flatMap(context => Effect.provide(respond(request, env, scope), context)),
+          Effect.onExit(exit =>
+            Exit.isSuccess(exit) && exit.value.live ? Effect.void : Scope.close(scope, exit),
+          ),
+        )
+        return answered.response
+      }),
+    )
+    if (Exit.isSuccess(exit)) return exit.value
+    // A failure of the layer, or a defect anywhere: this side broke, and the
+    // caller learns that it did, not what; `onError` learns what. `answer`
+    // already maps its own failures and defects to 400/500 answers.
+    await Effect.runPromise(reportFor(request)(exit.cause))
+    return Response.json({ error: 'Internal error' }, { status: 500 })
   }
 }

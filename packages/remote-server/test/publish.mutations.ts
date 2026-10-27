@@ -25,7 +25,12 @@ export default [
   {
     name: 'a failed publish fails the mutation',
     edits: [
-      { file: server, find: 'Effect.catchCause(cause =>', replace: 'Effect.tapCause(cause =>' },
+      {
+        file: server,
+        find: "Effect.catchCause(cause =>\n              Effect.logWarning(\n                'RemoteServer: a mutation committed but its live publish failed',",
+        replace:
+          "Effect.tapCause(cause =>\n              Effect.logWarning(\n                'RemoteServer: a mutation committed but its live publish failed',",
+      },
     ],
     tests,
   },

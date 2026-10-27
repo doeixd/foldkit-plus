@@ -111,7 +111,7 @@ export default [
   },
   {
     name: 'a live stream never closes its layer',
-    edits: [{ file, find: '.pipe(Stream.ensuring(release))', replace: '' }],
+    edits: [{ file, find: 'Stream.ensuring(release),', replace: 'Stream.ensuring(Effect.void),' }],
     tests,
   },
   {
@@ -119,8 +119,19 @@ export default [
     edits: [
       {
         file,
-        find: ": Stream.succeed(errorFrame('Internal error')),",
+        find: ": Stream.fromEffect(Effect.as(report(cause), errorFrame('Internal error'))),",
         replace: ': Stream.failCause(cause),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a defect mid-stream is not reported',
+    edits: [
+      {
+        file,
+        find: 'Effect.as(report(cause), ',
+        replace: 'Effect.as(Effect.void, ',
       },
     ],
     tests,

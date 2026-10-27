@@ -87,9 +87,34 @@ export default [
     edits: [
       {
         file,
-        find: "// failures and defects to 400/500 answers.\n      return Response.json({ error: 'Internal error' }, { status: 500 })",
-        replace:
-          "// failures and defects to 400/500 answers.\n      return Response.json({ error: 'leaked' }, { status: 500 })",
+        find: "    return Response.json({ error: 'Internal error' }, { status: 500 })",
+        replace: "    return Response.json({ error: 'leaked' }, { status: 500 })",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a broken layer is not reported',
+    edits: [{ file, find: 'await Effect.runPromise(reportFor(request)(exit.cause))', replace: '' }],
+    tests,
+  },
+  {
+    name: 'the default reports nothing',
+    edits: [{ file, find: '? logDefect(cause)', replace: '? Effect.void' }],
+    tests,
+  },
+  {
+    name: 'a hook that breaks breaks the answer',
+    edits: [{ file, find: 'Effect.catchCause(() => Effect.void),', replace: '' }],
+    tests,
+  },
+  {
+    name: 'answer is not told where to report',
+    edits: [
+      {
+        file,
+        find: 'RemoteServer.answer(handlers, body.value, reportFor(request))',
+        replace: 'RemoteServer.answer(handlers, body.value, () => Effect.void)',
       },
     ],
     tests,

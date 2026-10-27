@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **A server's "Internal error" says what broke, to whoever runs it.**
+  `serveFetch` takes `onError(cause, request)`, given every failure it answers
+  with a generic 500 or a live stream's error frame: a broken layer, resolver,
+  handler or stream. `RemoteServer.answer` takes `onDefect(cause)`. Both
+  default to `logDefect`, which logs the cause, so a Worker's log shows it;
+  the caller is still told nothing (#221).
 - **`GuardServer.writer`'s `stamps`.** A field the server sets once on a
   create, from no one (`stamps: { createdAt: () => Date.now() }`), beside
   `presets`, which come from who is asking. A retried insert keeps the row's

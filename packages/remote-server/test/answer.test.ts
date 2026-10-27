@@ -7,7 +7,7 @@
  */
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { Effect, Schema } from 'effect'
+import { Cause, Effect, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Entity } from 'foldkit-entity'
 import {
@@ -91,6 +91,20 @@ describe('RemoteServer.answer', () => {
       status: 500,
       body: { error: 'Internal error' },
     })
+  })
+
+  it('hands the defect it answers to onDefect, cause and all', async () => {
+    const broken: RemoteRpcClient = {
+      ...handlers,
+      FoldkitRemoteRead: () => Effect.die(new Error('the password is hunter2')),
+    }
+    const reported: Array<string> = []
+    await Effect.runPromise(
+      RemoteServer.answer(broken, { operation: 'read', payload: readA }, cause =>
+        Effect.sync(() => reported.push(Cause.pretty(cause))),
+      ),
+    )
+    expect(reported).toEqual([expect.stringContaining('Error: the password is hunter2')])
   })
 })
 

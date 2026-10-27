@@ -5,7 +5,7 @@
  * turning them into Effect RPC handlers. It does not own HTTP, serialization, or
  * auth protocol; `principal` is resolved outside, and passed in or provided.
  */
-import { Context, Effect, Layer, Match, Option, Queue, Schema, Stream } from 'effect'
+import { Cause, Context, Effect, Layer, Match, Option, Queue, Schema, Stream } from 'effect'
 import {
   Entity,
   Operators,
@@ -1419,6 +1419,14 @@ const refusalError = (
     return yield* new RemoteMutationError({ message: refused.message, refusal: encoded })
   })
 
+/**
+ * What a server does by default with a failure it answers "Internal error":
+ * logs the cause, which the caller is never told, so a host's log (a
+ * Worker's `wrangler tail`) shows what broke.
+ */
+export const logDefect = (cause: Cause.Cause<unknown>): Effect.Effect<void> =>
+  Effect.logError(`[foldkit-remote-server] a request failed on this side\n${Cause.pretty(cause)}`)
+
 export const RemoteServer = {
   /** A backend held in memory, for a first run, a test or a demo. See `memory`. */
   memory,
@@ -2101,12 +2109,14 @@ export const RemoteServer = {
    * before a handler sees them, so an operation name is one of Remote's three
    * and nothing else. A body that is not a request is a 400; a caller who
    * could not be told a 401; a refusal of who is asking a 403; a handler's
-   * failure a 500 with its message; a defect a 500 that says nothing of it.
+   * failure a 500 with its message; a defect a 500 that says nothing of it,
+   * its cause given to `onDefect` (by default logged, as `logDefect`).
    * `Remote.json` and `Remote.http` are the other end.
    */
   answer: <R>(
     handlers: RemoteRpcClient<R>,
     body: unknown,
+    onDefect: (cause: Cause.Cause<unknown>) => Effect.Effect<void> = logDefect,
   ): Effect.Effect<
     { readonly status: 200 | 400 | 401 | 403 | 422 | 500; readonly body: RemoteJsonAnswer },
     never,
@@ -2155,9 +2165,12 @@ export const RemoteServer = {
       Effect.catch(error =>
         Effect.succeed({ status: 500 as const, body: { error: error.message } }),
       ),
-      // A defect is a bug on this side: the caller learns there was one, not what.
-      Effect.catchCause(() =>
-        Effect.succeed({ status: 500 as const, body: { error: 'Internal error' } }),
+      // A defect is a bug on this side: the caller learns there was one, not what,
+      // and whoever runs the server learns what.
+      Effect.catchCause(cause =>
+        onDefect(cause).pipe(
+          Effect.as({ status: 500 as const, body: { error: 'Internal error' } }),
+        ),
       ),
     )
   },

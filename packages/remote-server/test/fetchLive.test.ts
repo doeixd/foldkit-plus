@@ -5,7 +5,7 @@
  * payload no stream speaks is a 400; a version the protocol refuses ends the
  * stream with an `error` frame.
  */
-import { Context, Effect, Fiber, Layer, Schema, Stream, type Duration } from 'effect'
+import { Cause, Context, Effect, Fiber, Layer, Schema, Stream, type Duration } from 'effect'
 import { Entity, Mutation, REMOTE_PROTOCOL_VERSION, Remote, RemoteClient } from 'foldkit-remote'
 import { describe, expect, it } from 'vitest'
 import { serveFetch } from '../src/fetch.js'
@@ -422,7 +422,11 @@ describe("serveFetch, the request's layer", () => {
   class Sessions extends Context.Service<Sessions, { readonly who: () => Effect.Effect<string> }>()(
     'test/Sessions',
   ) {}
-  const scoped = (log: string[], answer: () => Effect.Effect<string>) => {
+  const scoped = (
+    log: string[],
+    answer: () => Effect.Effect<string>,
+    onError?: (cause: Cause.Cause<unknown>) => Effect.Effect<void>,
+  ) => {
     let open = false
     const layer = Layer.effect(
       Sessions,
@@ -453,6 +457,7 @@ describe("serveFetch, the request's layer", () => {
       layer: () => layer,
       live: hub,
       revalidate: { every: '20 millis' },
+      onError,
     })
     const post = (body: unknown) =>
       served(
@@ -512,6 +517,20 @@ describe("serveFetch, the request's layer", () => {
     expect(await readAllFrames(response.body!.getReader())).toEqual([
       `event: error\ndata: ${JSON.stringify({ message: 'Internal error' })}`,
     ])
+  })
+
+  it('reports what broke a stream to onError', async () => {
+    rows.set('a', { id: 'a', name: 'Anchor' })
+    let calls = 0
+    const reported: Array<string> = []
+    const { post, liveBody } = scoped(
+      [],
+      () =>
+        (calls += 1) === 1 ? Effect.succeed('admin') : Effect.die(new Error('secret internals')),
+      cause => Effect.sync(() => reported.push(Cause.pretty(cause))),
+    )
+    await readAllFrames((await post(liveBody)).body!.getReader())
+    expect(reported).toEqual([expect.stringContaining('Error: secret internals')])
   })
 
   it('refuses an interval that is not longer than zero', () => {

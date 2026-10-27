@@ -946,7 +946,10 @@ const route = async (request: Request): Promise<Response> => {
   its own `Refusal`.
 - **500** with `{ error }`: the handler failed, and the message is its own;
   or something on this side broke, and the message is `Internal error`,
-  nothing more.
+  nothing more. The cause goes to `answer`'s third argument, `onDefect`,
+  which by default logs it (`logDefect`). `serveFetch` takes the same as
+  `onError(cause, request)`, for a broken layer, resolver or live stream too,
+  so a Worker's log (`wrangler tail`) shows what broke.
 
 It binds no principal: pass the `handlers` for the request's own,
 established by your authentication, as everywhere else. It carries no live
