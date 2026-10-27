@@ -45,6 +45,7 @@
   },
   "devDependencies": {
     "@effect/platform-browser": "^4.0.5",
+    "@foldkit/vite-plugin": "0.28.0",
     "@types/sql.js": "1.4.11",
     "effect": "^4.0.5",
     "foldkit": "0.169.0",

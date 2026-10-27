@@ -1,3 +1,4 @@
+import { foldkit } from '@foldkit/vite-plugin'
 import { defineConfig, type HtmlTagDescriptor, type Plugin } from 'vite'
 import { foundations } from 'foldkit-mixins/foundations'
 import { staticSite } from 'foldkit-ssr/vite'
@@ -38,12 +39,15 @@ export default defineConfig({
   // The published demo's server is a module SharedWorker.
   worker: { format: 'es' },
   define: {
-    // The deployment the takeover compares, from the `FOLDKIT_BUILD_ID` the
-    // build saw. Without the `foldkit` plugin this is the whole of it: a
-    // static replacement, and an empty id refuses every page it should adopt.
+    // The deployment the takeover compares. The `foldkit` plugin defines it
+    // from `FOLDKIT_BUILD_ID` when that is set (and as `development` under the
+    // dev server, which renders no pages); this is the empty id it leaves
+    // otherwise, which refuses every page it should adopt.
     'import.meta.env.FOLDKIT_BUILD_ID': JSON.stringify(process.env.FOLDKIT_BUILD_ID ?? ''),
   },
   plugins: [
+    // Foldkit's view identity for the differ, and the Model kept across a dev reload.
+    foldkit(),
     // The page's foundations in the HTML, so its first paint already has the
     // theme's background; the site's pages beside the bundle, rendered from
     // the seed after it is written.

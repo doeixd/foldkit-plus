@@ -18,6 +18,12 @@ version changed; `pnpm` skips versions already in the registry.
   menu sends an editor Message, so its edit is shared and undone as typing is.
   The page shows who else has it open, and is styled on the demos' theme
   instead of a stylesheet in `index.html`.
+- **Every example keeps its Model across an edit.** The CMS and Foldkit's
+  sixteen ported examples now load `@foldkit/vite-plugin`, as the other demos
+  do, so a save no longer reloads the page from `init` or logs "No response
+  from @foldkit/vite-plugin". A test loads each example's Vite config and
+  refuses one without the plugin; the richtext harness, which runs no
+  runtime, is exempt by name.
 
 ## 0.35.0
 
