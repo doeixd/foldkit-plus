@@ -47,6 +47,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`SSR.hydrate` given no build id says so.** With `FOLDKIT_BUILD_ID` unset,
+  the documented `import.meta.env.FOLDKIT_BUILD_ID` is undefined in the
+  client. `foldkit-ssr` read that as another build's page and handed Foldkit no
+  id, so Foldkit compared its own compiled id, which matched, and every page
+  drew from the baseline Model with nothing logged (#210). It now contains the
+  page and logs why.
 - **`npx foldkit-plus setup` carries its own Effect.** Run with
   `--legacy-peer-deps`, npx installed no peers, and the CLI loaded whatever
   `effect` an ancestor folder held: an Effect 3 crashed it before it printed

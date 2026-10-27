@@ -285,7 +285,10 @@ buildId: import.meta.env.FOLDKIT_BUILD_ID,
 `FOLDKIT_BUILD_ID` names the deployment, from the environment: a commit or a
 release tag, public and unique per deployment. The plugin compiles it into
 both bundles; a script outside Vite, such as a prerender, reads
-`process.env.FOLDKIT_BUILD_ID`, the same value the build saw.
+`process.env.FOLDKIT_BUILD_ID`, the same value the build saw. With it unset,
+`import.meta.env.FOLDKIT_BUILD_ID` is undefined in the client, and
+`SSR.hydrate`, given no id, contains the page and logs why rather than
+adopting it.
 
 Set it even though `@foldkit/vite-plugin` can now generate an id on its own.
 The generated one is compiled into Foldkit alone, where `foldkit-ssr` cannot

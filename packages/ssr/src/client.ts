@@ -123,6 +123,19 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     else renderBeside(config, root, options.until)
     return
   }
+  // The type says a string, but `import.meta.env` is `any`: with the variable
+  // unset the id arrives undefined, and Foldkit, given none, takes its own
+  // compiled id, which matches the page, so the baseline was adopted in silence.
+  if (typeof options.buildId !== 'string') {
+    console.error(
+      '[foldkit-ssr] SSR.hydrate was given no build id, so it cannot tell this page from ' +
+        "another deployment's; the page is contained. Pass the id the server stamped: with " +
+        '@foldkit/vite-plugin, set FOLDKIT_BUILD_ID (or `foldkit({ buildId })`) so that ' +
+        '`import.meta.env.FOLDKIT_BUILD_ID` is defined in the client too.',
+    )
+    contain()
+    return
+  }
   if (root.getAttribute(BUILD_ATTRIBUTE) !== options.buildId) {
     adopt(program({ model: plan.baseline }), { buildId: options.buildId })
     return
