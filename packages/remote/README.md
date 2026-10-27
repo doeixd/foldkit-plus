@@ -360,6 +360,20 @@ const overHttp = Remote.clientLayer(
 )
 ```
 
+**Testing a server over HTTP.** Call it as the application does: give
+`` Remote.http(`${origin}/remote`, { headers, fetch }) `` the server's address
+(miniflare's `(await mf.ready).origin` for a Worker) and call
+`FoldkitRemoteRead`, `FoldkitRemoteQuery` and `FoldkitRemoteMutate` on it, as
+`examples/cloudflare/src/client.ts` does over its local stack. To speak the
+wire yourself, each `POST` body is one of these, `version` being
+`REMOTE_PROTOCOL_VERSION`:
+
+```json
+{ "operation": "read", "payload": { "version": 4, "requests": [{ "entity": "Post", "id": "p1", "fields": ["title"] }] } }
+{ "operation": "query", "payload": { "query": "PostsByAuthor", "input": { "authorId": "a1" }, "window": { "first": 20 } } }
+{ "operation": "mutate", "payload": { "requestId": "r1", "mutation": "RenamePost", "input": { "id": "p1", "title": "Hello" } } }
+```
+
 `headers` is read for each request, so a token that changes reaches the next
 call. A 401 fails every call kind, a read, a query, a mutation or a live
 stream, with `_tag: 'Unauthenticated'` (and `reason` when the server gave
