@@ -172,8 +172,8 @@ editor in `foldkit-mixins-crud/recipes`' looks, and the forms in
   is there from the first paint; `Loading.shown` says "Loading…" only once
   the wait has lasted, and a later refresh keeps the rows.
 - Add, rename, toggle, and delete call `Data.mutate` with an optimistic
-  patch. A new row joins the `AllTodos` connection, and a delete removes its
-  edge. That paint is the same update as the click. The list draws by title,
+  patch. A new row joins the `AllTodos` connection, and a delete
+  (`Remote.tombstone`) hides the row from every list. That paint is the same update as the click. The list draws by title,
   then id, the order the query asks for, so a new or renamed row is already
   where it will stay. The "Saving…" line above the form is reserved the whole
   time, and its words use the same delay, so a fast save neither flashes nor

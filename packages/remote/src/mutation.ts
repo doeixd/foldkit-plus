@@ -36,6 +36,16 @@ export interface PendingPatch extends NormalizedPatch {
   readonly computes?: Readonly<Record<string, Computation>>
 }
 
+/**
+ * A row a pending request deletes: until the request settles it reads
+ * `NotFound` and leaves every list and relation, as a settled delete does.
+ */
+export interface PendingDelete {
+  readonly _tag: 'Delete'
+  readonly entity: string
+  readonly id: string
+}
+
 export interface MutationState {
   readonly pending: ReadonlySet<string>
   readonly applied: ReadonlySet<string>
@@ -276,14 +286,13 @@ export const patchOfWrite = (bound: BoundWrite): NormalizedPatch => ({
  * What a declared write shows before the server answers: an update's or an
  * insert's row as a patch (an update's only for the keys named, when some
  * are), and an update's increments and computed fields, worked out over the
- * row the store holds when it is read. A delete shows nothing, since no
- * operation removes a row from every list it is in; its answer does.
+ * row the store holds when it is read. A delete shows its row deleted.
  */
 export const optimisticOfWrite = (
   write: AnyWrite,
   input: unknown,
   keys: ReadonlyArray<string> | undefined,
-): ReadonlyArray<PendingPatch> =>
+): ReadonlyArray<PendingPatch | PendingDelete> =>
   Match.value(write).pipe(
     Match.tagsExhaustive({
       Update: () => {
@@ -302,7 +311,10 @@ export const optimisticOfWrite = (
         const patch = patchOfWrite(DomainWrite.bind(write, input as never))
         return [{ ...patch, values: { id: patch.id, ...patch.values } }]
       },
-      Delete: () => [],
+      Delete: (): ReadonlyArray<PendingDelete> => {
+        const { entity, id } = DomainWrite.bind(write, input as never)
+        return [{ _tag: 'Delete', entity, id }]
+      },
     }),
   )
 

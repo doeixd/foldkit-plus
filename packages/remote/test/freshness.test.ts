@@ -268,6 +268,7 @@ describe('a value a pending request patches', () => {
           { entity: 'Project', id: 'p1', values: { name: 'Pending' } },
           { entity: 'Project', id: 'm1.tmp', values: { name: 'Created' } },
         ],
+        deletes: [],
       },
     ],
     overlays: [],

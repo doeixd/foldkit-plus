@@ -83,6 +83,8 @@ export const reachable = (
   for (const layer of optimistic.layers) {
     if (!pending.has(layer.id)) continue
     for (const patch of layer.patches) kept.add(entityKey(patch.entity, patch.id))
+    // A failure brings the row back, as it was.
+    for (const gone of layer.deletes) kept.add(entityKey(gone.entity, gone.id))
   }
   for (const overlay of optimistic.overlays) {
     if (!pending.has(overlay.id) && !rootConnections.has(overlay.connection)) continue

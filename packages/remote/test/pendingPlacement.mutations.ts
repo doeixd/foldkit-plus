@@ -24,7 +24,7 @@ export default [
         file: index,
         find: ': shownEdges(remote, over.ref.identity, connection)',
         replace:
-          ': visibleItems(connection, over.ref.identity, remote.optimistic.overlays, remote.entities)',
+          ': visibleItems(connection, over.ref.identity, remote.optimistic.overlays, goneIn(remote.entities, remote.optimistic))',
       },
     ],
     tests,

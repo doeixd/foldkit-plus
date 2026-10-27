@@ -36,10 +36,12 @@ describe('Optimistic layers', () => {
     let optimistic = addLayer(emptyOptimistic, {
       id: 'l1',
       patches: [{ entity: 'User', id: 'u1', values: { name: 'B' } }],
+      deletes: [],
     })
     optimistic = addLayer(optimistic, {
       id: 'l2',
       patches: [{ entity: 'User', id: 'u1', values: { name: 'C' } }],
+      deletes: [],
     })
     expect(name(visibleStore(base, optimistic))).toEqual(Option.some('C'))
 
@@ -56,10 +58,12 @@ describe('Optimistic layers', () => {
     let optimistic = addLayer(emptyOptimistic, {
       id: 'l1',
       patches: [{ entity: 'User', id: 'u1', values: { name: 'B' } }],
+      deletes: [],
     })
     optimistic = addLayer(optimistic, {
       id: 'l2',
       patches: [{ entity: 'User', id: 'u1', values: { name: 'C' } }],
+      deletes: [],
     })
 
     const next = settleFailure(optimistic, 'l1')
@@ -150,6 +154,7 @@ describe('Optimistic layers', () => {
     const optimistic = addLayer(emptyOptimistic, {
       id: 'l1',
       patches: [{ entity: 'User', id: 'u1', values: { name: 'B' } }],
+      deletes: [],
     })
     const settled = settleSuccess(base, optimistic, emptyMutationState, 'l1', {
       entities: [],

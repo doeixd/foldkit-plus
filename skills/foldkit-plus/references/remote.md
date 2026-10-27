@@ -426,7 +426,10 @@ const card = Data.get(ProjectCard, 'p1') // Projection<Model, RemoteData<{ name;
 
 **Deleting.** A server mutation returns `deleted: [{ entity, id }]` in its
 outcome. The client tombstones them: `NotFound`, and gone from every connection
-and relation, so the server names no list.
+and relation, so the server names no list. To show it before the answer, put
+`Remote.tombstone(Post, id)` in `optimistic` (a `Write.delete` mutation does
+it for you): a pending tombstone hides the row the same way, no
+`ConnectionChange.remove` per list, and a failure brings it back.
 
 **Lists after a mutation.** Each answered patch's new values (a field equal to
 what the client held does not count) are judged against every loaded

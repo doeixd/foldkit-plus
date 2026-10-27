@@ -243,11 +243,7 @@ export const update = Rename.after(
           model,
           DeleteTodo,
           { id: message.id },
-          {
-            optimistic: inList(model, list =>
-              ConnectionChange.remove(list, Remote.ref(Todo, message.id)),
-            ),
-          },
+          { optimistic: [Remote.tombstone(Todo, message.id)] },
         )
         const closed =
           Rename.target(started.model) === message.id

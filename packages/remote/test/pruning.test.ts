@@ -14,7 +14,7 @@ import {
   type LiveEvent,
   type RemoteModel,
 } from '../src/index.js'
-import { visibleItems } from '../src/optimistic.js'
+import { goneIn, visibleItems } from '../src/optimistic.js'
 
 const Comment = Entity.make('Comment', Schema.Struct({ id: Schema.String }))
 const feed = 'Feed'
@@ -28,9 +28,12 @@ const known = merge(
 )
 const model = (): RemoteModel => ({ ...initialRemoteModel, connections: { [feed]: known } })
 const visible = (state: RemoteModel) =>
-  visibleItems(state.connections[feed]!, feed, state.optimistic.overlays, state.entities).map(
-    item => item.ref.id,
-  )
+  visibleItems(
+    state.connections[feed]!,
+    feed,
+    state.optimistic.overlays,
+    goneIn(state.entities, state.optimistic),
+  ).map(item => item.ref.id)
 const live = (state: RemoteModel, event: LiveEvent) =>
   updateRemote(state, { _tag: 'LiveReceived', stream: 's', event, now: 0 })
 const removeC1 = (at: number): LiveEvent => ({

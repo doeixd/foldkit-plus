@@ -1375,6 +1375,18 @@ A mutation that deletes says so. The server's outcome carries
 server names no list. Patches apply first, so an entity named both ways is
 deleted; a retry of the same request deletes nothing again.
 
+A delete can show before the answer, with no list named either.
+`Remote.tombstone(entity, id)` in `optimistic` is a pending tombstone: while
+the request is in flight the row reads `NotFound` and leaves every list and
+every relation that lists it, as a settled delete does. It is a layer like a
+patch, so the server's store is untouched (`Data.confirmed` still reads the
+row), a failure brings the row back everywhere, and the answer's `deleted`
+keeps it gone. A pending delete wins over every pending patch of its row.
+
+```ts
+Data.mutate(model, DeletePost, { id }, { optimistic: [Remote.tombstone(Post, id)] })
+```
+
 **Which lists a mutation changed is worked out from its answer.** Each patch
 says which row it wrote; the fields whose value differs from what the client
 held are what changed (an answer returning a whole row changes only what is
@@ -1487,7 +1499,7 @@ A mutation can also be a declared write: `Mutation.write(name, write)` over a
 `foldkit-entity` `Write.update`, `Write.insert` or `Write.delete`. Its input is
 the write's, it answers nothing of its own, and `Data.mutate` shows an update's
 or an insert's row until the server answers, so it needs no `optimistic` list;
-a delete shows nothing until its answer removes the row everywhere. An update's
+a delete shows its row deleted, as `Remote.tombstone` does. An update's
 `increment` is shown as a prediction: its amount is added to the value the store
 holds whenever the row is read, so a change that reaches the store meanwhile is
 added to rather than hidden, and two pending increments add up. A computed

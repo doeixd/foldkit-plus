@@ -7,7 +7,10 @@
  * Only a Message that removes the value may change it, and each such
  * exception below is named and narrow:
  * - the entity the read shows was deleted (a mutation's `deleted`, a live
- *   `EntityDeleted`, or a read answered without it), so it reads `NotFound`;
+ *   `EntityDeleted`, a read answered without it, or a pending
+ *   `Remote.tombstone`), so it reads `NotFound`; and a list whose every row
+ *   it showed was so deleted, while the rest are still being read, reads
+ *   `Initial`;
  * - a `Hydrated` snapshot under `replace` overwrote the store;
  * - retention dropped the read's root, which is past `departedLimit`.
  *
@@ -32,6 +35,7 @@ import {
   emptyStore,
   entityKey,
   isTombstone,
+  readField,
   stableStringify,
   terminal,
   writeEntities,
@@ -40,6 +44,7 @@ import {
   type RemoteMessageTag,
   type Requirement,
   windowGrowthKey,
+  type OptimisticOperation,
 } from '../src/index.js'
 
 const User = DomainEntity.define('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
@@ -104,6 +109,8 @@ interface Watched {
   readonly read: (model: Model) => RemoteData<unknown>
   /** The entity it shows, when it is an entity read. */
   readonly entity: Option.Option<string>
+  /** The list it shows, when it is a list read. */
+  readonly list: Option.Option<string>
   /** Whether retention holds its root, and whether it holds as many such roots as it may. */
   readonly retained: (model: Model) => { readonly held: boolean; readonly full: boolean }
 }
@@ -122,24 +129,28 @@ const watched: ReadonlyArray<Watched> = [
     name: 'the list shown',
     read: list.read,
     entity: Option.none(),
+    list: Option.some(list.ref.identity),
     retained: heldConnection(list.ref.identity),
   },
   {
     name: 'the list left',
     read: left.read,
     entity: Option.none(),
+    list: Option.some(left.ref.identity),
     retained: heldConnection(left.ref.identity),
   },
   {
     name: 'p1 with its owner',
     read: project.read,
     entity: Option.some('Project:p1'),
+    list: Option.none(),
     retained: heldRequirement('Project:p1'),
   },
   {
     name: 'p2 refreshing its status',
     read: stale.read,
     entity: Option.some('Project:p2'),
+    list: Option.none(),
     retained: heldRequirement('Project:p2'),
   },
 ]
@@ -326,6 +337,11 @@ const messages = {
       requestId: 'remove',
       optimistic: [ConnectionChange.remove(list.ref, { entity: 'Project', id: 'p3' })],
     }),
+    'p2 being deleted': () => ({
+      _tag: 'MutationStarted',
+      requestId: 'delete',
+      optimistic: [Remote.tombstone(Project, 'p2')],
+    }),
   },
   MutationSucceeded: {
     'the rename confirmed': () => ({
@@ -348,6 +364,13 @@ const messages = {
       deleted: [{ entity: 'Project', id: 'p2' }],
       now: 2,
     }),
+    'the pending delete confirmed': () => ({
+      _tag: 'MutationSucceeded',
+      requestId: 'delete',
+      entities: [],
+      deleted: [{ entity: 'Project', id: 'p2' }],
+      now: 2,
+    }),
   },
   MutationFailed: {
     'the rename failed': () => ({
@@ -362,6 +385,12 @@ const messages = {
       error: down,
       operation: 'op-create',
     }),
+    'the delete failed': () => ({
+      _tag: 'MutationFailed',
+      requestId: 'delete',
+      error: down,
+      operation: 'op-delete',
+    }),
   },
   OverlayShown: {
     'a preview of a rename and a new row': () => ({
@@ -373,9 +402,15 @@ const messages = {
         ConnectionChange.append(list.ref, { entity: 'Project', id: 'draft' }),
       ],
     }),
+    'a preview of p1 deleted': () => ({
+      _tag: 'OverlayShown',
+      id: 'preview-delete',
+      optimistic: [Remote.tombstone(Project, 'p1')],
+    }),
   },
   OverlayLifted: {
     'the preview lifted': () => ({ _tag: 'OverlayLifted', id: 'preview' }),
+    'the delete preview lifted': () => ({ _tag: 'OverlayLifted', id: 'preview-delete' }),
   },
   WindowGrown: {
     'the list grown by a page': () => ({
@@ -555,10 +590,22 @@ const exception = (
     read.read(after)._tag === 'NotFound' &&
     Option.exists(
       read.entity,
-      key => deletes(message, key) && isTombstone(after.remote.entities, key),
+      key => deletes(message, key) && isTombstone(Data.storeOf(after), key),
     )
   ) {
     return Option.some('the entity it shows was deleted')
+  }
+  if (
+    read.read(after)._tag === 'Initial' &&
+    Option.exists(read.list, identity => {
+      const rows = rowsShown(before, identity)
+      return (
+        rows.length > 0 &&
+        rows.every(key => deletes(message, key) && isTombstone(Data.storeOf(after), key))
+      )
+    })
+  ) {
+    return Option.some('every row it showed was deleted')
   }
   if (message._tag === 'Hydrated' && message.merge === 'replace') {
     return Option.some('a snapshot replaced the store')
@@ -575,6 +622,20 @@ const exception = (
   return Option.none()
 }
 
+/** The rows a list shows: those it holds whose selected `name` is read. */
+const rowsShown = (model: Model, identity: string): ReadonlyArray<string> =>
+  Data.visibleItems(model.remote, identity)
+    .map(edge => entityKey(edge.ref.entity, edge.ref.id))
+    .filter(key => Option.isSome(readField(Data.storeOf(model), key, 'name')))
+
+const pendingDelete = (operations: ReadonlyArray<OptimisticOperation>, key: string): boolean =>
+  operations.some(
+    operation =>
+      '_tag' in operation &&
+      operation._tag === 'Delete' &&
+      entityKey(operation.entity, operation.id) === key,
+  )
+
 /** Whether `message` says the entity is gone. */
 const deletes = (message: RemoteMessage, key: string): boolean =>
   Match.value(message).pipe(
@@ -590,6 +651,9 @@ const deletes = (message: RemoteMessage, key: string): boolean =>
           entry => entityKey(entry.entity, entry.id) === key,
         ),
       Preloaded: ({ messages }) => messages.some(inner => deletes(inner, key)),
+      // Deleted while a request, or a preview, is pending.
+      MutationStarted: ({ optimistic }) => pendingDelete(optimistic ?? [], key),
+      OverlayShown: ({ optimistic }) => pendingDelete(optimistic, key),
     }),
     Match.orElse(() => false),
   )
@@ -670,6 +734,7 @@ describe('Each exception', () => {
     ],
     ['a mutation that deleted it', messages.MutationSucceeded['p2 deleted']],
     ['a live delete', messages.LiveReceived['p2 deleted live']],
+    ['a pending delete', messages.MutationStarted['p2 being deleted']],
   ])('%s takes p2 off screen as NotFound', (_, generate: Generate) => {
     const model = loaded()
     const message = generate(model)
@@ -680,6 +745,25 @@ describe('Each exception', () => {
       Option.some('the entity it shows was deleted'),
     )
   })
+
+  it.each([
+    ['a mutation that deleted it', messages.MutationSucceeded['p2 deleted']],
+    ['a pending delete', messages.MutationStarted['p2 being deleted']],
+  ])(
+    '%s empties a list whose only row read was p2, so it reads Initial',
+    (_, generate: Generate) => {
+      // The snapshot leaves the open list's p1 without its name: p2 is all it shows.
+      const model = Data.reduce(loaded(), messages.Hydrated['a snapshot under replace']())
+      const message = generate(model)
+      const after = Data.reduce(model, message)
+
+      expect(left.read(model)._tag).toBe('Refreshing')
+      expect(left.read(after)._tag).toBe('Initial')
+      expect(exception(watched[1]!, message, model, after)).toEqual(
+        Option.some('every row it showed was deleted'),
+      )
+    },
+  )
 
   it('a snapshot under replace may take a value away', () => {
     const model = loaded()

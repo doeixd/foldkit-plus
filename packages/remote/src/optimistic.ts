@@ -11,13 +11,23 @@ import {
   type MutationAnswer,
   type MutationState,
   type NormalizedPatch,
+  type PendingDelete,
   type PendingPatch,
 } from './mutation.js'
-import { entityKey, isTombstone, writeEntities, type EntityKey, type EntityStore } from './store.js'
+import {
+  entityKey,
+  isTombstone,
+  tombstone,
+  writeEntities,
+  type EntityKey,
+  type EntityStore,
+} from './store.js'
 
 export interface EntityLayer {
   readonly id: string
   readonly patches: ReadonlyArray<PendingPatch>
+  /** Rows it deletes. A delete wins over every layer's patch of its row, as in an answer. */
+  readonly deletes: ReadonlyArray<PendingDelete>
 }
 
 /**
@@ -42,11 +52,8 @@ export type ConnectionChange =
     }
   | { readonly _tag: 'Remove'; readonly connection: string; readonly edge: Edge }
 
-/** What a request changes before the server answers: entity patches and connection changes. */
-export type OptimisticOperation = PendingPatch | ConnectionChange
-
-const isConnectionChange = (operation: OptimisticOperation): operation is ConnectionChange =>
-  '_tag' in operation
+/** What a request changes before the server answers: entity patches, deletions and connection changes. */
+export type OptimisticOperation = PendingPatch | PendingDelete | ConnectionChange
 
 const toOverlays = (id: string, changes: ReadonlyArray<ConnectionChange>): ConnectionOverlay[] =>
   changes.map(change => ({
@@ -97,23 +104,29 @@ export const ConnectionChange = {
 }
 
 /**
- * Applies a request's operations: its patches become one layer and its
- * connection changes become overlays, all owned by `requestId` so settling
- * removes every one of them together.
+ * Applies a request's operations: its patches and deletions become one layer
+ * and its connection changes become overlays, all owned by `requestId` so
+ * settling removes every one of them together.
  */
 export const beginOptimistic = (
   optimistic: OptimisticState,
   requestId: string,
   operations: ReadonlyArray<OptimisticOperation>,
 ): OptimisticState => {
-  const patches = operations.filter(
-    (operation): operation is PendingPatch => !isConnectionChange(operation),
-  )
-  const changes = operations.filter(isConnectionChange)
-  if (patches.length === 0 && changes.length === 0) return optimistic
+  const patches: PendingPatch[] = []
+  const deletes: PendingDelete[] = []
+  const changes: ConnectionChange[] = []
+  for (const operation of operations) {
+    if (!('_tag' in operation)) patches.push(operation)
+    else if (operation._tag === 'Delete') deletes.push(operation)
+    else changes.push(operation)
+  }
+  if (patches.length === 0 && deletes.length === 0 && changes.length === 0) return optimistic
   return {
     layers:
-      patches.length === 0 ? optimistic.layers : [...optimistic.layers, { id: requestId, patches }],
+      patches.length === 0 && deletes.length === 0
+        ? optimistic.layers
+        : [...optimistic.layers, { id: requestId, patches, deletes }],
     overlays:
       changes.length === 0
         ? optimistic.overlays
@@ -180,25 +193,47 @@ export const removeOverlay = (optimistic: OptimisticState, id: string): Optimist
  * Base store with every layer applied in order. Later layers win. A patch is
  * not news from the server, so it keeps the date of the value under it; an
  * entity only a request holds (a temporary id) is not the server's to age, and
- * is dated `Infinity`, so freshness never plans or times it.
+ * is dated `Infinity`, so freshness never plans or times it. A row a layer
+ * deletes is a tombstone over all of them.
  */
 export const visibleStore = (
   base: EntityStore,
   optimistic: OptimisticState,
   operators: MemoryOperators = Operators.kernel,
 ): EntityStore =>
-  writeEntities(
-    base,
-    resolvedPatches(base, optimistic, operators).map(patch => {
-      const key = entityKey(patch.entity, patch.id)
-      const under = base[key]
-      return {
-        key,
-        values: patch.values,
-        updatedAt: under === undefined || under.tombstone ? Infinity : under.updatedAt,
-      }
-    }),
+  [...pendingDeletes(optimistic)].reduce(
+    tombstone,
+    writeEntities(
+      base,
+      resolvedPatches(base, optimistic, operators).map(patch => {
+        const key = entityKey(patch.entity, patch.id)
+        const under = base[key]
+        return {
+          key,
+          values: patch.values,
+          updatedAt: under === undefined || under.tombstone ? Infinity : under.updatedAt,
+        }
+      }),
+    ),
   )
+
+const pendingDeletes = (optimistic: OptimisticState): ReadonlySet<EntityKey> =>
+  new Set(
+    optimistic.layers.flatMap(layer => layer.deletes.map(gone => entityKey(gone.entity, gone.id))),
+  )
+
+/**
+ * Whether a list hides a row: the store holds it deleted, or a pending layer
+ * deletes it. Read from the server's store, not the visible one, where a
+ * pending patch over a deleted row clears its tombstone.
+ */
+export const goneIn = (
+  store: EntityStore,
+  optimistic: OptimisticState,
+): ((key: EntityKey) => boolean) => {
+  const deleted = pendingDeletes(optimistic)
+  return key => deleted.has(key) || isTombstone(store, key)
+}
 
 /**
  * Every pending patch in order, each amount added and each computed field
@@ -329,16 +364,16 @@ export const settleFailure = (optimistic: OptimisticState, requestId: string): O
  * Visible edges for one connection: applicable overlays are placed outside the
  * server-known segments and de-duplicated by edge identity (across overlays too),
  * so a pending insert never corrupts server-known ordering; a `remove` overlay
- * hides its edges wherever they are, and so does a tombstone on the edge's
- * target when `store` is given. A later prepend lands before an earlier one, a
- * later append after, so pending inserts read in the order they were made.
- * Boundaries still come from the connection's segments.
+ * hides its edges wherever they are, and so does `gone` (`goneIn`) of the
+ * edge's target. A later prepend lands before an earlier one, a later append
+ * after, so pending inserts read in the order they were made. Boundaries still
+ * come from the connection's segments.
  */
 export const visibleItems = (
   connection: Connection,
   connectionId: string,
   overlays: ReadonlyArray<ConnectionOverlay>,
-  store?: EntityStore,
+  gone: (key: EntityKey) => boolean = () => false,
 ): ReadonlyArray<Edge> => {
   const applicable = overlays.filter(overlay => overlay.connection === connectionId)
   // Overlays are ordered evidence: the last word on an edge wins, so a remove
@@ -350,10 +385,9 @@ export const visibleItems = (
       else hidden.delete(edge.key)
     }
   }
-  const gone = (edge: Edge): boolean =>
-    hidden.has(edge.key) ||
-    (store !== undefined && isTombstone(store, entityKey(edge.ref.entity, edge.ref.id)))
-  const known = items(connection).filter(edge => !gone(edge))
+  const hides = (edge: Edge): boolean =>
+    hidden.has(edge.key) || gone(entityKey(edge.ref.entity, edge.ref.id))
+  const known = items(connection).filter(edge => !hides(edge))
   const seen = new Set(known.map(edge => edge.key))
 
   const take = (position: 'prepend' | 'append'): ReadonlyArray<Edge> => {
@@ -361,7 +395,7 @@ export const visibleItems = (
     const ordered = applicable.filter(value => value.position === position)
     for (const overlay of position === 'prepend' ? [...ordered].reverse() : ordered) {
       for (const edge of overlay.edges) {
-        if (seen.has(edge.key) || gone(edge)) continue
+        if (seen.has(edge.key) || hides(edge)) continue
         seen.add(edge.key)
         edges.push(edge)
       }

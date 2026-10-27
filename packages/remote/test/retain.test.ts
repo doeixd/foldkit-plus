@@ -145,6 +145,7 @@ describe('gc', () => {
         addLayer(emptyOptimistic, {
           id: 'req-1',
           patches: [{ entity: 'User', id: 'u4', values: { name: 'temp' } }],
+          deletes: [],
         }),
         {
           id: 'req-2',

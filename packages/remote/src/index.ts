@@ -108,10 +108,12 @@ import {
   type MutationDescriptor,
   type MutationStatus,
   type NormalizedPatch,
+  type PendingDelete,
 } from './mutation.js'
 import {
   connectionIdentity,
   emptyOptimistic,
+  goneIn,
   resolvedPatches,
   visibleItems,
   visibleStore,
@@ -994,7 +996,7 @@ const metaOf = (remote: RemoteModel, asked: Asked, operators: MemoryOperators): 
       known,
       connection.identity,
       remote.optimistic.overlays,
-      remote.entities,
+      goneIn(remote.entities, remote.optimistic),
     )) {
       if (edge.ref.entity !== connection.select.entity) continue
       touch(edge.ref.entity, edge.ref.id, connection.select)
@@ -1478,7 +1480,7 @@ const planAsked = (
       known,
       connection.identity,
       remote.optimistic.overlays,
-      remote.entities,
+      goneIn(remote.entities, remote.optimistic),
     )
     items.push(
       ...itemsOf(
@@ -2112,6 +2114,17 @@ export const Remote = {
     descriptorOf(entity).patch(id, values) as EntityPatch<NameOf<E>, FieldsOf<E>>,
 
   /**
+   * A deletion of one entity, for a mutation's `optimistic` list or an
+   * overlay: `Remote.tombstone(Post, 'p1')`. Until it settles the row reads
+   * `NotFound` and leaves every list and relation, as an answer's `deleted`
+   * does; a failure brings it back. Keeping it gone is the answer's to say.
+   */
+  tombstone: <E extends EntityLike>(entity: E, id: string): PendingDelete => ({
+    _tag: 'Delete',
+    ...descriptorOf(entity).ref(id),
+  }),
+
+  /**
    * A reference to one entity, for `ConnectionChange` and anything else that
    * names a row: `Remote.ref(Project, 'p3')`. Either kind of entity, as with
    * `Remote.patch`.
@@ -2411,7 +2424,7 @@ export const Remote = {
               known,
               connection.identity,
               remote.optimistic.overlays,
-              remote.entities,
+              goneIn(remote.entities, remote.optimistic),
             ).map(edge => edge.ref),
             connection.select,
           )
@@ -2977,7 +2990,12 @@ const bindDomain = <
     const shown = inserts
       ? insertsPlaced(remote, identity, pages)
       : { pages, overlays: remote.optimistic.overlays }
-    return visibleItems(shown.pages, identity, shown.overlays, remote.entities)
+    return visibleItems(
+      shown.pages,
+      identity,
+      shown.overlays,
+      goneIn(remote.entities, remote.optimistic),
+    )
   }
 
   const insertsPlaced = (
@@ -3104,9 +3122,12 @@ const bindDomain = <
       // list holds is read once: a change is of a row of its own, judged against
       // the store as the whole answer left it.
       const holds = new Set(
-        visibleItems(original, identity, remote.optimistic.overlays, remote.entities).map(edge =>
-          entityKey(edge.ref.entity, edge.ref.id),
-        ),
+        visibleItems(
+          original,
+          identity,
+          remote.optimistic.overlays,
+          goneIn(remote.entities, remote.optimistic),
+        ).map(edge => entityKey(edge.ref.entity, edge.ref.id)),
       )
       let pages = original
       let invalid = false

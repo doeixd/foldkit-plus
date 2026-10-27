@@ -156,9 +156,10 @@ describe('Data.mutate of an insert or a delete', () => {
     })
   })
 
-  it('shows nothing for a delete until the server answers', () => {
+  it('shows a deleted row as gone until the server answers', () => {
     const started = Writes.mutate(held, DropProject, { id: 'p1' })
-    expect(started.model.remote.optimistic).toEqual(held.remote.optimistic)
+    expect(Writes.get(Summary, 'p1').read(started.model)._tag).toBe('NotFound')
+    expect(Writes.confirmed(Writes.get(Summary, 'p1')).read(started.model)._tag).toBe('Ready')
   })
 })
 
