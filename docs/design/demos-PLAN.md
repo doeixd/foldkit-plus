@@ -29,7 +29,9 @@ at `bf6a8a94` on 2026-10-26.
   inline styles, an `Input`, and an `Alert` per notice; the sandbox's page draws
   each device as a `Card` with a status `Badge`. Moving it found a
   `foldkit-mixins/foundations` bug, now fixed: a build compiled the sheet from
-  the current directory rather than Vite's root. The richtext demos are next.
+  the current directory rather than Vite's root. `richtext-playground` is on
+  `demoStyle` in an `AppShell`; its 19 raw controls are still its own. The
+  `richtext` harness is not a demo (unpublished, no runtime) and keeps its page.
 - **Open question for the owner:** `foldkit-form` validates a key on its first
   blur, so tabbing out of an emptied quick-add field says "Required", and the
   form's summary repeats it. Validating an untouched key only on submit would

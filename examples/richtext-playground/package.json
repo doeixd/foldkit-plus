@@ -15,6 +15,7 @@
     "foldkit-media": "workspace:*",
     "foldkit-mixins": "workspace:*",
     "foldkit-mixins-richtext": "workspace:*",
+    "foldkit-mixins-ui": "workspace:*",
     "foldkit-primitives": "workspace:*",
     "foldkit-richtext": "workspace:*",
     "foldkit-richtext-code-shiki": "workspace:*",

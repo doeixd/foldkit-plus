@@ -1,14 +1,16 @@
 /**
- * The playground's appearance, as data. `Page` declares the page's own Slots with their pieces;
+ * The playground's appearance, as data, on the demos' theme (`demoStyle`) in the frame every
+ * demo shares (`AppShell`). `Page` declares the page's own Slots with their pieces;
  * the editor's content is reached by nesting under the `writing` slot, since what the editor
  * draws inside its host is the editor's, not a view's. The package views the page places (the
  * slash menu, the link editor, the style buttons, the status line) are styled through the
  * contracts they publish.
  */
 import { Style, type StyleValue } from 'foldkit-mixins'
-import { AppStyle } from 'foldkit-mixins/app'
 import { Prose } from 'foldkit-mixins/prose'
 import { Theme } from 'foldkit-mixins/theme'
+import { AppShellSlots, Recipes } from 'foldkit-mixins-ui'
+import { demoStyle } from 'foldkit-example-site/demo-style'
 import {
   BlockStyleMenuSlots,
   CodeToolbarSlots,
@@ -21,14 +23,13 @@ import {
   TableToolbarSlots,
 } from 'foldkit-mixins-richtext'
 
-export const A = AppStyle.make({
-  theme: Theme.make({
-    accent: { hue: 285, chroma: { dark: 0.14 }, lightness: { dark: 72 } },
-    surface: { saturation: 0.006 },
-    type: { fluid: 1 },
-  }),
+const { t } = demoStyle
+
+export const stylesheet = demoStyle.stylesheet
+
+export const ShellStyle = demoStyle.forSlots(AppShellSlots)(Recipes.AppShell({}), {
+  name: 'ShellStyle',
 })
-const { t } = A
 
 /** One h1 size for the editor and the block handle's measured line. */
 const h1Size = Theme.fluidType({ min: '1.9rem', max: '2.6rem' })
@@ -403,7 +404,7 @@ const writing = Style.compose(
   ),
 )
 
-export const Page = A.slots({
+export const Page = demoStyle.slots({
   page: Style.compose(
     arrival,
     // Where a dragged block would land: a line the drag puts on the page, outside every view.
@@ -416,25 +417,12 @@ export const Page = A.slots({
       boxSizing: 'border-box',
       maxInlineSize: '82rem',
       margin: '0 auto',
-      padding: `${t.space.lg} ${t.space.md} ${t.space['2xl']}`,
+      // The frame's main region pads above it.
+      padding: `0 ${t.space.md} ${t.space['2xl']}`,
     }),
   ),
-  header: Style.compose(
-    row(t.space.md),
-    Style.self({
-      flexWrap: 'nowrap',
-      alignItems: 'flex-start',
-      justifyContent: 'space-between',
-      marginBlockEnd: t.space.md,
-    }),
-  ),
-  // The title and lede give way to the reset button: a flex item will not shrink
-  // below its content's width unless told, and at a phone's width it pushed the
-  // button past the edge.
-  intro: Style.self({ flex: '1 1 0', minInlineSize: '0' }),
-  title: Style.self({ margin: '0', fontSize: t.size.lg, letterSpacing: '-0.02em' }),
   lede: Style.self({
-    margin: `${t.space['2xs']} 0 0`,
+    margin: `0 0 ${t.space.md}`,
     color: t.text.muted,
     fontSize: t.size.sm,
     maxInlineSize: '48rem',
@@ -757,7 +745,7 @@ export const Page = A.slots({
   note: Style.self({ margin: `${t.space.sm} 0 0`, color: t.text.muted, fontSize: t.size.xs }),
 })
 
-export const SlashMenuStyle = A.forSlots(SlashMenuSlots)({
+export const SlashMenuStyle = demoStyle.forSlots(SlashMenuSlots)({
   list: Style.self({ display: 'grid', gap: '1px' }),
   heading: Style.self({
     padding: `${t.space.xs} ${t.space.sm} ${t.space['3xs']}`,
@@ -805,14 +793,14 @@ export const SlashMenuStyle = A.forSlots(SlashMenuSlots)({
   }),
 })
 
-export const LinkEditorStyle = A.forSlots(LinkEditorSlots)({
+export const LinkEditorStyle = demoStyle.forSlots(LinkEditorSlots)({
   root: row(t.space['2xs']),
   input: Style.compose(field, Style.self({ inlineSize: '16rem' })),
   apply: control,
   remove: control,
 })
 
-export const BlockStyleMenuStyle = A.forSlots(BlockStyleMenuSlots)({
+export const BlockStyleMenuStyle = demoStyle.forSlots(BlockStyleMenuSlots)({
   root: Style.self({ position: 'relative' }),
   trigger: Style.compose(
     control,
@@ -854,12 +842,12 @@ export const BlockStyleMenuStyle = A.forSlots(BlockStyleMenuSlots)({
   check: Style.self({ display: 'inline-flex', color: t.accent.default, minInlineSize: '16px' }),
 })
 
-export const StatusStyle = A.forSlots(EditorStatusSlots)({
+export const StatusStyle = demoStyle.forSlots(EditorStatusSlots)({
   counts: Style.self({ margin: '0' }),
   problems: Style.self({ margin: '0', padding: '0', listStyle: 'none' }),
 })
 
-export const TableToolbarStyle = A.forSlots(TableToolbarSlots)({
+export const TableToolbarStyle = demoStyle.forSlots(TableToolbarSlots)({
   toolbar: row('0'),
   button: Style.compose(
     control,
@@ -871,7 +859,7 @@ export const TableToolbarStyle = A.forSlots(TableToolbarSlots)({
   ),
 })
 
-export const CodeToolbarStyle = A.forSlots(CodeToolbarSlots)({
+export const CodeToolbarStyle = demoStyle.forSlots(CodeToolbarSlots)({
   root: row(t.space['2xs']),
   language: Style.compose(
     field,
@@ -880,7 +868,7 @@ export const CodeToolbarStyle = A.forSlots(CodeToolbarSlots)({
   copy: Style.compose(control, Style.self({ fontSize: t.size.xs, minBlockSize: '1.75rem' })),
 })
 
-export const FindReplaceStyle = A.forSlots(FindReplaceSlots)({
+export const FindReplaceStyle = demoStyle.forSlots(FindReplaceSlots)({
   root: Style.compose(
     row(t.space['2xs']),
     Style.self({
@@ -901,7 +889,7 @@ export const FindReplaceStyle = A.forSlots(FindReplaceSlots)({
   ),
 })
 
-export const TableOfContentsStyle = A.forSlots(TableOfContentsSlots)({
+export const TableOfContentsStyle = demoStyle.forSlots(TableOfContentsSlots)({
   list: Style.self({ display: 'grid', margin: '0', padding: '0', listStyle: 'none' }),
   entry: Style.compose(
     Style.self({
@@ -928,7 +916,7 @@ export const TableOfContentsStyle = A.forSlots(TableOfContentsSlots)({
   ),
 })
 
-export const FootnotePreviewStyle = A.forSlots(FootnotePreviewSlots)({
+export const FootnotePreviewStyle = demoStyle.forSlots(FootnotePreviewSlots)({
   root: Style.self({
     display: 'grid',
     gridTemplateColumns: 'auto 1fr',

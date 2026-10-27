@@ -28,6 +28,10 @@ version changed; `pnpm` skips versions already in the registry.
   sandbox's page around the two devices, plain DOM with colours of its own
   before, is a runtime that draws each device as a `Card` with a status
   `Badge`, from the statuses its frames post.
+- **`examples/richtext-playground` draws on the demos' theme, in `AppShell`.**
+  Its own theme (a hue of its own, fluid type) is gone for `demoStyle`, its
+  header is the frame's with Start over among its actions, and its
+  foundations are in the page.
 - **Every example keeps its Model across an edit.** The CMS and Foldkit's
   sixteen ported examples now load `@foldkit/vite-plugin`, as the other demos
   do, so a save no longer reloads the page from `init` or logs "No response
