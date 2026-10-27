@@ -11,7 +11,33 @@ const edit = (name: string, file: string, find: string, replace: string) => ({
 const index = '../src/index.ts'
 const model = '../src/model.ts'
 
+const partial = (name: string, find: string, replace: string) => ({
+  name,
+  edits: [{ file: index, find, replace }],
+  tests: [
+    ...tests,
+    'packages/remote/test/domain.test.ts',
+    'packages/remote/test/unavailable.test.ts',
+  ],
+})
+
 export default [
+  partial(
+    'a row not yet read hides the whole list',
+    'missing = true\n                continue',
+    'return undefined',
+  ),
+  partial(
+    'a list with no row read shows an empty page',
+    'if (missing && items.length === 0) return undefined',
+    '',
+  ),
+  partial('a list missing a row reads Ready', 'return refreshing || missing', 'return refreshing'),
+  partial(
+    'a row the server will not answer is left out',
+    'if (unavailable !== undefined) return unavailable',
+    '',
+  ),
   edit(
     'a stale list reads as if it held nothing',
     index,

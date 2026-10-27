@@ -39,6 +39,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **A list shows the rows it can while others are read.** A row whose fields
+  have not arrived (a live insert, a page without its rows' fields, a deleted
+  row asked about again) is left out of `Data.query`'s page until they do, and
+  the list reads `Refreshing`; it read `Initial` or `Loading` as a whole,
+  hiding every row already shown. A property test checks every `RemoteMessage`
+  keeps a shown list or entity on screen (#234).
 - **The skill has an Alchemy guide (`references/alchemy.md`),** and the greenfield
   guide's CAFE stack (Cloudflare, Alchemy, Foldkit, Effect) points at it. Its
   `alchemy.run.ts` deploys `examples/cloudflare`'s Worker as one

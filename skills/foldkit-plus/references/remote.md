@@ -183,7 +183,7 @@ const RenameProject = Mutation.make('RenameProject', {
   Input: { id: Schema.String, name: Schema.String }, Output: { id: Schema.String },
 })
 
-// Query Projection: RemoteData<Page<Value>>; Loading while its page or its rows' fields are in flight, Ready once all are present.
+// Query Projection: RemoteData<Page<Value>>; Loading while its page is in flight; Refreshing with the rows it can assemble while others' fields arrive; Ready once all are present.
 const projects = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: ProjectSummary, first: 25 })
 // The select travels with the query: the server returns those fields with the page, so a fresh list lands Ready in one response.
 // Data.meta(model, projects) is when what is shown was last received ({ updatedAt, stale, loading }), pure for "updated 5s ago".

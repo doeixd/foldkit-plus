@@ -541,7 +541,8 @@ The states are:
 - **`Loading`** — required data is absent and a read, or a list's query, is in
   flight.
 - **`Ready`** — every selected field is present and decodes.
-- **`Refreshing`** — the current value remains visible while it is being refetched.
+- **`Refreshing`** — the current value remains visible while it is being
+  refetched, or, for a list, while some of its rows are still being read.
 - **`Failed`** — stored server data does not decode against the Selection, the
   read or query behind it failed, or the server settled a selected field
   without a value (an `Unavailable` error; see
@@ -1077,8 +1078,12 @@ flat array. That matters when page 1 and page 3 are loaded but page 2 is not:
 Remote represents an honest gap instead of pretending the visible rows are
 adjacent.
 
-A query Projection is `Initial` until the page **and every selected field of its
-visible items** are present. The `select` travels with the query: the server
+A query Projection is `Initial` until the page and the selected fields of at
+least one visible item are present. Then it shows the rows it can assemble: one
+whose fields have not arrived yet (a live insert, a row paged in without its
+fields, a deleted row asked about again) is left out, and the list reads
+`Refreshing` until it is, so the rows already shown stay on screen. It reads
+`Ready` once every visible item is assembled. The `select` travels with the query: the server
 returns the selected fields of the page's items with the edges, and one
 `ConnectionMerged` merges the page and writes them, so a fresh list usually
 lands `Ready` in one response. What the server leaves out (withheld fields,

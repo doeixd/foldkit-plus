@@ -14,8 +14,8 @@
  * Every Message variant has generators (`messages` is checked against the
  * union, so a new variant does not compile until it has one). Each is applied
  * to a realistic loaded Model, then a seeded walk of them runs from it,
- * checking every step. The cases that still break it, as documented and
- * awaiting a decision, are pinned in `undecided`.
+ * checking every step. The cases that once broke it, from Models of their
+ * own, are in `regressions`.
  */
 import { Match, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
@@ -262,12 +262,10 @@ const messages = {
   RefreshStarted: {
     'p1 refreshing': () => ({ _tag: 'RefreshStarted', requests: [nameOf('p1')] }),
     "p1's owner refreshing": () => ({ _tag: 'RefreshStarted', requests: [userName('u1')] }),
-    // A deleted row asked about again is in `undecided` below.
-    'every row still there refreshing': model => ({
+    // A row the walk deleted is asked about again too.
+    'every row refreshing': () => ({
       _tag: 'RefreshStarted',
-      requests: ['p1', 'p2', 'p3']
-        .filter(id => !isTombstone(model.remote.entities, `Project:${id}`))
-        .map(nameOf),
+      requests: ['p1', 'p2', 'p3'].map(nameOf),
     }),
   },
   ReadStarted: {
@@ -486,12 +484,11 @@ const cases = Object.entries(messages).flatMap(([tag, generators]) =>
 )
 
 /**
- * Messages that take a held list off screen, as documented, awaiting a
- * decision (#234): a list reads `Loading` (or `Initial`) while any row it
- * shows lacks a field it selects, so a row that enters it before its fields
- * are read hides every row already shown.
+ * Messages that took a held list off screen while a list read `Loading` until
+ * every row it showed had its fields (#234): a row entering it unread hid
+ * every row already shown. A list now leaves such a row out until it is read.
  */
-const undecided: ReadonlyArray<{
+const regressions: ReadonlyArray<{
   readonly name: string
   readonly from: () => Model
   readonly message: Generate
@@ -633,12 +630,9 @@ describe('A value on screen', () => {
     ])
   })
 
-  // When this goes red the gap is closed: move the case into `messages`.
-  it.each(undecided)('is still taken off screen by $name', ({ from, message }) => {
+  it.each(regressions)('is kept through $name', ({ from, message }) => {
     const model = from()
-    expect(violations(model, message(model))).toEqual([
-      expect.stringMatching(/^the list shown: Ready -> (Initial|Loading)$/),
-    ])
+    expect(violations(model, message(model))).toEqual([])
   })
 
   it.each(cases)('is kept through $tag: $name', ({ generate }) => {

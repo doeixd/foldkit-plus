@@ -1405,7 +1405,12 @@ describe('Data.query reads a connection as a page of selected items', () => {
 
   it('reads Ready once every item is assembled, Refreshing while any part refetches, Failed on bad data', () => {
     const known = merged(initial, ['p1', 'p2'])
-    expect(projects.read(read(known, ['p1']))).toEqual({ _tag: 'Initial' })
+    // No row read yet: nothing to show. One read: it shows while the other is fetched.
+    expect(projects.read(known)).toEqual({ _tag: 'Initial' })
+    expect(projects.read(read(known, ['p1']))).toEqual({
+      _tag: 'Refreshing',
+      value: { items: [{ name: 'name of p1' }], hasNext: true, hasPrevious: false },
+    })
     const loaded = read(known, ['p1', 'p2'])
     const page = {
       items: [{ name: 'name of p1' }, { name: 'name of p2' }],

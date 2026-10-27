@@ -3393,8 +3393,10 @@ const bindDomain = <
         }
         return undefined
       }
-      // The page as the rows held make it, before any failure is laid over it;
-      // `undefined` when a row is missing a field.
+      // The page as the rows held make it, before any failure is laid over it.
+      // A row missing a field is left out until it arrives, and the page reads
+      // `Refreshing` meanwhile: a list showing rows keeps showing them while a
+      // joined or re-read row is fetched. `undefined` when no row can be shown.
       const readPage = (
         remote: RemoteModel,
         connection: Connection,
@@ -3406,11 +3408,17 @@ const bindDomain = <
           () => {
             const items: Value[] = []
             let refreshing = connection.stale
+            let missing = false
             const { edges, cutBefore, cutAfter } = shown(remote, connection)
             for (const edge of edges) {
               const key = entityKey(edge.ref.entity, edge.ref.id)
               const assembled = assemble(visible, key, relation)
-              if (assembled === undefined) return unavailableFailure(visible, key, relation)
+              if (assembled === undefined) {
+                const unavailable = unavailableFailure(visible, key, relation)
+                if (unavailable !== undefined) return unavailable
+                missing = true
+                continue
+              }
               const decoded = decodeRow(select.schema, visible[key]!.values, assembled.values)
               if (Result.isFailure(decoded)) {
                 return {
@@ -3421,12 +3429,15 @@ const bindDomain = <
               refreshing ||= assembled.refreshing
               items.push(decoded.success)
             }
+            if (missing && items.length === 0) return undefined
             const page = {
               items,
               hasNext: cutAfter || hasNext(connection),
               hasPrevious: cutBefore || hasPrevious(connection),
             }
-            return refreshing ? { _tag: 'Refreshing', value: page } : { _tag: 'Ready', value: page }
+            return refreshing || missing
+              ? { _tag: 'Refreshing', value: page }
+              : { _tag: 'Ready', value: page }
           },
         )
       }

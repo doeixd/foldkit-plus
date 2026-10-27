@@ -220,9 +220,9 @@ describe('A row the body cannot judge', () => {
     const model = insert(loaded(), 'p9')
 
     expect(edges(model)).toEqual(['p1', 'p9'])
-    // And the page is not renderable until `p9`'s own fields arrive, which is
-    // the ordinary rule rather than anything this phase changed.
-    expect(shown(model)).toEqual([])
+    // And `p9` is not drawn until its own fields arrive; the rows read are,
+    // which is the ordinary rule rather than anything this phase changed.
+    expect(shown(model)).toEqual(['p1'])
   })
 })
 
