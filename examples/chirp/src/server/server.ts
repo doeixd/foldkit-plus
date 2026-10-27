@@ -34,6 +34,7 @@ export interface Sqlite {
   readonly drizzle: unknown
 }
 
+// #region tables
 const users = sqliteTable('users', {
   id: text('id').primaryKey(),
   handle: text('handle').notNull(),
@@ -49,6 +50,7 @@ const likes = sqliteTable('likes', {
   postId: text('post_id').notNull(),
   userId: text('user_id').notNull(),
 })
+// #endregion
 
 const SCHEMA = `
   create table users (id text primary key, handle text not null, name text not null);
@@ -73,6 +75,7 @@ export const Policy = G.implement({
 })
 // #endregion
 
+// #region bind
 const Db = bind(
   { User: Chirp.User, Post },
   {
@@ -88,6 +91,7 @@ const Db = bind(
     },
   },
 )
+// #endregion
 
 // Every write of a post is decided by its rules before it lands. Who wrote a
 // chirp, and when, are the server's to say: the browser sends neither.
