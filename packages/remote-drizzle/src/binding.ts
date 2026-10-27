@@ -97,6 +97,12 @@ type ComputedFields<Computed extends Record<string, ComputedConfig>> = {
 export interface ComputedConfig {
   /** The collection relation whose target rows are counted. */
   readonly relation: string
+  /**
+   * The rows counted, in place of a relation of the owner: what `bind` reads
+   * a `Derived.count` as, the pointing table by its foreign key. `relation`
+   * then only names it.
+   */
+  readonly over?: ManyRelation<AnyEntityBinding> | undefined
   /** An optional filter on the counted rows. */
   readonly where?: SQL | undefined
 }

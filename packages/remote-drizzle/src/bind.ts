@@ -9,11 +9,18 @@
 import type { AnyColumn, SQL, Table as DrizzleTable } from 'drizzle-orm'
 import { getTableColumns } from 'drizzle-orm'
 import { operatorsFrom, type BindingOperators } from './operators.js'
-import { Schema, SchemaAST } from 'effect'
+import { Option, Schema, SchemaAST } from 'effect'
 import { SchemaShape } from 'foldkit-entity'
 import * as Domain from 'foldkit-entity'
 import { Entity, type FieldsFrom } from 'foldkit-remote'
-import type { ComputedConfig, EntityBinding, RelationBinding, Visible } from './binding.js'
+import type {
+  AnyEntityBinding,
+  ComputedConfig,
+  EntityBinding,
+  ManyRelation,
+  RelationBinding,
+  Visible,
+} from './binding.js'
 import type { OrderTerm } from './cursor.js'
 
 /** A `one` relation: the foreign key is a column of the owner's table. */
@@ -83,7 +90,6 @@ type ManyKeys<E extends Domain.AnyEntity> = {
     : never
 }[keyof E['relations']]
 
-/** How a derived member is computed. A count of a `many` relation is the one kind so far. */
 /**
  * A derived member this package does not compute: the application supplies it,
  * by wrapping the source and answering for the field itself. `bind` registers
@@ -93,11 +99,25 @@ export interface SuppliedDerived {
   readonly supplied: true
 }
 
+/**
+ * A `Derived.make` member counted over a `many` relation of its owner: what a
+ * join table with no Entity is counted by. A count the Entity can say
+ * (`Derived.count`) takes no entry.
+ */
 export interface CountDerived<Relation extends PropertyKey = string> {
   readonly relation: Relation
   /** An optional filter on the counted rows. */
   readonly where?: SQL | undefined
 }
+
+/** The derived members an interpreter supplies (`Derived.make`): only these take storage. */
+type SuppliedKeys<E extends Domain.AnyEntity> = {
+  [K in keyof E['derived']]: E['derived'][K] extends Domain.EntityDerived<any, any, any, infer D>
+    ? D extends { readonly _tag: 'Supplied' }
+      ? K
+      : never
+    : never
+}[keyof E['derived']]
 
 /** `relations` and `derived` are required exactly when the Entity has some. */
 type Required_<Key extends string, Members, Value> = keyof Members extends never
@@ -117,8 +137,8 @@ export type EntityStorage<E extends Domain.AnyEntity> = {
 > &
   Required_<
     'derived',
-    E['derived'],
-    { readonly [K in keyof E['derived']]: CountDerived<ManyKeys<E>> | SuppliedDerived }
+    Pick<E['derived'], SuppliedKeys<E>>,
+    { readonly [K in SuppliedKeys<E>]: CountDerived<ManyKeys<E>> | SuppliedDerived }
   >
 
 type Storage<Es extends Domain.Entities> = { readonly [K in keyof Es]: EntityStorage<Es[K]> }
@@ -264,6 +284,40 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
     Object.keys(entities).find(key => target.identity.token === entities[key]!.identity.token) ??
     fail(`relation "${relation}" on entity "${owner}" targets an Entity that is not being bound`)
 
+  /**
+   * A `Derived.count`'s rows: the pointing Entity's table, grouped by the
+   * column its `one` relation is stored on, which references the counted id.
+   */
+  const pointing = (
+    relation: Domain.EntityRelation<string, string, Domain.AnyEntity, 'one', boolean>,
+    owner: string,
+    field: string,
+    ownerId: AnyColumn | undefined,
+  ): ComputedConfig => {
+    const counted = `${relation.owner.name}.${relation.key}`
+    const pointingKey =
+      Object.keys(entities).find(key => entities[key]!.identity.token === relation.owner.token) ??
+      fail(
+        `derived "${field}" on entity "${owner}" counts ${counted}, but ${relation.owner.name} is not being bound`,
+      )
+    const foreignKey =
+      tables[pointingKey]?.relations?.[relation.key]?.field ??
+      fail(
+        `derived "${field}" on entity "${owner}" counts ${counted}, which must be stored on ${relation.owner.name}'s own table ({ field })`,
+      )
+    const over = Object.defineProperty(
+      {
+        kind: 'many',
+        foreignKey,
+        localKey: ownerId ?? fail(`entity "${owner}" has no id column to count ${counted} by`),
+      },
+      'entity',
+      // Read on use: the pointing Entity may be bound after this one.
+      { get: () => bindings[pointingKey], enumerable: true },
+    ) as ManyRelation<AnyEntityBinding>
+    return { relation: counted, over }
+  }
+
   for (const [key, entity] of Object.entries(entities)) {
     const name = entity.name
     const descriptor = Entity.from(entity as never)
@@ -340,30 +394,41 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
 
     const computed = Object.create(null) as Record<string, ComputedConfig>
     const counts = config.derived ?? {}
-    for (const field of Object.keys(entity.derived)) {
-      const stored = counts[field] ?? fail(`derived "${field}" on entity "${name}" has no storage`)
-      // Supplied by the application's own source: nothing to compile.
-      if ('supplied' in stored) continue
-      const count = stored
-      const counted = relations[count.relation]
-      if (
-        counted === undefined ||
-        counted.kind === 'one' ||
-        (counted.kind === 'many' && counted.single === true)
-      )
-        fail(
-          `derived "${field}" on entity "${name}" needs a many relation, not "${count.relation}"`,
-        )
-      // A count is a number, so that is what the Entity must have declared.
-      const declared = (entity.derived as Readonly<Record<string, Domain.EntityMember>>)[field]
-      if (
-        declared?._tag === 'Derived' &&
-        !Schema.is(Schema.toType(declared.schema as Schema.Top))(0)
-      )
-        fail(
-          `derived "${field}" on entity "${name}" is stored as a count, but its schema is not a number`,
-        )
-      computed[field] = count
+    const derivedMembers: Readonly<
+      Record<string, Domain.EntityDerived<string, string, Schema.Constraint>>
+    > = entity.derived
+    for (const [field, member] of Object.entries(derivedMembers)) {
+      const held = Domain.Derivation.$match(member.derives, {
+        Count: ({ relation }): Option.Option<ComputedConfig> => {
+          if (Object.hasOwn(counts, field))
+            fail(
+              `derived "${field}" on entity "${name}" is a Derived.count, which bind compiles; give it no entry`,
+            )
+          return Option.some(pointing(relation, name, field, columns.id))
+        },
+        Supplied: (): Option.Option<ComputedConfig> => {
+          const stored =
+            counts[field] ?? fail(`derived "${field}" on entity "${name}" has no storage`)
+          // Supplied by the application's own source: nothing to compile.
+          if ('supplied' in stored) return Option.none()
+          const counted = relations[stored.relation]
+          if (
+            counted === undefined ||
+            counted.kind === 'one' ||
+            (counted.kind === 'many' && counted.single === true)
+          )
+            fail(
+              `derived "${field}" on entity "${name}" needs a many relation, not "${stored.relation}"`,
+            )
+          // A count is a number, so that is what the Entity must have declared.
+          if (!Schema.is(Schema.toType(member.schema as Schema.Top))(0))
+            fail(
+              `derived "${field}" on entity "${name}" is stored as a count, but its schema is not a number`,
+            )
+          return Option.some(stored)
+        },
+      })
+      if (Option.isSome(held)) computed[field] = held.value
     }
 
     bindings[key] = {

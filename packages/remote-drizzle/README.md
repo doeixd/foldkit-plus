@@ -296,12 +296,18 @@ source(Db.Post) // an ordinary binding
 | Field | the column of the same name, or `fields: { name: posts.title }` |
 | `one` relation | `{ field }`: the foreign key on the owner's table |
 | `many` relation | `{ foreignKey, localKey? }` on the target's table (`localKey` defaults to the owner's `id`), or `{ through, localColumn, foreignColumn }` |
-| Derived | `{ relation, where? }`: a count of a `many` relation |
+| `Derived.count(Other.relations.pointer)` | nothing: counted on the pointing table by its `{ field }` column |
+| `Derived.make` | `{ relation, where? }`: a count of a `many` relation, or `{ supplied: true }` |
 
 `orderBy` and `where` go on a `many` storage as they do on `many(…)`.
 
-A derived member is a count, `{ relation, where? }`, the one kind this package
-computes. One it cannot compute is `{ supplied: true }`: `bind` registers the
+A `Derived.count` says what it counts, so it takes no entry: `bind` counts the
+rows of the pointing Entity's table by the column its `one` relation is stored
+on (`{ field }`), under that table's `visible` rule, and refuses an entry for it.
+The pointing Entity must be bound in the same call.
+
+A `Derived.make` member is a count of a `many` relation, `{ relation, where? }`,
+which is how a join table with no Entity is counted. One it cannot compute is `{ supplied: true }`: `bind` registers the
 member and reads nothing for it, and you wrap the binding's `source` to answer
 for that field yourself, as `foldkit-cms-drizzle` does for an entry's state.
 

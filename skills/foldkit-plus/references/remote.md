@@ -766,7 +766,9 @@ source(Db.Post) // an ordinary binding
 Storage: field = same-named column or `fields: { name: column }`; `one` =
 `{ field }`, or for an optional `one` read from the target's table
 `{ foreignKey, localKey?, assumeUnique? }` (the column must be unique); `many` = `{ foreignKey, localKey? }` or `{ through, localColumn,
-foreignColumn }`; derived = `{ relation, where? }` (a count). A required `one`
+foreignColumn }`; a `Derived.make` member = `{ relation, where? }` (a count) or
+`{ supplied: true }`; a `Derived.count` takes no entry (bind counts the pointing
+table by its foreign key, under its `visible`). A required `one`
 over a nullable column throws: declare it `{ optional: true }`. So does a column
 that plainly cannot hold its field (text under a number, a nullable column under
 a field that admits no `null`); transforming schemas and custom columns pass

@@ -425,7 +425,7 @@ export const source = <P = unknown>(
         for (const field of context.fields) {
           const computed = binding.computed[field]
           if (computed === undefined) continue
-          const relation = binding.relations[computed.relation]
+          const relation = computed.over ?? binding.relations[computed.relation]
           if (relation === undefined || relation.kind === 'one') continue
           const { parentKey } = childSide(binding, relation)
           columns[parentKey.name] = parentKey
@@ -620,7 +620,7 @@ export const source = <P = unknown>(
         for (const field of context.fields) {
           const computed = binding.computed[field]
           if (computed === undefined) continue
-          const relation = binding.relations[computed.relation]
+          const relation = computed.over ?? binding.relations[computed.relation]
           if (relation === undefined || relation.kind === 'one') {
             return yield* new RemoteServerError({
               message: `Computed field "${field}" needs collection relation "${computed.relation}"`,
