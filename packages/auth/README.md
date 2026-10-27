@@ -299,6 +299,27 @@ client that sends none is answered as whoever the session says. Without
 `key` the resolver compares it with the session's `subjectId`, for a client
 that writes the header itself; `AuthServer.answered` needs `key`.
 
+## On Workers with D1
+
+Two settings that a server on one machine never needs:
+
+- **Build auth once per isolate.** Make `AppAuth`'s layer and its persistence
+  over the D1 binding once, in a `ManagedRuntime`, and provide its context to
+  each request. A D1 binding is not I/O a request owns, so sharing it is safe.
+  Built per request, Yielded runs its storage's first-use setup again with
+  each build, and two requests carrying one cookie at once (a refresh beside a
+  page's read) can fail session verification, which `serveFetch` answers as a
+  500.
+- **Allow the clocks to differ.** Yielded's `AuthenticationClock` is strict by
+  default (`futureToleranceMillis: 0`), and a session's issue time comes from
+  the Worker while D1 keeps its own clock. A Worker's `Date.now()` moves only
+  between I/O, so a session can read as a moment in the future, and a correct
+  password is refused as `PasswordRejected`. Give the clock some room:
+
+  ```ts
+  Layer.provideMerge(Operations.AuthenticationClock.layer({ futureToleranceMillis: 1000 }))
+  ```
+
 ## Limits
 
 - MCP agents send a bearer credential, which no resolver here reads yet. A

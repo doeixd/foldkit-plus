@@ -68,6 +68,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **The auth README says how to run on Workers with D1:** build auth once per
+  isolate, and give Yielded's `AuthenticationClock` a tolerance, since the
+  Worker's clock and D1's differ and the strict default refused a correct
+  password now and then (#222).
 - **`Expr.field` given an expression says what to write.** Wrapping an
   invariant's `before.x` in `Expr.field` failed with a long error about
   missing `owner`, `key` and `schema`. A second signature now refuses it with

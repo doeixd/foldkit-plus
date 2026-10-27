@@ -63,6 +63,11 @@ on every Remote call kind.
 
 ## Gotchas
 
+- On Workers with D1, build auth once per isolate (a `ManagedRuntime`, its
+  context provided per request), not per request, and give Yielded's
+  `Operations.AuthenticationClock.layer({ futureToleranceMillis: 1000 })`: the
+  Worker's clock and D1's differ, and the strict default refuses a correct
+  password as `PasswordRejected` now and then.
 - Remote's calls verify a session and never renew it: a session with an
   `idleTimeout` ends that long after its last renewal. Renew through Yielded
   (`renewSession`) while the reader is active.
