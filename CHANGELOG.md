@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`Remote.tombstone(entity, id)`, a pending delete.** In a mutation's
+  `optimistic` list or `Data.overlay`, the row reads `NotFound` and leaves
+  every list and every relation that lists it until the request settles, as an
+  answer's `deleted` does, so no `ConnectionChange.remove` per list is needed.
+  A failure brings it back everywhere; `Data.confirmed` still reads it; it wins
+  over every pending patch of its row (#246).
 - **`Remote.make({ verifyAnswers: true })` checks a mutation's answer against
   what was shown while it was pending.** For each row the request patched or
   put in a list, it records in `remote.answerGaps` (`Data.inspect`) the fields
@@ -63,6 +69,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **A `Mutation.write` over `Write.delete` shows its row deleted while
+  pending**, where it showed nothing until the answer. Breaking: `EntityLayer`
+  carries `deletes`, and `visibleItems`'s fourth parameter is a `gone` check
+  (`goneIn(store, optimistic)`) in place of a store (#246).
 - **A list shows the rows it can while others are read.** A row whose fields
   have not arrived (a live insert, a page without its rows' fields, a deleted
   row asked about again) is left out of `Data.query`'s page until they do, and

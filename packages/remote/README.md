@@ -674,11 +674,12 @@ what the server said:
 
 See [Mutations and optimistic state](#mutations-and-optimistic-state).
 
-### Why does a row read `Loading` for a frame after a mutation?
+### Why does a row leave its list for a frame after a mutation?
 
 The answer left out fields the row showed while the request was pending. Once
-the layer comes off, the store lacks them, so the read entry fetches them and
-the row reads `Loading` until they arrive. `Remote.make({ verifyAnswers: true
+the layer comes off, the store lacks them, so the read entry fetches them:
+until they arrive, a list leaves the row out (and reads `Refreshing`), and a
+read of that entity alone reads `Loading`. `Remote.make({ verifyAnswers: true
 })` names each one: see
 [Checking an answer against what was shown](#checking-an-answer-against-what-was-shown).
 
