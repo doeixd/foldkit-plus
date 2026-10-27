@@ -24,6 +24,7 @@ import {
   RemotePolicy,
   RemoteRpc,
   type LiveDependencies,
+  type MutationStarted,
   type ReadDependencies,
   type RemoteRpcClient,
   type RemoteMessage,
@@ -177,6 +178,21 @@ declare const model: Model
   expectTypeOf(Data.refresh(model, actives)).toEqualTypeOf<Model>()
   expectTypeOf(Data.refresh(model, actives.project)).toEqualTypeOf<Model>()
   expectTypeOf(Data.refresh(model, actives, { failed: true })).toEqualTypeOf<Model>()
+
+  // When a write fails: listed by its mutation, retried as itself, or dismissed.
+  const failedRenames = Data.failedWrites(model, RenameProject)
+  expectTypeOf(failedRenames[0]!.input).toEqualTypeOf<{
+    readonly id: string
+    readonly name: string
+  }>()
+  expectTypeOf(Data.retry(model, 'r1')).toEqualTypeOf<Option.Option<MutationStarted<Model>>>()
+  expectTypeOf(Data.dismiss(model, 'r1')).toEqualTypeOf<Model>()
+  const hearing = Data.wiring(actives, { shared: ['MutationFailed'] })
+  expectTypeOf<(typeof hearing.shared)[number]>().toEqualTypeOf<'MutationFailed'>()
+  const quiet = Data.wiring(actives)
+  expectTypeOf<(typeof quiet.shared)[number]>().toEqualTypeOf<never>()
+  // @ts-expect-error a wiring shares only Remote's own Messages
+  Data.wiring(actives, { shared: ['ClickedRename'] })
 
   const pageEntries = Data.subscriptions({ page: projectPage })
   // Retention is the domain's: one `retain` roots every read, so the second

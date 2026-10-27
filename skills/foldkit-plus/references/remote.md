@@ -510,7 +510,16 @@ time); the application signs in again and `forget`s.
 
 **Outcomes in the Model.** `Data.mutation(model, requestId)` is `Pending`,
 `Applied`, `Failed` (with its `error`), or `Unknown`, for the id `Data.mutate`
-returned. A read the server answers with nothing about an id it was asked for
+returned. A failed write releases its optimistic layer but stays in the ledger
+with its mutation and input: `Data.failedWrites(model)` (or `(model, CreatePost)`,
+typed by it) lists `{ requestId, mutation, input, error, refusal }`, oldest
+first, so a view can say "your post did not send" and give `input.text` back
+without an app-kept list. `Data.retry(model, requestId)` is
+`Option<MutationStarted>`: the same input, request id and operation, its
+optimistic change shown again. `Data.dismiss(model, requestId)` forgets it.
+Nothing drops one on a timer. To act on a failure in `update`, wire
+`Data.wiring(actives, { shared: ['MutationFailed'] })`: the own update then
+receives `MutationFailed` after Remote reduced it, and its match must answer it. A read the server answers with nothing about an id it was asked for
 makes that entity `NotFound`; it is refetched only by `Data.refresh` or brought
 back by a later write. A field the server answers without, and names in the
 result's `settled` (withheld by `authorize`, or absent from the Source's

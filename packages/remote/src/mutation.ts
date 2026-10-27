@@ -15,6 +15,7 @@ import {
   type Invariant,
   type Write,
 } from 'foldkit-entity'
+import type { OptimisticOperation } from './optimistic.js'
 import { refParts } from './relation.js'
 import type { RemoteError } from './remoteData.js'
 import { entityKey, tombstone, writeEntities, type EntityStore } from './store.js'
@@ -47,6 +48,20 @@ export interface PendingDelete {
   readonly id: string
 }
 
+/**
+ * What a request writes, as `Data.mutate` started it: enough to list it once it
+ * fails, with its input, and to send it again as itself.
+ */
+export interface StartedWrite {
+  /** The registered mutation's name. */
+  readonly mutation: string
+  /** The input as `Data.mutate` was given it, decoded. */
+  readonly input: unknown
+  readonly keys?: ReadonlyArray<string> | undefined
+  /** What it showed until it settled, shown again by a retry. */
+  readonly optimistic: ReadonlyArray<OptimisticOperation>
+}
+
 export interface MutationState {
   readonly pending: ReadonlySet<string>
   readonly applied: ReadonlySet<string>
@@ -58,6 +73,11 @@ export interface MutationState {
    * is: a retry of that request id sends it again, so a server recognises it.
    */
   readonly operations: ReadonlyMap<string, string>
+  /**
+   * What each pending or failed request writes. A request settled as applied,
+   * or dismissed, takes its write with it.
+   */
+  readonly writes: ReadonlyMap<string, StartedWrite>
   /**
    * How many mutations this model has started. A bound domain takes its next
    * request id from here, so `update` stays pure and the id exists before the
@@ -72,6 +92,7 @@ export const emptyMutationState: MutationState = {
   failed: new Set(),
   errors: new Map(),
   operations: new Map(),
+  writes: new Map(),
   sequence: 0,
 }
 
@@ -93,9 +114,14 @@ const remember = (ids: ReadonlySet<string>, id: string): ReadonlySet<string> => 
   return new Set([...next].slice(next.size - MUTATION_ID_WINDOW))
 }
 
-export const beginMutation = (state: MutationState, requestId: string): MutationState => ({
+export const beginMutation = (
+  state: MutationState,
+  requestId: string,
+  write?: StartedWrite,
+): MutationState => ({
   ...state,
   pending: new Set([...state.pending, requestId]),
+  writes: write === undefined ? state.writes : new Map([...state.writes, [requestId, write]]),
   sequence: state.sequence + 1,
 })
 
@@ -110,10 +136,31 @@ export const failMutation = (
   const failed = remember(state.failed, requestId)
   const errors = new Map([...state.errors, [requestId, error] as const])
   const operations = new Map([...state.operations, [requestId, operation] as const])
-  // `failed` is a bounded window; an error or an operation outlives its id by nothing.
+  const writes = new Map(state.writes)
+  // `failed` is a bounded window; an error, an operation or a write outlives its id by nothing.
   for (const id of errors.keys()) if (!failed.has(id)) errors.delete(id)
   for (const id of operations.keys()) if (!failed.has(id)) operations.delete(id)
-  return { ...state, pending, failed, errors, operations }
+  for (const id of writes.keys()) if (!failed.has(id) && !pending.has(id)) writes.delete(id)
+  return { ...state, pending, failed, errors, operations, writes }
+}
+
+/** The ledger with a request's failure forgotten: its id, error, operation and write. */
+export const forgetFailure = (state: MutationState, requestId: string): MutationState => {
+  const without = <V>(map: ReadonlyMap<string, V>): ReadonlyMap<string, V> => {
+    if (!map.has(requestId)) return map
+    const next = new Map(map)
+    next.delete(requestId)
+    return next
+  }
+  return {
+    ...state,
+    failed: state.failed.has(requestId)
+      ? new Set([...state.failed].filter(id => id !== requestId))
+      : state.failed,
+    errors: without(state.errors),
+    operations: without(state.operations),
+    writes: without(state.writes),
+  }
 }
 
 /** What Remote knows of one mutation request, by the id `mutate` returned. */
@@ -175,7 +222,8 @@ export const reconcileMutation = (
   const applied = remember(state.applied, requestId)
   const pending = new Set(state.pending)
   pending.delete(requestId)
-  return { store: next, state: { ...state, applied, pending } }
+  // A retry that applies is no longer a failure to list.
+  return { store: next, state: { ...forgetFailure(state, requestId), applied, pending } }
 }
 
 /** A mutation an application declares: its name and input/output codecs. */

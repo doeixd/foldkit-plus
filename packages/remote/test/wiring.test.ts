@@ -83,7 +83,7 @@ describe('RemoteDomain.wiring', () => {
 
   it('claims every Remote tag, shared with no other integration', () => {
     expect([...wiring.handles].sort()).toEqual([...allTags].sort())
-    expect(wiring.shared).toBeUndefined()
+    expect(wiring.shared).toEqual([])
     expect(wiring.key).toBe('remote:remote')
   })
 

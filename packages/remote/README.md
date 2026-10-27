@@ -1503,6 +1503,49 @@ operation, and a retry with the same `requestId` (`Data.mutate(model, M, input,
 can recognise the retry. After a reload the record of it is gone, and the same
 request id is a new operation.
 
+### When a write fails
+
+A write that fails releases its optimistic layer, so its change disappears.
+Remote keeps the failure in the ledger, with the mutation and the input it was
+started with, until the application answers it. The application reads it from
+the Model; it keeps no list of its own:
+
+```ts
+// The view: a notice for each post that did not send, with its text to give back.
+Data.failedWrites(model, CreatePost) // ReadonlyArray<{ requestId, mutation, input, error, refusal }>
+
+// update
+case 'ClickedRetry':
+  return Option.match(Data.retry(model, message.requestId), {
+    onNone: () => ({ model }),
+    onSome: started => ({ model: started.model, commands: [started.command] }),
+  })
+case 'ClickedDiscard':
+  return { model: Data.dismiss(model, message.requestId) }
+```
+
+- `Data.failedWrites(model)` lists every failed write, oldest first, and
+  `Data.failedWrites(model, CreatePost)` only that mutation's, with its `input`
+  and `refusal` typed by it. A write in flight or applied is not listed.
+- `Data.retry(model, requestId)` sends a failed write again as itself: the same
+  input, request id and operation, with its optimistic change shown again. It
+  is `None` for a write that is not failed, so a second press does nothing.
+- `Data.dismiss(model, requestId)` forgets it.
+
+A failed write stays listed until one of those, or `Data.forget` at a change of
+principal. Nothing drops one on a timer: that would hide a failure the reader
+has not seen. The ledger is bounded (the last 1024 failures), and is never
+persisted, so a reload forgets it.
+
+To act on a failure in `update` (log it, move focus, put text back), have the
+wiring share it. Remote reduces it first, then the application's own update
+receives it with a Model that already lists it:
+
+```ts
+Page.assemble(Data.wiring(actives, { shared: ['MutationFailed'] }))
+// own update: MutationFailed is now one of its Messages, so its match must answer it
+```
+
 A mutation can say what the server may refuse it with, as data rather than a
 message to parse:
 

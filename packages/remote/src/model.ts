@@ -338,6 +338,18 @@ export type RemoteMessage =
       readonly _tag: 'MutationStarted'
       readonly requestId: string
       readonly optimistic?: ReadonlyArray<OptimisticOperation> | undefined
+      /**
+       * Which mutation, with what input: what the ledger keeps until the
+       * request applies, so a failure can be listed and retried. `Data.mutate`
+       * always gives it.
+       */
+      readonly write?:
+        | {
+            readonly mutation: string
+            readonly input: unknown
+            readonly keys?: ReadonlyArray<string> | undefined
+          }
+        | undefined
     }
   | {
       readonly _tag: 'MutationSucceeded'
@@ -464,6 +476,13 @@ export const remoteMessageCases = {
   MutationStarted: {
     requestId: Schema.String,
     optimistic: Schema.optional(Schema.Array(Schema.Unknown)),
+    write: Schema.optional(
+      Schema.Struct({
+        mutation: Schema.String,
+        input: Schema.Unknown,
+        keys: Schema.optional(Schema.Array(Schema.String)),
+      }),
+    ),
   },
   MutationSucceeded: {
     requestId: Schema.String,
@@ -1047,7 +1066,13 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
     case 'MutationStarted':
       return {
         ...model,
-        mutations: beginMutation(model.mutations, message.requestId),
+        mutations: beginMutation(
+          model.mutations,
+          message.requestId,
+          message.write === undefined
+            ? undefined
+            : { ...message.write, optimistic: message.optimistic ?? [] },
+        ),
         optimistic: beginOptimistic(model.optimistic, message.requestId, message.optimistic ?? []),
       }
     case 'MutationSucceeded': {

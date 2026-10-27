@@ -101,9 +101,11 @@ import {
   writeRead,
   type RemoteMessage,
   type RemoteMessageInput,
+  type RemoteMessageTag,
   type RemoteModel,
 } from './model.js'
 import {
+  forgetFailure,
   mutationStatus,
   optimisticOfWrite,
   countsOfWrite,
@@ -319,6 +321,8 @@ export interface BoundRemote<AppModel, Store extends RemoteModel, Names extends 
 }
 
 type MutationInput<M> = M extends MutationDescriptor<any, infer Input, any> ? Input : never
+type MutationRefusal<M> =
+  M extends MutationDescriptor<any, any, any, infer Refused> ? Refused : never
 
 /** How `Data.persistence` keeps the cache across a reload. */
 export interface PersistenceOptions<AppModel> {
@@ -439,13 +443,48 @@ export type LiveStatus =
 
 export interface SubscriptionsOptions extends ObserveOptions, LiveOptions, RetainOptions {}
 
-/** A Remote domain's wiring for an assembly: it routes Remote's Messages into `reduce`, brings its Subscriptions and contract, and requires `RemoteClient` from the runtime's resources Layer. */
-export type RemoteWiring<AppModel> = Wiring<
+/**
+ * A Remote domain's wiring for an assembly: it routes Remote's Messages into
+ * `reduce`, brings its Subscriptions and contract, and requires `RemoteClient`
+ * from the runtime's resources Layer. The `Shared` tags reach the
+ * application's own update too, after Remote has reduced them.
+ */
+export type RemoteWiring<AppModel, Shared extends RemoteMessageTag = never> = Wiring<
   AppModel,
   RemoteMessage | RemoteMessageInput,
   RemoteClient,
-  keyof typeof remoteMessageCases
->
+  RemoteMessageTag
+> & { readonly shared: ReadonlyArray<Shared> }
+
+/** How `Data.wiring` joins an assembly: its Subscriptions' options, and what the application hears. */
+export interface WiringOptions<
+  Shared extends RemoteMessageTag = never,
+> extends SubscriptionsOptions {
+  /**
+   * Remote's Messages the application's own `update` receives as well, after
+   * Remote has reduced them, so the Model it gets already holds what they say:
+   * `['MutationFailed']` to react to a write that failed.
+   */
+  readonly shared?: ReadonlyArray<Shared> | undefined
+}
+
+/**
+ * A write that failed and is neither retried nor dismissed, typed by its
+ * mutation: what `Data.failedWrites` lists.
+ */
+export interface FailedWrite<M extends MutationDescriptor<any, any, any, any>> {
+  readonly requestId: string
+  readonly mutation: M
+  /** The input it was started with, to show or give back. */
+  readonly input: MutationInput<M>
+  readonly error: RemoteError
+  /** Why the server refused it, as `mutation` declares; none for any other failure. */
+  readonly refusal: Option.Option<MutationRefusal<M>>
+}
+
+/** `FailedWrite` of each of a union of mutations. */
+export type FailedWriteOf<M> =
+  M extends MutationDescriptor<any, any, any, any> ? FailedWrite<M> : never
 
 /** What `RemoteDomain.mutate` hands `update`: the Model with the request started, and the Command that settles it. */
 export interface MutationStarted<AppModel> {
@@ -759,6 +798,27 @@ export interface RemoteDomain<
     mutation: MutationDescriptor<string, any, any, Refused>,
   ): Option.Option<Refused>
   /**
+   * The writes that failed and are still owed an answer, oldest first, each
+   * with its mutation, the input it was started with, and why it failed. Given
+   * a mutation, only its writes, with its input type. A write is listed until
+   * `retry` sends it again, `dismiss` forgets it, or `forget` changes the
+   * principal; nothing drops one on a timer, since that would hide a failure
+   * the reader has not seen.
+   */
+  failedWrites(model: AppModel): ReadonlyArray<FailedWriteOf<Mutations[number]>>
+  failedWrites<M extends MutationDescriptor<any, any, any, any>>(
+    model: AppModel,
+    mutation: M & Registered<M['name'], MutationName<Mutations[number]>, 'Mutation'>,
+  ): ReadonlyArray<FailedWrite<M>>
+  /**
+   * Sends a failed write again as itself: the same input, request id and
+   * operation id (so a server that applied it answers from its record), with
+   * its optimistic operations shown again. None unless `failedWrites` lists it.
+   */
+  retry(model: AppModel, requestId: string): Option.Option<MutationStarted<AppModel>>
+  /** Forgets a failed write, so `failedWrites` no longer lists it. Anything else returns the same Model. */
+  dismiss(model: AppModel, requestId: string): AppModel
+  /**
    * Whether what `active` reads live is arriving: `Reconnecting` from the
    * moment its stream breaks until it resubscribes, which its live entry does
    * on its own, with backoff.
@@ -771,12 +831,16 @@ export interface RemoteDomain<
    * `reduce`, brings its Subscriptions and contract, and requires
    * `RemoteClient` from the runtime's resources Layer. One assembly holds at
    * most one Remote wiring: every domain claims the same tags, and routing
-   * takes the first claimant.
+   * takes the first claimant. `shared` names the Messages the application's
+   * own update hears too.
    */
-  wiring: <const Active extends Readonly<Record<string, ActiveEntry<AppModel>>>>(
+  wiring: <
+    const Active extends Readonly<Record<string, ActiveEntry<AppModel>>>,
+    const Shared extends RemoteMessageTag = never,
+  >(
     active: Active,
-    options?: SubscriptionsOptions,
-  ) => RemoteWiring<AppModel>
+    options?: WiringOptions<Shared>,
+  ) => RemoteWiring<AppModel, Shared>
   /**
    * Keeps the cache across a reload, as a wiring beside `wiring`: at start and
    * whenever `key` changes, the stored snapshot is restored (`Hydrated`, with
@@ -823,6 +887,10 @@ export interface RemoteFold<
   readonly mutate: (
     ...args: Parameters<Domain['mutate']>
   ) => FoldedMutationStarted<AppModel, ParentMessage>
+  /** `Data.retry`, its Command lifted. */
+  readonly retry: (
+    ...args: Parameters<Domain['retry']>
+  ) => Option.Option<FoldedMutationStarted<AppModel, ParentMessage>>
   /** `Data.preload`, its Command lifted. */
   readonly preload: (
     ...args: Parameters<Domain['preload']>
@@ -2077,6 +2145,15 @@ export interface RefreshOptions {
   readonly failed?: boolean | undefined
 }
 
+/** Why the server refused a write, as `mutation` declares it: none for any other failure, or one that does not decode. */
+const refusalOf = <Refused>(
+  error: RemoteError,
+  mutation: MutationDescriptor<string, any, any, Refused>,
+): Option.Option<Refused> =>
+  error.refusal === undefined
+    ? Option.none()
+    : Schema.decodeUnknownOption(mutation.Refusal)(error.refusal)
+
 /** Refuses an entry of another application: two can share a Model type, and the owner token tells them apart. */
 const assertOwnedBy = <AppModel>(contract: Contract, entry: ActiveEntry<AppModel>): void => {
   if (contract.owner === undefined) return
@@ -2180,6 +2257,13 @@ export const Remote = {
         )
         return { ...started, command: mapMessage(started.command, toParentMessage) }
       },
+      retry: (...args: Parameters<Domain['retry']>) =>
+        Option.map(
+          domain.retry(
+            ...(args as Parameters<RemoteDomain<AppModel, any, any, any, any>['retry']>),
+          ),
+          started => ({ ...started, command: mapMessage(started.command, toParentMessage) }),
+        ),
       preload: (...args: Parameters<Domain['preload']>) =>
         mapMessage(
           domain.preload(
@@ -3326,6 +3410,16 @@ const bindDomain = <
     ])
   }
   const assertOwned = (entry: ActiveEntry<AppModel>) => assertOwnedBy(bound.contract, entry)
+  /** The descriptor a recorded write names; only a hand-built `MutationStarted` names another. */
+  const registeredMutation = (name: string): MutationDescriptor<any, any, any> => {
+    const descriptor = definition.registry.mutations.get(name)
+    if (descriptor === undefined) {
+      throw new Error(
+        `Remote: a failed write names mutation "${name}", which domain "${bound.contract.name}" does not register`,
+      )
+    }
+    return descriptor
+  }
   /**
    * `prefetch` and `satisfy`, each Message they reduce also kept in `heard`,
    * so `preload` can hand them to the Model as it is by the time they land.
@@ -3906,6 +4000,11 @@ const bindDomain = <
         _tag: 'MutationStarted',
         requestId,
         ...(optimistic === undefined ? {} : { optimistic }),
+        write: {
+          mutation: mutation.name,
+          input,
+          ...(options.keys === undefined ? {} : { keys: options.keys }),
+        },
       })
       const startedModel = store.set(model, started as Store)
       const shown = shownOf(
@@ -3956,11 +4055,53 @@ const bindDomain = <
     mutation: (model, requestId) => mutationStatus(store.get(model).mutations, requestId),
     refusal: (model, requestId, mutation) => {
       const status = mutationStatus(store.get(model).mutations, requestId)
-      if (status._tag !== 'Failed') return Option.none()
-      const { refusal } = status.error
-      return refusal === undefined
-        ? Option.none()
-        : Schema.decodeUnknownOption(mutation.Refusal)(refusal)
+      return status._tag === 'Failed' ? refusalOf(status.error, mutation) : Option.none()
+    },
+    failedWrites: (model: AppModel, mutation?: MutationDescriptor<any, any, any, any>) => {
+      if (mutation !== undefined)
+        assertRegistered(bound, 'Mutation', definition.registry.mutations, mutation.name)
+      const { mutations } = store.get(model)
+      // A retry in flight is pending again, and not listed until it fails again.
+      const listed = [...mutations.failed].flatMap(requestId => {
+        const write = mutations.writes.get(requestId)
+        const error = mutations.errors.get(requestId)
+        if (write === undefined || error === undefined || mutations.pending.has(requestId))
+          return []
+        if (mutation !== undefined && write.mutation !== mutation.name) return []
+        const descriptor = registeredMutation(write.mutation)
+        return [
+          {
+            requestId,
+            mutation: descriptor,
+            input: write.input,
+            error,
+            refusal: refusalOf(error, descriptor),
+          },
+        ]
+      })
+      // `Data.mutate` recorded each input as its mutation's Input.
+      return listed as never
+    },
+    retry: (model, requestId) => {
+      const { mutations } = store.get(model)
+      const write = mutations.writes.get(requestId)
+      if (write === undefined || mutationStatus(mutations, requestId)._tag !== 'Failed')
+        return Option.none()
+      return Option.some(
+        domain.mutate(model, registeredMutation(write.mutation), write.input, {
+          requestId,
+          optimistic: write.optimistic,
+          keys: write.keys,
+        }),
+      )
+    },
+    dismiss: (model, requestId) => {
+      const remote = store.get(model)
+      if (mutationStatus(remote.mutations, requestId)._tag !== 'Failed') return model
+      return store.set(model, {
+        ...remote,
+        mutations: forgetFailure(remote.mutations, requestId),
+      } as Store)
     },
     liveStatus: (model, active) => {
       assertOwned(active)
@@ -4091,8 +4232,9 @@ const bindDomain = <
         ),
       }
     },
-    wiring: (active, options): RemoteWiring<AppModel> => ({
+    wiring: (active, options = {}) => ({
       key: `remote:${bound.contract.name}`,
+      shared: options.shared ?? [],
       // Every domain claims the same tags with no per-domain discriminator, so
       // the assembly's claimant check keeps one assembly to one domain.
       handles: Record.keys(remoteMessageCases),
