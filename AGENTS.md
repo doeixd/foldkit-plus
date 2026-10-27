@@ -869,6 +869,9 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   at its third slide landed on its second: the scroll halted at the first
   snap on the way. Scroll to a position (`scrollTo`, `scrollIntoView`) to
   pass them.
+- **`isMaxLength` counts UTF-16 units; SQL's `length()` counts code points.** A
+  CHECK translated from it is looser for an emoji. Use `isMaxCodePoints` for a
+  rule the database should hold too.
 - **Probe, do not assume, what a library type means.** `Schema.Struct({})` is
   not an empty-object schema: it accepts `{foo:1}`, `[]` and `"str"` even with
   `onExcessProperty: 'error'`. Use `Schema.Record(Schema.String, Schema.Never)`.
@@ -930,6 +933,10 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   request. `foldkit-remote-drizzle`'s `pollLive` is the shape; a
   `LiveHub` push reaches nobody.
 
+- **A Drizzle `PgColumn` is structurally a `SQLiteColumn`.** An overload
+  taking SQLite columns first matched Postgres ones too and returned SQLite
+  check builders, which `pgTable` refused with a misleading error. List the
+  Postgres overload first.
 - **Drizzle's SQLite transaction is synchronous.** `db.transaction(async tx
   => …)` over `node-sqlite` commits before the callback's awaits run, so a
   failure after an await rolls nothing back; a probe left the row of a
@@ -1673,6 +1680,11 @@ of its own named a form field "fits the Catalog". Read words with
   hunk (`git apply --reverse --cached`) does not keep it out, and it rode a
   Dialog test into an unrelated commit that way. Extract the foreign hunk
   from the file first (or wait), then commit.
+- **Sessions share one scratchpad.** A commit's file built at a fixed name
+  (`readme.mine`) for the temporary-index recipe was overwritten by another
+  session between two commands, and the commit carried its README. Name
+  scratch files uniquely (a PID or timestamp), and grep the committed blob
+  before `update-ref`.
 - **A commit built from HEAD's copy goes stale when HEAD moves.** A README
   built for a temporary-index commit from HEAD lost another session's text,
   committed between the read and `commit-tree`: `update-ref <new> <old>` checks

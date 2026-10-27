@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **CHECK constraints come from the Entity.** `entityChecks(Entity, t)` puts the
+  CHECKs an Entity implies into a Drizzle table, for `drizzle-kit`;
+  `checkConstraints(binding)` gives them as SQL clauses, with `serverOnly`
+  listing each rule only the server holds. A rule compiles only where SQL says
+  it exactly (lengths in code points, non-empty, a single-bracket ASCII
+  pattern, numeric bounds, literals, state invariants). `bind` refuses a table
+  whose own CHECKs say another rule, are stale, or miss one beside the others.
+  Chirp's tables use them (#259).
 - **`Data.refresh(model, actives)` reads a page again.** It takes the active
   record or one entry of it (`actives.page`), with params from the Model, as
   well as a Projection; `{ failed: true }` asks again only what failed, so
@@ -142,6 +150,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **Breaking: `invariantChecks` is replaced by
+  `checkConstraints(binding).constraints`,** which carries the field rules
+  too. `bind` reads a column's nullability from the field's stored side, so an
+  `Option` field may sit on a nullable column (#259).
 - **A failed read asked again reads `Loading`,** then `Failed` again if it
   fails, instead of `Initial` in between (#261). `RemoteWiring` has a `shared`
   field, and an applied retry leaves the ledger's `failed` (#260).
