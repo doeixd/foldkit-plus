@@ -7,7 +7,7 @@
  */
 import { fileURLToPath } from 'node:url'
 import { type Browser, chromium } from 'playwright'
-import { createServer } from 'vite'
+import { createServer, mergeConfig, type UserConfig } from 'vite'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 import { demos } from '../src/demos.js'
 import { auditPhone } from '../src/phoneAudit.js'
@@ -39,13 +39,21 @@ test('the launch table names only listed demos', () => {
 test.each(demos.map(demo => [demo.example, demo] as const))('%s fits a phone', async example => {
   const root = fileURLToPath(new URL(`../../../${example}/`, import.meta.url))
   const { mode, path = '/' } = launch[example] ?? {}
-  const vite = await createServer({
-    root,
-    configFile: `${root}vite.config.ts`,
-    ...(mode === undefined ? {} : { mode }),
-    logLevel: 'error',
-    server: { port: 0 },
-  })
+  // The config read through Vitest, as the CMS's own e2e test reads it: a
+  // config Vite loads runs in Node, which cannot load a workspace plugin's
+  // TypeScript source (`foldkit-ssr/vite`) where no `dist` is built.
+  const { default: config } = (await import(`${root}vite.config.ts`)) as {
+    readonly default: UserConfig
+  }
+  const vite = await createServer(
+    mergeConfig(config, {
+      root,
+      configFile: false,
+      ...(mode === undefined ? {} : { mode }),
+      logLevel: 'error',
+      server: { port: 0 },
+    }),
+  )
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
     hasTouch: true,
