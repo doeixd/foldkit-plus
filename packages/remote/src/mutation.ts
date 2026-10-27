@@ -359,10 +359,9 @@ export const countsOfWrite = (
       : held.present.has(relation)
         ? Option.some(held.values[relation])
         : Option.none()
+  const patched = patchOfWrite(bound).values
   const linked = (relation: string): Option.Option<unknown> =>
-    Option.map(Option.fromUndefinedOr(bound.links[relation]), link =>
-      Option.match(link, { onNone: () => null, onSome: ref => entityKey(ref.entity, ref.id) }),
-    )
+    Object.hasOwn(bound.links, relation) ? Option.some(patched[relation]) : Option.none()
   const deltas = new Map<string, { owner: string; id: string; adds: Record<string, number> }>()
   const move = (ref: unknown, owner: string, field: string, by: number): void => {
     if (typeof ref !== 'string') return

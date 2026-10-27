@@ -10,8 +10,8 @@ export default [
     edits: [
       {
         file: '../src/index.ts',
-        find: ': optimisticOfWrite(mutation.write, input, options.keys)',
-        replace: ': undefined',
+        find: '...optimisticOfWrite(mutation.write, input, options.keys),',
+        replace: '',
       },
     ],
     tests,
