@@ -1511,7 +1511,12 @@ holds whenever the row is read, so a change that reaches the store meanwhile is
 added to rather than hidden, and two pending increments add up. A computed
 field is predicted the same way, by `Remote.make`'s `operators` over the row as
 it is read (`Write.apply`), so a live change to what it reads changes the
-prediction. A field the client has not read, or a computation by an operator its
+prediction. So is a count another registered Entity derives over the written
+row's relation (`likeCount: Derived.count(Like.relations.post)`): inserting a
+Like adds one to the post it points at, deleting a Like the client holds takes
+one away from the post it pointed at, and pointing it elsewhere does both, each
+added as an increment is. Where the client does not hold where the row pointed,
+or holds no count on that post, nothing is predicted. A field the client has not read, or a computation by an operator its
 table lacks, is not guessed; it shows the server's value when the answer comes. The prediction is never authority: the server decides, and its answer
 replaces it. The [declared writes guide](../../docs/declared-writes.md) follows
 one write from here to the statement that lands it. `keys` names the input keys

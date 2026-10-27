@@ -8,6 +8,7 @@
 import { Duration, Effect, Layer, Option, Record, Result, Schema, Stream } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
 import {
+  Derivation,
   Entity as DomainEntity,
   Query as Relational,
   QueryEvaluateError,
@@ -105,6 +106,8 @@ import {
 import {
   mutationStatus,
   optimisticOfWrite,
+  countsOfWrite,
+  type CountedBy,
   type MutationDescriptor,
   type MutationStatus,
   type NormalizedPatch,
@@ -290,6 +293,12 @@ export interface RemoteDescriptor<
      * not placed.
      */
     readonly filtered: ReadonlyMap<string, ReadonlyArray<string>>
+    /**
+     * Per entity name, the counts other registered Entities derive over its
+     * relations (`Derived.count`), which a write of it moves: what a declared
+     * write predicts.
+     */
+    readonly counts: ReadonlyMap<string, ReadonlyArray<CountedBy>>
   }
 }
 
@@ -1233,6 +1242,29 @@ const liveStreamKey = (requirements: readonly Requirement[]): string =>
     .sort()
     .join('|')
 
+/** Each registered Entity's `Derived.count`s, under the Entity whose rows they count. */
+const countsBy = (
+  entities: ReadonlyArray<EntityLike>,
+): ReadonlyMap<string, ReadonlyArray<CountedBy>> => {
+  const counts = new Map<string, Array<CountedBy>>()
+  for (const entity of entities) {
+    if (!DomainEntity.is(entity)) continue
+    const derived: Readonly<
+      Record<string, Domain.EntityDerived<string, string, Schema.Constraint>>
+    > = entity.derived
+    for (const [field, member] of Object.entries(derived))
+      Derivation.$match(member.derives, {
+        Supplied: () => undefined,
+        Count: ({ relation }) => {
+          const by = counts.get(relation.owner.name) ?? []
+          by.push({ relation: relation.key, owner: entity.name, field })
+          counts.set(relation.owner.name, by)
+        },
+      })
+  }
+  return counts
+}
+
 /** Declares a Remote domain: its entities, queries, and mutations, plus the submodel. */
 const defineRemote = <
   const Entities extends readonly EntityLike[],
@@ -1268,6 +1300,7 @@ const defineRemote = <
           DomainEntity.is(entity) ? [[entity.name, ReadFilter.members(entity.metadata)]] : [],
         ),
       ),
+      counts: countsBy(config.entities),
     },
   }
 }
@@ -3793,7 +3826,16 @@ const bindDomain = <
           : (options.optimistic ??
             (mutation.write === undefined
               ? undefined
-              : optimisticOfWrite(mutation.write, input, options.keys)))
+              : [
+                  ...optimisticOfWrite(mutation.write, input, options.keys),
+                  ...countsOfWrite(
+                    mutation.write,
+                    input,
+                    options.keys,
+                    definition.registry.counts.get(mutation.write.input.entity.name) ?? [],
+                    visibleStoreOf(remote.entities, remote.optimistic, bound.operators),
+                  ),
+                ]))
       const started = updateRemote(remote, {
         _tag: 'MutationStarted',
         requestId,

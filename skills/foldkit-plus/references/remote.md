@@ -477,7 +477,11 @@ changed and sends them with the request. A write may ask of its row (`when`, `ex
 and compute where it commits (`increment`, `compute`); Remote shows an increment as an
 amount added to whatever the store holds when it is read, and a computed field worked
 out by `Remote.make`'s `operators` over the row as read, so a live update meanwhile is
-added to or computed from, not hidden; without the operator it shows the stored value. `Data.mutate` also sends an operation id, kept across a retry with the
+added to or computed from, not hidden; without the operator it shows the stored value.
+A `Derived.count` a registered Entity declares over the written Entity's relation
+(`Post.likeCount` over `Like.post`) moves too: an insert adds one where it points, a
+delete of a row the client holds takes one away where it pointed, a relink does both,
+and only on a row whose count the client holds. `Data.mutate` also sends an operation id, kept across a retry with the
 same `requestId`, which a ledgered writer answers from its record. Declaring them, and
 invariants: [entity.md](entity.md).
 

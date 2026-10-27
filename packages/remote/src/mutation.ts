@@ -15,6 +15,7 @@ import {
   type Invariant,
   type Write,
 } from 'foldkit-entity'
+import { refParts } from './relation.js'
 import type { RemoteError } from './remoteData.js'
 import { entityKey, tombstone, writeEntities, type EntityStore } from './store.js'
 
@@ -317,6 +318,79 @@ export const optimisticOfWrite = (
       },
     }),
   )
+
+/**
+ * A count a registered Entity derives over a relation of another
+ * (`Derived.count`): `Post.likeCount` over `Like.post` is, under `Like`,
+ * `{ relation: 'post', owner: 'Post', field: 'likeCount' }`.
+ */
+export interface CountedBy {
+  readonly relation: string
+  readonly owner: string
+  readonly field: string
+}
+
+/**
+ * The counts a declared write moves, as pending increments of the rows its
+ * row points at: an insert adds one where it points, a delete takes one away
+ * where the row pointed, and an update that points it elsewhere does both.
+ * Where the row pointed before is read from `store` as the client holds it;
+ * when it does not hold that, nothing is predicted and the answer decides. A
+ * count is moved only on a row that `store` holds it on.
+ */
+export const countsOfWrite = (
+  write: AnyWrite,
+  input: unknown,
+  keys: ReadonlyArray<string> | undefined,
+  counted: ReadonlyArray<CountedBy>,
+  store: EntityStore,
+): ReadonlyArray<PendingPatch> => {
+  if (counted.length === 0) return []
+  const bound = DomainWrite.bind(write, input as never, write._tag === 'Update' ? keys : undefined)
+  const row = store[entityKey(bound.entity, bound.id)]
+  const held = row === undefined || row.tombstone ? undefined : row
+  // Where the row points through `relation`: a ref key, null for nowhere, none when unknown.
+  const before = (relation: string): Option.Option<unknown> =>
+    held === undefined
+      ? // A row not there points nowhere, unless an update or a delete expected one.
+        write._tag === 'Insert'
+        ? Option.some(null)
+        : Option.none()
+      : held.present.has(relation)
+        ? Option.some(held.values[relation])
+        : Option.none()
+  const linked = (relation: string): Option.Option<unknown> =>
+    Option.map(Option.fromUndefinedOr(bound.links[relation]), link =>
+      Option.match(link, { onNone: () => null, onSome: ref => entityKey(ref.entity, ref.id) }),
+    )
+  const deltas = new Map<string, { owner: string; id: string; adds: Record<string, number> }>()
+  const move = (ref: unknown, owner: string, field: string, by: number): void => {
+    if (typeof ref !== 'string') return
+    const target = store[ref]
+    if (target === undefined || target.tombstone || typeof target.values[field] !== 'number') return
+    const at = deltas.get(ref) ?? { owner, id: refParts(ref).id, adds: {} }
+    at.adds[field] = (at.adds[field] ?? 0) + by
+    deltas.set(ref, at)
+  }
+  for (const { relation, owner, field } of counted) {
+    const from = before(relation)
+    const to = Match.value(write).pipe(
+      Match.tagsExhaustive({
+        Delete: () => Option.some<unknown>(null),
+        // An insert or an update that does not point the relation moves nothing.
+        Insert: () => linked(relation),
+        Update: () => linked(relation),
+      }),
+    )
+    if (Option.isNone(from) || Option.isNone(to) || from.value === to.value) continue
+    move(from.value, owner, field, -1)
+    move(to.value, owner, field, 1)
+  }
+  return [...deltas.values()].flatMap(({ owner, id, adds }) => {
+    const moved = Object.fromEntries(Object.entries(adds).filter(([, by]) => by !== 0))
+    return Object.keys(moved).length === 0 ? [] : [{ entity: owner, id, values: {}, adds: moved }]
+  })
+}
 
 export const Mutation = {
   /**
