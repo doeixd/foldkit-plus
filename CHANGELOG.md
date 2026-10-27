@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **A Site node's Surface may read the signed-in viewer.** `surface: { surface,
+  viewer: model => Option<Viewer>, params: (route, viewer) => params }` is
+  active on its route only once `viewer` gives one, and inactive again when it
+  gives none, so a viewer-keyed Surface (a home feed) needs no hand-written
+  `Surface.at` gating. The node keeps its route as its activation. Without
+  `viewer`, reading a second `params` argument is a type error (#219).
 - **`foldkit-remote-drizzle`'s `pollLive`, `rowChangeLog` and `rowLog`: live
   data on Workers.** `pollLive` is the polling `LiveSource` that
   `examples/cloudflare` wrote for itself, now taking any number of `lists`
