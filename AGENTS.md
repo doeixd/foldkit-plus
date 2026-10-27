@@ -1302,6 +1302,11 @@ of its own named a form field "fits the Catalog". Read words with
   the canvas, and a focus-following Mount "broke" it. Focus what a user would
   press, and test a focus claim in a browser with `userEvent`: four focus
   bugs (Enter, Delete, a disabled button, a narrow panel) passed every test.
+- **`Surface.at` is a `SurfaceSource` too.** Its value has both `projectionOf`
+  and `instancesOf`, so a test using only `Surface.at` entries cannot tell
+  whether a `projectionOf` branch matters; that mutation survived until a
+  test used a `Data.active` entry, which has only `projectionOf`. Test each
+  kind of active entry.
 - **A routing test that checks who may claim proves nothing about delivery.**
   `Bundle.assemble` allowed a shared tag and its tests stopped there; routing
   took the first claimant, so a second URL mirror never read the URL and the

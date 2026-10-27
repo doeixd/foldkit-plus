@@ -9,6 +9,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`Data.refresh(model, actives)` reads a page again.** It takes the active
+  record or one entry of it (`actives.page`), with params from the Model, as
+  well as a Projection; `{ failed: true }` asks again only what failed, so
+  what loaded keeps its value and a list its later pages (#261).
+- **Failed writes are kept, typed, until dealt with.** The mutation ledger
+  keeps what each write was: `Data.failedWrites(model, mutation?)` lists them
+  with input and refusal typed by the mutation, `Data.retry(model, requestId)`
+  sends one again as itself (its optimistic change shown again), and
+  `Data.dismiss` forgets one. `Data.wiring(actives, { shared: ['MutationFailed']
+  })` hands the application's own update Remote's Messages after Remote has
+  reduced them (#260).
 - **`Agent.host(config)` and `Agent.headless(config)`.** `host` wraps a Foldkit
   application's config (for `run`, `hydrate`, `embed` or `SSR.hydrate`) and
   returns a host that reads the Model the runtime committed and queues
@@ -131,6 +142,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **A failed read asked again reads `Loading`,** then `Failed` again if it
+  fails, instead of `Initial` in between (#261). `RemoteWiring` has a `shared`
+  field, and an applied retry leaves the ledger's `failed` (#260).
 - **Leaving a field no longer validates it, and the list of fields to fix
   belongs to a submit.** An edit still validates its field at once, so
   tabbing through an untouched required field, or leaving the field a reset
