@@ -146,7 +146,7 @@ describe('FormView markup', () => {
       'aria-label': 'Tags',
     })
 
-    const failed = render(send(Edit.Message.Blurred({ key: 'title' })))
+    const failed = render(send(Edit.Message.Validated({ key: 'title' })))
     expect(byId(failed, 'Edit-title')?.data?.attrs).toMatchObject({
       'aria-invalid': 'true',
       'aria-describedby': 'Edit-title-description Edit-title-error',
@@ -183,7 +183,9 @@ describe('FormView markup', () => {
     expect(byId(calm, 'Edit-title')?.data?.attrs?.['aria-busy']).toBeUndefined()
     expect(byId(calm, 'Edit-title-checking')).toBeUndefined()
     expect(field(calm)?.data?.attrs).toMatchObject({ 'data-validation': 'NotValidated' })
-    expect(field(render(send(Edit.Message.Blurred({ key: 'title' }))))?.data?.attrs).toMatchObject({
+    expect(
+      field(render(send(Edit.Message.Validated({ key: 'title' }))))?.data?.attrs,
+    ).toMatchObject({
       'data-validation': 'Invalid',
     })
   })
@@ -386,7 +388,7 @@ describe('FormView styling', () => {
       Style.attach(Style.forSlots(FormSlots)({ root: Style.class('form') })),
     )
 
-    const root = render(send(Edit.Message.Blurred({ key: 'title' })), View)
+    const root = render(send(Edit.Message.Validated({ key: 'title' })), View)
     expect(Inert.classes(root)).toEqual(['form'])
     expect(Inert.classes(byId(root, 'Edit-title'))).toEqual(['is-invalid'])
     expect(Inert.classes(byId(root, 'Edit-rating'))).toEqual([])

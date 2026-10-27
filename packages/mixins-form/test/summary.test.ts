@@ -1,6 +1,8 @@
 /**
- * The form's list of fields to fix: drawn while any field is invalid, a link
- * to each one's control in the order the fields are drawn, in the form's words.
+ * The form's list of fields to fix: drawn after a submit while any field is
+ * invalid, in a form of more than one control, a link to each one's control in
+ * the order the fields are drawn, in the form's words. It is the alert for
+ * those failures, so the errors beside the fields say nothing of their own.
  */
 import { Schema } from 'effect'
 import { Entity, Relation } from 'foldkit-entity'
@@ -33,10 +35,36 @@ describe('the fields to fix', () => {
     expect(summary(draw(Edit.initial))).toBeUndefined()
   })
 
+  it('is not drawn before a submit, while each field says its own failure', () => {
+    // A page that checks every key without submitting owns its own submit.
+    const root = draw(send(Edit.Message.ValidatedAll()))
+    expect(summary(root)).toBeUndefined()
+    expect(Inert.byRole(root, 'alert').map(Inert.text)).toEqual(['Required', 'Required'])
+  })
+
+  it('is the one alert after a submit, so the fields beside it say nothing more', () => {
+    const root = draw(send(Edit.Message.Submitted()))
+    expect(Inert.byRole(root, 'alert')).toEqual([summary(root)])
+  })
+
+  it('is not drawn for a form of one control, whose error is the summary', () => {
+    const Name = Form.make(
+      'Name',
+      Form.input(Schema.Struct({ name: Schema.String.check(Schema.isMinLength(1)) })),
+    )
+    const model = Name.bundle.update(Name.initial, Name.Message.Submitted(), undefined).model
+    const root = FormView.define(Name)(
+      { model, errors: [], canSubmit: false },
+      SlotView.inertBuilder(),
+    )
+    expect(summary(root)).toBeUndefined()
+    expect(Inert.byRole(root, 'alert').map(Inert.text)).toEqual(['Required'])
+  })
+
   it('links each invalid field, in the order drawn, and no valid one', () => {
     const model = send(
       Edit.Message.Changed({ key: 'rating', value: 'four' }),
-      Edit.Message.ValidatedAll(),
+      Edit.Message.Submitted(),
     )
     expect(links(draw(model))).toEqual([
       ['#Edit-title', 'Title: Required'],
@@ -47,23 +75,24 @@ describe('the fields to fix', () => {
   })
 
   it('follows each field as it is fixed', () => {
-    const model = send(
-      Edit.Message.ValidatedAll(),
+    const submitted = send(Edit.Message.Submitted())
+    expect(links(draw(submitted)).map(([href]) => href)).toEqual(['#Edit-title', '#Edit-status'])
+    const model = [
       Edit.Message.Changed({ key: 'title', value: 'Hello' }),
       Edit.Message.Changed({ key: 'status', value: 'live' }),
-    )
+    ].reduce((at, message) => Edit.bundle.update(at, message, undefined).model, submitted)
     expect(links(draw(model)).map(([href]) => href)).toEqual([])
   })
 
   it('says it in the form’s words', () => {
-    const model = send(Edit.Message.Blurred({ key: 'title' }))
+    const model = send(Edit.Message.Submitted())
     const root = draw(model, { summary: 'Fix:', issue: '{error} ({label})' })
     expect(Inert.text(summary(root))).toMatch(/^Fix:/)
-    expect(links(root)).toEqual([['#Edit-title', 'Required (Title)']])
+    expect(links(root)[0]).toEqual(['#Edit-title', 'Required (Title)'])
   })
 
   it('sends the form’s own Message, which changes nothing', () => {
-    const model = send(Edit.Message.Blurred({ key: 'title' }))
+    const model = send(Edit.Message.Validated({ key: 'title' }))
     expect(
       Edit.bundle.update(model, Edit.Message.FollowedIssue({ id: 'Edit-title' }), undefined).model,
     ).toBe(model)
@@ -92,7 +121,7 @@ describe('the fields to fix', () => {
     )
     const model = BookForm.bundle.update(
       BookForm.initial,
-      BookForm.Message.ValidatedAll(),
+      BookForm.Message.Submitted(),
       undefined,
     ).model
     const root = FormView.define(BookForm)(
@@ -108,7 +137,7 @@ describe('the fields to fix', () => {
 
 it('draws every element of the summary in a Slot', () => {
   const tree = Inert.draw(FormView.define(Edit), {
-    model: send(Edit.Message.Blurred({ key: 'title' })),
+    model: send(Edit.Message.Submitted()),
     errors: [],
     canSubmit: false,
     options,

@@ -120,19 +120,19 @@ describe('An Option key', () => {
   })
 })
 
-describe('A blur that changes nothing', () => {
+describe('A validation that changes nothing', () => {
   it.each(['phone', 'fax', 'age', 'nickname'] as const)(
     'on an empty %s returns the same Model',
     key => {
       const model = typed([['name', 'Ada']])
-      expect(step(model, Message.Blurred({ key })).model).toBe(model)
+      expect(step(model, Message.Validated({ key })).model).toBe(model)
     },
   )
 
   it('on a required key still says so', () => {
-    expect(step(ContactForm.initial, Message.Blurred({ key: 'name' })).model.fields.name._tag).toBe(
-      'Invalid',
-    )
+    expect(
+      step(ContactForm.initial, Message.Validated({ key: 'name' })).model.fields.name._tag,
+    ).toBe('Invalid')
   })
 })
 

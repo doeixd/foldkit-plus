@@ -38,7 +38,7 @@ const mount = async () => {
       Model: Signup.bundle.Model,
       container,
       init: () => ({
-        model: Signup.bundle.update(Signup.initial, Signup.Message.ValidatedAll(), undefined).model,
+        model: Signup.bundle.update(Signup.initial, Signup.Message.Submitted(), undefined).model,
       }),
       update: (model: Model, message: Message) => ({
         model: Signup.bundle.update(model, message, undefined).model,

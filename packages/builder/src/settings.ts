@@ -122,7 +122,7 @@ const make = (
       return keys
         .filter(key => stored[key] !== undefined && Result.isFailure(decoders[key]!(stored[key])))
         .reduce(
-          (next, key) => form.bundle.update(next, form.Message.Blurred({ key }), undefined).model,
+          (next, key) => form.bundle.update(next, form.Message.Validated({ key }), undefined).model,
           filled,
         )
     },

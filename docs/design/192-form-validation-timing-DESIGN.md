@@ -1,11 +1,7 @@
 # When a form's failures show (#192)
 
-Status: decided and built (2026-10-27), not yet landed. The change to
-`foldkit-form` turns nine `foldkit-mixins-form` unit tests red (they blur an
-untouched field to make it invalid), and that package is being restyled by
-another session, so the form change lands together with their one-line test
-updates. The view's half, the list of fields to fix, follows in
-`foldkit-mixins-form`. See [Deferred](#deferred).
+Status: built (2026-10-27), both halves: `foldkit-form`'s timing and
+`foldkit-mixins-form`'s list. See [Deferred](#deferred) for what is not.
 
 ## The problem
 
@@ -66,7 +62,7 @@ packages should do with them:
 - **Announced when it appears.** An inline error appears on an edit, while the
   person is in the field, so a live announcement is what tells them. The error
   keeps `role="alert"` (today's markup), which is announced on insertion.
-- **The list after a submit only.** `FormView` should draw its list when
+- **The list after a submit only.** `FormView` draws its list when
   `model.attempted` is true and some field is invalid, not whenever a field
   is. Before a submit, the inline error is the only place a failure is said.
 - **No list for one field.** A form that draws one control has nothing to
@@ -99,12 +95,12 @@ packages should do with them:
 
 ## Deferred
 
-- **The view's half** (`foldkit-mixins-form`): gate the list on
-  `model.attempted`, draw none for one control, and move the announcement to
-  the list on a submit. Another session owns that package now; the change is
-  handed over, not made here. Its unit tests that blurred an untouched field
-  to make it invalid now send `Validated({ key })`, or type and clear the
-  field.
+- **An error drawn after a submit is not announced.** While the list is
+  drawn, the errors beside fields carry no `role="alert"`, the list's own
+  being the announcement; an error that appears later on an edit, while the
+  list stays, is announced only by the list's change. Announcing such an
+  error alone would need the view to know which errors are new since the
+  submit.
 - **Holding a failure while text is typed** (option 4). It needs the `edited`
   set of option 1, so `Blurred` can tell a key left after typing from one
   passed through. A flag, a list or a control's Model is a choice made by the

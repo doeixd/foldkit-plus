@@ -83,8 +83,11 @@ it('types, picks, and submits through the DOM, and hands the parent the decoded 
     expect(submit.textContent).toBe('Save')
     expect(submit.disabled).toBe(true)
 
-    // Leaving a required control empty says so, in the DOM a screen reader reads.
+    // Emptying a required control says so, in the DOM a screen reader reads.
+    // Leaving it untouched says nothing (#192).
     element('Edit-title').dispatchEvent(new Event('blur'))
+    type('Edit-title', 'x')
+    type('Edit-title', '')
     await vi.waitFor(() => expect(element('Edit-title-error')?.textContent).toBe('Required'))
     expect(element('Edit-title').getAttribute('aria-invalid')).toBe('true')
 

@@ -35,7 +35,7 @@ Entity.input (what each key means)
         v
      Bundle
    Model: one fieldValidation Field per key, holding the draft
-   Changed / Blurred ──► validate the draft against the key's schema
+   Changed ──► validate the draft against the key's schema
    Submitted ──► every key valid, input decoded ──► out Message { value }
 ```
 
@@ -91,7 +91,7 @@ const RenameForm = Page.children.rename
   never dropped by omission.
 - `Rename.Message` builds the form's Messages for your view to dispatch:
   `Changed({ key, value })`, `Blurred({ key })`, `Submitted()`, `Reset()`,
-  and `ValidatedAll()` (see [Validation](#validation)). `Toggled({ key })`
+  `Validated({ key })` and `ValidatedAll()` (see [Validation](#validation)). `Toggled({ key })`
   flips a flag and `Toggled({ key, choice })` lets go of or adds one choice of a
   list, both to the draft as it stands when the Message lands, so a view sends
   them for a press: two presses before the next draw both count. `FollowedIssue({ id })`
@@ -326,8 +326,14 @@ Each key is checked against **the input's own schema for that key**, not the
 Entity's: the operation decides what is valid, and may be stricter.
 
 - **An edit** (`Changed`) checks the new draft at once.
-- **Leaving a control** (`Blurred`) checks the draft as it stands, which is how
-  a required key left empty comes to say so.
+- **Leaving a control** (`Blurred`) says nothing new: an edit has already
+  checked the key, and a key never edited is not judged before a submit. So
+  tabbing through a required field, or leaving the emptied field of a form that
+  was just reset, shows no `Required`. Emptying a required field you typed in
+  does say so.
+- **`Validated({ key })`** checks one key as it stands, edited or not: for a
+  program that shows a stored value's failure after a `fill`, which validates
+  nothing.
 - **Empty** means `""` or `[]`. What an empty draft submits is whatever the
   input admits for it, tried in order: leaving the key out (`Schema.optionalKey`,
   `Schema.optional`), `Option.none()` for a key typed `Option`, `null`, then the
@@ -339,10 +345,12 @@ Entity's: the operation decides what is valid, and may be stricter.
   `Option.some(value)`, and filled from an `Option`.
 - **A number** that does not parse reads `Enter a number`; one that parses is
   checked by the schema. Only spaces is nothing entered, not zero.
-- **Submit** checks every key, so every failure shows. When all pass, the whole
-  input is decoded; a rule that spans keys fails there and lands in
-  `model.errors`, since it belongs to no one control. The next edit clears
-  them.
+- **Submit** checks every key, so every failure shows, and sets
+  `model.attempted`. When all pass, the whole input is decoded; a rule that
+  spans keys fails there and lands in `model.errors`, since it belongs to no
+  one control. The next edit clears them. `attempted` stays until a `Reset` or
+  a `fill`: a view draws its list of fields to fix only once it is set, so a
+  failure shows first beside its field, and the list follows a submit.
 - **An invariant** of the Entity (`Entity.invariant`) is judged on submit over
   the row the decoded value describes (`Entity.judgeInput`), as the server will
   judge it: a row that breaks one does not go out, and its message shows beside
@@ -354,9 +362,10 @@ Entity's: the operation decides what is valid, and may be stricter.
   })`, `Operators.kernel` by default), and a nested form given none uses it.
 - **`ValidatedAll`** checks every key a submit would, rows too, and submits
   nothing: for a page that sends several forms at once. A rule that spans keys
-  is said only by a submit.
-- A validation that changes nothing, such as a blur on an empty optional key,
-  returns the Model it was given, so nothing redraws.
+  is said only by a submit, and the page that sends it owns the submit, so it
+  does not set `attempted`.
+- A validation that changes nothing, such as a blur, or `Validated` on an
+  empty optional key, returns the Model it was given, so nothing redraws.
 
 Two questions a view asks before a submit:
 

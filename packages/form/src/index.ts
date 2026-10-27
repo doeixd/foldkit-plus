@@ -127,6 +127,12 @@ export interface FormModel<Fields extends Schema.Struct.Fields, Members = {}, Co
    * they follow no longer. A key that follows nothing is never here.
    */
   readonly touched: Readonly<Record<string, boolean>>
+  /**
+   * A submit has been asked since the form started, was filled or was reset.
+   * A view draws its list of fields to fix only then. `ValidatedAll` is not
+   * one: the page that sends it owns the submit.
+   */
+  readonly attempted: boolean
   /** Failures of the input as a whole, from the last submit: a rule that spans keys. */
   readonly errors: ReadonlyArray<string>
   /** A submit is waiting for checks still running; it goes out when the last one passes. */
@@ -435,6 +441,7 @@ export type RequirementOf<C> = {
 const edits = {
   Changed: true,
   Blurred: false,
+  Validated: false,
   ValidatedAll: false,
   Submitted: false,
   Reset: true,
@@ -880,6 +887,8 @@ const Core = {
       nextRow: Schema.Number,
       searches: Schema.Record(Schema.String, Schema.String),
       touched: Schema.Record(Schema.String, Schema.Boolean),
+      // Defaulted, so a Model stored before it existed still decodes.
+      attempted: Schema.Boolean.pipe(Schema.withDecodingDefaultKey(Effect.succeed(false))),
       errors: Schema.Array(Schema.String),
       submitPending: Schema.Boolean,
       subject: Schema.Record(Schema.String, Schema.String),
@@ -899,8 +908,17 @@ const Core = {
     ) as Schema.Literals<readonly [ControlKey, ...ControlKey[]]>
     const Message = defineMessageUnion({
       Changed: { key: KeySchema, value: DraftSchema },
-      /** Validates the key as it stands, so a required key left empty says so. */
+      /**
+       * The person left the key. An edit has already validated it, and a key
+       * never edited is not judged before a submit, so tabbing through a field
+       * says nothing about it: the form changes nothing.
+       */
       Blurred: { key: KeySchema },
+      /**
+       * Validates the key as it stands, edited or not: for a program showing a
+       * stored value's failure after a `fill`, which validates nothing.
+       */
+      Validated: { key: KeySchema },
       /**
        * Validates every key not validated yet, in every row too, as a submit
        * would, and submits nothing: for a page that submits several forms at once.
@@ -992,6 +1010,7 @@ const Core = {
         nextRow: 0,
         searches: {},
         touched: {},
+        attempted: false,
         errors: [],
         submitPending: false,
         subject: {},
@@ -1359,7 +1378,7 @@ const Core = {
       model: Model,
     ): { readonly model: Model; readonly commands: Commands; readonly value?: Value } => {
       const { model: next, commands } = validateEvery(
-        { ...model, errors: [], submitPending: false },
+        { ...model, errors: [], submitPending: false, attempted: true },
         (form, row) => form.engine.submit(row),
       )
       if (isValidating(next)) return { model: { ...next, submitPending: true }, commands }
@@ -1423,6 +1442,8 @@ const Core = {
                 : [],
           ),
         ),
+        // Another value to edit, with nothing submitted yet.
+        attempted: false,
         errors: [],
         submitPending: false,
         fields: fieldsFrom(plan =>
@@ -1503,7 +1524,7 @@ const Core = {
                 onSome: value => changed(edited(model), message.key, value),
               },
             )
-          case 'Blurred': {
+          case 'Validated': {
             const state = drafts(model)[message.key]
             // Only a key not validated yet: any other state already answers for this draft.
             return state._tag === 'NotValidated'
@@ -1640,6 +1661,7 @@ const Core = {
             return { model: { ...initial, subject: model.subject } }
           case 'Submitted':
             return submitted(model)
+          case 'Blurred':
           case 'FollowedIssue':
           case 'AskedForMore':
             return { model }
@@ -1811,6 +1833,8 @@ const Core = {
         const next = submit(model)
         return next.value !== undefined || next.model.submitPending
       },
+      /** Whether a submit was asked since the form started, was filled or was reset. */
+      attempted: (model: Model): boolean => model.attempted,
       /**
        * Whether the form is valid right now: a submit now would hand over the
        * value at once. Unlike `canSubmit`, a check running, or one a key has not

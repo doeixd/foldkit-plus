@@ -82,7 +82,7 @@ describe('UiForm.renderers', () => {
   })
 
   it('keeps the plain controls’ names, ids and accessibility state', () => {
-    const root = drawEdit(edit(Edit.Message.Blurred({ key: 'title' })), ui)
+    const root = drawEdit(edit(Edit.Message.Validated({ key: 'title' })), ui)
     for (const key of ['title', 'rating', 'body', 'status', 'editorId'] as const)
       expect(Inert.value(byId(root, `Edit-${key}`), 'name'), key).toBe(key)
     const title = byId(root, 'Edit-title')

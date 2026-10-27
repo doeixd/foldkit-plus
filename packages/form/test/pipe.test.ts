@@ -28,7 +28,7 @@ describe('Form pipe steps', () => {
 
     const blurred = Finished.bundle.update(
       Finished.initial,
-      Finished.Message.Blurred({ key: 'name' }),
+      Finished.Message.Validated({ key: 'name' }),
       undefined,
     )
     expect(blurred.model.fields.name).toMatchObject({ errors: ['name fehlt'] })

@@ -113,6 +113,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **Leaving a field no longer validates it, and the list of fields to fix
+  belongs to a submit.** An edit still validates its field at once, so
+  tabbing through an untouched required field, or leaving the field a reset
+  emptied, no longer shows "Required"; a submit still shows every failure and
+  sets `model.attempted` (`form.attempted(model)`), which `Reset` and `fill`
+  clear. `FormView` draws its "Check these fields" list only then, none for a
+  form of one control, and the list is the one `role="alert"`: the errors
+  beside fields drop theirs while it shows. `Message.Validated({ key })`
+  checks one field on request, as `Blurred` used to; a program that sent
+  `Blurred` to show a filled value's failure sends `Validated`. A Model
+  stored without `attempted` decodes it as `false` (#192).
 - **`pointedLinks()` reads intent, not every crossing.** A mouse, pen or
   keyboard focus counts after resting 50 ms on a link, leaving first cancels
   it, and a finger counts at once (#227).

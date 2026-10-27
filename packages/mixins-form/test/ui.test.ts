@@ -93,7 +93,10 @@ it('routes blur and edits through the Submodel, announces checking/rejection, an
   const description = () => document.querySelector('#Signup-email-description')!
   try {
     await vi.waitFor(() => expect(email()).not.toBeNull())
-    email().dispatchEvent(new Event('blur'))
+    email().value = 'x'
+    email().dispatchEvent(new Event('input', { bubbles: true }))
+    email().value = ''
+    email().dispatchEvent(new Event('input', { bubbles: true }))
     await vi.waitFor(() => expect(email().getAttribute('aria-invalid')).toBe('true'))
     expect(description().getAttribute('role')).toBe('alert')
     email().value = 'new@example.com'

@@ -66,4 +66,45 @@ export default [
     ],
     tests: [browser],
   },
+  {
+    name: 'the list is drawn before a submit',
+    edits: [{ file, find: 'form.attempted(input.model) &&', replace: '' }],
+    tests: [unit],
+  },
+  {
+    name: 'a form of one control lists its one field',
+    edits: [
+      {
+        file,
+        find: '(shown.length > 1 || shown.some(control => Input.Nested.is(control.control)))',
+        replace: 'true',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'a form of one nested key draws no list',
+    edits: [
+      { file, find: ' || shown.some(control => Input.Nested.is(control.control))', replace: '' },
+    ],
+    tests: [unit, 'packages/mixins-form/test/nested.test.ts'],
+  },
+  {
+    name: 'a field beside the list announces its failure again',
+    edits: [
+      {
+        file,
+        find: "...(input.quiet === true ? [] : [h.Role('alert')]),",
+        replace: "h.Role('alert'),",
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the list announces nothing',
+    edits: [
+      { file, find: "slots.summary.attrs([h.Role('alert')])", replace: 'slots.summary.attrs()' },
+    ],
+    tests: [unit],
+  },
 ]

@@ -22,7 +22,7 @@ nothing; `foldkit-mixins-form` draws it (see [Drawing it](#drawing-it)).
 ```text
 Schema.Struct + Entity.input ──► Form.make ──► controls (draw these)
                                           └──► bundle
-   Changed / Blurred ──► validate the draft against the key's own input schema
+   Changed ──► validate the draft against the key's own input schema
    Submitted ──► every key valid, whole input decoded, the row's invariants hold ──► out Message { value }
 ```
 
@@ -73,6 +73,12 @@ const RenameForm = Page.at(Slot, {
   as it lands, so presses faster than a frame all count),
   `Blurred({ key })`, `Submitted()`, `Reset()`, `ValidatedAll()`, wrapped in the placement's
   Message (`Message.GotRenameMessage({ message })`).
+- **When a failure shows:** an edit validates its key at once; a blur validates
+  nothing, so tabbing through a field never says `Required`; a submit validates
+  every key and sets `model.attempted`, after which `FormView` draws its list
+  of fields to fix (none for a form of one control), as the one alert.
+  `Validated({ key })` checks one key on request (a stored value
+  shown by `fill`).
 - **Posting without scripts:** `foldkit-mixins-form` names every control by
   its key (`name=<key>`; a relation picker's checkboxes also carry `value`), so
   a plain form post carries the drafts.

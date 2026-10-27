@@ -343,15 +343,18 @@ belong to no one field), `summary`, `summaryTitle`, `issues`, `issue` and
 `issueLink` (the fields to fix, below),
 `submit`, and the five slots of a nested key.
 
-While any field is invalid, the form draws the fields to fix above its submit
-button, beside `errors`: `words.summary` (default `Check these fields:`), then a
-link to each invalid field in the order the fields are drawn, rows' too, each
+After a submit, while any field is invalid, a form of more than one control
+(a nested key counts as more) draws the fields to fix above its submit button,
+beside `errors`. It is the alert for those failures, so the errors beside the
+fields drop their own `role="alert"` while it is drawn; a form of one control
+draws none, its error beside the field being the summary. It holds
+`words.summary` (default `Check these fields:`), then a link to each invalid
+field in the order the fields are drawn, rows' too, each
 worded by `words.issue` (default `{label}: {error}`); a field of a row is named
 with its row by `words.inRow` (default `{row}, {label}`: `comments 2, body`),
 so two rows' links differ; a row inside a row is named through both
 (`shelves 1, books 2, title`). It sits low in the form,
-so a field turning invalid never moves the fields above it, and it is no live
-region: each field's own error already is. A link's `href` is the control's
+so a field turning invalid never moves the fields above it. A link's `href` is the control's
 `#id`, so with scripts off it goes there; with them on, a press focuses the
 control itself (a choice group's first box) and goes nowhere, since an
 application takes a link press as a navigation. The press sends the form's

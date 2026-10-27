@@ -159,7 +159,8 @@ it('draws rows, adds and removes them, and submits what they hold', async () => 
     await vi.waitFor(() => expect(element('Create-comments-r1-body')).toBeNull())
 
     // A failure inside a row shows in the row.
-    element('Create-comments-r2-body').dispatchEvent(new Event('blur'))
+    type('Create-comments-r2-body', 'x')
+    type('Create-comments-r2-body', '')
     await vi.waitFor(() =>
       expect(element('Create-comments-r2-body-error')?.textContent).toBe('Required'),
     )
@@ -203,7 +204,7 @@ it('names the row of each field to fix, so two rows’ links differ', () => {
     step(Create.initial, Create.Message.RowAdded({ key: 'comments' })),
     Create.Message.RowAdded({ key: 'comments' }),
   )
-  const checked = step(twoComments, Create.Message.ValidatedAll())
+  const checked = step(twoComments, Create.Message.Submitted())
   const root = FormView.define(Create)(
     { model: checked, errors: [], canSubmit: false },
     SlotView.inertBuilder(),
@@ -254,7 +255,7 @@ it('names a row inside a row through both', () => {
     }),
   )
   const root = FormView.define(RoomForm)(
-    { model: step(withBook, RoomForm.Message.ValidatedAll()), errors: [], canSubmit: false },
+    { model: step(withBook, RoomForm.Message.Submitted()), errors: [], canSubmit: false },
     SlotView.inertBuilder(),
   )
   const summary = Inert.all(root).find(node =>

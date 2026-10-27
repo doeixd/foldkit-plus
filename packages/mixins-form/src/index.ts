@@ -138,6 +138,11 @@ export interface FieldInput<Key extends string = string> {
   readonly noneWord?: string | undefined
   /** What is said while the key's check runs: the view's `words.checking`. */
   readonly checkingWord?: string | undefined
+  /**
+   * The form's list of fields to fix announces this failure, so the error
+   * beside the field is drawn without its own `role="alert"`.
+   */
+  readonly quiet?: boolean | undefined
   /** The Message a press of the picker's "more" button sends; none draws no button. */
   readonly more?: unknown
   /** On that button: the view's `words.more`. */
@@ -244,9 +249,10 @@ export const FormSlots = Slots.define({
   /** Failures that belong to no one field: a rule that spans keys. */
   errors: Slot.make({ capability: Capability.Base }),
   /**
-   * The fields to fix, while any is invalid: its words (`summaryTitle`), then a
-   * list (`issues`) of `issue`s, each holding an `issueLink` to one field's
-   * control. Beside `errors`, above the submit button.
+   * The fields to fix, after a submit while any is invalid, in a form of more
+   * than one control: its words (`summaryTitle`), then a list (`issues`) of
+   * `issue`s, each holding an `issueLink` to one field's control. Beside
+   * `errors`, above the submit button. It is the alert for those failures.
    */
   summary: Slot.make({ capability: Capability.Container }),
   summaryTitle: Slot.make({ capability: Capability.Base }),
@@ -281,6 +287,7 @@ interface FormLike<Key extends string, Model, Message> {
   readonly search: (model: Model, key: Key) => string
   readonly isFollowing: (model: Model, key: Key) => boolean
   readonly canSubmit: (model: Model) => boolean
+  readonly attempted: (model: Model) => boolean
   readonly Message: {
     /** The union, so `Message` is inferred from it and not from one constructor's case. */
     readonly Type: Message
@@ -718,7 +725,15 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
             ]
           : []),
         ...(invalid
-          ? [h.p(slots.error.attrs([h.Id(`${id}-error`), h.Role('alert')]), [...input.errors])]
+          ? [
+              h.p(
+                slots.error.attrs([
+                  h.Id(`${id}-error`),
+                  ...(input.quiet === true ? [] : [h.Role('alert')]),
+                ]),
+                [...input.errors],
+              ),
+            ]
           : []),
       ])
     },
@@ -779,6 +794,14 @@ export const FormView = {
         const locked: ReadonlySet<string> = new Set(input.locked ?? [])
         const more: Readonly<Record<string, boolean | undefined>> = input.more ?? {}
 
+        // The list of fields to fix belongs to a submit, and a form of one
+        // control has nothing to navigate between: its error is the summary.
+        // A nested key's rows hold fields of their own.
+        const shown = form.controls.filter(control => control.control.shown)
+        const listed =
+          form.attempted(input.model) &&
+          (shown.length > 1 || shown.some(control => Input.Nested.is(control.control)))
+
         // Each invalid field, in the order drawn, for the summary.
         const issues: Array<{
           readonly id: string
@@ -834,6 +857,7 @@ export const FormView = {
                     searchWord: input.words?.search,
                     noneWord: input.words?.none,
                     checkingWord: input.words?.checking,
+                    quiet: listed,
                     // Only the form's own pickers, and only while they can be used: a
                     // row's are named by path, and a locked key takes no choice.
                     more:
@@ -936,11 +960,12 @@ export const FormView = {
           ]),
           [
             ...fields,
-            ...(issues.length === 0
+            ...(!listed || issues.length === 0
               ? []
               : [
                   // No id of its own: a key named `summary` would hold it already.
-                  h.div(slots.summary.attrs(), [
+                  // It announces the submit's failures once, for every field.
+                  h.div(slots.summary.attrs([h.Role('alert')]), [
                     h.p(slots.summaryTitle.attrs(), [
                       input.words?.summary ?? 'Check these fields:',
                     ]),

@@ -222,14 +222,52 @@ describe('Form update', () => {
     expect(send(initial, change('rating', '  ')).model.fields.rating._tag).toBe('NotValidated')
   })
 
-  it('reports a required key on blur, and leaves an optional one alone', () => {
-    const { model } = send(
+  it('says nothing about a key only tabbed through', () => {
+    const passed = send(
       initial,
       Message.Blurred({ key: 'title' }),
       Message.Blurred({ key: 'body' }),
     )
+    expect(passed.model).toBe(initial)
+  })
+
+  it('says a required key is missing once an edit empties it, and leaves an optional one alone', () => {
+    const { model } = send(
+      initial,
+      change('title', 'Hi'),
+      change('title', ''),
+      change('body', 'B'),
+      change('body', ''),
+    )
     expect(model.fields.title).toEqual({ _tag: 'Invalid', value: '', errors: ['Required'] })
     expect(model.fields.body).toEqual({ _tag: 'NotValidated', value: '' })
+  })
+
+  it('validates one key on request, edited or not, as a fill showing a stored value needs', () => {
+    expect(send(initial, Message.Validated({ key: 'title' })).model.fields.title).toEqual({
+      _tag: 'Invalid',
+      value: '',
+      errors: ['Required'],
+    })
+    expect(send(initial, Message.Validated({ key: 'body' })).model).toBe(initial)
+  })
+
+  it('records a submit attempt, for a view to draw its list of fields to fix', () => {
+    expect(initial.attempted).toBe(false)
+    const tried = send(initial, Message.Submitted()).model
+    expect(tried.attempted).toBe(true)
+    // An edit keeps it: the list then follows what is still wrong.
+    expect(send(tried, change('title', 'Hello')).model.attempted).toBe(true)
+    expect(send(tried, Message.Reset()).model.attempted).toBe(false)
+    expect(CreatePost.fill(tried, {}).model.attempted).toBe(false)
+    expect(send(initial, Message.ValidatedAll()).model.attempted).toBe(false)
+  })
+
+  it('reads a Model stored before it recorded attempts as not attempted', () => {
+    const { attempted: _, ...stored } = Schema.encodeSync(CreatePost.bundle.Model)(initial) as {
+      readonly attempted: boolean
+    }
+    expect(Schema.decodeUnknownSync(CreatePost.bundle.Model)(stored).attempted).toBe(false)
   })
 
   it('ignores a draft of another kind than the key’s control holds', () => {
@@ -362,7 +400,7 @@ describe('Form messages', () => {
       ).model.fields[key]
     const blurred = form.bundle.update(
       form.bundle.init(undefined).model,
-      form.Message.Blurred({ key: 'title' }),
+      form.Message.Validated({ key: 'title' }),
       undefined,
     ).model.fields.title
     return {
