@@ -7,7 +7,22 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Added
+
+- **`GuardServer.writer`'s `stamps`.** A field the server sets once on a
+  create, from no one (`stamps: { createdAt: () => Date.now() }`), beside
+  `presets`, which come from who is asking. A retried insert keeps the row's
+  own stamp; a preset that differs still makes the retry someone else's row.
+  An input that sets a stamp is refused, as one setting a preset is.
+- **`EntityWriter.sets`**: the fields a writer sets on every insert itself. A
+  guard reports its presets and stamps there.
+
 ### Changed
+
+- **Breaking: `EntityWriter.insert` is told what is `stamped`.** Its context
+  holds `stamped`, the values a wrapping writer set once at creation, which a
+  retry does not compare. A writer that answers a retried insert leaves them
+  out of its check; a caller with nothing stamped passes `[]`.
 
 - **`examples/pages` is written like a Notion page.** `/` on a line opens the
   slash menu, which the page used to promise and never draw: the arrows move through it,
@@ -47,6 +62,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **An insert whose invariants read a preset field registers.** `RemoteServer.write`
+  refused one, saying it left the field unset, though the guard's preset sets
+  it on every create (#202). It now counts what the writer reports in `sets`.
+- **A retried insert with a time preset is answered, not refused.** The
+  drizzle writer compared every value with the row already there, and a clock
+  read anew never matched, so a retry, same request or not, failed with
+  "could not be created" (#203). Declared as a stamp, the time is left out.
 - **`SSR.hydrate` given no build id says so.** With `FOLDKIT_BUILD_ID` unset,
   the documented `import.meta.env.FOLDKIT_BUILD_ID` is undefined in the
   client. `foldkit-ssr` read that as another build's page and handed Foldkit no

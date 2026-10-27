@@ -474,6 +474,18 @@ the server's own mistake. A visitor has no one to preset from, and is refused
 even where the rules would let anyone create. A preset must be a field of the
 Entity, of that field's type.
 
+A field the server sets once, from no one, is a stamp: the time a row was
+made, say. `stamps` sets it on every create, visitor or not, beside the
+presets: `{ presets: { ownerId: user => user.id }, stamps: { createdAt: () =>
+Date.now() } }`, for an Entity with a `createdAt` field.
+
+The two differ on a retry. A retried insert finds its row already there and
+is answered with it when the row holds what the insert writes, presets
+included: the same id from another account names someone else's row, and is
+refused. A stamp is left out of that comparison, since the clock has moved on;
+the row keeps the one its first attempt wrote. Both count as set where
+`RemoteServer.write` asks whether an insert leaves a field an invariant reads.
+
 A handler writes what its code writes, so it is guarded where it is defined:
 `GuardServer.mutation` is `RemoteServer.mutation` with the row's rule for one
 interaction checked before the handler runs.

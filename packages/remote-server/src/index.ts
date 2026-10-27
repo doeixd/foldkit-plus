@@ -253,6 +253,12 @@ export interface EntityWriter<P, R = never> {
    */
   readonly invariants?: true
   /**
+   * The fields this writer sets on every insert itself, whatever the input
+   * holds: a guard's presets and stamps. `RemoteServer.write` counts them as
+   * set where it asks whether an insert leaves a field an invariant reads.
+   */
+  readonly sets?: ReadonlyArray<string>
+  /**
    * Why this writer cannot land `write`, each a sentence; none when it can.
    * `RemoteServer.write` asks once, where the write is registered, for what
    * only the store knows: a column's type, say, which the Entity does not say.
@@ -297,12 +303,15 @@ export interface EntityWriter<P, R = never> {
   /**
    * Inserts the row, or finds one already there under that id holding what
    * it writes (a retry); answers the row as it is. Fails when the id holds
-   * any other row.
+   * any other row. `stamped` names the values a wrapping writer set once, at
+   * creation (a clock's): a retry keeps the row's own, so they are not
+   * compared.
    */
   readonly insert: (context: {
     readonly id: string
     readonly values: Readonly<Record<string, unknown>>
     readonly links: Readonly<Record<string, Option.Option<EntityRef>>>
+    readonly stamped: ReadonlyArray<string>
     readonly principal: P
   }) => Effect.Effect<
     Readonly<Record<string, unknown>>,
@@ -1657,7 +1666,7 @@ export const RemoteServer = {
     }
     // An insert's row is its values: a field it leaves to a default the writer cannot judge.
     if (write._tag === 'Insert') {
-      const sets = new Set(['id', ...write.sets.map(set => set.field.key)])
+      const sets = new Set(['id', ...write.sets.map(set => set.field.key), ...(writer.sets ?? [])])
       const unset = judged.flatMap(held =>
         held.after.filter(key => !sets.has(key)).map(key => `${held.id} reads ${key}`),
       )
@@ -1824,6 +1833,7 @@ export const RemoteServer = {
                     id: bound.id,
                     values: bound.values,
                     links: bound.links,
+                    stamped: [],
                     principal,
                   }),
                 )

@@ -181,7 +181,7 @@ export default [
     edits: [
       {
         file: drizzle,
-        find: 'Option.filter(there, row => holdsWritten(row, values, links)),',
+        find: 'Option.filter(there, row => holdsWritten(row, compared, links)),',
         replace: 'there,',
       },
     ],

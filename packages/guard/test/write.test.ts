@@ -427,7 +427,7 @@ describe('GuardServer.writer', () => {
     const { mutate, row } = open()
     expect(
       await mutate(ada, 'CreateAsAnyone', { id: 't8', ownerId: 'grace', title: 'Hers' }),
-    ).toMatchObject({ _tag: 'Failure', failure: { message: /is preset by the server/ } })
+    ).toMatchObject({ _tag: 'Failure', failure: { message: /is set by the server/ } })
     expect(row('t8')).toBeUndefined()
   })
 

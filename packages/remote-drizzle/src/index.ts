@@ -1566,7 +1566,7 @@ export const writer = <P = unknown>(
           `${binding.name} ${id} does not hold what the write asks of it`,
         )
       }),
-    insert: ({ id, values, links }) =>
+    insert: ({ id, values, links, stamped }) =>
       Effect.gen(function* () {
         // There is no row yet: the row it would make is its values, judged before it is written.
         yield* Match.value(
@@ -1619,7 +1619,11 @@ export const writer = <P = unknown>(
         }
         // Nothing inserted: the id is taken. A retry of this insert finds the row
         // holding what it wrote, and is answered with it; anything else is another
-        // row, whose values are not this write's to answer with.
+        // row, whose values are not this write's to answer with. A stamp (a
+        // creation time) differs on every attempt, and the row keeps its own.
+        const compared = Object.fromEntries(
+          Object.entries(values).filter(([key]) => !stamped.includes(key)),
+        )
         const there = answeredOf(
           yield* selectRows(yield* DrizzleDatabase, binding.table, answered.columns, {
             where: eq(idColumn(binding), id),
@@ -1627,7 +1631,7 @@ export const writer = <P = unknown>(
           answered,
         )
         return yield* Option.match(
-          Option.filter(there, row => holdsWritten(row, values, links)),
+          Option.filter(there, row => holdsWritten(row, compared, links)),
           {
             onNone: () =>
               Effect.fail(

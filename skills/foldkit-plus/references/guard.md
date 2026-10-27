@@ -129,7 +129,9 @@ const Todo = TodoFields.pipe(
   Read-ruled member is refused as `Invalid` naming no invariant.
   `GuardServer.writer(Todo, Policy, writer(Db.Todo), { presets: { ownerId:
   user => user.id } })` sets a field from who is asking on create; the input
-  must leave it out. Pass `revision: 'revision'` (a field stored as a number,
+  must leave it out. `stamps: { createdAt: () => Date.now() }` sets one from
+  no one, once: a retried insert keeps the row's own stamp, where a preset
+  that differs makes it someone else's row. Pass `revision: 'revision'` (a field stored as a number,
   which the writer moves on with each write it lands) so an update or delete
   lands only on the revision its rules were decided over, decided again if the
   row moved; an input may `expect` only that field. A change that does not move

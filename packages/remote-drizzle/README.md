@@ -1037,7 +1037,9 @@ its schema. The revision column must be `not null`: the trigger compares it with
 changes in one operation, which the trigger would move past its sequence.
 
 An insert is one `insert ... on conflict do nothing returning` under the id the
-client chose: a retry finds the id taken and answers the row it made. A delete
+client chose: a retry finds the id taken and answers the row it made, the row
+holding what the insert writes (a stamp, such as `GuardServer.writer`'s
+creation time, aside). A delete
 is one `delete` by id, guarded by the revision when it expects one; a row
 already gone is gone.
 

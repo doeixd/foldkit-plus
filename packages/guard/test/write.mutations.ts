@@ -136,8 +136,8 @@ export default [
     edits: [
       {
         file,
-        find: '...Object.fromEntries(presets.map(({ field, value }) => [field, value(user)])),',
-        replace: '',
+        find: 'Object.fromEntries(presets.map(({ field, value }) => [field, value(user)])),',
+        replace: '({}),',
       },
     ],
     tests,
@@ -158,8 +158,8 @@ export default [
     edits: [
       {
         file,
-        find: 'const preset = presets.find(({ field }) => Object.hasOwn(given.values, field))',
-        replace: 'const preset = undefined as { readonly field: string } | undefined',
+        find: 'const set = [...presets, ...stamps].find(',
+        replace: 'const set = [].find(',
       },
     ],
     tests,

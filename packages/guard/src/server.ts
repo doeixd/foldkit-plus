@@ -281,6 +281,12 @@ export const GuardServer = {
    * from, and a create whose input sets a preset field is a mistake of the
    * server's, refused.
    *
+   * `stamps` are fields a create takes from no one, once (`createdAt: () =>
+   * Date.now()`), set as presets are, visitor or not. A retried insert finds
+   * the row holding its stamp from the first attempt and keeps it: a stamp is
+   * not compared, where a preset (the owner) must match, or the retry is
+   * someone else's row.
+   *
    * `revision` names a field stored as a number, which the writer moves on by
    * one with each write it lands. An update or a delete then lands only on the
    * revision its rules were decided over (the writer's `expect`), so a change
@@ -303,6 +309,9 @@ export const GuardServer = {
       readonly presets?: {
         readonly [K in keyof E['fields']]?: (user: User) => E['fields'][K]['schema']['Type']
       }
+      readonly stamps?: {
+        readonly [K in keyof E['fields']]?: () => E['fields'][K]['schema']['Type']
+      }
       readonly revision?: keyof E['fields'] & string
     } = {},
   ): EntityWriter<Option.Option<User>, R | RW> => {
@@ -323,19 +332,30 @@ export const GuardServer = {
         )
       }
     }
-    const presets = Object.entries(options.presets ?? {}).map(([field, preset]) => {
+    /** A field the server sets on a create, its value encoded as the store holds it. */
+    const serverSet = (field: string, verb: string) => {
       const declared = Object.hasOwn(entity.fields, field)
         ? (entity.fields as Readonly<Record<string, { readonly schema: Schema.Top }>>)[field]
         : undefined
       if (declared === undefined) {
         throw new Error(
-          `[foldkit-guard] GuardServer.writer: ${entity.name} has no field "${field}" to preset`,
+          `[foldkit-guard] GuardServer.writer: ${entity.name} has no field "${field}" to ${verb}`,
         )
       }
-      const encode = Schema.encodeUnknownSync(
-        declared.schema as unknown as Schema.Codec<unknown, unknown>,
-      )
+      return Schema.encodeUnknownSync(declared.schema as unknown as Schema.Codec<unknown, unknown>)
+    }
+    const presets = Object.entries(options.presets ?? {}).map(([field, preset]) => {
+      const encode = serverSet(field, 'preset')
       return { field, value: (user: User) => encode((preset as (user: User) => unknown)(user)) }
+    })
+    const stamps = Object.entries(options.stamps ?? {}).map(([field, stamp]) => {
+      const encode = serverSet(field, 'stamp')
+      if (presets.some(preset => preset.field === field)) {
+        throw new Error(
+          `[foldkit-guard] GuardServer.writer: ${entity.name}'s "${field}" is both preset and stamped`,
+        )
+      }
+      return { field, value: () => encode((stamp as () => unknown)()) }
     })
     if (writer.entity !== entity.name) {
       throw new Error(
@@ -700,6 +720,11 @@ export const GuardServer = {
       ...(writer.ledger === true ? { ledger: true } : {}),
       // Invariants are the writer's to judge, over the row its statement writes.
       ...(writer.invariants === true ? { invariants: true } : {}),
+      sets: [
+        ...(writer.sets ?? []),
+        ...presets.map(({ field }) => field),
+        ...stamps.map(({ field }) => field),
+      ],
       // What the store refuses, the store knows: the guard drops none of its reasons. It
       // adds one: its rules judge the row the write leaves, worked out by the policy's
       // table, so an assignment that table cannot run would be judged as its old value.
@@ -752,25 +777,31 @@ export const GuardServer = {
         ),
       insert: given =>
         Effect.gen(function* () {
-          const preset = presets.find(({ field }) => Object.hasOwn(given.values, field))
-          if (preset !== undefined) {
+          const set = [...presets, ...stamps].find(({ field }) =>
+            Object.hasOwn(given.values, field),
+          )
+          if (set !== undefined) {
             return yield* new RemoteServerError({
-              message: `${entity.name}'s "${preset.field}" is preset by the server; the input may not set it`,
+              message: `${entity.name}'s "${set.field}" is set by the server; the input may not set it`,
             })
           }
           if (presets.length > 0 && Option.isNone(given.principal)) {
             return yield* Effect.fail(RemoteServer.forbid())
           }
-          const context = Option.match(given.principal, {
-            onNone: () => given,
-            onSome: user => ({
-              ...given,
-              values: {
-                ...given.values,
-                ...Object.fromEntries(presets.map(({ field, value }) => [field, value(user)])),
-              },
-            }),
-          })
+          const stamped = Object.fromEntries(stamps.map(({ field, value }) => [field, value()]))
+          const context = {
+            ...given,
+            values: {
+              ...given.values,
+              ...Option.match(given.principal, {
+                onNone: () => ({}),
+                onSome: user =>
+                  Object.fromEntries(presets.map(({ field, value }) => [field, value(user)])),
+              }),
+              ...stamped,
+            },
+            stamped: [...given.stamped, ...stamps.map(({ field }) => field)],
+          }
           const { principal, values, links } = context
           const row = yield* policy.writable(entity, principal, 'Create')
           const members = yield* policy.writeMembers(
