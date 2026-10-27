@@ -74,4 +74,15 @@ export default [
     ],
     tests: ['packages/plus/test/setup.test.ts'],
   },
+  {
+    name: 'the CLI imports the effect it finds rather than carrying its own',
+    edits: [
+      {
+        file: '../tsdown.config.ts',
+        find: "deps: { alwaysBundle: ['effect'] },",
+        replace: '',
+      },
+    ],
+    tests: ['packages/plus/test/cli.test.ts'],
+  },
 ]

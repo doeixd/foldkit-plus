@@ -41,6 +41,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`npx foldkit-plus setup` carries its own Effect.** Run with
+  `--legacy-peer-deps`, npx installed no peers, and the CLI loaded whatever
+  `effect` an ancestor folder held: an Effect 3 crashed it before it printed
+  anything (#200). Its build now bundles Effect, so it imports only Node's own
+  modules.
 - **`foldkit-mixins/foundations` builds from the root Vite resolved.** A build
   compiled the sheet module from the current directory, so one started from
   elsewhere (a test, a workspace script) failed with "Failed to load url
