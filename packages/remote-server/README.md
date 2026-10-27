@@ -1018,8 +1018,9 @@ the events it serves, so a stream with nothing to serve still ends.
 calls it must be able to wake the subscriber's fiber: in a worker, one request
 cannot wake another's stream, so a hub fed from a second request delivers
 nothing and ends the first stream. Poll the shared store from inside the
-subscriber's own request instead — `examples/cloudflare`'s `pollLive` is the
-shape. A hub is right for a long-lived process that owns both sides.
+subscriber's own request instead: `foldkit-remote-drizzle`'s `pollLive` does,
+with a trigger-kept row log (`rowChangeLog`, `rowLog`) so a quiet tick reads
+no rows. A hub is right for a long-lived process that owns both sides.
 
 ## What it does not own
 

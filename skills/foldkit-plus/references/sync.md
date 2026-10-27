@@ -321,8 +321,8 @@ an upgrade whose socket never opens, which releases its layer), which a Node
 stream — a `Queue.offer`, a `Deferred`, even `enqueue` on the first's captured
 controller tears it down, and a `LiveHub` fed from a second request reaches
 nobody. What crosses requests is the durable store (D1): poll it from inside
-the subscriber's own request as a `LiveSource` (`examples/cloudflare`'s
-`pollLive`). `serveFetch` heartbeats every stream so an idle one survives.
+the subscriber's own request as a `LiveSource` (`foldkit-remote-drizzle`'s
+`pollLive`, with `rowLog` over the triggers `rowChangeLog` writes). `serveFetch` heartbeats every stream so an idle one survives.
 
 **Server reset.** A server returns `epoch: journal.epoch(key)` from every
 exchange; the replica sends it back as `exchange`'s third argument. When it

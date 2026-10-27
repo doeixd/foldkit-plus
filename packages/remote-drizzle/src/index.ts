@@ -100,6 +100,7 @@ export * from './database.js'
 export * from './page.js'
 export * from './pagination.js'
 export * from './window.js'
+export * from './poll.js'
 
 /**
  * An own-property lookup. Request field names are client-supplied and relation

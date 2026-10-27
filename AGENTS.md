@@ -883,7 +883,7 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   HTTP server both do it. So an in-memory hub fanning `changed` out to live
   subscribers is undeployable on Workers: what crosses requests is the durable
   store they share (D1), and each live stream re-reads it from inside its own
-  request. `examples/cloudflare`'s polling `LiveSource` is the shape; a
+  request. `foldkit-remote-drizzle`'s `pollLive` is the shape; a
   `LiveHub` push reaches nobody.
 
 - **Drizzle's SQLite transaction is synchronous.** `db.transaction(async tx

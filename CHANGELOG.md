@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-remote-drizzle`'s `pollLive`, `rowChangeLog` and `rowLog`: live
+  data on Workers.** `pollLive` is the polling `LiveSource` that
+  `examples/cloudflare` wrote for itself, now taking any number of `lists`
+  (polled only for a stream that watches one) and patching a row that joins
+  two of them once. `rowChangeLog(binding)` returns the SQLite statements for a
+  trigger-kept log of the rows each write touched, and `rowLog(binding)` reads
+  that log, so a quiet tick reads no rows. The example now uses them; its
+  migration `0004` renames its log table to `todos_row_changes` (#206).
 - **A server's "Internal error" says what broke, to whoever runs it.**
   `serveFetch` takes `onError(cause, request)`, given every failure it answers
   with a generic 500 or a live stream's error frame: a broken layer, resolver,

@@ -1274,6 +1274,50 @@ rejects; `databaseLayer(drizzle(env.DB))` is the only wiring. The
 nullable-column rule above applies as on SQLite: D1 sorts nulls first for
 `ASC`, so sort by columns that are not null.
 
+### Live data on Workers
+
+One Worker request cannot wake another's stream, so a `LiveHub` fed by a
+write reaches nobody there. `pollLive` is a `LiveSource` that polls the
+database from inside the subscriber's own request instead, re-reading each
+subscribed row through the Source under the subscriber's principal and sending
+a patch for what moved. A list in `lists` is diffed for a stream that
+subscribes to its `watchId`, so a row written elsewhere joins or leaves it.
+
+```ts
+import { pollLive, rowChangeLog, rowLog } from 'foldkit-remote-drizzle'
+
+const TodoLive = pollLive(TodoSource, {
+  lists: [
+    {
+      identity: AllTodos.ref({}).identity,
+      watchId: 'foldkit-watch',
+      fields: ['id', 'title', 'done'],
+      edges: principal =>
+        AllTodosSource.run({ input: {}, window: { first: 50 }, principal }).pipe(
+          Effect.map(page => page.edges),
+        ),
+    },
+  ],
+  changes: rowLog(Db.Todo),
+})
+
+// A migration holds these statements, one per line.
+const statements = rowChangeLog(Db.Todo)
+```
+
+Without `changes`, every tick (`every`, 250 milliseconds by default) reads
+every subscribed row and each watched list's window. `rowChangeLog(Db.Todo)`
+is the SQLite statements for a table of the rows each write touched and the
+triggers that fill it, so every path that writes the table is logged. With
+`changes: rowLog(Db.Todo)` a tick reads only the rows logged since the last
+one, which on a quiet tick is none. A log that cannot be read, or that was
+trimmed past the last entry read (`keep`, 1000 by default), falls back to
+reading everything. A logged row the subscriber can read is counted as in the
+list, which holds only for a list of every readable row; give a filtered list
+no `changes`. Postgres is refused: a server there can push. `examples/cloudflare`
+runs this on D1, and its `test/migrations.test.ts` keeps its migration equal
+to `rowChangeLog`.
+
 ## License
 
 MIT. The keyset-cursor and projection logic adapts

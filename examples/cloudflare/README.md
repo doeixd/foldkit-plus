@@ -63,15 +63,22 @@ list's order puts it. The page subscribes to that stream
 (`Remote.httpWithLive`) on one stable id, not on every row, so a local edit
 does not restart it.
 
-Schematic. `makeServer` passes the list watch as `list`: its `identity` is
-`AllTodos`, its `watchId` is the page's stable id, and `edges` runs that query
-for the subscriber's principal. `changes` is the table's row log.
+`pollLive`, `rowLog` and `rowChangeLog` come from `foldkit-remote-drizzle`.
+Schematic: `makeServer` passes one list watch, whose `identity` is `AllTodos`,
+whose `watchId` is the page's stable id, whose `fields` are the columns the
+list paints, and whose `edges` runs that query for the subscriber's principal.
+`changes` reads the table's row log.
 
 ```ts
 server = RemoteServer.make({
   entities: [TodoSource],
   queries: [AllTodosSource],
-  live: [pollLive(TodoSource, { list: { identity, watchId, edges }, changes: rowLog })],
+  live: [
+    pollLive(TodoSource, {
+      lists: [{ identity, watchId, fields, edges }],
+      changes: rowLog(Db.Todo),
+    }),
+  ],
 })
 ```
 
@@ -80,9 +87,10 @@ A server process that owns both sides (Node, a long-lived VM) can use
 rather show what deploys.
 
 A tick reads only the rows written since the last one.
-`migrations/0003_row_changes.sql` logs the id of each row a write to `todos`
-touches in `todo_row_changes`, with triggers, so every path that writes the
-table (a Remote mutation, a declared write, the journal's `settle`) is logged
+`migrations/0004_row_change_log.sql` holds `rowChangeLog(Db.Todo)`'s
+statements (`test/migrations.test.ts` keeps the two equal): they log the id of
+each row a write to `todos` touches in `todos_row_changes`, with triggers, so
+every path that writes the table (a Remote mutation, a declared write, the journal's `settle`) is logged
 with no code of its own; the last 1000 entries are kept. Each tick asks the
 log what follows the entry it last read and re-reads those rows alone: a quiet
 tick is one small query, and the window is read only when the stream opens. A

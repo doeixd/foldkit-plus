@@ -19,6 +19,7 @@ import {
   upgradeSync,
   type ClientSocket,
 } from '../src/client.js'
+import { LIST_WATCH } from '../src/cache.js'
 import { AllTodos } from '../src/operations.js'
 import { startStack, type CloudflareStack } from '../src/stack.js'
 
@@ -208,6 +209,11 @@ describe('cloudflare example', () => {
     sockets.push(writer.socket!)
     const anchor = 't-live-a'
     const joined = 't-live-b'
+    // The list is polled only for a stream that watches it, as the page's does.
+    const watchingList = [
+      { entity: 'Todo', id: anchor, fields: ['title'] },
+      { entity: 'Todo', id: LIST_WATCH, fields: ['title'] },
+    ]
     try {
       const created = await exchange(writer.socket!, {
         id: '1',
@@ -215,9 +221,7 @@ describe('cloudflare example', () => {
         pending: [syncOp('live-member', 1, { _tag: 'CreatedTodo', id: anchor, title: 'Anchor' })],
       })
       expect(created.error).toBeUndefined()
-      const watching = Effect.runFork(
-        takeChanges(remote, [{ entity: 'Todo', id: anchor, fields: ['title'] }], 2, joined),
-      )
+      const watching = Effect.runFork(takeChanges(remote, watchingList, 2, joined))
       await pause(300)
       const added = await exchange(writer.socket!, {
         id: '2',
@@ -244,9 +248,7 @@ describe('cloudflare example', () => {
         },
       ])
 
-      const removing = Effect.runFork(
-        takeChanges(remote, [{ entity: 'Todo', id: anchor, fields: ['title'] }], 2, joined),
-      )
+      const removing = Effect.runFork(takeChanges(remote, watchingList, 2, joined))
       await pause(300)
       const removed = await exchange(writer.socket!, {
         id: '3',
@@ -307,7 +309,7 @@ describe('cloudflare example', () => {
     expect(JSON.stringify(answer.result)).not.toContain('prepend')
     // The triggers logged the row, for the live poll to read it alone.
     const logged = await stack.db
-      .prepare('SELECT id FROM todo_row_changes ORDER BY seq DESC LIMIT 1')
+      .prepare('SELECT id FROM todos_row_changes ORDER BY seq DESC LIMIT 1')
       .all()
     expect(logged.results).toEqual([{ id: 't-remote' }])
     expect(await queryTodos(remote, { first: 50 })).toContain('t-remote')
