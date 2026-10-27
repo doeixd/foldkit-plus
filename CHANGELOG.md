@@ -9,6 +9,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **A mutation's answer carries what the page shows of every row it names.**
+  `Data.mutate` sends what the active Surfaces read of each entity (`shown`,
+  bounded), and `RemoteServer.handlers` reads those fields of each row the
+  answer names, through the Sources, `authorize` and `filter`, after the write
+  (`MutationResult.read`). The client writes it in the reduction that releases
+  the optimistic layer, so a created or edited row no longer leaves its lists
+  for a frame (#243), and lists place it by every value it carries. Nothing to
+  configure. A handler names a row it changed with `Remote.patch(Entity, id,
+  {})`; a failed read is logged and the mutation still succeeds. Chirp's
+  `ToggleLike` drops its hand-written re-read (#245).
 - **`foldkit-remote/testing`: `Trace` and `Respond`.** `Trace.run(Data, { start,
   update, active, client, steps })` runs the application's `update` and the
   domain's own Subscriptions from a Model, holding every request;
