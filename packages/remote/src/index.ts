@@ -604,11 +604,14 @@ export interface RemoteDomain<
    * `snapshot` can store a list as it is shown.
    */
   visibleItems(remote: RemoteModel, connection: ConnectionIdentity): ReadonlyArray<Edge>
-  /** `Remote.refresh`: marks what a projection or a Surface requires as due, for its read entry to refetch. */
-  refresh(
-    model: AppModel,
-    target: Projection<AppModel, unknown> | Surface<AppModel, any, any, void>,
-  ): AppModel
+  /**
+   * `Remote.refresh`: marks what `target` reads for this Model as due, for its
+   * read entries to refetch. `target` is a projection, a Surface without
+   * params, one entry of the active record, or the record itself, whose
+   * params come from the Model as they do for `subscriptions`. With
+   * `{ failed: true }` only what failed is asked again: a "Try again".
+   */
+  refresh(model: AppModel, target: RefreshTarget<AppModel>, options?: RefreshOptions): AppModel
   /** `Remote.forget`: the Model with every server-derived fact gone, for a change of principal. */
   forget(model: AppModel): AppModel
   /**
@@ -2058,6 +2061,68 @@ const memoizedResolved = <AppModel>(
   }
 }
 
+/**
+ * What `Data.refresh` asks again: a projection, a Surface without params, one
+ * entry of the active record (a `Surface.at`/`Surface.when` value, a family),
+ * or the whole record.
+ */
+export type RefreshTarget<AppModel> =
+  | Projection<AppModel, unknown>
+  | ActiveEntry<AppModel>
+  | Readonly<Record<string, ActiveEntry<AppModel>>>
+
+/** How `Data.refresh` asks again. */
+export interface RefreshOptions {
+  /** Only what failed: a "Try again" leaves what loaded as it is. */
+  readonly failed?: boolean | undefined
+}
+
+/** Refuses an entry of another application: two can share a Model type, and the owner token tells them apart. */
+const assertOwnedBy = <AppModel>(contract: Contract, entry: ActiveEntry<AppModel>): void => {
+  if (contract.owner === undefined) return
+  const from = (entry as { readonly from?: ActiveSurface<AppModel> }).from
+  for (const surface of from === undefined ? [entry] : [entry, from]) {
+    if (surface.owner !== contract.owner) {
+      throw new Error(
+        `Remote: Surface "${surface.name}" belongs to another application than domain "${contract.name}"`,
+      )
+    }
+  }
+}
+
+/** Whether a refresh target is a projection, the one kind that is not a Surface. */
+const isProjection = <AppModel>(
+  target: RefreshTarget<AppModel>,
+): target is Projection<AppModel, unknown> =>
+  typeof (target as Partial<Record<'read', unknown>>).read === 'function'
+
+/** Whether a refresh target is one entry of an active record rather than the record. */
+const isActiveEntry = <AppModel>(
+  target: ActiveEntry<AppModel> | Readonly<Record<string, ActiveEntry<AppModel>>>,
+): target is ActiveEntry<AppModel> => {
+  // A record's values are entries, never functions, so a key that happens to
+  // be named like a member cannot pass for one.
+  const members = target as Partial<Record<'projection' | 'projectionOf' | 'instancesOf', unknown>>
+  return (
+    typeof members.projectionOf === 'function' ||
+    typeof members.instancesOf === 'function' ||
+    typeof members.projection === 'function'
+  )
+}
+
+/** Every projection a refresh target reads for this Model, each entry resolved as the read entries resolve it. */
+const targetProjections = <AppModel>(
+  contract: Contract,
+  target: RefreshTarget<AppModel>,
+  model: AppModel,
+): ReadonlyArray<Projection<AppModel, unknown>> => {
+  if (isProjection(target)) return [target]
+  const entries = isActiveEntry(target) ? [target] : Object.values(target)
+  // Checked before any is resolved, so a refused call reads nothing.
+  for (const entry of entries) assertOwnedBy(contract, entry)
+  return entries.flatMap(entry => resolvedOf(entry, model).map(({ projection }) => projection))
+}
+
 export const Remote = {
   /** The submodel's schema, the same for every domain; embed it in the application Model. */
   Model: remoteModelSchema(),
@@ -2416,9 +2481,11 @@ export const Remote = {
   }),
 
   /**
-   * Marks what a projection, or a Surface without params, requires as due again.
-   * Called from `update`: every selected field the store holds reads `Refreshing`,
-   * and every loaded query connection is invalidated. Nothing is fetched here.
+   * Marks what a read requires as due again: a projection, a Surface without
+   * params, one entry of the active record, or the whole record, each entry
+   * resolved for this Model as `subscriptions` resolves it. Called from
+   * `update`: every selected field the store holds reads `Refreshing`, and
+   * every loaded query connection is invalidated. Nothing is fetched here.
    * The read entries `Data.subscriptions` derives refetch it, because a stale
    * field or connection is planned again under every policy, so a refresh never
    * sends a request beside the entry already observing the same data.
@@ -2428,8 +2495,11 @@ export const Remote = {
    * again with `next`/`previous`. The read entries restart, so a read or query
    * sent before the refresh is not applied after it.
    *
-   * It is also how a failed query is retried: a connection whose query failed
-   * is not run again on its own, so its read stays `Failed` until this asks.
+   * It is also how a failed read is retried: nothing that failed is asked
+   * again on its own, so its read stays `Failed` until this asks. A failed
+   * read with nothing to show reads `Loading` from here, and `Failed` again if
+   * the retry fails. `{ failed: true }` asks again only what failed, which is
+   * what a "Try again" means: what loaded keeps its value and its pages.
    *
    * The projection must be observed, which it is while it is on screen. Live
    * subscriptions are left as they are. For data nothing observes (SSR, tests),
@@ -2439,17 +2509,17 @@ export const Remote = {
   refresh: <AppModel, Store extends RemoteModel>(
     bound: BoundRemote<AppModel, Store>,
     model: AppModel,
-    target: Projection<AppModel, unknown> | Surface<AppModel, any, any, void>,
+    target: RefreshTarget<AppModel>,
+    options: RefreshOptions = {},
   ): AppModel => {
-    const projection = 'read' in target ? target : target.projection(undefined)
     const remote = bound.store.get(model)
-    const asked = askedOf(projection)
-    const connections = Requirement.mergeConnections(
+    const asked = askedUnion(targetProjections(bound.contract, target, model))
+    const merged = Requirement.mergeConnections(
       asked.connections,
     ) as ReadonlyArray<QueryRequirement>
     // A loaded connection's current items are marked with the entities; its page
     // is re-run by the read entry, and new items are planned when it lands.
-    const items = connections.flatMap(connection => {
+    const items = merged.flatMap(connection => {
       const known = remote.connections[connection.identity]
       return known === undefined
         ? []
@@ -2463,9 +2533,22 @@ export const Remote = {
             connection.select,
           )
     })
+    const asking = [...asked.requirements, ...items]
+    // `failed` asks again only what failed: each entity read whose own or
+    // related fields failed, and each list whose query did. The rest, a
+    // list's later pages included, stays as it is.
+    const connections =
+      options.failed === true
+        ? merged.filter(connection => connection.identity in remote.failures.connections)
+        : merged
     const requirements = plan(
       visibleStoreOf(remote.entities, remote.optimistic, bound.operators),
-      [...asked.requirements, ...items],
+      options.failed === true
+        ? asking.filter(
+            requirement =>
+              failureOf(remote, requirement.entity, requirement.id, requirement) !== undefined,
+          )
+        : asking,
       { force: true },
     )
 
@@ -3242,24 +3325,7 @@ const bindDomain = <
       ...identities,
     ])
   }
-  // Two applications can have the same Model type; the owner token tells them apart.
-  const assertOwned = (entry: ActiveEntry<AppModel>) => {
-    if (bound.contract.owner !== undefined && entry.owner !== bound.contract.owner) {
-      throw new Error(
-        `Remote: Surface "${entry.name}" belongs to another application than domain "${bound.contract.name}"`,
-      )
-    }
-    const from = (entry as { readonly from?: ActiveSurface<AppModel> }).from
-    if (
-      from !== undefined &&
-      bound.contract.owner !== undefined &&
-      from.owner !== bound.contract.owner
-    ) {
-      throw new Error(
-        `Remote: Surface "${from.name}" belongs to another application than domain "${bound.contract.name}"`,
-      )
-    }
-  }
+  const assertOwned = (entry: ActiveEntry<AppModel>) => assertOwnedBy(bound.contract, entry)
   /**
    * `prefetch` and `satisfy`, each Message they reduce also kept in `heard`,
    * so `preload` can hand them to the Model as it is by the time they land.
@@ -3802,7 +3868,7 @@ const bindDomain = <
           !hasPrevious(connection),
       }
     },
-    refresh: (model, target) => Remote.refresh(bound, model, target),
+    refresh: (model, target, options) => Remote.refresh(bound, model, target, options),
     forget: model => Remote.forget(bound, model),
     overlay: (model, id, optimistic) => reduce(model, { _tag: 'OverlayShown', id, optimistic }),
     lift: (model, id) => reduce(model, { _tag: 'OverlayLifted', id }),

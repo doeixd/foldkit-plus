@@ -155,12 +155,12 @@ const clientLayer = Remote.clientLayer(rpcClient) // provide RemoteClient to the
 // Plain JSON (Remote.json) carries no live data.
 
 // One list instead of the four hand-wiring steps above.
+// The active record: what each Surface reads, with params from the Model.
+const actives = {
+  page: Surface.at(ProjectPage, m => Option.map(m.projectId, projectId => ({ projectId }))),
+}
 const Page = Bundle.parent({ Model, Message })
-const wiring = Page.assemble(
-  Data.wiring({
-    page: Surface.at(ProjectPage, m => Option.map(m.projectId, projectId => ({ projectId }))),
-  }),
-)
+const wiring = Page.assemble(Data.wiring(actives))
 const wiredUpdate = wiring.update(model => ({ model }))
 ```
 
@@ -205,7 +205,7 @@ const projects = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: Projec
 // A mutation's answer dates what it writes too: `MutationSucceeded.now`, from `Data.mutate`'s
 // `now` option (default Date.now).
 
-// In update (Message cases ClickedRename {id,name}, ClickedMore {}, ClickedRefresh {}):
+// In update (Message cases ClickedRename {id,name}, ClickedMore {}, ClickedRefresh {}, ClickedTryAgain {}):
 case 'ClickedRename': {
   const { model: started, command } = Data.mutate(model, RenameProject,
     { id: message.id, name: message.name },
@@ -216,12 +216,12 @@ case 'ClickedMore': // grows the read's window by a page; the read entry fetches
   return { model: Option.getOrElse(Data.more(model, projects), () => model) }
 // A query read shows at most its window (`first` from the start, `last` from the end),
 // whatever else loaded the connection; a wider window fetches only the rows it lacks.
-case 'ClickedRefresh': {
-  if (Option.isNone(model.projectId)) return { model }
-  // Mark-only, no I/O: fields read Refreshing, a NotFound is forgotten (reads Loading, asked for again),
-  // connections invalidated, refresh generation bumped.
-  return { model: Data.refresh(model, ProjectPage.projection({ projectId: model.projectId.value })) }
-}
+case 'ClickedRefresh':
+  // Mark-only, no I/O: what each active Surface reads for this Model (params from the Model) reads
+  // Refreshing, a NotFound is forgotten (reads Loading, asked for again), connections invalidated.
+  return { model: Data.refresh(model, actives) }
+case 'ClickedTryAgain': // only what failed; a failed read reads Loading, then Ready or Failed again
+  return { model: Data.refresh(model, actives, { failed: true }) }
 case 'SignedOut': {
   // Everything Remote knows, it knows for a principal. No I/O: values, tombstones, unavailable
   // fields, connections, live cursors, failures and in-flight reads go; every active read and
@@ -303,9 +303,11 @@ case 'SignedOut': {
   `Agent.when({ projection: Data.confirmed(...), predicate })`. A view wants the
   projection itself, which is already the visible read; there is no
   `Data.visible`.
-- `Data.refresh(model, target)` accepts a Projection or a Surface **without
-  params**. It only works if something observes that Projection (an active
-  read entry). For unobserved data use `Data.prefetch` with `RemotePolicy.networkOnly`.
+- `Data.refresh(model, target, { failed? })` accepts the active record, one
+  entry of it (`actives.page`, params from the Model), a Projection, or a
+  Surface **without params**. It only works if something observes what it
+  marks (an active read entry). For unobserved data use `Data.prefetch` with
+  `RemotePolicy.networkOnly`.
 
 Server rendering with `foldkit-ssr` (in development): `Remote.resume(Data)` in
 `SSR.plan({ parts })` sends what the plan's active Surfaces read, field by
@@ -574,8 +576,9 @@ as `previous` if there was one (`render` draws that as data with `Stale`
 freshness). A list fails when a row's field failed, and a read through a
 relation fails when the target's did. It is **not retried automatically**:
 what failed leaves the plan, everything else is still fetched. Retry with
-`Data.refresh(model, projection)`, which also works on something that never
-loaded. The value arriving (page, read, live patch, mutation result), a live
+`Data.refresh(model, actives, { failed: true })`, which also works on something
+that never loaded; the read reads `Loading` meanwhile and `Failed` again if the
+retry fails. The value arriving (page, read, live patch, mutation result), a live
 invalidation or delete, or retention dropping it also clears it.
 `Remote.inspect(remote).failures` is `{ connections, fields }`. A live stream
 breaking emits `ReadFailed` with its `stream`, which records a gap and fails no

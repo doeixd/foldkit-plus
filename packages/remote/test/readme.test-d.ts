@@ -172,6 +172,12 @@ declare const model: Model
   )
   expectTypeOf(preload.effect).toEqualTypeOf<Effect.Effect<RemoteMessage, never, RemoteClient>>()
 
+  // Refreshing from update: the record, one entry, or only what failed.
+  const actives = { project: projectPage, owner }
+  expectTypeOf(Data.refresh(model, actives)).toEqualTypeOf<Model>()
+  expectTypeOf(Data.refresh(model, actives.project)).toEqualTypeOf<Model>()
+  expectTypeOf(Data.refresh(model, actives, { failed: true })).toEqualTypeOf<Model>()
+
   const pageEntries = Data.subscriptions({ page: projectPage })
   // Retention is the domain's: one `retain` roots every read, so the second
   // call's is left out rather than spread over the first's.

@@ -954,15 +954,18 @@ of it.
 ### Refreshing from `update`
 
 To revalidate what a screen already declares — a refresh button, a focus
-regained — hand its Projection (or a Surface without params) to `Data.refresh`:
+regained — hand `Data.refresh` the active record the wiring takes:
 
 ```ts
-case 'ClickedRefresh': {
-  if (model.route._tag !== 'project') return { model }
-  const page = ProjectPage.projection({ projectId: model.route.projectId })
-  return { model: Data.refresh(model, page) }
-}
+case 'ClickedRefresh':
+  return { model: Data.refresh(model, actives) }
 ```
+
+Each entry is resolved for this Model as the read entries resolve it, so a
+`Surface.at` page reads with the params the route gives it, and an inactive
+entry asks for nothing. Add a Surface to `actives` and its refresh comes with
+it. One entry (`Data.refresh(model, actives.project)`), a Projection, or a
+Surface without params narrows it.
 
 `Data.refresh` performs no I/O and restates no request. It returns the Model
 with every selected field the store holds reading `Refreshing`, every entity it
@@ -977,6 +980,16 @@ nothing observes, use `Data.prefetch` with `RemotePolicy.networkOnly`.
   held, so items the server removed or reordered follow it.
 - A read already in flight restarts instead of landing after the refresh.
 - Refreshing what is already refreshing, or nothing, returns the same Model.
+
+`{ failed: true }` asks again only what failed: each entity read whose fields
+(or a related row's) failed, and each list whose query did. That is a "Try
+again": what loaded keeps its value, and a list keeps its later pages, which a
+whole refresh would replace with one page.
+
+```ts
+case 'ClickedTryAgain':
+  return { model: Data.refresh(model, actives, { failed: true }) }
+```
 
 ### Forgetting everything: a change of principal
 
@@ -1275,8 +1288,10 @@ again every time some unrelated read restarted the entry. What failed is left
 out of the plan, and everything else is still fetched: the rows a failed list
 holds, the other fields of an entity. What asks again:
 
-- `Data.refresh(model, projection)` — the retry button. It works on something
-  that never loaded, too.
+- `Data.refresh(model, actives, { failed: true })` — the retry button. It
+  works on something that never loaded, too. A read with nothing to show reads
+  `Loading` while it is asked again, and `Failed` again if it fails again, so
+  the button does not blink away.
 - The value arriving anyway: a page for a list, or a read, live patch or
   mutation result that writes the field.
 - The server invalidating a list over a live stream, or deleting the entity.

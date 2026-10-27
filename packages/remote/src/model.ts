@@ -1024,11 +1024,14 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
       // never loaded and so has nothing to mark stale, and one on a relation's
       // target, which the request reaches only through the store: a server need
       // not expand a relation, and the target is then planned by id once more.
-      const failures = withoutFieldFailures(
-        model.failures,
-        reachedMarks(model.entities, message.requests),
-      )
-      return { ...model, entities, failures }
+      const reached = reachedMarks(model.entities, message.requests)
+      const failures = withoutFieldFailures(model.failures, reached)
+      // A failed field reads `Loading` from here, not `Initial`, until its read
+      // lands: a retry keeps the failure's place. The mark takes the failure's,
+      // so the same roots prune it.
+      const retried = reached.filter(mark => mark in model.failures.fields)
+      const loading = retried.length === 0 ? model.loading : new Set([...model.loading, ...retried])
+      return { ...model, entities, failures, loading }
     }
     case 'QueryStarted': {
       const loading = new Set(model.loading)
@@ -1206,11 +1209,17 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
       // Asking again is also how a failed query is retried, so the failure goes
       // with the mark.
       // A connection is often both: a failed refresh stays due, and `Hydrated`
-      // restores one stale. Asking again must still settle its failure.
+      // restores one stale. Asking again must still settle its failure, and
+      // its mark becomes a loading one, so a list with no page to show reads
+      // `Loading` until its query answers.
       return {
         ...model,
         connections: setConnectionStale(model.connections, message.connection, true),
         failures: withoutConnectionFailure(model.failures, message.connection),
+        loading:
+          message.connection in model.failures.connections
+            ? new Set([...model.loading, connectionMark(message.connection)])
+            : model.loading,
       }
     case 'QueryFailed':
       // The pages stay as they were, and a refresh that failed is still owed:
