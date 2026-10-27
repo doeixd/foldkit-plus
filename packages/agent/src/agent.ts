@@ -58,3 +58,11 @@ export type {
   Transport,
   VariantConfig,
 } from './types.js'
+export {
+  headless,
+  host,
+  type Headless,
+  type HeadlessConfig,
+  type HostableConfig,
+  type RuntimeHost,
+} from './host.js'
