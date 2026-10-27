@@ -76,6 +76,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **TagsInput keeps a draft typed across a frame drawn mid-burst.** When a
+  frame was drawn while keys still arrived after a commit, and the draft it
+  showed began like the tag just added (`react{Enter}react{Enter}`), the
+  draft was stripped to nothing. `TagsInput.Message.Typed` now carries
+  `drawn`, the commit count of the drawing that read the text, so code that
+  builds `Typed` itself must pass it (#224).
 - **The auth README says how to sign up with a password:** the contract's
   `register` action, `Password.make({ registration, reset })` (a `resetLink`
   needs an `https:` URL), `Persistence.Provisioning` writing the account row

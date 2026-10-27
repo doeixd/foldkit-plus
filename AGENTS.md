@@ -1236,6 +1236,13 @@ of its own named a form field "fits the Catalog". Read words with
   must decide on what an input holds (Command's Backspace in an empty field),
   let that drawing's own `OnInput` record the text in a cell the drawing
   makes, and read the cell: both handlers belong to the same drawing.
+- **Tell which drawing a text came from by the drawing, not the text.**
+  TagsInput guessed whether its input had been redrawn since a commit by
+  whether the text started with the tag just added. A frame drawn mid-burst
+  showed `reac`, the next key made `react`, and the draft was stripped to
+  nothing; only CI placed a frame there (#224). Let the handler send the
+  Model state it was drawn from (`Typed.drawn`), and reproduce a frame race
+  by holding `requestAnimationFrame` in the browser test, not by throttling.
 - **A synthetic event moves no focus.** `dispatchEvent(new MouseEvent('click'))`
   and a `keydown` sent to an element leave focus where it was, so a jsdom test
   of the Builder kept focus in the layers through a crumb click and a key on
