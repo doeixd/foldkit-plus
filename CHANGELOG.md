@@ -21,6 +21,10 @@ version changed; `pnpm` skips versions already in the registry.
 - **`examples/pages` says whether an edit reached the server.** A line in the
   sidebar reads the replica's status: all saved, saving, or offline with the
   edits kept in the tab. With the sync server down an edit used to look saved.
+- **`examples/registry` draws on the demos' theme.** Its device page is an
+  `AppShell` with the edits' status in the header, a mixins-ui `Input` for the
+  search, and an `Alert` for each refused, replaced or held-back edit; its 22
+  inline styles are Slot styles, and its foundations are in the page.
 - **Every example keeps its Model across an edit.** The CMS and Foldkit's
   sixteen ported examples now load `@foldkit/vite-plugin`, as the other demos
   do, so a save no longer reloads the page from `init` or logs "No response

@@ -1686,6 +1686,9 @@ importers:
       foldkit-mixins-data-grid:
         specifier: workspace:*
         version: link:../../packages/mixins-data-grid
+      foldkit-mixins-ui:
+        specifier: workspace:*
+        version: link:../../packages/mixins-ui
       foldkit-primitives:
         specifier: workspace:*
         version: link:../../packages/primitives

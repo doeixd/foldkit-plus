@@ -22,6 +22,7 @@
     "foldkit-example-site": "workspace:*",
     "foldkit-mixins": "workspace:*",
     "foldkit-mixins-data-grid": "workspace:*",
+    "foldkit-mixins-ui": "workspace:*",
     "foldkit-primitives": "workspace:*",
     "foldkit-remote": "workspace:*",
     "foldkit-remote-drizzle": "workspace:*",

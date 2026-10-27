@@ -8,10 +8,11 @@
 import { Option } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import type { GridWindow } from 'foldkit-data-grid'
+import type { SlotBuilders } from 'foldkit-mixins'
 import type { ModuleManifest } from 'foldkit-surface'
 import { Data, Grid, type Message, type Model } from './app.js'
 import type { EditedColumn } from './domain.js'
-import { hairline, muted } from './palette.js'
+import type { Page } from './style.js'
 
 const cellName = ({ id, member }: { readonly id: string; readonly member: EditedColumn }) =>
   `${Grid.columns.byId[member].header} of ${id}`
@@ -88,6 +89,7 @@ export const ownershipPanel = (
   manifest: ModuleManifest,
   model: Model,
   shown: GridWindow<string>,
+  slots: SlotBuilders<typeof Page.slots, Message>,
   h: HtmlBuilder<Message>,
 ): Html => {
   const now = facts(model, shown)
@@ -97,53 +99,25 @@ export const ownershipPanel = (
     const name = ownerName(owner)
     sections.set(name, [...(sections.get(name) ?? []), path[0]])
   }
-  return h.details(
-    [
-      h.Id('ownership'),
-      h.Style({
-        border: `1px solid ${hairline}`,
-        borderRadius: '8px',
-        padding: '0.5rem 0.75rem',
-        fontSize: '0.8125rem',
-      }),
-    ],
-    [
-      h.summary([h.Style({ cursor: 'pointer', fontWeight: '500' })], ['How this page works']),
-      h.div(
-        [
-          h.Style({
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 18rem), 1fr))',
-            gap: '0.75rem 1.5rem',
-            paddingBlockStart: '0.5rem',
-          }),
-        ],
-        [...sections].map(([owner, fields]) =>
-          h.section(
-            [h.AriaLabel(owner)],
-            [
-              h.h2(
-                [h.Style({ margin: '0 0 0.25rem', fontSize: 'inherit', fontWeight: '600' })],
-                [owner],
-              ),
-              h.dl(
-                [
-                  h.Style({
-                    display: 'grid',
-                    gridTemplateColumns: 'max-content 1fr',
-                    gap: '0.125rem 0.75rem',
-                    margin: '0',
-                  }),
-                ],
-                fields.flatMap(field => [
-                  h.dt([h.Style({ color: muted, fontFamily: 'ui-monospace, monospace' })], [field]),
-                  h.dd([h.Style({ margin: '0' })], [now[field]]),
-                ]),
-              ),
-            ],
-          ),
+  return h.details(slots.ownership.attrs([h.Id('ownership')]), [
+    h.summary(slots.summary.attrs(), ['How this page works']),
+    h.div(
+      slots.owners.attrs(),
+      [...sections].map(([owner, fields]) =>
+        h.section(
+          [h.AriaLabel(owner)],
+          [
+            h.h2(slots.owner.attrs(), [owner]),
+            h.dl(
+              slots.facts.attrs(),
+              fields.flatMap(field => [
+                h.dt(slots.field.attrs(), [field]),
+                h.dd(slots.value.attrs(), [now[field]]),
+              ]),
+            ),
+          ],
         ),
       ),
-    ],
-  )
+    ),
+  ])
 }

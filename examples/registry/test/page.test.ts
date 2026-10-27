@@ -873,7 +873,10 @@ test('a refused edit marks its cell and says why, until it is dismissed', async 
   const server = serve()
   const { dispose, exchange } = await mount(server, memoryStorage())
   const lines = () =>
-    Array.from(document.querySelectorAll('#refused li'), line => line.firstChild?.textContent)
+    Array.from(
+      document.querySelectorAll('#refused li'),
+      line => line.querySelector('p')?.textContent,
+    )
   try {
     await vi.waitFor(() => expect(cell(productId(6), 'cents')?.textContent).toBe(priceOf(6)))
     await edit(productId(6), 'cents', '6.66')
@@ -886,7 +889,7 @@ test('a refused edit marks its cell and says why, until it is dismissed', async 
     expect(cell(productId(6), 'cents')!.getAttribute('aria-description')).toBe(
       'Not saved: Not a valid operation',
     )
-    expect(lines()).toEqual([`Price of ${productId(6)} not saved: Not a valid operation. `])
+    expect(lines()).toEqual([`Price of ${productId(6)} not saved: Not a valid operation.`])
 
     click(document.querySelector('#refused button')!)
     await vi.waitFor(() => expect(lines()).toEqual([]))
@@ -1007,7 +1010,10 @@ test('an edit another device committed later replaces this one, and the page say
   const tab2 = (index: number, cents: number, device = 'tab-2') =>
     commitElsewhere(server, index, cents, device)
   const lines = () =>
-    Array.from(document.querySelectorAll('#replaced li'), line => line.firstChild?.textContent)
+    Array.from(
+      document.querySelectorAll('#replaced li'),
+      line => line.querySelector('p')?.textContent,
+    )
   try {
     await vi.waitFor(() => expect(cell(productId(3), 'cents')?.textContent).toBe(priceOf(3)))
 
@@ -1022,9 +1028,7 @@ test('an edit another device committed later replaces this one, and the page say
     expect(cell(productId(3), 'cents')!.getAttribute('aria-description')).toBe(
       'Replaced by tab-2’s edit (was 3.33)',
     )
-    expect(lines()).toEqual([
-      `Price of ${productId(3)}: tab-2’s later edit replaced yours (3.33). `,
-    ])
+    expect(lines()).toEqual([`Price of ${productId(3)}: tab-2’s later edit replaced yours (3.33).`])
     click(document.querySelector('#replaced button')!)
     await vi.waitFor(() => expect(lines()).toEqual([]))
 
@@ -1045,9 +1049,7 @@ test('an edit another device committed later replaces this one, and the page say
     await tab2(8, 818, 'tab-1')
     await exchange()
     await vi.waitFor(() => expect(markOf(productId(8), 'cents')).toBe('replaced'))
-    expect(lines()).toContain(
-      `Price of ${productId(8)}: tab-1’s later edit replaced yours (8.08). `,
-    )
+    expect(lines()).toContain(`Price of ${productId(8)}: tab-1’s later edit replaced yours (8.08).`)
     click(document.querySelector('#replaced button')!)
     await vi.waitFor(() => expect(lines()).toEqual([]))
 
@@ -1186,7 +1188,10 @@ const redo = () =>
     }),
   )
 const heldBack = () =>
-  Array.from(document.querySelectorAll('#held-back li'), line => line.firstChild?.textContent)
+  Array.from(
+    document.querySelectorAll('#held-back li'),
+    line => line.querySelector('p')?.textContent,
+  )
 
 test('an undo is a new edit that puts the cell back, and a redo another', async () => {
   const server = serve()
@@ -1246,7 +1251,7 @@ test('an undo leaves a cell another device changed since, and says so', async ()
       expect(cell(productId(3), 'description')?.textContent).toBe(seedOf(3).description),
     )
     expect(cell(productId(3), 'cents')?.textContent).toBe('4.44')
-    expect(heldBack()).toEqual([`Price of ${productId(3)} changed since; not undone. `])
+    expect(heldBack()).toEqual([`Price of ${productId(3)} changed since; not undone.`])
     await exchange()
     await vi.waitFor(() => expect(status()).toBe(''))
     expect(server.backend.row(productId(3))).toMatchObject({
