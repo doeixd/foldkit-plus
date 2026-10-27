@@ -21,8 +21,11 @@ at `bf6a8a94` on 2026-10-26.
   `foldkit-mixins-crud/recipes`) and `Field`/`Form` (new,
   `foldkit-mixins-form/recipes`, which `entity` now uses too), with an e2e test
   over miniflare. Restyling it found a `foldkit-remote` bug: a row created in
-  an empty list never showed. That is fixed and tested. `pages`, `registry` and the
-  richtext demos are next.
+  an empty list never showed. That is fixed and tested. `pages` is done: Slot
+  styles on `demoStyle` instead of the `<style>` in `index.html` (`1926a0dc`), and
+  a line in its sidebar from the replica's status that says whether an edit
+  reached the server, with an e2e test that takes the server down. `registry`
+  and the richtext demos are next.
 - **Open question for the owner:** `foldkit-form` validates a key on its first
   blur, so tabbing out of an emptied quick-add field says "Required", and the
   form's summary repeats it. Validating an untouched key only on submit would
@@ -33,8 +36,6 @@ at `bf6a8a94` on 2026-10-26.
   resizable panes wrap their readout and their checkboxes are 16px, the
   registry's UPC shows whole, and the entity form's checkbox is a box rather
   than a bar. Each has a browser or e2e test, checked against the old code.
-  `pages` says nothing while its socket is down; that needs a status of the
-  replica on screen, which is Phase 3 work.
 - **Phases 3 to 6 are not started.**
 
 ## Why
