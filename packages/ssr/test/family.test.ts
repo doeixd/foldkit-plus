@@ -8,7 +8,7 @@ import { Effect, Schema } from 'effect'
 import { Remote } from 'foldkit-remote'
 import { Projection, Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
-import { SSR, type ResumePlan } from 'foldkit-ssr'
+import { SSR, type PlanSurface, type ResumePlan } from 'foldkit-ssr'
 import type { Model } from './familyFixture.js'
 import {
   App,
@@ -67,6 +67,23 @@ describe('SSR.inspect with a family', () => {
         },
       ],
     })
+  })
+
+  it('covers a parent shared by two families, or listed alone too, once', () => {
+    const rows = (surfaces: ReadonlyArray<PlanSurface<Model>>) =>
+      SSR.inspect(
+        SSR.plan(App, {
+          id: 'team',
+          state: Projection.pick(App.model.route, App.model.members),
+          surfaces,
+          parts: [Remote.resume(Data)],
+        }),
+        loaded,
+      ).surfaces.map(row => (row.key === undefined ? row.name : `${row.name}[${row.key}]`))
+    const shared = ['Team', 'Member[u1]', 'Member[u2]', 'Quiet[u1]', 'Quiet[u2]']
+    expect(rows([Members, Quiets])).toEqual(shared)
+    expect(rows([team, Members, Quiets])).toEqual(shared)
+    expect(rows([Members, team, Quiets])).toEqual(shared)
   })
 
   it('covers only the parent while the parent is inactive', () => {

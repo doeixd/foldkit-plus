@@ -23,8 +23,8 @@ export default [
     edits: [
       {
         file: '../src/index.ts',
-        find: '  if (rows[0]?.active !== true) return rows',
-        replace: '  return rows',
+        find: '  if (!own.active) return [own]',
+        replace: '  return [own]',
       },
     ],
     tests,
@@ -34,8 +34,26 @@ export default [
     edits: [
       {
         file: '../src/index.ts',
-        find: '          name: family.name,\n          key: instance.key,',
-        replace: '          name: family.name,',
+        find: '{ name: family.name, key: instance.key, via }',
+        replace: '{ name: family.name, via }',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'coverage repeats a shared parent',
+    edits: [
+      { file: '../src/index.ts', find: '      if (shown.has(surface)) return []', replace: '' },
+    ],
+    tests,
+  },
+  {
+    name: 'a parent covers only its last family',
+    edits: [
+      {
+        file: '../src/index.ts',
+        find: '    else siblings.push(family)',
+        replace: '    else families.set(family.from, [family])',
       },
     ],
     tests,

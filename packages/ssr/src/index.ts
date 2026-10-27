@@ -319,14 +319,40 @@ const coverage = <Model, Fields extends Schema.Struct.Fields>(
   browser: Model,
 ): PlanInspection => {
   const covered = new Set(plan.parts.flatMap(part => part.covers))
+  const families = new Map<ActiveSurface<Model>, Array<Family<Model>>>()
+  for (const family of plan.surfaces.flatMap(source => Option.toArray(familyOf(source)))) {
+    const siblings = families.get(family.from)
+    if (siblings === undefined) families.set(family.from, [family])
+    else siblings.push(family)
+  }
+  // A row is a Surface's identity, not a plan entry: families sharing a
+  // parent, or a parent also listed alone, show that parent once.
+  const shown = new Set<ActiveSurface<Model>>()
   return {
     id: plan.id,
     state: plan.state.dependencies.map(pathOf),
     local: plan.local.map(pathOf),
     parts: plan.parts.map(part => part.id),
-    surfaces: plan.surfaces.flatMap(source => coverSource(plan, covered, source, model, browser)),
+    surfaces: plan.surfaces.flatMap(source => {
+      const surface = Option.match(familyOf(source), {
+        onNone: () => source as ActiveSurface<Model>,
+        onSome: family => family.from,
+      })
+      if (shown.has(surface)) return []
+      shown.add(surface)
+      return coverSurface(plan, covered, surface, families.get(surface) ?? [], model, browser)
+    }),
   }
 }
+
+type Family<Model> = SurfaceFamily<Model, unknown, unknown, unknown, unknown>
+
+/** The plan entry as a family with a parent; none for a lone Surface. */
+const familyOf = <Model>(source: PlanSurface<Model>): Option.Option<Family<Model>> =>
+  (source as { readonly from?: ActiveSurface<Model> }).from !== undefined &&
+  typeof (source as Partial<SurfaceSource<Model>>).instancesOf === 'function'
+    ? Option.some(source as Family<Model>)
+    : Option.none()
 
 /** One coverage row: a lone Surface, a family's parent, or one family instance. */
 const coverRow = <Model, Fields extends Schema.Struct.Fields>(
@@ -365,72 +391,58 @@ const coverRow = <Model, Fields extends Schema.Struct.Fields>(
 })
 
 /**
- * A plan entry's coverage rows: one for a lone Surface, or a family's parent
- * followed by one row per instance. The parent row keeps the parent's reads
- * covered; each instance row says which key it is and which parent reveals
- * it, so a gap names the instance (`Member[u1]`), not just the Surface.
+ * A Surface's coverage rows: its own row, then, while it is active, one row
+ * per instance of each family it is the parent of. The parent row keeps the
+ * parent's reads covered; each instance row says which key it is and which
+ * parent reveals it, so a gap names the instance (`Member[u1]`), not just the
+ * Surface.
  */
-const coverSource = <Model, Fields extends Schema.Struct.Fields>(
+const coverSurface = <Model, Fields extends Schema.Struct.Fields>(
   plan: ResumePlan<Model, Fields>,
   covered: ReadonlySet<string>,
-  source: PlanSurface<Model>,
+  surface: ActiveSurface<Model>,
+  families: ReadonlyArray<Family<Model>>,
   model: Model,
   browser: Model,
 ): ReadonlyArray<SurfaceCoverage> => {
-  const from = (source as { readonly from?: ActiveSurface<Model> }).from
-  if (
-    from === undefined ||
-    typeof (source as Partial<SurfaceSource<Model>>).instancesOf !== 'function'
-  ) {
-    const lone = source as ActiveSurface<Model>
-    return [
-      coverRow(
-        plan,
-        covered,
-        lone,
-        Option.getOrUndefined(lone.projectionOf(model)),
-        Option.getOrUndefined(lone.projectionOf(browser)),
-      ),
-    ]
-  }
-  const family = source as SurfaceFamily<Model, unknown, unknown, unknown, unknown>
-  const rows = [
-    coverRow(
-      plan,
-      covered,
-      from,
-      Option.getOrUndefined(from.projectionOf(model)),
-      Option.getOrUndefined(from.projectionOf(browser)),
-    ),
-  ]
-  if (rows[0]?.active !== true) return rows
-  const browserInstances = family.instancesOf(browser)
-  for (const instance of family.instancesOf(model)) {
-    rows.push(
-      coverRow(
-        plan,
-        covered,
-        {
-          name: family.name,
-          key: instance.key,
-          via: {
-            surface: from.name,
-            ...(from.activation === undefined
-              ? {}
-              : {
-                  activation: {
-                    path: pathOf(from.activation.path),
-                    cover: coverOf(from.activation.path, plan),
-                  },
-                }),
+  const own = coverRow(
+    plan,
+    covered,
+    surface,
+    Option.getOrUndefined(surface.projectionOf(model)),
+    Option.getOrUndefined(surface.projectionOf(browser)),
+  )
+  if (!own.active) return [own]
+  const via: SurfaceCoverage['via'] = {
+    surface: surface.name,
+    ...(surface.activation === undefined
+      ? {}
+      : {
+          activation: {
+            path: pathOf(surface.activation.path),
+            cover: coverOf(surface.activation.path, plan),
           },
-        },
-        instance.projection,
-        browserInstances.find(other => other.key === instance.key)?.projection,
-      ),
-    )
+        }),
   }
-  return rows
+  return [
+    own,
+    ...families.flatMap(family => {
+      const browserInstances = new Map(
+        family.instancesOf(browser).map(instance => [instance.key, instance.projection]),
+      )
+      return family
+        .instancesOf(model)
+        .map(instance =>
+          coverRow(
+            plan,
+            covered,
+            { name: family.name, key: instance.key, via },
+            instance.projection,
+            browserInstances.get(instance.key),
+          ),
+        )
+    }),
+  ]
 }
 
 /** A coverage row as a shortfall names it: `Member[u1]` for an instance, the name alone otherwise. */
