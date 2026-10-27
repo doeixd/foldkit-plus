@@ -193,9 +193,21 @@ const html = SSR.page(template, result, {
 
 A served page has no template head to write to, so `SSR.render`, `SSR.entry`
 and `SSR.handle` take the same function as `styles` instead, carried as the
-rendered root's last child. Keep it to `<style>`: hydration adopts the nodes
-around it and drops it on its first patch, and the browser's Styles skip what
-it already carries. A void root holds no children, so styles for one are
+rendered root's last child. `foldkit-mixins/foundations` writes the theme
+into `index.html` only, never into a page the server renders, so a served
+page carries the theme's stylesheet here too, beside the classes it draws
+(`examples/foldkit/ssr/src/renderPage.ts`):
+
+```ts
+const styles = (rendered: { readonly html: string }): string =>
+  `<style>${stylesheet}</style><style>${Style.usedIn(rendered.html)}</style>`
+
+SSR.entry(config, plan, { buildId, styles })
+```
+
+Without it, every served page flashes unstyled until the script runs. Keep
+`styles` to `<style>`: hydration adopts the nodes around it and drops it on
+its first patch, and the browser's Styles skip what it already carries. A void root holds no children, so styles for one are
 refused with `VoidRootWithStyles`, naming the tag. Anything a head owns
 (`meta`, links) stays with `SSR.generate`.
 

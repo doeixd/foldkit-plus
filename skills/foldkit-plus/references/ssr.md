@@ -55,6 +55,14 @@ served page stays in view while the fresh one draws hidden, and is swapped once 
 
 ## Gotchas
 
+- **A served page with `foldkit-mixins` styles needs `styles`, or it flashes
+  unstyled.** `foundations()` writes the theme into `index.html` alone; a page
+  `SSR.entry` renders carries no head of its own. Give `SSR.entry` (and
+  `SSR.render`, `SSR.handle`)
+  `` styles: rendered => `<style>${stylesheet}</style><style>${Style.usedIn(rendered.html)}</style>` ``:
+  the theme's stylesheet and the CSS of each class the page draws, in the
+  rendered root. The browser's Styles find them and add none twice. See
+  `examples/foldkit/ssr/src/renderPage.ts`.
 - **Render from Remote data by preparing it first.** `SSR.render` and
   `SSR.generate` render the Model `init` returns; nothing is fetched during a
   render. Build that Model with `Data.satisfy(model, actives)`, which reads
