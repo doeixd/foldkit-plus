@@ -9,6 +9,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **The skill has a recommended `AGENTS.md` block for applications**
+  (`references/agents-md.md`): use what the packages provide, prefer Effect,
+  read the installed types, which skills to load, house rules, and one-line
+  traps per package. `SKILL.md` and `greenfield.md` point to it (#256).
 - **`examples/cloudflare` signs people in with Yielded Auth on D1.** The Worker
   serves Yielded's routes (`/auth/…`) and `/me` beside Remote, built once per
   isolate over `@yielded/auth-persistence-drizzle/D1`, whose commits are D1
