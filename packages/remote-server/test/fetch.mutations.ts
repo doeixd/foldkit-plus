@@ -65,8 +65,9 @@ export default [
     edits: [
       {
         file,
-        find: 'const handlers = RemoteServer.handlers(config.server, principal, {',
-        replace: 'const handlers = RemoteServer.handlers(config.server, undefined as P, {',
+        find: 'const handlers = RemoteServer.handlers(config.server, principal, {\n        live: config.live,',
+        replace:
+          'const handlers = RemoteServer.handlers(config.server, undefined as P, {\n        live: config.live,',
       },
     ],
     tests,
