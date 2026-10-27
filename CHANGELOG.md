@@ -33,6 +33,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **Going back to a page shows what it held.** Retention now keeps what the
+  Surfaces most recently left reached, up to `departedLimit` (16 lists and 256
+  entity reads), not only what the active ones reach. A list left is held
+  stale, so going back reads `Refreshing` with its rows while it refetches,
+  where it read `Initial` then `Loading` once retention had dropped it.
+  `RemoteModel` has a `recent` field holding those roots (#234, #225).
 - **Breaking: `EntityWriter.insert` is told what is `stamped`.** Its context
   holds `stamped`, the values a wrapping writer set once at creation, which a
   retry does not compare. A writer that answers a retried insert leaves them

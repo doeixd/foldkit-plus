@@ -798,9 +798,11 @@ handler's write and raw SQL are held to the invariants and move the revision too
 - Presence is not `value === undefined`: missing, present-undefined, present-null,
   stale, and not-found are distinct.
 - Retention: after the `grace` period, data no active Surface reaches is
-  garbage-collected (safe; it refetches).
+  garbage-collected (safe; it refetches), except what the Surfaces most
+  recently left reached (`departedLimit`: 16 lists, 256 reads). A list held
+  that way is stale, so going back reads `Refreshing` and refetches it.
 - `staleWhileRevalidate` ages entities only; connections refetch only when
-  invalidated or under `networkOnly`.
+  invalidated, left and gone back to, or under `networkOnly`.
 - Live cursors: duplicates ignored, an ahead-of-cursor event is a **gap** (not
   applied, recorded in `remote.gaps`). It restarts the stream; only the
   restart clears it, not a later in-order event.

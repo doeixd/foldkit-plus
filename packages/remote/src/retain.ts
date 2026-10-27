@@ -92,6 +92,55 @@ export const reachable = (
 }
 
 /**
+ * How many lists, and how many entity reads, stay held after the Surface
+ * showing them goes inactive. Going back to one shows what it held while the
+ * list refetches, rather than reading as if nothing had ever loaded.
+ */
+export const departedLimit = { connections: 16, requirements: 256 } as const
+
+const requirementKey = (requirement: Requirement): string => JSON.stringify(requirement)
+const connectionKey = (root: ConnectionRoot): string => JSON.stringify(root)
+
+/** The last `limit` of `previous` that `active` does not hold, then all of `active`. */
+const departedThen = <A>(
+  previous: ReadonlyArray<A>,
+  active: ReadonlyArray<A>,
+  key: (value: A) => string,
+  limit: number,
+): ReadonlyArray<A> => {
+  const current = new Set(active.map(key))
+  const departed = previous.filter(value => !current.has(key(value)))
+  return [...departed.slice(Math.max(0, departed.length - limit)), ...active]
+}
+
+/**
+ * The roots retention keeps: the active ones, after the most recently
+ * departed ones `previous` held (oldest first), up to `departedLimit`.
+ */
+export const recentRoots = (previous: RetentionRoots, active: RetentionRoots): RetentionRoots => {
+  const next = {
+    requirements: departedThen(
+      previous.requirements,
+      active.requirements,
+      requirementKey,
+      departedLimit.requirements,
+    ),
+    connections: departedThen(
+      previous.connections,
+      active.connections,
+      connectionKey,
+      departedLimit.connections,
+    ),
+  }
+  const same = <A>(a: ReadonlyArray<A>, b: ReadonlyArray<A>, key: (value: A) => string) =>
+    a.length === b.length && a.every((value, i) => key(value) === key(b[i]!))
+  return same(previous.requirements, next.requirements, requirementKey) &&
+    same(previous.connections, next.connections, connectionKey)
+    ? previous
+    : next
+}
+
+/**
  * Drops every entity the roots do not reach, every connection they do not
  * name, and every settled overlay on a dropped connection, keeping whatever a
  * pending request's layer or overlays touch. Pure.

@@ -27,10 +27,21 @@ const live = (stream: string, event: LiveEvent): RemoteMessage => ({
   now: 0,
 })
 const asking = [{ entity: 'User', id: 'u1', fields: ['name'] }]
+const keepingAll: RemoteMessage = {
+  _tag: 'RetentionChanged',
+  roots: {
+    requirements: [
+      ...asking,
+      { entity: 'User', id: 'u2', fields: ['name'] },
+      { entity: 'User', id: 'u9', fields: ['name'] },
+    ],
+    connections: [{ identity: 'c1' }, { identity: 'c2' }],
+  },
+}
 
 /**
  * A user read and listed in `c1`, a live insert pending in `c2`, a tombstoned
- * `u9`, a gapped stream, and a read in flight.
+ * `u9`, a gapped stream, a read in flight, and retention of all of it.
  */
 const base = [
   {
@@ -62,6 +73,7 @@ const base = [
     stream: 'gapped',
   },
   { _tag: 'ReadStarted', requests: [{ entity: 'User', id: 'u2', fields: ['name'] }] },
+  keepingAll,
 ].reduce<RemoteModel>(
   (model, message) => updateRemote(model, message as RemoteMessage),
   initialRemoteModel,
@@ -96,20 +108,7 @@ describe('A Message that changes nothing', () => {
         stream: 'gapped',
       },
     ],
-    [
-      'retention that keeps everything',
-      {
-        _tag: 'RetentionChanged',
-        roots: {
-          requirements: [
-            ...asking,
-            { entity: 'User', id: 'u2', fields: ['name'] },
-            { entity: 'User', id: 'u9', fields: ['name'] },
-          ],
-          connections: [{ identity: 'c1' }, { identity: 'c2' }],
-        },
-      },
-    ],
+    ['retention that keeps everything, again', keepingAll],
   ])('returns the Model: %s', (_name, message) => {
     expect(updateRemote(base, message)).toBe(base)
   })

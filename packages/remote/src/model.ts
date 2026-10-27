@@ -53,7 +53,7 @@ import {
 } from './store.js'
 import { windowKey } from './plan.js'
 import { isRefPage, targetsOf, type RefPageValue } from './relation.js'
-import { gc, reachable, type Retained, type RetentionRoots } from './retain.js'
+import { gc, reachable, recentRoots, type Retained, type RetentionRoots } from './retain.js'
 import { RemotePersistence, type MergePolicy } from './persistence.js'
 import {
   NormalizedEntity,
@@ -134,6 +134,12 @@ export interface RemoteModel {
   readonly placed: Readonly<Record<string, PlacedOrder>>
   /** Under `verifyPlacement`, each placement the server's page disagreed with. */
   readonly placementMismatches: ReadonlyArray<PlacementMismatch>
+  /**
+   * What retention keeps: the active Surfaces' roots, after those of the
+   * Surfaces most recently left (`departedLimit`). A list left is held stale,
+   * so going back reads it `Refreshing` while it refetches.
+   */
+  readonly recent: RetentionRoots
 }
 
 /** A list's first page as the client placed it: its keys in order, and those it took out. */
@@ -238,6 +244,7 @@ export const initialRemoteModel: RemoteModel = {
   restoredFrom: Option.none(),
   placed: {},
   placementMismatches: [],
+  recent: { requirements: [], connections: [] },
 }
 
 /** The entity store and the mutation ledger are runtime values, not wire shapes. */
@@ -263,6 +270,7 @@ export const remoteModelSchema = (): Schema.Codec<RemoteModel, unknown> =>
     restoredFrom: runtimeSchema,
     placed: runtimeSchema,
     placementMismatches: runtimeSchema,
+    recent: runtimeSchema,
   }) as unknown as Schema.Codec<RemoteModel, unknown>
 
 /** The submodel's Messages; each reduces to `RemoteModel` through `updateRemote`. */
@@ -908,7 +916,17 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
         failures: withFieldFailures(model.failures, message.requests, message.error),
       }
     case 'RetentionChanged': {
-      const retained = gc(model, message.roots)
+      const recent = recentRoots(model.recent, message.roots)
+      const retained = gc(model, recent)
+      const active = new Set(message.roots.connections.map(root => root.identity))
+      // A list no active Surface shows is held for going back, and refetched then.
+      const connections = recent.connections.reduce(
+        (held, { identity }) =>
+          active.has(identity) || held[identity] === undefined
+            ? held
+            : setConnectionStale(held, identity, true),
+        retained.connections,
+      )
       // Retention's own walk over the Model before collection. It counts a
       // relation's target and a list's row the store does not hold, which is
       // exactly a value whose first read failed or is still in flight.
@@ -924,6 +942,8 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
       return {
         ...model,
         ...retained,
+        connections,
+        recent,
         grown: keptWindows(model.grown, retained.connections),
         refresh: prunedRefresh(model.refresh, retained),
         failures: prunedFailures(model.failures, message.roots, reached),

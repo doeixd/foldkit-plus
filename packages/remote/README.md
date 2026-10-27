@@ -91,7 +91,7 @@ what you are doing:
 | A read stays `Initial` | [Why is it still `Initial`?](#why-is-it-still-initial) |
 | A list shows old rows | [Why is it stale?](#why-is-it-stale) |
 | A saved change showed, then vanished | [Why did my change disappear?](#why-did-my-change-disappear) |
-| Data was gone when I came back | [Why is it gone?](#why-is-it-gone-after-navigating-away) |
+| A page I came back to reads `Refreshing` or `Loading` | [Why `Refreshing`?](#why-does-a-page-i-went-back-to-read-refreshing) |
 | Show a failed read, and let the user retry | [When a read fails](#when-a-read-fails) |
 | Load an ordered, paged list | [Queries and pagination](#queries-and-pagination) |
 | Filter a list already on screen | [Filtering a loaded list](#filtering-a-loaded-list-without-asking-the-server) |
@@ -673,13 +673,14 @@ what the server said:
 
 See [Mutations and optimistic state](#mutations-and-optimistic-state).
 
-### Why is it gone after navigating away?
+### Why does a page I went back to read `Refreshing`?
 
-Remote is a cache, and it forgets facts no active feature needs. Retention
-roots come from the active Surfaces; after the grace period, `RetentionChanged`
-collects everything they do not reach. A screen you left, and nothing else
-reads, loses its rows, which is safe because coming back refetches them. To
-keep something a screen does not read, name it in a retain entry or a
+Remote keeps what the screens you most recently left reached: the last 16
+lists and 256 reads (`departedLimit`). A list left is held **stale**, so going
+back shows its rows at once and reads `Refreshing` while the planner refetches
+it; the page that answers replaces what was held. Only past those limits is a
+screen's data collected, and then coming back reads `Loading` and refetches.
+To keep something no screen reads, name it in a retain entry or a
 `connections` list; see [Retention](#retention-and-garbage-collection).
 
 ### Why does a value the server has read `Failed`?
@@ -1686,9 +1687,21 @@ reads; `connections` given to any call are kept the same way. A root keeps:
 - data touched by pending optimistic work.
 
 After the configured grace period, `RetentionChanged` enters the Model and the
-pure Remote reducer collects unreachable cache data. An inactive Surface that is
-not otherwise retained may therefore lose its cache, which is safe because the
-server remains authoritative and the planner can refetch it.
+pure Remote reducer collects what no root reaches. The roots it keeps are the
+active ones and those of the Surfaces most recently left, up to
+`departedLimit` (16 lists and 256 entity reads, oldest dropped first), so going
+back to a page shows what it held rather than reading `Loading`:
+
+```text
+Surface left      -> its lists held stale, its reads held
+Surface again     -> rows read Refreshing; the planner refetches the stale list
+page arrives      -> it replaces the held rows; Ready
+past the limit    -> collected; going back reads Loading and refetches
+```
+
+A value nothing reached when retention ran, such as a prefetch no Surface
+showed, is still collected at once. Collecting is safe because the server
+remains authoritative and the planner can refetch.
 
 This is another important difference from Sync: **Remote recovery may discard
 and refetch; Sync recovery must preserve unsent client intent.**
@@ -2194,8 +2207,9 @@ Remote does **not** own:
   insert/remove/invalidate changes; `RemoteServer.live` serves them as a stream.
 - Coalescing is scoped to one `RemoteClient` layer. Separate layers do not share
   batches.
-- Retention keeps what active Surfaces (and explicit retain entries) reach. An
-  inactive/unretained Surface may lose its cache on `RetentionChanged`.
+- Retention keeps what active Surfaces (and explicit retain entries) reach, and
+  what the most recently left ones reached, up to `departedLimit`. Past it, an
+  inactive Surface loses its cache on `RetentionChanged`.
 - Two applications with the same Model type are not distinguishable by TypeScript
   alone; `Data.subscriptions` also checks the Surface owner token at runtime.
 - `staleWhileRevalidate({ maxAge })` ages entity data. Connections have no age;
