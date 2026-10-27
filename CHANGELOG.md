@@ -9,6 +9,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`Derived.count(Other.relations.pointer)`: a derived member that says what
+  it counts,** the rows whose `one` relation points at this one. `bind`
+  compiles it from the pointing relation's column under that table's `visible`
+  rule (and refuses a `derived` entry for it); a declared write predicts the
+  counts it moves (an insert adds one where it points, a delete or relink
+  moves it); and a declared write's answer reads every row its row points at,
+  before and after, through the writer's `linked`, so a like's answer carries
+  its post's count. Each derived member carries `derives` (`Supplied` or
+  `Count`); `MutationSource.run` may return `pointed`; `GuardServer.writer`
+  passes `linked` through. Chirp's profile shows `postCount` (#233, #245).
 - **`npx foldkit-plus docs <query>` answers from the docs installed in the
   project:** the best sections of each installed Foldkit Plus package's README
   and of the `foldkit-plus` skill if installed, and for a symbol

@@ -837,6 +837,10 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   `pnpm dev` showed a blank page for a week: every test mounts its own
   container. Only an e2e test runs the real entry.
 
+- **A member added after `Entity.relate` is missing from relation targets.**
+  `Like.relations.post.target()` returns the related Post without a
+  `likeCount` piped on afterwards, so the server cannot find a count from the
+  written Entity; it names every row the write points at instead.
 - **A Surface's ModelRef reserves field names.** `Schema`, `optic`,
   `dependency`, `key`, `read`, `get`, `set`, `at`, `index` and `select` name
   its own members, so a Model holding a field so named throws "Model field
@@ -1485,6 +1489,10 @@ of its own named a form field "fits the Catalog". Read words with
   `encoding='utf-8'` on both reads and writes, write to the file only after the
   new content is fully built, and never chain a commit after a script in one
   command: check `wc -c` or `git diff --stat` first.
+- **`pnpm format` rewrites every file in the shared tree.** It formats
+  `**/*.{ts,json,yaml}`, other sessions' unfinished files included. While
+  others work in the tree, format your own files (`pnpm exec oxfmt <paths>`)
+  and check with `pnpm format:check`.
 - **Format with `pnpm format`, never bare `oxfmt`.** Bare `oxfmt` reads
   `.oxfmtrc.jsonc` too, but formats every file it knows, not only the
   script's `**/*.{ts,json,yaml}`: on 2026-10-16 it listed four `.html`
