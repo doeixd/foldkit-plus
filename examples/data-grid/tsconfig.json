@@ -14,6 +14,7 @@
       "foldkit-example-site/demo-style": ["../site/src/demoStyle.ts"],
       "foldkit-example-site/demos": ["../site/src/demos.ts"],
       "foldkit-example-site/guide": ["../site/src/guide.ts"],
+      "foldkit-example-site/phone-audit": ["../site/src/phoneAudit.ts"],
       "foldkit-mixins": ["../../packages/mixins/src/index.ts"],
       "foldkit-mixins-data-grid": ["../../packages/mixins-data-grid/src/index.ts"],
       "foldkit-mixins/app": ["../../packages/mixins/src/app.ts"],

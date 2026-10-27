@@ -1348,6 +1348,11 @@ of its own named a form field "fits the Catalog". Read words with
   Playwright image passed. Put the caret at a block's end with a press past
   its last line (`caretAtEnd` in `playground.e2e.ts`), and reproduce in the
   Playwright image with `fonts-dejavu-core` installed.
+- **A phone zooms out to fit a page that overflows.** Under Playwright's
+  `isMobile`, a page 664px wide at 390px reported `innerWidth` 664, so a
+  sideways-scroll check of `scrollWidth - innerWidth` read 0 with the fault in
+  place. Measure against `document.documentElement.clientWidth`, the layout
+  viewport, and break a demo once to see the check fail.
 - **A moving element is never stable to Playwright.** `userEvent.hover` on
   a running Marquee's copy timed out ("element is not stable"), since the
   locator waits for the box to stop. Hover the still region around it.
