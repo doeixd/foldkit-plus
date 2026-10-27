@@ -85,7 +85,7 @@ const hero = (model: Model, slots: Slots, h: H): Html =>
 /** The walkthrough: Chirp built package by package, from an empty folder to a deploy. */
 const film = (slots: Slots, h: H): Html =>
   h.figure(slots.film.attrs(), [
-    // No preload: the file is 12 MB, fetched only when the reader plays it.
+    // No preload: the file is 15 MB, fetched only when the reader plays it.
     h.video(
       slots.filmVideo.attrs([
         h.Src('/film/build-chirp.mp4'),
@@ -102,7 +102,7 @@ const film = (slots: Slots, h: H): Html =>
     h.figcaption(slots.filmCaption.attrs(), [
       'Build ',
       h.a([h.Href(chirpDemo.url)], ['Chirp']),
-      ', a Twitter clone, from an empty folder to a deploy: Entity, Guard, Remote, forms, Crud, Site and the components. Three minutes, music only.',
+      ', a Twitter clone, from an empty folder to a deploy: Entity, Guard, signing in, the database tables, Remote, forms, Crud, Site, the components and optimistic updates. Under four minutes, music only.',
     ]),
   ])
 
