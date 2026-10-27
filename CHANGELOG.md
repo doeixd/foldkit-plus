@@ -62,6 +62,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`setup` scaffolds with `create-foldkit-app` 0.40.0**, whose templates install
+  Foldkit 0.169, `@foldkit/ui` 0.169 and `@foldkit/vite-plugin` 0.28, this
+  release's own. 0.39.1 wrote 0.168, which `foldkit-mixins-ui` then refused
+  (#205).
+- **`setup` says how to let `foldkit-auth` need a later Effect.** Foldkit pins
+  `effect` 4.0.0 exactly and Yielded needs 4.0.3 or later. Beside the auth
+  adapter's install line `setup` now prints the fix for the project's manager:
+  npm's `legacy-peer-deps` and `effect@^4.0.4`, or pnpm's
+  `peerDependencyRules` (#205). The auth README gives the npm form too.
 - **`setup` prints a scaffold command that runs for every rendering mode.**
   It gave one command with `--example counter` for spa, ssg and ssr alike, and
   `create-foldkit-app` refuses `--example` outside spa (#204). It now prints

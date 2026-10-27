@@ -74,3 +74,24 @@ describe('addCommand', () => {
     expect(addCommand(manager, ['a', 'b'])).toBe(command)
   })
 })
+
+describe('an adapter that needs a later Effect than Foldkit allows', () => {
+  const authLine = (manager: 'pnpm' | 'npm') =>
+    guide(project({ effect: '4.0.0', foldkit: '0.165.0' }), manager)
+      .split('\n')
+      .find(line => line.includes('foldkit-auth @yielded/auth'))
+  it.each([
+    ['npm', 'add `legacy-peer-deps=true` to `.npmrc`, then install `effect@^4.0.4`'],
+    ['pnpm', '"peerDependencyRules": { "allowedVersions": { "foldkit>effect": "4.0.4" } }'],
+  ] as const)('tells %s how to let it in', (manager, fix) => {
+    expect(authLine(manager)).toContain('It needs Effect 4.0.4 or later')
+    expect(authLine(manager)).toContain(fix)
+    expect(authLine(manager)).toContain('Foldkit pins `effect` 4.0.0 exactly')
+  })
+  it('says nothing of Effect beside an adapter that needs no later one', () => {
+    const shiki = guide(project({}), 'npm')
+      .split('\n')
+      .find(line => line.includes('foldkit-richtext-code-shiki shiki'))
+    expect(shiki).not.toContain('Effect')
+  })
+})

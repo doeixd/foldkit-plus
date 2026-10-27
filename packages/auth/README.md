@@ -95,6 +95,11 @@ until Foldkit widens its peer an application allows it in its `package.json`:
 }
 ```
 
+npm has no rule that allows one peer, and refuses the pair: add
+`legacy-peer-deps=true` to `.npmrc`, then install `effect@^4.0.4`, so the tree
+holds one Effect. `npx foldkit-plus setup` prints the line for the project's
+package manager beside `foldkit-auth`.
+
 ## Sixty seconds
 
 ```ts

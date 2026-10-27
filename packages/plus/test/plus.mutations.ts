@@ -75,6 +75,12 @@ export default [
     tests: ['packages/plus/test/setup.test.ts'],
   },
   edit(
+    'the auth adapter says nothing of the Effect it needs',
+    '../src/setup.ts',
+    "    effect: '4.0.4',",
+    '',
+  ),
+  edit(
     'an ssg or ssr scaffold is told to take an example',
     '../src/setup.ts',
     '--rendering <ssg|ssr> --package-manager',

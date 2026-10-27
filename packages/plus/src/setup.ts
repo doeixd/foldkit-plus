@@ -32,10 +32,11 @@ const REPOSITORY = 'https://github.com/doeixd/foldkit-plus'
 
 /**
  * The `create-foldkit-app` release whose templates pin the Foldkit this
- * release needs (0.39.1 installs `foldkit` 0.168.0). A release that moves
- * the `foldkit` peer moves this with it.
+ * release needs (0.40.0 installs `foldkit`, `@foldkit/ui` and `@foldkit/devtools`
+ * 0.169.0, `@foldkit/vite-plugin` 0.28.0 and `effect` 4.0.0). A release that
+ * moves the `foldkit` peer moves this with it.
  */
-export const SCAFFOLDER = 'create-foldkit-app@0.39.1'
+export const SCAFFOLDER = 'create-foldkit-app@0.40.0'
 
 const GREENFIELD = `${REPOSITORY}/blob/main/skills/foldkit-plus/references/greenfield.md`
 
@@ -155,6 +156,8 @@ export const adapters: ReadonlyArray<{
   readonly name: string
   readonly libraries: ReadonlyArray<string>
   readonly when: string
+  /** The least Effect its library needs, where that is past Foldkit's exact `effect` peer. */
+  readonly effect?: string
 }> = [
   {
     name: 'foldkit-agent-native',
@@ -165,6 +168,7 @@ export const adapters: ReadonlyArray<{
     name: 'foldkit-auth',
     libraries: ['@yielded/auth'],
     when: 'sign-in and sessions with Yielded Auth',
+    effect: '4.0.4',
   },
   { name: 'foldkit-cms-drizzle', libraries: ['drizzle-orm'], when: "the CMS's server on Drizzle" },
   {
@@ -189,6 +193,18 @@ export const adapters: ReadonlyArray<{
     when: 'highlighting code blocks with Shiki',
   },
 ]
+
+/**
+ * How `manager` lets a library need a later Effect than Foldkit's exact
+ * `effect` peer allows, which every manager otherwise refuses or warns of.
+ */
+const laterEffect = (manager: Manager, foldkitEffect: string, needed: string): string =>
+  ({
+    npm: `npm refuses it: add \`legacy-peer-deps=true\` to \`.npmrc\`, then install \`effect@^${needed}\`, so one Effect is installed`,
+    pnpm: `allow it in \`package.json\`: \`"pnpm": { "peerDependencyRules": { "allowedVersions": { "foldkit>effect": "${needed}" } } }\``,
+    yarn: `allow Foldkit's \`effect\` peer at ${needed}, or Yarn warns of it`,
+    bun: `allow Foldkit's \`effect\` peer at ${needed}, or Bun warns of it`,
+  })[manager] + ` (Foldkit pins \`effect\` ${foldkitEffect} exactly)`
 
 /** The command that adds `packages` with `manager`. */
 export const addCommand = (manager: Manager, packages: ReadonlyArray<string>): string =>
@@ -267,7 +283,11 @@ export const setupGuide = ({ project, manager, versions }: SetupInput): string =
     '`foldkit-plus` brings every package except the adapters below, each of which needs a library of its own. Add one only when the application needs it:',
     '',
     ...adapters.map(
-      each => `- ${each.when}: \`${addCommand(manager, [each.name, ...each.libraries])}\``,
+      each =>
+        `- ${each.when}: \`${addCommand(manager, [each.name, ...each.libraries])}\`` +
+        (each.effect === undefined
+          ? ''
+          : `. It needs Effect ${each.effect} or later; ${laterEffect(manager, versions.effect, each.effect)}.`),
     ),
     '',
     '## 3. Add the agent skill',

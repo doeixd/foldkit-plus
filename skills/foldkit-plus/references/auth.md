@@ -68,7 +68,8 @@ on every Remote call kind.
   (`renewSession`) while the reader is active.
 - An application needs Foldkit's exact `effect: 4.0.0` peer allowed
   (`pnpm.peerDependencyRules.allowedVersions: { "foldkit>effect": "4.0.4" }`),
-  since Yielded needs 4.0.3 or later.
+  since Yielded needs 4.0.3 or later. npm refuses the pair outright: add
+  `legacy-peer-deps=true` to `.npmrc` and install `effect@^4.0.4`.
 
 - `x-foldkit-subject` (`SUBJECT_HEADER` from `foldkit-auth`, browser-safe):
   give `serveFetch` `headers: AuthServer.answered(config)` (the resolver's
