@@ -3,13 +3,15 @@ name = "foldkit-cloudflare"
 # Already bundled the way the tests bundle it, source condition included.
 main = "dist/worker.js"
 no_bundle = true
-# The date and flags the local stack runs with (`src/stack.ts`), so a deploy
-# runs what the tests ran. `nodejs_compat` is for Yielded's password hashing;
-# `ReadableStream`'s constructor, which live streams use, is on by this date.
+# The local stack (`src/workers.ts`) reads this file, the date, the flags and
+# every binding below, so a deploy runs what the tests ran. `nodejs_compat` is
+# for Yielded's password hashing; `ReadableStream`'s constructor, which live
+# streams use, is on by this date. The stack refuses a date newer than the
+# installed workerd knows: move `wrangler` and `miniflare` together to raise it.
 compatibility_date = "2026-07-30"
 compatibility_flags = ["nodejs_compat"]
 
-# Local runs use miniflare (`pnpm demo`, `pnpm test`), which needs no account.
+# Local runs (`pnpm dev`, `pnpm demo`, the tests) need no account.
 # `database_id` is the D1 database behind the public demo. A fork creates its
 # own with `wrangler d1 create foldkit-cloudflare` and replaces this id.
 [[d1_databases]]

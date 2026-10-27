@@ -6,7 +6,7 @@
  */
 import { Effect, Stream } from 'effect'
 import { REMOTE_PROTOCOL_VERSION, Remote, type RemoteRpcClient } from 'foldkit-remote'
-import type { Miniflare } from 'miniflare'
+import type { DispatchFetch } from 'miniflare'
 
 /** Remote over HTTP with live, posting through `via`. */
 export const remoteClient = (url: string, actor: string, via: typeof fetch): RemoteRpcClient =>
@@ -94,10 +94,10 @@ export interface ClientSocket {
 
 /** Upgrades `/sync` and returns the open client socket. */
 export const upgradeSync = async (
-  mf: Pick<Miniflare, 'dispatchFetch'>,
+  dispatch: DispatchFetch,
   actor: string,
 ): Promise<{ status: number; socket: ClientSocket | null }> => {
-  const response = await mf.dispatchFetch('http://localhost/sync', {
+  const response = await dispatch('http://localhost/sync', {
     headers: { Upgrade: 'websocket', 'x-actor': actor },
   })
   const socket = response.webSocket

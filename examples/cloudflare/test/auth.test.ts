@@ -7,11 +7,14 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PAGE_ORIGIN, startStack, type CloudflareStack } from '../src/stack.js'
+import type { WorkerEnv } from '../src/worker.js'
 
 let stack: CloudflareStack
+let env: WorkerEnv
 
 beforeAll(async () => {
   stack = await startStack()
+  env = await stack.env()
 }, 120_000)
 
 afterAll(async () => {
@@ -74,16 +77,16 @@ describe('Yielded Auth on D1', () => {
     })
 
     // The account row, written in the batch that bound the email.
-    const rows = await stack.db
-      .prepare('SELECT id, status, email, display_name AS displayName FROM accounts')
-      .all<{ id: string; status: string; email: string; displayName: string }>()
+    const rows = await env.DB.prepare(
+      'SELECT id, status, email, display_name AS displayName FROM accounts',
+    ).all<{ id: string; status: string; email: string; displayName: string }>()
     expect(rows.results).toEqual([
       { id: expect.any(String), status: 'active', email: ada.email, displayName: 'Ada' },
     ])
     const id = rows.results[0]!.id
 
     const cookie = await signIn(ada.email, ada.password)
-    const sessions = await stack.db.prepare('SELECT subject_id FROM auth_sessions').all()
+    const sessions = await env.DB.prepare('SELECT subject_id FROM auth_sessions').all()
     expect(sessions.results).toEqual([{ subject_id: id }])
 
     expect(await me(cookie)).toEqual({

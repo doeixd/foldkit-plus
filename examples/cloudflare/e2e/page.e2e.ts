@@ -4,10 +4,10 @@
  * the page. A todo added to the empty list shows in the tab that added it,
  * and the page fits a phone with its controls a finger's size.
  */
-import { fileURLToPath } from 'node:url'
 import { type Browser, chromium } from 'playwright'
-import { createServer, type ViteDevServer } from 'vite'
+import type { ViteDevServer } from 'vite'
 import { afterAll, beforeAll, expect, test } from 'vitest'
+import { servePage } from '../src/pageServer.js'
 import { startStack, type CloudflareStack } from '../src/stack.js'
 
 let stack: CloudflareStack
@@ -16,13 +16,7 @@ let browser: Browser
 
 beforeAll(async () => {
   stack = await startStack()
-  vite = await createServer({
-    root: fileURLToPath(new URL('..', import.meta.url)),
-    configFile: fileURLToPath(new URL('../vite.config.ts', import.meta.url)),
-    logLevel: 'error',
-    server: { port: 0, proxy: { '/remote': { target: stack.origin } } },
-  })
-  await vite.listen()
+  vite = await servePage(stack.origin, 0)
   browser = await chromium.launch()
 })
 

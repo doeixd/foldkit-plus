@@ -143,9 +143,21 @@ Pages origin would add it.
 ## Run it
 
 ```bash
+pnpm dev      # the page at http://127.0.0.1:5177, the worker behind it
 pnpm demo     # the loop, printed, on a real workerd
 pnpm test     # the same loop, asserted
 ```
+
+Each starts the worker the way `wrangler.toml` declares it: its bindings,
+compatibility date and flags, `.dev.vars`, and D1 migrations are read from
+that file by Wrangler's own test harness, so the local worker cannot drift
+from the deployed one. The stack only bundles (`src/workers.ts`), with the
+workspace's source condition, and refuses a compatibility date the installed
+workerd does not know rather than run an older runtime. Under `pnpm dev`, a
+change to anything the worker bundles swaps the new worker in at the same
+origin, keeping D1, R2 and the Durable Object's storage; a change that does
+not build leaves the last one running. A worker that builds but does not start
+stops the stack, storage and all: fix it and run `pnpm dev` again.
 
 From the repository root, `npx vitest run --config vitest.e2e.config.ts
 examples/cloudflare` starts the worker on miniflare and the page on Vite, and
@@ -157,7 +169,7 @@ journal, `settle`, the polling source, and the Remote mutation handlers.
 mutations the page and the server share, and `src/forms.ts`, `src/app.ts`,
 and `src/view.ts` the page. `src/browser.ts` boots it. `src/worker.ts` is the
 routes. `src/client.ts` drives the wire for the test and the demo;
-`src/stack.ts` boots miniflare for both.
+`src/stack.ts` starts the local stack for them and for `pnpm dev`.
 
 ## The page
 
@@ -193,8 +205,8 @@ Create is idempotent (`ON CONFLICT DO NOTHING`). Toggle writes the stored
 `done`, so sending it twice leaves the row as it is. The page does not open
 the Sync socket. `pnpm demo` and `pnpm test` still write through the journal.
 
-To deploy for real, add `wrangler` (`npm i -D wrangler`) and run it from this
-directory, one command at a time:
+To deploy for real, run Wrangler (a dev dependency here, as `pnpm exec
+wrangler`) from this directory, one command at a time:
 
 ```bash
 pnpm --filter foldkit-example-cloudflare build:worker

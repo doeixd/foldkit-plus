@@ -8,6 +8,7 @@
     "build:worker": "tsx src/bundle.ts",
     "build:page": "vite build",
     "demo": "tsx src/demo.ts",
+    "dev": "tsx src/dev.ts",
     "typecheck": "tsc -b"
   },
   "dependencies": {
@@ -41,7 +42,9 @@
     "@effect/sql-d1": "^4.0.5",
     "esbuild": "0.28.2",
     "miniflare": "4.20260730.0",
+    "smol-toml": "1.9.1",
     "typescript": "7.0.2",
-    "vite": "8.3.5"
+    "vite": "8.3.5",
+    "wrangler": "4.116.0"
   }
 }

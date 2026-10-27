@@ -22,8 +22,10 @@ import {
 import { LIST_WATCH } from '../src/cache.js'
 import { AllTodos } from '../src/operations.js'
 import { startStack, type CloudflareStack } from '../src/stack.js'
+import type { WorkerEnv } from '../src/worker.js'
 
 let stack: CloudflareStack
+let env: WorkerEnv
 const sockets: Array<ClientSocket> = []
 
 /**
@@ -50,6 +52,7 @@ const changesWithin = (
 
 beforeAll(async () => {
   stack = await startStack()
+  env = await stack.env()
 }, 120_000)
 
 afterAll(async () => {
@@ -63,7 +66,7 @@ describe('cloudflare example', () => {
 
     expect(await queryTodos(remote, { first: 10 })).toEqual([])
 
-    const writer = await upgradeSync(stack.mf, 'ada')
+    const writer = await upgradeSync(stack.dispatch, 'ada')
     expect(writer.status).toBe(101)
     expect(writer.socket).not.toBeNull()
     sockets.push(writer.socket!)
@@ -77,7 +80,7 @@ describe('cloudflare example', () => {
       'demo:1',
     ])
 
-    const rows = await stack.db.prepare('SELECT id, title, done FROM todos').all()
+    const rows = await env.DB.prepare('SELECT id, title, done FROM todos').all()
     expect(rows.results).toEqual([{ id: 't1', title: 'Milk', done: 0 }])
 
     const read = await readTodo(remote, 't1', ['id', 'title', 'done'])
@@ -110,7 +113,7 @@ describe('cloudflare example', () => {
     const flipped = await readTodo(remote, 't1', ['done'])
     expect(flipped.entities).toEqual([{ entity: 'Todo', id: 't1', values: { done: 1 } }])
 
-    const reader = await upgradeSync(stack.mf, 'grace')
+    const reader = await upgradeSync(stack.dispatch, 'grace')
     expect(reader.status).toBe(101)
     expect(reader.socket).not.toBeNull()
     sockets.push(reader.socket!)
@@ -127,7 +130,7 @@ describe('cloudflare example', () => {
       firstChange(remote, [{ entity: 'Todo', id: 't9', fields: ['title', 'done'] }]),
     )
     await pause(300)
-    const writer = await upgradeSync(stack.mf, 'ada')
+    const writer = await upgradeSync(stack.dispatch, 'ada')
     expect(writer.status).toBe(101)
     sockets.push(writer.socket!)
     await exchange(writer.socket!, {
@@ -148,7 +151,7 @@ describe('cloudflare example', () => {
 
   it('renames and deletes a row, and live drops it', async () => {
     const remote = remoteClient(`${stack.origin}/remote`, 'ada', fetch)
-    const writer = await upgradeSync(stack.mf, 'ada')
+    const writer = await upgradeSync(stack.dispatch, 'ada')
     expect(writer.status).toBe(101)
     expect(writer.socket).not.toBeNull()
     sockets.push(writer.socket!)
@@ -170,8 +173,7 @@ describe('cloudflare example', () => {
     expect(read.entities).toEqual([
       { entity: 'Todo', id: 't-crud', values: { title: 'Rolls', done: 0 } },
     ])
-    const rows = await stack.db
-      .prepare('SELECT title, done FROM todos WHERE id = ?')
+    const rows = await env.DB.prepare('SELECT title, done FROM todos WHERE id = ?')
       .bind('t-crud')
       .all()
     expect(rows.results).toEqual([{ title: 'Rolls', done: 0 }])
@@ -197,13 +199,13 @@ describe('cloudflare example', () => {
     const after = await readTodo(remote, 't-crud', ['title'])
     expect(after.entities).toEqual([])
     expect(await queryTodos(remote, { first: 50 })).not.toContain('t-crud')
-    const left = await stack.db.prepare('SELECT id FROM todos WHERE id = ?').bind('t-crud').all()
+    const left = await env.DB.prepare('SELECT id FROM todos WHERE id = ?').bind('t-crud').all()
     expect(left.results).toEqual([])
   }, 120_000)
 
   it('announces a row that joined or left the list', async () => {
     const remote = remoteClient(`${stack.origin}/remote`, 'ada', fetch)
-    const writer = await upgradeSync(stack.mf, 'ada')
+    const writer = await upgradeSync(stack.dispatch, 'ada')
     expect(writer.status).toBe(101)
     expect(writer.socket).not.toBeNull()
     sockets.push(writer.socket!)
@@ -272,8 +274,8 @@ describe('cloudflare example', () => {
         },
       ])
     } finally {
-      await stack.db.prepare('DELETE FROM todos WHERE id = ?').bind(anchor).run()
-      await stack.db.prepare('DELETE FROM todos WHERE id = ?').bind(joined).run()
+      await env.DB.prepare('DELETE FROM todos WHERE id = ?').bind(anchor).run()
+      await env.DB.prepare('DELETE FROM todos WHERE id = ?').bind(joined).run()
     }
   }, 120_000)
 
@@ -308,9 +310,9 @@ describe('cloudflare example', () => {
     // It names no list: the client places the row by the list's body.
     expect(JSON.stringify(answer.result)).not.toContain('prepend')
     // The triggers logged the row, for the live poll to read it alone.
-    const logged = await stack.db
-      .prepare('SELECT id FROM todos_row_changes ORDER BY seq DESC LIMIT 1')
-      .all()
+    const logged = await env.DB.prepare(
+      'SELECT id FROM todos_row_changes ORDER BY seq DESC LIMIT 1',
+    ).all()
     expect(logged.results).toEqual([{ id: 't-remote' }])
     expect(await queryTodos(remote, { first: 50 })).toContain('t-remote')
     const created = await readTodo(remote, 't-remote', ['title', 'done'])

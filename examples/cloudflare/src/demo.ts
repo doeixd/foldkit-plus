@@ -20,6 +20,7 @@ import { startStack } from './stack.js'
 
 const main = async (): Promise<void> => {
   const stack = await startStack()
+  const env = await stack.env()
   const sockets: Array<ClientSocket> = []
   try {
     const remote = remoteClient(`${stack.origin}/remote`, 'ada', fetch)
@@ -28,7 +29,7 @@ const main = async (): Promise<void> => {
     console.log('todos at first:', JSON.stringify(empty))
     if (empty.length !== 0) throw new Error('expected an empty list')
 
-    const writer = await upgradeSync(stack.mf, 'ada')
+    const writer = await upgradeSync(stack.dispatch, 'ada')
     if (writer.status !== 101 || writer.socket === null) throw new Error('expected an upgrade')
     sockets.push(writer.socket)
     const sent = await exchange(writer.socket, {
@@ -40,7 +41,7 @@ const main = async (): Promise<void> => {
     console.log('acknowledged:', JSON.stringify(acknowledged))
     if (acknowledged.length !== 1) throw new Error('expected one acknowledgement')
 
-    const rows = await stack.db.prepare('SELECT id, title, done FROM todos').all()
+    const rows = await env.DB.prepare('SELECT id, title, done FROM todos').all()
     console.log('D1 todos after settle:', JSON.stringify(rows.results))
     if (rows.results?.length !== 1) throw new Error('expected settle to write the row')
 

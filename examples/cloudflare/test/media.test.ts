@@ -12,8 +12,10 @@ import { Option, Schema } from 'effect'
 import { HashedAsset, Provider } from 'foldkit-media'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { UPLOAD_TOKEN, startStack, type CloudflareStack } from '../src/stack.js'
+import type { WorkerEnv } from '../src/worker.js'
 
 let stack: CloudflareStack
+let env: WorkerEnv
 let images: ImagesBinding
 let asset: HashedAsset
 
@@ -22,13 +24,14 @@ const stream = (bytes: Uint8Array<ArrayBuffer> | string) =>
 
 beforeAll(async () => {
   stack = await startStack()
-  images = (await stack.mf.getBindings<{ readonly IMAGES: ImagesBinding }>()).IMAGES
+  env = await stack.env()
+  images = env.IMAGES
   const svg =
     '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="320"><rect width="640" height="320" fill="teal"/></svg>'
   const result = await images.input(stream(svg)).output({ format: 'image/png' })
   const original = new Uint8Array(await result.response().arrayBuffer())
   const hash = createHash('sha256').update(original).digest('hex')
-  await (await stack.mf.getR2Bucket('MEDIA')).put(hash, original)
+  await env.MEDIA.put(hash, original)
   asset = Schema.decodeUnknownSync(HashedAsset)({
     key: 'hero.png',
     width: 640,
@@ -49,9 +52,7 @@ describe('the image route', () => {
     const info = await images.info(stream(new Uint8Array(await response.arrayBuffer())))
     expect(info).toMatchObject({ format: 'image/webp', width: 320 })
     const hash = Option.getOrThrow(asset.hash)
-    expect(
-      await (await stack.mf.getR2Bucket('MEDIA')).head(`variants/${hash}/w320.webp`),
-    ).not.toBeNull()
+    expect(await env.MEDIA.head(`variants/${hash}/w320.webp`)).not.toBeNull()
   })
 
   it('takes an upload bearing the secret, answers its facts, and serves it', async () => {
