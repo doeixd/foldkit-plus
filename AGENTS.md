@@ -1652,7 +1652,10 @@ of its own named a form field "fits the Catalog". Read words with
   TypeScript source and could not find its `.js` imports, so `main`'s e2e went
   red. A plugin whose source imports only types (`foldkit-mixins/foundations`)
   survives; import any other by relative path to its source, which Vite bundles
-  into the config itself.
+  into the config itself. A test that reads a config with Vite's
+  `loadConfigFromFile` meets the same: it passed locally and failed on CI for
+  every config importing `foldkit-ssr/vite`. Import the config through Vitest
+  (`import config from '../vite.config.js'`), as the e2e tests do.
 - **Vitest's resolve conditions are its own, not Vite's.** Adding the source
   condition to Vite's defaults brought in `module`, which loaded
   `@opentelemetry/api`'s extensionless ESM build, and `browser`, which gave

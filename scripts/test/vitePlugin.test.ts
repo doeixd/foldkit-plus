@@ -6,7 +6,8 @@
  */
 import { existsSync, readdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { loadConfigFromFile, type PluginOption } from 'vite'
+import { pathToFileURL } from 'node:url'
+import type { PluginOption, UserConfigExport } from 'vite'
 import { expect, test } from 'vitest'
 
 const root = resolve(import.meta.dirname, '../..')
@@ -32,14 +33,16 @@ const namesOf = async (option: PluginOption): Promise<ReadonlyArray<string>> => 
 test.each(served.filter(example => !exempt.has(example)))(
   '%s serves with the foldkit plugin',
   async example => {
-    const directory = join(root, example)
-    const loaded = await loadConfigFromFile(
-      { command: 'serve', mode: 'development' },
-      join(directory, 'vite.config.ts'),
-      directory,
-      'silent',
-    )
-    expect(await namesOf(loaded?.config.plugins ?? [])).toContain('foldkit')
+    // Through Vitest, as the e2e tests read a config: Vite's own loader runs it in
+    // Node, which reaches a workspace plugin's `dist`, absent on CI.
+    const exported: UserConfigExport = (
+      await import(pathToFileURL(join(root, example, 'vite.config.ts')).href)
+    ).default
+    const config =
+      typeof exported === 'function'
+        ? await exported({ command: 'serve', mode: 'development' })
+        : await exported
+    expect(await namesOf(config.plugins ?? [])).toContain('foldkit')
   },
 )
 
