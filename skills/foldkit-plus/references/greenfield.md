@@ -257,66 +257,70 @@ record the decisions in `docs/domain/plan.md`.
 | Design and polish | The look from phase 2, revisited now that the screens are known: dark mode, more than one theme, the components from `foldkit-mixins-ui`. Every screen's empty, loading, failed and offline state. Copy and tone. |
 | Testing | What each kind proves: `update` and invariants as unit tests, views as Scene tests, focus, layout and the pointer as browser tests, flows that cross the server as end-to-end tests in a real browser. Guards and invariants under mutation testing, so each test is shown able to fail. Type tests for what must not compile. |
 | CI | The checks every push runs (format, typecheck, tests, end-to-end, build) and what blocks a merge. Preview deployments, if the host offers them. |
-| Deployment | The host and its project, environments (preview, production), domains, secrets (session keys, an upload token), database migrations (with each table's `invariantChecks`, a `revisionTrigger` where a guarded writer pins a revision, and the ledger's table) and backups, where images are kept and resized (`foldkit-media`'s server, a CDN). Who may deploy, and confirm before the first public one. Propose the CAFE stack below, and ask. |
+| Deployment | The host and its project, environments (preview, production), domains, secrets (session keys, an upload token), database migrations (with each table's `invariantChecks`, a `revisionTrigger` where a guarded writer pins a revision, and the ledger's table) and backups, where images are kept and resized (`foldkit-media`'s server, a CDN). Who may deploy, and confirm before the first public one. Propose the Cloudflare stack below, and ask. |
 | Security | Authentication and its CSRF and origin checks (`foldkit-auth`), guards checked at startup (`GuardServer.validate`), who may upload, rate limits, response headers. |
 | Operations | Logs, error reports, analytics if any, and what is done when a deploy goes wrong. |
 | Milestones | The slices of phase 7, in order, each with what "done" means, so the user can stop after any one with something that works. |
 
-### The CAFE stack
+### The Cloudflare stack
 
-Prefer **the CAFE stack** — Cloudflare, Alchemy, Foldkit, Effect — with
-**Yielded Auth** for sign-in, and **ask the user to confirm it** rather than
-assuming: the host, the infrastructure and the auth are theirs, and any of them
-may be replaced. The pieces fit because each is Effect-native, so one language,
-one error model and one Schema reach from `alchemy.run.ts` to the browser.
+Prefer **Cloudflare, Foldkit and Effect**, deployed with **Wrangler** as
+`examples/cloudflare` is, with **Yielded Auth** for sign-in, and **ask the user
+to confirm it** rather than assuming: the host, the infrastructure and the auth
+are theirs, and any of them may be replaced. The pieces fit because each is
+Effect-native, so one error model and one Schema reach from the Worker to the
+browser.
 
-- **Cloudflare — the host.** The Foldkit site is served from Workers' assets
-  (or rendered by the Worker's `main` when pages render per request), and one
-  Worker hosts the application's server: Remote's `serveFetch`, the media
-  server, Yielded's routes and Sync's `defineDocumentHost` Durable Object,
-  over D1 for SQLite and R2 for uploads. That is the shape
+- **Cloudflare — the host.** One Worker hosts the application's server:
+  Remote's `serveFetch`, the media server and Sync's `defineDocumentHost`
+  Durable Object, over D1 for SQLite and R2 for uploads. That is the shape
   `foldkit-remote-server`, `foldkit-sync/do` and `foldkit-media` are written
-  for; `examples/cloudflare` has the Worker, Durable Object, D1 and R2 wiring
-  today, in `wrangler.toml`.
-- **Alchemy (alchemy.run) — the infrastructure.** `alchemy.run.ts` at the root
-  declares the site, the Worker, D1, R2, the Durable Object, secrets and the
-  domain as `Effect` resources in one `Alchemy.Stack`:
-  `Cloudflare.Website.Foldkit` deploys the Vite build in one declaration, and
-  `alchemy deploy` and `alchemy dev` replace `wrangler.toml` and `wrangler dev`
-  (with the app's own Vite server and live bindings in development). The plan's
-  deployment section names resources — a D1 database, an R2 bucket, a preview
-  stage — instead of steps, and the Worker's `env` can be typed with
-  `Cloudflare.InferEnv`, so a binding the Stack did not declare is a type
-  error.
+  for. In `examples/cloudflare` the page is a Pages project whose `_worker.js`
+  forwards `/remote` to that Worker and calls its Durable Object for `/sync`.
+- **Wrangler — the deployment, and the tested path.** `examples/cloudflare`
+  declares its bindings in `wrangler.toml` (and `pages/wrangler.toml`), bundles
+  the Worker with esbuild (`build:worker`, the bundle its tests run), runs its
+  demo and tests on miniflare with no account, and lists the `wrangler`
+  commands that publish it at the end of its README. Copy that layout. Its
+  `WorkerEnv` interface types the bindings by hand, so keep it in step with
+  `wrangler.toml`.
 - **Foldkit — the application.** `Model`, `Message`, `update` and the views are
-  the app; its Vite build is what the site resource serves, and the runtime is
-  the only thing that moves state in the browser. The Vite config stays a plain
-  Foldkit one; the site resource can pin its dev host and port
-  (`dev: { host, port, strictPort }`).
+  the app; its Vite build is what the site serves, and the runtime is the only
+  thing that moves state in the browser.
 - **Effect — the backend.** Each request is one Effect program whose Layers
-  provide the database (`foldkit-remote-drizzle`'s Effect SQL), `Auth`,
-  `RemoteClient` and a `Config` for secrets, with typed failures and `Schema` at
-  every boundary. The Worker entry is therefore one composed program
-  (`src/worker.ts`), not a set of ad-hoc handlers.
+  provide the database (`foldkit-remote-drizzle`'s Effect SQL) and `Auth`,
+  built from the Worker's `env` (its bindings and secrets), with typed failures
+  and `Schema` at every boundary. The
+  Worker entry is one composed `fetch` (`src/worker.ts`), not a set of ad-hoc
+  handlers.
 - **Yielded Auth — the sign-in.** `AuthContract`, `Auth.make` and `Http.layer`
   give the account routes and the session cookie, and `foldkit-auth`'s
   `AuthServer.resolver` turns that session into the principal Remote, Sync,
   SSR's forms and agents resolve; `foldkit-guard` then decides what it may do.
   The layout gains `src/auth.ts`, and its routes mount beside the Worker's own.
 
-What it changes in the layout — `wrangler.toml` gone, one composition root. The
-scaffold stays `create-foldkit-app`'s; adopting CAFE adds the `alchemy`
-dependency and `alchemy.run.ts`, which phase 7's first slice wires to the
-deployment:
+What no example here shows yet: Yielded's routes or `foldkit-ssr` rendering
+inside a Worker. `examples/auth` runs both on a Node server; moving them into
+the Worker's `fetch` is the application's first slice of work, so plan a test
+for it rather than assuming it.
+
+The layout, after `create-foldkit-app`'s scaffold:
 
 ```text
-alchemy.run.ts  the Stack: the Foldkit site, the API Worker, D1, R2, the Durable Object, secrets, the domain
+wrangler.toml   the Worker, D1, R2, the Durable Object; secrets go in with `wrangler secret put`
 src/worker.ts   the Worker's fetch: Effect Layers (database, auth) → Remote, Sync's host, media, Yielded's routes
 src/auth.ts     Yielded's contract and server (Auth.make, Http.layer) and the application's principal
 src/client.ts   the browser: RemoteClient or SyncClient, and the runtime that boots the app
 src/main.ts     Model, Message, update, view
 src/style.ts    the theme from phase 2
 ```
+
+[Alchemy](https://alchemy.run) (the "A" of the CAFE stack: Cloudflare,
+Alchemy, Foldkit, Effect) declares the same resources as Effect values in an
+`alchemy.run.ts` Stack, in place of `wrangler.toml`. It is the intended
+direction, but it is in beta and no example in this repository uses it, so
+nothing here shows it working with Foldkit Plus. Offer it only when the user
+asks for it, and then say the wiring is theirs to prove.
 
 If the user picks another host or auth, drop the pieces it replaces and record
 the choice in `plan.md`: what changes is the server entry, the deployment and
