@@ -1,5 +1,5 @@
 /**
- * The Cloudflare worker: one process, four routes.
+ * The Cloudflare worker: one process, six routes.
  *
  * - `POST /remote` answers Remote reads, queries, and live streams from D1,
  *   each request authenticated by its own header.
@@ -10,8 +10,11 @@
  *   committed to the todos table, which is what Remote reads back — and what
  *   its polling live source re-reads. What crosses requests here is D1;
  *   no in-memory push could reach another request's stream.
+ * - `/auth/…` are Yielded Auth's routes (sign up, sign in, sign out), and
+ *   `/me` answers who the request's session cookie is: both over D1, for the
+ *   page at `AUTH_ORIGIN` (`auth.ts`, `authRoutes.ts`).
  */
-import { Effect, Layer } from 'effect'
+import { Effect, Layer, Option } from 'effect'
 import { DurableObject } from 'cloudflare:workers'
 import type {
   D1Database,
@@ -31,6 +34,7 @@ import {
 import { serveFetch, uploadPolicyBearer } from 'foldkit-media/server'
 import { defineDocumentHost } from 'foldkit-sync/do'
 import { serveFetch as serveRemote } from 'foldkit-remote-server/fetch'
+import { authOf } from './authRoutes.js'
 import { databaseFrom, makeServer, openTodosJournal, settleTodos, Todos } from './schema.js'
 
 export interface WorkerEnv {
@@ -44,6 +48,12 @@ export interface WorkerEnv {
    * upload is refused: an upload writes up to 20 MB into R2, and `x-actor` proves nothing.
    */
   readonly UPLOAD_TOKEN?: string
+  /**
+   * The origin of the page that signs people in (`https://app.example`).
+   * Unset, `/auth/…` and `/me` answer 404: a session cookie is trusted only
+   * from a request that shows it came from that page.
+   */
+  readonly AUTH_ORIGIN?: string
 }
 
 const { server } = makeServer()
@@ -75,6 +85,31 @@ export class SyncHost extends defineDocumentHost(DurableObject, {
   settle: (env: WorkerEnv, journal) => settleTodos(journal, env.DB),
 }) {}
 
+/**
+ * Auth, built on the first request that asks for it and kept for the
+ * isolate's life. A build that failed is forgotten, so the next request
+ * tries again rather than failing for good.
+ */
+let auth: Option.Option<ReturnType<typeof authOf>> = Option.none()
+
+const authFor = (db: D1Database, origin: string) =>
+  Option.getOrElse(auth, () => {
+    const building = authOf(db, origin)
+    auth = Option.some(building)
+    building.catch(() => {
+      auth = Option.none()
+    })
+    return building
+  })
+
+/** Yielded's routes and `/me`, or a 404 where no page origin is set. */
+const answerAuth = async (request: Request, env: WorkerEnv, pathname: string) => {
+  if (env.AUTH_ORIGIN === undefined)
+    return new Response('Auth is off: set AUTH_ORIGIN.', { status: 404 })
+  const routes = await authFor(env.DB, env.AUTH_ORIGIN)
+  return pathname === '/me' ? routes.me(request) : routes.auth(request)
+}
+
 /** The Pages origin calls this worker from another host. Sockets need no CORS. */
 const CORS = {
   'access-control-allow-origin': '*',
@@ -93,11 +128,14 @@ const withCors = (response: Response): Response => {
 }
 
 /**
- * Every path outside the media routes: `/sync` upgrades into the Durable
- * Object, and Remote answers the rest, with CORS for the Pages origin.
+ * Every path outside the media routes: auth's own, `/sync`, which upgrades
+ * into the Durable Object, and Remote for the rest, with CORS for the Pages
+ * origin.
  */
 const answerApp = async (request: Request, env: WorkerEnv): Promise<Response> => {
-  if (new URL(request.url).pathname === '/sync')
+  const { pathname } = new URL(request.url)
+  if (pathname === '/me' || pathname.startsWith('/auth/')) return answerAuth(request, env, pathname)
+  if (pathname === '/sync')
     // Two fetch universes meet here, as in the sync package's worker
     // fixture: the wire shape is identical; only the brands differ.
     return env.SYNC_HOST.get(env.SYNC_HOST.idFromName('todos')).fetch(

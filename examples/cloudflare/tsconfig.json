@@ -4,8 +4,11 @@
     "rootDir": ".",
     "outDir": ".tsbuild",
     "emitDeclarationOnly": true,
+    "stripInternal": true,
     "composite": true,
     "paths": {
+      "foldkit-auth": ["../../packages/auth/src/index.ts"],
+      "foldkit-auth/server": ["../../packages/auth/src/server.ts"],
       "foldkit-bundle": ["../../packages/bundle/src/index.ts"],
       "foldkit-crud": ["../../packages/crud/src/index.ts"],
       "foldkit-durable": ["../../packages/durable/src/index.ts"],
@@ -69,6 +72,9 @@
   },
   "include": ["src/**/*.ts", "test/**/*.ts"],
   "references": [
+    {
+      "path": "../../packages/auth/tsconfig.build.json"
+    },
     {
       "path": "../../packages/durable/tsconfig.build.json"
     },

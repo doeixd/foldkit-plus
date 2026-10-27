@@ -2,9 +2,8 @@
  * The drawn order, broken one piece at a time:
  * `pnpm mutate examples/cloudflare/test/order.mutations.ts`
  *
- * The D1 order is asserted in `cloudflare.test.ts`. esbuild bundles that
- * worker from the files, so a mutation applied to Vite's modules never
- * reaches it.
+ * The D1 order is asserted in `cloudflare.test.ts`; these run only the
+ * drawn order's tests.
  */
 const tests = ['examples/cloudflare/test/order.test.ts']
 

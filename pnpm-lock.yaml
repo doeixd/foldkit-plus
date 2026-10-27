@@ -284,6 +284,12 @@ importers:
 
   examples/cloudflare:
     dependencies:
+      '@yielded/auth':
+        specifier: 0.1.0-beta.43
+        version: 0.1.0-beta.43(effect@4.0.5)
+      '@yielded/auth-persistence-drizzle':
+        specifier: 0.1.0-beta.43
+        version: 0.1.0-beta.43(@effect/sql-d1@4.0.5(effect@4.0.5))(@effect/sql-pg@4.0.5(effect@4.0.5))(@effect/sql-sqlite-node@4.0.5(effect@4.0.5))(@effect/sql-sqlite-wasm@4.0.5(@effect/wa-sqlite@0.1.2)(effect@4.0.5))(drizzle-orm@1.0.0-rc.5(@cloudflare/workers-types@5.20261022.1)(@effect/sql-d1@4.0.5(effect@4.0.5))(@effect/sql-pg@4.0.5(effect@4.0.5))(@effect/sql-sqlite-node@4.0.5(effect@4.0.5))(@effect/sql-sqlite-wasm@4.0.5(@effect/wa-sqlite@0.1.2)(effect@4.0.5))(@electric-sql/pglite@0.5.11)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.5)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.15.1)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.1))(effect@4.0.5)
       drizzle-orm:
         specifier: 1.0.0-rc.5
         version: 1.0.0-rc.5(@cloudflare/workers-types@5.20261022.1)(@effect/sql-d1@4.0.5(effect@4.0.5))(@effect/sql-pg@4.0.5(effect@4.0.5))(@effect/sql-sqlite-node@4.0.5(effect@4.0.5))(@effect/sql-sqlite-wasm@4.0.5(@effect/wa-sqlite@0.1.2)(effect@4.0.5))(@electric-sql/pglite@0.5.11)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.5)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.15.1)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.1)
@@ -293,6 +299,9 @@ importers:
       foldkit:
         specifier: 0.169.0
         version: 0.169.0(@effect/platform-browser@4.0.5(effect@4.0.5))(effect@4.0.5)
+      foldkit-auth:
+        specifier: workspace:*
+        version: link:../../packages/auth
       foldkit-bundle:
         specifier: workspace:*
         version: link:../../packages/bundle
@@ -6018,6 +6027,40 @@ packages:
   '@xstate/fsm@1.6.5':
     resolution: {integrity: sha512-b5o1I6aLNeYlU/3CPlj/Z91ybk1gUsKT+5NAJI+2W4UjvS5KLG28K9v5UvNoFVjHV8PajVZ00RH3vnjyQO7ZAw==}
 
+  '@yielded/auth-persistence-drizzle@0.1.0-beta.43':
+    resolution: {integrity: sha512-KINxFs6VCjLRVrPlmK31A8bQ16o3/jRl55JPPDMT+/7Thgi/j3loqQZcpvgUxw1hK33susCakX3Jda6D6ly80w==}
+    peerDependencies:
+      '@effect/sql-d1': '>=4.0.0'
+      '@effect/sql-libsql': '>=4.0.0'
+      '@effect/sql-mysql2': '>=4.0.0'
+      '@effect/sql-pg': '>=4.0.0'
+      '@effect/sql-pglite': '>=4.0.0'
+      '@effect/sql-sqlite-bun': '>=4.0.0'
+      '@effect/sql-sqlite-do': '>=4.0.0'
+      '@effect/sql-sqlite-node': ^4.0.5
+      '@effect/sql-sqlite-wasm': '>=4.0.0'
+      drizzle-orm: '>=1.0.0-rc.4'
+      effect: ^4.0.3
+    peerDependenciesMeta:
+      '@effect/sql-d1':
+        optional: true
+      '@effect/sql-libsql':
+        optional: true
+      '@effect/sql-mysql2':
+        optional: true
+      '@effect/sql-pg':
+        optional: true
+      '@effect/sql-pglite':
+        optional: true
+      '@effect/sql-sqlite-bun':
+        optional: true
+      '@effect/sql-sqlite-do':
+        optional: true
+      '@effect/sql-sqlite-node':
+        optional: true
+      '@effect/sql-sqlite-wasm':
+        optional: true
+
   '@yielded/auth-persistence@0.1.0-beta.43':
     resolution: {integrity: sha512-gG659YStVpfTJlFgxttwPO9nrGGW1q1fA5y2mNDWRbIfejZ9rSq/JHA66Wb9Zhi8dUpFXwTOOuE38W1jv8or2Q==}
     peerDependencies:
@@ -10351,6 +10394,18 @@ snapshots:
 
   '@xstate/fsm@1.6.5':
     optional: true
+
+  '@yielded/auth-persistence-drizzle@0.1.0-beta.43(@effect/sql-d1@4.0.5(effect@4.0.5))(@effect/sql-pg@4.0.5(effect@4.0.5))(@effect/sql-sqlite-node@4.0.5(effect@4.0.5))(@effect/sql-sqlite-wasm@4.0.5(@effect/wa-sqlite@0.1.2)(effect@4.0.5))(drizzle-orm@1.0.0-rc.5(@cloudflare/workers-types@5.20261022.1)(@effect/sql-d1@4.0.5(effect@4.0.5))(@effect/sql-pg@4.0.5(effect@4.0.5))(@effect/sql-sqlite-node@4.0.5(effect@4.0.5))(@effect/sql-sqlite-wasm@4.0.5(@effect/wa-sqlite@0.1.2)(effect@4.0.5))(@electric-sql/pglite@0.5.11)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.5)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.15.1)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.1))(effect@4.0.5)':
+    dependencies:
+      '@yielded/auth': 0.1.0-beta.43(effect@4.0.5)
+      '@yielded/auth-persistence': 0.1.0-beta.43(effect@4.0.5)
+      drizzle-orm: 1.0.0-rc.5(@cloudflare/workers-types@5.20261022.1)(@effect/sql-d1@4.0.5(effect@4.0.5))(@effect/sql-pg@4.0.5(effect@4.0.5))(@effect/sql-sqlite-node@4.0.5(effect@4.0.5))(@effect/sql-sqlite-wasm@4.0.5(@effect/wa-sqlite@0.1.2)(effect@4.0.5))(@electric-sql/pglite@0.5.11)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.5)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.15.1)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.1)
+      effect: 4.0.5
+    optionalDependencies:
+      '@effect/sql-d1': 4.0.5(effect@4.0.5)
+      '@effect/sql-pg': 4.0.5(effect@4.0.5)
+      '@effect/sql-sqlite-node': 4.0.5(effect@4.0.5)
+      '@effect/sql-sqlite-wasm': 4.0.5(@effect/wa-sqlite@0.1.2)(effect@4.0.5)
 
   '@yielded/auth-persistence@0.1.0-beta.43(effect@4.0.5)':
     dependencies:

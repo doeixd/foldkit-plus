@@ -63,6 +63,12 @@ on every Remote call kind.
 
 ## Gotchas
 
+- On Workers with D1, persist through `@yielded/auth-persistence-drizzle/D1`
+  (D1 batches; the core `AuthPersistence` commits in a transaction `@effect/sql-d1` refuses), write
+  Yielded's managed tables as your own migration, and bundle
+  `WorkerdServices`' Argon2 `.wasm` with `nodejs_compat`
+  ([examples/cloudflare](https://github.com/doeixd/foldkit-plus/tree/main/examples/cloudflare)'s
+  `src/auth.ts`, `src/authRoutes.ts`, `migrations/0005_auth.sql`).
 - On Workers with D1, build auth once per isolate (a `ManagedRuntime`, its
   context provided per request), not per request, and give Yielded's
   `Operations.AuthenticationClock.layer({ futureToleranceMillis: 1000 })`: the
@@ -127,4 +133,5 @@ has the compiled wiring; what it takes:
 
 - [foldkit-auth README](https://github.com/doeixd/foldkit-plus/blob/main/packages/auth/README.md)
 - [examples/auth](https://github.com/doeixd/foldkit-plus/tree/main/examples/auth): sign-in, `Me`, the cross-tab broadcast and the subject echo, end to end.
+- [examples/cloudflare](https://github.com/doeixd/foldkit-plus/tree/main/examples/cloudflare): sign-up and sign-in persisted on D1 in a Worker, read back through `AuthServer.resolver`.
 - [guard.md](guard.md): deciding what the principal may do.

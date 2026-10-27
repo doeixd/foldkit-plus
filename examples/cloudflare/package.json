@@ -11,9 +11,12 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
+    "@yielded/auth": "0.1.0-beta.43",
+    "@yielded/auth-persistence-drizzle": "0.1.0-beta.43",
     "drizzle-orm": "1.0.0-rc.5",
     "effect": "^4.0.5",
     "foldkit": "0.169.0",
+    "foldkit-auth": "workspace:*",
     "foldkit-bundle": "workspace:*",
     "foldkit-crud": "workspace:*",
     "foldkit-durable": "workspace:*",

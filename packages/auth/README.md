@@ -301,7 +301,33 @@ that writes the header itself; `AuthServer.answered` needs `key`.
 
 ## On Workers with D1
 
-Two settings that a server on one machine never needs:
+[`examples/cloudflare`](../../examples/cloudflare) runs it end to end on
+Miniflare: Yielded's routes (`/auth/…`) and `/me`, which answers through
+`AuthServer.resolver`, in the same Worker as `serveFetch`
+(`src/authRoutes.ts`); the account table and Yielded's own as a D1 migration
+(`migrations/0005_auth.sql`); sign-up provisioning the account row; and a
+test that signs up, signs in and reads the session back (`test/auth.test.ts`).
+Three things it shows that the sections above do not:
+
+- **Persistence on D1 is `@yielded/auth-persistence-drizzle/D1`.** The
+  `AuthPersistence` of `@yielded/auth-persistence` commits a sign-in or a
+  sign-up in an interactive transaction, which `@effect/sql-d1` does not run
+  ("transactions are not supported in D1"). The Drizzle package's D1 module
+  commits through D1's atomic batches instead; give it
+  `D1Client.layer({ db: env.DB })` and its tables through
+  `Persistence.managed({ subjects, prefix })`. Its `Persistence` has the
+  `Provisioning` and `Config` of [Signing up](#signing-up).
+- **The migration is the application's.** Yielded checks the columns and
+  unique keys it reads when it first runs, and creates nothing. Write each
+  managed table as Drizzle declares it; the example's test derives the
+  statements from `storage.schema` and compares.
+- **`WorkerdServices` needs `nodejs_compat` and a Wasm module.** Its password
+  hashing imports `node:crypto` and an Argon2 `.wasm` file; a bundle that is not
+  Wrangler's keeps the `.wasm` beside the script as a compiled module. Node
+  cannot load it, so keep the auth definition (tables included) in a module
+  that does not import `WorkerdServices`, for tests to read.
+
+Beyond those, a few settings a server on one machine never needs:
 
 - **Build auth once per isolate.** Make `AppAuth`'s layer and its persistence
   over the D1 binding once, in a `ManagedRuntime`, and provide its context to
