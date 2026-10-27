@@ -747,6 +747,8 @@ export const GuardServer = {
           : []),
       ],
       ...(writer.recorded === undefined ? {} : { recorded: writer.recorded }),
+      // Refs as stored: what a write's answer names, then reads under the asker's rules.
+      ...(writer.linked === undefined ? {} : { linked: writer.linked }),
       read: ({ id, fields, principal }) =>
         seenRow(
           { filter: memberRead },

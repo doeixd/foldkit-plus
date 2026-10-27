@@ -18,6 +18,7 @@ import {
   type AnyWrite,
   type BoundWrite,
   type Computation,
+  type EntityMember,
   type EntityRef,
   type Row,
   type WriteAssignment,
@@ -448,6 +449,12 @@ export interface MutationSource<P, R = never> {
       readonly entities: ReadonlyArray<NormalizedPatch>
       readonly connections: ReadonlyArray<ConnectionChange>
       readonly deleted: ReadonlyArray<{ readonly entity: string; readonly id: string }>
+      /**
+       * Rows the written row points at, before and after the write, whose
+       * derived members it may have changed: the answer reads what the client
+       * shows of each, and sends no patch of its own for them.
+       */
+      readonly pointed?: ReadonlyArray<{ readonly entity: string; readonly id: string }>
     },
     RemoteServerError | MutationRefused | RemoteForbidden,
     R
@@ -1424,6 +1431,7 @@ const answerRead = <P, R>(
     readonly entities: ReadonlyArray<NormalizedPatch>
     readonly connections: ReadonlyArray<ConnectionChange>
     readonly deleted: ReadonlyArray<{ readonly entity: string; readonly id: string }>
+    readonly pointed?: ReadonlyArray<{ readonly entity: string; readonly id: string }> | undefined
   },
 ): Effect.Effect<
   Option.Option<{
@@ -1455,6 +1463,7 @@ const answerRead = <P, R>(
     for (const patch of outcome.entities) name(patch.entity, patch.id, Object.keys(patch.values))
     for (const change of outcome.connections)
       if (change._tag === 'Insert') name(change.edge.entity, change.edge.id, [])
+    for (const row of outcome.pointed ?? []) name(row.entity, row.id, [])
     for (const gone of outcome.deleted) named.delete(`${gone.entity}:${gone.id}`)
 
     const requests: Array<Requirement> = []
@@ -1774,6 +1783,30 @@ export const RemoteServer = {
     const encodeInput = Schema.encodeUnknownEffect(
       write.input.schema as unknown as Schema.Codec<unknown, Readonly<Record<string, unknown>>>,
     )
+    // A row's derived members can change only with the rows pointing at it, so a
+    // write names every row its row points at, before and after: the answer reads
+    // what the client shows of each (a post's like count, after a like).
+    const relations: Readonly<Record<string, EntityMember>> = write.input.entity.relations
+    const pointers = Object.values(relations).flatMap(relation =>
+      relation._tag === 'Relation' && relation.cardinality === 'one' ? [relation.key] : [],
+    )
+    const linked = writer.linked
+    const pointedAt = (
+      id: string,
+    ): Effect.Effect<ReadonlyArray<EntityRef>, RemoteServerError, R> =>
+      linked === undefined || pointers.length === 0
+        ? Effect.succeed([])
+        : Effect.map(linked({ id, relations: pointers }), held =>
+            Option.match(held, {
+              onNone: () => [],
+              onSome: links =>
+                Object.values(links).flatMap(ref =>
+                  typeof ref === 'string' ? [refParts(ref)] : [],
+                ),
+            }),
+          )
+    const naming = <A extends object>(outcome: A, pointed: ReadonlyArray<EntityRef>) =>
+      pointed.length === 0 ? outcome : { ...outcome, pointed }
     return {
       mutation: mutation.name,
       writes: { entity: writer.entity, writer, write },
@@ -1879,6 +1912,7 @@ export const RemoteServer = {
             Update: () =>
               Effect.gen(function* () {
                 const bound = Write.bind(write, given, keys)
+                const before = yield* pointedAt(bound.id)
                 if (
                   write.increments.length + write.assignments.length > 0 &&
                   write.expect === undefined &&
@@ -1905,7 +1939,11 @@ export const RemoteServer = {
                     }),
                   ),
                 )
-                if (Option.isSome(written)) return yield* answered(bound, written.value)
+                if (Option.isSome(written))
+                  return naming(yield* answered(bound, written.value), [
+                    ...before,
+                    ...(yield* pointedAt(bound.id)),
+                  ])
                 return yield* Option.isSome(expect)
                   ? Effect.fail(conflict(bound))
                   : Effect.fail(
@@ -1927,11 +1965,12 @@ export const RemoteServer = {
                     principal,
                   }),
                 )
-                return yield* answered(bound, row)
+                return naming(yield* answered(bound, row), yield* pointedAt(bound.id))
               }),
             Delete: () =>
               Effect.gen(function* () {
                 const bound = Write.bind(write, given)
+                const before = yield* pointedAt(bound.id)
                 const outcome = yield* invalid(
                   unmet(
                     bound,
@@ -1940,12 +1979,15 @@ export const RemoteServer = {
                 )
                 // Gone already is gone: only a revision the row moved past refuses.
                 if (outcome === 'moved') return yield* Effect.fail(conflict(bound))
-                return {
-                  output: {},
-                  entities: [],
-                  connections: [],
-                  deleted: [{ entity: bound.entity, id: bound.id }],
-                }
+                return naming(
+                  {
+                    output: {},
+                    entities: [],
+                    connections: [],
+                    deleted: [{ entity: bound.entity, id: bound.id }],
+                  },
+                  before,
+                )
               }),
           }),
         )

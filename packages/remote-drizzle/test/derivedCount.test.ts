@@ -3,9 +3,18 @@ import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Schema } from 'effect'
-import { Derived, Entity, Relation } from 'foldkit-entity'
+import { Derived, Entity, Relation, Write } from 'foldkit-entity'
+import { Mutation } from 'foldkit-remote'
+import { RemoteServer } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
-import { bind, databaseLayer, source, type AnyEntityBinding } from '../src/index.js'
+import {
+  bind,
+  databaseLayer,
+  source,
+  writer,
+  type AnyEntityBinding,
+  type DrizzleDatabase,
+} from '../src/index.js'
 
 const users = sqliteTable('users', { id: text('id').primaryKey() })
 const projects = sqliteTable('projects', {
@@ -48,12 +57,7 @@ const Db = bind(
   },
 )
 
-const read = async (
-  binding: AnyEntityBinding,
-  ids: string[],
-  fields: string[],
-  principal: string | null = null,
-) => {
+const seeded = () => {
   const sqlite = new DatabaseSync(':memory:')
   sqlite.exec(`
     create table users (id text primary key);
@@ -63,11 +67,19 @@ const read = async (
     insert into projects values ('p1', 'u1'), ('p2', 'u1'), ('p3', 'u2');
     insert into comments values ('c1', 'a', 'p1'), ('c2', 'b', 'p1'), ('c3', 'a', 'p2');
   `)
+  return { sqlite, layer: databaseLayer(drizzle({ client: sqlite })) }
+}
+
+const read = async (
+  binding: AnyEntityBinding,
+  ids: string[],
+  fields: string[],
+  principal: string | null = null,
+) => {
+  const { sqlite, layer } = seeded()
   try {
     return await Effect.runPromise(
-      source(binding)
-        .read({ ids, fields, principal })
-        .pipe(Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
+      source(binding).read({ ids, fields, principal }).pipe(Effect.provide(layer)),
     )
   } finally {
     sqlite.close()
@@ -119,5 +131,81 @@ describe('a Derived.count, refused where it is bound', () => {
         },
       ),
     ).toThrow('counts Comment.project, but Comment is not being bound')
+  })
+})
+
+const AddComment = Mutation.write(
+  'AddComment',
+  Write.insert(
+    Entity.input(Work.Comment, Schema.Struct({ id: Id, body: Schema.String, projectId: Id }), {
+      projectId: 'project',
+    }),
+    { id: 'id' },
+  ),
+)
+const MoveComment = Mutation.write(
+  'MoveComment',
+  Write.update(
+    Entity.input(Work.Comment, Schema.Struct({ id: Id, projectId: Id }), { projectId: 'project' }),
+    { id: 'id' },
+  ),
+)
+const DropComment = Mutation.write(
+  'DropComment',
+  Write.delete(Entity.input(Work.Comment, Schema.Struct({ id: Id })), { id: 'id' }),
+)
+
+describe('a write answers the rows its row points at (#245)', () => {
+  const server = RemoteServer.make<string, DrizzleDatabase>({
+    entities: [source(Db.Project), source(Db.Comment)],
+    mutations: [
+      RemoteServer.write(AddComment, writer(Db.Comment)),
+      RemoteServer.write(MoveComment, writer(Db.Comment)),
+      RemoteServer.write(DropComment, writer(Db.Comment)),
+    ],
+  })
+  /** The counts the answer reads, by project, after `mutation` as `principal`. */
+  const counts = async (mutation: string, input: object, principal = 'ada') => {
+    const { sqlite, layer } = seeded()
+    try {
+      const answer = await Effect.runPromise(
+        RemoteServer.handlers(server, principal)
+          .FoldkitRemoteMutate({
+            requestId: 'r1',
+            mutation,
+            input,
+            shown: [{ entity: 'Project', fields: ['commentCount'] }],
+          })
+          .pipe(Effect.provide(layer)),
+      )
+      return {
+        read: Object.fromEntries(
+          (answer.read?.result.entities ?? [])
+            .filter(row => row.entity === 'Project')
+            .map(row => [row.id, row.values.commentCount]),
+        ),
+        patched: answer.entities.map(patch => `${patch.entity}:${patch.id}`),
+      }
+    } finally {
+      sqlite.close()
+    }
+  }
+
+  it('reads the new count of the row an insert points at', async () => {
+    expect(await counts('AddComment', { id: 'c9', body: 'b', projectId: 'p2' })).toEqual({
+      read: { p2: 2 },
+      patched: ['Comment:c9'],
+    })
+  })
+
+  it('reads the row a delete pointed at, before it went', async () => {
+    expect((await counts('DropComment', { id: 'c1' })).read).toEqual({ p1: 1 })
+  })
+
+  it('reads both rows an update moves its row between', async () => {
+    expect((await counts('MoveComment', { id: 'c1', projectId: 'p3' })).read).toEqual({
+      p1: 1,
+      p3: 1,
+    })
   })
 })

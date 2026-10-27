@@ -1,7 +1,9 @@
 # A mutation answers with what the client shows (#245)
 
 Status: slice 1 built (2026-10-27). Slice 2 (rows a write changes through a
-derived member) is deferred to land with #233. See [Deferred](#deferred).
+derived member) built with #233 (2026-10-27): a declared write's answer reads
+every row its row points at; see
+[233-derived-members-DESIGN.md](./233-derived-members-DESIGN.md).
 
 ## The problem
 
@@ -163,7 +165,9 @@ input.postId, {})`. `PostChirp` and `EditPost` answer the timeline's
 
 ## Deferred
 
-- **Slice 2: rows a write changes indirectly.** A like changes its post's
+- **Slice 2: rows a write changes indirectly** (built with #233, which names
+  every row a declared write's row points at, before and after; what follows is
+  the reasoning as it stood). A like changes its post's
   `likeCount`; a reply changes its parent's `replyCount`. The server can derive
   these once a derived member says what it derives (`Derived.count(relation)`,
   #233): inserting or deleting a row of the counted relation names the row the

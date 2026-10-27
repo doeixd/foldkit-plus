@@ -242,8 +242,9 @@ case 'SignedOut': {
   written in the reduction that releases the layer. No option: a declared
   insert lands with the derived counts, `may` and relations the list reads. A
   handler names a row it changed that the server cannot see with an empty
-  patch, `Remote.patch(Post, id, {})`; a row it does not name (a post's count
-  after a like is inserted) is not read.
+  patch, `Remote.patch(Post, id, {})`. A declared write also reads every row its
+  row points at (`one` relations, before and after, through the writer's
+  `linked`), so a like's answer carries its post's new count.
 - A row that reads `Loading` for a frame after a mutation settles is a field
   the answer left out: the layer came off and the store lacks it, so it is
   fetched again. `Remote.make({ verifyAnswers: true })` (dev and tests) settles

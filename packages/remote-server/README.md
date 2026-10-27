@@ -545,12 +545,16 @@ return { output: { liked: true }, entities: [Remote.patch(Post, input.postId, {}
 The read runs after the write commits, outside its transaction. If it fails,
 the failure is logged and the mutation is answered without it: the write has
 landed, and the client fetches what it lacks as it would have. A deleted row is
-not read. A row the write changed that the outcome does not name (a post's
-`likeCount` after a `Like` is inserted) is not read either; name it, until a
-derived member that says what it counts lets the server find it
-([#245](https://github.com/doeixd/foldkit-plus/issues/245),
-[#233](https://github.com/doeixd/foldkit-plus/issues/233)). Live subscribers
-hear the outcome's own patches, not the read, which is one asker's view.
+not read.
+
+A declared write (`RemoteServer.write`) also reads every row its row points at
+through a `one` relation, before and after the write, through the writer's
+`linked`: inserting a `Like` reads what the page shows of its post, the new
+`likeCount` included ([#233](https://github.com/doeixd/foldkit-plus/issues/233)).
+A row's derived members change only with the rows pointing at it, so no app
+names them. These rows are read, never sent as patches of their own: one the
+asker may not see is not answered at all. Live subscribers hear the outcome's
+own patches, not the read, which is one asker's view.
 
 Remote mutations are immediate requests against **server-owned** state. They are
 not a durable offline intent log; client-authored edits that must survive offline
