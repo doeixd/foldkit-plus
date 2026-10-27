@@ -1,7 +1,7 @@
 /**
  * The foundations land in the page's head: the plugin compiles the sheet
  * module and injects its text as a style tag, and a module without the
- * export is refused by name.
+ * export is refused by name. A build compiles it from the root Vite resolved.
  */
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -77,4 +77,17 @@ it('compiles through a running server where one is given', async () => {
   } finally {
     await server.close()
   }
+}, 120_000)
+
+it('builds from the root Vite resolved, not the directory the build runs from', async () => {
+  // The test runs from the repository's root; the sheet is found only from `dir`.
+  expect(process.cwd()).not.toBe(dir)
+  const { resolveConfig } = await import('vite')
+  const plugin = foundations({ module: '/fixture-sheet.ts' })
+  await resolveConfig(
+    { configFile: false, root: dir, logLevel: 'error', plugins: [plugin] },
+    'build',
+  )
+  const [tag] = await tagsFor(plugin, '<html><head></head></html>')
+  expect(tag?.children).toContain('.fixture-foundations')
 }, 120_000)

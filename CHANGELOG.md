@@ -28,6 +28,13 @@ version changed; `pnpm` skips versions already in the registry.
   refuses one without the plugin; the richtext harness, which runs no
   runtime, is exempt by name.
 
+### Fixed
+
+- **`foldkit-mixins/foundations` builds from the root Vite resolved.** A build
+  compiled the sheet module from the current directory, so one started from
+  elsewhere (a test, a workspace script) failed with "Failed to load url
+  /src/style.ts". A `root` option still wins where given.
+
 ## 0.35.0
 
 Computed writes, and demos that look like one product. A declared update can

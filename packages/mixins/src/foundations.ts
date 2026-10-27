@@ -82,29 +82,37 @@ export const foundations = (options: {
   readonly module: string
   /** The export holding the stylesheet text. Default `stylesheet`. */
   readonly export?: string | undefined
-  /** What `vite build` runs from. Default the current directory. */
+  /** What a build compiles the module from. Default the build's own root. */
   readonly root?: string | undefined
-}): Plugin => ({
-  name: 'foldkit-foundations',
-  transformIndexHtml: {
-    order: 'pre',
-    handler: async (
-      _html,
-      context: { readonly server?: ViteDevServer | undefined },
-    ): Promise<Array<HtmlTagDescriptor>> => {
-      const stylesheet =
-        context.server === undefined
-          ? await loadFoundations({
-              module: options.module,
-              export: options.export,
-              root: options.root,
-            })
-          : readStylesheet(
-              (await context.server.ssrLoadModule(options.module)) as Record<string, unknown>,
-              options.module,
-              options.export ?? 'stylesheet',
-            )
-      return [{ tag: 'style', children: stylesheet, injectTo: 'head' as const }]
+}): Plugin => {
+  // The build's root, which is not the current directory when a build is
+  // started from elsewhere (a test, a workspace script).
+  let resolvedRoot: string | undefined
+  return {
+    name: 'foldkit-foundations',
+    configResolved: config => {
+      resolvedRoot = config.root
     },
-  },
-})
+    transformIndexHtml: {
+      order: 'pre',
+      handler: async (
+        _html,
+        context: { readonly server?: ViteDevServer | undefined },
+      ): Promise<Array<HtmlTagDescriptor>> => {
+        const stylesheet =
+          context.server === undefined
+            ? await loadFoundations({
+                module: options.module,
+                export: options.export,
+                root: options.root ?? resolvedRoot,
+              })
+            : readStylesheet(
+                (await context.server.ssrLoadModule(options.module)) as Record<string, unknown>,
+                options.module,
+                options.export ?? 'stylesheet',
+              )
+        return [{ tag: 'style', children: stylesheet, injectTo: 'head' as const }]
+      },
+    },
+  }
+}
