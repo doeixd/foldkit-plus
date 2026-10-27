@@ -80,7 +80,9 @@ adapter only when the mapping (phase 5) calls for it. Then:
   Message the root's view constructs fails `npm run lint`.
 - Create `docs/domain/` and add a line under **Project Notes** in the
   scaffold's `AGENTS.md`: "The domain, its decisions and its mapping to Foldkit
-  Plus are in `docs/domain/`; read them before changing the app."
+  Plus are in `docs/domain/`; read them before changing the app." Below it,
+  paste the block in [agents-md.md](agents-md.md), with the project's own
+  scripts filled in.
 - Write `docs/domain/brief.md` from phase 1's answers, and the look from phase 2.
 - Save phase 2's theme code as `src/style.ts`, and keep its link in a comment
   above it; the views of phase 7 draw through its `slots` and `stylesheet`

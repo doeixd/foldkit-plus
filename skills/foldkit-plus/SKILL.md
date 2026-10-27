@@ -59,7 +59,8 @@ list under the rules below. APIs are `0.x` and may break between minors.
 | Syntax highlighting for a rich-text code block | nobody: tokens are derived decorations, never stored | `foldkit-richtext-code` (JSON) or `foldkit-richtext-code-shiki` (any Shiki grammar) (early) | [richtext.md](references/richtext.md) |
 
 Read only the reference for the package you are working with. Each has the
-mental model, a minimal example, common tasks, and gotchas.
+mental model, a minimal example, common tasks, and gotchas. An application's
+own `AGENTS.md` takes the working rules and traps in [agents-md.md](references/agents-md.md).
 
 ## How they connect
 
