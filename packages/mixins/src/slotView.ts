@@ -19,16 +19,20 @@ import {
   type StaticMixin,
 } from './mixin.js'
 import { pipeSelf, type Pipeable } from './pipe.js'
-import { resolve, type SlotAttributes } from './resolver.js'
+import { resolve, type ContributedAttribute, type SlotAttributes } from './resolver.js'
 import type { Any as AnySlot, SlotProtection } from './slot.js'
 
 export type SlotBuilder<Message, Slots = unknown> = {
   /**
    * The view's base attributes plus every resolved contribution. Pass `item`
    * when the slot is rendered once per item, so a Behavior can decorate each
-   * repetition differently.
+   * repetition differently. Typed as the base was, plus what a Mixin adds
+   * (never `InnerHTML`), so a base fit for `h.textarea` stays fit for it.
    */
-  readonly attrs: (base?: SlotAttributes<Message>, item?: SlotItem) => SlotAttributes<Message>
+  readonly attrs: <Base extends SlotAttributes<Message> = readonly []>(
+    base?: Base,
+    item?: SlotItem,
+  ) => ReadonlyArray<Base[number] | ContributedAttribute<Message>>
   /**
    * One item's drawing, drawn again only when a value in `args` changed by
    * identity or what the Mixins gave the Slots it used for this item changed
@@ -86,7 +90,10 @@ const buildersOver = <Slots, Message>(
     if (slot === undefined) continue
     const protection: SlotProtection = slot.protected
     builders[name] = {
-      attrs: (base?: SlotAttributes<Message>, item?: SlotItem) => {
+      attrs: <Base extends SlotAttributes<Message> = readonly []>(
+        base?: Base,
+        item?: SlotItem,
+      ): ReadonlyArray<Base[number] | ContributedAttribute<Message>> => {
         using?.add(name)
         const contributions = []
         for (const { mixins, input } of groups) {
@@ -104,7 +111,12 @@ const buildersOver = <Slots, Message>(
             }
           }
         }
-        const resolved = resolve(base, contributions, { slot: name, protected: protection })
+        // The base's own attributes and what Mixins added, of which the resolver
+        // refuses `InnerHTML` (`mixins:structural-override`).
+        const resolved = resolve(base, contributions, {
+          slot: name,
+          protected: protection,
+        }) as ReadonlyArray<Base[number] | ContributedAttribute<Message>>
         // Only while a test draws with `Inert.draw`: never for a real render.
         return isMarking() ? [...resolved, h.DataAttribute(SLOT_MARK, name)] : resolved
       },

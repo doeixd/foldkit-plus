@@ -66,3 +66,16 @@ MessageView.pipe(SlotView.attach(Mixin.make<ForeignMessage>('Foreign', {})))
 
 // @ts-expect-error the render input must match.
 MessageView({ wrong: true }, h)
+
+// A slot's attributes are typed as their base was, plus what a Mixin adds, which is never
+// `InnerHTML`: a base fit for a textarea, or none, leaves them fit for one (#214).
+SlotView.forMessages<TestMessage>().define(FieldSlots, (input: FieldInput, slots, h) =>
+  h.div(slots.root.attrs(), [
+    h.textarea(slots.input.attrs([h.Value(input.label), h.OnInput(() => ({ _tag: 'Clicked' }))])),
+    // A base chosen between two lists infers both.
+    h.textarea(slots.input.attrs(input.label === '' ? [h.Value('')] : [h.Rows(3), h.Value('x')])),
+    h.textarea(slots.input.attrs()),
+    // @ts-expect-error a base holding `InnerHTML` keeps it, and a textarea refuses it
+    h.textarea(slots.input.attrs([h.InnerHTML('<b>x</b>')])),
+  ]),
+)

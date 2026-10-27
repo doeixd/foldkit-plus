@@ -400,8 +400,11 @@ export interface RenderContext<Message> {
         readonly viewInputs: unknown
       }
     | undefined
-  /** The control's id and its accessibility state. Put them on the element that holds the value. */
-  readonly state: ReadonlyArray<Attribute<Message>>
+  /**
+   * The control's id and its accessibility state. Put them on the element that
+   * holds the value: no `InnerHTML`, so a textarea takes them too.
+   */
+  readonly state: ReadonlyArray<Exclude<Attribute<Message>, { readonly _tag: 'InnerHTML' }>>
   /** What the key's element takes beyond the base field view. */
   readonly attrs: FieldAttrs
   readonly slots: SlotBuilders<typeof FieldSlots, Message>

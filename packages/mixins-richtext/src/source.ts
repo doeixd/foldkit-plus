@@ -146,8 +146,6 @@ export const sourceEditor = <Message>(): SlotView.SlotView<
     const warnings = closedFor(input.session, input.document).diagnostics
     return h.div(slots.root.attrs(), [
       h.textarea(
-        // A slot's attributes are typed for every element, and Foldkit's textarea excludes
-        // `InnerHTML`; the Form and Builder families narrow the same way (none is set here).
         slots.text.attrs([
           h.AriaLabel('Markdown source'),
           h.DataAttribute('source', 'text'),
@@ -155,7 +153,7 @@ export const sourceEditor = <Message>(): SlotView.SlotView<
           h.OnInput(input.drafted),
           // Read once, when the text area is drawn: the session's caret as it opened.
           h.OnMount(caretMount(input.session.caret, input.moved)),
-        ]) as Parameters<typeof h.textarea>[0],
+        ]),
       ),
       h.ul(
         slots.warnings.attrs([h.DataAttribute('source', 'warnings')]),

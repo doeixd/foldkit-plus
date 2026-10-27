@@ -120,8 +120,6 @@ export const plainRenderers = <Message>(): Shipped<Message> => {
         ]),
       ),
     Multiline: context =>
-      // A textarea's attributes exclude `InnerHTML`, which a slot's type admits
-      // and no mixin can supply, so the narrowing loses nothing.
       context.h.textarea(
         context.slots.multiline.attrs([
           ...typed(context),
@@ -132,7 +130,7 @@ export const plainRenderers = <Message>(): Shipped<Message> => {
           ...(context.attrs.rows === undefined
             ? []
             : [context.h.Attribute('rows', String(context.attrs.rows))]),
-        ]) as Parameters<typeof context.h.textarea>[0],
+        ]),
       ),
     // A number is a text input because its draft is text: `"4."` is a fine thing to
     // have typed, and `type="number"` would refuse to report it.

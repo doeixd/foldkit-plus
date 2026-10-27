@@ -22,6 +22,14 @@ import type { SlotProtection } from './slot.js'
 
 export type SlotAttributes<Message> = ReadonlyArray<Attribute<Message> | ChildAttribute>
 
+/**
+ * What a Mixin can add to a slot's attributes: every attribute but
+ * `InnerHTML`, which the resolver refuses from one as structural ownership.
+ */
+export type ContributedAttribute<Message> =
+  | Exclude<Attribute<Message>, { readonly _tag: 'InnerHTML' }>
+  | ChildAttribute
+
 export interface ResolveOptions {
   readonly slot?: string
   readonly protected?: SlotProtection

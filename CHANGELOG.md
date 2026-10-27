@@ -62,6 +62,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A slot's attributes fit `h.textarea`.** `slots.x.attrs()` was typed with
+  every attribute, `InnerHTML` included, which a textarea refuses, so a slot
+  on one needed a cast (#214). It is now typed as its base was, plus what a
+  Mixin adds, which is never `InnerHTML`: a base built for a textarea, or
+  none, stays fit for one. `foldkit-mixins-form`'s field `state` is typed
+  likewise. The casts in the form renderers and the Markdown source editor
+  are gone.
 - **An insert whose invariants read a preset field registers.** `RemoteServer.write`
   refused one, saying it left the field unset, though the guard's preset sets
   it on every create (#202). It now counts what the writer reports in `sets`.
