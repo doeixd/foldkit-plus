@@ -35,3 +35,10 @@ export const Chirp = Entity.relate(
   },
 )
 // #endregion
+
+// #region count
+/** A person, with how many posts name them as author: the server counts, the page shows. */
+export const Chirper = Chirp.User.pipe(
+  Entity.derived({ postCount: Derived.count(Chirp.Post.relations.author) }),
+)
+// #endregion

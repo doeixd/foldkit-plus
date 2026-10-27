@@ -11,7 +11,7 @@ import { REMOTE_PROTOCOL_VERSION, Selection, relationOf, type MutationResult } f
 import { RemoteServer } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
 import { Post } from '../src/guard.js'
-import { TimelinePost } from '../src/operations.js'
+import { TimelinePost, UserCard } from '../src/operations.js'
 import { openServer, principalOf } from '../src/server/server.js'
 import type { Person } from '../src/server/seed.js'
 import { memorySqlite } from '../src/server/sqlite-node.js'
@@ -60,6 +60,28 @@ const sandbox = () => {
           handlers
             .FoldkitRemoteMutate({ requestId: `r-${mutation}`, mutation, input })
             .pipe(Effect.result, Effect.provide(database)),
+        ),
+      /** A read of what a profile's header shows of `id`. */
+      readCard: (id: string) =>
+        Effect.runPromise(
+          handlers
+            .FoldkitRemoteRead({
+              version: REMOTE_PROTOCOL_VERSION,
+              requests: [{ ...relationOf(Selection.from(UserCard)), id }],
+            })
+            .pipe(Effect.provide(database)),
+        ).then(answer => answer.entities[0]?.values),
+      /** The mutation as a profile page sends it, saying what its header shows of a person. */
+      mutateCard: (mutation: 'PostChirp' | 'EditPost', input: object) =>
+        Effect.runPromise(
+          handlers
+            .FoldkitRemoteMutate({
+              requestId: `r-${mutation}`,
+              mutation,
+              input,
+              shown: [shown, relationOf(Selection.from(UserCard))],
+            })
+            .pipe(Effect.provide(database)),
         ),
       /** The mutation as the page sends it, saying what its timeline shows of a post. */
       mutateShown: (mutation: 'PostChirp' | 'EditPost' | 'ToggleLike', input: object) =>
@@ -221,5 +243,26 @@ describe('each write answers what the timeline shows', () => {
     const reference = await fresh(you, id)
     expect(Object.keys(reference ?? {}).sort()).toEqual([...shown.fields].sort())
     expect(answered(answer, id)).toMatchObject(reference ?? {})
+  })
+})
+
+/**
+ * A person's post count is a `Derived.count` of the posts naming them as
+ * author: the server counts it with no binding entry, and a chirp's answer
+ * reads it, though the chirp names only itself (#233).
+ */
+describe('a person’s post count', () => {
+  it('counts the posts naming them as author', async () => {
+    const you = sandbox()('you')
+    expect(await you.readCard('ada')).toMatchObject({ postCount: 2 })
+    expect(await you.readCard('linus')).toMatchObject({ postCount: 1 })
+  })
+
+  it('comes back with a chirp, read after it lands', async () => {
+    const you = sandbox()('you')
+    const answer = await you.mutateCard('PostChirp', { id: 'n1', body: 'Hi' })
+    const card = answer.read?.result.entities.find(row => row.entity === 'User' && row.id === 'you')
+    expect(card?.values).toMatchObject({ postCount: 2 })
+    expect(answer.entities.map(patch => `${patch.entity}:${patch.id}`)).toEqual(['Post:n1'])
   })
 })

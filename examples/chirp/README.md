@@ -53,7 +53,11 @@ into `dist/`.
 
 **The domain** (`domain.ts`). A `User` and a `Post` are Entities: their
 fields as one Schema, `likeCount` derived (the server counts it), and the
-relations between them (`Entity.relate`). The 280-character rule is the
+relations between them (`Entity.relate`). A person's `postCount` is
+`Derived.count(Chirp.Post.relations.author)`: it says what it counts, so the
+server's binding needs no entry for it, and a new chirp's answer carries its
+author's new count with no code naming it. `likeCount` counts a join table
+with no Entity, so it stays `Derived.make` with the binding's count. The 280-character rule is the
 body's own Schema check, so the server's decode, the form, and the database's
 `CHECK` all refuse the same thing.
 

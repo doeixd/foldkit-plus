@@ -142,4 +142,32 @@ export default [
     ],
     tests: server,
   },
+  {
+    name: 'a guarded writer hides where its row points',
+    edits: [
+      {
+        file: '../../../packages/guard/src/server.ts',
+        find: '...(writer.linked === undefined ? {} : { linked: writer.linked }),',
+        replace: '',
+      },
+    ],
+    tests: server,
+  },
+  {
+    name: 'a person counts no posts',
+    edits: [
+      {
+        file: '../src/domain.ts',
+        find: 'Entity.derived({ postCount: Derived.count(Chirp.Post.relations.author) }),',
+        replace: 'Entity.derived({ postCount: Derived.make(Schema.Number) }),',
+      },
+      {
+        file: '../src/server/server.ts',
+        find: 'User: { table: users, relations: { posts: { foreignKey: posts.authorId } } },',
+        replace:
+          'User: { table: users, relations: { posts: { foreignKey: posts.authorId } }, derived: { postCount: { supplied: true } } },',
+      },
+    ],
+    tests: server,
+  },
 ]

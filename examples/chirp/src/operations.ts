@@ -2,7 +2,7 @@
 import { Schema } from 'effect'
 import { Entity, Expr, Order, Write, type Selected } from 'foldkit-entity'
 import { Mutation, Query } from 'foldkit-remote'
-import { Chirp, PostFields } from './domain.js'
+import { Chirper, PostFields } from './domain.js'
 import { Post } from './guard.js'
 
 // #region select
@@ -13,14 +13,14 @@ export const TimelinePost = Entity.select(Post, {
   createdAt: true,
   may: true,
   likedBy: true,
-  author: Entity.select(Chirp.User, { name: true, handle: true }),
+  author: Entity.select(Chirper, { name: true, handle: true }),
 })
 
 export type Row = Selected<typeof TimelinePost>
 // #endregion
 
-/** A profile's header: who the person is. */
-export const UserCard = Entity.select(Chirp.User, { name: true, handle: true })
+/** A profile's header: who the person is, and how much they have posted. */
+export const UserCard = Entity.select(Chirper, { name: true, handle: true, postCount: true })
 
 // #region query
 export const Timeline = Query.define('Timeline', {}, () =>

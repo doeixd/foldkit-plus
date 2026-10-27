@@ -200,10 +200,12 @@ const profile = (model: Model, handle: string, slots: Slots, h: H): ReadonlyArra
     h.div(slots.banner.attrs(), []),
     h.div(
       slots.profile.attrs(),
-      answered(person, slots, h, ({ name }) => [
+      answered(person, slots, h, ({ name, postCount }) => [
         h.span(slots.portrait.attrs(), [Avatar.view({ name, style: PortraitStyle }, h)]),
         h.h2(slots.profileName.attrs(), [name]),
-        h.p(slots.profileHandle.attrs(), [`@${handle}`]),
+        h.p(slots.profileHandle.attrs(), [
+          `@${handle} · ${postCount} ${postCount === 1 ? 'chirp' : 'chirps'}`,
+        ]),
       ]),
     ),
     ...answered(posts, slots, h, page => feed(page.items, model, slots, h)),

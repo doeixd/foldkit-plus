@@ -15,7 +15,7 @@ import { Remote, type RemoteClient } from 'foldkit-remote'
 import { Site } from 'foldkit-site'
 import { Surface } from 'foldkit-surface'
 import { Composer } from './compose.js'
-import { Chirp } from './domain.js'
+import { Chirper } from './domain.js'
 import { Editing, Editor } from './editor.js'
 import { Post } from './guard.js'
 import {
@@ -98,7 +98,7 @@ export const App = Surface.application({ Model, Message })
 // #region remote-make
 export const Data = Remote.make({
   model: App.model.remote,
-  entities: [Chirp.User, Post],
+  entities: [Chirper, Post],
   queries: [Timeline, ByAuthor],
   mutations: [PostChirp, EditPost, ToggleLike],
 })

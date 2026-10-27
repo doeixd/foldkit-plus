@@ -21,7 +21,7 @@ import {
   type DrizzleDatabase,
 } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
-import { Chirp } from '../domain.js'
+import { Chirper } from '../domain.js'
 import { G, Post, type User } from '../guard.js'
 import { ByAuthor, EditPost, PostChirp, Timeline, ToggleLike } from '../operations.js'
 import { SEED } from './seed.js'
@@ -77,7 +77,7 @@ export const Policy = G.implement({
 
 // #region bind
 const Db = bind(
-  { User: Chirp.User, Post },
+  { User: Chirper, Post },
   {
     User: { table: users, relations: { posts: { foreignKey: posts.authorId } } },
     Post: {
@@ -150,7 +150,7 @@ export const server = RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
 // A guarded Entity served without its rule would serve every row: refuse to start.
 GuardServer.validate(Policy, {
   entities: [Post],
-  domain: Remote.define({ entities: [Chirp.User, Post], queries: [Timeline, ByAuthor] }),
+  domain: Remote.define({ entities: [Chirper, Post], queries: [Timeline, ByAuthor] }),
   server,
 })
 
