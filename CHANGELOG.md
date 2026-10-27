@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`Agent.host(config)` and `Agent.headless(config)`.** `host` wraps a Foldkit
+  application's config (for `run`, `hydrate`, `embed` or `SSR.hydrate`) and
+  returns a host that reads the Model the runtime committed and queues
+  Messages into it, so an agent's Message runs its Commands and Remote as a
+  click does; `dispatch` resolves once `update` applied it. `headless` runs the
+  same `init`, `update`, Commands and Subscriptions with no view, for tests and
+  servers, one per session. The kitchen-sink agent runs on a headless app
+  (#258).
 - **`Derived.count(Other.relations.pointer)`: a derived member that says what
   it counts,** the rows whose `one` relation points at this one. `bind`
   compiles it from the pointing relation's column under that table's `visible`

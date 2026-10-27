@@ -585,6 +585,16 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
 
 **Library behaviour**
 
+- **A runtime disposed before its Subscriptions start never ends their
+  streams.** `embed(...).dispose()` in the same tick as boot (React
+  StrictMode's mount, unmount, mount) interrupts the Subscription fibers
+  before they run, so a `Stream.ensuring` on an entry never fires. The
+  runtime's first `modelToDependencies` call, made with the boot Model before
+  any Message, is the reliable boot signal; do not take "my stream ended" as
+  the only stop.
+- **Foldkit logs a failed boot through Effect's logger and still paints.** A
+  throw in `modelToDependencies` at boot is no crash view and no
+  `console.error`: it goes to `console.log`. Spy on that to assert it.
 - **An embedded runtime draws in place of its container.** A test that kept
   the container element and read `container.querySelector(...)` saw an empty
   page for good, and it looked like the view never ran. Read the page from
