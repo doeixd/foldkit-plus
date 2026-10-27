@@ -1,11 +1,13 @@
 /**
  * The mixins' own Slots as the CMS dresses them: the post and page forms, the
- * inspector's forms, and the worklist's table.
+ * inspector's forms, and the worklist's table. Each form starts from the
+ * package's recipe (`Field`, `Form`, `List`) and says only where it differs.
  */
 import { Style, type StyleValue } from 'foldkit-mixins'
 import { ListSlots } from 'foldkit-mixins-crud'
 import { List } from 'foldkit-mixins-crud/recipes'
 import { FieldSlots, FormSlots, type FieldInput } from 'foldkit-mixins-form'
+import { Field, Form } from 'foldkit-mixins-form/recipes'
 import { Recipes } from 'foldkit-mixins-ui'
 import { Layout } from 'foldkit-mixins/layout'
 import { Theme } from 'foldkit-mixins/theme'
@@ -64,6 +66,7 @@ const inGroup = Style.compose(
  */
 export const WritingFieldStyle = Style.forSlots(FieldSlots)(
   {
+    ...Field({}),
     root: Style.compose(
       L.in('layouts', Layout.stack({ gap: t.space['2xs'] })),
       onKey(['title'], Style.self({ order: '1' })),
@@ -83,7 +86,6 @@ export const WritingFieldStyle = Style.forSlots(FieldSlots)(
     // An address's `/` inside the field, as one box: the recipe's pieces, as
     // tall as a text field beside it.
     group: Style.compose(Recipes.InputGroup.group, Style.self({ minBlockSize: fieldHeight })),
-    affix: Recipes.InputGroup.affix,
     label: Style.compose(
       Style.self({ fontSize: t.size.sm, fontWeight: t.weight.semibold }),
       onKey(['title', 'excerpt', 'body'], visuallyHidden),
@@ -92,7 +94,6 @@ export const WritingFieldStyle = Style.forSlots(FieldSlots)(
       Style.self({ color: t.text.muted, fontSize: t.size.xs, margin: '0' }),
       onKey(['title', 'excerpt', 'body'], visuallyHidden),
     ),
-    error: Style.self({ color: t.error.ink, fontSize: t.size.sm, margin: '0' }),
     text: Style.compose(field, onKey(['slug'], inGroup)),
     multiline: Style.compose(
       field,
@@ -148,6 +149,7 @@ export const WritingFieldStyle = Style.forSlots(FieldSlots)(
  */
 export const PageFieldStyle = Style.forSlots(FieldSlots)(
   {
+    ...Field({}),
     root: Style.compose(
       L.in('layouts', Layout.stack({ gap: t.space['3xs'] })),
       onKey(['document'], Style.self({ gridColumn: '1 / -1', marginBlockStart: t.space.sm })),
@@ -155,13 +157,11 @@ export const PageFieldStyle = Style.forSlots(FieldSlots)(
     // An address's `/` inside the field, as one box: the recipe's pieces, as
     // tall as a text field beside it.
     group: Style.compose(Recipes.InputGroup.group, Style.self({ minBlockSize: fieldHeight })),
-    affix: Recipes.InputGroup.affix,
     label: Style.compose(
       Style.self({ color: t.text.muted, fontSize: t.size.xs, fontWeight: t.weight.semibold }),
       onKey(['document'], visuallyHidden),
     ),
     description: Style.self({ color: t.text.muted, fontSize: t.size.xs, margin: '0' }),
-    error: Style.self({ color: t.error.ink, fontSize: t.size.sm, margin: '0' }),
     text: Style.compose(
       field,
       onKey(['slug'], inGroup),
@@ -178,8 +178,11 @@ export const PageFieldStyle = Style.forSlots(FieldSlots)(
   { name: 'PageFieldStyle', layer: app },
 )
 
+const form = Form({})
+
 export const PageFormStyle = Style.forSlots(FormSlots)(
   {
+    ...form,
     root: Style.compose(
       Style.self({
         alignItems: 'start',
@@ -189,15 +192,15 @@ export const PageFormStyle = Style.forSlots(FormSlots)(
       }),
       Style.media('(max-width: 52rem)', { gridTemplateColumns: 'minmax(0, 1fr)' }),
     ),
-    errors: Style.self({ color: t.error.ink, gridColumn: '1 / -1' }),
+    errors: Style.compose(form.errors ?? Style.empty, Style.self({ gridColumn: '1 / -1' })),
   },
   { name: 'PageFormStyle', layer: app },
 )
 
 export const FormStyle = Style.forSlots(FormSlots)(
   {
+    ...form,
     root: L.in('layouts', Layout.stack({ gap: t.space.md })),
-    errors: Style.self({ color: t.error.ink }),
     submit: Style.compose(
       button({ tone: 'accent', variant: 'solid', size: 'md' }),
       // A stack's children are full width unless they say otherwise.

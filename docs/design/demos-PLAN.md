@@ -32,6 +32,8 @@ at `bf6a8a94` on 2026-10-26.
   the current directory rather than Vite's root. `richtext-playground` is on
   `demoStyle` in an `AppShell`; its 19 raw controls are still its own. The
   `richtext` harness is not a demo (unpublished, no runtime) and keeps its page.
+  The CMS's form styles start from `Field` and `Form` and keep only where they
+  differ (the writing page's bare fields, placement by key).
 - **Open question for the owner:** `foldkit-form` validates a key on its first
   blur, so tabbing out of an emptied quick-add field says "Required", and the
   form's summary repeats it. Validating an untouched key only on submit would
