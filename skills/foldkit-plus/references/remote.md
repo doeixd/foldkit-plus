@@ -836,7 +836,9 @@ An increment of a column that holds integers needs a `Schema.Int` amount, whatev
 declared as: the writer refuses it through `EntityWriter.refuses`, which `RemoteServer.write` asks
 where the write is served (`GuardServer.writer` passes it on). Each `Write` increment says whether
 its amount is an integer (`WriteIncrement.integer`).
-Migrate `invariantChecks(binding)` (each state invariant as `check ((…) is true)`) and,
+Migrate `checkConstraints(binding)` (each state invariant as `check ((…) is true)`, and each
+column's field rules SQL holds exactly; `serverOnly` lists the rest) or put `entityChecks(Entity, t)`
+in the Drizzle table for `drizzle-kit`, never a CHECK written by hand; and,
 for a guarded writer's `revision` pin, `revisionTrigger(binding, 'revision')`, so a
 handler's write and raw SQL are held to the invariants and move the revision too.
 
