@@ -74,6 +74,12 @@ export default [
     ],
     tests: ['packages/plus/test/setup.test.ts'],
   },
+  edit(
+    'an ssg or ssr scaffold is told to take an example',
+    '../src/setup.ts',
+    '--rendering <ssg|ssr> --package-manager',
+    '--rendering <ssg|ssr> --example counter --package-manager',
+  ),
   {
     name: 'the CLI imports the effect it finds rather than carrying its own',
     edits: [

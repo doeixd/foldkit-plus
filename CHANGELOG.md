@@ -62,6 +62,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`setup` prints a scaffold command that runs for every rendering mode.**
+  It gave one command with `--example counter` for spa, ssg and ssr alike, and
+  `create-foldkit-app` refuses `--example` outside spa (#204). It now prints
+  the spa command with it and the ssg or ssr one without; so does the
+  greenfield guide.
 - **`foldkit-media` no longer brings `node:module` into a page.** Built for
   Node, the runtime chunk every entry shares opened with `import "node:module"`,
   so a browser build of `Icon.draw` warned and carried it (#215). The package

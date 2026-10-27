@@ -59,7 +59,10 @@ prints the `create-foldkit-app` release whose Foldkit matches this release, as
 a non-interactive command. Run it with the brief's answers:
 
 ```bash
-npx create-foldkit-app@<version setup names> --name <name> --rendering <spa|ssg|ssr> --example counter --package-manager <manager>
+# spa:
+npx create-foldkit-app@<version setup names> --name <name> --rendering spa --example counter --package-manager <manager>
+# ssg or ssr, which take no --example (the scaffold refuses one):
+npx create-foldkit-app@<version setup names> --name <name> --rendering <ssg|ssr> --package-manager <manager>
 cd <name>
 npx foldkit-plus setup
 ```
@@ -78,7 +81,8 @@ adapter only when the mapping (phase 5) calls for it. Then:
   Tailwind (`src/styles.css`): keep it beside the theme only if the user wants
   both, and say so in phase 6's plan.
 
-The scaffold's counter is a placeholder: leave it until phase 7 replaces it.
+What the scaffold starts with (an spa's counter) is a placeholder: leave it
+until phase 7 replaces it.
 
 ## 4. Domain rounds
 

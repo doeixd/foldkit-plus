@@ -19,8 +19,12 @@ describe('setupGuide', () => {
     expect(text).toContain('There is no `package.json` here')
     // Once, in the check that stops it: not again among the steps it is told to skip.
     expect(text.split('skills/foldkit-plus/references/greenfield.md')).toHaveLength(2)
+    // `--example` only where the scaffold takes one: an ssr or ssg one refuses it.
     expect(text).toContain(
-      `npx ${SCAFFOLDER} --name <name> --rendering <spa|ssg|ssr> --example counter --package-manager npm`,
+      `npx ${SCAFFOLDER} --name <name> --rendering spa --example counter --package-manager npm`,
+    )
+    expect(text).toContain(
+      `npx ${SCAFFOLDER} --name <name> --rendering <ssg|ssr> --package-manager npm\n`,
     )
   })
 
