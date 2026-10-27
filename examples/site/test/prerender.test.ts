@@ -39,6 +39,7 @@ interface Links {
  * three thousand parsed documents do not fit in a test worker's memory.
  */
 const READ = [
+  '/remote/guides/server-state/mutations-and-live-data',
   '/',
   '/demos',
   '/404.html',
@@ -178,6 +179,18 @@ describe('the generated site', () => {
     expect(hrefs(live, 'nav[aria-label="Documentation"] a')).toContain(
       '/remote/guides/remote-server',
     )
+  })
+
+  test('a guide draws its Mermaid fence as a diagram, its source folded beneath it', () => {
+    const figure = page('/remote/guides/server-state/mutations-and-live-data').querySelector(
+      'article figure.diagram',
+    )
+    const svg = figure?.querySelector(':scope > svg')
+    expect(svg?.namespaceURI).toBe('http://www.w3.org/2000/svg')
+    expect(Array.from(svg?.querySelectorAll('text') ?? [], text => text.textContent)).toContain(
+      'ClickedRename',
+    )
+    expect(figure?.querySelector('details pre code')?.textContent).toContain('sequenceDiagram')
   })
 
   test("a subsite's API lists its entry points, each leading to a page per export", () => {

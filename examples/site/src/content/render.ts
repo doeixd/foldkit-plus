@@ -12,6 +12,7 @@ import { CodeBlock, CodeBlockSlots } from 'foldkit-mixins-ui'
 
 import { COPY_ATTRIBUTE } from '../library.js'
 import { CodeStyle } from '../style.js'
+import { diagram } from './diagram.js'
 import { textOf } from './text.js'
 import type { Highlight } from './highlight.js'
 
@@ -127,8 +128,8 @@ export const block = (ih: Ih, context: Context, node: RootContent): Html | strin
         ],
       )
     }
-    case 'code':
-      return codeBlock(ih, context.highlight, {
+    case 'code': {
+      const fence = codeBlock(ih, context.highlight, {
         code: node.value,
         lang: node.lang,
         // A fence with no language, or a diagram in `text`, is named by nothing.
@@ -137,6 +138,20 @@ export const block = (ih: Ih, context: Context, node: RootContent): Html | strin
           : { label: node.lang }),
         copy: true,
       })
+      // A Mermaid fence is drawn, its source kept beneath it to read or copy;
+      // one Pele cannot read stays the code it is.
+      return node.lang === 'mermaid'
+        ? Option.match(diagram(ih, node.value), {
+            onNone: () => fence,
+            // Its width, which the style keeps it to three quarters of at least.
+            onSome: ({ drawn, width }) =>
+              ih.figure(
+                [ih.Class('diagram'), ih.Attribute('style', `--diagram-width: ${width}px`)],
+                [drawn, ih.details([], [ih.summary([], ['Diagram source']), fence])],
+              ),
+          })
+        : fence
+    }
     case 'blockquote':
       return ih.blockquote(
         [],

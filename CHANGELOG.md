@@ -32,6 +32,12 @@ version changed; `pnpm` skips versions already in the registry.
   Its own theme (a hue of its own, fluid type) is gone for `demoStyle`, its
   header is the frame's with Start over among its actions, and its
   foundations are in the page.
+- **The website draws the docs' Mermaid diagrams.** A `mermaid` fence was
+  shown as its source; it is now an SVG that Pele (`pele`, Obsidian's
+  renderer) lays out when the site is built, drawn in the theme's colours with
+  the source folded beneath it. No page loads any diagram code. A fence Pele
+  cannot read stays a code block, and a diagram wider than the column scrolls
+  in its box rather than shrinking past three quarters of its size (#201).
 - **Every example keeps its Model across an edit.** The CMS and Foldkit's
   sixteen ported examples now load `@foldkit/vite-plugin`, as the other demos
   do, so a save no longer reloads the page from `init` or logs "No response

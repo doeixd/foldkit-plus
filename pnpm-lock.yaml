@@ -1912,6 +1912,12 @@ importers:
       micromark-extension-gfm:
         specifier: ^3.0.0
         version: 3.0.0
+      parse5:
+        specifier: ^8.0.1
+        version: 8.0.1
+      pele:
+        specifier: 1.12.0
+        version: 1.12.0
       prettier:
         specifier: ^3.9.10
         version: 3.9.10
@@ -7606,6 +7612,10 @@ packages:
     resolution: {integrity: sha512-o8MolyzirkkLrcdsae/HEOiIcXWI7DS5zGpvqW8xTC2YUsW30rltFw2bDGvw/fskUdEMrQm2br68jzDS5BH2vw==}
     engines: {node: '>=22.13.0 || >=24'}
 
+  pele@1.12.0:
+    resolution: {integrity: sha512-3OdOK6rvkaTB569R4/I8U0H82MqPRxj7vfkbowa2rRhgSBPFhvWlfFy5eae0jP+2A6hE8abE17nsdyxJz2VBiQ==}
+    engines: {node: '>=20'}
+
   pg-cloudflare@1.4.0:
     resolution: {integrity: sha512-Vo7z/6rrQYxpNRylp4Tlob2elzbh+N/MOQbxFVWCxS7oEx6jF53GTJFxK2WWpKuBRkmiin4Mt+xofFDjx09R0A==}
 
@@ -11912,6 +11922,8 @@ snapshots:
     optionalDependencies:
       '@napi-rs/canvas': 1.0.9
     optional: true
+
+  pele@1.12.0: {}
 
   pg-cloudflare@1.4.0:
     optional: true

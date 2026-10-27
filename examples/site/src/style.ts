@@ -769,6 +769,31 @@ export const SiteStyle = slots(
         gap: `0 ${t.space.sm}`,
       }),
       Style.nest('.mentions small', { ...mono, color: t.text.subtle }),
+      // A drawn Mermaid fence, in the theme's colours and type, its source folded beneath it.
+      Style.nest('.diagram', {
+        margin: `${t.space.lg} 0`,
+        overflowX: 'auto',
+        '--pele-bg': t.surface.base,
+        '--pele-fg': t.text.default,
+        '--pele-muted': t.text.muted,
+        '--pele-line': t.text.muted,
+        '--pele-surface': t.surface.subtle,
+        '--pele-surface-alt': t.surface.muted,
+        '--pele-border': t.outline.default,
+        '--pele-accent': t.accent.default,
+        '--pele-radius': t.radius.md,
+        '--pele-font': t.font.body,
+        '--pele-font-mono': t.font.mono,
+      }),
+      // Narrowed to the column, but no further than three quarters of its size:
+      // a wider diagram scrolls in its box rather than shrinking past reading.
+      Style.nest('.diagram svg', { minInlineSize: 'calc(var(--diagram-width) * 0.75)' }),
+      Style.nest('.diagram summary', {
+        marginBlockStart: t.space.xs,
+        fontSize: t.size.sm,
+        color: t.text.muted,
+        cursor: 'pointer',
+      }),
       Style.nest('.table', { overflowX: 'auto', marginBlock: t.space.lg }),
       Style.nest('table', { minWidth: '100%' }),
       Style.nest(':is(th, td)', {
