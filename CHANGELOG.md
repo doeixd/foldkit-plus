@@ -62,6 +62,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-media` no longer brings `node:module` into a page.** Built for
+  Node, the runtime chunk every entry shares opened with `import "node:module"`,
+  so a browser build of `Icon.draw` warned and carried it (#215). The package
+  is built for the neutral platform; its Vite plugin, which runs in Node,
+  still imports what it uses.
 - **A slot's attributes fit `h.textarea`.** `slots.x.attrs()` was typed with
   every attribute, `InnerHTML` included, which a textarea refuses, so a slot
   on one needed a cast (#214). It is now typed as its base was, plus what a

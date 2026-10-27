@@ -15,5 +15,9 @@ export default defineConfig({
   dts: true,
   clean: true,
   target: 'es2022',
+  // Not `node`: its runtime chunk, shared by every entry, carried `import "node:module"`
+  // into the browser's (#215). The Node entries import their `node:` modules themselves.
+  platform: 'neutral',
+  fixedExtension: true,
   deps: { neverBundle: ['vite', '@cloudflare/workers-types'] },
 })
