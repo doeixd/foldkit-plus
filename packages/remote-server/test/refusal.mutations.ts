@@ -66,8 +66,8 @@ export default [
     edits: [
       {
         file: `${remote}/index.ts`,
-        find: ': Schema.decodeUnknownOption(mutation.Refusal)(refusal)',
-        replace: ': Option.some(refusal as never)',
+        find: ': Schema.decodeUnknownOption(mutation.Refusal)(error.refusal)',
+        replace: ': Option.some(error.refusal as never)',
       },
     ],
     tests,

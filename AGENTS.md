@@ -807,6 +807,11 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   console: construct the worker in a probe page and read its `error` event's
   `filename`. A package with a `worker` export is fixed by adding `worker` to
   `resolve.conditions`.
+- **A page navigation carries no CSRF header, and often no `Origin`.** A
+  Yielded resolver in its default `'scripted'` mode refuses every signed-in
+  page render for that reason; a pre-read that forges the headers hides it.
+  Read the cookie with `requests: 'navigation'` behind a reader that cannot
+  write (`pageReader`).
 - **A browser `WebSocket` sends no header of yours.** Its constructor takes
   a URL and subprotocols only, so a CSRF header (`x-effect-auth-csrf`) that
   every Remote POST carries never reaches a Sync upgrade; a resolver asking

@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **A server-rendered page reads its data in process, as its reader.**
+  `SSR.requestContext<C>(name)` is a value a host attaches to a request
+  (`attach`) for `renderPage` to read (`of`, an `Option`), across separately
+  bundled copies. `pageReader(config)` in `foldkit-remote-server/fetch` is a
+  page render's in-process, read-only `RemoteClient` layer from `serveFetch`'s
+  own config: no HTTP, and a mutation or live open fails. `AuthServer.resolver({
+  requests: 'navigation' })` reads a `GET` or `HEAD` page request's cookie
+  without the `Origin` and CSRF checks a script must pass. `examples/auth`
+  serves pages, `/remote` and `/auth` from one fetch handler this way (#212).
 - **CHECK constraints come from the Entity.** `entityChecks(Entity, t)` puts the
   CHECKs an Entity implies into a Drizzle table, for `drizzle-kit`;
   `checkConstraints(binding)` gives them as SQL clauses, with `serverOnly`
@@ -251,6 +260,7 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`SSR.inspect` shows a parent shared by several families once** (#177).
 - **`foldkit-mixins-ui` is published one file per module,** so an application's
   bundler keeps only the components and recipes it reads. Reading
   `Recipes.Avatar` kept every recipe, `@foldkit/ui` and floating-ui; an
