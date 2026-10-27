@@ -76,6 +76,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **The auth README says how to sign up with a password:** the contract's
+  `register` action, `Password.make({ registration, reset })` (a `resetLink`
+  needs an `https:` URL), `Persistence.Provisioning` writing the account row
+  in the same commit, the services sign-up needs (`CompromisedPasswords`; change
+  and reset ones refused), and register then sign in on the client. On Workers,
+  Yielded's attempt limiter counts per isolate without a shared
+  `RateLimiterStore` (#218).
 - **The auth README says how to run on Workers with D1:** build auth once per
   isolate, and give Yielded's `AuthenticationClock` a tolerance, since the
   Worker's clock and D1's differ and the strict default refused a correct
