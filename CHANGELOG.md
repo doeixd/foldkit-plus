@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`Remote.make({ verifyAnswers: true })` checks a mutation's answer against
+  what was shown while it was pending.** For each row the request patched or
+  put in a list, it records in `remote.answerGaps` (`Data.inspect`) the fields
+  its optimistic patch wrote or active Surfaces read that the answer left out
+  and the store does not hold: fields read again once the layer comes off, so
+  the row leaves its lists, or an entity read reads `Loading`, until they
+  arrive. For development and tests; it changes nothing else (#249).
 - **`npx foldkit-plus setup` gives a `.gitattributes` that keeps LF.** When none
   applies to the project (in its folder or above it, up to the repository's
   root), step 1 tells the agent to write one with `* text=auto eol=lf` and
