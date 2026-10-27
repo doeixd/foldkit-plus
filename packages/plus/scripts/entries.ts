@@ -159,7 +159,7 @@ export const references = (packages: ReadonlyArray<Included>) =>
     .map(each => ({ path: `../${each.dir}/tsconfig.build.json` }))
 
 /** The files under `src/` that are the package's own, never generated. */
-export const OWN_FILES: ReadonlyArray<string> = ['index.ts', 'cli.ts', 'setup.ts']
+export const OWN_FILES: ReadonlyArray<string> = ['index.ts', 'cli.ts', 'project.ts', 'setup.ts']
 
 /** Every generated file now under `src/`, as `remote/port.ts`. */
 export const writtenFiles = (packageDir: string): ReadonlyArray<string> => {

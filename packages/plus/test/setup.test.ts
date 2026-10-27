@@ -10,8 +10,8 @@ import { SCAFFOLDER, addCommand, setupGuide, type Project } from '../src/setup.j
 const versions = { plus: '0.1.0', effect: '4.0.0', foldkit: '0.165.0' }
 const guide = (project: Option.Option<Project>, manager: 'pnpm' | 'npm' = 'pnpm') =>
   setupGuide({ project, manager, versions })
-const project = (deps: Readonly<Record<string, string>>) =>
-  Option.some({ name: 'todo', versions: deps })
+const project = (deps: Readonly<Record<string, string>>, gitattributes = true) =>
+  Option.some({ name: 'todo', versions: deps, gitattributes })
 
 describe('setupGuide', () => {
   it('sends an agent with no project to the greenfield guide, and scaffolds with its manager', () => {
@@ -48,6 +48,18 @@ describe('setupGuide', () => {
 
   it('names a library that is missing', () => {
     expect(guide(project({ effect: '4.0.0' }))).toContain('`foldkit` is not installed')
+  })
+
+  it('has a project without a `.gitattributes` write one that keeps LF', () => {
+    const text = guide(project({}, false))
+    expect(text).toContain('There is no `.gitattributes`. Write one')
+    expect(text).toContain('```gitattributes\n* text=auto eol=lf\n*.wasm binary\n```')
+  })
+
+  it('leaves a `.gitattributes` the project has as it is', () => {
+    const text = guide(project({}, true))
+    expect(text).toContain('`.gitattributes` is there: leave it as it is.')
+    expect(text).not.toContain('eol=lf')
   })
 
   it("installs with the project's package manager, adapters one by one", () => {

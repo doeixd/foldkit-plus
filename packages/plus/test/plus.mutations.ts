@@ -86,6 +86,40 @@ export default [
     '--rendering <ssg|ssr> --package-manager',
     '--rendering <ssg|ssr> --example counter --package-manager',
   ),
+  edit(
+    'a `.gitattributes` the project has is written over',
+    '../src/setup.ts',
+    '...(found.gitattributes',
+    '...(false',
+  ),
+  edit(
+    'the `.gitattributes` it gives does not keep LF',
+    '../src/setup.ts',
+    "'* text=auto eol=lf',",
+    "'* text=auto',",
+  ),
+  {
+    name: 'a `.gitattributes` above the repository counts',
+    edits: [
+      {
+        file: '../src/project.ts',
+        find: "if (existsSync(join(at, '.git')) || dirname(at) === at) break",
+        replace: 'if (dirname(at) === at) break',
+      },
+    ],
+    tests: ['packages/plus/test/project.test.ts'],
+  },
+  {
+    name: 'a `.gitattributes` at the repository root is missed',
+    edits: [
+      {
+        file: '../src/project.ts',
+        find: "projectFolders(folder).some(at => existsSync(join(at, '.gitattributes')))",
+        replace: "existsSync(join(folder, '.gitattributes'))",
+      },
+    ],
+    tests: ['packages/plus/test/project.test.ts'],
+  },
   {
     name: 'the CLI imports the effect it finds rather than carrying its own',
     edits: [

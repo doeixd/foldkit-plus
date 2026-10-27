@@ -470,8 +470,9 @@ npx foldkit-plus setup
 ```
 
 It reads your project and prints what to install with your package manager, the
-`effect` or `foldkit` version that needs changing, the agent skill, and which
-package does which job. By hand, `foldkit-plus` brings every package at once,
+`effect` or `foldkit` version that needs changing, a `.gitattributes` that keeps
+LF line endings when the project has none, the agent skill, and which package
+does which job. By hand, `foldkit-plus` brings every package at once,
 each under a subpath named for it (`foldkit-plus/remote-server`):
 
 ```bash

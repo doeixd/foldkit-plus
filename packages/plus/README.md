@@ -11,8 +11,10 @@ Tell your agent to run that in your project. It prints, for that project, how to
 install Effect, Foldkit and Foldkit Plus with the package manager the project
 uses, how to add the agent skill, and which package does which job. It reads
 your `package.json` first and says when `effect` or `foldkit` is missing or at a
-version this release does not support. It writes nothing; the agent runs what it
-says.
+version this release does not support. When no `.gitattributes` applies to the
+project, it gives one that keeps text files LF (`* text=auto eol=lf`), so a
+Windows checkout does not warn of every file; one the project has is left as it
+is. It writes nothing; the agent runs what it says.
 
 For a new application, run it in an empty folder. With no `package.json` it
 sends the agent to the skill's

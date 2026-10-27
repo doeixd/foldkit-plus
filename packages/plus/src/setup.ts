@@ -12,6 +12,8 @@ export interface Project {
   readonly name: string
   /** Each named library's version range, from any dependency field. */
   readonly versions: Readonly<Record<string, string>>
+  /** Whether a `.gitattributes` applies here: in the project's folder or one above it in its repository. */
+  readonly gitattributes: boolean
 }
 
 /** The versions this release is built and tested against, from its own manifest. */
@@ -257,6 +259,17 @@ export const setupGuide = ({ project, manager, versions }: SetupInput): string =
       '',
       finding(found, 'effect', versions.effect),
       finding(found, 'foldkit', versions.foldkit),
+      // Never overwritten: line endings are the project's to choose once chosen.
+      ...(found.gitattributes
+        ? ['- `.gitattributes` is there: leave it as it is.']
+        : [
+            "- There is no `.gitattributes`. Write one at the repository's root (beside `package.json` if this is not yet a repository), so Git keeps the LF line endings the formatter writes and `git add` on Windows does not warn of every file:",
+            '',
+            '```gitattributes',
+            '* text=auto eol=lf',
+            '*.wasm binary',
+            '```',
+          ]),
     ],
   })
   return [
