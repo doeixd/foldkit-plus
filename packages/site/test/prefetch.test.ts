@@ -6,11 +6,11 @@
  * preload share this composition — the framework owns the topology half, the
  * caller owns the one-line preparation.
  */
-import { Effect, Layer, Schema, Stream, pipe } from 'effect'
+import { Effect, Layer, Option, Schema, Stream, pipe } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { defineRouteUnion, literal, mapTo, root, slash, string } from 'foldkit/route'
 import { Entity as DomainEntity, Expr, Order } from 'foldkit-entity'
-import { Query, Remote, RemoteClient } from 'foldkit-remote'
+import { Query, Remote, RemoteClient, RemoteData } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Site } from '../src/index.js'
@@ -20,6 +20,10 @@ const Project = DomainEntity.define(
   Schema.Struct({ id: Schema.String, name: Schema.String, ownerId: Schema.String }),
 )
 const ProjectSummary = DomainEntity.select(Project, { id: true, name: true })
+const Account = DomainEntity.define(
+  'Account',
+  Schema.Struct({ id: Schema.String, name: Schema.String }),
+)
 
 const ProjectsByOwner = Query.define('ProjectsByOwner', { ownerId: Schema.String }, ({ input }) =>
   Query.from(Project).pipe(
@@ -46,7 +50,7 @@ const Message = defineMessageUnion({ ...Remote.messages })
 const App = Surface.application({ Model, Message })
 const Data = Remote.make({
   model: App.model.remote,
-  entities: [Project],
+  entities: [Project, Account],
   queries: [ProjectsByOwner],
 })
 
@@ -71,7 +75,34 @@ const ArchivePage = App.surface('ArchivePage', {
   }),
 })
 
-const HomeNode = Site.route(homeRouter, AppRoute.Home)
+/** Who is signed in, as the server answers `me`. */
+const Session = App.surface('Session', {
+  model: () => ({ me: Data.get(DomainEntity.select(Account, { id: true }), 'me') }),
+})
+const viewerOf = (model: Model): Option.Option<{ readonly id: string }> =>
+  RemoteData.match(Surface.read(Session, model).me, {
+    Initial: () => Option.none(),
+    Loading: () => Option.none(),
+    Ready: me => Option.some(me),
+    Refreshing: me => Option.some(me),
+    Failed: () => Option.none(),
+    NotFound: () => Option.none(),
+  })
+/** The home feed: the projects of whoever is signed in. */
+const FeedPage = App.surface('FeedPage', {
+  params: { ownerId: Schema.String },
+  model: ({ params }) => ({
+    projects: Data.query(
+      ProjectsByOwner,
+      { ownerId: params.ownerId },
+      { select: ProjectSummary, first: 10 },
+    ),
+  }),
+})
+
+const HomeNode = Site.route(homeRouter, AppRoute.Home, {
+  surface: { surface: FeedPage, viewer: viewerOf, params: (_, me) => ({ ownerId: me.id }) },
+})
 const OwnerNode = Site.route(ownerRouter, AppRoute.Owner, {
   surface: { surface: OwnerPage, params: route => ({ ownerId: route.ownerId }) },
 })
@@ -85,7 +116,16 @@ const AppSite = Site.make(HomeNode, OwnerNode, ArchiveNode)
 const recording = () => {
   const queries: Array<string> = []
   const layer = Layer.succeed(RemoteClient, {
-    read: () => Effect.die('unused: the query payload carries its fields'),
+    // Only `me` is read by key: the account it names is `u7`.
+    read: batch =>
+      Effect.succeed({
+        settled: [],
+        entities: batch.requests.map(request => ({
+          entity: request.entity,
+          id: request.id,
+          values: { id: 'u7', name: 'Ada' },
+        })),
+      }),
     query: request => {
       const input = request.input as { readonly ownerId: string }
       queries.push(`${request.query}:${input.ownerId}`)
@@ -158,6 +198,26 @@ describe('prefetching a target', () => {
     expect(viaSubset.queries).toEqual(['ProjectsByOwner:old'])
     expect(viaAll.queries).toEqual(viaSubset.queries)
     expect(ArchivePage.projection({ name: 'old' }).read(prepared).projects).toMatchObject({
+      _tag: 'Ready',
+    })
+  })
+})
+
+describe('preparing a page that reads the viewer', () => {
+  it('reads the viewer first, then what the viewer names', async () => {
+    const home = Site.target(HomeNode, {})
+    const active = {
+      session: Surface.at(Session, undefined),
+      ...Site.sourcesFor(AppSite, App.owner, App.model.route, home.route),
+    }
+    const client = recording()
+    const prepared = await Effect.runPromise(
+      Data.satisfy({ route: home.route, remote: Remote.initial }, active).pipe(
+        Effect.provide(client.layer),
+      ),
+    )
+    expect(client.queries).toEqual(['ProjectsByOwner:u7'])
+    expect(FeedPage.projection({ ownerId: 'u7' }).read(prepared).projects).toMatchObject({
       _tag: 'Ready',
     })
   })

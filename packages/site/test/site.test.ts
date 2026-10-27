@@ -447,6 +447,80 @@ describe('route-level Sources', () => {
   })
 })
 
+describe('Surfaces that read the viewer', () => {
+  const Model = Schema.Struct({
+    route: AppRoute,
+    signedIn: Schema.Option(Schema.String),
+  })
+  type Model = typeof Model.Type
+  const Message = defineMessageUnion({ Noted: {} })
+  const App = Surface.application({ Model, Message })
+
+  const Feed = App.surface('Feed', {
+    params: { accountId: Schema.String },
+    model: ({ model }) => Projection.struct({ route: model.route }),
+  })
+  const viewerOf = (model: Model): Option.Option<{ readonly id: string }> =>
+    Option.map(model.signedIn, id => ({ id }))
+  const surfaced = Site.make(
+    Site.route(homeRouter, AppRoute.Home, {
+      surface: { surface: Feed, viewer: viewerOf, params: (_, me) => ({ accountId: me.id }) },
+    }),
+    Site.node(personRouter, AppRoute.Person).surface({
+      surface: Feed,
+      viewer: viewerOf,
+      params: (route, me) => ({ accountId: `${me.id}/${route.personId}` }),
+    }).node,
+  )
+  const sources = Site.sources(surfaced, App.owner, App.model.route)
+  const at = (path: string, signedIn: Option.Option<string>): Model => ({
+    route: routeOf(path),
+    signedIn,
+  })
+  const paramsAt = (tag: string, model: Model) =>
+    Surface.instances(sources[tag]!, model).map(instance => instance.params)
+
+  it('waits for a viewer on its route', () => {
+    expect(paramsAt('Home', at('/', Option.none()))).toEqual([])
+    expect(Option.isNone(sources['Home']!.projectionOf(at('/', Option.none())))).toBe(true)
+  })
+
+  it('reads its params from the route and the viewer once one is known', () => {
+    expect(paramsAt('Home', at('/', Option.some('ada')))).toEqual([{ accountId: 'ada' }])
+    expect(paramsAt('Home', at('/', Option.some('bob')))).toEqual([{ accountId: 'bob' }])
+    expect(paramsAt('Person', at('/people/3', Option.some('ada')))).toEqual([
+      { accountId: 'ada/3' },
+    ])
+    expect(Option.isSome(sources['Home']!.projectionOf(at('/', Option.some('ada'))))).toBe(true)
+  })
+
+  it('stays inactive off its route, whoever is signed in', () => {
+    expect(paramsAt('Home', at('/people/3', Option.some('ada')))).toEqual([])
+    expect(paramsAt('Person', at('/', Option.some('ada')))).toEqual([])
+  })
+
+  it('keeps the route as its activation, as an unviewed node does', () => {
+    expect(sources['Home']!.activation).toEqual({ path: ['route'], tag: 'Home' })
+  })
+
+  it('refuses a surface of another application', () => {
+    const Other = Surface.application({ Model, Message })
+    const Stranger = Site.route(homeRouter, AppRoute.Home, {
+      surface: {
+        surface: Other.surface('Elsewhere', {
+          params: { accountId: Schema.String },
+          model: ({ model }) => ({ route: model.route }),
+        }),
+        viewer: viewerOf,
+        params: (_, me) => ({ accountId: me.id }),
+      },
+    })
+    expect(() => Site.sources(Site.make(Stranger), App.owner, App.model.route)).toThrow(
+      '"Elsewhere" belongs to another application than the site',
+    )
+  })
+})
+
 describe('incremental nodes', () => {
   const Model = Schema.Struct({
     route: AppRoute,

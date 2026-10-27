@@ -681,7 +681,7 @@ export interface ModelPlace<Root> {
 export interface Activation {
   /** The Model path the tagged value lives at, as `ModelRef.dependency` gives it. */
   readonly path: readonly string[]
-  /** The tag that makes the Surface active. */
+  /** The tag the Surface is active under; a Site node reading the viewer waits for one too. */
   readonly tag: string
 }
 
@@ -693,7 +693,10 @@ export interface ActiveSurface<Root, Model = unknown> {
   readonly projectionOf: (model: Root) => Option.Option<Projection<Root, Model>>
   /** The tags of the Messages the Surface lists in `messages`: what it may send. */
   readonly messages: ReadonlyArray<string>
-  /** Present when the Surface was placed with `Surface.when`; absent for `Surface.at`. */
+  /**
+   * Present when a tagged value at a known place activates the Surface
+   * (`Surface.when`, or a Site node); absent for a bare `Surface.at`.
+   */
   readonly activation?: Activation | undefined
 }
 

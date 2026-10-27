@@ -75,6 +75,47 @@ export const BadSurfaced = Site.route(peopleRouter, AppRoute.People, {
   },
 })
 
+// A node's Surface may read the signed-in viewer, typed by what `viewer` gives.
+const Feed = App.surface('Feed', {
+  params: { accountId: Schema.String },
+  model: ({ model }) => Projection.struct({ route: model.route }),
+})
+const viewerOf = (_: Model): Option.Option<{ readonly id: string }> => Option.none()
+export const Viewed = Site.route(homeRouter, AppRoute.Home, {
+  surface: { surface: Feed, viewer: viewerOf, params: (_, me) => ({ accountId: me.id }) },
+})
+export const ViewedInSteps = Site.node(peopleRouter, AppRoute.People).surface({
+  surface: Feed,
+  viewer: viewerOf,
+  params: (route, me) => ({ accountId: Option.getOrElse(route.searchText, () => me.id) }),
+})
+
+export const WrongViewerField = Site.route(homeRouter, AppRoute.Home, {
+  surface: {
+    surface: Feed,
+    viewer: viewerOf,
+    // @ts-expect-error: the viewer has an id, not a handle
+    params: (_, me) => ({ accountId: me.handle }),
+  },
+})
+
+export const NoViewer = Site.route(homeRouter, AppRoute.Home, {
+  surface: {
+    surface: Feed,
+    // @ts-expect-error: no `viewer` is given, so there is none to read
+    params: (_, me) => ({ accountId: me.id }),
+  },
+})
+
+export const ViewerOfAnotherModel = Site.route(homeRouter, AppRoute.Home, {
+  surface: {
+    surface: Feed,
+    // @ts-expect-error: the viewer reads a Model the Surface's application does not have
+    viewer: (model: { readonly session: string }) => Option.some({ id: model.session }),
+    params: (_, me) => ({ accountId: me.id }),
+  },
+})
+
 // A landing takes the node's own params.
 export const BadLanding = Site.route(peopleRouter, AppRoute.People, {
   // @ts-expect-error: a people landing carries searchText, not personId

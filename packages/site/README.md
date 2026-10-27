@@ -245,7 +245,39 @@ const People = Site.route(peopleRouter, AppRoute.People, {
 application is refused here. Each entry answers its own tag only: on a
 person page the person surface is active and the people surface is not.
 `Site.sourcesFor(site, owner, place, target.route)` is the same entries for
-the target's chain only — the route-level Sources prefetch and SSR read. A
+the target's chain only — the route-level Sources prefetch and SSR read.
+
+**Surfaces that read the viewer.** A home feed is keyed by who is signed in
+as well as by the route. Give the node's surface a `viewer`, a function of
+the Model that is `None` until the application knows who is signed in, and
+`params` receives what it gives:
+
+```ts
+const viewerOf = (model: Model): Option.Option<{ readonly id: string }> =>
+  RemoteData.match(Surface.read(Session, model).me, {
+    Initial: () => Option.none(),
+    Loading: () => Option.none(),
+    Ready: me => Option.some(me),
+    Refreshing: me => Option.some(me),
+    Failed: () => Option.none(),
+    NotFound: () => Option.none(),
+  })
+
+const Home = Site.route(homeRouter, AppRoute.Home, {
+  surface: { surface: HomeFeed, viewer: viewerOf, params: (_, me) => ({ ownerId: me.id }) },
+})
+```
+
+The feed is active on its route once `viewerOf` gives a viewer, and inactive
+again when it gives none (a sign-out), so the application writes no gating of
+its own. The node still reports its route as its `activation`. The Site does
+not read the viewer itself: the read that names it (`Session` here) is one of
+the application's active Surfaces, and `Data.satisfy` over both reads it
+first and the feed in a later pass, so a server render draws the feed whole.
+Without `viewer`, `params` has no second argument to read; the type refuses
+one.
+
+A
 layout surface active for several tags is not yet expressible — that is a
 `Surface.whenAny`-shaped extension, deliberately deferred until a real layout
 needs it.

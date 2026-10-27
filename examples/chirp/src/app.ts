@@ -3,7 +3,7 @@
  * the server owns, the compose box and the editor are Submodels placed through
  * Bundle, and the route comes from the site's tree.
  */
-import { Effect, Option, Schema } from 'effect'
+import { Effect, Schema } from 'effect'
 import * as Command from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
 import { load, pushUrl, UrlRequest } from 'foldkit/navigation'
@@ -183,30 +183,9 @@ export const EditorForm = Page.at(Editing, { onOut: PostEditor.onOut })
 
 /** Every read the page makes, each while its route is the page's. */
 export const actives = {
-  home: Surface.at(Home, model =>
-    AppRoute.match(model.route, {
-      Home: () => Option.some(undefined),
-      Profile: () => Option.none(),
-      Status: () => Option.none(),
-      NotFound: () => Option.none(),
-    }),
-  ),
-  profile: Surface.at(Profile, model =>
-    AppRoute.match(model.route, {
-      Home: () => Option.none(),
-      Profile: ({ handle }) => Option.some({ handle }),
-      Status: () => Option.none(),
-      NotFound: () => Option.none(),
-    }),
-  ),
-  status: Surface.at(Status, model =>
-    AppRoute.match(model.route, {
-      Home: () => Option.none(),
-      Profile: () => Option.none(),
-      Status: ({ id }) => Option.some({ id }),
-      NotFound: () => Option.none(),
-    }),
-  ),
+  home: Surface.when(Home, App.model.route, AppRoute.Home, () => undefined),
+  profile: Surface.when(Profile, App.model.route, AppRoute.Profile, ({ handle }) => ({ handle })),
+  status: Surface.when(Status, App.model.route, AppRoute.Status, ({ id }) => ({ id })),
   editor: PostEditor.active,
 }
 

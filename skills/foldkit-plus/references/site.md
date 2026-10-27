@@ -99,6 +99,12 @@ target.route)` is the same entries for the target's chain only — what
 prefetch/SSR read; prepare caller-side with `Data.satisfy({ ...model, route:
 target.route }, active)`. Unknown tags resolve to no Sources. No `SitePlan`
 object yet (chain is `chainOf`; head/access arrive with real consumers).
+A Surface keyed by who is signed in (a home feed) takes `viewer: (model) =>
+Option<Viewer>` beside `params: (route, viewer) => params`; it is active on
+its route only while `viewer` is `Some`, so the app writes no `Surface.at`
+gating. The Site does not fetch the viewer: keep the read that names it (a
+`Session` Surface over `Me`) among the actives, and `Data.satisfy` reads it
+before the feed. Without `viewer`, a second `params` argument does not compile.
 
 **Nested rendering.** `layout: { render: (child, model, h) => ... }` wraps
 everything under the node; `view: { render: (model, h) => ... }` draws its

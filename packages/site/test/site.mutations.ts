@@ -78,7 +78,7 @@ export default [
     edits: [
       {
         file,
-        find: '  if (bound.surface.owner !== owner)\n    throw new Error(`Site: "${bound.surface.name}" belongs to another application than the site`)',
+        find: '  if (surface.owner !== owner)\n    throw new Error(`Site: "${surface.name}" belongs to another application than the site`)',
         replace: '',
       },
     ],
@@ -431,6 +431,51 @@ export default [
         file,
         find: '            ...(arrived === undefined ? [] : [(model: Root) => arrived(model, next)]),',
         replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a node reading the viewer is active before anyone signs in',
+    edits: [
+      {
+        file,
+        find: '      ? Option.map(viewer(model), who => params(route, who))',
+        replace:
+          "      ? Option.orElse(Option.map(viewer(model), who => params(route, who)), () => Option.some(params(route, { id: '' })))",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a node reading the viewer is active on every route',
+    edits: [
+      {
+        file,
+        find: '    return Predicate.isTagged(route, node.tag)\n',
+        replace: '    return true\n',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a node reading the viewer reads the first viewer for good',
+    edits: [
+      {
+        file,
+        find: '      ? Option.map(viewer(model), who => params(route, who))',
+        replace: "      ? Option.map(viewer(model), () => params(route, { id: 'ada' }))",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a node reading the viewer loses its route activation',
+    edits: [
+      {
+        file,
+        find: '  return [node.tag, { ...gated, activation: { path: place.dependency, tag: node.tag } }]',
+        replace: '  return [node.tag, gated]',
       },
     ],
     tests,

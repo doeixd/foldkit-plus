@@ -73,7 +73,22 @@ export interface RouteCase<Route extends { readonly _tag: string }> extends Sche
  */
 export interface BoundSurface {
   readonly surface: SurfaceType<any, any, any, any>
-  readonly params: (route: any) => any
+  /** Who is signed in, read from the Model; the Surface waits for one when given. */
+  readonly viewer?: ((model: any) => Option.Option<any>) | undefined
+  readonly params: (route: any, viewer: any) => any
+}
+
+/**
+ * The Surface a node activates, as `Site.route` and `.surface` take it.
+ * `params` reads the node's route; with `viewer`, it reads the signed-in
+ * viewer too, and the Surface is active only once `viewer` gives one.
+ * Without `viewer`, `Viewer` is `void`, so a `params` reading a viewer it was
+ * never given does not compile.
+ */
+export interface NodeSurface<Route, SRoot, SModel, SMessage, SParams, Viewer> {
+  readonly surface: SurfaceType<SRoot, SModel, SMessage, SParams>
+  readonly viewer?: ((model: SRoot) => Option.Option<Viewer>) | undefined
+  readonly params: (route: Route, viewer: Viewer) => SParams
 }
 
 /**
@@ -292,11 +307,10 @@ export interface NodeBuilder<Route extends { readonly _tag: string }> {
   indexed(indexed: boolean): NodeBuilder<Route>
   /** Who may be shown this node and the nodes below it, and where anyone else goes. */
   access<Who>(access: NodeAccess<Who>): NodeBuilder<Route>
-  /** The Surface this route activates. */
-  surface<SRoot, SModel, SMessage, SParams>(config: {
-    readonly surface: SurfaceType<SRoot, SModel, SMessage, SParams>
-    readonly params: (route: Route) => SParams
-  }): NodeBuilder<Route>
+  /** The Surface this route activates, and the viewer its params read, if any. */
+  surface<SRoot, SModel, SMessage, SParams, Viewer = void>(
+    config: NodeSurface<Route, SRoot, SModel, SMessage, SParams, Viewer>,
+  ): NodeBuilder<Route>
 }
 
 /**
@@ -406,7 +420,11 @@ const takesParams = (node: SiteNode<any>): boolean =>
 const asMount = (node: SiteNode<any> | SiteMount): SiteMount =>
   'children' in node ? node : { node, children: [] }
 
-/** One surfaced node's `Surface.when` over the route place, or nothing surfaceless. */
+/**
+ * One surfaced node's `Surface.when` over the route place, or nothing
+ * surfaceless. A node reading the viewer is active on its route only while
+ * the viewer is known, and keeps the route's tag as its activation.
+ */
 const sourceOf = <Root>(
   node: SiteNode<any>,
   owner: object,
@@ -414,9 +432,18 @@ const sourceOf = <Root>(
 ): [string, ActiveSurface<Root> & SurfaceSource<Root>] | undefined => {
   const bound = node.bound
   if (bound === undefined) return undefined
-  if (bound.surface.owner !== owner)
-    throw new Error(`Site: "${bound.surface.name}" belongs to another application than the site`)
-  return [node.tag, Surface.when(bound.surface, place, node.case, bound.params)]
+  const { surface, viewer, params } = bound
+  if (surface.owner !== owner)
+    throw new Error(`Site: "${surface.name}" belongs to another application than the site`)
+  if (viewer === undefined)
+    return [node.tag, Surface.when(surface, place, node.case, route => params(route, undefined))]
+  const gated = Surface.at(surface, (model: Root) => {
+    const route = place.get(model)
+    return Predicate.isTagged(route, node.tag)
+      ? Option.map(viewer(model), who => params(route, who))
+      : Option.none()
+  })
+  return [node.tag, { ...gated, activation: { path: place.dependency, tag: node.tag } }]
 }
 
 /** The fields a `Meta` gives, so one left `undefined` does not erase an ancestor's. */
@@ -457,7 +484,7 @@ export const Site = {
    * across nodes, or to build incrementally, use the `Site.node` builder
    * instead — these options are sugar over it.
    */
-  route: <Route extends { readonly _tag: string }, SRoot, SModel, SMessage, SParams>(
+  route: <Route extends { readonly _tag: string }, SRoot, SModel, SMessage, SParams, Viewer = void>(
     router: Router<Route>,
     routeCase: RouteCase<Route>,
     options?: {
@@ -471,12 +498,7 @@ export const Site = {
       readonly meta?: NodeMeta<Route> | undefined
       readonly indexed?: boolean | undefined
       readonly access?: NodeAccess<never> | undefined
-      readonly surface?:
-        | {
-            readonly surface: SurfaceType<SRoot, SModel, SMessage, SParams>
-            readonly params: (route: Route) => SParams
-          }
-        | undefined
+      readonly surface?: NodeSurface<Route, SRoot, SModel, SMessage, SParams, Viewer> | undefined
     },
   ): SiteNode<Route> => {
     let built = Site.node(router, routeCase)
@@ -491,7 +513,7 @@ export const Site = {
     if (options?.indexed !== undefined) built = built.indexed(options.indexed)
     if (options?.access !== undefined) built = built.access(options.access)
     if (options?.surface !== undefined)
-      built = built.surface<SRoot, SModel, SMessage, SParams>(options.surface)
+      built = built.surface<SRoot, SModel, SMessage, SParams, Viewer>(options.surface)
     return built.node
   },
 
