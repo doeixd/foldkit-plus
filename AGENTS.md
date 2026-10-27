@@ -801,6 +801,14 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   `@yielded/auth/WorkerdServices` imports a `.wasm` and `node:crypto`, so Node
   cannot load it: keep what a test reads from Node in a module apart, and
   bundle it with `loader: { '.wasm': 'copy' }` and `nodejs_compat`.
+- **Miniflare poisons binding handles on every reload.** A D1 or R2 handle read
+  before `setOptions` or a harness `update` throws "Attempted to use poisoned
+  stub" after it, which is why `examples/cloudflare`'s `WorkersStack.env` is a
+  function: read bindings again after a swap.
+- **Wrangler's test harness drops its whole session when an update fails to
+  start.** A Worker that builds but throws on load takes the runtime down, and
+  the next `listen()` has a new port and empty storage; a reload loop must stop
+  there, not report a swap.
 - **Miniflare with no `compatibilityDate` runs an old runtime.** It lacked
   `URL.canParse`, which the auth resolver needs; at a recent date,
   `streams_enable_constructors` stops workerd starting. Give the local stack
@@ -1687,6 +1695,10 @@ of its own named a form field "fits the Catalog". Read words with
   condition to Vite's defaults brought in `module`, which loaded
   `@opentelemetry/api`'s extensionless ESM build, and `browser`, which gave
   `ws` its stub. `vitest.shared.ts` starts from Vitest's server defaults.
+- **`timeout` from Git Bash leaves a `pnpm` script's grandchildren running on
+  Windows.** A timed-out `pnpm dev` left tsx and workerd up. Kill the tree with
+  `taskkill /T /F`, and remove the `foldkit-workers-*` temp directory a killed
+  stack leaves.
 - **A tab left open across a dev-server restart hangs.** The page waits on the
   old server, and every browser tool times out against it ("page is busy").
   Close it and open a fresh tab rather than retrying.

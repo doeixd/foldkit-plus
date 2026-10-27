@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`examples/cloudflare`'s local stack runs `wrangler.toml`** through Wrangler's
+  test harness, so bindings, the compatibility date and flags, `.dev.vars` and
+  D1 migrations are the ones `wrangler deploy` uses. It refuses a date the
+  installed workerd does not support, a config without `no_bundle`, and
+  `[env.*]` sections. `pnpm dev` serves the page and swaps the Worker in place
+  on every change to what it bundles, keeping D1, R2 and Durable Object
+  storage (#253).
 - **A mutation's answer carries what the page shows of every row it names.**
   `Data.mutate` sends what the active Surfaces read of each entity (`shown`,
   bounded), and `RemoteServer.handlers` reads those fields of each row the
