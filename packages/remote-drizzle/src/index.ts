@@ -26,8 +26,8 @@ import {
   type SQL,
   type Table,
 } from 'drizzle-orm'
-import { getTableConfig as getPgTableConfig, PgDialect, type PgTable } from 'drizzle-orm/pg-core'
-import { SQLiteDialect, SQLiteTable } from 'drizzle-orm/sqlite-core'
+import { getTableConfig as getPgTableConfig, type PgTable } from 'drizzle-orm/pg-core'
+import { SQLiteTable } from 'drizzle-orm/sqlite-core'
 import { Array as Arr, Clock, Effect, Match, Option, Schema } from 'effect'
 import {
   Entity as DomainEntity,
@@ -87,10 +87,12 @@ import {
   type DrizzleWrites,
 } from './database.js'
 import { toQueryPage } from './page.js'
+import { quoted } from './quoted.js'
 import { buildPage } from './pagination.js'
 import { shapeWindow } from './window.js'
 
 export * from './bind.js'
+export { checkConstraints, entityChecks, type EntityCheckOptions } from './checks.js'
 export * from './compile.js'
 export * from './binding.js'
 export * from './columns.js'
@@ -880,48 +882,6 @@ const sameStored = (left: unknown, right: unknown): boolean =>
  * `visible` rule reads back through it (`read`), so an answer shows its writer
  * only a row they may read.
  */
-/** A name as SQL quotes it, its own quotes doubled. */
-const quoted = (name: string): string => `"${name.replaceAll('"', '""')}"`
-
-/**
- * Each of the binding's invariants as a `CHECK` constraint, for the migration
- * that makes the table: what holds against every write, a handler's and raw
- * SQL's too, which the writer's own statement does not reach. Each is
- * `constraint "<table>_<id>" check ((…) is true)`, since a plain check passes a
- * row its condition calls unknown (a null) and an invariant does not. The
- * values it compares are written into the SQL, which a constraint needs.
- *
- * ```ts
- * for (const { constraint } of invariantChecks(Db.Stock)) {
- *   await pglite.exec(`alter table stock add ${constraint}`) // Postgres
- * }
- * // SQLite adds none to a table: write each in its `create table`.
- * ```
- *
- * Refuses, by name, an invariant the dialect cannot compile.
- */
-export const invariantChecks = (
-  binding: AnyEntityBinding,
-): ReadonlyArray<{ readonly name: string; readonly constraint: string }> => {
-  const dialect = is(binding.table, SQLiteTable) ? new SQLiteDialect() : new PgDialect()
-  // A constraint sees one row, so only a state invariant (reading no row before) is one.
-  return binding.invariants
-    .filter(held => !DomainEntity.readsBefore(held))
-    .map(held => {
-      const what = `${binding.name}'s invariant "${held.id}"`
-      const condition = sql.join(
-        [...compilePredicates([held.predicate], binding, {}, what)],
-        sql` and `,
-      )
-      const query = dialect.sqlToQuery(sql`(${condition}) is true`.inlineParams())
-      if (query.params.length > 0) {
-        throw new QueryCompileError(`${what} compares a value a constraint cannot hold`)
-      }
-      const name = `${getTableName(binding.table)}_${held.id}`
-      return { name, constraint: `constraint ${quoted(name)} check (${query.sql})` }
-    })
-}
-
 /**
  * The SQL that makes a database move `binding`'s revision on every update that
  * does not move it itself: a handler's, `applyEdits`', raw SQL. A guarded

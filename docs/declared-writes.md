@@ -249,8 +249,9 @@ const Stock = StockFields.pipe(
 - **The same declaration, everywhere it can be judged.** `Entity.judge(entity,
   { after })` is the reference; `Entity.check(entity)` is a Schema check; a form over
   an input that sets every field one reads judges it on submit and shows the
-  message beside its path; `invariantChecks(binding)` gives each state invariant as a `CHECK`
-  constraint, which holds against handlers and raw SQL too.
+  message beside its path; `checkConstraints(binding)` (or `entityChecks` in the Drizzle table)
+  gives each state invariant as a `CHECK` constraint, beside the field rules SQL holds exactly,
+  which hold against handlers and raw SQL too.
 
 ### What every change holds: a transition invariant
 
@@ -281,8 +282,8 @@ increments its column moved, and any other unchanged. Every update is judged;
 a create has no row before and a delete none after. It is refused as `Invalid`
 with its id, and like every invariant it is never a guard rule, so no one
 is excused it. A form has no row before, so it judges none; Crud shows the
-server's refusal beside its path. A `CHECK` sees one row, so `invariantChecks`
-leaves it out.
+server's refusal beside its path. A `CHECK` sees one row, so `checkConstraints`
+leaves it out, and lists it under `serverOnly`.
 
 All three kinds must hold for a write to land:
 
@@ -421,7 +422,7 @@ change.
 | | SQLite | Postgres | D1 |
 | --- | --- | --- | --- |
 | Revision, `when`, increment, invariant | one statement | one statement | one statement |
-| `invariantChecks` | in `create table` | `alter table … add` | in `create table` |
+| `checkConstraints`, `entityChecks` | in `create table` | `alter table … add` | in `create table` |
 | Ledger | a synchronous transaction | an awaited transaction; the primary key settles a race | refused: D1 runs no `BEGIN` |
 | `revisionTrigger` | yes | yes | yes (SQLite) |
 

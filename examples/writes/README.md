@@ -103,7 +103,7 @@ row: {"name":"Bolt, M6","status":"published","stock":10,"reserved":2,"revision":
   reserved. The writer judges the invariant over the row the sale would leave
   (`reserved <= stock + -9`) in the same statement, and refuses it as `Invalid`,
   naming `reservedWithinStock` and its path, `reserved`, for a form to show it
-  there. The table also holds it as a `CHECK` (`invariantChecks`), so raw SQL
+  there. The table also holds it as a `CHECK` (`checkConstraints`), so raw SQL
   cannot break it either. The demo tells which one a refusal names with
   `Refusal.isInvalidBy(refusal, reservedWithinStock)`: `domain.ts` exports each
   invariant as declared, so no id is spelled twice.

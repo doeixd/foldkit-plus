@@ -16,7 +16,13 @@ import { Entity, Expr, Write } from 'foldkit-entity'
 import { Mutation } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { bind, databaseLayer, invariantChecks, writer, type DrizzleDatabase } from '../src/index.js'
+import {
+  bind,
+  databaseLayer,
+  checkConstraints,
+  writer,
+  type DrizzleDatabase,
+} from '../src/index.js'
 
 const StockFields = Entity.define(
   'Stock',
@@ -329,12 +335,12 @@ describe('A declared write over an Entity with invariants', () => {
   })
 })
 
-describe('invariantChecks', () => {
+describe('checkConstraints over invariants', () => {
   const columns =
     'id text primary key, status text not null, quantity integer not null, reserved integer, shipped_to text, revision integer not null'
 
   it('makes each a CHECK constraint SQLite keeps against raw SQL, a null failing it', () => {
-    const checks = invariantChecks(bindStock(sqliteStock).Stock)
+    const checks = checkConstraints(bindStock(sqliteStock).Stock).constraints
     expect(checks.map(check => check.name)).toEqual([
       'stock_reservedWithinQuantity',
       'stock_shippedHasAddress',
@@ -353,7 +359,7 @@ describe('invariantChecks', () => {
 
   it('makes each one Postgres adds to a table and keeps against raw SQL', async () => {
     await pglite.exec(`drop table if exists stock; create table stock (${columns})`)
-    for (const { constraint } of invariantChecks(bindStock(pgStock).Stock)) {
+    for (const { constraint } of checkConstraints(bindStock(pgStock).Stock).constraints) {
       await pglite.exec(`alter table stock add ${constraint}`)
     }
     await pglite.exec("insert into stock values ('s1', 'packed', 10, 5, null, 1)")

@@ -4,6 +4,7 @@
  * checks that a test fails for every one.
  */
 const drizzle = '../src/index.ts'
+const checks = '../src/checks.ts'
 const tests = [
   'packages/remote-drizzle/test/invariant.test.ts',
   'packages/remote-drizzle/test/transition.test.ts',
@@ -84,31 +85,31 @@ export default [
   ),
   edit(
     'a constraint passes a row its condition calls unknown',
-    drizzle,
-    'sql`(${condition}) is true`.inlineParams()',
-    'sql`(${condition})`.inlineParams()',
+    checks,
+    'sql`(${condition}) is true`',
+    'sql`(${condition})`',
   ),
   edit(
     'a constraint is sent its values as parameters',
-    drizzle,
-    'sql`(${condition}) is true`.inlineParams()',
-    'sql`(${condition}) is true`',
+    checks,
+    'condition.inlineParams(),',
+    'condition,',
   ),
   {
     ...edit(
       'a constraint holding a parameter is taken',
-      drizzle,
-      'if (query.params.length > 0) {',
-      'if (false) {',
+      checks,
+      'if (query.params.length > 0)',
+      'if (false)',
     ),
     survives:
       'Drizzle inlines every value the compiler passes it, so no test reaches the guard; it keeps a value Drizzle did not inline from becoming a silent `?` in a constraint',
   },
   edit(
     'a transition invariant becomes a constraint',
-    drizzle,
-    '.filter(held => !DomainEntity.readsBefore(held))',
-    '.filter(() => true)',
+    checks,
+    'if (Domain.Entity.readsBefore(held)) {',
+    'if (false) {',
   ),
   edit(
     'a retry is answered with every field the miss read',

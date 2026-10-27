@@ -277,7 +277,7 @@ const Restock = Write.update(
   `Write.apply(row, bound, { operators })` is the row a write leaves (a null under an amount stays null),
   which guards judge, writers explain misses by, and clients predict.
 - **An invariant's lifecycle is what it reads.** `after` only: a state invariant, judged on every create
-  and update, and a `CHECK` constraint (`invariantChecks`). `before` too: a transition invariant, judged
+  and update, and a `CHECK` constraint (`checkConstraints`, `entityChecks`). `before` too: a transition invariant, judged
   on updates only. `Entity.readsBefore(invariant)` tells which. One reading nothing of `after` is refused
   where it is declared: which rows a write may start from is its `when`.
 - **Strictly true.** A null fails one, as SQL's unknown drops a row from a `WHERE`; write
@@ -502,7 +502,8 @@ Query.dependencies(recent)     // every field it reads, also split into `predica
 - The identifier is the field named `id`, text; brand it to type refs and inputs (Typed ids).
 - An invariant is not a check in `update`: one only `update` enforces is a UI rule, which
   a second device, an agent, a handler or raw SQL passes. Declare it on the Entity, and
-  migrate `invariantChecks(binding)` so the database holds it too.
+  migrate `checkConstraints(binding)` (or put `entityChecks(Entity, t)` in the Drizzle table) so
+  the database holds it, and the field rules SQL can say exactly, too.
 - Inside `Entity.invariant`, read the row after through `after`. A bare `Product.fields.stock`
   reads the row before, and one reading nothing of `after` is refused where it is declared.
 - An increment with neither `expect` nor a ledger recording its operation (a ledgered

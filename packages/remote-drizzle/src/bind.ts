@@ -8,6 +8,7 @@
  */
 import type { AnyColumn, SQL, Table as DrizzleTable } from 'drizzle-orm'
 import { getTableColumns } from 'drizzle-orm'
+import { holdsChecks } from './checks.js'
 import { operatorsFrom, type BindingOperators } from './operators.js'
 import { Option, Schema, SchemaAST } from 'effect'
 import { SchemaShape } from 'foldkit-entity'
@@ -205,7 +206,8 @@ const checkColumn = (name: string, field: string, schema: Schema.Top, column: An
     fail(
       `field "${field}" on entity "${name}" is a ${holds}, but column "${column.name}" holds a ${stored}`,
     )
-  const admits = Schema.is(Schema.toType(schema) as Schema.Codec<unknown>)
+  // The column holds the encoded value: an `Option` field stores its none as a null.
+  const admits = Schema.is(Schema.toEncoded(schema) as Schema.Codec<unknown>)
   if (column.notNull === false && !admits(null) && !admits(undefined))
     fail(
       `field "${field}" on entity "${name}" sits on nullable column "${column.name}"; let its schema admit null, or make the column not null`,
@@ -336,6 +338,7 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
     ))
       if (member._tag === 'Field')
         checkColumn(name, field, member.schema as Schema.Top, columns[field]!)
+    holdsChecks(entity, config.table, columns, operators)
 
     const relations = Object.create(null) as Record<string, RelationBinding>
     const members: Readonly<Record<string, Domain.EntityMember>> = entity.relations

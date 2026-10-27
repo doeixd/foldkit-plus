@@ -8,7 +8,7 @@ import { Option } from 'effect'
 import { GuardDrizzle } from 'foldkit-guard/drizzle'
 import { GuardServer } from 'foldkit-guard/server'
 import { Remote } from 'foldkit-remote'
-import { bind, invariantChecks, writer, type DrizzleDatabase } from 'foldkit-remote-drizzle'
+import { bind, checkConstraints, writer, type DrizzleDatabase } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import { Product, Publish, Rename, Restock, Revert, Sell, Shop, type User } from './domain.js'
 
@@ -43,14 +43,14 @@ const Db = bind(
   { Product: { table: products, visible: GuardDrizzle.visible(Policy, [Product]).Product } },
 )
 
-// The invariants as constraints too, so raw SQL is held to them as the writer is.
+// The domain's rules as constraints too, so raw SQL is held to them as the writer is.
 export const schema = `
   create table products (
     id text primary key, owner_id text not null, name text not null,
     status text not null, stock integer not null, reserved integer not null,
     revision integer not null,
-    ${invariantChecks(Db.Product)
-      .map(check => check.constraint)
+    ${checkConstraints(Db.Product)
+      .constraints.map(check => check.constraint)
       .join(',\n    ')}
   );
   create table write_ledger (

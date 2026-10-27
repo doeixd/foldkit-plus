@@ -14,6 +14,7 @@ import type { AnyEntityBinding } from './binding.js'
 import { idColumn } from './columns.js'
 import { DrizzleDatabase } from './database.js'
 import { runStatement } from './index.js'
+import { quoted } from './quoted.js'
 
 type LivePatch = Schema.Schema.Type<typeof LiveChange>
 
@@ -373,8 +374,6 @@ export const pollLive = <P, R>(
 
 /** The log table `rowChangeLog` writes for `binding`, and `rowLog` reads. */
 const logTableOf = (binding: AnyEntityBinding) => `${getTableName(binding.table)}_row_changes`
-
-const quoted = (name: string): string => `"${name.replaceAll('"', '""')}"`
 
 /**
  * The SQLite statements (D1's dialect) that keep a log of the rows each write

@@ -15,7 +15,13 @@ import { Entity, Expr, Write } from 'foldkit-entity'
 import { Mutation } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { bind, databaseLayer, invariantChecks, writer, type DrizzleDatabase } from '../src/index.js'
+import {
+  bind,
+  databaseLayer,
+  checkConstraints,
+  writer,
+  type DrizzleDatabase,
+} from '../src/index.js'
 
 const Order = Entity.define(
   'Order',
@@ -249,7 +255,13 @@ describe('A writer over an Entity with transition invariants', () => {
     expect(() => writer(Db.Order)).toThrow(`Order's invariant "notNul"`)
   })
 
-  it('makes no constraint of one, which a CHECK seeing one row cannot hold', () => {
-    expect(invariantChecks(bindOrders(sqliteOrders).Order)).toEqual([])
+  it('makes no constraint of one, which a CHECK seeing one row cannot hold, and says so', () => {
+    const { constraints, serverOnly } = checkConstraints(bindOrders(sqliteOrders).Order)
+    expect(constraints.map(check => check.name)).toEqual(['orders_status_check'])
+    expect(serverOnly).toEqual(
+      ['shippedStaysShipped', 'totalNeverFalls', 'shipsWithTotal'].map(
+        id => `Order's invariant "${id}": reads the row before the write`,
+      ),
+    )
   })
 })

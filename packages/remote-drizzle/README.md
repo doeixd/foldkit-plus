@@ -961,28 +961,59 @@ is unchanged after, and one it increments is its column moved. A miss that
 breaks one is refused as `Invalid` too. A create and a delete do not judge it,
 and it is not a constraint: a `CHECK` sees one row.
 
-To hold an invariant against those too, install it as a constraint.
-`invariantChecks(binding)` gives each state invariant as `constraint "<table>_<id>" check ((…) is
-true)`, its values written into the SQL: `is true`, because a plain `check`
-passes a row its condition calls unknown, and an invariant does not.
+To hold an invariant against those too, install it as a constraint, with the
+field rules beside it.
+
+### CHECKs: the database holds the domain's rules
+
+The Entity owns which values a field admits and which rows are valid together;
+the table owns how they are stored. So a table's CHECK constraints are compiled
+from the Entity, never written again in SQL, while its columns stay yours and
+`bind` holds each to its field (kind, nullability). Two routes, one derivation:
 
 ```ts
-for (const { constraint } of invariantChecks(Db.Stock)) {
-  await pglite.exec(`alter table stock add ${constraint}`)
-}
+// drizzle-kit writes the migration: the table holds the CHECKs.
+const posts = sqliteTable('posts', { … }, t => entityChecks(Post, t))
+
+// A migration written in SQL: the same CHECKs as clauses.
+const { constraints, serverOnly } = checkConstraints(Db.Post)
+sqlite.exec(`create table posts (…, ${constraints.map(c => c.constraint).join(', ')})`)
 ```
+
+`entityChecks` takes the Entity, not the binding, because Drizzle reads the
+callback lazily and the binding is made from the table. Each column with rules
+gets one `constraint "<table>_<column>_check"`; each state invariant gets
+`constraint "<table>_<id>" check ((…) is true)` (`is true`, because a plain
+check passes a row its condition calls unknown, and an invariant does not).
+
+A rule compiles only where SQL says it exactly: for every value of the field's
+kind, the database accepts it when the Schema does and refuses it when the
+Schema does (tested on SQLite and Postgres). That covers lengths in code points
+(`isMaxCodePoints` and its kin, and `isNonEmpty`), a whole-string pattern of one
+ASCII bracket (`/^[a-z0-9_]{3,15}$/`, with unit lengths beside it), numeric
+bounds, and literals. Everything else is in `serverOnly`, a sentence per rule,
+and is held by the server's writes alone: a length in UTF-16 units with no
+ASCII pattern (`isMaxLength`: SQL counts code points), a custom filter, a rule
+made after a transformation, a transition invariant. One the dialect cannot
+compile, such as an invariant over an operator with no SQL, is refused by name.
+
+`bind` compares a table's own Drizzle CHECKs with the derived ones and refuses
+one that says another rule, a column's check whose rules are gone, or a derived
+check missing beside the others. A table holding none of them is not checked.
 
 - **Postgres** adds one to a table (`alter table … add`). A table already
   holding rows that break it refuses the constraint; add it `not valid`, repair
   the rows, then `alter table … validate constraint "<name>"`.
-- **SQLite** cannot add a constraint to a table: write each in the table's
-  `create table`, and for an existing table rebuild it (create the new one,
-  copy the rows, drop the old, rename), which fails on a row that breaks one.
-- Changing an invariant is a migration too: drop the constraint by its name and
-  add the new one.
+- **SQLite** cannot add or change a constraint on a table: write each in the
+  table's `create table`, and for an existing table rebuild it (create the new
+  one, copy the rows, drop the old, rename, and recreate its triggers), which
+  fails on a row that breaks one.
+- Changing a rule is a migration too: drop the constraint by its name and add
+  the new one.
 - The writer still judges first, so a declared write keeps its typed `Invalid`;
   a handler or raw SQL meeting a constraint fails as a database error.
-- One the dialect cannot compile is refused, by name.
+
+Why rules are derived and tables are not: [the design](../../docs/design/259-tables-from-entities-DESIGN.md).
 
 ### A ledger: a retry is never applied twice
 
