@@ -13,9 +13,10 @@
  * its route, builds the address back, and says what each page tells a search
  * engine and a link preview, from the page's own data.
  */
-import { Array as Arr, Effect, Equal, Match, Option, Schema } from 'effect'
+import { Array as Arr, Effect, Match, Option, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Cms } from 'foldkit-cms'
+import { pointedLinks } from 'foldkit-primitives/dom'
 import type { Document } from 'foldkit-composition'
 import { QueryBlock } from 'foldkit-composition/remote'
 import { Entity } from 'foldkit-entity'
@@ -52,7 +53,7 @@ export const Message = defineMessageUnion({
   ...Remote.messages,
   UrlChanged: { url: Url },
   UrlRequested: { request: Navigation.UrlRequest },
-  /** The reader is over, or on, a link: where they may go next. */
+  /** The reader means to follow a link: `Site.routing` reads its page ahead. */
   PointedAtLink: { url: Url },
   /** Nothing happened. */
   Ticked: {},
@@ -254,9 +255,10 @@ export const focusMain = (): void => {
 /**
  * Links and address changes: a link the tree holds is a route change, any
  * other a full load (the studio is another application), and a new route
- * moves focus to what it drew.
+ * moves focus to what it drew. A link the reader means to follow is read
+ * ahead, so its page draws at once if they go.
  */
-const Routing = Site.routing<Model, Message, Route>({
+const Routing = Site.routing<Model, Message, Route, RemoteClient>({
   site: SiteMap,
   owner: App.owner,
   route: {
@@ -273,6 +275,11 @@ const Routing = Site.routing<Model, Message, Route>({
       { name: 'FocusMain', effect: Effect.sync(focusMain).pipe(Effect.as(Message.FocusedMain())) },
     ],
   }),
+  preload: {
+    links: pointedLinks(),
+    intended: Message.PointedAtLink,
+    read: there => Data.preload(there, actives),
+  },
 })
 
 const Parent = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
@@ -286,15 +293,7 @@ export const update = placements.update((model, message) => {
     // Site.routing's, which answered them.
     UrlChanged: () => ({ model }),
     UrlRequested: () => ({ model }),
-    // Reads what the page there will read, so it draws at once if the reader goes.
-    PointedAtLink: ({ url }) =>
-      Option.match(Site.routeAt(SiteMap, url), {
-        onNone: () => ({ model }),
-        onSome: route =>
-          Equal.equals(route, model.route)
-            ? { model }
-            : { model, commands: [Data.preload({ ...model, route }, actives)] },
-      }),
+    PointedAtLink: () => ({ model }),
     Ticked: () => ({ model }),
     FocusedMain: () => ({ model }),
   })

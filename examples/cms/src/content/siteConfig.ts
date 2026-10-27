@@ -2,9 +2,9 @@
  * The site's runtime config: what the browser runs, and what the build renders
  * each page with (`prerender.ts`), so the two cannot draw different pages.
  */
-import { Stream, type Layer } from 'effect'
+import type { Layer } from 'effect'
 import * as Subscription from 'foldkit/subscription'
-import { keepScroll, pointedLinks } from 'foldkit-primitives/dom'
+import { keepScroll } from 'foldkit-primitives/dom'
 import type { RemoteClient } from 'foldkit-remote'
 import { FOLDKIT_APP_ATTRIBUTE } from 'foldkit-ssr/client'
 import type { UrlRequest } from 'foldkit/navigation'
@@ -32,10 +32,6 @@ export const siteConfig = <Container extends HTMLElement | null>(options: {
     subscriptions: Subscription.make<Site.Model, Site.Message>()(() => ({
       // The window's scroll across the site's navigations, kept while it runs.
       scroll: Subscription.persistentEntry(keepScroll()),
-      // Where the reader may go next, read ahead (`PointedAtLink`).
-      pointing: Subscription.persistentEntry(
-        Stream.map(pointedLinks(), url => Site.Message.PointedAtLink({ url })),
-      ),
     })),
     resources: options.resources,
   })

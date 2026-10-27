@@ -194,7 +194,7 @@ them, so the server writes it into the page and the browser keeps it in step.
 ### The wiring: one `update`, three owners
 
 ```ts
-const Routing = Site.routing<Model, Message, AppRoute>({
+const Routing = Site.routing<Model, Message, AppRoute, RemoteClient>({
   site: AppSite,
   owner: App.owner,
   route: {
@@ -205,6 +205,12 @@ const Routing = Site.routing<Model, Message, AppRoute>({
   parse: routeOf,
   tags: { clicked: 'ClickedLink', changed: 'ChangedUrl' },
   completed: Message.CompletedNavigation,
+  // The reader means to follow a link: read what that page will read.
+  preload: {
+    links: pointedLinks(),
+    intended: Message.PointedAtLink,
+    read: there => Data.preload(there, sources),
+  },
 })
 
 const Parent = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
@@ -216,15 +222,7 @@ const update = placements.update((model, message) => {
     ClickedLink: () => ({ model }),
     ChangedUrl: () => ({ model }),
     CompletedNavigation: () => ({ model }),
-    // The reader may go there next: read what that page will read.
-    PointedAtLink: ({ url }) =>
-      Option.match(Site.routeAt(AppSite, url), {
-        onNone: () => ({ model }),
-        onSome: route =>
-          Equal.equals(route, model.route)
-            ? { model }
-            : { model, commands: [Data.preload({ ...model, route }, sources)] },
-      }),
+    PointedAtLink: () => ({ model }),
   })
 })
 
@@ -239,10 +237,13 @@ const initial = (url: Url) => placements.initial({ route: routeOf(url), remote: 
   a push or a replace from `.history`. Any other link loads the page in full.
 - **The URL change** goes to `Site.routing`, which sets the route field. It
   returns the same Model when the address is the one already shown.
+- **`PointedAtLink`** goes to `Site.routing` too, which reads the page ahead
+  (below).
 
-The application's own `update` keeps only what is its own: here, reading
-ahead. `withServices<RemoteClient>()` states that the assembled program needs a
-client, which the runtime provides as a Layer.
+The application's own `update` answers none of these, and keeps only what is
+its own. `withServices<RemoteClient>()` states that the assembled program needs
+a client, which the runtime provides as a Layer; the routing's `read` needs it
+too, so `Site.routing` names it fourth.
 
 Nothing here connects a route change to a fetch. The route field changes,
 `OwnerPage` is active on that route, and Remote sees what the store lacks.
@@ -429,19 +430,23 @@ the server above renders it, and the sitemap is written from the same list.
 
 ## Reading ahead: preload is the same composition
 
-Look again at `PointedAtLink` in `update`. When the reader points at a link,
-`Site.routeAt` says whether this application draws that address. If it does,
-`Data.preload({ ...model, route }, sources)` reads what the Model would need
-if the route were already there.
+Look again at `preload` in `Site.routing`. `pointedLinks()` from
+`foldkit-primitives/dom` says which same-origin link the reader means to
+follow: one a mouse or pen rests on, or Tab stops on, for 50 ms (leaving
+first cancels it, so a pointer sweeping the list of owners reads one page),
+or one a finger lands on, at once. The routing sends `PointedAtLink` for it
+and answers that Message itself. When `Site.routeAt` says this application
+draws the address, and it is not the route shown, `read` gets the Model with
+the route set there, and `Data.preload(there, sources)` reads what that Model
+would need.
 
-It is `Data.satisfy` as a Command. Its answers arrive as one `Preloaded`
-Message, reduced into the Model as it is by then, so nothing that happened
-meanwhile is undone. The route does not change; the store just holds the
-projects already. When the click comes, the page draws `Ready` at once.
-
-`pointedLinks()` from `foldkit-primitives/dom` sends the Message, as the
-CMS's `siteConfig.ts` does. There is no loader cache or preload lane: what
-was read waits in the same store as everything else.
+`Data.preload` is `Data.satisfy` as a Command. Its answers arrive as one
+`Preloaded` Message, reduced into the Model as it is by then, so nothing that
+happened meanwhile is undone. The route does not change, and the routing
+returns the Model it was given; the store just holds the projects already.
+When the click comes, the page draws `Ready` at once. There is no loader
+cache, preload lane or "intended route" field: what was read waits in the
+same store as everything else, until retention next changes.
 
 ## Why it is shaped this way
 

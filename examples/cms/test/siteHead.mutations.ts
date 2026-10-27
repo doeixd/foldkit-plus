@@ -16,31 +16,8 @@ export default [
     edits: [
       {
         file: app,
-        find: ': { model, commands: [Data.preload({ ...model, route }, actives)] },',
-        replace: ': { model },',
-      },
-    ],
-    tests: head,
-  },
-  {
-    name: 'a link to another application is read ahead too',
-    edits: [
-      {
-        file: app,
-        find: '      Option.match(Site.routeAt(SiteMap, url), {\n        onNone: () => ({ model }),',
-        replace:
-          '      Option.match(Option.some(routeOf(url)), {\n        onNone: () => ({ model }),',
-      },
-    ],
-    tests: head,
-  },
-  {
-    name: 'the page the reader is on is read ahead again',
-    edits: [
-      {
-        file: app,
-        find: '          Equal.equals(route, model.route)\n            ? { model }',
-        replace: '          false\n            ? { model }',
+        find: 'read: there => Data.preload(there, actives),',
+        replace: 'read: there => Data.preload(there, {}),',
       },
     ],
     tests: head,

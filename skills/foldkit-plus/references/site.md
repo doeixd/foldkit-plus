@@ -89,6 +89,16 @@ per `historyOf`, every other link loads (another document), URL changes set the 
 nothing on an echo). The app's own update guards with `Routing.reduces`.
 Needs a completion variant and a structural route field (`{ dependency, get,
 set }` — a union field is a union of refs, no single `ModelRef` accepts it).
+To read a page ahead when the reader means to follow a link, add
+`preload: { links: pointedLinks(), intended: Message.PointedAtLink, read:
+there => Data.preload(there, actives) }` (`pointedLinks` from
+`foldkit-primitives/dom`; `PointedAtLink: { url: Url }` in the app's union)
+and name the services: `Site.routing<Model, Message, Route, RemoteClient>`.
+A link counts after a hover or focus rests 50 ms on it, and at once for a
+finger. The routing claims `intended`, skips addresses the tree does not hold
+and the route shown, and hands `read` the Model with the route set; the Model
+itself is unchanged, and the reads land as Remote's `Preloaded`. Do not add
+an "intended route" Model field or extra `Surface.at` entries for it.
 
 **Attached Surfaces.** `surface: { surface, params: route => params }` on a
 node; `Site.sources(site, App.owner, App.model.route)` is each surfaced node
