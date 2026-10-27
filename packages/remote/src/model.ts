@@ -57,6 +57,7 @@ import { isRefPage, targetsOf, type RefPageValue } from './relation.js'
 import { gc, reachable, recentRoots, type Retained, type RetentionRoots } from './retain.js'
 import { RemotePersistence, type MergePolicy } from './persistence.js'
 import {
+  AnswerRead,
   NormalizedEntity,
   ReadBatchResult,
   ReadRequest,
@@ -346,6 +347,11 @@ export type RemoteMessage =
       readonly connections?: ReadonlyArray<ConnectionChange> | undefined
       /** Entities the mutation deleted: tombstoned, which hides them from every connection. */
       readonly deleted?: ReadonlyArray<{ readonly entity: string; readonly id: string }> | undefined
+      /**
+       * What the answer read of the rows it names, for the fields the request
+       * said it shows: written as a read is, in the same reduction.
+       */
+      readonly read?: Schema.Schema.Type<typeof AnswerRead> | undefined
       /** Injected clock reading of the answer: how fresh the written entities are. */
       readonly now: number
     }
@@ -466,6 +472,7 @@ export const remoteMessageCases = {
     deleted: Schema.optional(
       Schema.Array(Schema.Struct({ entity: Schema.String, id: Schema.String })),
     ),
+    read: Schema.optional(AnswerRead),
     now: Schema.Number,
   },
   MutationFailed: { requestId: Schema.String, error: remoteErrorSchema, operation: Schema.String },
@@ -1050,12 +1057,24 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
         message.requestId,
         message,
       )
+      // What the answer read lands with it, so no frame shows the row without
+      // a field the layer showed. A repeated answer writes nothing, read included.
+      const read =
+        message.read === undefined || model.mutations.applied.has(message.requestId)
+          ? undefined
+          : message.read
       return {
         ...model,
-        entities: settled.store,
+        entities:
+          read === undefined
+            ? settled.store
+            : writeRead(settled.store, read.requests, read.result, message.now),
         mutations: settled.state,
         optimistic: settled.optimistic,
         failures: withoutFieldFailures(model.failures, [
+          ...(read === undefined
+            ? []
+            : [...fieldMarks(read.requests), ...patchedMarks(read.result.entities)]),
           ...patchedMarks(message.entities),
           ...(message.deleted ?? []).flatMap(ref =>
             entityFailureMarks(model.failures, entityKey(ref.entity, ref.id)),

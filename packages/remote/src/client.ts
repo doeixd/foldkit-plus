@@ -3,7 +3,7 @@
  * built from, the wire-to-client reconstructions, and the mutation call.
  */
 import { Context, Effect, Layer, Schema, Stream } from 'effect'
-import type { Requirement } from './requirement.js'
+import type { RelationRequirement, Requirement } from './requirement.js'
 import { coalesceQueries, coalesceReads, type CoalesceOptions } from './coalesce.js'
 import type { LiveCursor, LiveEvent } from './live.js'
 import type { MutationDescriptor } from './mutation.js'
@@ -205,9 +205,11 @@ export const mutateRemote = Effect.fn('Remote.mutate')(function* <
      * minted here when not given, so a retry must pass the one first sent.
      */
     readonly operation?: string | undefined
+    /** What the client shows of each entity's rows, for the answer to carry (`Data.mutate` sends it). */
+    readonly shown?: ReadonlyArray<RelationRequirement> | undefined
   } = {},
 ) {
-  const { keys } = options
+  const { keys, shown } = options
   const operation = options.operation ?? (yield* Effect.sync(mintOperation))
   yield* Effect.annotateCurrentSpan({ mutation: mutation.name, requestId, operation })
   const client = yield* RemoteClient
@@ -222,6 +224,7 @@ export const mutateRemote = Effect.fn('Remote.mutate')(function* <
     mutation: mutation.name,
     input: encoded,
     ...(keys === undefined ? {} : { keys }),
+    ...(shown === undefined || shown.length === 0 ? {} : { shown }),
   })
   const output = yield* Schema.decodeUnknownEffect(mutation.Output)(result.output).pipe(
     Effect.catchTag('SchemaError', error =>
@@ -233,5 +236,6 @@ export const mutateRemote = Effect.fn('Remote.mutate')(function* <
     entities: result.entities,
     connections: (result.connections ?? []).map(connectionChangeOf),
     deleted: result.deleted ?? [],
+    read: result.read,
   }
 })

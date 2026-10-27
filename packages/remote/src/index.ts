@@ -175,6 +175,7 @@ import {
 } from './requirement.js'
 import { markAll, resumePart } from './resume.js'
 import { answerGaps } from './answerGaps.js'
+import { shownOf } from './shown.js'
 
 import { http as httpClient, json as jsonClient } from './json.js'
 import { httpWithLive as httpWithLiveClient } from './sse.js'
@@ -2757,6 +2758,26 @@ const messagesAs = <AppModel, ParentMessage>(
       Stream.map(entry.dependenciesToStream(dependencies, read), toParentMessage),
   }))
 
+type Answer = Extract<RemoteMessage, { readonly _tag: 'MutationSucceeded' }>
+
+/**
+ * An answer with what it read folded into its patches, one per row, so a list
+ * is placed by every value the answer wrote, a derived field it read included.
+ */
+const withAnswerRead = (answer: Answer): Answer => {
+  if (answer.read === undefined) return answer
+  const rows = new Map<string, NormalizedPatch>()
+  for (const patch of [...answer.entities, ...answer.read.result.entities]) {
+    const key = entityKey(patch.entity, patch.id)
+    const held = rows.get(key)
+    rows.set(
+      key,
+      held === undefined ? patch : { ...held, values: { ...held.values, ...patch.values } },
+    )
+  }
+  return { ...answer, entities: [...rows.values()] }
+}
+
 const brandEntries = <AppModel>(
   entries: Readonly<Record<string, RemoteEntry<AppModel, any>>>,
 ): Subscription.Subscriptions<AppModel, RemoteMessage, RemoteClient> =>
@@ -2872,7 +2893,11 @@ const bindDomain = <
     const next =
       answer === undefined
         ? placedNews(reduced, newsOf(message), remote.entities)
-        : impactOf(reduced, answer, remote.entities)
+        : impactOf(
+            reduced,
+            remote.mutations.applied.has(answer.requestId) ? answer : withAnswerRead(answer),
+            remote.entities,
+          )
     const checked =
       answer === undefined || options.verifyAnswers !== true
         ? next
@@ -3774,8 +3799,16 @@ const bindDomain = <
         requestId,
         ...(optimistic === undefined ? {} : { optimistic }),
       })
+      const startedModel = store.set(model, started as Store)
+      const shown = shownOf(
+        askedUnion(
+          [...readers.values()].flatMap(resolvedAt =>
+            resolvedAt(startedModel).map(({ projection }) => projection),
+          ),
+        ),
+      )
       return {
-        model: store.set(model, started as Store),
+        model: startedModel,
         requestId,
         tempId,
         command: {
@@ -3785,7 +3818,11 @@ const bindDomain = <
           effect: Effect.flatMap(
             Effect.sync(() => Option.getOrElse(known, mintOperation)),
             operation =>
-              mutateRemote(mutation, input, requestId, { keys: options.keys, operation }).pipe(
+              mutateRemote(mutation, input, requestId, {
+                keys: options.keys,
+                operation,
+                shown,
+              }).pipe(
                 Effect.match({
                   onFailure: (error): RemoteMessage => ({
                     _tag: 'MutationFailed',
@@ -3799,6 +3836,7 @@ const bindDomain = <
                     entities: outcome.entities,
                     connections: outcome.connections,
                     deleted: outcome.deleted,
+                    ...(outcome.read === undefined ? {} : { read: outcome.read }),
                     now: (options.now ?? wallClock)(),
                   }),
                 }),

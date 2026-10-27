@@ -1400,6 +1400,88 @@ function memory<P = undefined>(config: MemoryConfig<P>): MemoryBackend<P> {
   }
 }
 
+/** The entries of `record` whose key is in `keys`. */
+const pickKeys = <T>(
+  record: Readonly<Record<string, T>>,
+  keys: ReadonlySet<string>,
+): Readonly<Record<string, T>> =>
+  Object.fromEntries(Object.entries(record).filter(([key]) => keys.has(key)))
+
+/**
+ * A fresh read, after a mutation, of what the client shows of each row its
+ * outcome names: of each, the shown fields the answer left out, and every
+ * shown relation, since the answer's ref alone does not reach what the client
+ * reads of its target. Read as any read is, so `authorize` and `filter` hold.
+ * Only rows the read found or settled are answered: a row hidden from the
+ * asker keeps what the answer gave it rather than reading as gone.
+ */
+const answerRead = <P, R>(
+  server: ServerDefinition<P, R>,
+  principal: P,
+  options: HandlerOptions<P, R>,
+  shown: ReadonlyArray<RelationRequirement>,
+  outcome: {
+    readonly entities: ReadonlyArray<NormalizedPatch>
+    readonly connections: ReadonlyArray<ConnectionChange>
+    readonly deleted: ReadonlyArray<{ readonly entity: string; readonly id: string }>
+  },
+): Effect.Effect<
+  Option.Option<{
+    readonly requests: ReadonlyArray<Requirement>
+    readonly result: Effect.Success<ReturnType<typeof RemoteServer.readHelper>>
+  }>,
+  RemoteReadError,
+  R
+> =>
+  Effect.gen(function* () {
+    const slices = new Map<string, RelationRequirement>()
+    for (const slice of shown) {
+      const current = slices.get(slice.entity)
+      slices.set(
+        slice.entity,
+        current === undefined ? slice : Requirement.mergeRelation(current, slice),
+      )
+    }
+    const named = new Map<
+      string,
+      { readonly entity: string; readonly id: string; readonly answered: Set<string> }
+    >()
+    const name = (entity: string, id: string, answered: ReadonlyArray<string>): void => {
+      const key = `${entity}:${id}`
+      const row = named.get(key) ?? { entity, id, answered: new Set<string>() }
+      for (const field of answered) row.answered.add(field)
+      named.set(key, row)
+    }
+    for (const patch of outcome.entities) name(patch.entity, patch.id, Object.keys(patch.values))
+    for (const change of outcome.connections)
+      if (change._tag === 'Insert') name(change.edge.entity, change.edge.id, [])
+    for (const gone of outcome.deleted) named.delete(`${gone.entity}:${gone.id}`)
+
+    const requests: Array<Requirement> = []
+    for (const row of named.values()) {
+      const slice = slices.get(row.entity)
+      if (slice === undefined) continue
+      const relations = slice.relations ?? {}
+      const fields = slice.fields.filter(
+        field => !row.answered.has(field) || Object.hasOwn(relations, field),
+      )
+      const kept = new Set(fields)
+      requests.push({
+        entity: row.entity,
+        id: row.id,
+        fields,
+        ...(slice.windows === undefined ? {} : { windows: pickKeys(slice.windows, kept) }),
+        ...(slice.relations === undefined ? {} : { relations: pickKeys(slice.relations, kept) }),
+      })
+    }
+    const result = yield* RemoteServer.readHelper(server, principal, options, requests)
+    const reached = new Set(
+      [...result.entities, ...result.settled].map(row => `${row.entity}:${row.id}`),
+    )
+    const found = requests.filter(request => reached.has(`${request.entity}:${request.id}`))
+    return found.length === 0 ? Option.none() : Option.some({ requests: found, result })
+  })
+
 /**
  * A Source's refusal as the client receives it: encoded by the mutation's own
  * `Refusal`. A refusal made for another mutation, or one the mutation does not
@@ -2237,6 +2319,17 @@ export const RemoteServer = {
           ),
         )
 
+        const read = yield* answerRead(server, caller, options, payload.shown ?? [], outcome).pipe(
+          // The write has committed: answering without the read leaves the
+          // client to fetch those fields, where failing would have it retry.
+          Effect.catchTag('RemoteReadError', error =>
+            Effect.logWarning(
+              'RemoteServer: a mutation committed but reading its answer failed',
+              error.message,
+            ).pipe(Effect.as(Option.none())),
+          ),
+        )
+
         // What the mutation answers is what changed, so live subscribers hear it
         // without the handler naming it again. The write has committed by now: a
         // failed publish is logged, never the mutation's failure, which a client
@@ -2271,6 +2364,7 @@ export const RemoteServer = {
           })),
           connections: outcome.connections,
           deleted: outcome.deleted.map(gone => ({ entity: gone.entity, id: gone.id })),
+          ...Option.match(read, { onNone: () => ({}), onSome: value => ({ read: value }) }),
         }
       }),
 

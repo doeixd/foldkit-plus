@@ -137,6 +137,12 @@ export const ReadBatchResult = Schema.Struct({
   settled: Schema.Array(SettledFields),
 })
 
+/** A read a mutation's answer carries: what was asked, and what came back. */
+export const AnswerRead = Schema.Struct({
+  requests: Schema.Array(ReadRequest),
+  result: ReadBatchResult,
+})
+
 /**
  * One operation's identity across every client: minted where it is first sent
  * and sent again with each retry of it. Bounded, since a server keys a record
@@ -147,6 +153,20 @@ export const OperationId = Schema.String.check(
   Schema.isMaxLength(128),
   Schema.isPattern(/^[A-Za-z0-9:._-]+$/),
 )
+
+/** A mutation request may name at most this many entities in `shown`. */
+export const MAX_SHOWN_ENTITIES = 256
+
+/**
+ * What a client reads of one entity's rows: a read request without its id. It
+ * nests as deep as a read request does, so any slice a read asks can be sent.
+ */
+export const ShownSlice: Schema.Codec<RelationRequirement, RelationRequirement> = Schema.Struct({
+  entity: Schema.String,
+  fields: Fields,
+  windows: Schema.optional(Schema.Record(Schema.String, WindowSchema)),
+  relations: Schema.optional(Schema.Record(Schema.String, RelationRequest)),
+}) as unknown as Schema.Codec<RelationRequirement, RelationRequirement>
 
 export const MutationRequest = Schema.Struct({
   /**
@@ -161,6 +181,12 @@ export const MutationRequest = Schema.Struct({
   input: Schema.Unknown,
   /** For a mutation that is a `Write`: the input keys to write, when not all of them. */
   keys: Schema.optional(Schema.Array(Schema.String)),
+  /**
+   * What the client's active reads show of each entity's rows. The server
+   * answers, of each row the mutation names, the shown fields its answer
+   * left out, read as any read is (`MutationResult.read`).
+   */
+  shown: Schema.optional(Schema.Array(ShownSlice).check(Schema.isMaxLength(MAX_SHOWN_ENTITIES))),
 })
 
 export const LiveEdge = Schema.Struct({
@@ -189,6 +215,12 @@ export const MutationResult = Schema.Struct({
   deleted: Schema.optional(
     Schema.Array(Schema.Struct({ entity: Schema.String, id: Schema.String })),
   ),
+  /**
+   * A fresh read, after the write, of what the request's `shown` asks of the
+   * rows the answer names: the requirements read and what came back, written
+   * as a read is.
+   */
+  read: Schema.optional(AnswerRead),
 })
 
 export const LiveRequirement = Schema.Struct({
