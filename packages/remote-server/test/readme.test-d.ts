@@ -1,5 +1,12 @@
-import { Context, Effect, Schema } from 'effect'
-import { Entity, Remote, RemoteRpc } from 'foldkit-remote'
+import { Context, Effect, Layer, Schema } from 'effect'
+import {
+  Entity,
+  Remote,
+  RemoteRpc,
+  type RemoteClient,
+  type RemoteUnauthenticated,
+} from 'foldkit-remote'
+import { pageReader, serveFetch } from '../src/fetch.js'
 import { RemoteServer } from '../src/index.js'
 import { servePort } from '../src/port.js'
 
@@ -131,3 +138,36 @@ const byPerson = RemoteServer.liveHub([ProjectSource], {
   key: (user: Principal) => (user.isAdmin ? 'admin' : 'member'),
 })
 void byPerson
+
+// ## A page's reads, in the same process: `pageReader`
+{
+  interface Env {
+    readonly DB: unknown
+  }
+  class Database extends Context.Service<Database, unknown>()('readme/Database') {}
+  const server = RemoteServer.make<Principal, Database>({ entities: [] })
+  const drizzle = (db: unknown) => db
+  const databaseLayer = (db: unknown) => Layer.succeed(Database, db)
+  const resolvePrincipal = (request: Request) =>
+    Effect.succeed<Principal>({ isAdmin: request.headers.has('x-admin') })
+  const resolvePage = () => Effect.succeed<Principal>({ isAdmin: false })
+  const PageContext = {
+    attach: (
+      request: Request,
+      _: { readonly reader: Layer.Layer<RemoteClient, RemoteUnauthenticated> },
+    ) => request,
+  }
+  const pages = { fetch: (request: Request) => Promise.resolve(new Response(request.url)) }
+
+  const remote = { server, resolvePrincipal, layer: (env: Env) => databaseLayer(drizzle(env.DB)) }
+  const served = serveFetch(remote)
+  const reader = pageReader({ ...remote, resolvePrincipal: resolvePage })
+
+  const worker = {
+    fetch: (request: Request, env: Env) =>
+      new URL(request.url).pathname === '/remote'
+        ? served(request, env)
+        : pages.fetch(PageContext.attach(request, { reader: reader(request, env) })),
+  }
+  void worker
+}

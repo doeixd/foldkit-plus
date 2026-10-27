@@ -152,6 +152,11 @@ const clientLayer = Remote.clientLayer(rpcClient) // provide RemoteClient to the
 // worker cannot wake another request's stream, so a LiveHub fed from a second
 // request reaches nobody there: poll the durable store (D1) from inside the
 // subscriber's own request instead.
+// A page render's reads in the same Worker: pageReader({ ...remote, resolvePrincipal:
+// resolvePage })(request, env) from 'foldkit-remote-server/fetch' is the request's
+// Layer<RemoteClient, RemoteUnauthenticated> over serveFetch's own server, layer and
+// limits, with no HTTP. Provide it to the pre-read (Data.satisfy(…)); it only reads.
+// A page GET carries no CSRF header: with foldkit-auth, requests: 'navigation'.
 // Plain JSON (Remote.json) carries no live data.
 
 // One list instead of the four hand-wiring steps above.

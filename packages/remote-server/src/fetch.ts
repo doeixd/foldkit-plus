@@ -26,7 +26,10 @@ import {
 } from 'effect'
 import {
   LiveRequirement,
+  Remote,
   RemoteLiveError,
+  RemoteMutationError,
+  type RemoteClient,
   type RemoteJsonAnswer,
   type RemoteRpcClient,
   type RemoteUnauthenticated,
@@ -355,3 +358,44 @@ export const serveFetch = <P, R, Env, RP = never>(
     return Response.json({ error: 'Internal error' }, { status: 500 })
   }
 }
+
+/** What `pageReader` reads of a `serveFetch` config: the server, its Sources' layer and its limits. */
+export type PageReaderConfig<P, R, Env, RP = never> = Pick<
+  FetchConfig<P, R, Env, RP>,
+  'server' | 'resolvePrincipal' | 'layer' | 'maxIdsPerEntity' | 'maxDepth'
+>
+
+/**
+ * The reader a page render reads through, in the same process: the request's
+ * `RemoteClient`, answered by the server's own handlers with no HTTP between
+ * them. Give it `serveFetch`'s config with the resolver a page's request
+ * needs: a page `GET` is a navigation, which carries no header a script adds
+ * (`AuthServer.resolver({ …, requests: 'navigation' })`).
+ *
+ * The principal is resolved, and `layer` built, when the reader is provided,
+ * and `layer` closes when the Effect it was provided to ends, so provide it to
+ * the pre-read itself (`Data.satisfy(…).pipe(Effect.provide(reader))`). A
+ * refusal fails that Effect with `Unauthenticated`, as a 401 would. It only
+ * reads: a mutation fails with `RemoteMutationError` and a live open with
+ * `RemoteLiveError`, since a navigation can be started from another site.
+ */
+export const pageReader =
+  <P, R, Env, RP = never>(config: PageReaderConfig<P, R, Env, RP>) =>
+  (request: Request, env: Env): Layer.Layer<RemoteClient, RemoteUnauthenticated> =>
+    Layer.unwrap(
+      Effect.map(config.resolvePrincipal(request, env), principal => {
+        const handlers = RemoteServer.handlers(config.server, principal, {
+          maxIdsPerEntity: config.maxIdsPerEntity,
+          maxDepth: config.maxDepth,
+        })
+        return Remote.clientLayer<R>({
+          ...handlers,
+          FoldkitRemoteMutate: () =>
+            Effect.fail(
+              new RemoteMutationError({ message: 'A page render reads; it does not write' }),
+            ),
+          FoldkitRemoteLive: () =>
+            Stream.fail(new RemoteLiveError({ message: 'A page render keeps no live stream' })),
+        })
+      }),
+    ).pipe(Layer.provide(config.layer(env)))

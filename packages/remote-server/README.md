@@ -1063,6 +1063,46 @@ subscriber's own request instead: `foldkit-remote-drizzle`'s `pollLive` does,
 with a trigger-kept row log (`rowChangeLog`, `rowLog`) so a quiet tick reads
 no rows. A hub is right for a long-lived process that owns both sides.
 
+### A page's reads, in the same process: `pageReader`
+
+A Worker that renders pages reads what each page shows before rendering it
+(`Data.satisfy`), as the reader who asked. `pageReader` is that reader, made
+from the same config `serveFetch` takes: the request's `RemoteClient` as a
+Layer, answered by the server's own handlers with no HTTP in between. The
+server, its `layer` and its limits are the ones `/remote` answers with.
+
+```ts
+import { pageReader, serveFetch } from 'foldkit-remote-server/fetch'
+
+const remote = { server, resolvePrincipal, layer: (env: Env) => databaseLayer(drizzle(env.DB)) }
+const served = serveFetch(remote)
+const reader = pageReader({ ...remote, resolvePrincipal: resolvePage })
+
+export default {
+  fetch: (request: Request, env: Env) =>
+    new URL(request.url).pathname === '/remote'
+      ? served(request, env)
+      : pages.fetch(PageContext.attach(request, { reader: reader(request, env) })),
+}
+```
+
+`pages` is the fetch handler Foldkit's build emits, and `PageContext` an
+`SSR.requestContext` that carries the reader to `renderPage`
+([`foldkit-ssr`](../ssr/README.md#what-the-host-hands-the-page-ssrrequestcontext)).
+
+The resolver is the page's own: a page `GET` is a navigation, which carries
+no header a script adds, so a resolver that asks for one (Yielded's CSRF
+header) refuses it. With `foldkit-auth`, give
+`AuthServer.resolver({ …, requests: 'navigation' })`. When the reader is
+provided, the principal is resolved and `layer` built, and `layer` closes
+when that Effect ends, so provide it to the pre-read itself
+(`Data.satisfy(…).pipe(Effect.provide(reader))`). A refusal fails it with
+`Unauthenticated`, as a 401 would.
+
+The reader only reads. A mutation fails with `RemoteMutationError` and a live
+open with `RemoteLiveError`: another site can start a navigation, so the
+principal it resolves must never write, and a render keeps no stream.
+
 ## What it does not own
 
 `foldkit-remote-server` intentionally does **not** own:
