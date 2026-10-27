@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`Site.routing` preloads a link's page on intent.** `preload: { links,
+  intended, read }` subscribes to `links` (`pointedLinks()`), sends and claims
+  the application's `intended` Message, skips addresses the tree does not hold
+  and the route shown, and hands `read` (`there => Data.preload(there,
+  actives)`) the Model with the route set there; the Model is unchanged, and
+  the reads land as Remote's `Preloaded`. No intended-route field or extra
+  Surface is needed (#227).
 - **`AppStyle.make`'s `theme` is optional**: `AppStyle.make({})` is the shipped
   theme. `pnpm icons` takes `"stroke": { "width": n }` in `icons.json` to redraw
   a set's strokes when it is generated (#255).
@@ -97,6 +104,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`pointedLinks()` reads intent, not every crossing.** A mouse, pen or
+  keyboard focus counts after resting 50 ms on a link, leaving first cancels
+  it, and a finger counts at once (#227).
 - **The shipped theme is #255's.** `Theme.make({})` is a vivid blue (accent
   235/0.225/55) on pure greys, radius 0.45, density 1.1, bolder tighter
   headings, fluid type, a 68ch measure, motion 0.5 on a spring, no resting

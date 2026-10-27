@@ -1261,6 +1261,15 @@ of its own named a form field "fits the Catalog". Read words with
   nothing; only CI placed a frame there (#224). Let the handler send the
   Model state it was drawn from (`Typed.drawn`), and reproduce a frame race
   by holding `requestAnimationFrame` in the browser test, not by throttling.
+- **A tap focuses the link, and focus is intent of its own.** A touch test of
+  `pointedLinks` passed with the finger's fast path deleted: Chromium focuses
+  a tapped link about 20ms after `pointerup`, and the focus counted after its
+  own wait. Hold the focus off (`mousedown` -> `preventDefault`) to test the
+  finger alone, and log the real event sequence before trusting a touch test.
+- **Merged event streams lose the order between them.** Four event streams
+  merged read a focus moving between links as `focusin`, `focusin`,
+  `focusout`, and cancelled the link focused last. Events that decide state
+  together go through one listener (`Stream.callback`).
 - **A synthetic event moves no focus.** `dispatchEvent(new MouseEvent('click'))`
   and a `keydown` sent to an element leave focus where it was, so a jsdom test
   of the Builder kept focus in the layers through a crumb click and a key on
