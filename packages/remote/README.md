@@ -92,6 +92,7 @@ what you are doing:
 | A list shows old rows | [Why is it stale?](#why-is-it-stale) |
 | A saved change showed, then vanished | [Why did my change disappear?](#why-did-my-change-disappear) |
 | A page I came back to reads `Refreshing` or `Loading` | [Why `Refreshing`?](#why-does-a-page-i-went-back-to-read-refreshing) |
+| Test that a list never blinks to `Loading`, without a browser | [`Trace`](#testing-what-a-reader-sees-trace) |
 | Show a failed read, and let the user retry | [When a read fails](#when-a-read-fails) |
 | Load an ordered, paged list | [Queries and pagination](#queries-and-pagination) |
 | Filter a list already on screen | [Filtering a loaded list](#filtering-a-loaded-list-without-asking-the-server) |
@@ -665,11 +666,10 @@ what the server said:
   requestId)` reads `Failed` with the error. Nothing retries it: the mutation
   is not a durable queue, and if losing it is data loss the edit belongs to
   [`foldkit-sync`](../sync).
-- **It succeeded, but the answer did not name the row.** The answer carries
-  what the active Surfaces show of each row it names
-  ([What an answer carries](#what-an-answer-carries)); a row it changed
-  without naming (a post's count, after a like) keeps the old value until a
-  read writes the new one. Name the row in the answer.
+- **It succeeded, but the server's result did not include the field.** The
+  layer came off and the store still holds the old value, until a read or the
+  result writes the new one. A mutation `Output` that returns the changed
+  entity settles this at once.
 - **A preview** shown with `Data.overlay` stays until `Data.lift`; a settled
   mutation never takes it along.
 
@@ -680,11 +680,8 @@ See [Mutations and optimistic state](#mutations-and-optimistic-state).
 The answer left out fields the row showed while the request was pending. Once
 the layer comes off, the store lacks them, so the read entry fetches them:
 until they arrive, a list leaves the row out (and reads `Refreshing`), and a
-read of that entity alone reads `Loading`. An answer carries what the active
-Surfaces read of every row it names, so this is a row the answer did not
-name, a field the optimistic patch wrote that no Surface reads, or a server
-that answers without the read (one older than the client, or whose read
-failed). `Remote.make({ verifyAnswers: true })` names each one: see
+read of that entity alone reads `Loading`. `Remote.make({ verifyAnswers: true
+})` names each one: see
 [Checking an answer against what was shown](#checking-an-answer-against-what-was-shown).
 
 ### Why does a page I went back to read `Refreshing`?
@@ -1571,29 +1568,6 @@ const { model: started, command } = Data.mutate(model, AddComment, input, {
 A successful server result can replace the request's temporary connection
 overlays with confirmed ones in place.
 
-### What an answer carries
-
-When the answer comes, the request's layer comes off, so the answer must hold
-everything the layer showed. The client says what that is: `Data.mutate` sends,
-with the request, what every active Surface reads of each entity (each
-`Data.get`'s fields and each `Data.query`'s `select`, relation targets
-included). The server reads, of each row its answer names, the fields it
-shows that the answer left out, after the write and as any read is, and sends
-that read with the answer (`foldkit-remote-server`'s
-[What an answer carries](../remote-server/README.md#what-an-answer-carries)).
-The client writes it in the reduction that releases the layer:
-
-```text
-answer (rows the write names) + read (what the Surfaces show of them) -> store, layer released
-```
-
-So a created post lands with the count, the `may` and the author's name the
-feed reads, though the write stored none of them, and the feed never reads
-`Loading` for it. There is nothing to configure: the Surfaces already say what
-is shown. A row the answer does not name is not read; the server names the
-rows a write changed. Each `Data.subscriptions` call registers what it reads, so
-a `Data.mutate` with none registered sends nothing to show.
-
 ### Checking an answer against what was shown
 
 When the answer comes, the request's layer comes off, and what the row shows
@@ -1615,9 +1589,9 @@ or put in a list. A field the store still holds (an older value, or another
 pending request's) is not reported, nor is a row the answer deleted, or a
 temporary id it replaced. A repeated answer is not checked again. It changes
 nothing but `answerGaps`, so turn it on in development and tests, and assert
-in a test that `answerGaps` is empty. With [the answer's read](#what-an-answer-carries),
-a gap is a row the answer did not name: name it in the answer's `entities`
-(`Remote.patch(Post, id, {})` asks the server for all it shows of it).
+in a test that `answerGaps` is empty. To close a gap, answer with the fields
+(a mutation `Output` that returns the changed row), or re-read them in the
+writer.
 
 ### Showing a change nobody has made
 
@@ -2044,6 +2018,57 @@ There is still no **executor**, because what answers a query is a
 `RemoteClient` Layer in the runtime rather than a value in the Model — the same
 purity that lets this be replayed from a recorded Model is what keeps it out of
 reach.
+
+## Testing what a reader sees: `Trace`
+
+"A list on screen never blinks to `Loading`" depends on the reducer, the read
+entries and the order answers land in. `foldkit-remote/testing` checks it in
+Vitest, with no browser. `Trace.run` runs your `update` and the domain's own
+Subscriptions from a Model. It **holds** every request they make. Each step is
+one of your Messages, or a `Respond` that lets one held request go on, answered
+by the `RemoteClient` you pass. Every Model in between is recorded, so a
+regression that lasts one Message cannot fall between samples.
+
+```ts
+import { Respond, Trace } from 'foldkit-remote/testing'
+
+const trace = await Trace.run(Data, {
+  start: loaded, // a Model showing the list
+  update,
+  active,
+  client: server, // a fake, or your server's in-process client
+  steps: [
+    Message.Created({ id: 'p2', name: 'Two' }),
+    Respond.mutation(Create), // the answer lands first
+    Respond.read(Project, 'p2'), // then the new row's fields
+  ],
+})
+
+expect(Trace.regressions(trace, { list })).toEqual([])
+expect(Trace.tags(trace, list)).toEqual(['Ready', 'Refreshing', 'Ready'])
+```
+
+- **The trace decides when; the client decides what.** `Respond.query(ref)`,
+  `Respond.read(Entity, id)` and `Respond.mutation(M)` each answer the oldest
+  held request of their kind, and each takes `{ fail }` to answer with an
+  error instead. `Respond.all` answers everything held, and what that leads
+  to, until nothing is. Reorder the steps to try another interleaving.
+- **`Trace.regressions`** names each time a read that showed a value read
+  `Loading`, `Initial`, or `Failed` without it. It gives the step, the Message
+  and `Data.why`. `NotFound` is not a regression, since the server said the row
+  is gone. **`Trace.tags`** is each change of a read's tag.
+- **It fails loudly.** A `Respond` that matches nothing held throws and lists
+  what is held. A request abandoned by a restart is no longer held. A
+  Subscription or Command that dies throws. An `update` that does not take
+  Remote's Messages is a type error.
+- **What it leaves out.** Its clock stands still: a retention `grace`, an
+  age-out and a live restart never fire. A live stream sends nothing, so
+  script its events as `LiveReceived` Messages. Only Remote's Commands run,
+  and `entry.skipped` names the others. It drives a domain whose Messages are
+  in your union, not a `Remote.fold`.
+
+The design, and what is deferred, is in
+[`docs/design/250-data-trace-DESIGN.md`](../../docs/design/250-data-trace-DESIGN.md).
 
 ## Advanced: the kernel
 

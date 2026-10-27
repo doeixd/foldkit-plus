@@ -236,21 +236,13 @@ case 'SignedOut': {
   where `projects` is the `Data.query(...)` Projection above. `Remote.patch`
   values are wire-shaped: a relation is its ref key, typed `RefKey<'User'>`
   (`` `User:${string}` ``), so a ref to the wrong entity is a type error.
-- An answer carries what the page shows of each row it names: `Data.mutate`
-  sends what the active Surfaces read of each entity (`shown`), and the server
-  reads those fields after the write, as any read, beside the answer (`read`),
-  written in the reduction that releases the layer. No option: a declared
-  insert lands with the derived counts, `may` and relations the list reads. A
-  handler names a row it changed that the server cannot see with an empty
-  patch, `Remote.patch(Post, id, {})`; a row it does not name (a post's count
-  after a like is inserted) is not read.
 - A row that reads `Loading` for a frame after a mutation settles is a field
   the answer left out: the layer came off and the store lacks it, so it is
   fetched again. `Remote.make({ verifyAnswers: true })` (dev and tests) settles
   as usual and keeps `{ requestId, entity, id, fields }` in
   `remote.answerGaps` (`Data.inspect`) for each field the request's optimistic
   patch wrote, or an active Surface reads of a row it patched or listed, that
-  the answer left out and the store does not hold. Name that row in the answer.
+  the answer left out and the store does not hold. Answer with those fields.
 - `Query.define(name, Input, ({ input }) => body, options?)` declares a query by
   what it *means*: `Query.from(Task).pipe(Query.where(Expr.eq(Task.fields.ownerId,
   input.ownerId)), Query.orderBy(Order.asc(Task.fields.id)))`. Returns an ordinary
@@ -592,6 +584,30 @@ every active Surface reading the connection and, for those placed with
 `Surface.when`, why each is active. It names no executor: what answers a query
 is a `RemoteClient` Layer, not a value in the Model.
 
+**Testing that a read never blinks, without a browser.** `foldkit-remote/testing`
+runs the app's `update` and the domain's real Subscriptions, holds every request,
+and records every Model:
+
+```ts
+import { Respond, Trace } from 'foldkit-remote/testing'
+
+const trace = await Trace.run(Data, {
+  start, update, active,
+  client, // RemoteClient['Service']: answers a request once a step releases it
+  steps: [Message.Created({ id: 'p2', name: 'Two' }), Respond.mutation(Create), Respond.all],
+})
+expect(Trace.regressions(trace, { list })).toEqual([]) // no Ready/Refreshing -> Loading/Initial
+expect(Trace.tags(trace, list)).toEqual(['Ready', 'Refreshing', 'Ready'])
+```
+
+`Respond.query(ref)`, `Respond.read(Entity, id)` and `Respond.mutation(M)` answer
+the oldest held request of their kind (`{ fail }` to fail it); reorder steps for
+another interleaving. A `Respond` that matches nothing held throws. The clock
+stands still (no `grace`, age-out or live restart fires), live streams send
+nothing (script `LiveReceived`), and only Remote's Commands run. `update` must
+take Remote's Messages; a `Remote.fold` domain is not supported yet.
+
+
 ## Server: `foldkit-remote-server`
 
 ```ts
@@ -699,9 +715,8 @@ const RemoteClientLive = Remote.clientLayer(RemoteServer.handlers(Server, 'user-
 // In a mutation handler: `const writes = yield* drizzleWrites` (insert/update/delete typed by
 // the table), run each with `yield* runStatement(() => writes.update(…)…, 'Database write
 // failed')` (a refusal fails as a RemoteServerError; the driver's error, with its SQL, is
-// logged, never sent), then name each row it wrote in `entities` (`yield* returning.row(Project,
-// id)`, its stored values, or `Remote.patch(Project, id, {})`): the answer carries what the
-// page shows of each row it names, and only those.
+// logged, never sent), then return `entities: yield* returning.row(Project, id)`: the whole
+// row it wrote, since the client's store learns only what a mutation patches.
 ```
 
 Nullable foreign keys must say `one(User, { field, nullable: true })` (a NULL
