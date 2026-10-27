@@ -41,7 +41,8 @@ back two things:
 - **The code** under the preview: a module importing `AppStyle` from
   `foldkit-mixins/app` and `Theme` from `foldkit-mixins/theme`, holding
   `const theme = Theme.make({ … })` and exporting `t`, `slots`, `forSlots` and
-  `stylesheet` from `AppStyle.make`.
+  `stylesheet` from `AppStyle.make`. With `foldkit-plus` installed, change those
+  two imports to `foldkit-plus/mixins/app` and `foldkit-plus/mixins/theme`.
 - **The page's address**: the theme is in its query, so the link reopens it
   for a later change.
 
@@ -71,6 +72,12 @@ Follow the second `setup` output (install, the skill, imports). Install an
 adapter only when the mapping (phase 5) calls for it. Then:
 
 - Run the project's `typecheck` and `test` once, so a later failure is yours.
+- Keep the root application's Model, Message and `update` in `src/main.ts`, as
+  phase 6's layout has it, not in `src/app.ts` as some of this repository's
+  examples do. The scaffold's lint (`foldkit(no-child-message-construction-in-root)`)
+  takes a Message as the root's only from a sibling module named `main`,
+  `message`, `index` or `schema`; one from `./app` is a child's, and every
+  Message the root's view constructs fails `npm run lint`.
 - Create `docs/domain/` and add a line under **Project Notes** in the
   scaffold's `AGENTS.md`: "The domain, its decisions and its mapping to Foldkit
   Plus are in `docs/domain/`; read them before changing the app."

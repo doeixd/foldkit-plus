@@ -145,7 +145,10 @@ App.model.remote, … })`, `Mirror.url(App, …)`, and `SurfaceView.define(TodoL
 - **Install** `foldkit-plus` for every package at once (`pnpm add effect@4.0.0
   foldkit@0.169.0 foldkit-plus`, then import `foldkit-plus/<package>`, as in
   `foldkit-plus/remote-server`), or each package on its own with its peers; both name
-  the same modules. Adapters that need a library of their own (`foldkit-react`, the
+  the same modules. With `foldkit-plus`, write every import that way, subpaths too:
+  the snippets here and the theme page name the packages themselves
+  (`foldkit-mixins/app` is `foldkit-plus/mixins/app`, `foldkit-entity` is
+  `foldkit-plus/entity`), which resolve only where a package is installed on its own. Adapters that need a library of their own (`foldkit-react`, the
   Drizzle packages, `foldkit-mixins-ui`, `-richtext-code-shiki`, `-agent-native`) are
   added with it. `npx foldkit-plus setup` prints all of this for the project it runs
   in. `foldkit-durable` needs Node >= 22.
