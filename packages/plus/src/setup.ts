@@ -310,7 +310,7 @@ export const setupGuide = ({ project, manager, versions }: SetupInput): string =
     'npx skills add doeixd/foldkit-plus --skill foldkit-plus',
     '```',
     '',
-    'It teaches you which package owns which kind of state, when to reach for each, and a working example of each. Read its `SKILL.md` before writing code with Foldkit Plus, and the reference for the package at hand before changing it.',
+    'It teaches you which package owns which kind of state, when to reach for each, and a working example of each. Read its `SKILL.md` before writing code with Foldkit Plus, and the reference for the package at hand before changing it. To look one symbol or topic up in the docs of the versions installed here, run `npx foldkit-plus docs <symbol or words>` (`--list` for what there is).',
     // An empty folder was sent to the guide in step 1.
     ...Option.match(project, {
       onNone: () => [],

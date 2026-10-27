@@ -27,6 +27,34 @@ testing, CI and deployment, and build once you agree. It prints the
 `create-foldkit-app` command, at the release that installs this release's
 Foldkit, for when it is time to scaffold.
 
+## Docs for the versions you have
+
+```bash
+npx foldkit-plus docs Data.preload        # a symbol: its declaration and its sections
+npx foldkit-plus docs "optimistic delete" # words: the three best sections
+npx foldkit-plus docs --list remote       # one topic's headings, with line numbers
+```
+
+`docs` answers from what is installed in the project it runs in, so it
+describes the versions the application has, not `main`. It reads the README
+of each Foldkit Plus package that an import from the project would load (one
+the project names from its own folder; the rest from beside `foldkit-plus`),
+the `foldkit-plus` skill if it is installed in a dot-folder's `skills/` (the
+project's, its repository's, or the home folder's), and for a symbol the
+package's `.d.mts`. Each section comes with its file and line, so the rest is
+one read away. Nothing is indexed ahead of time and nothing is fetched. `--json` prints the same for a
+program. A query that matches nothing, a project with no Foldkit Plus package,
+or one whose `package.json` names a package that is not installed exits 1 and
+says which.
+
+`npx foldkit-plus mcp` serves the same over the Model Context Protocol on
+stdio, as two tools: `search_docs` (`{ query }`) and `outline_docs`
+(`{ topic? }`). Start it in the project's folder, as MCP clients do:
+
+```json
+{ "mcpServers": { "foldkit-plus": { "command": "npx", "args": ["foldkit-plus", "mcp"] } } }
+```
+
 ## What it is
 
 [Foldkit Plus](https://foldkit-plus.pages.dev) is a family of packages that

@@ -1,7 +1,7 @@
 {
   "name": "foldkit-plus",
   "version": "0.17.0",
-  "description": "Every Foldkit Plus package in one install, and `npx foldkit-plus setup`, which tells a coding agent how to start.",
+  "description": "Every Foldkit Plus package in one install, `npx foldkit-plus setup`, which tells a coding agent how to start, and `npx foldkit-plus docs`, which answers from the installed docs.",
   "keywords": [
     "foldkit",
     "effect",

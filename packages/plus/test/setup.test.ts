@@ -28,6 +28,12 @@ describe('setupGuide', () => {
     )
   })
 
+  it('names the docs command beside the skill', () => {
+    expect(guide(project({ effect: '4.0.0', foldkit: '0.165.0' }))).toContain(
+      'run `npx foldkit-plus docs <symbol or words>`',
+    )
+  })
+
   it('names the greenfield guide in a project too', () => {
     expect(guide(project({ effect: '4.0.0', foldkit: '0.165.0' }))).toContain(
       'Building a new application rather than extending one? Follow its `references/greenfield.md`',
