@@ -18,7 +18,7 @@ import { h, message, sends, type TestMessage } from './fixture.js'
 const { Message, Refusal, init, update } = TagsInput
 
 const withDraft = (tags: ReadonlyArray<string>, draft: string) =>
-  update(init({ id: 'topics', tags }), Message.Typed({ text: draft })).model
+  update(init({ id: 'topics', tags }), Message.Typed({ text: draft, drawn: 0 })).model
 
 const style = Style.forSlots(TagsInputSlots)(Recipes.TagsInput({}))
 const drawn = (tags: ReadonlyArray<string>, disabled = false) =>
@@ -78,15 +78,36 @@ describe('TagsInput.update', () => {
     expect(after.refusal).toEqual(Option.some(Refusal.Repeat({ tag: 'a' })))
   })
 
-  it('reads keys typed before the emptied input is drawn as the next draft alone', () => {
+  it('reads past the drafts added since the drawing a text came from', () => {
     const added = update(withDraft([], 'react'), Message.Committed()).model
-    // The input still showed the added draft when these keys landed.
-    const early = update(added, Message.Typed({ text: 'reactvu' })).model
-    expect(early.draft).toBe('vu')
-    // Once a text arrives without it, the input was drawn empty: a retyped tag is a tag.
-    const drawn = update(added, Message.Typed({ text: 'r' })).model
-    expect(drawn.draft).toBe('r')
-    expect(update(drawn, Message.Typed({ text: 'react' })).model.draft).toBe('react')
+    // The input drawn before the commit still holds the added draft.
+    const early = update(added, Message.Typed({ text: 'reactreac', drawn: 0 })).model
+    expect(early.draft).toBe('reac')
+    // A frame then draws the draft alone, which starts like the added tag.
+    const drawn = update(early, Message.Typed({ text: 'react', drawn: 1 })).model
+    expect(drawn.draft).toBe('react')
+    expect(drawn.added).toEqual([])
+  })
+
+  it('reads past each commit a text came after, and only those', () => {
+    const one = update(
+      update(withDraft([], 'a'), Message.Committed()).model,
+      Message.Typed({ text: 'ab', drawn: 0 }),
+    )
+    const two = update(one.model, Message.Committed()).model
+    expect(two.tags).toEqual(['a', 'b'])
+    expect(update(two, Message.Typed({ text: 'abc', drawn: 0 })).model.draft).toBe('c')
+    // Drawn between the commits, the input held the second draft alone.
+    expect(update(two, Message.Typed({ text: 'bc', drawn: 1 })).model.draft).toBe('c')
+  })
+
+  it('counts no refused commit, which leaves the input as it was', () => {
+    const added = update(withDraft([], 'a'), Message.Committed()).model
+    const typed = update(added, Message.Typed({ text: 'aa', drawn: 0 })).model
+    // A frame draws the draft `a` here; the commit after it is refused.
+    const refused = update(typed, Message.Committed()).model
+    expect(refused.tags).toEqual(['a'])
+    expect(update(refused, Message.Typed({ text: 'ab', drawn: 1 })).model.draft).toBe('ab')
   })
 
   it('takes nothing on Enter in an empty field', () => {
@@ -97,19 +118,22 @@ describe('TagsInput.update', () => {
   it('adds up to max, and refuses the rest as full', () => {
     const typed = update(
       init({ id: 'topics', tags: ['a'], max: 3 }),
-      Message.Typed({ text: 'b, c, d' }),
+      Message.Typed({ text: 'b, c, d', drawn: 0 }),
     )
     const after = update(typed.model, Message.Committed()).model
     expect(after.tags).toEqual(['a', 'b', 'c'])
     expect(after.refusal).toEqual(Option.some(Refusal.Full({ max: 3 })))
-    const full = update(update(after, Message.Typed({ text: 'e' })).model, Message.Committed())
+    const full = update(
+      update(after, Message.Typed({ text: 'e', drawn: 0 })).model,
+      Message.Committed(),
+    )
     expect(full.model.tags).toEqual(['a', 'b', 'c'])
     expect(full.model.draft).toBe('e')
     expect(full.model.refusals).toBe(2)
   })
 
   it.each([
-    ['an edit of the draft', Message.Typed({ text: 'c' })],
+    ['an edit of the draft', Message.Typed({ text: 'c', drawn: 0 })],
     ['a removal', Message.Removed({ tag: 'a' })],
   ])('forgets the refusal on %s', (_, message) => {
     const refused = update(withDraft(['a'], 'a'), Message.Committed()).model
@@ -117,7 +141,10 @@ describe('TagsInput.update', () => {
   })
 
   it('splits on its own delimiter', () => {
-    const typed = update(init({ id: 'topics', delimiter: ';' }), Message.Typed({ text: 'a,b;c' }))
+    const typed = update(
+      init({ id: 'topics', delimiter: ';' }),
+      Message.Typed({ text: 'a,b;c', drawn: 0 }),
+    )
     expect(update(typed.model, Message.Committed()).model.tags).toEqual(['a,b', 'c'])
   })
 
@@ -188,7 +215,7 @@ describe('TagsInput.view', () => {
       Scene.keydown(Scene.label('Topics'), 'a'),
       Scene.expectOutMessage(Message.Pressed({ key: 'a' })),
       Scene.type(Scene.label('Topics'), 'react'),
-      Scene.expectOutMessage(Message.Typed({ text: 'react' })),
+      Scene.expectOutMessage(Message.Typed({ text: 'react', drawn: 0 })),
     )
   })
 

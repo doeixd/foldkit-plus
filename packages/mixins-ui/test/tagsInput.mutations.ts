@@ -12,22 +12,55 @@ export default [
     edits: [
       {
         file: '../src/tagsInput.ts',
-        find: 'text.startsWith(added) ? text.slice(added.length) : text',
+        find: 'text.startsWith(front) ? text.slice(front.length) : text',
         replace: 'text',
       },
     ],
     tests: [unit, browser],
   },
   {
-    name: 'the added draft is stripped for good',
+    name: 'every added draft is read past, whichever drawing the text came from',
     edits: [
       {
         file: '../src/tagsInput.ts',
-        find: 'added: added => (drawn ? Option.none() : added),',
+        find: 'const behind = model.commits - drawn',
+        replace: 'const behind = model.added.length',
+      },
+    ],
+    tests: [unit, browser],
+  },
+  {
+    name: 'the added drafts are kept for good',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'added: () => unseen,',
         replace: 'added: added => added,',
       },
     ],
     tests: [unit],
+  },
+  {
+    name: 'a refused commit counts',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'commits: commits => (fresh.length === 0 ? commits : commits + 1),',
+        replace: 'commits: commits => commits + 1,',
+      },
+    ],
+    tests: [unit],
+  },
+  {
+    name: 'the input sends no drawing with its text',
+    edits: [
+      {
+        file: '../src/tagsInput.ts',
+        find: 'Message.Typed({ text, drawn: model.commits })',
+        replace: 'Message.Typed({ text, drawn: 0 })',
+      },
+    ],
+    tests: [browser],
   },
   {
     name: 'a part past max is added',

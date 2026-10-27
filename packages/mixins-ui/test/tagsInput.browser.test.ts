@@ -97,6 +97,39 @@ test('a tag typed and committed in one burst is added, and its repeat shakes the
   }
 })
 
+test('a frame drawn mid-burst, its draft the start of the tag just added, keeps the draft', async () => {
+  const handle = mount()
+  try {
+    await vi.waitFor(() => expect(document.getElementById('topics-input')).not.toBeNull())
+    input().focus()
+    // Frames wait, as on a loaded machine, until they are let through.
+    const frames: Array<FrameRequestCallback> = []
+    const held = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(frame => {
+      frames.push(frame)
+      return frames.length
+    })
+    const draw = () => frames.splice(0).forEach(frame => frame(performance.now()))
+    try {
+      await userEvent.keyboard('react{Enter}reac')
+      expect((input() as HTMLInputElement).value).toBe('reactreac')
+      // Drawn once the keys are handled, the input shows the draft alone, and a key completes it.
+      await vi.waitFor(() => {
+        draw()
+        expect((input() as HTMLInputElement).value).toBe('reac')
+      })
+      await userEvent.keyboard('t{Enter}')
+    } finally {
+      held.mockRestore()
+      draw()
+    }
+    await vi.waitFor(() =>
+      expect(status().textContent, handled.join('\n')).toBe('react is already added'),
+    )
+  } finally {
+    handle.dispose()
+  }
+})
+
 test('under reduced motion a refusal does not move the field', async () => {
   await reduce('reduce')
   const handle = mount()

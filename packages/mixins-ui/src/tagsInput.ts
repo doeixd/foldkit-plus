@@ -65,16 +65,23 @@ export const Model = Schema.Struct({
   refusal: Schema.OptionFromNullOr(Refusal),
   /** Refusals so far: the view alternates the shake by it, so each one replays. */
   refusals: Schema.Number,
+  /** Commits that added tags; each drawing of the input sends the count it drew with what it reads. */
+  commits: Schema.Number,
   /**
-   * The draft last added, until a key shows the input drawn without it: keys
-   * typed before the emptied input is drawn arrive with it still in front.
+   * The drafts of the latest commits, oldest first, back to the oldest
+   * drawing a key has come from: an input drawn before a commit still holds
+   * its draft, in front of the keys typed after it.
    */
-  added: Schema.OptionFromNullOr(Schema.String),
+  added: Schema.Array(Schema.String),
 })
 export type Model = typeof Model.Type
 
 export const Message = defineMessageUnion({
-  Typed: { text: Schema.String },
+  /**
+   * The input holds `text`; `drawn` is the `commits` of the Model it was
+   * drawn from, so `update` knows which added drafts are still in front.
+   */
+  Typed: { text: Schema.String, drawn: Schema.Number },
   /** Enter or the delimiter was pressed. */
   Committed: {},
   /**
@@ -104,7 +111,8 @@ export const init = (options: {
   max: Option.fromUndefinedOr(options.max),
   refusal: Option.none(),
   refusals: 0,
-  added: Option.none(),
+  commits: 0,
+  added: [],
 })
 
 const inputId = (id: string) => `${id}-input`
@@ -155,20 +163,23 @@ const commit = (
 /** The field after `message`; the same Model when nothing changes. */
 export const update = (model: Model, message: Message): Return<Model, Message> =>
   Message.match(message, {
-    Typed: ({ text }) => {
-      const typed = Option.match(model.added, {
-        onNone: () => text,
-        onSome: added => (text.startsWith(added) ? text.slice(added.length) : text),
-      })
-      // A text without it in front was read from the emptied input.
-      const drawn = typed === text && Option.isSome(model.added)
-      return typed === model.draft && Option.isNone(model.refusal) && !drawn
+    Typed: ({ text, drawn }) => {
+      // Which drawing read the text says what is in front of it, never the
+      // text itself: a frame drawn mid-burst can show a draft that starts
+      // like the tag just added.
+      const behind = model.commits - drawn
+      const unseen = behind > 0 ? model.added.slice(-behind) : []
+      const front = unseen.join('')
+      const typed = text.startsWith(front) ? text.slice(front.length) : text
+      return typed === model.draft &&
+        Option.isNone(model.refusal) &&
+        unseen.length === model.added.length
         ? { model }
         : {
             model: modifyFields(model, {
               draft: () => typed,
               refusal: () => Option.none(),
-              added: added => (drawn ? Option.none() : added),
+              added: () => unseen,
             }),
           }
     },
@@ -183,7 +194,8 @@ export const update = (model: Model, message: Message): Return<Model, Message> =
           draft: draft => (fresh.length === 0 ? draft : ''),
           refusal: () => refusal,
           refusals: refusals => (Option.isSome(refusal) ? refusals + 1 : refusals),
-          added: added => (fresh.length === 0 ? added : Option.some(model.draft)),
+          commits: commits => (fresh.length === 0 ? commits : commits + 1),
+          added: added => (fresh.length === 0 ? added : [...added, model.draft]),
         }),
       }
     },
@@ -283,7 +295,7 @@ export const view = <Outer>(options: TagsInputView<Outer>, h: HtmlBuilder<Outer>
           ...(disabled
             ? [h.Disabled(true)]
             : [
-                h.OnInput(text => lift(Message.Typed({ text }))),
+                h.OnInput(text => lift(Message.Typed({ text, drawn: model.commits }))),
                 // Enter adds a tag rather than submitting the form around the field.
                 h.OnKeyDownPreventDefault(key =>
                   key === 'Enter' || key === model.delimiter
