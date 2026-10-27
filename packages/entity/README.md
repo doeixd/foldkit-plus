@@ -114,6 +114,21 @@ Object.keys(Blog.Post.members) // id, title, published, commentCount, author, ed
   identity. Calling it twice with the same name makes two different entities.
 - `Derived.make` states a readable value's schema and nothing about how it is
   produced. `Entity.derived` is a pipe step because it concerns one entity.
+- `Derived.count(relation)` says what it is: how many rows point at this one
+  through `relation`, a `one` relation of the counted Entity. It names another
+  Entity's relation, so it is added after `Entity.relate`:
+
+  ```ts
+  const Post = Blog.Post.pipe(
+    Entity.derived({ commentTotal: Derived.count(Blog.Comment.relations.post) }),
+  )
+  ```
+
+  A count of a `many` relation, or of rows pointing at another Entity, is
+  refused where it is declared. `remote-drizzle` compiles it with no binding
+  entry, and Remote predicts it while a write that adds, removes or moves a
+  counted row is pending. Each derived member's `derives` says which kind it is
+  (`Supplied`, `Count`).
 - `Entity.relate` takes the entities and every relation between them, and
   returns the same entities with `relations` filled in. Use the returned ones
   (`Blog.Post`); the `Post` you passed in still has no relations.
@@ -1106,6 +1121,7 @@ from queries, not from what a database could express.
 | `Entity.selectFor(input)` | The Selection of the members an input writes: what an edit screen loads. |
 | `Entity.valuesFor(input, value)` | The input values that reproduce a loaded value: fields as they are, refs as ids. |
 | `Entity.derived({ key: Derived.make(schema) })` | Pipe step adding readable, externally supplied members. |
+| `Derived.count(Other.relations.pointer)` | A derived member counting the rows whose `one` relation points at this one. |
 | `Entity.annotate(metadata)` | Pipe step attaching metadata to the Entity. |
 | `Entity.annotateMembers({ key: metadata })` | Pipe step attaching metadata to members by key. |
 | `Entity.same(a, b)` | Whether two descriptors are versions of one Entity. |

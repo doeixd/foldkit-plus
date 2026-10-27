@@ -48,6 +48,16 @@ expectTypeOf(Blog.Post.relations.comments.target().relations.post.target()).toEq
   typeof Blog.Post
 >()
 
+const CountedPost = Blog.Post.pipe(
+  Entity.derived({ commentTotal: Derived.count(Blog.Comment.relations.post) }),
+)
+expectTypeOf(CountedPost.derived.commentTotal.derives.relation).toEqualTypeOf<
+  typeof Blog.Comment.relations.post
+>()
+expectTypeOf(Entity.select(CountedPost, { commentTotal: true }).schema.Type).toEqualTypeOf<{
+  readonly commentTotal: number
+}>()
+
 const Labels = Metadata.key<string>('my-admin/labels', {
   merge: labels => [...new Set(labels)],
   summarize: label => label,

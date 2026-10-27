@@ -70,6 +70,20 @@ Blog.Post.derived.commentCount.schema      // Schema.Number
 Use the entities `Entity.relate` returns (`Blog.Post`). The `Post` passed in
 still has no relations.
 
+`Derived.make` says only a member's schema: the server supplies it. A count
+says what it counts, the rows whose `one` relation points here, so it is added
+after `Entity.relate`:
+
+```ts
+const Post = Blog.Post.pipe(
+  Entity.derived({ commentTotal: Derived.count(Blog.Comment.relations.post) }),
+)
+```
+
+`remote-drizzle`'s `bind` compiles it with no `derived` entry, and Remote
+predicts it while a declared write that inserts, deletes or relinks a Comment is
+pending. A `many` relation, or a relation pointing at another Entity, is refused.
+
 ## Common tasks
 
 **Select a view.** A Selection carries the schema of the result; it fetches

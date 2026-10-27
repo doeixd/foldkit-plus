@@ -7,7 +7,7 @@
  * renders nothing. Remote, Drizzle, and form packages interpret it and attach
  * what they need as `foldkit-metadata`.
  */
-import { type Option, Pipeable, Schema } from 'effect'
+import { Data, type Option, Pipeable, Schema } from 'effect'
 import { Metadata } from 'foldkit-metadata'
 import {
   check,
@@ -77,24 +77,37 @@ export interface EntityRelation<
   readonly metadata: Metadata
 }
 
-/** What `Derived.make` returns, before an Entity owns it. */
-export interface DerivedSpec<S extends Schema.Constraint> {
+/**
+ * What a derived member is. `Supplied` (`Derived.make`): an interpreter
+ * supplies it, and nothing else can say what it is. `Count`
+ * (`Derived.count`): how many rows point at this one through `relation`, a
+ * `one` relation of the counted Entity, which a client can predict from the
+ * rows it writes and a server compiles from that relation's storage.
+ */
+export type Derivation = Data.TaggedEnum<{
+  Supplied: {}
+  Count: { readonly relation: EntityRelation<string, string, AnyEntity, 'one', boolean> }
+}>
+export const Derivation = Data.taggedEnum<Derivation>()
+
+/** What `Derived.make` or `Derived.count` returns, before an Entity owns it. */
+export interface DerivedSpec<S extends Schema.Constraint, D extends Derivation = Derivation> {
   readonly schema: S
+  readonly derives: D
 }
 
-/**
- * A value consumers may read that is not part of `entity.schema`. It says
- * nothing about how the value is computed; an interpreter supplies it.
- */
+/** A value consumers may read that is not part of `entity.schema`, and what it derives. */
 export interface EntityDerived<
   Name extends string,
   Key extends string,
   S extends Schema.Constraint,
+  D extends Derivation = Derivation,
 > {
   readonly _tag: 'Derived'
   readonly owner: EntityIdentity<Name>
   readonly key: Key
   readonly schema: S
+  readonly derives: D
   readonly metadata: Metadata
 }
 
@@ -119,7 +132,12 @@ type RelationsOf<Name extends string, Relations extends RelationSpecs> = {
     : never
 }
 type DerivedOf<Name extends string, Derived extends DerivedSpecs> = {
-  readonly [K in keyof Derived & string]: EntityDerived<Name, K, Derived[K]['schema']>
+  readonly [K in keyof Derived & string]: EntityDerived<
+    Name,
+    K,
+    Derived[K]['schema'],
+    Derived[K]['derives']
+  >
 }
 
 export interface Entity<
@@ -148,6 +166,22 @@ export type AnyEntity = Entity<string, any, any, any>
 type Free<E extends AnyEntity, New> = keyof New & keyof E['members'] extends never
   ? unknown
   : { readonly alreadyAMember: keyof New & keyof E['members'] }
+
+/** Unsatisfiable when a `Derived.count` names a relation pointing at another Entity. */
+type PointsHere<E extends AnyEntity, New extends DerivedSpecs> = {
+  [K in keyof New]: New[K]['derives'] extends {
+    readonly _tag: 'Count'
+    readonly relation: EntityRelation<any, any, infer Target, any, any>
+  }
+    ? [Target['name']] extends [E['name']]
+      ? never
+      : K
+    : never
+}[keyof New] extends infer Wrong
+  ? [Wrong] extends [never]
+    ? unknown
+    : { readonly countsRowsPointingAtAnotherEntity: Wrong }
+  : never
 
 type WithDerived<E, New extends DerivedSpecs> =
   E extends Entity<infer Name, infer Fields, infer R, infer D>
@@ -736,20 +770,40 @@ export const Entity = {
     return Object.freeze(page)
   },
 
-  /** Adds readable members that are not part of `entity.schema`. */
+  /**
+   * Adds readable members that are not part of `entity.schema`. A
+   * `Derived.count` must count rows pointing at this Entity: one over a
+   * relation to another is refused here.
+   */
   derived:
     <const New extends DerivedSpecs>(specs: New) =>
-    <E extends AnyEntity>(entity: E & Free<E, New>): WithDerived<E, New> => {
+    <E extends AnyEntity>(entity: E & Free<E, New> & PointsHere<E, New>): WithDerived<E, New> => {
       assertFree(entity, Object.keys(specs), 'derived member')
-      const added = mapValues<DerivedSpec<Schema.Constraint>, EntityMember>(specs, (spec, key) =>
-        Object.freeze({
+      const added = mapValues<DerivedSpec<Schema.Constraint>, EntityMember>(specs, (spec, key) => {
+        Derivation.$match(spec.derives, {
+          Supplied: () => undefined,
+          Count: ({ relation }) => {
+            if (relation.cardinality !== 'one')
+              fail(
+                entity,
+                `"${key}" counts "${relation.key}", a many relation; count a one relation that points here`,
+              )
+            if (!isSameEntity(relation.target(), entity))
+              fail(
+                entity,
+                `"${key}" counts "${relation.owner.name}.${relation.key}", which points at ${relation.target().name}`,
+              )
+          },
+        })
+        return Object.freeze({
           _tag: 'Derived',
           owner: entity.identity,
           key,
           schema: spec.schema,
+          derives: spec.derives,
           metadata: Metadata.empty,
-        }),
-      )
+        })
+      })
       return make({ ...entity, derived: { ...entity.derived, ...added } }) as never
     },
 
@@ -1034,8 +1088,31 @@ export const Relation = {
   }),
 }
 
+/** A count: never negative, never a fraction. */
+const CountSchema = Schema.Number.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0))
+
 export const Derived = {
-  make: <S extends Schema.Constraint>(schema: S): DerivedSpec<S> => ({ schema }),
+  /** A member only an interpreter can compute, of type `schema`: it supplies the value. */
+  make: <S extends Schema.Constraint>(
+    schema: S,
+  ): DerivedSpec<S, Extract<Derivation, { readonly _tag: 'Supplied' }>> => ({
+    schema,
+    derives: Derivation.Supplied(),
+  }),
+
+  /**
+   * How many rows point at this one through `relation`, a `one` relation of
+   * the counted Entity: `likeCount: Derived.count(Like.relations.post)` on
+   * Post. Added after `Entity.relate`, which makes the relation. A server
+   * compiles it from the relation's storage, and a client predicts it from
+   * the rows a pending write inserts, deletes or points elsewhere.
+   */
+  count: <R extends EntityRelation<string, string, AnyEntity, 'one', boolean>>(
+    relation: R,
+  ): DerivedSpec<typeof CountSchema, { readonly _tag: 'Count'; readonly relation: R }> => ({
+    schema: CountSchema,
+    derives: Derivation.Count({ relation }) as { readonly _tag: 'Count'; readonly relation: R },
+  }),
 }
 
 export * from './expr.js'
