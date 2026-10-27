@@ -3,7 +3,7 @@
  * reader is, Remote what those pages read, SSR how a page crosses from the
  * server. The guide's snippets are this file's code, so they compile and run.
  */
-import { Effect, Equal, Layer, Match, Option, Schema, Stream, pipe } from 'effect'
+import { Effect, Layer, Match, Option, Schema, Stream, pipe } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Navigation from 'foldkit/navigation'
@@ -11,6 +11,7 @@ import { defineRouteUnion, literal, mapTo, root, slash, string } from 'foldkit/r
 import { modifyFields } from 'foldkit/struct'
 import { Url, fromString } from 'foldkit/url'
 import { Bundle } from 'foldkit-bundle'
+import { pointedLinks } from 'foldkit-primitives/dom'
 import { Entity, Expr, Order } from 'foldkit-entity'
 import { Query, Remote, RemoteClient, RemoteData } from 'foldkit-remote'
 import { SSR } from 'foldkit-ssr'
@@ -110,7 +111,7 @@ const sources = Site.sources(AppSite, App.owner, App.model.route)
 
 // THE WIRING: Site answers links and the URL, Remote its own Messages.
 
-const Routing = Site.routing<Model, Message, AppRoute>({
+const Routing = Site.routing<Model, Message, AppRoute, RemoteClient>({
   site: AppSite,
   owner: App.owner,
   route: {
@@ -121,6 +122,12 @@ const Routing = Site.routing<Model, Message, AppRoute>({
   parse: routeOf,
   tags: { clicked: 'ClickedLink', changed: 'ChangedUrl' },
   completed: Message.CompletedNavigation,
+  // The reader means to follow a link: read what that page will read.
+  preload: {
+    links: pointedLinks(),
+    intended: Message.PointedAtLink,
+    read: there => Data.preload(there, sources),
+  },
 })
 
 const Parent = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
@@ -132,15 +139,7 @@ const update = placements.update((model, message) => {
     ClickedLink: () => ({ model }),
     ChangedUrl: () => ({ model }),
     CompletedNavigation: () => ({ model }),
-    // The reader may go there next: read what that page will read.
-    PointedAtLink: ({ url }) =>
-      Option.match(Site.routeAt(AppSite, url), {
-        onNone: () => ({ model }),
-        onSome: route =>
-          Equal.equals(route, model.route)
-            ? { model }
-            : { model, commands: [Data.preload({ ...model, route }, sources)] },
-      }),
+    PointedAtLink: () => ({ model }),
   })
 })
 

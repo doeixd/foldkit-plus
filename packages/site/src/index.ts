@@ -19,7 +19,7 @@
  * link-click and URL-change lifecycle as a wiring, so applications stop
  * hand-writing those two update branches.
  */
-import { Effect, Option, Predicate, Schema } from 'effect'
+import { Effect, Option, Predicate, Schema, Stream } from 'effect'
 import {
   Bundle,
   Link,
@@ -34,6 +34,7 @@ import * as Command from 'foldkit/command'
 import { defineTaggedUnion } from 'foldkit/schema'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import * as Navigation from 'foldkit/navigation'
+import * as Subscription from 'foldkit/subscription'
 import type { KeyBinding, KeySequence } from 'foldkit/dom'
 import { UrlRequest } from 'foldkit/navigation'
 import { oneOf, parseUrlWithFallback, type Router } from 'foldkit/route'
@@ -1063,8 +1064,26 @@ export const Site = {
      * arrives nowhere, so it runs nothing.
      */
     readonly arrived?: ((model: Root, route: Route) => Update.Return<Root, Message, R>) | undefined
+    /**
+     * Reads a page ahead when the reader means to follow a link to it, so it
+     * draws at once when they do. `links` says where they mean to go
+     * (`pointedLinks()` from `foldkit-primitives/dom`), `intended` is the
+     * application's Message carrying it, which the routing claims, and `read`
+     * reads what the Model would read there, the route already set:
+     * `there => Data.preload(there, actives)`. An address no node holds, or
+     * the route shown, reads nothing, and the Model is never changed: what
+     * was read lands as `read`'s own Messages.
+     */
+    readonly preload?:
+      | {
+          readonly links: Stream.Stream<UrlValue>
+          readonly intended: Schema.Schema<Message> &
+            ((fields: { readonly url: UrlValue }) => Message)
+          readonly read: (there: Root) => Command.Command<Message, never, R>
+        }
+      | undefined
   }): Wiring<Root, Message, R> & {
-    /** Whether the routing owns a message: its click or its URL change. */
+    /** Whether the routing owns a message: its click, its URL change, or its preload intent. */
     readonly reduces: (message: Message) => boolean
   } => {
     const completedTag = tagOfConstructor(
@@ -1079,7 +1098,14 @@ export const Site = {
           Effect.as(config.completed()),
         ),
     })
-    const { arrived } = config
+    const { arrived, preload } = config
+    const intendedTag =
+      preload === undefined
+        ? undefined
+        : tagOfConstructor(
+            preload.intended,
+            'Site.routing: preload.intended must be a message constructor',
+          )
     const Load = Command.define('Site.Load', {
       args: { href: Schema.String },
       messages: [config.completed],
@@ -1101,14 +1127,42 @@ export const Site = {
       const { _tag, ...params } = current
       return Site.target(node, params)
     }
+    const handles = [
+      config.tags.clicked,
+      config.tags.changed,
+      ...(intendedTag === undefined ? [] : [intendedTag]),
+    ]
     const reduces = (message: Message): boolean =>
       // tag-check: open — the tags are the application's own variants, named in config
-      message._tag === config.tags.clicked || message._tag === config.tags.changed
+      handles.includes(message._tag)
     const wiring: Wiring<Root, Message, R> = {
       key: 'site',
-      handles: [config.tags.clicked, config.tags.changed],
+      handles,
       shared: [config.tags.changed],
+      ...(preload === undefined
+        ? {}
+        : {
+            subscriptions: Subscription.make<Root, Message, R>()(() => ({
+              'site.intent': Subscription.persistentEntry(
+                Stream.map(preload.links, url => preload.intended({ url })),
+              ),
+            })),
+          }),
       route: (model, message) => {
+        // tag-check: open — same ownership as reduces
+        if (preload !== undefined && message._tag === intendedTag) {
+          const url = (message as unknown as { readonly url: UrlValue }).url
+          return Option.some(
+            Option.match(Site.routeAt(config.site, url), {
+              // Another document's page, which this application cannot read ahead.
+              onNone: () => ({ model }),
+              onSome: next =>
+                sameRoute(config.route.get(model), next)
+                  ? { model }
+                  : { model, commands: [preload.read(config.route.set(model, next))] },
+            }),
+          )
+        }
         // tag-check: open — same ownership as reduces
         if (message._tag === config.tags.clicked) {
           const request = (message as unknown as { readonly request: UrlRequest }).request
@@ -1162,7 +1216,7 @@ export const Site = {
         owner: config.owner,
         owns: [],
         observes: [config.route.dependency],
-        messages: [completedTag],
+        messages: [completedTag, ...(intendedTag === undefined ? [] : [intendedTag])],
         metadata: [],
       } satisfies Contract,
     }

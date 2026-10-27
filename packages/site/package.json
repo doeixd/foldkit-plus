@@ -55,6 +55,7 @@
     "foldkit": "0.169.0",
     "foldkit-bundle": "workspace:*",
     "foldkit-entity": "workspace:*",
+    "foldkit-primitives": "workspace:*",
     "foldkit-remote": "workspace:*",
     "foldkit-ssr": "workspace:*",
     "foldkit-surface": "workspace:*",

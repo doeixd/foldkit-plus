@@ -3716,6 +3716,9 @@ importers:
       foldkit-entity:
         specifier: workspace:*
         version: link:../entity
+      foldkit-primitives:
+        specifier: workspace:*
+        version: link:../primitives
       foldkit-remote:
         specifier: workspace:*
         version: link:../remote

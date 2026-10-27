@@ -405,6 +405,36 @@ is those as Sources — `Data.satisfy` over them, with the route set to the
 target's, prepares the Model before a synchronous render. Preparation stays
 caller-composed — there is no `prepare` in any plan.
 
+**Reading a page ahead on intent.** Give `Site.routing` a `preload`, and a
+link the reader means to follow is read before they follow it, so its page
+draws at once:
+
+```ts
+import { pointedLinks } from 'foldkit-primitives/dom'
+
+const Routing = Site.routing<Model, Message, AppRoute, RemoteClient>({
+  // ...site, route, parse, tags and completed, as above
+  preload: {
+    links: pointedLinks(),
+    intended: Message.PointedAtLink, // PointedAtLink: { url: Url } in the application's union
+    read: there => Data.preload(there, actives),
+  },
+})
+```
+
+`pointedLinks()` says where the reader means to go: a same-origin link a
+mouse or pen rests on, or Tab stops on, for 50 ms (leaving first cancels it,
+so a pointer sweeping a list reads one page), or one a finger lands on, at
+once. The routing subscribes to it, sends `intended` for each address and
+claims that Message, so `update` has no branch for it. For an address the
+tree holds that is not the route shown, it hands `read` the Model with the
+route set to that address, and returns the Model it was given unchanged:
+`Data.preload` reads what that Model would read and lands it as one
+`Preloaded` Message. Nothing else moves, and a read that has started is not
+cancelled. What it read is kept until retention next changes. There is no
+"intended route" field in the Model and no extra Surface for it: the page's
+own Surfaces say what it reads.
+
 ## Limits / when not to use it
 
 - A single-screen application has one node; the tree buys nothing.
