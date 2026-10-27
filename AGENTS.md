@@ -856,6 +856,11 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
 - **`Schema.Record` drops a key its key schema refuses.** Decoding `{ constructor: … }`
   against `Schema.Record(Id, Entry)` returned `{}`, with no error, unless the call passes
   `onExcessProperty: 'error'`. That keeps a bad key out, and also loses its value silently.
+- **`require.resolve.paths` is not where an import looks.** It adds
+  `NODE_PATH` (pnpm sets it under `pnpm exec` and Vitest) and the global
+  folders, which ESM reads neither of: `foldkit-plus docs` found a stray
+  `foldkit-remote@0.21.0` in `.pnpm/node_modules` that way. Walk the
+  `node_modules` folders above the importer yourself.
 - **Run the probe from the package, not the repo root.** A scratch probe run
   from the root resolves a different, v3-era `effect` than the pinned rc the
   package actually compiles against, so it answers a question about the wrong
@@ -1580,6 +1585,14 @@ of its own named a form field "fits the Catalog". Read words with
   for miniflare was never mutated, so a mutation of worker code read as "not
   applied". `examples/cloudflare/src/stack.ts` applies the same edits in an
   esbuild `onLoad` plugin; another esbuild-bundled stack needs the same.
+- **`pnpm mutate` cannot reach code a test builds from the disk.**
+  `cli.test.ts` builds `src/cli.ts` with tsdown, so a mutation of `cli.ts`
+  reads "not applied". Mutate such code by hand (copy the file aside, edit,
+  run, copy back) and say so in the spec, or move the logic to a module the
+  tests import (`project.ts`, `docs.ts`).
+- **A new package export needs `pnpm --filter foldkit-plus generate`.**
+  `foldkit-remote/testing` went in without it, and `generated.test.ts` failed
+  until `foldkit-plus` re-exported it.
 - **Vitest 5 caches transformed modules on disk, keyed without the environment.**
   `fsModuleCache` is on by default in 5.0.4 (5.0.1 ran without it), so a
   plugin whose output depends on an environment variable (`pnpm mutate`'s

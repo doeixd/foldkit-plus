@@ -438,6 +438,11 @@
       "types": "./dist/remote/port.d.mts",
       "import": "./dist/remote/port.mjs"
     },
+    "./remote/testing": {
+      "foldkit-plus:source": "./src/remote/testing.ts",
+      "types": "./dist/remote/testing.d.mts",
+      "import": "./dist/remote/testing.mjs"
+    },
     "./remote-drizzle": {
       "foldkit-plus:source": "./src/remote-drizzle.ts",
       "types": "./dist/remote-drizzle.d.mts",

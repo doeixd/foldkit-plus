@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`npx foldkit-plus docs <query>` answers from the docs installed in the
+  project:** the best sections of each installed Foldkit Plus package's README
+  and of the `foldkit-plus` skill if installed, and for a symbol
+  (`Data.preload`) its declaration, each naming its package version, file and
+  line. `--list [topic]` prints an outline and `--json` is for programs; a
+  folder with no project, nothing installed, or no match exits 1 with a
+  reason. `npx foldkit-plus mcp` serves the same over stdio as the MCP tools
+  `search_docs` and `outline_docs`. `foldkit-plus/remote/testing` re-exports
+  `Trace` (#252, #250).
 - **`Site.routing` preloads a link's page on intent.** `preload: { links,
   intended, read }` subscribes to `links` (`pointedLinks()`), sends and claims
   the application's `intended` Message, skips addresses the tree does not hold
