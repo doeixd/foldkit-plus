@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`Derived.exists(Like.relations.post, { viewer: Like.relations.user })`:
+  "liked by me".** The id of a row pointing here and at whoever reads it, or
+  none (`Option<string>`), so an unlike knows what to delete. `bind` compiles
+  it with no entry, under the pointing table's `visible` rule;
+  `source(binding, { viewer })` says who reads and is required for such a
+  binding, and listing it as `shared` is refused. `Remote.make({ viewer })`
+  lets a declared write predict the `Derived.exists` it finds or loses, and
+  the count it moves. Chirp's like is a `Like` Entity with `LikePost` and
+  `Unlike` declared writes; `ToggleLike` and `likedBy` are gone (#233, #216).
 - **`foldkit-plus/testing/workers` and `foldkit-plus/testing/playwright`.**
   `Stack.start` runs a Worker on a local workerd from its own Wrangler config
   (bindings, date and flags, `.dev.vars`, a migrated D1 per stack) and swaps
@@ -176,6 +185,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **Breaking: `RemoteDescriptor.registry.counts` is `registry.derived`**
+  (`DerivedBy`: `Count` | `Exists`), and `countsOfWrite` is `derivedOfWrite`
+  (#233).
 - **Breaking: `invariantChecks` is replaced by
   `checkConstraints(binding).constraints`,** which carries the field rules
   too. `bind` reads a column's nullability from the field's stored side, so an

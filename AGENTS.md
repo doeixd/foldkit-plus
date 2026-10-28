@@ -1117,6 +1117,12 @@ of its own named a form field "fits the Catalog". Read words with
   an assignability test could not see it (`unknown` accepts anything). Carry an
   `Encoded` parameter and pin it with a type-equality assertion.
 
+- **A constructor that starts requiring an option breaks its internal
+  callers.** `writer` built its reads with `source(binding)`; once `source`
+  refused a binding with a `Derived.exists` and no `viewer`, no writer could
+  be made for such an Entity. The tests built writers only for the Like
+  binding and passed; Chirp's `writer(Db.Post)` broke. After making a
+  constructor stricter, grep its internal callers.
 - **An unused parameter or config field is a promise the runtime does not keep.**
   `RemoteServer.make(Data, …)` never read `Data`, and `Remote.make` accepted
   `queries`/`mutations` it dropped, so the API advertised a relationship that did
