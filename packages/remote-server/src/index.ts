@@ -5,12 +5,14 @@
  * turning them into Effect RPC handlers. It does not own HTTP, serialization, or
  * auth protocol; `principal` is resolved outside, and passed in or provided.
  */
-import { Cause, Context, Effect, Layer, Match, Option, Queue, Schema, Stream } from 'effect'
+import { Cause, Clock, Context, Effect, Layer, Match, Option, Queue, Schema, Stream } from 'effect'
 import {
   Entity,
   Operators,
   SchemaShape,
+  Stamp,
   Write,
+  WriteStamp,
   assertSupported,
   evaluate,
   type AnyQuery,
@@ -433,6 +435,11 @@ export interface MutationSource<P, R = never> {
     readonly input: unknown
     readonly principal: P
     /**
+     * Who asks, as a row (`RemoteServer.make`'s `viewer`), or none for a
+     * visitor: what a declared insert's `Stamp.viewer` writes.
+     */
+    readonly viewer: Option.Option<EntityRef>
+    /**
      * The client's id for this request, the same on every retry of it. It is
      * unique within that client only: two clients' first requests can share
      * it. Key a record of the write by `operation`, never by this.
@@ -506,6 +513,8 @@ export interface ServerDefinition<P, R = never> {
   readonly mutations: ReadonlyMap<string, MutationSource<P, R>>
   readonly queries: ReadonlyMap<string, QuerySource<P, R>>
   readonly live: ReadonlyMap<string, LiveSource<P, R>>
+  /** Who asks, as a row: what a declared insert's `Stamp.viewer` writes. See `make`. */
+  readonly viewer?: ((principal: P) => Option.Option<EntityRef>) | undefined
 }
 
 /** A read batch may not carry more than this many distinct ids per entity. */
@@ -1059,6 +1068,8 @@ export type MemoryConfig<P> = {
   ) => Effect.Effect<MemoryReadable, RemoteServerError>
   /** Who the `layer` answers as. Without it there is no `layer`, unless `P` admits `undefined`. */
   readonly principal?: P
+  /** Who asks, as a row: what a declared insert's `Stamp.viewer` writes. See `make`. */
+  readonly viewer?: ((principal: P) => Option.Option<EntityRef>) | undefined
 }
 
 /** What a backend needs to give a `layer`: a principal to answer as, or one `undefined` can be. */
@@ -1397,6 +1408,7 @@ function memory<P = undefined>(config: MemoryConfig<P>): MemoryBackend<P> {
     entities: [...entities, ...(config.entities ?? [])],
     queries,
     mutations: config.mutations?.(store) ?? [],
+    viewer: config.viewer,
   })
   return {
     ...store,
@@ -1757,9 +1769,32 @@ export const RemoteServer = {
         `[foldkit-remote-server] write "${mutation.name}" writes ${writer.entity}, which has invariants, but its writer does not judge them (invariants)`,
       )
     }
+    const stamped = write.stamps.flatMap(
+      WriteStamp.$match({ Field: ({ field }) => [field.key], Link: () => [] }),
+    )
+    // What the write stamps is the write's: a writer that also sets it would overwrite one or the other.
+    const twice = stamped.find(field => (writer.sets ?? []).includes(field))
+    if (twice !== undefined) {
+      throw new Error(
+        `[foldkit-remote-server] write "${mutation.name}" stamps "${twice}", which its writer for ${writer.entity} also sets`,
+      )
+    }
+    // A retry keeps the row's own time, so the clock is never compared; who asked is.
+    const clocked = write.stamps.flatMap(
+      WriteStamp.$match({
+        Field: ({ field, stamp }) =>
+          Stamp.$match(stamp, { Clock: () => [field.key], Viewer: () => [] }),
+        Link: () => [],
+      }),
+    )
     // An insert's row is its values: a field it leaves to a default the writer cannot judge.
     if (write._tag === 'Insert') {
-      const sets = new Set(['id', ...write.sets.map(set => set.field.key), ...(writer.sets ?? [])])
+      const sets = new Set([
+        'id',
+        ...write.sets.map(set => set.field.key),
+        ...stamped,
+        ...(writer.sets ?? []),
+      ])
       const unset = judged.flatMap(held =>
         held.after.filter(key => !sets.has(key)).map(key => `${held.id} reads ${key}`),
       )
@@ -1807,7 +1842,7 @@ export const RemoteServer = {
       Input: mutation.Input,
       Output: mutation.Output,
       Refusal: mutation.Refusal,
-      run: ({ input, principal, keys, operation }) => {
+      run: ({ input, principal, viewer, keys, operation }) => {
         const given = input as never
         const expect = Write.expected(write, given)
         const conflict = (bound: { readonly entity: string; readonly id: string }) =>
@@ -1950,12 +1985,18 @@ export const RemoteServer = {
             Insert: () =>
               Effect.gen(function* () {
                 const bound = Write.bind(write, given)
+                const stamps = Write.stamp(write, {
+                  viewer,
+                  now: Option.some(yield* Clock.currentTimeMillis),
+                })
+                // Only the viewer can be missing: a visitor has no one to stamp.
+                if (stamps.unknown.length > 0) return yield* Effect.fail(RemoteServer.forbid())
                 const row = yield* invalid(
                   writer.insert({
                     id: bound.id,
-                    values: bound.values,
-                    links: bound.links,
-                    stamped: [],
+                    values: { ...bound.values, ...stamps.values },
+                    links: { ...bound.links, ...stamps.links },
+                    stamped: clocked,
                     principal,
                   }),
                 )
@@ -2028,17 +2069,42 @@ export const RemoteServer = {
    */
   liveHub,
 
+  /**
+   * The server: its sources by name. `viewer` says who asks, as a row
+   * (`principal => Option.some(Remote.ref(User, principal.id))`), or none for
+   * a visitor: what a declared insert's `Stamp.viewer` writes. A server
+   * registering such an insert without one is refused here.
+   */
   make: <P = unknown, R = never>(config: {
     readonly entities: readonly EntitySource<P, R>[]
     readonly mutations?: readonly MutationSource<P, R>[]
     readonly queries?: readonly QuerySource<P, R>[]
     readonly live?: readonly LiveSource<P, R>[]
-  }): ServerDefinition<P, R> => ({
-    entities: new Map(config.entities.map(source => [source.entity, source])),
-    mutations: new Map((config.mutations ?? []).map(source => [source.mutation, source])),
-    queries: new Map((config.queries ?? []).map(source => [source.query, source])),
-    live: new Map((config.live ?? []).map(source => [source.entity, source])),
-  }),
+    readonly viewer?: ((principal: P) => Option.Option<EntityRef>) | undefined
+  }): ServerDefinition<P, R> => {
+    if (config.viewer === undefined) {
+      const viewing = (config.mutations ?? []).find(source =>
+        (source.writes?.write.stamps ?? []).some(
+          WriteStamp.$match({
+            Field: ({ stamp }) => Stamp.$match(stamp, { Clock: () => false, Viewer: () => true }),
+            Link: () => true,
+          }),
+        ),
+      )
+      if (viewing !== undefined) {
+        throw new Error(
+          `[foldkit-remote-server] write "${viewing.mutation}" stamps whoever asks (Stamp.viewer), but the server has no viewer; give RemoteServer.make a viewer`,
+        )
+      }
+    }
+    return {
+      entities: new Map(config.entities.map(source => [source.entity, source])),
+      mutations: new Map((config.mutations ?? []).map(source => [source.mutation, source])),
+      queries: new Map((config.queries ?? []).map(source => [source.query, source])),
+      live: new Map((config.live ?? []).map(source => [source.entity, source])),
+      viewer: config.viewer,
+    }
+  },
 
   /**
    * Checks every source name against the declared domain, so an undeclared
@@ -2335,6 +2401,7 @@ export const RemoteServer = {
           .run({
             input,
             principal: caller,
+            viewer: server.viewer === undefined ? Option.none() : server.viewer(caller),
             requestId: payload.requestId,
             operation: Option.fromUndefinedOr(payload.operation),
             keys: payload.keys,
