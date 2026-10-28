@@ -3,7 +3,7 @@
  * Object), the page on Vite with `/remote` sent to it, and Chromium driving
  * the page. A todo added to the empty list shows while its write is still
  * held at the network and stays once it is answered, and the list never
- * reads "Loading…" meanwhile; the page fits a phone with its controls a
+ * reads "Loading…" meanwhile, nor on a reload; the page fits a phone with its controls a
  * finger's size, and logs no error.
  */
 import { Behaviors } from 'foldkit-plus/testing/playwright'
@@ -45,6 +45,19 @@ test('a todo shows before the server answers, the list never loading again, and 
         act: () => page.getByRole('button', { name: 'Add' }).click(),
         shows: title,
       }),
+  })
+
+  // A reload draws the stored list from its first frame (#262). The save waits
+  // for the cache to settle, so reload only once the row is stored.
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('foldkit-crud-cache:anon') ?? ''))
+    .toContain('Buy milk')
+  await Behaviors.neverShows(page, {
+    text: 'Loading…',
+    during: async () => {
+      await page.reload()
+      await title.waitFor()
+    },
   })
 
   const remove = await page.getByRole('button', { name: 'Delete Buy milk' }).boundingBox()

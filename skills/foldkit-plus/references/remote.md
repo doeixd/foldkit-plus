@@ -387,8 +387,12 @@ const persistence = Data.persistence({
 })
 ```
 
-The restore hydrates with `preserve-existing`, and records the key it came
-from in `model.remote.restoredFrom`. Saving waits until that key is
+Start `init` from `persistence.restore(model)`, resolved as the runtime's
+`flags` (`Flags: Model, flags: persistence.restore(initial), initial: (model:
+Model) => ({ model })`), so a reload draws the stored rows in its first frame
+instead of `Loading`; the wiring then restores only a key the Model is not
+restored from. The restore hydrates with `preserve-existing`, and records the
+key it came from in `model.remote.restoredFrom`. Saving waits until that key is
 restored, so startup never writes the empty store over the snapshot. Since a
 restore keeps what memory holds, a change of principal must be `Data.forget`
 in the same `update`, or one person's rows are saved under the next one's key.

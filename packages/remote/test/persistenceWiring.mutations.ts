@@ -2,7 +2,10 @@
  * `Data.persistence`, broken in turn:
  * `pnpm mutate packages/remote/test/persistenceWiring.mutations.ts`.
  */
-const tests = ['packages/remote/test/persistenceWiring.test.ts']
+const tests = [
+  'packages/remote/test/persistenceWiring.test.ts',
+  'packages/remote/test/persistenceFirstFrame.test.ts',
+]
 const file = '../src/index.ts'
 const model = '../src/model.ts'
 
@@ -31,7 +34,13 @@ export default [
   },
   {
     name: 'a restore does not say which key it came from',
-    edits: [{ file, find: '                    from: key,\n', replace: '' }],
+    edits: [
+      {
+        file,
+        find: "merge: 'preserve-existing',\n            from: key,",
+        replace: "merge: 'preserve-existing',",
+      },
+    ],
     tests,
   },
   {
@@ -50,8 +59,8 @@ export default [
     edits: [
       {
         file,
-        find: "merge: 'preserve-existing',\n                    from: key,",
-        replace: "merge: 'replace',\n                    from: key,",
+        find: "merge: 'preserve-existing',\n            from: key,",
+        replace: "merge: 'replace',\n            from: key,",
       },
     ],
     tests,
@@ -61,9 +70,50 @@ export default [
     edits: [
       {
         file,
-        find: 'onNone: (): Stream.Stream<RemoteMessage> => Stream.empty,',
+        find: '          Effect.option,\n        )\n      // Restores the key',
         replace:
-          "onNone: (): Stream.Stream<RemoteMessage> => Stream.make({ _tag: 'Hydrated', entities: [], connections: [], merge: 'preserve-existing', from: key }),",
+          "          Effect.orElseSucceed((): RemoteMessage => ({ _tag: 'Hydrated', entities: {}, connections: {}, merge: 'preserve-existing', from: key })),\n          Effect.option,\n        )\n      // Restores the key",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the entry restores a key the Model is already restored from',
+    edits: [
+      {
+        file,
+        find: 'restored\n            ? Stream.empty\n            : Stream.fromEffect(hydratedFrom',
+        replace: 'false\n            ? Stream.empty\n            : Stream.fromEffect(hydratedFrom',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the entry restores nothing once any key is restored',
+    edits: [
+      {
+        file,
+        find: 'restored: Option.contains(store.get(model).restoredFrom, key),',
+        replace: 'restored: Option.isSome(store.get(model).restoredFrom),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'init starts from the Model as it was',
+    edits: [
+      { file, find: 'onSome: message => reduce(model, message)', replace: 'onSome: () => model' },
+    ],
+    tests,
+  },
+  {
+    name: 'an unreadable store counts as restored in init',
+    edits: [
+      {
+        file,
+        find: 'Option.match({ onNone: () => model,',
+        replace:
+          "Option.match({ onNone: () => reduce(model, { _tag: 'Hydrated', entities: {}, connections: {}, merge: 'preserve-existing', from: options.key(model) }),",
       },
     ],
     tests,

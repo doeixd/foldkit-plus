@@ -126,7 +126,8 @@ export interface RemoteModel {
   /**
    * The storage key the cache was last restored from, through `Hydrated`'s
    * `from`. `Data.persistence` saves under a key only once its own snapshot is
-   * in, so a save at startup cannot write the empty store over it.
+   * in, so a save at startup cannot write the empty store over it, and
+   * restores only a key the Model is not yet restored from.
    */
   readonly restoredFrom: Option.Option<string>
   /**

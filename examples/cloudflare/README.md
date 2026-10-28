@@ -164,8 +164,8 @@ From the repository root, `npx vitest run --config vitest.e2e.config.ts
 examples/cloudflare` starts the worker on miniflare and the page on Vite, and
 drives the page in Chromium (`e2e/page.e2e.ts`). It holds the add's write
 at the network and asserts the todo shows meanwhile and after the answer,
-that the list never reads "Loading…" while it does, and that the page logs
-no error (`foldkit-plus/testing/playwright`'s `Behaviors`).
+that the list never reads "Loading…" while it does nor across a reload, and
+that the page logs no error (`foldkit-plus/testing/playwright`'s `Behaviors`).
 
 `src/schema.ts` holds the table, the Drizzle binding, the Sync contract, the
 journal, `settle`, the polling source, and the Remote mutation handlers.
@@ -199,7 +199,9 @@ editor in `foldkit-mixins-crud/recipes`' looks, and the forms in
   id), so Remote places a created or renamed row in the list itself. The
   list is not asked again.
 - The list is stored in the browser, one snapshot per actor. The next visit
-  paints those rows at once and asks again. A failed ask, including offline,
+  paints those rows in its first frame and asks again: `src/browser.ts`
+  restores them before `init`, as the runtime's Flags
+  (`persistence.restore`). A failed ask, including offline,
   leaves them. An unsent write is not stored.
 - Another tab sees a field change as a live patch, and a row joining or
   leaving as a connection event. The page does not ask on a clock. The stream

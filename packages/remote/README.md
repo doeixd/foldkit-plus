@@ -1947,12 +1947,32 @@ const persistence = Data.persistence({
 const placements = Page.assemble(Data.wiring(actives), persistence)
 ```
 
-The restore and the save each run as Subscriptions, when the key changes or the
-cache does:
+The first restore belongs before the first frame, or a reload draws `Loading`
+until a Subscription brings the stored rows. `persistence.restore(model)` is
+that restore as an Effect: resolve it as the runtime's `flags`, which the
+runtime runs with its `resources` before `init`, and start `init` from the
+Model it gives (`examples/cloudflare/src/browser.ts` does):
+
+```ts
+Runtime.makeElement(
+  placements.runtime({
+    Model,
+    Flags: Model,
+    flags: persistence.restore(initial(actor)),
+    initial: (model: Model) => ({ model }),
+    // …
+  }),
+)
+```
+
+After that the wiring restores only a key the Model is not restored from (a
+change of principal), and saves as the cache changes:
 
 ```text
 key -> restore -> Hydrated { from: key } -> restoredFrom = key -> save on each change
 ```
+
+Without `restore` in `init`, the wiring restores at start too, a frame late.
 
 - **A restore keeps what the Model already holds.** It hydrates with
   `merge: 'preserve-existing'`, so a fact resumed from the server, or read since

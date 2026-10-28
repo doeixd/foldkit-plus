@@ -1,6 +1,7 @@
 /**
  * `Data.persistence`: the cache kept across a reload as a wiring. Its restore
- * runs whenever the storage key changes; its save writes only once that key's
+ * runs for a storage key the Model is not yet restored from, in `init` through
+ * `restore` or else as a Subscription; its save writes only once that key's
  * own snapshot is in, so a save at startup never writes the empty store over
  * the snapshot it has not read yet.
  */
@@ -92,6 +93,23 @@ describe('Data.persistence', () => {
     expect(restored.remote.restoredFrom).toEqual(Option.some('cache:ada'))
   })
 
+  it('restores in init as the entry would, and the entry then restores nothing more', async () => {
+    const kv = storeWith('ada', 'Apollo')
+    const started = await Effect.runPromise(
+      persistence
+        .restore(fresh('ada'))
+        .pipe(Effect.provideService(KeyValueStore.KeyValueStore, kv)),
+    )
+    const messages = await step(kv, restore, fresh('ada'))
+    expect(started).toEqual(messages.reduce(Data.reduce, fresh('ada')))
+    expect(shown(started)).toBe('Apollo')
+    expect(await step(kv, restore, started)).toEqual([])
+    // Another principal's key is not restored yet, so the entry restores it.
+    expect(await step(kv, restore, { ...started, actor: 'grace' })).toMatchObject([
+      { _tag: 'Hydrated', from: 'cache:grace' },
+    ])
+  })
+
   it('keeps a fact the store already holds over the snapshot’s older one, as a resumed page’s', async () => {
     const kv = storeWith('ada', 'Old')
     const resumed = held(fresh('ada'), 'Fresh')
@@ -147,5 +165,12 @@ describe('Data.persistence', () => {
       size: Effect.succeed(0),
     })
     expect(await step(unreadable, restore, fresh('ada'))).toEqual([])
+    const model = fresh('ada')
+    const started = await Effect.runPromise(
+      persistence
+        .restore(model)
+        .pipe(Effect.provideService(KeyValueStore.KeyValueStore, unreadable)),
+    )
+    expect(started).toBe(model)
   })
 })

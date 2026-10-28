@@ -347,6 +347,22 @@ export interface PersistenceOptions<AppModel> {
   readonly debounce?: Duration.Input | undefined
 }
 
+/** `Data.persistence`'s wiring, and the restore its runtime's `init` starts from. */
+export interface PersistenceWiring<AppModel> extends Wiring<
+  AppModel,
+  RemoteMessage,
+  KeyValueStore.KeyValueStore
+> {
+  /**
+   * The Model with the snapshot stored under its `key` restored, as the wiring
+   * would restore it. Resolve it as the runtime's `flags` and start `init`
+   * from it, so the first frame draws the stored rows; the wiring then
+   * restores only when `key` changes. A store it cannot read leaves the Model
+   * as it is, and the wiring tries again.
+   */
+  readonly restore: (model: AppModel) => Effect.Effect<AppModel, never, KeyValueStore.KeyValueStore>
+}
+
 export interface DomainMutateOptions {
   /** Overrides the generated id, for a retry, a durable bridge, or a test. */
   readonly requestId?: string | undefined
@@ -846,17 +862,16 @@ export interface RemoteDomain<
     options?: WiringOptions<Shared>,
   ) => RemoteWiring<AppModel, Shared>
   /**
-   * Keeps the cache across a reload, as a wiring beside `wiring`: at start and
-   * whenever `key` changes, the stored snapshot is restored (`Hydrated`, with
-   * what the store already holds kept over it, so a page resumed from the
-   * server wins); and the cache is written back when it changes, once its own
-   * snapshot is in. Overlays, optimistic layers, the mutation ledger, live
-   * cursors and gaps are never stored. A change of principal should `forget`
-   * in `update`, and name another `key`.
+   * Keeps the cache across a reload, as a wiring beside `wiring`: the stored
+   * snapshot for `key` is restored (`Hydrated`, with what the store already
+   * holds kept over it, so a page resumed from the server wins) whenever the
+   * Model is not yet restored from `key`; and the cache is written back when it
+   * changes, once its own snapshot is in. Start `init` from its `restore` so
+   * the first frame already holds the snapshot. Overlays, optimistic layers,
+   * the mutation ledger, live cursors and gaps are never stored. A change of
+   * principal should `forget` in `update`, and name another `key`.
    */
-  persistence(
-    options: PersistenceOptions<AppModel>,
-  ): Wiring<AppModel, RemoteMessage, KeyValueStore.KeyValueStore>
+  persistence(options: PersistenceOptions<AppModel>): PersistenceWiring<AppModel>
   /** `Remote.inspect` of the bound slice. */
   inspect(model: AppModel): RemoteInspection
 }
@@ -4207,36 +4222,49 @@ const bindDomain = <
         }
         return last.text
       }
-      const restore: EntryWithoutKeepAlive<
+      // A store that cannot be read restores nothing, so nothing is saved
+      // under this key: an unread snapshot is never written over.
+      const hydratedFrom = (
+        key: string,
+        scope: string,
+      ): Effect.Effect<Option.Option<RemoteMessage>, never, KeyValueStore.KeyValueStore> =>
+        RemotePersistence.restore({ key, scope, maxBytes: options.maxBytes }).pipe(
+          Effect.map((snapshot): RemoteMessage => ({
+            _tag: 'Hydrated',
+            entities: snapshot.entities,
+            connections: snapshot.connections,
+            merge: 'preserve-existing',
+            from: key,
+          })),
+          Effect.option,
+        )
+      // Restores the key the Model is not yet restored from: at start, unless
+      // `init` began from `restore`, and whenever the key changes.
+      const restoreEntry: EntryWithoutKeepAlive<
         AppModel,
         RemoteMessage,
-        { readonly key: string; readonly scope: string },
+        { readonly key: string; readonly scope: string; readonly restored: boolean },
         KeyValueStore.KeyValueStore
       > = {
-        dependenciesSchema: Schema.Struct({ key: Schema.String, scope: Schema.String }),
-        modelToDependencies: model => ({ key: options.key(model), scope: options.scope(model) }),
-        // A store that cannot be read restores nothing, so nothing is saved
-        // under this key: an unread snapshot is never written over.
-        dependenciesToStream: ({ key, scope }) =>
-          Stream.fromEffect(
-            RemotePersistence.restore({ key, scope, maxBytes: options.maxBytes }).pipe(
-              Effect.option,
-            ),
-          ).pipe(
-            Stream.flatMap(read =>
-              Option.match(read, {
-                onNone: (): Stream.Stream<RemoteMessage> => Stream.empty,
-                onSome: (snapshot): Stream.Stream<RemoteMessage> =>
-                  Stream.make({
-                    _tag: 'Hydrated',
-                    entities: snapshot.entities,
-                    connections: snapshot.connections,
-                    merge: 'preserve-existing',
-                    from: key,
-                  }),
-              }),
-            ),
-          ),
+        dependenciesSchema: Schema.Struct({
+          key: Schema.String,
+          scope: Schema.String,
+          restored: Schema.Boolean,
+        }),
+        modelToDependencies: model => {
+          const key = options.key(model)
+          return {
+            key,
+            scope: options.scope(model),
+            restored: Option.contains(store.get(model).restoredFrom, key),
+          }
+        },
+        dependenciesToStream: ({ key, scope, restored }) =>
+          restored
+            ? Stream.empty
+            : Stream.fromEffect(hydratedFrom(key, scope)).pipe(
+                Stream.flatMap(Option.match({ onNone: () => Stream.empty, onSome: Stream.make })),
+              ),
       }
       const save: EntryWithoutKeepAlive<
         AppModel,
@@ -4282,8 +4310,13 @@ const bindDomain = <
         key: `persistence:${bound.contract.name}`,
         handles: [],
         subscriptions: Subscription.make<AppModel, RemoteMessage, KeyValueStore.KeyValueStore>()(
-          () => ({ 'persistence.restore': restore, 'persistence.save': save }),
+          () => ({ 'persistence.restore': restoreEntry, 'persistence.save': save }),
         ),
+        restore: model =>
+          Effect.map(
+            hydratedFrom(options.key(model), options.scope(model)),
+            Option.match({ onNone: () => model, onSome: message => reduce(model, message) }),
+          ),
       }
     },
     wiring: (active, options = {}) => ({
