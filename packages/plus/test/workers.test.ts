@@ -7,13 +7,15 @@
  * does not start stops the stack and says so, and a configuration the local
  * runtime would quietly run differently is refused before anything starts.
  */
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import type { Plugin } from 'esbuild'
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { peer } from '../src/testing/peer.js'
 import { Stack } from '../src/testing/workers.js'
+import type { WatchListener } from '../src/testing/workers.js'
 
 /** The newest date the installed workerd supports, as Wrangler's own Miniflare says. */
 const supported = String(
@@ -124,6 +126,95 @@ describe('a watched stack', () => {
     expect(outcomes[2]).toMatch(/^stopped: .*notAHandler/s)
     await expect(answer()).rejects.toThrow()
   }, 120_000)
+})
+
+/** A watch listener that records what it is told in `outcomes`. */
+const listener = (outcomes: Array<string> = []): WatchListener => ({
+  onSwap: () => outcomes.push('swapped'),
+  onBuildError: message => outcomes.push(`build error: ${message}`),
+  onStopped: message => outcomes.push(`stopped: ${message}`),
+})
+
+describe('stopping', () => {
+  /** A plugin that tells where the stack bundles, and runs `onSetup` on each build it joins. */
+  const probe = (onSetup: (call: number) => void = () => {}) => {
+    const seen = { directory: '', calls: 0 }
+    const plugin: Plugin = {
+      name: 'probe',
+      setup: build => {
+        seen.calls++
+        seen.directory = build.initialOptions.outdir ?? ''
+        onSetup(seen.calls)
+      },
+    }
+    return { seen, plugin }
+  }
+  const exists = (path: string) =>
+    access(path).then(
+      () => true,
+      () => false,
+    )
+
+  it('stops workerd and removes the bundle after a watch that failed', async () => {
+    const worker = await project()
+    const { seen, plugin } = probe(call => {
+      // The stack's own build is the first call; the watch's context the second.
+      if (call === 2) throw new Error('setup failed')
+    })
+    const stack = await Stack.start({ ...worker, plugins: [plugin] })
+    const origin = stack.origin
+    expect(await exists(seen.directory)).toBe(true)
+    await expect(stack.watch(listener())).rejects.toThrow('setup failed')
+    // Not watching after all, so a second watch is not refused.
+    await stack.watch(listener())
+    await stack.stop()
+    await expect(fetch(origin)).rejects.toThrow()
+    expect(await exists(seen.directory)).toBe(false)
+  }, 60_000)
+
+  it('stops while a watch that will fail is still opening', async () => {
+    const worker = await project()
+    const { seen, plugin } = probe(call => {
+      if (call === 2) throw new Error('setup failed')
+    })
+    const stack = await Stack.start({ ...worker, plugins: [plugin] })
+    const watched = expect(stack.watch(listener())).rejects.toThrow('setup failed')
+    await stack.stop()
+    await watched
+    expect(await exists(seen.directory)).toBe(false)
+  }, 60_000)
+
+  it('swaps nothing and reports nothing for a rebuild in flight when it stops', async () => {
+    const worker = await project()
+    let reach = () => {}
+    let release = () => {}
+    const gate = {
+      hold: false,
+      reached: new Promise<void>(resolve => (reach = resolve)),
+      released: new Promise<void>(resolve => (release = resolve)),
+    }
+    const holding: Plugin = {
+      name: 'gate',
+      setup: build =>
+        build.onEnd(async () => {
+          if (!gate.hold) return
+          reach()
+          await gate.released
+        }),
+    }
+    const stack = await Stack.start({ ...worker, plugins: [holding] })
+    const outcomes: Array<string> = []
+    await stack.watch(listener(outcomes))
+    gate.hold = true
+    await writeFile(worker.entry, source('two'))
+    await gate.reached
+    const stopped = stack.stop()
+    release()
+    await stopped
+    // A second stop is the first one.
+    await stack.stop()
+    expect(outcomes).toEqual([])
+  }, 60_000)
 })
 
 describe('the configuration', () => {

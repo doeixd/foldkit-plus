@@ -71,11 +71,37 @@ export default [
   ),
   {
     ...edit(
-      'a build after the stack stopped is swapped in anyway',
-      'if (Option.isNone(running)) return',
-      '',
+      'a build after a Worker did not start is swapped in anyway',
+      'if (Option.isNone(running) || Option.isSome(stopping)) return',
+      'if (Option.isSome(stopping)) return',
     ),
     survives:
-      'After a stop, no completed rebuild is observable without a sleep: the harness has no session to swap into, and the test cannot wait for a build that reports nothing.',
+      'After a Worker did not start, no completed rebuild is observable without a sleep: the harness has no session to swap into, and the test cannot wait for a build that reports nothing.',
+  },
+  edit(
+    'a rebuild in flight when the stack stops is swapped in',
+    'if (Option.isNone(running) || Option.isSome(stopping)) return',
+    'if (Option.isNone(running)) return',
+  ),
+  edit(
+    'stop waits on a watch context that never opened',
+    'const opened = await watcher.then(Option.some, () => Option.none<BuildContext>())',
+    'const opened = Option.some(await watcher)',
+  ),
+  edit(
+    'a failed watch is still taken for watching',
+    '        if (Option.contains(watching, watcher)) {\n          watching = Option.none()\n          await dispose(watcher)\n        }\n',
+    '',
+  ),
+  {
+    name: 'a harness that throws as it closes leaves the bundle behind',
+    edits: [
+      {
+        file,
+        find: '      try {\n        await harness.close()\n      } finally {\n        await rm(',
+        replace: '      {\n        await harness.close()\n      }\n      {\n        await rm(',
+      },
+    ],
+    tests: ['packages/plus/test/workers.close.test.ts'],
   },
 ]

@@ -69,6 +69,11 @@ export interface Stack<Env> {
    * Worker in at the same origin. D1, R2 and Durable Object storage stay.
    */
   readonly watch: (listener: WatchListener) => Promise<void>
+  /**
+   * Stops watching, stops workerd and removes the bundle's directory, each
+   * even when one before it failed. A rebuild still in flight swaps nothing
+   * and reports nothing. A second call returns the first one's promise.
+   */
   readonly stop: () => Promise<void>
 }
 
@@ -182,11 +187,34 @@ const start = async <Env>(options: StackOptions): Promise<Stack<Env>> => {
     ],
   })
   let watching = Option.none<Promise<BuildContext>>()
-  const stop = async () => {
-    if (Option.isSome(watching)) await (await watching.value).dispose()
-    await harness.close()
-    await rm(directory, { recursive: true, force: true })
+  let stopping = Option.none<Promise<void>>()
+  const dispose = async (watcher: Promise<BuildContext>) => {
+    // A context that never opened has nothing to dispose; its failure was the watch's to report.
+    const opened = await watcher.then(Option.some, () => Option.none<BuildContext>())
+    if (Option.isSome(opened)) await opened.value.dispose()
   }
+  // Each step runs however the one before it ended: a step skipped leaves
+  // workerd running, or the bundle's directory behind.
+  const stopOnce = async () => {
+    try {
+      const watcher = watching
+      watching = Option.none()
+      // Waits for a rebuild in flight, whose `onEnd` sees `stopping`.
+      if (Option.isSome(watcher)) await dispose(watcher.value)
+    } finally {
+      try {
+        await harness.close()
+      } finally {
+        await rm(directory, { recursive: true, force: true })
+      }
+    }
+  }
+  const stop = () =>
+    Option.getOrElse(stopping, () => {
+      const once = stopOnce()
+      stopping = Option.some(once)
+      return once
+    })
 
   try {
     await writeOutputs(first)
@@ -196,6 +224,7 @@ const start = async <Env>(options: StackOptions): Promise<Stack<Env>> => {
       await worker.applyD1Migrations(database.binding)
 
     const watch = async (listener: WatchListener) => {
+      if (Option.isSome(stopping)) throw new Error('This stack has stopped.')
       if (Option.isSome(watching)) throw new Error('This stack is already watching.')
       // The bundle running now; none once a Worker did not start and took the runtime with it.
       let running = Option.some(identityOf(first))
@@ -207,7 +236,9 @@ const start = async <Env>(options: StackOptions): Promise<Stack<Env>> => {
             name: 'foldkit-swap',
             setup: build =>
               build.onEnd(async result => {
-                if (Option.isNone(running)) return
+                // A rebuild that ends once `stop` began swaps nothing: `stop` waits
+                // for it before closing the harness, so it would swap into a closing stack.
+                if (Option.isNone(running) || Option.isSome(stopping)) return
                 if (result.errors.length > 0) {
                   listener.onBuildError(result.errors.map(error => error.text).join('\n'))
                   return
@@ -228,13 +259,23 @@ const start = async <Env>(options: StackOptions): Promise<Stack<Env>> => {
         ],
       })
       watching = Option.some(watcher)
-      await (await watcher).watch()
+      try {
+        await (await watcher).watch()
+      } catch (error) {
+        // Not watching after all: `stop` must not wait on this context, nor a second `watch` be refused.
+        if (Option.contains(watching, watcher)) {
+          watching = Option.none()
+          await dispose(watcher)
+        }
+        throw error
+      }
     }
 
     const env = () => harness.getWorker<Env>().getEnv()
     return { origin: url.origin, env, dispatch: worker.fetch, watch, stop }
   } catch (error) {
-    await stop()
+    // The start's failure is the one to report; a failure cleaning up after it would hide it.
+    await stop().catch(() => undefined)
     throw error
   }
 }
