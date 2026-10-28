@@ -218,4 +218,21 @@ export default [
     ],
     tests: server,
   },
+  {
+    name: 'the images layer is merged last, so its Reporter takes the defects',
+    edits: [
+      {
+        file: '../src/server/fetch.ts',
+        find: '      uploads === undefined\n        ? Layer.empty\n        : uploadLayer(uploads).pipe(Layer.provideMerge(uploads.layer(env))),\n',
+        replace: '',
+      },
+      {
+        file: '../src/server/fetch.ts',
+        find: '    Layer.mergeAll(\n',
+        replace:
+          '    Layer.mergeAll(\n      uploads === undefined\n        ? Layer.empty\n        : uploadLayer(uploads).pipe(Layer.provideMerge(uploads.layer(env))),\n',
+      },
+    ],
+    tests: server,
+  },
 ]

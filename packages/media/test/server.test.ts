@@ -17,12 +17,15 @@ import {
   QuotaExhausted,
   Transformer,
   TransformFailed,
+  UploadPolicy,
   admissionRateLimiter,
   layer,
   serveFetch,
+  uploadsKeyValueStore,
   variantsKeyValueStore,
   type Options,
 } from 'foldkit-media/server'
+import { inspectorSharp } from 'foldkit-media/sharp'
 
 const IMAGE = 'a'.repeat(64)
 const NOT_AN_IMAGE = 'b'.repeat(64)
@@ -511,6 +514,46 @@ describe('serveFetch', () => {
         level: 'error',
         cause: { reasons: [{ _tag: 'Die', defect: broke }] },
       },
+    ])
+  })
+
+  it('reports a defect on either side to the uploads layer’s Reporter, when both give one', async () => {
+    const images = Diagnostics.collect()
+    const uploads = Diagnostics.collect()
+    const sharpBroke = new Error('sharp broke')
+    const policyBroke = new Error('policy broke')
+    const fetch = serveFetch<object>({
+      images: {
+        layer: () =>
+          Layer.mergeAll(
+            memoryStores(originals),
+            Layer.succeed(Transformer, { transform: () => Effect.die(sharpBroke) }),
+            Layer.succeed(Diagnostics.Reporter, images.report),
+          ),
+      },
+      uploads: {
+        maxBytes: 1024,
+        layer: () =>
+          Layer.mergeAll(
+            uploadsKeyValueStore().pipe(Layer.provide(KeyValueStore.layerMemory)),
+            inspectorSharp(),
+            Layer.succeed(UploadPolicy, { admit: () => Effect.die(policyBroke) }),
+            Layer.succeed(Diagnostics.Reporter, uploads.report),
+          ),
+      },
+    })
+    const env = {}
+    const image = await fetch(new Request(`http://media.test/_image/${IMAGE}/w640.webp`), env)
+    const upload = await fetch(
+      new Request('http://media.test/_media/upload', { method: 'POST', body: 'x' }),
+      env,
+    )
+    expect([image.status, upload.status]).toEqual([500, 500])
+    // One build: what runs around the routes has one context, and the uploads layer merged last.
+    expect(images.reported).toEqual([])
+    expect(uploads.reported).toMatchObject([
+      { _tag: 'RequestDefect', cause: { reasons: [{ _tag: 'Die', defect: sharpBroke }] } },
+      { _tag: 'RequestDefect', cause: { reasons: [{ _tag: 'Die', defect: policyBroke }] } },
     ])
   })
 

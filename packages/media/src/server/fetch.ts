@@ -28,7 +28,8 @@ export interface FetchOptions<Env> {
  * preflight, which the upload route never answers), or another path under
  * them is a 404, and everything else goes to `otherwise`. The services are
  * built from each environment's bindings once and kept; a layer that fails
- * to build answers a 500.
+ * to build answers a 500. When both layers give a `Diagnostics.Reporter`, a
+ * defect answered 500 on either side is reported to the uploads layer's.
  */
 export const serveFetch = <Env extends object>(
   options: FetchOptions<Env>,
@@ -38,7 +39,10 @@ export const serveFetch = <Env extends object>(
     throw new Error('serveFetch: give it `images`, `uploads`, or both')
   }
   // Merged, not provided: a `Diagnostics.Reporter` in a layer reaches what
-  // runs around the routes too, the report of a defect answered 500.
+  // runs around the routes too, the report of a defect answered 500. One
+  // build, so a layer both sides name is made once and shared. A service
+  // both layers give reaches each side's routes from its own layer, and what
+  // runs around them from the uploads layer, merged last.
   const media = fetchOf<Env>(env =>
     Layer.mergeAll(
       images === undefined
