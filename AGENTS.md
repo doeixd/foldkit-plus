@@ -803,7 +803,10 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
 
 - **Effect's default logger writes every level to stdout in Node.** A server
   speaking a protocol over stdio (MCP) must not report through it; agent-mcp's
-  `stdio` sends diagnostics to stderr.
+  `stdio` sends diagnostics to stderr. In a browser it writes every level with
+  `console.log`, so an `Effect.logError` never reached `console.error` or
+  `Behaviors.consoleErrors` (#272); only `Logger.LogToStderr` moves it, for
+  every level at once. `Diagnostics.log` sets it for errors alone.
 - **A service given with `Layer.provide` is hidden from `toWebHandler`'s
   `middleware`.** Media's reporter never reached the middleware reporting
   `RequestDefect` until `serveFetch` used `Layer.provideMerge`. The
