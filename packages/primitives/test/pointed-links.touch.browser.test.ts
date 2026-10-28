@@ -9,7 +9,7 @@
 import { Effect, Fiber, Stream } from 'effect'
 import { toString as urlToString } from 'foldkit/url'
 import { afterEach, expect, it } from 'vitest'
-import { cdp } from 'vitest/browser'
+import { cdp, userEvent } from 'vitest/browser'
 import { pointedLinks } from '../src/dom/index.js'
 
 /** Where an element's middle is on the top page, which is where CDP's touches land. */
@@ -38,7 +38,13 @@ it('reads the link a finger taps at once, though the finger lifts before any wai
   // A tap also focuses the link once the finger lifts, and focus counts after
   // its own wait; held off here, only the finger can read the link.
   link.addEventListener('mousedown', event => event.preventDefault())
-  document.body.append(link)
+  // The test files share one real mouse, which an earlier file may have left
+  // where the link is drawn; parked on empty space below it, only the finger
+  // reaches the link.
+  const away = document.createElement('div')
+  away.style.cssText = 'height: 200px'
+  document.body.append(link, away)
+  await userEvent.hover(away)
   const kinds: Array<string> = []
   link.addEventListener('pointerover', event => kinds.push(event.pointerType))
   const read: Array<string> = []
