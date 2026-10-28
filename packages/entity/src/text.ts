@@ -20,7 +20,9 @@ export const Text = {
    * `asciiFold` folds ASCII letters on both sides. Operands declaring
    * different collations, text with none, or a backend's locale are refused
    * where the call is written.
-   * Prefixes are by character, so non-ASCII and astral text begin as they read.
+   * Prefixes are by character, so non-ASCII and astral text begin as they read,
+   * and half of an astral character begins nothing. A lone surrogate, which
+   * UTF-8 cannot hold, compares as U+FFFD, as a database stores it.
    *
    * ```ts
    * Query.where(Text.startsWith(Product.fields.upc, input.search))

@@ -85,6 +85,20 @@ describe.each(Object.entries(databases))('Operators run by %s', (_, database) =>
     expect(report.disagreements).toEqual([])
   })
 
+  it('Text.startsWith begins by character, a lone surrogate as the database holds it', async () => {
+    const [high, low] = [String.fromCharCode(0xd83d), String.fromCharCode(0xde00)]
+    const report = await Conformance.operator(Text.startsWith, {
+      implementations,
+      cases: [
+        [`x${high}${low}`, `x${high}`],
+        [`x${high}${low}`, `x${high}${low}`],
+        [`a${high}`, `a${low}`],
+      ],
+    })
+    expect(report.cases).toBe(6)
+    expect(report.disagreements).toEqual([])
+  })
+
   it('an application’s concat answers every generated call as memory does', async () => {
     const report = await Conformance.operator(concat, { implementations })
     expect(report.cases).toBeGreaterThan(100)

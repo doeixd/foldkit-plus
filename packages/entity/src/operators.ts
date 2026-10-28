@@ -188,12 +188,34 @@ const implementation = (
   })
 }
 
+const REPLACEMENT = String.fromCharCode(0xfffd)
+
+/**
+ * Text's characters as a database holds them: a lone surrogate, which UTF-8
+ * cannot encode, as U+FFFD, which SQLite's and Postgres's drivers send instead.
+ */
+const charactersOf = (text: string): ReadonlyArray<string> =>
+  Array.from(text, each => {
+    const code = each.codePointAt(0)!
+    return code >= 0xd800 && code <= 0xdfff ? REPLACEMENT : each
+  })
+
+/**
+ * Whether `text` begins with `prefix` by character, as SQL's `substr` and
+ * `left` count: `String.prototype.startsWith` compares UTF-16 units, so half
+ * of an astral character would begin the text that holds all of it.
+ */
+const beginsWith = (text: string, prefix: string): boolean => {
+  const [characters, start] = [charactersOf(text), charactersOf(prefix)]
+  return start.length <= characters.length && start.every((each, i) => each === characters[i])
+}
+
 const startsWith = implementation(Text.startsWith.descriptor, 'strict', (...given) => {
   const [text, prefix, { collation }] = given as [string, string, OperatorContext]
   const folded = Option.exists(collation, each => each._tag === 'AsciiFold')
   return folded
-    ? Collation.foldAscii(text).startsWith(Collation.foldAscii(prefix))
-    : text.startsWith(prefix)
+    ? beginsWith(Collation.foldAscii(text), Collation.foldAscii(prefix))
+    : beginsWith(text, prefix)
 })
 
 export const Operators = {

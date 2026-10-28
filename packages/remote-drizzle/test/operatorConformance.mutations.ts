@@ -4,6 +4,7 @@
  */
 const tests = ['packages/remote-drizzle/test/operatorConformance.test.ts']
 const compile = '../src/compile.ts'
+const kernel = '../../entity/src/operators.ts'
 
 export default [
   {
@@ -33,6 +34,18 @@ export default [
         replace: '  return sql`null`',
       },
     ],
+    tests,
+  },
+  {
+    name: 'startsWith compares UTF-16 units',
+    edits: [
+      { file: kernel, find: ': beginsWith(text, prefix)', replace: ': text.startsWith(prefix)' },
+    ],
+    tests,
+  },
+  {
+    name: 'a lone surrogate compares as itself',
+    edits: [{ file: kernel, find: '? REPLACEMENT : each', replace: '? each : each' }],
     tests,
   },
 ]
