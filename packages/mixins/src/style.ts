@@ -172,18 +172,19 @@ const collectGlobalCss = (style: StyleValue): ReadonlyArray<string> => [
  */
 const compileTree = (
   style: StyleValue,
+  globalCss: string,
   collected: Array<{ readonly className: string; readonly css: string }>,
 ): StyleValue => {
   const rules = style.rules ?? []
   const generated = rules.length === 0 ? undefined : Rules.className(rules)
   if (generated !== undefined) {
     const css = Rules.css(generated, rules)
-    register(generated, css)
+    register(generated, css, globalCss)
     collected.push({ className: generated, css })
   }
   const conditions = (style.conditions ?? []).map(condition => ({
     predicate: condition.predicate,
-    piece: compileTree(condition.piece, collected),
+    piece: compileTree(condition.piece, globalCss, collected),
   }))
   return Object.freeze({
     ...style,
@@ -195,8 +196,10 @@ const compileTree = (
 /** A style with every rule in it compiled: the tree with classes, plus the CSS. */
 const compileStyle = (style: StyleValue): CompiledStyle & { readonly tree: StyleValue } => {
   const collected: Array<{ readonly className: string; readonly css: string }> = []
-  const tree = compileTree(style, collected)
   const globalRules = collectGlobalCss(style)
+  // Every class the Style compiles to carries its globals, so a server that
+  // finds any one of them in markup writes what the Style needs.
+  const tree = compileTree(style, globalRules.join(''), collected)
   const first = collected[0]
   return {
     tree,

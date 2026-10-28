@@ -180,7 +180,8 @@ boot: model => assembly.init(model).commands ?? []
 A generated page styled with `foldkit-mixins` can ship the CSS its markup uses
 in the head, so it is styled before any script runs. `head` is given the rendered
 application; `Style.usedIn` returns the CSS of every compiled class the markup
-carries. In the browser, Styles bring their rules as they draw and skip what
+carries, with the global rules (keyframes, `raise`'s depth rules) of the Styles
+those classes came from. In the browser, Styles bring their rules as they draw and skip what
 this sheet already carries, so nothing is added twice.
 
 ```ts

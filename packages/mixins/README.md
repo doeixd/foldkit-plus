@@ -188,7 +188,8 @@ Classes a stylesheet already on the page carries are left out, so
 installing `Style.stylesheet(...)` yourself (for the first paint, or on the
 server) never duplicates them. Outside a browser nothing is injected: a server
 puts `Style.usedIn(html)`, the CSS of every compiled class the page's markup
-uses, in the page's head (with `foldkit-ssr`, through its `head` option).
+uses and the global rules of the Styles behind them (keyframes, `raise`'s depth
+rules), in the page's head (with `foldkit-ssr`, through its `head` option).
 
 ## What the resolver guarantees
 

@@ -608,7 +608,8 @@ export const stylesheet: string = Style.stylesheet(
   appended once to a `<style data-foldkit-styles>` (made only when needed; it declares the
   standard layer order unless the page already declares one). Install `Style.stylesheet(L.declare, …)`
   yourself for the layer order, the theme and a first paint; injection skips what it carries. On a
-  server, `Style.usedIn(html)` is the CSS of the classes the rendered markup uses.
+  server, `Style.usedIn(html)` is the CSS of the classes the rendered markup uses, with the
+  global rules of the Styles behind them (keyframes, `raise`'s depth rules).
 
 ## 8. See also
 

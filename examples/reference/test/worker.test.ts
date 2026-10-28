@@ -158,9 +158,9 @@ describe('pages', () => {
     expect(unstyled.filter(name => name.startsWith('style-'))).toEqual([])
   }, 60_000)
 
-  // #271: `Style.usedIn` leaves out the global rules a Style needs, such as
-  // `raise`'s `.fk-raised` depth rules. Red once that is fixed: make it an `it`.
-  it.fails('styles every class a page draws, before any script runs', async () => {
+  // Plain classes too: a Card's `fk-raised` needs `raise`'s depth rules, which
+  // `Style.usedIn` writes as the globals of the Card's compiled class.
+  it('styles every class a page draws, before any script runs', async () => {
     const html = await (await page('/', await member('Mary'))).text()
     expect(styling(html).unstyled).toEqual([])
   }, 60_000)

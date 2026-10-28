@@ -406,6 +406,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A server-rendered page carries the global rules its Styles need** (#271).
+  `Style.usedIn` wrote the CSS of each compiled class a page's markup carries
+  but none of a Style's global rules, so a Card's `fk-raised` had no depth
+  rules and its raised background was invalid until scripts ran. Each compiled
+  class now registers its Style's globals (keyframes, `raise`'s depth rules),
+  and `usedIn` writes them once each; in the browser, injection adds no global
+  that a server-written sheet already carries.
 - **A Menu or Menubar checkbox or radio row is chosen once.** Clicked after a
   mouse press opened the menu, it was chosen twice and flipped back: upstream's
   Menu kept the press's origin until the menu shut, so a release on the row

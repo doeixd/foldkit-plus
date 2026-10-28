@@ -531,10 +531,13 @@ layer of whatever they are composed into, and a plain declaration beside them
 wins per property. That is what makes them composable — do not wrap them in
 `component`/`variant` at their definition.
 
-**`Style.usedIn` covers compiled `style-` classes only** (#271). Global rules
-such as `.fk-raised` were left out, so a server-rendered Card was unstyled
-until scripts ran. A test that every class a page draws has a rule in its
-sheet caught it.
+**A Style's global rules travel with its compiled classes** (#271).
+`Style.usedIn` once wrote only `style-` classes, so `raise`'s `.fk-raised`
+depth rules were missing and a server-rendered Card was unstyled until
+scripts ran. Each compiled class now registers its Style's globals, and
+`usedIn` writes them once each; a Style with globals but no rule of its own
+compiles no class, so a server cannot find it in markup. A test that every
+class a page draws has a rule in its sheet caught it.
 
 **A state rule in a base loses to a variant that sets the same property.**
 The Card's selected fill sat in the `components` layer, and every `surface`

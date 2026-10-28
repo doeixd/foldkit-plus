@@ -1,7 +1,9 @@
 /**
  * Styles that arrive with what uses them. Compiling a Style registers each
- * class it produces with that class's CSS; the name is a hash of the CSS, so
- * the registry is the same on the server and in the browser, and holds no DOM.
+ * class it produces with that class's CSS, and with the Style's global rules
+ * (keyframes, `raise`'s depth rules) that the class does not work without;
+ * the name is a hash of the CSS, so the registry is the same on the server
+ * and in the browser, and holds no DOM.
  *
  * When a Slot draws a class in a browser, the CSS is queued, and one microtask
  * later (after the patch, before the browser paints) appended to a single
@@ -17,11 +19,26 @@
  */
 import { standard } from './layers.js'
 
-const registry = new Map<string, string>()
+interface Registered {
+  readonly css: string
+  /** The global CSS of every Style that compiled to this class. */
+  readonly globals: Set<string>
+}
 
-/** Records the CSS a compiled class stands for. Called by the compiler. */
-export const register = (className: string, css: string): void => {
-  if (!registry.has(className)) registry.set(className, css)
+const registry = new Map<string, Registered>()
+
+/**
+ * Records the CSS a compiled class stands for, and the global CSS of the
+ * Style it came from: the same text the Style's contribution carries, so the
+ * browser's injection recognizes what a server wrote. Called by the compiler.
+ */
+export const register = (className: string, css: string, globalCss: string): void => {
+  let entry = registry.get(className)
+  if (entry === undefined) {
+    entry = { css, globals: new Set() }
+    registry.set(className, entry)
+  }
+  if (globalCss !== '') entry.globals.add(globalCss)
 }
 
 /** A compiled class in CSS text: `.style-` and its hash. */
@@ -33,24 +50,36 @@ const LAYER_STATEMENT = /@layer [^{};]+;/g
 /** The standard layer order, as one `@layer` statement. */
 const layerOrder = (): string => standard.declare.globalCss?.join('') ?? ''
 
+/** A Style's global CSS without its layer order, which is the page's to declare. */
+const withoutOrder = (globalCss: string): string => globalCss.replace(LAYER_STATEMENT, '')
+
 /**
- * The CSS for every compiled class that `html` carries, after the standard
- * layer order: what a server puts in a page's head, so it is styled before
- * any script runs. The browser's injection then finds these classes present
- * and adds nothing twice.
+ * The CSS for every compiled class that `html` carries, and once each the
+ * global CSS of the Styles those classes came from, after the standard layer
+ * order: what a server puts in a page's head, so it is styled before any
+ * script runs. The browser's injection then finds these present and adds
+ * nothing twice.
  */
 export const usedIn = (html: string): string => {
-  const found = new Set<string>()
+  const found = new Map<string, Registered>()
   for (const [className] of html.matchAll(/style-[0-9a-z]+/g)) {
-    if (registry.has(className)) found.add(className)
+    const entry = registry.get(className)
+    if (entry !== undefined) found.set(className, entry)
   }
-  return [layerOrder(), ...[...found].map(className => registry.get(className) ?? '')].join('')
+  const globals = new Set([...found.values()].flatMap(entry => [...entry.globals]))
+  return [
+    layerOrder(),
+    ...[...found.values()].map(entry => entry.css),
+    ...[...globals].map(withoutOrder),
+  ].join('')
 }
 
 /** What the page carries: counted from its sheets once, then kept as CSS is queued. */
 interface Page {
   readonly present: Set<string>
   readonly globals: Set<string>
+  /** The text of the sheets counted, where a server may have written a global already. */
+  readonly text: string
   /** Contributions already handled whole: a Style's are the same object every render. */
   readonly handled: WeakSet<object>
   /** The layer order a sheet on the page declares, which the injected sheet repeats. */
@@ -79,8 +108,8 @@ const current = (): Page => {
   const present = new Set<string>()
   let order: string | undefined
   const counted = Array.from(document.querySelectorAll('style'))
-  for (const sheet of counted) {
-    const text = sheet.textContent ?? ''
+  const texts = counted.map(sheet => sheet.textContent ?? '')
+  for (const text of texts) {
     for (const [, className] of text.matchAll(COMPILED_CLASS))
       if (className !== undefined) present.add(className)
     order ??= text.match(LAYER_STATEMENT)?.[0]
@@ -88,6 +117,7 @@ const current = (): Page => {
   page = {
     present,
     globals: new Set(),
+    text: texts.join(''),
     handled: new WeakSet(),
     order,
     counted,
@@ -130,16 +160,17 @@ export const ensure = (contribution: {
   if (into.handled.has(contribution)) return
   for (const className of contribution.classes ?? []) {
     if (into.present.has(className)) continue
-    const css = registry.get(className)
-    if (css === undefined) continue
+    const entry = registry.get(className)
+    if (entry === undefined) continue
     into.present.add(className)
-    pending.push(css)
+    pending.push(entry.css)
   }
   const globalCss = contribution.globalCss
-  // A layer order is the page's to declare, so a Style's own is not repeated.
   if (globalCss !== undefined && globalCss !== '' && !into.globals.has(globalCss)) {
     into.globals.add(globalCss)
-    pending.push(globalCss.replace(LAYER_STATEMENT, ''))
+    const css = withoutOrder(globalCss)
+    // A server's `usedIn` writes the same text, so a page it rendered has it.
+    if (!into.text.includes(css)) pending.push(css)
   }
   // Frozen, a contribution cannot draw other classes next time it is drawn.
   if (Object.isFrozen(contribution)) into.handled.add(contribution)

@@ -5,6 +5,7 @@
  * repeats what a stylesheet on the page already carries.
  */
 import { Capability, Layers, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
+import { raise } from 'foldkit-mixins/theme'
 import { afterEach, expect, it } from 'vitest'
 
 const TestSlots = Slots.define({ root: Slot.make({ capability: Capability.Container }) })
@@ -102,4 +103,45 @@ it('gives a server the CSS of the classes a page’s markup uses, and no others'
   expect(css.startsWith(`@layer ${L.names.join(', ')};`)).toBe(true)
   expect(css).toContain(rule.css)
   expect(css).not.toContain(unused.className)
+})
+
+/** A Style whose classes need a global rule, one of them drawn only for some input. */
+const Marked = Style.forSlots(TestSlots)({
+  root: Style.compose(
+    Style.global('.marked{--depth:1}@layer mine, yours;'),
+    Style.self({ color: 'rgb(4, 5, 6)' }),
+    Style.whenInput((on: boolean) => on, Style.self({ color: 'rgb(7, 8, 9)' })),
+  ),
+})
+const [base, conditional] = Marked.rules
+if (base === undefined || conditional === undefined)
+  throw new Error('the Marked Style compiles to two classes')
+const count = (text: string, part: string) => text.split(part).length - 1
+
+it('gives a server the global rules of the Styles whose classes a page uses, once each', () => {
+  const both = Style.usedIn(`<div class="${base.className} ${conditional.className}"></div>`)
+  expect(count(both, '.marked{--depth:1}')).toBe(1)
+  // A layer order is the page's to declare.
+  expect(both).not.toContain('@layer mine')
+  // The conditional class alone is enough to need them.
+  expect(Style.usedIn(`<div class="${conditional.className}"></div>`)).toContain('.marked{')
+  expect(Style.usedIn(`<div class="${rule.className}"></div>`)).not.toContain('.marked{')
+})
+
+it('gives a server the depth rules of a raised element', () => {
+  const Raised = Style.forSlots(TestSlots)({ root: raise(2) })
+  const css = Style.usedIn(`<div class="fk-raised ${Raised.rules[0]?.className}"></div>`)
+  expect(css).toContain('.fk-raised{')
+})
+
+it('injects no global rule that the page’s server-written sheet carries', async () => {
+  const sheet = document.createElement('style')
+  sheet.textContent = Style.usedIn(`<div class="${base.className} ${conditional.className}">`)
+  document.head.appendChild(sheet)
+  const MarkedView = SlotView.define(TestSlots, (on: boolean, slots, h) =>
+    h.div(slots.root.attrs(), []),
+  ).pipe(Style.attach(Marked))
+  MarkedView(true, SlotView.inertBuilder())
+  await Promise.resolve()
+  expect(injected()).toBeNull()
 })
