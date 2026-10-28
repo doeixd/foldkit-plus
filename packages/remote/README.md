@@ -663,9 +663,10 @@ is in flight. When the server answers, the layers come off and the cache shows
 what the server said:
 
 - **It failed.** `MutationFailed` removes the layers; `Data.mutation(model,
-  requestId)` reads `Failed` with the error. Nothing retries it: the mutation
-  is not a durable queue, and if losing it is data loss the edit belongs to
-  [`foldkit-sync`](../sync).
+  requestId)` reads `Failed` with the error. Nothing retries it on its own
+  (`Data.retry` sends it again; see [When a write fails](#when-a-write-fails)):
+  the mutation is not a durable queue, and if losing it is data loss the edit
+  belongs to [`foldkit-sync`](../sync).
 - **It succeeded, but the answer did not name the row.** The answer carries
   what the active Surfaces show of each row it names
   ([What an answer carries](#what-an-answer-carries)); a row it changed
@@ -2521,6 +2522,9 @@ Remote does **not** own:
 
 - [Server-derived state](../../docs/remote.md) — the deeper architectural guide
   and ownership model.
+- [Errors and failures](../../docs/errors.md) — how a read's, a write's and
+  every other package's failures fit together: who owns each, what the reader
+  sees, what the application does.
 - [`foldkit-remote-server`](../remote-server) — server Sources, resolution, and
   semantic-field authorization.
 - [`foldkit-remote-drizzle`](../remote-drizzle) — optional compilation of Remote

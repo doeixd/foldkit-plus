@@ -1160,6 +1160,8 @@ than another application runtime.
 
 - [Server-derived state](../../docs/remote.md) — the client/server mental model
   and ownership rules.
+- [Errors and failures](../../docs/errors.md) — what a client is and is not
+  told, beside the failures every other package owns.
 - [`foldkit-remote`](../remote) — requirements, normalized client Model,
   subscriptions, mutations, live reads, and retention.
 - [`foldkit-remote-drizzle`](../remote-drizzle) — compile Entity selections and
