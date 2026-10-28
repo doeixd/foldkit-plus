@@ -792,7 +792,7 @@ const RemoteClientLive = Remote.clientLayer(RemoteServer.handlers(Server, 'user-
 // In a mutation handler: `const writes = yield* drizzleWrites` (insert/update/delete typed by
 // the table), run each with `yield* runStatement(() => writes.update(…)…, 'Database write
 // failed')` (a refusal fails as a RemoteServerError; the driver's error, with its SQL, is
-// logged, never sent), then name each row it wrote in `entities` (`yield* returning.row(Project,
+// reported as a StatementFailed diagnostic, never sent), then name each row it wrote in `entities` (`yield* returning.row(Project,
 // id)`, its stored values, or `Remote.patch(Project, id, {})`): the answer carries what the
 // page shows of each row it names, and only those.
 ```
@@ -896,7 +896,8 @@ declared as: the writer refuses it through `EntityWriter.refuses`, which `Remote
 where the write is served (`GuardServer.writer` passes it on). Each `Write` increment says whether
 its amount is an integer (`WriteIncrement.integer`).
 Migrate `checkConstraints(binding)` (each state invariant as `check ((…) is true)`, and each
-column's field rules SQL holds exactly; `serverOnly` lists the rest) or put `entityChecks(Entity, t)`
+column's field rules SQL holds exactly; `serverOnly` lists the rest, which a binding's first
+write through `writer` reports as one `ServerOnlyRules` warning) or put `entityChecks(Entity, t)`
 in the Drizzle table for `drizzle-kit`, never a CHECK written by hand; and,
 for a guarded writer's `revision` pin, `revisionTrigger(binding, 'revision')`, so a
 handler's write and raw SQL are held to the invariants and move the revision too.

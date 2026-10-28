@@ -1015,6 +1015,9 @@ and is held by the server's writes alone: a length in UTF-16 units with no
 ASCII pattern (`isMaxLength`: SQL counts code points), a custom filter, a rule
 made after a transformation, a transition invariant. One the dialect cannot
 compile, such as an invariant over an operator with no SQL, is refused by name.
+A binding's first write through `writer` reports its `serverOnly` rules as
+one `ServerOnlyRules` [diagnostic](#diagnostics), since a write past the
+server (raw SQL, another service) is not refused by them.
 
 `bind` compares a table's own Drizzle CHECKs with the derived ones and refuses
 one that says another rule, a column's check whose rules are gone, or a derived
@@ -1129,7 +1132,8 @@ another row, another table) is a
 `RemoteServer.mutation` handler using Drizzle directly. The adapter helps
 normalize rows you already chose to return, and runs each statement so a
 database error fails as a `RemoteServerError` saying only what failed, the
-driver's own (which carries the SQL and its parameters) logged, never sent:
+driver's own (which carries the SQL and its parameters) reported as a
+`StatementFailed` [diagnostic](#diagnostics), never sent:
 
 ```ts
 import { eq } from 'drizzle-orm'
@@ -1303,6 +1307,22 @@ pnpm exec tsx packages/remote-drizzle/example/nested.ts
 
 Start with one id and one scalar before adding relations or pagination. The
 [Entity example](../../examples/entity/README.md) provides a runnable baseline.
+
+## Diagnostics
+
+Two things the adapter goes past without telling the caller are reported
+through `foldkit-surface`'s `Diagnostics` channel (re-exported by
+`foldkit-remote`), by default Effect's log:
+
+| `_tag` | `level` | When |
+| --- | --- | --- |
+| `StatementFailed` | `error` | The driver failed a statement (`runStatement`, every read and write here); the caller was answered `failed` (`Database write failed`), and this carries the driver's `error`, with its SQL. |
+| `ServerOnlyRules` | `warning` | Once per binding, on its first write through `writer`: the Entity's rules no CHECK can hold (`checkConstraints(...).serverOnly`), held by the server's declared writes alone. Nothing when there are none. |
+
+Each is reported inside the read or write, so the reporter the server runs
+with applies: `serveFetch`'s `diagnostics`, or
+`Layer.succeed(Diagnostics.Reporter, report)` in its layer. In a test,
+provide `Diagnostics.collect().report` and assert on `reported`.
 
 ## Dialect and limits
 

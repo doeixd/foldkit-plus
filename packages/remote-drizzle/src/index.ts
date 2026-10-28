@@ -45,7 +45,7 @@ import {
   type WriteAssignment,
 } from 'foldkit-entity'
 import type { NormalizedPatch, QueryDescriptor } from 'foldkit-remote'
-import { Entity } from 'foldkit-remote'
+import { Diagnostics, Entity } from 'foldkit-remote'
 import {
   RemoteServer,
   RemoteServerError,
@@ -58,6 +58,8 @@ import {
   type WriteWhen,
 } from 'foldkit-remote-server'
 import type { AnyEntityBinding, ManyRelation, ManyToManyRelation } from './binding.js'
+import { checkConstraints } from './checks.js'
+import { serverOnlyRules, statementFailed } from './diagnostics.js'
 import { idColumn, projectsAny } from './columns.js'
 import {
   checkFields,
@@ -93,6 +95,7 @@ import { shapeWindow } from './window.js'
 
 export * from './bind.js'
 export { checkConstraints, entityChecks, type EntityCheckOptions } from './checks.js'
+export type { RemoteDrizzleDiagnostic, ServerOnlyRules, StatementFailed } from './diagnostics.js'
 export * from './compile.js'
 export * from './binding.js'
 export * from './columns.js'
@@ -338,9 +341,9 @@ const selectRows = (
 
 /**
  * A statement, failing as a `RemoteServerError` that says only `failed`. The
- * driver's error carries the SQL and its parameters: it is logged for
- * operators and never sent, where a defect would reach the client over RPC.
- * Run every statement a handler makes through it.
+ * driver's error carries the SQL and its parameters: it is reported for
+ * operators (`StatementFailed`) and never sent, where a defect would reach the
+ * client over RPC. Run every statement a handler makes through it.
  *
  * ```ts
  * yield* runStatement(() => db.update(posts).set({ title }).where(eq(posts.id, id)), 'Database write failed')
@@ -351,7 +354,7 @@ export const runStatement = <A>(
   failed: string,
 ): Effect.Effect<A, RemoteServerError> =>
   Effect.tryPromise({ try: () => Promise.resolve(statement()), catch: error => error }).pipe(
-    Effect.tapError(error => Effect.logError(`[foldkit-remote-drizzle] ${failed}`, error)),
+    Effect.tapError(error => Diagnostics.report(statementFailed(failed, error))),
     Effect.mapError(() => new RemoteServerError({ message: failed })),
   )
 
@@ -1054,6 +1057,31 @@ type Ledgered =
 
 const DAY = 24 * 60 * 60 * 1000
 
+/**
+ * Each binding's `ServerOnlyRules` report: the rules no CHECK can hold, worked
+ * out once, as its first writer is built, and reported on its first write and
+ * no other. Nothing when every rule has a CHECK.
+ */
+const serverOnlyReports = new WeakMap<AnyEntityBinding, Effect.Effect<void>>()
+const serverOnlyReport = (binding: AnyEntityBinding): Effect.Effect<void> => {
+  const known = serverOnlyReports.get(binding)
+  if (known !== undefined) return known
+  const { serverOnly } = checkConstraints(binding)
+  let reported = false
+  const report =
+    serverOnly.length === 0
+      ? Effect.void
+      : Effect.suspend(() => {
+          if (reported) return Effect.void
+          reported = true
+          return Diagnostics.report(
+            serverOnlyRules(binding.name, getTableName(binding.table), serverOnly),
+          )
+        })
+  serverOnlyReports.set(binding, report)
+  return report
+}
+
 /** Whether a column holds integers: Drizzle names it `number int32`, `number int53`, `number uint16`… */
 const holdsIntegers = (column: AnyColumn | undefined): boolean =>
   column !== undefined && /^number u?int\d+$/.test(column.dataType)
@@ -1087,6 +1115,8 @@ export const writer = <P = unknown>(
     requireOperators([held.predicate], binding, invariantName(held), [...supported, 'next'])
     compilePredicates([held.predicate], binding, {}, invariantName(held))
   }
+  // After the invariants are checked, so one this binding cannot run is refused by name first.
+  const serverOnly = serverOnlyReport(binding)
 
   /**
    * Each invariant over the change an update makes, for its `where`: a field
@@ -1381,7 +1411,7 @@ export const writer = <P = unknown>(
           catch: error => error,
         }).pipe(
           Effect.tapError(error =>
-            Effect.logError('[foldkit-remote-drizzle] Database write failed', error),
+            Diagnostics.report(statementFailed('Database write failed', error)),
           ),
           Effect.mapError(() => new RemoteServerError({ message: 'Database write failed' })),
         )
@@ -1452,6 +1482,7 @@ export const writer = <P = unknown>(
         }),
     update: ({ id, values, increments, assignments, links, expect, when, operation, principal }) =>
       Effect.gen(function* () {
+        yield* serverOnly
         const at = yield* rowOf(id, expect, when)
         const where = and(at.where, ...(yield* holdingInvariants(values, increments, assignments)))
         const { bump } = at
@@ -1592,6 +1623,7 @@ export const writer = <P = unknown>(
       }),
     insert: ({ id, values, links, stamped }) =>
       Effect.gen(function* () {
+        yield* serverOnly
         // There is no row yet: the row it would make is its values, judged before it is written.
         yield* Match.value(
           DomainEntity.judgeAgainst(
@@ -1667,6 +1699,7 @@ export const writer = <P = unknown>(
       }),
     delete: ({ id, expect, when }) =>
       Effect.gen(function* () {
+        yield* serverOnly
         const { where } = yield* rowOf(id, expect, when)
         const writes = yield* drizzleWrites
         const deleted = yield* runStatement(
