@@ -11,7 +11,7 @@ import { REMOTE_PROTOCOL_VERSION, Selection, relationOf, type MutationResult } f
 import { RemoteServer } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
 import { Post } from '../src/guard.js'
-import { TimelinePost, UserCard } from '../src/operations.js'
+import { TimelinePost, UserCard, likeOf } from '../src/operations.js'
 import { openServer, principalOf } from '../src/server/server.js'
 import type { Person } from '../src/server/seed.js'
 import { memorySqlite } from '../src/server/sqlite-node.js'
@@ -20,6 +20,7 @@ import { memorySqlite } from '../src/server/sqlite-node.js'
 const shown = relationOf(Selection.from(TimelinePost))
 
 type Asker = ReturnType<ReturnType<typeof sandbox>>
+type Mutation = 'PostChirp' | 'EditPost' | 'LikePost' | 'Unlike'
 
 /** A fresh seeded server, and Remote's handlers as `person` on it. */
 const sandbox = () => {
@@ -55,7 +56,7 @@ const sandbox = () => {
             .FoldkitRemoteRead({ version: REMOTE_PROTOCOL_VERSION, requests: [{ ...shown, id }] })
             .pipe(Effect.provide(database)),
         ),
-      mutate: (mutation: 'PostChirp' | 'EditPost' | 'ToggleLike', input: object) =>
+      mutate: (mutation: Mutation, input: object) =>
         Effect.runPromise(
           handlers
             .FoldkitRemoteMutate({ requestId: `r-${mutation}`, mutation, input })
@@ -84,7 +85,7 @@ const sandbox = () => {
             .pipe(Effect.provide(database)),
         ),
       /** The mutation as the page sends it, saying what its timeline shows of a post. */
-      mutateShown: (mutation: 'PostChirp' | 'EditPost' | 'ToggleLike', input: object) =>
+      mutateShown: (mutation: Mutation, input: object) =>
         Effect.runPromise(
           handlers
             .FoldkitRemoteMutate({
@@ -201,37 +202,49 @@ describe('what each reader may do', () => {
 })
 
 describe('liking', () => {
-  it('counts a like, and answers the post as it now reads', async () => {
+  const like = (postId: string, userId: Person) => ({ id: likeOf(postId, userId), postId, userId })
+
+  it('counts a like, and answers the post as it now reads to the liker', async () => {
     const you = sandbox()('you')
-    const answer = await you.mutateShown('ToggleLike', { postId: 'p2' })
-    expect(answer.output).toEqual({ liked: true })
+    const answer = await you.mutateShown('LikePost', like('p2', 'you'))
     expect(answer.read?.result.entities).toContainEqual(
       expect.objectContaining({
         entity: 'Post',
         id: 'p2',
-        values: expect.objectContaining({ likeCount: 3 }),
+        values: expect.objectContaining({ likeCount: 3, liked: likeOf('p2', 'you') }),
       }),
     )
-    expect(await you.read('p2', ['likeCount'])).toEqual({ likeCount: 3 })
-  })
-
-  it('takes a like back when pressed again', async () => {
-    const you = sandbox()('you')
-    await you.mutate('ToggleLike', { postId: 'p2' })
-    expect(await you.mutate('ToggleLike', { postId: 'p2' })).toMatchObject({
-      _tag: 'Success',
-      success: { output: { liked: false } },
+    expect(await you.read('p2', ['likeCount', 'liked'])).toEqual({
+      likeCount: 3,
+      liked: likeOf('p2', 'you'),
     })
-    expect(await you.read('p2', ['likeCount'])).toEqual({ likeCount: 2 })
   })
 
-  it('keeps each person’s like their own', async () => {
+  it('takes a like back by the id the post shows', async () => {
+    const you = sandbox()('you')
+    expect(await you.read('p1', ['liked'])).toEqual({ liked: likeOf('p1', 'you') })
+    expect((await you.mutate('Unlike', { id: likeOf('p1', 'you') }))._tag).toBe('Success')
+    expect(await you.read('p1', ['likeCount', 'liked'])).toEqual({ likeCount: 2, liked: null })
+  })
+
+  it('answers whether you liked it for each reader', async () => {
     const as = sandbox()
-    // You liked p1 in the seed; Ada's like is another one.
-    await as('ada').mutate('ToggleLike', { postId: 'p1' })
-    expect(await as('you').read('p1', ['likeCount'])).toEqual({ likeCount: 4 })
-    await as('you').mutate('ToggleLike', { postId: 'p1' })
-    expect(await as('ada').read('p1', ['likeCount'])).toEqual({ likeCount: 3 })
+    expect(await as('you').read('p3', ['liked'])).toEqual({ liked: likeOf('p3', 'you') })
+    expect(await as('linus').read('p3', ['liked'])).toEqual({ liked: null })
+  })
+
+  it('refuses a like made in someone else’s name, or taken back by someone else', async () => {
+    const as = sandbox()
+    expect(await as('you').mutate('LikePost', like('p2', 'grace'))).toMatchObject({
+      _tag: 'Failure',
+      failure: { _tag: 'Forbidden' },
+    })
+    expect(await as('ada').mutate('Unlike', { id: likeOf('p1', 'you') })).toMatchObject({
+      _tag: 'Failure',
+      failure: { _tag: 'Forbidden' },
+    })
+    expect(await as('you').read('p1', ['likeCount'])).toEqual({ likeCount: 3 })
+    expect(await as('you').read('p2', ['likeCount'])).toEqual({ likeCount: 2 })
   })
 })
 
@@ -255,7 +268,7 @@ describe('each write answers what the timeline shows', () => {
   it.each([
     ['PostChirp', { id: 'n1', body: 'Hi' }, 'n1'],
     ['EditPost', { id: 'p4', body: 'Edited' }, 'p4'],
-    ['ToggleLike', { postId: 'p2' }, 'p2'],
+    ['LikePost', { id: likeOf('p2', 'you'), postId: 'p2', userId: 'you' }, 'p2'],
   ] as const)('%s', async (mutation, input, id) => {
     const you = sandbox()('you')
     const answer = await you.mutateShown(mutation, input)

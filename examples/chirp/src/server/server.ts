@@ -4,28 +4,25 @@
  * for the tests (`sqlite-node.ts`), SQLite compiled to WebAssembly for the
  * published demo, which runs this server in the browser (`host.ts`).
  */
-import { and, eq } from 'drizzle-orm'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Option } from 'effect'
 import { GuardDrizzle } from 'foldkit-guard/drizzle'
 import { GuardServer } from 'foldkit-guard/server'
-import { Remote } from 'foldkit-remote'
+import { Entity, Remote } from 'foldkit-remote'
 import {
   bind,
   checkConstraints,
   databaseLayer,
-  drizzleWrites,
   query,
-  runStatement,
   source,
   writer,
   type AnyEntityBinding,
   type DrizzleDatabase,
 } from 'foldkit-remote-drizzle'
-import { RemoteServer } from 'foldkit-remote-server'
-import { Chirper } from '../domain.js'
+import { RemoteServer, type EntityWriter } from 'foldkit-remote-server'
+import { Chirp, Chirper } from '../domain.js'
 import { G, Post, type User } from '../guard.js'
-import { ByAuthor, EditPost, PostChirp, Timeline, ToggleLike } from '../operations.js'
+import { ByAuthor, EditPost, LikePost, PostChirp, Timeline, Unlike } from '../operations.js'
 import { SEED } from './seed.js'
 
 /** A SQLite database the server runs on, and whether it is new, so needs its tables. */
@@ -49,6 +46,7 @@ const posts = sqliteTable('posts', {
   createdAt: integer('created_at').notNull(),
 })
 const likes = sqliteTable('likes', {
+  id: text('id').primaryKey(),
   postId: text('post_id').notNull(),
   userId: text('user_id').notNull(),
 })
@@ -64,17 +62,19 @@ export const Policy = G.implement({
 
 // #region bind
 const Db = bind(
-  { User: Chirper, Post },
+  { User: Chirper, Post, Like: Chirp.Like },
   {
     User: { table: users, relations: { posts: { foreignKey: posts.authorId } } },
     Post: {
       table: posts,
       visible: GuardDrizzle.visible(Policy, [Post]).Post,
-      relations: {
-        author: { field: posts.authorId },
-        likedBy: { through: likes, localColumn: likes.postId, foreignColumn: likes.userId },
-      },
-      derived: { likeCount: { relation: 'likedBy' }, may: { supplied: true } },
+      relations: { author: { field: posts.authorId } },
+      // likeCount and liked say what they read: only `may` is the server's to supply.
+      derived: { may: { supplied: true } },
+    },
+    Like: {
+      table: likes,
+      relations: { post: { field: likes.postId }, user: { field: likes.userId } },
     },
   },
 )
@@ -98,9 +98,10 @@ const SCHEMA = `
     created_at integer not null${checksOf(Db.Post)}
   );
   create table likes (
+    id text primary key,
     post_id text not null references posts(id),
     user_id text not null references users(id),
-    primary key (post_id, user_id)
+    unique (post_id, user_id)
   );
 `
 // #endregion
@@ -113,56 +114,67 @@ const guarded = GuardServer.writer(Post, Policy, writer(Db.Post), {
 })
 // #endregion
 
+// #region likes
+/** Who is asking, as the row a like points at. */
+const asker = (principal: Option.Option<User>) =>
+  Option.map(principal, user => Remote.ref(Chirper, user.id))
+
 /**
- * A like, toggled: taken back where the asker had one, made where not. The
- * like is a row of a join table, which the server cannot see change, so the
- * answer names the post: the server answers it with what the client shows of
- * it, read as the asker reads it, its new count and who liked it included.
+ * A like is its liker's own: one made in another's name, or taken back by
+ * anyone else, is refused before anything is written.
  */
-const toggleLike = RemoteServer.mutation(
-  ToggleLike,
-  ({
-    input,
-    principal,
-  }: {
-    readonly input: { readonly postId: string }
-    readonly principal: Option.Option<User>
-  }) =>
-    Effect.gen(function* () {
-      if (Option.isNone(principal)) return yield* RemoteServer.forbid('Sign in to like a post.')
-      const userId = principal.value.id
-      const database = yield* drizzleWrites
-      const mine = and(eq(likes.postId, input.postId), eq(likes.userId, userId))
-      const taken = yield* runStatement(
-        () => database.delete(likes).where(mine).returning({ postId: likes.postId }),
-        'Could not take the like back',
+const ownLikes = (
+  likes: EntityWriter<Option.Option<User>, DrizzleDatabase>,
+): EntityWriter<Option.Option<User>, DrizzleDatabase> => {
+  const linked = likes.linked
+  if (linked === undefined) throw new Error('A like writer reads whose a like is')
+  /** Whether `user`, a like's link as stored (`'User:ada'`), is who is asking. */
+  const mine = (principal: Option.Option<User>, user: unknown) =>
+    Option.exists(asker(principal), ref => Entity.refKey(ref) === user)
+  const refused = RemoteServer.forbid('A like is yours to make, and yours to take back.')
+  return {
+    ...likes,
+    insert: context =>
+      Option.exists(context.links.user ?? Option.none(), user =>
+        mine(context.principal, Entity.refKey(user)),
       )
-      if (taken.length === 0)
-        yield* runStatement(
-          () => database.insert(likes).values({ postId: input.postId, userId }),
-          'Could not like the post',
-        )
-      return {
-        output: { liked: taken.length === 0 },
-        entities: [Remote.patch(Post, input.postId, {})],
-      }
-    }),
-)
+        ? likes.insert(context)
+        : Effect.fail(refused),
+    delete: context =>
+      Effect.flatMap(linked({ id: context.id, relations: ['user'] }), held =>
+        // Gone already is gone: a retry of your own unlike.
+        Option.match(held, {
+          onNone: () => true,
+          onSome: row => mine(context.principal, row.user),
+        })
+          ? likes.delete(context)
+          : Effect.fail(refused),
+      ),
+  }
+}
+const likeWrites = ownLikes(writer(Db.Like))
+// #endregion
 
 export const server = RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
-  entities: [source(Db.User), source(Db.Post, { filter: GuardServer.filter(Post, Policy) })],
+  entities: [
+    source(Db.User),
+    // `liked` is each reader's own: the source answers it for whoever asks.
+    source(Db.Post, { filter: GuardServer.filter(Post, Policy), viewer: asker }),
+    source(Db.Like),
+  ],
   queries: [query(Timeline, { entity: Db.Post }), query(ByAuthor, { entity: Db.Post })],
   mutations: [
     RemoteServer.write(PostChirp, guarded),
     RemoteServer.write(EditPost, guarded),
-    toggleLike,
+    RemoteServer.write(LikePost, likeWrites),
+    RemoteServer.write(Unlike, likeWrites),
   ],
 })
 
 // A guarded Entity served without its rule would serve every row: refuse to start.
 GuardServer.validate(Policy, {
   entities: [Post],
-  domain: Remote.define({ entities: [Chirper, Post], queries: [Timeline, ByAuthor] }),
+  domain: Remote.define({ entities: [Chirper, Post, Chirp.Like], queries: [Timeline, ByAuthor] }),
   server,
 })
 

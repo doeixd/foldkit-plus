@@ -3,6 +3,7 @@
  * examples/chirp/test/chirp.mutations.ts`.
  */
 const server = ['examples/chirp/test/server.test.ts']
+const client = ['examples/chirp/test/like.test.ts']
 
 export default [
   {
@@ -106,12 +107,12 @@ export default [
     tests: server,
   },
   {
-    name: 'a like is never taken back',
+    name: 'a like is anyone’s to make',
     edits: [
       {
         file: '../src/server/server.ts',
-        find: '() => database.delete(likes).where(mine).returning({ postId: likes.postId }),',
-        replace: '() => Promise.resolve([]),',
+        find: 'mine(context.principal, Entity.refKey(user)),',
+        replace: 'true,',
       },
     ],
     tests: server,
@@ -121,19 +122,58 @@ export default [
     edits: [
       {
         file: '../src/server/server.ts',
-        find: 'const mine = and(eq(likes.postId, input.postId), eq(likes.userId, userId))',
-        replace: 'const mine = eq(likes.postId, input.postId)',
+        find: 'onSome: row => mine(context.principal, row.user),',
+        replace: 'onSome: () => true,',
       },
     ],
     tests: server,
   },
   {
-    name: 'a like answers without the post',
+    name: 'every reader is read as you',
     edits: [
       {
         file: '../src/server/server.ts',
-        find: 'entities: [Remote.patch(Post, input.postId, {})],',
-        replace: 'entities: [],',
+        find: 'viewer: asker }),',
+        replace: "viewer: () => asker(principalOf('you')) }),",
+      },
+    ],
+    tests: server,
+  },
+  {
+    name: 'the page predicts a like for no one',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'viewer: model => Option.some(Remote.ref(Chirper, model.me)),',
+        replace: '',
+      },
+    ],
+    tests: client,
+  },
+  {
+    name: 'a press always likes',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'onSome: id => Data.mutate(model, Unlike, { id }),',
+        replace:
+          'onSome: () => Data.mutate(model, LikePost, { id: likeOf(postId, model.me), postId, userId: model.me }),',
+      },
+    ],
+    tests: client,
+  },
+  {
+    name: 'a post’s likes are counted as given',
+    edits: [
+      {
+        file: '../src/domain.ts',
+        find: 'likeCount: Derived.count(Chirp.Like.relations.post),',
+        replace: 'likeCount: Derived.make(Schema.Number),',
+      },
+      {
+        file: '../src/server/server.ts',
+        find: 'derived: { may: { supplied: true } },',
+        replace: 'derived: { may: { supplied: true }, likeCount: { supplied: true } },',
       },
     ],
     tests: server,

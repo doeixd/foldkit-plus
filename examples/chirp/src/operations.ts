@@ -1,8 +1,8 @@
-/** What the client reads and asks of the server: what a post shows, two lists, two writes. */
+/** What the client reads and asks of the server: what a post shows, two lists, four writes. */
 import { Schema } from 'effect'
 import { Entity, Expr, Order, Write, type Selected } from 'foldkit-entity'
 import { Mutation, Query } from 'foldkit-remote'
-import { Chirper, PostFields } from './domain.js'
+import { Chirp, Chirper, PostFields } from './domain.js'
 import { Post } from './guard.js'
 
 // #region select
@@ -12,7 +12,7 @@ export const TimelinePost = Entity.select(Post, {
   likeCount: true,
   createdAt: true,
   may: true,
-  likedBy: true,
+  liked: true,
   author: Entity.select(Chirper, { name: true, handle: true }),
 })
 
@@ -53,15 +53,32 @@ export const EditInput = Schema.Struct({
   body: PostFields.fields.body.schema.annotate({ title: 'Your chirp' }),
 })
 
+// #region like
+/** One person's like of one post has one id, so liking twice is one like. */
+export const likeOf = (postId: string, userId: string): string => `${postId}~${userId}`
+
 /**
- * Likes a post, or takes the like back. One write the server makes in two
- * steps, so it is the server's own handler, not a declared write: it answers
- * with the post as it now reads, its count and who liked it.
+ * A like: a row pointing at the post and at you. The page shows it on the post
+ * at once (its count, and `liked`), and the server's answer reads the post.
  */
-export const ToggleLike = Mutation.make('ToggleLike', {
-  Input: { postId: Schema.String },
-  Output: { liked: Schema.Boolean },
-})
+export const LikePost = Mutation.write(
+  'LikePost',
+  Write.insert(
+    Entity.input(
+      Chirp.Like,
+      Schema.Struct({ id: Schema.String, postId: Schema.String, userId: Schema.String }),
+      { postId: 'post', userId: 'user' },
+    ),
+    { id: 'id' },
+  ),
+)
+
+/** A like taken back, by the id the post's `liked` holds. */
+export const Unlike = Mutation.write(
+  'Unlike',
+  Write.delete(Entity.input(Chirp.Like, Schema.Struct({ id: Schema.String })), { id: 'id' }),
+)
+// #endregion
 
 export const EditPost = Mutation.write(
   'EditPost',

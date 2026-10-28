@@ -3,7 +3,7 @@
  * the server owns, the compose box and the editor are Submodels placed through
  * Bundle, and the route comes from the site's tree.
  */
-import { Effect, Schema } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import * as Command from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
 import { load, pushUrl, UrlRequest } from 'foldkit/navigation'
@@ -11,21 +11,24 @@ import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
 import { Url } from 'foldkit/url'
 import { Bundle } from 'foldkit-bundle'
-import { Remote, type RemoteClient } from 'foldkit-remote'
+import { Entity, type Selected } from 'foldkit-entity'
+import { Remote, RemoteData, type RemoteClient } from 'foldkit-remote'
 import { Site } from 'foldkit-site'
 import { Surface } from 'foldkit-surface'
 import { Composer } from './compose.js'
-import { Chirper } from './domain.js'
+import { Chirp, Chirper } from './domain.js'
 import { Editing, Editor } from './editor.js'
 import { Post } from './guard.js'
 import {
   ByAuthor,
   EditPost,
+  LikePost,
   PostChirp,
   Timeline,
   TimelinePost,
-  ToggleLike,
+  Unlike,
   UserCard,
+  likeOf,
   type NewPost,
 } from './operations.js'
 import { PEOPLE, type Person } from './server/seed.js'
@@ -53,7 +56,7 @@ export const Model = Schema.Struct({
   me: Schema.Literals(PEOPLE),
 })
 const own = {
-  Liked: { id: Schema.String, likeCount: Schema.Number, likedBy: Schema.Array(Schema.String) },
+  ClickedLike: { postId: Schema.String },
   ...steps,
 }
 export const Message = defineMessageUnion({
@@ -65,7 +68,7 @@ export const Message = defineMessageUnion({
 const Own = defineMessageUnion(own)
 const reduce = (model: Model, message: typeof Own.Type): Return =>
   Own.match(message, {
-    Liked: post => like(model, post),
+    ClickedLike: ({ postId }) => like(model, postId),
     // #endregion
     MintedId: ({ id }) => ComposeForm.helpers.fill({ id })(model),
     ClickedEdit: ({ id }) => EditorForm.helpers.open(id)(model),
@@ -98,9 +101,11 @@ export const App = Surface.application({ Model, Message })
 // #region remote-make
 export const Data = Remote.make({
   model: App.model.remote,
-  entities: [Chirper, Post],
+  entities: [Chirper, Post, Chirp.Like],
   queries: [Timeline, ByAuthor],
-  mutations: [PostChirp, EditPost, ToggleLike],
+  mutations: [PostChirp, EditPost, LikePost, Unlike],
+  // Whom a like is predicted for: the page's reader.
+  viewer: model => Option.some(Remote.ref(Chirper, model.me)),
 })
 // #endregion
 
@@ -139,31 +144,34 @@ const post = (model: Model, value: typeof NewPost.Type): Return => {
 }
 // #endregion
 
+const Liked = Entity.select(Post, { liked: true })
+
 /**
- * A like, shown at once: the count moves and you join or leave the likers,
- * until the server answers with the post as it now reads.
+ * A heart pressed: your like taken back where the post shows one, made where
+ * not. Read from the Model, not the drawn page, so a second press before the
+ * next frame takes back the like the first made. Remote shows the count and
+ * the heart at once from the declarations alone.
  */
 // #region optimistic
-const like = (
-  model: Model,
-  { id, likeCount, likedBy }: { id: string; likeCount: number; likedBy: ReadonlyArray<string> },
-): Return => {
-  const mine = likedBy.includes(model.me)
-  const likers = mine ? likedBy.filter(person => person !== model.me) : [...likedBy, model.me]
-  const sent = Data.mutate(
-    model,
-    ToggleLike,
-    { postId: id },
-    {
-      optimistic: [
-        Remote.patch(Post, id, {
-          likeCount: likeCount + (mine ? -1 : 1),
-          likedBy: likers.map(person => `User:${person}` as const),
-        }),
-      ],
-    },
-  )
-  return { model: sent.model, commands: [sent.command] }
+const like = (model: Model, postId: string): Return => {
+  const toggled = ({ liked }: Selected<typeof Liked>): Return => {
+    const sent = Option.match(liked, {
+      onNone: () =>
+        Data.mutate(model, LikePost, { id: likeOf(postId, model.me), postId, userId: model.me }),
+      onSome: id => Data.mutate(model, Unlike, { id }),
+    })
+    return { model: sent.model, commands: [sent.command] }
+  }
+  // A heart is drawn only on a post that is read, so the others press nothing.
+  const unread = (): Return => ({ model })
+  return RemoteData.match(Data.get(Liked, postId).read(model), {
+    Initial: unread,
+    Loading: unread,
+    Ready: toggled,
+    Refreshing: toggled,
+    Failed: unread,
+    NotFound: unread,
+  })
 }
 // #endregion
 

@@ -3,6 +3,7 @@
  * Ada is the one admin (`server.ts`); you are signed in as `you` unless the
  * address names someone else (`?as=ada`).
  */
+import { likeOf } from '../operations.js'
 
 /** Who can sign in to the demo, by id. */
 export const PEOPLE = ['you', 'ada', 'grace', 'linus'] as const
@@ -29,6 +30,19 @@ const posts: ReadonlyArray<readonly [string, Person, string]> = [
   ],
 ]
 
+/** Who liked what, each a post and a person. */
+const likes: ReadonlyArray<readonly [string, Person]> = [
+  ['p1', 'grace'],
+  ['p1', 'linus'],
+  ['p1', 'you'],
+  ['p2', 'ada'],
+  ['p2', 'linus'],
+  ['p3', 'ada'],
+  ['p3', 'grace'],
+  ['p3', 'you'],
+  ['p5', 'grace'],
+]
+
 const quote = (text: string) => `'${text.replaceAll("'", "''")}'`
 
 export const SEED = `
@@ -40,8 +54,5 @@ export const SEED = `
   insert into posts values
     ${posts.map(([id, author, body], i) => `(${quote(id)}, ${quote(author)}, ${quote(body)}, ${at(i * 10)})`).join(',\n    ')};
   insert into likes values
-    ('p1', 'grace'), ('p1', 'linus'), ('p1', 'you'),
-    ('p2', 'ada'), ('p2', 'linus'),
-    ('p3', 'ada'), ('p3', 'grace'), ('p3', 'you'),
-    ('p5', 'grace');
+    ${likes.map(([post, user]) => `(${quote(likeOf(post, user))}, ${quote(post)}, ${quote(user)})`).join(',\n    ')};
 `

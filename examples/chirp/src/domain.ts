@@ -26,18 +26,19 @@ export const PostFields = Entity.define(
     body: Schema.String.check(Schema.isMaxCodePoints(280)),
     createdAt: Schema.Number,
   }),
-).pipe(Entity.derived({ likeCount: Derived.make(Schema.Number) }))
+)
+
+/** One person's like of one post, keyed by the pair: see `likeOf` in `operations.ts`. */
+export const LikeFields = Entity.define('Like', Schema.Struct({ id: Schema.String }))
 // #endregion
 
 // #region relate
 export const Chirp = Entity.relate(
-  { User: UserFields, Post: PostFields },
+  { User: UserFields, Post: PostFields, Like: LikeFields },
   {
-    Post: {
-      author: Relation.one(UserFields),
-      likedBy: Relation.many(UserFields),
-    },
+    Post: { author: Relation.one(UserFields) },
     User: { posts: Relation.many(PostFields) },
+    Like: { post: Relation.one(PostFields), user: Relation.one(UserFields) },
   },
 )
 // #endregion
@@ -46,5 +47,17 @@ export const Chirp = Entity.relate(
 /** A person, with how many posts name them as author: the server counts, the page shows. */
 export const Chirper = Chirp.User.pipe(
   Entity.derived({ postCount: Derived.count(Chirp.Post.relations.author) }),
+)
+
+/**
+ * A post, with how many like it and whether you do: `liked` is your Like's
+ * id, or none. The server reads both for whoever asks; the page predicts both
+ * while a like is pending.
+ */
+export const LikedPost = Chirp.Post.pipe(
+  Entity.derived({
+    likeCount: Derived.count(Chirp.Like.relations.post),
+    liked: Derived.exists(Chirp.Like.relations.post, { viewer: Chirp.Like.relations.user }),
+  }),
 )
 // #endregion

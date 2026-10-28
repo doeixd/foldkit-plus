@@ -73,8 +73,10 @@ test('posting, editing what you may, and liking, kept by the server in the brows
   await you.reload()
   await post(you, 'The engine weaves').waitFor()
   await expect.poll(() => heart().textContent()).toBe('3')
+  expect(await heart().getAttribute('aria-pressed')).toBe('true')
   await heart().click()
   await expect.poll(() => heart().textContent()).toBe('2')
+  expect(await heart().getAttribute('aria-pressed')).toBe('false')
 
   // Ada, the admin, in another tab of the same sandbox: Edit on every post,
   // the edited chirp among them.

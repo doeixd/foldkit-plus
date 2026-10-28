@@ -3,6 +3,7 @@
  * Every part is drawn through a slot of `style.ts`, or a component from
  * `foldkit-mixins-ui` with its recipe; the icons are Lucide's, by name.
  */
+import { Option } from 'effect'
 import { chirpDemo } from 'foldkit-example-site/demos'
 import { demoGuide } from 'foldkit-example-site/guide'
 import { May } from 'foldkit-guard'
@@ -49,47 +50,38 @@ const when = (createdAt: number): string =>
   new Date(createdAt).toLocaleDateString('en', { month: 'short', day: 'numeric' })
 
 /** A post as a row: who wrote it and when, what it says, and what you may do with it. */
-const chirp = (post: Row, model: Model, slots: Slots, h: H): ReadonlyArray<Html> => {
-  const liked = post.likedBy.some(liker => liker.id === model.me)
-  return [
-    h.div(slots.postHead.attrs(), [
-      h.a(slots.name.attrs([h.Href(profileHref(post.author.handle))]), [post.author.name]),
-      h.span(slots.quiet.attrs(), [`@${post.author.handle}`]),
-      h.span(slots.quiet.attrs([h.AriaHidden(true)]), ['·']),
-      h.a(slots.stamp.attrs([h.Href(statusHref(post.author.handle, post.id))]), [
-        when(post.createdAt),
+const chirp = (post: Row, slots: Slots, h: H): ReadonlyArray<Html> => [
+  h.div(slots.postHead.attrs(), [
+    h.a(slots.name.attrs([h.Href(profileHref(post.author.handle))]), [post.author.name]),
+    h.span(slots.quiet.attrs(), [`@${post.author.handle}`]),
+    h.span(slots.quiet.attrs([h.AriaHidden(true)]), ['·']),
+    h.a(slots.stamp.attrs([h.Href(statusHref(post.author.handle, post.id))]), [
+      when(post.createdAt),
+    ]),
+  ]),
+  h.p(slots.body.attrs(), [post.body]),
+  h.div(slots.actions.attrs(), [
+    // #region like
+    h.button(
+      slots.like.attrs([
+        h.Type('button'),
+        h.AriaPressed(Option.isSome(post.liked) ? 'true' : 'false'),
+        h.AriaLabel(`Like, ${post.likeCount} ${post.likeCount === 1 ? 'like' : 'likes'}`),
+        h.OnClick(Message.ClickedLike({ postId: post.id })),
       ]),
-    ]),
-    h.p(slots.body.attrs(), [post.body]),
-    h.div(slots.actions.attrs(), [
-      // #region like
-      h.button(
-        slots.like.attrs([
-          h.Type('button'),
-          h.AriaPressed(liked ? 'true' : 'false'),
-          h.AriaLabel(`Like, ${post.likeCount} ${post.likeCount === 1 ? 'like' : 'likes'}`),
-          h.OnClick(
-            Message.Liked({
-              id: post.id,
-              likeCount: post.likeCount,
-              likedBy: post.likedBy.map(liker => liker.id),
-            }),
+      [h.span(slots.round.attrs(), [icon(heart, h)]), h.span([], [String(post.likeCount)])],
+    ),
+    // #endregion
+    ...(May.can(post.may, 'Update')
+      ? [
+          h.button(
+            slots.edit.attrs([h.Type('button'), h.OnClick(Message.ClickedEdit({ id: post.id }))]),
+            [h.span(slots.round.attrs(), [icon(pencil, h)]), h.span([], ['Edit'])],
           ),
-        ]),
-        [h.span(slots.round.attrs(), [icon(heart, h)]), h.span([], [String(post.likeCount)])],
-      ),
-      // #endregion
-      ...(May.can(post.may, 'Update')
-        ? [
-            h.button(
-              slots.edit.attrs([h.Type('button'), h.OnClick(Message.ClickedEdit({ id: post.id }))]),
-              [h.span(slots.round.attrs(), [icon(pencil, h)]), h.span([], ['Edit'])],
-            ),
-          ]
-        : []),
-    ]),
-  ]
-}
+        ]
+      : []),
+  ]),
+]
 const editorNote = (model: Model): string => {
   switch (PostEditor.status(model)) {
     case 'Loading':
@@ -129,7 +121,7 @@ const post = (row: Row, model: Model, slots: Slots, h: H): Html =>
               ]),
             ]),
           ]
-        : chirp(row, model, slots, h),
+        : chirp(row, slots, h),
     ),
   ])
 
