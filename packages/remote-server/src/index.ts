@@ -729,13 +729,25 @@ interface Subscriber<P> {
   cursor: number
 }
 
+/** A subscriber's viewer as a group key: who, none for a visitor, or no server viewer. */
+const viewerKeyOf = (viewer: Option.Option<EntityRef> | undefined): string =>
+  viewer === undefined
+    ? 'unset'
+    : Option.match(viewer, {
+        onNone: () => 'visitor',
+        onSome: ref => `as ${ref.entity}:${ref.id}`,
+      })
+
 const liveHub = <P, R>(
   entities: ReadonlyArray<EntitySource<P, R>>,
   options: {
     /**
      * Who a principal is, for sharing re-reads: subscribers whose principals
      * have one key share one read, under the first one's principal. Default:
-     * the principal itself, so only the same value shares.
+     * the principal itself, so only the same value shares. A source with
+     * members answered per viewer (`perViewer`, a `Derived.exists`) is read
+     * once per viewer within a key, so a key coarser than who asks (a role)
+     * never sends one reader's value of such a member to another.
      */
     readonly key?: ((principal: P) => unknown) | undefined
   } = {},
@@ -781,6 +793,7 @@ const liveHub = <P, R>(
           source.shared !== undefined &&
           source.shared.has(field) &&
           Object.hasOwn(values, field)
+        const perViewer = (source.perViewer ?? []).length > 0
         // One source read per principal key and window signature:
         // subscribers sharing both share the read, and a paged field is
         // re-read with the window the subscriber selected it with.
@@ -795,6 +808,7 @@ const liveHub = <P, R>(
             ...new Set([...selected.fields].map(aliasedField)),
           ])
           const principalKey = keyOf(subscriber.principal)
+          const viewerKey = perViewer ? viewerKeyOf(subscriber.viewer) : ''
           const sharing = groups.get(principalKey) ?? {
             principal: subscriber.principal,
             byWindows: new Map<string, ReadGroup<P>>(),
@@ -806,7 +820,7 @@ const liveHub = <P, R>(
             renames: Readonly<Record<string, string>>,
             wanted: string[],
           ): void => {
-            const groupKey = `${stableStringify(windows)}\u0000${stableStringify(renames)}`
+            const groupKey = `${stableStringify(windows)}\u0000${stableStringify(renames)}\u0000${viewerKey}`
             const group = byWindows.get(groupKey) ?? { windows, renames, entries: [] }
             byWindows.set(groupKey, group)
             group.entries.push({ subscriber, fields: wanted })
@@ -857,7 +871,7 @@ const liveHub = <P, R>(
             const allowed = allowedFields(source, principal, requested)
             if (allowed.length === 0) return
             const allowedSet = new Set(allowed)
-            // The group shares a principal, so its first subscriber's viewer is every one's.
+            // The group shares a principal key and, where a member is per viewer, a viewer.
             const viewer = group[0]?.subscriber.viewer
             const records = yield* readFiltered(source, principal, allowed, fields =>
               source.read({
