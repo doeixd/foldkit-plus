@@ -5,9 +5,10 @@
  * one `OnMount`. Conflicts throw a `DiagnosticError` before Foldkit could
  * silently chain or replace.
  */
-import { Cause, Stream } from 'effect'
+import { Cause, Option, Stream } from 'effect'
 import type { Attribute, ChildAttribute } from 'foldkit/html'
 import type { MountAction } from 'foldkit/mount'
+import { Diagnostics as Reported } from 'foldkit-surface'
 import {
   classAttribute,
   isChildAttribute,
@@ -18,6 +19,7 @@ import {
 import type { StaticContribution } from './contribution.js'
 import { DiagnosticError, type Diagnostic, type DiagnosticCode } from './diagnostics.js'
 import * as MetadataToken from './metadataToken.js'
+import { mountFailed } from './mountFailed.js'
 import type { SlotProtection } from './slot.js'
 
 export type SlotAttributes<Message> = ReadonlyArray<Attribute<Message> | ChildAttribute>
@@ -288,6 +290,7 @@ const composeMounts = <Message>(
   const first = mounts[0]
   if (first === undefined) return undefined
   if (mounts.length === 1) return mountAttribute(first)
+  const slotOf = Option.fromUndefinedOr(slot)
   const name = `Mixins[${slot ?? 'slot'}](${mounts.map(mount => mount.name).join(',')})`
   return mountAttribute({
     name,
@@ -299,15 +302,17 @@ const composeMounts = <Message>(
       Stream.mergeAll(
         mounts.map(mount =>
           // A merge ends every stream in it when one fails, so each fails alone,
-          // reported as Foldkit reports a Mount of its own, and the rest go on.
-          // One that ends interrupted is being torn down with its element: no fault.
-          mount.f(element, viewStateChanges).pipe(
-            Stream.catchCause(cause => {
-              if (!Cause.hasInterruptsOnly(cause))
-                console.error(`[OnMount ${mount.name}] unhandled failure`, cause)
-              return Stream.empty
-            }),
-          ),
+          // reported as `MountFailed`, and the rest go on. One that ends
+          // interrupted is being torn down with its element: no fault.
+          mount
+            .f(element, viewStateChanges)
+            .pipe(
+              Stream.catchCause(cause =>
+                Cause.hasInterruptsOnly(cause)
+                  ? Stream.empty
+                  : Stream.fromEffectDrain(Reported.report(mountFailed(mount.name, slotOf, cause))),
+              ),
+            ),
         ),
         { concurrency: 'unbounded' },
       ),

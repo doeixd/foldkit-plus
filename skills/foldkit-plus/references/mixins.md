@@ -63,7 +63,10 @@ resolver: base attrs + contributions -> Foldkit attributes (or DiagnosticError)
   has one owner (`mixins:style-property-conflict` otherwise); each event / scalar attribute has
   exactly one owner (base or one mixin);
   `ChildAttribute` preserved by identity and reserves its event; `Key`/`InnerHTML` cannot come
-  from a mixin; all mounts compose into one `OnMount`.
+  from a mixin; all mounts compose into one `OnMount`. A composed Mount that fails ends alone
+  and is reported as a `MountFailed` diagnostic (`{ mount, slot: Option, cause }`) through
+  `foldkit-surface`'s `Diagnostics.Reporter`; an interrupted one is not. Foldkit runs Mounts
+  outside the runtime's `resources`, so this one always reaches the default reporter, the log.
 - Diagnostics you will hit (`Diagnostics.DiagnosticError`, `.diagnostic.code`):
   `mixins:unknown-slot`, `mixins:capability-mismatch`, `mixins:event-conflict`,
   `mixins:attribute-conflict`, `mixins:style-property-conflict`.

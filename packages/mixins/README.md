@@ -209,6 +209,18 @@ DevTools and editor tooling can all speak the same diagnostic language. The styl
 because a positioning Behavior that writes `top` and a Style that also sets `top` would otherwise
 fight silently, last writer winning.
 
+Those are definition errors, thrown. One thing goes wrong only at runtime: a Mount composed
+beside others that fails. It ends alone, so the slot's other Mounts go on, and it is reported as
+a `MountFailed` diagnostic (`{ mount, slot, cause }`, level `error`) through `foldkit-surface`'s
+`Diagnostics` channel, which by default is Effect's log (the console). A Mount that ends
+interrupted is being torn down with its element and reports nothing. Foldkit runs a Mount in the
+runtime's own context, not its `resources`, so a reporter provided there does not reach this
+one: it goes to the log. A test runs the Mount's stream with
+`Effect.provideService(Diagnostics.Reporter, collected.report)`, where `collected` is
+`Diagnostics.collect()` (both from `foldkit-surface`), and asserts on `collected.reported`.
+The resolver's thrown `Diagnostics` namespace here is a different thing: import one of the two
+under another name.
+
 ## Slots: the public contract
 
 A slot is metadata, not a DOM node:

@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
-import { Cause, Effect, Fiber, Stream } from 'effect'
+import { describe, expect, it } from 'vitest'
+import { Cause, Effect, Fiber, Option, Stream } from 'effect'
+import { Diagnostics as Reported } from 'foldkit-surface'
 import type { HtmlBuilder } from 'foldkit/html'
 import { Scene } from 'foldkit/test'
 import { liveViewStateChanges, type MountAction } from 'foldkit/mount'
@@ -10,8 +11,17 @@ type TestMessage = { readonly _tag: 'GotA' } | { readonly _tag: 'GotB' }
 const emitA: MountAction<TestMessage> = { name: 'A', f: () => Stream.succeed({ _tag: 'GotA' }) }
 const emitB: MountAction<TestMessage> = { name: 'B', f: () => Stream.succeed({ _tag: 'GotB' }) }
 
-const collect = <A>(stream: Stream.Stream<A, unknown>): Promise<ReadonlyArray<A>> =>
-  Effect.runPromise(Stream.runCollect(stream).pipe(Effect.map(chunk => Array.from(chunk))))
+/** What `stream` emits, and what it reported through the diagnostics channel. */
+const run = async <A>(stream: Stream.Stream<A, unknown>) => {
+  const collected = Reported.collect()
+  const emitted = await Effect.runPromise(
+    Stream.runCollect(stream).pipe(
+      Effect.map(chunk => Array.from(chunk)),
+      Effect.provideService(Reported.Reporter, collected.report),
+    ),
+  )
+  return { emitted, reported: collected.reported }
+}
 
 /** Resolve two per-slot contributions and return the one composed OnMount. */
 const composed = (
@@ -33,7 +43,7 @@ describe('Mount composition at runtime', () => {
   it('merges the streams of every composed mount', async () => {
     const mount = composed([emitA, emitB])
     expect(mount.name).toBe('Mixins[root](A,B)')
-    expect(await collect(mount.f(element, liveViewStateChanges))).toEqual(
+    expect((await run(mount.f(element, liveViewStateChanges))).emitted).toEqual(
       expect.arrayContaining([{ _tag: 'GotA' }, { _tag: 'GotB' }]),
     )
   })
@@ -50,50 +60,47 @@ describe('Mount composition at runtime', () => {
       ),
     ],
   ])('reports a mount that %s and runs the rest', async (_, stream) => {
-    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
-    try {
-      const failing: MountAction<TestMessage, Error> = { name: 'Failing', f: () => stream }
-      expect(await collect(composed([failing, emitA]).f(element, liveViewStateChanges))).toEqual([
-        { _tag: 'GotA' },
-      ])
-      expect(errors).toHaveBeenCalledOnce()
-      expect(errors.mock.calls[0]![0]).toBe('[OnMount Failing] unhandled failure')
-    } finally {
-      errors.mockRestore()
-    }
+    const failing: MountAction<TestMessage, Error> = { name: 'Failing', f: () => stream }
+    const { emitted, reported } = await run(
+      composed([failing, emitA]).f(element, liveViewStateChanges),
+    )
+    expect(emitted).toEqual([{ _tag: 'GotA' }])
+    expect(reported).toEqual([
+      expect.objectContaining({
+        _tag: 'MountFailed',
+        source: 'foldkit-mixins',
+        level: 'error',
+        mount: 'Failing',
+        slot: Option.some('root'),
+      }),
+    ])
+    expect(reported[0]!.message).toContain('the Mount Failing on slot root failed')
   })
 
   it('reports nothing when the composed mount is torn down', async () => {
-    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
-    try {
-      const waiting: MountAction<TestMessage> = { name: 'Waiting', f: () => Stream.never }
-      const fiber = Effect.runFork(
-        Stream.runDrain(composed([waiting, emitA]).f(element, liveViewStateChanges)),
-      )
-      await Effect.runPromise(Effect.yieldNow)
-      await Effect.runPromise(Fiber.interrupt(fiber))
-      expect(errors).not.toHaveBeenCalled()
-    } finally {
-      errors.mockRestore()
-    }
+    const collected = Reported.collect()
+    const waiting: MountAction<TestMessage> = { name: 'Waiting', f: () => Stream.never }
+    const fiber = Effect.runFork(
+      Stream.runDrain(composed([waiting, emitA]).f(element, liveViewStateChanges)).pipe(
+        Effect.provideService(Reported.Reporter, collected.report),
+      ),
+    )
+    await Effect.runPromise(Effect.yieldNow)
+    await Effect.runPromise(Fiber.interrupt(fiber))
+    expect(collected.reported).toEqual([])
   })
 
   // A Mount whose element is removed ends interrupted from inside, as a page
   // that drops a component's elements shows; that is a teardown, not a fault.
   it('reports nothing for a mount that ends interrupted', async () => {
-    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
-    try {
-      const interrupted: MountAction<TestMessage> = {
-        name: 'Interrupted',
-        f: () => Stream.failCause(Cause.interrupt()),
-      }
-      expect(
-        await collect(composed([interrupted, emitA]).f(element, liveViewStateChanges)),
-      ).toEqual([{ _tag: 'GotA' }])
-      expect(errors).not.toHaveBeenCalled()
-    } finally {
-      errors.mockRestore()
+    const interrupted: MountAction<TestMessage> = {
+      name: 'Interrupted',
+      f: () => Stream.failCause(Cause.interrupt()),
     }
+    expect(await run(composed([interrupted, emitA]).f(element, liveViewStateChanges))).toEqual({
+      emitted: [{ _tag: 'GotA' }],
+      reported: [],
+    })
   })
 
   it('is observed by Scene as exactly one Mount', () => {

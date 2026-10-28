@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file,
-        find: 'return Stream.empty',
-        replace: 'return Stream.failCause(cause)',
+        find: '? Stream.empty',
+        replace: '? Stream.failCause(cause)',
       },
     ],
     tests,
@@ -22,8 +22,35 @@ export default [
     edits: [
       {
         file,
-        find: 'console.error(`[OnMount ${mount.name}] unhandled failure`, cause)',
-        replace: 'void cause',
+        find: 'Reported.report(mountFailed(mount.name, slotOf, cause))',
+        replace: 'Effect.void',
+      },
+      {
+        file,
+        find: "import { Cause, Option, Stream } from 'effect'",
+        replace: "import { Cause, Effect, Option, Stream } from 'effect'",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a failing mount is not reported as an error',
+    edits: [
+      {
+        file: '../src/mountFailed.ts',
+        find: "level: 'error',",
+        replace: "level: 'warning',",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a failing mount is reported without its slot',
+    edits: [
+      {
+        file,
+        find: 'mountFailed(mount.name, slotOf, cause)',
+        replace: 'mountFailed(mount.name, Option.none(), cause)',
       },
     ],
     tests,
@@ -33,8 +60,8 @@ export default [
     edits: [
       {
         file: '../src/resolver.ts',
-        find: 'if (!Cause.hasInterruptsOnly(cause))',
-        replace: 'if (cause !== undefined)',
+        find: 'Cause.hasInterruptsOnly(cause)',
+        replace: 'false',
       },
     ],
     tests: ['packages/mixins/test/mountRuntime.test.ts'],

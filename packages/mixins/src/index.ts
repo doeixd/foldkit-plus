@@ -28,6 +28,7 @@ export { Style } from './style.js'
 export { Theme } from './theme/core.js'
 
 export type { AttrToken } from './attr.js'
+export type { MixinsDiagnostic, MountFailed } from './mountFailed.js'
 export type {
   A11yDiagnostic,
   A11yDiagnosticCode,
