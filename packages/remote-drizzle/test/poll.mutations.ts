@@ -65,6 +65,11 @@ export default [
     'if (Option.isNone(listed)) readAt = readAt',
   ),
   edit(
+    'a group reads its fields sorted, not in the order asked',
+    '{ fields: [...fields], ids: [id] }',
+    '{ fields: [...fields].sort(), ids: [id] }',
+  ),
+  edit(
     'each subscribed row is read on its own',
     '(yield* read(ids, group.fields)).map(',
     '(yield* Effect.forEach(ids, id => read([id], group.fields))).flat().map(',
