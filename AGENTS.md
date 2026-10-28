@@ -1248,6 +1248,14 @@ of its own named a form field "fits the Catalog". Read words with
   comment said Foldkit keeps the last of two `OnClick`s on an element; its
   `addDataOn` chains them all, so the resumable builder dropped bindings. Cite
   the source line, or test it.
+- **A pending patch over a tombstone is also a create.** Hiding every pending
+  patch over a base tombstone fixed a stub row but hid the CMS draft preview
+  (a create of an id the client knew absent); every remote test stayed green
+  and only the CMS demos caught it. Settle what a delete supersedes by request
+  order, and test the create case.
+- **`slice(0, n - limit)` drops from the end when `n < limit`.** A negative end
+  counts from the back, so a cap written that way empties a small record.
+  Clamp with `Math.max(0, …)`.
 - **Two refusals agree, and agreeing is not evidence.** The law helper treated
   two refused calls as equal, so an SQL body that was not SQL "held" every law
   and its records let a computed write land. A check comparing two sides

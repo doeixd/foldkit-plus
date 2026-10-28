@@ -378,6 +378,23 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **Remote's state machine, after review** (#273):
+  - `Data.forget` with an unchanged persistence key no longer restores the
+    snapshot it forgot: it keeps `restoredFrom`, and the emptied cache is
+    saved over the old one.
+  - Mutation answers settle in the order their requests started: an answer
+    does not overwrite a field, clear a deletion, or delete a row that a
+    later-started request already settled.
+  - A row a settled request deleted no longer reads `Initial` while an
+    earlier edit of it is pending.
+  - A field only a pending patch shows is still fetched, so a failed request
+    leaves the server's value, not `Initial`.
+  - A repeated or late `MutationSucceeded` or `MutationFailed` returns the
+    Model it was given, and a failure after `dismiss` no longer lists the
+    write again.
+  - `live`, `streams` and `gaps` keep the 256 streams most recently heard
+    from, and retention forgets a `verifyPlacement` record whose list it
+    dropped.
 - **A law no call answered no longer holds** (#275). Two refusals still agree,
   but only cases where both sides answer a value count; a law with none
   answers the new `Unanswered` verdict and records no evidence, where an
