@@ -4,7 +4,7 @@ import { AgentMcp } from 'foldkit-agent-mcp'
 import { PassThrough } from 'node:stream'
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const Message = defineMessageUnion({
   RequestedCreateTodo: { title: Schema.String },
@@ -32,7 +32,7 @@ beforeEach(() => {
 })
 
 /** Real Node streams, so chunks arrive as Buffers the way stdin delivers them. */
-const serve = () => {
+const serve = (dispatch = (message: Message) => void dispatched.push(message)) => {
   const input = new PassThrough()
   const output = new PassThrough()
   const lines: Array<string> = []
@@ -52,7 +52,7 @@ const serve = () => {
       definition,
       host: {
         model: () => ({ todos: [] }),
-        dispatch: (message: Message) => void dispatched.push(message),
+        dispatch,
         principal: () => ({}) as Record<string, never>,
       },
     }),
@@ -92,6 +92,27 @@ describe('stdio decoding', () => {
     expect(dispatched).toEqual([Message.RequestedCreateTodo({ title })])
     expect(lines).toHaveLength(2)
     expect(JSON.parse(lines[1]!)).toMatchObject({ id: 2 })
+  })
+})
+
+describe('stdio diagnostics', () => {
+  it('writes a defect to stderr, leaving stdout to MCP messages', async () => {
+    const errors = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    try {
+      const { input, lines } = serve(() => {
+        throw new Error('private detail')
+      })
+      input.write(line(1, 'initialize'))
+      input.write(callCreateTodo('a'))
+      await vi.waitFor(() => expect(errors).toHaveBeenCalledOnce())
+
+      expect(String(errors.mock.calls[0]![0])).toMatch(
+        /^\[foldkit-agent-mcp\] the capability "create_todo" failed unexpectedly[^]*private detail/,
+      )
+      expect(lines.map(text => JSON.parse(text))).toMatchObject([{ id: 1 }, { id: 2 }])
+    } finally {
+      errors.mockRestore()
+    }
   })
 })
 

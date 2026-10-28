@@ -1,5 +1,5 @@
 import { Agent } from 'foldkit-agent'
-import { Projection } from 'foldkit-surface'
+import { Diagnostics, Projection } from 'foldkit-surface'
 import { AgentMcp, type Notification, type Response } from 'foldkit-agent-mcp'
 import { Effect, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
@@ -679,6 +679,12 @@ describe('defects at the protocol boundary', () => {
     throw new Error('private detail')
   }
 
+  /** Where each defect goes: the operator learns what the caller is not told. */
+  let collected = Diagnostics.collect()
+  beforeEach(() => {
+    collected = Diagnostics.collect()
+  })
+
   /** Everything an application callback can do wrong, in one contract. */
   const faulty = (
     part: 'context' | 'resource' | 'available',
@@ -716,6 +722,7 @@ describe('defects at the protocol boundary', () => {
         },
       }),
       onNotification: (notification: Notification) => notifications.push(notification),
+      diagnostics: collected.report,
     })
 
   const cases = [
@@ -735,8 +742,44 @@ describe('defects at the protocol boundary', () => {
       // The callback's own text may carry application internals.
       expect(error.message).not.toMatch(/private detail/)
       expect(error.message).toMatch(new RegExp(method))
+      await vi.waitFor(() =>
+        expect(collected.reported).toEqual([
+          expect.objectContaining({ _tag: 'RequestDefect', level: 'error', method }),
+        ]),
+      )
+      expect(collected.reported[0]!.message).toContain('private detail')
     })
   }
+
+  it('answers a capability that dies with a tool error, and reports why', async () => {
+    const served = AgentMcp.handler({
+      agent: TodoAgent.bind({
+        definition,
+        host: { model: () => model, dispatch: boom, principal: () => principal },
+      }),
+      diagnostics: collected.report,
+    })
+    await served.handle(request(0, 'initialize'))
+
+    const answered = ok(
+      await served.handle(
+        request(1, 'tools/call', { name: 'create_todo', arguments: { title: 'a' } }),
+      ),
+    )
+
+    expect(answered).toMatchObject({ isError: true })
+    expect(JSON.stringify(answered)).not.toMatch(/private detail/)
+    await vi.waitFor(() =>
+      expect(collected.reported).toEqual([
+        expect.objectContaining({
+          _tag: 'CapabilityDefect',
+          level: 'error',
+          capability: 'create_todo',
+        }),
+      ]),
+    )
+    expect(collected.reported[0]!.message).toContain('private detail')
+  })
 
   it('does not let a throwing availability getter escape the subscription', async () => {
     const served = faulty('available')
@@ -753,6 +796,9 @@ describe('defects at the protocol boundary', () => {
     }
 
     expect(rejections).toEqual([])
+    expect(collected.reported).toEqual([
+      expect.objectContaining({ _tag: 'ToolListDefect', level: 'error' }),
+    ])
     served.close()
   })
 })

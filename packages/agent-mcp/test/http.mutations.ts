@@ -56,7 +56,7 @@ export default [
     edits: [
       {
         file,
-        find: "console.error('[foldkit-agent-mcp] authenticate broke:', cause)",
+        find: 'void report(authenticateDefect(cause))',
         replace: 'void cause',
       },
     ],

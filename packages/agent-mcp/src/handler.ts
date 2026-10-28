@@ -1,5 +1,7 @@
 import { Agent } from 'foldkit-agent'
 import { Effect } from 'effect'
+import type { ReportDiagnostic } from 'foldkit-surface'
+import { capabilityDefect, reportTo, requestDefect, toolListDefect } from './diagnostics.js'
 import {
   type Id,
   type Incoming,
@@ -28,6 +30,12 @@ export interface HandlerOptions<Model, Context_, Principal, ByName, ByTag> {
    * does.
    */
   readonly debounceMs?: number | undefined
+  /**
+   * Where a defect answered generically goes: a capability that died, a
+   * request whose handling threw, a tool listing that broke. The
+   * `Diagnostics.Reporter` default, Effect's log, when not given.
+   */
+  readonly diagnostics?: ReportDiagnostic | undefined
 }
 
 export interface Handler {
@@ -66,6 +74,7 @@ export const handler = <Model, Context_, Principal, ByName, ByTag>(
 ): Handler => {
   const { agent, onNotification } = options
   const serverInfo = options.serverInfo ?? { name: 'foldkit-agent', version: '0.1.0' }
+  const report = reportTo(options.diagnostics)
 
   let initialized = false
   let closed = false
@@ -101,9 +110,10 @@ export const handler = <Model, Context_, Principal, ByName, ByTag>(
     let digest: string
     try {
       digest = JSON.stringify(await listTools())
-    } catch {
+    } catch (cause) {
       // Nothing to tell the client here, and a throwing availability getter must
       // not become an unhandled rejection on a background subscription.
+      void report(toolListDefect(cause))
       return
     }
     // A close can land while this read is suspended, and a notification emitted
@@ -169,9 +179,10 @@ export const handler = <Model, Context_, Principal, ByName, ByTag>(
               ...(completion === undefined ? {} : { completion: completion.status }),
             }),
       )
-    } catch {
+    } catch (cause) {
       // A defect is not something the caller can act on, and its text may carry
       // application internals.
+      void report(capabilityDefect(name, cause))
       return success(id, toolError(`Capability "${name}" failed unexpectedly`))
     } finally {
       inFlight.delete(id)
@@ -298,13 +309,14 @@ export const handler = <Model, Context_, Principal, ByName, ByTag>(
       // own defects so it can report them as a tool error; everything else --
       // a throwing projection, resource read, or availability getter -- lands
       // here as an internal error with no application detail in it.
-      return handleRequest(incoming).catch(() =>
-        failure(
+      return handleRequest(incoming).catch((cause: unknown) => {
+        void report(requestDefect(incoming.method, cause))
+        return failure(
           incoming.id,
           code.INTERNAL_ERROR,
           `Handling ${incoming.method} failed unexpectedly`,
-        ),
-      )
+        )
+      })
     },
 
     close: () => {

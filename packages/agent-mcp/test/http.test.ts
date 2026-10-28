@@ -2,6 +2,7 @@ import { Agent } from 'foldkit-agent'
 import { AgentMcp, type HttpRequest, type HttpResponse, type SseEvent } from 'foldkit-agent-mcp'
 import { Effect, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
+import { Diagnostics } from 'foldkit-surface'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const Message = defineMessageUnion({
@@ -161,6 +162,73 @@ describe('sessions', () => {
     expect(server.sessions()).toEqual([])
   })
 
+  it("reports a session's defects to the host's reporter", async () => {
+    const collected = Diagnostics.collect()
+    const server = makeServer({
+      diagnostics: collected.report,
+      createAgent: ({ principal }) =>
+        TodoAgent.bind({
+          definition,
+          host: {
+            model: () => model,
+            dispatch: () => {
+              throw new Error('private detail')
+            },
+            principal: () => principal,
+          },
+        }),
+    })
+    const id = sessionOf(await server.handle(post(initialize)))
+
+    await server.handle(
+      post(
+        {
+          jsonrpc: '2.0',
+          id: 2,
+          method: 'tools/call',
+          params: { name: 'create_todo', arguments: { title: 'a' } },
+        },
+        { 'mcp-session-id': id },
+      ),
+    )
+
+    await vi.waitFor(() =>
+      expect(collected.reported).toEqual([
+        expect.objectContaining({ _tag: 'CapabilityDefect', capability: 'create_todo' }),
+      ]),
+    )
+  })
+
+  it('ends a session whose transport breaks as it ends, and reports the transport', async () => {
+    const collected = Diagnostics.collect()
+    const server = makeServer({ diagnostics: collected.report })
+    const id = sessionOf(await server.handle(post(initialize)))
+    const opened = await server.handle({
+      method: 'GET',
+      headers: { authorization: 'Bearer alice', 'mcp-session-id': id },
+    })
+    opened.stream?.subscribe(
+      () => {},
+      () => {
+        throw new Error('socket gone')
+      },
+    )
+
+    const deleted = await server.handle({
+      method: 'DELETE',
+      headers: { authorization: 'Bearer alice', 'mcp-session-id': id },
+    })
+
+    expect(deleted.status).toBe(204)
+    expect(server.sessions()).toEqual([])
+    await vi.waitFor(() =>
+      expect(collected.reported).toEqual([
+        expect.objectContaining({ _tag: 'TransportEndDefect', level: 'warning', sessionId: id }),
+      ]),
+    )
+    expect(collected.reported[0]!.message).toContain('socket gone')
+  })
+
   it('drops a session that has gone idle', async () => {
     const server = makeServer({ sessionTtlMs: -1 })
     const id = sessionOf(await server.handle(post(initialize)))
@@ -246,16 +314,20 @@ describe('security', () => {
       },
     ],
   ])('answers an authenticate that %s with a 500 that says nothing of it', async (_, broken) => {
-    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
-    const server = makeServer({ authenticate: broken })
+    const collected = Diagnostics.collect()
+    const server = makeServer({ authenticate: broken, diagnostics: collected.report })
     const response = await server.handle(post(initialize))
 
     expect(response.status).toBe(500)
     expect(response.body).toEqual({ error: 'Internal error' })
     expect(server.sessions()).toEqual([])
     // The operator, not the caller, learns why.
-    expect(String(logged.mock.calls[0]?.[1])).toContain('the token store password')
-    logged.mockRestore()
+    await vi.waitFor(() =>
+      expect(collected.reported).toEqual([
+        expect.objectContaining({ _tag: 'AuthenticateDefect', level: 'error' }),
+      ]),
+    )
+    expect(collected.reported[0]!.message).toContain('the token store password')
   })
 
   it('asks a store that answers later', async () => {

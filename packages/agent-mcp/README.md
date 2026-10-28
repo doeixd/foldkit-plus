@@ -58,7 +58,8 @@ const server = AgentMcp.stdio({ agent: agentRuntime })
 
 `stdio` attaches to the process streams immediately. Retain the returned
 handle and call `server.close()` on application shutdown. Keep application
-logs on stderr so stdout remains the MCP protocol stream.
+logs on stderr so stdout remains the MCP protocol stream; the adapter's own
+[diagnostics](#diagnostics) go there by default.
 
 That gives an MCP client the capabilities/resources derived from the same
 contract used by every other adapter.
@@ -152,8 +153,8 @@ principal `authenticate` resolves, so different callers do not accidentally
 share a bound application runtime. `authenticate` is an Effect, so it may ask a
 token store: failing with `AgentMcp.unauthenticated(reason?)` (or Remote's
 `RemoteUnauthenticated`, which has the same shape) refuses the caller with a
-401 carrying `reason`, and a defect is a 500 that says nothing of it, logged
-on the server. It needs no
+401 carrying `reason`, and a defect is a 500 that says nothing of it,
+reported to the server as an `AuthenticateDefect` [diagnostic](#diagnostics). It needs no
 service: provide what it reads from a context built once at startup, not per
 request.
 
@@ -210,7 +211,38 @@ already declared by `foldkit-agent`.
 Stdio has one caller-provided runtime and no HTTP session layer.
 
 `stdout` is reserved for MCP messages. A stray `console.log` corrupts the
-protocol stream; write diagnostics to `stderr`.
+protocol stream; write diagnostics to `stderr`. Effect's default logger writes
+to stdout in Node, so `stdio` sends its own diagnostics to `stderr` unless
+you pass `diagnostics`.
+
+## Diagnostics
+
+The adapter answers some failures without telling the client why, since the
+cause may carry application internals. Each is a typed diagnostic, reported
+through `foldkit-surface`'s `Diagnostics` channel:
+
+| `_tag` | `level` | When |
+| --- | --- | --- |
+| `AuthenticateDefect` | `error` | `authenticate` died or threw; the request was answered 500. |
+| `CapabilityDefect` | `error` | A capability's dispatch died; the call was answered a tool error naming no cause. |
+| `RequestDefect` | `error` | Handling a request threw (a projection, a resource read); it was answered an internal error. |
+| `ToolListDefect` | `error` | Listing the tools threw after the Model changed, so no `tools/list_changed` was sent. |
+| `TransportEndDefect` | `warning` | A client transport's `end` threw as its session ended; the session ended anyway. |
+
+The host runs outside any Effect context of yours, so the reporter is an
+option, `diagnostics`, on `handler`, `httpHandler`, `httpApp` and `stdio`.
+Without it, a diagnostic goes to `Diagnostics.Reporter`'s default, Effect's
+log, or to `stderr` under `stdio`:
+
+```ts
+const reported = AgentMcp.httpHandler({
+  authenticate: request => verify(request.headers['authorization']),
+  createAgent: ({ principal }) => bindAgentFor(principal),
+  diagnostics: diagnostic => Effect.logError(`mcp: ${diagnostic.message}`),
+})
+```
+
+In a test, pass `Diagnostics.collect().report` and assert on `reported`.
 
 ## Choosing an adapter
 

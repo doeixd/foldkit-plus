@@ -1,5 +1,7 @@
 import { Effect, Result } from 'effect'
 import type { Agent } from 'foldkit-agent'
+import type { ReportDiagnostic } from 'foldkit-surface'
+import { authenticateDefect, reportTo, transportEndDefect } from './diagnostics.js'
 import { type Handler, PROTOCOL_VERSION, handler } from './handler.js'
 import { type Notification, code, failure, isIncoming, isRequest } from './jsonRpc.js'
 
@@ -81,7 +83,7 @@ export interface HttpHandlerOptions<Model, Context_, Principal, ByName, ByTag> {
   /**
    * Resolves the caller from the request: an Effect, so it may ask a token
    * store. Failing with `Unauthenticated` refuses it, a 401 carrying `reason`;
-   * a defect is a 500 that says nothing of it, logged. It needs nothing:
+   * a defect is a 500 that says nothing of it, reported as `AuthenticateDefect`. It needs nothing:
    * provide what it reads (a session store) from a context built once, not
    * per request. It runs in a fiber of its own, outside an `httpApp`
    * request's, so a client that leaves does not interrupt it.
@@ -120,6 +122,14 @@ export interface HttpHandlerOptions<Model, Context_, Principal, ByName, ByTag> {
   readonly replayBuffer?: number | undefined
 
   readonly serverInfo?: { readonly name: string; readonly version: string } | undefined
+
+  /**
+   * Where a defect answered generically goes (an `authenticate` that broke,
+   * and each session's capability, request and tool-listing defects), and a
+   * client transport that broke as its session ended. The
+   * `Diagnostics.Reporter` default, Effect's log, when not given.
+   */
+  readonly diagnostics?: ReportDiagnostic | undefined
 }
 
 export interface HttpHandler {
@@ -232,6 +242,7 @@ export const httpHandler = <Model, Context_, Principal, ByName, ByTag>(
   const replayBuffer = options.replayBuffer ?? 100
   const clock = options.clock ?? Date.now
   const sessions = new Map<string, Session>()
+  const report = reportTo(options.diagnostics)
 
   const drop = (session: Session): void => {
     // Removed from the map first, so nothing can reach it again, and marked so a
@@ -244,8 +255,9 @@ export const httpHandler = <Model, Context_, Principal, ByName, ByTag>(
     for (const stream of [...session.streams]) {
       try {
         stream.subscriber?.end?.()
-      } catch {
+      } catch (cause) {
         // Terminating a session must not fail because one client's transport did.
+        void report(transportEndDefect(session.id, cause))
       }
     }
   }
@@ -354,7 +366,7 @@ export const httpHandler = <Model, Context_, Principal, ByName, ByTag>(
         Effect.result(Effect.suspend(() => authenticate(request))),
       ).catch((cause: unknown) => {
         // The caller learns nothing of it; whoever runs the server must.
-        console.error('[foldkit-agent-mcp] authenticate broke:', cause)
+        void report(authenticateDefect(cause))
         return undefined
       })
       if (authenticated === undefined) return json(500, { error: 'Internal error' })
@@ -462,6 +474,7 @@ export const httpHandler = <Model, Context_, Principal, ByName, ByTag>(
         handler: handler({
           agent: options.createAgent({ principal: principal as Principal, sessionId: id }),
           ...(options.serverInfo === undefined ? {} : { serverInfo: options.serverInfo }),
+          diagnostics: options.diagnostics,
           onNotification: notification => emit(session, notification),
         }),
         streams: [],

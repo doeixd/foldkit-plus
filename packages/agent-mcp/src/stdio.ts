@@ -1,3 +1,5 @@
+import { Effect } from 'effect'
+import type { ReportDiagnostic } from 'foldkit-surface'
 import type { Notification, Response } from './jsonRpc.js'
 import { type Handler, type HandlerOptions, handler } from './handler.js'
 
@@ -13,6 +15,15 @@ export interface LineInput {
 export interface LineOutput {
   write(line: string): unknown
 }
+
+/**
+ * Effect's default logger writes to stdout in Node, which here carries MCP
+ * messages alone, so a diagnostic with no reporter of the host's goes to stderr.
+ */
+const toStderr: ReportDiagnostic = diagnostic =>
+  Effect.sync(() => {
+    process.stderr.write(`[${diagnostic.source}] ${diagnostic.message}\n`)
+  })
 
 export interface StdioOptions {
   readonly input?: LineInput | undefined
@@ -37,7 +48,11 @@ export const stdio = <Model, Context_, Principal, ByName, ByTag>(
     output.write(`${JSON.stringify(message)}\n`)
   }
 
-  const served = handler({ ...options, onNotification: write })
+  const served = handler({
+    ...options,
+    diagnostics: options.diagnostics ?? toStderr,
+    onNotification: write,
+  })
 
   // A multi-byte character can straddle two chunks; the streaming decoder holds
   // the incomplete bytes back instead of emitting replacement characters.

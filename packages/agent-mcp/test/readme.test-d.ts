@@ -3,7 +3,7 @@
  * documentation cannot drift from the API.
  */
 import { Agent } from 'foldkit-agent'
-import { type Effect, Option, Schema } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import * as HttpEffect from 'effect/http/HttpEffect'
 import { defineMessageUnion } from 'foldkit/message'
 import { AgentMcp } from '../src/index.js'
@@ -81,3 +81,9 @@ declare const headers: Readonly<Record<string, string | undefined>>
 declare const body: unknown
 
 export const handled = await server.handle({ method, headers, body })
+
+export const reported = AgentMcp.httpHandler({
+  authenticate: request => verify(request.headers['authorization']),
+  createAgent: ({ principal }) => bindAgentFor(principal),
+  diagnostics: diagnostic => Effect.logError(`mcp: ${diagnostic.message}`),
+})

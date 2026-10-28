@@ -227,6 +227,7 @@ const handler = HttpEffect.toWebHandler(AgentMcp.httpApp({
 - `tools/list` follows availability and emits `list_changed` only when that set changes.
 - `AgentMcp.handler({ agent, onNotification })` is the transport-free handler. `httpHandler` provides the same logic for stacks without Effect HTTP.
 - An HTTP session id is not a bearer token: a different principal presenting it gets a 404. Pass `principalId` when the principal has fields that vary per request.
+- A defect the client is not told of (`authenticate`, a capability, a request, the tool listing, a transport's `end`) is a diagnostic (`AuthenticateDefect`, `CapabilityDefect`, `RequestDefect`, `ToolListDefect`, `TransportEndDefect`) sent to the `diagnostics?: ReportDiagnostic` option of `handler`/`httpHandler`/`httpApp`/`stdio`; without it, `foldkit-surface`'s default log, or `stderr` under `stdio` (Effect's default logger writes to stdout in Node).
 
 ```ts
 import { AgentA2a } from 'foldkit-agent-a2a'
