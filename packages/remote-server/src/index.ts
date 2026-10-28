@@ -1427,8 +1427,8 @@ const pickKeys = <T>(
  * outcome names: of each, the shown fields the answer left out, and every
  * shown relation, since the answer's ref alone does not reach what the client
  * reads of its target. Read as any read is, so `authorize` and `filter` hold.
- * Only rows the read found or settled are answered: a row hidden from the
- * asker keeps what the answer gave it rather than reading as gone.
+ * Only rows the read returned are answered: a row hidden from the asker keeps
+ * what the answer gave it rather than reading as gone.
  */
 const answerRead = <P, R>(
   server: ServerDefinition<P, R>,
@@ -1491,11 +1491,20 @@ const answerRead = <P, R>(
         ...(slice.relations === undefined ? {} : { relations: pickKeys(slice.relations, kept) }),
       })
     }
-    const result = yield* RemoteServer.readHelper(server, principal, options, requests)
-    const reached = new Set(
-      [...result.entities, ...result.settled].map(row => `${row.entity}:${row.id}`),
-    )
+    const read = yield* RemoteServer.readHelper(server, principal, options, requests)
+    // A row is reached only when the read returned it: the read settles a field it
+    // will not read for any id it was asked, so `settled` alone proves nothing, and
+    // the asker never named these ids. What it settled of a named row it did not
+    // reach goes unsent; a row reached through a ref the read returned is the asker's.
+    const reached = new Set(read.entities.map(row => `${row.entity}:${row.id}`))
     const found = requests.filter(request => reached.has(`${request.entity}:${request.id}`))
+    const unreached = new Set(
+      requests.map(request => `${request.entity}:${request.id}`).filter(key => !reached.has(key)),
+    )
+    const result = {
+      entities: read.entities,
+      settled: read.settled.filter(row => !unreached.has(`${row.entity}:${row.id}`)),
+    }
     return found.length === 0 ? Option.none() : Option.some({ requests: found, result })
   })
 
@@ -1795,25 +1804,38 @@ export const RemoteServer = {
       write.input.schema as unknown as Schema.Codec<unknown, Readonly<Record<string, unknown>>>,
     )
     // A row's derived members can change only with the rows pointing at it, so a
-    // write names every row its row points at, before and after: the answer reads
-    // what the client shows of each (a post's like count, after a like).
+    // write that wrote names every row its row points at, before and after: the
+    // answer reads what the client shows of each (a post's like count, after a like).
+    // The links are read as the asker may see the row (`writer.read`), so a write
+    // names no row its writer could not have reached by reading; only a writer
+    // with no read rule to apply has its links read as stored.
     const relations: Readonly<Record<string, EntityMember>> = write.input.entity.relations
     const pointers = Object.values(relations).flatMap(relation =>
       relation._tag === 'Relation' && relation.cardinality === 'one' ? [relation.key] : [],
     )
-    const linked = writer.linked
+    const seenLinks = (
+      id: string,
+      principal: P,
+    ): Effect.Effect<Option.Option<Readonly<Record<string, unknown>>>, RemoteServerError, R> =>
+      writer.read !== undefined
+        ? writer.read({ id, fields: pointers, principal })
+        : writer.linked !== undefined
+          ? writer.linked({ id, relations: pointers })
+          : Effect.succeed(Option.none())
     const pointedAt = (
       id: string,
+      principal: P,
     ): Effect.Effect<ReadonlyArray<EntityRef>, RemoteServerError, R> =>
-      linked === undefined || pointers.length === 0
+      pointers.length === 0
         ? Effect.succeed([])
-        : Effect.map(linked({ id, relations: pointers }), held =>
+        : Effect.map(seenLinks(id, principal), held =>
             Option.match(held, {
               onNone: () => [],
               onSome: links =>
-                Object.values(links).flatMap(ref =>
-                  typeof ref === 'string' ? [refParts(ref)] : [],
-                ),
+                pointers.flatMap(key => {
+                  const ref = Object.hasOwn(links, key) ? links[key] : undefined
+                  return typeof ref === 'string' ? [refParts(ref)] : []
+                }),
             }),
           )
     const naming = <A extends object>(outcome: A, pointed: ReadonlyArray<EntityRef>) =>
@@ -1923,7 +1945,7 @@ export const RemoteServer = {
             Update: () =>
               Effect.gen(function* () {
                 const bound = Write.bind(write, given, keys)
-                const before = yield* pointedAt(bound.id)
+                const before = yield* pointedAt(bound.id, principal)
                 if (
                   write.increments.length + write.assignments.length > 0 &&
                   write.expect === undefined &&
@@ -1953,7 +1975,7 @@ export const RemoteServer = {
                 if (Option.isSome(written))
                   return naming(yield* answered(bound, written.value), [
                     ...before,
-                    ...(yield* pointedAt(bound.id)),
+                    ...(yield* pointedAt(bound.id, principal)),
                   ])
                 return yield* Option.isSome(expect)
                   ? Effect.fail(conflict(bound))
@@ -1982,12 +2004,12 @@ export const RemoteServer = {
                     principal,
                   }),
                 )
-                return naming(yield* answered(bound, row), yield* pointedAt(bound.id))
+                return naming(yield* answered(bound, row), yield* pointedAt(bound.id, principal))
               }),
             Delete: () =>
               Effect.gen(function* () {
                 const bound = Write.bind(write, given)
-                const before = yield* pointedAt(bound.id)
+                const before = yield* pointedAt(bound.id, principal)
                 const outcome = yield* invalid(
                   unmet(
                     bound,
@@ -1996,15 +2018,15 @@ export const RemoteServer = {
                 )
                 // Gone already is gone: only a revision the row moved past refuses.
                 if (outcome === 'moved') return yield* Effect.fail(conflict(bound))
-                return naming(
-                  {
-                    output: {},
-                    entities: [],
-                    connections: [],
-                    deleted: [{ entity: bound.entity, id: bound.id }],
-                  },
-                  before,
-                )
+                const gone = {
+                  output: {},
+                  entities: [],
+                  connections: [],
+                  deleted: [{ entity: bound.entity, id: bound.id }],
+                }
+                // A delete that wrote nothing (the row gone, or hidden from its
+                // writer) names nothing more, so it answers alike either way.
+                return outcome === 'deleted' ? naming(gone, before) : gone
               }),
           }),
         )

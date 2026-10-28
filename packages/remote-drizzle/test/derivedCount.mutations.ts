@@ -49,19 +49,19 @@ export default [
   edit(
     'an update names only where its row pointed before',
     '../../remote-server/src/index.ts',
-    '                    ...(yield* pointedAt(bound.id)),\n',
+    '                    ...(yield* pointedAt(bound.id, principal)),\n',
     '',
   ),
   edit(
     'a delete names nothing',
     '../../remote-server/src/index.ts',
-    '                  before,\n                )',
-    '                  [],\n                )',
+    "return outcome === 'deleted' ? naming(gone, before) : gone",
+    'return naming(gone, [])',
   ),
   edit(
     'an insert names nothing',
     '../../remote-server/src/index.ts',
-    'return naming(yield* answered(bound, row), yield* pointedAt(bound.id))',
+    'return naming(yield* answered(bound, row), yield* pointedAt(bound.id, principal))',
     'return yield* answered(bound, row)',
   ),
   edit(
