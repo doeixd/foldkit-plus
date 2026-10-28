@@ -20,12 +20,21 @@ import type { EntryWithoutKeepAlive } from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
 import type { Url } from 'foldkit/url'
 import {
+  Diagnostics,
   Projection,
   type Contract,
   type FieldRef,
   type Wiring,
   type WritableProjection,
 } from 'foldkit-surface'
+import { storeMalformed, storeUnread, storeUnwritten } from './diagnostics.js'
+
+export type {
+  MirrorDiagnostic,
+  StoreMalformed,
+  StoreUnread,
+  StoreUnwritten,
+} from './diagnostics.js'
 
 // ---------------------------------------------------------------------------
 // Stores
@@ -146,18 +155,22 @@ const kvStore = (options: {
       const kv = yield* KeyValueStore.KeyValueStore
       const raw = yield* Effect.result(kv.get(options.key))
       if (Result.isFailure(raw)) {
-        yield* Effect.logWarning(`Mirror: could not read "${options.key}"`, raw.failure)
+        yield* Diagnostics.report(storeUnread(options.key, raw.failure))
         return undefined
       }
       if (raw.success === undefined) return undefined
       const document = decode(raw.success)
+      if (Result.isFailure(document))
+        yield* Diagnostics.report(storeMalformed(options.key, document.failure.message))
       // Another version, another scope, or malformed: disposable, so drop it and start clean.
       if (
         Result.isFailure(document) ||
         document.success.version !== KV_VERSION ||
         document.success.scope !== options.scope
       ) {
-        yield* Effect.result(kv.remove(options.key))
+        const removed = yield* Effect.result(kv.remove(options.key))
+        if (Result.isFailure(removed))
+          yield* Diagnostics.report(storeUnwritten(options.key, removed.failure))
         return undefined
       }
       return document.success.keys
@@ -173,9 +186,8 @@ const kvStore = (options: {
         const outcome = yield* Effect.result(
           Object.keys(write.set).length === 0 ? kv.remove(options.key) : kv.set(options.key, text),
         )
-        if (Result.isFailure(outcome)) {
-          yield* Effect.logWarning(`Mirror: could not write "${options.key}"`, outcome.failure)
-        }
+        if (Result.isFailure(outcome))
+          yield* Diagnostics.report(storeUnwritten(options.key, outcome.failure))
       }),
   }
 }

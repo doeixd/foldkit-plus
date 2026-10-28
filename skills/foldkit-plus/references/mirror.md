@@ -166,7 +166,9 @@ for (const command of start.commands ?? []) {
 - Writes are throttled (URL 50 ms, KV 250 ms, `throttle`) and deduped, so
   `popstate` cannot loop. `location: 'hash'` is supported, and SSR writes nothing.
 - `Mirror.kv({ scope })` scopes to a user or tenant. Another scope or version,
-  or a malformed document, is removed. Store failures never throw.
+  or a malformed document, is removed. Store failures never throw; they, and a
+  malformed document, are reported on `Diagnostics` (`foldkit-surface`) as
+  `StoreUnread`, `StoreUnwritten` and `StoreMalformed` (`MirrorDiagnostic`).
 
 ## Contract, Module, gotchas
 

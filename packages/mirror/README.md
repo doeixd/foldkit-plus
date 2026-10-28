@@ -692,8 +692,26 @@ application's saved state writes an importer for that shape, or stores under a
 new key and version, rather than letting the old document fail to decode and
 calling the clean start a migration.
 
-Store failures are absorbed and logged rather than failing the application. A
-slice back at all defaults removes the stored document.
+Store failures are absorbed rather than failing the application. A slice back
+at all defaults removes the stored document.
+
+### Diagnostics
+
+What a key-value mirror absorbs, it reports as a typed diagnostic through
+`Diagnostics.Reporter` (`foldkit-surface`'s channel), which by default is
+Effect's log, the browser's console:
+
+| `_tag` | `level` | When |
+| --- | --- | --- |
+| `StoreUnread` | `warning` | The store failed a read: the mirror restored nothing. |
+| `StoreUnwritten` | `warning` | The store failed a write, or the removal of a discarded document. |
+| `StoreMalformed` | `warning` | The key held a document no mirror writes (not JSON, or not its shape): something else writes that key. Another version or scope is a mirror's own, discarded with no report. |
+
+Each carries its `key`, and the store's `error` or the `reason`. Send them
+elsewhere with `Layer.succeed(Diagnostics.Reporter, report)` in the runtime's
+resources; in a test, provide `Diagnostics.collect().report` and assert on
+`reported`. A URL key that does not decode is not reported: it is what the
+reader typed, and `mirror.decode(keys).issues` names it.
 
 ## Contracts and `Module`
 

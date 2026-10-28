@@ -2,7 +2,7 @@
 import { Effect, Schema, Stream } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
 import { defineMessageUnion } from 'foldkit/message'
-import { Projection, Surface } from 'foldkit-surface'
+import { Diagnostics, Projection, Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Mirror, MirrorStore } from '../src/index.js'
 
@@ -57,6 +57,7 @@ describe('MirrorStore.kv', () => {
   })
 
   it('another scope, another version, or a malformed document is discarded and removed', async () => {
+    const collected = Diagnostics.collect()
     const outcome = (text: string) =>
       Effect.runPromise(
         Effect.gen(function* () {
@@ -64,7 +65,10 @@ describe('MirrorStore.kv', () => {
           yield* kv.set('todo/prefs', text)
           const message = yield* Prefs.restore.effect
           return { keys: message.keys, left: yield* kv.get('todo/prefs') }
-        }).pipe(Effect.provide(KeyValueStore.layerMemory)),
+        }).pipe(
+          Effect.provide(KeyValueStore.layerMemory),
+          Effect.provideService(Diagnostics.Reporter, collected.report),
+        ),
       )
     expect(
       await outcome(JSON.stringify({ version: 1, scope: 'u2', keys: { draft: 'x' } })),
@@ -72,7 +76,17 @@ describe('MirrorStore.kv', () => {
     expect(
       await outcome(JSON.stringify({ version: 2, scope: 'u1', keys: { draft: 'x' } })),
     ).toEqual({ keys: {}, left: undefined })
+    // A mirror's own document of another scope or version is expected, and reported by no one.
+    expect(collected.reported).toEqual([])
     expect(await outcome('{not json')).toEqual({ keys: {}, left: undefined })
+    expect(collected.reported).toEqual([
+      expect.objectContaining({
+        _tag: 'StoreMalformed',
+        source: 'foldkit-mirror',
+        level: 'warning',
+        key: 'todo/prefs',
+      }),
+    ])
     expect(
       await outcome(JSON.stringify({ version: 1, scope: 'u1', keys: { draft: 'x' } })),
     ).toEqual({
@@ -98,14 +112,52 @@ describe('MirrorStore.kv', () => {
       clear: Effect.void,
       size: Effect.succeed(0),
     } as never)
+    const collected = Diagnostics.collect()
     const message = await Effect.runPromise(
       Effect.gen(function* () {
         yield* write({ sidebar: 'closed', draft: '' })
         return yield* Prefs.restore.effect
-      }).pipe(Effect.provideService(KeyValueStore.KeyValueStore, failing)),
+      }).pipe(
+        Effect.provideService(KeyValueStore.KeyValueStore, failing),
+        Effect.provideService(Diagnostics.Reporter, collected.report),
+      ),
     )
     expect(message.keys).toEqual({})
     expect(Prefs.reduce(initial, message)).toEqual(initial)
+    // Absorbed, and said. The first write reads the store before it writes
+    // (what a session holds gates it), so the write is met between reads.
+    expect(collected.reported.map(d => [d._tag, d.level])).toEqual([
+      ['StoreUnread', 'warning'],
+      ['StoreUnread', 'warning'],
+      ['StoreUnwritten', 'warning'],
+      ['StoreUnread', 'warning'],
+    ])
+    expect(new Set(collected.reported.map(d => d.message))).toEqual(
+      new Set([
+        'could not write "todo/prefs" (down), so the store does not hold the slice.',
+        'could not read "todo/prefs" (down), so the mirror restored nothing.',
+      ]),
+    )
+  })
+
+  it('a discarded document the store cannot remove is reported as unwritten', async () => {
+    const stuck = KeyValueStore.makeStringOnly({
+      get: () => Effect.succeed('{not json'),
+      set: () => Effect.void,
+      remove: () =>
+        Effect.fail(new KeyValueStore.KeyValueStoreError({ message: 'locked', method: 'remove' })),
+      clear: Effect.void,
+      size: Effect.succeed(1),
+    })
+    const collected = Diagnostics.collect()
+    const message = await Effect.runPromise(
+      Prefs.restore.effect.pipe(
+        Effect.provideService(KeyValueStore.KeyValueStore, stuck),
+        Effect.provideService(Diagnostics.Reporter, collected.report),
+      ),
+    )
+    expect(message.keys).toEqual({})
+    expect(collected.reported.map(d => d._tag)).toEqual(['StoreMalformed', 'StoreUnwritten'])
   })
 
   it('the memory store records writes for tests', async () => {
