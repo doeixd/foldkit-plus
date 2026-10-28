@@ -181,6 +181,7 @@ export interface EditorDomain<Root> {
   mutation(model: Root, requestId: string): MutationStatus
   refusal(model: Root, requestId: string, mutation: any): Option.Option<unknown>
   refresh(model: Root, target: any): Root
+  plan(model: Root, projection: Projection<Root, any>): ReadonlyArray<unknown>
   overlay(model: Root, id: string, optimistic: ReadonlyArray<OptimisticOperation>): Root
   lift(model: Root, id: string): Root
   /** `Data.active`: a read of the domain as an active Surface of its application. */
@@ -593,6 +594,17 @@ export const makeEditor =
           Option.getOrUndefined(
             Option.map(projections[part](root), projection => projection.read(root)),
           )
+        /**
+         * Read and asked for nothing more. A draft known absent still reads
+         * `NotFound` while a refresh asks about it again, so `fresh` alone
+         * would take the old absence for the answer; the plan holds it until then.
+         */
+        const answered = (root: Root, part: keyof typeof projections): boolean =>
+          fresh(read(root, part)) &&
+          Option.match(projections[part](root), {
+            onNone: () => true,
+            onSome: projection => data.plan(root, projection).length === 0,
+          })
 
         const statusOf = (root: Root, requestId: string | null): MutationStatus =>
           requestId === null ? { _tag: 'Unknown' } : data.mutation(root, requestId)
@@ -852,7 +864,7 @@ export const makeEditor =
 
           const saving = () => statusOf(root, editor().saveId)._tag === 'Pending'
           // Saving over someone else's copy is based on that copy, once it is here.
-          if (editor().settling === 'overwrite' && fresh(read(root, 'draft'))) run(startSave)
+          if (editor().settling === 'overwrite' && answered(root, 'draft')) run(startSave)
           if (editor().saveWanted && !saving() && editor().settling === null) run(startSave)
 
           // A second ask while the first is on its way is the same ask.
