@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **The write's context as `Expr` terms.** `Expr.viewer(Entity)` (who asks, as
+  that Entity's id; null for a visitor) and `Expr.now` (the time in
+  milliseconds). Query bodies over them compile to SQL with the server's
+  viewer and `Clock`, and client list judgements read `Remote.make`'s viewer.
+  A body that reads a term with no context is refused (`ContextMissingError`),
+  never read as null. `RemoteServer.make({ viewer })` is the server's one
+  declaration of the viewer; a Source with a per-reader member
+  (`perViewer`) mounted in a server without one is refused at `make`, naming
+  it (#232, operations phase 2).
 - **"Errors and failures", one guide to how failure works across the packages**
   (`docs/errors.md`): who owns each kind of failure, what the reader sees, and
   what the application does, for reads, writes and refusals, forms, what a
@@ -235,6 +244,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **Breaking: `source(binding, { viewer })` is removed;** a `Derived.exists` is
+  answered for the viewer of the server the source is mounted in.
+  `Write.stamp`'s second argument is an `ExprContext`, and the `Operation`
+  union gains `'viewer'` and `'now'`. A write's `when`, invariant or computed
+  assignment over either term is refused for now (#232).
 - **Breaking: `GuardServer.writer` loses `presets`, `EntityWriter.sets` is
   removed, and `MutationSource.run` is given `viewer`** (`Option.none()` where
   no one asks). Declare server-chosen values with `Entity.stamps`; guard rules
