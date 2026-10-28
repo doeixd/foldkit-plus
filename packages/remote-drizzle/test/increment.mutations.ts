@@ -106,6 +106,18 @@ export default [
     'false',
   ),
   edit(
+    'the writer refuses no fractional assignment for an integer column',
+    drizzle,
+    '!assignment.integer && holdsIntegers(binding.columns[assignment.field.key])',
+    'false',
+  ),
+  edit(
+    'the writer refuses an assignment into an integer column whatever it computes',
+    drizzle,
+    '!assignment.integer && holdsIntegers(binding.columns[assignment.field.key])',
+    'holdsIntegers(binding.columns[assignment.field.key])',
+  ),
+  edit(
     'every number column holds integers',
     drizzle,
     'column !== undefined && /^number u?int\\d+$/.test(column.dataType)',

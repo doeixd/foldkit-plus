@@ -5,6 +5,7 @@
  */
 import { DatabaseSync } from 'node:sqlite'
 import { PGlite } from '@electric-sql/pglite'
+import { sql } from 'drizzle-orm'
 import { drizzle as drizzlePg } from 'drizzle-orm/pglite'
 import {
   bigint as pgBigint,
@@ -18,11 +19,11 @@ import {
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Schema } from 'effect'
-import { Entity, Expr, Write } from 'foldkit-entity'
+import { Entity, Expr, Operators, Write } from 'foldkit-entity'
 import { Mutation } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
-import { bind, databaseLayer, writer } from '../src/index.js'
+import { DrizzleOperators, bind, databaseLayer, writer } from '../src/index.js'
 
 const Item = Entity.define(
   'Item',
@@ -273,5 +274,75 @@ describe('An increment of a column that holds integers', () => {
 
   it.each(holdingReals)('accepts any amount over a %s column', (_, table) => {
     expect(() => RemoteServer.write(Fractional, writerOver(table))).not.toThrow()
+  })
+
+  // The same split for a computed assignment: `stock := times(stock, factor)`.
+  const times = Expr.operator('acme.times', {
+    input: [Schema.Number, Schema.Number],
+    output: Schema.Number,
+  })
+  const wholeTimes = Expr.operator('acme.wholeTimes', {
+    input: [Schema.Number, Schema.Int],
+    output: Schema.Int,
+  })
+  const Scale = (name: string, operator: typeof times | typeof wholeTimes) =>
+    Mutation.write(
+      name,
+      Write.update(
+        Entity.input(
+          Item,
+          Schema.Struct({ id: Schema.String, revision: Schema.Number, factor: Schema.Int }),
+          { factor: Entity.unmapped },
+        ),
+        {
+          id: 'id',
+          expect: 'revision',
+          compute: { stock: ({ row, input }) => operator(row.stock, input.factor) },
+        },
+      ),
+    )
+  const computingOver = (table: (typeof holdingIntegers | typeof holdingReals)[number][1]) =>
+    writer(
+      bind(
+        { Item },
+        { Item: { table } },
+        {
+          operators: {
+            memory: Operators.memory(
+              Operators.implement(times, (left, right) => left * right),
+              Operators.implement(wholeTimes, (left, right) => left * right),
+            ),
+            sql: DrizzleOperators.make(
+              DrizzleOperators.implement(
+                times,
+                ({ args: [left, right] }) => sql`(${left} * ${right})`,
+              ),
+              DrizzleOperators.implement(
+                wholeTimes,
+                ({ args: [left, right] }) => sql`(${left} * ${right})`,
+              ),
+            ),
+          },
+        },
+      ).Item,
+    )
+
+  it.each(holdingIntegers)(
+    'refuses an assignment that may be fractional over a %s column, where it is registered',
+    (_, table) => {
+      expect(() => RemoteServer.write(Scale('Scale', times), computingOver(table))).toThrow(
+        'write "Scale" cannot land through its writer for Item: its assignment to "stock" may not be an integer, but the column for it holds integers',
+      )
+    },
+  )
+
+  it.each(holdingIntegers)('accepts an integer assignment over a %s column', (_, table) => {
+    expect(() =>
+      RemoteServer.write(Scale('WholeScale', wholeTimes), computingOver(table)),
+    ).not.toThrow()
+  })
+
+  it.each(holdingReals)('accepts any assignment over a %s column', (_, table) => {
+    expect(() => RemoteServer.write(Scale('Scale', times), computingOver(table))).not.toThrow()
   })
 })

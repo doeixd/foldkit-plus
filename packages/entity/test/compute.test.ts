@@ -127,6 +127,61 @@ describe('A computed assignment', () => {
     ).toThrow(message)
   })
 
+  describe('into an integer field', () => {
+    /** A product of any numbers, which need not be whole. */
+    const times = Expr.operator('acme.times', {
+      input: [Schema.Number, Schema.Number],
+      output: Schema.Number,
+    })
+    const Scale = Entity.input(
+      Post,
+      Schema.Struct({ id: Schema.String, factor: Schema.Number, by: Schema.Int }),
+      { factor: Entity.unmapped, by: Entity.unmapped },
+    )
+
+    it.each([
+      [
+        'an operator answering any number',
+        () =>
+          Write.update(Scale, {
+            id: 'id',
+            compute: { score: ({ row, input }) => times(row.score, input.factor) },
+          }),
+      ],
+      [
+        'an input of any number',
+        () => Write.update(Scale, { id: 'id', compute: { score: ({ input }) => input.factor } }),
+      ],
+      [
+        'a fractional literal',
+        () => Write.update(Scale, { id: 'id', compute: { score: () => Expr.literal(1.5) } }),
+      ],
+      [
+        'an operator answering any number, into a nullable one',
+        () =>
+          Write.update(Scale, { id: 'id', compute: { views: ({ row }) => times(row.score, 2) } }),
+      ],
+    ] as const)('is refused from %s', (_, declare) => {
+      expect(declare).toThrow('as a number that may not be an integer, but')
+    })
+
+    it('is taken from what is held to integers, and says so', () => {
+      const write = Write.update(Scale, {
+        id: 'id',
+        compute: {
+          score: ({ row, input }) => plus(row.score, input.by),
+          revision: () => Expr.literal(2),
+          views: () => Expr.literal(null),
+        },
+      })
+      expect(write.assignments.map(({ field, integer }) => [field.key, integer])).toEqual([
+        ['score', true],
+        ['revision', true],
+        ['views', true],
+      ])
+    })
+  })
+
   it('counts as setting something', () => {
     const OnlyId = Entity.input(Post, Schema.Struct({ id: Schema.String }))
     expect(() => Write.update(OnlyId, { id: 'id' })).toThrow('it sets no field')

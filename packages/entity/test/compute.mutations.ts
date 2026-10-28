@@ -99,4 +99,36 @@ export default [
     "expr.operator.nulls === 'strict' &&",
     'false &&',
   ),
+
+  // ---- into an integer field
+  edit(
+    'any number is let into an integer field',
+    'if (storesIntegers(field.schema as unknown as Schema.Top) && !integer) {',
+    'if (false) {',
+  ),
+  edit(
+    'a field or input is an integer whatever it holds',
+    'Input: ({ schema }) => storesIntegers(schema),',
+    'Input: () => true,',
+  ),
+  edit(
+    'an operator is an integer whatever it answers',
+    'Call: ({ operator }) => storesIntegers(operator.output),',
+    'Call: () => true,',
+  ),
+  edit(
+    'a literal is an integer whatever it holds',
+    'Literal: ({ value }) => value === null || Number.isInteger(value),',
+    'Literal: () => true,',
+  ),
+  edit(
+    'a null literal is not an integer',
+    'Literal: ({ value }) => value === null || Number.isInteger(value),',
+    'Literal: ({ value }) => Number.isInteger(value),',
+  ),
+  edit(
+    'a nullable field is not an integer one',
+    'const present = SchemaShape.present(Schema.toEncoded(schema).ast)',
+    'const present = [Schema.toEncoded(schema).ast]',
+  ),
 ]

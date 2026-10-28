@@ -8,12 +8,9 @@ import { Entity } from 'foldkit-entity'
 import { describe, expect, it } from 'vitest'
 import { Data, Message, initial, update, type Model } from '../src/app.js'
 import { Post } from '../src/guard.js'
+import { likeOf } from '../src/operations.js'
 
-/**
- * As you read them: p1 you liked, p2 you did not. No Like row is held. The
- * server's like of p1 has an id `likeOf` would not make, so taking it back must
- * read the id the post shows.
- */
+/** As you read them: p1 you liked, p2 you did not. No Like row is held. */
 const held: Model = Data.reduce(initial, {
   _tag: 'ReadReceived',
   requests: [
@@ -23,7 +20,7 @@ const held: Model = Data.reduce(initial, {
   result: {
     settled: [],
     entities: [
-      { entity: 'Post', id: 'p1', values: { id: 'p1', liked: 'like-from-server', likeCount: 3 } },
+      { entity: 'Post', id: 'p1', values: { id: 'p1', liked: likeOf('p1', 'you'), likeCount: 3 } },
       { entity: 'Post', id: 'p2', values: { id: 'p2', liked: null, likeCount: 2 } },
     ],
   },

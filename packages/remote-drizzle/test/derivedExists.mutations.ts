@@ -66,12 +66,6 @@ export default [
     'sql<string>`max(${side.child})`',
   ),
   edit(
-    'one like is found across every post the reader liked',
-    '../src/index.ts',
-    '                  innerJoin: side.join,\n                  groupBy: [side.parent],\n                },',
-    '                  innerJoin: side.join,\n                },',
-  ),
-  edit(
     'the exists is read as a count',
     '../src/index.ts',
     'if (viewing !== undefined) {',

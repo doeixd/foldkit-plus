@@ -1470,6 +1470,14 @@ export const writer = <P = unknown>(
       ...write.assignments.flatMap(({ field, expr }) =>
         operatorProblems([expr], binding, `its assignment to "${field.key}"`),
       ),
+      // A fraction assigned to an integer column splits the dialects as an increment's does.
+      ...write.assignments.flatMap(assignment =>
+        !assignment.integer && holdsIntegers(binding.columns[assignment.field.key])
+          ? [
+              `its assignment to "${assignment.field.key}" may not be an integer, but the column for it holds integers; compute it with an operator, input or literal that is (Schema.Int)`,
+            ]
+          : [],
+      ),
       ...stampOverwrites(write, binding),
     ],
     ...(ledger === undefined

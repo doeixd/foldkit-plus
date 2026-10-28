@@ -13,7 +13,7 @@
  * It is authority someone declared, never something derived from an Entity: an
  * Entity having a field does not mean anyone may set it.
  */
-import { Data, Option, Schema, SchemaAST } from 'effect'
+import { Data, Match, Option, Schema, SchemaAST } from 'effect'
 import type {
   AnyEntity,
   EntityMember,
@@ -69,6 +69,12 @@ export interface WriteIncrement extends WriteSet {
 export interface WriteAssignment {
   readonly field: AnyField
   readonly expr: AnyExpr
+  /**
+   * Whether `expr` comes to an integer, by the schemas of what it reads and
+   * calls: a writer over an integer column refuses an assignment without it,
+   * which the Entity cannot see.
+   */
+  readonly integer: boolean
 }
 
 /**
@@ -447,6 +453,25 @@ const mayBeNull = (expr: AnyExpr): boolean =>
     expr.operator.nulls === 'strict' &&
     expr.args.some(arg => !isPredicate(arg) && mayBeNull(arg)))
 
+/** Whether every value a schema stores, null aside, is checked to be an integer. */
+const storesIntegers = (schema: Schema.Top): boolean => {
+  const present = SchemaShape.present(Schema.toEncoded(schema).ast)
+  return present.length > 0 && present.every(SchemaShape.holdsIntegers)
+}
+
+/** Whether a scalar comes to an integer (or null) by what it is: its schema, or a literal's value. */
+const comesToInteger = (expr: AnyExpr): boolean =>
+  Match.value(expr).pipe(
+    Match.tags({
+      Field: ({ schema }) => storesIntegers(schema),
+      Input: ({ schema }) => storesIntegers(schema),
+      Literal: ({ value }) => value === null || Number.isInteger(value),
+      Call: ({ operator }) => storesIntegers(operator.output),
+    }),
+    // What else an expression reads is refused in an assignment before this is asked.
+    Match.orElse(() => false),
+  )
+
 /** Whether a predicate is anywhere in `expr`, which data carries only as a value. */
 const holdsPredicate = (expr: Operandish): boolean =>
   isPredicate(expr) || (expr._tag === 'Call' && expr.args.some(holdsPredicate))
@@ -520,7 +545,16 @@ const assignmentOf = (
   if (!stored.has('null') && mayBeNull(expr)) {
     return fail(input, `computes "${fieldKey}" as possibly null, which it does not store`)
   }
-  return Object.freeze({ field, expr })
+  // As with an increment's amount: Postgres rounds a fraction written to an integer
+  // column, SQLite stores it, and memory keeps it. So it never reaches either.
+  const integer = comesToInteger(expr)
+  if (storesIntegers(field.schema as unknown as Schema.Top) && !integer) {
+    return fail(
+      input,
+      `computes "${fieldKey}" as a number that may not be an integer, but "${fieldKey}" is one; compute it with an operator, input or literal that is (Schema.Int)`,
+    )
+  }
+  return Object.freeze({ field, expr, integer })
 }
 
 /** An assignment's expression, bound to one input, as data. */

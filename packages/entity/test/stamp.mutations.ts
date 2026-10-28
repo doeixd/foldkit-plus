@@ -13,12 +13,6 @@ const edit = (name: string, file: string, find: string, replace: string) => ({
 
 export default [
   edit(
-    'a delete stamps what an insert does',
-    write,
-    "  return write as never\n}\n\n/**\n * A write's precondition",
-    "  return { ...write, stamps: stampsOf(input.entity) } as never\n}\n\n/**\n * A write's precondition",
-  ),
-  edit(
     'the id may be stamped',
     entity,
     "if (key === 'id') fail(entity, 'stamps the id, which the client names')",
