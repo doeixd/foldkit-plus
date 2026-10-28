@@ -150,8 +150,8 @@ is checked between every two consecutive Models, so a regression that lasts
 one Message is caught.
 
 It does not know the exceptions `heldValue.test.ts` names (a `Hydrated`
-snapshot under `replace`, retention past `departedLimit`, every row of a
-list deleted): those really remove the value, and a test that walks into one
+snapshot under `replace`, retention past `departedLimit`; a list whose every
+shown row was deleted stopped being one in #263): those really remove the value, and a test that walks into one
 filters it by the Message that caused it.
 
 ## Failing loudly
