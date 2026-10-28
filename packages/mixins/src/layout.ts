@@ -228,6 +228,9 @@ export const center = (options: CenterOptions = {}): StyleValue =>
   compose(
     self({
       boxSizing: 'border-box',
+      // Filled to the measure: a flex item, as in a stack, gives auto margins the
+      // room `align-self: stretch` would have filled, and shrinks to its content.
+      inlineSize: '100%',
       marginInline: 'auto',
       maxInlineSize: 'var(--fk-l-max, 65ch)',
       paddingInline: 'var(--fk-l-gutters, var(--fk-space-md, 1rem))',

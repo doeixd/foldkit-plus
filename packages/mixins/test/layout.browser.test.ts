@@ -43,3 +43,31 @@ test('a stack fills its children, keeps a set width, and holds a field inside it
   const width = (id: string) => document.getElementById(id)!.getBoundingClientRect().width
   expect(['plain', 'field', 'box', 'centered'].map(width)).toEqual([400, 400, 16, 400])
 })
+
+test('a center fills to its measure, in a stack as in a block, and stays centred', () => {
+  const Center = L.in('layouts', Layout.center({ max: '300px' }))
+  const style = document.createElement('style')
+  style.dataset['test'] = ''
+  style.textContent = Style.stylesheet(L.declare, Stack, Center)
+  document.head.append(style)
+  const centerVars = Object.entries(Center.style)
+    .map(([name, value]) => `${name}: ${value}`)
+    .join('; ')
+  const center = (id: string) =>
+    `<div id="${id}" class="${classOf(Center)}" style="${centerVars}">Hi</div>`
+  const holder = document.createElement('div')
+  holder.innerHTML = `
+    <div class="${classOf(Stack)}" style="inline-size: 800px">${center('stacked')}</div>
+    <div style="inline-size: 800px">${center('block')}</div>
+    <div class="${classOf(Stack)}" style="inline-size: 200px">${center('narrow')}</div>`
+  document.body.append(holder)
+  const box = (id: string) => {
+    const element = document.getElementById(id)!
+    const parent = element.parentElement!.getBoundingClientRect()
+    const own = element.getBoundingClientRect()
+    return [own.width, own.left - parent.left]
+  }
+  expect(box('stacked')).toEqual([300, 250])
+  expect(box('block')).toEqual([300, 250])
+  expect(box('narrow')).toEqual([200, 0])
+})
