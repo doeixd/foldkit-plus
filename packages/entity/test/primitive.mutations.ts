@@ -166,8 +166,8 @@ export default [
   edit(
     'a comparison reads no collation from a call',
     expr,
-    "Match.tag('Call', call => [{ name: showExpr(call), collation: call.collation }]),",
-    '',
+    'Call: call => [{ name: showExpr(call), collation: call.collation }],',
+    'Call: () => [],',
   ),
   edit(
     'a table implementing an operator still leaves it unsupported',

@@ -252,7 +252,14 @@ export default [
   },
   {
     name: 'a list may order by a path',
-    edits: [{ file: expr, find: "  if (expr._tag === 'Path') {", replace: '  if (false) {' }],
+    edits: [
+      {
+        file: expr,
+        find: '      Path: (path): Option.Option<Collation> => {\n        throw new Error(',
+        replace:
+          '      Path: (path): Option.Option<Collation> => {\n        if (path) return path.field.collation\n        throw new Error(',
+      },
+    ],
     tests: path,
   },
 ]

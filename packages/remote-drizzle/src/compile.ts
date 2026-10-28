@@ -581,8 +581,16 @@ const connective = (
 const isColumn = (node: Operandish): boolean =>
   !isPredicate(node) &&
   Match.value(node).pipe(
-    Match.tags({ Field: () => true, Next: () => true, Call: () => true, Path: () => true }),
-    Match.orElse(() => false),
+    Match.tagsExhaustive({
+      Field: () => true,
+      Next: () => true,
+      Call: () => true,
+      Path: () => true,
+      Literal: () => false,
+      Input: () => false,
+      Viewer: () => false,
+      Now: () => false,
+    }),
   )
 
 /** The same comparison with its sides swapped: `3 > rank` is `rank < 3`. */

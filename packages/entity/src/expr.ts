@@ -645,15 +645,18 @@ const collationFor = (
   // operator's rule carries one. A literal or an input says nothing.
   const fields = [left, right].flatMap(side =>
     Match.value(side).pipe(
-      Match.tag('Field', field => [
-        { name: `${field.owner.name}.${field.key}`, collation: field.collation },
-      ]),
-      Match.tag('Next', ({ field }) => [
-        { name: `${field.owner.name}.${field.key}`, collation: field.collation },
-      ]),
-      Match.tag('Call', call => [{ name: showExpr(call), collation: call.collation }]),
-      Match.tag('Path', path => [{ name: showExpr(path), collation: path.field.collation }]),
-      Match.orElse(() => []),
+      Match.tagsExhaustive({
+        Field: field => [{ name: `${field.owner.name}.${field.key}`, collation: field.collation }],
+        Next: ({ field }) => [
+          { name: `${field.owner.name}.${field.key}`, collation: field.collation },
+        ],
+        Call: call => [{ name: showExpr(call), collation: call.collation }],
+        Path: path => [{ name: showExpr(path), collation: path.field.collation }],
+        Literal: () => [],
+        Input: () => [],
+        Viewer: () => [],
+        Now: () => [],
+      }),
     ),
   )
   const [first] = fields
@@ -1839,13 +1842,25 @@ export interface TermOptions {
 
 /** A term, its nulls placed by `options` or by the direction's default. */
 const term = (direction: 'asc' | 'desc', expr: AnyExpr, options: TermOptions = {}): OrderTerm => {
-  // A client could not place a row by a value another row holds, and a cursor
-  // over one would page by what can change under it.
-  if (expr._tag === 'Path') {
-    throw new Error(
-      `[foldkit-entity] Order: ${showExpr(expr)} is a path; a list orders by its own row's fields`,
-    )
-  }
+  // The collation the operand itself carries.
+  const carried = Match.value(expr).pipe(
+    Match.tagsExhaustive({
+      Field: field => field.collation,
+      Call: call => call.collation,
+      // A client could not place a row by a value another row holds, and a
+      // cursor over one would page by what can change under it.
+      Path: (path): Option.Option<Collation> => {
+        throw new Error(
+          `[foldkit-entity] Order: ${showExpr(path)} is a path; a list orders by its own row's fields`,
+        )
+      },
+      Literal: () => Option.none<Collation>(),
+      Input: () => Option.none<Collation>(),
+      Next: () => Option.none<Collation>(),
+      Viewer: () => Option.none<Collation>(),
+      Now: () => Option.none<Collation>(),
+    }),
+  )
   // A number orders alike everywhere, and Postgres refuses a collation on one: a
   // collation it would inherit from a call's text arguments is dropped.
   const number = sideKind(expr) === 'number'
@@ -1856,13 +1871,7 @@ const term = (direction: 'asc' | 'desc', expr: AnyExpr, options: TermOptions = {
   }
   const collation = number
     ? Option.none<Collation>()
-    : Option.orElse(Option.fromUndefinedOr(options.collation), () =>
-        Match.value(expr).pipe(
-          Match.tag('Field', field => field.collation),
-          Match.tag('Call', call => call.collation),
-          Match.orElse(() => Option.none<Collation>()),
-        ),
-      )
+    : Option.orElse(Option.fromUndefinedOr(options.collation), () => carried)
   if (expr._tag === 'Call') orderableCall(expr, collation)
   return node({
     _tag: 'Term',
@@ -2016,8 +2025,20 @@ const unplaceable = (orderTerm: OrderTerm, operators: OperatorTable): Option.Opt
           ),
       }),
     ),
-    Match.orElse(() => Option.some('it orders by something that is neither a field nor a call')),
+    Match.tags({
+      Literal: neither,
+      Input: neither,
+      Next: neither,
+      Viewer: neither,
+      Now: neither,
+      // Refused where the term is made; said here too.
+      Path: neither,
+    }),
+    Match.exhaustive,
   )
+
+const neither = (): Option.Option<string> =>
+  Option.some('it orders by something that is neither a field nor a call')
 
 /** Each Entity's id tie-break, made once, so a resolved order reuses one term. */
 const idTerms = new WeakMap<AnyEntity, OrderTerm>()

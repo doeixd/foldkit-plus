@@ -10,7 +10,11 @@ export default [
   {
     name: "a call's term takes no collation from the call",
     edits: [
-      { file: expr, find: "      Match.tag('Call', call => call.collation),\n", replace: '' },
+      {
+        file: expr,
+        find: '      Call: call => call.collation,\n      // A client could not place',
+        replace: '      Call: () => Option.none<Collation>(),\n      // A client could not place',
+      },
     ],
     tests,
   },

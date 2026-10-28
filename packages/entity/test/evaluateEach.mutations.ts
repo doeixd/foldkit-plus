@@ -36,7 +36,7 @@ export default [
     edits: [
       {
         file: '../src/evaluate.ts',
-        find: '        givenNul(body, terms, input)\n',
+        find: '        givenUnportable(body, terms, input)\n',
         replace: '        false\n',
       },
     ],
