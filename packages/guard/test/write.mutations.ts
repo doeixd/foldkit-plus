@@ -132,39 +132,6 @@ export default [
     tests,
   },
   {
-    name: 'a preset is not set',
-    edits: [
-      {
-        file,
-        find: 'Object.fromEntries(presets.map(({ field, value }) => [field, value(user)])),',
-        replace: '({}),',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'a visitor creates with nothing preset',
-    edits: [
-      {
-        file,
-        find: 'if (presets.length > 0 && Option.isNone(given.principal)) {',
-        replace: 'if (false) {',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'an input may set a preset field',
-    edits: [
-      {
-        file,
-        find: 'const set = [...presets, ...stamps].find(',
-        replace: 'const set = [].find(',
-      },
-    ],
-    tests,
-  },
-  {
     name: 'validate does not look at writes',
     edits: [
       { file, find: '!writeRules.has(source.writes.writer, policy, entity)', replace: 'false' },

@@ -16,6 +16,7 @@
 import { Data, Option, Schema, SchemaAST } from 'effect'
 import type {
   AnyEntity,
+  EntityMember,
   EntityField,
   EntityInput,
   EntityRef,
@@ -39,6 +40,7 @@ import {
 import type { BeforeRow } from './invariant.js'
 import type { MemoryOperators } from './operators.js'
 import { SchemaShape } from './shape.js'
+import { Stamp } from './stamp.js'
 
 type AnyField = EntityField<string, string, Schema.Constraint>
 type OneRelation = EntityRelation<string, string, AnyEntity, 'one', boolean>
@@ -92,54 +94,12 @@ export interface WriteLink {
   readonly relation: OneRelation
 }
 
-/**
- * What sets a member an insert stamps, where the insert is worked out, and
- * never its input: `Clock`, the time of the write, or `Viewer`, whoever asks,
- * as the row they are. Each side knows both: a server writes them from its
- * clock and its principal, and a client predicts them from what it holds.
- */
-export type Stamp = Data.TaggedEnum<{ Clock: {}; Viewer: {} }>
-const StampOf = Data.taggedEnum<Stamp>()
-
-export const Stamp = {
-  /** The time the insert lands, in milliseconds: for a field stored as a number. */
-  clock: StampOf.Clock(),
-  /**
-   * Whoever asks: a `one` relation pointing at them, or a field holding their
-   * id. Read from the `viewer` each side declares (`Remote.make`'s,
-   * `RemoteServer.make`'s), so a visitor's insert has none to stamp.
-   */
-  viewer: StampOf.Viewer(),
-  $match: StampOf.$match,
-}
-
-/** One member an insert stamps: a field, with what, or a `one` relation, pointed at the viewer. */
+/** One member an insert stamps (`Entity.stamps`): a field, with what, or a `one` relation, pointed at the viewer. */
 export type WriteStamp = Data.TaggedEnum<{
   Field: { readonly field: AnyField; readonly stamp: Stamp }
   Link: { readonly relation: OneRelation }
 }>
 export const WriteStamp = Data.taggedEnum<WriteStamp>()
-
-/** The keys of an Entity's `one` relations. */
-type OneRelationKeys<E extends AnyEntity> = {
-  [K in keyof E['relations'] & string]: E['relations'][K]['cardinality'] extends 'one' ? K : never
-}[keyof E['relations'] & string]
-
-/**
- * An insert's stamps, by member: a field holding a number takes the clock, a
- * field holding text or a `one` relation the viewer.
- */
-export type WriteStamps<E extends AnyEntity> = {
-  readonly [K in Exclude<keyof E['fields'] & string, 'id'>]?: Schema.Schema.Type<
-    E['fields'][K]['schema']
-  > extends number
-    ? Extract<Stamp, { readonly _tag: 'Clock' }>
-    : Schema.Schema.Type<E['fields'][K]['schema']> extends string
-      ? Extract<Stamp, { readonly _tag: 'Viewer' }>
-      : never
-} & {
-  readonly [K in OneRelationKeys<E>]?: Extract<Stamp, { readonly _tag: 'Viewer' }>
-}
 
 /**
  * One row of an Entity, by id, from an operation's input: updated, inserted
@@ -336,7 +296,6 @@ const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
     readonly when?: WriteCondition<E, Fields> | undefined
     readonly increment?: Readonly<Record<string, string | undefined>>
     readonly compute?: WriteComputations<E, Fields> | undefined
-    readonly stamps?: WriteStamps<E> | undefined
   },
 ): Write<E, Fields> => {
   const id = fieldAt(input, options.id, 'id')
@@ -401,12 +360,12 @@ const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
           }),
         ],
   )
-  const stamped: ReadonlyArray<readonly [string, Stamp | undefined]> = Object.entries(
-    options.stamps ?? {},
+  // What the server chooses at creation is never the input's, on any write.
+  const stamped = [...sets.map(set => set.field.key), ...links.map(link => link.relation.key)].find(
+    key => Object.hasOwn(input.entity.stamps, key),
   )
-  const stamps = stamped.flatMap(([key, stamp]) =>
-    stamp === undefined ? [] : [stampOf(input, key, stamp, { sets, links })],
-  )
+  if (stamped !== undefined)
+    fail(input, `"${stamped}" is stamped when a row is created (Entity.stamps); no input sets it`)
   return Object.freeze({
     _tag: kind,
     input,
@@ -417,54 +376,21 @@ const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
     increments: Object.freeze(increments),
     assignments: Object.freeze(assignments),
     links: Object.freeze(links),
-    stamps: Object.freeze(stamps),
+    stamps: [],
   })
 }
 
-/**
- * One stamp, checked: a field or a `one` relation of the Entity, not the id,
- * that no input key also writes, and a member that can hold what it stamps.
- */
-const stampOf = (
-  input: EntityInput<AnyEntity, any, any>,
-  key: string,
-  stamp: Stamp,
-  declared: { readonly sets: ReadonlyArray<WriteSet>; readonly links: ReadonlyArray<WriteLink> },
-): WriteStamp => {
-  const { fields, relations } = input.entity as {
-    readonly fields: Readonly<Record<string, AnyField>>
-    readonly relations: Readonly<
-      Record<string, EntityRelation<string, string, AnyEntity, any, boolean>>
-    >
-  }
-  if (key === 'id') return fail(input, 'stamps the id, which the client names')
-  if (
-    declared.sets.some(set => set.field.key === key) ||
-    declared.links.some(link => link.relation.key === key)
-  ) {
-    return fail(input, `stamps "${key}", which an input key also writes`)
-  }
-  if (Object.hasOwn(relations, key)) {
-    const relation = relations[key]!
-    if (relation.cardinality !== 'one') return fail(input, `stamps "${key}", a many relation`)
-    return Stamp.$match(stamp, {
-      Clock: () => fail(input, `stamps the relation "${key}" with the clock`),
-      Viewer: () => WriteStamp.Link({ relation: relation as OneRelation }),
-    })
-  }
-  if (!Object.hasOwn(fields, key)) return fail(input, `stamps "${key}", which is not a member`)
-  const field = fields[key]!
-  const stored = storedKinds(Schema.toEncoded(field.schema as unknown as Schema.Top).ast)
-  return Stamp.$match(stamp, {
-    Clock: () =>
-      storedAsNumber(field.schema as unknown as Schema.Top)
-        ? WriteStamp.Field({ field, stamp })
-        : fail(input, `stamps "${key}" with the clock, but it is not stored as a number`),
-    Viewer: () =>
-      stored.has('text')
-        ? WriteStamp.Field({ field, stamp })
-        : fail(input, `stamps "${key}" with the viewer's id, but it is not stored as text`),
-  })
+/** What an Entity stamps when a row is created, as an insert of it writes it. */
+const stampsOf = (entity: AnyEntity): ReadonlyArray<WriteStamp> => {
+  const relations: Readonly<Record<string, EntityMember>> = entity.relations
+  const fields: Readonly<Record<string, AnyField>> = entity.fields
+  const stamps: Readonly<Record<string, Stamp>> = entity.stamps
+  // `Entity.stamps` took a field, or a `one` relation for the viewer alone.
+  return Object.entries(stamps).map(([key, stamp]) =>
+    Object.hasOwn(relations, key)
+      ? WriteStamp.Link({ relation: relations[key] as OneRelation })
+      : WriteStamp.Field({ field: fields[key]!, stamp }),
+  )
 }
 
 /** The kind of one stored form, as far as an assignment must agree with its field. */
@@ -733,27 +659,16 @@ export const Write = {
    * expects no revision: there is no row to have read. A row already there
    * under that id (a retry) is left as it is.
    *
-   * `stamps` are members set where the insert lands, never by its input:
-   * `Stamp.clock` for when, `Stamp.viewer` for who asked.
-   *
-   * ```ts
-   * Write.insert(Entity.input(Post, NewPost), {
-   *   id: 'id',
-   *   stamps: { authorId: Stamp.viewer, createdAt: Stamp.clock },
-   * })
-   * ```
-   *
-   * A server writes them, so a client cannot choose whose a row is; a client
-   * predicts them, so the row it shows is whole before the answer. Refused
-   * where it is written: a stamp of the id, of a member an input key writes,
-   * or of a member that cannot hold it.
+   * What its Entity stamps (`Entity.stamps`: who asks, when) it writes too,
+   * never from the input: a server fills them, a client predicts them.
    */
   insert: <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
     input: EntityInput<E, Fields, any>,
-    options: { readonly id: keyof Fields & string; readonly stamps?: WriteStamps<E> },
-  ): Write<E, Fields> => {
-    return settingSomething(declared('Insert', input, options))
-  },
+    options: { readonly id: keyof Fields & string },
+  ): Write<E, Fields> =>
+    settingSomething(
+      Object.freeze({ ...declared('Insert', input, options), stamps: stampsOf(input.entity) }),
+    ),
 
   /**
    * Deletes the row whose id is the input's `id` key, only while it is still at

@@ -189,8 +189,6 @@ const EditTodo = Mutation.write(
 )
 RemoteServer.write(EditTodo, GuardServer.writer(Todo, Policy, writer(Db.Todo)))
 
-GuardServer.writer(Todo, Policy, writer(Db.Todo), { presets: { ownerId: user => user.id } })
-
 const ArchiveTodo = Mutation.make('ArchiveTodo', { Input: { id: Schema.String }, Output: {} })
 
 GuardServer.mutation(

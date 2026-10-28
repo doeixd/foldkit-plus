@@ -283,17 +283,9 @@ export const GuardServer = {
    * create leaves unset matches no guard, not even one for an empty value. A refusal is
    * `Forbidden`, with the sentence an `explain` gave; the write never runs.
    *
-   * `presets` are fields a create takes from who is asking, never from the
-   * client (`ownerId: user => user.id`): set before the rules are checked, so
-   * a rule over them holds of the creator. A visitor has nothing to preset
-   * from, and a create whose input sets a preset field is a mistake of the
-   * server's, refused.
-   *
-   * `stamps` are fields a create takes from no one, once (`createdAt: () =>
-   * Date.now()`), set as presets are, visitor or not. A retried insert finds
-   * the row holding its stamp from the first attempt and keeps it: a stamp is
-   * not compared, where a preset (the owner) must match, or the retry is
-   * someone else's row.
+   * What the Entity stamps when a row is created (`Entity.stamps`: who asks,
+   * when) reaches a create already set by `RemoteServer.write`, so a rule over
+   * it holds of the creator.
    *
    * `revision` names a field stored as a number, which the writer moves on by
    * one with each write it lands. An update or a delete then lands only on the
@@ -315,12 +307,6 @@ export const GuardServer = {
     policy: Policy<User, R>,
     writer: EntityWriter<Option.Option<User>, RW>,
     options: {
-      readonly presets?: {
-        readonly [K in keyof E['fields']]?: (user: User) => E['fields'][K]['schema']['Type']
-      }
-      readonly stamps?: {
-        readonly [K in keyof E['fields']]?: () => E['fields'][K]['schema']['Type']
-      }
       readonly revision?: keyof E['fields'] & string
     } = {},
   ): EntityWriter<Option.Option<User>, R | RW> => {
@@ -341,31 +327,6 @@ export const GuardServer = {
         )
       }
     }
-    /** A field the server sets on a create, its value encoded as the store holds it. */
-    const serverSet = (field: string, verb: string) => {
-      const declared = Object.hasOwn(entity.fields, field)
-        ? (entity.fields as Readonly<Record<string, { readonly schema: Schema.Top }>>)[field]
-        : undefined
-      if (declared === undefined) {
-        throw new Error(
-          `[foldkit-guard] GuardServer.writer: ${entity.name} has no field "${field}" to ${verb}`,
-        )
-      }
-      return Schema.encodeUnknownSync(declared.schema as unknown as Schema.Codec<unknown, unknown>)
-    }
-    const presets = Object.entries(options.presets ?? {}).map(([field, preset]) => {
-      const encode = serverSet(field, 'preset')
-      return { field, value: (user: User) => encode((preset as (user: User) => unknown)(user)) }
-    })
-    const stamps = Object.entries(options.stamps ?? {}).map(([field, stamp]) => {
-      const encode = serverSet(field, 'stamp')
-      if (presets.some(preset => preset.field === field)) {
-        throw new Error(
-          `[foldkit-guard] GuardServer.writer: ${entity.name}'s "${field}" is both preset and stamped`,
-        )
-      }
-      return { field, value: () => encode((stamp as () => unknown)()) }
-    })
     if (writer.entity !== entity.name) {
       throw new Error(
         `[foldkit-guard] GuardServer.writer: ${entity.name}'s rules over a writer for ${writer.entity}`,
@@ -729,11 +690,6 @@ export const GuardServer = {
       ...(writer.ledger === true ? { ledger: true } : {}),
       // Invariants are the writer's to judge, over the row its statement writes.
       ...(writer.invariants === true ? { invariants: true } : {}),
-      sets: [
-        ...(writer.sets ?? []),
-        ...presets.map(({ field }) => field),
-        ...stamps.map(({ field }) => field),
-      ],
       // What the store refuses, the store knows: the guard drops none of its reasons. It
       // adds one: its rules judge the row the write leaves, worked out by the policy's
       // table, so an assignment that table cannot run would be judged as its old value.
@@ -786,33 +742,8 @@ export const GuardServer = {
           ),
           told,
         ),
-      insert: given =>
+      insert: context =>
         Effect.gen(function* () {
-          const set = [...presets, ...stamps].find(({ field }) =>
-            Object.hasOwn(given.values, field),
-          )
-          if (set !== undefined) {
-            return yield* new RemoteServerError({
-              message: `${entity.name}'s "${set.field}" is set by the server; the input may not set it`,
-            })
-          }
-          if (presets.length > 0 && Option.isNone(given.principal)) {
-            return yield* Effect.fail(RemoteServer.forbid())
-          }
-          const stamped = Object.fromEntries(stamps.map(({ field, value }) => [field, value()]))
-          const context = {
-            ...given,
-            values: {
-              ...given.values,
-              ...Option.match(given.principal, {
-                onNone: () => ({}),
-                onSome: user =>
-                  Object.fromEntries(presets.map(({ field, value }) => [field, value(user)])),
-              }),
-              ...stamped,
-            },
-            stamped: [...given.stamped, ...stamps.map(({ field }) => field)],
-          }
           const { principal, values, links } = context
           const row = yield* policy.writable(entity, principal, 'Create')
           const members = yield* policy.writeMembers(

@@ -7,7 +7,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Option, Result, Schema } from 'effect'
-import { Entity, Expr, Relation, Write } from 'foldkit-entity'
+import { Entity, Expr, Relation, Stamp, Write } from 'foldkit-entity'
 import { Mutation, Remote } from 'foldkit-remote'
 import { bind, databaseLayer, source, writer, type DrizzleDatabase } from 'foldkit-remote-drizzle'
 import { RemoteServer, type EntityWriter, type MutationSource } from 'foldkit-remote-server'
@@ -98,7 +98,15 @@ const NoteFields = Entity.define(
   'Note',
   Schema.Struct({ id: Schema.String, authorId: Schema.String, body: Schema.String }),
 )
-const Note = NoteFields.pipe(Guards.attach(G, { row: { Read: [G.isAdmin] } }))
+// Whoever writes a note is its author.
+const Note = NoteFields.pipe(
+  Guards.attach(G, { row: { Read: [G.isAdmin] } }),
+  Entity.stamps({ authorId: Stamp.viewer }),
+)
+
+/** Who asks, as the row a stamp names. */
+const asker = (principal: Option.Option<User>) =>
+  Option.map(principal, user => ({ entity: 'User', id: user.id }))
 
 const Policy = G.implement({
   isAdmin: principal => Option.exists(principal, user => user.role === 'admin'),
@@ -167,21 +175,13 @@ const CreateBare = Mutation.write(
     id: 'id',
   }),
 )
+// The owner of a todo made here is whoever made it.
+const MineTodo = Todo.pipe(Entity.stamps({ ownerId: Stamp.viewer }))
 const CreateMine = Mutation.write(
   'CreateMine',
-  Write.insert(Entity.input(Todo, Schema.Struct({ id: Schema.String, title: Schema.String })), {
+  Write.insert(Entity.input(MineTodo, Schema.Struct({ id: Schema.String, title: Schema.String })), {
     id: 'id',
   }),
-)
-const CreateAsAnyone = Mutation.write(
-  'CreateAsAnyone',
-  Write.insert(
-    Entity.input(
-      Todo,
-      Schema.Struct({ id: Schema.String, ownerId: Schema.String, title: Schema.String }),
-    ),
-    { id: 'id' },
-  ),
 )
 const CreateNote = Mutation.write(
   'CreateNote',
@@ -201,20 +201,10 @@ const server = RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
     ...[Edit, Move, Claim, Create, CreateBare, Remove].map(mutation =>
       RemoteServer.write(mutation, guarded),
     ),
-    RemoteServer.write(
-      CreateNote,
-      GuardServer.writer(Note, Policy, writer(Db.Note), { presets: { authorId: user => user.id } }),
-    ),
-    // The owner of a todo made here is whoever made it.
-    ...[CreateMine, CreateAsAnyone].map(mutation =>
-      RemoteServer.write(
-        mutation,
-        GuardServer.writer(Todo, Policy, writer(Db.Todo), {
-          presets: { ownerId: user => user.id },
-        }),
-      ),
-    ),
+    RemoteServer.write(CreateNote, GuardServer.writer(Note, Policy, writer(Db.Note))),
+    RemoteServer.write(CreateMine, GuardServer.writer(MineTodo, Policy, writer(Db.Todo))),
   ],
+  viewer: asker,
 })
 
 const ada = Option.some<User>({ id: 'ada', role: 'member' })
@@ -398,7 +388,7 @@ describe('GuardServer.writer', () => {
     expect(row('t1')).toBeUndefined()
   })
 
-  it('presets a field from who is asking, and checks the create with it set', async () => {
+  it('stamps a field with who is asking, and checks the create with it set', async () => {
     const { mutate, row } = open()
     expect(await mutate(ada, 'CreateMine', { id: 't8', title: 'Mine' })).toMatchObject({
       _tag: 'Success',
@@ -412,7 +402,7 @@ describe('GuardServer.writer', () => {
     expect(row('t9')).toBeUndefined()
   })
 
-  it('refuses a visitor a create with a preset, where its rules would let anyone create', async () => {
+  it('refuses a visitor a create that stamps who asks, where its rules would let anyone create', async () => {
     const { mutate } = open()
     expect(await mutate(ada, 'CreateNote', { id: 'n1', body: 'Hello' })).toMatchObject({
       _tag: 'Success',
@@ -420,27 +410,6 @@ describe('GuardServer.writer', () => {
     expect(await mutate(Option.none(), 'CreateNote', { id: 'n2', body: 'Hi' })).toMatchObject({
       _tag: 'Failure',
       failure: { _tag: 'Forbidden' },
-    })
-  })
-
-  it('refuses an input that sets a field the server presets', async () => {
-    const { mutate, row } = open()
-    expect(
-      await mutate(ada, 'CreateAsAnyone', { id: 't8', ownerId: 'grace', title: 'Hers' }),
-    ).toMatchObject({ _tag: 'Failure', failure: { message: /is set by the server/ } })
-    expect(row('t8')).toBeUndefined()
-  })
-
-  it('refuses a preset for a field the Entity does not have', () => {
-    expect(() =>
-      GuardServer.writer(Todo, Policy, writer(Db.Todo), {
-        // @ts-expect-error a preset names a field of the Entity
-        presets: { colour: () => 'red' },
-      }),
-    ).toThrow('Todo has no field "colour" to preset')
-    GuardServer.writer(Todo, Policy, writer(Db.Todo), {
-      // @ts-expect-error a preset gives the field's own type
-      presets: { ownerId: () => 1 },
     })
   })
 })
@@ -500,6 +469,7 @@ describe('GuardServer.validate over writes', () => {
           // Another Entity's write, checked as that Entity's.
           RemoteServer.write(CreateNote, GuardServer.writer(Note, Policy, writer(Db.Note))),
         ],
+        viewer: asker,
       }),
     })
 

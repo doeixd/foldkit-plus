@@ -332,15 +332,58 @@ export const patchOfWrite = (bound: BoundWrite): NormalizedPatch => ({
 })
 
 /**
+ * Who asks and when, as the client knows them: what an insert's stamps are
+ * predicted from. A stamp with nothing to fill from is left out of the
+ * prediction, and the answer brings it.
+ */
+export interface Stamping {
+  readonly viewer: Option.Option<{ readonly entity: string; readonly id: string }>
+  readonly now: Option.Option<number>
+}
+
+/**
+ * The latest reading of the client's clock the store was written at: what a
+ * clock stamp is predicted as, since `update` reads no clock. It is when the
+ * client last heard from the server, so a new row sorts after every row it
+ * has read; the answer brings the server's time. None for a store never written.
+ */
+const lastHeard = (store: EntityStore): Option.Option<number> => {
+  let latest = -Infinity
+  for (const entry of Object.values(store))
+    if (Number.isFinite(entry.updatedAt) && entry.updatedAt > latest) latest = entry.updatedAt
+  return latest === -Infinity ? Option.none() : Option.some(latest)
+}
+
+/** A write bound to its input, with what an insert stamps as `stamping` fills it. */
+const stampedBound = (
+  write: AnyWrite,
+  input: unknown,
+  keys: ReadonlyArray<string> | undefined,
+  stamping: Stamping,
+): BoundWrite => {
+  const bound = DomainWrite.bind(write, input as never, keys)
+  const stamps = DomainWrite.stamp(write, stamping)
+  return {
+    ...bound,
+    values: { ...bound.values, ...stamps.values },
+    links: { ...bound.links, ...stamps.links },
+  }
+}
+
+const nobody: Stamping = { viewer: Option.none(), now: Option.none() }
+
+/**
  * What a declared write shows before the server answers: an update's or an
  * insert's row as a patch (an update's only for the keys named, when some
  * are), and an update's increments and computed fields, worked out over the
- * row the store holds when it is read. A delete shows its row deleted.
+ * row the store holds when it is read. A delete shows its row deleted. An
+ * insert's stamps are filled from `stamping`, where it can fill them.
  */
 export const optimisticOfWrite = (
   write: AnyWrite,
   input: unknown,
   keys: ReadonlyArray<string> | undefined,
+  stamping: Stamping = nobody,
 ): ReadonlyArray<PendingPatch | PendingDelete> =>
   Match.value(write).pipe(
     Match.tagsExhaustive({
@@ -357,7 +400,7 @@ export const optimisticOfWrite = (
       },
       // A new row is read like any other, so it carries its own id.
       Insert: () => {
-        const patch = patchOfWrite(DomainWrite.bind(write, input as never))
+        const patch = patchOfWrite(stampedBound(write, input, undefined, stamping))
         return [{ ...patch, values: { id: patch.id, ...patch.values } }]
       },
       Delete: (): ReadonlyArray<PendingDelete> => {
@@ -405,13 +448,14 @@ export const derivedOfWrite = (
   keys: ReadonlyArray<string> | undefined,
   derived: ReadonlyArray<DerivedBy>,
   store: EntityStore,
-  viewer: Option.Option<{ readonly entity: string; readonly id: string }>,
+  stamping: Stamping,
 ): ReadonlyArray<PendingPatch> => {
   if (derived.length === 0) return []
-  const bound = DomainWrite.bind(write, input as never, write._tag === 'Update' ? keys : undefined)
+  // A link the insert stamps (whoever asks) moves what it points at as an input's would.
+  const bound = stampedBound(write, input, write._tag === 'Update' ? keys : undefined, stamping)
   const row = store[entityKey(bound.entity, bound.id)]
   const held = row === undefined || row.tombstone ? undefined : row
-  const viewerKey = Option.map(viewer, ref => entityKey(ref.entity, ref.id))
+  const viewerKey = Option.map(stamping.viewer, ref => entityKey(ref.entity, ref.id))
   /** What a live row holds in `field`, as the store has it; none for a row gone or not held. */
   const holding = (key: string, field: string): Option.Option<unknown> =>
     Option.flatMap(Option.fromUndefinedOr(store[key]), entry =>
@@ -503,6 +547,66 @@ export const derivedOfWrite = (
           },
         ]
   })
+}
+
+/**
+ * A new row's derived members over relations: each count 0 and each exists
+ * none, since no row points at a row not yet made. A later pending write that
+ * points at it moves them as it would any held row's.
+ */
+const freshDerived = (
+  write: AnyWrite,
+  input: unknown,
+  derived: ReadonlyMap<string, ReadonlyArray<DerivedBy>>,
+): ReadonlyArray<PendingPatch> => {
+  const entity = write.input.entity.name
+  const values: Record<string, unknown> = {}
+  for (const members of derived.values())
+    for (const member of members)
+      if (member.owner === entity)
+        values[member.field] = DerivedBy.$match(member, { Count: () => 0, Exists: () => null })
+  if (Object.keys(values).length === 0) return []
+  const { id } = DomainWrite.bind(write, input as never)
+  return [{ entity, id, values }]
+}
+
+/**
+ * Everything a declared write shows before the server answers, from its
+ * declarations alone: its own row (`optimisticOfWrite`), with what an insert
+ * stamps filled from `viewer` and the time the store last heard, a new row's
+ * derived members (`freshDerived`), and the derived members it moves on the
+ * rows it points at (`derivedOfWrite`). `derived` is the registry's, by the
+ * pointing Entity; `store` is the store as shown, layers and all.
+ */
+export const predictionOfWrite = (
+  write: AnyWrite,
+  input: unknown,
+  keys: ReadonlyArray<string> | undefined,
+  context: {
+    readonly derived: ReadonlyMap<string, ReadonlyArray<DerivedBy>>
+    readonly store: EntityStore
+    readonly viewer: Option.Option<{ readonly entity: string; readonly id: string }>
+  },
+): ReadonlyArray<PendingPatch | PendingDelete> => {
+  const stamping = { viewer: context.viewer, now: lastHeard(context.store) }
+  return [
+    ...Match.value(write).pipe(
+      Match.tagsExhaustive({
+        Insert: () => freshDerived(write, input, context.derived),
+        Update: () => [],
+        Delete: () => [],
+      }),
+    ),
+    ...optimisticOfWrite(write, input, keys, stamping),
+    ...derivedOfWrite(
+      write,
+      input,
+      keys,
+      context.derived.get(write.input.entity.name) ?? [],
+      context.store,
+      stamping,
+    ),
+  ]
 }
 
 export const Mutation = {

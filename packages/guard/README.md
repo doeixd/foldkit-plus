@@ -465,30 +465,18 @@ as its writer may see it; the writer refuses one without. That the rule is
 `GuardDrizzle.visible`'s is what `GuardServer.validate` checks of the
 Entity's Source, so give the writer that Source's binding.
 
-A client should not choose whose a new row is. `presets` sets a field from
-who is asking on every create, before the rules are checked, so a rule over
-it holds of the creator:
+A client should not choose whose a new row is. The Entity says which fields
+the server chooses when a row is created (`Entity.stamps` in `foldkit-entity`),
+and `RemoteServer.write` sets them before the guarded writer checks the
+create, so a rule over them holds of the creator: with
+`Entity.stamps({ ownerId: Stamp.viewer })` added to the `Todo` above, a todo
+is its creator's, and `RemoteServer.make({ viewer })` says who that is.
 
-```ts
-GuardServer.writer(Todo, Policy, writer(Db.Todo), { presets: { ownerId: user => user.id } })
-```
-
-The create's input leaves `ownerId` out; an input that sets it is refused as
-the server's own mistake. A visitor has no one to preset from, and is refused
-even where the rules would let anyone create. A preset must be a field of the
-Entity, of that field's type.
-
-A field the server sets once, from no one, is a stamp: the time a row was
-made, say. `stamps` sets it on every create, visitor or not, beside the
-presets: `{ presets: { ownerId: user => user.id }, stamps: { createdAt: () =>
-Date.now() } }`, for an Entity with a `createdAt` field.
-
-The two differ on a retry. A retried insert finds its row already there and
-is answered with it when the row holds what the insert writes, presets
-included: the same id from another account names someone else's row, and is
-refused. A stamp is left out of that comparison, since the clock has moved on;
-the row keeps the one its first attempt wrote. Both count as set where
-`RemoteServer.write` asks whether an insert leaves a field an invariant reads.
+No input may set `ownerId`, which is refused where the write is declared. A
+visitor has no one to stamp, and is refused even where the rules would let
+anyone create. A retried insert is answered with its row when the row holds
+what the insert writes, who asked included, so the same id from another
+account is refused; a `Stamp.clock` is left out of that comparison.
 
 A handler writes what its code writes, so it is guarded where it is defined:
 `GuardServer.mutation` is `RemoteServer.mutation` with the row's rule for one

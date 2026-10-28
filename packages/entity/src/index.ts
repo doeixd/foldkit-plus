@@ -7,7 +7,7 @@
  * renders nothing. Remote, Drizzle, and form packages interpret it and attach
  * what they need as `foldkit-metadata`.
  */
-import { Data, type Option, Pipeable, Schema } from 'effect'
+import { Data, type Option, Pipeable, Schema, SchemaAST } from 'effect'
 import { Metadata } from 'foldkit-metadata'
 import {
   check,
@@ -19,6 +19,7 @@ import {
   readsBefore,
 } from './invariant.js'
 import { SchemaShape } from './shape.js'
+import { Stamp } from './stamp.js'
 
 export const EntityTypeId: unique symbol = Symbol.for('foldkit-entity/Entity')
 export type EntityTypeId = typeof EntityTypeId
@@ -162,10 +163,33 @@ export interface Entity<
   readonly derived: DerivedOf<Name, Derived>
   /** Every readable member under one namespace; keys never collide. */
   readonly members: FieldsOf<Name, Fields> & RelationsOf<Name, Relations> & DerivedOf<Name, Derived>
+  /** The members the server chooses a value for when a row is created (`Entity.stamps`), by key. */
+  readonly stamps: Readonly<Record<string, Stamp>>
   readonly metadata: Metadata
 }
 
 export type AnyEntity = Entity<string, any, any, any>
+
+/** The keys of an Entity's `one` relations. */
+type OneRelationKeys<E extends AnyEntity> = {
+  [K in keyof E['relations'] & string]: E['relations'][K]['cardinality'] extends 'one' ? K : never
+}[keyof E['relations'] & string]
+
+/**
+ * What `Entity.stamps` takes, by member: a field holding a number takes the
+ * clock, a field holding text or a `one` relation the viewer.
+ */
+export type EntityStamps<E extends AnyEntity> = {
+  readonly [K in Exclude<keyof E['fields'] & string, 'id'>]?: Schema.Schema.Type<
+    E['fields'][K]['schema']
+  > extends number
+    ? Extract<Stamp, { readonly _tag: 'Clock' }>
+    : Schema.Schema.Type<E['fields'][K]['schema']> extends string
+      ? Extract<Stamp, { readonly _tag: 'Viewer' }>
+      : never
+} & {
+  readonly [K in OneRelationKeys<E>]?: Extract<Stamp, { readonly _tag: 'Viewer' }>
+}
 
 /** Unsatisfiable when a new key is already a member, so the pipe step is the error site. */
 type Free<E extends AnyEntity, New> = keyof New & keyof E['members'] extends never
@@ -555,6 +579,7 @@ interface Parts {
   readonly fields: Readonly<Record<string, EntityMember>>
   readonly relations: Readonly<Record<string, EntityMember>>
   readonly derived: Readonly<Record<string, EntityMember>>
+  readonly stamps: Readonly<Record<string, Stamp>>
   readonly metadata: Metadata
 }
 
@@ -572,6 +597,7 @@ const make = (parts: Parts): AnyEntity =>
       fields: Object.freeze(parts.fields),
       relations: Object.freeze(parts.relations),
       derived: Object.freeze(parts.derived),
+      stamps: Object.freeze(parts.stamps),
       members: Object.freeze({ ...parts.fields, ...parts.relations, ...parts.derived }),
     }),
   )
@@ -630,6 +656,7 @@ export const Entity = {
       ),
       relations: {},
       derived: {},
+      stamps: {},
       metadata: Metadata.empty,
     }) as Entity<Name, Fields>
   },
@@ -820,6 +847,56 @@ export const Entity = {
         })
       })
       return make({ ...entity, derived: { ...entity.derived, ...added } }) as never
+    },
+
+  /**
+   * Says which members the server chooses a value for when a row is created:
+   * `Stamp.viewer`, whoever asks (a `one` relation to them, or a field holding
+   * their id), and `Stamp.clock`, when (a field stored as a number).
+   *
+   * ```ts
+   * const Post = Chirp.Post.pipe(Entity.stamps({ author: Stamp.viewer, createdAt: Stamp.clock }))
+   * ```
+   *
+   * Every write of the Entity follows from it: an insert stamps them, which a
+   * server writes and a client predicts, and a write whose input sets one is
+   * refused where it is declared. Refused here: the id, a member stamped
+   * already, a `many` relation, and a field that cannot hold its stamp. Added
+   * after `Entity.relate` to stamp a relation.
+   */
+  stamps:
+    <E extends AnyEntity>(specs: EntityStamps<E>) =>
+    (entity: E): E => {
+      const given: Readonly<Record<string, Stamp | undefined>> = specs
+      const relations: Readonly<Record<string, EntityMember>> = entity.relations
+      const fields: Readonly<Record<string, EntityMember>> = entity.fields
+      const added: Record<string, Stamp> = {}
+      for (const [key, stamp] of Object.entries(given)) {
+        if (stamp === undefined) continue
+        if (key === 'id') fail(entity, 'stamps the id, which the client names')
+        if (Object.hasOwn(entity.stamps, key)) fail(entity, `"${key}" is stamped already`)
+        const relation = Object.hasOwn(relations, key) ? relations[key] : undefined
+        const field = Object.hasOwn(fields, key) ? fields[key] : undefined
+        if (relation !== undefined && relation._tag === 'Relation') {
+          if (relation.cardinality !== 'one') fail(entity, `stamps "${key}", a many relation`)
+          Stamp.$match(stamp, {
+            Clock: () => fail(entity, `stamps the relation "${key}" with the clock`),
+            Viewer: () => undefined,
+          })
+        } else if (field !== undefined && field._tag === 'Field') {
+          const stored = SchemaShape.present(Schema.toEncoded(field.schema as Schema.Top).ast)
+          Stamp.$match(stamp, {
+            Clock: () =>
+              stored.every(SchemaAST.isNumber) ||
+              fail(entity, `stamps "${key}" with the clock, but it is not stored as a number`),
+            Viewer: () =>
+              stored.every(SchemaShape.isText) ||
+              fail(entity, `stamps "${key}" with the viewer's id, but it is not stored as text`),
+          })
+        } else fail(entity, `stamps "${key}", which is not a field or relation`)
+        added[key] = stamp
+      }
+      return make({ ...entity, stamps: { ...entity.stamps, ...added } }) as E
     },
 
   /** Attaches an interpreter's metadata to the Entity itself. */
@@ -1183,6 +1260,7 @@ export type {
   Invariant,
   Judgement,
 } from './invariant.js'
+export { Stamp } from './stamp.js'
 export {
   Write,
   type AnyWrite,
@@ -1195,7 +1273,5 @@ export {
   type WriteIncrement,
   type WriteLink,
   type WriteSet,
-  Stamp,
   WriteStamp,
-  type WriteStamps,
 } from './write.js'

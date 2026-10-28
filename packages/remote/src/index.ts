@@ -107,8 +107,7 @@ import {
 import {
   forgetFailure,
   mutationStatus,
-  optimisticOfWrite,
-  derivedOfWrite,
+  predictionOfWrite,
   DerivedBy,
   type MutationDescriptor,
   type MutationStatus,
@@ -4054,17 +4053,11 @@ const bindDomain = <
           : (options.optimistic ??
             (mutation.write === undefined
               ? undefined
-              : [
-                  ...optimisticOfWrite(mutation.write, input, options.keys),
-                  ...derivedOfWrite(
-                    mutation.write,
-                    input,
-                    options.keys,
-                    definition.registry.derived.get(mutation.write.input.entity.name) ?? [],
-                    visibleStoreOf(remote.entities, remote.optimistic, bound.operators),
-                    viewerOf(model),
-                  ),
-                ]))
+              : predictionOfWrite(mutation.write, input, options.keys, {
+                  derived: definition.registry.derived,
+                  store: visibleStoreOf(remote.entities, remote.optimistic, bound.operators),
+                  viewer: viewerOf(model),
+                })))
       const started = updateRemote(remote, {
         _tag: 'MutationStarted',
         requestId,

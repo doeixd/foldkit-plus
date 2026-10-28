@@ -9,8 +9,8 @@ export default [
     name: 'a write shows nothing until the server answers',
     edits: [
       {
-        file: '../src/index.ts',
-        find: '...optimisticOfWrite(mutation.write, input, options.keys),',
+        file: '../src/mutation.ts',
+        find: '...optimisticOfWrite(write, input, keys, stamping),',
         replace: '',
       },
     ],
@@ -21,8 +21,9 @@ export default [
     edits: [
       {
         file: '../src/mutation.ts',
-        find: 'const bound = DomainWrite.bind(write, input as never, keys)',
-        replace: 'const bound = DomainWrite.bind(write, input as never)',
+        find: '        const bound = DomainWrite.bind(write, input as never, keys)\n        const patch',
+        replace:
+          '        const bound = DomainWrite.bind(write, input as never)\n        const patch',
       },
     ],
     tests,

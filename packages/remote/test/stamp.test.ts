@@ -1,0 +1,147 @@
+/**
+ * An insert's stamps predicted while it is pending (#232): who asks, from
+ * `Remote.make`'s viewer, and when, from the time the store last heard from
+ * the server. With a new row's derived members, the row shows whole before
+ * the answer.
+ */
+import { Option, Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Derived, Entity, Relation, Stamp, Write } from 'foldkit-entity'
+import { Surface } from 'foldkit-surface'
+import { describe, expect, it } from 'vitest'
+import { Mutation, Remote } from '../src/index.js'
+
+const UserFields = Entity.define('User', Schema.Struct({ id: Schema.String }))
+const PostFields = Entity.define(
+  'Post',
+  Schema.Struct({
+    id: Schema.String,
+    body: Schema.String,
+    authorId: Schema.String,
+    createdAt: Schema.Number,
+  }),
+)
+const LikeFields = Entity.define('Like', Schema.Struct({ id: Schema.String }))
+const Social = Entity.relate(
+  { User: UserFields, Post: PostFields, Like: LikeFields },
+  { Like: { post: Relation.one(PostFields), user: Relation.one(UserFields) } },
+)
+// Who wrote a post and when, and whose a like is, are the server's to choose.
+const Post = Social.Post.pipe(
+  Entity.stamps({ authorId: Stamp.viewer, createdAt: Stamp.clock }),
+  Entity.derived({
+    likeCount: Derived.count(Social.Like.relations.post),
+    liked: Derived.exists(Social.Like.relations.post, { viewer: Social.Like.relations.user }),
+  }),
+)
+const { User } = Social
+const Like = Social.Like.pipe(Entity.stamps({ user: Stamp.viewer }))
+
+const PostChirp = Mutation.write(
+  'PostChirp',
+  Write.insert(Entity.input(Post, Schema.Struct({ id: Schema.String, body: Schema.String })), {
+    id: 'id',
+  }),
+)
+const LikePost = Mutation.write(
+  'LikePost',
+  Write.insert(
+    Entity.input(Like, Schema.Struct({ id: Schema.String, postId: Schema.String }), {
+      postId: 'post',
+    }),
+    { id: 'id' },
+  ),
+)
+
+const Model = Schema.Struct({ remote: Remote.Model, me: Schema.String })
+type Model = typeof Model.Type
+const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
+const config = {
+  model: App.model.remote,
+  entities: [User, Post, Like],
+  mutations: [PostChirp, LikePost],
+}
+const Data = Remote.make({ ...config, viewer: model => Option.some(Remote.ref(User, model.me)) })
+const Unviewed = Remote.make(config)
+
+/**
+ * Ada's page, which read p1 at 4000 and p2 at 5000, so last heard from the
+ * server at 5000. She has liked neither.
+ */
+const heard = (data: typeof Data): Model =>
+  [
+    { id: 'p1', now: 4_000 },
+    { id: 'p2', now: 5_000 },
+  ].reduce(
+    (model, { id, now }) =>
+      data.reduce(model, {
+        _tag: 'ReadReceived',
+        requests: [{ entity: 'Post', id, fields: ['liked', 'likeCount'] }],
+        result: {
+          settled: [],
+          entities: [{ entity: 'Post', id, values: { id, liked: null, likeCount: 2 } }],
+        },
+        now,
+      }),
+    { remote: Remote.initial, me: 'ada' },
+  )
+
+const Chirp = Entity.select(Post, {
+  body: true,
+  authorId: true,
+  createdAt: true,
+  likeCount: true,
+  liked: true,
+})
+const shown = (data: typeof Data, model: Model, id: string) => {
+  const read = data.get(Chirp, id).read(model)
+  return read._tag === 'Ready'
+    ? { ...read.value, liked: Option.getOrNull(read.value.liked) }
+    : read._tag
+}
+
+describe("an insert's stamps while it is pending", () => {
+  it('shows a new row whole: who asked, when the page last heard, and nothing pointing at it', () => {
+    const { model } = Data.mutate(heard(Data), PostChirp, { id: 'n1', body: 'Hi' })
+    expect(shown(Data, model, 'n1')).toEqual({
+      body: 'Hi',
+      authorId: 'ada',
+      createdAt: 5_000,
+      likeCount: 0,
+      liked: null,
+    })
+  })
+
+  it('leaves out who asked when the page names no viewer, and the answer brings it', () => {
+    const { model } = Unviewed.mutate(heard(Unviewed), PostChirp, { id: 'n1', body: 'Hi' })
+    const When = Entity.select(Post, { createdAt: true })
+    const Who = Entity.select(Post, { authorId: true })
+    expect(Unviewed.get(When, 'n1').read(model)).toMatchObject({ value: { createdAt: 5_000 } })
+    expect(Unviewed.get(Who, 'n1').read(model)._tag).not.toBe('Ready')
+  })
+
+  it('leaves out the time on a page that has heard nothing yet', () => {
+    const { model } = Data.mutate({ remote: Remote.initial, me: 'ada' }, PostChirp, {
+      id: 'n1',
+      body: 'Hi',
+    })
+    const When = Entity.select(Post, { createdAt: true })
+    const Who = Entity.select(Post, { authorId: true })
+    expect(Data.get(Who, 'n1').read(model)).toMatchObject({ value: { authorId: 'ada' } })
+    expect(Data.get(When, 'n1').read(model)._tag).not.toBe('Ready')
+  })
+
+  it('points a stamped link at the viewer, so what it finds and counts moves at once', () => {
+    const Hearted = Entity.select(Post, { likeCount: true, liked: true })
+    const { model } = Data.mutate(heard(Data), LikePost, { id: 'l9', postId: 'p1' })
+    expect(Data.get(Hearted, 'p1').read(model)).toMatchObject({
+      value: { likeCount: 3, liked: Option.some('l9') },
+    })
+  })
+
+  it('counts a like of a post still pending over the 0 the post started at', () => {
+    const posted = Data.mutate(heard(Data), PostChirp, { id: 'n1', body: 'Hi' }).model
+    const { model } = Data.mutate(posted, LikePost, { id: 'l9', postId: 'n1' })
+    expect(shown(Data, model, 'n1')).toMatchObject({ likeCount: 1, liked: 'l9' })
+  })
+})

@@ -12,8 +12,8 @@ const edit = (name: string, file: string, find: string, replace: string) => ({
 export default [
   edit(
     'a declared write predicts no count',
-    '../src/index.ts',
-    'definition.registry.derived.get(mutation.write.input.entity.name) ?? [],',
+    '../src/mutation.ts',
+    'context.derived.get(write.input.entity.name) ?? [],',
     '[],',
   ),
   edit(

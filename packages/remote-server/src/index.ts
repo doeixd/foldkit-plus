@@ -258,12 +258,6 @@ export interface EntityWriter<P, R = never> {
    */
   readonly invariants?: true
   /**
-   * The fields this writer sets on every insert itself, whatever the input
-   * holds: a guard's presets and stamps. `RemoteServer.write` counts them as
-   * set where it asks whether an insert leaves a field an invariant reads.
-   */
-  readonly sets?: ReadonlyArray<string>
-  /**
    * Why this writer cannot land `write`, each a sentence; none when it can.
    * `RemoteServer.write` asks once, where the write is registered, for what
    * only the store knows: a column's type, say, which the Entity does not say.
@@ -1772,13 +1766,6 @@ export const RemoteServer = {
     const stamped = write.stamps.flatMap(
       WriteStamp.$match({ Field: ({ field }) => [field.key], Link: () => [] }),
     )
-    // What the write stamps is the write's: a writer that also sets it would overwrite one or the other.
-    const twice = stamped.find(field => (writer.sets ?? []).includes(field))
-    if (twice !== undefined) {
-      throw new Error(
-        `[foldkit-remote-server] write "${mutation.name}" stamps "${twice}", which its writer for ${writer.entity} also sets`,
-      )
-    }
     // A retry keeps the row's own time, so the clock is never compared; who asked is.
     const clocked = write.stamps.flatMap(
       WriteStamp.$match({
@@ -1789,12 +1776,7 @@ export const RemoteServer = {
     )
     // An insert's row is its values: a field it leaves to a default the writer cannot judge.
     if (write._tag === 'Insert') {
-      const sets = new Set([
-        'id',
-        ...write.sets.map(set => set.field.key),
-        ...stamped,
-        ...(writer.sets ?? []),
-      ])
+      const sets = new Set(['id', ...write.sets.map(set => set.field.key), ...stamped])
       const unset = judged.flatMap(held =>
         held.after.filter(key => !sets.has(key)).map(key => `${held.id} reads ${key}`),
       )

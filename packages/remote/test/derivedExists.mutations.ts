@@ -19,8 +19,8 @@ export default [
   edit(
     'the viewer is not passed',
     '../src/index.ts',
-    '                    viewerOf(model),\n',
-    '                    Option.none(),\n',
+    '                  viewer: viewerOf(model),\n',
+    '                  viewer: Option.none(),\n',
   ),
   edit(
     'no row is found by the written one',

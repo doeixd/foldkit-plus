@@ -68,17 +68,12 @@ export default [
     tests,
   },
   {
-    name: 'a writer may set what the write stamps',
-    edits: [{ file, find: 'if (twice !== undefined) {', replace: 'if (false) {' }],
-    tests,
-  },
-  {
     name: 'a stamped field is not counted as set where an insert is registered',
     edits: [
       {
         file,
-        find: '        ...stamped,\n        ...(writer.sets ?? []),',
-        replace: '        ...(writer.sets ?? []),',
+        find: '...write.sets.map(set => set.field.key), ...stamped])',
+        replace: '...write.sets.map(set => set.field.key)])',
       },
     ],
     tests,

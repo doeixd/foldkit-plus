@@ -7,7 +7,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Clock, Effect, Option, Schema } from 'effect'
-import { Entity, Expr, Relation, Stamp, Write, type WriteStamps } from 'foldkit-entity'
+import { Entity, Expr, Relation, Stamp, Write } from 'foldkit-entity'
 import { Mutation } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
@@ -41,9 +41,12 @@ const Social = Entity.relate(
   { User: UserFields, Post: PostFields, Like: LikeFields },
   { Like: { post: Relation.one(PostFields), user: Relation.one(UserFields) } },
 )
+// Who wrote a post and when, and whose a like is, are the server's to choose.
+const Post = Social.Post.pipe(Entity.stamps({ authorId: Stamp.viewer, createdAt: Stamp.clock }))
+const Like = Social.Like.pipe(Entity.stamps({ user: Stamp.viewer }))
 
 const Db = bind(
-  { User: Social.User, Post: Social.Post, Like: Social.Like },
+  { User: Social.User, Post, Like },
   {
     User: { table: users },
     Post: { table: posts },
@@ -56,18 +59,17 @@ const Db = bind(
 
 const PostChirp = Mutation.write(
   'PostChirp',
-  Write.insert(
-    Entity.input(Social.Post, Schema.Struct({ id: Schema.String, body: Schema.String })),
-    { id: 'id', stamps: { authorId: Stamp.viewer, createdAt: Stamp.clock } },
-  ),
+  Write.insert(Entity.input(Post, Schema.Struct({ id: Schema.String, body: Schema.String })), {
+    id: 'id',
+  }),
 )
 const LikePost = Mutation.write(
   'LikePost',
   Write.insert(
-    Entity.input(Social.Like, Schema.Struct({ id: Schema.String, postId: Schema.String }), {
+    Entity.input(Like, Schema.Struct({ id: Schema.String, postId: Schema.String }), {
       postId: 'post',
     }),
-    { id: 'id', stamps: { user: Stamp.viewer } },
+    { id: 'id' },
   ),
 )
 
@@ -218,34 +220,30 @@ describe("an insert's stamps, where the server is made", () => {
   })
 
   it('counts a stamped field as set where an insert is registered', () => {
-    const Dated = Social.Post.pipe(
-      Entity.invariant('dated', ({ after }) => Expr.gte(after.createdAt, 0), {
-        message: 'A post has a time',
-      }),
+    const dated = Entity.invariant<typeof Social.Post>(
+      'dated',
+      ({ after }) => Expr.gte(after.createdAt, 0),
+      { message: 'A post has a time' },
     )
-    const DatedDb = bind({ Post: Dated }, { Post: { table: posts } })
-    const insert = (stamps: WriteStamps<typeof Dated>) =>
-      Mutation.write(
-        'PostChirp',
-        Write.insert(
-          Entity.input(
-            Dated,
-            Schema.Struct({ id: Schema.String, body: Schema.String, authorId: Schema.String }),
+    const registered = (Dated: typeof Social.Post) =>
+      RemoteServer.write(
+        Mutation.write(
+          'PostChirp',
+          Write.insert(
+            Entity.input(
+              Dated,
+              Schema.Struct({ id: Schema.String, body: Schema.String, authorId: Schema.String }),
+            ),
+            { id: 'id' },
           ),
-          { id: 'id', stamps },
         ),
+        writer(bind({ Post: Dated }, { Post: { table: posts } }).Post),
       )
-    expect(() => RemoteServer.write(insert({}), writer(DatedDb.Post))).toThrow(
+    expect(() => registered(Social.Post.pipe(dated))).toThrow(
       'leaves unset a field an invariant reads (dated reads createdAt)',
     )
     expect(() =>
-      RemoteServer.write(insert({ createdAt: Stamp.clock }), writer(DatedDb.Post)),
+      registered(Social.Post.pipe(dated, Entity.stamps({ createdAt: Stamp.clock }))),
     ).not.toThrow()
-  })
-
-  it('refuses a writer that sets a member the write stamps', () => {
-    expect(() =>
-      RemoteServer.write(PostChirp, { ...writer(Db.Post), sets: ['createdAt'] }),
-    ).toThrow('write "PostChirp" stamps "createdAt", which its writer for Post also sets')
   })
 })
