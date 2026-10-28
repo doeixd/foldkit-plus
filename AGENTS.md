@@ -1258,6 +1258,16 @@ of its own named a form field "fits the Catalog". Read words with
   bytes (grep said "Binary file matches"). Build such characters with
   `String.fromCharCode(92)` or `chr(92)`, and check the bytes before
   committing.
+- **A grouping key is not the value it groups.** Sorting a field set to key
+  `pollLive`'s groups also sorted the fields read, and every patch's `changed`
+  came out alphabetical; only a suite asserting a whole patch caught it. Key
+  by the sorted set, and keep the order the caller asked.
+- **`esbuild`'s `dispose()` waits for an `onEnd` still running,** so a rebuild's
+  swap can run on a stack being stopped. Guard the swap on "stopping", not on
+  the harness being closed.
+- **`forkIn` on a closed scope never runs the fiber,** and a Deferred it should
+  complete stays pending for good. `Scope.addFinalizer` on a closed scope runs
+  at once, so it can interrupt the Deferred.
 - **A failure judged over several keys must not live in one key's own
   validation.** The form wrote an invariant's error into `reserved`'s field
   state; a submit validates only `NotValidated` keys, and the fix was to raise

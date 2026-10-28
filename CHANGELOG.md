@@ -379,6 +379,20 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **Live polling, the Workers stack and the agent host, after review** (#274):
+  - `pollLive` no longer loses a change when a watched list's read fails once:
+    the next tick asks the log again from the same entry. Without a log it
+    reads the subscribed rows once a tick per set of fields, not once per row.
+  - `rowLog.since` sees a log trimmed while it reads, and returns `None`
+    rather than a list with rows missing.
+  - `Stack.stop` stops workerd and removes the bundle's directory even after a
+    failed watch or a throwing close; a second `stop` returns the first's
+    promise. `examples/cloudflare`'s `pnpm dev` stops once, and stops the
+    stack when starting fails.
+  - `Agent.host` hosts the first of two runtimes started in one tick and
+    refuses the second; a crashed runtime keeps saying "crashed" after it is
+    disposed.
+  - `Resource.get` after its runtime closed is interrupted, not left waiting.
 - **Forms, AppShell and `Layout.center`, after review** (#276):
   - An Entity invariant's failure no longer blocks every later submit until
     the key it names is edited. Invariant failures and `Message.Refused` are
