@@ -9,7 +9,7 @@ import { drizzle } from 'drizzle-orm/node-sqlite'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Option, Schema } from 'effect'
 import { Entity, Expr, Write } from 'foldkit-entity'
-import { Mutation, Remote } from 'foldkit-remote'
+import { Diagnostics, Mutation, Remote } from 'foldkit-remote'
 import {
   bind,
   databaseLayer,
@@ -18,7 +18,7 @@ import {
   type DrizzleDatabase,
 } from 'foldkit-remote-drizzle'
 import { RemoteServer, type EntityWriter } from 'foldkit-remote-server'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { GuardDrizzle } from '../src/drizzle.js'
 import { Guards } from '../src/index.js'
 import { GuardServer } from '../src/server.js'
@@ -327,10 +327,8 @@ describe('GuardServer.writer with a revision', () => {
 })
 
 describe('GuardServer.validate over an unpinned writer', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-  const validate = (options: { readonly revision?: 'revision' }) =>
+  const validate = (options: { readonly revision?: 'revision' }) => {
+    const collected = Diagnostics.collect()
     GuardServer.validate(Policy, {
       entities: [Todo],
       domain: Remote.define({ entities: [Todo] }),
@@ -340,18 +338,25 @@ describe('GuardServer.validate over an unpinned writer', () => {
           RemoteServer.write(Edit, GuardServer.writer(Todo, Policy, writer(Db.Todo), options)),
         ],
       }),
+      diagnostics: collected.report,
     })
+    return collected.reported
+  }
 
   it('warns, naming the write, and says nothing of a pinned one', () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    validate({})
-    expect(warn).toHaveBeenCalledOnce()
-    expect(warn.mock.calls[0]?.[0]).toContain(
+    const reported = validate({})
+    expect(reported).toEqual([
+      expect.objectContaining({
+        _tag: 'UnpinnedWrites',
+        source: 'foldkit-guard',
+        level: 'warning',
+        mutations: ['Edit'],
+      }),
+    ])
+    expect(reported[0]!.message).toContain(
       'Edit writes through a GuardServer.writer with no revision',
     )
-    warn.mockClear()
-    validate({ revision: 'revision' })
-    expect(warn).not.toHaveBeenCalled()
+    expect(validate({ revision: 'revision' })).toEqual([])
   })
 
   // Only a write a change can come between the check and: an update, or a delete of an
@@ -360,7 +365,7 @@ describe('GuardServer.validate over an unpinned writer', () => {
     ['an insert and a delete, with nothing updating the Entity', [Add, Remove], []],
     ['a delete beside an update of its Entity', [Add, Remove, Edit], ['Remove', 'Edit']],
   ] as const)('names %s', (_, mutations, named) => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const collected = Diagnostics.collect()
     const unpinned = GuardServer.writer(Todo, Policy, writer(Db.Todo))
     GuardServer.validate(Policy, {
       entities: [Todo],
@@ -369,8 +374,9 @@ describe('GuardServer.validate over an unpinned writer', () => {
         entities: [],
         mutations: mutations.map(mutation => RemoteServer.write(mutation, unpinned)),
       }),
+      diagnostics: collected.report,
     })
-    expect(warn.mock.calls.map(([message]) => message)).toEqual(
+    expect(collected.reported.map(({ message }) => message)).toEqual(
       named.length === 0 ? [] : [expect.stringContaining(`${named.join(', ')} write through`)],
     )
   })

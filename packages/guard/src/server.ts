@@ -17,7 +17,12 @@ import {
   type AnyEntity,
   type AnyQuery,
 } from 'foldkit-entity'
-import type { MutationDescriptor, RemoteForbidden } from 'foldkit-remote'
+import {
+  Diagnostics,
+  type MutationDescriptor,
+  type RemoteForbidden,
+  type ReportDiagnostic,
+} from 'foldkit-remote'
 import {
   RemoteInvalid,
   RemoteServer,
@@ -47,6 +52,9 @@ import type { Policy } from './index.js'
 import type { MayAnswer } from './may.js'
 import { ME, type MeEntity } from './me.js'
 import { memberRules, rowRules, writeRules } from './placed.js'
+import { computeRefused, unpinnedWrites } from './diagnostics.js'
+
+export type { ComputeRefused, GuardDiagnostic, UnpinnedWrites } from './diagnostics.js'
 
 const noMembers = (record: EntityRecord) => record
 
@@ -652,8 +660,9 @@ export const GuardServer = {
     /**
      * The row `context` would leave `before` as. An operator's refusal (text
      * holding NUL, an implementation that throws) is a server error, as the
-     * writer answers what it cannot compile: logged here, and never sent, since
-     * an implementation's own message may say anything. So is a field it cannot
+     * writer answers what it cannot compile: reported here (`ComputeRefused`),
+     * and never sent, since an implementation's own message may say anything.
+     * So is a field it cannot
      * work out at all: judging its old value would let a rule over it pass.
      */
     const leaves = (before: Readonly<Record<string, unknown>>, context: UpdateContext) =>
@@ -668,10 +677,9 @@ export const GuardServer = {
           return applied.unknown.length === 0 ? Effect.succeed(applied.row) : unworkable
         } catch (error) {
           if (!(error instanceof QueryEvaluateError)) throw error
-          return Effect.logError(
-            '[foldkit-guard] a computed value could not be worked out',
-            error,
-          ).pipe(Effect.andThen(unworkable))
+          return Diagnostics.report(computeRefused(entity.name, error)).pipe(
+            Effect.andThen(unworkable),
+          )
         }
       })
     /** The rules, over the row as it is and as the write would leave it. */
@@ -994,7 +1002,9 @@ export const GuardServer = {
    * value it hides. A hand-written Source over a guarded Entity would serve
    * every row, and a bare writer would take every write; this throws instead,
    * naming each. A handler (`RemoteServer.mutation`) writes what its code
-   * writes, which no check at startup can read.
+   * writes, which no check at startup can read. A write a change can come
+   * between, through a writer given no revision, is not refused but reported:
+   * `UnpinnedWrites`, a warning, to `diagnostics`.
    *
    * ```ts
    * GuardServer.validate(Policy, { entities: [Todo, Project], domain: Data, server: Server })
@@ -1014,6 +1024,8 @@ export const GuardServer = {
         }
       }
       readonly server: ServerDefinition<any, any>
+      /** Where the `UnpinnedWrites` warning goes; `Diagnostics.Reporter`'s default, the log, when not given. */
+      readonly diagnostics?: ReportDiagnostic | undefined
     },
   ): void => {
     const byName = new Map(config.entities.map(entity => [entity.name, entity]))
@@ -1177,7 +1189,7 @@ export const GuardServer = {
         .filter(writes => writes.write._tag === 'Update')
         .map(writes => writes.entity),
     )
-    const unpinnedWrites = [...config.server.mutations].flatMap(([mutation, source]) => {
+    const unpinned = [...config.server.mutations].flatMap(([mutation, source]) => {
       const writes = source.writes
       if (writes === undefined) return []
       const writer = writes.writer
@@ -1190,9 +1202,14 @@ export const GuardServer = {
       })
       return races ? [mutation] : []
     })
-    if (unpinnedWrites.length > 0) {
-      console.warn(
-        `[foldkit-guard] GuardServer.validate: ${unpinnedWrites.join(', ')} ${unpinnedWrites.length === 1 ? 'writes' : 'write'} through a GuardServer.writer with no revision, so a change between its check and its write is not seen; pass { revision }`,
+    if (unpinned.length > 0) {
+      // A startup check runs before any Effect of the server's, so the reporter is an option.
+      const report = Diagnostics.report(unpinnedWrites(unpinned))
+      const { diagnostics } = config
+      Effect.runFork(
+        diagnostics === undefined
+          ? report
+          : Effect.provideService(report, Diagnostics.Reporter, diagnostics),
       )
     }
   },

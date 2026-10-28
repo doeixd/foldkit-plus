@@ -10,7 +10,7 @@ import { drizzle } from 'drizzle-orm/node-sqlite'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Option, Schema } from 'effect'
 import { Entity, Expr, Operators, Write } from 'foldkit-entity'
-import { Mutation } from 'foldkit-remote'
+import { Diagnostics, Mutation } from 'foldkit-remote'
 import {
   DrizzleOperators,
   bind,
@@ -259,6 +259,39 @@ describe('A guarded write that sets, moves and computes', () => {
       },
     })
     expect(row()).toEqual({ title: 'Old', label: 'plain', stock: 2, revision: 1 })
+  })
+
+  it("reports the operator's own refusal, which the answer leaves out", async () => {
+    const sqlite = seeded()
+    const collected = Diagnostics.collect()
+    const guarded = GuardServer.writer(Tag, Policy, writer(Db.Tag), { revision: 'revision' })
+    const bound = Write.bind(Retag.write, {
+      id: 't1',
+      revision: 1,
+      title: 'New',
+      prefix: `o${String.fromCharCode(0)}`,
+      by: 0,
+    })
+    const answer = await Effect.runPromise(
+      guarded
+        .update({
+          ...bound,
+          operation: Option.none(),
+          expect: Option.some({ field: 'revision', revision: 1 }),
+          when: Option.none(),
+          principal: Option.some({ id: 'mo' }),
+        })
+        .pipe(
+          Effect.result,
+          Effect.provide(databaseLayer(drizzle({ client: sqlite }))),
+          Effect.provideService(Diagnostics.Reporter, collected.report),
+        ),
+    )
+    expect(answer).toMatchObject({ _tag: 'Failure', failure: { _tag: 'RemoteServerError' } })
+    expect(collected.reported).toEqual([
+      expect.objectContaining({ _tag: 'ComputeRefused', level: 'error', entity: 'Tag' }),
+    ])
+    expect(collected.reported[0]!.message).toMatch(/^Tag's write was refused: .+\(.+\)$/)
   })
 
   it('refuses a writer its rules refuse before working out what it would compute', async () => {

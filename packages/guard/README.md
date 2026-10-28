@@ -408,8 +408,9 @@ was written"; nothing is written over a version no rule saw. An input that
 rule, and not retried. An input may expect only the revision the writer pins:
 one expecting another field is refused, at startup by `GuardServer.validate`
 and at run time, since the pin would leave that field where it was. A writer
-with no `revision` keeps the window, and `GuardServer.validate` warns of each
-write through one that a change can come between: an update, or a delete of
+with no `revision` keeps the window, and `GuardServer.validate` reports each
+write through one that a change can come between, as an `UnpinnedWrites`
+[diagnostic](#diagnostics): an update, or a delete of
 an Entity the server also updates. An insert has no row before it, so an
 Entity that is only inserted and deleted needs no revision.
 
@@ -435,7 +436,8 @@ assignment is the same: its member's Update rule holds, the guard reads what it
 computes from, and judges the row `Write.apply` works out by the writer's own
 table (`EntityWriter.operators`, the binding's for the Drizzle writer), which is
 the row the writer writes; one it cannot work out is refused, never judged as
-it was. With a `revision` the guarded writer `pins`, so under a ledger a
+it was, with a fixed message, and the operator's own refusal is reported as
+`ComputeRefused`. With a `revision` the guarded writer `pins`, so under a ledger a
 real-number increment or a computed assignment needs no `expect` of its own (no
 writer lands one without either); `validate`
 refuses one computed from a member with a Read rule, which its answer would
@@ -556,6 +558,25 @@ Drizzle, each Source takes its `filter`, and each binding its `visible`.
 
 A handler (`RemoteServer.mutation`) writes what its code writes, which no
 check at startup can read.
+
+## Diagnostics
+
+Two things a guarded server goes past without failing are reported through
+`foldkit-surface`'s `Diagnostics` channel (re-exported by `foldkit-remote`),
+by default Effect's log:
+
+| `_tag` | `level` | When |
+| --- | --- | --- |
+| `ComputeRefused` | `error` | An operator refused to work out a value a guarded write computes (text holding NUL, an implementation that throws). The write was refused with a fixed message; this carries the operator's `error`. |
+| `UnpinnedWrites` | `warning` | `GuardServer.validate` found `mutations` writing through a writer with no `revision` that a change can come between. |
+
+`ComputeRefused` is reported inside the write, so the reporter the server
+runs with applies (`serveFetch`'s `diagnostics`, or
+`Layer.succeed(Diagnostics.Reporter, report)` in its layer).
+`GuardServer.validate` runs before any Effect of the server's, so it takes
+the reporter as an option, `diagnostics`, beside `entities`, `domain` and
+`server`. In a test, pass `Diagnostics.collect().report` and assert on
+`reported`.
 
 ## Who is asking
 
