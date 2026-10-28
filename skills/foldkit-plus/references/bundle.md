@@ -226,6 +226,16 @@ need (`init` when a wiring restores, `url` when one reads the URL).
   `bundle.load()` preloads once; `bundle.isLoaded()`. `subscriptions`,
   `resources`, `helpers` stay in the declaration. A page's `lazy: [Upload]` in
   `foldkit-ssr`'s config loads them before render and boot.
+- **Services on demand:** `Resource.lazy(Tag, () => import('./x.js').then(m =>
+  m.layer))` is an entry of the runtime's `resources` Layer that imports
+  nothing until a Command yields `Resource.get(Tag)`; then it imports the chunk
+  and builds its `Layer<Tag>` (which may not fail: `Layer.orDie`) into the
+  runtime's scope, once. The Command requires `Resource.Lazy<Tag>`, so the
+  app's `Services` names that. A failed import is `Resource.LoadError`
+  (`'ResourceLoadError'`), retried by the next `get`. `Resource.prefetch(Tag)`
+  starts it from a Subscription or Command on intent. The entry must import
+  the service's implementation only through `load`, or it stays in the entry
+  chunk. A test passes `async () => Layer.succeed(Tag, fake)`.
 - **Extending:** `Counter.pipe(Bundle.rename('Clicks'), Bundle.mapUpdate(update =>
   (model, message, args) => …), Bundle.withHelpers({ … }))`; also `mapInit`,
   `mapView`, `withSubscriptions`, and `withView(view)` to give a headless bundle

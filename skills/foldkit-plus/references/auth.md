@@ -105,7 +105,9 @@ on every Remote call kind.
   one account in more than ten times quickly is refused `PasswordRejected`.
 - Only cookie sessions so far; `Me` is `foldkit-guard`'s (`Guards.me`), and
   the client's sign-in and sign-out are the application's Commands over
-  Yielded's client (`examples/auth`).
+  Yielded's client (`examples/auth`). Keep that client out of the entry chunk
+  with `foldkit-bundle`'s `Resource.lazy` (see `bundle.md`): the entry names
+  it by type only, and the Commands read it with `Resource.get`.
 
 ## Sign-up
 

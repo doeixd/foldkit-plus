@@ -341,6 +341,9 @@ Each item says how it would attach; none is started.
   applications ask for it. [bundle-DESIGN.md](./bundle-DESIGN.md) Deferred
 - [ ] `withResources`, `Link.key` and HashMap storage, which W5 left out.
   [bundle-DX-PLAN.md](./bundle-DX-PLAN.md) Outcome
+- [ ] A size budget in CI for each example's entry chunk; `split.test.ts`
+  checks which modules are in which chunk, not their size (#229).
+  [244-lazy-resources-DESIGN.md](./244-lazy-resources-DESIGN.md) Deferred
 
 ## Routing and navigation
 

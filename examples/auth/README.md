@@ -79,8 +79,10 @@ Read the files in this order.
    principal `User`; the guard set `G` with `isAdmin` (a principal guard, whose
    body only the server has) and `isAuthor` (a row guard over a note's
    `authorId`); `Note` with `Read: [G.isAuthor, G.isAdmin]`; `Me` with
-   `OpenAdmin` answered in its `may`; the `Notes` query; Yielded's contract
-   `AuthApi` (password sign-in, plus the `signOut` every contract has).
+   `OpenAdmin` answered in its `may`; the `Notes` query. Yielded's contract
+   `AuthApi` (password sign-in, plus the `signOut` every contract has) is in
+   [`src/authApi.ts`](src/authApi.ts), which the page's entry chunk does not
+   load (step 6).
 2. [`src/server.ts`](src/server.ts). `Policy` gives `isAdmin` its body. The
    notes are served from memory through `GuardServer.memory`, `Me` through
    `GuardServer.me`, and `GuardServer.validate` refuses to start a server whose
@@ -98,8 +100,9 @@ Read the files in this order.
    pages and proxies the rest there ([`vite.config.ts`](vite.config.ts)), so
    the page, its cookie and its requests share one origin.
 4. [`src/app.ts`](src/app.ts). The Model, the Messages and `update`. `SignIn`
-   and `SignOut` are Commands that run Yielded's client (`yield* AppClient`)
-   and answer with the application's Messages. `AppSite` holds two pages,
+   and `SignOut` are Commands that run Yielded's client
+   (`yield* Resource.get(AppClient)`) and answer with the application's
+   Messages. `AppSite` holds two pages,
    `Home` (with an optional `returnTo`) and `Notes`, whose `access` sends a
    reader `Me` says is not signed in home; `accessOf` asks it, and `update`
    replaces the address on `Denied`. `Session` reads `Me` on every page and
@@ -116,8 +119,14 @@ Read the files in this order.
    the CSRF header.
 6. [`src/view.ts`](src/view.ts) and [`src/client.ts`](src/client.ts). The page,
    and `SSR.hydrate` with its two services: `Remote.http('/remote')`,
-   sending Yielded's CSRF header through `belief.fetch`, and
-   `AppClient.layerFetch`.
+   sending Yielded's CSRF header through `belief.fetch`, and Yielded's client
+   through `foldkit-bundle`'s `Resource.lazy`. `app.ts` names `AppClient` by
+   its type only; [`src/authClient.ts`](src/authClient.ts) builds it, and Vite
+   writes it, with the contract, into a chunk of its own, which the
+   `authClient` Subscription starts loading once the reader types an email (a
+   sign-out loads it on the press). That keeps 42 kB (13 kB gzipped) out of
+   the chunk every page loads; [`test/split.test.ts`](test/split.test.ts)
+   builds the entry and checks it.
 
 What some calls do, and do not:
 

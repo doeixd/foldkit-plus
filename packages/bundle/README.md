@@ -734,6 +734,64 @@ boot and a helper runs synchronously; none can wait for a chunk.
 `foldkit-ssr` loads every lazy bundle in a page's `lazy` list before it
 renders or boots, so a server-rendered page never shows `while`.
 
+## Services that load on demand: `Resource`
+
+A service in the runtime's `resources` Layer ships in the entry chunk, even
+when only a sign-in uses it. `Resource.lazy` keeps its code in a chunk of its
+own, loaded the first time a Command asks for it. The entry names the service
+by its type:
+
+```ts
+// The entry chunk: the service's identity and shape, no implementation.
+class Payments extends Context.Service<
+  Payments,
+  { readonly charge: (cents: number) => Effect.Effect<string> }
+>()('app/Payments') {}
+
+const Pay = Command.define('Pay', {
+  args: { cents: Schema.Number },
+  messages: [Message.Paid, Message.FailedToPay],
+  execute: ({ cents }) =>
+    Effect.gen(function* () {
+      const payments = yield* Resource.get(Payments)
+      return Message.Paid({ receipt: yield* payments.charge(cents) })
+    }).pipe(Effect.catchTag('ResourceLoadError', () => Effect.succeed(Message.FailedToPay()))),
+})
+```
+
+The chunk exports the Layer that builds it, and the entry's `resources`
+names the chunk:
+
+```ts
+// payments.ts
+export const layer = Layer.succeed(Payments, { charge: cents => Effect.succeed(`paid ${cents}`) })
+
+// the entry
+resources: Resource.lazy(Payments, () => import('./payments.js').then(chunk => chunk.layer)),
+```
+
+- `Resource.lazy(Tag, load)` is a Layer, merged into `resources` like any
+  other. Building it imports nothing.
+- `Resource.get(Tag)` is what a Command yields. The first one imports the
+  chunk and builds its Layer into the runtime's scope; Commands asking while
+  it loads wait for that one load, and every later one gets the same service.
+  The service is released when the runtime is.
+- Its requirement is `Resource.Lazy<Tag>`, so the application's `Services`
+  names that, not the service: a Command typed by it is a Command that may
+  wait for a chunk.
+- A failed import fails the Command with `Resource.LoadError`
+  (`'ResourceLoadError'`), and the next `get` imports again. The loaded Layer
+  may not fail: a failure it cannot recover from is a defect
+  (`Layer.orDie`).
+- `Resource.prefetch(Tag)` starts the load and returns at once. Run it from
+  a Subscription or a Command when the reader shows intent (a field focused,
+  a link pointed at), so the `get` after it waits for nothing.
+- A test gives the same entry a fake:
+  `Resource.lazy(Payments, async () => Layer.succeed(Payments, fake))`.
+
+The [auth example](../../examples/auth) loads Yielded's client this way, and
+[`test/resource.test.ts`](test/resource.test.ts) holds the cases above.
+
 ## Extending a bundle
 
 Bundles are pipeable. Each combinator returns a new bundle and leaves the
