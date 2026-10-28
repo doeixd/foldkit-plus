@@ -19,6 +19,7 @@ import {
   isTombstone,
   tombstone,
   writeEntities,
+  type EntityEntry,
   type EntityKey,
   type EntityStore,
 } from './store.js'
@@ -225,9 +226,35 @@ const pendingDeletes = (optimistic: OptimisticState): ReadonlySet<EntityKey> =>
   )
 
 /**
+ * The store a read plans over: the visible store, except that a row the
+ * server holds is planned by what the server holds of it, so a field only a
+ * layer shows is still fetched. Its values stay the visible ones, so a
+ * relation a layer points elsewhere is followed where it points. A row only a
+ * request holds (a temporary id) and a row a layer deletes are planned as
+ * shown: the server has nothing to send for either.
+ */
+export const plannedStore = (
+  base: EntityStore,
+  visible: EntityStore,
+  optimistic: OptimisticState,
+): EntityStore => {
+  let next: Record<EntityKey, EntityEntry> | undefined
+  for (const layer of optimistic.layers)
+    for (const patch of layer.patches) {
+      const key = entityKey(patch.entity, patch.id)
+      const under = base[key]
+      const shown = visible[key]
+      if (under === undefined || under.tombstone || shown === undefined || shown.tombstone) continue
+      next ??= { ...visible }
+      next[key] = { ...under, values: shown.values }
+    }
+  return next ?? visible
+}
+
+/**
  * Whether a list hides a row: the store holds it deleted, or a pending layer
- * deletes it. Read from the server's store and the layers, so a caller need
- * not build the visible store to ask.
+ * deletes it. Read from the server's store, not the visible one, where a
+ * pending patch over a deleted row clears its tombstone.
  */
 export const goneIn = (
   store: EntityStore,
