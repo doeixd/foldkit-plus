@@ -1013,8 +1013,6 @@ check missing beside the others. A table holding none of them is not checked.
 - The writer still judges first, so a declared write keeps its typed `Invalid`;
   a handler or raw SQL meeting a constraint fails as a database error.
 
-Why rules are derived and tables are not: [the design](../../docs/design/259-tables-from-entities-DESIGN.md).
-
 ### A ledger: a retry is never applied twice
 
 Where it sits beside expected revisions and plain assignments is in the

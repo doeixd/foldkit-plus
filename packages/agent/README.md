@@ -605,9 +605,7 @@ instead, before any starter sees it, so one seam serves `run`, `hydrate`,
 Subscription entry carries dispatched Messages into the runtime's queue.
 `Agent.bind({ definition, host })` then takes any host, which is why
 `Sync.mount` and a hand-written one ([examples/todo](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo))
-fit as well. The
-[design note](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/258-agent-host-DESIGN.md)
-records the alternatives.
+fit as well.
 
 **Why `forApplication` and `forModel`, rather than plain `make`.** TypeScript
 cannot infer `Model` from an `available` callback alone, so `available: model =>

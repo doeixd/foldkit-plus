@@ -1458,6 +1458,12 @@ of its own named a form field "fits the Catalog". Read words with
   reads as current, and this recurred four sections after I committed that
   sentence.
 
+- **A package README is a website guide, and a guide names no design note.**
+  `examples/site` publishes every README and `docs/` guide, and
+  `guides.test.ts` refuses a link or mention of `docs/design/`, `-DESIGN` or a
+  plan; three READMEs in one day linked their new design note and failed it
+  at HEAD. Say the reason in the README itself; the design note links to the
+  README, never the other way.
 - **The changelog is a document the commit list does not remind you of.**
   About fifty commits of the page builder updated each README and the skill
   but not `CHANGELOG.md`, which the plan requires in every change, and its
