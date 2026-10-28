@@ -37,9 +37,9 @@ import type { AuthorizeDecision } from './make.js'
 import type { Operation, Sync, TransportClient } from './sync.js'
 import { checkRevalidate } from './revalidate.js'
 import { hostDefect, reportTo, type HostStage } from './diagnostics.js'
+import { serveSocket, type SocketLike } from './transport.js'
 
 export type { HostDefect, HostStage } from './diagnostics.js'
-import { serveSocket, type SocketLike } from './transport.js'
 
 export interface JournalExchangeOptions<Message, Shared, Principal> {
   /** The document's contract: its codecs, and the snapshot a checkpoint encodes. */
