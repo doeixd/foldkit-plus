@@ -308,6 +308,18 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A reload draws the stored list in its first frame.**
+  `Data.persistence(...).restore(model)` restores the stored snapshot before
+  the first frame, resolved as the runtime's `flags`, so a reload no longer
+  draws `Loading` first; the wiring then restores only a key the Model is not
+  restored from yet. `Data.persistence` returns a `PersistenceWiring` (a
+  `Wiring` plus `restore`) (#262).
+- **A shown list no longer falls back to `Loading` when its rows are deleted.**
+  A list whose every shown row is deleted while its other rows are unread
+  reads `Refreshing` with no rows. `RefreshStarted` keeps a tombstone while the
+  entity is asked about again, so a deleted row stays out of every list until
+  the server answers, and a refreshed `NotFound` stays `NotFound` until then
+  (#263).
 - **`SSR.inspect` shows a parent shared by several families once** (#177).
 - **`foldkit-mixins-ui` is published one file per module,** so an application's
   bundler keeps only the components and recipes it reads. Reading

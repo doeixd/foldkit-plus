@@ -1152,6 +1152,10 @@ of its own named a form field "fits the Catalog". Read words with
 - **Ask what else can run while you are suspended.** Moving bookkeeping after
   an await fixed a false-success bug and introduced double registration;
   overlapping passes had to be serialized.
+- **A Subscription lands after the first frame.** Foldkit starts Subscriptions
+  after the first render, so a restore made in one drew `Loading` for a frame
+  on every reload (#262). What the first frame must show goes through
+  `flags`, which run with the resources Layer before `init`.
 - **Foldkit draws the next screen before a Navigate Command runs.** A scroll
   offset recorded on `navigate` or `popstate` was already clamped to the new,
   shorter page, and a restore made when the entry changed was undone by the
@@ -1252,7 +1256,10 @@ of its own named a form field "fits the Catalog". Read words with
   `heldValue.test.ts`'s generators changed every walk, and seed 174 then
   found a list going `Refreshing` to `Loading` on a `MutationSucceeded`
   (#263). Leaving the new case's generators empty to keep the seeds hid it.
-  File what a moved walk finds before keeping the seeds.
+  File what a moved walk finds before keeping the seeds. And a walk's green
+  is only its seeds: after fixing what one found, run a scratch copy with ten
+  times the seeds and longer walks. Seed 174's fix left a second path (a
+  refresh forgetting tombstones) that only seeds from 1505 reached.
 - **A fixture too small cannot tell right from wrong.** An ordering test with
   one row passed while ids were parsed by splitting on every colon; two ids
   agreeing up to the first colon caught it. A filter test where every row
@@ -1724,6 +1731,10 @@ of its own named a form field "fits the Catalog". Read words with
   and after anything surprising — an edit whose old text matches twice, or a
   file that already contains the change, means the tree moved, not that the
   tool misbehaved.
+- **Diff your paths right before a pathspec commit, not only at review.**
+  Another session's hunk arrived in `index.ts` between a review and the
+  commit, which shipped it, and `main` did not compile until a repair commit.
+  Run `git diff -- <paths>` in the same command that commits.
 - **A pathspec commit takes the working tree, not the index.** `git commit --
   <paths>` snapshots those paths as they are on disk: unstaging a foreign
   hunk (`git apply --reverse --cached`) does not keep it out, and it rode a
