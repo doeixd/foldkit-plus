@@ -54,8 +54,8 @@ GET /  -> pageReader (the navigation's principal) -> Data.satisfy(actives) -> 30
 A write is shown before the server answers, and the server decides it:
 
 ```text
-Add -> StampNote (id, time) -> Data.mutate(AddNote)   the note and its author's count, at once
-    -> POST /remote -> GuardServer.writer: the guard, the decode, the CHECKs -> D1
+Add -> NameNote (id) -> Data.mutate(AddNote)   the note, in its place, and its author's count, at once
+    -> POST /remote -> the Note's stamps (author, time) -> GuardServer.writer: the guard, the decode, the CHECKs -> D1
     -> the answer, reduced into the Model; another member's page hears it from pollLive
 ```
 
@@ -83,6 +83,9 @@ pnpm mutate examples/reference/test/reference.mutations.ts              # each t
 **The domain** (`domain.ts`, `guard.ts`). A `Member` and a `Note` are
 Entities, related by the note's author. A member's `noteCount` is
 `Derived.count(Note.relations.author)`: the server counts, the page predicts.
+A note's author and its time are `Entity.stamps`: no input sets them, the
+server fills them from who asks and its clock, and the page predicts them,
+so a new note shows in its place in the newest-first list at once.
 The title's and the body's limits are Schema checks, in code points, which
 is what SQL counts. The guard says a note is written by its author;
 `Guards.may` has the server tell the page which notes the reader may edit.
@@ -132,12 +135,9 @@ that id, so a page is always adopted by its own build's script.
 - A deleted note's author count is one too high once the server has answered
   (#265), and a server-rendered Card misses one theme rule until scripts run
   (#271). The tests mark both with `fails`, naming the issue.
-- A new note joins the list through an overlay the page adds (#266), and the
-  live list needs a hand-written watch (#270).
+- The live list needs a hand-written watch (#270).
 - `GuardServer.validate` is run without the live source, which it would
   refuse (#264).
-- The add form's input carries the author twice, as a field for the guard and
-  as a link for the count (#267).
 - No password reset or email: Yielded's management actions are not served.
 - The deploy is left out: `pnpm build` writes `dist/client` and
   `dist/worker.js`, and `wrangler d1 migrations apply` and `wrangler deploy`

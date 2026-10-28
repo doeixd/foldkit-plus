@@ -15,9 +15,9 @@ export default [
     name: 'a new note joins no list until it is answered',
     edits: [
       {
-        file: '../src/main.ts',
-        find: 'return { model: joined, commands: [sent.command] }',
-        replace: 'return { model: sent.model, commands: [sent.command] }',
+        file: '../../../packages/remote/src/index.ts',
+        find: 'if (!holds.has(entityKey(change.entity, change.id)) && !created) continue',
+        replace: 'if (!holds.has(entityKey(change.entity, change.id))) continue',
       },
     ],
     tests: page,
@@ -26,9 +26,9 @@ export default [
     name: 'a refused note stays in the list',
     edits: [
       {
-        file: '../src/main.ts',
-        find: 'MutationFailed: ({ requestId }) => ({ model: Data.lift(model, joining(requestId)) }),',
-        replace: 'MutationFailed: () => ({ model }),',
+        file: '../../../packages/remote/src/optimistic.ts',
+        find: 'requestId: string): OptimisticState =>\n  release(optimistic, requestId)',
+        replace: 'requestId: string): OptimisticState =>\n  optimistic',
       },
     ],
     tests: page,
@@ -37,9 +37,9 @@ export default [
     name: 'a new note points at no author',
     edits: [
       {
-        file: '../src/main.ts',
-        find: '        author: authorId,',
-        replace: "        author: 'someone',",
+        file: '../src/domain.ts',
+        find: 'authorId: Stamp.viewer, author: Stamp.viewer,',
+        replace: 'authorId: Stamp.viewer,',
       },
     ],
     tests: page,

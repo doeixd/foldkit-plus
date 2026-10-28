@@ -4,7 +4,7 @@
  * it; `server.ts` compiles the rules into the table's CHECKs.
  */
 import { Schema } from 'effect'
-import { Collation, Derived, Entity, Relation } from 'foldkit-plus/entity'
+import { Collation, Derived, Entity, Relation, Stamp } from 'foldkit-plus/entity'
 
 const MemberFields = Entity.define(
   'Member',
@@ -41,6 +41,15 @@ export const Notebook = Entity.relate(
     Member: { notes: Relation.many(NoteFields) },
     Note: { author: Relation.one(MemberFields) },
   },
+)
+
+/**
+ * A note is whoever wrote it, made when the server lands it: its author (the
+ * field the guards read, and the link the count follows, one column) and its
+ * time. No input sets them; the server stamps them, and the page predicts them.
+ */
+export const AuthoredNote = Notebook.Note.pipe(
+  Entity.stamps({ authorId: Stamp.viewer, author: Stamp.viewer, createdAt: Stamp.clock }),
 )
 
 /** A member, with how many notes name them as author: the server counts, the page predicts. */

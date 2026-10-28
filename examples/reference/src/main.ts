@@ -18,7 +18,7 @@ import { Bundle, Resource } from 'foldkit-plus/bundle'
 import { Entity } from 'foldkit-plus/entity'
 import { ME } from 'foldkit-plus/guard'
 import { pointedLinks } from 'foldkit-plus/primitives/dom'
-import { ConnectionChange, Remote, RemoteData, type RemoteClient } from 'foldkit-plus/remote'
+import { Remote, RemoteData, type RemoteClient } from 'foldkit-plus/remote'
 import { Access, Site } from 'foldkit-plus/site'
 import { SSR } from 'foldkit-plus/ssr/client'
 import { Projection, Surface } from 'foldkit-plus/surface'
@@ -92,13 +92,8 @@ const own = {
   SubmittedAuth: {},
   FailedAuth: { reason: Schema.String },
   ClickedSignOut: {},
-  /** A draft from the add form, given its id and its time. */
-  StampedNote: {
-    id: Schema.String,
-    createdAt: Schema.Number,
-    title: Schema.String,
-    body: Schema.String,
-  },
+  /** A draft from the add form, given its id. */
+  NamedNote: { id: Schema.String, title: Schema.String, body: Schema.String },
   ClickedEdit: { id: Schema.String },
   ClickedDelete: { id: Schema.String },
   ClickedDismiss: { requestId: Schema.String },
@@ -127,7 +122,7 @@ export const App = Surface.application({ Model, Message })
 export const Data = Remote.make({
   model: App.model.remote,
   ...served,
-  // Whom a note's author count is predicted for: the reader.
+  // Who reads: a new note's author, and whose count it moves.
   viewer: model => Option.map(viewerOf(model), id => Remote.ref(Member, id)),
 })
 
@@ -211,20 +206,18 @@ const Page = Bundle.parent({ Model, Message }).withServices<Services>()
 export const NoteEditor = Editor.at({ data: Data, model: App.model.editor })
 export const EditorForm = Page.at(Editing, { onOut: NoteEditor.onOut })
 
-/** A fresh id and the time, for a note about to be added: `update` reads neither clock. */
-const StampNote = Command.define('StampNote', {
+/** A fresh id for a note about to be added: `update` mints none. */
+const NameNote = Command.define('NameNote', {
   args: { title: Schema.String, body: Schema.String },
-  messages: [Message.StampedNote],
+  messages: [Message.NamedNote],
   execute: ({ title, body }) =>
-    Effect.sync(() =>
-      Message.StampedNote({ id: crypto.randomUUID(), createdAt: Date.now(), title, body }),
-    ),
+    Effect.sync(() => Message.NamedNote({ id: crypto.randomUUID(), title, body })),
 })
 
-/** The form empties at once for the next note; the note shows as soon as it is stamped. */
+/** The form empties at once for the next note; the note shows as soon as it is named. */
 const submittedNote = (model: Model, value: typeof NoteDraft.Type): Return => {
   const cleared = AddingForm.helpers.fill({ title: '', body: '' })(model)
-  return { model: cleared.model, commands: [...(cleared.commands ?? []), StampNote(value)] }
+  return { model: cleared.model, commands: [...(cleared.commands ?? []), NameNote(value)] }
 }
 
 export const AddingForm = Page.at(Adding, {
@@ -405,37 +398,15 @@ const submitted = (model: Model): Return => {
   return { model: modifyFields(model, { notice: () => Option.none() }), commands: [command] }
 }
 
-/** The overlay that shows a pending note in the notebook, named by its write. */
-const joining = (requestId: string) => `joining-${requestId}`
-
 /**
- * A stamped draft, added as the reader's. Remote shows the note and its
- * author's count at once, from the declared write, but puts a new row in no
- * list, pending or answered: a list learns of it from the live stream or the
- * next read. So the overlay puts it in the notebook, where the list's order
- * places it, and is lifted only if the write fails. Once answered it shows a
- * row the store holds, as a confirmed insert's overlay would.
+ * A named draft, added. Remote shows it at once from the declarations: the
+ * reader as its author and its time, both the Note's stamps, its place in the
+ * notebook by the list's order, and its author's count.
  */
-const added = (model: Model, stamped: typeof Message.StampedNote.Type): Return =>
-  Option.match(viewerOf(model), {
-    // The notebook is drawn only for a reader the server named.
-    onNone: () => ({ model }),
-    onSome: authorId => {
-      const { id, createdAt, title, body } = stamped
-      const sent = Data.mutate(model, AddNote, {
-        id,
-        createdAt,
-        title,
-        body,
-        authorId,
-        author: authorId,
-      })
-      const joined = Data.overlay(sent.model, joining(sent.requestId), [
-        ConnectionChange.prepend(Notes.ref({}), Remote.ref(Note, id)),
-      ])
-      return { model: joined, commands: [sent.command] }
-    },
-  })
+const added = (model: Model, { id, title, body }: typeof Message.NamedNote.Type): Return => {
+  const sent = Data.mutate(model, AddNote, { id, title, body })
+  return { model: sent.model, commands: [sent.command] }
+}
 
 const reduce = (model: Model, message: typeof Heard.Type): Return =>
   Heard.match<Return>(message, {
@@ -451,7 +422,7 @@ const reduce = (model: Model, message: typeof Heard.Type): Return =>
       model: modifyFields(model, { notice: () => Option.some(reason) }),
     }),
     ClickedSignOut: () => ({ model, commands: [SignOut()] }),
-    StampedNote: stamped => added(model, stamped),
+    NamedNote: named => added(model, named),
     ClickedEdit: ({ id }) => EditorForm.helpers.open(id)(model),
     ClickedDelete: ({ id }) => {
       const sent = Data.mutate(model, DeleteNote, { id })
@@ -467,9 +438,9 @@ const reduce = (model: Model, message: typeof Heard.Type): Return =>
         onNone: () => ({ model }),
         onSome: sent => ({ model: sent.model, commands: [sent.command] }),
       }),
-    // A refused note leaves the list. The ledger keeps the failure
-    // (`Data.failedWrites`), which the view draws.
-    MutationFailed: ({ requestId }) => ({ model: Data.lift(model, joining(requestId)) }),
+    // A refused note has left the list with its layer. The ledger keeps the
+    // failure (`Data.failedWrites`), which the view draws.
+    MutationFailed: () => ({ model }),
     // Site.routing's: it claims them and has set the route by now.
     ClickedLink: () => ({ model }),
     ChangedUrl: () => ({ model }),

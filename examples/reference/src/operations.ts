@@ -48,21 +48,15 @@ const { title, body } = Notebook.Note.fields
 export const NoteDraft = Schema.Struct({ title: title.schema, body: body.schema })
 
 /**
- * A new note. The page sends its author and its time as well as what was
- * typed: Remote predicts only what the input says, so a note the server
- * stamped would show with no author and no place in the list until it
- * answered. The guard refuses a note in anyone else's name.
+ * A new note: its id and what was typed. Its author and its time are the
+ * Note's stamps, so the page sends neither and still shows the note at once,
+ * placed in the list by its time.
  */
-export const NewNote = Schema.Struct({
-  ...Entity.fields(Notebook.Note, 'id', 'createdAt'),
-  ...NoteDraft.fields,
-  authorId: Schema.String,
-  author: Schema.String,
-})
+export const NewNote = Schema.Struct({ ...Entity.fields(Notebook.Note, 'id'), ...NoteDraft.fields })
 
 export const AddNote = Mutation.write(
   'AddNote',
-  Write.insert(Entity.input(Note, NewNote, { author: 'author' }), { id: 'id' }),
+  Write.insert(Entity.input(Note, NewNote), { id: 'id' }),
 )
 
 export const NoteEdit = Schema.Struct({

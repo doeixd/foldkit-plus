@@ -98,6 +98,9 @@ const NotesLive = pollLive(NoteSource, {
 const notesWriter = GuardServer.writer(Note, Policy, writer(Db.Note), { revision: 'revision' })
 
 const served = {
+  // Who asks, as the member a new note is stamped with.
+  viewer: (principal: Option.Option<Principal>) =>
+    Option.map(principal, ({ id }) => Remote.ref(Member, id)),
   entities: [
     source(Db.Member, { filter: GuardServer.filter(Member, Policy) }),
     NoteSource,

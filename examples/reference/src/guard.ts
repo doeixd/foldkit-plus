@@ -6,7 +6,7 @@
 import { Schema } from 'effect'
 import { Expr } from 'foldkit-plus/entity'
 import { Guards } from 'foldkit-plus/guard'
-import { CountedMember, Notebook } from './domain.js'
+import { AuthoredNote, CountedMember, Notebook } from './domain.js'
 
 /** Who is asking: a member, by their account's id. */
 export const Principal = Schema.Struct({ id: Schema.String })
@@ -25,11 +25,10 @@ export const G = Guards.declare(
 export const Member = CountedMember.pipe(Guards.attach(G, { row: { Read: [G.isMember] } }))
 
 /**
- * A note. A create is judged over the row it proposes, so a note in another
- * member's name is refused. `may` tells the page which notes it may edit: a
- * hint for drawing the editor, never the check.
+ * A note, written by its author alone. `may` tells the page which notes it
+ * may edit: a hint for drawing the editor, never the check.
  */
-export const Note = Notebook.Note.pipe(
+export const Note = AuthoredNote.pipe(
   Guards.attach(G, { row: { Read: [G.isMember], Write: [G.isAuthor] } }),
   Guards.may,
 )

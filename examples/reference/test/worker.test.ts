@@ -91,15 +91,8 @@ const readAs = (cookie: string): Promise<Model> =>
 const idOf = async (cookie: string): Promise<string> =>
   Option.getOrThrow(viewerOf(await readAs(cookie)))
 
-const added = (authorId: string, id: string, title: string, body = '') =>
-  Data.mutate(initial, AddNote, {
-    id,
-    title,
-    body,
-    authorId,
-    author: authorId,
-    createdAt: Date.now(),
-  })
+const added = (id: string, title: string, body = '') =>
+  Data.mutate(initial, AddNote, { id, title, body })
 
 /** The classes a rendered page draws, and those no `<style>` in it has a rule for. */
 const styling = (html: string) => {
@@ -152,8 +145,7 @@ describe('pages', () => {
 describe('writes', () => {
   it("adds a member's note, counts it, and renders it on the notebook and its own page", async () => {
     const cookie = await member('Grace')
-    const grace = await idOf(cookie)
-    const answer = await write(cookie, added(grace, 'grace-1', 'Nanoseconds', 'A foot of wire.'))
+    const answer = await write(cookie, added('grace-1', 'Nanoseconds', 'A foot of wire.'))
     expect(answer._tag).toBe('MutationSucceeded')
 
     const notebook = await (await page('/', cookie)).text()
@@ -163,21 +155,31 @@ describe('writes', () => {
     expect(note).toContain('A foot of wire.')
   }, 60_000)
 
-  it("refuses a note in another member's name, and an edit or a delete of another's note", async () => {
+  it("makes a note its writer's, whatever the request names, and refuses an edit or a delete of another's", async () => {
     const owner = await member('Hedy')
     const hedy = await idOf(owner)
-    expect((await write(owner, added(hedy, 'hedy-1', 'Frequency hopping')))._tag).toBe(
+    expect((await write(owner, added('hedy-1', 'Frequency hopping')))._tag).toBe(
       'MutationSucceeded',
     )
     const other = await member('Joan')
 
-    const forged = await write(other, added(hedy, 'joan-1', 'In Hedy’s name'))
+    // A request naming Hedy as the author: the server stamps whoever asks.
+    const forged = await Effect.runPromise(
+      Remote.http(`${stack.origin}/remote`, {
+        headers: () => ({ ...scripted(), cookie: other }),
+      }).FoldkitRemoteMutate({
+        requestId: 'forged',
+        mutation: 'AddNote',
+        input: { id: 'joan-1', title: 'In Hedy’s name', body: '', authorId: hedy, author: hedy },
+      }),
+    )
+    expect(forged.entities[0]?.values).toMatchObject({ authorId: await idOf(other) })
     const edited = await write(
       other,
       Data.mutate(initial, EditNote, { id: 'hedy-1', title: 'Mine now', body: '' }),
     )
     const deleted = await write(other, Data.mutate(initial, DeleteNote, { id: 'hedy-1' }))
-    for (const answer of [forged, edited, deleted]) {
+    for (const answer of [edited, deleted]) {
       expect(answer._tag).toBe('MutationFailed')
       if (answer._tag === 'MutationFailed') expect(answer.error._tag).toBe('Forbidden')
     }
@@ -186,8 +188,11 @@ describe('writes', () => {
       notes._tag === 'Ready' &&
         notes.value.items
           .filter(note => note.id.startsWith('hedy') || note.id.startsWith('joan'))
-          .map(note => note.title),
-    ).toEqual(['Frequency hopping'])
+          .map(note => [note.title, note.author.name]),
+    ).toEqual([
+      ['In Hedy’s name', 'Joan'],
+      ['Frequency hopping', 'Hedy'],
+    ])
   }, 60_000)
 
   it("refuses a title the Entity refuses, in the server's decode and in the table's CHECK", async () => {
@@ -201,14 +206,7 @@ describe('writes', () => {
         }).FoldkitRemoteMutate({
           requestId: 'forged',
           mutation: 'AddNote',
-          input: {
-            id: 'kj-1',
-            title: '',
-            body: '',
-            authorId: katherine,
-            author: katherine,
-            createdAt: 0,
-          },
+          input: { id: 'kj-1', title: '', body: '' },
         }),
       ),
     )

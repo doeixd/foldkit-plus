@@ -198,13 +198,30 @@ describe("an insert's stamps while it is pending", () => {
       },
       now: 5_000,
     })
-    const { model } = Data.mutate(written, PostChirp, { id: 'n1', body: 'Hi' })
-    const bodies = (list: typeof newest | typeof theirs) => {
+    const sent = Data.mutate(written, PostChirp, { id: 'n1', body: 'Hi' })
+    const bodies = (model: Model, list: typeof newest | typeof theirs) => {
       const read = list.read(model)
       return read._tag === 'Ready' ? read.value.items.map(post => post.body) : read._tag
     }
-    expect(bodies(newest)).toEqual(['Hi', 'Newer', 'Older'])
+    expect(bodies(sent.model, newest)).toEqual(['Hi', 'Newer', 'Older'])
     // Ada's chirp is not Bob's.
-    expect(bodies(theirs)).toEqual(['Newer', 'Older'])
+    expect(bodies(sent.model, theirs)).toEqual(['Newer', 'Older'])
+    // The answer, with the server's time, keeps it where the order puts it.
+    const answered = Data.reduce(sent.model, {
+      _tag: 'MutationSucceeded',
+      requestId: sent.requestId,
+      entities: [
+        {
+          entity: 'Post',
+          id: 'n1',
+          values: { id: 'n1', body: 'Hi', authorId: 'ada', createdAt: 4_000 },
+        },
+      ],
+      connections: [],
+      deleted: [],
+      now: 6_000,
+    })
+    expect(bodies(answered, newest)).toEqual(['Newer', 'Hi', 'Older'])
+    expect(bodies(answered, theirs)).toEqual(['Newer', 'Older'])
   })
 })
