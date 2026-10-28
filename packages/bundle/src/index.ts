@@ -8,6 +8,7 @@ export type {
   Wrapper,
 } from './link.js'
 export * as Bundle from './bundle.js'
+export * as Resource from './resource.js'
 export type {
   Bundle as BundleShape,
   Helper,
