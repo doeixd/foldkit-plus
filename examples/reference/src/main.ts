@@ -18,13 +18,13 @@ import { Bundle, Resource } from 'foldkit-plus/bundle'
 import { Entity } from 'foldkit-plus/entity'
 import { ME } from 'foldkit-plus/guard'
 import { pointedLinks } from 'foldkit-plus/primitives/dom'
-import { Remote, RemoteData, type RemoteClient } from 'foldkit-plus/remote'
+import { ConnectionChange, Remote, RemoteData, type RemoteClient } from 'foldkit-plus/remote'
 import { Access, Site } from 'foldkit-plus/site'
 import { SSR } from 'foldkit-plus/ssr/client'
 import { Projection, Surface } from 'foldkit-plus/surface'
 import type { AuthApi } from './authApi.js'
 import { Adding, Editing, Editor } from './forms.js'
-import { Me, Member } from './guard.js'
+import { Me, Member, Note } from './guard.js'
 import {
   AddNote,
   DeleteNote,
@@ -117,7 +117,7 @@ export const Message = defineMessageUnion({
 })
 export type Message = typeof Message.Type
 
-/** What reaches this module's own `update`: its own Messages, and a failed write. */
+/** What reaches this module's own `update`: its own Messages, and a write that failed. */
 const Heard = defineMessageUnion({ ...own, MutationFailed: Remote.messages.MutationFailed })
 
 // REMOTE AND SURFACES
@@ -195,13 +195,10 @@ const NoteNode = Site.node(
   AppRoute.NotePage,
 )
   .title(() => 'A note · Notebook')
-  .surface({ surface: NotePage, params: ({ id }) => ({ id }) })
-  .access<Reader>({
-    allow: reader => reader.signedIn,
-    otherwise: requested => Site.target(SignInNode, { returnTo: Option.some(requested) }),
-  }).node
+  .surface({ surface: NotePage, params: ({ id }) => ({ id }) }).node
 
-export const AppSite = Site.make(SignInNode, NotebookNode, NoteNode)
+// A note's page is under the notebook, so the notebook's rule covers it too.
+export const AppSite = Site.make(SignInNode, Site.mount(NotebookNode, [NoteNode]))
 export const routeOf = Site.parse(AppSite, AppRoute.NotFound)
 
 export const notebookHref = Site.href(NotebookNode, {})
@@ -377,10 +374,10 @@ const HERE = 'http://here.invalid'
 /**
  * `url` as a path on this origin, as a URL parser reads it, or none. Anyone
  * can write `returnTo` into an address, and a parser reads `//` or `\` as
- * another host: only the parse can tell.
+ * another host, and `javascript:` as no host at all: only the parse can tell.
  */
 const ownPath = (url: string): Option.Option<string> => {
-  if (!url.startsWith('/') || !URL.canParse(url, HERE)) return Option.none()
+  if (!URL.canParse(url, HERE)) return Option.none()
   const parsed = new URL(url, HERE)
   return parsed.origin === HERE
     ? Option.some(`${parsed.pathname}${parsed.search}${parsed.hash}`)
@@ -408,15 +405,35 @@ const submitted = (model: Model): Return => {
   return { model: modifyFields(model, { notice: () => Option.none() }), commands: [command] }
 }
 
-/** A stamped draft, added as the reader's: Remote shows it, and its author's count, at once. */
+/** The overlay that shows a pending note in the notebook, named by its write. */
+const joining = (requestId: string) => `joining-${requestId}`
+
+/**
+ * A stamped draft, added as the reader's. Remote shows the note and its
+ * author's count at once, from the declared write, but puts a new row in no
+ * list, pending or answered: a list learns of it from the live stream or the
+ * next read. So the overlay puts it in the notebook, where the list's order
+ * places it, and is lifted only if the write fails. Once answered it shows a
+ * row the store holds, as a confirmed insert's overlay would.
+ */
 const added = (model: Model, stamped: typeof Message.StampedNote.Type): Return =>
   Option.match(viewerOf(model), {
     // The notebook is drawn only for a reader the server named.
     onNone: () => ({ model }),
     onSome: authorId => {
       const { id, createdAt, title, body } = stamped
-      const sent = Data.mutate(model, AddNote, { id, createdAt, title, body, authorId })
-      return { model: sent.model, commands: [sent.command] }
+      const sent = Data.mutate(model, AddNote, {
+        id,
+        createdAt,
+        title,
+        body,
+        authorId,
+        author: authorId,
+      })
+      const joined = Data.overlay(sent.model, joining(sent.requestId), [
+        ConnectionChange.prepend(Notes.ref({}), Remote.ref(Note, id)),
+      ])
+      return { model: joined, commands: [sent.command] }
     },
   })
 
@@ -450,8 +467,9 @@ const reduce = (model: Model, message: typeof Heard.Type): Return =>
         onNone: () => ({ model }),
         onSome: sent => ({ model: sent.model, commands: [sent.command] }),
       }),
-    // The ledger keeps the failure (`Data.failedWrites`), which the view draws.
-    MutationFailed: () => ({ model }),
+    // A refused note leaves the list. The ledger keeps the failure
+    // (`Data.failedWrites`), which the view draws.
+    MutationFailed: ({ requestId }) => ({ model: Data.lift(model, joining(requestId)) }),
     // Site.routing's: it claims them and has set the route by now.
     ClickedLink: () => ({ model }),
     ChangedUrl: () => ({ model }),

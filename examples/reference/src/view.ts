@@ -322,7 +322,16 @@ export const view = (model: Model, h: H): Document => {
             ]
           : [],
       },
-      [h.div(slots.content.attrs(), [...failedWrites(model, slots, h), ...page(model, slots, h)])],
+      [
+        h.div(slots.content.attrs(), [
+          // The sign-in form says its own; elsewhere it is a sign-out that failed.
+          ...AppRoute.matchOrElse(model.route, { SignIn: () => [] }, () =>
+            Option.match(model.notice, { onNone: () => [], onSome: text => [notice(h, text)] }),
+          ),
+          ...failedWrites(model, slots, h),
+          ...page(model, slots, h),
+        ]),
+      ],
       h,
     ),
   }

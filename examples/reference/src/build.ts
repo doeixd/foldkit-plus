@@ -10,4 +10,4 @@ const pattern = new RegExp(`<meta name="${BUILD_META}" content="([^"]+)"`)
 
 /** The id `template` carries, or none for a template no build of this app wrote. */
 export const buildIdOf = (template: string): Option.Option<string> =>
-  Option.fromNullOr(pattern.exec(template)?.[1] ?? null)
+  Option.fromUndefinedOr(pattern.exec(template)?.[1])

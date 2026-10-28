@@ -4,7 +4,7 @@
  * it; `server.ts` compiles the rules into the table's CHECKs.
  */
 import { Schema } from 'effect'
-import { Derived, Entity, Relation } from 'foldkit-plus/entity'
+import { Collation, Derived, Entity, Relation } from 'foldkit-plus/entity'
 
 const MemberFields = Entity.define(
   'Member',
@@ -29,6 +29,10 @@ const NoteFields = Entity.define(
     /** Moved on by every write the server lands, so a write lands only on the note its rules judged. */
     revision: Schema.Number,
   }),
+).pipe(
+  // D1 compares text as BINARY over UTF-8, said so the page can place a new
+  // note where the list's order (newest first, then by id) puts it.
+  Entity.annotateMembers({ id: Collation.of(Collation.binary) }),
 )
 
 export const Notebook = Entity.relate(

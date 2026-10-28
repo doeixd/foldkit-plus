@@ -57,11 +57,12 @@ export const NewNote = Schema.Struct({
   ...Entity.fields(Notebook.Note, 'id', 'createdAt'),
   ...NoteDraft.fields,
   authorId: Schema.String,
+  author: Schema.String,
 })
 
 export const AddNote = Mutation.write(
   'AddNote',
-  Write.insert(Entity.input(Note, NewNote), { id: 'id' }),
+  Write.insert(Entity.input(Note, NewNote, { author: 'author' }), { id: 'id' }),
 )
 
 export const NoteEdit = Schema.Struct({

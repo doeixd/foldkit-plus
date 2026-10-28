@@ -70,13 +70,13 @@ const authServices = memo(async (db: D1Database) => {
   return runtime.context()
 })
 
-/** Who a session is: a member whose account is active, read fresh per request. */
+/**
+ * Who a session is: a member, read fresh per request. Yielded has already
+ * refused a session whose account is not active.
+ */
 const principalOf = (db: D1Database) => (session: { readonly subjectId: string }) =>
   Effect.promise(() =>
-    db
-      .prepare("SELECT id FROM accounts WHERE id = ? AND status = 'active'")
-      .bind(session.subjectId)
-      .first<Principal>(),
+    db.prepare('SELECT id FROM accounts WHERE id = ?').bind(session.subjectId).first<Principal>(),
   ).pipe(
     Effect.flatMap(row =>
       row === null

@@ -92,7 +92,23 @@ const idOf = async (cookie: string): Promise<string> =>
   Option.getOrThrow(viewerOf(await readAs(cookie)))
 
 const added = (authorId: string, id: string, title: string, body = '') =>
-  Data.mutate(initial, AddNote, { id, title, body, authorId, createdAt: Date.now() })
+  Data.mutate(initial, AddNote, {
+    id,
+    title,
+    body,
+    authorId,
+    author: authorId,
+    createdAt: Date.now(),
+  })
+
+/** The classes a rendered page draws, and those no `<style>` in it has a rule for. */
+const styling = (html: string) => {
+  const drawn = [
+    ...new Set([...html.matchAll(/class="([^"]+)"/g)].flatMap(match => match[1]!.split(' '))),
+  ]
+  const styled = [...html.matchAll(/<style>([^<]*)<\/style>/g)].map(match => match[1]).join('')
+  return { drawn, unstyled: drawn.filter(name => !styled.includes(`.${name}`)) }
+}
 
 describe('pages', () => {
   it('sends a visitor to sign in, naming the page they asked for', async () => {
@@ -112,6 +128,17 @@ describe('pages', () => {
     // The build's own script, and the id hydration compares with it.
     expect(html).toMatch(/<script type="module" crossorigin src="\/assets\/[^"]+\.js">/)
     expect(html).toMatch(/data-foldkit-build="[0-9a-f-]{36}"/)
+    // Styled before any script runs: every compiled class it draws has its rule in the page.
+    const { drawn, unstyled } = styling(html)
+    expect(drawn.filter(name => name.startsWith('style-')).length).toBeGreaterThan(0)
+    expect(unstyled.filter(name => name.startsWith('style-'))).toEqual([])
+  }, 60_000)
+
+  // #271: `Style.usedIn` leaves out the global rules a Style needs, such as
+  // `raise`'s `.fk-raised` depth rules. Red once that is fixed: make it an `it`.
+  it.fails('styles every class a page draws, before any script runs', async () => {
+    const html = await (await page('/', await member('Mary'))).text()
+    expect(styling(html).unstyled).toEqual([])
   }, 60_000)
 
   it('sends a member away from the sign-in page', async () => {
@@ -174,7 +201,14 @@ describe('writes', () => {
         }).FoldkitRemoteMutate({
           requestId: 'forged',
           mutation: 'AddNote',
-          input: { id: 'kj-1', title: '', body: '', authorId: katherine, createdAt: 0 },
+          input: {
+            id: 'kj-1',
+            title: '',
+            body: '',
+            authorId: katherine,
+            author: katherine,
+            createdAt: 0,
+          },
         }),
       ),
     )
