@@ -142,8 +142,9 @@ version changed; `pnpm` skips versions already in the registry.
   over every pending patch of its row (#246).
 - **`Remote.make({ verifyAnswers: true })` checks a mutation's answer against
   what was shown while it was pending.** For each row the request patched or
-  put in a list, it records in `remote.answerGaps` (`Data.inspect`) the fields
-  its optimistic patch wrote or active Surfaces read that the answer left out
+  put in a list, it records an `AnswerGap` diagnostic (`Data.inspect(model)
+  .diagnostics`, reported through `Diagnostics`) naming the fields its
+  optimistic patch wrote or active Surfaces read that the answer left out
   and the store does not hold: fields read again once the layer comes off, so
   the row leaves its lists, or an entity read reads `Loading`, until they
   arrive. For development and tests; it changes nothing else (#249).
@@ -178,12 +179,12 @@ version changed; `pnpm` skips versions already in the registry.
   trigger-kept log of the rows each write touched, and `rowLog(binding)` reads
   that log, so a quiet tick reads no rows. The example now uses them; its
   migration `0004` renames its log table to `todos_row_changes` (#206).
-- **A server's "Internal error" says what broke, to whoever runs it.**
-  `serveFetch` takes `onError(cause, request)`, given every failure it answers
-  with a generic 500 or a live stream's error frame: a broken layer, resolver,
-  handler or stream. `RemoteServer.answer` takes `onDefect(cause)`. Both
-  default to `logDefect`, which logs the cause, so a Worker's log shows it;
-  the caller is still told nothing (#221).
+- **A server's "Internal error" says what broke, to whoever runs it.** Every
+  failure `serveFetch` or `RemoteServer.answer` answers with a generic 500 or
+  a live stream's error frame (a broken layer, resolver, handler or stream)
+  reports a `ServerDefect` diagnostic, logged by default, so a Worker's log
+  shows it; `serveFetch`'s `diagnostics(diagnostic, request)` sees each. The
+  caller is still told nothing (#221, #237).
 - **`GuardServer.writer`'s `stamps`.** A field the server sets once on a
   create, from no one (`stamps: { createdAt: () => Date.now() }`), beside
   `presets`, which come from who is asking. A retried insert keeps the row's
