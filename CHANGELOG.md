@@ -103,8 +103,9 @@ version changed; `pnpm` skips versions already in the registry.
   listing each rule only the server holds. A rule compiles only where SQL says
   it exactly (lengths in code points, non-empty, a single-bracket ASCII
   pattern, numeric bounds, literals, state invariants). `bind` refuses a table
-  whose own CHECKs say another rule, are stale, or miss one beside the others.
-  Chirp's tables use them (#259).
+  whose own Drizzle `check()`s say another rule or miss one beside the others;
+  it compares the Drizzle definition, never the migrated database. Chirp's
+  tables use them (#259).
 - **`Data.refresh(model, actives)` reads a page again.** It takes the active
   record or one entry of it (`actives.page`), with params from the Model, as
   well as a Projection; `{ failed: true }` asks again only what failed, so
@@ -378,6 +379,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **CHECKs derived from an Entity agree with its Schema on NaN, NUL and
+  float4** (#259). On Postgres each numeric bound decides NaN as Effect does
+  (an upper bound accepts it, a lower bound refuses it); on SQLite, which
+  stores NaN as NULL, a bound compiles only over a finite field and is
+  otherwise `serverOnly`. `isFinite` compiles on both. On SQLite a pattern's
+  CHECK refuses NUL and a code-point length counts past one. Every number rule
+  over a Postgres `real` column is `serverOnly`, and `serverOnly` now lists
+  rules inside a `Schema.Record` or a suspended schema. `bind` matches a check
+  naming its columns without the table, as `drizzle-kit pull` writes them.
 - **Remote's state machine, after review** (#273):
   - `Data.forget` with an unchanged persistence key no longer restores the
     snapshot it forgot: it keeps `restoredFrom`, and the emptied cache is
