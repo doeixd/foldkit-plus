@@ -121,6 +121,10 @@ What each call does, and does not:
   guard's predicate once, with placeholders (`p.id` is the input
   `principal.id`), and checks it reads only its Entity's fields. Branching on
   a placeholder (`p.role === 'admin'`) is a type error: there is no value yet.
+- A row guard may compare a `one` relation itself, the id it points at
+  (`guard.row(Like, p => Expr.eq(Like.relations.user, p.id))`), so no field
+  repeats the link. SQL reads the relation's column; a rule judged over a
+  row a Source read, whose link is a ref key (`'User:ada'`), reads the id.
 - `G.implement` is the only place a body exists. A missing or extra key is a
   type error, and refused at runtime for a caller the types do not reach.
 - `Policy.decide` is an `Effect` of a `Decision`: `true`, `false`, or

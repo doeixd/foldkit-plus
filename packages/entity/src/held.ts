@@ -8,7 +8,7 @@
  * which a plain record cannot: both read as a missing key.
  */
 import { Option } from 'effect'
-import type { OneRelation } from './expr.js'
+import { Query, type AnyQuery, type OneRelation } from './expr.js'
 import type { AnyEntity, EntityIdentity } from './index.js'
 
 /** A value a holder has, or why it does not have it. */
@@ -163,6 +163,50 @@ const rowsOf = (tables: ReadonlyArray<HeldTable>): HeldRows => {
   }
 }
 
+const linksRead = new WeakMap<AnyQuery, ReadonlyArray<string>>()
+
+/** The links a query reads on its own row: each key it reads that is no field of its Entity. */
+const linksOf = (query: AnyQuery): ReadonlyArray<string> => {
+  const known = linksRead.get(query)
+  if (known !== undefined) return known
+  const fields: Readonly<Record<string, unknown>> = query.entity.fields
+  const links = Query.dependencies(query)
+    .fields.filter(
+      field =>
+        field.owner.token === query.entity.identity.token && !Object.hasOwn(fields, field.key),
+    )
+    .map(field => field.key)
+  linksRead.set(query, links)
+  return links
+}
+
+/**
+ * A row as a Source answers it and a Remote store keeps it, each `one`
+ * relation as its ref key (`'User:ada'`), given as an interpreter reads it:
+ * each link `query` reads as the id it points at. The row itself when the
+ * query reads no link.
+ */
+const fromRefs = (
+  query: AnyQuery,
+  row: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, unknown>> => {
+  const links = linksOf(query)
+  if (links.length === 0) return row
+  const read: Record<string, unknown> = { ...row }
+  for (const key of links) {
+    const ref = row[key]
+    if (ref === null || ref === undefined) continue
+    const separator = typeof ref === 'string' ? ref.indexOf(':') : -1
+    if (separator === -1) {
+      throw new Error(
+        `[foldkit-entity] ${query.entity.name}.${key} holds ${JSON.stringify(ref)}, which is no ref key ("Entity:id")`,
+      )
+    }
+    read[key] = (ref as string).slice(separator + 1)
+  }
+  return read
+}
+
 export const Held = {
   /** A value the holder has. */
   of: held,
@@ -174,4 +218,5 @@ export const Held = {
   ): B => (value._tag === 'Held' ? cases.onHeld(value.value) : cases.onUnheld(value.reason)),
   /** Rows held as plain records; see `HeldTable`. */
   rows: rowsOf,
+  fromRefs,
 }

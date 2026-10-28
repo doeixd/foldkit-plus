@@ -393,14 +393,27 @@ export class QueryCompileError extends Error {
   }
 }
 
+/**
+ * The column a field is stored in, or a `one` relation read as an operand
+ * (the id it points at): the column it is stored on, in this table.
+ */
 const columnFor = (target: CompileTarget, key: string, query: string): AnyColumn => {
-  const column = target.columns[key]
-  if (column === undefined) {
-    throw new QueryCompileError(
-      `query "${query}" reads the field "${key}", which the binding has no column for`,
-    )
+  if (Object.hasOwn(target.columns, key)) return target.columns[key]!
+  const link =
+    target.relations !== undefined && Object.hasOwn(target.relations, key)
+      ? target.relations[key]
+      : undefined
+  if (link !== undefined) {
+    if (link.kind !== 'one') {
+      throw new QueryCompileError(
+        `query "${query}" reads the relation "${key}" as a value, but it is not stored on this table ({ field })`,
+      )
+    }
+    return link.field
   }
-  return column
+  throw new QueryCompileError(
+    `query "${query}" reads the field "${key}", which the binding has no column for`,
+  )
 }
 
 /**

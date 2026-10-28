@@ -20,6 +20,7 @@ import {
 } from 'effect'
 import {
   Entity,
+  Held,
   Operators,
   SchemaShape,
   Stamp,
@@ -1497,9 +1498,10 @@ function memory<P = undefined>(config: MemoryConfig<P>): MemoryBackend<P> {
                     Record<string, unknown>
                   >
                   const entity = body.entity.name
-                  const rows = (store.rows(entity) as ReadonlyArray<Row>).filter(row =>
-                    readable(entity, row),
-                  )
+                  // The rows keep a link as its ref key; the body reads the id it points at.
+                  const rows = (store.rows(entity) as ReadonlyArray<Row>)
+                    .filter(row => readable(entity, row))
+                    .map(row => Held.fromRefs(body, row))
                   const matched = evaluate(body, encoded, rows, { operators, context })
                   // A cursor row that no longer matches still has a place in the
                   // order, as a keyset has it: sort it among the matches with the

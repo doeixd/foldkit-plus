@@ -38,8 +38,8 @@ export default [
   edit(
     'a condition runs with the kernel',
     condition,
-    'evaluateEach(guard.query, input, [values], { operators }).matched.length === 1',
-    'evaluateEach(guard.query, input, [values]).matched.length === 1',
+    '[Held.fromRefs(guard.query, values)], { operators })',
+    '[Held.fromRefs(guard.query, values)])',
   ),
   edit(
     'a server starts with a rule calling an operator its policy lacks',

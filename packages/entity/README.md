@@ -1287,6 +1287,7 @@ from queries, not from what a database could express.
 | `Expr.eq(Post.relations.author, …)` | A `one` relation as an operand: the id it points at, null for none. |
 | `Expr.exists(relation, where?)` | Some row of another Entity points here through its `one` relation and holds `where`, a predicate over its own fields and the input. |
 | `Judge.predicate(p, row, options)` / `Judge.query(body, input, row, options)` | The reference semantics over a `HeldRow`: a `Verdict`, `Known` (SQL's answer) or `Unknown` with why. `Judge.match` reads one. |
+| `Held.fromRefs(query, row)` | A row holding each `one` relation as its ref key (`'User:ada'`), as a Source answers it and a Remote store keeps it, with each link the query reads given as the id it points at. |
 | `Held.rows(tables)` | A holder over plain records, each table complete or not, with keys hidden; `row(entity, id)` and `rows(entity)` give `HeldRow`s. |
 | `Expr.whenGiven(input, given => predicate)` | A filter applying only when a nullable input is given: `or(isNull(input), predicate)`, the predicate seeing the input as never null. |
 | `Expr.operator(id, { input, output, definedAs?, version?, description?, nulls?, collation?, laws? })` | An operator: defined by what a call means (`definedAs`, whose expansion every interpreter runs) or primitive (each interpreter's table implements it). Calling it builds a `Test` predicate (a boolean output) or a `Call` scalar. |

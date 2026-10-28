@@ -24,7 +24,11 @@ version changed; `pnpm` skips versions already in the registry.
   nowhere. A row given to an interpreter holds the relation under its key as
   that id, as `Held.rows` takes it, and the key is listed among the fields an
   expression reads. A `many` relation is refused as an operand, and no list
-  orders by a link.
+  orders by a link. remote-drizzle compiles it to the column the relation is
+  stored on (one stored on the other table is refused where the body is
+  registered); the Remote client, the memory server and Guard's rules read
+  their ref-keyed rows through `Held.fromRefs`, so a guard rule says
+  `Expr.eq(Like.relations.user, p.id)`.
 - **Three-valued `Expr`, and paths through relations** (#242, operations
   phase 1). `Judge.predicate` and `Judge.query` read a `HeldRow` and answer
   `Known(truth)` or `Unknown { reason }`: a field or row the holder lacks or may

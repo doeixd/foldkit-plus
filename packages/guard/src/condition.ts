@@ -5,7 +5,7 @@
  * never reach it, so their bodies stay on the server that decided them.
  */
 import { Effect, Match, Option } from 'effect'
-import { Query, evaluateEach, type AnyEntity, type MemoryOperators } from 'foldkit-entity'
+import { Held, Query, evaluateEach, type AnyEntity, type MemoryOperators } from 'foldkit-entity'
 import { attached, defaultDeny, surfaceOf, type AnyRule, type Deny } from './attach.js'
 import type { PrincipalGuard, RowGuard } from './index.js'
 
@@ -72,8 +72,10 @@ export const Condition = {
       Match.valueTags(each, {
         Always: () => true,
         Never: () => false,
+        // A row as a Source reads it holds its links as ref keys; the rule reads ids.
         Row: ({ guard }) =>
-          evaluateEach(guard.query, input, [values], { operators }).matched.length === 1,
+          evaluateEach(guard.query, input, [Held.fromRefs(guard.query, values)], { operators })
+            .matched.length === 1,
         Inherit: ({ relation }) => inherit(relation),
         And: ({ conditions }) => conditions.every(holds),
         Or: ({ conditions }) => conditions.some(holds),

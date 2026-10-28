@@ -44,8 +44,8 @@ export default [
     edits: [
       {
         file,
-        find: '                  readable(entity, row),',
-        replace: '                  true,',
+        find: '.filter(row => readable(entity, row))',
+        replace: '.filter(() => true)',
       },
     ],
     tests,

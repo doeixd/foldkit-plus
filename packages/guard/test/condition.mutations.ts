@@ -11,14 +11,15 @@ export default [
     edits: [
       {
         file,
-        find: 'import { Query, evaluateEach,',
-        replace: 'import { Query, evaluate, evaluateEach,',
+        find: 'import { Held, Query, evaluateEach,',
+        replace: 'import { Held, Query, evaluate, evaluateEach,',
       },
       {
         file,
-        find: 'evaluateEach(guard.query, input, [values], { operators }).matched.length === 1',
-        replace: 'evaluate(guard.query, input, [values], { operators }).length === 1',
+        find: 'evaluateEach(guard.query, input,',
+        replace: 'evaluate(guard.query, input,',
       },
+      { file, find: '            .matched.length === 1,', replace: '            .length === 1,' },
     ],
     tests,
   },
@@ -77,8 +78,8 @@ export default [
     edits: [
       {
         file,
-        find: 'evaluateEach(guard.query, input, [values], { operators }).matched.length === 1',
-        replace: 'evaluateEach(guard.query, input, [values], { operators }).matched.length >= 0',
+        find: '            .matched.length === 1,',
+        replace: '            .matched.length >= 0,',
       },
     ],
     tests,

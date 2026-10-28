@@ -27,6 +27,7 @@
 import { Schema } from 'effect'
 import { Query as Relational } from 'foldkit-entity'
 import {
+  Held,
   QueryEvaluateError,
   evaluateEach,
   type ExprContext,
@@ -181,10 +182,12 @@ const matchingEncoded = <Name extends string, Input>(
     // ids, so a numeric id is `7` in the store and `"7"` in the key. Overwriting
     // the encoded value with the key's makes `eq(id, 7)` false and sorts ids
     // lexicographically — both silently.
+    // The store keeps a link as its ref key; the body reads the id it points at.
+    const values = Held.fromRefs(body, entry.values)
     rows.push(
-      'id' in entry.values
-        ? { ...entry.values, __key: key }
-        : { ...entry.values, id: key.slice(prefix.length), __key: key },
+      'id' in values
+        ? { ...values, __key: key }
+        : { ...values, id: key.slice(prefix.length), __key: key },
     )
   }
 
