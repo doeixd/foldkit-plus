@@ -8,7 +8,18 @@
  * happens to it (a Remote mutation, a Sync operation, a plain `update`) is the
  * parent's.
  */
-import { Duration, Effect, Match, Option, Pipeable, Result, Schema, SchemaAST } from 'effect'
+import {
+  Array as Arr,
+  Duration,
+  Effect,
+  Equal,
+  Match,
+  Option,
+  Pipeable,
+  Result,
+  Schema,
+  SchemaAST,
+} from 'effect'
 import { Bundle, Link } from 'foldkit-bundle'
 import {
   Entity,
@@ -135,6 +146,14 @@ export interface FormModel<Fields extends Schema.Struct.Fields, Members = {}, Co
   readonly attempted: boolean
   /** Failures of the input as a whole, from the last submit: a rule that spans keys. */
   readonly errors: ReadonlyArray<string>
+  /**
+   * Failures a judgement of the whole put on a key, apart from the key's own
+   * schema and check: an Entity invariant's at a submit, or `Message.Refused`.
+   * `field` shows them on their key. Any edit clears them, since an edit of
+   * one key can mend a rule that names another; until then a submit stops,
+   * since the same value would be judged the same.
+   */
+  readonly marks: Readonly<Record<string, ReadonlyArray<string>>>
   /** A submit is waiting for checks still running; it goes out when the last one passes. */
   readonly submitPending: boolean
   /**
@@ -890,6 +909,9 @@ const Core = {
       // Defaulted, so a Model stored before it existed still decodes.
       attempted: Schema.Boolean.pipe(Schema.withDecodingDefaultKey(Effect.succeed(false))),
       errors: Schema.Array(Schema.String),
+      marks: Schema.Record(Schema.String, Schema.Array(Schema.String)).pipe(
+        Schema.withDecodingDefaultKey(Effect.succeed({})),
+      ),
       submitPending: Schema.Boolean,
       subject: Schema.Record(Schema.String, Schema.String),
     }) as unknown as Schema.Codec<Model, unknown>
@@ -931,11 +953,13 @@ const Core = {
       Checked: { key: KeySchema, draft: DraftSchema, error: Schema.NullOr(Schema.String) },
       /**
        * The outside world refused this key's value: a unique index, a rule only a
-       * server knows. The key reads invalid with that reason, keeping what was
-       * typed, until it is edited again. Unlike `Checked`, it answers no question
-       * the form asked, so it lands whatever state the key is in.
+       * server knows. `value` is the key's value in what was refused, as
+       * `Submitted` handed it out. While the key still holds it, the key reads
+       * invalid with that reason (a mark, see `FormModel.marks`) until the next
+       * edit of any key; a key changed since is not what was refused, and the
+       * Message is dropped.
        */
-      Refused: { key: KeySchema, error: Schema.String },
+      Refused: { key: KeySchema, error: Schema.String, value: Schema.Unknown },
       /**
        * What the form is editing, for the checks that need to know: a post's own
        * row id, so "is this address taken?" can pass over the post's own address.
@@ -1012,6 +1036,7 @@ const Core = {
         touched: {},
         attempted: false,
         errors: [],
+        marks: {},
         submitPending: false,
         subject: {},
       },
@@ -1022,6 +1047,28 @@ const Core = {
       ...model,
       fields: { ...model.fields, [key]: field },
     })
+    const marksOf = (model: Model, key: string): ReadonlyArray<string> =>
+      Object.hasOwn(model.marks, key) ? model.marks[key]! : []
+    const hasMarks = (model: Model): boolean => Object.keys(model.marks).length > 0
+    /** A key's state as a view shows it: its own, made invalid by the marks on it. */
+    const shownField = <F extends FieldValidation.Field<unknown>>(
+      model: Model,
+      key: string,
+      field: F,
+    ): F => {
+      const marked = marksOf(model, key)
+      if (!Arr.isReadonlyArrayNonEmpty(marked)) return field
+      const own = FieldValidation.match(field, {
+        onNotValidated: (): ReadonlyArray<string> => [],
+        onValidating: () => [],
+        onValid: () => [],
+        onInvalid: ({ errors }) => errors,
+      })
+      return FieldValidation.Invalid({
+        value: field.value,
+        errors: Arr.appendAll(own, marked),
+      }) as F
+    }
 
     const checks: Readonly<Partial<Record<Key, FormCheck<unknown, Partial<Value>, R>>>> =
       (options.checks ?? {}) as never
@@ -1257,7 +1304,7 @@ const Core = {
           Valid: () => Option.none(),
           Undecided: () => Option.none(),
           Invalid: ({ failures }) => {
-            let next = model
+            const marks = new Map<string, Array<string>>()
             const errors: Array<string> = []
             for (const failure of failures) {
               const shown = failure.path.flatMap(field =>
@@ -1265,17 +1312,12 @@ const Core = {
               )
               if (shown.length === 0) errors.push(failure.message)
               for (const key of shown) {
-                next = withField(
-                  next,
-                  key,
-                  FieldValidation.Invalid({
-                    value: drafts(next)[key].value,
-                    errors: [failure.message],
-                  }),
-                )
+                const held = marks.get(key)
+                if (held === undefined) marks.set(key, [failure.message])
+                else held.push(failure.message)
               }
             }
-            return Option.some({ ...next, errors })
+            return Option.some({ ...model, marks: Object.fromEntries(marks), errors })
           },
         }),
       )
@@ -1305,7 +1347,7 @@ const Core = {
     /** The decoded input, once every key and every row is acceptable; else what is wrong with the whole. */
     const finish = (model: Model): { readonly model: Model; readonly value?: Value } => {
       const settled: Model = { ...model, submitPending: false }
-      const nested = acceptable(model) ? nestedValues(model) : undefined
+      const nested = acceptable(model) && !hasMarks(model) ? nestedValues(model) : undefined
       if (nested === undefined) return { model: settled }
       return Result.match(decodeInput({ ...decoded(model), ...nested }), {
         onSuccess: value =>
@@ -1378,7 +1420,13 @@ const Core = {
       model: Model,
     ): { readonly model: Model; readonly commands: Commands; readonly value?: Value } => {
       const { model: next, commands } = validateEvery(
-        { ...model, errors: [], submitPending: false, attempted: true },
+        // Marks stand until an edit: the same value would be judged the same.
+        {
+          ...model,
+          errors: hasMarks(model) ? model.errors : [],
+          submitPending: false,
+          attempted: true,
+        },
         (form, row) => form.engine.submit(row),
       )
       if (isValidating(next)) return { model: { ...next, submitPending: true }, commands }
@@ -1408,7 +1456,12 @@ const Core = {
     }
 
     /** An edit answers the last submit: its failures describe a form that has changed. */
-    const edited = (model: Model): Model => ({ ...model, errors: [], submitPending: false })
+    const edited = (model: Model): Model => ({
+      ...model,
+      errors: [],
+      marks: {},
+      submitPending: false,
+    })
 
     /** Shows existing values, as an edit form does; keys not given keep their draft and their rows. */
     const fill = (model: Model, values: Partial<Value>): { readonly model: Model } => {
@@ -1445,6 +1498,7 @@ const Core = {
         // Another value to edit, with nothing submitted yet.
         attempted: false,
         errors: [],
+        marks: {},
         submitPending: false,
         fields: fieldsFrom(plan =>
           plan.key in given
@@ -1534,15 +1588,17 @@ const Core = {
           case 'ValidatedAll':
             return validateAll(model)
           case 'Refused': {
-            const state = drafts(model)[message.key]
+            const holds = Result.match(plans[message.key].check(drafts(model)[message.key].value), {
+              onSuccess: value => Equal.equals(value, message.value),
+              onFailure: () => false,
+            })
+            const marked = marksOf(model, message.key)
+            if (!holds || marked.includes(message.error)) return { model }
             return {
               model: {
+                ...model,
+                marks: { ...model.marks, [message.key]: [...marked, message.error] },
                 // A refusal settles a submit that was waiting: it cannot go through.
-                ...withField(
-                  model,
-                  message.key,
-                  FieldValidation.Invalid({ value: state.value, errors: [message.error] }),
-                ),
                 submitPending: false,
               },
             }
@@ -1741,15 +1797,18 @@ const Core = {
         return { key, control, label, description, required, member }
       }),
       /**
-       * One key's state with its draft as any `Draft`, for a view that walks
-       * `controls`. `model.fields.title` is the same value, typed to that key. A
-       * nested key has rows and no draft.
+       * One key's state as a view shows it, with its draft as any `Draft`: its
+       * own validation, made `Invalid` by the marks on it (`FormModel.marks`).
+       * `model.fields.title` is the key's own validation alone. A nested key has
+       * rows and no draft.
        */
       field: (model: Model, key: DraftKey): FieldValidation.Field<Draft> => {
         if (plans[key as Key]?.bundled !== undefined)
           return fail(name, `"${key}" holds a control's Model, not a draft; read it with control`)
-        return (
-          drafts(model)[key] ?? fail(name, `"${key}" holds rows, not a draft; read it with rows`)
+        return shownField<FieldValidation.Field<Draft>>(
+          model,
+          key,
+          drafts(model)[key] ?? fail(name, `"${key}" holds rows, not a draft; read it with rows`),
         )
       },
       /**
@@ -1766,7 +1825,7 @@ const Core = {
         if (plans[key]?.bundled === undefined)
           fail(name, `"${key}" is not edited by a control backed by a Bundle`)
         return {
-          field: model => model.fields[key],
+          field: model => shownField(model, key, model.fields[key]),
           send: message => Message.Control({ key, message }),
         }
       },

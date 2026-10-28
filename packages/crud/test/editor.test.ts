@@ -316,6 +316,54 @@ describe('Crud.editor', () => {
     })
   })
 
+  it('lets an edit of another key mend an invariant the save broke, and saves', async () => {
+    const ready = await load(await dispatch(initial, Message.OpenedPost({ id: 'p1' })))
+    refusing = Option.some({
+      _tag: 'Invalid',
+      rule: 'titleFits',
+      message: 'The title does not fit',
+      path: ['title'],
+    })
+    const refused = await form(ready, EditPostForm.Message.Submitted())
+    refusing = Option.none()
+    const edited = await form(
+      refused,
+      EditPostForm.Message.Changed({ key: 'authorId', value: 'a2' }),
+    )
+    expect(EditPostForm.field(edited.editor.form, 'title')._tag).toBe('Valid')
+
+    const saved = await form(edited, EditPostForm.Message.Submitted())
+    expect(PostEditor.status(saved)).toBe('Saved')
+    expect(server.posts.p1).toEqual({ title: 'Hello', author: 'Author:a2' })
+  })
+
+  it('drops a refusal of a key changed while the save was on its way', async () => {
+    const ready = await load(await dispatch(initial, Message.OpenedPost({ id: 'p1' })))
+    const typed = await form(
+      ready,
+      EditPostForm.Message.Changed({ key: 'title', value: 'Too long a title' }),
+    )
+    refusing = Option.some({ _tag: 'Field', key: 'title', reason: 'Too long' })
+    const sending = update(
+      typed,
+      Message.GotEditorMessage({ message: EditPostForm.Message.Submitted() }),
+    )
+    // The author changes the title before the server answers the save.
+    let current = await form(
+      sending.model,
+      EditPostForm.Message.Changed({ key: 'title', value: 'Short' }),
+    )
+    for (const command of sending.commands ?? []) {
+      const settled = await Effect.runPromise(command.effect.pipe(Effect.provide(Client)))
+      current = await dispatch(current, settled as Message)
+    }
+
+    expect(EditPostForm.field(current.editor.form, 'title')).toEqual({
+      _tag: 'Valid',
+      value: 'Short',
+    })
+  })
+
   it('leaves a refusal of a key the form does not have to the status', async () => {
     const ready = await load(await dispatch(initial, Message.OpenedPost({ id: 'p1' })))
     refusing = Option.some({ _tag: 'Field', key: 'slug', reason: 'taken' })

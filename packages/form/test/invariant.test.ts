@@ -70,7 +70,7 @@ describe('A form over an Entity with invariants', () => {
   it('does not submit a row that breaks one, and shows it beside the key its path names', () => {
     const { model, outMessage } = both('3', '5')
     expect(outMessage).toBeUndefined()
-    expect(model.fields.reserved).toEqual({
+    expect(Both.field(model, 'reserved')).toEqual({
       _tag: 'Invalid',
       value: '5',
       errors: ['Reserved stock cannot exceed the quantity'],
@@ -105,6 +105,66 @@ describe('A form over an Entity with invariants', () => {
   })
 })
 
+describe('An invariant failure the person mends', () => {
+  const failed = () => both('3', '5')
+  const then = (messages: ReadonlyArray<typeof Both.Message.Type>) =>
+    messages.reduce(
+      (state: { readonly model: typeof Both.initial; readonly outMessage?: unknown }, message) =>
+        Both.bundle.update(state.model, message, undefined),
+      { model: failed().model },
+    )
+
+  it('submits once a key the path does not name mends it', () => {
+    const { model, outMessage } = then([
+      Both.Message.Changed({ key: 'quantity', value: '10' }),
+      Both.Message.Submitted(),
+    ])
+    expect(outMessage).toEqual({ _tag: 'Submitted', value: { quantity: 10, reserved: 5 } })
+    expect(Both.field(model, 'reserved')._tag).toBe('Valid')
+  })
+
+  it('stops showing on any edit, and the submit after it judges again', () => {
+    const edited = then([Both.Message.Changed({ key: 'quantity', value: '4' })]).model
+    expect(Both.field(edited, 'reserved')._tag).toBe('Valid')
+    expect(Both.attempted(edited)).toBe(true)
+    const again = Both.bundle.update(edited, Both.Message.Submitted(), undefined)
+    expect(again.outMessage).toBeUndefined()
+    expect(Both.field(again.model, 'reserved')).toEqual({
+      _tag: 'Invalid',
+      value: '5',
+      errors: ['Reserved stock cannot exceed the quantity'],
+    })
+  })
+
+  it('stays through a blur, which judges nothing', () => {
+    const { model } = then([Both.Message.Blurred({ key: 'quantity' })])
+    expect(Both.field(model, 'reserved')._tag).toBe('Invalid')
+  })
+
+  it('shows every failure on one key, not only the last', () => {
+    const Pair = Entity.define(
+      'Pair',
+      Schema.Struct({ id: Schema.String, a: Schema.Number, b: Schema.Number }),
+    ).pipe(
+      Entity.invariant('a1', ({ after }) => Expr.lte(after.a, after.b), {
+        message: 'A1',
+        path: ['a'],
+      }),
+      Entity.invariant('a2', ({ after }) => Expr.lte(after.a, 0), { message: 'A2', path: ['a'] }),
+    )
+    const PairForm = Form.make(
+      'PairForm',
+      Entity.input(Pair, Schema.Struct({ a: Schema.Number, b: Schema.Number })),
+    )
+    const { model } = after(PairForm.bundle, [
+      PairForm.Message.Changed({ key: 'a', value: '5' }),
+      PairForm.Message.Changed({ key: 'b', value: '1' }),
+      PairForm.Message.Submitted(),
+    ])
+    expect(PairForm.field(model, 'a')).toMatchObject({ _tag: 'Invalid', errors: ['A1', 'A2'] })
+  })
+})
+
 describe('A form over an invariant calling an operator', () => {
   const blank = Expr.operator('acme.blank', { input: [Schema.String], output: Schema.Boolean })
   const Note = Entity.define(
@@ -127,7 +187,10 @@ describe('A form over an invariant calling an operator', () => {
       Given.Message.Submitted(),
     ])
     expect(outMessage).toBeUndefined()
-    expect(model.fields.body).toMatchObject({ _tag: 'Invalid', errors: ['Write something'] })
+    expect(Given.field(model, 'body')).toMatchObject({
+      _tag: 'Invalid',
+      errors: ['Write something'],
+    })
   })
 
   it('leaves it to the server without one, as it does a field it does not set', () => {

@@ -72,7 +72,11 @@ export interface EditableForm<
   readonly controls: ReadonlyArray<FormControl>
   readonly Message: {
     // Method syntax: the form's own takes only its keys, which the editor checks first.
-    Refused(fields: { readonly key: string; readonly error: string }): FormMessage
+    Refused(fields: {
+      readonly key: string
+      readonly error: string
+      readonly value: unknown
+    }): FormMessage
   }
 }
 
@@ -926,11 +930,21 @@ export const Crud = {
           if (requestId === null || Option.contains(editor.refusedFor, requestId)) return root
           const named = Option.match(refusalOf(root), { onNone: () => [], onSome: namedBy })
           if (named.length === 0) return root
+          // What the save sent for each key: the form drops a refusal of a key changed since.
+          const sent: Readonly<Record<string, unknown>> = Option.getOrElse(editor.sent, () => ({}))
           return slice.set(root, {
             ...editor,
             form: named.reduce(
               (shown, { key, error }) =>
-                form.bundle.update(shown, form.Message.Refused({ key, error }), undefined).model,
+                form.bundle.update(
+                  shown,
+                  form.Message.Refused({
+                    key,
+                    error,
+                    value: Object.hasOwn(sent, key) ? sent[key] : undefined,
+                  }),
+                  undefined,
+                ).model,
               editor.form,
             ),
             refusedFor: Option.some(requestId),

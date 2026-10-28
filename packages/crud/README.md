@@ -296,8 +296,9 @@ what is in the form.
 
 A save the server refuses with `Refusal.field(key, reason)` for one of the
 form's keys is shown on that key, as the form's own `Refused` would show it: the
-key reads invalid with the reason, as text, keeping what was typed, until it is
-edited. It is shown once per save, and the status is `SaveFailed`. A refusal
+key reads invalid with the reason, as text, keeping what was typed, until any
+key is edited. It is shown once per save, only while the key still holds what
+the save sent, and the status is `SaveFailed`. A refusal
 with `Refusal.invalid` (the row the save would leave breaks an invariant) shows
 its message the same way beside each key its path names. A refusal of a key the
 form does not have, or of an invariant whose path names none, is left to the

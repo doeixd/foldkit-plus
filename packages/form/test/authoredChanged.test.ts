@@ -48,7 +48,7 @@ describe('authored content reporting', () => {
     const typed = edit(start(), 'title', 'Hello')
     const refused = PostForm.bundle.update(
       typed,
-      PostForm.Message.Refused({ key: 'title' as never, error: 'no' }),
+      PostForm.Message.Refused({ key: 'title' as never, error: 'no', value: 'Hello' }),
       undefined,
     ).model
     expect(PostForm.authoredChanged(typed, refused)).toBe(false)

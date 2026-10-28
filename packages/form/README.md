@@ -278,7 +278,7 @@ const PostForm = Form.make('PostForm', input, {
 PostForm.isFollowing(model, 'slug') // false once the author has written it
 PostForm.partial(model) // what decodes as it stands, by key: for saving unfinished work
 PostForm.settled(model) // a stored Model, shown again with no check or submit in flight
-PostForm.Message.Refused({ key: 'slug', error: 'That address is taken' }) // a server's word, on its key
+PostForm.Message.Refused({ key: 'slug', error: 'That address is taken', value: 'hello' }) // a server's word on the value sent
 ```
 
 - While the author has not written the key, each edit of the key it follows
@@ -355,7 +355,12 @@ Entity's: the operation decides what is valid, and may be stricter.
   the row the decoded value describes (`Entity.judgeInput`), as the server will
   judge it: a row that breaks one does not go out, and its message shows beside
   each key its path names, or in `model.errors` when the form sets none of
-  them. One reading a field the form does not set is not judged here; the
+  them. Beside a key it is a mark (`model.marks`), not the key's own
+  validation: `form.field` shows the two together, and **any edit clears the
+  marks**, since `reserved <= quantity` named on `reserved` is often mended by
+  raising `quantity`. Until an edit a submit stops; after one it judges again.
+  A `Message.Refused` is a mark too, and lands only while the key still holds
+  the `value` refused. One reading a field the form does not set is not judged here; the
   server decides it, and the form never calls the input valid on its account.
   The same holds for one calling a primitive operator the form's table does
   not run: give the table as `operators` (`Form.make(name, input, { operators

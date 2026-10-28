@@ -16,6 +16,7 @@ import { modifyFields } from 'foldkit/struct'
 import { describe, expect, test } from 'vitest'
 
 import {
+  LoginForm,
   Message,
   OutMessage,
   SimulateAuthRequest,
@@ -97,13 +98,11 @@ describe('login', () => {
       }),
       Command.resolve(
         SimulateAuthRequest,
-        Message.FailedSimulateAuthRequest({
-          error: 'Invalid credentials',
-        }),
+        Message.FailedSimulateAuthRequest({ error: 'Invalid credentials', password: 'password' }),
       ),
       model(model => {
         expect(model.isSubmitting).toBe(false)
-        expect(model.form.fields.password._tag).toBe('Invalid')
+        expect(LoginForm.field(model.form, 'password')._tag).toBe('Invalid')
       }),
       expectNoOutMessage(),
     )
@@ -123,9 +122,11 @@ describe('login', () => {
     story(
       update,
       given(validModel),
-      message(Message.FailedSimulateAuthRequest({ error: 'Invalid credentials' })),
+      message(
+        Message.FailedSimulateAuthRequest({ error: 'Invalid credentials', password: 'password' }),
+      ),
       model(model => {
-        expect(model.form.fields.password).toEqual({
+        expect(LoginForm.field(model.form, 'password')).toEqual({
           _tag: 'Invalid',
           value: 'password',
           errors: ['Invalid credentials'],

@@ -16,7 +16,22 @@ export default [
   {
     name: 'a refusal of any key lands on the address',
     edits: [
-      { file: editor, find: 'if (content.roles.slug?.key !== key) return root', replace: '' },
+      {
+        file: editor,
+        find: 'content.roles.slug?.key !== key || editor.edits',
+        replace: 'editor.edits',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a refusal lands on an address edited since the publish',
+    edits: [
+      {
+        file: editor,
+        find: 'content.roles.slug?.key !== key || editor.edits !== editor.savedEdit',
+        replace: 'content.roles.slug?.key !== key',
+      },
     ],
     tests,
   },

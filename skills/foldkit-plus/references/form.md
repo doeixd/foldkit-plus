@@ -174,8 +174,11 @@ const RenameForm = Page.at(Slot, {
   valid and absent from the value; a key typed `Option` (`OptionFromNullOr`) is
   edited as the value it holds and submits `Option.some` / `Option.none()`.
 - **Put a server's error on a key** (a unique index, a rule only a server knows):
-  `Message.Refused({ key, error })`. The key reads invalid with that reason, keeps
-  what was typed, and clears on the next edit. `Checked` will not do: it only
+  `Message.Refused({ key, error, value })`, `value` being the key's value in the
+  submit refused. While the key still holds it, it reads invalid with that reason
+  (a mark in `model.marks`, shown by `form.field`), and a submit stops until the
+  next edit of any key clears it; a key changed meanwhile drops the Message.
+  Invariant failures are marks the same way. `Checked` will not do: it only
   answers a check the form itself started.
 - **Show a stored Model again:** `form.settled(model)`; a check that was running
   when it was stored never answers, so its key reads `NotValidated`.

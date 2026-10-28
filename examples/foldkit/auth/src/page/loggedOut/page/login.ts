@@ -55,7 +55,8 @@ export const initModel = (): Model => ({
 export const Message = defineMessageUnion({
   GotFormMessage: { message: LoginForm.Message },
   SucceededSimulateAuthRequest: { session: Session },
-  FailedSimulateAuthRequest: { error: Schema.String },
+  // The password refused, so the form can tell whether the field still holds it.
+  FailedSimulateAuthRequest: { error: Schema.String, password: Schema.String },
 })
 
 export type Message = typeof Message.Type
@@ -78,9 +79,7 @@ export const SimulateAuthRequest = Command.define('SimulateAuthRequest', {
       yield* Effect.sleep(Duration.seconds(1))
 
       if (password !== 'password') {
-        return Message.FailedSimulateAuthRequest({
-          error: 'Invalid credentials',
-        })
+        return Message.FailedSimulateAuthRequest({ error: 'Invalid credentials', password })
       }
 
       const name = pipe(
@@ -125,11 +124,11 @@ export const update = (model: Model, message: Message) =>
     }),
 
     // The form marks the password invalid with the reason, keeping what was
-    // typed, until it is edited again.
-    FailedSimulateAuthRequest: ({ error }) =>
+    // typed, until the form is edited again; one retyped meanwhile is not marked.
+    FailedSimulateAuthRequest: ({ error, password }) =>
       foldForm(
         modifyFields(model, { isSubmitting: () => false }),
-        LoginForm.Message.Refused({ key: 'password', error }),
+        LoginForm.Message.Refused({ key: 'password', error, value: password }),
       ),
   })
 

@@ -81,7 +81,7 @@ describe('login', () => {
       Command.expectExact(SimulateAuthRequest),
       Command.resolve(
         SimulateAuthRequest,
-        Message.FailedSimulateAuthRequest({ error: 'Invalid credentials' }),
+        Message.FailedSimulateAuthRequest({ error: 'Invalid credentials', password: 'password' }),
       ),
     )
   })
@@ -94,7 +94,7 @@ describe('login', () => {
       Command.expectExact(SimulateAuthRequest),
       Command.resolve(
         SimulateAuthRequest,
-        Message.FailedSimulateAuthRequest({ error: 'Invalid credentials' }),
+        Message.FailedSimulateAuthRequest({ error: 'Invalid credentials', password: 'password' }),
       ),
       expect(within(role('form'), text('Invalid credentials'))).toExist(),
       expect(submitButton).toBeDisabled(),

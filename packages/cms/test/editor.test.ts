@@ -177,6 +177,17 @@ describe('a server’s word about one key', () => {
     ).model
     expect(PostForm.field(edited.form, 'slug')._tag).not.toBe('Invalid')
   })
+
+  it('does not land again on an address edited since the publish', () => {
+    const { placed, root } = world(taken)
+    const edited = Editor.bundle.update(
+      root.editor,
+      PostForm.Message.Changed({ key: 'slug', value: 'elsewhere' }),
+      undefined,
+    ).model
+    const settled = placed.sync({ ...root, editor: edited }).model
+    expect(PostForm.field(settled.editor.form, 'slug')._tag).not.toBe('Invalid')
+  })
 })
 
 describe('what starts a save', () => {

@@ -144,7 +144,11 @@ export interface EditorForm<FormModel, FormMessage, Value, Resources = {}, Servi
   }
   readonly Message: {
     readonly Submitted: () => FormMessage
-    readonly Refused: (payload: { readonly key: never; readonly error: string }) => FormMessage
+    readonly Refused: (payload: {
+      readonly key: never
+      readonly error: string
+      readonly value: unknown
+    }) => FormMessage
     readonly About: (payload: { readonly subject: Readonly<Record<string, string>> }) => FormMessage
   }
   readonly initial: FormModel
@@ -820,7 +824,8 @@ export const makeEditor =
           )
           if (Option.isNone(refusal)) return root
           const { key } = refusal.value
-          if (content.roles.slug?.key !== key) return root
+          // A publish sends the saved draft, which the form still holds until the next edit.
+          if (content.roles.slug?.key !== key || editor.edits !== editor.savedEdit) return root
           const reason = String(refusal.value.reason)
           const field = form.field(editor.form, key as never)
           if (field._tag === 'Invalid' && field.errors.includes(reason)) return root
@@ -828,7 +833,11 @@ export const makeEditor =
             ...editor,
             form: form.bundle.update(
               editor.form,
-              form.Message.Refused({ key: key as never, error: reason }),
+              form.Message.Refused({
+                key: key as never,
+                error: reason,
+                value: (form.partial(editor.form) as Readonly<Record<string, unknown>>)[key],
+              }),
               undefined,
             ).model,
           })

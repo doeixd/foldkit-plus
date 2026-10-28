@@ -53,8 +53,11 @@ export default [
     edits: [
       {
         file,
-        find: '{ ...model, errors: [], submitPending: false, attempted: true }',
-        replace: '{ ...model, errors: [], submitPending: false }',
+        find: `          submitPending: false,
+          attempted: true,
+        },`,
+        replace: `          submitPending: false,
+        },`,
       },
     ],
     tests,
@@ -88,9 +91,13 @@ export default [
     edits: [
       {
         file,
-        find: 'const edited = (model: Model): Model => ({ ...model, errors: [], submitPending: false })',
-        replace:
-          'const edited = (model: Model): Model => ({ ...model, errors: [], submitPending: false, attempted: false })',
+        find: `      marks: {},
+      submitPending: false,
+    })`,
+        replace: `      marks: {},
+      submitPending: false,
+      attempted: false,
+    })`,
       },
     ],
     tests,
