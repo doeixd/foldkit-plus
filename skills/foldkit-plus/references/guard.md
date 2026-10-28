@@ -121,7 +121,9 @@ const Todo = TodoFields.pipe(
 - Writes: `RemoteServer.write(EditTodo, GuardServer.writer(Todo, Policy,
   writer(Db.Todo)))` checks a declared write before it lands (row rule over
   the row as it is and, for an update, as it would be; each member's and
-  relation's own, an update's member and `Link` rules over both rows too; a create over what it proposes, an unset field matching no
+  relation's own, an update's member and `Link` rules also over the row after
+  with that one change undone, so each change is judged given the rest of the
+  write, an `Unlink` over the row before alone; a create over what it proposes, an unset field matching no
   guard), refuses as `Forbidden`, and answers as the writer now sees the row:
   a row the write hid from them in `deleted`. The binding needs `visible`.
   An Entity's invariants (`Entity.invariant`) are not rules: the writer judges
@@ -166,7 +168,9 @@ const Todo = TodoFields.pipe(
   `authorize: { EditedProducts: GuardSync.authorize(Policy, Edits) }` under the
   journal's lock (principal guards only); `journalExchange({ …, opens:
   GuardSync.opens(Policy, Edits, principal), admit: GuardSync.admit(Policy, Edits,
-  { principal, source, changesOf }) })` reads each edited row before the journal.
+  { principal, source, changesOf }) })` reads each edited row before the journal,
+  judging the row's `Update` over it as it is and after the edits, and each changed
+  member's over it as it is and after the edits with that member's own undone.
 - Uploads: `foldkit-guard/media`'s `GuardMedia.uploadPolicy(Policy, { resolve, Upload: [G.isEditor],
   DescribeUrl: [G.isAdmin] })` is `foldkit-media`'s `UploadPolicy`: principal guards per route
   (any one allows; a route not named admits nobody; a row guard is a type error), for who

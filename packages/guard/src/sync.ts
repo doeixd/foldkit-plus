@@ -179,8 +179,10 @@ export const GuardSync = {
   /**
    * The exchange's `admit` for `principal`: each row an operation's edits
    * name is read through `source` (the Entity's guarded Source) and must let
-   * the principal update it, and each changed member's rule hold, as it is and
-   * as it would be after all of the operation's edits to it. A row the
+   * the principal update it as it is and as it would be after all of the
+   * operation's edits to it. Each changed member's rule must hold over the row
+   * as it is, and over the row after with that member's own edit undone: the
+   * edit must be allowed given the operation's other edits to the row. A row the
    * principal cannot see is refused, as is an edit to a member outside the
    * document or a value its member cannot encode. `changesOf` reads the edits
    * from an operation; one with none is admitted.
@@ -243,13 +245,22 @@ export const GuardSync = {
           const records = yield* source.read({ ids: [id], fields, principal })
           const current = Option.fromUndefinedOr(records.find(record => record.id === id)?.values)
           if (Option.isNone(current)) return refusal(row.deny)
-          const changed = new Set(Object.keys(edits))
-          const rules = [row, ...members.filter(({ member }) => changed.has(member))]
-          const before = first(rules, holdsOver(current.value))
+          const changed = members.filter(({ member }) => Object.hasOwn(edits, member))
+          const before = first([row, ...changed], holdsOver(current.value))
           if (before !== true) return before
-          // Over the row they leave too, or two edits could set together what each alone may not.
-          const moved = first(rules, holdsOver({ ...current.value, ...edits }))
+          const after = { ...current.value, ...edits }
+          const moved = first([row], holdsOver(after))
           if (moved !== true) return moved
+          // Each member's rule also over the row they leave with its own edit undone: over the
+          // row before alone, two edits could set together what each alone may not; over the
+          // whole row after, "only while a draft" would refuse leaving the draft.
+          for (const rule of changed) {
+            const given = first(
+              [rule],
+              holdsOver({ ...after, [rule.member]: current.value[rule.member] }),
+            )
+            if (given !== true) return given
+          }
         }
         return true
       }),

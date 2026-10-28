@@ -66,6 +66,7 @@ const G = Guards.declare(
     fit: guard.row(Fields, () =>
       Expr.and(Expr.not(Expr.eq(Fields.fields.label, 'banned')), Expr.gte(Fields.fields.stock, 0)),
     ),
+    inStock: guard.row(Fields, () => Expr.gt(Fields.fields.stock, 0)),
   }),
   { key: user => user.id, unguarded: 'allow' },
 )
@@ -73,7 +74,8 @@ const Tag = Fields.pipe(
   Guards.attach(G, {
     row: { Read: [G.anyone], Update: [G.fit] },
     // A computed field is written as surely as a set one: its Update rule holds.
-    members: { label: { Update: [G.labeler] } },
+    // Stock is moved only while some is left: its own move is judged over the stock before it.
+    members: { label: { Update: [G.labeler] }, stock: { Update: [G.inStock] } },
   }),
 )
 const Policy = G.implement(
@@ -185,6 +187,18 @@ describe('A guarded write that sets, moves and computes', () => {
       await retag({ id: 't1', revision: 1, title: 'New', prefix: 'ban', by: 0 }),
     ).toMatchObject({ _tag: 'Failure', failure: { _tag: 'Forbidden' } })
     expect(row()).toEqual({ title: 'Old', label: 'plain', stock: 2, revision: 1 })
+  })
+
+  it('takes a move as its member’s own change, judged over the stock before it', async () => {
+    const { retag, row } = open()
+    expect(await retag({ id: 't1', revision: 1, title: 'New', prefix: 'o', by: -2 })).toMatchObject(
+      { _tag: 'Success' },
+    )
+    expect(row()).toEqual({ title: 'New', label: 'oned', stock: 0, revision: 2 })
+    expect(await retag({ id: 't1', revision: 2, title: 'New', prefix: 'o', by: 1 })).toMatchObject({
+      _tag: 'Failure',
+      failure: { _tag: 'Forbidden' },
+    })
   })
 
   it('needs the computed member’s Update rule', async () => {

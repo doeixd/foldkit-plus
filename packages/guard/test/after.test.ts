@@ -1,8 +1,9 @@
 // @vitest-environment node
 /**
- * An update's member and link rules, held over the row it leaves as well as
- * the row before, over real SQLite: one write setting two members, or a
- * member and a link, cannot reach a row that each change alone is refused.
+ * An update's member and link rules, held over the row before and over the
+ * row it leaves with that one change undone, over real SQLite: one write
+ * setting two members, or a member and a link, cannot reach a row that each
+ * change alone is refused, and a rule reading its own member still allows it.
  */
 import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
@@ -26,6 +27,7 @@ const orders = sqliteTable('orders', {
   ownerId: text('owner_id').notNull(),
   tier: text('tier').notNull(),
   approved: text('approved').notNull(),
+  status: text('status').notNull(),
   accountId: text('account_id'),
 })
 
@@ -40,6 +42,7 @@ const Related = Entity.relate(
         ownerId: Schema.String,
         tier: Schema.String,
         approved: Schema.String,
+        status: Schema.String,
       }),
     ),
   },
@@ -52,21 +55,24 @@ const G = Guards.declare(
   User,
   guard => ({
     isOwner: guard.row(Related.Order, p => Expr.eq(Fields.ownerId, p.id)),
-    isSmall: guard.row(Related.Order, () => Expr.eq(Fields.tier, 'small')),
-    isUnapproved: guard.row(Related.Order, () => Expr.eq(Fields.approved, 'no')),
+    notLarge: guard.row(Related.Order, () => Expr.in(Fields.tier, ['small', 'medium'])),
+    notApproved: guard.row(Related.Order, () => Expr.in(Fields.approved, ['no', 'pending'])),
+    isDraft: guard.row(Related.Order, () => Expr.eq(Fields.status, 'draft')),
   }),
   { key: user => user.id, unguarded: 'allow' },
 )
-// A large order is never approved: approving needs it small, enlarging needs it unapproved,
-// and so does billing it to an account. Only a small one is taken off its account.
+// A large order is never approved: approving needs it not large, enlarging needs it not
+// approved, and so does billing it to an account. Only one not large is taken off its
+// account, and only a draft changes its status.
 const Order = Related.Order.pipe(
   Guards.attach(G, {
     row: { Read: [G.isOwner], Update: [G.isOwner] },
     members: {
-      approved: { Update: [G.isSmall] },
-      tier: { Update: [G.isUnapproved] },
+      approved: { Update: [G.notLarge] },
+      tier: { Update: [G.notApproved] },
+      status: { Update: [G.isDraft] },
     },
-    relations: { account: { Link: [G.isUnapproved], Unlink: [G.isSmall] } },
+    relations: { account: { Link: [G.notApproved], Unlink: [G.notLarge] } },
   }),
 )
 const Policy = G.implement({})
@@ -91,6 +97,7 @@ const Change = Mutation.write(
         id: Schema.String,
         tier: Schema.String,
         approved: Schema.String,
+        status: Schema.String,
         accountId: Schema.NullOr(Schema.String),
       }),
       { accountId: Relation.input(Order.relations.account) },
@@ -110,16 +117,17 @@ const open = () => {
     create table accounts (id text primary key);
     create table orders (
       id text primary key, owner_id text not null, tier text not null, approved text not null,
-      account_id text
+      status text not null, account_id text
     );
     insert into accounts values ('a1');
-    insert into orders values ('o1', 'ada', 'small', 'no', null);
+    insert into orders values ('o1', 'ada', 'small', 'no', 'draft', null);
   `)
   const layer = databaseLayer(drizzle({ client: sqlite }))
   /** A change of `o1`, writing only `keys`. */
   const change = (values: {
     readonly tier?: string
     readonly approved?: string
+    readonly status?: string
     readonly accountId?: string | null
   }) =>
     Effect.runPromise(
@@ -127,7 +135,14 @@ const open = () => {
         .FoldkitRemoteMutate({
           requestId: 'r',
           mutation: 'ChangeOrder',
-          input: { id: 'o1', tier: 'small', approved: 'no', accountId: null, ...values },
+          input: {
+            id: 'o1',
+            tier: 'small',
+            approved: 'no',
+            status: 'draft',
+            accountId: null,
+            ...values,
+          },
           keys: Object.keys(values),
         })
         .pipe(Effect.result, Effect.provide(layer)),
@@ -160,6 +175,32 @@ describe('GuardServer.writer over an update setting two things at once', () => {
     expect(row()).toMatchObject({ approved: 'no', account_id: null })
     // Each alone is allowed.
     expect(await change({ accountId: 'a1' })).toMatchObject({ _tag: 'Success' })
+  })
+
+  it('allows a change a rule over its own member allows, which the row after no longer meets', async () => {
+    const { change, row } = open()
+    expect(await change({ status: 'sent' })).toMatchObject({ _tag: 'Success' })
+    expect(row()).toMatchObject({ status: 'sent' })
+    expect(await change({ status: 'draft' })).toMatchObject(forbidden)
+  })
+
+  it('allows two members set together only where each change is allowed given the other', async () => {
+    const both = open()
+    expect(await both.change({ tier: 'medium', approved: 'pending' })).toMatchObject({
+      _tag: 'Success',
+    })
+    expect(both.row()).toMatchObject({ tier: 'medium', approved: 'pending' })
+    // Each change here is allowed alone, but not given the other.
+    for (const [alone, other] of [
+      [{ tier: 'large' }, { approved: 'pending' }],
+      [{ approved: 'yes' }, { tier: 'medium' }],
+    ] as const) {
+      expect(await open().change(alone)).toMatchObject({ _tag: 'Success' })
+      expect(await open().change(other)).toMatchObject({ _tag: 'Success' })
+      const { change, row } = open()
+      expect(await change({ ...alone, ...other })).toMatchObject(forbidden)
+      expect(row()).toMatchObject({ tier: 'small', approved: 'no' })
+    }
   })
 
   it('judges an unlink over the row before alone, which the row after no longer points from', async () => {

@@ -377,10 +377,19 @@ RemoteServer.write(EditTodo, GuardServer.writer(Todo, Policy, writer(Db.Todo)))
   nothing and answers it gone, as for a row already deleted.
 - The row's rule for the command must hold over the row, and an update's
   over the row as it would be after it too: a write cannot move a row out of
-  its writer's reach. So must an update's member and `Link` rules, so one
-  write cannot set together what each change alone would be refused.
+  its writer's reach.
 - Each member the write sets needs its own `Create` or `Update` rule to
-  hold, and each relation it points elsewhere its `Unlink` and `Link`. What
+  hold, and each relation it points elsewhere its `Unlink` and `Link`. An
+  update's member and `Link` rules hold over the row before and over the
+  row after with that one change undone: every other member's new value
+  and link, and this member's old value (or the relation pointing where it
+  did). So each change must be allowed given everything else the write does:
+  a write cannot set together what each change alone would be refused, and a
+  rule that reads its own member ("change `status` only while it is
+  `draft`") still allows the change it exists for. An increment or a
+  computed assignment to a member is that member's change; a value computed
+  from a member reads the row before, as the statement does. `Unlink` holds
+  over the row before alone. What
   a relation was linked to is read as stored (the writer's `linked`), since a
   link to a row hidden from its writer reads to them as none; a writer that
   cannot say treats every link it sees as none as one that may be there, so
@@ -736,9 +745,11 @@ differ from person to person, and a document is one audience.
   the row's `Update`, and each changed member's, with an `explain`'s
   sentence. It reads no row, and its bodies must not suspend.
 - **Before the journal**, `admit` reads each row an edit names through the
-  Entity's guarded Source: a row the principal cannot see is refused, the
-  row's `Update` and each changed member's rule must hold over it as it is
-  and as it would be after all of the operation's edits to it. An
+  Entity's guarded Source: a row the principal cannot see is refused, and
+  the row's `Update` must hold over it as it is and as it would be after all
+  of the operation's edits to it. Each changed member's rule must hold over
+  it as it is, and as the edits would leave it with that member's own edit
+  undone, as for a writer. An
   edit to a member outside the document, or a value its member cannot
   encode, is refused.
 - **A document is one audience.** Every replica that opens it receives every

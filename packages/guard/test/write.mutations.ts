@@ -22,7 +22,7 @@ export default [
     edits: [
       {
         file,
-        find: 'yield* require([rules.row, ...rules.members, ...pointing], after, principal)',
+        find: 'yield* require([rules.row], after, principal)',
         replace: '',
       },
     ],

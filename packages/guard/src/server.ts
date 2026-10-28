@@ -47,7 +47,7 @@ import {
   type Deny,
   type InteractionKey,
 } from './attach.js'
-import { Condition, type RowRule } from './condition.js'
+import { Condition, type MemberRead, type RowRule } from './condition.js'
 import type { Policy } from './index.js'
 import type { MayAnswer } from './may.js'
 import { ME, type MeEntity } from './me.js'
@@ -277,10 +277,16 @@ export const GuardServer = {
    * see is refused as one that is not there, and a delete of it changes
    * nothing. Then the row's rule for the command must hold over the row, each
    * member it sets must allow setting it, and each relation it points
-   * elsewhere must allow the unlink and the link. An update's row, member and
-   * link rules hold over the row as it would be after it too, so a write
-   * cannot move a row out of its writer's reach, nor set together what each
-   * change alone would be refused. A create's rules hold over the values it proposes, where a field the
+   * elsewhere must allow the unlink and the link. An update's row rule holds
+   * over the row as it would be after it too, so a write cannot move a row out
+   * of its writer's reach. Each of its member and `Link` rules holds over the
+   * row after with that one change undone (that member's value, or where that
+   * relation pointed, as before): the change must be allowed given everything
+   * else the write does, so one write cannot set together what each change
+   * alone would be refused, while a rule reading its own member ("only while
+   * a draft") still allows the change. An increment or a computed assignment
+   * to a member is that member's own change. An `Unlink` rule holds over the
+   * row before alone. A create's rules hold over the values it proposes, where a field the
    * create leaves unset matches no guard, not even one for an empty value. A refusal is
    * `Forbidden`, with the sentence an `explain` gave; the write never runs.
    *
@@ -563,7 +569,7 @@ export const GuardServer = {
     type UpdateContext = Parameters<EntityWriter<Option.Option<User>, RW>['update']>[0]
     interface UpdateRules {
       readonly row: RowRule
-      readonly members: ReadonlyArray<RowRule>
+      readonly members: ReadonlyArray<MemberRead>
       readonly relating: Effect.Success<ReturnType<typeof linkRules>>
     }
     /** Refused before any rule, for what the write declares rather than what the row holds. */
@@ -677,14 +683,26 @@ export const GuardServer = {
             Object.entries(links).map(([relation, link]) => [relation, linkKey(link)]),
           ),
         }
-        // Over the row it leaves too: each member's rule and each link's, judged only over
-        // the row before, would let one write set together what each change alone may not.
-        // An unlink is of the row before, which the row after no longer points at.
-        const pointing = linking(
-          rules.relating.map(rule => ({ ...rule, unlink: Option.none() })),
-          was,
+        yield* require([rules.row], after, principal)
+        // Each member's rule and each link's also over the row it leaves with that one
+        // change undone: may it change, given all else the write does. Over the row before
+        // alone, one write could set together what each change alone may not; over the
+        // whole row after, "only while a draft" would refuse leaving the draft. An unlink is
+        // of the row before, which the row after no longer points from.
+        const undone = [
+          ...rules.members.map(rule => ({ rule, key: rule.member })),
+          ...rules.relating.flatMap(rule =>
+            linking([{ ...rule, unlink: Option.none() }], was).map(link => ({
+              rule: link,
+              key: rule.relation,
+            })),
+          ),
+        ]
+        yield* Effect.forEach(
+          undone,
+          ({ rule, key }) => require([rule], { ...after, [key]: before[key] }, principal),
+          { discard: true },
         )
-        yield* require([rules.row, ...rules.members, ...pointing], after, principal)
       })
     const guarded: EntityWriter<Option.Option<User>, R | RW> = {
       entity: writer.entity,

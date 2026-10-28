@@ -47,9 +47,9 @@ export default [
       },
       {
         file: '../src/server.ts',
-        find: `        yield* require([rules.row, ...rules.members, ...pointing], after, principal)`,
+        find: `        yield* require([rules.row], after, principal)`,
         replace: `        yield* require([rules.row, ...rules.members, ...relations], before, principal)
-        yield* require([rules.row, ...rules.members, ...pointing], after, principal)`,
+        yield* require([rules.row], after, principal)`,
       },
     ],
     tests: ['packages/guard/test/compute.test.ts'],
@@ -99,5 +99,16 @@ export default [
       },
     ],
     tests: ['packages/guard/test/increment.test.ts'],
+  },
+  {
+    name: 'a moved member’s rule is judged over the stock it leaves',
+    edits: [
+      {
+        file: '../src/server.ts',
+        find: '({ rule, key }) => require([rule], { ...after, [key]: before[key] }, principal),',
+        replace: '({ rule }) => require([rule], after, principal),',
+      },
+    ],
+    tests: ['packages/guard/test/compute.test.ts'],
   },
 ]

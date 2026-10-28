@@ -1,19 +1,23 @@
 /**
- * An update's rules over the row it leaves, through a writer and through Sync's
- * admit, broken in turn:
+ * An update's member and link rules over the row it leaves with that one
+ * change undone, through a writer and through Sync's admit, broken in turn:
  * `pnpm mutate packages/guard/test/after.mutations.ts`.
  */
 const tests = ['packages/guard/test/after.test.ts']
+const syncTests = ['packages/guard/test/sync.test.ts']
 const file = '../src/server.ts'
 const sync = '../src/sync.ts'
-const held = 'yield* require([rules.row, ...rules.members, ...pointing], after, principal)'
+const undone = '({ rule, key }) => require([rule], { ...after, [key]: before[key] }, principal),'
 
 export default [
   {
-    name: 'a member’s rule is held over the row before alone',
-    edits: [
-      { file, find: held, replace: 'yield* require([rules.row, ...pointing], after, principal)' },
-    ],
+    name: 'a member’s and a link’s rules are held over the row before alone',
+    edits: [{ file, find: undone, replace: '() => Effect.void,' }],
+    tests,
+  },
+  {
+    name: 'a member’s and a link’s rules are held over the whole row after',
+    edits: [{ file, find: undone, replace: '({ rule }) => require([rule], after, principal),' }],
     tests,
   },
   {
@@ -21,8 +25,8 @@ export default [
     edits: [
       {
         file,
-        find: held,
-        replace: 'yield* require([rules.row, ...rules.members], after, principal)',
+        find: '...rules.relating.flatMap(rule =>',
+        replace: '...rules.relating.slice(0, 0).flatMap(rule =>',
       },
     ],
     tests,
@@ -32,8 +36,8 @@ export default [
     edits: [
       {
         file,
-        find: 'rules.relating.map(rule => ({ ...rule, unlink: Option.none() })),',
-        replace: 'rules.relating,',
+        find: 'linking([{ ...rule, unlink: Option.none() }], was)',
+        replace: 'linking([rule], was)',
       },
     ],
     tests,
@@ -41,12 +45,19 @@ export default [
   {
     name: 'Sync holds a member’s rule over the row before alone',
     edits: [
+      { file: sync, find: 'for (const rule of changed) {', replace: 'for (const rule of []) {' },
+    ],
+    tests: syncTests,
+  },
+  {
+    name: 'Sync holds a member’s rule over the whole row after',
+    edits: [
       {
         file: sync,
-        find: 'const moved = first(rules, holdsOver({ ...current.value, ...edits }))',
-        replace: 'const moved = first([row], holdsOver({ ...current.value, ...edits }))',
+        find: 'holdsOver({ ...after, [rule.member]: current.value[rule.member] }),',
+        replace: 'holdsOver(after),',
       },
     ],
-    tests: ['packages/guard/test/sync.test.ts'],
+    tests: syncTests,
   },
 ]

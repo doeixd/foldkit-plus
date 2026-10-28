@@ -10,6 +10,7 @@ import { Remote } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { DocumentId, localSequence, opId, replicaId, sequence, type Operation } from 'foldkit-sync'
 import { describe, expect, it } from 'vitest'
+import type { Attach } from '../src/attach.js'
 import { Guards } from '../src/index.js'
 import { GuardServer } from '../src/server.js'
 import { GuardSync, type CellChange } from '../src/sync.js'
@@ -256,44 +257,83 @@ describe('GuardSync.admit, before the journal sees an edit', () => {
     ).toBe(false)
   })
 
-  it('holds each changed member’s rule over the row the edits leave too', async () => {
-    // Only a Dowel is repriced, and only a cheap one renamed: no cheap Dowel becomes a dear Rod.
-    const P = Guards.declare(
-      'Pricing',
-      User,
-      guard => ({
-        isDowel: guard.row(ProductFields, () => Expr.eq(ProductFields.fields.name, 'Dowel')),
-        isCheap: guard.row(ProductFields, () => Expr.lt(ProductFields.fields.cents, 200)),
-      }),
-      { key: user => user.id, unguarded: 'allow' },
-    )
-    const Priced = ProductFields.pipe(
-      Guards.attach(P, {
-        members: { cents: { Update: [P.isDowel] }, name: { Update: [P.isCheap] } },
-      }),
-    )
-    const Pricing = P.implement({})
-    const pricedSource = RemoteServer.memory({
-      domain: Remote.define({ entities: [Priced] }),
-      rows,
-      principal: Option.none<User>(),
-      ...GuardServer.memory(Pricing, [Priced]),
-    }).server.entities.get('Product')!
-    const admitPriced = (changes: ReadonlyArray<CellChange>) =>
-      Effect.runPromise(
+  // Member rules over one row's name and cents, with no rule over the row itself.
+  const P = Guards.declare(
+    'Pricing',
+    User,
+    guard => ({
+      isDowel: guard.row(ProductFields, () => Expr.eq(ProductFields.fields.name, 'Dowel')),
+      isCheap: guard.row(ProductFields, () => Expr.lt(ProductFields.fields.cents, 200)),
+      isWood: guard.row(ProductFields, () => Expr.in(ProductFields.fields.name, ['Dowel', 'Rod'])),
+      underTen: guard.row(ProductFields, () => Expr.lt(ProductFields.fields.cents, 1000)),
+    }),
+    { key: user => user.id, unguarded: 'allow' },
+  )
+  const Pricing = P.implement({})
+  const admitPriced =
+    (members: NonNullable<Attach<User, 'Pricing', typeof ProductFields>['members']>) =>
+    (changes: ReadonlyArray<CellChange>) => {
+      const Priced = ProductFields.pipe(Guards.attach(P, { members }))
+      const pricedSource = RemoteServer.memory({
+        domain: Remote.define({ entities: [Priced] }),
+        rows,
+        principal: Option.none<User>(),
+        ...GuardServer.memory(Pricing, [Priced]),
+      }).server.entities.get('Product')!
+      return Effect.runPromise(
         GuardSync.admit(
           Pricing,
           GuardSync.document({ entity: Priced, members: ['name', 'cents'] }, { readers: [] }),
           { principal: ada, source: pricedSource, changesOf: () => changes },
         )(operation),
       )
-    expect(await admitPriced([{ id: 'p1', member: 'cents', value: 900 }])).toBe(true)
-    expect(await admitPriced([{ id: 'p1', member: 'name', value: 'Rod' }])).toBe(true)
+    }
+  const price = { id: 'p1', member: 'cents' } as const
+  const rename = { id: 'p1', member: 'name' } as const
+
+  it('holds each changed member’s rule over the row the edits leave, its own edit undone', async () => {
+    // Only a Dowel is repriced, and only a cheap one renamed: no cheap Dowel becomes a dear Rod.
+    const admit = admitPriced({ cents: { Update: [P.isDowel] }, name: { Update: [P.isCheap] } })
+    expect(await admit([{ ...price, value: 900 }])).toBe(true)
+    expect(await admit([{ ...rename, value: 'Rod' }])).toBe(true)
     expect(
-      await admitPriced([
-        { id: 'p1', member: 'cents', value: 900 },
-        { id: 'p1', member: 'name', value: 'Rod' },
+      await admit([
+        { ...price, value: 900 },
+        { ...rename, value: 'Rod' },
       ]),
     ).toBe(false)
+  })
+
+  it('admits an edit a rule over its own member allows, which the row after no longer meets', async () => {
+    // Only a Dowel is renamed: renaming it is the change the rule exists to allow.
+    const admit = admitPriced({ name: { Update: [P.isDowel] } })
+    expect(await admit([{ ...rename, value: 'Rod' }])).toBe(true)
+    expect(await admit([{ id: 'p2', member: 'name', value: 'Rod' }])).toBe(false)
+  })
+
+  it('admits two edits together only where each is allowed given the other', async () => {
+    // Only wood is repriced, and only what costs under ten renamed.
+    const admit = admitPriced({ cents: { Update: [P.isWood] }, name: { Update: [P.underTen] } })
+    expect(
+      await admit([
+        { ...price, value: 900 },
+        { ...rename, value: 'Rod' },
+      ]),
+    ).toBe(true)
+    // Each edit here is allowed alone, but not given the other.
+    for (const [alone, other] of [
+      [
+        { ...price, value: 5000 },
+        { ...rename, value: 'Rod' },
+      ],
+      [
+        { ...rename, value: 'Pin' },
+        { ...price, value: 900 },
+      ],
+    ] as const) {
+      expect(await admit([alone])).toBe(true)
+      expect(await admit([other])).toBe(true)
+      expect(await admit([alone, other])).toBe(false)
+    }
   })
 })
