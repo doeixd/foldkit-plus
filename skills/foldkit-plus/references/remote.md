@@ -497,7 +497,13 @@ the id of the viewer's Like, or none) is predicted for `Remote.make({ viewer: mo
 Option.some(Remote.ref(User, model.me)) })`: an insert pointing at a post and at the
 viewer shows its id there, and a delete or relink takes it from the post showing it,
 which also tells the count where a Like the client never read pointed. The store is
-one viewer's, so a change of viewer is `Data.forget`. `Data.mutate` also sends an operation id, kept across a retry with the
+one viewer's, so a change of viewer is `Data.forget`. An insert of an Entity with
+`Entity.stamps` shows what the server will stamp: the viewer, and as the clock the time
+the store last heard from the server; a new row's counts read 0 and its exists none, and
+it joins each loaded list whose body admits it, where the order puts it (a list without
+a body is the server's to order). The server fills the stamps from
+`RemoteServer.make({ viewer })`, required when a write stamps the viewer, and its Effect
+clock. `Data.mutate` also sends an operation id, kept across a retry with the
 same `requestId`, which a ledgered writer answers from its record. Declaring them, and
 invariants: [entity.md](entity.md).
 
@@ -773,8 +779,8 @@ const ProjectsByOwner = Query.make('ProjectsByOwner', { Input: { ownerId: Schema
 // A declared write needs no handler: RemoteServer.write(EditProject, writer(Db.Project)),
 // with Db = bind({ Project }, { Project: { table } }); it writes only the keys named, and an
 // `expect`ed revision guards the row and moves on in the same statement (else a conflict).
-// An insert retried answers the row it made, comparing all it writes but a stamp (a guard's
-// `stamps`, which EntityWriter.insert's `stamped` names); a delete of a row already gone succeeds;
+// An insert retried answers the row it made, comparing all it writes but a clock stamp
+// (Entity.stamps, which EntityWriter.insert's `stamped` names); a delete of a row already gone succeeds;
 // a guarded write retried after it landed answers its row (EntityWriter.delete says
 // 'deleted' | 'absent' | 'moved'). A binding with `visible` reads the answer back
 // through it (EntityWriter.read): a row the write hid from its writer answers in `deleted`.

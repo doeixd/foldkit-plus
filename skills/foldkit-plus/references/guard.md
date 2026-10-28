@@ -127,11 +127,11 @@ const Todo = TodoFields.pipe(
   An Entity's invariants (`Entity.invariant`) are not rules: the writer judges
   them after the rules, so neither grants the other, and one reading a
   Read-ruled member is refused as `Invalid` naming no invariant.
-  `GuardServer.writer(Todo, Policy, writer(Db.Todo), { presets: { ownerId:
-  user => user.id } })` sets a field from who is asking on create; the input
-  must leave it out. `stamps: { createdAt: () => Date.now() }` sets one from
-  no one, once: a retried insert keeps the row's own stamp, where a preset
-  that differs makes it someone else's row. Pass `revision: 'revision'` (a field stored as a number,
+  Who owns a new row is the Entity's to say, not the writer's:
+  `Entity.stamps({ ownerId: Stamp.viewer, createdAt: Stamp.clock })`, and
+  `RemoteServer.write` sets them before the rules run, so a rule over the owner
+  holds of the creator; a retried insert keeps the row's own time, while
+  another asker makes it someone else's row. Pass `revision: 'revision'` (a field stored as a number,
   which the writer moves on with each write it lands) so an update or delete
   lands only on the revision its rules were decided over, decided again if the
   row moved; an input may `expect` only that field. A change that does not move

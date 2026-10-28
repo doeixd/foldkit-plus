@@ -170,6 +170,13 @@ reads from its row, and `Write.bind(write, value, keys?)` the row and its encode
 optimistic patch or a server to write. See "Declared writes and invariants" below for what a write may
 ask of its row.
 
+**What the server chooses:** `Entity.stamps({ authorId: Stamp.viewer, author: Stamp.viewer, createdAt:
+Stamp.clock })`, added after `Entity.relate`, is the one place a write's effects are declared. Every
+insert of the Entity stamps those members and no input may set them: the server fills them
+(`RemoteServer.make({ viewer })` and its clock) and the client predicts them (`Remote.make({ viewer })`
+and when it last heard). Everything else a write does is inferred: counts and exists from `Derived`
+members, a list's membership and order from its query's body.
+
 **An input that embeds the target** (a post with a new author): map the key with
 `Relation.nested`. `selectFor` and `valuesFor` follow it.
 

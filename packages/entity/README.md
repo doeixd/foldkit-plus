@@ -386,6 +386,24 @@ optional relation set to nothing), and each interpreter carries it its own way,
 a ref key in a store, a foreign key in a table. A `many` relation or a nested
 key is refused where the write is declared.
 
+Some values no client should choose: who wrote a row, and when. The Entity
+says so once, with `Entity.stamps`, after `Entity.relate` when it names a
+relation:
+
+```ts
+const StampedPost = Blog.Post.pipe(Entity.stamps({ author: Stamp.viewer }))
+```
+
+`Stamp.viewer` is whoever asks: a `one` relation pointed at them, or a field
+holding their id. `Stamp.clock` is the time, for a field stored as a number.
+Every write of the Entity follows from this one declaration: an insert stamps
+those members (`write.stamps`, worked out by `Write.stamp(write, { viewer, now
+})`), and a write whose input maps a key to one is refused where it is
+declared. Each interpreter fills them from what it has: a server from its
+principal and its clock, a client as a prediction. Nothing else about what a
+write does is declared anywhere: what it moves is read from the Entities'
+derived members and the queries' bodies.
+
 An update or a delete may also say when it makes sense: `when` is what the row
 must hold for it to land, written as a query body is: `() =>
 Expr.eq(Post.fields.title, 'Draft')`, or with the input, `({ input }) =>

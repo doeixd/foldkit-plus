@@ -10,6 +10,7 @@ import {
   Order,
   Query,
   Relation,
+  Stamp,
   Write,
   dependenciesOf,
   type Dependencies,
@@ -236,3 +237,8 @@ expectTypeOf<typeof PostForEdit.schema.Type>().toEqualTypeOf<{
   // @ts-expect-error the id must be a key of the input
   Write.update(EditPost, { id: 'slug' })
 }
+
+// ## Declaring what an input writes: what the server chooses
+
+const StampedPost = Blog.Post.pipe(Entity.stamps({ author: Stamp.viewer }))
+expectTypeOf(StampedPost.stamps).toEqualTypeOf<Readonly<Record<string, Stamp>>>()

@@ -470,8 +470,14 @@ to an `EntityWriter`, which writes them and answers the row as written:
 RemoteServer.write(EditProject, writer(Db.Project)) // `writer` from foldkit-remote-drizzle
 ```
 
-The answer is the mutation's patch, or for a delete its deletion. With
-`expect`, the writer is told the revision the row was read at; no row at it is
+The answer is the mutation's patch, or for a delete its deletion. An insert of
+an Entity with `Entity.stamps` is handed its stamped members as well, never
+from the input: `Stamp.viewer` from `RemoteServer.make({ viewer: principal =>
+Option<{ entity, id }> })`, and `Stamp.clock` from the Effect `Clock`. A
+visitor's insert that stamps the viewer is refused as forbidden; a server that
+serves such a write with no `viewer` is refused where it is made. The clock's
+fields reach the writer as `stamped`, so a retried insert keeps its first time.
+With `expect`, the writer is told the revision the row was read at; no row at it is
 refused as `Refusal.conflict`. With `when`, the writer is handed the
 precondition and the input encoded, checks it in the statement that writes, and
 fails a row at the revision that does not hold it with `RemoteUnmet`
