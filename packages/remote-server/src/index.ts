@@ -302,9 +302,9 @@ export interface EntityWriter<P, R = never> {
   /**
    * Inserts the row, or finds one already there under that id holding what
    * it writes (a retry); answers the row as it is. Fails when the id holds
-   * any other row. `stamped` names the values a wrapping writer set once, at
-   * creation (a clock's): a retry keeps the row's own, so they are not
-   * compared.
+   * any other row. `stamped` names the values stamped once, at creation
+   * (`Entity.stamps`, a clock's): a retry keeps the row's own, so they are
+   * not compared.
    */
   readonly insert: (context: {
     readonly id: string

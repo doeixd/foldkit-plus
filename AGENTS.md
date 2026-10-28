@@ -1217,6 +1217,10 @@ of its own named a form field "fits the Catalog". Read words with
   two mutation runs was already failing, so the second run "killed" its
   mutation for free. Confirm the suite is green before each run; `pnpm
   mutate` refuses a red baseline.
+- **A change to shared code rots other specs' anchors.** Placing pending
+  creates in `index.ts` broke `pendingPlacement.mutations.ts`, and another
+  session had to re-anchor it. Run `pnpm mutate:check` before committing, not
+  only your own specs.
 - **Mutation specs do not run in CI, so their anchors rot.** Moving the
   registry's sort into `ProductsQuery`'s body renamed
   `Registry.Product.fields.description` to `fields.description`, and
@@ -1776,6 +1780,10 @@ of its own named a form field "fits the Catalog". Read words with
   only that HEAD did not move after OLD was read, not that the blob's base is
   HEAD. Read the base and `commit-tree` in one command, and diff the result
   against the previous commit before pushing.
+- **A new file committed through a temporary index needs `--add` in the real
+  one.** `git update-index --cacheinfo` refuses a path the real index lacks;
+  without `--add` it shows the file as a staged deletion plus an untracked
+  copy.
 - **`git apply --cached --unidiff-zero` places an insertion by the wrong line.** To commit
   only my hunks of files another session was editing too, I applied a zero-context patch
   holding just mine; a pure insertion (`@@ -4698,0 +5460,401 @@`) landed at its new-side

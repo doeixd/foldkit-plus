@@ -212,16 +212,30 @@ version changed; `pnpm` skips versions already in the registry.
   reports a `ServerDefect` diagnostic, logged by default, so a Worker's log
   shows it; `serveFetch`'s `diagnostics(diagnostic, request)` sees each. The
   caller is still told nothing (#221, #237).
-- **`GuardServer.writer`'s `stamps`.** A field the server sets once on a
-  create, from no one (`stamps: { createdAt: () => Date.now() }`), beside
-  `presets`, which come from who is asking. A retried insert keeps the row's
-  own stamp; a preset that differs still makes the retry someone else's row.
-  An input that sets a stamp is refused, as one setting a preset is.
-- **`EntityWriter.sets`**: the fields a writer sets on every insert itself. A
-  guard reports its presets and stamps there.
+- **`Entity.stamps`: what the server chooses when a row is created, declared
+  once on the Entity.** `Stamp.viewer` (whoever asks: a `one` relation to them,
+  or a text field holding their id) and `Stamp.clock` (the time, a number
+  field). Every insert stamps them, and a write whose input sets one is
+  refused where it is declared. `RemoteServer.write` fills them from
+  `RemoteServer.make({ viewer })` and the Effect `Clock` (a visitor is
+  forbidden, a retry keeps its time, and a stamped field counts as set for
+  invariants); `Data.mutate` predicts them from `Remote.make({ viewer })` and
+  the time the store last heard from the server. A write's effects are
+  otherwise inferred, never declared per write (#232).
+- **A pending insert joins the lists its body admits,** where each loaded
+  list's order puts it, and the answer keeps it there. A list with no body, or
+  one filtered by a read rule the client does not run, is the server's to
+  place (#266).
 
 ### Changed
 
+- **Breaking: `GuardServer.writer` loses `presets`, `EntityWriter.sets` is
+  removed, and `MutationSource.run` is given `viewer`** (`Option.none()` where
+  no one asks). Declare server-chosen values with `Entity.stamps`; guard rules
+  see them already set (#232). Chirp's like sends no user and `ownLikes` is
+  gone, a guard rule over the stamped `userId` keeping a like its liker's; the
+  reference app's author and time are stamped and its overlay workaround is
+  gone (#266, #267).
 - **Breaking: SSR, agent-mcp and guard no longer write to `console`.** They
   report diagnostics, which Effect's log still shows by default; code that
   spied on `console` provides a reporter. `foldkit-agent-mcp`'s `handler`,
@@ -302,8 +316,8 @@ version changed; `pnpm` skips versions already in the registry.
   where it read `Initial` then `Loading` once retention had dropped it.
   `RemoteModel` has a `recent` field holding those roots (#234, #225).
 - **Breaking: `EntityWriter.insert` is told what is `stamped`.** Its context
-  holds `stamped`, the values a wrapping writer set once at creation, which a
-  retry does not compare. A writer that answers a retried insert leaves them
+  holds `stamped`, the values stamped once at creation (`Entity.stamps`),
+  which a retry does not compare. A writer that answers a retried insert leaves them
   out of its check; a caller with nothing stamped passes `[]`.
 
 - **`examples/pages` is written like a Notion page.** `/` on a line opens the
@@ -415,13 +429,14 @@ version changed; `pnpm` skips versions already in the registry.
   none, stays fit for one. `foldkit-mixins-form`'s field `state` is typed
   likewise. The casts in the form renderers and the Markdown source editor
   are gone.
-- **An insert whose invariants read a preset field registers.** `RemoteServer.write`
-  refused one, saying it left the field unset, though the guard's preset sets
-  it on every create (#202). It now counts what the writer reports in `sets`.
-- **A retried insert with a time preset is answered, not refused.** The
+- **An insert whose invariants read a stamped field registers.**
+  `RemoteServer.write` refused one, saying it left the field unset, though
+  the server sets it on every create (#202). A field stamped with
+  `Entity.stamps` counts as set.
+- **A retried insert with a stamped time is answered, not refused.** The
   drizzle writer compared every value with the row already there, and a clock
   read anew never matched, so a retry, same request or not, failed with
-  "could not be created" (#203). Declared as a stamp, the time is left out.
+  "could not be created" (#203). A stamped time is left out of the comparison.
 - **`SSR.hydrate` given no build id says so.** With `FOLDKIT_BUILD_ID` unset,
   the documented `import.meta.env.FOLDKIT_BUILD_ID` is undefined in the
   client. `foldkit-ssr` read that as another build's page and handed Foldkit no
