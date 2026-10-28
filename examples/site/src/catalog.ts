@@ -300,6 +300,7 @@ export const learn: Subsite = {
     { id: 'overview', label: 'Foldkit Plus', file: 'README.md' },
     doc('state', 'Who changes state', 'state-model'),
     doc('wiring', 'Wiring', 'wiring'),
+    doc('errors', 'Errors and failures', 'errors'),
     doc('ui', 'UI architecture', 'ui-architecture'),
     doc('glossary', 'Glossary', 'glossary'),
   ],

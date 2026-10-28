@@ -169,4 +169,5 @@ App.model.remote, … })`, `Mirror.url(App, …)`, and `SurfaceView.define(TodoL
 
 - Repository and guides: https://github.com/doeixd/foldkit-plus
 - Examples, each with a pinned transcript: https://github.com/doeixd/foldkit-plus/tree/main/examples
+- How failures work across the packages (who owns each, what the reader sees, `Diagnostics`): https://github.com/doeixd/foldkit-plus/blob/main/docs/errors.md
 - Versions and publish matrix: https://github.com/doeixd/foldkit-plus/blob/main/docs/releases.md

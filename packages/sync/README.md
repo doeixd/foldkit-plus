@@ -908,6 +908,8 @@ same branded value, as do the other id constructors.
 
 - [Replicated state](../../docs/replication.md): both halves end to end, with
   the server's exchange handler.
+- [Errors and failures](../../docs/errors.md): how a rejected edit or a failed
+  exchange sits beside Remote's, a form's and the server's failures.
 - [`foldkit-durable`](../durable): the journal and what it guarantees.
 - [Runtime binding](../../docs/sync-runtime-binding.md): what `Sync.mount` does
   inside the Foldkit runtime, for the curious.

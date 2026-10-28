@@ -382,6 +382,9 @@ Field state is `foldkit/fieldValidation`'s `Field`: `NotValidated`, `Validating`
 (a check is running), `Valid`, `Invalid` with its `errors`. Read it with that module's `match`, `isInvalid`,
 and the rest.
 
+How a form's failures meet a server's refusals and the rest of an application's
+is [Errors and failures](../../docs/errors.md#forms).
+
 ### Checks: rules only something else can answer
 
 Whether a slug is taken is not in the schema. A check is an Effect the form is
