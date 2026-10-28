@@ -828,11 +828,34 @@ const setConnectionStale = (
   return { ...connections, [connection]: { ...(current ?? emptyConnection), stale } }
 }
 
+/**
+ * How many streams `live` and `streams` keep. Which streams the active
+ * Surfaces hold is not in the Model (retention roots merge every Surface's
+ * requirements, and a stream key is one entry's), so the ledger keeps those
+ * most recently heard from, as `failed` keeps the latest failures. A stream
+ * dropped while still open meets its next event as a gap, which restarts it
+ * and refetches what it covers.
+ */
+const STREAM_WINDOW = 256
+
+/** `record` with `stream` set as the most recent, the oldest dropped past the window. */
+const heard = <V>(
+  record: Readonly<Record<string, V>>,
+  stream: string,
+  value: V,
+): Readonly<Record<string, V>> => {
+  const { [stream]: _previous, ...rest } = record
+  const next: Record<string, V> = { ...rest, [stream]: value }
+  const keys = Object.keys(next)
+  for (const key of keys.slice(0, Math.max(0, keys.length - STREAM_WINDOW))) delete next[key]
+  return next
+}
+
 const withLiveState = (
   live: RemoteModel['live'],
   stream: string,
   state: LiveState,
-): RemoteModel['live'] => (live[stream] === state ? live : { ...live, [stream]: state })
+): RemoteModel['live'] => (live[stream] === state ? live : heard(live, stream, state))
 
 const noHealth: StreamHealth = { restarts: 0, failures: 0, error: Option.none() }
 
@@ -848,14 +871,14 @@ const broke = (
 ): RemoteModel => {
   if (model.gaps.has(stream)) return model
   const health = model.streams[stream] ?? noHealth
-  return {
-    ...model,
-    gaps: new Set([...model.gaps, stream]),
-    streams: {
-      ...model.streams,
-      [stream]: { restarts: health.restarts + 1, failures: health.failures + 1, error },
-    },
-  }
+  const streams = heard(model.streams, stream, {
+    restarts: health.restarts + 1,
+    failures: health.failures + 1,
+    error,
+  })
+  // A gap is kept only beside its stream's health, which counts its restarts.
+  const gaps = new Set([...model.gaps, stream].filter(key => Object.hasOwn(streams, key)))
+  return { ...model, gaps, streams }
 }
 
 /**
@@ -868,7 +891,7 @@ const healthy = (model: RemoteModel, stream: string): RemoteModel => {
     ? model
     : {
         ...model,
-        streams: { ...model.streams, [stream]: { ...health, failures: 0, error: Option.none() } },
+        streams: heard(model.streams, stream, { ...health, failures: 0, error: Option.none() }),
       }
 }
 

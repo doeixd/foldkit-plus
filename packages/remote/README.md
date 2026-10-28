@@ -1894,6 +1894,12 @@ carries the error, which is none for a gap. `RemoteModel.streams` holds each
 stream's restarts, its breaks in a row and its last error. `forget` clears it
 with every other server-derived fact.
 
+The live ledger (`live`, `streams`, `gaps`) keeps the 256 streams most
+recently heard from. Retention cannot prune it by what is shown: its roots
+merge every Surface's requirements, and a stream is one Surface's. A stream
+dropped while still open meets its next event as a gap, so it restarts and
+refetches what it covers.
+
 ## Retention and garbage collection
 
 Remote is a cache, so it should be allowed to forget facts no active feature
