@@ -9,6 +9,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **Three-valued `Expr`, and paths through relations** (#242, operations
+  phase 1). `Judge.predicate` and `Judge.query` read a `HeldRow` and answer
+  `Known(truth)` or `Unknown { reason }`: a field or row the holder lacks or may
+  not see, an operator or filter only the server runs. SQL's null stays apart
+  from unknown, so lists over nullable fields stay placeable. `Expr.path`
+  follows `one` relations (at most four) and `Expr.exists` names a pointing
+  edge; remote-drizzle compiles them to subqueries under each reached table's
+  `visible` rule, and refuses compiling one without the reader's visibility.
+  `evaluate` and its two-valued kin refuse a path rather than read unknown as
+  false. Breaking: `Expr.givesNul` is `Expr.givesUnportable`, and also flags
+  NaN.
 - **The write's context as `Expr` terms.** `Expr.viewer(Entity)` (who asks, as
   that Entity's id; null for a visitor) and `Expr.now` (the time in
   milliseconds). Query bodies over them compile to SQL with the server's
@@ -379,6 +390,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **NaN is refused wherever values compare or order,** in memory and in SQL, as
+  NUL is: one NaN key left the whole in-memory sort unsorted, and Postgres and
+  SQLite disagree on it. `evaluate` evaluates its whole `where` list, so a
+  refusal no longer depends on predicate order (#242).
 - **Live polling, the Workers stack and the agent host, after review** (#274):
   - `pollLive` no longer loses a change when a watched list's read fails once:
     the next tick asks the log again from the same entry. Without a log it

@@ -1843,7 +1843,11 @@ of its own named a form field "fits the Catalog". Read words with
   committed between the read and `commit-tree`: `update-ref <new> <old>` checks
   only that HEAD did not move after OLD was read, not that the blob's base is
   HEAD. Read the base and `commit-tree` in one command, and diff the result
-  against the previous commit before pushing.
+  against the previous commit before pushing. It happened three times in one
+  day, once reverting twelve files (706e148c, restored by f03ec009). The rule:
+  capture `OLD=$(git rev-parse HEAD)` once, build from `read-tree "$OLD"`, and
+  pass the same `$OLD` to `update-ref`; then check `git diff --stat $OLD
+  <new>` names only your files.
 - **A new file committed through a temporary index needs `--add` in the real
   one.** `git update-index --cacheinfo` refuses a path the real index lacks;
   without `--add` it shows the file as a staged deletion plus an untracked
