@@ -477,7 +477,10 @@ never from the input (an insert all of them, an update those set `on:
 Option<{ entity, id }> })`, and `Expr.now` from the write's time. A write whose
 value comes to null where the member holds none (a visitor's) is refused as
 forbidden; a server that serves a write setting the viewer with no `viewer` is
-refused where it is made. A retried
+refused where it is made. A path from the viewer is read through the
+server's own sources, as the asker may see each row (the run context's
+`read`); a server that mounts no source for a row the path reaches is refused
+where it is made, and a path reaching no row the asker may see is null. A retried
 insert, which only a writer's ledger recognises, keeps its first time.
 
 The write's time is the client's when it sent one (`Data.mutate`'s `now`, the

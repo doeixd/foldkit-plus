@@ -10,7 +10,7 @@ export default [
     edits: [
       {
         file: '../src/mutation.ts',
-        find: '...optimisticOfWrite(write, input, keys, by),',
+        find: '...optimisticOfWrite(write, input, keys, by, context.store),',
         replace: '',
       },
     ],
@@ -21,9 +21,9 @@ export default [
     edits: [
       {
         file: '../src/mutation.ts',
-        find: '        const bound = contextBound(write, input, keys, context)\n        const patch',
+        find: '        const bound = contextBound(write, input, keys, context, store)\n        const patch',
         replace:
-          '        const bound = contextBound(write, input, undefined, context)\n        const patch',
+          '        const bound = contextBound(write, input, undefined, context, store)\n        const patch',
       },
     ],
     tests,

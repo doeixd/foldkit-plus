@@ -23,13 +23,14 @@ export default [
   ),
   edit(
     'an update predicts nothing the context sets',
-    '        const bound = contextBound(write, input, keys, context)',
+    '        const bound = contextBound(write, input, keys, context, store)',
     '        const bound = DomainWrite.bind(write, input as never, keys)',
   ),
   edit(
     'the derived members do not see a link the context sets',
-    "const bound = contextBound(write, input, write._tag === 'Update' ? keys : undefined, context)",
-    "const bound = DomainWrite.bind(write, input as never, write._tag === 'Update' ? keys : undefined)",
+    '  const bound = contextBound(\n    write,',
+    "  const bound = ((..._: unknown[]) => DomainWrite.bind(write, input as never, write._tag === 'Update' ? keys : undefined))(" +
+      '\n    write,',
   ),
   edit(
     'the time is predicted from nothing',

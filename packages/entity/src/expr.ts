@@ -16,7 +16,7 @@ import { absurd } from 'effect/Function'
 import { Collation } from './collation.js'
 import { SchemaShape } from './shape.js'
 import { Law, type Side } from './law.js'
-import { now, viewer, type NowExpr, type ViewerExpr } from './context.js'
+import { now, viewer, type NowExpr, type ViewerExpr, type ViewerPathExpr } from './context.js'
 import type {
   AnyEntity,
   Cardinality,
@@ -503,6 +503,11 @@ const toOperand = <T>(value: Operand<T> | T): Operandish => {
   }
   if (tag === 'Field') {
     return fieldExpr(value as EntityField<string, string, Schema.Constraint>)
+  }
+  if (tag === 'ViewerPath') {
+    throw new Error(
+      '[foldkit-entity] a path from the viewer is read by Entity.sets only; no query body or rule reads one yet',
+    )
   }
   if (tag === 'Relation') {
     const relation = value as EntityRelation<string, string, AnyEntity, Cardinality, boolean>
@@ -1295,6 +1300,18 @@ const expandedPredicate = (predicate: Predicate): Predicate => {
   return result
 }
 
+/** `Expr.path`'s two starts: a relation of the judged row, or the viewer's row. */
+interface PathOf {
+  <Owner extends string, Target extends AnyEntity, E extends PathEnd<Target['name']>>(
+    relation: EntityRelation<Owner, string, Target, 'one', boolean>,
+    end: E,
+  ): (E extends ExistsPredicate ? ExistsPredicate : PathExpr<ValueOf<E> | null>) & Reads<Owner>
+  <Name extends string, E extends Exclude<PathEnd<Name>, ExistsPredicate>>(
+    viewer: ViewerExpr<any, Name>,
+    end: E,
+  ): ViewerPathExpr<ValueOf<E> | null>
+}
+
 /**
  * The most relations one path follows. Each is a subquery in SQL and a lookup
  * in memory; the deepest rule a real app here writes follows two.
@@ -1323,8 +1340,42 @@ const oneRelation = (step: 'path' | 'exists', value: unknown): OneRelation => {
   return relation as OneRelation
 }
 
+/** `Expr.path` from the viewer: a field of their row, or what a path from it reads. */
+const viewerPathOf = (from: ViewerExpr<unknown>, end: unknown): ViewerPathExpr<unknown> => {
+  const start = from.target()
+  const onStart = (owner: EntityIdentity<string>, what: string): void => {
+    if (owner.token !== start.identity.token) {
+      throw new Error(
+        `[foldkit-entity] Expr.path: the viewer is a ${start.name}, but ${what} is read on a ${owner.name}`,
+      )
+    }
+  }
+  return Match.value(toOperand(end)).pipe(
+    Match.tag('Field', field => {
+      onStart(field.owner, `${field.owner.name}.${field.key}`)
+      return node<ViewerPathExpr<unknown>>({ _tag: 'ViewerPath', viewer: from, via: [], field })
+    }),
+    Match.tag('Path', path => {
+      onStart(path.via[0].owner, showExpr(path))
+      return node<ViewerPathExpr<unknown>>({
+        _tag: 'ViewerPath',
+        viewer: from,
+        via: path.via,
+        field: path.field,
+      })
+    }),
+    Match.orElse(other => {
+      throw new Error(
+        `[foldkit-entity] Expr.path: a path from the viewer ends at a field or a path, not ${showExpr(other)}`,
+      )
+    }),
+  )
+}
+
 /** `Expr.path`: `relation` followed first, then whatever `end` reads, checked to be on its target. */
 const pathOf = (relation: unknown, end: unknown): PathExpr<unknown> | ExistsPredicate => {
+  if (tagOf(relation) === 'Viewer')
+    return viewerPathOf(relation as ViewerExpr<unknown>, end) as never
   const first = oneRelation('path', relation)
   const target = first.target().identity
   const onTarget = (owner: EntityIdentity<string>, what: string): void => {
@@ -1549,14 +1600,7 @@ export const Expr = {
    * reads null, and an exists at the end is unknown, as SQL's scalar subquery
    * is. At most `maxPathLength` relations.
    */
-  path: pathOf as <
-    Owner extends string,
-    Target extends AnyEntity,
-    E extends PathEnd<Target['name']>,
-  >(
-    relation: EntityRelation<Owner, string, Target, 'one', boolean>,
-    end: E,
-  ) => (E extends ExistsPredicate ? ExistsPredicate : PathExpr<ValueOf<E> | null>) & Reads<Owner>,
+  path: pathOf as PathOf,
 
   /**
    * Some row points at this one through `relation`, a `one` relation of

@@ -264,7 +264,10 @@ version changed; `pnpm` skips versions already in the registry.
   Expr.viewer(User), createdAt: Expr.now }, { on: 'create' })` sets them on
   every insert, and `{ on: 'write' }` on every insert and update (an
   `editedAt`). A relation takes `Expr.viewer` of its target, a text field the
-  viewer's id, a number field the time. A write whose input sets, links, moves
+  viewer's id, a number field the time, and a field a path from the viewer
+  (`Expr.path(Expr.viewer(Member), Expr.path(Member.relations.team,
+  Team.fields.orgId))`), which the server reads through its own sources
+  (`MutationSource.run`'s new `read`) and the client from the rows it holds. A write whose input sets, links, moves
   or computes one is refused where it is declared. `RemoteServer.write` fills
   them from `RemoteServer.make({ viewer })` and the write's time (a value that
   comes to null where the member holds none, as a visitor's, is forbidden, and
@@ -279,6 +282,9 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **Breaking: `MutationSource.run` is given `read`,** one row of another
+  Entity as the asker may see it, through the server's own source for it; a
+  caller of `run` outside a server passes one (#232, operations phase 3).
 - **Breaking: `source(binding, { viewer })` is removed;** a `Derived.exists` is
   answered for the viewer of the server the source is mounted in. The
   `Operation` union gains `'viewer'` and `'now'`. A write's `when`, invariant or computed

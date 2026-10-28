@@ -397,11 +397,17 @@ const AuthoredPost = Blog.Post.pipe(Entity.sets({ author: Expr.viewer(Author) },
 
 `Expr.viewer(Author)` is whoever asks: a `one` relation to an Author pointed
 at them, or a field stored as text holding their id. `Expr.now` is the time,
-for a field stored as a number. `on: 'create'` sets the member on every
+for a field stored as a number. A path from the viewer is what their row, or
+a row reached from it, holds: `Expr.path(Expr.viewer(Member),
+Expr.path(Member.relations.team, Team.fields.orgId))` sets a note's `orgId` to
+its writer's team's, for a field that holds what the path's end holds. A
+server reads it through its own sources as the asker may see them; a client
+reads it from the rows it holds, and predicts nothing where it lacks one. No
+query body or rule reads a path from the viewer yet. `on: 'create'` sets the member on every
 insert; `on: 'write'` on every insert and every update (an `editedAt`). A
 delete sets nothing. Every write of the Entity follows from this one
 declaration (`write.context`, worked out by `Write.contextValues(write, {
-viewer, now })`), and a write whose input sets, links, moves or computes such a
+viewer, now }, read)`, `read` giving one member of one row at a time for a path), and a write whose input sets, links, moves or computes such a
 member is refused where it is declared. Each interpreter fills them from what
 it has: a server from its principal and its clock, a client as a prediction. A
 value that comes to null where the member holds none (a visitor) is named
@@ -1289,7 +1295,7 @@ from queries, not from what a database could express.
 | `Expr.not(predicate)` | The predicate does not hold; an unknown stays unknown, so a null matches neither side. |
 | `Expr.lt` / `lte` / `gt` / `gte(left, right, { collation? })` | One value orders before or after the other. Numbers as numbers; text only under `binary` or `asciiFold` (the field's declared collation, or the one given), and only against a field. |
 | `Expr.path(relation, end)` | What the row a `one` relation points at holds: a field, a further path, or an exists; null where no row is reached. At most `maxPathLength` (4) relations. |
-| `Entity.sets({ member: Expr.viewer(E) or Expr.now }, { on })` | Pipe step: members whose value the write's context gives, on every insert (`'create'`) or every insert and update (`'write'`); no input sets them. `Write.contextValues(write, context)` is what they come to. |
+| `Entity.sets({ member: Expr.viewer(E) or Expr.now }, { on })` | Pipe step: members whose value the write's context gives, on every insert (`'create'`) or every insert and update (`'write'`); no input sets them. A value may also be a path from the viewer (`Expr.path(Expr.viewer(E), end)`). `Write.contextValues(write, context, read)` is what they come to. |
 | `Expr.eq(Post.relations.author, …)` | A `one` relation as an operand: the id it points at, null for none. |
 | `Expr.exists(relation, where?)` | Some row of another Entity points here through its `one` relation and holds `where`, a predicate over its own fields and the input. |
 | `Judge.predicate(p, row, options)` / `Judge.query(body, input, row, options)` | The reference semantics over a `HeldRow`: a `Verdict`, `Known` (SQL's answer) or `Unknown` with why. `Judge.match` reads one. |

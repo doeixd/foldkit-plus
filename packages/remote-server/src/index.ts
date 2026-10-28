@@ -498,6 +498,15 @@ export interface MutationSource<P, R = never> {
      * `Expr.now` sets (`Entity.sets`).
      */
     readonly now: number
+    /**
+     * One row of another Entity as the asker may see it, through the server's
+     * own source for it (its read rule, the viewer): none for a row hidden or
+     * not there. What a declared write reads a path from the viewer with.
+     */
+    readonly read: (
+      ref: EntityRef,
+      fields: ReadonlyArray<string>,
+    ) => Effect.Effect<Option.Option<Readonly<Record<string, unknown>>>, RemoteServerError>
     /** For a declared write: the input keys to write, when the client named only some. */
     readonly keys?: ReadonlyArray<string> | undefined
   }) => Effect.Effect<
@@ -619,6 +628,44 @@ export const exprContext = (
 /** Who asks, as the server's `viewer` says: none for a visitor, or on a server with no viewer. */
 const viewerOf = <P, R>(server: ServerDefinition<P, R>, principal: P): Option.Option<EntityRef> =>
   server.viewer === undefined ? Option.none() : server.viewer(principal)
+
+/**
+ * One row as `principal` may see it, through the server's own source for its
+ * Entity: the fields its `authorize` allows, filtered as the source filters.
+ * None for a row hidden or not there.
+ */
+const rowAs =
+  <P, R>(server: ServerDefinition<P, R>, principal: P) =>
+  (
+    ref: EntityRef,
+    fields: ReadonlyArray<string>,
+  ): Effect.Effect<Option.Option<Readonly<Record<string, unknown>>>, RemoteServerError, R> => {
+    const source = server.entities.get(ref.entity)
+    if (source === undefined) {
+      return Effect.fail(new RemoteServerError({ message: `No source serves ${ref.entity}` }))
+    }
+    const allowed = source.authorize?.(principal, fields) ?? fields
+    return Effect.map(
+      readFiltered(source, principal, allowed, read =>
+        source.read({
+          ids: [ref.id],
+          fields: read,
+          principal,
+          viewer: viewerOf(server, principal),
+        }),
+      ),
+      records => Option.map(Option.fromUndefinedOr(records[0]), record => record.values),
+    )
+  }
+
+/** `read` with the services the request already runs with, so its caller needs none. */
+const withServices =
+  <A extends ReadonlyArray<unknown>, B, E, R>(
+    read: (...args: A) => Effect.Effect<B, E, R>,
+    services: Context.Context<R>,
+  ) =>
+  (...args: A): Effect.Effect<B, E> =>
+    Effect.provideContext(read(...args), services)
 
 /** A read batch may not carry more than this many distinct ids per entity. */
 const DEFAULT_MAX_IDS_PER_ENTITY = 1000
@@ -1981,7 +2028,13 @@ export const RemoteServer = {
       Input: mutation.Input,
       Output: mutation.Output,
       Refusal: mutation.Refusal,
-      run: ({ input, principal, viewer, keys, operation, now }) => {
+      run: ({ input, principal, viewer, keys, operation, now, read }) => {
+        /** A path from the viewer, read through the server's sources: a row hidden or gone is null. */
+        const context = Write.contextValues(write, { viewer, now: Option.some(now) }, (row, key) =>
+          Effect.map(read(row, [key]), found =>
+            Held.of(Option.match(found, { onNone: () => null, onSome: values => values[key] })),
+          ),
+        )
         const given = input as never
         const expect = Write.expected(write, given)
         const conflict = (bound: { readonly entity: string; readonly id: string }) =>
@@ -2088,7 +2141,7 @@ export const RemoteServer = {
               Effect.gen(function* () {
                 const named = Write.bind(write, given, keys)
                 // An update sets what its Entity sets `on: 'write'`, whichever keys it names.
-                const set = Write.contextValues(write, { viewer, now: Option.some(now) })
+                const set = yield* context
                 if (set.unfilled.length > 0) return yield* Effect.fail(RemoteServer.forbid())
                 const bound = {
                   ...named,
@@ -2140,8 +2193,8 @@ export const RemoteServer = {
             Insert: () =>
               Effect.gen(function* () {
                 const bound = Write.bind(write, given)
-                const set = Write.contextValues(write, { viewer, now: Option.some(now) })
-                // Only the viewer can come to nothing: a visitor, or one of another Entity.
+                const set = yield* context
+                // A visitor, a viewer of another Entity, or a path reaching no row.
                 if (set.unfilled.length > 0) return yield* Effect.fail(RemoteServer.forbid())
                 const row = yield* invalid(
                   writer.insert({
@@ -2245,6 +2298,17 @@ export const RemoteServer = {
     readonly viewer?: ((principal: P) => Option.Option<EntityRef>) | undefined
     readonly clockSkew?: Duration.Input | undefined
   }): ServerDefinition<P, R> => {
+    // A path from the viewer is read through the sources this server mounts.
+    const served = new Set(config.entities.map(source => source.entity))
+    for (const source of config.mutations ?? []) {
+      const reads = source.writes === undefined ? [] : Write.contextReads(source.writes.write)
+      const unserved = reads.filter(entity => !served.has(entity))
+      if (unserved.length > 0) {
+        throw new Error(
+          `[foldkit-remote-server] write "${source.mutation}" sets a member from a path through ${unserved.join(', ')}, which no source of this server serves; mount one in entities`,
+        )
+      }
+    }
     if (config.viewer === undefined) {
       const viewing = (config.mutations ?? []).find(source =>
         (source.writes?.write.context ?? []).some(({ value }) => value._tag === 'Viewer'),
@@ -2574,6 +2638,7 @@ export const RemoteServer = {
             requestId: payload.requestId,
             operation: Option.fromUndefinedOr(payload.operation),
             now: yield* writeTime(server, payload.mutation, Option.fromUndefinedOr(payload.now)),
+            read: withServices(rowAs(server, caller), yield* Effect.context<R>()),
             keys: payload.keys,
           })
           .pipe(

@@ -19,7 +19,7 @@ export default [
   },
   {
     name: 'a link that is no ref key is compared as it is',
-    edits: [{ file: held, find: '    if (separator === -1) {', replace: '    if (false) {' }],
+    edits: [{ file: held, find: 'if (separator === -1) {', replace: 'if (false) {' }],
     tests,
   },
   {
@@ -27,8 +27,8 @@ export default [
     edits: [
       {
         file: held,
-        find: 'read[key] = (ref as string).slice(separator + 1)',
-        replace: 'read[key] = ref',
+        find: 'return (ref as string).slice(separator + 1)',
+        replace: 'return ref as string',
       },
     ],
     tests,

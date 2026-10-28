@@ -19,7 +19,7 @@ import {
   readsBefore,
 } from './invariant.js'
 import { SchemaShape } from './shape.js'
-import type { NowExpr, ViewerExpr } from './context.js'
+import type { NowExpr, ViewerExpr, ViewerPathExpr } from './context.js'
 import { checkedSet, type EntitySet, type SetOn } from './sets.js'
 
 export const EntityTypeId: unique symbol = Symbol.for('foldkit-entity/Entity')
@@ -176,10 +176,15 @@ type OneRelationKeys<E extends AnyEntity> = {
   [K in keyof E['relations'] & string]: E['relations'][K]['cardinality'] extends 'one' ? K : never
 }[keyof E['relations'] & string]
 
-/** What a field holding `T` may be set to: the time where it holds a number, the viewer's id where text. */
+/**
+ * What a field holding `T` may be set to: the time where it holds a number,
+ * the viewer's id where text, and what a path from the viewer reads where it
+ * holds that.
+ */
 type ContextValueFor<T> =
   | (number extends T ? NowExpr<number> : never)
   | (T extends string ? ViewerExpr<T> : never)
+  | ViewerPathExpr<T | null>
 
 /** The name of the Entity the `one` relation `K` points at. */
 type TargetName<E extends AnyEntity, K extends keyof E['relations']> = ReturnType<
@@ -1236,6 +1241,7 @@ export {
   type ExprContext,
   type NowExpr,
   type ViewerExpr,
+  type ViewerPathExpr,
 } from './context.js'
 export * from './collation.js'
 export * from './operators.js'
@@ -1272,4 +1278,6 @@ export {
   type WriteLink,
   type WriteSet,
   type ContextSet,
+  type ContextRead,
+  type ContextValues,
 } from './write.js'

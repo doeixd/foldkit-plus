@@ -857,6 +857,11 @@ export const CmsServer = {
             requestId: `publish:${entry.id}:${held ?? 'new'}`,
             operation: Option.some(`publish:${entry.id}:${held ?? 'new'}`),
             now: at.getTime(),
+            // With no viewer, a path from one reaches no row and reads nothing.
+            read: () =>
+              Effect.fail(
+                new RemoteServerError({ message: 'Scheduled publishing reads no other row' }),
+              ),
           })
           const targetId = creating
             ? String((ran.output as { readonly id: unknown }).id)

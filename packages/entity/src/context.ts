@@ -5,6 +5,7 @@
  * client from `Remote.make`'s `viewer` and its stand-in for the time.
  */
 import { Match, Option, Schema } from 'effect'
+import type { FieldExpr, OneRelation } from './expr.js'
 import type { AnyEntity, EntityIdentity, EntityRef, IdOf } from './index.js'
 
 /**
@@ -18,6 +19,20 @@ export interface ViewerExpr<T, Name extends string = string> {
   readonly entity: EntityIdentity<Name>
   readonly target: () => AnyEntity
   readonly schema: Schema.Codec<T, unknown>
+}
+
+/**
+ * What the row of whoever asks holds, or the row reached from it through `one`
+ * relations (`Expr.path(Expr.viewer(User), end)`): a field of that row. Null
+ * for a visitor, a viewer of another Entity, a null link, or a row the reader
+ * may not see. Read by `Entity.sets` only: no query body or rule reads one yet.
+ */
+export interface ViewerPathExpr<T> {
+  readonly _tag: 'ViewerPath'
+  readonly viewer: ViewerExpr<unknown>
+  /** The relations followed from the viewer's row, in order; empty for a field of it. */
+  readonly via: ReadonlyArray<OneRelation>
+  readonly field: FieldExpr<T>
 }
 
 /** The time of the write, in milliseconds since the epoch. */

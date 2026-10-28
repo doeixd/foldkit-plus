@@ -4,9 +4,19 @@
  * an update those set `on: 'write'`, and no input sets one.
  * operations-phase3-DESIGN.
  */
-import { Option, Schema } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Derived, Entity, Expr, Relation, Write, type EntitySets } from '../src/index.js'
+import {
+  Derived,
+  Entity,
+  Expr,
+  Held,
+  Relation,
+  Write,
+  type AnyWrite,
+  type EntitySets,
+  type ExprContext,
+} from '../src/index.js'
 
 const Team = Entity.define('Team', Schema.Struct({ id: Schema.String }))
 const User = Entity.define('User', Schema.Struct({ id: Schema.String }))
@@ -50,6 +60,9 @@ const setting = (values: EntitySets<typeof Blog.Post>) => () =>
   Blog.Post.pipe(Entity.sets(values, { on: 'create' }))
 
 const you = { entity: 'User', id: 'you' }
+/** What the context sets, with no row held to read a path from. */
+const valuesOf = (write: AnyWrite, by: ExprContext) =>
+  Effect.runSync(Write.contextValues(write, by, () => Effect.succeed(Held.unheld('no row'))))
 const at = (viewer: Option.Option<{ entity: string; id: string }>, now: Option.Option<number>) => ({
   viewer,
   now,
@@ -124,7 +137,7 @@ describe('a write of an Entity with context sets', () => {
   })
 
   it('comes to the viewer and the time, encoded as the store holds them', () => {
-    expect(Write.contextValues(EditPost, at(Option.some(you), Option.some(1_000)))).toEqual({
+    expect(valuesOf(EditPost, at(Option.some(you), Option.some(1_000)))).toEqual({
       values: { editedAt: 1_000, editorId: 'you' },
       links: { editor: Option.some(you) },
       unfilled: [],
@@ -132,7 +145,7 @@ describe('a write of an Entity with context sets', () => {
   })
 
   it('names a member it has no value for, or a null the member cannot hold', () => {
-    expect(Write.contextValues(PostChirp, at(Option.none(), Option.none()))).toEqual({
+    expect(valuesOf(PostChirp, at(Option.none(), Option.none()))).toEqual({
       // A visitor is a null: what holds one takes it.
       values: { editorId: null },
       links: { editor: Option.none() },
@@ -142,7 +155,7 @@ describe('a write of an Entity with context sets', () => {
 
   it('points a relation only at a viewer of the Entity it points at', () => {
     expect(
-      Write.contextValues(PostChirp, at(Option.some({ entity: 'Team', id: 't1' }), Option.some(1))),
+      valuesOf(PostChirp, at(Option.some({ entity: 'Team', id: 't1' }), Option.some(1))),
     ).toMatchObject({ links: { editor: Option.none() }, unfilled: ['authorId', 'author'] })
   })
 

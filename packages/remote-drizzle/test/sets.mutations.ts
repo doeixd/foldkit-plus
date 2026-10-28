@@ -9,9 +9,6 @@ const edit = (name: string, find: string, replace: string) => ({
   edits: [{ file, find, replace }],
   tests,
 })
-const insertSet =
-  '                const set = Write.contextValues(write, { viewer, now: Option.some(now) })\n                // Only'
-
 export default [
   edit(
     "an insert's fields the context sets are not written",
@@ -40,7 +37,7 @@ export default [
   ),
   edit(
     'a visitor is not refused',
-    '                // Only the viewer can come to nothing: a visitor, or one of another Entity.\n                if (set.unfilled.length > 0) return yield* Effect.fail(RemoteServer.forbid())',
+    '                // A visitor, a viewer of another Entity, or a path reaching no row.\n                if (set.unfilled.length > 0) return yield* Effect.fail(RemoteServer.forbid())',
     '',
   ),
   edit(
@@ -60,9 +57,9 @@ export default [
     'now: yield* Clock.currentTimeMillis,',
   ),
   edit(
-    "an insert sets the server's clock, not the write's time",
-    insertSet,
-    '                const set = Write.contextValues(write, { viewer, now: Option.some(yield* Clock.currentTimeMillis) })\n                // Only',
+    "the context reads another time than the write's",
+    '{ viewer, now: Option.some(now) },',
+    '{ viewer, now: Option.some(now + 1) },',
   ),
   edit('any client time is taken', 'return Math.abs(time - own) <= bound', 'return true'),
   edit(

@@ -24,7 +24,7 @@ export default [
   edit(
     'a value from the input is taken',
     sets,
-    "if (tag !== 'Viewer' && tag !== 'Now') {",
+    "if (tag !== 'Viewer' && tag !== 'Now' && tag !== 'ViewerPath') {",
     'if (false) {',
   ),
   edit(
@@ -39,8 +39,8 @@ export default [
     "context._tag !== 'Viewer' || context.entity.token !== target.identity.token",
     "context._tag !== 'Viewer'",
   ),
-  edit('the time goes into text', sets, 'stored.every(SchemaAST.isNumber) ||', 'true ||'),
-  edit('the viewer goes into a number', sets, 'stored.every(SchemaShape.isText) ||', 'true ||'),
+  edit('the time goes into text', sets, "stored === 'number' ||", 'true ||'),
+  edit('the viewer goes into a number', sets, "stored === 'text' ||", 'true ||'),
   edit('a key that is no member is kept', sets, 'if (member === undefined) {', 'if (false) {'),
   edit(
     'the sets are not kept',
@@ -94,7 +94,7 @@ export default [
   edit(
     'a missing time is not named',
     write,
-    '      if (Option.isNone(comes)) {\n        unfilled.push(member.key)',
-    '      if (Option.isNone(comes)) {\n        void 0',
+    '        if (Option.isNone(comes)) {\n          unfilled.push(member.key)',
+    '        if (Option.isNone(comes)) {\n          void 0',
   ),
 ]

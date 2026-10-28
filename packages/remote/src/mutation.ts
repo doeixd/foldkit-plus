@@ -5,13 +5,15 @@
  * `requestId`**, so a transport retry cannot apply the same change twice. An
  * unknown or already-applied result is a no-op.
  */
-import { Data, Match, Option, Record as Rec, Schema } from 'effect'
+import { Data, Effect, Match, Option, Record as Rec, Schema } from 'effect'
 import {
   Write as DomainWrite,
   type AnyWrite,
   type BoundWrite,
   type Computation,
   type ConditionedWrite,
+  type ContextRead,
+  Held,
   type ExprContext,
   type Invariant,
   type Write,
@@ -19,7 +21,14 @@ import {
 import type { OptimisticOperation } from './optimistic.js'
 import { refParts } from './relation.js'
 import type { RemoteError } from './remoteData.js'
-import { entityKey, tombstone, writeEntities, type EntityEntry, type EntityStore } from './store.js'
+import {
+  emptyStore,
+  entityKey,
+  tombstone,
+  writeEntities,
+  type EntityEntry,
+  type EntityStore,
+} from './store.js'
 
 export interface NormalizedPatch {
   readonly entity: string
@@ -400,19 +409,39 @@ export const patchOfWrite = (bound: BoundWrite): NormalizedPatch => ({
 })
 
 /**
+ * One member of a row as `store` holds it, for a path from the viewer: a row
+ * known gone reaches no row (null), and a row or a field never read is unheld.
+ */
+const heldIn =
+  (store: EntityStore): ContextRead<never, never> =>
+  (row, key) => {
+    const entry = store[entityKey(row.entity, row.id)]
+    if (entry === undefined)
+      return Effect.succeed(Held.unheld(`${row.entity} ${row.id} is not held`))
+    if (entry.tombstone) return Effect.succeed(Held.of(null))
+    return Effect.succeed(
+      entry.present.has(key)
+        ? Held.of(entry.values[key])
+        : Held.unheld(`${row.entity}.${key} of ${row.id} is not held`),
+    )
+  }
+
+/**
  * A write bound to its input, with what its Entity sets from the context
- * (`Entity.sets`) as `context` gives it: who asks (`Remote.make`'s viewer)
- * and when the reader acted (`Data.mutate`'s `now`). A member with no value
- * to give is left out of the prediction, and the answer brings it.
+ * (`Entity.sets`) as `context` gives it: who asks (`Remote.make`'s viewer),
+ * what their row holds (read from `store`), and when the reader acted
+ * (`Data.mutate`'s `now`). A member with no value to give is left out of the
+ * prediction, and the answer brings it.
  */
 const contextBound = (
   write: AnyWrite,
   input: unknown,
   keys: ReadonlyArray<string> | undefined,
   context: ExprContext,
+  store: EntityStore,
 ): BoundWrite => {
   const bound = DomainWrite.bind(write, input as never, keys)
-  const set = DomainWrite.contextValues(write, context)
+  const set = Effect.runSync(DomainWrite.contextValues(write, context, heldIn(store)))
   return {
     ...bound,
     values: { ...bound.values, ...set.values },
@@ -427,18 +456,19 @@ const nobody: ExprContext = { viewer: Option.none(), now: Option.none() }
  * insert's row as a patch (an update's only for the keys named, when some
  * are), and an update's increments and computed fields, worked out over the
  * row the store holds when it is read. A delete shows its row deleted. What
- * the context sets is filled from `context`, where it can be.
+ * the context sets is filled from `context` and `store`, where it can be.
  */
 export const optimisticOfWrite = (
   write: AnyWrite,
   input: unknown,
   keys: ReadonlyArray<string> | undefined,
   context: ExprContext = nobody,
+  store: EntityStore = emptyStore,
 ): ReadonlyArray<PendingPatch | PendingDelete> =>
   Match.value(write).pipe(
     Match.tagsExhaustive({
       Update: () => {
-        const bound = contextBound(write, input, keys, context)
+        const bound = contextBound(write, input, keys, context, store)
         const patch = patchOfWrite(bound)
         return [
           {
@@ -450,7 +480,7 @@ export const optimisticOfWrite = (
       },
       // A new row is read like any other, so it carries its own id.
       Insert: () => {
-        const patch = patchOfWrite(contextBound(write, input, undefined, context))
+        const patch = patchOfWrite(contextBound(write, input, undefined, context, store))
         return [{ ...patch, values: { id: patch.id, ...patch.values } }]
       },
       Delete: (): ReadonlyArray<PendingDelete> => {
@@ -502,7 +532,13 @@ export const derivedOfWrite = (
 ): ReadonlyArray<PendingPatch> => {
   if (derived.length === 0) return []
   // A link the context sets (whoever asks) moves what it points at as an input's would.
-  const bound = contextBound(write, input, write._tag === 'Update' ? keys : undefined, context)
+  const bound = contextBound(
+    write,
+    input,
+    write._tag === 'Update' ? keys : undefined,
+    context,
+    store,
+  )
   const row = store[entityKey(bound.entity, bound.id)]
   const held = row === undefined || row.tombstone ? undefined : row
   const viewerKey = Option.map(context.viewer, ref => entityKey(ref.entity, ref.id))
@@ -648,7 +684,7 @@ export const predictionOfWrite = (
         Delete: () => [],
       }),
     ),
-    ...optimisticOfWrite(write, input, keys, by),
+    ...optimisticOfWrite(write, input, keys, by, context.store),
     ...derivedOfWrite(
       write,
       input,

@@ -182,10 +182,13 @@ ask of its row.
 
 **What the server chooses:** `Entity.sets({ author: Expr.viewer(User), createdAt: Expr.now }, { on:
 'create' })` and `Entity.sets({ editedAt: Expr.now }, { on: 'write' })`, added after `Entity.relate`, are
-the one place a write's effects are declared. Every insert sets those members, every update those set
-`on: 'write'`, and no input may set them: the server fills them
+the one place a write's effects are declared. A value may be a path from the viewer too
+(`orgId: Expr.path(Expr.viewer(Member), Expr.path(Member.relations.team, Team.fields.orgId))`). Every
+insert sets those members, every update those set `on: 'write'`, and no input may set them: the server fills them
 (`RemoteServer.make({ viewer })`, and the write's time) and the client predicts them (`Remote.make({ viewer })`,
-and `Data.mutate`'s `now`, the time the reader acted, which the request sends). Everything else a write does is inferred: counts and exists from `Derived`
+and `Data.mutate`'s `now`, the time the reader acted, which the request sends). Both read
+`Write.contextValues(write, context, read)`, an Effect whose `read` gives a path one row's member at a time
+(the server's sources, the client's store); `Write.contextReads(write)` names the Entities a path reads. Everything else a write does is inferred: counts and exists from `Derived`
 members, a list's membership and order from its query's body.
 
 **An input that embeds the target** (a post with a new author): map the key with

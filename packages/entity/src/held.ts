@@ -195,16 +195,20 @@ const fromRefs = (
   const read: Record<string, unknown> = { ...row }
   for (const key of links) {
     const ref = row[key]
-    if (ref === null || ref === undefined) continue
-    const separator = typeof ref === 'string' ? ref.indexOf(':') : -1
-    if (separator === -1) {
-      throw new Error(
-        `[foldkit-entity] ${query.entity.name}.${key} holds ${JSON.stringify(ref)}, which is no ref key ("Entity:id")`,
-      )
-    }
-    read[key] = (ref as string).slice(separator + 1)
+    if (ref !== null && ref !== undefined) read[key] = idOfRef(ref, `${query.entity.name}.${key}`)
   }
   return read
+}
+
+/** The id a ref key (`'User:ada'`) names, refusing what is none, as `where` holds it. */
+export const idOfRef = (ref: unknown, where: string): string => {
+  const separator = typeof ref === 'string' ? ref.indexOf(':') : -1
+  if (separator === -1) {
+    throw new Error(
+      `[foldkit-entity] ${where} holds ${JSON.stringify(ref)}, which is no ref key ("Entity:id")`,
+    )
+  }
+  return (ref as string).slice(separator + 1)
 }
 
 export const Held = {

@@ -13,7 +13,7 @@
  * It is authority someone declared, never something derived from an Entity: an
  * Entity having a field does not mean anyone may set it.
  */
-import { Data, Match, Option, Schema, SchemaAST } from 'effect'
+import { Data, Effect, Match, Option, Schema, SchemaAST } from 'effect'
 import type {
   AnyEntity,
   EntityMember,
@@ -38,7 +38,8 @@ import {
   type Reads,
 } from './expr.js'
 import type { BeforeRow } from './invariant.js'
-import { contextValue, type ExprContext } from './context.js'
+import { contextValue, viewerIdOf, type ExprContext, type ViewerPathExpr } from './context.js'
+import { Held, idOfRef } from './held.js'
 import type { MemoryOperators } from './operators.js'
 import { SchemaShape } from './shape.js'
 import type { ContextValue } from './sets.js'
@@ -430,6 +431,48 @@ const storedKind = (ast: SchemaAST.AST): string => {
   return 'other'
 }
 
+/** What a write's context comes to: see `Write.contextValues`. */
+export interface ContextValues {
+  readonly values: Readonly<Record<string, unknown>>
+  readonly links: Readonly<Record<string, Option.Option<EntityRef>>>
+  readonly unfilled: ReadonlyArray<string>
+}
+
+/**
+ * One member of one row, as a holder has it: a field's encoded value, or a
+ * `one` relation's ref key (`'User:ada'`) or null; unheld where it lacks it. A
+ * server reads every row its asker may see, and reads a hidden one as null.
+ */
+export type ContextRead<E, R> = (row: EntityRef, key: string) => Effect.Effect<Held<unknown>, E, R>
+
+/**
+ * What a path from the viewer reads: null for a visitor or a viewer of
+ * another Entity, or where a link is null; unheld where `read` lacks a row.
+ */
+const walked = <E, R>(
+  path: ViewerPathExpr<unknown>,
+  by: ExprContext,
+  read: ContextRead<E, R>,
+): Effect.Effect<Held<unknown>, E, R> =>
+  Option.match(viewerIdOf(path.viewer.entity, by), {
+    onNone: () => Effect.succeed(Held.of(null)),
+    onSome: id =>
+      Effect.gen(function* () {
+        let at: EntityRef = { entity: path.viewer.entity.name, id }
+        for (const relation of path.via) {
+          const link = yield* read(at, relation.key)
+          if (link._tag === 'Unheld') return link
+          if (link.value === null || link.value === undefined) return Held.of(null)
+          at = {
+            entity: relation.target().name,
+            id: idOfRef(link.value, `${relation.owner.name}.${relation.key}`),
+          }
+        }
+        const end = yield* read(at, path.field.key)
+        return end._tag === 'Unheld' ? end : Held.of(end.value ?? null)
+      }),
+  })
+
 /** Whether a field stores a null. */
 const holdsNull = (field: AnyField): boolean =>
   storedKinds(Schema.toEncoded(field.schema as unknown as Schema.Top).ast).has('null')
@@ -796,41 +839,58 @@ export const Write = {
 
   /**
    * What the context sets come to, encoded as the store holds them: each
-   * field's value and each relation's link. `unfilled` names each member
-   * there is no value for: none to read (no reading of the time), or a null
-   * where the member holds none (a visitor, a viewer of another Entity). A
-   * server refuses such a write; a client predicts nothing for the member.
+   * field's value and each relation's link. A path from the viewer is read
+   * through `read`, one row at a time. `unfilled` names each member there is
+   * no value for: none to read (no reading of the time, a row or field
+   * `read` does not hold), or a null where the member holds none (a visitor,
+   * a viewer of another Entity, a path reaching no row). A server refuses such
+   * a write; a client predicts nothing for the member.
    */
-  contextValues: (
+  contextValues: <E, R>(
     write: AnyWrite,
     by: ExprContext,
-  ): {
-    readonly values: Readonly<Record<string, unknown>>
-    readonly links: Readonly<Record<string, Option.Option<EntityRef>>>
-    readonly unfilled: ReadonlyArray<string>
-  } => {
-    const values: Record<string, unknown> = {}
-    const links: Record<string, Option.Option<EntityRef>> = {}
-    const unfilled: Array<string> = []
-    for (const { member, value } of write.context) {
-      const comes = contextValue(value, by)
-      if (Option.isNone(comes)) {
-        unfilled.push(member.key)
-      } else if (member._tag === 'Relation') {
-        // `Entity.sets` points a relation only at the viewer of its target.
-        const id = comes.value
-        if (id !== null)
-          links[member.key] = Option.some({ entity: member.target().name, id: String(id) })
-        else if (member.optional) links[member.key] = Option.none()
-        else unfilled.push(member.key)
-      } else if (comes.value !== null || holdsNull(member)) {
-        values[member.key] = comes.value
-      } else {
-        unfilled.push(member.key)
+    read: ContextRead<E, R>,
+  ): Effect.Effect<ContextValues, E, R> =>
+    Effect.gen(function* () {
+      const values: Record<string, unknown> = {}
+      const links: Record<string, Option.Option<EntityRef>> = {}
+      const unfilled: Array<string> = []
+      for (const { member, value } of write.context) {
+        const comes: Option.Option<unknown> =
+          value._tag === 'ViewerPath'
+            ? Held.match(yield* walked(value, by, read), {
+                onHeld: held => Option.some(held),
+                onUnheld: () => Option.none(),
+              })
+            : contextValue(value, by)
+        if (Option.isNone(comes)) {
+          unfilled.push(member.key)
+        } else if (member._tag === 'Relation') {
+          // `Entity.sets` points a relation only at the viewer of its target.
+          const id = comes.value
+          if (id !== null)
+            links[member.key] = Option.some({ entity: member.target().name, id: String(id) })
+          else if (member.optional) links[member.key] = Option.none()
+          else unfilled.push(member.key)
+        } else if (comes.value !== null || holdsNull(member)) {
+          values[member.key] = comes.value
+        } else {
+          unfilled.push(member.key)
+        }
       }
-    }
-    return { values, links, unfilled }
-  },
+      return { values, links, unfilled }
+    }),
+
+  /** The Entities a write's paths from the viewer read, by name: what a server must have a source of. */
+  contextReads: (write: AnyWrite): ReadonlyArray<string> => [
+    ...new Set(
+      write.context.flatMap(({ value }) =>
+        value._tag === 'ViewerPath'
+          ? [value.viewer.entity.name, ...value.via.map(relation => relation.target().name)]
+          : [],
+      ),
+    ),
+  ],
 
   /**
    * The fields a write reads from the row it writes: those its `when` reads,
