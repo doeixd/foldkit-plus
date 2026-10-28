@@ -683,6 +683,15 @@ const keptWindows = (
   return kept.length === Object.keys(grown).length ? grown : Object.fromEntries(kept)
 }
 
+/** The placements awaiting a page of a list retention still keeps; a dropped list's page never comes. */
+const keptPlacements = (
+  placed: RemoteModel['placed'],
+  connections: Retained['connections'],
+): RemoteModel['placed'] => {
+  const kept = Object.entries(placed).filter(([key]) => Object.hasOwn(connections, key))
+  return kept.length === Object.keys(placed).length ? placed : Object.fromEntries(kept)
+}
+
 /**
  * Drops the refresh marks of entities and connections that were collected.
  * Nothing observes a collected entity — the retention roots are the active
@@ -989,6 +998,7 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
         connections,
         recent,
         grown: keptWindows(model.grown, retained.connections),
+        placed: keptPlacements(model.placed, retained.connections),
         refresh: prunedRefresh(model.refresh, retained),
         failures: prunedFailures(model.failures, message.roots, reached),
         loading: prunedLoading(model.loading, message.roots, reached),

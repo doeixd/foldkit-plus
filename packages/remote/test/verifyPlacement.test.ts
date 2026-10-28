@@ -159,6 +159,18 @@ describe('verifyPlacement', () => {
     expect(read.remote.placed[list]).toEqual({ order: ['Project:p1', 'Project:p2'], dropped: [] })
   })
 
+  it('forgets a placement once retention drops its list, before its page came (#273)', () => {
+    const Data = make(true)
+    const placed = repriced(Data)
+    expect(Object.keys(placed.remote.placed)).toEqual([list])
+    const dropped = Data.reduce(placed, {
+      _tag: 'RetentionChanged',
+      roots: { requirements: [], connections: [] },
+    })
+    expect(dropped.remote.connections[list]).toBeUndefined()
+    expect(dropped.remote.placed).toEqual({})
+  })
+
   it('without it, places and fetches nothing', () => {
     const model = repriced(make(false))
     expect(order(model.remote)).toEqual(['p2', 'p1'])
