@@ -1,7 +1,10 @@
 # A Workers dev stack read from wrangler.toml (#253)
 
 Status: slice 1 built (2026-10-27) in `examples/cloudflare`. The rest is
-listed under [Deferred](#deferred).
+listed under [Deferred](#deferred). Since moved, by #239, into
+`foldkit-plus/testing/workers` as `Stack.start` and `Stack.writeBundle`,
+reading the configuration with Wrangler's own reader instead of
+`smol-toml` ([239-plus-testing-DESIGN.md](./239-plus-testing-DESIGN.md)).
 
 ## The problem
 

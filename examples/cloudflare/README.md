@@ -151,7 +151,8 @@ pnpm test     # the same loop, asserted
 Each starts the worker the way `wrangler.toml` declares it: its bindings,
 compatibility date and flags, `.dev.vars`, and D1 migrations are read from
 that file by Wrangler's own test harness, so the local worker cannot drift
-from the deployed one. The stack only bundles (`src/workers.ts`), with the
+from the deployed one. The stack (`foldkit-plus/testing/workers`, called
+from `src/stack.ts`) only bundles, with the
 workspace's source condition, and refuses a compatibility date the installed
 workerd does not know rather than run an older runtime. Under `pnpm dev`, a
 change to anything the worker bundles swaps the new worker in at the same
@@ -161,7 +162,10 @@ stops the stack, storage and all: fix it and run `pnpm dev` again.
 
 From the repository root, `npx vitest run --config vitest.e2e.config.ts
 examples/cloudflare` starts the worker on miniflare and the page on Vite, and
-drives the page in Chromium (`e2e/page.e2e.ts`).
+drives the page in Chromium (`e2e/page.e2e.ts`). It holds the add's write
+at the network and asserts the todo shows meanwhile and after the answer,
+that the list never reads "Loading…" while it does, and that the page logs
+no error (`foldkit-plus/testing/playwright`'s `Behaviors`).
 
 `src/schema.ts` holds the table, the Drizzle binding, the Sync contract, the
 journal, `settle`, the polling source, and the Remote mutation handlers.

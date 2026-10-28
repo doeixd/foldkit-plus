@@ -103,6 +103,50 @@ once you add it with its library:
 `foldkit-media` is installed, but two of its subpaths need a library that is not:
 `foldkit-plus/media/sharp` needs `sharp`, and `foldkit-plus/media/unpic` needs `unpic`.
 
+## Testing a running application
+
+Two subpaths of this package's own drive the tools an application tests with.
+Those tools are optional peers too: add them as dev dependencies, and a
+subpath that needs one it cannot find says which.
+
+| Subpath | Needs | For |
+| --- | --- | --- |
+| `foldkit-plus/testing/workers` | `wrangler`, `esbuild` | `Stack.start`: the Worker on a local workerd, configured by its own `wrangler.toml`, with fresh migrated D1 per stack; `Stack.writeBundle`: the same bundle where `main` says, for `wrangler deploy` |
+| `foldkit-plus/testing/playwright` | `playwright` (types) | `Behaviors`: a write shows while it is held at the network and after its answer (`optimistic`), a text never shows during some steps, even for one frame (`neverShows`), and the page's errors (`consoleErrors`) |
+
+```ts
+import { Stack } from 'foldkit-plus/testing/workers'
+
+const stack = await Stack.start<Env>({
+  wrangler: 'wrangler.toml', // bindings, compatibility date and flags, D1 migrations
+  entry: 'src/worker.ts', // bundled into what `main` names; `no_bundle = true`
+  vars: { AUTH_ORIGIN: 'http://127.0.0.1:5177' },
+})
+await fetch(stack.origin)
+await stack.stop()
+```
+
+```ts
+import { Behaviors } from 'foldkit-plus/testing/playwright'
+
+const errors = Behaviors.consoleErrors(page)
+await Behaviors.neverShows(page, {
+  text: 'Loading…',
+  during: () =>
+    Behaviors.optimistic(page, {
+      act: () => page.getByRole('button', { name: 'Add' }).click(),
+      shows: page.getByRole('button', { name: 'Buy milk', exact: true }),
+    }),
+})
+expect(errors()).toEqual([])
+```
+
+These check the drawn page over the real network. To find which Message makes
+a read blink, `foldkit-plus/remote/testing`'s `Trace` runs `update` and Remote's
+Subscriptions without a browser and records every Model.
+[examples/cloudflare](https://github.com/doeixd/foldkit-plus/tree/main/examples/cloudflare)
+uses both subpaths.
+
 ## Versions
 
 `effect` and `foldkit` are peers: this release targets Effect 4 (`^4.0.0`,

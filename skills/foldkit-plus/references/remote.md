@@ -642,6 +642,32 @@ stands still (no `grace`, age-out or live restart fires), live streams send
 nothing (script `LiveReceived`), and only Remote's Commands run. `update` must
 take Remote's Messages; a `Remote.fold` domain is not supported yet.
 
+**The same properties in a real browser.** `foldkit-plus/testing/playwright`
+checks the drawn page over the real network, where SSR, persistence and the
+Worker take part (`playwright` is an optional peer, for its types):
+
+```ts
+import { Behaviors } from 'foldkit-plus/testing/playwright'
+
+const errors = Behaviors.consoleErrors(page)
+await Behaviors.neverShows(page, {
+  text: 'Loading…', // searched in the rendered text after every DOM change
+  during: () =>
+    Behaviors.optimistic(page, {
+      act: () => page.getByRole('button', { name: 'Add' }).click(),
+      shows: page.getByRole('button', { name: 'Buy milk', exact: true }),
+    }), // every Remote mutation held 3 s; shows within 1 s, and after the answer
+})
+expect(errors()).toEqual([])
+```
+
+When `neverShows` fails, a `Trace` test finds the Message. The Worker those
+tests run against comes from `foldkit-plus/testing/workers`: `Stack.start({
+wrangler, entry, vars?, secrets?, plugins? })` reads `wrangler.toml` through
+Wrangler's test harness (fresh, migrated D1 per stack; `env()` re-read after a
+swap), and `Stack.writeBundle` writes the deploy bundle the same way
+(`wrangler` and `esbuild` are optional peers).
+
 ## Server: `foldkit-remote-server`
 
 ```ts
