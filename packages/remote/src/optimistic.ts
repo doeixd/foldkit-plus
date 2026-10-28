@@ -194,7 +194,8 @@ export const removeOverlay = (optimistic: OptimisticState, id: string): Optimist
  * not news from the server, so it keeps the date of the value under it; an
  * entity only a request holds (a temporary id) is not the server's to age, and
  * is dated `Infinity`, so freshness never plans or times it. A row a layer
- * deletes is a tombstone over all of them.
+ * deletes is a tombstone over all of them, and so is a row the server
+ * deleted: a pending patch does not bring it back, only the server's word can.
  */
 export const visibleStore = (
   base: EntityStore,
@@ -205,14 +206,11 @@ export const visibleStore = (
     tombstone,
     writeEntities(
       base,
-      resolvedPatches(base, optimistic, operators).map(patch => {
+      resolvedPatches(base, optimistic, operators).flatMap(patch => {
         const key = entityKey(patch.entity, patch.id)
         const under = base[key]
-        return {
-          key,
-          values: patch.values,
-          updatedAt: under === undefined || under.tombstone ? Infinity : under.updatedAt,
-        }
+        if (under?.tombstone === true) return []
+        return [{ key, values: patch.values, updatedAt: under?.updatedAt ?? Infinity }]
       }),
     ),
   )
@@ -224,8 +222,8 @@ const pendingDeletes = (optimistic: OptimisticState): ReadonlySet<EntityKey> =>
 
 /**
  * Whether a list hides a row: the store holds it deleted, or a pending layer
- * deletes it. Read from the server's store, not the visible one, where a
- * pending patch over a deleted row clears its tombstone.
+ * deletes it. Read from the server's store and the layers, so a caller need
+ * not build the visible store to ask.
  */
 export const goneIn = (
   store: EntityStore,

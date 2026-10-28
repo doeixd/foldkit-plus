@@ -166,6 +166,23 @@ describe('A pending delete', () => {
     expect(shown(edit(deleting(loaded)))).toEqual(hidden)
   })
 
+  it('stays gone once it settles while an edit made before it is pending (#273)', () => {
+    const edited = Data.mutate(
+      loaded,
+      EditPost,
+      { id: 'p1', body: 'edited' },
+      { requestId: 'edit', optimistic: [Remote.patch(Post, 'p1', { body: 'edited' })] },
+    ).model
+    const settled = Data.reduce(deleting(edited), {
+      _tag: 'MutationSucceeded',
+      requestId: 'delete',
+      entities: [],
+      deleted: [{ entity: 'Post', id: 'p1' }],
+      now: 1,
+    })
+    expect(shown(settled)).toEqual(hidden)
+  })
+
   it('is shown by an overlay too, and lifting it brings the row back', () => {
     const previewed = Data.overlay(loaded, 'preview', [Remote.tombstone(Post, 'p1')])
     expect(shown(previewed)).toEqual(hidden)

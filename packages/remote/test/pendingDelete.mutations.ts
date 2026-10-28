@@ -11,6 +11,13 @@ const optimistic = '../src/optimistic.ts'
 
 export default [
   {
+    name: 'a pending patch brings back a row the server deleted',
+    edits: [
+      { file: optimistic, find: '        if (under?.tombstone === true) return []\n', replace: '' },
+    ],
+    tests,
+  },
+  {
     name: 'a request keeps no deletion of its own',
     edits: [
       {
