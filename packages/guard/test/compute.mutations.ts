@@ -47,9 +47,9 @@ export default [
       },
       {
         file: '../src/server.ts',
-        find: `        yield* require([rules.row], after, principal)`,
+        find: `        yield* require([rules.row, ...rules.members, ...pointing], after, principal)`,
         replace: `        yield* require([rules.row, ...rules.members, ...relations], before, principal)
-        yield* require([rules.row], after, principal)`,
+        yield* require([rules.row, ...rules.members, ...pointing], after, principal)`,
       },
     ],
     tests: ['packages/guard/test/compute.test.ts'],

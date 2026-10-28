@@ -19,7 +19,13 @@ export default [
   },
   {
     name: 'an update is not checked over the row as it would be',
-    edits: [{ file, find: 'yield* require([rules.row], after, principal)', replace: '' }],
+    edits: [
+      {
+        file,
+        find: 'yield* require([rules.row, ...rules.members, ...pointing], after, principal)',
+        replace: '',
+      },
+    ],
     tests,
   },
   {
