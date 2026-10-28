@@ -134,15 +134,15 @@ const ownLikes = (
 const guarded = GuardServer.writer(Post, Policy, writer(Db.Post))
 const likeWrites = GuardServer.writer(Like, Policy, ownLikes(writer(Db.Like)))
 
-/** Who is asking, as the row a stamp or a `liked` names. */
+/** Who is asking, as the row a stamp, a `liked` or an `Expr.viewer` names. */
 const asker = (principal: Option.Option<User>) =>
   Option.map(principal, user => Remote.ref(Chirper, user.id))
 
 export const server = RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
   entities: [
     source(Db.User),
-    // `liked` is each reader's own: the source answers it for whoever asks.
-    source(Db.Post, { filter: GuardServer.filter(Post, Policy), viewer: asker }),
+    // `liked` is each reader's own: the source answers it for the server's `viewer`.
+    source(Db.Post, { filter: GuardServer.filter(Post, Policy) }),
     source(Db.Like, { filter: GuardServer.filter(Like, Policy) }),
   ],
   queries: [query(Timeline, { entity: Db.Post }), query(ByAuthor, { entity: Db.Post })],

@@ -81,7 +81,7 @@ export default [
     edits: [
       {
         file: index,
-        find: '? placedNews(reduced, newsOf(message), remote.entities)',
+        find: '? placedNews(reduced, newsOf(message), remote.entities, contextOf(model))',
         replace: '? reduced',
       },
     ],

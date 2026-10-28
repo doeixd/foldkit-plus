@@ -10,8 +10,8 @@ export default [
     edits: [
       {
         file: '../src/index.ts',
-        find: 'impactOn(held, visible, change, operators)',
-        replace: 'impactOn(held, visible, change)',
+        find: 'impactOn(held, visible, change, operators, context)',
+        replace: 'impactOn(held, visible, change, undefined as never, context)',
       },
     ],
     tests,
@@ -21,8 +21,9 @@ export default [
     edits: [
       {
         file: '../src/index.ts',
-        find: 'impactOn({ ...query.value, connection: placed, holds }, store, change, operators)',
-        replace: 'impactOn({ ...query.value, connection: placed, holds }, store, change)',
+        find: 'impactOn({ ...query.value, connection: placed, holds }, store, change, operators, context)',
+        replace:
+          'impactOn({ ...query.value, connection: placed, holds }, store, change, undefined as never, context)',
       },
     ],
     tests,
@@ -43,8 +44,8 @@ export default [
     edits: [
       {
         file: '../src/impact.ts',
-        find: 'belongsEncoded(store, descriptor, connection.encoded, key, operators)',
-        replace: 'belongsEncoded(store, descriptor, connection.encoded, key)',
+        find: 'belongsEncoded(store, descriptor, connection.encoded, key, operators, context)',
+        replace: 'belongsEncoded(store, descriptor, connection.encoded, key, undefined, context)',
       },
     ],
     tests,

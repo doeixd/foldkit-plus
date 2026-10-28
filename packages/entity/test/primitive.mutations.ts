@@ -66,17 +66,19 @@ export default [
     'evaluate ignores the table it is given',
     evaluate,
     `const operators = options.operators ?? Operators.kernel
+  const { context } = options
   assertSupported(body, operators)
   return ordered(`,
     `const operators = Operators.kernel
+  const { context } = options
   assertSupported(body, operators)
   return ordered(`,
   ),
   edit(
     'deciding over the input ignores the table',
     evaluate,
-    'Option.some(holds(node, { row: {}, input, next: {}, operators }))',
-    'Option.some(holds(node, { row: {}, input, next: {}, operators: Operators.kernel }))',
+    'Option.some(holds(node, { row: {}, input, next: {}, operators, context }))',
+    'Option.some(holds(node, { row: {}, input, next: {}, operators: Operators.kernel, context }))',
   ),
   edit(
     'a row is judged with the kernel whatever the table',

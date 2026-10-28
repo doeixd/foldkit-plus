@@ -37,6 +37,7 @@ import {
   dependenciesOf,
   evaluate,
   isPredicate,
+  viewerIdOf,
   type Computation,
   type EntityRef,
   type Change,
@@ -49,6 +50,7 @@ import { Diagnostics, Entity } from 'foldkit-remote'
 import {
   RemoteServer,
   RemoteServerError,
+  exprContext,
   type EntityRecord,
   type EntityWriter,
   type LiveHub,
@@ -390,6 +392,10 @@ const cursorId = (cursor: string): string => {
  * to a collection relation (e.g. only rows this principal may see), and
  * `options.filter` decides what a principal sees of each record, as
  * `RemoteServer.entity`'s does.
+ *
+ * A `Derived.exists` of the binding is answered for whoever reads, as the
+ * server it is mounted in says (`RemoteServer.make`'s `viewer`), which is
+ * refused without one; a read made outside a server is refused it.
  */
 export const source = <P = unknown>(
   binding: AnyEntityBinding,
@@ -398,15 +404,6 @@ export const source = <P = unknown>(
     readonly filter?: EntitySource<P, DrizzleDatabase>['filter'] | undefined
     /** The fields every principal reads alike, of every row: see `EntitySource.shared`. */
     readonly shared?: ReadonlyArray<string> | undefined
-    /**
-     * Who is reading, as a row (`{ entity, id }`), or none for a visitor:
-     * what each `Derived.exists` of the binding is answered for. Required
-     * when the binding has one. A member whose viewer relation points at
-     * another Entity reads none for this reader.
-     */
-    readonly viewer?:
-      | ((principal: P) => Option.Option<{ readonly entity: string; readonly id: string }>)
-      | undefined
     readonly policies?:
       | Readonly<Record<string, ((principal: P) => SQL | undefined) | undefined>>
       | undefined
@@ -429,12 +426,6 @@ export const source = <P = unknown>(
   const perViewer = Object.keys(binding.computed).filter(
     field => binding.computed[field]!.viewer !== undefined,
   )
-  if (perViewer.length > 0 && options?.viewer === undefined) {
-    throw new Error(
-      `[foldkit-remote-drizzle] ${binding.name}'s ${perViewer.join(', ')} depend on who reads them (Derived.exists): give source a viewer`,
-    )
-  }
-  const viewerOf = options?.viewer ?? (() => Option.none())
   // A shared field's written value goes to every subscriber as it is, and this one is each reader's own.
   const sharedPerViewer = perViewer.filter(field => options?.shared?.includes(field) === true)
   if (sharedPerViewer.length > 0) {
@@ -446,8 +437,15 @@ export const source = <P = unknown>(
     entity: binding.name,
     fields: new Set(Object.keys(binding.fields)),
     ...(options?.shared === undefined ? {} : { shared: new Set(options.shared) }),
+    ...(perViewer.length === 0 ? {} : { perViewer }),
     read: context =>
       Effect.gen(function* () {
+        const unmounted = perViewer.filter(field => context.fields.includes(field))
+        if (context.viewer === undefined && unmounted.length > 0) {
+          return yield* new RemoteServerError({
+            message: `${binding.name}'s ${unmounted.join(', ')} depend on who reads them, and this read was given no viewer: read it through the server it is mounted in`,
+          })
+        }
         if (context.ids.length === 0) return []
         if (!projectsAny(binding, context.fields)) return []
         const database = yield* DrizzleDatabase
@@ -676,9 +674,10 @@ export const source = <P = unknown>(
           const viewing = computed.viewer
           if (viewing !== undefined) {
             // A Derived.exists: the least id among the rows pointing here and at the reader.
-            const reader = Option.filter(
-              viewerOf(context.principal),
-              ref => ref.entity === viewing.entity,
+            // `Expr.viewer` of the Entity the viewer relation points at; a read
+            // given no viewer was refused above.
+            const reader = Option.flatMap(Option.fromUndefinedOr(context.viewer), viewer =>
+              viewerIdOf({ name: viewing.entity }, { viewer }),
             )
             const found = new Map<string, string>()
             if (parentKeys.length > 0 && Option.isSome(reader)) {
@@ -690,7 +689,7 @@ export const source = <P = unknown>(
                 {
                   where: withFilters(
                     inArray(side.parent, parentKeys),
-                    eq(viewing.column, reader.value.id),
+                    eq(viewing.column, reader.value),
                     countPolicy,
                   ),
                   innerJoin: side.join,
@@ -800,7 +799,7 @@ export const query = <P = unknown, Input = unknown>(
     query: descriptor.name,
     Input: descriptor.Input,
     ...(options.entity.visible === undefined ? {} : { visible: options.entity.visible }),
-    run: ({ input, window, principal }) =>
+    run: ({ input, window, principal, viewer }) =>
       Effect.gen(function* () {
         if (
           (window.after !== undefined && window.before !== undefined) ||
@@ -812,6 +811,11 @@ export const query = <P = unknown, Input = unknown>(
         }
 
         const binding = options.entity
+        // The body compiles with what its `Expr.viewer` and `Expr.now` read, for this request.
+        const target =
+          body === undefined
+            ? binding
+            : { ...binding, context: exprContext(body, viewer, yield* Clock.currentTimeMillis) }
         const shape = shapeWindow(window, {
           defaultSize: options.defaultPageSize,
           maxSize: options.maxPageSize,
@@ -831,7 +835,7 @@ export const query = <P = unknown, Input = unknown>(
                 : yield* compileFor(() =>
                     compileOrderBy(
                       body,
-                      binding,
+                      target,
                       input as Readonly<Record<string, unknown>>,
                       descriptor.name,
                     ),
@@ -854,7 +858,7 @@ export const query = <P = unknown, Input = unknown>(
             : yield* compileFor(() =>
                 compileWhere(
                   body,
-                  binding,
+                  target,
                   input as Readonly<Record<string, unknown>>,
                   descriptor.name,
                 ),
@@ -1086,6 +1090,12 @@ const serverOnlyReport = (binding: AnyEntityBinding): Effect.Effect<void> => {
 const holdsIntegers = (column: AnyColumn | undefined): boolean =>
   column !== undefined && /^number u?int\d+$/.test(column.dataType)
 
+/**
+ * What a write's precondition and its Entity's invariants may use: a writer is
+ * given no viewer and no time yet, so neither context term.
+ */
+const writeOperations = supported.filter(operation => operation !== 'viewer' && operation !== 'now')
+
 export const writer = <P = unknown>(
   binding: AnyEntityBinding,
   options: { readonly ledger?: WriteLedger<P> } = {},
@@ -1103,8 +1113,8 @@ export const writer = <P = unknown>(
     new RemoteServerError({ message: `${binding.name} has no ${what}` })
   // The rows as a principal may read them, under the binding's `visible`. A
   // writer reads stored fields (what it wrote, what a rule reads), never a
-  // member answered per reader, so it needs no viewer.
-  const readable = source<P>(binding, { viewer: () => Option.none() })
+  // member answered per reader, so it reads with no viewer.
+  const readable = source<P>(binding)
 
   const { invariants } = binding
   const invariantName = (held: Invariant) => `${binding.name}'s invariant "${held.id}"`
@@ -1112,7 +1122,7 @@ export const writer = <P = unknown>(
   // memory, fails where the writer is built.
   for (const held of invariants) {
     // An invariant reads the row after the write (`next`), which a query does not.
-    requireOperators([held.predicate], binding, invariantName(held), [...supported, 'next'])
+    requireOperators([held.predicate], binding, invariantName(held), [...writeOperations, 'next'])
     compilePredicates([held.predicate], binding, {}, invariantName(held))
   }
   // After the invariants are checked, so one this binding cannot run is refused by name first.
@@ -1454,7 +1464,7 @@ export const writer = <P = unknown>(
       // Its precondition compiles into the statement and explains a miss in memory.
       ...Option.match(write.when, {
         onNone: () => [],
-        onSome: body => operatorProblems(body.where, binding, 'its precondition'),
+        onSome: body => operatorProblems(body.where, binding, 'its precondition', writeOperations),
       }),
       // So does each assignment, which a miss's row is worked out by.
       ...write.assignments.flatMap(({ field, expr }) =>

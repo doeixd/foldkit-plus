@@ -111,8 +111,8 @@ export default [
     edits: [
       {
         file: evaluate,
-        find: '    { input, operators },\n',
-        replace: '    { input: {}, operators },\n',
+        find: '    { input, operators, context },\n',
+        replace: '    { input: {}, operators, context },\n',
       },
     ],
     tests,
@@ -122,8 +122,8 @@ export default [
     edits: [
       {
         file: evaluate,
-        find: 'const scope = { input: options.input ?? {},',
-        replace: 'const scope = { input: {},',
+        find: 'input: options.input ?? {},\n    operators:',
+        replace: 'input: {},\n    operators:',
       },
     ],
     tests,
@@ -133,8 +133,8 @@ export default [
     edits: [
       {
         file: evaluate,
-        find: 'operators: options.operators ?? Operators.kernel }',
-        replace: 'operators: Operators.kernel }',
+        find: 'operators: options.operators ?? Operators.kernel,\n    context: options.context,\n  }\n',
+        replace: 'operators: Operators.kernel,\n    context: options.context,\n  }\n',
       },
     ],
     tests,

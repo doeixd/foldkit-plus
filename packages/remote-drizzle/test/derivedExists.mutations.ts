@@ -23,10 +23,22 @@ export default [
     'column: storedOn(pointingKeyOf(viewer, name, field), relation, name, field),',
   ),
   edit(
-    'a source without a viewer is accepted',
-    '../src/index.ts',
-    'if (perViewer.length > 0 && options?.viewer === undefined) {',
+    'a server without a viewer is made',
+    '../../remote-server/src/index.ts',
+    'if (reading !== undefined) {',
     'if (false) {',
+  ),
+  edit(
+    'a read outside a server reads the member',
+    '../src/index.ts',
+    'if (context.viewer === undefined && unmounted.length > 0) {',
+    'if (false) {',
+  ),
+  edit(
+    'the server reads as a visitor',
+    '../../remote-server/src/index.ts',
+    'const viewer = viewerOf(server, principal)',
+    'const viewer = Option.none<EntityRef>()',
   ),
   edit(
     'a shared exists is accepted',
@@ -37,32 +49,21 @@ export default [
   edit(
     'a reader of another Entity is read as a User',
     '../src/index.ts',
-    'ref => ref.entity === viewing.entity,',
-    '() => true,',
+    'viewerIdOf({ name: viewing.entity }, { viewer }),',
+    'Option.map(viewer, ref => ref.id),',
   ),
-  edit(
-    'every reader reads the same',
-    '../src/index.ts',
-    'eq(viewing.column, reader.value.id),',
-    '',
-  ),
+  edit('every reader reads the same', '../src/index.ts', 'eq(viewing.column, reader.value),', ''),
   edit(
     'hidden rows are found',
     '../src/index.ts',
-    'eq(viewing.column, reader.value.id),\n                    countPolicy,',
-    'eq(viewing.column, reader.value.id),',
+    'eq(viewing.column, reader.value),\n                    countPolicy,',
+    'eq(viewing.column, reader.value),',
   ),
   edit(
     'the greatest id is read',
     '../src/index.ts',
     'sql<string>`min(${side.child})`',
     'sql<string>`max(${side.child})`',
-  ),
-  edit(
-    "a writer's own reads need a viewer",
-    '../src/index.ts',
-    'source<P>(binding, { viewer: () => Option.none() })',
-    'source<P>(binding)',
   ),
   edit(
     'the exists is read as a count',

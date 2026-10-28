@@ -67,6 +67,10 @@ const operand = (
     // Expanded before compiling: a call left is an operator with no definition.
     case 'Call':
       throw new LiveStoreCompileError(`the operator "${node.operator.id}" has no definition to run`)
+    case 'Viewer':
+    case 'Now':
+      // Refused before compiling, as unsupported: this engine is given no context.
+      throw new LiveStoreCompileError('this engine reads no viewer and no clock')
     default:
       return absurd(node)
   }

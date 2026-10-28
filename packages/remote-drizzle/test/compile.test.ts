@@ -432,7 +432,9 @@ describe('A body needing what this compiler does not run', () => {
       'isNotNull',
       'isNull',
       'not',
+      'now',
       'or',
+      'viewer',
     ])
   })
 })

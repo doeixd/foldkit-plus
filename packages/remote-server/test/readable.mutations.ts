@@ -21,9 +21,9 @@ export default [
     edits: [
       {
         file,
-        find: 'const records = yield* readFiltered(source, principal, allowed, fields =>\n              source.read({ ids: [ref.id]',
+        find: 'const records = yield* readFiltered(source, principal, allowed, fields =>\n              source.read({\n                ids: [ref.id]',
         replace:
-          'const records = yield* ((_s: unknown, _p: unknown, a: readonly string[], r: (f: readonly string[]) => any) => r(a))(source, principal, allowed, fields =>\n              source.read({ ids: [ref.id]',
+          'const records = yield* ((_s: unknown, _p: unknown, a: readonly string[], r: (f: readonly string[]) => any) => r(a))(source, principal, allowed, fields =>\n              source.read({\n                ids: [ref.id]',
       },
     ],
     tests,

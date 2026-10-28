@@ -134,7 +134,7 @@ export default [
     edits: [
       {
         file: index,
-        find: "requireOperators([held.predicate], binding, invariantName(held), [...supported, 'next'])",
+        find: "requireOperators([held.predicate], binding, invariantName(held), [...writeOperations, 'next'])",
         replace: '',
       },
     ],
@@ -145,7 +145,7 @@ export default [
     edits: [
       {
         file: index,
-        find: "onSome: body => operatorProblems(body.where, binding, 'its precondition'),",
+        find: "onSome: body => operatorProblems(body.where, binding, 'its precondition', writeOperations),",
         replace: 'onSome: () => [],',
       },
     ],

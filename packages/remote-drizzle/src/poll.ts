@@ -99,7 +99,7 @@ export const pollLive = <P, R>(
   } = {},
 ): LiveSource<P, R> => ({
   entity: source.entity,
-  subscribe: ({ requirements, after, principal }) => {
+  subscribe: ({ requirements, after, principal, viewer }) => {
     const ours = requirements.filter(requirement => requirement.entity === source.entity)
     const wanted = new Map<string, Set<string>>()
     for (const requirement of ours) {
@@ -134,7 +134,7 @@ export const pollLive = <P, R>(
         let cursor = after
         const next = () => (cursor += 1)
         const read = (ids: ReadonlyArray<string>, fields: ReadonlyArray<string>) =>
-          source.read({ ids: [...ids], fields: [...fields], principal })
+          source.read({ ids: [...ids], fields: [...fields], principal, viewer })
         // The log entry the rows were last read at; none reads every tick.
         let readAt =
           changes === undefined ? Option.none<number>() : yield* Effect.option(changes.head)

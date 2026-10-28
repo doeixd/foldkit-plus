@@ -1240,6 +1240,13 @@ export const Derived = {
 }
 
 export * from './expr.js'
+export {
+  contextValue,
+  viewerIdOf,
+  type ExprContext,
+  type NowExpr,
+  type ViewerExpr,
+} from './context.js'
 export * from './collation.js'
 export * from './operators.js'
 export * from './law.js'

@@ -27,7 +27,9 @@ import {
   WriteStamp,
   assertSupported,
   evaluate,
+  Query,
   type AnyQuery,
+  type ExprContext,
   type MemoryOperators,
   type AnyWrite,
   type BoundWrite,
@@ -146,6 +148,13 @@ export interface EntitySourceContext<P> {
   /** A pagination window per requested relation field. */
   readonly windows?: Readonly<Record<string, QueryWindow>> | undefined
   readonly principal: P
+  /**
+   * Who asks, as a row: the server's `viewer` of the principal, none for a
+   * visitor. Given by the server a source is mounted in; a read made outside
+   * one (a test, a tool) gives none, and a source refuses it a member that
+   * depends on who reads it.
+   */
+  readonly viewer?: Option.Option<EntityRef> | undefined
 }
 
 export interface EntitySource<P, R = never> {
@@ -181,6 +190,12 @@ export interface EntitySource<P, R = never> {
    * of one to every subscriber as it is, with no read per principal.
    */
   readonly shared?: ReadonlySet<string> | undefined
+  /**
+   * The members answered for whoever reads them (a `Derived.exists`): a
+   * server mounting this source must have a `viewer`, and refuses to be made
+   * without one.
+   */
+  readonly perViewer?: ReadonlyArray<string> | undefined
 }
 
 /** What `EntitySource.filter` decides for one read. */
@@ -500,6 +515,8 @@ export interface QuerySource<P, R = never> {
     readonly input: unknown
     readonly window: QueryWindow
     readonly principal: P
+    /** As `EntitySourceContext.viewer`: what a body's `Expr.viewer` reads. */
+    readonly viewer?: Option.Option<EntityRef> | undefined
     /**
      * What the client reads of each item. A source may use it to answer
      * fields with the page, or ignore it: the handlers fetch what the page
@@ -518,6 +535,8 @@ export interface LiveSource<P, R = never> {
     readonly requirements: ReadonlyArray<Requirement>
     readonly after: number
     readonly principal: P
+    /** As `EntitySourceContext.viewer`, for the re-reads it makes. */
+    readonly viewer?: Option.Option<EntityRef> | undefined
   }) => Stream.Stream<Schema.Schema.Type<typeof LiveChange>, RemoteServerError, R>
 }
 
@@ -557,6 +576,29 @@ const writeTime = (
       },
     }),
   )
+
+/**
+ * What a body's `Expr.viewer` and `Expr.now` read on this server: the viewer
+ * the request was given, and the server's clock. A body that reads the viewer
+ * in a run given none (not through a server) is refused, never read as a
+ * visitor's.
+ */
+export const exprContext = (
+  body: AnyQuery,
+  viewer: Option.Option<EntityRef> | undefined,
+  now: number,
+): ExprContext => {
+  if (viewer === undefined && Query.dependencies(body).operations.includes('viewer')) {
+    throw new Error(
+      `[foldkit-remote-server] a query of ${body.entity.name} reads Expr.viewer, but was run outside a server, which gives the viewer`,
+    )
+  }
+  return { viewer: viewer ?? Option.none(), now: Option.some(now) }
+}
+
+/** Who asks, as the server's `viewer` says: none for a visitor, or on a server with no viewer. */
+const viewerOf = <P, R>(server: ServerDefinition<P, R>, principal: P): Option.Option<EntityRef> =>
+  server.viewer === undefined ? Option.none() : server.viewer(principal)
 
 /** A read batch may not carry more than this many distinct ids per entity. */
 const DEFAULT_MAX_IDS_PER_ENTITY = 1000
@@ -653,6 +695,8 @@ export interface LiveHub<P, R = never> {
     readonly requirements: ReadonlyArray<Requirement>
     readonly after: number
     readonly principal: P
+    /** As `EntitySourceContext.viewer`, for the re-reads it makes. */
+    readonly viewer?: Option.Option<EntityRef> | undefined
     /** Refuses a subscription naming more ids of one entity than this. */
     readonly maxIdsPerEntity?: number | undefined
   }) => Stream.Stream<LiveChangeValue, RemoteServerError>
@@ -678,6 +722,7 @@ interface Subscriber<P> {
   /** Per entity:id, the fields (and their windows) this subscriber selects. */
   readonly selected: ReadonlyMap<string, Selected>
   readonly principal: P
+  readonly viewer: Option.Option<EntityRef> | undefined
   readonly queue: Queue.Queue<LiveChangeValue>
   cursor: number
 }
@@ -810,8 +855,16 @@ const liveHub = <P, R>(
             const allowed = allowedFields(source, principal, requested)
             if (allowed.length === 0) return
             const allowedSet = new Set(allowed)
+            // The group shares a principal, so its first subscriber's viewer is every one's.
+            const viewer = group[0]?.subscriber.viewer
             const records = yield* readFiltered(source, principal, allowed, fields =>
-              source.read({ ids: [ref.id], fields, principal, ...windowsOf(windows, allowed) }),
+              source.read({
+                ids: [ref.id],
+                fields,
+                principal,
+                viewer,
+                ...windowsOf(windows, allowed),
+              }),
             )
             const record = records.find(candidate => candidate.id === ref.id)
             for (const { subscriber, fields: wanted } of group) {
@@ -851,7 +904,7 @@ const liveHub = <P, R>(
       })
 
     return {
-      subscribe: ({ requirements, after, principal, maxIdsPerEntity }) =>
+      subscribe: ({ requirements, after, principal, viewer, maxIdsPerEntity }) =>
         Stream.unwrap(
           Effect.gen(function* () {
             const over = checkIdsPerEntity(
@@ -882,6 +935,7 @@ const liveHub = <P, R>(
             const subscriber: Subscriber<P> = {
               selected,
               principal,
+              viewer,
               queue: yield* Queue.unbounded<LiveChangeValue>(),
               cursor: after,
             }
@@ -1396,50 +1450,53 @@ function memory<P = undefined>(config: MemoryConfig<P>): MemoryBackend<P> {
       .filter(query => !given.has(query.name))
       .map(query => ({
         ...visible,
-        ...RemoteServer.query<P>(query, ({ input, window, principal }) =>
-          Effect.flatMap(readableFor(principal), readable =>
-            Effect.try({
-              try: () => {
-                const body = query.body!
-                const encoded = Schema.encodeSync(query.Input)(input) as Readonly<
-                  Record<string, unknown>
-                >
-                const entity = body.entity.name
-                const rows = (store.rows(entity) as ReadonlyArray<Row>).filter(row =>
-                  readable(entity, row),
-                )
-                const matched = evaluate(body, encoded, rows, { operators })
-                // A cursor row that no longer matches still has a place in the
-                // order, as a keyset has it: sort it among the matches with the
-                // predicates set aside. One that no longer exists has none.
-                const locate = (cursor: string) => {
-                  const row = rows.find(candidate => String(candidate.id) === cursor)
-                  if (row === undefined) {
-                    throw new Error(`Cursor "${cursor}" names a row that no longer exists`)
-                  }
-                  const placed = evaluate(
-                    { ...body, where: [] } as typeof body,
-                    encoded,
-                    [...matched, row],
-                    { operators },
+        ...RemoteServer.query<P>(query, ({ input, window, principal, viewer }) =>
+          Effect.flatMap(
+            Effect.all([readableFor(principal), Clock.currentTimeMillis]),
+            ([readable, now]) =>
+              Effect.try({
+                try: () => {
+                  const body = query.body!
+                  const context = exprContext(body, viewer, now)
+                  const encoded = Schema.encodeSync(query.Input)(input) as Readonly<
+                    Record<string, unknown>
+                  >
+                  const entity = body.entity.name
+                  const rows = (store.rows(entity) as ReadonlyArray<Row>).filter(row =>
+                    readable(entity, row),
                   )
-                  return { index: placed.indexOf(row), exact: false }
-                }
-                const page = pageOf(matched, window, row => String(row.id), locate)
-                return {
-                  edges: page.items.map(row => {
-                    const id = String(row.id)
-                    return { entity, id, key: entityKey(entity, id) }
+                  const matched = evaluate(body, encoded, rows, { operators, context })
+                  // A cursor row that no longer matches still has a place in the
+                  // order, as a keyset has it: sort it among the matches with the
+                  // predicates set aside. One that no longer exists has none.
+                  const locate = (cursor: string) => {
+                    const row = rows.find(candidate => String(candidate.id) === cursor)
+                    if (row === undefined) {
+                      throw new Error(`Cursor "${cursor}" names a row that no longer exists`)
+                    }
+                    const placed = evaluate(
+                      { ...body, where: [] } as typeof body,
+                      encoded,
+                      [...matched, row],
+                      { operators, context },
+                    )
+                    return { index: placed.indexOf(row), exact: false }
+                  }
+                  const page = pageOf(matched, window, row => String(row.id), locate)
+                  return {
+                    edges: page.items.map(row => {
+                      const id = String(row.id)
+                      return { entity, id, key: entityKey(entity, id) }
+                    }),
+                    start: page.start,
+                    end: page.end,
+                  }
+                },
+                catch: error =>
+                  new RemoteServerError({
+                    message: error instanceof Error ? error.message : String(error),
                   }),
-                  start: page.start,
-                  end: page.end,
-                }
-              },
-              catch: error =>
-                new RemoteServerError({
-                  message: error instanceof Error ? error.message : String(error),
-                }),
-            }),
+              }),
           ),
         ),
       })),
@@ -2087,6 +2144,8 @@ export const RemoteServer = {
       readonly input: Input
       readonly window: QueryWindow
       readonly principal: P
+      /** As `EntitySourceContext.viewer`. */
+      readonly viewer?: Option.Option<EntityRef> | undefined
       readonly select?: RelationRequirement | undefined
     }) => Effect.Effect<QueryPage, RemoteServerError, R>,
   ): QuerySource<P, R> => ({
@@ -2097,6 +2156,7 @@ export const RemoteServer = {
         input: context.input as Input,
         window: context.window,
         principal: context.principal,
+        viewer: context.viewer,
         ...(context.select === undefined ? {} : { select: context.select }),
       }),
   }),
@@ -2152,6 +2212,12 @@ export const RemoteServer = {
       if (viewing !== undefined) {
         throw new Error(
           `[foldkit-remote-server] write "${viewing.mutation}" stamps whoever asks (Stamp.viewer), but the server has no viewer; give RemoteServer.make a viewer`,
+        )
+      }
+      const reading = config.entities.find(source => (source.perViewer ?? []).length > 0)
+      if (reading !== undefined) {
+        throw new Error(
+          `[foldkit-remote-server] ${reading.entity}'s ${reading.perViewer!.join(', ')} depend on who reads them (Derived.exists), but the server has no viewer; give RemoteServer.make a viewer`,
         )
       }
     }
@@ -2232,6 +2298,7 @@ export const RemoteServer = {
       }
       const fetched = new Map<string, Set<string>>()
       const fetchedValues = new Map<string, Record<string, unknown>>()
+      const viewer = viewerOf(server, principal)
       const maxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH
       const maxIds = Math.max(1, options.maxIdsPerEntity ?? DEFAULT_MAX_IDS_PER_ENTITY)
 
@@ -2304,7 +2371,7 @@ export const RemoteServer = {
                 Array.from({ length: Math.ceil(idList.length / maxIds) }, (_, chunk) =>
                   idList.slice(chunk * maxIds, (chunk + 1) * maxIds),
                 ),
-                chunk => source.read({ ids: chunk, fields, principal, ...windows }),
+                chunk => source.read({ ids: chunk, fields, principal, viewer, ...windows }),
               ),
               chunks => chunks.flat(),
             ),
@@ -2555,6 +2622,7 @@ export const RemoteServer = {
             input,
             window: payload.window,
             principal: caller,
+            viewer: viewerOf(server, caller),
             ...(select === undefined ? {} : { select }),
           })
           .pipe(
@@ -2605,6 +2673,7 @@ export const RemoteServer = {
                     requirements: payload.requirements.filter(request => request.entity === entity),
                     after: payload.after,
                     principal: caller,
+                    viewer: viewerOf(server, caller),
                   }),
                 ]
               })
@@ -2614,6 +2683,7 @@ export const RemoteServer = {
                   requirements: payload.requirements,
                   after: payload.after,
                   principal: caller,
+                  viewer: viewerOf(server, caller),
                   maxIdsPerEntity: options.maxIdsPerEntity,
                 }),
               )

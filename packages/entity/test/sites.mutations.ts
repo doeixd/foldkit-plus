@@ -74,15 +74,15 @@ export default [
   edit(
     'the in-memory server answers a query with the kernel',
     server,
-    'const matched = evaluate(body, encoded, rows, { operators })',
-    'const matched = evaluate(body, encoded, rows)',
+    'const matched = evaluate(body, encoded, rows, { operators, context })',
+    'const matched = evaluate(body, encoded, rows, { context })',
   ),
   edit('Remote.make drops its table', remote, '      operators: config.operators,\n', ''),
   edit(
     'the client filters with the kernel',
     remote,
-    'judged = matching(visible, by, input, { among, operators })',
-    'judged = matching(visible, by, input, { among })',
+    'judged = matching(visible, by, input, { among, operators, context: contextOf(model) })',
+    'judged = matching(visible, by, input, { among, context: contextOf(model) })',
   ),
   edit(
     'a form judges with the kernel',

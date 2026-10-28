@@ -38,8 +38,8 @@ export default [
     edits: [
       {
         file: evaluate,
-        find: '    reads = read.fields.length + read.next.length > 0\n',
-        replace: '    reads = true\n',
+        find: '      field: read.fields.length + read.next.length > 0,\n',
+        replace: '      field: true,\n',
       },
     ],
     tests,

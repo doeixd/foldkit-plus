@@ -26,7 +26,13 @@
  */
 import { Schema } from 'effect'
 import { Query as Relational } from 'foldkit-entity'
-import { QueryEvaluateError, evaluateEach, type MemoryOperators, type Row } from 'foldkit-entity'
+import {
+  QueryEvaluateError,
+  evaluateEach,
+  type ExprContext,
+  type MemoryOperators,
+  type Row,
+} from 'foldkit-entity'
 import type { QueryDescriptor } from './query.js'
 import type { EntityKey, EntityStore } from './store.js'
 
@@ -89,6 +95,12 @@ export interface MatchingOptions {
   readonly among?: ReadonlyArray<EntityKey> | undefined
   /** How the body's primitive operators are run: `Remote.make`'s `operators`. */
   readonly operators?: MemoryOperators | undefined
+  /**
+   * What the body's `Expr.viewer` and `Expr.now` read: `Remote.make`'s
+   * `viewer`. Without it, or without a reading of the time, a body reading
+   * one cannot be judged here.
+   */
+  readonly context?: ExprContext | undefined
 }
 
 /**
@@ -178,7 +190,10 @@ const matchingEncoded = <Name extends string, Input>(
 
   // Each row judged alone: a refused row is one more that could not be told,
   // not a reason to answer nothing about the others.
-  const judged = evaluateEach(body, encoded, rows, { operators: options.operators })
+  const judged = evaluateEach(body, encoded, rows, {
+    operators: options.operators,
+    context: options.context,
+  })
   const keyOf = (row: Row) => (row as { readonly __key: EntityKey }).__key
 
   return { matched: judged.matched.map(keyOf), skipped: [...skipped, ...judged.refused.map(keyOf)] }
@@ -216,6 +231,7 @@ export const belongsEncoded = <Name extends string, Input>(
   encoded: Readonly<Record<string, unknown>>,
   key: EntityKey,
   operators?: MemoryOperators | undefined,
+  context?: ExprContext | undefined,
 ): Belongs => {
   const entry = store[key]
   // Never fetched: nothing to judge, and silence is the honest answer.
@@ -236,7 +252,7 @@ export const belongsEncoded = <Name extends string, Input>(
 
   let judged: Judged
   try {
-    judged = matchingEncoded(store, descriptor, encoded, { among: [key], operators })
+    judged = matchingEncoded(store, descriptor, encoded, { among: [key], operators, context })
   } catch (error) {
     // A body the reference interpreter refuses for this input (text holding
     // NUL) cannot settle membership; the server refuses it too.

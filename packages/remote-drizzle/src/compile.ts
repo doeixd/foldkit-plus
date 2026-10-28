@@ -39,7 +39,11 @@ import {
   SchemaShape,
   decided,
   isPredicate,
+  contextValue,
   type Collation,
+  type ExprContext,
+  type NowExpr,
+  type ViewerExpr,
 } from 'foldkit-entity'
 import type {
   AnyExpr,
@@ -79,6 +83,30 @@ export interface CompileTarget {
    * decided from the input alone. Both kernels when not given.
    */
   readonly operators?: BindingOperators | undefined
+  /**
+   * What `Expr.viewer` and `Expr.now` read for this request: the server's
+   * viewer of the principal, and its clock. A body reading either is refused
+   * where none is given.
+   */
+  readonly context?: ExprContext | undefined
+}
+
+/** A context term's value for this request, as a parameter binds it. */
+const contextFor = (
+  node: ViewerExpr<unknown> | NowExpr<unknown>,
+  target: CompileTarget,
+  query: string,
+): unknown => {
+  if (target.context === undefined) {
+    throw new QueryCompileError(
+      `query "${query}" reads ${Expr.show(node)}, but was compiled with no context to read it from`,
+    )
+  }
+  const value = Option.getOrThrowWith(
+    contextValue(node, target.context),
+    () => new QueryCompileError(`query "${query}" reads ${Expr.show(node)}, but was given no time`),
+  )
+  return bindable(value, target)
 }
 
 const operatorsOf = (target: CompileTarget): BindingOperators => target.operators ?? kernelOperators
@@ -150,6 +178,13 @@ const parameterSql = (
         },
       )
 
+/** Whether a scalar is bound as a parameter: a value given, not a column or a call. */
+const isParameter = (node: AnyExpr): boolean =>
+  Match.value(node).pipe(
+    Match.tags({ Literal: () => true, Input: () => true, Viewer: () => true, Now: () => true }),
+    Match.orElse(() => false),
+  )
+
 /** One argument of a call, as SQL: a column, a parameter, a call's SQL or a predicate's. */
 const argumentSql = (
   arg: Operandish,
@@ -160,7 +195,7 @@ const argumentSql = (
 ): SQL => {
   if (isPredicate(arg)) return predicate(arg, target, input, query)
   const value = operand(arg, target, input, query)
-  if (arg._tag !== 'Literal' && arg._tag !== 'Input') return sql`${value}`
+  if (!isParameter(arg)) return sql`${value}`
   if (holdsNul(value)) {
     throw new QueryCompileError(
       `query "${query}" gives an operator text holding a NUL character, which SQL text cannot hold portably`,
@@ -285,6 +320,9 @@ const operand = (
     // Expanded before compiling: a call left is a primitive operator, built here.
     case 'Call':
       return callSql(node, target, input, query)
+    case 'Viewer':
+    case 'Now':
+      return contextFor(node, target, query)
     default:
       return absurd(node)
   }
@@ -373,7 +411,7 @@ const decide = (
   query: string,
 ): Option.Option<PredicateTruth> => {
   try {
-    return decided(node, input, operatorsOf(target).memory)
+    return decided(node, input, operatorsOf(target).memory, target.context)
   } catch (error) {
     if (error instanceof QueryEvaluateError) {
       throw new QueryCompileError(
@@ -632,6 +670,8 @@ export const supported: ReadonlyArray<Operation> = [
   'or',
   'not',
   'compare',
+  'viewer',
+  'now',
 ]
 
 /**

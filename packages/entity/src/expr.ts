@@ -16,6 +16,7 @@ import { absurd } from 'effect/Function'
 import { Collation } from './collation.js'
 import { SchemaShape } from './shape.js'
 import { Law, type Side } from './law.js'
+import { now, viewer, type NowExpr, type ViewerExpr } from './context.js'
 import type { AnyEntity, EntityField, EntityIdentity } from './index.js'
 
 /** A constant the query was written with. */
@@ -148,7 +149,14 @@ export interface CallExpr<T> {
 }
 
 /** A typed scalar: what a comparison compares. */
-export type Expr<T> = LiteralExpr<T> | FieldExpr<T> | InputExpr<T> | NextExpr<T> | CallExpr<T>
+export type Expr<T> =
+  | LiteralExpr<T>
+  | FieldExpr<T>
+  | InputExpr<T>
+  | NextExpr<T>
+  | CallExpr<T>
+  | ViewerExpr<T>
+  | NowExpr<T>
 
 /** Any scalar, for the places that hold operands without caring what they are. */
 export type AnyExpr = Expr<unknown>
@@ -298,7 +306,7 @@ export interface Reads<Names extends string> {
 export type ReadsOf<X> =
   X extends EntityField<infer Name, string, Schema.Constraint>
     ? Name
-    : X extends PlainValue | { readonly _tag: 'Literal' | 'Input' }
+    : X extends PlainValue | { readonly _tag: 'Literal' | 'Input' | 'Viewer' | 'Now' }
       ? never
       : X extends { readonly '~reads'?: infer Names }
         ? unknown extends Names
@@ -430,6 +438,8 @@ const toOperand = <T>(value: Operand<T> | T): Operandish => {
     tag === 'Input' ||
     tag === 'Next' ||
     tag === 'Call' ||
+    tag === 'Viewer' ||
+    tag === 'Now' ||
     predicateTags.has(tag as string)
   ) {
     return value as Operandish
@@ -464,6 +474,8 @@ export type Operation =
   | 'not'
   | 'compare'
   | 'next'
+  | 'viewer'
+  | 'now'
 
 /** One field an expression reads: its Entity's name and key, and the identity that owns it. */
 export interface FieldDependency {
@@ -552,6 +564,8 @@ const sideKind = (side: AnyExpr): 'number' | 'text' | 'none' | 'null' =>
       Input: input => orderKindOf(Schema.toEncoded(input.schema).ast),
       Literal: ({ value }) => literalKind(value),
       Call: ({ operator }) => orderKindOf(Schema.toEncoded(operator.output).ast),
+      Viewer: ({ schema }) => orderKindOf(Schema.toEncoded(schema).ast),
+      Now: ({ schema }) => orderKindOf(Schema.toEncoded(schema).ast),
     }),
   )
 
@@ -876,6 +890,8 @@ const scalarSchema = (scalar: AnyExpr): Schema.Top =>
       Input: input => input.schema,
       Literal: () => Schema.Unknown,
       Call: ({ operator }) => operator.output,
+      Viewer: ({ schema }) => schema,
+      Now: ({ schema }) => schema,
     }),
   )
 
@@ -929,6 +945,8 @@ const collationOf = (scalar: AnyExpr): Option.Option<Collation> =>
       Call: call => call.collation,
       Literal: () => Option.none<Collation>(),
       Input: () => Option.none<Collation>(),
+      Viewer: () => Option.none<Collation>(),
+      Now: () => Option.none<Collation>(),
     }),
   )
 
@@ -1322,6 +1340,23 @@ export const Expr = {
    * is refused with that sentence.
    */
   field: fieldOf,
+
+  /**
+   * Whoever asks, as a row of `entity`: `Expr.eq(Like.fields.userId,
+   * Expr.viewer(User))`. Shaped as a `one` relation to `entity`. Its value is
+   * the row's id, and null for a visitor or a viewer of another Entity, so a
+   * comparison with it holds of no row. A server reads it from
+   * `RemoteServer.make`'s `viewer`, a client from `Remote.make`'s.
+   */
+  viewer,
+
+  /**
+   * The time of the write, in milliseconds since the epoch, as a number field
+   * stores it. A server reads its clock. A client judging a list has no
+   * reading of the time the server judged it at, so such a list is the
+   * server's to say.
+   */
+  now,
 
   /**
    * Two scalars are the same value: a field (or an expression) on the left,
@@ -1848,6 +1883,12 @@ const walk = (expr: AnyExpr | Predicate | Ordering, found: Found): void => {
     case 'Input':
       found.inputs.add(expr.key)
       return
+    case 'Viewer':
+      found.operations.add('viewer')
+      return
+    case 'Now':
+      found.operations.add('now')
+      return
     case 'Next': {
       found.operations.add('next')
       const { field } = expr
@@ -1990,6 +2031,8 @@ const fieldsIn = function* (
       return
     case 'Literal':
     case 'Input':
+    case 'Viewer':
+    case 'Now':
       return
     case 'Eq':
       yield* fieldsIn(expr.left, seen)
@@ -2072,6 +2115,8 @@ const childrenOf = (expr: AnyExpr | Predicate): ReadonlyArray<AnyExpr | Predicat
     case 'Field':
     case 'Input':
     case 'Next':
+    case 'Viewer':
+    case 'Now':
       return []
     case 'Eq':
       return [expr.left, expr.right]
@@ -2362,6 +2407,10 @@ const showExpr = (node: AnyExpr | Predicate): string => {
       return `$${node.key}`
     case 'Next':
       return `next ${node.field.owner.name}.${node.field.key}`
+    case 'Viewer':
+      return `viewer ${node.entity.name}`
+    case 'Now':
+      return 'now'
     case 'Eq':
       return `${showOperand(node.left)} = ${showOperand(node.right)}`
     case 'Null':

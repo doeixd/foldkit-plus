@@ -9,9 +9,11 @@ export default [
       {
         file: '../src/evaluate.ts',
         find: `const operators = options.operators ?? Operators.kernel
+  const { context } = options
   assertSupported(body, operators)
   const terms`,
         replace: `const operators = Operators.kernel
+  const { context } = options
   assertSupported(body, operators)
   const terms`,
       },
@@ -23,8 +25,8 @@ export default [
     edits: [
       {
         file: '../src/evaluate.ts',
-        find: 'if (!(error instanceof QueryEvaluateError) || givenNul(body, terms, input)) throw error',
-        replace: 'throw error',
+        find: '!(error instanceof QueryEvaluateError) ||',
+        replace: 'true ||',
       },
     ],
     tests: ['packages/entity/test/evaluateEach.test.ts'],
@@ -34,8 +36,8 @@ export default [
     edits: [
       {
         file: '../src/evaluate.ts',
-        find: '|| givenNul(body, terms, input)) throw error',
-        replace: ') throw error',
+        find: '        givenNul(body, terms, input)\n',
+        replace: '        false\n',
       },
     ],
     tests: ['packages/entity/test/evaluateEach.test.ts'],

@@ -118,17 +118,6 @@ export default [
     tests: server,
   },
   {
-    name: 'every reader is read as you',
-    edits: [
-      {
-        file: '../src/server/server.ts',
-        find: 'viewer: asker }),',
-        replace: "viewer: () => asker(principalOf('you')) }),",
-      },
-    ],
-    tests: server,
-  },
-  {
     name: 'the page predicts a like and a chirp for no one',
     edits: [
       {

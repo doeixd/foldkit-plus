@@ -4,7 +4,7 @@ import { drizzle } from 'drizzle-orm/node-sqlite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Option, Schema } from 'effect'
 import { Derived, Entity, Relation, Write } from 'foldkit-entity'
-import { Mutation } from 'foldkit-remote'
+import { Mutation, REMOTE_PROTOCOL_VERSION } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
 import { bind, databaseLayer, source, writer, type DrizzleDatabase } from '../src/index.js'
@@ -75,16 +75,25 @@ const seeded = () => {
   return { sqlite, layer: databaseLayer(drizzle({ client: sqlite })) }
 }
 
-/** What each post reads as `liked` for `principal`. */
+/** The source says nothing of who reads: the server it is mounted in does. */
+const reading = RemoteServer.make<string | null, DrizzleDatabase>({
+  entities: [source(Db.Post)],
+  viewer,
+})
+
+/** What each post reads as `liked` for `principal`, through the server. */
 const liked = async (principal: string | null, ids = ['p1', 'p2', 'p3']) => {
   const { sqlite, layer } = seeded()
   try {
-    const rows = await Effect.runPromise(
-      source(Db.Post, { viewer })
-        .read({ ids, fields: ['liked'], principal })
+    const read = await Effect.runPromise(
+      RemoteServer.handlers(reading, principal)
+        .FoldkitRemoteRead({
+          version: REMOTE_PROTOCOL_VERSION,
+          requests: ids.map(id => ({ entity: 'Post', id, fields: ['liked'] })),
+        })
         .pipe(Effect.provide(layer)),
     )
-    return Object.fromEntries(rows.map(row => [row.id, row.values.liked]))
+    return Object.fromEntries(read.entities.map(row => [row.id, row.values.liked]))
   } finally {
     sqlite.close()
   }
@@ -110,14 +119,32 @@ describe('a Derived.exists, compiled by bind', () => {
 })
 
 describe('a Derived.exists, refused where it is bound or served', () => {
-  it('refuses a source that does not say who reads', () => {
-    expect(() => source(Db.Post)).toThrow(
-      "Post's liked depend on who reads them (Derived.exists): give source a viewer",
+  it('refuses a server with no viewer, naming the binding', () => {
+    expect(() => RemoteServer.make({ entities: [source(Db.User), source(Db.Post)] })).toThrow(
+      "Post's liked depend on who reads them (Derived.exists), but the server has no viewer",
     )
   })
 
+  it('refuses a read made outside a server, and reads its stored members there', async () => {
+    const { sqlite, layer } = seeded()
+    const read = (fields: ReadonlyArray<string>) =>
+      Effect.runPromise(
+        source(Db.Post)
+          .read({ ids: ['p1'], fields: [...fields], principal: 'ada' })
+          .pipe(Effect.provide(layer)),
+      )
+    try {
+      await expect(read(['likeCount', 'liked'])).rejects.toThrow(
+        "Post's liked depend on who reads them, and this read was given no viewer",
+      )
+      expect(await read(['likeCount'])).toEqual([{ id: 'p1', values: { id: 'p1', likeCount: 3 } }])
+    } finally {
+      sqlite.close()
+    }
+  })
+
   it('refuses it as a shared field', () => {
-    expect(() => source(Db.Post, { viewer, shared: ['likeCount', 'liked'] })).toThrow(
+    expect(() => source(Db.Post, { shared: ['likeCount', 'liked'] })).toThrow(
       "Post's liked depend on who reads them, so none is shared",
     )
   })
@@ -157,11 +184,12 @@ const Unlike = Mutation.write(
 
 describe("a like's answer reads its post as the asker reads it", () => {
   const server = RemoteServer.make<string, DrizzleDatabase>({
-    entities: [source(Db.Post, { viewer }), source(Db.Like)],
+    entities: [source(Db.Post), source(Db.Like)],
     mutations: [
       RemoteServer.write(LikePost, writer(Db.Like)),
       RemoteServer.write(Unlike, writer(Db.Like)),
     ],
+    viewer,
   })
   const answered = async (mutation: string, input: object, principal: string) => {
     const { sqlite, layer } = seeded()
@@ -194,11 +222,5 @@ describe("a like's answer reads its post as the asker reads it", () => {
     expect(await answered('Unlike', { id: 'l3' }, 'bob')).toEqual([
       { id: 'p1', liked: null, likeCount: 2 },
     ])
-  })
-})
-
-describe('a writer of an Entity with a Derived.exists', () => {
-  it('is made without a viewer: it reads only stored fields', () => {
-    expect(writer(Db.Post).entity).toBe('Post')
   })
 })

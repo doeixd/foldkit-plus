@@ -63,6 +63,7 @@ const asSql = (body: ReturnType<typeof Query.from>, input: Row) => {
     if (operand._tag === 'Field') return `"${column[operand.key]}"`
     if (operand._tag === 'Next') throw new Error('a query reads no row after a write')
     if (operand._tag === 'Call') throw new Error('unsupported')
+    if (operand._tag === 'Viewer' || operand._tag === 'Now') throw new Error('unsupported')
     params.push(operand._tag === 'Input' ? input[operand.key] : operand.value)
     return '?'
   }
@@ -443,7 +444,9 @@ describe('An interpreter refuses what it does not run', () => {
       'isNotNull',
       'isNull',
       'not',
+      'now',
       'or',
+      'viewer',
     ])
   })
 

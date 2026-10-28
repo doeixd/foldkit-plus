@@ -79,8 +79,8 @@ export default [
   ),
   edit(
     'a predicate reading only the row after is decided from the input',
-    'reads = read.fields.length + read.next.length > 0',
-    'reads = read.fields.length > 0',
+    'field: read.fields.length + read.next.length > 0,',
+    'field: read.fields.length > 0,',
     '../src/evaluate.ts',
   ),
   edit(

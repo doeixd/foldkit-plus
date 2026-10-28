@@ -39,6 +39,7 @@ import type {
   TestPredicate,
 } from './expr.js'
 import { Operators, type MemoryImplementation, type MemoryOperators } from './operators.js'
+import { contextValue, type ExprContext, type NowExpr, type ViewerExpr } from './context.js'
 
 /** A row as this interpreter reads one: values by field key. */
 export type Row = Readonly<Record<string, unknown>>
@@ -82,6 +83,29 @@ interface Scope {
   readonly next: Row
   /** How a primitive operator is run. */
   readonly operators: MemoryOperators
+  /** What `Expr.viewer` and `Expr.now` read; a run given none refuses them. */
+  readonly context?: ExprContext | undefined
+}
+
+/**
+ * A run that reads `Expr.viewer` or `Expr.now` and was given no context. No
+ * row causes it, so `evaluateEach` refuses the run rather than each row.
+ */
+export class ContextMissingError extends QueryEvaluateError {
+  constructor(term: ViewerExpr<unknown> | NowExpr<unknown>, why: string) {
+    super(`this run reads ${Expr.show(term)}, but ${why}`)
+    this.name = 'ContextMissingError'
+  }
+}
+
+const contextOf = (node: ViewerExpr<unknown> | NowExpr<unknown>, scope: Scope): unknown => {
+  if (scope.context === undefined) {
+    throw new ContextMissingError(node, 'was given no context to read it from')
+  }
+  return Option.getOrThrowWith(
+    contextValue(node, scope.context),
+    () => new ContextMissingError(node, 'its context has no reading of the time'),
+  )
 }
 
 const valueOf = (node: AnyExpr, scope: Scope): unknown => {
@@ -96,6 +120,9 @@ const valueOf = (node: AnyExpr, scope: Scope): unknown => {
       return scope.input[node.key]
     case 'Call':
       return called(node, scope)
+    case 'Viewer':
+    case 'Now':
+      return contextOf(node, scope)
     default:
       return absurd(node)
   }
@@ -249,6 +276,7 @@ export const valueOfOperand = (
   options: {
     readonly input?: Row | undefined
     readonly operators?: MemoryOperators | undefined
+    readonly context?: ExprContext | undefined
   } = {},
 ): unknown =>
   sideOf(node, {
@@ -256,6 +284,7 @@ export const valueOfOperand = (
     input: options.input ?? {},
     next: {},
     operators: options.operators ?? Operators.kernel,
+    context: options.context,
   })
 
 /**
@@ -403,28 +432,35 @@ const holds = (node: Predicate, scope: Scope): Truth => {
 /** What a predicate comes to: SQL's three values, of which a row is kept only on `true`. */
 export type PredicateTruth = Truth
 
-/** Whether a predicate reads a field, asked once per node: nodes are frozen. */
-const readsAField = new WeakMap<Predicate, boolean>()
+/** What a predicate reads besides its input, asked once per node: nodes are frozen. */
+const readsBeyond = new WeakMap<Predicate, { readonly field: boolean; readonly context: boolean }>()
 
 /**
- * A predicate's truth from the input alone, when it reads no field; none when
- * it reads one. An interpreter that runs per request decides such a predicate
- * before it builds anything: `isNull($status)` is known before any row is.
- * Refuses what `evaluate` refuses (text holding a NUL).
+ * A predicate's truth from the input (and the context, when given) alone,
+ * when it reads no field; none when it reads one, or reads the context and
+ * none is given. An interpreter that runs per request decides such a
+ * predicate before it builds anything: `isNull($status)` is known before any
+ * row is. Refuses what `evaluate` refuses (text holding a NUL).
  */
 export const decided = (
   node: Predicate,
   input: Row,
   operators: MemoryOperators = Operators.kernel,
+  context?: ExprContext,
 ): Option.Option<PredicateTruth> => {
-  let reads = readsAField.get(node)
+  let reads = readsBeyond.get(node)
   if (reads === undefined) {
     // A field after a write is a field too: nothing in the input alone decides it.
     const read = dependenciesOf(node)
-    reads = read.fields.length + read.next.length > 0
-    readsAField.set(node, reads)
+    reads = {
+      field: read.fields.length + read.next.length > 0,
+      context: read.operations.some(operation => operation === 'viewer' || operation === 'now'),
+    }
+    readsBeyond.set(node, reads)
   }
-  return reads ? Option.none() : Option.some(holds(node, { row: {}, input, next: {}, operators }))
+  return reads.field || (reads.context && context === undefined)
+    ? Option.none()
+    : Option.some(holds(node, { row: {}, input, next: {}, operators, context }))
 }
 
 /** A predicate's truth over one row (and, for an invariant, the row after a write): SQL's three values. */
@@ -437,8 +473,14 @@ export const truthOver = (
 ): PredicateTruth => holds(node, { row, input, next, operators })
 
 /** Every predicate must hold: the list is the conjunction, as it is in a `Query`. */
-const matches = (body: AnyQuery, row: Row, input: Row, operators: MemoryOperators): boolean =>
-  body.where.every(node => holds(node, { row, input, next: {}, operators }) === true)
+const matches = (
+  body: AnyQuery,
+  row: Row,
+  input: Row,
+  operators: MemoryOperators,
+  context: ExprContext | undefined,
+): boolean =>
+  body.where.every(node => holds(node, { row, input, next: {}, operators, context }) === true)
 
 /** The kinds of value this interpreter orders by; every key of one term must share one. */
 const comparable = new Set(['string', 'number', 'boolean'])
@@ -478,12 +520,19 @@ const compare = (left: unknown, right: unknown, collation: Option.Option<Collati
 interface OrderScope {
   readonly input: Row
   readonly operators: MemoryOperators
+  readonly context?: ExprContext | undefined
 }
 
 /** Each term's key for one row: a field's value, or what a call comes to over the row. */
 const keysOf = (row: Row, terms: ReadonlyArray<OrderTerm>, scope: OrderScope) =>
   terms.map(term =>
-    valueOf(term.expr, { row, input: scope.input, next: {}, operators: scope.operators }),
+    valueOf(term.expr, {
+      row,
+      input: scope.input,
+      next: {},
+      operators: scope.operators,
+      context: scope.context,
+    }),
   )
 
 /**
@@ -580,9 +629,14 @@ export const compareRows = (
   options: {
     readonly input?: Row | undefined
     readonly operators?: MemoryOperators | undefined
+    readonly context?: ExprContext | undefined
   } = {},
 ): number => {
-  const scope = { input: options.input ?? {}, operators: options.operators ?? Operators.kernel }
+  const scope = {
+    input: options.input ?? {},
+    operators: options.operators ?? Operators.kernel,
+    context: options.context,
+  }
   const keys = [keysOf(left, terms, scope), keysOf(right, terms, scope)] as const
   checkOrder(keys, terms, query)
   return byTerms(terms, keys[0], keys[1])
@@ -604,6 +658,8 @@ export const supported: ReadonlyArray<Operation> = [
   'or',
   'not',
   'compare',
+  'viewer',
+  'now',
 ]
 
 /**
@@ -635,15 +691,20 @@ export const evaluate = (
   body: AnyQuery,
   input: Row,
   rows: ReadonlyArray<Row>,
-  options: { readonly operators?: MemoryOperators | undefined } = {},
+  options: {
+    readonly operators?: MemoryOperators | undefined
+    /** What `Expr.viewer` and `Expr.now` read; a body reading one refuses a run without it. */
+    readonly context?: ExprContext | undefined
+  } = {},
 ): ReadonlyArray<Row> => {
   const operators = options.operators ?? Operators.kernel
+  const { context } = options
   assertSupported(body, operators)
   return ordered(
-    rows.filter(row => matches(body, row, input, operators)),
+    rows.filter(row => matches(body, row, input, operators, context)),
     Query.orderFor(body, input),
     body.entity.name,
-    { input, operators },
+    { input, operators, context },
   )
 }
 
@@ -668,19 +729,30 @@ export const evaluateEach = (
   body: AnyQuery,
   input: Row,
   rows: ReadonlyArray<Row>,
-  options: { readonly operators?: MemoryOperators | undefined } = {},
+  options: {
+    readonly operators?: MemoryOperators | undefined
+    /** As `evaluate`'s. */
+    readonly context?: ExprContext | undefined
+  } = {},
 ): Evaluated => {
   const operators = options.operators ?? Operators.kernel
+  const { context } = options
   assertSupported(body, operators)
   const terms = Query.orderFor(body, input)
-  const scope = { input, operators }
+  const scope = { input, operators, context }
   const keyed: Array<{ readonly row: Row; readonly keys: ReadonlyArray<unknown> }> = []
   const refused: Row[] = []
   for (const row of rows) {
     try {
-      if (matches(body, row, input, operators)) keyed.push({ row, keys: keysOf(row, terms, scope) })
+      if (matches(body, row, input, operators, context))
+        keyed.push({ row, keys: keysOf(row, terms, scope) })
     } catch (error) {
-      if (!(error instanceof QueryEvaluateError) || givenNul(body, terms, input)) throw error
+      if (
+        !(error instanceof QueryEvaluateError) ||
+        error instanceof ContextMissingError ||
+        givenNul(body, terms, input)
+      )
+        throw error
       refused.push(row)
     }
   }

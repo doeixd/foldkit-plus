@@ -38,6 +38,7 @@ import {
   type Reads,
 } from './expr.js'
 import type { BeforeRow } from './invariant.js'
+import { contextValue, viewerIdOf, type ExprContext } from './context.js'
 import type { MemoryOperators } from './operators.js'
 import { SchemaShape } from './shape.js'
 import { Stamp } from './stamp.js'
@@ -428,6 +429,10 @@ const kindsOf = (expr: AnyExpr): ReadonlySet<string> => {
       ])
     case 'Call':
       return storedKinds(Schema.toEncoded(expr.operator.output).ast)
+    // Refused in an assignment, below; a visitor's viewer is null.
+    case 'Viewer':
+    case 'Now':
+      return new Set([...storedKinds(Schema.toEncoded(expr.schema).ast), 'null'])
   }
 }
 
@@ -490,6 +495,15 @@ const assignmentOf = (
       `computes "${fieldKey}" from the row after the write, which an assignment never reads`,
     )
   }
+  const context = reads.operations.filter(
+    operation => operation === 'viewer' || operation === 'now',
+  )
+  if (context.length > 0) {
+    return fail(
+      input,
+      `computes "${fieldKey}" from the write's context (${context.map(term => `Expr.${term}`).join(', ')}), which an assignment does not read; a value the server chooses is declared with Entity.stamps`,
+    )
+  }
   const stranger = reads.fields.find(read => read.owner.name !== input.entity.name)
   if (stranger !== undefined) {
     return fail(
@@ -537,6 +551,12 @@ const computationOf = (
         args: expr.args.map(arg => computationOf(write, arg as AnyExpr, input)),
         collation: Option.getOrNull(expr.collation),
       })
+    // Refused where an assignment is declared, so none reaches here.
+    case 'Viewer':
+    case 'Now':
+      throw new Error(
+        `[foldkit-entity] an assignment of ${write.input.entity.name} reads the write's context`,
+      )
   }
 }
 
@@ -711,7 +731,7 @@ export const Write = {
    */
   stamp: (
     write: AnyWrite,
-    by: { readonly viewer: Option.Option<EntityRef>; readonly now: Option.Option<number> },
+    by: ExprContext,
   ): {
     readonly values: Readonly<Record<string, unknown>>
     readonly links: Readonly<Record<string, Option.Option<EntityRef>>>
@@ -724,8 +744,10 @@ export const Write = {
       WriteStamp.$match(stamped, {
         Field: ({ field, stamp }) =>
           Option.match(
+            // A clock stamp is `Expr.now`. A field holding the viewer's id
+            // names no Entity, so it takes whoever asks.
             Stamp.$match(stamp, {
-              Clock: (): Option.Option<unknown> => by.now,
+              Clock: (): Option.Option<unknown> => contextValue(Expr.now, by),
               Viewer: () => Option.map(by.viewer, viewer => viewer.id),
             }),
             {
@@ -734,13 +756,12 @@ export const Write = {
             },
           ),
         Link: ({ relation }) =>
-          Option.match(
-            Option.filter(by.viewer, viewer => viewer.entity === relation.target().name),
-            {
-              onNone: () => void unknown.push(relation.key),
-              onSome: viewer => void (links[relation.key] = Option.some(viewer)),
-            },
-          ),
+          // A relation stamped with the viewer is `Expr.viewer` of its target.
+          Option.match(viewerIdOf(relation.target(), by), {
+            onNone: () => void unknown.push(relation.key),
+            onSome: id =>
+              void (links[relation.key] = Option.some({ entity: relation.target().name, id })),
+          }),
       })
     return { values, links, unknown }
   },

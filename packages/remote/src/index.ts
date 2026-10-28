@@ -15,6 +15,7 @@ import {
   Operators,
   ReadFilter,
   SelectionTypeId,
+  type ExprContext,
   type MemoryOperators,
 } from 'foldkit-entity'
 import type * as Domain from 'foldkit-entity'
@@ -3094,6 +3095,12 @@ const bindDomain = <
   const operators = options.operators ?? Operators.kernel
   const bound = bindRemote(definition, store, operators)
   const viewerOf = options.viewer ?? (() => Option.none())
+  // What a body's `Expr.viewer` reads here. The client has no reading of the
+  // time a server judges a list at, so a body over `Expr.now` is the server's.
+  const contextOf = (model: AppModel): ExprContext => ({
+    viewer: viewerOf(model),
+    now: Option.none(),
+  })
   // Every reader any `subscriptions` call names, and every connection one keeps:
   // retention is the domain's, so each call's retain entry roots them all, and
   // one call with its own policy does not collect what another call reads.
@@ -3144,6 +3151,7 @@ const bindDomain = <
       encoded,
       entityKey(event.edge.ref.entity, event.edge.ref.id),
       operators,
+      contextOf(model),
     )
     return decided === 'no' ? { prepend: 'ignore', append: 'ignore' } : declared
   }
@@ -3170,11 +3178,12 @@ const bindDomain = <
     // changes nothing and invalidates nothing.
     const next =
       answer === undefined
-        ? placedNews(reduced, newsOf(message), remote.entities)
+        ? placedNews(reduced, newsOf(message), remote.entities, contextOf(model))
         : impactOf(
             reduced,
             remote.mutations.applied.has(answer.requestId) ? answer : withAnswerRead(answer),
             remote.entities,
+            contextOf(model),
           )
     const checked =
       answer === undefined || options.verifyAnswers !== true
@@ -3238,6 +3247,8 @@ const bindDomain = <
     pages: Connection,
     changes: ReadonlyArray<EntityChange>,
     store: EntityStore,
+    // None for pending placement, which reads no Model: a body over the context is the server's.
+    context?: ExprContext,
   ): Connection => {
     const query = queryOf(identity)
     if (Option.isNone(query)) return pages
@@ -3252,7 +3263,7 @@ const bindDomain = <
       })
       if (!holds.has(entityKey(change.entity, change.id)) && !created) continue
       placed = Impact.$match(
-        impactOn({ ...query.value, connection: placed, holds }, store, change, operators),
+        impactOn({ ...query.value, connection: placed, holds }, store, change, operators, context),
         {
           Kept: () => placed,
           Placed: ({ connection }) => connection,
@@ -3368,6 +3379,7 @@ const bindDomain = <
     remote: RemoteModel,
     news: ReadonlyArray<NormalizedPatch>,
     before: EntityStore,
+    context: ExprContext,
   ): RemoteModel => {
     if (news.length === 0) return remote
     const held = news.map(patch => {
@@ -3383,7 +3395,7 @@ const bindDomain = <
     if (changes.length === 0) return remote
     const placed: Record<string, Connection> = {}
     for (const [identity, pages] of Object.entries(remote.connections)) {
-      const after = placedHeld(identity, pages, changes, remote.entities)
+      const after = placedHeld(identity, pages, changes, remote.entities, context)
       if (after !== pages) placed[identity] = after
     }
     return withPlacements(remote, placed, [])
@@ -3408,6 +3420,7 @@ const bindDomain = <
     answer: Extract<RemoteMessage, { readonly _tag: 'MutationSucceeded' }>,
     // The store before the answer, to tell a value it changed from one it repeated.
     before: EntityStore,
+    context: ExprContext,
   ): RemoteModel => {
     const changes = changesOf(answer, before)
     if (changes.length === 0) return remote
@@ -3447,7 +3460,7 @@ const bindDomain = <
       let invalid = false
       for (const change of judged) {
         const held: HeldConnection = { ...query.value, connection: pages, holds }
-        const after = Impact.$match(impactOn(held, visible, change, operators), {
+        const after = Impact.$match(impactOn(held, visible, change, operators, context), {
           Kept: () => Option.some(pages),
           Placed: ({ connection }) => Option.some(connection),
           Invalidated: () => Option.none<Connection>(),
@@ -4014,7 +4027,7 @@ const bindDomain = <
       const among = edges.map(edge => entityKey(edge.ref.entity, edge.ref.id))
       let judged: Judged
       try {
-        judged = matching(visible, by, input, { among, operators })
+        judged = matching(visible, by, input, { among, operators, context: contextOf(model) })
       } catch (error) {
         // An input the reference interpreter refuses (a search holding NUL) is
         // one the server refuses too: nothing here can be said about the list.

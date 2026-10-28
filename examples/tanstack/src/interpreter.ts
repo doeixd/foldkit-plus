@@ -60,6 +60,10 @@ const operand = (node: AnyExpr, row: any, input: Readonly<Record<string, unknown
     // Expanded before compiling: a call left is an operator with no definition.
     case 'Call':
       throw new TanstackCompileError(`the operator "${node.operator.id}" has no definition to run`)
+    case 'Viewer':
+    case 'Now':
+      // Refused before compiling, as unsupported: this engine is given no context.
+      throw new TanstackCompileError('this engine reads no viewer and no clock')
     default:
       return absurd(node)
   }

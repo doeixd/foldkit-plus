@@ -74,8 +74,8 @@ export default [
   edit(
     'a relation takes a viewer of any Entity',
     write,
-    'Option.filter(by.viewer, viewer => viewer.entity === relation.target().name)',
-    'by.viewer',
+    'Option.match(viewerIdOf(relation.target(), by), {',
+    'Option.match(Option.map(by.viewer, viewer => viewer.id), {',
   ),
   edit(
     'a missing clock is not named',

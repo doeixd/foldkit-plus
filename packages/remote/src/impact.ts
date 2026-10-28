@@ -17,6 +17,7 @@
 import {
   Query as Relational,
   dependenciesOf,
+  type ExprContext,
   type MemoryOperators,
   type OrderTerm,
 } from 'foldkit-entity'
@@ -127,6 +128,8 @@ export const impactOn = (
   store: EntityStore,
   change: EntityChange,
   operators: MemoryOperators,
+  /** What a body's `Expr.viewer` and `Expr.now` read; see `MatchingOptions.context`. */
+  context?: ExprContext | undefined,
 ): Impact => {
   const { descriptor } = connection
   const body = descriptor.body
@@ -185,7 +188,7 @@ export const impactOn = (
       const belongs =
         held && !refilters
           ? 'yes'
-          : belongsEncoded(store, descriptor, connection.encoded, key, operators)
+          : belongsEncoded(store, descriptor, connection.encoded, key, operators, context)
       if (belongs === 'unknown') {
         return Impact.Invalidated({
           reason: `${key} changed a field "${descriptor.name}" filters on, and the client cannot judge it`,
