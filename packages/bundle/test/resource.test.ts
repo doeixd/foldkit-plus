@@ -4,7 +4,7 @@
  * a failed import.
  */
 import { Context, Effect, Exit, Fiber, Layer, Scope } from 'effect'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Resource } from '../src/index.js'
 
 class Greeter extends Context.Service<Greeter, { readonly greet: (name: string) => string }>()(
@@ -27,7 +27,9 @@ const controlled = <A>() => {
     if (entry === undefined) throw new Error(`no import ${index} was asked for`)
     return entry
   }
-  return { load, pending, settle }
+  /** Waits until `count` imports were asked for: a forked get can take more than a tick. */
+  const asked = (count: number) => vi.waitFor(() => expect(pending).toHaveLength(count))
+  return { load, pending, settle, asked }
 }
 
 /** The `resources` Layer built into a scope the test closes, as Foldkit's runtime does. */
@@ -43,7 +45,7 @@ const built = async <A>(layer: Layer.Layer<A>) => {
 
 const greet = Effect.map(Resource.get(Greeter), service => service.greet('Ada'))
 
-/** Lets the forked load and its waiters run. */
+/** Lets a settled import reach its waiters; nothing outside shows when it has. */
 const settled = () => new Promise(resolve => setTimeout(resolve, 0))
 
 describe('Resource.lazy', () => {
@@ -55,12 +57,11 @@ describe('Resource.lazy', () => {
   })
 
   it('loads once for two Commands asking at the same time', async () => {
-    const { load, pending, settle } = controlled<Layer.Layer<Greeter>>()
+    const { load, pending, settle, asked } = controlled<Layer.Layer<Greeter>>()
     const runtime = await built(Resource.lazy(Greeter, load))
     const first = runtime.run(greet)
     const second = runtime.run(greet)
-    await settled()
-    expect(pending).toHaveLength(1)
+    await asked(1)
     settle(0).resolve(greeter)
     expect(await first).toEqual(Exit.succeed('Hello, Ada'))
     expect(await second).toEqual(Exit.succeed('Hello, Ada'))
@@ -71,18 +72,17 @@ describe('Resource.lazy', () => {
   })
 
   it('fails a Command with LoadError when the import fails, and tries again on the next', async () => {
-    const { load, pending, settle } = controlled<Layer.Layer<Greeter>>()
+    const { load, settle, asked } = controlled<Layer.Layer<Greeter>>()
     const runtime = await built(Resource.lazy(Greeter, load))
     const failing = runtime.run(greet)
-    await settled()
+    await asked(1)
     const offline = new TypeError('Failed to fetch dynamically imported module')
     settle(0).reject(offline)
     expect(await failing).toEqual(
       Exit.fail(new Resource.LoadError({ resource: 'test/Greeter', cause: offline })),
     )
     const retried = runtime.run(greet)
-    await settled()
-    expect(pending).toHaveLength(2)
+    await asked(2)
     settle(1).resolve(greeter)
     expect(await retried).toEqual(Exit.succeed('Hello, Ada'))
     await runtime.close()
@@ -128,10 +128,10 @@ describe('Resource.lazy', () => {
   })
 
   it('keeps loading for the others when the Command that started it is interrupted', async () => {
-    const { load, pending, settle } = controlled<Layer.Layer<Greeter>>()
+    const { load, pending, settle, asked } = controlled<Layer.Layer<Greeter>>()
     const runtime = await built(Resource.lazy(Greeter, load))
     const starter = runtime.fork(greet)
-    await settled()
+    await asked(1)
     await Effect.runPromise(Fiber.interrupt(starter))
     const waiter = runtime.run(greet)
     settle(0).resolve(greeter)
@@ -157,32 +157,30 @@ describe('Resource.lazy', () => {
 
 describe('Resource.prefetch', () => {
   it('starts the import and returns before it lands; the get after waits for that one', async () => {
-    const { load, pending, settle } = controlled<Layer.Layer<Greeter>>()
+    const { load, pending, settle, asked } = controlled<Layer.Layer<Greeter>>()
     const runtime = await built(Resource.lazy(Greeter, load))
     expect(await runtime.run(Resource.prefetch(Greeter))).toEqual(Exit.void)
-    await settled()
-    expect(pending).toHaveLength(1)
+    await asked(1)
     // Again while it loads: still one import.
     expect(await runtime.run(Resource.prefetch(Greeter))).toEqual(Exit.void)
-    const asked = runtime.run(greet)
+    const got = runtime.run(greet)
     settle(0).resolve(greeter)
-    expect(await asked).toEqual(Exit.succeed('Hello, Ada'))
+    expect(await got).toEqual(Exit.succeed('Hello, Ada'))
     expect(pending).toHaveLength(1)
     await runtime.close()
   })
 
   it('forgets a failed import, so the next get tries again', async () => {
-    const { load, pending, settle } = controlled<Layer.Layer<Greeter>>()
+    const { load, settle, asked } = controlled<Layer.Layer<Greeter>>()
     const runtime = await built(Resource.lazy(Greeter, load))
     expect(await runtime.run(Resource.prefetch(Greeter))).toEqual(Exit.void)
-    await settled()
+    await asked(1)
     settle(0).reject(new TypeError('offline'))
     await settled()
-    const asked = runtime.run(greet)
-    await settled()
-    expect(pending).toHaveLength(2)
+    const again = runtime.run(greet)
+    await asked(2)
     settle(1).resolve(greeter)
-    expect(await asked).toEqual(Exit.succeed('Hello, Ada'))
+    expect(await again).toEqual(Exit.succeed('Hello, Ada'))
     await runtime.close()
   })
 })
