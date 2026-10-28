@@ -45,6 +45,9 @@ export const GridFrame = demoStyle.forSlots(GridSlots)(
       border: `1px solid ${t.outline.subtle}`,
       borderRadius: t.radius.lg,
       boxShadow: t.shadow.sm,
+      // The rows at the header's size: the columns are pixels wide, and at the
+      // body's fluid size a UPC outgrew its cell in a wider font (DejaVu Sans).
+      fontSize: t.size.sm,
     }),
   },
   { name: 'GridFrame' },
