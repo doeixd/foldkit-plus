@@ -4,8 +4,11 @@
  * write shown at once, only after its answer, or taken back by it; a text
  * shown for one frame, or kept hidden; errors logged and thrown.
  */
+import { resolve } from 'node:path'
 import { type Browser, chromium, type Page } from 'playwright'
+import { build } from 'vite'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { mutation } from '../../../scripts/mutation-plugin.mjs'
 import { Behaviors } from '../src/testing/playwright.js'
 
 const ORIGIN = 'http://app.test'
@@ -152,4 +155,42 @@ describe('consoleErrors', () => {
     await expect.poll(() => errors()).toEqual(['logged on purpose', 'Error: thrown on purpose'])
     await page.close()
   })
+
+  it('lists an error diagnostic the default reporter logs, and not a warning (#272)', async () => {
+    const built = await build({
+      configFile: false,
+      logLevel: 'silent',
+      root: import.meta.dirname,
+      plugins: [mutation()],
+      resolve: { conditions: ['foldkit-plus:source'] },
+      build: {
+        write: false,
+        minify: false,
+        rollupOptions: { input: resolve(import.meta.dirname, 'diagnosticsPage.ts') },
+      },
+    })
+    const script = [built]
+      .flat()
+      .flatMap(result => ('output' in result ? result.output : []))
+      .flatMap(output => (output.type === 'chunk' && output.isEntry ? [output.code] : []))
+    expect(script).toHaveLength(1)
+
+    page = await browser.newPage()
+    await page.route(`${ORIGIN}/diagnostics`, route =>
+      route.fulfill({
+        contentType: 'text/html; charset=utf-8',
+        body: `<!doctype html><button id="report">Report</button><script type="module">${script[0]}</script>`,
+      }),
+    )
+    await page.goto(`${ORIGIN}/diagnostics`)
+    const logged: Array<string> = []
+    page.on('console', message => logged.push(message.text()))
+    const errors = Behaviors.consoleErrors(page)
+    await page.getByRole('button', { name: 'Report' }).click()
+
+    await expect.poll(() => logged).toHaveLength(2)
+    expect(logged[0]).toMatch(/WARN.*\[foldkit-test\] a probe was met$/)
+    expect(errors()).toEqual([expect.stringMatching(/ERROR.*\[foldkit-test\] a probe broke$/)])
+    await page.close()
+  }, 60_000)
 })

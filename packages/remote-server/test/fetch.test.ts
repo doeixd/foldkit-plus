@@ -336,7 +336,7 @@ describe('a failure answered "Internal error"', () => {
   })
 
   it('logs the cause when no reporter is given', async () => {
-    const logged = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
     try {
       expect((await ask(brokenLayer())).status).toBe(500)
       expect(logged.mock.calls.flat().join('\n')).toContain('Error: the D1 password')

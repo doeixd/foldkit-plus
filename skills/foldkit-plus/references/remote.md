@@ -553,7 +553,8 @@ typed and oldest first (the newest 256), what Remote met and kept going past:
 `AnswerGap`, `PlacementMismatch`, `WriteUnheard`, each with `source`, `level`
 and `message`. The reducer only records; the wiring's route and `Remote.fold`
 report each new one through the `Diagnostics.Reporter` in the Effect context
-(`foldkit-surface`'s, re-exported by `foldkit-remote`), by default Effect's log,
+(`foldkit-surface`'s, re-exported by `foldkit-remote`), by default Effect's log
+(an `error` diagnostic with `console.error`, a `warning` with `console.log`),
 then answer `CompletedReportDiagnostics`, a no-op. Replace it with
 `Layer.succeed(Diagnostics.Reporter, report)` in the runtime's resources; collect
 in a test with `Diagnostics.collect()` (`{ report, reported }`), or assert
@@ -694,7 +695,7 @@ await Behaviors.neverShows(page, {
       shows: page.getByRole('button', { name: 'Buy milk', exact: true }),
     }), // every Remote mutation held 3 s; shows within 1 s, and after the answer
 })
-expect(errors()).toEqual([])
+expect(errors()).toEqual([]) // console.error, uncaught exceptions and error diagnostics
 ```
 
 When `neverShows` fails, a `Trace` test finds the Message. The Worker those

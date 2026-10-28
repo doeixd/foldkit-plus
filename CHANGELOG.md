@@ -413,6 +413,14 @@ version changed; `pnpm` skips versions already in the registry.
   class now registers its Style's globals (keyframes, `raise`'s depth rules),
   and `usedIn` writes them once each; in the browser, injection adds no global
   that a server-written sheet already carries.
+- **An error diagnostic reaches `console.error`** (#272). The default
+  `Diagnostics` reporter logged every level through Effect's default logger,
+  which writes with `console.log`, so `Behaviors.consoleErrors` passed a page
+  that reported a `MountFailed` or `PageContained`, and a server wrote errors
+  to stdout. It now logs an `error` (and a reporter that broke) with
+  `Logger.LogToStderr` set: `console.error` in a browser, stderr on a server.
+  A `warning` stays on `console.log`, and a replaced logger receives both at
+  their level as before.
 - **A Menu or Menubar checkbox or radio row is chosen once.** Clicked after a
   mouse press opened the menu, it was chosen twice and flipped back: upstream's
   Menu kept the press's origin until the menu shut, so a release on the row

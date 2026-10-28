@@ -1,5 +1,5 @@
 import { Effect, Logger } from 'effect'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Diagnostics, type Diagnostic } from '../src/index.js'
 
 const warning: Diagnostic = {
@@ -26,6 +26,40 @@ describe('Diagnostics', () => {
       { level: 'Warn', text: '[foldkit-test] a probe was met' },
       { level: 'Error', text: '[foldkit-test] a probe broke' },
     ])
+  })
+
+  describe("through Effect's default logger", () => {
+    /** Runs `effect` with no logger of its own, and returns what reached each console method. */
+    const consoled = (effect: Effect.Effect<void>) => {
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+      try {
+        Effect.runSync(effect)
+        const text = (spy: typeof error) => spy.mock.calls.map(call => call.map(String).join(' '))
+        return { error: text(error), log: text(log) }
+      } finally {
+        error.mockRestore()
+        log.mockRestore()
+      }
+    }
+
+    it('writes an error with console.error and a warning with console.log', () => {
+      const { error: errors, log: logs } = consoled(
+        Effect.andThen(Diagnostics.report(warning), Diagnostics.report(error)),
+      )
+      expect(errors).toEqual([expect.stringMatching(/ERROR.*\[foldkit-test\] a probe broke$/)])
+      expect(logs).toEqual([expect.stringMatching(/WARN.*\[foldkit-test\] a probe was met$/)])
+    })
+
+    it('writes a reporter that broke with console.error', () => {
+      const { error: errors, log: logs } = consoled(
+        Diagnostics.report(warning).pipe(
+          Effect.provideService(Diagnostics.Reporter, () => Effect.die(new Error('sink down'))),
+        ),
+      )
+      expect(errors).toEqual([expect.stringContaining('sink down')])
+      expect(logs).toEqual([])
+    })
   })
 
   it('reports to the reporter in the context instead', () => {

@@ -2193,8 +2193,9 @@ to log. The reducer only records them, since it is pure. The wiring's route and
 `Remote.fold` report what each update recorded, with a Command that hands them
 to the `Diagnostics.Reporter` in the runtime's Effect context and answers
 `CompletedReportDiagnostics`, which changes nothing. With no reporter given,
-that is Effect's log: a warning in the browser's console. An application that
-reduces Remote's Messages by hand (`Data.reduce`) has them in the Model, and
+that is Effect's log in the browser's console: `console.error` for an `error`
+diagnostic, `console.log` for a `warning`, as all of Remote's are. An
+application that reduces Remote's Messages by hand (`Data.reduce`) has them in the Model, and
 nothing reports them.
 
 `Diagnostics` is `foldkit-surface`'s, re-exported here; server packages report

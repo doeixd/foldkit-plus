@@ -400,7 +400,11 @@ names the package, `level` is `error` when something broke on this side and
 `warning` when the application should change something. Every package reports
 through `Diagnostics.report`, which hands it to the `Diagnostics.Reporter` in
 the Effect context and never fails. By default that is Effect's log: the
-browser's console, a server's log, `wrangler tail` on a Worker.
+browser's console, a server's log, `wrangler tail` on a Worker. With Effect's
+default logger an `error` is written with `console.error` (stderr on a server)
+and a `warning` with `console.log`, so DevTools draws an error red and an
+end-to-end check for console errors fails on it, while an offline `warning`
+does not. A server that replaced Effect's logger receives both at their level.
 
 Replace it like any service, in a runtime's resources or a server's layer:
 
@@ -503,9 +507,10 @@ sees.
   expect(errors()).toEqual([])
   ```
 
-  Effect's default logger writes every level with `console.log`, so
-  `consoleErrors` does not see a diagnostic. To fail an end-to-end test on
-  one, give the page a reporter that calls `console.error`.
+  `consoleErrors` lists every `error` diagnostic the default reporter logs,
+  so this test also fails on a `MountFailed` or a `PageContained`. A warning
+  is logged with `console.log` and is not listed: to fail on warnings too,
+  give the page a reporter that calls `console.error` for them.
 
 ## Where to read more
 

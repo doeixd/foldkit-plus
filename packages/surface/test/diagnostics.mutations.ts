@@ -5,6 +5,8 @@
  */
 const tests = ['packages/surface/test/diagnostics.test.ts']
 const file = '../src/diagnostics.ts'
+// The page Behaviors.consoleErrors watches is built from this module too.
+const pageTests = [...tests, 'packages/plus/test/playwright.test.ts']
 
 export default [
   {
@@ -12,10 +14,31 @@ export default [
     edits: [
       {
         file,
-        find: "(diagnostic.level === 'error' ? Effect.logError : Effect.logWarning)",
-        replace: 'Effect.logWarning',
+        find: "diagnostic.level === 'error' ? logError(text) : Effect.logWarning(text)",
+        replace: 'Effect.logWarning(text)',
       },
     ],
+    tests,
+  },
+  {
+    name: 'an error is written with console.log (#272)',
+    edits: [{ file, find: 'Logger.LogToStderr, true)', replace: 'Logger.LogToStderr, false)' }],
+    tests: pageTests,
+  },
+  {
+    name: 'a warning is written with console.error too',
+    edits: [
+      {
+        file,
+        find: ': Effect.logWarning(text)',
+        replace: ': Effect.provideService(Effect.logWarning(text), Logger.LogToStderr, true)',
+      },
+    ],
+    tests: pageTests,
+  },
+  {
+    name: 'a broken reporter is written with console.log',
+    edits: [{ file, find: '        logError(', replace: '        Effect.logError(' }],
     tests,
   },
   {
@@ -23,8 +46,8 @@ export default [
     edits: [
       {
         file,
-        find: '`[${diagnostic.source}] ${diagnostic.message}`,',
-        replace: 'diagnostic.message,',
+        find: 'const text = `[${diagnostic.source}] ${diagnostic.message}`',
+        replace: 'const text = diagnostic.message',
       },
     ],
     tests,
@@ -49,7 +72,7 @@ export default [
   },
   {
     name: 'a broken reporter is logged below a warning',
-    edits: [{ file, find: '        Effect.logError(', replace: '        Effect.log(' }],
+    edits: [{ file, find: '        logError(', replace: '        Effect.log(' }],
     tests,
   },
   {

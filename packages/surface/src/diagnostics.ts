@@ -5,7 +5,7 @@
  * through the `Diagnostics.Reporter` in the Effect context, which logs by
  * default.
  */
-import { Cause, Context, Effect } from 'effect'
+import { Cause, Context, Effect, Logger } from 'effect'
 
 /**
  * A fallback, refusal or swallowed failure, as the package that met it
@@ -25,11 +25,24 @@ export interface Diagnostic {
 /** Where diagnostics go. It should not fail; when it does, `Diagnostics.report` logs that it did. */
 export type ReportDiagnostic = (diagnostic: Diagnostic) => Effect.Effect<void>
 
-/** Effect's log at the diagnostic's level: the console in a browser, the log on a server or Worker. */
-const log: ReportDiagnostic = diagnostic =>
-  (diagnostic.level === 'error' ? Effect.logError : Effect.logWarning)(
-    `[${diagnostic.source}] ${diagnostic.message}`,
-  )
+/**
+ * Effect's default logger writes every level with `console.log` unless
+ * `LogToStderr` is set, so an error would never reach `console.error`, where a
+ * browser, an end-to-end check and a Worker's tail look for one (#272). A
+ * replaced logger gets the entry at its level and decides for itself.
+ */
+const logError = (text: string): Effect.Effect<void> =>
+  Effect.provideService(Effect.logError(text), Logger.LogToStderr, true)
+
+/**
+ * Effect's log at the diagnostic's level. With Effect's default logger an
+ * error goes to `console.error` (stderr on a server) and a warning to
+ * `console.log`.
+ */
+const log: ReportDiagnostic = diagnostic => {
+  const text = `[${diagnostic.source}] ${diagnostic.message}`
+  return diagnostic.level === 'error' ? logError(text) : Effect.logWarning(text)
+}
 
 /**
  * The reporter in effect. Provide another with `Layer.succeed(Diagnostics.Reporter, report)`
@@ -45,7 +58,7 @@ export const Diagnostics = {
   report: (diagnostic: Diagnostic): Effect.Effect<void> =>
     Effect.flatMap(Effect.service(Reporter), report => report(diagnostic)).pipe(
       Effect.catchCause(cause =>
-        Effect.logError(
+        logError(
           `[foldkit-surface] the diagnostics reporter broke on: [${diagnostic.source}] ${diagnostic.message}\n${Cause.pretty(cause)}`,
         ),
       ),

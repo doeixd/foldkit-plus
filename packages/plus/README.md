@@ -141,7 +141,9 @@ await Behaviors.neverShows(page, {
 expect(errors()).toEqual([])
 ```
 
-These check the drawn page over the real network. To find which Message makes
+These check the drawn page over the real network. `consoleErrors` lists
+`console.error` and uncaught exceptions, which includes every `error`
+diagnostic the default `Diagnostics` reporter logs. To find which Message makes
 a read blink, `foldkit-plus/remote/testing`'s `Trace` runs `update` and Remote's
 Subscriptions without a browser and records every Model.
 [examples/cloudflare](https://github.com/doeixd/foldkit-plus/tree/main/examples/cloudflare)
