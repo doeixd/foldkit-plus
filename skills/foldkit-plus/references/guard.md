@@ -121,7 +121,7 @@ const Todo = TodoFields.pipe(
 - Writes: `RemoteServer.write(EditTodo, GuardServer.writer(Todo, Policy,
   writer(Db.Todo)))` checks a declared write before it lands (row rule over
   the row as it is and, for an update, as it would be; each member's and
-  relation's own; a create over what it proposes, an unset field matching no
+  relation's own, an update's member and `Link` rules over both rows too; a create over what it proposes, an unset field matching no
   guard), refuses as `Forbidden`, and answers as the writer now sees the row:
   a row the write hid from them in `deleted`. The binding needs `visible`.
   An Entity's invariants (`Entity.invariant`) are not rules: the writer judges

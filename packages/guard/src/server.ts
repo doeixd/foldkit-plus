@@ -275,11 +275,12 @@ export const GuardServer = {
    * `RemoteServer.write`. An update or a delete reads the row first under
    * the writer's own `read` (its Source's read rule): a row the writer may not
    * see is refused as one that is not there, and a delete of it changes
-   * nothing. Then the row's rule for the command must hold over the row (an
-   * update's over the row as it would be after it too, so a write cannot move
-   * a row out of its writer's reach), each member it sets must allow setting
-   * it, and each relation it points elsewhere must allow the unlink and the
-   * link. A create's rules hold over the values it proposes, where a field the
+   * nothing. Then the row's rule for the command must hold over the row, each
+   * member it sets must allow setting it, and each relation it points
+   * elsewhere must allow the unlink and the link. An update's row, member and
+   * link rules hold over the row as it would be after it too, so a write
+   * cannot move a row out of its writer's reach, nor set together what each
+   * change alone would be refused. A create's rules hold over the values it proposes, where a field the
    * create leaves unset matches no guard, not even one for an empty value. A refusal is
    * `Forbidden`, with the sentence an `explain` gave; the write never runs.
    *
@@ -656,15 +657,13 @@ export const GuardServer = {
           writer.linked === undefined || linked.length === 0
             ? Option.none()
             : yield* writer.linked({ id: context.id, relations: linked })
-        const relations = linking(
-          rules.relating,
-          Option.some(
-            Option.match(stored, {
-              onNone: () => ({ links: before, exact: false }),
-              onSome: links => ({ links, exact: true }),
-            }),
-          ),
+        const was = Option.some(
+          Option.match(stored, {
+            onNone: () => ({ links: before, exact: false }),
+            onSome: links => ({ links, exact: true }),
+          }),
         )
+        const relations = linking(rules.relating, was)
         // The rules over the row as stored refuse first: a writer they refuse learns
         // nothing of what its input would compute.
         yield* require([rules.row, ...rules.members, ...relations], before, principal)
@@ -676,7 +675,14 @@ export const GuardServer = {
             Object.entries(links).map(([relation, link]) => [relation, linkKey(link)]),
           ),
         }
-        yield* require([rules.row], after, principal)
+        // Over the row it leaves too: each member's rule and each link's, judged only over
+        // the row before, would let one write set together what each change alone may not.
+        // An unlink is of the row before, which the row after no longer points at.
+        const pointing = linking(
+          rules.relating.map(rule => ({ ...rule, unlink: Option.none() })),
+          was,
+        )
+        yield* require([rules.row, ...rules.members, ...pointing], after, principal)
       })
     const guarded: EntityWriter<Option.Option<User>, R | RW> = {
       entity: writer.entity,

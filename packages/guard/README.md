@@ -377,7 +377,8 @@ RemoteServer.write(EditTodo, GuardServer.writer(Todo, Policy, writer(Db.Todo)))
   nothing and answers it gone, as for a row already deleted.
 - The row's rule for the command must hold over the row, and an update's
   over the row as it would be after it too: a write cannot move a row out of
-  its writer's reach.
+  its writer's reach. So must an update's member and `Link` rules, so one
+  write cannot set together what each change alone would be refused.
 - Each member the write sets needs its own `Create` or `Update` rule to
   hold, and each relation it points elsewhere its `Unlink` and `Link`. What
   a relation was linked to is read as stored (the writer's `linked`), since a
@@ -736,8 +737,8 @@ differ from person to person, and a document is one audience.
   sentence. It reads no row, and its bodies must not suspend.
 - **Before the journal**, `admit` reads each row an edit names through the
   Entity's guarded Source: a row the principal cannot see is refused, the
-  row's `Update` must hold over it as it is and as it would be after all of
-  the operation's edits to it, and each changed member's rule must hold. An
+  row's `Update` and each changed member's rule must hold over it as it is
+  and as it would be after all of the operation's edits to it. An
   edit to a member outside the document, or a value its member cannot
   encode, is refused.
 - **A document is one audience.** Every replica that opens it receives every

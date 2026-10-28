@@ -255,4 +255,45 @@ describe('GuardSync.admit, before the journal sees an edit', () => {
       ]),
     ).toBe(false)
   })
+
+  it('holds each changed member’s rule over the row the edits leave too', async () => {
+    // Only a Dowel is repriced, and only a cheap one renamed: no cheap Dowel becomes a dear Rod.
+    const P = Guards.declare(
+      'Pricing',
+      User,
+      guard => ({
+        isDowel: guard.row(ProductFields, () => Expr.eq(ProductFields.fields.name, 'Dowel')),
+        isCheap: guard.row(ProductFields, () => Expr.lt(ProductFields.fields.cents, 200)),
+      }),
+      { key: user => user.id, unguarded: 'allow' },
+    )
+    const Priced = ProductFields.pipe(
+      Guards.attach(P, {
+        members: { cents: { Update: [P.isDowel] }, name: { Update: [P.isCheap] } },
+      }),
+    )
+    const Pricing = P.implement({})
+    const pricedSource = RemoteServer.memory({
+      domain: Remote.define({ entities: [Priced] }),
+      rows,
+      principal: Option.none<User>(),
+      ...GuardServer.memory(Pricing, [Priced]),
+    }).server.entities.get('Product')!
+    const admitPriced = (changes: ReadonlyArray<CellChange>) =>
+      Effect.runPromise(
+        GuardSync.admit(
+          Pricing,
+          GuardSync.document({ entity: Priced, members: ['name', 'cents'] }, { readers: [] }),
+          { principal: ada, source: pricedSource, changesOf: () => changes },
+        )(operation),
+      )
+    expect(await admitPriced([{ id: 'p1', member: 'cents', value: 900 }])).toBe(true)
+    expect(await admitPriced([{ id: 'p1', member: 'name', value: 'Rod' }])).toBe(true)
+    expect(
+      await admitPriced([
+        { id: 'p1', member: 'cents', value: 900 },
+        { id: 'p1', member: 'name', value: 'Rod' },
+      ]),
+    ).toBe(false)
+  })
 })
