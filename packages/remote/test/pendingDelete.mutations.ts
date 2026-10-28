@@ -11,9 +11,36 @@ const optimistic = '../src/optimistic.ts'
 
 export default [
   {
-    name: 'a pending patch brings back a row the server deleted',
+    name: 'an earlier edit keeps its patch of a row a later delete settled',
     edits: [
-      { file: optimistic, find: '        if (under?.tombstone === true) return []\n', replace: '' },
+      {
+        file: optimistic,
+        find: '  if (at === undefined || deleted.length === 0) return optimistic',
+        replace: '  if (at !== -1) return optimistic',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a later edit loses its patch of a row an earlier delete settled',
+    edits: [
+      {
+        file: optimistic,
+        find: 'if (started === undefined || started > at) return layer',
+        replace: 'if (started === undefined) return layer',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a pending patch never shows over a row the server deleted',
+    edits: [
+      {
+        file: optimistic,
+        find: '      resolvedPatches(base, optimistic, operators).map(patch => {',
+        replace:
+          '      resolvedPatches(base, optimistic, operators).filter(patch => !isTombstone(base, entityKey(patch.entity, patch.id))).map(patch => {',
+      },
     ],
     tests,
   },

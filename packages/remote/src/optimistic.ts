@@ -194,8 +194,9 @@ export const removeOverlay = (optimistic: OptimisticState, id: string): Optimist
  * not news from the server, so it keeps the date of the value under it; an
  * entity only a request holds (a temporary id) is not the server's to age, and
  * is dated `Infinity`, so freshness never plans or times it. A row a layer
- * deletes is a tombstone over all of them, and so is a row the server
- * deleted: a pending patch does not bring it back, only the server's word can.
+ * deletes is a tombstone over all of them. A patch over a row the server
+ * holds deleted shows it, as a create of a row known absent does; a patch a
+ * later request's delete settled is taken out of its layer (`settleSuccess`).
  */
 export const visibleStore = (
   base: EntityStore,
@@ -206,11 +207,14 @@ export const visibleStore = (
     tombstone,
     writeEntities(
       base,
-      resolvedPatches(base, optimistic, operators).flatMap(patch => {
+      resolvedPatches(base, optimistic, operators).map(patch => {
         const key = entityKey(patch.entity, patch.id)
         const under = base[key]
-        if (under?.tombstone === true) return []
-        return [{ key, values: patch.values, updatedAt: under?.updatedAt ?? Infinity }]
+        return {
+          key,
+          values: patch.values,
+          updatedAt: under === undefined || under.tombstone ? Infinity : under.updatedAt,
+        }
       }),
     ),
   )
@@ -345,13 +349,47 @@ export const settleSuccess = (
     state: reconciled.state,
     optimistic: state.applied.has(requestId)
       ? release(optimistic, requestId)
-      : confirm(
-          removeLayer(optimistic, requestId),
+      : superseded(
+          confirm(
+            removeLayer(optimistic, requestId),
+            requestId,
+            `confirmed:${requestId}`,
+            answer.connections ?? [],
+          ),
+          state,
           requestId,
-          `confirmed:${requestId}`,
-          answer.connections ?? [],
+          (answer.deleted ?? [])
+            .map(gone => entityKey(gone.entity, gone.id))
+            .filter(key => isTombstone(reconciled.store, key)),
         ),
   }
+}
+
+/**
+ * The layers without the patches of rows `requestId`'s answer deleted, in each
+ * request started before it: the server ran those first, so the delete is
+ * the row's last word, and their answers will not bring it back. Shown, such
+ * a patch would make the deleted row a stub that reads `Initial`.
+ */
+const superseded = (
+  optimistic: OptimisticState,
+  state: MutationState,
+  requestId: string,
+  deleted: ReadonlyArray<EntityKey>,
+): OptimisticState => {
+  const at = state.order.get(requestId)
+  if (at === undefined || deleted.length === 0) return optimistic
+  const gone = new Set(deleted)
+  let changed = false
+  const layers = optimistic.layers.map(layer => {
+    const started = state.order.get(layer.id)
+    if (started === undefined || started > at) return layer
+    const patches = layer.patches.filter(patch => !gone.has(entityKey(patch.entity, patch.id)))
+    if (patches.length === layer.patches.length) return layer
+    changed = true
+    return { ...layer, patches }
+  })
+  return changed ? { ...optimistic, layers } : optimistic
 }
 
 /** A failed request's layer and overlays are dropped; the base was never mutated. */

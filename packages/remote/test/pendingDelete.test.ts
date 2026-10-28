@@ -183,6 +183,26 @@ describe('A pending delete', () => {
     expect(shown(settled)).toEqual(hidden)
   })
 
+  it('settled, leaves a request started after it showing the row again, as a create', () => {
+    const recreating = Data.mutate(
+      deleting(loaded),
+      EditPost,
+      { id: 'p1', body: 'again' },
+      {
+        requestId: 'again',
+        optimistic: [Remote.patch(Post, 'p1', { id: 'p1', body: 'again', authorId: 'ada' })],
+      },
+    ).model
+    const settled = Data.reduce(recreating, {
+      _tag: 'MutationSucceeded',
+      requestId: 'delete',
+      entities: [],
+      deleted: [{ entity: 'Post', id: 'p1' }],
+      now: 1,
+    })
+    expect(post.read(settled)).toMatchObject({ _tag: 'Ready', value: { body: 'again' } })
+  })
+
   it('is shown by an overlay too, and lifting it brings the row back', () => {
     const previewed = Data.overlay(loaded, 'preview', [Remote.tombstone(Post, 'p1')])
     expect(shown(previewed)).toEqual(hidden)

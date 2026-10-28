@@ -55,8 +55,8 @@ export default [
     edits: [
       {
         file: '../src/mutation.ts',
-        find: 'state: { ...forgetFailure(state, requestId), applied, pending }',
-        replace: 'state: { ...state, applied, pending }',
+        find: '      ...forgetFailure(state, requestId),\n',
+        replace: '      ...state,\n',
       },
     ],
     tests,
