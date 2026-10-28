@@ -9,6 +9,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`foldkit-plus/testing/workers` and `foldkit-plus/testing/playwright`.**
+  `Stack.start` runs a Worker on a local workerd from its own Wrangler config
+  (bindings, date and flags, `.dev.vars`, a migrated D1 per stack) and swaps
+  it in place on change; `Stack.writeBundle` writes the same bundle where
+  `main` says. It moved from `examples/cloudflare` (#253) and reads the config
+  with Wrangler's own reader. `Behaviors.optimistic` checks a write shows
+  while every Remote mutation is held and after its answer,
+  `Behaviors.neverShows` that a text never shows during some steps (checked
+  after every DOM change), and `Behaviors.consoleErrors` collects errors.
+  `wrangler`, `esbuild` and `playwright` are optional peers, and a missing one
+  says what to install (#239).
 - **`Resource.lazy(Tag, load)` in `foldkit-bundle`: a service whose code is its
   own chunk.** An entry of `resources` that imports nothing until a Command's
   `yield* Resource.get(Tag)`, which imports and builds it into the runtime's

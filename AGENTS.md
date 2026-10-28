@@ -1436,6 +1436,16 @@ of its own named a form field "fits the Catalog". Read words with
   sideways-scroll check of `scrollWidth - innerWidth` read 0 with the fault in
   place. Measure against `document.documentElement.clientWidth`, the layout
   viewport, and break a demo once to see the check fail.
+- **A Playwright route that waits inside its handler stalls the next one.**
+  `route.fallback()` hands the request on only once the handler returns, so
+  awaiting `request.response()` inside it hung every held write. Wait for
+  the answer outside the handler.
+- **`route.fulfill` without a charset serves text as windows-1252.**
+  "Loading…" arrived as "Loadingâ€¦", and a text check passed for the wrong
+  reason. Pass `contentType: 'text/html; charset=utf-8'`.
+- **A stack that fails in `beforeAll` reads as "invalid" to `pnpm mutate`.**
+  The tests are skipped, not failed, so the mutation is not killed. Start
+  the stack in a test of its own as well.
 - **A moving element is never stable to Playwright.** `userEvent.hover` on
   a running Marquee's copy timed out ("element is not stable"), since the
   locator waits for the box to stop. Hover the still region around it.
