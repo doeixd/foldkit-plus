@@ -141,7 +141,8 @@ describe('the todo app', () => {
 
   it('ships the layer order and the theme’s tokens in one sheet', () => {
     expect(stylesheet.startsWith('@layer reset, tokens, theme, defaults,')).toBe(true)
-    expect(stylesheet).toContain('@layer theme{:root{')
+    // The theme registers the gamut values its colors read, then declares the tokens.
+    expect(stylesheet).toMatch(/@layer theme\{(@property [^{]+\{[^}]*\})+:root\{/)
     expect(stylesheet).toContain('--fk-knob-accent-h:235;')
     expect(stylesheet).toContain('--fk-text-done:')
     // Each token is declared once, and each knob once, at the theme's value.
