@@ -73,8 +73,8 @@ const hueOf = ([red, green, blue]: ReadonlyArray<number>): number => {
 }
 
 /**
- * The Components canvas's Segmented preview: its fluid highlight painted as
- * the browser draws it, and the accent hue the preview declares, so a test can
+ * The Components canvas's Segmented preview: its fluid highlight and the
+ * preview's accent ink, each painted as the browser draws it, so a test can
  * say whose ink the highlight is.
  */
 const hoverFilm = (page: Page) =>
@@ -89,14 +89,25 @@ const hoverFilm = (page: Page) =>
     canvas.width = 1
     canvas.height = 1
     const context = canvas.getContext('2d')!
-    context.fillStyle = getComputedStyle(highlight).backgroundColor
-    context.fillRect(0, 0, 1, 1)
-    const [r, g, b, a] = Array.from(context.getImageData(0, 0, 1, 1).data)
+    const paint = (color: string) => {
+      context.clearRect(0, 0, 1, 1)
+      context.fillStyle = color
+      context.fillRect(0, 0, 1, 1)
+      return Array.from(context.getImageData(0, 0, 1, 1).data)
+    }
+    const [r, g, b, a] = paint(getComputedStyle(highlight).backgroundColor)
+    // The default accent's ink lies outside sRGB, and painting clips it: its
+    // painted hue is some 20 degrees off the knob's, so it is compared as painted.
+    const swatch = document.createElement('div')
+    swatch.style.background = 'var(--fk-accent-ink)'
+    preview.append(swatch)
+    const [inkR, inkG, inkB] = paint(getComputedStyle(swatch).backgroundColor)
+    swatch.remove()
     return {
       rgb: [r!, g!, b!],
       alpha: a! / 255,
       opacity: getComputedStyle(highlight).opacity,
-      accentHue: Number(getComputedStyle(preview).getPropertyValue('--fk-knob-accent-h')),
+      accentInk: [inkR!, inkG!, inkB!],
       strength: getComputedStyle(preview).getPropertyValue('--fk-knob-state-hover').trim(),
     }
   })
@@ -198,8 +209,8 @@ test('the hover knobs reach a fluid highlight in the preview', async () => {
   const hovered = await lit()
   expect(hovered.strength).toBe('12%')
   expect(hovered.alpha).toBeGreaterThan(0)
-  // Within the wheel's rounding: the accent the preview carries is its ink's hue.
-  expect(Math.abs(hueOf(hovered.rgb) - hovered.accentHue)).toBeLessThan(5)
+  // Within the wheel's rounding: the highlight is painted in the accent's ink.
+  expect(Math.abs(hueOf(hovered.rgb) - hueOf(hovered.accentInk))).toBeLessThan(5)
 
   // Hover strength: the same ink, more of it.
   await open(page, '/create?surface.hover=accent&surface.hoverStrength=24')
