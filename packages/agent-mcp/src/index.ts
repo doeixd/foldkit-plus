@@ -18,3 +18,11 @@ export type {
   Unauthenticated,
 } from './http.js'
 export type { HttpAppOptions } from './httpApp.js'
+export type {
+  AgentMcpDiagnostic,
+  AuthenticateDefect,
+  CapabilityDefect,
+  RequestDefect,
+  ToolListDefect,
+  TransportEndDefect,
+} from './diagnostics.js'
