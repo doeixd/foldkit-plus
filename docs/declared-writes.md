@@ -361,7 +361,9 @@ create index write_ledger_at on write_ledger (at);
   answered as a retry until its retention passes.
 - **Copies sent at once.** On Postgres a copy of an operation sent while
   another is still writing waits for it (a transaction-scoped advisory lock),
-  then finds its record. The primary key still refuses a second record.
+  then finds its record. On D1 the row and its record are written in one
+  batch; a second copy's record collides with the first's primary key, its
+  batch rolls back whole, and it is answered from the first's record.
 - **Retention**, a day unless given: a retry later than that is a new operation,
   and an increment would be applied again. Records are pruned as new ones are
   made; the index on `at` keeps that from scanning the table.
@@ -422,7 +424,7 @@ change.
 | `Unmet` | the row does not hold the write's `when` | show why; the state changed |
 | `Invalid` | the row the write would leave breaks an invariant, over a row or over the change | show its `message` beside its `path`; change the input |
 | "changed while it was written" | the row kept moving through three decisions | retry later |
-| "needs a database with transactions" | a ledger over D1 | serve that write without a ledger |
+| "needs a database with transactions" | a ledger over a database with neither a transaction nor D1's batch | give the writer a Drizzle database |
 
 ### What each database guarantees
 
@@ -430,11 +432,13 @@ change.
 | --- | --- | --- | --- |
 | Revision, `when`, increment, invariant | one statement | one statement | one statement |
 | `checkConstraints`, `entityChecks` | in `create table` | `alter table … add` | in `create table` |
-| Ledger | a synchronous transaction | an awaited transaction; the primary key settles a race | refused: D1 runs no `BEGIN` |
+| Ledger | a synchronous transaction | an awaited transaction; the primary key settles a race | a read, then one `batch`; the primary key settles a race |
 | `revisionTrigger` | yes | yes | yes (SQLite) |
 
 One statement is atomic on every database, so a precondition and an increment
-need no transaction and work on D1. Opening a transaction is not by itself a
+need no transaction. D1 runs no `BEGIN`, so its ledger writes the row and the
+record in one batch, the record decided in SQL (`changes() > 0`) since a batch
+reads nothing between its statements. Opening a transaction is not by itself a
 guarantee: the ledger relies on its primary key, not on isolation, to refuse a
 second copy.
 

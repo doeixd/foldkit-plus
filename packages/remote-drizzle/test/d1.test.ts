@@ -368,20 +368,142 @@ describe('A declared write over D1', () => {
     })
   }, 30_000)
 
-  it('refuses a ledger, which needs a transaction D1 does not offer, and writes nothing', async () => {
-    const take = [
-      RemoteServer.write(
-        Take,
-        writer<string>(ItemDb.Item, {
-          ledger: { table: ledgerTable, scope: principal => principal },
-        }),
-      ),
-    ]
-    expect(await send(take, 'Take', { id: 'i1', quantity: 5 }, 'op-a')).toMatchObject({
-      _tag: 'Failure',
-      failure: { message: "Item's ledger needs a database with transactions" },
+  describe('with a ledger, in one batch', () => {
+    const Note = Entity.define(
+      'Note',
+      Schema.Struct({ id: Schema.String, title: Schema.String, done: Schema.Boolean }),
+    )
+    const notes = sqliteTable('notes', {
+      id: text('id').primaryKey(),
+      title: text('title').notNull(),
+      done: integer('done', { mode: 'boolean' }).notNull(),
     })
-    expect(await stock()).toEqual({ stock: 1, revision: 1 })
-    expect(await db.prepare('SELECT * FROM write_ledger').all()).toMatchObject({ results: [] })
-  }, 30_000)
+    const NoteDb = bind({ Note }, { Note: { table: notes } })
+    const CreateNote = Mutation.write(
+      'CreateNote',
+      Write.insert(
+        Entity.input(
+          Note,
+          Schema.Struct({ id: Schema.String, title: Schema.String, done: Schema.Boolean }),
+        ),
+        { id: 'id' },
+      ),
+    )
+    const book = (retention?: number) => ({
+      ledger: {
+        table: ledgerTable,
+        scope: (principal: string) => principal,
+        ...(retention === undefined ? {} : { retention }),
+      },
+    })
+    const ledgered = (retention?: number) => [
+      RemoteServer.write(Take, writer<string>(ItemDb.Item, book(retention))),
+      RemoteServer.write(Sell, writer<string>(ItemDb.Item, book(retention))),
+      RemoteServer.write(CreateNote, writer<string>(NoteDb.Note, book(retention))),
+    ]
+    const records = async () =>
+      (await db.prepare('SELECT operation, target FROM write_ledger ORDER BY operation').all())
+        .results
+    const note = { id: 'n1', title: 'Milk', done: true }
+
+    beforeEach(async () => {
+      await db.batch([
+        db.prepare('DROP TABLE IF EXISTS notes'),
+        db.prepare(
+          'CREATE TABLE notes (id TEXT PRIMARY KEY, title TEXT NOT NULL, done INTEGER NOT NULL)',
+        ),
+      ])
+    })
+
+    it('answers a retry of an increment from its record, and adds once', async () => {
+      const first = await send(ledgered(), 'Take', { id: 'i1', quantity: 5 }, 'op-a')
+      expect(first).toMatchObject({
+        _tag: 'Success',
+        success: { entities: [{ id: 'i1', values: { stock: 6 } }] },
+      })
+      // The answer was lost; the same operation comes again.
+      expect(await send(ledgered(), 'Take', { id: 'i1', quantity: 5 }, 'op-a')).toEqual(first)
+      expect(await stock()).toEqual({ stock: 6, revision: 1 })
+      expect(await records()).toEqual([{ operation: 'op-a', target: 'Item:i1' }])
+    }, 30_000)
+
+    it('refuses an operation id sent again with another request, and writes nothing', async () => {
+      await send(ledgered(), 'Take', { id: 'i1', quantity: 5 }, 'op-a')
+      expect(await send(ledgered(), 'Take', { id: 'i1', quantity: 7 }, 'op-a')).toMatchObject({
+        _tag: 'Failure',
+        failure: {
+          message:
+            'Item i1: operation "op-a" was recorded for another request; a retry sends the same mutation, keys and input',
+        },
+      })
+      expect(await stock()).toEqual({ stock: 6, revision: 1 })
+    }, 30_000)
+
+    it('answers a retried create from its record, and refuses another create of the id', async () => {
+      const first = await send(ledgered(), 'CreateNote', note, 'op-c')
+      expect(first).toMatchObject({
+        _tag: 'Success',
+        success: { entities: [{ id: 'n1', values: note }] },
+      })
+      expect(await send(ledgered(), 'CreateNote', note, 'op-c')).toEqual(first)
+      // Another operation: the id is taken, and nothing is recorded for it.
+      expect(await send(ledgered(), 'CreateNote', note, 'op-d')).toMatchObject({
+        _tag: 'Failure',
+        failure: { message: 'Note n1 could not be created' },
+      })
+      expect(await records()).toEqual([{ operation: 'op-c', target: 'Note:n1' }])
+    }, 30_000)
+
+    it('answers a retried create whose row is gone with the record, decoded as the row was', async () => {
+      const first = await send(ledgered(), 'CreateNote', note, 'op-c')
+      expect(first).toMatchObject({ _tag: 'Success' })
+      await db.prepare('DELETE FROM notes').run()
+      // `done` is stored as 1: the record holds what the column held, read back as a boolean.
+      expect(await send(ledgered(), 'CreateNote', note, 'op-c')).toEqual(first)
+    }, 30_000)
+
+    it('records nothing for a write that misses, and judges its precondition in the statement', async () => {
+      expect(
+        (await send(ledgered(), 'Sell', { id: 'i1', revision: 1, quantity: -1 }, 'op-s'))._tag,
+      ).toBe('Success')
+      expect(
+        await send(ledgered(), 'Sell', { id: 'i1', revision: 2, quantity: -1 }, 'op-t'),
+      ).toMatchObject({ _tag: 'Failure', failure: { refusal: { _tag: 'Unmet' } } })
+      expect(await stock()).toEqual({ stock: 0, revision: 2 })
+      expect(await records()).toEqual([{ operation: 'op-s', target: 'Item:i1' }])
+    }, 30_000)
+
+    it('takes a retry past its retention as a new operation, its old record pruned', async () => {
+      // Every record is already past a retention that ends before it was made.
+      await send(ledgered(-1000), 'Take', { id: 'i1', quantity: 5 }, 'op-a')
+      expect((await send(ledgered(-1000), 'Take', { id: 'i1', quantity: 5 }, 'op-a'))._tag).toBe(
+        'Success',
+      )
+      expect(await stock()).toEqual({ stock: 11, revision: 1 })
+      expect(await records()).toEqual([{ operation: 'op-a', target: 'Item:i1' }])
+    }, 30_000)
+
+    it('lands copies of one operation sent at once once, and answers each', async () => {
+      const takes = await Promise.all(
+        Array.from({ length: 4 }, () =>
+          send(ledgered(), 'Take', { id: 'i1', quantity: 5 }, 'op-a'),
+        ),
+      )
+      expect(takes.map(take => take._tag)).toEqual(['Success', 'Success', 'Success', 'Success'])
+      expect(await stock()).toEqual({ stock: 6, revision: 1 })
+      const creates = await Promise.all(
+        Array.from({ length: 4 }, () => send(ledgered(), 'CreateNote', note, 'op-c')),
+      )
+      expect(creates.map(create => create._tag)).toEqual([
+        'Success',
+        'Success',
+        'Success',
+        'Success',
+      ])
+      expect(await records()).toEqual([
+        { operation: 'op-a', target: 'Item:i1' },
+        { operation: 'op-c', target: 'Note:n1' },
+      ])
+    }, 30_000)
+  })
 })

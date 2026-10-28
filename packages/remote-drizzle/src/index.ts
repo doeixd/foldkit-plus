@@ -28,7 +28,7 @@ import {
 } from 'drizzle-orm'
 import { getTableConfig as getPgTableConfig, type PgTable } from 'drizzle-orm/pg-core'
 import { SQLiteTable } from 'drizzle-orm/sqlite-core'
-import { Array as Arr, Clock, Effect, Match, Option, Schema } from 'effect'
+import { Array as Arr, Clock, Effect, Match, Option, Result, Schema } from 'effect'
 import {
   Entity as DomainEntity,
   Expr,
@@ -1076,8 +1076,8 @@ interface SyncStatement {
 
 /** A ledger transaction's builders, typed only as far as the ledger uses them. */
 interface LedgerTx {
-  select(columns: Record<string, AnyColumn>): {
-    from(table: Table): {
+  select(columns: Record<string, AnyColumn | SQL>): {
+    from(source: Table | SQL): PromiseLike<ReadonlyArray<Record<string, unknown>>> & {
       where(
         condition: SQL | undefined,
       ): SyncStatement & PromiseLike<ReadonlyArray<Record<string, unknown>>>
@@ -1091,12 +1091,27 @@ interface LedgerTx {
   execute(query: SQL): PromiseLike<unknown>
 }
 
-/** The provided Drizzle database, as far as a ledger needs it: a transaction, and its kind. */
-interface LedgerDatabase {
+/** The provided Drizzle database, as far as a ledger needs it: a transaction or a batch, and its kind. */
+interface LedgerDatabase extends LedgerTx {
   /** `'sync'` for a driver whose statements run where they are called (node-sqlite, better-sqlite3). */
   readonly resultKind?: string
   transaction<A>(body: (tx: LedgerTx) => A): A
+  /** D1's: statements run in order as one transaction, each one's result in its place. */
+  batch(statements: ReadonlyArray<unknown>): PromiseLike<ReadonlyArray<unknown>>
+  run(query: SQL): unknown
 }
+
+/** Whether the database is D1's, which refuses the `BEGIN` its Drizzle `transaction` sends. */
+const isD1 = (database: unknown): boolean =>
+  (database as { readonly constructor: { readonly [entityKind]?: string } }).constructor[
+    entityKind
+  ] === 'D1Database'
+
+/** An answer as a ledger keeps it: JSON, a bigint as its digits. */
+const answerText = (answer: unknown): string =>
+  JSON.stringify(answer, (_, value: unknown) =>
+    typeof value === 'bigint' ? value.toString() : value,
+  )
 
 /** What one update did inside its ledger's transaction. */
 type Ledgered =
@@ -1436,7 +1451,7 @@ export const writer = <P = unknown>(
     request: string,
     id: string,
     update: (database: unknown) => unknown,
-    answerOf: (rows: ReadonlyArray<Record<string, unknown>>) => Option.Option<unknown>,
+    answered: ReturnType<typeof returning>,
   ): Effect.Effect<Ledgered, RemoteServerError, DrizzleDatabase> =>
     Effect.gen(function* () {
       const digest = yield* digestOf(request)
@@ -1444,14 +1459,13 @@ export const writer = <P = unknown>(
       const cutoff = now - (book.retention ?? DAY)
       const key = recordOf(book, scope, operation, id, cutoff)
       const expired = lt(book.table.at, cutoff)
+      const target = Entity.refKey({ entity: binding.name, id })
+      const answerOf = (rows: ReadonlyArray<Record<string, unknown>>) => answeredOf(rows, answered)
       const record = (answer: unknown) => ({
         scope,
         operation,
-        target: Entity.refKey({ entity: binding.name, id }),
-        // Only the answer for a row since gone; a bigint goes as its digits.
-        answer: JSON.stringify(answer, (_, value: unknown) =>
-          typeof value === 'bigint' ? value.toString() : value,
-        ),
+        target,
+        answer: answerText(answer),
         at: now,
         request: digest,
       })
@@ -1466,19 +1480,68 @@ export const writer = <P = unknown>(
       const asked = { answer: book.table.answer, request: book.table.request }
       // The database is the application's Drizzle one; its builders are not nameable by dialect.
       const database = (yield* DrizzleDatabase) as unknown as LedgerDatabase
-      // D1's Drizzle database has a `transaction`, which sends a `BEGIN` that D1 refuses.
-      if (
-        typeof database.transaction !== 'function' ||
-        (database.constructor as { readonly [entityKind]?: string })[entityKind] === 'D1Database'
-      ) {
+      // D1 refuses the `BEGIN` its Drizzle `transaction` sends, but runs a batch as one
+      // transaction, with no read between its statements. So the record is read first, and the
+      // row and its record are written in one batch: the record only where the write changed a
+      // row (`changes()`), holding the row as the write left it. A copy sent alongside found no
+      // record either; whichever batch runs second meets the first's record, as a key its own
+      // collides with (rolling its whole batch back) or as a write that misses, and is answered
+      // from that record.
+      const batched = Effect.gen(function* () {
+        const lookup = Effect.map(
+          runStatement(
+            () => database.select(asked).from(book.table).where(key),
+            'Database write failed',
+          ),
+          recordedOf,
+        )
+        const known = yield* lookup
+        if (Option.isSome(known)) return known.value
+        const { table } = book
+        const recording = sql`insert into ${table} (${sql.join(
+          [table.scope, table.operation, table.target, table.answer, table.at, table.request].map(
+            column => sql.identifier(column.name),
+          ),
+          sql`, `,
+        )}) select ${scope}, ${operation}, ${target}, json_object(${sql.join(
+          Object.entries(answered.columns).map(([field, column]) => sql`${field}, ${column}`),
+          sql`, `,
+        )}), ${now}, ${digest} from ${binding.table} where ${eq(idColumn(binding), id)} and changes() > 0`
+        const written = yield* Effect.result(
+          Effect.tryPromise({
+            try: () =>
+              Promise.resolve(
+                database.batch([
+                  database.delete(table).where(expired),
+                  update(database),
+                  database.run(recording),
+                ]),
+              ),
+            catch: error => error,
+          }),
+        )
+        if (Result.isSuccess(written)) {
+          const rows = written.success[1] as ReadonlyArray<Record<string, unknown>>
+          if (rows.length > 0) return { _tag: 'Written', rows } satisfies Ledgered
+        }
+        const after = yield* lookup
+        if (Option.isSome(after)) return after.value
+        if (Result.isFailure(written)) {
+          yield* Diagnostics.report(statementFailed('Database write failed', written.failure))
+          return yield* new RemoteServerError({ message: 'Database write failed' })
+        }
+        return { _tag: 'Written', rows: [] } satisfies Ledgered
+      })
+      if (!isD1(database) && typeof database.transaction !== 'function') {
         return yield* new RemoteServerError({
           message: `${binding.name}'s ledger needs a database with transactions`,
         })
       }
       // A synchronous driver's transaction commits when its body returns, so the body awaits
       // nothing; an asynchronous one's (libsql, Postgres) is awaited.
-      const done =
-        database.resultKind === 'sync'
+      const done = isD1(database)
+        ? yield* batched
+        : database.resultKind === 'sync'
           ? yield* Effect.try({
               try: () =>
                 database.transaction(tx =>
@@ -1510,7 +1573,7 @@ export const writer = <P = unknown>(
                   // hash alike only share a lock.
                   if (!is(book.table, SQLiteTable)) {
                     await tx.execute(
-                      sql`select pg_advisory_xact_lock(hashtextextended(${`${scope}:${operation}:${Entity.refKey({ entity: binding.name, id })}`}, 0))`,
+                      sql`select pg_advisory_xact_lock(hashtextextended(${`${scope}:${operation}:${target}`}, 0))`,
                     )
                   }
                   const found = recordedOf(await tx.select(asked).from(book.table).where(key))
@@ -1532,6 +1595,38 @@ export const writer = <P = unknown>(
     })
 
   /**
+   * A record's answer as the write answered it. D1's batch records the row as its
+   * columns held it (`json_object`), so each value is selected back through its column,
+   * read as Drizzle reads that column (a boolean from 1), and kept as JSON, as the
+   * other ledgers keep their answers.
+   */
+  const recordedAnswer = (
+    database: DrizzleDatabaseService,
+    record: string,
+  ): Effect.Effect<Readonly<Record<string, unknown>>, RemoteServerError> => {
+    const stored = JSON.parse(record) as Readonly<Record<string, unknown>>
+    if (!isD1(database)) return Effect.succeed(stored)
+    const fields = Object.keys(stored)
+    const read = Object.fromEntries(
+      Object.entries(selectColumns(binding, fields)).map(([field, column]) => [
+        field,
+        sql`json_extract(${record}, ${`$."${field}"`})`.mapWith(column),
+      ]),
+    )
+    return Effect.map(
+      runStatement(
+        () => (database as unknown as LedgerDatabase).select(read).from(sql`(select 1)`),
+        'Database query failed',
+      ),
+      // One row: `(select 1)` holds one.
+      rows =>
+        JSON.parse(answerText(relationRefs(binding, fields, rows[0]!))) as Readonly<
+          Record<string, unknown>
+        >,
+    )
+  }
+
+  /**
    * A recorded operation's answer: the row as it now is, since the record's
    * values may be older than a later write; the record only if the row is gone.
    */
@@ -1541,13 +1636,14 @@ export const writer = <P = unknown>(
     record: string,
   ): Effect.Effect<Readonly<Record<string, unknown>>, RemoteServerError, DrizzleDatabase> =>
     Effect.gen(function* () {
+      const database = yield* DrizzleDatabase
       const now = answeredOf(
-        yield* selectRows(yield* DrizzleDatabase, binding.table, answered.columns, {
+        yield* selectRows(database, binding.table, answered.columns, {
           where: eq(idColumn(binding), id),
         }),
         answered,
       )
-      return Option.getOrElse(now, () => JSON.parse(record) as Readonly<Record<string, unknown>>)
+      return Option.isSome(now) ? now.value : yield* recordedAnswer(database, record)
     })
 
   return {
@@ -1594,8 +1690,9 @@ export const writer = <P = unknown>(
           recorded: ({ operation, request, principal, id }) =>
             Effect.gen(function* () {
               const cutoff = (yield* Clock.currentTimeMillis) - (ledger.retention ?? DAY)
+              const database = yield* DrizzleDatabase
               const found = yield* selectRows(
-                yield* DrizzleDatabase,
+                database,
                 ledger.table,
                 { answer: ledger.table.answer, request: ledger.table.request },
                 { where: recordOf(ledger, ledger.scope(principal), operation, id, cutoff) },
@@ -1605,10 +1702,8 @@ export const writer = <P = unknown>(
               if (Option.isSome(record) && !recordedFor(record.value, digest)) {
                 return yield* reused(operation, id)
               }
-              return Option.map(
-                record,
-                row => JSON.parse(String(row['answer'])) as Readonly<Record<string, unknown>>,
-              )
+              if (Option.isNone(record)) return Option.none()
+              return Option.some(yield* recordedAnswer(database, String(record.value['answer'])))
             }),
         }),
     update: ({
@@ -1671,7 +1766,7 @@ export const writer = <P = unknown>(
                 .set(set)
                 .where(where)
                 .returning(answered.columns),
-            landed => answeredOf(landed, answered),
+            answered,
           )
           // Landed already: not written again.
           if (done._tag === 'Recorded')
@@ -1812,7 +1907,7 @@ export const writer = <P = unknown>(
             request,
             id,
             statement,
-            landed => answeredOf(landed, answered),
+            answered,
           )
           if (done._tag === 'Recorded') return yield* answerOfRecord(id, answered, done.answer)
           inserted = done.rows

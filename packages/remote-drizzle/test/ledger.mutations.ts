@@ -104,8 +104,8 @@ export default [
   edit(
     'a database with no transactions writes unrecorded',
     drizzle,
-    "typeof database.transaction !== 'function' ||",
-    'false ||',
+    "&& typeof database.transaction !== 'function'",
+    '&& false',
   ),
   edit(
     'an increment with no revision is served over a writer with no ledger',
@@ -166,15 +166,54 @@ export default [
       'packages/guard/test/write.test.ts',
     ],
   },
-  {
-    name: 'D1 is taken for a database with transactions',
-    edits: [
-      {
-        file: drizzle,
-        find: "[entityKind] === 'D1Database'",
-        replace: "[entityKind] === 'none'",
-      },
-    ],
+  ...[
+    {
+      name: 'D1 is taken for a database with transactions',
+      find: "] === 'D1Database'",
+      replace: "] === 'none'",
+    },
+    {
+      name: 'D1 records a write that changed nothing',
+      find: ' and changes() > 0`',
+      replace: '`',
+    },
+    {
+      name: 'D1 writes the row and its record apart',
+      find: 'database.batch([',
+      replace: 'Promise.all([',
+    },
+    {
+      name: 'D1 prunes after it records',
+      find: 'database.delete(table).where(expired),\n                  update(database),\n                  database.run(recording),',
+      replace:
+        'update(database),\n                  database.run(recording),\n                  database.delete(table).where(expired),',
+    },
+    {
+      name: 'D1 answers a copy that lost the race with its failure',
+      find: 'if (Option.isSome(after)) return after.value',
+      replace: '',
+    },
+    {
+      name: 'D1 records no request',
+      find: '${now}, ${digest} from',
+      replace: '${now}, null from',
+    },
+    {
+      name: 'a D1 record is answered as its columns held it',
+      find: '    if (!isD1(database)) return Effect.succeed(stored)',
+      replace: '    return Effect.succeed(stored)',
+    },
+    {
+      name: 'D1 writes before it reads the record',
+      find: 'if (Option.isSome(known)) return known.value',
+      replace: '',
+      survives:
+        'the batch answers a retry too, by its record colliding with the first: the read spares that retry a write rolled back',
+    },
+  ].map(({ name, find, replace, ...rest }) => ({
+    name,
+    edits: [{ file: drizzle, find, replace }],
     tests: ['packages/remote-drizzle/test/d1.test.ts'],
-  },
+    ...rest,
+  })),
 ]

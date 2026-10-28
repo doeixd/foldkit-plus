@@ -1137,10 +1137,9 @@ table.
   record with the row it made; without a ledger, a create of a taken id is
   refused, retry or not. A retried delete finds the row gone.
 - The ledger runs in a transaction: synchronous on SQLite, awaited on Postgres.
-  D1 offers none (its Drizzle database has a `transaction`, whose `BEGIN` D1
-  refuses), so a ledger there refuses each write it would record, rather than
-  writing it unrecorded. A precondition and an increment need no transaction and
-  work on D1.
+  D1 refuses a transaction's `BEGIN`, so there the ledger reads the record
+  first and then writes the row and its record in one `batch`, which commits
+  whole or not at all (see [Cloudflare D1](#cloudflare-d1)).
 - A write from a client that sends no operation id is written as without a
   ledger, except an increment that expects no revision, which is refused.
 - `request` holds a SHA-256 digest of what the operation asked: its mutation,
@@ -1429,6 +1428,31 @@ core paths against a miniflare binding, which rejects what production D1
 rejects; `databaseLayer(drizzle(env.DB))` is the only wiring. The
 nullable-column rule above applies as on SQLite: D1 sorts nulls first for
 `ASC`, so sort by columns that are not null.
+
+Declared writes run there too: a revision, a precondition, an increment and an
+invariant are one statement, as everywhere. A [ledger](#a-ledger-a-retry-is-never-applied-twice)
+works with no transaction, since D1 offers none (its Drizzle database has a
+`transaction`, whose `BEGIN` D1 refuses):
+
+```text
+read the record of (scope, operation, row)
+  found, same request   -> answered from it; nothing is written
+  found, other request  -> refused ("was recorded for another request")
+  none                  -> one batch: prune expired records, write the row,
+                           record it where the write changed a row
+```
+
+The batch cannot read between its statements, so the record is decided in SQL:
+`insert … select … where changes() > 0`, holding the row as the write left it
+(`json_object` over the columns it answers, read back through those columns, so
+a boolean is a boolean again). A write that misses records nothing. Two copies
+sent at once both find no record; D1 runs their batches one after the other,
+and the second meets the first's record, either as the ledger's primary key
+(its whole batch rolls back, row write included) or as a write that misses (a
+create of the id the first made). Either way it reads the record again and is
+answered from it. Retention, pruning and the `request` digest are as on SQLite.
+A column the answer holds may not be a `blob`: `json_object` refuses one, and
+the write fails rather than landing unrecorded.
 
 ### Live data on Workers
 
