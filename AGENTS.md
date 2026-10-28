@@ -1248,9 +1248,9 @@ of its own named a form field "fits the Catalog". Read words with
   comment said Foldkit keeps the last of two `OnClick`s on an element; its
   `addDataOn` chains them all, so the resumable builder dropped bindings. Cite
   the source line, or test it.
-- **The Write and Edit tools turn a `\` escape into a backslash, and a
+- **The Write and Edit tools turn a `\u005c` escape into a backslash, and a
   Python `\0` in a Bash heredoc becomes a NUL.** A probe written with
-  `String.raw` lost its `\`, and a design-doc edit gained two raw NUL
+  `String.raw` lost its `\u005c`, and a design-doc edit gained two raw NUL
   bytes (grep said "Binary file matches"). Build such characters with
   `String.fromCharCode(92)` or `chr(92)`, and check the bytes before
   committing.
