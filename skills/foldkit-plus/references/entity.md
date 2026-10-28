@@ -301,7 +301,9 @@ const Restock = Write.update(
   does not associate). Remote predicts the sum over the value it holds.
 - **`compute: { label: ({ row, input }) => concat(input.prefix, row.name) }`** sets a field from the row
   before the write and the input, never the row after or another Entity; refused for a field another key
-  writes or a kind it does not store. `Write.bind` carries it as data (`assignments`, `Computation`s:
+  writes or a kind it does not store, and for a number that may not be whole into a `Schema.Int` field (its
+  operator's output, input or field must be `Schema.Int`, or a literal whole); the Drizzle `writer` refuses
+  the same over an `integer` column at registration. `Write.bind` carries it as data (`assignments`, `Computation`s:
   operators by name), compiled by the writer and predicted by Remote with its table. Without `expect` it
   lands only under a ledger, and there only where the writer pins the row it read (a guarded writer with a
   `revision`) or by `op(field, amount)` whose commutativity and associativity are tested over every value
