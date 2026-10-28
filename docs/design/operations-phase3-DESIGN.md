@@ -1,6 +1,6 @@
 # A field's value over the context, and rules over links (operations phase 3, #232)
 
-Status: decided (2026-10-28). Phase 3 of [operations-PLAN.md](./operations-PLAN.md).
+Status: built (2026-10-28). Phase 3 of [operations-PLAN.md](./operations-PLAN.md).
 `Entity.sets(…, { on })` replaces `Entity.stamps` and `Stamp`; a `one`
 relation is an `Expr` operand, so a rule compares the link itself and Chirp's
 `authorId` and `userId` go.
@@ -76,7 +76,16 @@ guard.row(Chirp.Like, p => Expr.eq(Chirp.Like.relations.user, p.id))
   reads, so a list or a guard that watches what a body reads watches the link.
 - **The Write's record is `write.context`** (`ContextSet`: the member and its
   value), since `write.sets` already names what the input sets.
-  `Write.contextValues(write, context, read)` replaces `Write.stamp`.
+  `Write.contextValues(write, context, read)` replaces `Write.stamp`. It is
+  an Effect: `read` gives a path one member of one row at a time, the
+  server's through its own sources (`MutationSource.run`'s new `read`), the
+  client's from its store (run with `Effect.runSync`).
+- **A ref-keyed row is read through `Held.fromRefs(query, row)`.** A Source
+  and the Remote store keep a link as its ref key (`'User:ada'`); the client's
+  list judgement, the memory server and Guard's rules convert the links a
+  body reads to ids first. A link is found as a key the body reads that is no
+  field of its Entity, since a guard's Entity may be the one declared before
+  `Entity.relate`.
 
 ### What is refused, and where
 
@@ -133,3 +142,33 @@ storage.
 - A relation set from a path (`org: viewer's org`): a path ends at a field.
 - `Remote.patch`-style sets for opaque handlers: they read `now` and `viewer`
   from their run context, as before.
+
+## Tests
+
+- `packages/entity/test/link.test.ts`, `link.test-d.ts` (4 mutations): the
+  link as the id, null for an optional one, unknown to a holder that lacks
+  it, its dependency, and the refusals (a many relation, ordering, another
+  Entity's link) by the runtime and the type.
+- `packages/remote-drizzle/test/link.test.ts` (3), `packages/guard/test/link.test.ts`
+  (1), `packages/remote/test/link.test.ts` (3): a body over a link through
+  SQL and the memory server alike, a link stored on the other table refused,
+  a guard rule filtering a read and deciding a delete over a ref-keyed row,
+  the client judging its store.
+- `packages/entity/test/sets.test.ts` (19): the declaration's refusals, what
+  an insert and an update set, `unfilled`. `viewerPath.test.ts` (9): a path
+  read through a holder, null against unheld, the Entities it reads, the
+  refusals.
+- `packages/remote-drizzle/test/sets.test.ts` (18; `setsColumn` 5): the
+  server writes the viewer and the time on create, `editedAt` on update, a
+  visitor refused. `viewerPath.test.ts` (3, two marked equivalent): `orgId`
+  from the asker's team over SQLite, a path reaching no row or a hidden one
+  refused, a server serving no Team refused.
+- `packages/remote/test/sets.test.ts` (20), `viewerPath.test.ts` (3): the
+  prediction, `editedAt` on an edit at the reader's time, a path predicted
+  from the store, and not where it lacks a row or a field.
+- `packages/guard/test/sets.test.ts` (3): an update's `editedAt` judged by a
+  row rule as the row it leaves holds it.
+- `examples/chirp` and `examples/reference`: the author declared once, their
+  tests, mutation specs and e2e.
+- `heldValue.test.ts` gets no generator: no Message is added, and a predicted
+  context value is an ordinary pending patch, which its generators cover.
