@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`examples/reference`: the recommended stack, end to end.** One Worker over
+  D1 serves the page's assets, Yielded's routes, Remote and every page, the
+  pages rendered in process as the reader (`pageReader`,
+  `SSR.requestContext`, `requests: 'navigation'`) into Vite's `index.html`.
+  A notebook with sign-up, a list and a detail page, optimistic declared writes
+  through the guarded writer, `Derived.count`, a live list over `pollLive`,
+  and CHECKs derived from the domain; its tests run it from `wrangler.toml`
+  on workerd and in Chromium with `Behaviors` (#228; findings #264 to #271).
 - **Every package's quiet reports go through `Diagnostics`** (#237). Each
   declares its variants in its own union:
   - `foldkit-ssr`: `PageContained`, `StaticRegionMissing`, `BundleUnloaded`,

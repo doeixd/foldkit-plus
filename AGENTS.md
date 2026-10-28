@@ -531,6 +531,11 @@ layer of whatever they are composed into, and a plain declaration beside them
 wins per property. That is what makes them composable — do not wrap them in
 `component`/`variant` at their definition.
 
+**`Style.usedIn` covers compiled `style-` classes only** (#271). Global rules
+such as `.fk-raised` were left out, so a server-rendered Card was unstyled
+until scripts ran. A test that every class a page draws has a rule in its
+sheet caught it.
+
 **A state rule in a base loses to a variant that sets the same property.**
 The Card's selected fill sat in the `components` layer, and every `surface`
 variant sets `background` in `variants`, so a chosen card showed no fill;
@@ -840,6 +845,9 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   `@yielded/auth/WorkerdServices` imports a `.wasm` and `node:crypto`, so Node
   cannot load it: keep what a test reads from Node in a module apart, and
   bundle it with `loader: { '.wasm': 'copy' }` and `nodejs_compat`.
+- **A Worker's `console.error` never reaches `Stack.start`'s output** (#269).
+  An SSR 500 said only "The page could not be rendered". To see the cause,
+  run the same `renderPage` in Node against the stack's `/remote`.
 - **Miniflare poisons binding handles on every reload.** A D1 or R2 handle read
   before `setOptions` or a harness `update` throws "Attempted to use poisoned
   stub" after it, which is why `examples/cloudflare`'s `WorkersStack.env` is a
@@ -1275,6 +1283,9 @@ of its own named a form field "fits the Catalog". Read words with
   one row passed while ids were parsed by splitting on every colon; two ids
   agreeing up to the first colon caught it. A filter test where every row
   matches passes when the predicate is dropped entirely.
+- **A list placement needs a collation on every text key of its order,** the
+  tie-break on `id` included (`Collation.binary`), or the client cannot place
+  a row there.
 - **PGlite's database collates by `C`, so a dropped collation passes there.**
   Three of the four `collate "C"`s the Drizzle compiler writes for Postgres
   could be deleted with every PGlite test green; on a Postgres created with
