@@ -33,6 +33,7 @@ const ledger = sqliteTable('write_ledger', {
   target: text('target').notNull(),
   answer: text('answer').notNull(),
   at: integer('at').notNull(),
+  request: text('request'),
 })
 
 const UserFields = Entity.define('User', Schema.Struct({ id: Schema.String }))
@@ -126,7 +127,7 @@ const sandbox = (made = server) => {
     create table likes (id text primary key, post_id text not null, user_id text not null);
     create table write_ledger (
       scope text not null, operation text not null, target text not null, answer text not null,
-      at integer not null, primary key (scope, operation, target)
+      at integer not null, request text, primary key (scope, operation, target)
     );
     insert into users values ('ada'), ('bob');
     insert into posts values ('p1', 'Hello', 'ada', 1);

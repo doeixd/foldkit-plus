@@ -538,6 +538,7 @@ export const GuardServer = {
       context: {
         readonly id: string
         readonly operation: Option.Option<string>
+        readonly request: string
         readonly principal: Option.Option<User>
       },
       write: () => Effect.Effect<Option.Option<Readonly<Record<string, unknown>>>, E, RA>,
@@ -547,6 +548,7 @@ export const GuardServer = {
       return Effect.flatMap(
         recorded({
           operation: context.operation.value,
+          request: context.request,
           id: context.id,
           principal: context.principal,
         }),

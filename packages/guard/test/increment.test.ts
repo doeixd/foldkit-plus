@@ -160,6 +160,7 @@ describe('GuardServer.writer over a writer with a ledger', () => {
       target: text('target').notNull(),
       answer: text('answer').notNull(),
       at: integer('at').notNull(),
+      request: text('request'),
     },
     table => [primaryKey({ columns: [table.scope, table.operation, table.target] })],
   )
@@ -178,7 +179,7 @@ describe('GuardServer.writer over a writer with a ledger', () => {
     const sqlite = new DatabaseSync(':memory:')
     sqlite.exec(`
       create table items (id text primary key, owner_id text not null, stock integer not null, revision integer not null);
-      create table write_ledger (scope text not null, operation text not null, target text not null, answer text not null, at integer not null, primary key (scope, operation, target));
+      create table write_ledger (scope text not null, operation text not null, target text not null, answer text not null, at integer not null, request text, primary key (scope, operation, target));
       insert into items values ('i1', 'mo', 3, 1);
     `)
     const server = RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
@@ -201,13 +202,13 @@ describe('GuardServer.writer over a writer with a ledger', () => {
         ),
       ],
     })
-    const bump = (operation: string) =>
+    const bump = (operation: string, by = 2) =>
       Effect.runPromise(
         RemoteServer.handlers(server, mo)
           .FoldkitRemoteMutate({
             requestId: 'r',
             mutation: 'Bump',
-            input: { id: 'i1', by: 2 },
+            input: { id: 'i1', by },
             operation,
           })
           .pipe(Effect.result, Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
@@ -216,6 +217,14 @@ describe('GuardServer.writer over a writer with a ledger', () => {
     sqlite.exec("update items set owner_id = 'ada' where id = 'i1'")
     // The retry was decided when it landed; deciding it again would refuse a write that happened.
     expect((await bump('op-1'))._tag).toBe('Success')
+    // Its id sent with another amount is no retry, and is answered with nothing recorded.
+    expect(await bump('op-1', 7)).toMatchObject({
+      _tag: 'Failure',
+      failure: {
+        message:
+          'Item i1: operation "op-1" was recorded for another request; a retry sends the same mutation, keys and input',
+      },
+    })
     // A new operation is decided now, and refused.
     expect(await bump('op-2')).toMatchObject({ _tag: 'Failure', failure: { _tag: 'Forbidden' } })
     expect(sqlite.prepare("select stock from items where id = 'i1'").get()).toEqual({ stock: 5 })
@@ -225,7 +234,7 @@ describe('GuardServer.writer over a writer with a ledger', () => {
     const sqlite = new DatabaseSync(':memory:')
     sqlite.exec(`
       create table items (id text primary key, owner_id text not null, stock integer not null, revision integer not null);
-      create table write_ledger (scope text not null, operation text not null, target text not null, answer text not null, at integer not null, primary key (scope, operation, target));
+      create table write_ledger (scope text not null, operation text not null, target text not null, answer text not null, at integer not null, request text, primary key (scope, operation, target));
       insert into items values ('i1', 'mo', 3, 1);
     `)
     const unpinned = GuardServer.writer(
@@ -241,6 +250,7 @@ describe('GuardServer.writer over a writer with a ledger', () => {
         .update({
           id: 'i1',
           operation: Option.some('op'),
+          request: 'Bump',
           values: {},
           increments: { stock: 2 },
           assignments: {},

@@ -344,7 +344,7 @@ const ledgered = writer<Option.Option<User>>(Db.Product, {
 ```sql
 create table write_ledger (
   scope text not null, operation text not null, target text not null,
-  answer text not null, at bigint not null,
+  answer text not null, at bigint not null, request text,
   primary key (scope, operation, target)
 );
 create index write_ledger_at on write_ledger (at);
@@ -354,10 +354,14 @@ create index write_ledger_at on write_ledger (at);
   another's write: an operation id is unique only per client that minted it.
 - **`target`** is the row, so an operation id sent for another row is not that
   row's retry.
-- **The primary key is load-bearing.** Under Postgres's default isolation, two
-  copies of one operation sent at once can both pass the lookup; the key refuses
-  the second record, which rolls its write back, and that copy fails as any
-  errored request does. Its retry then finds the record.
+- **`request`** is a digest of what the operation asked (its mutation, keys
+  and input), so an operation id sent again with another request is refused
+  rather than answered as a retry. An older ledger table gains it with
+  `alter table write_ledger add column request text`; a record without one is
+  answered as a retry until its retention passes.
+- **Copies sent at once.** On Postgres a copy of an operation sent while
+  another is still writing waits for it (a transaction-scoped advisory lock),
+  then finds its record. The primary key still refuses a second record.
 - **Retention**, a day unless given: a retry later than that is a new operation,
   and an increment would be applied again. Records are pruned as new ones are
   made; the index on `at` keeps that from scanning the table.

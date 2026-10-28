@@ -16,7 +16,7 @@ import {
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Option, Schema } from 'effect'
-import { Entity, Write } from 'foldkit-entity'
+import { Entity, Expr, Write } from 'foldkit-entity'
 import { Mutation } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
@@ -39,6 +39,7 @@ const ledgerTable = sqliteTable(
     target: text('target').notNull(),
     answer: text('answer').notNull(),
     at: integer('at').notNull(),
+    request: text('request'),
   },
   table => [primaryKey({ columns: [table.scope, table.operation, table.target] })],
 )
@@ -54,6 +55,35 @@ const Restock = Mutation.write(
     { id: 'id', increment: { stock: 'quantity' } },
   ),
 )
+// Another mutation whose input is Restock's.
+const Return = Mutation.write(
+  'Return',
+  Write.update(
+    Entity.input(Item, Schema.Struct({ id: Schema.String, quantity: Schema.Int }), {
+      quantity: Entity.unmapped,
+    }),
+    { id: 'id', increment: { stock: 'quantity' } },
+  ),
+)
+// Sets the stock outright, at a revision.
+const SetStock = Mutation.write(
+  'SetStock',
+  Write.update(
+    Entity.input(
+      Item,
+      Schema.Struct({ id: Schema.String, stock: Schema.Int, revision: Schema.Number }),
+    ),
+    { id: 'id', expect: 'revision' },
+  ),
+)
+// Empties a row that holds stock: its precondition says which rows it starts from.
+const Clear = Mutation.write(
+  'Clear',
+  Write.update(Entity.input(Item, Schema.Struct({ id: Schema.String, stock: Schema.Int })), {
+    id: 'id',
+    when: () => Expr.gt(Item.fields.stock, 0),
+  }),
+)
 const Create = Mutation.write(
   'CreateItem',
   Write.insert(
@@ -68,7 +98,7 @@ const Create = Mutation.write(
 const schema = `
   create table items (id text primary key, stock integer not null, revision integer not null);
   create table write_ledger (
-    scope text not null, operation text not null, target text not null, answer text not null, at integer not null,
+    scope text not null, operation text not null, target text not null, answer text not null, at integer not null, request text,
     primary key (scope, operation, target)
   );`
 
@@ -92,7 +122,13 @@ const serving = (retention?: number) => {
   })
   return RemoteServer.make<string, DrizzleDatabase>({
     entities: [],
-    mutations: [RemoteServer.write(Restock, ledgered), RemoteServer.write(Create, ledgered)],
+    mutations: [
+      RemoteServer.write(Restock, ledgered),
+      RemoteServer.write(Return, ledgered),
+      RemoteServer.write(SetStock, ledgered),
+      RemoteServer.write(Clear, ledgered),
+      RemoteServer.write(Create, ledgered),
+    ],
   })
 }
 /** A create of `i2` holding `stock`, asked by `principal` under `operation`. */
@@ -112,6 +148,25 @@ const create = (
       })
       .pipe(Effect.result, Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
   )
+/** `mutation` with `input`, asked by ada under `operation`. */
+const mutate = (
+  server: ReturnType<typeof serving>,
+  mutation: string,
+  input: unknown,
+  operation: string,
+) =>
+  Effect.runPromise(
+    RemoteServer.handlers(server, 'ada')
+      .FoldkitRemoteMutate({ requestId: 'r', mutation, input, operation })
+      .pipe(Effect.result, Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
+  )
+/** The failure for `operation`'s id sent again with another request. */
+const reused = (operation: string) => ({
+  _tag: 'Failure',
+  failure: {
+    message: `Item i1: operation "${operation}" was recorded for another request; a retry sends the same mutation, keys and input`,
+  },
+})
 const send = (
   server: ReturnType<typeof serving>,
   principal: string,
@@ -176,6 +231,54 @@ describe('A writer with a ledger', () => {
     expect(records()).toEqual([{ scope: 'ada', operation: 'op-a' }])
   })
 
+  it('refuses an operation id sent again with another request, and writes nothing', async () => {
+    seed()
+    const server = serving()
+    expect((await send(server, 'ada', 5, 'op-a'))._tag).toBe('Success')
+    // Another amount, another mutation with the same input, and another altogether.
+    expect(await send(server, 'ada', 7, 'op-a')).toMatchObject(reused('op-a'))
+    expect(await mutate(server, 'Return', { id: 'i1', quantity: 5 }, 'op-a')).toMatchObject(
+      reused('op-a'),
+    )
+    expect(
+      await mutate(server, 'SetStock', { id: 'i1', stock: 100, revision: 1 }, 'op-a'),
+    ).toMatchObject(reused('op-a'))
+    expect(stock()).toEqual({ stock: 15 })
+    // The request it was recorded for is still its retry.
+    expect((await send(server, 'ada', 5, 'op-a'))._tag).toBe('Success')
+    expect(stock()).toEqual({ stock: 15 })
+  })
+
+  it('answers as a retry a record made before the ledger kept requests', async () => {
+    seed()
+    const server = serving()
+    await send(server, 'ada', 5, 'op-a')
+    sqlite.exec('update write_ledger set request = null')
+    expect((await send(server, 'ada', 5, 'op-a'))._tag).toBe('Success')
+    expect(stock()).toEqual({ stock: 15 })
+  })
+
+  it('judges a new operation the row already agrees with by its precondition, not as a retry', async () => {
+    sqlite.exec("insert into items values ('i1', 0, 1)")
+    expect(await mutate(serving(), 'Clear', { id: 'i1', stock: 0 }, 'op-new')).toMatchObject({
+      _tag: 'Failure',
+      failure: { refusal: { _tag: 'Unmet' } },
+    })
+    expect(records()).toEqual([])
+  })
+
+  it('takes a new operation one revision behind for a conflict, though it sets what the row holds', async () => {
+    seed()
+    const server = serving()
+    const set = { id: 'i1', stock: 20, revision: 1 }
+    expect((await mutate(server, 'SetStock', set, 'op-x'))._tag).toBe('Success')
+    // Another client, from the same read, asks the same: not op-x's retry.
+    expect(await mutate(server, 'SetStock', set, 'op-y')).toMatchObject({
+      _tag: 'Failure',
+      failure: { refusal: { _tag: 'Conflict' } },
+    })
+  })
+
   it('answers a retry after a later write with the row as it now is, and adds once', async () => {
     seed()
     const server = serving()
@@ -231,6 +334,7 @@ describe('A writer with a ledger', () => {
           expect: Option.none(),
           when: Option.none(),
           operation: Option.none(),
+          request: 'Restock',
           principal: 'ada',
         })
         .pipe(Effect.result, Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
@@ -357,6 +461,7 @@ describe('A writer with a ledger, on Postgres', () => {
       target: pgText('target').notNull(),
       answer: pgText('answer').notNull(),
       at: pgBigint('at', { mode: 'number' }).notNull(),
+      request: pgText('request'),
     },
     table => [pgPrimaryKey({ columns: [table.scope, table.operation, table.target] })],
   )
@@ -390,13 +495,14 @@ describe('A writer with a ledger, on Postgres', () => {
     await pglite.exec(`
       create table items (id text primary key, stock integer not null, revision integer not null);
       create table write_ledger (
-        scope text not null, operation text not null, target text not null, answer text not null, at bigint not null,
+        scope text not null, operation text not null, target text not null, answer text not null, at bigint not null, request text,
         primary key (scope, operation, target)
       );
       insert into items values ('i1', 10, 1);`)
     expect((await pgSend(5, 'op-a'))._tag).toBe('Success')
     expect((await pgSend(3, 'op-b'))._tag).toBe('Success')
     expect((await pgSend(5, 'op-a'))._tag).toBe('Success')
+    expect(await pgSend(7, 'op-a')).toMatchObject(reused('op-a'))
     const rows = await pglite.query('select stock from items')
     expect(rows.rows).toEqual([{ stock: 18 }])
     const recorded = await pglite.query('select operation from write_ledger order by operation')

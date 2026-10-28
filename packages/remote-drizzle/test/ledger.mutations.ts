@@ -20,15 +20,78 @@ export default [
   edit(
     'SQLite does not consult the ledger',
     drizzle,
-    '                .all()\n              if (found[0] !== undefined)\n',
-    '                .all()\n              if (false)\n',
+    'recordedOf(tx.select(asked).from(book.table).where(key).all()),',
+    'Option.none(),',
   ),
   edit(
     'Postgres does not consult the ledger',
     drizzle,
-    "if (found[0] !== undefined) return { _tag: 'Recorded', answer: String(found[0].answer) }",
+    'if (Option.isSome(found)) return found.value',
     '',
   ),
+  edit(
+    'a record of another request answers as the retry',
+    drizzle,
+    "found['request'] === null || found['request'] === digest",
+    'true',
+  ),
+  edit(
+    'a record made before the ledger kept requests is refused',
+    drizzle,
+    "found['request'] === null || found['request'] === digest",
+    "found['request'] === digest",
+  ),
+  edit(
+    'a reused operation id writes as a new operation',
+    drizzle,
+    "if (done._tag === 'Reused') return yield* reused(operation, id)",
+    "if (done._tag === 'Reused') return { _tag: 'Written', rows: [] } as const",
+  ),
+  edit('the ledger records no request', drizzle, '        request: digest,\n      })', '      })'),
+  edit(
+    'the request is not the mutation’s',
+    server,
+    'JSON.stringify([mutation.name, keys ?? null, encoded])',
+    'JSON.stringify([keys ?? null, encoded])',
+  ),
+  edit(
+    'the request is not the input',
+    server,
+    'JSON.stringify([mutation.name, keys ?? null, encoded])',
+    'JSON.stringify([mutation.name, keys ?? null])',
+  ),
+  edit(
+    'a guard is answered from a record of another request',
+    drizzle,
+    'if (Option.isSome(record) && !recordedFor(record.value, digest)) {',
+    'if (false) {',
+  ),
+  edit(
+    'a ledgered miss that agrees with the row is taken for a retry',
+    drizzle,
+    'Option.isNone(book) && sets && !incrementing && holdsWritten(row, values, links)',
+    'sets && !incrementing && holdsWritten(row, values, links)',
+  ),
+  edit(
+    'a ledgered conflict one revision on is taken for a retry',
+    drizzle,
+    'if (incrementing || Option.isSome(book)) return Option.none()',
+    'if (incrementing) return Option.none()',
+  ),
+  {
+    name: 'an unledgered retry of a write that landed is judged as new',
+    edits: [
+      {
+        file: drizzle,
+        find: 'Option.isNone(book) && sets && !incrementing && holdsWritten(row, values, links)',
+        replace: 'false',
+      },
+    ],
+    tests: [
+      'packages/remote-drizzle/test/precondition.test.ts',
+      'packages/remote-drizzle/test/transition.test.ts',
+    ],
+  },
   edit('SQLite records nothing', drizzle, 'tx.insert(book.table).values(record(answer)).run()', ''),
   edit(
     'Postgres records nothing',

@@ -35,6 +35,7 @@ const ledger = sqliteTable('write_ledger', {
   target: text('target').notNull(),
   answer: text('answer').notNull(),
   at: integer('at').notNull(),
+  request: text('request'),
 })
 
 const LikeFields = Entity.define(
@@ -103,7 +104,7 @@ const open = () => {
     `create table likes (id text primary key, account_id text not null, post_id text not null, created_at integer not null);
     create table write_ledger (
       scope text not null, operation text not null, target text not null, answer text not null,
-      at integer not null, primary key (scope, operation, target)
+      at integer not null, request text, primary key (scope, operation, target)
     );`,
   )
   const layer = databaseLayer(drizzle({ client: sqlite }))

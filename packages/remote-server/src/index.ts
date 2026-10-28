@@ -294,10 +294,17 @@ export interface EntityWriter<P, R = never> {
   /**
    * The answer recorded for `operation`, when this writer has a ledger and
    * holds one: what a wrapping writer (a guard) answers a retry with, without
-   * deciding again over a row that has moved since.
+   * deciding again over a row that has moved since. One recorded for another
+   * `request` fails.
    */
   readonly recorded?: (context: {
     readonly operation: string
+    /**
+     * What was asked: the mutation's name, the keys it writes and its input,
+     * encoded, as one text. Every retry of `operation` asks the same, so a
+     * ledger holding the operation for another request refuses this one.
+     */
+    readonly request: string
     /** The row the operation writes: one operation may write several rows. */
     readonly id: string
     readonly principal: P
@@ -306,6 +313,12 @@ export interface EntityWriter<P, R = never> {
     readonly id: string
     /** The operation's identity across clients, when the client sent one: a ledger's key. */
     readonly operation: Option.Option<string>
+    /**
+     * What was asked: the mutation's name, the keys it writes and its input,
+     * encoded, as one text. Every retry of `operation` asks the same, so a
+     * ledger holding the operation for another request refuses this one.
+     */
+    readonly request: string
     readonly values: Readonly<Record<string, unknown>>
     /**
      * Each field to move, by the amount, encoded: added to the stored value in
@@ -338,6 +351,12 @@ export interface EntityWriter<P, R = never> {
     readonly id: string
     /** The operation's identity across clients, when the client sent one: a ledger's key. */
     readonly operation: Option.Option<string>
+    /**
+     * What was asked: the mutation's name, the keys it writes and its input,
+     * encoded, as one text. Every retry of `operation` asks the same, so a
+     * ledger holding the operation for another request refuses this one.
+     */
+    readonly request: string
     readonly values: Readonly<Record<string, unknown>>
     readonly links: Readonly<Record<string, Option.Option<EntityRef>>>
     readonly principal: P
@@ -2056,6 +2075,13 @@ export const RemoteServer = {
             }),
           )
         }
+        // What a ledger tells a retry from another use of its operation id by.
+        const request = encodeInput(given).pipe(
+          Effect.map(encoded => JSON.stringify([mutation.name, keys ?? null, encoded])),
+          Effect.mapError(
+            () => new RemoteServerError({ message: `${mutation.name}'s input did not encode` }),
+          ),
+        )
         return Match.value(write).pipe(
           Match.tagsExhaustive({
             Update: () =>
@@ -2078,6 +2104,7 @@ export const RemoteServer = {
                     writer.update({
                       id: bound.id,
                       operation,
+                      request: yield* request,
                       values: bound.values,
                       increments: bound.increments,
                       assignments: bound.assignments,
@@ -2114,6 +2141,7 @@ export const RemoteServer = {
                     values: { ...bound.values, ...stamps.values },
                     links: { ...bound.links, ...stamps.links },
                     operation,
+                    request: yield* request,
                     principal,
                   }),
                 )

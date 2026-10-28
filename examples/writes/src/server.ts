@@ -31,6 +31,7 @@ export const ledger = sqliteTable(
     target: text('target').notNull(),
     answer: text('answer').notNull(),
     at: integer('at').notNull(),
+    request: text('request'),
   },
   table => [primaryKey({ columns: [table.scope, table.operation, table.target] })],
 )
@@ -54,7 +55,7 @@ export const schema = `
       .join(',\n    ')}
   );
   create table write_ledger (
-    scope text not null, operation text not null, target text not null, answer text not null, at integer not null,
+    scope text not null, operation text not null, target text not null, answer text not null, at integer not null, request text,
     primary key (scope, operation, target)
   )`
 

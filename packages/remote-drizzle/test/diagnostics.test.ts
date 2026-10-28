@@ -112,6 +112,7 @@ describe('StatementFailed', () => {
         target: text('target').notNull(),
         answer: text('answer').notNull(),
         at: integer('at').notNull(),
+        request: text('request'),
       },
       table => [primaryKey({ columns: [table.scope, table.operation, table.target] })],
     )

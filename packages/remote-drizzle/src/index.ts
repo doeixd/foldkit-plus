@@ -1037,7 +1037,7 @@ create or replace trigger ${quoted(trigger)} before update on ${table} for each 
  * ```sql
  * create table write_ledger (
  *   scope text not null, operation text not null, target text not null,
- *   answer text not null, at bigint not null,
+ *   answer text not null, at bigint not null, request text,
  *   primary key (scope, operation, target)
  * );
  * create index write_ledger_at on write_ledger (at);
@@ -1045,16 +1045,22 @@ create or replace trigger ${quoted(trigger)} before update on ${table} for each 
  *
  * `target` is the row (`Entity:id`), so one operation that updates two rows
  * records each, and an operation id sent again for another row is not that
- * row's retry. `at` is milliseconds, past a Postgres `integer`.
+ * row's retry. `at` is milliseconds, past a Postgres `integer`. `request` is
+ * a SHA-256 digest of what the operation asked (its mutation, keys and
+ * input): an operation id sent again with another request is refused rather
+ * than answered as a retry. A ledger made before it gains the column with
+ * `alter table write_ledger add column request text`; a record without one
+ * is answered as a retry, as before, until its retention passes.
  */
 export interface WriteLedger<P> {
-  /** The ledger table, its columns named `scope`, `operation`, `target`, `answer` and `at`. */
+  /** The ledger table, its columns named `scope`, `operation`, `target`, `answer`, `at` and `request`. */
   readonly table: Table & {
     readonly scope: AnyColumn
     readonly operation: AnyColumn
     readonly target: AnyColumn
     readonly answer: AnyColumn
     readonly at: AnyColumn
+    readonly request: AnyColumn
   }
   /** Whose operations they are (a principal's key), so no one is answered with another's write. */
   readonly scope: (principal: P) => string
@@ -1081,6 +1087,8 @@ interface LedgerTx {
     values(values: Record<string, unknown>): SyncStatement & PromiseLike<unknown>
   }
   delete(table: Table): { where(condition: SQL | undefined): SyncStatement & PromiseLike<unknown> }
+  /** Postgres's only: the advisory lock that orders a retry behind its own original. */
+  execute(query: SQL): PromiseLike<unknown>
 }
 
 /** The provided Drizzle database, as far as a ledger needs it: a transaction, and its kind. */
@@ -1096,6 +1104,20 @@ type Ledgered =
   | { readonly _tag: 'Written'; readonly rows: ReadonlyArray<Record<string, unknown>> }
 
 const DAY = 24 * 60 * 60 * 1000
+
+/** What an operation asked, as its ledger keeps it: the SHA-256 of the request, in hex. */
+const digestOf = (request: string): Effect.Effect<string> =>
+  Effect.map(
+    Effect.promise(() => crypto.subtle.digest('SHA-256', new TextEncoder().encode(request))),
+    hash => Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, '0')).join(''),
+  )
+
+/**
+ * Whether a ledger's record is of this request: one recorded before the ledger
+ * kept requests holds none, and is taken as it, as it was before.
+ */
+const recordedFor = (found: Record<string, unknown>, digest: string): boolean =>
+  found['request'] === null || found['request'] === digest
 
 /**
  * Each binding's `ServerOnlyRules` report: the rules no CHECK can hold, worked
@@ -1394,21 +1416,30 @@ export const writer = <P = unknown>(
       gte(book.table.at, cutoff),
     )
 
+  /** An operation id the ledger holds for another request: never answered as its retry. */
+  const reused = (operation: string, id: string) =>
+    new RemoteServerError({
+      message: `${binding.name} ${id}: operation "${operation}" was recorded for another request; a retry sends the same mutation, keys and input`,
+    })
+
   /**
    * One update in a transaction with its ledger: the recorded answer when the
    * operation already landed, else the update, recorded when it writes a row.
-   * SQLite's transaction is synchronous, so its body uses `.all()` and `.run()`
-   * and awaits nothing; Postgres's is awaited.
+   * The operation's id sent with another request (its mutation, keys and
+   * input) is refused. SQLite's transaction is synchronous, so its body uses
+   * `.all()` and `.run()` and awaits nothing; Postgres's is awaited.
    */
   const inLedger = (
     book: WriteLedger<P>,
     scope: string,
     operation: string,
+    request: string,
     id: string,
     update: (database: unknown) => unknown,
     answerOf: (rows: ReadonlyArray<Record<string, unknown>>) => Option.Option<unknown>,
   ): Effect.Effect<Ledgered, RemoteServerError, DrizzleDatabase> =>
     Effect.gen(function* () {
+      const digest = yield* digestOf(request)
       const now = yield* Clock.currentTimeMillis
       const cutoff = now - (book.retention ?? DAY)
       const key = recordOf(book, scope, operation, id, cutoff)
@@ -1422,7 +1453,17 @@ export const writer = <P = unknown>(
           typeof value === 'bigint' ? value.toString() : value,
         ),
         at: now,
+        request: digest,
       })
+      const recordedOf = (
+        found: ReadonlyArray<Record<string, unknown>>,
+      ): Option.Option<Ledgered | { readonly _tag: 'Reused' }> =>
+        Option.map(Option.fromUndefinedOr(found[0]), row =>
+          recordedFor(row, digest)
+            ? { _tag: 'Recorded', answer: String(row['answer']) }
+            : { _tag: 'Reused' },
+        )
+      const asked = { answer: book.table.answer, request: book.table.request }
       // The database is the application's Drizzle one; its builders are not nameable by dialect.
       const database = (yield* DrizzleDatabase) as unknown as LedgerDatabase
       // D1's Drizzle database has a `transaction`, which sends a `BEGIN` that D1 refuses.
@@ -1436,47 +1477,58 @@ export const writer = <P = unknown>(
       }
       // A synchronous driver's transaction commits when its body returns, so the body awaits
       // nothing; an asynchronous one's (libsql, Postgres) is awaited.
-      if (database.resultKind === 'sync') {
-        return yield* Effect.try({
-          try: () =>
-            database.transaction(tx => {
-              const found = tx
-                .select({ answer: book.table.answer })
-                .from(book.table)
-                .where(key)
-                .all()
-              if (found[0] !== undefined)
-                return { _tag: 'Recorded', answer: String(found[0].answer) }
-              const rows = (update(tx) as SyncStatement).all()
-              Option.map(answerOf(rows), answer => {
-                tx.delete(book.table).where(expired).run()
-                tx.insert(book.table).values(record(answer)).run()
-              })
-              return { _tag: 'Written', rows }
-            }) as Ledgered,
-          catch: error => error,
-        }).pipe(
-          Effect.tapError(error =>
-            Diagnostics.report(statementFailed('Database write failed', error)),
-          ),
-          Effect.mapError(() => new RemoteServerError({ message: 'Database write failed' })),
-        )
-      }
-      return yield* runStatement(
-        () =>
-          database.transaction(async tx => {
-            const found = await tx.select({ answer: book.table.answer }).from(book.table).where(key)
-            if (found[0] !== undefined) return { _tag: 'Recorded', answer: String(found[0].answer) }
-            const rows = await (update(tx) as PromiseLike<ReadonlyArray<Record<string, unknown>>>)
-            const answer = answerOf(rows)
-            if (Option.isSome(answer)) {
-              await tx.delete(book.table).where(expired)
-              await tx.insert(book.table).values(record(answer.value))
-            }
-            return { _tag: 'Written', rows }
-          }) as PromiseLike<Ledgered>,
-        'Database write failed',
-      )
+      const done =
+        database.resultKind === 'sync'
+          ? yield* Effect.try({
+              try: () =>
+                database.transaction(tx =>
+                  Option.getOrElse(
+                    recordedOf(tx.select(asked).from(book.table).where(key).all()),
+                    (): Ledgered => {
+                      const rows = (update(tx) as SyncStatement).all()
+                      Option.map(answerOf(rows), answer => {
+                        tx.delete(book.table).where(expired).run()
+                        tx.insert(book.table).values(record(answer)).run()
+                      })
+                      return { _tag: 'Written', rows }
+                    },
+                  ),
+                ),
+              catch: error => error,
+            }).pipe(
+              Effect.tapError(error =>
+                Diagnostics.report(statementFailed('Database write failed', error)),
+              ),
+              Effect.mapError(() => new RemoteServerError({ message: 'Database write failed' })),
+            )
+          : yield* runStatement(
+              () =>
+                database.transaction(async tx => {
+                  // Under READ COMMITTED a retry racing its original would find no record
+                  // either, write too, and fail on the record's key: so the second waits
+                  // here until the first commits, and then finds its record. Two keys that
+                  // hash alike only share a lock.
+                  if (!is(book.table, SQLiteTable)) {
+                    await tx.execute(
+                      sql`select pg_advisory_xact_lock(hashtextextended(${`${scope}:${operation}:${Entity.refKey({ entity: binding.name, id })}`}, 0))`,
+                    )
+                  }
+                  const found = recordedOf(await tx.select(asked).from(book.table).where(key))
+                  if (Option.isSome(found)) return found.value
+                  const rows = await (update(tx) as PromiseLike<
+                    ReadonlyArray<Record<string, unknown>>
+                  >)
+                  const answer = answerOf(rows)
+                  if (Option.isSome(answer)) {
+                    await tx.delete(book.table).where(expired)
+                    await tx.insert(book.table).values(record(answer.value))
+                  }
+                  return { _tag: 'Written', rows } satisfies Ledgered
+                }),
+              'Database write failed',
+            )
+      if (done._tag === 'Reused') return yield* reused(operation, id)
+      return done
     })
 
   /**
@@ -1539,22 +1591,38 @@ export const writer = <P = unknown>(
       ? {}
       : {
           ledger: true,
-          recorded: ({ operation, principal, id }) =>
+          recorded: ({ operation, request, principal, id }) =>
             Effect.gen(function* () {
               const cutoff = (yield* Clock.currentTimeMillis) - (ledger.retention ?? DAY)
               const found = yield* selectRows(
                 yield* DrizzleDatabase,
                 ledger.table,
-                { answer: ledger.table.answer },
+                { answer: ledger.table.answer, request: ledger.table.request },
                 { where: recordOf(ledger, ledger.scope(principal), operation, id, cutoff) },
               )
+              const record = Option.fromUndefinedOr(found[0])
+              const digest = yield* digestOf(request)
+              if (Option.isSome(record) && !recordedFor(record.value, digest)) {
+                return yield* reused(operation, id)
+              }
               return Option.map(
-                Option.fromUndefinedOr(found[0]),
+                record,
                 row => JSON.parse(String(row['answer'])) as Readonly<Record<string, unknown>>,
               )
             }),
         }),
-    update: ({ id, values, increments, assignments, links, expect, when, operation, principal }) =>
+    update: ({
+      id,
+      values,
+      increments,
+      assignments,
+      links,
+      expect,
+      when,
+      operation,
+      request,
+      principal,
+    }) =>
       Effect.gen(function* () {
         yield* serverOnly
         const at = yield* rowOf(id, expect, when)
@@ -1595,6 +1663,7 @@ export const writer = <P = unknown>(
             book.value.ledger,
             book.value.ledger.scope(principal),
             book.value.op,
+            request,
             id,
             tx =>
               (tx as DrizzleWrites)
@@ -1650,9 +1719,10 @@ export const writer = <P = unknown>(
         if (Option.isSome(expect) && !sameStored(row[expect.value.field], expect.value.revision)) {
           // One revision past the expected one and holding these values, this
           // write landed already and its answer was lost: a retry answers the
-          // row rather than conflicting with itself.
+          // row rather than conflicting with itself. A ledger consulted for it
+          // would have answered such a retry, so with one this is another write.
           const { field, revision } = expect.value
-          if (incrementing) return Option.none()
+          if (incrementing || Option.isSome(book)) return Option.none()
           return Option.filter(
             now,
             row =>
@@ -1666,12 +1736,15 @@ export const writer = <P = unknown>(
           onSome: ({ body, input }) =>
             evaluate(body, input, [row], { operators: binding.operators.memory }).length > 0,
         })
-        // A row already holding what this write sets is a retry of one that
-        // landed, which neither its precondition nor a transition invariant
-        // describes any more: writing it again changes nothing, so it is judged
-        // as a row and not as a change.
+        // Unledgered, a row already holding what this write sets is taken for a
+        // retry of one that landed, which neither its precondition nor a
+        // transition invariant describes any more: writing it again changes
+        // nothing, so it is judged as a row and not as a change. A guess: a
+        // fresh write the row happens to agree with passes too. A ledger
+        // consulted for it answers a retry itself, so with one nothing is guessed.
         const sets = Object.keys(values).length + Object.keys(links).length > 0
-        const retried = sets && !incrementing && holdsWritten(row, values, links)
+        const retried =
+          Option.isNone(book) && sets && !incrementing && holdsWritten(row, values, links)
         // Holding its precondition, it missed by the row it would leave.
         if (holdsWhen) {
           const after = proposedOf(row, { values, increments, assignments })
@@ -1685,7 +1758,7 @@ export const writer = <P = unknown>(
           `${binding.name} ${id} does not hold what the write asks of it`,
         )
       }),
-    insert: ({ id, values, links, operation, principal }) =>
+    insert: ({ id, values, links, operation, request, principal }) =>
       Effect.gen(function* () {
         yield* serverOnly
         // There is no row yet: the row it would make is its values, judged before it is written.
@@ -1736,6 +1809,7 @@ export const writer = <P = unknown>(
             ledger,
             ledger.scope(principal),
             operation.value,
+            request,
             id,
             statement,
             landed => answeredOf(landed, answered),

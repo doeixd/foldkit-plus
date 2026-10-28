@@ -35,14 +35,14 @@ export default [
   edit(
     'a row a revision on is taken as this increment having landed',
     drizzle,
-    'if (incrementing) return Option.none()',
-    '',
+    'if (incrementing || Option.isSome(book)) return Option.none()',
+    'if (Option.isSome(book)) return Option.none()',
   ),
   edit(
     'a row holding the set values passes an unmet increment as its retry',
     drizzle,
-    'const retried = sets && !incrementing && holdsWritten(row, values, links)',
-    'const retried = sets && holdsWritten(row, values, links)',
+    'Option.isNone(book) && sets && !incrementing && holdsWritten(row, values, links)',
+    'Option.isNone(book) && sets && holdsWritten(row, values, links)',
   ),
   edit('the answer leaves the sum out', drizzle, '          ...Object.keys(increments),\n', ''),
   edit(

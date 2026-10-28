@@ -157,6 +157,7 @@ const direct = (guarded: Guarded) => {
         .update({
           ...bound,
           operation: Option.none(),
+          request: 'Retag',
           expect: Option.some({ field: 'revision', revision: 1 }),
           when: Option.none(),
           principal: Option.some({ id: 'mo' }),
@@ -277,6 +278,7 @@ describe('A guarded write that sets, moves and computes', () => {
         .update({
           ...bound,
           operation: Option.none(),
+          request: 'Retag',
           expect: Option.some({ field: 'revision', revision: 1 }),
           when: Option.none(),
           principal: Option.some({ id: 'mo' }),

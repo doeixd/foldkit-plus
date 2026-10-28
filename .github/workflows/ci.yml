@@ -83,7 +83,8 @@ jobs:
   # PGlite's database collates by `C`, so a collation the Drizzle compiler
   # forgets to write passes every other test (expr-operations-DESIGN §17). These
   # run the conformance suite and the call orders on a Postgres in a locale; the
-  # suite's first test fails if the database is not in one.
+  # suite's first test fails if the database is not in one. The ledger's race
+  # runs here too: PGlite runs one transaction at a time.
   postgres-locale:
     runs-on: ubuntu-latest
     services:
@@ -115,6 +116,7 @@ jobs:
           pnpm exec vitest run --project unit
           packages/remote-drizzle/test/conformance.test.ts
           packages/remote-drizzle/test/orderCall.test.ts
+          packages/remote-drizzle/test/ledgerRace.test.ts
         env:
           FOLDKIT_LOCALE_PG: postgres://postgres:ci@localhost:5432/postgres
 

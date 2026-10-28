@@ -114,6 +114,7 @@ const ledgerTable = sqliteTable(
     target: text('target').notNull(),
     answer: text('answer').notNull(),
     at: integer('at').notNull(),
+    request: text('request'),
   },
   table => [primaryKey({ columns: [table.scope, table.operation, table.target] })],
 )
@@ -302,7 +303,7 @@ const selectingSqlite =
 
 describe('A computed assignment without a revision, under a ledger', () => {
   const schema = `${create}; ${seed}; create table write_ledger (
-    scope text not null, operation text not null, target text not null, answer text not null, at integer not null,
+    scope text not null, operation text not null, target text not null, answer text not null, at integer not null, request text,
     primary key (scope, operation, target))`
   const served = (operators: { readonly memory: typeof memory; readonly sql: typeof sqlTable }) =>
     RemoteServer.write(

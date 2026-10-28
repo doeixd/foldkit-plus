@@ -1119,7 +1119,7 @@ reader's rules: a later write's values, and none it may no longer see.
 ```sql
 create table write_ledger (
   scope text not null, operation text not null, target text not null,
-  answer text not null, at bigint not null,
+  answer text not null, at bigint not null, request text,
   primary key (scope, operation, target)
 );
 create index write_ledger_at on write_ledger (at);
@@ -1142,6 +1142,21 @@ table.
   work on D1.
 - A write from a client that sends no operation id is written as without a
   ledger, except an increment that expects no revision, which is refused.
+- `request` holds a SHA-256 digest of what the operation asked: its mutation,
+  the keys it writes and its input, which every retry repeats. The same
+  operation id sent with another request is refused ("was recorded for another
+  request"), never answered as its retry. A ledger table made before it gains
+  the column with `alter table write_ledger add column request text`, and its
+  Drizzle table `request: text('request')` (`pgText` on Postgres); a record
+  without one is answered as a retry, as before, until its retention passes.
+- On Postgres a retry sent while its original is still writing waits for it (a
+  transaction-scoped advisory lock on the operation and the row), then is
+  answered from its record, rather than failing on the record's key.
+- A write the ledger holds no record of is judged as new: its precondition and
+  its transition invariants hold of it, even when the row already holds what it
+  sets. Without a ledger, an update whose row already holds what it sets is
+  taken for a retry that landed: a guess, which a new write the row happens to
+  agree with passes too.
 
 ### A revision the database moves
 

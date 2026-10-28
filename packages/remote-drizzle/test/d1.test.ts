@@ -262,6 +262,7 @@ describe('A declared write over D1', () => {
     target: text('target').notNull(),
     answer: text('answer').notNull(),
     at: integer('at').notNull(),
+    request: text('request'),
   })
   const Amount = Entity.input(
     Item,
@@ -315,7 +316,7 @@ describe('A declared write over D1', () => {
         'CREATE TABLE items (id TEXT PRIMARY KEY, stock INTEGER NOT NULL, revision INTEGER NOT NULL)',
       ),
       db.prepare(
-        'CREATE TABLE write_ledger (scope TEXT NOT NULL, operation TEXT NOT NULL, target TEXT NOT NULL, answer TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (scope, operation, target))',
+        'CREATE TABLE write_ledger (scope TEXT NOT NULL, operation TEXT NOT NULL, target TEXT NOT NULL, answer TEXT NOT NULL, at INTEGER NOT NULL, request TEXT, PRIMARY KEY (scope, operation, target))',
       ),
       db.prepare("INSERT INTO items VALUES ('i1', 1, 1)"),
     ])

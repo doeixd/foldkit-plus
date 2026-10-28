@@ -899,8 +899,9 @@ the id, an `expect`ed revision, the write's `when` and every invariant of the En
 (set fields read as their new values, an increment as `column + amount`) are in the
 same `WHERE`, so all of them hold of the row the statement changes. When nothing was
 written, the row read back says why, in this order: gone, `Conflict`, `Unmet`, `Invalid`.
-A row already holding what the write sets answers as written (the retry of one that
-landed), unless it increments. An insert's values are judged before it is written, by its state invariants
+A row already holding what the write sets answers as written (taken for the retry of one that
+landed), unless it increments or a ledger was consulted for it: a ledger answers a retry itself, so
+under one a new write is judged by its `when` and transition invariants. An insert's values are judged before it is written, by its state invariants
 only. Retries, by kind of write:
 
 | Write | A retry after a lost answer |
@@ -908,6 +909,11 @@ only. Retries, by kind of write:
 | sets values | written again; answered as written |
 | `expect`s a revision | `Conflict`; the client re-reads |
 | increments, under `writer(binding, { ledger: { table, scope } })` | found in the ledger by its operation id, not written again |
+
+The ledger table has a nullable `request` column: a digest of the mutation, keys and input
+(`EntityWriter`'s `request`), so an operation id sent again with another request is refused, not
+answered. An older ledger gains it with `alter table write_ledger add column request text`. On
+Postgres a copy sent while its original writes waits for it (an advisory lock), then is answered.
 
 An increment with neither an `expect` nor a ledger is refused, and so is one of a real number without
 `expect` even under a ledger (unless the writer `pins`, as a guard with a revision does). A computed
@@ -918,7 +924,8 @@ needs a transaction, which D1 lacks.
 An increment of a column that holds integers needs a `Schema.Int` amount, whatever the field is
 declared as: the writer refuses it through `EntityWriter.refuses`, which `RemoteServer.write` asks
 where the write is served (`GuardServer.writer` passes it on). Each `Write` increment says whether
-its amount is an integer (`WriteIncrement.integer`).
+its amount is an integer (`WriteIncrement.integer`), and each assignment whether it computes one
+(`WriteAssignment.integer`), which the writer asks of an integer column the same way.
 Migrate `checkConstraints(binding)` (each state invariant as `check ((…) is true)`, and each
 column's field rules SQL holds exactly; `serverOnly` lists the rest, which a binding's first
 write through `writer` reports as one `ServerOnlyRules` warning: on SQLite a number bound
