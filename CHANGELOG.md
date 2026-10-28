@@ -390,6 +390,25 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **Guarded writes and relation pages, after a security review:**
+  - A create of an id already taken is refused with one answer, whatever the
+    row there holds and whether its asker may see it. Only a writer's ledger
+    recognises a retry, by its operation, and answers it with the row; without
+    a ledger a create sent again is refused. **Breaking:**
+    `EntityWriter.insert` takes `operation` in place of `stamped`. Chirp's
+    Post and Like writers keep a ledger, so `Data.retry` of a create is
+    answered with its row.
+  - An update's member `Update` rules and relation `Link` rules hold over the
+    row before and over the row after with that one change undone (every
+    other new value and link applied, that member's old value kept, or that
+    relation pointing where it did). One write cannot set together what each
+    change alone would be refused, and a rule reading its own member ("change
+    `status` only while it is `draft`") still allows the change it exists for.
+    An increment or computed assignment to a member is that member's own
+    change; `Unlink` rules hold over the row before alone. `GuardSync.admit`
+    judges each changed member the same way.
+  - A relation page's cursor is placed only by a row its reader may see, and
+    one naming a hidden row is refused like one naming no row.
 - **NaN is refused wherever values compare or order,** in memory and in SQL, as
   NUL is: one NaN key left the whole in-memory sort unsorted, and Postgres and
   SQLite disagree on it. `evaluate` evaluates its whole `where` list, so a
