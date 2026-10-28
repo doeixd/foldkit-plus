@@ -237,7 +237,9 @@ decides it. Write each rule down with its one owner: a Schema check (a value's
 shape, on decode), an `Entity.invariant` (every stored row, or every change,
 whoever writes it), a write's `when` (whether this write applies to the row as it
 is), or a guard (who may). For each count an interaction adds to, say how a retry
-is kept from adding twice: an `expect`ed revision, or a ledger. Keep one
+is kept from adding twice: an `expect`ed revision, or a ledger. A create whose
+answer may be lost needs a ledger too: without one, sending it again is
+refused, since a taken id answers alike whatever its row holds. Keep one
 owner per fact: if a datum appears in two rows of the mapping, one of them is
 wrong. Name what is deliberately left out, and the adapters to install.
 
