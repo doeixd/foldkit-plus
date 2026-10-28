@@ -2,7 +2,7 @@
 /** Phase 2: the route a page resumes on includes its query, not only its path. */
 import { Effect } from 'effect'
 import { expect, it, vi } from 'vitest'
-import { SSR } from 'foldkit-ssr'
+import { Diagnostics, SSR } from 'foldkit-ssr'
 import { load, template } from './handoverFixture.js'
 import { config, plan } from './routeFixture.js'
 
@@ -16,9 +16,16 @@ it('refuses a page rendered for ?tab=2 when the browser is at ?tab=3', async () 
     ),
   )
   window.history.replaceState(null, '', '/about?tab=3')
-  const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const collected = Diagnostics.collect()
 
-  SSR.hydrate(config, plan, { buildId: 'b' })
+  SSR.hydrate(config, plan, { buildId: 'b', diagnostics: collected.report })
   await vi.waitFor(() => expect(document.body.inert).toBe(true))
-  expect(logged.mock.calls.flat().join(' ')).toContain('/about?tab=2')
+  expect(collected.reported).toEqual([
+    expect.objectContaining({
+      _tag: 'PageContained',
+      level: 'error',
+      reason: 'Route',
+      message: expect.stringContaining('/about?tab=2'),
+    }),
+  ])
 })

@@ -8,7 +8,7 @@ import { Effect } from 'effect'
 import { handleRequest } from 'foldkit/experimental/server'
 import { Projection } from 'foldkit-surface'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { RESUME_ATTRIBUTE, SSR } from 'foldkit-ssr'
+import { RESUME_ATTRIBUTE, SSR, type Diagnostic } from 'foldkit-ssr'
 import { config as themed, plan as themedPlan } from './flagsFixture.js'
 import { App, calls, config, plan, template } from './handoverFixture.js'
 
@@ -19,6 +19,27 @@ const serve = (request: Request, entry = SSR.entry(config, plan, { buildId: 'b' 
 afterEach(() => {
   vi.restoreAllMocks()
 })
+
+/** An entry's `diagnostics`, keeping each diagnostic with its request's URL. */
+const collecting = () => {
+  const reported: Array<readonly [Diagnostic, string]> = []
+  return {
+    reported,
+    diagnostics: (diagnostic: Diagnostic, request: Request) =>
+      Effect.sync(() => void reported.push([diagnostic, request.url])),
+  }
+}
+
+const failed = (url: string, text: string) => [
+  expect.objectContaining({
+    _tag: 'PageFailed',
+    source: 'foldkit-ssr',
+    level: 'error',
+    url,
+    message: expect.stringContaining(text),
+  }),
+  url,
+]
 
 describe('SSR.entry through handleRequest', () => {
   it('answers GET with the resumable page', async () => {
@@ -114,17 +135,18 @@ describe('SSR.entry through handleRequest', () => {
     expect(refused.headers.get('cache-control')).toBe('no-store')
   })
 
-  it('answers `headers` that throw 500, logging why', async () => {
-    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+  it('answers `headers` that throw 500, reporting why with the request', async () => {
+    const { reported, diagnostics } = collecting()
     const entry = SSR.entry(config, plan, {
       buildId: 'b',
+      diagnostics,
       headers: () => {
         throw new Error('no policy today')
       },
     })
     const response = await serve(new Request('https://example.test/', { headers: html }), entry)
     expect(response.status).toBe(500)
-    expect(String(logged.mock.calls[0]?.[0])).toContain('no policy today')
+    expect(reported).toEqual([failed('https://example.test/', 'no policy today')])
   })
 
   it('leaves a hashed-asset miss to handleRequest, rendering nothing', async () => {
@@ -134,8 +156,8 @@ describe('SSR.entry through handleRequest', () => {
     expect(calls.init).toBe(before)
   })
 
-  it('answers a plan the render refuses with 500, logging why, never a page', async () => {
-    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+  it('answers a plan the render refuses with 500, reporting why, never a page', async () => {
+    const { reported, diagnostics } = collecting()
     const starting = {
       ...config,
       init: () => ({
@@ -146,17 +168,17 @@ describe('SSR.entry through handleRequest', () => {
     const unbooted = SSR.plan(App, { id: 'counter', state: Projection.pick(App.model.count) })
     const response = await serve(
       new Request('https://example.test/', { headers: html }),
-      SSR.entry(starting, unbooted, { buildId: 'b' }),
+      SSR.entry(starting, unbooted, { buildId: 'b', diagnostics }),
     )
     expect(response.status).toBe(500)
     expect(await response.text()).toBe('The page could not be rendered.')
-    expect(logged.mock.calls.flat().join(' ')).toContain(
-      'https://example.test/ was not rendered: ResumeUnsafe: init returned LoadPreferences',
-    )
+    expect(reported).toEqual([
+      failed('https://example.test/', 'ResumeUnsafe: init returned LoadPreferences'),
+    ])
   })
 
   it('answers 500 when the view throws or the Flags cannot be had, never rejecting', async () => {
-    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { reported, diagnostics } = collecting()
     const throwing = {
       ...config,
       view: (): never => {
@@ -165,7 +187,7 @@ describe('SSR.entry through handleRequest', () => {
     }
     const broken = await serve(
       new Request('https://example.test/', { headers: html }),
-      SSR.entry(throwing, plan, { buildId: 'b' }),
+      SSR.entry(throwing, plan, { buildId: 'b', diagnostics }),
     )
     expect(broken.status).toBe(500)
 
@@ -174,12 +196,14 @@ describe('SSR.entry through handleRequest', () => {
       SSR.entry(themed, themedPlan, {
         buildId: 'b',
         flags: () => Promise.reject(new Error('the database is down')),
+        diagnostics,
       }),
     )
     expect(flagless.status).toBe(500)
-    const log = logged.mock.calls.flat().join(' ')
-    expect(log).toContain('the view broke')
-    expect(log).toContain('the database is down')
+    expect(reported).toEqual([
+      failed('https://example.test/', 'the view broke'),
+      failed('https://example.test/', 'the database is down'),
+    ])
   })
 
   it('gives each request its own Flags, which stay out of the page', async () => {

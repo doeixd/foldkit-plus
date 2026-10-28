@@ -6,7 +6,7 @@
  */
 import { Effect } from 'effect'
 import { expect, it, vi } from 'vitest'
-import { SSR } from 'foldkit-ssr'
+import { Diagnostics, SSR } from 'foldkit-ssr'
 import { calls, config, load, plan, template } from './handoverFixture.js'
 
 it('refuses a page whose envelope is for another plan, and says why', async () => {
@@ -21,12 +21,19 @@ it('refuses a page whose envelope is for another plan, and says why', async () =
     ),
   )
   const button = document.getElementById('count')
-  const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+  const collected = Diagnostics.collect()
   calls.init = 0
 
-  SSR.hydrate(config, plan, { buildId: 'b' })
+  SSR.hydrate(config, plan, { buildId: 'b', diagnostics: collected.report })
   await vi.waitFor(() => expect(document.body.inert).toBe(true))
   expect(calls.init).toBe(0)
   expect(document.getElementById('count')).toBe(button)
-  expect(logged.mock.calls.flat().join(' ')).toContain('"elsewhere"')
+  expect(collected.reported).toEqual([
+    expect.objectContaining({
+      _tag: 'PageContained',
+      level: 'error',
+      reason: 'Plan',
+      message: expect.stringContaining('"elsewhere"'),
+    }),
+  ])
 })

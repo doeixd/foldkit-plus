@@ -7,7 +7,7 @@ import { Effect, Layer } from 'effect'
 import { handleRequest } from 'foldkit/experimental/server'
 import { describe, expect, it, vi } from 'vitest'
 import type { HtmlBuilder } from 'foldkit/html'
-import { FALLBACK_FIELD, Resume, SSR } from 'foldkit-ssr'
+import { Diagnostics, FALLBACK_FIELD, Resume, SSR, type Diagnostic } from 'foldkit-ssr'
 import { App, Counter, Message, config, plan, template, type Model } from './fallbackFixture.js'
 
 const html = { accept: 'text/html' }
@@ -118,11 +118,12 @@ describe('SSR.handle through handleRequest', () => {
     ],
     ['refused before it runs', { [FALLBACK_FIELD]: 'not json' }, 400, []],
   ])("builds a post's resources for it alone: %s", async (_, fields, status, log) => {
-    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const collected = Diagnostics.collect()
     const seen: Array<string> = []
     const owning = SSR.entry(config, plan, {
       buildId: 'b',
       origins: ['https://example.test'],
+      diagnostics: collected.report,
       resources: () =>
         Layer.effect(
           Counter,
@@ -138,7 +139,9 @@ describe('SSR.handle through handleRequest', () => {
     const response = await serve(post(fields), owning)
     expect(response.status).toBe(status)
     expect(seen).toEqual(log)
-    logged.mockRestore()
+    expect(collected.reported.map(diagnostic => diagnostic._tag)).toEqual(
+      status === 500 ? ['PageFailed'] : [],
+    )
   })
 
   it.each([
@@ -204,12 +207,49 @@ describe('SSR.handle through handleRequest', () => {
     expect(await response.text()).toContain('<li>Served</li>')
   })
 
-  it('answers 500, naming the Command, when the Commands never settle', async () => {
-    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
-    const response = await serve(post({ [FALLBACK_FIELD]: JSON.stringify(Message.Polled()) }))
+  it('answers 500, reporting the Command, when the Commands never settle', async () => {
+    const collected = Diagnostics.collect()
+    const response = await serve(
+      post({ [FALLBACK_FIELD]: JSON.stringify(Message.Polled()) }),
+      SSR.entry(config, plan, { buildId: 'b', origins, diagnostics: collected.report }),
+    )
     expect(response.status).toBe(500)
-    expect(String(logged.mock.calls[0]?.[0])).toContain('the last Command run was "Poll"')
-    logged.mockRestore()
+    expect(collected.reported).toEqual([
+      expect.objectContaining({
+        _tag: 'PageFailed',
+        level: 'error',
+        url: 'https://example.test/todos?view=all',
+        message: expect.stringContaining('the last Command run was "Poll"'),
+      }),
+    ])
+  })
+
+  it("sends what a posted form's Commands report to the entry's reporter, with the request", async () => {
+    const probe: Diagnostic = {
+      _tag: 'Probe',
+      source: 'foldkit-test',
+      level: 'warning',
+      message: 'a Command met something',
+    }
+    const reporting = {
+      ...config,
+      update: (model: Model, message: Message) => {
+        if (message._tag !== 'Pinged') return config.update(model, message)
+        return { model, commands: [{ name: 'Ping', effect: Diagnostics.report(probe) }] }
+      },
+    }
+    const reported: Array<readonly [Diagnostic, string]> = []
+    const response = await serve(
+      post({ [FALLBACK_FIELD]: JSON.stringify(Message.Pinged()) }),
+      SSR.entry(reporting, plan, {
+        buildId: 'b',
+        origins,
+        diagnostics: (diagnostic, request) =>
+          Effect.sync(() => void reported.push([diagnostic, request.method])),
+      }),
+    )
+    expect(response.status).toBe(200)
+    expect(reported).toEqual([[probe, 'POST']])
   })
 
   it("runs the plan's boot before the posted Message, as the browser would have", async () => {

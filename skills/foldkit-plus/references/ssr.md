@@ -120,7 +120,15 @@ served page stays in view while the fresh one draws hidden, and is swapped once 
   the document's markup in the editor's host, which the browser's editor adopts.
 - In the browser a page from another build, or whose envelope cannot resume
   (`ResumeRefused`: `Missing`, `Duplicate`, `Unreadable`, `Protocol`, `Plan`,
-  `Invalid`, `Route`), is contained with the reason logged, never re-rendered.
+  `Invalid`, `Route`), is contained with the reason reported, never re-rendered.
+- What SSR keeps going past is a diagnostic on `foldkit-surface`'s channel
+  (`Diagnostics`, re-exported), by default Effect's log: `PageContained`
+  (`reason`: `NoBuildId` or the refusal's), `StaticRegionMissing`,
+  `BundleUnloaded`, `PageFailed` (a `500`), `HandlerUnnamed`.
+  `SSR.hydrate(config, plan, { buildId, diagnostics })` takes a reporter, since
+  a refusal comes before any runtime's `resources`; `SSR.entry`'s
+  `diagnostics(diagnostic, request)` covers everything the request runs. Test
+  with `Diagnostics.collect()`.
 - A Surface renderer: `Surface.rootView(S, params, Resume.view((m, rh) => ...))`;
   `rh` makes only the Surface's Messages. No cast: the builder is generic over
   the `h` it is given.
@@ -137,7 +145,7 @@ served page stays in view while the fresh one draws hidden, and is swapped once 
   A hole form whose field refuses the empty placeholder (`isMinLength(1)`) is
   marked `*` too. `SSR.render`'s result lists every `*` as `unnamed`
   (`{ element, event }`); on a deferred page `SSR.entry` and `SSR.generate`
-  warn about each once per process.
+  report each once per process (`HandlerUnnamed`).
 - A Surface's `messages` is the allow list for the page's bindings. A binding
   whose Message no Surface active for the served Model lists is `Uncovered`
   (naming element and tag); bindings with no `surfaces` in the plan are
@@ -176,12 +184,12 @@ served page stays in view while the fresh one draws hidden, and is swapped once 
   root's last child for a served page, which has no template head to write
   to; hydration drops it on its first patch, and styles for a void root are
   refused with `VoidRootWithStyles`.
-- `SSR.entry(config, plan, { buildId, flags?, headers? })` returns the
+- `SSR.entry(config, plan, { buildId, flags?, headers?, diagnostics? })` returns the
   `{ renderPage }` a Foldkit server entry exports for `handleRequest` (or the
   `foldkit` Vite plugin's dev server). `GET` and `HEAD` render, `POST` is
   handled for a plan with `fallback: 'server'`; other methods get `405`; a
   refused, failed or throwing render, or `flags` that reject, get `500` with
-  the reason logged. It answers `Rendered`, with the envelope on the rendered
+  the reason reported. It answers `Rendered`, with the envelope on the rendered
   root beside Foldkit's own stamps. A plan with `meta` is refused at
   construction: `meta` is written into a head the host owns, so serve it with
   `SSR.generate`.

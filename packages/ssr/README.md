@@ -299,8 +299,8 @@ release tag, public and unique per deployment. The plugin compiles it into
 both bundles; a script outside Vite, such as a prerender, reads
 `process.env.FOLDKIT_BUILD_ID`, the same value the build saw. With it unset,
 `import.meta.env.FOLDKIT_BUILD_ID` is undefined in the client, and
-`SSR.hydrate`, given no id, contains the page and logs why rather than
-adopting it.
+`SSR.hydrate`, given no id, contains the page and reports why
+([`PageContained`](#diagnostics), reason `NoBuildId`) rather than adopting it.
 
 Set it even though `@foldkit/vite-plugin` can now generate an id on its own.
 The generated one is compiled into Foldkit alone, where `foldkit-ssr` cannot
@@ -313,8 +313,8 @@ Flags passes `flags: request => ...`. `POST` is handled only for a plan with a
 [server fallback](#forms-that-work-without-scripts). `OPTIONS` is answered
 `204` and any other method `405`, each with the methods the entry answers in
 `allow`. A render that fails or throws, `flags` that reject, and a plan the
-render refuses are answered `500` with the reason logged, never with a page
-the browser could not resume.
+render refuses are answered `500` with the reason reported
+([`PageFailed`](#diagnostics)), never with a page the browser could not resume.
 
 `headers: request => ...` rides on the `Rendered` result, set over the host's
 own: a cache policy for a page that is one visitor's, or the CORS answer to a
@@ -578,8 +578,9 @@ cannot attach a handler. The browser adopts the server's markup as it is and
 never runs the render, so this plan sends neither `post.title` nor `post.body`
 and the view check still passes. A region changes only with a new document;
 content a Message should change belongs in a Surface. A region the browser
-needs that is not in the page, say after a Message shows one, is logged and
-rendered in the browser.
+needs that is not in the page, say after a Message shows one, is reported
+([`StaticRegionMissing`](#diagnostics), once per page) and rendered in the
+browser.
 
 ### Markup the browser adopts: `SSR.serving`
 
@@ -790,7 +791,8 @@ posted: an entry made without them throws. An entry of your own that calls
 
 A refusal never shows a user a half-working page. On the server it is an error
 before anything is served; in the browser the page is contained, as Foldkit
-contains a page from another build, and the reason is logged.
+contains a page from another build, and the reason is reported
+([`PageContained`](#diagnostics)).
 
 On the server, `SSR.render` fails with `ResumeUnsafe`, whose `reason` is one
 of:
@@ -841,6 +843,39 @@ SSR.hydrate(config, plan, { buildId, when, otherwise: 'render', until: Site.answ
 
 The served page stays as it was served while it waits: its links are plain
 links, and nothing it shows becomes live.
+
+## Diagnostics
+
+What SSR meets and keeps going past, a page it contains or a request it
+answers `500`, is a typed diagnostic, reported through `Diagnostics.Reporter`
+(`foldkit-surface`'s channel, re-exported here), which by default is
+Effect's log: the browser's console, or a server's or Worker's log.
+
+| `_tag`                | `level`   | When                                                                                                          |
+| --------------------- | --------- | ------------------------------------------------------------------------------------------------------------- |
+| `PageContained`       | `error`   | The browser contained the page instead of resuming it: `reason` is `NoBuildId` or the `ResumeRefused` reason |
+| `StaticRegionMissing` | `error`   | A static region the browser drew is not in the server's page, so it was rendered in the browser (`region`)   |
+| `BundleUnloaded`      | `error`   | A lazy bundle's bodies did not load, and the page booted without them (`error`)                               |
+| `PageFailed`          | `error`   | `SSR.entry` answered `500`: `headers` threw, or the page could not be rendered (`url`, `cause`)              |
+| `HandlerUnnamed`      | `warning` | A handler the page cannot name keeps a page that waits to boot from answering it, once per process            |
+
+A page's refusals happen before any runtime starts, so the reporter in its
+`resources` is not in effect yet: `SSR.hydrate` takes its own. `SSR.entry`
+takes one with the request beside it, used for everything that request runs, a
+posted form's Commands included. `SSR.generate` reports to the reporter in
+its Effect's context.
+
+```ts
+SSR.hydrate(config, plan, { buildId, diagnostics: diagnostic => send(diagnostic) })
+
+SSR.entry(config, plan, {
+  buildId,
+  diagnostics: (diagnostic, request) =>
+    Effect.logError(`${request.method} ${request.url}: ${diagnostic.message}`),
+})
+```
+
+In a test, `Diagnostics.collect()` gives a reporter and the array it fills.
 
 ## A reader's preferences in the first frame
 
@@ -926,7 +961,8 @@ and `Theme.chooseKnobs`.
 - **A closure handler makes its event wait for boot.** `SSR.render`'s result
   lists each under `unnamed` (`{ element: 'button#point', event:
   'pointerdown' }`), and on a page that waits to boot `SSR.entry` and
-  `SSR.generate` warn about each once per process, naming the fix.
+  `SSR.generate` report each once per process (`HandlerUnnamed`), naming
+  the fix.
 
 ## Lower-level API
 

@@ -7,7 +7,15 @@
 import { Effect, Result, Schema, Stream } from 'effect'
 import { hydrate as adopt, makeApplication, run } from 'foldkit/runtime'
 import * as Render from 'foldkit/render'
+import { Diagnostics, type ReportDiagnostic } from 'foldkit-surface'
 import { withContext, type RenderContext } from './context.js'
+import {
+  bundleUnloaded,
+  noBuildId,
+  pageContained,
+  reportingTo,
+  type SsrDiagnostic,
+} from './diagnostics.js'
 import { listen, type DecodedBinding } from './listen.js'
 import { builder, view } from './resumable.js'
 import {
@@ -53,7 +61,7 @@ const BUILD_ATTRIBUTE = 'data-foldkit-build'
  * In the order Foldkit checks a page: the build id first, before the payload
  * is read, then the envelope and its route. A page from another build is
  * refused by Foldkit itself. A page that cannot resume is refused and contained
- * by Foldkit's own refusal, and the reason is logged. A server page is never
+ * by Foldkit's own refusal, and the reason is reported (`options.diagnostics`). A server page is never
  * rendered again on the client. A page with no server render at all, no
  * stamped root, is rendered on the client as usual.
  */
@@ -92,8 +100,19 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
      * throw, as `when`.
      */
     readonly fresh?: ((version: unknown) => boolean) | undefined
+    /**
+     * Where what the page met goes: a page contained rather than resumed, a
+     * static region the server's page lacked, a lazy bundle that did not
+     * load. Each is reported before or apart from the runtime, so its
+     * resources' reporter is not in effect. Omitted, Effect's log: the
+     * browser's console.
+     */
+    readonly diagnostics?: ReportDiagnostic | undefined
   },
 ): void => {
+  const report = (diagnostic: SsrDiagnostic): void => {
+    Effect.runFork(reportingTo(options.diagnostics)(Diagnostics.report(diagnostic)))
+  }
   const planMeta = plan.meta
   if (planMeta !== undefined) {
     config = {
@@ -127,12 +146,7 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
   // unset the id arrives undefined, and Foldkit, given none, takes its own
   // compiled id, which matches the page, so the baseline was adopted in silence.
   if (typeof options.buildId !== 'string') {
-    console.error(
-      '[foldkit-ssr] SSR.hydrate was given no build id, so it cannot tell this page from ' +
-        "another deployment's; the page is contained. Pass the id the server stamped: with " +
-        '@foldkit/vite-plugin, set FOLDKIT_BUILD_ID (or `foldkit({ buildId })`) so that ' +
-        '`import.meta.env.FOLDKIT_BUILD_ID` is defined in the client too.',
-    )
+    report(noBuildId)
     contain()
     return
   }
@@ -142,7 +156,7 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
   }
   const resumed = resume(plan, document, { route: routeOf(window.location.href) })
   if (Result.isFailure(resumed)) {
-    console.error(`[foldkit-ssr] the page cannot resume: ${resumed.failure.message}`)
+    report(pageContained(resumed.failure.reason, resumed.failure.message))
     contain()
     return
   }
@@ -152,6 +166,7 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     mode: 'resume',
     snapshots: snapshotsOf(root),
     reported: new Set(),
+    report,
   }
   // The runtime starts from the resumed Model, so its first render is the
   // served markup and Foldkit adopts every node. The Messages the page
@@ -192,11 +207,11 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
   }
   const decoded = bindingsAndEvents(plan, document, root, model)
   if (Result.isFailure(decoded)) {
-    console.error(`[foldkit-ssr] the page cannot resume: ${decoded.failure.message}`)
+    report(pageContained(decoded.failure.reason, decoded.failure.message))
     contain()
     return
   }
-  deferBoot(root, decoded.success, plan.start, { boot, answered }, pending)
+  deferBoot(root, decoded.success, plan.start, { boot, answered }, pending, report)
 }
 
 /** The longest a served page stays in view while a fresh application waits for `until`. */
@@ -274,6 +289,7 @@ const deferBoot = (
     readonly answered: Array<unknown>
   },
   pending: ReadonlyArray<Loadable>,
+  report: (diagnostic: SsrDiagnostic) => void,
 ): void => {
   // Events only the live page can answer, met before it listened.
   const unanswered: Array<{ readonly event: Event; readonly element: Element }> = []
@@ -346,7 +362,7 @@ const deferBoot = (
       return
     }
     void Promise.all(pending.map(bundle => bundle.load())).then(commit, (error: unknown) => {
-      console.error(`[foldkit-ssr] a bundle's bodies did not load: ${String(error)}`)
+      report(bundleUnloaded(error))
       commit()
     })
   }
@@ -385,3 +401,13 @@ export {
 } from './resumable.js'
 export type { DecodedBinding } from './listen.js'
 export type { UnnamedHandler } from './context.js'
+/** The diagnostics channel `hydrate` reports into, re-exported so a page needs no other import. */
+export { Diagnostics, type Diagnostic, type ReportDiagnostic } from 'foldkit-surface'
+export type {
+  BundleUnloaded,
+  HandlerUnnamed,
+  PageContained,
+  PageFailed,
+  SsrDiagnostic,
+  StaticRegionMissing,
+} from './diagnostics.js'

@@ -14,6 +14,7 @@
  *   page, and its render never runs; no binding is marked.
  */
 import type { Html } from 'foldkit/html'
+import type { StaticRegionMissing } from './diagnostics.js'
 
 export type Region = ReadonlyArray<Html | string>
 
@@ -76,7 +77,9 @@ export type RenderContext =
   | {
       readonly mode: 'resume'
       readonly snapshots: ReadonlyMap<string, string>
+      /** The regions already reported missing, so each is reported once. */
       readonly reported: Set<string>
+      readonly report: (diagnostic: StaticRegionMissing) => void
     }
 
 let context: RenderContext | undefined

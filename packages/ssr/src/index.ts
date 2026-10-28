@@ -25,7 +25,7 @@ import {
   type RenderError,
   type RenderedApplication,
 } from 'foldkit/experimental/server'
-import { Metadata, type MetadataSummary } from 'foldkit-surface'
+import { Diagnostics, Metadata, type Diagnostic, type MetadataSummary } from 'foldkit-surface'
 import type {
   Activation,
   ActiveSurface,
@@ -34,6 +34,7 @@ import type {
   SurfaceSource,
 } from 'foldkit-surface'
 import { withContext, type Binding, type Region, type UnnamedHandler } from './context.js'
+import { handlerUnnamed, pageFailed, reportingTo } from './diagnostics.js'
 import { type EncodedBinding } from './listen.js'
 import { FALLBACK_DEPTH_FIELD, FALLBACK_FIELD } from './resumable.js'
 import { requestContext } from './requestContext.js'
@@ -960,29 +961,33 @@ const robots = (options: {
   ].join('\n')
 
 // Keyed by plan, element and event: a server renders the same page for every
-// request, so one warning each is enough to learn which handler to name.
-const warnedUnnamed = new Set<string>()
+// request, so one report each is enough to learn which handler to name.
+const reportedUnnamed = new Set<string>()
 
 /**
- * Warns, once per process, about each handler that keeps a page from
- * answering before boot. Only a page that waits to boot is held up: one
- * started `'now'`, with no lazy bundle to load, boots before any event.
+ * Reports, once per process, each handler that keeps a page from answering
+ * before boot. Only a page that waits to boot is held up: one started
+ * `'now'`, with no lazy bundle to load, boots before any event.
  */
-const warnUnnamed = <Model, Fields extends Schema.Struct.Fields>(
+const reportUnnamed = <Model, Fields extends Schema.Struct.Fields>(
   config: ResumableConfig<Model>,
   plan: ResumePlan<Model, Fields>,
   unnamed: ReadonlyArray<UnnamedHandler>,
-): void => {
-  if (plan.start === 'now' && (config.lazy ?? []).length === 0) return
-  for (const { element, event } of unnamed) {
-    const key = JSON.stringify([plan.id, element, event])
-    if (warnedUnnamed.has(key)) continue
-    warnedUnnamed.add(key)
-    console.warn(
-      `[foldkit-ssr] plan "${plan.id}": ${element} handles ${event} with a function, which the page cannot name, so that event waits for the live runtime. Give the handler a Message, or, for OnInput, OnChange, OnKeyDown or OnKeyUp, the Message's constructor with the field the event fills left out.`,
+): Effect.Effect<void> =>
+  Effect.suspend(() => {
+    if (plan.start === 'now' && (config.lazy ?? []).length === 0) return Effect.void
+    const first = unnamed.filter(({ element, event }) => {
+      const key = JSON.stringify([plan.id, element, event])
+      if (reportedUnnamed.has(key)) return false
+      reportedUnnamed.add(key)
+      return true
+    })
+    return Effect.forEach(
+      first,
+      ({ element, event }) => Diagnostics.report(handlerUnnamed(plan.id, element, event)),
+      { discard: true },
     )
-  }
-}
+  })
 
 /**
  * Renders pages at build time, one per path, each as `SSR.render` and
@@ -1031,25 +1036,22 @@ const generate = <
       files.set(fileOf(path), path)
     }
     const pages = yield* Effect.forEach(options.paths, path =>
-      Effect.map(
-        renderMatching(
-          config,
-          plan,
-          {
-            buildId: options.buildId,
-            url: new URL(path, options.origin).href,
-            ...(options.flags === undefined ? {} : { flags: options.flags(path) }),
-          },
-          'path',
-        ),
-        result => {
-          warnUnnamed(config, plan, result.unnamed)
-          return {
-            path,
-            file: fileOf(path),
-            html: page(options.template, result, { head: options.head }),
-          }
+      renderMatching(
+        config,
+        plan,
+        {
+          buildId: options.buildId,
+          url: new URL(path, options.origin).href,
+          ...(options.flags === undefined ? {} : { flags: options.flags(path) }),
         },
+        'path',
+      ).pipe(
+        Effect.tap(result => reportUnnamed(config, plan, result.unnamed)),
+        Effect.map(result => ({
+          path,
+          file: fileOf(path),
+          html: page(options.template, result, { head: options.head }),
+        })),
       ),
     )
     // One page per path, in order, so the array is the tuple the paths describe.
@@ -1068,7 +1070,7 @@ const generate = <
  * the post is unusable. `OPTIONS` is answered `204`, and any other method
  * `405`, each with the methods the entry answers in `allow` (`handleRequest`
  * passes every method through). A render that fails, or a plan the render
- * refuses, is answered `500` with the reason logged, never with a page the
+ * refuses, is answered `500` with the reason reported (`diagnostics`), never with a page the
  * browser cannot resume. `headers(request)` rides on the `Rendered` result, so
  * Foldkit's `toResponse` sets it over its own on the page: a cache policy, or
  * a CORS answer to a preflight.
@@ -1117,6 +1119,15 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
      * per-page styles go; anything a head owns stays with `SSR.generate`.
      */
     readonly styles?: Head | undefined
+    /**
+     * Where this request's diagnostics go, with the request: a request
+     * answered 500 (`PageFailed`), a handler the page cannot name, and what
+     * a posted form's Commands report. The reporter in the Effect context
+     * (`Diagnostics.Reporter`) when not given, by default the log.
+     */
+    readonly diagnostics?:
+      | ((diagnostic: Diagnostic, request: Request) => Effect.Effect<void>)
+      | undefined
   },
 ): EntryModule => {
   if (plan.meta !== undefined) {
@@ -1147,14 +1158,18 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
   const answer = async (request: Request): Promise<EntryResult> => {
     const method = request.method.toUpperCase()
     const posting = method === 'POST' && plan.fallback === 'server'
+    const { diagnostics } = options
+    const reporting = reportingTo(
+      diagnostics === undefined ? undefined : diagnostic => diagnostics(diagnostic, request),
+    )
     const headersOf = options.headers
     let extra: Headers | undefined
     if (headersOf !== undefined) {
       try {
         extra = new Headers(headersOf(request))
       } catch (error) {
-        console.error(
-          `[foldkit-ssr] ${request.url} was not answered: headers threw ${String(error)}`,
+        await Effect.runPromise(
+          reporting(Diagnostics.report(pageFailed(request.url, Cause.die(error)))),
         )
         return Responded(plainText(500, 'The page could not be rendered.'))
       }
@@ -1193,7 +1208,7 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
           ...flagged,
           ...styled,
         })
-      }),
+      }).pipe(reporting),
     )
     if (Exit.isFailure(exit)) {
       const refused = Cause.findErrorOption(exit.cause).pipe(
@@ -1202,10 +1217,10 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
       if (Option.isSome(refused)) {
         return responded(plainText(400, `The form could not be handled: ${refused.value.message}`))
       }
-      console.error(`[foldkit-ssr] ${request.url} was not rendered: ${Cause.pretty(exit.cause)}`)
+      await Effect.runPromise(reporting(Diagnostics.report(pageFailed(request.url, exit.cause))))
       return responded(plainText(500, 'The page could not be rendered.'))
     }
-    warnUnnamed(config, plan, exit.value.unnamed)
+    await Effect.runPromise(reporting(reportUnnamed(config, plan, exit.value.unnamed)))
     // No `headers` key without custom headers: a `Rendered` that carries none
     // stays generatable as a static file.
     return extra === undefined
@@ -1490,4 +1505,13 @@ export {
   type ResumePlan,
   type Start,
   type UnnamedHandler,
+  type BundleUnloaded,
+  type HandlerUnnamed,
+  type PageContained,
+  type PageFailed,
+  type SsrDiagnostic,
+  type StaticRegionMissing,
+  Diagnostics,
+  type Diagnostic,
+  type ReportDiagnostic,
 } from './client.js'

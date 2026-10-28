@@ -9,6 +9,7 @@ import { inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
 import type { Ports } from 'foldkit/port'
 import type { ActiveSurface, Metadata, SurfaceSource, WritableProjection } from 'foldkit-surface'
 import { current, type Region } from './context.js'
+import { staticRegionMissing } from './diagnostics.js'
 import { decodeBindings, readBindings, type DecodedBinding } from './listen.js'
 
 /**
@@ -512,9 +513,7 @@ export const staticRegion = (id: string, render: (ih: HtmlBuilder<never>) => Reg
     if (snapshot !== undefined) return boundary(id, snapshot, [])
     if (!now.reported.has(id)) {
       now.reported.add(id)
-      console.error(
-        `[foldkit-ssr] the static region "${id}" is not in the server's page, so it is rendered in the browser`,
-      )
+      now.report(staticRegionMissing(id))
     }
     return boundary(id, undefined, render(inertHtml))
   }
