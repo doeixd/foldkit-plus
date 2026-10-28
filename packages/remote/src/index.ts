@@ -4039,11 +4039,17 @@ const bindDomain = <
           : (options.optimistic ??
             (mutation.write === undefined
               ? undefined
-              : predictionOfWrite(mutation.write, input, options.keys, {
-                  derived: definition.registry.derived,
-                  store: visibleStoreOf(remote.entities, remote.optimistic, bound.operators),
-                  viewer: viewerOf(model),
-                })))
+              : [
+                  ...optimisticOfWrite(mutation.write, input, options.keys),
+                  ...derivedOfWrite(
+                    mutation.write,
+                    input,
+                    options.keys,
+                    definition.registry.derived.get(mutation.write.input.entity.name) ?? [],
+                    visibleStoreOf(remote.entities, remote.optimistic, bound.operators),
+                    viewerOf(model),
+                  ),
+                ]))
       const started = updateRemote(remote, {
         _tag: 'MutationStarted',
         requestId,
