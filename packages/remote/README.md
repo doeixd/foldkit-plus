@@ -1574,7 +1574,34 @@ row's relation (`likeCount: Derived.count(Like.relations.post)`): inserting a
 Like adds one to the post it points at, deleting a Like the client holds takes
 one away from the post it pointed at, and pointing it elsewhere does both, each
 added as an increment is. Where the client does not hold where the row pointed,
-or holds no count on that post, nothing is predicted. A field the client has not read, or a computation by an operator its
+or holds no count on that post, nothing is predicted.
+
+A viewer-relative member is predicted for the viewer `Remote.make` is told of.
+With a `Like` pointing at a `Post` and a `User` (`examples/chirp` declares the
+whole domain, its writes and its server):
+
+```ts
+const Post = Social.Post.pipe(
+  Entity.derived({
+    liked: Derived.exists(Social.Like.relations.post, { viewer: Social.Like.relations.user }),
+  }),
+)
+const Data = Remote.make({
+  model: App.model.remote,
+  entities: [User, Post, Like],
+  mutations: [LikePost, Unlike],
+  viewer: model => Option.some(Remote.ref(User, model.me)),
+})
+```
+
+`liked` is the id of the viewer's Like of the post, or none. Inserting a Like
+pointing at a post and at the viewer shows it on that post (where the post is
+held with `liked` read, and none yet); deleting a Like, or pointing it at
+another post or person, takes it from the post it is shown on. That post also
+says where the deleted Like pointed, so its count goes down with no Like row
+held: unliking is `Data.mutate(model, Unlike, { id })` with the id `liked`
+holds. The store holds one viewer's values, as it holds one principal's, so a
+change of viewer is a change of principal: `Data.forget`. A field the client has not read, or a computation by an operator its
 table lacks, is not guessed; it shows the server's value when the answer comes. The prediction is never authority: the server decides, and its answer
 replaces it. The [declared writes guide](../../docs/declared-writes.md) follows
 one write from here to the statement that lands it. `keys` names the input keys

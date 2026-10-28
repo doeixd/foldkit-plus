@@ -488,7 +488,12 @@ added to or computed from, not hidden; without the operator it shows the stored 
 A `Derived.count` a registered Entity declares over the written Entity's relation
 (`Post.likeCount` over `Like.post`) moves too: an insert adds one where it points, a
 delete of a row the client holds takes one away where it pointed, a relink does both,
-and only on a row whose count the client holds. `Data.mutate` also sends an operation id, kept across a retry with the
+and only on a row whose count the client holds. A `Derived.exists` (`Post.liked`,
+the id of the viewer's Like, or none) is predicted for `Remote.make({ viewer: model =>
+Option.some(Remote.ref(User, model.me)) })`: an insert pointing at a post and at the
+viewer shows its id there, and a delete or relink takes it from the post showing it,
+which also tells the count where a Like the client never read pointed. The store is
+one viewer's, so a change of viewer is `Data.forget`. `Data.mutate` also sends an operation id, kept across a retry with the
 same `requestId`, which a ledgered writer answers from its record. Declaring them, and
 invariants: [entity.md](entity.md).
 
@@ -790,7 +795,9 @@ Storage: field = same-named column or `fields: { name: column }`; `one` =
 `{ foreignKey, localKey?, assumeUnique? }` (the column must be unique); `many` = `{ foreignKey, localKey? }` or `{ through, localColumn,
 foreignColumn }`; a `Derived.make` member = `{ relation, where? }` (a count) or
 `{ supplied: true }`; a `Derived.count` takes no entry (bind counts the pointing
-table by its foreign key, under its `visible`). A required `one`
+table by its foreign key, under its `visible`), nor does a `Derived.exists`, whose
+`source(Db.Post, { viewer: principal => Option<{ entity, id }> })` says who reads
+it (required for such a binding, and never `shared`). A required `one`
 over a nullable column throws: declare it `{ optional: true }`. So does a column
 that plainly cannot hold its field (text under a number, a nullable column under
 a field that admits no `null`); transforming schemas and custom columns pass

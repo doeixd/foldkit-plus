@@ -108,8 +108,8 @@ import {
   forgetFailure,
   mutationStatus,
   optimisticOfWrite,
-  countsOfWrite,
-  type CountedBy,
+  derivedOfWrite,
+  DerivedBy,
   type MutationDescriptor,
   type MutationStatus,
   type NormalizedPatch,
@@ -296,11 +296,11 @@ export interface RemoteDescriptor<
      */
     readonly filtered: ReadonlyMap<string, ReadonlyArray<string>>
     /**
-     * Per entity name, the counts other registered Entities derive over its
-     * relations (`Derived.count`), which a write of it moves: what a declared
-     * write predicts.
+     * Per entity name, the members other registered Entities derive over its
+     * relations (`Derived.count`, `Derived.exists`), which a write of it
+     * moves: what a declared write predicts.
      */
-    readonly counts: ReadonlyMap<string, ReadonlyArray<CountedBy>>
+    readonly derived: ReadonlyMap<string, ReadonlyArray<DerivedBy>>
   }
 }
 
@@ -1313,11 +1313,16 @@ const liveStreamKey = (requirements: readonly Requirement[]): string =>
     .sort()
     .join('|')
 
-/** Each registered Entity's `Derived.count`s, under the Entity whose rows they count. */
-const countsBy = (
+/** Each registered Entity's `Derived.count`s and `Derived.exists`, under the pointing Entity. */
+const derivedMembersBy = (
   entities: ReadonlyArray<EntityLike>,
-): ReadonlyMap<string, ReadonlyArray<CountedBy>> => {
-  const counts = new Map<string, Array<CountedBy>>()
+): ReadonlyMap<string, ReadonlyArray<DerivedBy>> => {
+  const byPointing = new Map<string, Array<DerivedBy>>()
+  const add = (pointing: string, member: DerivedBy): void => {
+    const members = byPointing.get(pointing) ?? []
+    members.push(member)
+    byPointing.set(pointing, members)
+  }
   for (const entity of entities) {
     if (!DomainEntity.is(entity)) continue
     const derived: Readonly<
@@ -1326,14 +1331,24 @@ const countsBy = (
     for (const [field, member] of Object.entries(derived))
       Derivation.$match(member.derives, {
         Supplied: () => undefined,
-        Count: ({ relation }) => {
-          const by = counts.get(relation.owner.name) ?? []
-          by.push({ relation: relation.key, owner: entity.name, field })
-          counts.set(relation.owner.name, by)
-        },
+        Count: ({ relation }) =>
+          add(
+            relation.owner.name,
+            DerivedBy.Count({ relation: relation.key, owner: entity.name, field }),
+          ),
+        Exists: ({ relation, viewer }) =>
+          add(
+            relation.owner.name,
+            DerivedBy.Exists({
+              relation: relation.key,
+              viewer: viewer.key,
+              owner: entity.name,
+              field,
+            }),
+          ),
       })
   }
-  return counts
+  return byPointing
 }
 
 /** Declares a Remote domain: its entities, queries, and mutations, plus the submodel. */
@@ -1371,7 +1386,7 @@ const defineRemote = <
           DomainEntity.is(entity) ? [[entity.name, ReadFilter.members(entity.metadata)]] : [],
         ),
       ),
-      counts: countsBy(config.entities),
+      derived: derivedMembersBy(config.entities),
     },
   }
 }
@@ -2356,11 +2371,22 @@ export const Remote = {
      * judge is.
      */
     readonly operators?: MemoryOperators | undefined
+    /**
+     * Who reads, as a row (`Remote.ref(User, model.me)`), or none for a
+     * visitor: whom a declared write predicts each `Derived.exists` for. The
+     * store holds one viewer's values, as it holds one principal's: a change
+     * of viewer is a change of principal, which `Data.forget`s. Without it, an
+     * exists is predicted only where a write takes it away.
+     */
+    readonly viewer?:
+      | ((model: AppModel) => Option.Option<{ readonly entity: string; readonly id: string }>)
+      | undefined
   }): RemoteDomain<AppModel, Store, Entities, Queries, Mutations> =>
     bindDomain(defineRemote(config), config.model, {
       verifyPlacement: config.verifyPlacement,
       verifyAnswers: config.verifyAnswers,
       operators: config.operators,
+      viewer: config.viewer,
     }),
 
   /**
@@ -3012,10 +3038,14 @@ const bindDomain = <
     readonly verifyPlacement?: boolean | undefined
     readonly verifyAnswers?: boolean | undefined
     readonly operators?: MemoryOperators | undefined
+    readonly viewer?:
+      | ((model: AppModel) => Option.Option<{ readonly entity: string; readonly id: string }>)
+      | undefined
   } = {},
 ): RemoteDomain<AppModel, Store, Entities, Queries, Mutations> => {
   const operators = options.operators ?? Operators.kernel
   const bound = bindRemote(definition, store, operators)
+  const viewerOf = options.viewer ?? (() => Option.none())
   // Every reader any `subscriptions` call names, and every connection one keeps:
   // retention is the domain's, so each call's retain entry roots them all, and
   // one call with its own policy does not collect what another call reads.
@@ -3988,12 +4018,13 @@ const bindDomain = <
               ? undefined
               : [
                   ...optimisticOfWrite(mutation.write, input, options.keys),
-                  ...countsOfWrite(
+                  ...derivedOfWrite(
                     mutation.write,
                     input,
                     options.keys,
-                    definition.registry.counts.get(mutation.write.input.entity.name) ?? [],
+                    definition.registry.derived.get(mutation.write.input.entity.name) ?? [],
                     visibleStoreOf(remote.entities, remote.optimistic, bound.operators),
+                    viewerOf(model),
                   ),
                 ]))
       const started = updateRemote(remote, {

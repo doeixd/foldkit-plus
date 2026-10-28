@@ -13,31 +13,31 @@ export default [
   edit(
     'a declared write predicts no count',
     '../src/index.ts',
-    'definition.registry.counts.get(mutation.write.input.entity.name) ?? [],',
+    'definition.registry.derived.get(mutation.write.input.entity.name) ?? [],',
     '[],',
   ),
   edit(
     'no count is registered',
     '../src/index.ts',
-    'by.push({ relation: relation.key, owner: entity.name, field })',
-    'void by',
+    'DerivedBy.Count({ relation: relation.key, owner: entity.name, field }),',
+    'DerivedBy.Count({ relation: "none", owner: entity.name, field }),',
   ),
   edit(
     'a row not held points nowhere',
     '../src/mutation.ts',
-    "write._tag === 'Insert'\n        ? Option.some(null)\n        : Option.none()",
-    'Option.some(null)',
+    "return write._tag === 'Insert' ? Option.some(null) : Option.none()",
+    'return Option.some(null)',
   ),
   edit(
     'a held row with no ref is read as pointing nowhere',
     '../src/mutation.ts',
-    '        ? Option.some(held.values[relation])\n        : Option.none()',
-    '        ? Option.some(held.values[relation])\n        : Option.some(null)',
+    'if (held !== undefined && held.present.has(relation))',
+    'if (held !== undefined)',
   ),
   edit(
     'an unheld count is moved',
     '../src/mutation.ts',
-    "if (target === undefined || target.tombstone || typeof target.values[field] !== 'number') return",
+    "if (!Option.exists(holding(ref, field), value => typeof value === 'number')) return",
     '',
   ),
   edit(
@@ -46,5 +46,5 @@ export default [
     'Delete: () => Option.some<unknown>(null),',
     'Delete: () => Option.none(),',
   ),
-  edit('nothing is taken away', '../src/mutation.ts', 'move(from.value, owner, field, -1)', ''),
+  edit('nothing is taken away', '../src/mutation.ts', 'count(from.value, owner, field, -1)', ''),
 ]

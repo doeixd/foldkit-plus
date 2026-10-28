@@ -5,7 +5,7 @@
  * `requestId`**, so a transport retry cannot apply the same change twice. An
  * unknown or already-applied result is a no-op.
  */
-import { Match, Option, Record as Rec, Schema } from 'effect'
+import { Data, Match, Option, Record as Rec, Schema } from 'effect'
 import {
   Write as DomainWrite,
   type AnyWrite,
@@ -18,7 +18,7 @@ import {
 import type { OptimisticOperation } from './optimistic.js'
 import { refParts } from './relation.js'
 import type { RemoteError } from './remoteData.js'
-import { entityKey, tombstone, writeEntities, type EntityStore } from './store.js'
+import { entityKey, tombstone, writeEntities, type EntityEntry, type EntityStore } from './store.js'
 
 export interface NormalizedPatch {
   readonly entity: string
@@ -368,74 +368,140 @@ export const optimisticOfWrite = (
   )
 
 /**
- * A count a registered Entity derives over a relation of another
- * (`Derived.count`): `Post.likeCount` over `Like.post` is, under `Like`,
- * `{ relation: 'post', owner: 'Post', field: 'likeCount' }`.
+ * A member a registered Entity derives over a relation of another, under the
+ * pointing Entity: `Post.likeCount` (`Derived.count(Like.relations.post)`) is
+ * `Count { relation: 'post', owner: 'Post', field: 'likeCount' }`, and
+ * `Post.liked` (`Derived.exists(Like.relations.post, { viewer: Like.relations.user })`)
+ * is `Exists { relation: 'post', viewer: 'user', owner: 'Post', field: 'liked' }`.
  */
-export interface CountedBy {
-  readonly relation: string
-  readonly owner: string
-  readonly field: string
-}
+export type DerivedBy = Data.TaggedEnum<{
+  Count: { readonly relation: string; readonly owner: string; readonly field: string }
+  Exists: {
+    readonly relation: string
+    readonly viewer: string
+    readonly owner: string
+    readonly field: string
+  }
+}>
+export const DerivedBy = Data.taggedEnum<DerivedBy>()
+type ExistsBy = Extract<DerivedBy, { readonly _tag: 'Exists' }>
 
 /**
- * The counts a declared write moves, as pending increments of the rows its
- * row points at: an insert adds one where it points, a delete takes one away
- * where the row pointed, and an update that points it elsewhere does both.
- * Where the row pointed before is read from `store` as the client holds it;
- * when it does not hold that, nothing is predicted and the answer decides. A
- * count is moved only on a row that `store` holds it on.
+ * The derived members a declared write moves, as pending patches of the rows
+ * its row points at. A count: an insert adds one where it points, a delete
+ * takes one away where the row pointed, and a relink does both. An exists:
+ * a row now pointing here and at `viewer` is found (its id), and a row the
+ * store shows as found by this one is no longer, once the write deletes it or
+ * points it elsewhere.
+ *
+ * Where the row pointed before is read from `store`: the row as held, or,
+ * when the store holds an exists found by this row, the row it is found on
+ * and the viewer. When neither says, nothing is predicted and the answer
+ * decides. A member is moved only on a row that `store` holds it on.
  */
-export const countsOfWrite = (
+export const derivedOfWrite = (
   write: AnyWrite,
   input: unknown,
   keys: ReadonlyArray<string> | undefined,
-  counted: ReadonlyArray<CountedBy>,
+  derived: ReadonlyArray<DerivedBy>,
   store: EntityStore,
+  viewer: Option.Option<{ readonly entity: string; readonly id: string }>,
 ): ReadonlyArray<PendingPatch> => {
-  if (counted.length === 0) return []
+  if (derived.length === 0) return []
   const bound = DomainWrite.bind(write, input as never, write._tag === 'Update' ? keys : undefined)
   const row = store[entityKey(bound.entity, bound.id)]
   const held = row === undefined || row.tombstone ? undefined : row
+  const viewerKey = Option.map(viewer, ref => entityKey(ref.entity, ref.id))
+  /** What a live row holds in `field`, as the store has it; none for a row gone or not held. */
+  const holding = (key: string, field: string): Option.Option<unknown> =>
+    Option.flatMap(Option.fromUndefinedOr(store[key]), entry =>
+      entry.tombstone ? Option.none() : Option.some(entry.values[field]),
+    )
+  // The rows each exists shows as found by this row: a new row is found on none yet.
+  const found = new Map<ExistsBy, ReadonlyArray<string>>()
+  if (write._tag !== 'Insert')
+    for (const member of derived.filter(DerivedBy.$is('Exists')))
+      found.set(
+        member,
+        Object.keys(store).filter(
+          key =>
+            key.startsWith(`${member.owner}:`) &&
+            Option.contains(holding(key, member.field), bound.id),
+        ),
+      )
   // Where the row points through `relation`: a ref key, null for nowhere, none when unknown.
-  const before = (relation: string): Option.Option<unknown> =>
-    held === undefined
-      ? // A row not there points nowhere, unless an update or a delete expected one.
-        write._tag === 'Insert'
-        ? Option.some(null)
-        : Option.none()
-      : held.present.has(relation)
-        ? Option.some(held.values[relation])
-        : Option.none()
-  const patched = patchOfWrite(bound).values
-  const linked = (relation: string): Option.Option<unknown> =>
-    Object.hasOwn(bound.links, relation) ? Option.some(patched[relation]) : Option.none()
-  const deltas = new Map<string, { owner: string; id: string; adds: Record<string, number> }>()
-  const move = (ref: unknown, owner: string, field: string, by: number): void => {
-    if (typeof ref !== 'string') return
-    const target = store[ref]
-    if (target === undefined || target.tombstone || typeof target.values[field] !== 'number') return
-    const at = deltas.get(ref) ?? { owner, id: refParts(ref).id, adds: {} }
-    at.adds[field] = (at.adds[field] ?? 0) + by
-    deltas.set(ref, at)
+  const before = (relation: string): Option.Option<unknown> => {
+    if (held !== undefined && held.present.has(relation)) return Option.some(held.values[relation])
+    for (const [member, rows] of found) {
+      if (rows.length === 0) continue
+      if (member.relation === relation) return Option.some(rows[0])
+      if (member.viewer === relation && Option.isSome(viewerKey)) return viewerKey
+    }
+    // A row not there points nowhere, unless an update or a delete expected one.
+    return write._tag === 'Insert' ? Option.some(null) : Option.none()
   }
-  for (const { relation, owner, field } of counted) {
-    const from = before(relation)
-    const to = Match.value(write).pipe(
+  const patched = patchOfWrite(bound).values
+  const after = (relation: string): Option.Option<unknown> =>
+    Match.value(write).pipe(
       Match.tagsExhaustive({
         Delete: () => Option.some<unknown>(null),
-        // An insert or an update that does not point the relation moves nothing.
-        Insert: () => linked(relation),
-        Update: () => linked(relation),
+        Insert: () => Option.some(Object.hasOwn(bound.links, relation) ? patched[relation] : null),
+        Update: () =>
+          Object.hasOwn(bound.links, relation) ? Option.some(patched[relation]) : before(relation),
       }),
     )
-    if (Option.isNone(from) || Option.isNone(to) || from.value === to.value) continue
-    move(from.value, owner, field, -1)
-    move(to.value, owner, field, 1)
+  const moves = new Map<
+    string,
+    { owner: string; values: Record<string, unknown>; adds: Record<string, number> }
+  >()
+  const at = (ref: string, owner: string) => {
+    const move = moves.get(ref) ?? { owner, values: {}, adds: {} }
+    moves.set(ref, move)
+    return move
   }
-  return [...deltas.values()].flatMap(({ owner, id, adds }) => {
+  const count = (ref: unknown, owner: string, field: string, by: number): void => {
+    if (typeof ref !== 'string') return
+    if (!Option.exists(holding(ref, field), value => typeof value === 'number')) return
+    const move = at(ref, owner)
+    move.adds[field] = (move.adds[field] ?? 0) + by
+  }
+  for (const member of derived)
+    DerivedBy.$match(member, {
+      Count: ({ relation, owner, field }) => {
+        const from = before(relation)
+        const to = after(relation)
+        if (Option.isNone(from) || Option.isNone(to) || from.value === to.value) return
+        count(from.value, owner, field, -1)
+        count(to.value, owner, field, 1)
+      },
+      Exists: exists => {
+        const { relation, viewer: by, owner, field } = exists
+        const pointed = after(relation)
+        // Whether the row points at the viewer after the write: none when either is unknown.
+        const viewing = Option.flatMap(after(by), ref => Option.map(viewerKey, key => ref === key))
+        for (const ref of found.get(exists) ?? []) {
+          // A delete points it nowhere, so it leaves every row it was found on.
+          if (Option.exists(pointed, to => to !== ref) || Option.contains(viewing, false))
+            at(ref, owner).values[field] = null
+        }
+        if (!Option.contains(viewing, true) || Option.isNone(pointed)) return
+        const to = pointed.value
+        if (typeof to === 'string' && Option.contains(holding(to, field), null))
+          at(to, owner).values[field] = bound.id
+      },
+    })
+  return [...moves].flatMap(([ref, { owner, values, adds }]) => {
     const moved = Object.fromEntries(Object.entries(adds).filter(([, by]) => by !== 0))
-    return Object.keys(moved).length === 0 ? [] : [{ entity: owner, id, values: {}, adds: moved }]
+    return Object.keys(values).length === 0 && Object.keys(moved).length === 0
+      ? []
+      : [
+          {
+            entity: owner,
+            id: refParts(ref).id,
+            values,
+            ...(Object.keys(moved).length === 0 ? {} : { adds: moved }),
+          },
+        ]
   })
 }
 
