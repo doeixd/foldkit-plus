@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs'
 import { expect, it } from 'vitest'
 import { accounts, storage } from '../src/auth.js'
-import { noteChecks, noteLog, noteRevision, notes } from '../src/server.js'
+import { ledger, noteChecks, noteLog, noteRevision, notes } from '../src/server.js'
 import { createTable } from './schemaSql.js'
 
 /** A migration's SQL, without its comments. */
@@ -35,6 +35,10 @@ it("creates the notes with the Entity's rules as CHECKs, the revision trigger an
       ...noteLog,
     ].join('\n'),
   )
+})
+
+it("creates the notes writer's ledger, keyed by asker, operation and row, indexed by time", () => {
+  expect(sqlOf('0003_write_ledger.sql')).toBe(createTable(ledger).join('\n'))
 })
 
 it('holds every rule of the note in a CHECK', () => {

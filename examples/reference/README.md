@@ -99,6 +99,14 @@ table's CHECKs come from `checkConstraints`, its revision trigger from
 `test/migrations.test.ts` holds `migrations/` to what each returns, so no
 rule is written by hand.
 
+The writer keeps a ledger (`write_ledger`, `migrations/0003_write_ledger.sql`):
+each write it lands is recorded by who asked, the operation and the row. A
+write whose answer was lost and is sent again under the same operation, as
+the page's Retry does, is answered with its row, where a create of a taken id
+would otherwise be refused; the same operation id sent with another request
+is refused. D1 has no transactions, so the row and its record are written in
+one batch, and two copies sent at once land once.
+
 **Auth** (`authApi.ts`, `auth.ts`). Yielded's password strategy over
 `@yielded/auth-persistence-drizzle/D1`. Sign-up writes the `accounts` row in
 the batch that binds the email, so no account exists half made. The Worker

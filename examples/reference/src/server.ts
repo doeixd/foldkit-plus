@@ -4,7 +4,7 @@
  * polls D1 from inside each subscriber's own request. Nothing here imports
  * the Workers runtime, so the tests read it from Node.
  */
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Option } from 'effect'
 import { GuardDrizzle } from 'foldkit-plus/guard/drizzle'
 import { GuardServer } from 'foldkit-plus/guard/server'
@@ -36,6 +36,27 @@ export const notes = sqliteTable('notes', {
   createdAt: integer('created_at').notNull(),
   revision: integer('revision').notNull().default(0),
 })
+
+/**
+ * Each write the notes' writer landed, by whose operation it was, so a write
+ * sent again (its answer lost) is answered with its row rather than refused
+ * as a create of a taken id. D1 commits each record in one batch with its row.
+ */
+export const ledger = sqliteTable(
+  'write_ledger',
+  {
+    scope: text('scope').notNull(),
+    operation: text('operation').notNull(),
+    target: text('target').notNull(),
+    answer: text('answer').notNull(),
+    at: integer('at').notNull(),
+    request: text('request'),
+  },
+  table => [
+    primaryKey({ columns: [table.scope, table.operation, table.target] }),
+    index('write_ledger_at').on(table.at),
+  ],
+)
 
 /** Every signed-in reader is a member; a visitor reads nothing. */
 export const Policy = G.implement({ isMember: principal => Option.isSome(principal) })
@@ -93,9 +114,21 @@ const NotesLive = pollLive(NoteSource, {
 
 /**
  * Every write of a note is judged by its rules before it lands, and lands
- * only on the revision they were judged over.
+ * only on the revision they were judged over. Its retry is answered from the
+ * ledger, as it landed, and not judged again.
  */
-const notesWriter = GuardServer.writer(Note, Policy, writer(Db.Note), { revision: 'revision' })
+const notesWriter = GuardServer.writer(
+  Note,
+  Policy,
+  writer(Db.Note, {
+    ledger: {
+      table: ledger,
+      // An operation id is unique only per client: a record is its asker's.
+      scope: principal => Option.match(principal, { onNone: () => '', onSome: ({ id }) => id }),
+    },
+  }),
+  { revision: 'revision' },
+)
 
 const served = {
   // Who asks, as the member a new note is stamped with.

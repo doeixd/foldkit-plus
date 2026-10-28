@@ -1,6 +1,6 @@
 /**
  * The SQLite a Drizzle table declares, as the migrations hold it: its
- * columns and foreign keys, the CHECKs given, then its indexes. Read by
+ * columns, primary and foreign keys, the CHECKs given, then its indexes. Read by
  * `migrations.test.ts`, which holds each migration to the code.
  */
 import { is } from 'drizzle-orm'
@@ -23,16 +23,19 @@ export const createTable = (
   table: SQLiteTable,
   checks: ReadonlyArray<string> = [],
 ): ReadonlyArray<string> => {
-  const { name, columns, indexes, foreignKeys } = getTableConfig(table)
+  const { name, columns, indexes, foreignKeys, primaryKeys } = getTableConfig(table)
   const column = (c: (typeof columns)[number]) =>
     `${quoted(c.name)} ${c.getSQLType()}${c.primary ? ' primary key' : ''}${c.notNull ? ' not null' : ''}${c.hasDefault && c.default !== undefined ? ` default ${String(c.default)}` : ''}`
+  const keys = primaryKeys.map(
+    key => `primary key (${key.columns.map(c => quoted(c.name)).join(', ')})`,
+  )
   const references = foreignKeys.map(key => {
     const { columns: from, foreignColumns: to, foreignTable } = key.reference()
     const target = getTableConfig(foreignTable).name
     return `foreign key (${from.map(c => quoted(c.name)).join(', ')}) references ${quoted(target)} (${to.map(c => quoted(c.name)).join(', ')})`
   })
   return [
-    `create table if not exists ${quoted(name)} (${[...columns.map(column), ...references, ...checks].join(', ')});`,
+    `create table if not exists ${quoted(name)} (${[...columns.map(column), ...keys, ...references, ...checks].join(', ')});`,
     ...indexes.map(
       ({ config }) =>
         `create ${config.unique ? 'unique ' : ''}index if not exists ${quoted(config.name)} on ${quoted(name)} (${config.columns.map(indexed).join(', ')});`,

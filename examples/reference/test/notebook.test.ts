@@ -29,7 +29,7 @@ import {
 import { server } from '../src/server.js'
 
 const sqlite = new DatabaseSync(':memory:')
-for (const file of ['0001_accounts.sql', '0002_notes.sql'])
+for (const file of ['0001_accounts.sql', '0002_notes.sql', '0003_write_ledger.sql'])
   sqlite.exec(readFileSync(new URL(`../migrations/${file}`, import.meta.url), 'utf8'))
 sqlite.exec(`
   insert into accounts values ('ada', 'active', 'r1', 'ada@example.invalid', 'Ada');

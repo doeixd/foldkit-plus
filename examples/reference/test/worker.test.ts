@@ -8,7 +8,10 @@
 import { request } from 'node:http'
 import { Effect, Option, Result, type Layer } from 'effect'
 import { fromString } from 'foldkit/url'
+import { drizzle } from 'drizzle-orm/d1'
 import { Remote, type RemoteClient, type RemoteMessage } from 'foldkit-plus/remote'
+import { databaseLayer } from 'foldkit-plus/remote-drizzle'
+import { RemoteServer } from 'foldkit-plus/remote-server'
 import { Surface } from 'foldkit-plus/surface'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
@@ -21,6 +24,7 @@ import {
   type Model,
 } from '../src/main.js'
 import { AddNote, DeleteNote, EditNote } from '../src/operations.js'
+import { server } from '../src/server.js'
 import { buildPage, startStack, type ReferenceStack } from '../src/stack.js'
 
 let stack: ReferenceStack
@@ -250,5 +254,100 @@ describe('writes', () => {
     expect(
       notes._tag === 'Ready' && notes.value.items.filter(note => note.id.startsWith('kj')),
     ).toEqual([])
+  }, 60_000)
+})
+
+describe('a write sent again', () => {
+  /** A create of `id` as the page sends it, under `operation`, answered as it came back. */
+  const create = (cookie: string, operation: string, id: string, title: string) =>
+    Effect.runPromise(
+      Effect.result(
+        Remote.http(`${stack.origin}/remote`, {
+          headers: () => ({ ...scripted(), cookie }),
+        }).FoldkitRemoteMutate({
+          requestId: `${operation}-${title}`,
+          mutation: 'AddNote',
+          input: { id, title, body: '' },
+          operation,
+        }),
+      ),
+    )
+  /** How many notes hold `id`, and how many records the ledger keeps for it, in D1. */
+  const stored = async (id: string) => {
+    const env = await stack.env()
+    const count = (sql: string) =>
+      env.DB.prepare(sql)
+        .bind(id)
+        .first<{ readonly n: number }>()
+        .then(row => row?.n)
+    return {
+      notes: await count('select count(*) as n from notes where id = ?'),
+      records: await count("select count(*) as n from write_ledger where target = 'Note:' || ?"),
+    }
+  }
+
+  it('answers a create sent again under its operation with its row, written once', async () => {
+    const cookie = await member('Radia')
+    const first = await create(cookie, 'radia-op-1', 'radia-1', 'Spanning tree')
+    expect(Result.isSuccess(first)).toBe(true)
+    // Its answer was lost, and the page sends it again: the same row, not a taken id.
+    const again = await create(cookie, 'radia-op-1', 'radia-1', 'Spanning tree')
+    expect(again).toEqual(first)
+    expect(Result.isSuccess(again) && again.success.entities[0]?.values).toMatchObject({
+      id: 'radia-1',
+      title: 'Spanning tree',
+    })
+    expect(await stored('radia-1')).toEqual({ notes: 1, records: 1 })
+  }, 60_000)
+
+  it('refuses another request under an operation id already recorded, and writes nothing', async () => {
+    const cookie = await member('Frances')
+    expect(Result.isSuccess(await create(cookie, 'frances-op-1', 'frances-1', 'Compilers'))).toBe(
+      true,
+    )
+    const reused = await create(cookie, 'frances-op-1', 'frances-1', 'Another title')
+    expect(Result.isFailure(reused) && reused.failure).toMatchObject({
+      message: expect.stringContaining('was recorded for another request'),
+    })
+    const { notes } = Surface.read(NotebookPage, await readAs(cookie), {
+      viewer: await idOf(cookie),
+    })
+    expect(
+      notes._tag === 'Ready' &&
+        notes.value.items.filter(note => note.id === 'frances-1').map(note => note.title),
+    ).toEqual(['Compilers'])
+  }, 60_000)
+
+  // Through the Worker the copies are answered one after another here, so the
+  // race below is run against the same D1 by the server itself, in Node.
+  it('lands copies of one create sent at once through the Worker once, and answers each with its row', async () => {
+    const cookie = await member('Margaret')
+    const copies = await Promise.all(
+      Array.from({ length: 4 }, () => create(cookie, 'margaret-op-1', 'margaret-1', 'Apollo')),
+    )
+    expect(copies.map(copy => Result.isSuccess(copy))).toEqual([true, true, true, true])
+    expect(new Set(copies.map(copy => JSON.stringify(copy))).size).toBe(1)
+    expect(await stored('margaret-1')).toEqual({ notes: 1, records: 1 })
+  }, 60_000)
+
+  it('answers a copy that lost the race to the same D1 from the winner’s record', async () => {
+    const id = await idOf(await member('Annie'))
+    const env = await stack.env()
+    const send = () =>
+      Effect.runPromise(
+        RemoteServer.handlers(server, Option.some({ id }))
+          .FoldkitRemoteMutate({
+            requestId: 'annie',
+            mutation: 'AddNote',
+            input: { id: 'annie-1', title: 'Rockets', body: '' },
+            operation: 'annie-op-1',
+          })
+          .pipe(Effect.result, Effect.provide(databaseLayer(drizzle(env.DB)))),
+      )
+    // The copies interleave on D1: a copy whose batch runs after the first meets its record.
+    const copies = await Promise.all(Array.from({ length: 4 }, send))
+    expect(copies.map(copy => copy._tag)).toEqual(['Success', 'Success', 'Success', 'Success'])
+    expect(new Set(copies.map(copy => JSON.stringify(copy))).size).toBe(1)
+    expect(await stored('annie-1')).toEqual({ notes: 1, records: 1 })
   }, 60_000)
 })

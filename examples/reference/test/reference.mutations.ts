@@ -150,4 +150,44 @@ export default [
     ],
     tests: page,
   },
+  {
+    name: 'the notes writer keeps no ledger',
+    edits: [
+      {
+        file: '../src/server.ts',
+        find: 'writer(Db.Note, {\n    ledger: {',
+        replace: 'writer(Db.Note, {\n    unread: {',
+      },
+    ],
+    tests: worker,
+  },
+  {
+    name: 'D1 is taken for a database with transactions, which refuses every ledgered write',
+    edits: [
+      {
+        file: '../../../packages/remote-drizzle/src/index.ts',
+        find: "] === 'D1Database'",
+        replace: "] === 'none'",
+      },
+    ],
+    tests: worker,
+  },
+  {
+    name: 'a copy that lost the race on workerd is answered with its failure',
+    edits: [
+      {
+        file: '../../../packages/remote-drizzle/src/index.ts',
+        find: 'if (Option.isSome(after)) return after.value',
+        replace: '',
+      },
+    ],
+    tests: worker,
+  },
+  {
+    name: 'the ledger has no index on its time',
+    edits: [
+      { file: '../src/server.ts', find: "index('write_ledger_at').on(table.at),", replace: '' },
+    ],
+    tests: migrations,
+  },
 ]
