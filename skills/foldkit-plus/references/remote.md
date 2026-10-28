@@ -238,7 +238,10 @@ case 'SignedOut': {
 - Optimistic patches are **layers** over the base store (recomputed base +
   pending layers), released on settle by `requestId`; settlement is idempotent.
   Answers settle in the order their requests started: an answer leaves a field,
-  or a row's deletion, that a later-started request already settled.
+  or a row's deletion, that a later-started request already settled. A repeated
+  or late `MutationSucceeded`/`MutationFailed` returns the Model it was given.
+  A field only a pending patch shows is still fetched, so a failure leaves the
+  server's value. The live ledger keeps the 256 streams most recently heard from.
   Optimistic list edits: `optimistic: ({ tempId }) => [Remote.patch(Project, tempId, {...}), ConnectionChange.prepend(projects.ref, Remote.ref(Project, tempId))]`,
   where `projects` is the `Data.query(...)` Projection above. `Remote.patch`
   values are wire-shaped: a relation is its ref key, typed `RefKey<'User'>`
