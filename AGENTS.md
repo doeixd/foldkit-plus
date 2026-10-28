@@ -834,6 +834,10 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   page render for that reason; a pre-read that forges the headers hides it.
   Read the cookie with `requests: 'navigation'` behind a reader that cannot
   write (`pageReader`).
+- **Node's `fetch` sends `Sec-Fetch-Mode: cors` whatever it is given,** so a
+  test simulating a browser navigation with it is refused by a navigation
+  resolver. Send such requests through `node:http`, as
+  `examples/reference/test/worker.test.ts` does.
 - **A browser `WebSocket` sends no header of yours.** Its constructor takes
   a URL and subprotocols only, so a CSRF header (`x-effect-auth-csrf`) that
   every Remote POST carries never reaches a Sync upgrade; a resolver asking

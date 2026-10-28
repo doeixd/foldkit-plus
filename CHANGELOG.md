@@ -379,6 +379,21 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A write's answer, stamps, live reads and page reads, after a security
+  review:**
+  - A declared write's answer names the rows its row points at only for a
+    write that wrote, reads them as the asker may see the row, and reads back
+    only rows its own read returns; a delete that deleted nothing answers the
+    same whether the row was hidden or never there.
+  - `bind` refuses an Entity that stamps only one of a field and a relation
+    stored on the same column, and a writer refuses a write that sets a
+    member stored on a stamped member's column.
+  - A live hub whose `key` shares re-reads still reads a per-viewer member
+    (`Derived.exists`) once per viewer.
+  - A `requests: 'navigation'` resolver refuses a protocol upgrade, and a
+    request whose `Sec-Fetch-Mode` is not `navigate`.
+  - Chirp's server accepts a like only under the id derived from its post and
+    its liker.
 - **CHECKs derived from an Entity agree with its Schema on NaN, NUL and
   float4** (#259). On Postgres each numeric bound decides NaN as Effect does
   (an upper bound accepts it, a lower bound refuses it); on SQLite, which
