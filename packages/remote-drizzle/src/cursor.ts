@@ -228,8 +228,18 @@ export const keysOf = (
 /** What marks a cursor holding key values, apart from an id from before them. */
 const KEYED = 'k:'
 
-/** One key value as JSON keeps it: a date and a bigint tagged, so they come back as themselves. */
+/** The numbers JSON writes as `null`, by the name `Number` reads back. */
+const nonFinite = new Set(['Infinity', '-Infinity', 'NaN'])
+
+/**
+ * One key value as JSON keeps it: a date, a bigint and a number JSON has no
+ * word for (which it writes as `null`, and a page after it would read as
+ * one) tagged, so they come back as themselves.
+ */
 const encodeKey = (value: unknown): Option.Option<unknown> => {
+  if (typeof value === 'number' && !Number.isFinite(value)) {
+    return Option.some({ $number: String(value) })
+  }
   if (value === null || ['string', 'number', 'boolean'].includes(typeof value)) {
     return Option.some(value)
   }
@@ -249,6 +259,9 @@ const decodeKey = (value: unknown): Option.Option<unknown> => {
     }
     if ('$bigint' in value && typeof value.$bigint === 'string' && /^-?\d+$/.test(value.$bigint)) {
       return Option.some(BigInt(value.$bigint))
+    }
+    if ('$number' in value && typeof value.$number === 'string' && nonFinite.has(value.$number)) {
+      return Option.some(Number(value.$number))
     }
   }
   return Option.none()

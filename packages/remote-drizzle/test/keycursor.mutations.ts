@@ -3,10 +3,27 @@
  * `pnpm mutate packages/remote-drizzle/test/keycursor.mutations.ts`.
  */
 const tests = ['packages/remote-drizzle/test/keycursor.test.ts']
+const nonFiniteTests = [...tests, 'packages/remote-drizzle/test/nonFiniteKey.test.ts']
 const cursor = '../src/cursor.ts'
 const index = '../src/index.ts'
 
 export default [
+  {
+    name: 'a number JSON cannot write is kept as null',
+    edits: [
+      {
+        file: cursor,
+        find: "if (typeof value === 'number' && !Number.isFinite(value)) {",
+        replace: 'if (false) {',
+      },
+    ],
+    tests: nonFiniteTests,
+  },
+  {
+    name: 'any tagged number is read back',
+    edits: [{ file: cursor, find: ' && nonFinite.has(value.$number)', replace: '' }],
+    tests,
+  },
   {
     name: 'a page ends on its row’s id, not its keys',
     edits: [
@@ -34,9 +51,9 @@ export default [
     edits: [
       {
         file: cursor,
-        find: '      return Option.some(BigInt(value.$bigint))\n    }\n  }\n  return Option.none()',
+        find: '      return Option.some(Number(value.$number))\n    }\n  }\n  return Option.none()',
         replace:
-          '      return Option.some(BigInt(value.$bigint))\n    }\n  }\n  return Option.some(value)',
+          '      return Option.some(Number(value.$number))\n    }\n  }\n  return Option.some(value)',
       },
     ],
     tests,

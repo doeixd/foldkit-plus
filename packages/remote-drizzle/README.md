@@ -780,7 +780,8 @@ id among them (`k:[...]`). The next page's keyset predicate is built from those
 values, so "load more" carries on after the last row read was deleted, stopped
 matching, or moved, from where the page ended. A cursor is client input, and
 is refused unless it holds exactly one key value (text, a number, a boolean,
-null, or a tagged date or bigint) for each term of the order it pages. A cursor
+null, or a tagged date, bigint, or `Infinity`, `-Infinity` or `NaN`, which JSON
+would write as null) for each term of the order it pages. A cursor
 from before keys is a row id, still read by re-reading that row's keys; one
 whose row is gone fails rather than restarting at page one.
 

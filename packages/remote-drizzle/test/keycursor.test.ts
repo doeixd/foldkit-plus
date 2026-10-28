@@ -102,6 +102,14 @@ describe('a cursor is client input, read as one', () => {
     expect(readCursor(cursor, 4)).toEqual(CursorRead.Keys({ values: [at, 12n, 'a', null] }))
   })
 
+  it('carries a number JSON has no word for back as itself, not as null', () => {
+    const cursor = Option.getOrThrow(keyCursor([Infinity, -Infinity, NaN, null]))
+    expect(readCursor(cursor, 4)).toEqual(
+      CursorRead.Keys({ values: [Infinity, -Infinity, NaN, null] }),
+    )
+    expect(readCursor('k:[{"$number":"1e400"}]', 1)._tag).toBe('Invalid')
+  })
+
   it('is refused when it is not JSON, holds other than key values, or counts other terms', () => {
     expect(readCursor('k:{nope', 2)._tag).toBe('Invalid')
     expect(readCursor('k:[1]', 2)._tag).toBe('Invalid')
