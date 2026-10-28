@@ -1660,6 +1660,64 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
 
+  examples/reference:
+    dependencies:
+      '@effect/sql-d1':
+        specifier: ^4.0.5
+        version: 4.0.5(effect@4.0.5)
+      '@yielded/auth':
+        specifier: 0.1.0-beta.43
+        version: 0.1.0-beta.43(effect@4.0.5)
+      '@yielded/auth-persistence-drizzle':
+        specifier: 0.1.0-beta.43
+        version: 0.1.0-beta.43(@effect/sql-d1@4.0.5(effect@4.0.5))(@effect/sql-pg@4.0.5(effect@4.0.5))(@effect/sql-sqlite-node@4.0.5(effect@4.0.5))(@effect/sql-sqlite-wasm@4.0.5(@effect/wa-sqlite@0.1.2)(effect@4.0.5))(drizzle-orm@1.0.0-rc.5(@cloudflare/workers-types@5.20261022.1)(@effect/sql-d1@4.0.5(effect@4.0.5))(@effect/sql-pg@4.0.5(effect@4.0.5))(@effect/sql-sqlite-node@4.0.5(effect@4.0.5))(@effect/sql-sqlite-wasm@4.0.5(@effect/wa-sqlite@0.1.2)(effect@4.0.5))(@electric-sql/pglite@0.5.11)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.5)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.15.1)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.1))(effect@4.0.5)
+      drizzle-orm:
+        specifier: 1.0.0-rc.5
+        version: 1.0.0-rc.5(@cloudflare/workers-types@5.20261022.1)(@effect/sql-d1@4.0.5(effect@4.0.5))(@effect/sql-pg@4.0.5(effect@4.0.5))(@effect/sql-sqlite-node@4.0.5(effect@4.0.5))(@effect/sql-sqlite-wasm@4.0.5(@effect/wa-sqlite@0.1.2)(effect@4.0.5))(@electric-sql/pglite@0.5.11)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.5)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.15.1)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.1)
+      effect:
+        specifier: ^4.0.5
+        version: 4.0.5
+      foldkit:
+        specifier: 0.169.0
+        version: 0.169.0(@effect/platform-browser@4.0.5(effect@4.0.5))(effect@4.0.5)
+      foldkit-auth:
+        specifier: workspace:*
+        version: link:../../packages/auth
+      foldkit-mixins-ui:
+        specifier: workspace:*
+        version: link:../../packages/mixins-ui
+      foldkit-plus:
+        specifier: workspace:*
+        version: link:../../packages/plus
+      foldkit-remote-drizzle:
+        specifier: workspace:*
+        version: link:../../packages/remote-drizzle
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: 5.20261022.1
+        version: 5.20261022.1
+      '@foldkit/vite-plugin':
+        specifier: 0.28.0
+        version: 0.28.0(effect@4.0.5)(foldkit@0.169.0(@effect/platform-browser@4.0.5(effect@4.0.5))(effect@4.0.5))(redis@6.2.1(@opentelemetry/api@1.9.1))(vite@8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
+      playwright:
+        specifier: ^1.64.1
+        version: 1.64.1
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+      vite:
+        specifier: 8.3.5
+        version: 8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+      wrangler:
+        specifier: 4.116.0
+        version: 4.116.0(@cloudflare/workers-types@5.20261022.1)
+
   examples/registry:
     dependencies:
       '@effect/sql-sqlite-wasm':

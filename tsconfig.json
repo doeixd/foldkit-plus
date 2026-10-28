@@ -70,6 +70,7 @@
     { "path": "./examples/auth" },
     { "path": "./examples/todo-app" },
     { "path": "./examples/chirp" },
+    { "path": "./examples/reference" },
     { "path": "./examples/richtext" },
     { "path": "./examples/form" },
     { "path": "./examples/foldkit/counter" },

@@ -1,0 +1,24 @@
+name = "foldkit-reference"
+# Written by `pnpm build` (`src/bundle.ts`): bundled the way the tests bundle
+# it, with the workspace's source condition, so Wrangler bundles nothing.
+main = "dist/worker.js"
+no_bundle = true
+# The local stack reads this file (`src/stack.ts`), so a deploy runs what the
+# tests ran. `nodejs_compat` is for Yielded's password hashing.
+compatibility_date = "2026-07-30"
+compatibility_flags = ["nodejs_compat"]
+
+# The page's build. Every request reaches the Worker first: it serves
+# `/assets/` from here, and renders every page into `index.html` itself.
+[assets]
+directory = "dist/client"
+binding = "ASSETS"
+run_worker_first = true
+
+# Local runs need no account. A deploy creates its own database
+# (`wrangler d1 create foldkit-reference`) and puts its id here.
+[[d1_databases]]
+binding = "DB"
+database_name = "foldkit-reference"
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"

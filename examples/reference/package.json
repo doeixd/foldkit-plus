@@ -1,0 +1,34 @@
+{
+  "name": "foldkit-example-reference",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "build": "vite build && tsx src/bundle.ts",
+    "dev": "tsx src/dev.ts",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@yielded/auth": "0.1.0-beta.43",
+    "@yielded/auth-persistence-drizzle": "0.1.0-beta.43",
+    "@effect/sql-d1": "^4.0.5",
+    "drizzle-orm": "1.0.0-rc.5",
+    "effect": "^4.0.5",
+    "foldkit": "0.169.0",
+    "foldkit-auth": "workspace:*",
+    "foldkit-mixins-ui": "workspace:*",
+    "foldkit-plus": "workspace:*",
+    "foldkit-remote-drizzle": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261022.1",
+    "@foldkit/vite-plugin": "0.28.0",
+    "esbuild": "0.28.2",
+    "playwright": "^1.64.1",
+    "tsx": "^4.23.15",
+    "typescript": "7.0.2",
+    "vite": "8.3.5",
+    "wrangler": "4.116.0"
+  }
+}
