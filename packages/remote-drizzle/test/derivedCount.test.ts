@@ -130,7 +130,7 @@ describe('a Derived.count, refused where it is bound', () => {
           Project: { table: projects, relations: { lead: { field: projects.leadId } } },
         },
       ),
-    ).toThrow('counts Comment.project, but Comment is not being bound')
+    ).toThrow('reads Comment.project, but Comment is not being bound')
   })
 })
 

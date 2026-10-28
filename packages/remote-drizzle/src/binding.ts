@@ -103,6 +103,12 @@ export interface ComputedConfig {
    * then only names it.
    */
   readonly over?: ManyRelation<AnyEntityBinding> | undefined
+  /**
+   * What makes it a `Derived.exists`: the column of the counted rows that
+   * points at the reader, and the Entity it points at. The member is then the
+   * id of a counted row whose column holds the source's `viewer`, or null.
+   */
+  readonly viewer?: { readonly column: AnyColumn; readonly entity: string } | undefined
   /** An optional filter on the counted rows. */
   readonly where?: SQL | undefined
 }

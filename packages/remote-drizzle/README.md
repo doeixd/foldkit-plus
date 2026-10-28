@@ -297,6 +297,7 @@ source(Db.Post) // an ordinary binding
 | `one` relation | `{ field }`: the foreign key on the owner's table |
 | `many` relation | `{ foreignKey, localKey? }` on the target's table (`localKey` defaults to the owner's `id`), or `{ through, localColumn, foreignColumn }` |
 | `Derived.count(Other.relations.pointer)` | nothing: counted on the pointing table by its `{ field }` column |
+| `Derived.exists(Other.relations.pointer, { viewer })` | nothing: found on the pointing table by both relations' `{ field }` columns |
 | `Derived.make` | `{ relation, where? }`: a count of a `many` relation, or `{ supplied: true }` |
 
 `orderBy` and `where` go on a `many` storage as they do on `many(…)`.
@@ -305,6 +306,24 @@ A `Derived.count` says what it counts, so it takes no entry: `bind` counts the
 rows of the pointing Entity's table by the column its `one` relation is stored
 on (`{ field }`), under that table's `visible` rule, and refuses an entry for it.
 The pointing Entity must be bound in the same call.
+
+A `Derived.exists` takes no entry either. Its value depends on who reads it, so
+its `source` must say who that is, as a row, or none for a visitor:
+
+```ts
+source(Db.Post, {
+  viewer: (principal: Option.Option<User>) =>
+    Option.map(principal, user => ({ entity: 'User', id: user.id })),
+})
+```
+
+For each row read it finds the least id among the pointing rows whose `viewer`
+relation's column holds that id, under the pointing table's `visible` rule, in
+one statement per read, as a count does. A visitor, or a reader of an Entity
+the `viewer` relation does not point at, reads none. A `source` of a binding
+with one and no `viewer` throws, and so does one listing it as `shared`: a
+shared field goes to every live subscriber as written, and this one is each
+reader's own.
 
 A `Derived.make` member is a count of a `many` relation, `{ relation, where? }`,
 which is how a join table with no Entity is counted. One it cannot compute is `{ supplied: true }`: `bind` registers the

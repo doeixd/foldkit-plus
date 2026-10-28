@@ -395,6 +395,15 @@ export const source = <P = unknown>(
     readonly filter?: EntitySource<P, DrizzleDatabase>['filter'] | undefined
     /** The fields every principal reads alike, of every row: see `EntitySource.shared`. */
     readonly shared?: ReadonlyArray<string> | undefined
+    /**
+     * Who is reading, as a row (`{ entity, id }`), or none for a visitor:
+     * what each `Derived.exists` of the binding is answered for. Required
+     * when the binding has one. A member whose viewer relation points at
+     * another Entity reads none for this reader.
+     */
+    readonly viewer?:
+      | ((principal: P) => Option.Option<{ readonly entity: string; readonly id: string }>)
+      | undefined
     readonly policies?:
       | Readonly<Record<string, ((principal: P) => SQL | undefined) | undefined>>
       | undefined
@@ -412,6 +421,22 @@ export const source = <P = unknown>(
   if (unserved.length > 0) {
     throw new Error(
       `[foldkit-remote-drizzle] ${binding.name}'s shared fields name no member: ${unserved.join(', ')}`,
+    )
+  }
+  const perViewer = Object.keys(binding.computed).filter(
+    field => binding.computed[field]!.viewer !== undefined,
+  )
+  if (perViewer.length > 0 && options?.viewer === undefined) {
+    throw new Error(
+      `[foldkit-remote-drizzle] ${binding.name}'s ${perViewer.join(', ')} depend on who reads them (Derived.exists): give source a viewer`,
+    )
+  }
+  const viewerOf = options?.viewer ?? (() => Option.none())
+  // A shared field's written value goes to every subscriber as it is, and this one is each reader's own.
+  const sharedPerViewer = perViewer.filter(field => options?.shared?.includes(field) === true)
+  if (sharedPerViewer.length > 0) {
+    throw new Error(
+      `[foldkit-remote-drizzle] ${binding.name}'s ${sharedPerViewer.join(', ')} depend on who reads them, so none is shared`,
     )
   }
   return {
@@ -636,7 +661,6 @@ export const source = <P = unknown>(
                 .filter(key => key !== null && key !== undefined),
             ),
           ]
-          const counts = new Map<string, number>()
           const countVisible = yield* visibleFor(relation.entity, context.principal)
           const countRelation = pick(options?.policies, computed.relation)?.(context.principal)
           // A count of rows the principal may not see would say how many there are.
@@ -644,6 +668,42 @@ export const source = <P = unknown>(
             countRelation === undefined || countVisible === undefined
               ? (countRelation ?? countVisible)
               : and(countRelation, countVisible)
+          const keyOf = (row: Record<string, unknown>): Option.Option<string> =>
+            Option.map(Option.fromNullishOr(row[side.parentKey.name]), String)
+          const viewing = computed.viewer
+          if (viewing !== undefined) {
+            // A Derived.exists: the least id among the rows pointing here and at the reader.
+            const reader = Option.filter(
+              viewerOf(context.principal),
+              ref => ref.entity === viewing.entity,
+            )
+            const found = new Map<string, string>()
+            if (parentKeys.length > 0 && Option.isSome(reader)) {
+              const witness = sql<string>`min(${side.child})`
+              const witnessRows = yield* selectRows(
+                database,
+                side.table,
+                { witness, parent: side.parent },
+                {
+                  where: withFilters(
+                    inArray(side.parent, parentKeys),
+                    eq(viewing.column, reader.value.id),
+                    countPolicy,
+                  ),
+                  innerJoin: side.join,
+                  groupBy: [side.parent],
+                },
+              )
+              for (const witnessRow of witnessRows)
+                found.set(String(witnessRow.parent), String(witnessRow.witness))
+            }
+            for (const row of rows)
+              row[field] = Option.getOrNull(
+                Option.flatMap(keyOf(row), key => Option.fromUndefinedOr(found.get(key))),
+              )
+            continue
+          }
+          const counts = new Map<string, number>()
           if (parentKeys.length > 0) {
             const count = sql<number>`count(*)`.mapWith(Number)
             const countRows = yield* selectRows(
@@ -660,10 +720,11 @@ export const source = <P = unknown>(
               counts.set(String(countRow.parent), Number(countRow.count))
             }
           }
-          for (const row of rows) {
-            const key = row[side.parentKey.name]
-            row[field] = key === null || key === undefined ? 0 : (counts.get(String(key)) ?? 0)
-          }
+          for (const row of rows)
+            row[field] = Option.match(keyOf(row), {
+              onNone: () => 0,
+              onSome: key => counts.get(key) ?? 0,
+            })
         }
 
         return rows.map(row => ({ id: String(row.id), values: row }))

@@ -79,6 +79,8 @@ type RelationStorage<Relation> =
       : ManyStorage | ThroughStorage
     : never
 
+type OneDomainRelation = Domain.EntityRelation<string, string, Domain.AnyEntity, 'one', boolean>
+
 type ManyKeys<E extends Domain.AnyEntity> = {
   [K in keyof E['relations']]: E['relations'][K] extends Domain.EntityRelation<
     any,
@@ -287,26 +289,19 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
     fail(`relation "${relation}" on entity "${owner}" targets an Entity that is not being bound`)
 
   /**
-   * A `Derived.count`'s rows: the pointing Entity's table, grouped by the
-   * column its `one` relation is stored on, which references the counted id.
+   * A `Derived.count`'s or `Derived.exists`'s rows: the pointing Entity's
+   * table, grouped by the column its `one` relation is stored on, which
+   * references the counted id.
    */
   const pointing = (
-    relation: Domain.EntityRelation<string, string, Domain.AnyEntity, 'one', boolean>,
+    relation: OneDomainRelation,
     owner: string,
     field: string,
     ownerId: AnyColumn | undefined,
   ): ComputedConfig => {
     const counted = `${relation.owner.name}.${relation.key}`
-    const pointingKey =
-      Object.keys(entities).find(key => entities[key]!.identity.token === relation.owner.token) ??
-      fail(
-        `derived "${field}" on entity "${owner}" counts ${counted}, but ${relation.owner.name} is not being bound`,
-      )
-    const foreignKey =
-      tables[pointingKey]?.relations?.[relation.key]?.field ??
-      fail(
-        `derived "${field}" on entity "${owner}" counts ${counted}, which must be stored on ${relation.owner.name}'s own table ({ field })`,
-      )
+    const pointingKey = pointingKeyOf(relation, owner, field)
+    const foreignKey = storedOn(pointingKey, relation, owner, field)
     const over = Object.defineProperty(
       {
         kind: 'many',
@@ -319,6 +314,24 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
     ) as ManyRelation<AnyEntityBinding>
     return { relation: counted, over }
   }
+
+  const pointingKeyOf = (relation: OneDomainRelation, owner: string, field: string): string =>
+    Object.keys(entities).find(key => entities[key]!.identity.token === relation.owner.token) ??
+    fail(
+      `derived "${field}" on entity "${owner}" reads ${relation.owner.name}.${relation.key}, but ${relation.owner.name} is not being bound`,
+    )
+
+  /** The column a `one` relation of the pointing Entity is stored on, its own table's. */
+  const storedOn = (
+    pointingKey: string,
+    relation: OneDomainRelation,
+    owner: string,
+    field: string,
+  ): AnyColumn =>
+    tables[pointingKey]?.relations?.[relation.key]?.field ??
+    fail(
+      `derived "${field}" on entity "${owner}" reads ${relation.owner.name}.${relation.key}, which must be stored on ${relation.owner.name}'s own table ({ field })`,
+    )
 
   for (const [key, entity] of Object.entries(entities)) {
     const name = entity.name
@@ -408,6 +421,19 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
               `derived "${field}" on entity "${name}" is a Derived.count, which bind compiles; give it no entry`,
             )
           return Option.some(pointing(relation, name, field, columns.id))
+        },
+        Exists: ({ relation, viewer }): Option.Option<ComputedConfig> => {
+          if (Object.hasOwn(counts, field))
+            fail(
+              `derived "${field}" on entity "${name}" is a Derived.exists, which bind compiles; give it no entry`,
+            )
+          return Option.some({
+            ...pointing(relation, name, field, columns.id),
+            viewer: {
+              column: storedOn(pointingKeyOf(viewer, name, field), viewer, name, field),
+              entity: viewer.target().name,
+            },
+          })
         },
         Supplied: (): Option.Option<ComputedConfig> => {
           const stored =

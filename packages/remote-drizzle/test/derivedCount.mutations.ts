@@ -13,8 +13,8 @@ export default [
   edit(
     'a count entry is accepted',
     '../src/bind.ts',
-    'if (Object.hasOwn(counts, field))',
-    'if (false)',
+    'if (Object.hasOwn(counts, field))\n            fail(\n              `derived "${field}" on entity "${name}" is a Derived.count',
+    'if (false)\n            fail(\n              `derived "${field}" on entity "${name}" is a Derived.count',
   ),
   edit(
     'the count is not compiled',
