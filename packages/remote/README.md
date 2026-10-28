@@ -1393,6 +1393,17 @@ Those settlement Messages go through `Data.reduce` like every other Remote fact.
 The request id comes from the Remote Model's sequence, so `update` stays pure.
 Settling is idempotent per `requestId`.
 
+**Answers settle in the order their requests started, not the order they
+arrive.** The server applied the requests in that order, so an answer does not
+overwrite a field, or clear a row's deletion, that a request started after it
+has already settled; and an answer's `deleted` does not delete a row a later
+request has written. Two renames answered out of order keep the second name,
+and an edit answered after the row's delete leaves it deleted. Reads and live
+patches are the server's word at the time they arrive and land as they come.
+The ledger keeps each pending request's place in `mutations.order`, and the
+place of the last answer to write each field in `mutations.settled`, only
+while an earlier request is still pending.
+
 A mutation that deletes says so. The server's outcome carries
 `deleted: [{ entity, id }]`, and settling it tombstones those entities: they read
 `NotFound`, and they leave every connection and relation they were in, so the

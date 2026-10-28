@@ -84,6 +84,14 @@ export interface MutationState {
    * Command runs.
    */
   readonly sequence: number
+  /** Where each pending request falls in `sequence`: the order its answer is applied in. */
+  readonly order: ReadonlyMap<string, number>
+  /**
+   * The order of the last answer that wrote each row field (`entity:id\0field`)
+   * or deleted each row (`entity:id`), kept only while a request started
+   * before it is pending, since only that request's answer is compared with it.
+   */
+  readonly settled: ReadonlyMap<string, number>
 }
 
 export const emptyMutationState: MutationState = {
@@ -94,6 +102,8 @@ export const emptyMutationState: MutationState = {
   operations: new Map(),
   writes: new Map(),
   sequence: 0,
+  order: new Map(),
+  settled: new Map(),
 }
 
 /**
@@ -123,6 +133,7 @@ export const beginMutation = (
   pending: new Set([...state.pending, requestId]),
   writes: write === undefined ? state.writes : new Map([...state.writes, [requestId, write]]),
   sequence: state.sequence + 1,
+  order: new Map([...state.order, [requestId, state.sequence + 1]]),
 })
 
 export const failMutation = (
@@ -141,7 +152,26 @@ export const failMutation = (
   for (const id of errors.keys()) if (!failed.has(id)) errors.delete(id)
   for (const id of operations.keys()) if (!failed.has(id)) operations.delete(id)
   for (const id of writes.keys()) if (!failed.has(id) && !pending.has(id)) writes.delete(id)
-  return { ...state, pending, failed, errors, operations, writes }
+  return { ...state, pending, failed, errors, operations, writes, ...ordered(state, requestId, []) }
+}
+
+/**
+ * `order` without a request that settled, and `settled` with what its answer
+ * wrote (`marks`), each kept only while a request started before it is pending.
+ */
+const ordered = (
+  state: MutationState,
+  requestId: string,
+  marks: ReadonlyArray<string>,
+): Pick<MutationState, 'order' | 'settled'> => {
+  const at = state.order.get(requestId)
+  const order = new Map(state.order)
+  order.delete(requestId)
+  const earliest = Math.min(...order.values())
+  const settled = new Map<string, number>()
+  for (const [mark, by] of state.settled) if (by > earliest) settled.set(mark, by)
+  if (at !== undefined && at > earliest) for (const mark of marks) settled.set(mark, at)
+  return { order, settled }
 }
 
 /** The ledger with a request's failure forgotten: its id, error, operation and write. */
@@ -205,25 +235,51 @@ export const reconcileMutation = (
   requestId: string,
   answer: MutationAnswer,
 ): Reconciled => {
+  const repeated = state.applied.has(requestId)
+  // The server applied requests in the order they started, so what a later
+  // one's answer already settled is newer than this answer: the fields it
+  // wrote, and its deletion of a row, stay. An answer of a request no longer
+  // pending (after `forget`, or a failure) has no order and is applied as it comes.
+  const at = state.order.get(requestId) ?? Infinity
+  const newer = (mark: string): boolean => (state.settled.get(mark) ?? -Infinity) > at
+  const writes = repeated
+    ? []
+    : answer.entities.flatMap(entity => {
+        const key = entityKey(entity.entity, entity.id)
+        if (newer(key)) return []
+        const values = Object.fromEntries(
+          Object.entries(entity.values).filter(([field]) => !newer(`${key}\u0000${field}`)),
+        )
+        return Object.keys(values).length === 0 ? [] : [{ key, values }]
+      })
+  const rewritten = (key: string): boolean =>
+    [...state.settled].some(([mark, by]) => by > at && mark.startsWith(`${key}\u0000`))
+  const deleted = repeated
+    ? []
+    : (answer.deleted ?? [])
+        .map(gone => entityKey(gone.entity, gone.id))
+        .filter(key => !rewritten(key))
   // Patches first, then deletions: a mutation that names an entity both ways has deleted it.
-  const next = state.applied.has(requestId)
-    ? store
-    : (answer.deleted ?? []).reduce(
-        (current, gone) => tombstone(current, entityKey(gone.entity, gone.id)),
-        writeEntities(
-          store,
-          answer.entities.map(entity => ({
-            key: entityKey(entity.entity, entity.id),
-            values: entity.values,
-          })),
-          answer.now,
-        ),
-      )
+  const next = deleted.reduce(tombstone, writeEntities(store, writes, answer.now))
   const applied = remember(state.applied, requestId)
   const pending = new Set(state.pending)
   pending.delete(requestId)
+  const marks = [
+    ...writes.flatMap(write =>
+      Object.keys(write.values).map(field => `${write.key}\u0000${field}`),
+    ),
+    ...deleted,
+  ]
   // A retry that applies is no longer a failure to list.
-  return { store: next, state: { ...forgetFailure(state, requestId), applied, pending } }
+  return {
+    store: next,
+    state: {
+      ...forgetFailure(state, requestId),
+      applied,
+      pending,
+      ...ordered(state, requestId, marks),
+    },
+  }
 }
 
 /** A mutation an application declares: its name and input/output codecs. */
