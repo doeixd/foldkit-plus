@@ -8,7 +8,15 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Entity as DomainEntity, Expr, Operators, Order, evaluate } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
-import { Query, Remote, type RemoteModel } from '../src/index.js'
+import { Query, Remote, type PlacementMismatch, type RemoteModel } from '../src/index.js'
+
+/** The placement mismatches `remote` records, as the facts each names. */
+const mismatchesOf = (remote: RemoteModel) =>
+  remote.diagnostics
+    .filter(
+      (diagnostic): diagnostic is PlacementMismatch => diagnostic._tag === 'PlacementMismatch',
+    )
+    .map(({ connection, placed, served }) => ({ connection, placed, served }))
 
 const Project = DomainEntity.define(
   'Project',
@@ -97,7 +105,7 @@ describe('verifyPlacement', () => {
     })
     expect(moved.remote.placed[list]).toEqual({ order: ['Project:p2'], dropped: ['Project:p1'] })
     const checked = served(Data, moved, ['p2', 'p1'])
-    expect(checked.remote.placementMismatches).toEqual([
+    expect(mismatchesOf(checked.remote)).toEqual([
       { connection: list, placed: ['Project:p2'], served: ['Project:p2'] },
     ])
   })
@@ -105,22 +113,28 @@ describe('verifyPlacement', () => {
   it('records nothing when the server lists the rows as placed, and lets the order go', () => {
     const Data = make(true)
     const checked = served(Data, repriced(Data), ['p2', 'p1'])
-    expect(checked.remote.placementMismatches).toEqual([])
+    expect(mismatchesOf(checked.remote)).toEqual([])
     expect(checked.remote.placed[list]).toBeUndefined()
   })
 
   it('records a disagreement with the server’s order', () => {
     const Data = make(true)
     const checked = served(Data, repriced(Data), ['p1', 'p2'])
-    expect(checked.remote.placementMismatches).toEqual([
+    expect(mismatchesOf(checked.remote)).toEqual([
       {
         connection: list,
         placed: ['Project:p2', 'Project:p1'],
         served: ['Project:p1', 'Project:p2'],
       },
     ])
-    // And it is what an inspection shows.
-    expect(Data.inspect(checked).placementMismatches).toEqual(checked.remote.placementMismatches)
+    // And it is what an inspection shows, said for a log.
+    expect(Data.inspect(checked).diagnostics).toEqual(checked.remote.diagnostics)
+    expect(checked.remote.diagnostics[0]).toMatchObject({
+      _tag: 'PlacementMismatch',
+      source: 'foldkit-remote',
+      level: 'warning',
+      message: `The client placed rows in ${list} as [Project:p2, Project:p1], and the server's first page lists [Project:p1, Project:p2]: the client's order and the server's disagree.`,
+    })
   })
 
   it('checks a placement a read made, as an answer’s', () => {
@@ -216,16 +230,18 @@ describe('verifyPlacement over a list ordered by a call', () => {
     })
     return {
       placed: written.remote.placed[nearest],
-      mismatches: Data.reduce(written, {
-        _tag: 'ConnectionMerged',
-        connection: nearest,
-        refreshes: true,
-        page: {
-          edges: page(server, moved),
-          start: { _tag: 'Terminal' },
-          end: { _tag: 'Terminal' },
-        },
-      }).remote.placementMismatches,
+      mismatches: mismatchesOf(
+        Data.reduce(written, {
+          _tag: 'ConnectionMerged',
+          connection: nearest,
+          refreshes: true,
+          page: {
+            edges: page(server, moved),
+            start: { _tag: 'Terminal' },
+            end: { _tag: 'Terminal' },
+          },
+        }).remote,
+      ),
     }
   }
 

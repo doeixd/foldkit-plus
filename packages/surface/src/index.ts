@@ -20,6 +20,7 @@ import type { Url } from 'foldkit/url'
 import { Metadata, type MetadataSummary } from 'foldkit-metadata'
 
 export { Metadata, MetadataTypeId, type MetadataKey, type MetadataSummary } from 'foldkit-metadata'
+export { Diagnostics, type Diagnostic, type ReportDiagnostic } from './diagnostics.js'
 
 // ===========================================================================
 // ModelRef and the typed Model tree (Phase 0 cases 1)

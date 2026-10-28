@@ -4,7 +4,7 @@
  * change it, and the pure reducer over them.
  */
 import { Option, Schema } from 'effect'
-import type { AnswerGap } from './answerGaps.js'
+import { placementMismatch, withDiagnostics, type RemoteDiagnostic } from './diagnostics.js'
 import type { RelationRequirement, Requirement } from './requirement.js'
 import {
   emptyConnection,
@@ -134,10 +134,14 @@ export interface RemoteModel {
    * for it arrives to be compared with them.
    */
   readonly placed: Readonly<Record<string, PlacedOrder>>
-  /** Under `verifyPlacement`, each placement the server's page disagreed with. */
-  readonly placementMismatches: ReadonlyArray<PlacementMismatch>
-  /** Under `verifyAnswers`, each row an answer left without fields the client showed. */
-  readonly answerGaps: ReadonlyArray<AnswerGap>
+  /**
+   * What the client met and kept going past, oldest first: under
+   * `verifyPlacement` each placement the server's page disagreed with, under
+   * `verifyAnswers` each row an answer left without fields the client showed,
+   * and each failed write the application's update does not hear. The newest
+   * 256 are kept; the wiring reports each as it is recorded.
+   */
+  readonly diagnostics: ReadonlyArray<RemoteDiagnostic>
   /**
    * What retention keeps: the active Surfaces' roots, after those of the
    * Surfaces most recently left (`departedLimit`). A list left is held stale,
@@ -150,15 +154,6 @@ export interface RemoteModel {
 export interface PlacedOrder {
   readonly order: ReadonlyArray<string>
   readonly dropped: ReadonlyArray<string>
-}
-
-/** A list the client placed rows in one order and the server then listed in another. */
-export interface PlacementMismatch {
-  readonly connection: string
-  /** The keys as placed, as far as the server's page reached. */
-  readonly placed: ReadonlyArray<string>
-  /** The keys of the server's first page. */
-  readonly served: ReadonlyArray<string>
 }
 
 /** How a live stream has fared, as its live entry restarts it. */
@@ -247,8 +242,7 @@ export const initialRemoteModel: RemoteModel = {
   failures: noFailures,
   restoredFrom: Option.none(),
   placed: {},
-  placementMismatches: [],
-  answerGaps: [],
+  diagnostics: [],
   recent: { requirements: [], connections: [] },
 }
 
@@ -274,8 +268,7 @@ export const remoteModelSchema = (): Schema.Codec<RemoteModel, unknown> =>
     }),
     restoredFrom: runtimeSchema,
     placed: runtimeSchema,
-    placementMismatches: runtimeSchema,
-    answerGaps: runtimeSchema,
+    diagnostics: runtimeSchema,
     recent: runtimeSchema,
   }) as unknown as Schema.Codec<RemoteModel, unknown>
 
@@ -440,6 +433,11 @@ export type RemoteMessage =
    * preload started from.
    */
   | { readonly _tag: 'Preloaded'; readonly messages: ReadonlyArray<RemoteMessage> }
+  /**
+   * What the Command reporting recorded diagnostics returns once it has. It
+   * changes nothing: the diagnostics stay in the Model.
+   */
+  | { readonly _tag: 'CompletedReportDiagnostics' }
 
 export const retentionRootsSchema = Schema.Struct({
   requirements: Schema.Array(ReadRequest),
@@ -520,6 +518,7 @@ export const remoteMessageCases = {
   Preloaded: {
     messages: Schema.Array(Schema.suspend(() => remoteMessageSchema)),
   },
+  CompletedReportDiagnostics: {},
 } satisfies Record<RemoteMessage['_tag'], Schema.Struct.Fields>
 
 export type RemoteMessageTag = RemoteMessage['_tag']
@@ -893,10 +892,10 @@ const checkedPlacement = (
   connection: string,
   page: { readonly edges: ReadonlyArray<{ readonly key: string }>; readonly start: Boundary },
   refreshes: boolean,
-): Pick<RemoteModel, 'placed' | 'placementMismatches'> => {
+): Pick<RemoteModel, 'placed' | 'diagnostics'> => {
   const placed = model.placed[connection]
   if (placed === undefined || !refreshes || page.start._tag !== 'Terminal') {
-    return { placed: model.placed, placementMismatches: model.placementMismatches }
+    return { placed: model.placed, diagnostics: model.diagnostics }
   }
   const { [connection]: _, ...rest } = model.placed
   const reach = Math.min(placed.order.length, page.edges.length)
@@ -908,9 +907,11 @@ const checkedPlacement = (
     !placed.dropped.some(key => listed.has(key))
   return {
     placed: rest,
-    placementMismatches: agrees
-      ? model.placementMismatches
-      : [...model.placementMismatches, { connection, placed: asPlaced, served }],
+    diagnostics: agrees
+      ? model.diagnostics
+      : withDiagnostics(model.diagnostics, [
+          placementMismatch({ connection, placed: asPlaced, served }),
+        ]),
   }
 }
 
@@ -918,6 +919,8 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
   switch (message._tag) {
     case 'Preloaded':
       return message.messages.reduce(reduceRemote, model)
+    case 'CompletedReportDiagnostics':
+      return model
     case 'ReadReceived':
       return {
         ...model,

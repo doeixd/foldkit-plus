@@ -5,7 +5,7 @@
  * route it does not serve is a 404 that reaches nothing; principal and layer
  * failures stay on this side.
  */
-import { Cause, Context, Effect, Layer, Schema } from 'effect'
+import { Context, Effect, Layer, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Entity } from 'foldkit-entity'
 import {
@@ -14,7 +14,7 @@ import {
   Remote,
   type RemoteUnauthenticated,
 } from 'foldkit-remote'
-import { Surface } from 'foldkit-surface'
+import { Surface, type Diagnostic } from 'foldkit-surface'
 import { describe, expect, it, vi } from 'vitest'
 import { serveFetch } from '../src/fetch.js'
 import { RemoteServer } from '../src/index.js'
@@ -310,30 +310,32 @@ describe('a failure answered "Internal error"', () => {
       {},
     )
   const brokenLayer = (
-    onError?: (cause: Cause.Cause<unknown>, request: Request) => Effect.Effect<void>,
+    diagnostics?: (diagnostic: Diagnostic, request: Request) => Effect.Effect<void>,
   ) =>
     serveFetch({
       server: backend.server,
       resolvePrincipal: () => Effect.succeed({ isAdmin: true }),
       layer: () => Layer.effectDiscard(Effect.die(new Error('the D1 password'))) as never,
-      onError,
+      diagnostics,
     })
 
-  it('gives onError the cause and the request, and the caller nothing of it', async () => {
+  it('reports a ServerDefect with the request, and tells the caller nothing of it', async () => {
     const reported: Array<string> = []
     const response = await ask(
-      brokenLayer((cause, request) =>
-        Effect.sync(() => reported.push(`${request.url} ${Cause.pretty(cause)}`)),
+      brokenLayer((diagnostic, request) =>
+        Effect.sync(() => reported.push(`${diagnostic._tag} ${request.url} ${diagnostic.message}`)),
       ),
     )
     expect(response.status).toBe(500)
     expect(await response.json()).toEqual({ error: 'Internal error' })
     expect(reported).toEqual([
-      expect.stringContaining('http://worker.test/remote Error: the D1 password'),
+      expect.stringMatching(
+        /^ServerDefect http:\/\/worker\.test\/remote [^]*Error: the D1 password/,
+      ),
     ])
   })
 
-  it('logs the cause when no onError is given', async () => {
+  it('logs the cause when no reporter is given', async () => {
     const logged = vi.spyOn(console, 'log').mockImplementation(() => {})
     try {
       expect((await ask(brokenLayer())).status).toBe(500)
@@ -345,14 +347,14 @@ describe('a failure answered "Internal error"', () => {
 
   it('reports a resolver that breaks, and a handler that does', async () => {
     const reported: Array<string> = []
-    const onError = (cause: Cause.Cause<unknown>) =>
-      Effect.sync(() => reported.push(Cause.pretty(cause)))
+    const diagnostics = (diagnostic: Diagnostic) =>
+      Effect.sync(() => reported.push(diagnostic.message))
     await ask(
       serveFetch({
         server: backend.server,
         resolvePrincipal: () => Effect.die(new Error('the session store password')),
         layer: () => Layer.empty as Layer.Layer<never>,
-        onError,
+        diagnostics,
       }),
     )
     const broken = RemoteServer.make<Principal, never>({
@@ -368,7 +370,7 @@ describe('a failure answered "Internal error"', () => {
         server: broken,
         resolvePrincipal: () => Effect.succeed({ isAdmin: true }),
         layer: () => Layer.empty as Layer.Layer<never>,
-        onError,
+        diagnostics,
       }),
       { operation: 'mutate', payload: { requestId: 'r1', mutation: 'Boom', input: {} } },
     )
@@ -378,7 +380,7 @@ describe('a failure answered "Internal error"', () => {
     ])
   })
 
-  it('keeps answering when onError itself breaks', async () => {
+  it('keeps answering when the reporter itself breaks', async () => {
     const response = await ask(brokenLayer(() => Effect.die(new Error('the hook is broken'))))
     expect(response.status).toBe(500)
   })

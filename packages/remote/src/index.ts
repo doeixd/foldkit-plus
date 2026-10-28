@@ -180,13 +180,17 @@ import {
 } from './requirement.js'
 import { markAll, resumePart } from './resume.js'
 import { answerGaps } from './answerGaps.js'
+import { withDiagnostics } from './diagnostics.js'
+import { reduceReporting } from './reporting.js'
 import { shownOf } from './shown.js'
 
 import { http as httpClient, json as jsonClient } from './json.js'
 import { httpWithLive as httpWithLiveClient } from './sse.js'
 export * from './client.js'
 export type { RemoteResumePart } from './resume.js'
-export type { AnswerGap } from './answerGaps.js'
+export type { AnswerGap, PlacementMismatch, RemoteDiagnostic, WriteUnheard } from './diagnostics.js'
+// The channel Remote reports into, for a server or a test that uses Remote alone.
+export { Diagnostics, type Diagnostic, type ReportDiagnostic } from 'foldkit-surface'
 export * from './coalesce.js'
 export { RemoteJsonAnswer, RemoteJsonRequest, type RemoteJsonSend } from './json.js'
 export { httpWithLive, liveFetch, type LiveFetchOptions } from './sse.js'
@@ -2262,9 +2266,14 @@ export const Remote = {
     toParentMessage: (message: RemoteMessage) => ParentMessage,
   ): RemoteFold<ModelOfDomain<Domain>, ParentMessage, Domain> => {
     type AppModel = ModelOfDomain<Domain>
-    const fold = (model: AppModel, message: RemoteMessage | RemoteMessageInput) => ({
-      model: domain.reduce(model, message),
-    })
+    // The application's own update receives every Remote Message here, so it hears each failure.
+    const fold = (model: AppModel, message: RemoteMessage | RemoteMessageInput) => {
+      const reduced = reduceReporting(domain.store, domain.reduce, model, message, true)
+      return {
+        model: reduced.model,
+        commands: (reduced.commands ?? []).map(command => mapMessage(command, toParentMessage)),
+      }
+    }
     return Object.assign(fold, {
       mutate: (...args: Parameters<Domain['mutate']>) => {
         const started = domain.mutate(
@@ -2349,15 +2358,15 @@ export const Remote = {
     /**
      * Places what the server said (a mutation's answer, a read, a live
      * patch) as usual, and also fetches each list it placed in, comparing the
-     * server's first page with the order it placed: a disagreement is kept in
-     * `placementMismatches` (`Data.inspect`). A pending edit is not checked,
+     * server's first page with the order it placed: a disagreement is a
+     * `PlacementMismatch` in `diagnostics`. A pending edit is not checked,
      * since the server does not have it yet. For development and tests, where
      * a collation that drifts should be found.
      */
     readonly verifyPlacement?: boolean | undefined
     /**
-     * Settles each mutation as usual, and also keeps in `answerGaps`
-     * (`Data.inspect`) each row whose answer left out fields the client
+     * Settles each mutation as usual, and also records an `AnswerGap` in
+     * `diagnostics` for each row whose answer left out fields the client
      * showed while it was pending (those its optimistic layer patched, and
      * those the active Surfaces read of the rows it touched) and the store
      * does not otherwise hold: they are read again, so the row reads
@@ -3150,12 +3159,18 @@ const bindDomain = <
     )
     const gaps = answerGaps(
       requestId,
+      Option.map(
+        Option.fromUndefinedOr(before.mutations.writes.get(requestId)),
+        write => write.mutation,
+      ),
       before.optimistic,
       after.optimistic,
       visibleStoreOf(after.entities, after.optimistic, operators),
       planAsked(after, askedUnion(projections), {}, operators).requirements,
     )
-    return gaps.length === 0 ? after : { ...after, answerGaps: [...after.answerGaps, ...gaps] }
+    return gaps.length === 0
+      ? after
+      : { ...after, diagnostics: withDiagnostics(after.diagnostics, gaps) }
   }
 
   /** The registered query a connection identity names, and its encoded input. */
@@ -4270,7 +4285,17 @@ const bindDomain = <
       // the assembly's claimant check keeps one assembly to one domain.
       handles: Record.keys(remoteMessageCases),
       route: (model, message) =>
-        isRemoteMessage(message) ? Option.some({ model: reduce(model, message) }) : Option.none(),
+        isRemoteMessage(message)
+          ? Option.some(
+              reduceReporting(
+                bound.store,
+                reduce,
+                model,
+                message,
+                (options.shared ?? []).some(tag => tag === 'MutationFailed'),
+              ),
+            )
+          : Option.none(),
       subscriptions: brandEntries(domain.subscriptions(active, options)),
       contract: bound.contract,
     }),

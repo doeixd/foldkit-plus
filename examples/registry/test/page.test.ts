@@ -238,12 +238,12 @@ const mount = async (
     replica,
     mounted,
     // Every list the page placed rows in was fetched too (`verifyPlacement`,
-    // on in tests), and none disagreed with the server's order.
+    // on in tests), and none disagreed with the server's order: nothing was diagnosed.
     dispose: async () => {
-      const mismatches = Data.inspect(mounted.model()).placementMismatches
+      const diagnostics = Data.inspect(mounted.model()).diagnostics
       await dispose()
       frames.dispose()
-      expect(mismatches).toEqual([])
+      expect(diagnostics).toEqual([])
     },
     exchange,
     transport,

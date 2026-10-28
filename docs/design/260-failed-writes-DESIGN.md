@@ -1,9 +1,9 @@
 # A failed write is the ledger's to keep (#260)
 
 Status: built (2026-10-27) in `foldkit-remote`: `Data.failedWrites`,
-`Data.retry`, `Data.dismiss`, and the wiring's `shared`. Deferred: a
-development warning about a failure nobody reads, which waits for #237's
-diagnostics channel.
+`Data.retry`, `Data.dismiss`, and the wiring's `shared`. The development
+warning about a failure nobody reads shipped with #237's diagnostics channel
+(2026-10-27) as `WriteUnheard`.
 
 ## The problem
 

@@ -1456,9 +1456,9 @@ does not run is judged by the server, as any row the client cannot judge is:
 verifyPlacement: true })` places as usual, and also fetches each list it placed
 what the server said in (an answer, as above, or a read or a live patch, as
 below); when the server's first page arrives it is compared with the order
-placed, and a disagreement is kept in `model.remote.placementMismatches` (and
-`Data.inspect`): an order the page does not share, or a row placing took out
-that the page still lists. A pending edit is not checked: the server does not have it
+placed, and a disagreement is a `PlacementMismatch` [diagnostic](#diagnostics):
+an order the page does not share, or a row placing took out that the page
+still lists. A pending edit is not checked: the server does not have it
 yet. Turn it on in development and tests: a collation the client
 and the server disagree on then fails an assertion instead of misplacing a row
 for a reader.
@@ -1545,6 +1545,10 @@ receives it with a Model that already lists it:
 Page.assemble(Data.wiring(actives, { shared: ['MutationFailed'] }))
 // own update: MutationFailed is now one of its Messages, so its match must answer it
 ```
+
+A wiring that does not share it records each failed write as a `WriteUnheard`
+[diagnostic](#diagnostics), which by default logs it: the change went, and
+nothing in the application's update was told.
 
 A mutation can say what the server may refuse it with, as data rather than a
 message to parse:
@@ -1691,12 +1695,12 @@ When the answer comes, the request's layer comes off, and what the row shows
 is what the store holds. A field the layer showed that the answer left out,
 and the store does not hold, is then missing: an active Surface that reads it
 fetches it again, and the row reads `Loading` meanwhile. `Remote.make({ ...,
-verifyAnswers: true })` settles every mutation as usual and also keeps each
-such row in `model.remote.answerGaps` (and `Data.inspect(model).answerGaps`):
+verifyAnswers: true })` settles every mutation as usual and also records each
+such row as an `AnswerGap` [diagnostic](#diagnostics):
 
 ```ts
-// requestId: the one Data.mutate returned
-{ requestId, entity: 'Post', id: 'p9', fields: ['editedAt', 'author'] }
+// requestId: the one Data.mutate returned; mutation: its name
+{ _tag: 'AnswerGap', requestId, mutation: Option.some('CreatePost'), entity: 'Post', id: 'p9', fields: ['editedAt', 'author'], … }
 ```
 
 A row's shown fields are those the request's optimistic patch wrote, added
@@ -1705,8 +1709,8 @@ Surfaces (every `Data.subscriptions` call) read of a row the request patched
 or put in a list. A field the store still holds (an older value, or another
 pending request's) is not reported, nor is a row the answer deleted, or a
 temporary id it replaced. A repeated answer is not checked again. It changes
-nothing but `answerGaps`, so turn it on in development and tests, and assert
-in a test that `answerGaps` is empty. With [the answer's read](#what-an-answer-carries),
+nothing but `diagnostics`, so turn it on in development and tests, and assert
+in a test that `Data.inspect(model).diagnostics` is empty. With [the answer's read](#what-an-answer-carries),
 a gap is a row the answer did not name: name it in the answer's `entities`
 (`Remote.patch(Post, id, {})` asks the server for all it shows of it).
 
@@ -2086,6 +2090,52 @@ recorded Model can be replayed to, and nothing that needs the runtime to be
 asked. That is deliberate. Runtime activity is not a second source of truth
 here, and a view that rendered from it would stop being reproducible from the
 Model.
+
+### Diagnostics
+
+What Remote meets and keeps going past is recorded in the Model, typed, as
+`model.remote.diagnostics` (and `Data.inspect(model).diagnostics`), oldest
+first, the newest 256 kept:
+
+| `_tag` | When |
+| --- | --- |
+| `AnswerGap` | Under `verifyAnswers`, an answer left out fields the client showed. |
+| `PlacementMismatch` | Under `verifyPlacement`, the server listed a placed list in another order. |
+| `WriteUnheard` | A write failed, and the wiring does not share `MutationFailed`. |
+
+Each carries its facts, `source: 'foldkit-remote'`, a `level` and a `message`
+to log. The reducer only records them, since it is pure. The wiring's route and
+`Remote.fold` report what each update recorded, with a Command that hands them
+to the `Diagnostics.Reporter` in the runtime's Effect context and answers
+`CompletedReportDiagnostics`, which changes nothing. With no reporter given,
+that is Effect's log: a warning in the browser's console. An application that
+reduces Remote's Messages by hand (`Data.reduce`) has them in the Model, and
+nothing reports them.
+
+`Diagnostics` is `foldkit-surface`'s, re-exported here; server packages report
+into the same channel. Another reporter goes in the runtime's resources:
+
+```ts
+const resources = Layer.mergeAll(
+  Remote.clientLayer(Remote.http('/remote')),
+  // Logged as by default, and sent on to the server.
+  Layer.succeed(Diagnostics.Reporter, diagnostic =>
+    Effect.andThen(
+      Diagnostics.log(diagnostic),
+      Effect.sync(() => navigator.sendBeacon('/diagnostics', diagnostic.message)),
+    ),
+  ),
+)
+```
+
+In a test, assert on the Model, `[]` included:
+
+```ts
+expect(Data.inspect(model).diagnostics).toEqual([])
+```
+
+Nothing a diagnostic records changes what Remote does: a read, a write and a
+placement behave the same whether one is recorded or not.
 
 ### Explaining one query read
 

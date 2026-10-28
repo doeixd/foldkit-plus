@@ -27,9 +27,20 @@ export default [
     edits: [
       {
         file: server,
-        find: "Effect.catchCause(cause =>\n              Effect.logWarning(\n                'RemoteServer: a mutation committed but its live publish failed',",
+        find: 'Effect.catchCause(cause => Diagnostics.report(publishFailed(payload.mutation, cause))),',
         replace:
-          "Effect.tapCause(cause =>\n              Effect.logWarning(\n                'RemoteServer: a mutation committed but its live publish failed',",
+          'Effect.tapCause(cause => Diagnostics.report(publishFailed(payload.mutation, cause))),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a failed publish is not reported',
+    edits: [
+      {
+        file: server,
+        find: 'Effect.catchCause(cause => Diagnostics.report(publishFailed(payload.mutation, cause))),',
+        replace: 'Effect.catchCause(() => Effect.void),',
       },
     ],
     tests,

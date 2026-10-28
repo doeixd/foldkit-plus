@@ -7,7 +7,7 @@
  */
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { Cause, Effect, Schema } from 'effect'
+import { Effect, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Entity } from 'foldkit-entity'
 import {
@@ -17,7 +17,7 @@ import {
   RemoteReadError,
   type RemoteRpcClient,
 } from 'foldkit-remote'
-import { Surface } from 'foldkit-surface'
+import { Diagnostics, Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { RemoteServer } from '../src/index.js'
 
@@ -93,18 +93,25 @@ describe('RemoteServer.answer', () => {
     })
   })
 
-  it('hands the defect it answers to onDefect, cause and all', async () => {
+  it('reports the defect it answers as a ServerDefect, cause and all', async () => {
     const broken: RemoteRpcClient = {
       ...handlers,
       FoldkitRemoteRead: () => Effect.die(new Error('the password is hunter2')),
     }
-    const reported: Array<string> = []
+    const collected = Diagnostics.collect()
     await Effect.runPromise(
-      RemoteServer.answer(broken, { operation: 'read', payload: readA }, cause =>
-        Effect.sync(() => reported.push(Cause.pretty(cause))),
+      RemoteServer.answer(broken, { operation: 'read', payload: readA }).pipe(
+        Effect.provideService(Diagnostics.Reporter, collected.report),
       ),
     )
-    expect(reported).toEqual([expect.stringContaining('Error: the password is hunter2')])
+    expect(collected.reported).toEqual([
+      expect.objectContaining({
+        _tag: 'ServerDefect',
+        source: 'foldkit-remote-server',
+        level: 'error',
+        message: expect.stringContaining('Error: the password is hunter2'),
+      }),
+    ])
   })
 })
 

@@ -3,12 +3,18 @@
  * without fields the client showed while it was pending is kept, so the
  * refetch (and the `Loading` frame) it causes is named rather than sampled.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Entity as DomainEntity, Order } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
-import { ConnectionChange, Query, Remote, type RemoteMessage } from '../src/index.js'
+import {
+  ConnectionChange,
+  Query,
+  Remote,
+  type AnswerGap,
+  type RemoteMessage,
+} from '../src/index.js'
 
 const Post = DomainEntity.define(
   'Post',
@@ -86,6 +92,12 @@ const created = (
   return Data.reduce(started, answered(values))
 }
 
+/** The answer gaps a Model records, as the facts each names. */
+const gaps = (model: Model) =>
+  model.remote.diagnostics
+    .filter((diagnostic): diagnostic is AnswerGap => diagnostic._tag === 'AnswerGap')
+    .map(({ requestId, entity, id, fields }) => ({ requestId, entity, id, fields }))
+
 const answered = (values: Readonly<Record<string, unknown>>): RemoteMessage => ({
   _tag: 'MutationSucceeded',
   requestId: 'r1',
@@ -98,10 +110,37 @@ describe('verifyAnswers', () => {
   it('keeps the fields a list reads of a created row that its answer left out', () => {
     const Data = make(true)
     const model = created(Data, { id: 'p2', title: 'Two' })
-    expect(model.remote.answerGaps).toEqual([
+    expect(gaps(model)).toEqual([
       { requestId: 'r1', entity: 'Post', id: 'p2', fields: ['editedAt'] },
     ])
-    expect(Data.inspect(model).answerGaps).toEqual(model.remote.answerGaps)
+    expect(Data.inspect(model).diagnostics).toEqual(model.remote.diagnostics)
+  })
+
+  it('records a warning naming the mutation, the row and the fields', () => {
+    const Data = make(true)
+    const started = Data.reduce(loaded(Data), {
+      _tag: 'MutationStarted',
+      requestId: 'r1',
+      optimistic: [
+        { ...p2, values: { id: 'p2', title: 'Two' } },
+        ConnectionChange.prepend(feed, p2),
+      ],
+      write: { mutation: 'CreatePost', input: { title: 'Two' } },
+    })
+    expect(Data.reduce(started, answered({ id: 'p2', title: 'Two' })).remote.diagnostics).toEqual([
+      {
+        _tag: 'AnswerGap',
+        source: 'foldkit-remote',
+        level: 'warning',
+        message:
+          'CreatePost (request r1) answered Post:p2 without editedAt, which the client showed while it was pending. They are read again, so the row reads Loading meanwhile: answer with them, or select fewer.',
+        requestId: 'r1',
+        mutation: Option.some('CreatePost'),
+        entity: 'Post',
+        id: 'p2',
+        fields: ['editedAt'],
+      },
+    ])
   })
 
   it('keeps the patched fields its answer left out that no Surface reads', () => {
@@ -112,7 +151,7 @@ describe('verifyAnswers', () => {
       optimistic: [{ ...p2, values: { body: 'Text' }, adds: { likes: 1 } }],
     })
     const settled = Data.reduce(started, answered({ id: 'p2', title: 'Two', editedAt: 2 }))
-    expect(settled.remote.answerGaps).toEqual([
+    expect(gaps(settled)).toEqual([
       { requestId: 'r1', entity: 'Post', id: 'p2', fields: ['body', 'likes'] },
     ])
   })
@@ -125,14 +164,14 @@ describe('verifyAnswers', () => {
       optimistic: [ConnectionChange.prepend(feed, p2)],
     })
     const settled = Data.reduce(started, answered({ id: 'p2' }))
-    expect(settled.remote.answerGaps).toEqual([
+    expect(gaps(settled)).toEqual([
       { requestId: 'r1', entity: 'Post', id: 'p2', fields: ['title', 'editedAt'] },
     ])
   })
 
   it('keeps nothing when the answer carries what was shown', () => {
     const model = created(make(true), { id: 'p2', title: 'Two', editedAt: 2 })
-    expect(model.remote.answerGaps).toEqual([])
+    expect(gaps(model)).toEqual([])
   })
 
   it('keeps nothing for a field the store already holds', () => {
@@ -148,7 +187,7 @@ describe('verifyAnswers', () => {
       entities: [{ entity: 'Post', id: 'p1', values: { id: 'p1' } }],
       now: 2,
     })
-    expect(settled.remote.answerGaps).toEqual([])
+    expect(gaps(settled)).toEqual([])
   })
 
   it('keeps nothing for a temporary row the answer replaced, or a row it deleted', () => {
@@ -170,7 +209,7 @@ describe('verifyAnswers', () => {
       deleted: [{ entity: 'Post', id: 'p1' }],
       now: 2,
     })
-    expect(settled.remote.answerGaps).toEqual([])
+    expect(gaps(settled)).toEqual([])
   })
 
   it('keeps the gaps of every answer', () => {
@@ -188,7 +227,7 @@ describe('verifyAnswers', () => {
       now: 3,
     })
     // The answer places p3 in the feed by its order, so the feed reads it too.
-    expect(settled.remote.answerGaps).toEqual([
+    expect(gaps(settled)).toEqual([
       { requestId: 'r1', entity: 'Post', id: 'p2', fields: ['editedAt'] },
       { requestId: 'r2', entity: 'Post', id: 'p3', fields: ['title', 'editedAt'] },
     ])
@@ -197,15 +236,15 @@ describe('verifyAnswers', () => {
   it('checks an answer once', () => {
     const Data = make(true)
     const once = created(Data, { id: 'p2', title: 'Two' })
-    expect(Data.reduce(once, answered({ id: 'p2', title: 'Two' })).remote.answerGaps).toEqual(
-      once.remote.answerGaps,
+    expect(Data.reduce(once, answered({ id: 'p2', title: 'Two' })).remote.diagnostics).toBe(
+      once.remote.diagnostics,
     )
   })
 
   it('changes nothing else, and without it keeps nothing', () => {
     const checked = created(make(true), { id: 'p2', title: 'Two' })
     const unchecked = created(make(false), { id: 'p2', title: 'Two' })
-    expect(unchecked.remote.answerGaps).toEqual([])
-    expect({ ...checked.remote, answerGaps: [] }).toEqual(unchecked.remote)
+    expect(gaps(unchecked)).toEqual([])
+    expect({ ...checked.remote, diagnostics: [] }).toEqual(unchecked.remote)
   })
 })

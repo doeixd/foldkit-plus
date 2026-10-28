@@ -992,10 +992,9 @@ const route = async (request: Request): Promise<Response> => {
   its own `Refusal`.
 - **500** with `{ error }`: the handler failed, and the message is its own;
   or something on this side broke, and the message is `Internal error`,
-  nothing more. The cause goes to `answer`'s third argument, `onDefect`,
-  which by default logs it (`logDefect`). `serveFetch` takes the same as
-  `onError(cause, request)`, for a broken layer, resolver or live stream too,
-  so a Worker's log (`wrangler tail`) shows what broke.
+  nothing more. The cause is reported as a `ServerDefect`
+  [diagnostic](#diagnostics), by default to the log, so a Worker's log
+  (`wrangler tail`) shows what broke.
 
 It binds no principal: pass the `handlers` for the request's own,
 established by your authentication, as everywhere else. It carries no live
@@ -1107,6 +1106,35 @@ when that Effect ends, so provide it to the pre-read itself
 The reader only reads. A mutation fails with `RemoteMutationError` and a live
 open with `RemoteLiveError`: another site can start a navigation, so the
 principal it resolves must never write, and a render keeps no stream.
+
+## Diagnostics
+
+A server answers some failures without telling the caller why. Each is a
+typed diagnostic, reported through `Diagnostics.Reporter` (`foldkit-surface`'s
+channel, re-exported by `foldkit-remote`), which by default is Effect's log:
+
+| `_tag` | `level` | When |
+| --- | --- | --- |
+| `ServerDefect` | `error` | Something on this side broke (a layer, a resolver, a handler's defect) and the caller was answered `Internal error`; it carries the `cause`. |
+| `AnswerUnread` | `warning` | A mutation committed, but reading its answer failed: the client reads those rows again. |
+| `PublishFailed` | `error` | A mutation committed, but its live publish failed: live subscribers do not hear it. |
+
+Provide another reporter as any service: `Layer.succeed(Diagnostics.Reporter,
+report)` in the layer the handlers run in. `serveFetch` takes one with the
+request beside it, used for everything that request runs, a broken layer
+included:
+
+```ts
+serveFetch({
+  server,
+  resolvePrincipal,
+  layer: (env: Env) => databaseLayer(env),
+  diagnostics: (diagnostic, request) =>
+    Effect.logError(`${request.method} ${request.url}: ${diagnostic.message}`),
+})
+```
+
+In a test, `Diagnostics.collect()` gives a reporter and the array it fills.
 
 ## What it does not own
 

@@ -96,28 +96,34 @@ export default [
   },
   {
     name: 'a broken layer is not reported',
-    edits: [{ file, find: 'await Effect.runPromise(reportFor(request)(exit.cause))', replace: '' }],
-    tests,
-  },
-  {
-    name: 'the default reports nothing',
-    edits: [{ file, find: '? logDefect(cause)', replace: '? Effect.void' }],
-    tests,
-  },
-  {
-    name: 'a hook that breaks breaks the answer',
-    edits: [{ file, find: 'Effect.catchCause(() => Effect.void),', replace: '' }],
-    tests,
-  },
-  {
-    name: 'answer is not told where to report',
     edits: [
       {
         file,
-        find: 'RemoteServer.answer(handlers, body.value, reportFor(request))',
-        replace: 'RemoteServer.answer(handlers, body.value, () => Effect.void)',
+        find: 'Diagnostics.report(serverDefect(exit.cause)).pipe(reportingFor(request)),',
+        replace: 'Effect.void,',
       },
     ],
+    tests,
+  },
+  {
+    name: 'the reporter given is not used',
+    edits: [{ file, find: 'return diagnostics === undefined', replace: 'return true' }],
+    tests,
+  },
+  {
+    name: 'the request is not given to the reporter',
+    edits: [
+      {
+        file,
+        find: 'diagnostics(diagnostic, request),',
+        replace: "diagnostics(diagnostic, new Request('http://nowhere/')),",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a handler defect is reported outside the reporter given',
+    edits: [{ file, find: '      }).pipe(reportingFor(request)),', replace: '      }),' }],
     tests,
   },
   {

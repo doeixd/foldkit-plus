@@ -74,7 +74,7 @@ describe('the HTTP transport the browser uses', () => {
     )
     expect(Posts.page(verified)._tag).toBe('Ready')
     expect(placed(verified)).toEqual(['Notes on the Engine', 'about HTTP'])
-    expect(Data.inspect(verified).placementMismatches).toEqual([])
+    expect(Data.inspect(verified).diagnostics).toEqual([])
   })
 
   it('sorts and searches a list by changing the query’s input, which the Model holds', async () => {

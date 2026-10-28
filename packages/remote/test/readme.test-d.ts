@@ -14,6 +14,7 @@ import * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
 import { Surface } from 'foldkit-surface'
 import {
+  Diagnostics,
   Entity,
   Mutation,
   Query,
@@ -365,3 +366,15 @@ declare const editing: typeof TicketModel.Type
   // @ts-expect-error the input is the write's
   Edits.mutate(editing, EditProject, { id: 'p1' })
 }
+
+// Diagnostics: another reporter in the runtime's resources.
+export const diagnosticResources = Layer.mergeAll(
+  Remote.clientLayer(Remote.http('/remote')),
+  // Logged as by default, and sent on to the server.
+  Layer.succeed(Diagnostics.Reporter, diagnostic =>
+    Effect.andThen(
+      Diagnostics.log(diagnostic),
+      Effect.sync(() => navigator.sendBeacon('/diagnostics', diagnostic.message)),
+    ),
+  ),
+)

@@ -171,3 +171,21 @@ void byPerson
   }
   void worker
 }
+
+// ## Diagnostics
+{
+  interface Env {
+    readonly DB: unknown
+  }
+  class Database extends Context.Service<Database, unknown>()('readme/Database') {}
+  const server = RemoteServer.make<Principal, Database>({ entities: [] })
+  const databaseLayer = (env: Env) => Layer.succeed(Database, env.DB)
+  const resolvePrincipal = () => Effect.succeed<Principal>({ isAdmin: false })
+  serveFetch({
+    server,
+    resolvePrincipal,
+    layer: (env: Env) => databaseLayer(env),
+    diagnostics: (diagnostic, request) =>
+      Effect.logError(`${request.method} ${request.url}: ${diagnostic.message}`),
+  })
+}

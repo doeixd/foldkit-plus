@@ -510,6 +510,9 @@ const messages = {
       ],
     }),
   },
+  // It returns the Model it is given (diagnostics.test.ts), and a case here
+  // would move every seeded walk below.
+  CompletedReportDiagnostics: {},
 } satisfies Record<RemoteMessageTag, Readonly<Record<string, Generate>>>
 
 const cases = Object.entries(messages).flatMap(([tag, generators]) =>

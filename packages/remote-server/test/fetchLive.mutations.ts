@@ -111,7 +111,9 @@ export default [
   },
   {
     name: 'a live stream never closes its layer',
-    edits: [{ file, find: 'Stream.ensuring(release),', replace: 'Stream.ensuring(Effect.void),' }],
+    edits: [
+      { file, find: 'Stream.ensuring(release)),', replace: 'Stream.ensuring(Effect.void)),' },
+    ],
     tests,
   },
   {
@@ -119,7 +121,7 @@ export default [
     edits: [
       {
         file,
-        find: ": Stream.fromEffect(Effect.as(report(cause), errorFrame('Internal error'))),",
+        find: ": Stream.fromEffect(\n                Effect.as(Diagnostics.report(serverDefect(cause)), errorFrame('Internal error')),\n              ),",
         replace: ': Stream.failCause(cause),',
       },
     ],
@@ -130,7 +132,7 @@ export default [
     edits: [
       {
         file,
-        find: 'Effect.as(report(cause), ',
+        find: 'Effect.as(Diagnostics.report(serverDefect(cause)), ',
         replace: 'Effect.as(Effect.void, ',
       },
     ],

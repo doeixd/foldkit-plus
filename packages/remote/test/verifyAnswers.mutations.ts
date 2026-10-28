@@ -99,8 +99,19 @@ export default [
     edits: [
       {
         file: index,
-        find: 'answerGaps: [...after.answerGaps, ...gaps]',
-        replace: 'answerGaps: gaps',
+        find: 'diagnostics: withDiagnostics(after.diagnostics, gaps)',
+        replace: 'diagnostics: gaps',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a gap names no mutation',
+    edits: [
+      {
+        file: index,
+        find: '        write => write.mutation,',
+        replace: '        () => undefined as never,',
       },
     ],
     tests,

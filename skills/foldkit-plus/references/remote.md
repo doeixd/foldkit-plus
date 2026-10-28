@@ -253,8 +253,8 @@ case 'SignedOut': {
 - A row that reads `Loading` for a frame after a mutation settles is a field
   the answer left out: the layer came off and the store lacks it, so it is
   fetched again. `Remote.make({ verifyAnswers: true })` (dev and tests) settles
-  as usual and keeps `{ requestId, entity, id, fields }` in
-  `remote.answerGaps` (`Data.inspect`) for each field the request's optimistic
+  as usual and records an `AnswerGap` diagnostic (`{ requestId, mutation,
+  entity, id, fields }`) for each field the request's optimistic
   patch wrote, or an active Surface reads of a row it patched or listed, that
   the answer left out and the store does not hold. Name that row in the answer.
 - `Query.define(name, Input, ({ input }) => body, options?)` declares a query by
@@ -463,8 +463,8 @@ refetches it. A body's primitive operators run on the client by
 takes it as `Remote.at(definition, store, { operators })`), which also predicts a
 pending computed assignment; one the table lacks is the server's to judge. `Remote.make({ verifyPlacement: true })` (dev and tests) also
 fetches each list it placed an answer, a read or a live patch in, and keeps
-any disagreement with the server's first page in
-`remote.placementMismatches`: an order it does not share, or a row placing
+any disagreement with the server's first page as a `PlacementMismatch`
+diagnostic: an order it does not share, or a row placing
 took out that it still lists (`remote.placed` holds `{ order, dropped }` until
 the page arrives). A pending edit (an `optimistic` patch, a
 `Data.overlay`) shows its row placed in what a read shows until it settles,
@@ -524,7 +524,22 @@ without an app-kept list. `Data.retry(model, requestId)` is
 optimistic change shown again. `Data.dismiss(model, requestId)` forgets it.
 Nothing drops one on a timer. To act on a failure in `update`, wire
 `Data.wiring(actives, { shared: ['MutationFailed'] })`: the own update then
-receives `MutationFailed` after Remote reduced it, and its match must answer it. A read the server answers with nothing about an id it was asked for
+receives `MutationFailed` after Remote reduced it, and its match must answer it;
+without that, each failure is a `WriteUnheard` diagnostic.
+
+**Diagnostics.** `remote.diagnostics` (`Data.inspect(model).diagnostics`) holds,
+typed and oldest first (the newest 256), what Remote met and kept going past:
+`AnswerGap`, `PlacementMismatch`, `WriteUnheard`, each with `source`, `level`
+and `message`. The reducer only records; the wiring's route and `Remote.fold`
+report each new one through the `Diagnostics.Reporter` in the Effect context
+(`foldkit-surface`'s, re-exported by `foldkit-remote`), by default Effect's log,
+then answer `CompletedReportDiagnostics`, a no-op. Replace it with
+`Layer.succeed(Diagnostics.Reporter, report)` in the runtime's resources; collect
+in a test with `Diagnostics.collect()` (`{ report, reported }`), or assert
+`Data.inspect(model).diagnostics` is `[]`. A hand-written `Data.reduce` path
+records but reports nothing.
+
+A read the server answers with nothing about an id it was asked for
 makes that entity `NotFound`; it is refetched only by `Data.refresh` or brought
 back by a later write. A field the server answers without, and names in the
 result's `settled` (withheld by `authorize`, or absent from the Source's
@@ -698,7 +713,9 @@ const inProcess = Remote.clientLayer(handlers)            // tests/SSR/worker
 // The body is { operation: 'read' | 'query' | 'mutate', payload }; test a server over HTTP
 // with the real client, Remote.http(`${origin}/remote`, { headers, fetch }).
 // It decodes the request by the protocol's schemas first; a defect answers 'Internal error',
-// its cause logged (answer's third argument, onDefect; serveFetch's onError(cause, request)).
+// and its cause is reported as a ServerDefect diagnostic (Diagnostics.Reporter, by default the
+// log); serveFetch({ diagnostics: (diagnostic, request) => ... }) takes the request too. A
+// committed write whose answer read or live publish failed reports AnswerUnread / PublishFailed.
 // No server yet: RemoteServer.memory({ domain: Data, rows: { Project: [...] } }).layer.
 // Rows in wire shape (a relation is 'User:u1'); Query.define bodies run over them;
 // mutations: store => [...] write through store.write. No live.

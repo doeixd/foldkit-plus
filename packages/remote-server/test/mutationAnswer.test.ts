@@ -8,6 +8,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Entity, Order, Relation } from 'foldkit-entity'
 import {
   ConnectionChange,
+  Diagnostics,
   Mutation,
   Query,
   Remote,
@@ -243,6 +244,7 @@ describe('a mutation answers what the client shows', () => {
   })
 
   it('answers without the read when it fails, since the write has landed', async () => {
+    const collected = Diagnostics.collect()
     const answer = await Effect.runPromise(
       RemoteServer.handlers(
         RemoteServer.make({
@@ -258,12 +260,14 @@ describe('a mutation answers what the client shows', () => {
           ],
         }),
         'reader',
-      ).FoldkitRemoteMutate({
-        requestId: 'r1',
-        mutation: 'Touch',
-        input: { id: 'p1' },
-        shown: [{ entity: 'Post', fields: ['title'] }],
-      }),
+      )
+        .FoldkitRemoteMutate({
+          requestId: 'r1',
+          mutation: 'Touch',
+          input: { id: 'p1' },
+          shown: [{ entity: 'Post', fields: ['title'] }],
+        })
+        .pipe(Effect.provideService(Diagnostics.Reporter, collected.report)),
     )
     expect(answer).toEqual({
       output: {},
@@ -271,6 +275,17 @@ describe('a mutation answers what the client shows', () => {
       connections: [],
       deleted: [],
     })
+    expect(collected.reported).toEqual([
+      {
+        _tag: 'AnswerUnread',
+        source: 'foldkit-remote-server',
+        level: 'warning',
+        message:
+          'Touch committed, but reading its answer failed (The database went away): the client reads the rows it names again.',
+        mutation: 'Touch',
+        reason: 'The database went away',
+      },
+    ])
   })
 })
 
@@ -340,6 +355,6 @@ describe('a created row, end to end', () => {
       _tag: 'Ready',
       value: { title: 'Two', body: 'Draft', author: { name: 'Ada' } },
     })
-    expect(settled.remote.answerGaps).toEqual([])
+    expect(settled.remote.diagnostics).toEqual([])
   })
 })

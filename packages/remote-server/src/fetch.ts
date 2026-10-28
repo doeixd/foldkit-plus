@@ -25,16 +25,19 @@ import {
   Stream,
 } from 'effect'
 import {
+  Diagnostics,
   LiveRequirement,
   Remote,
   RemoteLiveError,
   RemoteMutationError,
+  type Diagnostic,
   type RemoteClient,
   type RemoteJsonAnswer,
   type RemoteRpcClient,
   type RemoteUnauthenticated,
 } from 'foldkit-remote'
-import { logDefect, RemoteServer, type LiveHub, type ServerDefinition } from './index.js'
+import { serverDefect } from './diagnostics.js'
+import { RemoteServer, type LiveHub, type ServerDefinition } from './index.js'
 import { unauthenticatedAnswer } from './refusal.js'
 
 /** What `serveFetch` needs of the host runtime, per request. */
@@ -87,13 +90,14 @@ export interface FetchConfig<P, R, Env, RP = never> {
   /** A heartbeat comment every this often, keeping idle streams alive through proxies. Default 15 seconds. */
   readonly liveHeartbeat?: Duration.Input | undefined
   /**
-   * Given each failure answered "Internal error", or a live stream's error
-   * frame: a broken layer or resolver, a handler's defect. The caller is told
-   * nothing of it; this is how whoever runs the server is. Default
-   * `logDefect`, which logs the cause.
+   * Where this request's diagnostics go, with the request: each failure
+   * answered "Internal error" or ending a live stream (a `ServerDefect`: a
+   * broken layer or resolver, a handler's defect), whose cause the caller is
+   * never told, and what the handlers report. The reporter in the Effect
+   * context (`Diagnostics.Reporter`) when not given, by default the log.
    */
-  readonly onError?:
-    | ((cause: Cause.Cause<unknown>, request: Request) => Effect.Effect<void>)
+  readonly diagnostics?:
+    | ((diagnostic: Diagnostic, request: Request) => Effect.Effect<void>)
     | undefined
   /** A read batch may not name more ids of one entity than this; default 1000. */
   readonly maxIdsPerEntity?: number | undefined
@@ -129,7 +133,6 @@ const liveBytes = <R, RC>(
   payload: Schema.Schema.Type<typeof LiveRequirement>,
   heartbeat: Duration.Input,
   checked: Stream.Stream<never, RemoteUnauthenticated | RemoteLiveError, RC>,
-  report: (cause: Cause.Cause<unknown>) => Effect.Effect<void>,
 ): Stream.Stream<Uint8Array, never, R | RC> =>
   Stream.unwrap(
     Effect.gen(function* () {
@@ -154,7 +157,9 @@ const liveBytes = <R, RC>(
         Stream.catchCause(cause =>
           Cause.hasInterruptsOnly(cause)
             ? Stream.failCause(cause)
-            : Stream.fromEffect(Effect.as(report(cause), errorFrame('Internal error'))),
+            : Stream.fromEffect(
+                Effect.as(Diagnostics.report(serverDefect(cause)), errorFrame('Internal error')),
+              ),
         ),
         Stream.ensuring(Deferred.succeed(ended, undefined)),
       )
@@ -192,7 +197,6 @@ const liveResponse = <R, RC>(
   payload: unknown,
   heartbeat: Duration.Input,
   checked: Stream.Stream<never, RemoteUnauthenticated | RemoteLiveError, RC>,
-  report: (cause: Cause.Cause<unknown>) => Effect.Effect<void>,
   release: Effect.Effect<void>,
   headers: Readonly<Record<string, string>>,
 ): Effect.Effect<Response, never, R | RC> =>
@@ -208,9 +212,7 @@ const liveResponse = <R, RC>(
       onSuccess: requirement =>
         Effect.map(
           Stream.toReadableStreamEffect(
-            liveBytes(handlers, requirement, heartbeat, checked, report).pipe(
-              Stream.ensuring(release),
-            ),
+            liveBytes(handlers, requirement, heartbeat, checked).pipe(Stream.ensuring(release)),
           ),
           body =>
             new Response(body, {
@@ -255,16 +257,17 @@ export const serveFetch = <P, R, Env, RP = never>(
     !Duration.isGreaterThan(Duration.fromInputUnsafe(config.revalidate.every), Duration.zero)
   )
     throw new Error('serveFetch: revalidate.every must be longer than zero')
-  /**
-   * Hands `request`'s failure to `onError`, or logs it. Never fails: a hook
-   * that breaks must not turn the answer into something else.
-   */
-  const reportFor =
+  /** `effect` reporting to `config.diagnostics` with `request`, when it is given. */
+  const reportingFor =
     (request: Request) =>
-    (cause: Cause.Cause<unknown>): Effect.Effect<void> =>
-      (config.onError === undefined ? logDefect(cause) : config.onError(cause, request)).pipe(
-        Effect.catchCause(() => Effect.void),
-      )
+    <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> => {
+      const { diagnostics } = config
+      return diagnostics === undefined
+        ? effect
+        : Effect.provideService(effect, Diagnostics.Reporter, diagnostic =>
+            diagnostics(diagnostic, request),
+          )
+    }
   /** The live stream's principal, asked again of its request while it runs. */
   const revalidation = (
     request: Request,
@@ -313,14 +316,13 @@ export const serveFetch = <P, R, Env, RP = never>(
           body.value.payload,
           heartbeat,
           revalidation(request, env, principal),
-          reportFor(request),
           Scope.close(scope, Exit.void),
           headers,
         )
         // A 400 for a payload no stream speaks has no stream to close it.
         return { response, live: response.status === 200 }
       }
-      const answered = yield* RemoteServer.answer(handlers, body.value, reportFor(request))
+      const answered = yield* RemoteServer.answer(handlers, body.value)
       return {
         response: Response.json(answered.body, { status: answered.status, headers }),
         live: false,
@@ -348,13 +350,15 @@ export const serveFetch = <P, R, Env, RP = never>(
           ),
         )
         return answered.response
-      }),
+      }).pipe(reportingFor(request)),
     )
     if (Exit.isSuccess(exit)) return exit.value
     // A failure of the layer, or a defect anywhere: this side broke, and the
-    // caller learns that it did, not what; `onError` learns what. `answer`
+    // caller learns that it did, not what; the diagnostics learn what. `answer`
     // already maps its own failures and defects to 400/500 answers.
-    await Effect.runPromise(reportFor(request)(exit.cause))
+    await Effect.runPromise(
+      Diagnostics.report(serverDefect(exit.cause)).pipe(reportingFor(request)),
+    )
     return Response.json({ error: 'Internal error' }, { status: 500 })
   }
 }

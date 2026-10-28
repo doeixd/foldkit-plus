@@ -252,7 +252,8 @@ export const Data = Remote.make({
   entities: Object.values(Registry),
   queries: [ProductsQuery],
   // In development and tests each list a placement moved is fetched too, and
-  // the server's order compared with it (`Data.inspect(...).placementMismatches`).
+  // the server's order compared with it: a disagreement is a `PlacementMismatch`
+  // in `Data.inspect(...).diagnostics`.
   // Off in a build; `tsx` has no `import.meta.env`.
   verifyPlacement: import.meta.env?.DEV === true,
 })

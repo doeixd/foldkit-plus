@@ -9,8 +9,8 @@ export interface ExplainedDependencies {
   /** Each operator it calls, by its id and version. */
   readonly operators: ReadonlyArray<{ readonly id: string; readonly version: number }>
 }
-import type { AnswerGap } from './answerGaps.js'
-import type { Failures, PlacementMismatch, RemoteModel } from './model.js'
+import type { RemoteDiagnostic } from './diagnostics.js'
+import type { Failures, RemoteModel } from './model.js'
 import type { QueryWindow } from './query.js'
 import type { RemoteData } from './remoteData.js'
 import type { RelationRequirement } from './requirement.js'
@@ -30,10 +30,8 @@ export interface RemoteInspection {
   readonly connections: ReadonlyArray<string>
   readonly live: ReadonlyArray<string>
   readonly gaps: ReadonlyArray<string>
-  /** Under `verifyPlacement`, each placement the server's page disagreed with. */
-  readonly placementMismatches: ReadonlyArray<PlacementMismatch>
-  /** Under `verifyAnswers`, each row an answer left without fields the client showed. */
-  readonly answerGaps: ReadonlyArray<AnswerGap>
+  /** What the client met and kept going past, oldest first (`RemoteModel.diagnostics`). */
+  readonly diagnostics: ReadonlyArray<RemoteDiagnostic>
   /**
    * The `entity\0id\0field` marks of reads in flight, and a
    * `\0connection\0identity` mark for each query in flight. This is what "Remote is
@@ -70,8 +68,7 @@ export const inspectRemote = (model: RemoteModel): RemoteInspection => ({
   connections: Object.keys(model.connections),
   live: Object.keys(model.live),
   gaps: [...model.gaps],
-  placementMismatches: model.placementMismatches,
-  answerGaps: model.answerGaps,
+  diagnostics: model.diagnostics,
   loading: [...model.loading],
   failures: model.failures,
   mutations: {

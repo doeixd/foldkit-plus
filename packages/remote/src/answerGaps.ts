@@ -5,19 +5,11 @@
  * no Selection reads it. A check for development and tests, which changes
  * nothing it is given.
  */
+import type { Option } from 'effect'
+import { answerGap, type AnswerGap } from './diagnostics.js'
 import type { OptimisticState } from './optimistic.js'
 import type { Requirement } from './requirement.js'
 import { entityKey, type EntityStore } from './store.js'
-
-/** A row a mutation's answer left without fields the client showed. */
-export interface AnswerGap {
-  /** The request the answer settled, as `Data.mutate` returned it. */
-  readonly requestId: string
-  readonly entity: string
-  readonly id: string
-  /** The fields shown and not answered, which the store does not otherwise hold. */
-  readonly fields: ReadonlyArray<string>
-}
 
 /**
  * Each row the request showed (its layer's patches, its insert overlays and
@@ -30,6 +22,7 @@ export interface AnswerGap {
  */
 export const answerGaps = (
   requestId: string,
+  mutation: Option.Option<string>,
   before: OptimisticState,
   after: OptimisticState,
   visible: EntityStore,
@@ -76,7 +69,8 @@ export const answerGaps = (
     const fields = [...row.fields].filter(
       field => entry === undefined || !(entry.present.has(field) || entry.unavailable.has(field)),
     )
-    if (fields.length > 0) gaps.push({ requestId, entity: row.entity, id: row.id, fields })
+    if (fields.length > 0)
+      gaps.push(answerGap({ requestId, mutation, entity: row.entity, id: row.id, fields }))
   }
   return gaps
 }

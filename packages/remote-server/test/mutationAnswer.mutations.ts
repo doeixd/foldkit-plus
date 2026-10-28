@@ -77,9 +77,20 @@ export default [
     edits: [
       {
         file: index,
-        find: '            ).pipe(Effect.as(Option.none())),',
+        find: '              Effect.as(Option.none()),',
         replace:
-          '            ).pipe(Effect.andThen(Effect.fail(new RemoteMutationError({ message: error.message })))),',
+          '              Effect.andThen(Effect.fail(new RemoteMutationError({ message: error.message }))),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a failed read is not reported',
+    edits: [
+      {
+        file: index,
+        find: 'Diagnostics.report(answerUnread(payload.mutation, error.message)).pipe(',
+        replace: 'Effect.void.pipe(',
       },
     ],
     tests,

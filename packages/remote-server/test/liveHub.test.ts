@@ -2,6 +2,7 @@ import { Effect, Fiber, Option, Schema, Stream } from 'effect'
 import { Entity as EntityDefinition, Write } from 'foldkit-entity'
 import { RpcTest } from 'effect/rpc'
 import {
+  Diagnostics,
   Entity,
   Mutation,
   REMOTE_PROTOCOL_VERSION,
@@ -569,6 +570,7 @@ describe('A mutation’s outcome reaches live subscribers', () => {
   ) => {
     const entitySources = [RemoteServer.entity<string>(User, { read })]
     const served = RemoteServer.make({ entities: entitySources, mutations })
+    const collected = Diagnostics.collect()
     return Effect.runPromise(
       Effect.gen(function* () {
         const hub = yield* RemoteServer.liveHub(entitySources)
@@ -595,8 +597,8 @@ describe('A mutation’s outcome reaches live subscribers', () => {
         ).pipe(Effect.provide(layer), Effect.result)
         const events = count === 0 ? [] : [...(yield* Fiber.join(fiber))]
         if (count === 0) yield* Fiber.interrupt(fiber)
-        return { answered, events }
-      }),
+        return { answered, events, reported: collected.reported }
+      }).pipe(Effect.provideService(Diagnostics.Reporter, collected.report)),
     )
   }
 
@@ -625,13 +627,23 @@ describe('A mutation’s outcome reaches live subscribers', () => {
 
   it('answers the mutation though its publish failed, since the write has committed', async () => {
     people.u1 = { name: 'ada' }
-    const { answered } = await observe(
+    const { answered, reported } = await observe(
       () => Effect.fail(new RemoteServerError({ message: 'db down' })),
       0,
       { requestId: 'r3', mutation: 'Rename', input: { id: 'u1', name: 'Ada' } },
     )
     expect(answered._tag).toBe('Success')
     expect(people.u1).toEqual({ name: 'Ada' })
+    // The write is answered, and whoever runs the server is told what subscribers missed.
+    expect(reported).toEqual([
+      expect.objectContaining({
+        _tag: 'PublishFailed',
+        source: 'foldkit-remote-server',
+        level: 'error',
+        mutation: 'Rename',
+        message: expect.stringMatching(/^Rename committed, but its live publish failed[^]*db down/),
+      }),
+    ])
   })
 })
 

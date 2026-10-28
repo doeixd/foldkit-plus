@@ -5,8 +5,15 @@
  * payload no stream speaks is a 400; a version the protocol refuses ends the
  * stream with an `error` frame.
  */
-import { Cause, Context, Effect, Fiber, Layer, Schema, Stream, type Duration } from 'effect'
-import { Entity, Mutation, REMOTE_PROTOCOL_VERSION, Remote, RemoteClient } from 'foldkit-remote'
+import { Context, Effect, Fiber, Layer, Schema, Stream, type Duration } from 'effect'
+import {
+  Entity,
+  Mutation,
+  REMOTE_PROTOCOL_VERSION,
+  Remote,
+  RemoteClient,
+  type Diagnostic,
+} from 'foldkit-remote'
 import { describe, expect, it } from 'vitest'
 import { serveFetch } from '../src/fetch.js'
 import { RemoteServer } from '../src/index.js'
@@ -425,7 +432,7 @@ describe("serveFetch, the request's layer", () => {
   const scoped = (
     log: string[],
     answer: () => Effect.Effect<string>,
-    onError?: (cause: Cause.Cause<unknown>) => Effect.Effect<void>,
+    diagnostics?: (diagnostic: Diagnostic) => Effect.Effect<void>,
   ) => {
     let open = false
     const layer = Layer.effect(
@@ -457,7 +464,7 @@ describe("serveFetch, the request's layer", () => {
       layer: () => layer,
       live: hub,
       revalidate: { every: '20 millis' },
-      onError,
+      diagnostics,
     })
     const post = (body: unknown) =>
       served(
@@ -519,7 +526,7 @@ describe("serveFetch, the request's layer", () => {
     ])
   })
 
-  it('reports what broke a stream to onError', async () => {
+  it('reports what broke a stream as a ServerDefect', async () => {
     rows.set('a', { id: 'a', name: 'Anchor' })
     let calls = 0
     const reported: Array<string> = []
@@ -527,10 +534,10 @@ describe("serveFetch, the request's layer", () => {
       [],
       () =>
         (calls += 1) === 1 ? Effect.succeed('admin') : Effect.die(new Error('secret internals')),
-      cause => Effect.sync(() => reported.push(Cause.pretty(cause))),
+      diagnostic => Effect.sync(() => reported.push(`${diagnostic._tag} ${diagnostic.message}`)),
     )
     await readAllFrames((await post(liveBody)).body!.getReader())
-    expect(reported).toEqual([expect.stringContaining('Error: secret internals')])
+    expect(reported).toEqual([expect.stringMatching(/^ServerDefect [^]*Error: secret internals/)])
   })
 
   it('refuses an interval that is not longer than zero', () => {
