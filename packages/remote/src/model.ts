@@ -40,6 +40,7 @@ import {
   type NormalizedPatch,
 } from './mutation.js'
 import {
+  askAgain,
   entityKey,
   emptyStore,
   isTombstone,
@@ -1029,19 +1030,16 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
       }
     }
     case 'RefreshStarted': {
-      // An entity known to be absent has no field to mark, and nothing plans a
-      // read of it again. Asked about again, it is forgotten, so it is.
-      const asked = message.requests.reduce(
-        (store, request) =>
-          isTombstone(store, entityKey(request.entity, request.id))
-            ? remove(store, entityKey(request.entity, request.id))
-            : store,
-        model.entities,
-      )
-      // A field the server settled without a value is asked for again the same
-      // way, and reads `Loading` while it is.
+      // An entity known to be absent stays so while it is asked about again,
+      // so the rows and reads it took away stay away until the answer (#263).
+      // A field the server settled without a value is asked for again, and
+      // reads `Loading` while it is.
       const marks = marksOf(message.requests)
-      const entities = setUnavailable(setStale(asked, marks, true), marks, false)
+      const entities = setUnavailable(
+        setStale(askAgain(model.entities, marks), marks, true),
+        marks,
+        false,
+      )
       // Asking again is also how a failed field is retried, including one that
       // never loaded and so has nothing to mark stale, and one on a relation's
       // target, which the request reaches only through the store: a server need
@@ -1565,7 +1563,8 @@ export const writeRead = (
   //
   // An id the server settled fields of is not absent: it was asked about and
   // the answer was "not this", which is about the fields, not the entity. What
-  // the store already holds of it stays.
+  // the store already holds of it stays, and a tombstone asked about again is
+  // forgotten, so the settled fields can be recorded.
   //
   // Only ids asked for directly: the target of a returned ref is left alone. A
   // server need not expand a relation that rides on a request; the planner
@@ -1576,6 +1575,7 @@ export const writeRead = (
   for (const request of requests) {
     const key = entityKey(request.entity, request.id)
     if (!returned.has(key) && !settled.has(key)) answered = tombstone(answered, key)
+    else if (settled.has(key) && isTombstone(answered, key)) answered = remove(answered, key)
   }
   // Settled after the values: a field the same result also answers is present,
   // and a present field is never marked.

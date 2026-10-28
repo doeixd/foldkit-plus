@@ -969,8 +969,8 @@ Surface without params narrows it.
 
 `Data.refresh` performs no I/O and restates no request. It returns the Model
 with every selected field the store holds reading `Refreshing`, every entity it
-knew to be absent forgotten, so `NotFound` reads `Loading` and is asked for
-again, and every loaded connection invalidated; the `Data.subscriptions` read entries then refetch it,
+knew to be absent asked for again (it reads `NotFound`, and stays out of every
+list, until the answer says it exists), and every loaded connection invalidated; the `Data.subscriptions` read entries then refetch it,
 since stale data is planned again under every policy, so the page is requested
 once. The Projection must be observed, as it is while it is on screen; for data
 nothing observes, use `Data.prefetch` with `RemotePolicy.networkOnly`.
@@ -1108,8 +1108,10 @@ adjacent.
 A query Projection is `Initial` until the page and the selected fields of at
 least one visible item are present. Then it shows the rows it can assemble: one
 whose fields have not arrived yet (a live insert, a row paged in without its
-fields, a deleted row asked about again) is left out, and the list reads
-`Refreshing` until it is, so the rows already shown stay on screen. It reads
+fields) is left out, and the list reads `Refreshing` until it is, so the rows
+already shown stay on screen. A deleted row is left out too, so a list whose
+shown rows were all deleted shows none (`Refreshing` while others are read),
+never `Loading`. It reads
 `Ready` once every visible item is assembled. The `select` travels with the query: the server
 returns the selected fields of the page's items with the edges, and one
 `ConnectionMerged` merges the page and writes them, so a fresh list usually

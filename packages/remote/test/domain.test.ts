@@ -1031,10 +1031,35 @@ describe('Data.query reads a connection as a page of selected items', () => {
 
       const refreshed = Data.refresh(absent, project)
 
-      expect(project.read(refreshed)._tag).not.toBe('NotFound')
+      // Still absent until the answer says otherwise (#263), yet asked again.
+      expect(project.read(refreshed)._tag).toBe('NotFound')
       const settled = await observe(refreshed, project, client.layer)
       expect(client.reads).toEqual([['p9']])
       expect(project.read(settled)).toEqual({ _tag: 'Ready', value: { name: 'name of p9' } })
+    })
+
+    it('stops asking about an absent entity once the server answers', () => {
+      const project = Data.get(summary, 'p9')
+      const requests = [{ entity: 'Project', id: 'p9', fields: ['name'] }]
+      const absent = Data.reduce(initial, {
+        _tag: 'ReadReceived',
+        requests,
+        result: { settled: [], entities: [] },
+        now: 0,
+      })
+      const asked = Data.refresh(absent, project)
+      expect(Data.plan(asked, project)).toEqual(requests)
+
+      const answers = [
+        { settled: [], entities: [] },
+        { settled: [{ entity: 'Project', id: 'p9', fields: ['name'] }], entities: [] },
+      ]
+      const after = answers.map(result =>
+        Data.reduce(asked, { _tag: 'ReadReceived', requests, result, now: 1 }),
+      )
+      // Still absent, and the server settling the field says the entity is there.
+      expect(after.map(model => project.read(model)._tag)).toEqual(['NotFound', 'Failed'])
+      expect(after.map(model => Data.plan(model, project))).toEqual([[], []])
     })
 
     it('invalidates a loaded connection: one page query, then one read of its items', async () => {

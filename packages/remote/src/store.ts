@@ -15,7 +15,10 @@ export type EntityKey = string
 export interface EntityEntry {
   readonly values: Readonly<Record<string, unknown>>
   readonly present: ReadonlySet<string>
-  /** Present fields whose value may be outdated (revalidation needed). */
+  /**
+   * Present fields whose value may be outdated (revalidation needed). On a
+   * tombstone, the fields it is being asked about again (`askAgain`).
+   */
   readonly stale: ReadonlySet<string>
   /**
    * Fields the server settled without a value: asked for, and answered without
@@ -214,9 +217,12 @@ export const isFieldUnavailable = (store: EntityStore, key: EntityKey, field: st
   return value !== undefined && !value.tombstone && value.unavailable.has(field)
 }
 
-/** Records that the entity is known to be absent, so it is not refetched. */
+/**
+ * Records that the entity is known to be absent, so it is not refetched. On a
+ * tombstone being asked about again, the answer: still absent, so the asking ends.
+ */
 export const tombstone = (store: EntityStore, key: EntityKey): EntityStore =>
-  isTombstone(store, key)
+  isTombstone(store, key) && store[key]!.stale.size === 0
     ? store
     : replace(store, key, {
         values: {},
@@ -227,6 +233,28 @@ export const tombstone = (store: EntityStore, key: EntityKey): EntityStore =>
         updatedAt: 0,
         windows: {},
       })
+
+/**
+ * Asks about tombstoned entities again: each stays absent, so a list keeps
+ * hiding it and a read of it keeps `NotFound`, while `missingFields` plans the
+ * fields asked for. A write clears the tombstone; `tombstone` ends the asking.
+ * An entity that is not a tombstone is left alone.
+ */
+export const askAgain = (
+  store: EntityStore,
+  marks: ReadonlyArray<readonly [key: EntityKey, fields: Iterable<string>]>,
+): EntityStore => {
+  let next: Record<EntityKey, EntityEntry> | undefined
+  for (const [key, fields] of marks) {
+    const previous = (next ?? store)[key]
+    if (previous === undefined || !previous.tombstone) continue
+    const asked = new Set([...previous.stale, ...fields])
+    if (asked.size === previous.stale.size) continue
+    next ??= { ...store }
+    next[key] = { ...previous, stale: asked }
+  }
+  return next ?? store
+}
 
 /** Forgets everything known about the entity, including a tombstone. */
 export const remove = (store: EntityStore, key: EntityKey): EntityStore => {
@@ -274,7 +302,7 @@ export const readField = (
 
 /**
  * The fields the planner must fetch. A tombstone makes every field known
- * (absent), so it returns an empty list and the entity is not refetched, and a
+ * (absent), so it returns only what it is asked about again, and a
  * field the server settled without a value is known the same way. A
  * requested window that differs from the one a field was fetched with also
  * marks it missing, but only when the stored window is known (never `""`), so a
@@ -287,7 +315,7 @@ export const missingFields = (
   windows?: Readonly<Record<string, string>>,
 ): ReadonlyArray<string> => {
   const value = store[key]
-  if (value !== undefined && value.tombstone) return []
+  if (value !== undefined && value.tombstone) return [...fields].filter(f => value.stale.has(f))
   return [...fields].filter(field => {
     if (value === undefined) return true
     if (!value.present.has(field)) return !value.unavailable.has(field)

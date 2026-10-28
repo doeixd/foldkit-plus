@@ -3720,7 +3720,9 @@ const bindDomain = <
       // The page as the rows held make it, before any failure is laid over it.
       // A row missing a field is left out until it arrives, and the page reads
       // `Refreshing` meanwhile: a list showing rows keeps showing them while a
-      // joined or re-read row is fetched. `undefined` when no row can be shown.
+      // joined or re-read row is fetched. `undefined` when no row can be shown
+      // and none was deleted: a list that lost its rows to a delete is a known
+      // list without them, not one waiting for its first rows (#263).
       const readPage = (
         remote: RemoteModel,
         connection: Connection,
@@ -3730,7 +3732,7 @@ const bindDomain = <
           [visible, connection, remote.optimistic.overlays],
           `${ref.identity}\u0000${relationKey}\u0000${String(sizeOf(remote))}`,
           () => {
-            const items: Value[] = []
+            const rows: Value[] = []
             let refreshing = connection.stale
             let missing = false
             const { edges, cutBefore, cutAfter } = shown(remote, connection)
@@ -3751,11 +3753,17 @@ const bindDomain = <
                 }
               }
               refreshing ||= assembled.refreshing
-              items.push(decoded.success)
+              rows.push(decoded.success)
             }
-            if (missing && items.length === 0) return undefined
+            if (missing && rows.length === 0) {
+              const gone = goneIn(remote.entities, remote.optimistic)
+              const deleted = items(connection).some(edge =>
+                gone(entityKey(edge.ref.entity, edge.ref.id)),
+              )
+              if (!deleted) return undefined
+            }
             const page = {
-              items,
+              items: rows,
               hasNext: cutAfter || hasNext(connection),
               hasPrevious: cutBefore || hasPrevious(connection),
             }
@@ -4031,17 +4039,11 @@ const bindDomain = <
           : (options.optimistic ??
             (mutation.write === undefined
               ? undefined
-              : [
-                  ...optimisticOfWrite(mutation.write, input, options.keys),
-                  ...derivedOfWrite(
-                    mutation.write,
-                    input,
-                    options.keys,
-                    definition.registry.derived.get(mutation.write.input.entity.name) ?? [],
-                    visibleStoreOf(remote.entities, remote.optimistic, bound.operators),
-                    viewerOf(model),
-                  ),
-                ]))
+              : predictionOfWrite(mutation.write, input, options.keys, {
+                  derived: definition.registry.derived,
+                  store: visibleStoreOf(remote.entities, remote.optimistic, bound.operators),
+                  viewer: viewerOf(model),
+                })))
       const started = updateRemote(remote, {
         _tag: 'MutationStarted',
         requestId,

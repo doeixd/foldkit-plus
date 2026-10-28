@@ -223,7 +223,7 @@ case 'ClickedMore': // grows the read's window by a page; the read entry fetches
 // whatever else loaded the connection; a wider window fetches only the rows it lacks.
 case 'ClickedRefresh':
   // Mark-only, no I/O: what each active Surface reads for this Model (params from the Model) reads
-  // Refreshing, a NotFound is forgotten (reads Loading, asked for again), connections invalidated.
+  // Refreshing, a NotFound is asked for again (still NotFound until answered), connections invalidated.
   return { model: Data.refresh(model, actives) }
 case 'ClickedTryAgain': // only what failed; a failed read reads Loading, then Ready or Failed again
   return { model: Data.refresh(model, actives, { failed: true }) }

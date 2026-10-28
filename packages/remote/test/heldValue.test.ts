@@ -8,9 +8,7 @@
  * exception below is named and narrow:
  * - the entity the read shows was deleted (a mutation's `deleted`, a live
  *   `EntityDeleted`, a read answered without it, or a pending
- *   `Remote.tombstone`), so it reads `NotFound`; and a list whose every row
- *   it showed was so deleted, while the rest are still being read, reads
- *   `Initial`;
+ *   `Remote.tombstone`), so it reads `NotFound`;
  * - a `Hydrated` snapshot under `replace` overwrote the store;
  * - retention dropped the read's root, which is past `departedLimit`.
  *
@@ -35,7 +33,6 @@ import {
   emptyStore,
   entityKey,
   isTombstone,
-  readField,
   stableStringify,
   terminal,
   writeEntities,
@@ -510,9 +507,9 @@ const messages = {
       ],
     }),
   },
-  // It returns the Model it is given (diagnostics.test.ts), and a case here
-  // would move every seeded walk below.
-  CompletedReportDiagnostics: {},
+  CompletedReportDiagnostics: {
+    'diagnostics reported': () => ({ _tag: 'CompletedReportDiagnostics' }),
+  },
 } satisfies Record<RemoteMessageTag, Readonly<Record<string, Generate>>>
 
 const cases = Object.entries(messages).flatMap(([tag, generators]) =>
@@ -567,8 +564,8 @@ const regressions: ReadonlyArray<{
     }),
   },
   {
-    // `RefreshStarted` forgets a tombstone so the row can be read again, and
-    // until it is, the row the tombstone hid is back in the list unread.
+    // `RefreshStarted` once forgot a tombstone so the row could be read again,
+    // and until it was, the row the tombstone hid was back in the list unread.
     name: 'a deleted row asked about again',
     from: () =>
       Data.reduce(loaded(), {
@@ -579,6 +576,42 @@ const regressions: ReadonlyArray<{
         now: 2,
       }),
     message: () => ({ _tag: 'RefreshStarted', requests: [nameOf('p3')] }),
+  },
+  // A list whose every shown row was deleted while the rest were unread read as
+  // if it had never shown anything: `Loading` with a read in flight (seed 174,
+  // #263), `Initial` without. It now reads `Refreshing` with no rows. The
+  // snapshot leaves the open list's p1 without its name, so p2 is all it shows.
+  ...(
+    [
+      ['the one row shown deleted', messages.MutationSucceeded['p2 deleted']],
+      ['the one row shown deleted pending', messages.MutationStarted['p2 being deleted']],
+    ] as const
+  ).flatMap(([name, message]) => [
+    {
+      name: `${name} while the others are unread`,
+      from: () => Data.reduce(loaded(), messages.Hydrated['a snapshot under replace']()),
+      message,
+    },
+    {
+      name: `${name} while the others are read`,
+      from: () =>
+        reduceAll(loaded(), [
+          messages.Hydrated['a snapshot under replace'](),
+          { _tag: 'ReadStarted', requests: [nameOf('p1')] },
+        ]),
+      message,
+    },
+  ]),
+  {
+    // A refresh forgot a tombstone, so the deleted row was back in the list
+    // unread, and the list above read `Initial` again.
+    name: 'the one row shown deleted, then asked about again',
+    from: () =>
+      reduceAll(loaded(), [
+        messages.Hydrated['a snapshot under replace'](),
+        messages.MutationSucceeded['p2 deleted'](),
+      ]),
+    message: messages.RefreshStarted['every row refreshing'],
   },
 ]
 
@@ -598,18 +631,6 @@ const exception = (
   ) {
     return Option.some('the entity it shows was deleted')
   }
-  if (
-    read.read(after)._tag === 'Initial' &&
-    Option.exists(read.list, identity => {
-      const rows = rowsShown(before, identity)
-      return (
-        rows.length > 0 &&
-        rows.every(key => deletes(message, key) && isTombstone(Data.storeOf(after), key))
-      )
-    })
-  ) {
-    return Option.some('every row it showed was deleted')
-  }
   if (message._tag === 'Hydrated' && message.merge === 'replace') {
     return Option.some('a snapshot replaced the store')
   }
@@ -624,12 +645,6 @@ const exception = (
   }
   return Option.none()
 }
-
-/** The rows a list shows: those it holds whose selected `name` is read. */
-const rowsShown = (model: Model, identity: string): ReadonlyArray<string> =>
-  Data.visibleItems(model.remote, identity)
-    .map(edge => entityKey(edge.ref.entity, edge.ref.id))
-    .filter(key => Option.isSome(readField(Data.storeOf(model), key, 'name')))
 
 const pendingDelete = (operations: ReadonlyArray<OptimisticOperation>, key: string): boolean =>
   operations.some(
@@ -748,25 +763,6 @@ describe('Each exception', () => {
       Option.some('the entity it shows was deleted'),
     )
   })
-
-  it.each([
-    ['a mutation that deleted it', messages.MutationSucceeded['p2 deleted']],
-    ['a pending delete', messages.MutationStarted['p2 being deleted']],
-  ])(
-    '%s empties a list whose only row read was p2, so it reads Initial',
-    (_, generate: Generate) => {
-      // The snapshot leaves the open list's p1 without its name: p2 is all it shows.
-      const model = Data.reduce(loaded(), messages.Hydrated['a snapshot under replace']())
-      const message = generate(model)
-      const after = Data.reduce(model, message)
-
-      expect(left.read(model)._tag).toBe('Refreshing')
-      expect(left.read(after)._tag).toBe('Initial')
-      expect(exception(watched[1]!, message, model, after)).toEqual(
-        Option.some('every row it showed was deleted'),
-      )
-    },
-  )
 
   it('a snapshot under replace may take a value away', () => {
     const model = loaded()

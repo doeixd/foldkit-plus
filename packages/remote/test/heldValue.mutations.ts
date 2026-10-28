@@ -10,6 +10,14 @@ const edit = (name: string, file: string, find: string, replace: string) => ({
 })
 const index = '../src/index.ts'
 const model = '../src/model.ts'
+const store = '../src/store.ts'
+
+/** Asking again about a deleted entity, which `domain.test.ts` drives. */
+const absent = (name: string, file: string, find: string, replace: string) => ({
+  name,
+  edits: [{ file, find, replace }],
+  tests: ['packages/remote/test/domain.test.ts'],
+})
 
 const partial = (name: string, find: string, replace: string) => ({
   name,
@@ -29,8 +37,13 @@ export default [
   ),
   partial(
     'a list with no row read shows an empty page',
-    'if (missing && items.length === 0) return undefined',
-    '',
+    'if (missing && rows.length === 0) {',
+    'if (false) {',
+  ),
+  partial(
+    'a list whose shown rows were deleted reads as never shown',
+    'if (!deleted) return undefined',
+    'return undefined',
   ),
   partial('a list missing a row reads Ready', 'return refreshing || missing', 'return refreshing'),
   partial(
@@ -75,10 +88,34 @@ export default [
     'connections: setConnectionStale({ ...model.connections, [message.connection]: emptyConnection }, message.connection, true),',
   ),
   edit(
+    'a refresh forgets a deleted entity it asks about',
+    store,
+    'next[key] = { ...previous, stale: asked }',
+    'delete next[key]',
+  ),
+  edit(
     'a refresh forgets every entity it asks about',
     model,
-    'isTombstone(store, entityKey(request.entity, request.id))',
-    'true',
+    'setStale(askAgain(model.entities, marks), marks, true)',
+    'setStale(Object.fromEntries(Object.entries(model.entities).filter(([key]) => !marks.some(([asked]) => asked === key))), marks, true)',
+  ),
+  absent(
+    'a deleted entity asked about again is not read',
+    store,
+    'return [...fields].filter(f => value.stale.has(f))',
+    'return []',
+  ),
+  absent(
+    'an absent answer leaves the asking open',
+    store,
+    'isTombstone(store, key) && store[key]!.stale.size === 0',
+    'isTombstone(store, key)',
+  ),
+  absent(
+    'a settled answer keeps the tombstone',
+    model,
+    'else if (settled.has(key) && isTombstone(answered, key)) answered = remove(answered, key)',
+    '',
   ),
   edit(
     'retention keeps only what is shown',
