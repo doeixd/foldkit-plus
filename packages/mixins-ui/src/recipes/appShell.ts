@@ -3,7 +3,8 @@
  * the start when there is one, and the main region in what is left. The
  * header and the side column stay in view while the main region scrolls.
  * Below the theme's `md` breakpoint the side column, which a `Sidebar` has
- * turned into its opener, sits at the start of the header's row. The skip link
+ * turned into its opener, sits at the start of the header's row and stays
+ * there with the header. The skip link
  * shows only when it is focused. `width: 'contained'` keeps the main region's
  * content to the theme's `page` width, centred.
  */
@@ -109,14 +110,19 @@ export const AppShell = Style.recipeFor(AppShellSlots)({
         blockSize: '100dvh',
         overflowY: 'auto',
       }),
+      // The opener is part of the header's row, so it stays with the header:
+      // sticky, layered and grounded as the header is, the row's height.
       Style.at(
         phone,
         Style.self({
-          position: 'static',
-          alignSelf: 'center',
+          alignSelf: 'stretch',
+          alignItems: 'center',
           blockSize: 'auto',
+          zIndex: '1',
           paddingInlineStart: ref.space.xs,
           overflow: 'visible',
+          borderBlockEnd: `${ref.border.thin} solid ${ref.outline.subtle}`,
+          background: ref.surface.base,
         }),
       ),
     ),

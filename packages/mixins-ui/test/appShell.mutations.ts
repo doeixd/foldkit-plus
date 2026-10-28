@@ -100,6 +100,39 @@ export default [
     tests: [browser],
   },
   {
+    name: 'on a phone the opener scrolls away under the header',
+    edits: [
+      {
+        file: recipe,
+        find: "alignSelf: 'stretch',",
+        replace: "position: 'static', alignSelf: 'stretch',",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'on a phone the opener lies under the page scrolled beneath it',
+    edits: [
+      {
+        file: recipe,
+        find: "blockSize: 'auto',\n          zIndex: '1',",
+        replace: "blockSize: 'auto',",
+      },
+    ],
+    tests: [browser],
+  },
+  {
+    name: 'on a phone the page shows through beside the opener',
+    edits: [
+      {
+        file: recipe,
+        find: 'background: ref.surface.base,\n        }),\n      ),',
+        replace: '}),\n      ),',
+      },
+    ],
+    tests: [browser],
+  },
+  {
     name: 'the sidebar stops where its links end',
     edits: [
       {

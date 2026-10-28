@@ -2,7 +2,8 @@
  * The frame in a real browser over the shipped recipe: at a desktop's width the
  * side column runs down the start beside the header and the main region; at a
  * phone's it sits at the start of the header's row and the main region takes
- * the width; the header stays at the top while the page scrolls; and the skip
+ * the width, and the side column stays there with the header while the page
+ * scrolls; the header stays at the top while the page scrolls; and the skip
  * link shows only when focused and takes focus to the main region.
  */
 import { Schema } from 'effect'
@@ -110,6 +111,26 @@ test('the header stays at the top while the page scrolls', async () => {
     header.top + header.height / 2,
   )
   expect(document.querySelector('header')!.contains(hit)).toBe(true)
+})
+
+test('at a phone’s width the side column, holding the opener, stays in the header’s row while the page scrolls', async () => {
+  await page.viewport(390, 844)
+  await mount(true)
+  const before = box('[data-side] > div')
+  window.scrollTo(0, 1200)
+  await vi.waitFor(() => expect(window.scrollY).toBe(1200))
+  const [side, header] = [box('[data-side] > div'), box('header')]
+  expect(header.top).toBe(0)
+  expect(side.top).toBeCloseTo(before.top, 0)
+  expect(side.bottom).toBeLessThanOrEqual(header.bottom + 0.5)
+  // The opener can be pressed: the page scrolled under it is not what is there.
+  const link = box('[data-side] nav a')
+  const hit = document.elementFromPoint(link.left + link.width / 2, link.top + link.height / 2)
+  expect(document.querySelector('[data-side] > div')!.contains(hit)).toBe(true)
+  // Grounded as the header is, so the page does not show through beside the opener.
+  const ground = (selector: string) =>
+    getComputedStyle(document.querySelector(selector)!).backgroundColor
+  expect(ground('[data-side] > div')).toBe(ground('header'))
 })
 
 test('the skip link is out of sight until focused, and takes focus to the main region', async () => {
