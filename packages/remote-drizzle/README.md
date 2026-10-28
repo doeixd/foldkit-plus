@@ -718,6 +718,31 @@ QueryPage
 `orderBy` must be non-empty and should form a stable total order. Add a unique
 tie-breaker such as the id.
 
+### A body that reads other rows
+
+A body over Entities bound together with `bind` may read across their `one`
+relations, with `Expr.path` and `Expr.exists` from `foldkit-entity`:
+
+```ts
+// Posts whose author the reader follows.
+Query.where(
+  Expr.path(Post.relations.author,
+    Expr.exists(Follow.relations.followee, Expr.eq(Follow.fields.followerId, input.me))),
+)
+```
+
+Each relation followed compiles to a scalar subquery, and an exists to
+`exists (select 1 …)`, each **under its table's `visible` rule** for the
+request's principal, resolved once per request. A row the reader may not see
+is not there: a path to it reads null, and an exists does not find it. A body
+never reads past what its reader may see, here either.
+
+Checked at registration: each relation on the way is stored on its owner's
+own table (`{ field }`), each Entity is bound beside this one, and no table is
+met twice along one path (that needs SQL aliases, which this compiler does not
+write yet). An invariant, a write's `when` and a Read rule take no path yet,
+and are refused one where they are registered.
+
 ### Sorting by what the user chose
 
 Put the sort in the query's body, where the client reads it too:

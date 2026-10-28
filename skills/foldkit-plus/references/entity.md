@@ -519,6 +519,32 @@ Query.dependencies(recent)     // every field it reads, also split into `predica
   steps. `Query` from `foldkit-entity` has `from`/`where`/`orderBy` and no
   `define`, which is only what a package composing queries without Remote needs.
 
+### Across relations, and what a holder has
+
+```ts
+// Posts by a handle, and posts whose author the reader follows.
+Expr.eq(Expr.path(Post.relations.author, User.fields.handle), input.handle)
+Expr.path(Post.relations.author,
+  Expr.exists(Follow.relations.followee, Expr.eq(Follow.fields.followerId, input.me)))
+```
+
+- `Expr.path(relation, end)` follows a `one` relation and reads a field, a
+  further path, or an exists there; a null link or a row the reader may not
+  see reads null. `Expr.exists(relation, where?)` names the **pointing** `one`
+  relation of another Entity, as `Derived.count` does; `where` reads that
+  row's own fields and the input only. At most four relations; no ordering by
+  a path.
+- `foldkit-remote-drizzle` compiles both to subqueries under each reached
+  table's `visible`, for Entities bound together with `bind`. A path meeting a
+  table twice, or a relation not stored on its owner's table, is refused at
+  registration. Invariants, `when` and Read rules take no path yet.
+- `evaluate` (one plain row) refuses a path or an exists. `Judge.query(body,
+  input, row)` reads a `HeldRow` (`Held.rows(tables)` over plain records) and
+  answers a `Verdict`: `Known` (SQL's answer) or `Unknown` with why, when the
+  answer rests on a field or row the holder lacks or may not see, or an operator
+  only the server runs. SQL's null stays a known answer. The law, held by
+  `relationalCases` on SQLite and Postgres: where `Judge` knows, it is SQL's.
+
 ## Gotchas
 
 - Relations are **not** in `entity.schema`. Do not put `author` in the Struct.

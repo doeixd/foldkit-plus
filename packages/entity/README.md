@@ -871,6 +871,79 @@ one is refused where it is piped: an interpreter would otherwise be asked for a
 column of a table it was never told to read. Entities are compared by identity,
 so two declared with the same name are two Entities here as everywhere else.
 
+### Reading across relations: `Expr.path` and `Expr.exists`
+
+A predicate may read the row a `one` relation points at, and ask whether any
+row points at this one. Both start on the query's own row, so they belong in
+its `where`:
+
+```ts
+const { Post, User, Follow } = Entity.relate(
+  { Post: PostFields, User: UserFields, Follow: FollowFields },
+  { Post: { author: Relation.one(UserFields) }, Follow: { followee: Relation.one(UserFields) } },
+)
+
+// Posts by a handle: a field of the row `author` points at.
+const ByHandle = Query.from(Post).pipe(
+  Query.where(
+    Expr.eq(Expr.path(Post.relations.author, User.fields.handle), Expr.input('handle', Schema.String)),
+  ),
+  Query.orderBy(Order.asc(Post.fields.id)),
+)
+
+// Posts whose author the reader follows: some Follow points at the author, and is theirs.
+Expr.path(
+  Post.relations.author,
+  Expr.exists(Follow.relations.followee, Expr.eq(Follow.fields.followerId, Expr.input('me', Schema.String))),
+)
+```
+
+(`packages/entity/test/readmePaths.test.ts` runs these, with the three Entities
+it declares.)
+
+- `Expr.path(relation, end)` follows a `one` relation, then reads `end` there:
+  a field, a further path, or an exists. A null link, or a row the reader may
+  not see, reaches no row, and the field reads null, as SQL's scalar subquery
+  does. At most four relations.
+- `Expr.exists(relation, where?)` names the pointing edge, a `one` relation of
+  another Entity (`Follow.followee`), as `Derived.count` does. Only rows the
+  reader may see count. `where` reads the pointing row's own fields and the
+  input; anything past them is refused where it is written.
+- A list does not order by a path.
+
+`foldkit-remote-drizzle` compiles both to subqueries under each reached
+table's `visible` rule. `evaluate`, given one row, cannot follow them: it
+refuses such a body, as it refuses any operation it does not run. `Judge`,
+below, reads them from what a holder has.
+
+### Judging what you hold: `Judge`
+
+`evaluate` reads a missing key as null, which is right for a server holding
+every row and wrong for a client holding some: "this field is null" and "I was
+never sent it" are different answers. `Judge` reads a row as a holder has it
+(`HeldRow`) and keeps the two apart:
+
+```ts
+const holder = Held.rows([
+  { entity: Post, rows: [{ id: 'p1', body: 'hi', author: 'u1' }, { id: 'p2', body: 'yo', author: 'u2' }] },
+  // Ada is held; u2 is not, and this holder may lack users.
+  { entity: User, rows: [{ id: 'u1', handle: 'ada' }], complete: false },
+])
+Judge.query(ByHandle, { handle: 'ada' }, Option.getOrThrow(holder.row(Post, 'p1')))
+// { _tag: 'Known', truth: true }
+Judge.query(ByHandle, { handle: 'ada' }, Option.getOrThrow(holder.row(Post, 'p2')))
+// { _tag: 'Unknown', reason: 'User u2 is not held' }
+```
+
+A verdict is `Known` or `Unknown`. A known predicate's truth is SQL's three
+values, its null decided (a row is not kept on it); unknown means the answer
+rests on a field or row the holder lacks or may not see, or on an operator only
+the server runs. What can decide anyway does: a null beside an unheld value,
+`and`'s false, `or`'s true, an exists' held witness. `Judge.query(…, {
+serverOnly })` names a filter the server adds that the holder does not run. The
+law, checked against SQL by `foldkit-entity/conformance`'s `relationalCases`:
+where `Judge` knows, it is what the server answers.
+
 ### Saying what an interpreter can run
 
 An `Expr` is only portable if the thing running it says what it runs.
@@ -1196,6 +1269,10 @@ from queries, not from what a database could express.
 | `Expr.and(a, b, …)` / `Expr.or(a, b, …)` | Every operand holds / at least one does, as SQL's three-valued `and` and `or`. At least one operand; a nested one of the same kind is flattened in. |
 | `Expr.not(predicate)` | The predicate does not hold; an unknown stays unknown, so a null matches neither side. |
 | `Expr.lt` / `lte` / `gt` / `gte(left, right, { collation? })` | One value orders before or after the other. Numbers as numbers; text only under `binary` or `asciiFold` (the field's declared collation, or the one given), and only against a field. |
+| `Expr.path(relation, end)` | What the row a `one` relation points at holds: a field, a further path, or an exists; null where no row is reached. At most `maxPathLength` (4) relations. |
+| `Expr.exists(relation, where?)` | Some row of another Entity points here through its `one` relation and holds `where`, a predicate over its own fields and the input. |
+| `Judge.predicate(p, row, options)` / `Judge.query(body, input, row, options)` | The reference semantics over a `HeldRow`: a `Verdict`, `Known` (SQL's answer) or `Unknown` with why. `Judge.match` reads one. |
+| `Held.rows(tables)` | A holder over plain records, each table complete or not, with keys hidden; `row(entity, id)` and `rows(entity)` give `HeldRow`s. |
 | `Expr.whenGiven(input, given => predicate)` | A filter applying only when a nullable input is given: `or(isNull(input), predicate)`, the predicate seeing the input as never null. |
 | `Expr.operator(id, { input, output, definedAs?, version?, description?, nulls?, collation?, laws? })` | An operator: defined by what a call means (`definedAs`, whose expansion every interpreter runs) or primitive (each interpreter's table implements it). Calling it builds a `Test` predicate (a boolean output) or a `Call` scalar. |
 | `Expr.unsupported(nodes, { operations, operators })` | What these expressions need that an interpreter lacks: operations, then primitive operators by name. |
