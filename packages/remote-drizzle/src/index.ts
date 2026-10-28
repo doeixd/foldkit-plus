@@ -1073,8 +1073,10 @@ export const writer = <P = unknown>(
   }
   const missing = (what: string) =>
     new RemoteServerError({ message: `${binding.name} has no ${what}` })
-  // The rows as a principal may read them, under the binding's `visible`.
-  const readable = source<P>(binding)
+  // The rows as a principal may read them, under the binding's `visible`. A
+  // writer reads stored fields (what it wrote, what a rule reads), never a
+  // member answered per reader, so it needs no viewer.
+  const readable = source<P>(binding, { viewer: () => Option.none() })
 
   const { invariants } = binding
   const invariantName = (held: Invariant) => `${binding.name}'s invariant "${held.id}"`

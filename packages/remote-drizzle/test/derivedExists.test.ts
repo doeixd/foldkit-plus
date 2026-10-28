@@ -196,3 +196,9 @@ describe("a like's answer reads its post as the asker reads it", () => {
     ])
   })
 })
+
+describe('a writer of an Entity with a Derived.exists', () => {
+  it('is made without a viewer: it reads only stored fields', () => {
+    expect(writer(Db.Post).entity).toBe('Post')
+  })
+})

@@ -59,6 +59,12 @@ export default [
     'sql<string>`max(${side.child})`',
   ),
   edit(
+    "a writer's own reads need a viewer",
+    '../src/index.ts',
+    'source<P>(binding, { viewer: () => Option.none() })',
+    'source<P>(binding)',
+  ),
+  edit(
     'the exists is read as a count',
     '../src/index.ts',
     'if (viewing !== undefined) {',

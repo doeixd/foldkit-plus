@@ -627,7 +627,11 @@ Subscribers that selected none of the changed fields do no work, and
 subscribers with one principal share one re-read. One principal means the same
 value, unless the hub is given a `key`: then two requests whose principals
 have one key, each with a principal object of its own, share it, read as the
-first of them. A key must therefore name everything the Sources decide by:
+first of them. A key must therefore name everything the Sources decide by,
+the reader itself included when a Source answers a viewer-relative member (a
+`Derived.exists`, whose value is each reader's own; `foldkit-guard`'s
+`Policy.keyOf` names every field of the principal). A key by role, as here,
+fits Sources that answer only by role:
 
 ```ts
 const hub = yield* RemoteServer.liveHub(entitySources, {
@@ -663,7 +667,8 @@ const SharedProjectSource = RemoteServer.entity<Principal>(Project, {
   re-read.
 - `foldkit-remote-drizzle`'s `source` and `RemoteServer.memory` take it too,
   and `foldkit-guard`'s `GuardServer.validate` refuses a shared field a Read
-  rule could tell readers apart by.
+  rule could tell readers apart by. `source` refuses a `Derived.exists` as
+  shared: it is each reader's own.
 
 A hub is an in-memory fan-out, so whatever calls `changed` must be able to wake
 the subscriber's fiber. In a worker it cannot: one request cannot wake another's
