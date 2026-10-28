@@ -7,7 +7,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Option, Result, Schema } from 'effect'
-import { Entity, Expr, Relation, Stamp, Write } from 'foldkit-entity'
+import { Entity, Expr, Relation, Write } from 'foldkit-entity'
 import { Mutation, Remote } from 'foldkit-remote'
 import { bind, databaseLayer, source, writer, type DrizzleDatabase } from 'foldkit-remote-drizzle'
 import { RemoteServer, type EntityWriter, type MutationSource } from 'foldkit-remote-server'
@@ -98,13 +98,15 @@ const NoteFields = Entity.define(
   'Note',
   Schema.Struct({ id: Schema.String, authorId: Schema.String, body: Schema.String }),
 )
+/** The rows who asks are, which the context names. */
+const UserRow = Entity.define('User', Schema.Struct({ id: Schema.String }))
 // Whoever writes a note is its author.
 const Note = NoteFields.pipe(
   Guards.attach(G, { row: { Read: [G.isAdmin] } }),
-  Entity.stamps({ authorId: Stamp.viewer }),
+  Entity.sets({ authorId: Expr.viewer(UserRow) }, { on: 'create' }),
 )
 
-/** Who asks, as the row a stamp names. */
+/** Who asks, as the row the context names. */
 const asker = (principal: Option.Option<User>) =>
   Option.map(principal, user => ({ entity: 'User', id: user.id }))
 
@@ -191,7 +193,7 @@ const CreateBare = Mutation.write(
   }),
 )
 // The owner of a todo made here is whoever made it.
-const MineTodo = Todo.pipe(Entity.stamps({ ownerId: Stamp.viewer }))
+const MineTodo = Todo.pipe(Entity.sets({ ownerId: Expr.viewer(UserRow) }, { on: 'create' }))
 const CreateMine = Mutation.write(
   'CreateMine',
   Write.insert(Entity.input(MineTodo, Schema.Struct({ id: Schema.String, title: Schema.String })), {
@@ -431,7 +433,7 @@ describe('GuardServer.writer', () => {
     expect(row('t1')).toBeUndefined()
   })
 
-  it('stamps a field with who is asking, and checks the create with it set', async () => {
+  it('sets a field to who is asking, and checks the create with it set', async () => {
     const { mutate, row } = open()
     expect(await mutate(ada, 'CreateMine', { id: 't8', title: 'Mine' })).toMatchObject({
       _tag: 'Success',
@@ -445,7 +447,7 @@ describe('GuardServer.writer', () => {
     expect(row('t9')).toBeUndefined()
   })
 
-  it('refuses a visitor a create that stamps who asks, where its rules would let anyone create', async () => {
+  it('refuses a visitor a create that sets who asks, where its rules would let anyone create', async () => {
     const { mutate } = open()
     expect(await mutate(ada, 'CreateNote', { id: 'n1', body: 'Hello' })).toMatchObject({
       _tag: 'Success',

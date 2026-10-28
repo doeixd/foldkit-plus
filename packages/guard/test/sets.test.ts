@@ -1,17 +1,16 @@
 // @vitest-environment node
 /**
- * Fields the server stamps on a create (`Entity.stamps`), under a guard, over
- * real SQLite. Who asks and when count as set where an insert is registered
- * (#202), a rule over who asks holds of the creator, and a retried insert,
- * which the writer's ledger recognises, keeps the time its first attempt wrote
- * and is answered with the row, while another asker makes it someone else's
- * (#203).
+ * Fields the write's context sets (`Entity.sets`), under a guard, over real
+ * SQLite. Who asks and when count as set where an insert is registered (#202),
+ * a rule over who asks holds of the creator, and a retried insert, which the
+ * writer's ledger recognises, keeps the time its first attempt wrote and is
+ * answered with the row, while another asker makes it someone else's (#203).
  */
 import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Clock, Effect, Option, Schema } from 'effect'
-import { Entity, Expr, Stamp, Write } from 'foldkit-entity'
+import { Entity, Expr, Write } from 'foldkit-entity'
 import { Mutation } from 'foldkit-remote'
 import { bind, databaseLayer, writer, type DrizzleDatabase } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
@@ -55,7 +54,8 @@ const G = Guards.declare(
   }),
   { key: user => user.id, unguarded: 'allow' },
 )
-// The invariants read the two fields the server stamps, so an insert must count them as set.
+// The invariants read the two fields the context sets, so an insert must count them as set.
+const UserRow = Entity.define('User', Schema.Struct({ id: Schema.String }))
 const Ruled = LikeFields.pipe(
   Entity.invariant('noSelfLike', ({ after }) => Expr.not(Expr.eq(after.accountId, after.postId)), {
     message: 'You cannot like yourself',
@@ -66,7 +66,7 @@ const Ruled = LikeFields.pipe(
 )
 const Like = Ruled.pipe(
   Guards.attach(G, { row: { Read: [G.isLiker], Create: [G.isLiker] } }),
-  Entity.stamps({ accountId: Stamp.viewer, createdAt: Stamp.clock }),
+  Entity.sets({ accountId: Expr.viewer(UserRow), createdAt: Expr.now }, { on: 'create' }),
 )
 const Policy = G.implement({})
 const Db = bind(
@@ -136,8 +136,8 @@ const clockAt = (at: number): Clock.Clock => ({
 })
 
 describe('fields the server sets on a create', () => {
-  it('counts the stamped fields as set where an insert is registered', () => {
-    // Unstamped, nothing would set the two fields the invariants read.
+  it('counts the fields the context sets as set where an insert is registered', () => {
+    // Without the sets, nothing would set the two fields the invariants read.
     const Plain = bind({ Like: Ruled }, { Like: { table: likes } })
     expect(() =>
       RemoteServer.write(
@@ -156,7 +156,7 @@ describe('fields the server sets on a create', () => {
     expect(serve).not.toThrow()
   })
 
-  it('answers a retried insert with the row it made, keeping its first stamp', async () => {
+  it('answers a retried insert with the row it made, keeping its first time', async () => {
     const { like, rows } = open()
     const first = await like('ada', 'r1', { id: 'ada:p1', postId: 'p1' })
     expect(first).toMatchObject({
@@ -185,5 +185,72 @@ describe('fields the server sets on a create', () => {
       _tag: 'Success',
     })
     expect(rows()).toEqual([expect.objectContaining({ account_id: 'ada', created_at: 1001 })])
+  })
+})
+
+describe('a field the context sets on an update, under a guard', () => {
+  const notes = sqliteTable('notes', {
+    id: text('id').primaryKey(),
+    body: text('body').notNull(),
+    editedAt: integer('edited_at').notNull(),
+  })
+  const NoteFields = Entity.define(
+    'Note',
+    Schema.Struct({ id: Schema.String, body: Schema.String, editedAt: Schema.Number }),
+  )
+  const N = Guards.declare(
+    'Notes',
+    User,
+    // A note edited before the epoch would be a backdated one.
+    guard => ({ dated: guard.row(NoteFields, () => Expr.gt(NoteFields.fields.editedAt, 0)) }),
+    { key: user => user.id, unguarded: 'allow' },
+  )
+  const Note = NoteFields.pipe(
+    Guards.attach(N, { row: { Update: [N.dated] } }),
+    Entity.sets({ editedAt: Expr.now }, { on: 'write' }),
+  )
+  const NotesPolicy = N.implement({})
+  const Notes = bind(
+    { Note },
+    { Note: { table: notes, visible: GuardDrizzle.visible(NotesPolicy, [Note]).Note } },
+  )
+  const EditNote = Mutation.write(
+    'EditNote',
+    Write.update(Entity.input(Note, Schema.Struct({ id: Schema.String, body: Schema.String })), {
+      id: 'id',
+    }),
+  )
+  const server = RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
+    entities: [],
+    mutations: [
+      RemoteServer.write(EditNote, GuardServer.writer(Note, NotesPolicy, writer(Notes.Note))),
+    ],
+  })
+
+  it('is judged by the rules as the row the update leaves holds it', async () => {
+    const sqlite = new DatabaseSync(':memory:')
+    sqlite.exec(`create table notes (id text primary key, body text not null, edited_at integer not null);
+      insert into notes values ('n1', 'Hi', 5);`)
+    const edit = (now: number) =>
+      Effect.runPromise(
+        RemoteServer.handlers(server, Option.some({ id: 'ada' }))
+          .FoldkitRemoteMutate({
+            requestId: `r${now}`,
+            mutation: 'EditNote',
+            input: { id: 'n1', body: 'Again' },
+            now,
+          })
+          .pipe(
+            Effect.provide(databaseLayer(drizzle({ client: sqlite }))),
+            Effect.provideService(Clock.Clock, clockAt(1_000)),
+            Effect.result,
+          ),
+      )
+    // Sent at 0, within the bound: the row it leaves breaks the rule.
+    expect(await edit(0)).toMatchObject({ failure: { _tag: 'Forbidden' } })
+    expect(await edit(900)).toMatchObject({ _tag: 'Success' })
+    expect(sqlite.prepare('select body, edited_at from notes').all()).toEqual([
+      { body: 'Again', edited_at: 900 },
+    ])
   })
 })

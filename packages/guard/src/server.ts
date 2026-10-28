@@ -290,9 +290,10 @@ export const GuardServer = {
    * create leaves unset matches no guard, not even one for an empty value. A refusal is
    * `Forbidden`, with the sentence an `explain` gave; the write never runs.
    *
-   * What the Entity stamps when a row is created (`Entity.stamps`: who asks,
-   * when) reaches a create already set by `RemoteServer.write`, so a rule over
-   * it holds of the creator.
+   * What the Entity sets from the write's context (`Entity.sets`: who asks,
+   * when) reaches a create or an update already set by `RemoteServer.write`,
+   * so a rule over it holds of the creator. A member rule over such a member
+   * judges the server's value like any other: declare none there.
    *
    * `revision` names a field stored as a number, which the writer moves on by
    * one with each write it lands. An update or a delete then lands only on the

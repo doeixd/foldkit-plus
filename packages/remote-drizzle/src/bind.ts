@@ -9,7 +9,7 @@
 import type { AnyColumn, SQL, Table as DrizzleTable } from 'drizzle-orm'
 import { getTableColumns } from 'drizzle-orm'
 import { holdsChecks } from './checks.js'
-import { stampSharers } from './columns.js'
+import { contextSharers } from './columns.js'
 import { operatorsFrom, type BindingOperators } from './operators.js'
 import { Option, Schema, SchemaAST } from 'effect'
 import { SchemaShape } from 'foldkit-entity'
@@ -417,10 +417,9 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
       }) as RelationBinding
     }
 
-    const stamps: Readonly<Record<string, unknown>> = entity.stamps
-    for (const { stamped, member, column } of stampSharers(stamps, columns, relations))
+    for (const { set, member, column } of contextSharers(entity.sets, columns, relations))
       fail(
-        `entity "${name}" stamps "${stamped}" but not "${member}", both stored on column "${column}": a write of "${member}" would overwrite the stamp; stamp both or neither`,
+        `entity "${name}" sets "${set}" from the write's context but not "${member}", both stored on column "${column}": a write of "${member}" would overwrite it; set both or neither`,
       )
 
     const computed = Object.create(null) as Record<string, ComputedConfig>

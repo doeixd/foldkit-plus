@@ -470,12 +470,14 @@ to an `EntityWriter`, which writes them and answers the row as written:
 RemoteServer.write(EditProject, writer(Db.Project)) // `writer` from foldkit-remote-drizzle
 ```
 
-The answer is the mutation's patch, or for a delete its deletion. An insert of
-an Entity with `Entity.stamps` is handed its stamped members as well, never
-from the input: `Stamp.viewer` from `RemoteServer.make({ viewer: principal =>
-Option<{ entity, id }> })`, and `Stamp.clock` from the write's time. A
-visitor's insert that stamps the viewer is refused as forbidden; a server that
-serves such a write with no `viewer` is refused where it is made. A retried
+The answer is the mutation's patch, or for a delete its deletion. A write of
+an Entity with `Entity.sets` is handed the members its context sets as well,
+never from the input (an insert all of them, an update those set `on:
+'write'`): `Expr.viewer` from `RemoteServer.make({ viewer: principal =>
+Option<{ entity, id }> })`, and `Expr.now` from the write's time. A write whose
+value comes to null where the member holds none (a visitor's) is refused as
+forbidden; a server that serves a write setting the viewer with no `viewer` is
+refused where it is made. A retried
 insert, which only a writer's ledger recognises, keeps its first time.
 
 The write's time is the client's when it sent one (`Data.mutate`'s `now`, the

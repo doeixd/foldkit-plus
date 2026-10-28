@@ -480,14 +480,16 @@ as its writer may see it; the writer refuses one without. That the rule is
 Entity's Source, so give the writer that Source's binding.
 
 A client should not choose whose a new row is. The Entity says which fields
-the server chooses when a row is created (`Entity.stamps` in `foldkit-entity`),
-and `RemoteServer.write` sets them before the guarded writer checks the
-create, so a rule over them holds of the creator: with
-`Entity.stamps({ ownerId: Stamp.viewer })` added to the `Todo` above, a todo
-is its creator's, and `RemoteServer.make({ viewer })` says who that is.
+the write's context sets (`Entity.sets` in `foldkit-entity`), and
+`RemoteServer.write` sets them before the guarded writer checks the create or
+the update, so a rule over them holds of the creator: with
+`Entity.sets({ ownerId: Expr.viewer(UserRow) }, { on: 'create' })` added to the
+`Todo` above (`UserRow` the Entity a principal is a row of), a todo is its
+creator's, and `RemoteServer.make({ viewer })` says who that is. A member rule
+over such a member judges the server's value like any other: declare none there.
 
 No input may set `ownerId`, which is refused where the write is declared. A
-visitor has no one to stamp, and is refused even where the rules would let
+visitor is no one to set, and is refused even where the rules would let
 anyone create. A create of an id already taken is refused with one answer,
 whatever the row there holds, so it tells nothing the asker may not read. Only
 the writer's ledger recognises a retry, by its operation and who asked, and

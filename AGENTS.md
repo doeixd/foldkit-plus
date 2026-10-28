@@ -965,6 +965,12 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
 - **`Optic.at` cannot insert.** It is a prism, not a lens: `replace` is a no-op on
   an absent key, so writing a new key (or clearing one) needs a container-aware
   setter, not `optic.replace`. Silent no-op otherwise.
+- **A guard's or a query's Entity may be the one declared before
+  `Entity.relate`.** `guard.row(LikeFields, …)` and `Query.from(PostFields)`
+  hold an Entity with no relations, though a rule over `Like.relations.user`
+  reads one, so a converter that looked for links in `query.entity.relations`
+  found none and compared `'User:ada'` with `'ada'`. `Held.fromRefs` finds a
+  link as a key the body reads that is no field of its Entity.
 - **Untrusted field names are prototype keys.** `field in values` walks the
   prototype chain; filter with `Object.hasOwn` and accumulate with no prototype.
   The Drizzle adapter's relation/computed/column maps are `Object.create(null)`,

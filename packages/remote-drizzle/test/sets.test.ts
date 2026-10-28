@@ -1,15 +1,16 @@
 /**
- * An insert's stamps, written by the server: who asks (`Stamp.viewer`), from
- * `RemoteServer.make`'s viewer, and when (`Stamp.clock`): the time the client
- * sent, within the server's `clockSkew` of the Effect clock, or that clock.
- * The input never sets either, and a retry, which the writer's ledger
- * recognises, keeps the row's own time.
+ * What the write's context sets (`Entity.sets`), written by the server: who
+ * asks (`Expr.viewer`), from `RemoteServer.make`'s viewer, and when
+ * (`Expr.now`): the time the client sent, within the server's `clockSkew` of
+ * the Effect clock, or that clock. An insert sets them all, an update those
+ * set `on: 'write'`. The input never sets one, and a retry, which the writer's
+ * ledger recognises, keeps the row's own time. operations-phase3-DESIGN.
  */
 import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Clock, Effect, Option, Schema } from 'effect'
-import { Entity, Expr, Relation, Stamp, Write } from 'foldkit-entity'
+import { Entity, Expr, Relation, Write } from 'foldkit-entity'
 import { Diagnostics, Mutation } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
@@ -21,6 +22,7 @@ const posts = sqliteTable('posts', {
   body: text('body').notNull(),
   authorId: text('author_id').notNull(),
   createdAt: integer('created_at').notNull(),
+  editedAt: integer('edited_at').notNull(),
 })
 const likes = sqliteTable('likes', {
   id: text('id').primaryKey(),
@@ -44,6 +46,7 @@ const PostFields = Entity.define(
     body: Schema.String,
     authorId: Schema.String,
     createdAt: Schema.Number,
+    editedAt: Schema.Number,
   }),
 )
 const LikeFields = Entity.define('Like', Schema.Struct({ id: Schema.String }))
@@ -52,8 +55,11 @@ const Social = Entity.relate(
   { Like: { post: Relation.one(PostFields), user: Relation.one(UserFields) } },
 )
 // Who wrote a post and when, and whose a like is, are the server's to choose.
-const Post = Social.Post.pipe(Entity.stamps({ authorId: Stamp.viewer, createdAt: Stamp.clock }))
-const Like = Social.Like.pipe(Entity.stamps({ user: Stamp.viewer }))
+const Post = Social.Post.pipe(
+  Entity.sets({ authorId: Expr.viewer(UserFields), createdAt: Expr.now }, { on: 'create' }),
+  Entity.sets({ editedAt: Expr.now }, { on: 'write' }),
+)
+const Like = Social.Like.pipe(Entity.sets({ user: Expr.viewer(UserFields) }, { on: 'create' }))
 
 const Db = bind(
   { User: Social.User, Post, Like },
@@ -70,6 +76,12 @@ const Db = bind(
 const PostChirp = Mutation.write(
   'PostChirp',
   Write.insert(Entity.input(Post, Schema.Struct({ id: Schema.String, body: Schema.String })), {
+    id: 'id',
+  }),
+)
+const EditPost = Mutation.write(
+  'EditPost',
+  Write.update(Entity.input(Post, Schema.Struct({ id: Schema.String, body: Schema.String })), {
     id: 'id',
   }),
 )
@@ -99,6 +111,7 @@ const serverWith = (clockSkew?: Parameters<typeof RemoteServer.make>[0]['clockSk
           ledger: { table: ledger, scope: principal => principal ?? '' },
         }),
       ),
+      RemoteServer.write(EditPost, writer(Db.Post)),
       RemoteServer.write(LikePost, writer(Db.Like)),
     ],
     viewer,
@@ -122,7 +135,8 @@ const sandbox = (made = server) => {
   sqlite.exec(`
     create table users (id text primary key);
     create table posts (
-      id text primary key, body text not null, author_id text not null, created_at integer not null
+      id text primary key, body text not null, author_id text not null,
+      created_at integer not null, edited_at integer not null
     );
     create table likes (id text primary key, post_id text not null, user_id text not null);
     create table write_ledger (
@@ -130,7 +144,7 @@ const sandbox = (made = server) => {
       at integer not null, request text, primary key (scope, operation, target)
     );
     insert into users values ('ada'), ('bob');
-    insert into posts values ('p1', 'Hello', 'ada', 1);
+    insert into posts values ('p1', 'Hello', 'ada', 1, 1);
   `)
   const layer = databaseLayer(drizzle({ client: sqlite }))
   const collected = Diagnostics.collect()
@@ -159,13 +173,13 @@ const sandbox = (made = server) => {
   return { mutate, row, reported: collected.reported, close: () => sqlite.close() }
 }
 
-describe("an insert's stamps, on the server", () => {
+describe('what the context sets, on the server', () => {
   it('writes who asked and when, and answers them', async () => {
     const { mutate, row, close } = sandbox()
     try {
       const answer = await mutate('bob', 'PostChirp', { id: 'n1', body: 'Hi' }, 5_000)
-      expect(row("select author_id, created_at from posts where id = 'n1'")).toEqual([
-        { author_id: 'bob', created_at: 5_000 },
+      expect(row("select author_id, created_at, edited_at from posts where id = 'n1'")).toEqual([
+        { author_id: 'bob', created_at: 5_000, edited_at: 5_000 },
       ])
       expect(answer).toMatchObject({
         success: {
@@ -177,7 +191,24 @@ describe("an insert's stamps, on the server", () => {
     }
   })
 
-  it('points a stamped relation at whoever asks', async () => {
+  it("sets on an update what is set on: 'write', and leaves the rest", async () => {
+    const { mutate, row, close } = sandbox()
+    try {
+      const answer = await mutate('bob', 'EditPost', { id: 'p1', body: 'Again' }, 5_000, {
+        now: 4_000,
+      })
+      expect(
+        row("select body, author_id, created_at, edited_at from posts where id = 'p1'"),
+      ).toEqual([{ body: 'Again', author_id: 'ada', created_at: 1, edited_at: 4_000 }])
+      expect(answer).toMatchObject({
+        success: { entities: [{ id: 'p1', values: { body: 'Again', editedAt: 4_000 } }] },
+      })
+    } finally {
+      close()
+    }
+  })
+
+  it('points a relation the context sets at whoever asks', async () => {
     const { mutate, row, close } = sandbox()
     try {
       await mutate('ada', 'LikePost', { id: 'l1', postId: 'p1' }, 1)
@@ -189,7 +220,7 @@ describe("an insert's stamps, on the server", () => {
     }
   })
 
-  it('never takes a stamped member from the input', async () => {
+  it('never takes a member the context sets from the input', async () => {
     const { mutate, row, close } = sandbox()
     try {
       await mutate('bob', 'PostChirp', { id: 'n1', body: 'Hi', authorId: 'ada', createdAt: 1 }, 7)
@@ -201,7 +232,7 @@ describe("an insert's stamps, on the server", () => {
     }
   })
 
-  it("refuses a visitor's insert that stamps whoever asks, and writes nothing", async () => {
+  it("refuses a visitor's insert that sets whoever asks, and writes nothing", async () => {
     const { mutate, row, close } = sandbox()
     try {
       const answer = await mutate(null, 'LikePost', { id: 'l1', postId: 'p1' }, 1)
@@ -317,17 +348,19 @@ describe('the time the reader acted, as the client sends it', () => {
   })
 })
 
-describe("an insert's stamps, where the server is made", () => {
-  it('refuses a server without a viewer for a write that stamps one', () => {
+describe('what the context sets, where the server is made', () => {
+  it('refuses a server without a viewer for a write that sets one', () => {
     expect(() =>
       RemoteServer.make<string, DrizzleDatabase>({
         entities: [source(Db.Like)],
         mutations: [RemoteServer.write(LikePost, writer(Db.Like))],
       }),
-    ).toThrow('write "LikePost" stamps whoever asks (Stamp.viewer), but the server has no viewer')
+    ).toThrow(
+      'write "LikePost" sets a member to whoever asks (Expr.viewer), but the server has no viewer',
+    )
   })
 
-  it('counts a stamped field as set where an insert is registered', () => {
+  it('counts a field the context sets as set where an insert is registered', () => {
     const dated = Entity.invariant<typeof Social.Post>(
       'dated',
       ({ after }) => Expr.gte(after.createdAt, 0),
@@ -351,7 +384,7 @@ describe("an insert's stamps, where the server is made", () => {
       'leaves unset a field an invariant reads (dated reads createdAt)',
     )
     expect(() =>
-      registered(Social.Post.pipe(dated, Entity.stamps({ createdAt: Stamp.clock }))),
+      registered(Social.Post.pipe(dated, Entity.sets({ createdAt: Expr.now }, { on: 'create' }))),
     ).not.toThrow()
   })
 })

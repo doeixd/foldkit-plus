@@ -97,7 +97,7 @@ describe('a run given no context', () => {
 
 describe('an assignment', () => {
   const Restamp = Entity.input(Post, Schema.Struct({ id: Schema.String }))
-  it('refuses to compute from the context, which Entity.stamps declares', () => {
+  it('refuses to compute from the context, which Entity.sets declares', () => {
     expect(() => Write.update(Restamp, { id: 'id', compute: { stamp: () => Expr.now } })).toThrow(
       'computes "stamp" from the write\'s context (Expr.now)',
     )

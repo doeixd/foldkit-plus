@@ -7,7 +7,7 @@ import { Effect, Layer, Schema, Option } from 'effect'
 import { FetchHttpClient } from 'effect/http'
 import { RpcClient, RpcSerialization } from 'effect/rpc'
 import { expectTypeOf } from 'vitest'
-import { Entity as DomainEntity, Expr, Order, Stamp, Write, type AnyQuery } from 'foldkit-entity'
+import { Entity as DomainEntity, Expr, Order, Write, type AnyQuery } from 'foldkit-entity'
 import { Bundle } from 'foldkit-bundle'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
@@ -367,12 +367,12 @@ declare const editing: typeof TicketModel.Type
   Edits.mutate(editing, EditProject, { id: 'p1' })
 }
 
-// A stamped time: the clock read where the action is, then the write started with it.
+// A time the write sets: the clock read where the action is, then the write started with it.
 {
   const Post = DomainEntity.define(
     'Post',
     Schema.Struct({ id: Schema.String, body: Schema.String, createdAt: Schema.Number }),
-  ).pipe(DomainEntity.stamps({ createdAt: Stamp.clock }))
+  ).pipe(DomainEntity.sets({ createdAt: Expr.now }, { on: 'create' }))
   const NewPost = Schema.Struct({ id: Schema.String, body: Schema.String })
   const PostChirp = Mutation.write(
     'PostChirp',

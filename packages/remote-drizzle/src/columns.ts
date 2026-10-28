@@ -32,16 +32,16 @@ export const projectsAny = (binding: AnyEntityBinding, fields: Iterable<string>)
 }
 
 /**
- * Each member stored on the column of a member `stamps` names, that is not
- * stamped itself: the server writes the stamp to that column, and a write of
- * the other member overwrites it there.
+ * Each member stored on the column of a member `Entity.sets` names, that is
+ * not set itself: the server writes the context's value to that column, and a
+ * write of the other member overwrites it there.
  */
-export const stampSharers = (
-  stamps: Readonly<Record<string, unknown>>,
+export const contextSharers = (
+  sets: Readonly<Record<string, unknown>>,
   columns: Readonly<Record<string, AnyColumn>>,
   relations: Readonly<Record<string, RelationBinding>>,
 ): ReadonlyArray<{
-  readonly stamped: string
+  readonly set: string
   readonly member: string
   readonly column: string
 }> => {
@@ -51,22 +51,23 @@ export const stampSharers = (
       relation.kind === 'one' ? [[key, relation.field] as const] : [],
     ),
   ]
-  return stored.flatMap(([stamped, column]) =>
-    Object.hasOwn(stamps, stamped)
+  return stored.flatMap(([set, column]) =>
+    Object.hasOwn(sets, set)
       ? stored
-          .filter(([member, other]) => other === column && !Object.hasOwn(stamps, member))
-          .map(([member]) => ({ stamped, member, column: column.name }))
+          .filter(([member, other]) => other === column && !Object.hasOwn(sets, member))
+          .map(([member]) => ({ set, member, column: column.name }))
       : [],
   )
 }
 
 /**
  * Why `write` cannot land through `binding`: each member it writes that is
- * stored on the column of a member its Entity stamps. The Entity refuses an
- * input for a stamped member itself; this is the same rule by column, which
- * only a binding knows. A write's Entity may stamp what its binding's did not.
+ * stored on the column of a member its Entity sets from the context. The
+ * Entity refuses an input for such a member itself; this is the same rule by
+ * column, which only a binding knows. A write's Entity may set what its
+ * binding's did not.
  */
-export const stampOverwrites = (
+export const contextOverwrites = (
   write: AnyWrite,
   binding: AnyEntityBinding,
 ): ReadonlyArray<string> => {
@@ -76,10 +77,10 @@ export const stampOverwrites = (
     ...write.increments.map(increment => increment.field.key),
     ...write.assignments.map(assignment => assignment.field.key),
   ])
-  return stampSharers(write.input.entity.stamps, binding.columns, binding.relations)
+  return contextSharers(write.input.entity.sets, binding.columns, binding.relations)
     .filter(({ member }) => written.has(member))
     .map(
-      ({ stamped, member, column }) =>
-        `it writes "${member}", stored on column "${column}" with the stamped "${stamped}"; no input sets a stamp`,
+      ({ set, member, column }) =>
+        `it writes "${member}", stored on column "${column}" with "${set}", which the write's context sets; no input sets it`,
     )
 }

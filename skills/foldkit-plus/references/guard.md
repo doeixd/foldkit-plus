@@ -130,7 +130,7 @@ const Todo = TodoFields.pipe(
   them after the rules, so neither grants the other, and one reading a
   Read-ruled member is refused as `Invalid` naming no invariant.
   Who owns a new row is the Entity's to say, not the writer's:
-  `Entity.stamps({ ownerId: Stamp.viewer, createdAt: Stamp.clock })`, and
+  `Entity.sets({ ownerId: Expr.viewer(User), createdAt: Expr.now }, { on: 'create' })`, and
   `RemoteServer.write` sets them before the rules run, so a rule over the owner
   holds of the creator. A create of a taken id is refused alike whatever the
   row holds; only a ledgered writer answers a retry, by its operation, with

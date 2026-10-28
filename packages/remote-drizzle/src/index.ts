@@ -64,7 +64,7 @@ import {
 import type { AnyEntityBinding, ManyRelation, ManyToManyRelation } from './binding.js'
 import { checkConstraints } from './checks.js'
 import { serverOnlyRules, statementFailed } from './diagnostics.js'
-import { idColumn, projectsAny, stampOverwrites } from './columns.js'
+import { idColumn, projectsAny, contextOverwrites } from './columns.js'
 import {
   checkFields,
   compileOrderBy,
@@ -1681,7 +1681,7 @@ export const writer = <P = unknown>(
             ]
           : [],
       ),
-      ...stampOverwrites(write, binding),
+      ...contextOverwrites(write, binding),
     ],
     ...(ledger === undefined
       ? {}

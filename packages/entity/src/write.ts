@@ -38,10 +38,10 @@ import {
   type Reads,
 } from './expr.js'
 import type { BeforeRow } from './invariant.js'
-import { contextValue, viewerIdOf, type ExprContext } from './context.js'
+import { contextValue, type ExprContext } from './context.js'
 import type { MemoryOperators } from './operators.js'
 import { SchemaShape } from './shape.js'
-import { Stamp } from './stamp.js'
+import type { ContextValue } from './sets.js'
 
 type AnyField = EntityField<string, string, Schema.Constraint>
 type OneRelation = EntityRelation<string, string, AnyEntity, 'one', boolean>
@@ -101,12 +101,11 @@ export interface WriteLink {
   readonly relation: OneRelation
 }
 
-/** One member an insert stamps (`Entity.stamps`): a field, with what, or a `one` relation, pointed at the viewer. */
-export type WriteStamp = Data.TaggedEnum<{
-  Field: { readonly field: AnyField; readonly stamp: Stamp }
-  Link: { readonly relation: OneRelation }
-}>
-export const WriteStamp = Data.taggedEnum<WriteStamp>()
+/** One member the write's context sets (`Entity.sets`): a field or a `one` relation, and its value. */
+export interface ContextSet {
+  readonly member: AnyField | OneRelation
+  readonly value: ContextValue
+}
 
 /**
  * One row of an Entity, by id, from an operation's input: updated, inserted
@@ -139,8 +138,11 @@ export interface Write<E extends AnyEntity, Fields extends Schema.Struct.Fields>
   readonly assignments: ReadonlyArray<WriteAssignment>
   /** The `one` relations it points elsewhere, in the input's order. */
   readonly links: ReadonlyArray<WriteLink>
-  /** What an insert stamps where it lands: none for an update or a delete. */
-  readonly stamps: ReadonlyArray<WriteStamp>
+  /**
+   * What the write's context sets where it lands (`Entity.sets`): an insert
+   * every such member, an update those set `on: 'write'`, a delete none.
+   */
+  readonly context: ReadonlyArray<ContextSet>
 }
 
 export type AnyWrite = Write<AnyEntity, any>
@@ -224,7 +226,13 @@ interface DeleteWrite {
 const update: UpdateWrite = (
   input: EntityInput<AnyEntity, any, any>,
   options: UpdateOptions<AnyEntity, any>,
-) => settingSomething(declared('Update', input, options)) as never
+) =>
+  settingSomething(
+    Object.freeze({
+      ...declared('Update', input, options),
+      context: contextOf(input.entity, 'write'),
+    }),
+  ) as never
 
 const remove: DeleteWrite = (input: EntityInput<AnyEntity, any, any>, options: RowOptions<any>) => {
   const write = declared('Delete', input, options)
@@ -367,12 +375,15 @@ const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
           }),
         ],
   )
-  // What the server chooses at creation is never the input's, on any write.
-  const stamped = [...sets.map(set => set.field.key), ...links.map(link => link.relation.key)].find(
-    key => Object.hasOwn(input.entity.stamps, key),
-  )
-  if (stamped !== undefined)
-    fail(input, `"${stamped}" is stamped when a row is created (Entity.stamps); no input sets it`)
+  // What the context sets is never the input's, on any write.
+  const written = [
+    ...sets.map(set => set.field.key),
+    ...links.map(link => link.relation.key),
+    ...increments.map(increment => increment.field.key),
+    ...assignments.map(assignment => assignment.field.key),
+  ].find(key => Object.hasOwn(input.entity.sets, key))
+  if (written !== undefined)
+    fail(input, `"${written}" is set by the write's context (Entity.sets); no input sets it`)
   return Object.freeze({
     _tag: kind,
     input,
@@ -383,20 +394,27 @@ const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
     increments: Object.freeze(increments),
     assignments: Object.freeze(assignments),
     links: Object.freeze(links),
-    stamps: [],
+    context: [],
   })
 }
 
-/** What an Entity stamps when a row is created, as an insert of it writes it. */
-const stampsOf = (entity: AnyEntity): ReadonlyArray<WriteStamp> => {
+/**
+ * What the context sets on a write of `entity`: every member on an insert
+ * (`create`), those set `on: 'write'` on an update (`write`).
+ */
+const contextOf = (entity: AnyEntity, on: 'create' | 'write'): ReadonlyArray<ContextSet> => {
   const relations: Readonly<Record<string, EntityMember>> = entity.relations
   const fields: Readonly<Record<string, AnyField>> = entity.fields
-  const stamps: Readonly<Record<string, Stamp>> = entity.stamps
-  // `Entity.stamps` took a field, or a `one` relation for the viewer alone.
-  return Object.entries(stamps).map(([key, stamp]) =>
-    Object.hasOwn(relations, key)
-      ? WriteStamp.Link({ relation: relations[key] as OneRelation })
-      : WriteStamp.Field({ field: fields[key]!, stamp }),
+  // `Entity.sets` took a field, or a `one` relation.
+  return Object.entries(entity.sets).flatMap(([key, set]) =>
+    on === 'write' && set.on === 'create'
+      ? []
+      : [
+          Object.freeze({
+            member: Object.hasOwn(relations, key) ? (relations[key] as OneRelation) : fields[key]!,
+            value: set.value,
+          }),
+        ],
   )
 }
 
@@ -411,6 +429,10 @@ const storedKind = (ast: SchemaAST.AST): string => {
   if (SchemaAST.isBoolean(ast) || literal === 'boolean') return 'boolean'
   return 'other'
 }
+
+/** Whether a field stores a null. */
+const holdsNull = (field: AnyField): boolean =>
+  storedKinds(Schema.toEncoded(field.schema as unknown as Schema.Top).ast).has('null')
 
 /** Every kind a stored form may hold: a union's members' kinds. */
 const storedKinds = (ast: SchemaAST.AST): ReadonlySet<string> =>
@@ -529,7 +551,7 @@ const assignmentOf = (
   if (context.length > 0) {
     return fail(
       input,
-      `computes "${fieldKey}" from the write's context (${context.map(term => `Expr.${term}`).join(', ')}), which an assignment does not read; a value the server chooses is declared with Entity.stamps`,
+      `computes "${fieldKey}" from the write's context (${context.map(term => `Expr.${term}`).join(', ')}), which an assignment does not read; a value the context gives is declared with Entity.sets`,
     )
   }
   if (reads.reaches.length > 0) {
@@ -689,7 +711,7 @@ const settingSomething = <E extends AnyEntity, Fields extends Schema.Struct.Fiel
   write.links.length === 0 &&
   write.increments.length === 0 &&
   write.assignments.length === 0 &&
-  write.stamps.length === 0
+  write.context.length === 0
     ? fail(write.input, 'it sets no field')
     : write
 
@@ -726,15 +748,19 @@ export const Write = {
    * expects no revision: there is no row to have read. A row already there
    * under that id (a retry) is left as it is.
    *
-   * What its Entity stamps (`Entity.stamps`: who asks, when) it writes too,
-   * never from the input: a server fills them, a client predicts them.
+   * What its Entity sets from the write's context (`Entity.sets`: who asks,
+   * when) it writes too, never from the input: a server fills them, a client
+   * predicts them. An update writes those set `on: 'write'`.
    */
   insert: <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
     input: EntityInput<E, Fields, any>,
     options: { readonly id: keyof Fields & string },
   ): Write<E, Fields> =>
     settingSomething(
-      Object.freeze({ ...declared('Insert', input, options), stamps: stampsOf(input.entity) }),
+      Object.freeze({
+        ...declared('Insert', input, options),
+        context: contextOf(input.entity, 'create'),
+      }),
     ),
 
   /**
@@ -765,52 +791,45 @@ export const Write = {
     ...write.increments.map(increment => increment.field),
     ...write.assignments.map(assignment => assignment.field),
     ...write.links.map(link => link.relation),
-    ...write.stamps.map(
-      WriteStamp.$match({ Field: ({ field }) => field, Link: ({ relation }) => relation }),
-    ),
+    ...write.context.map(set => set.member),
   ],
 
   /**
-   * What an insert's stamps come to, encoded as the store holds them: each
-   * field's value and each relation's link. `unknown` names each stamp there
-   * is nothing to fill from: no viewer (a visitor), a viewer of another Entity
-   * than a stamped relation points at, or no clock reading.
+   * What the context sets come to, encoded as the store holds them: each
+   * field's value and each relation's link. `unfilled` names each member
+   * there is no value for: none to read (no reading of the time), or a null
+   * where the member holds none (a visitor, a viewer of another Entity). A
+   * server refuses such a write; a client predicts nothing for the member.
    */
-  stamp: (
+  contextValues: (
     write: AnyWrite,
     by: ExprContext,
   ): {
     readonly values: Readonly<Record<string, unknown>>
     readonly links: Readonly<Record<string, Option.Option<EntityRef>>>
-    readonly unknown: ReadonlyArray<string>
+    readonly unfilled: ReadonlyArray<string>
   } => {
     const values: Record<string, unknown> = {}
     const links: Record<string, Option.Option<EntityRef>> = {}
-    const unknown: Array<string> = []
-    for (const stamped of write.stamps)
-      WriteStamp.$match(stamped, {
-        Field: ({ field, stamp }) =>
-          Option.match(
-            // A clock stamp is `Expr.now`. A field holding the viewer's id
-            // names no Entity, so it takes whoever asks.
-            Stamp.$match(stamp, {
-              Clock: (): Option.Option<unknown> => contextValue(Expr.now, by),
-              Viewer: () => Option.map(by.viewer, viewer => viewer.id),
-            }),
-            {
-              onNone: () => void unknown.push(field.key),
-              onSome: value => void (values[field.key] = value),
-            },
-          ),
-        Link: ({ relation }) =>
-          // A relation stamped with the viewer is `Expr.viewer` of its target.
-          Option.match(viewerIdOf(relation.target(), by), {
-            onNone: () => void unknown.push(relation.key),
-            onSome: id =>
-              void (links[relation.key] = Option.some({ entity: relation.target().name, id })),
-          }),
-      })
-    return { values, links, unknown }
+    const unfilled: Array<string> = []
+    for (const { member, value } of write.context) {
+      const comes = contextValue(value, by)
+      if (Option.isNone(comes)) {
+        unfilled.push(member.key)
+      } else if (member._tag === 'Relation') {
+        // `Entity.sets` points a relation only at the viewer of its target.
+        const id = comes.value
+        if (id !== null)
+          links[member.key] = Option.some({ entity: member.target().name, id: String(id) })
+        else if (member.optional) links[member.key] = Option.none()
+        else unfilled.push(member.key)
+      } else if (comes.value !== null || holdsNull(member)) {
+        values[member.key] = comes.value
+      } else {
+        unfilled.push(member.key)
+      }
+    }
+    return { values, links, unfilled }
   },
 
   /**

@@ -852,7 +852,7 @@ export const CmsServer = {
           const ran = yield* handler.run({
             input: decoded,
             principal,
-            // The CMS names no viewer: a type's write that stamps one is refused as a visitor's.
+            // The CMS names no viewer: a type's write that sets one is refused as a visitor's.
             viewer: Option.none(),
             requestId: `publish:${entry.id}:${held ?? 'new'}`,
             operation: Option.some(`publish:${entry.id}:${held ?? 'new'}`),

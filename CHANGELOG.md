@@ -259,16 +259,19 @@ version changed; `pnpm` skips versions already in the registry.
   reports a `ServerDefect` diagnostic, logged by default, so a Worker's log
   shows it; `serveFetch`'s `diagnostics(diagnostic, request)` sees each. The
   caller is still told nothing (#221, #237).
-- **`Entity.stamps`: what the server chooses when a row is created, declared
-  once on the Entity.** `Stamp.viewer` (whoever asks: a `one` relation to them,
-  or a text field holding their id) and `Stamp.clock` (the time, a number
-  field). Every insert stamps them, and a write whose input sets one is
-  refused where it is declared. `RemoteServer.write` fills them from
-  `RemoteServer.make({ viewer })` and the Effect `Clock` (a visitor is
-  forbidden, a retry keeps its time, and a stamped field counts as set for
-  invariants); `Data.mutate` predicts them from `Remote.make({ viewer })` and
-  the time the store last heard from the server. A write's effects are
-  otherwise inferred, never declared per write (#232).
+- **`Entity.sets`: members whose value is the write's context, declared once
+  on the Entity** (#232, operations phase 3). `Entity.sets({ author:
+  Expr.viewer(User), createdAt: Expr.now }, { on: 'create' })` sets them on
+  every insert, and `{ on: 'write' }` on every insert and update (an
+  `editedAt`). A relation takes `Expr.viewer` of its target, a text field the
+  viewer's id, a number field the time. A write whose input sets, links, moves
+  or computes one is refused where it is declared. `RemoteServer.write` fills
+  them from `RemoteServer.make({ viewer })` and the write's time (a value that
+  comes to null where the member holds none, as a visitor's, is forbidden, and
+  a set field counts as set for invariants); `Data.mutate` predicts them from
+  `Remote.make({ viewer })` and its `now`, and `Write.contextValues` is what
+  both read. A write's effects are otherwise inferred, never declared per
+  write. It replaces `Entity.stamps` and `Stamp`, which were never released.
 - **A pending insert joins the lists its body admits,** where each loaded
   list's order puts it, and the answer keeps it there. A list with no body, or
   one filtered by a read rule the client does not run, is the server's to
@@ -277,17 +280,16 @@ version changed; `pnpm` skips versions already in the registry.
 ### Changed
 
 - **Breaking: `source(binding, { viewer })` is removed;** a `Derived.exists` is
-  answered for the viewer of the server the source is mounted in.
-  `Write.stamp`'s second argument is an `ExprContext`, and the `Operation`
-  union gains `'viewer'` and `'now'`. A write's `when`, invariant or computed
+  answered for the viewer of the server the source is mounted in. The
+  `Operation` union gains `'viewer'` and `'now'`. A write's `when`, invariant or computed
   assignment over either term is refused for now (#232).
 - **Breaking: `GuardServer.writer` loses `presets`, `EntityWriter.sets` is
   removed, and `MutationSource.run` is given `viewer`** (`Option.none()` where
-  no one asks). Declare server-chosen values with `Entity.stamps`; guard rules
+  no one asks). Declare server-chosen values with `Entity.sets`; guard rules
   see them already set (#232). Chirp's like sends no user and `ownLikes` is
-  gone, a guard rule over the stamped `userId` keeping a like its liker's; the
-  reference app's author and time are stamped and its overlay workaround is
-  gone (#266, #267).
+  gone, a guard rule over the link the context sets keeping a like its
+  liker's; the reference app's author and time are set from the context and
+  its overlay workaround is gone (#266, #267).
 - **Breaking: SSR, agent-mcp and guard no longer write to `console`.** They
   report diagnostics, which Effect's log still shows by default; code that
   spied on `console` provides a reporter. `foldkit-agent-mcp`'s `handler`,
@@ -367,10 +369,6 @@ version changed; `pnpm` skips versions already in the registry.
   stale, so going back reads `Refreshing` with its rows while it refetches,
   where it read `Initial` then `Loading` once retention had dropped it.
   `RemoteModel` has a `recent` field holding those roots (#234, #225).
-- **Breaking: `EntityWriter.insert` is told what is `stamped`.** Its context
-  holds `stamped`, the values stamped once at creation (`Entity.stamps`),
-  which a retry does not compare. A writer that answers a retried insert leaves them
-  out of its check; a caller with nothing stamped passes `[]`.
 
 - **`examples/pages` is written like a Notion page.** `/` on a line opens the
   slash menu, which the page used to promise and never draw: the arrows move through it,
@@ -436,7 +434,7 @@ version changed; `pnpm` skips versions already in the registry.
     row there holds and whether its asker may see it. Only a writer's ledger
     recognises a retry, by its operation, and answers it with the row; without
     a ledger a create sent again is refused. **Breaking:**
-    `EntityWriter.insert` takes `operation` in place of `stamped`. Chirp's
+    `EntityWriter.insert` takes `operation`. Chirp's
     Post and Like writers keep a ledger, so `Data.retry` of a create is
     answered with its row.
   - An update's member `Update` rules and relation `Link` rules hold over the
@@ -504,15 +502,15 @@ version changed; `pnpm` skips versions already in the registry.
   - Under a ledger, an update with no record is judged by its `when` and
     transition invariants even when the row already holds what it sets,
     where it was taken for a retry and answered Success.
-- **A write's answer, stamps, live reads and page reads, after a security
+- **A write's answer, context sets, live reads and page reads, after a security
   review:**
   - A declared write's answer names the rows its row points at only for a
     write that wrote, reads them as the asker may see the row, and reads back
     only rows its own read returns; a delete that deleted nothing answers the
     same whether the row was hidden or never there.
-  - `bind` refuses an Entity that stamps only one of a field and a relation
-    stored on the same column, and a writer refuses a write that sets a
-    member stored on a stamped member's column.
+  - `bind` refuses an Entity that sets from the context only one of a field
+    and a relation stored on the same column, and a writer refuses a write
+    that sets a member stored on the column of one the context sets.
   - A live hub whose `key` shares re-reads still reads a per-viewer member
     (`Derived.exists`) once per viewer.
   - A `requests: 'navigation'` resolver refuses a protocol upgrade, and a
@@ -634,14 +632,15 @@ version changed; `pnpm` skips versions already in the registry.
   none, stays fit for one. `foldkit-mixins-form`'s field `state` is typed
   likewise. The casts in the form renderers and the Markdown source editor
   are gone.
-- **An insert whose invariants read a stamped field registers.**
+- **An insert whose invariants read a field the context sets registers.**
   `RemoteServer.write` refused one, saying it left the field unset, though
-  the server sets it on every create (#202). A field stamped with
-  `Entity.stamps` counts as set.
-- **A retried insert with a stamped time is answered, not refused.** The
-  drizzle writer compared every value with the row already there, and a clock
-  read anew never matched, so a retry, same request or not, failed with
-  "could not be created" (#203). A stamped time is left out of the comparison.
+  the server sets it on every create (#202). A field `Entity.sets` names
+  counts as set.
+- **A retried insert with a time the server set is answered, not refused.**
+  The drizzle writer compared every value with the row already there, and a
+  clock read anew never matched, so a retry, same request or not, failed with
+  "could not be created" (#203). A writer's ledger now answers a retry with
+  its row.
 - **`SSR.hydrate` given no build id says so.** With `FOLDKIT_BUILD_ID` unset,
   the documented `import.meta.env.FOLDKIT_BUILD_ID` is undefined in the
   client. `foldkit-ssr` read that as another build's page and handed Foldkit no

@@ -1603,9 +1603,10 @@ one away from the post it pointed at, and pointing it elsewhere does both, each
 added as an increment is. Where the client does not hold where the row pointed,
 or holds no count on that post, nothing is predicted.
 
-An insert shows what its Entity stamps (`Entity.stamps`) as well, which no
-input sets: `Stamp.viewer` as the viewer `Remote.make` is told of, and
-`Stamp.clock` as `Data.mutate`'s `now`, the time the reader acted. A new
+A write shows what its Entity sets from the context (`Entity.sets`) as well,
+which no input sets: `Expr.viewer` as the viewer `Remote.make` is told of, and
+`Expr.now` as `Data.mutate`'s `now`, the time the reader acted. An insert sets
+every such member, an update those set `on: 'write'` (an `editedAt`). A new
 row's counts read 0 and its exists none.
 
 `update` reads no clock, so the time is read where the action is, by a
@@ -1625,12 +1626,12 @@ Clocked: ({ post, now }) => {
 The request sends the same number, and the server takes it as the row's time
 when it lies within its `clockSkew` of the server's own clock (60 seconds
 unless `RemoteServer.make` says), so the answer agrees with what was shown.
-A retry (`Data.retry`) sends it again. Without `now`, a stamped time is not
-predicted: the row reads as missing it until the server's answer brings the
+A retry (`Data.retry`) sends it again. Without `now`, a time the write sets is
+not predicted: the row reads as missing it until the server's answer brings the
 server's time. An application that already mints the row's id in a Command
 can read the clock in the same one (`examples/reference`'s `NameNote`). The row then joins every loaded list whose body admits
 it, where the list's order puts it, while pending and once answered: a post
-stamped with its time goes to the top of a newest-first list. A list without a
+set at its time goes to the top of a newest-first list. A list without a
 body, or one filtered by a read rule the client does not run, is the server's
 to place.
 

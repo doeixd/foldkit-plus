@@ -387,22 +387,27 @@ a ref key in a store, a foreign key in a table. A `many` relation or a nested
 key is refused where the write is declared.
 
 Some values no client should choose: who wrote a row, and when. The Entity
-says so once, with `Entity.stamps`, after `Entity.relate` when it names a
-relation:
+says so once, with `Entity.sets`, after `Entity.relate` when it names a
+relation. A value is a term of the write's context, `Expr.viewer` or
+`Expr.now`, and `on` says which writes set it:
 
 ```ts
-const StampedPost = Blog.Post.pipe(Entity.stamps({ author: Stamp.viewer }))
+const AuthoredPost = Blog.Post.pipe(Entity.sets({ author: Expr.viewer(Author) }, { on: 'create' }))
 ```
 
-`Stamp.viewer` is whoever asks: a `one` relation pointed at them, or a field
-holding their id. `Stamp.clock` is the time, for a field stored as a number.
-Every write of the Entity follows from this one declaration: an insert stamps
-those members (`write.stamps`, worked out by `Write.stamp(write, { viewer, now
-})`), and a write whose input maps a key to one is refused where it is
-declared. Each interpreter fills them from what it has: a server from its
-principal and its clock, a client as a prediction. Nothing else about what a
-write does is declared anywhere: what it moves is read from the Entities'
-derived members and the queries' bodies.
+`Expr.viewer(Author)` is whoever asks: a `one` relation to an Author pointed
+at them, or a field stored as text holding their id. `Expr.now` is the time,
+for a field stored as a number. `on: 'create'` sets the member on every
+insert; `on: 'write'` on every insert and every update (an `editedAt`). A
+delete sets nothing. Every write of the Entity follows from this one
+declaration (`write.context`, worked out by `Write.contextValues(write, {
+viewer, now })`), and a write whose input sets, links, moves or computes such a
+member is refused where it is declared. Each interpreter fills them from what
+it has: a server from its principal and its clock, a client as a prediction. A
+value that comes to null where the member holds none (a visitor) is named
+`unfilled`: a server refuses the write, a client predicts nothing for it.
+Nothing else about what a write does is declared anywhere: what it moves is
+read from the Entities' derived members and the queries' bodies.
 
 An update or a delete may also say when it makes sense: `when` is what the row
 must hold for it to land, written as a query body is: `() =>
@@ -736,8 +741,8 @@ client from `Remote.make({ viewer })`, with no reading of the time a server
 judges a list at, so a list over `Expr.now` is the server's to say. A run
 given no context, or no reading of a time it reads, refuses the body
 (`ContextMissingError`) rather than reading a visitor or a null. A write's
-computed assignment may not read them; a value the server chooses is
-`Entity.stamps`'s.
+computed assignment may not read them; a member whose value they give is
+declared with `Entity.sets`.
 
 ### Which rows: `Query`
 
@@ -1284,6 +1289,7 @@ from queries, not from what a database could express.
 | `Expr.not(predicate)` | The predicate does not hold; an unknown stays unknown, so a null matches neither side. |
 | `Expr.lt` / `lte` / `gt` / `gte(left, right, { collation? })` | One value orders before or after the other. Numbers as numbers; text only under `binary` or `asciiFold` (the field's declared collation, or the one given), and only against a field. |
 | `Expr.path(relation, end)` | What the row a `one` relation points at holds: a field, a further path, or an exists; null where no row is reached. At most `maxPathLength` (4) relations. |
+| `Entity.sets({ member: Expr.viewer(E) or Expr.now }, { on })` | Pipe step: members whose value the write's context gives, on every insert (`'create'`) or every insert and update (`'write'`); no input sets them. `Write.contextValues(write, context)` is what they come to. |
 | `Expr.eq(Post.relations.author, …)` | A `one` relation as an operand: the id it points at, null for none. |
 | `Expr.exists(relation, where?)` | Some row of another Entity points here through its `one` relation and holds `where`, a predicate over its own fields and the input. |
 | `Judge.predicate(p, row, options)` / `Judge.query(body, input, row, options)` | The reference semantics over a `HeldRow`: a `Verdict`, `Known` (SQL's answer) or `Unknown` with why. `Judge.match` reads one. |

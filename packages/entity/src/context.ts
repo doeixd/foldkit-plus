@@ -13,9 +13,9 @@ import type { AnyEntity, EntityIdentity, EntityRef, IdOf } from './index.js'
  * a visitor, or a viewer of another Entity, it is null, which compares as
  * SQL's unknown.
  */
-export interface ViewerExpr<T> {
+export interface ViewerExpr<T, Name extends string = string> {
   readonly _tag: 'Viewer'
-  readonly entity: EntityIdentity<string>
+  readonly entity: EntityIdentity<Name>
   readonly target: () => AnyEntity
   readonly schema: Schema.Codec<T, unknown>
 }
@@ -39,7 +39,7 @@ export interface ExprContext {
 const Millis = Schema.Int
 
 /** `Expr.viewer`: whoever asks, as a row of `entity`. */
-export const viewer = <E extends AnyEntity>(entity: E): ViewerExpr<IdOf<E>> =>
+export const viewer = <E extends AnyEntity>(entity: E): ViewerExpr<IdOf<E>, E['name']> =>
   Object.freeze({
     _tag: 'Viewer',
     entity: entity.identity,

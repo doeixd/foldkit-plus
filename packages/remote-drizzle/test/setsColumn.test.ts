@@ -1,14 +1,15 @@
 /**
- * A stamp stored on a column another member is stored on too: a field and a
- * `one` relation over one foreign key. No input sets a stamp, by its member's
- * name or by the other's, so `bind` refuses an Entity that stamps only one of
- * them, and `RemoteServer.write` a write that sets the other.
+ * A member the write's context sets (`Entity.sets`), stored on a column
+ * another member is stored on too: a field and a `one` relation over one
+ * foreign key. No input sets it, by its member's name or by the other's, so
+ * `bind` refuses an Entity that sets only one of them, and
+ * `RemoteServer.write` a write that sets the other.
  */
 import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Option, Schema } from 'effect'
-import { Entity, Relation, Stamp, Write } from 'foldkit-entity'
+import { Entity, Expr, Relation, Write } from 'foldkit-entity'
 import { Mutation } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
@@ -41,23 +42,30 @@ const storage = {
     relations: { post: { field: likes.postId }, user: { field: likes.userId } },
   },
 }
-const LikeByField = Social.Like.pipe(Entity.stamps({ userId: Stamp.viewer }))
+const LikeByField = Social.Like.pipe(
+  Entity.sets({ userId: Expr.viewer(UserFields) }, { on: 'create' }),
+)
 
-describe('a stamp on a column another member shares', () => {
+describe('a context set on a column another member shares', () => {
   it('is refused where it is bound, naming both members and the column', () => {
     expect(() =>
       bind({ User: Social.User, Post: Social.Post, Like: LikeByField }, storage),
     ).toThrow(
-      'entity "Like" stamps "userId" but not "user", both stored on column "user_id": a write of "user" would overwrite the stamp; stamp both or neither',
+      `entity "Like" sets "userId" from the write's context but not "user", both stored on column "user_id": a write of "user" would overwrite it; set both or neither`,
     )
   })
 
-  it('is bound when both are stamped', () => {
-    const Both = Social.Like.pipe(Entity.stamps({ userId: Stamp.viewer, user: Stamp.viewer }))
+  it('is bound when both are set', () => {
+    const Both = Social.Like.pipe(
+      Entity.sets(
+        { userId: Expr.viewer(UserFields), user: Expr.viewer(UserFields) },
+        { on: 'create' },
+      ),
+    )
     expect(() => bind({ User: Social.User, Post: Social.Post, Like: Both }, storage)).not.toThrow()
   })
 
-  // Bound unstamped, as an application binds its Entity once and stamps it where it writes.
+  // Bound without the sets, as an application binds its Entity once and sets it where it writes.
   const Db = bind({ User: Social.User, Post: Social.Post, Like: Social.Like }, storage)
   const LikeAs = Mutation.write(
     'LikeAs',
@@ -73,11 +81,11 @@ describe('a stamp on a column another member shares', () => {
 
   it('refuses a write that sets the other member, naming both members and the column', () => {
     expect(() => RemoteServer.write(LikeAs, writer(Db.Like))).toThrow(
-      'it writes "user", stored on column "user_id" with the stamped "userId"; no input sets a stamp',
+      `it writes "user", stored on column "user_id" with "userId", which the write's context sets; no input sets it`,
     )
   })
 
-  it('stamps the column with who asks for a write that leaves it alone', async () => {
+  it('sets the column to who asks for a write that leaves it alone', async () => {
     const LikePost = Mutation.write(
       'LikePost',
       Write.insert(

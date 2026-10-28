@@ -12,8 +12,8 @@ export default [
     edits: [
       {
         file: server,
-        find: 'const bound = Write.bind(write, given, keys)',
-        replace: 'const bound = Write.bind(write, given)',
+        find: 'const named = Write.bind(write, given, keys)',
+        replace: 'const named = Write.bind(write, given)',
       },
     ],
     tests,

@@ -504,15 +504,16 @@ the id of the viewer's Like, or none) is predicted for `Remote.make({ viewer: mo
 Option.some(Remote.ref(User, model.me)) })`: an insert pointing at a post and at the
 viewer shows its id there, and a delete or relink takes it from the post showing it,
 which also tells the count where a Like the client never read pointed. The store is
-one viewer's, so a change of viewer is `Data.forget`. An insert of an Entity with
-`Entity.stamps` shows what the server will stamp: the viewer, and as the clock
-`Data.mutate(model, M, input, { now })`, the time the reader acted; a new row's counts
+one viewer's, so a change of viewer is `Data.forget`. A write of an Entity with
+`Entity.sets` shows what the server will set: the viewer, and as the time
+`Data.mutate(model, M, input, { now })`, the time the reader acted (an update those set
+`on: 'write'`); a new row's counts
 read 0 and its exists none, and it joins each loaded list whose body admits it, where
 the order puts it (a list without a body is the server's to order). `update` reads no
 clock, so read it at the action with `Remote.now(now => Message.Clocked({ ..., now }))`
 and start the write from that Message; without `now` the time is not predicted. The
-server fills the stamps from `RemoteServer.make({ viewer })`, required when a write
-stamps the viewer, and the sent `now` when it lies within `clockSkew` (default 60
+server fills them from `RemoteServer.make({ viewer })`, required when a write
+sets the viewer, and the sent `now` when it lies within `clockSkew` (default 60
 seconds, `0` never) of its Effect clock, else its own clock, reporting `ClockSkewed`.
 `Data.retry` sends the same `now`. `Data.mutate` also sends an operation id, kept across a retry with the
 same `requestId`, which a ledgered writer answers from its record. Declaring them, and

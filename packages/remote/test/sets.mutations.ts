@@ -1,8 +1,8 @@
 /**
- * An insert's stamps and a new row's derived members, predicted, broken in
- * turn: `pnpm mutate packages/remote/test/stamp.mutations.ts`.
+ * What the write's context sets and a new row's derived members, predicted,
+ * broken in turn: `pnpm mutate packages/remote/test/sets.mutations.ts`.
  */
-const tests = ['packages/remote/test/stamp.test.ts']
+const tests = ['packages/remote/test/sets.test.ts']
 const file = '../src/mutation.ts'
 const edit = (name: string, find: string, replace: string) => ({
   name,
@@ -12,29 +12,39 @@ const edit = (name: string, find: string, replace: string) => ({
 
 export default [
   edit(
-    'an insert shows none of its stamped fields',
-    '    values: { ...bound.values, ...stamps.values },',
+    'a write shows none of the fields the context sets',
+    '    values: { ...bound.values, ...set.values },',
     '    values: bound.values,',
   ),
   edit(
-    'an insert points none of its stamped links',
-    '    links: { ...bound.links, ...stamps.links },',
+    'a write points none of the links the context sets',
+    '    links: { ...bound.links, ...set.links },',
     '    links: bound.links,',
   ),
   edit(
-    'the derived members do not see a stamped link',
-    "const bound = stampedBound(write, input, write._tag === 'Update' ? keys : undefined, stamping)",
+    'an update predicts nothing the context sets',
+    '        const bound = contextBound(write, input, keys, context)',
+    '        const bound = DomainWrite.bind(write, input as never, keys)',
+  ),
+  edit(
+    'the derived members do not see a link the context sets',
+    "const bound = contextBound(write, input, write._tag === 'Update' ? keys : undefined, context)",
     "const bound = DomainWrite.bind(write, input as never, write._tag === 'Update' ? keys : undefined)",
   ),
   edit(
-    'the clock stamp is predicted from nothing',
-    'const stamping = { viewer: context.viewer, now: context.now }',
-    'const stamping = { viewer: context.viewer, now: Option.none() }',
+    'the time is predicted from nothing',
+    'const by: ExprContext = { viewer: context.viewer, now: context.now }',
+    'const by: ExprContext = { viewer: context.viewer, now: Option.none() }',
   ),
   edit(
-    'the clock stamp is predicted as 0 when no time is given',
-    'const stamping = { viewer: context.viewer, now: context.now }',
-    'const stamping = { viewer: context.viewer, now: Option.some(Option.getOrElse(context.now, () => 0)) }',
+    'the time is predicted as 0 when none is given',
+    'const by: ExprContext = { viewer: context.viewer, now: context.now }',
+    'const by: ExprContext = { viewer: context.viewer, now: Option.some(Option.getOrElse(context.now, () => 0)) }',
+  ),
+  edit(
+    'the viewer is not passed to the context',
+    'const by: ExprContext = { viewer: context.viewer, now: context.now }',
+    'const by: ExprContext = { viewer: Option.none(), now: context.now }',
   ),
   edit('a new row is counted as liked once', 'Count: () => 0,', 'Count: () => 1,'),
   edit("a new row's exists is not predicted", 'Exists: () => null })', "Exists: () => 'l0' })"),
@@ -42,11 +52,6 @@ export default [
     'a new row shows no derived members',
     '        Insert: () => freshDerived(write, input, context.derived),',
     '        Insert: () => [],',
-  ),
-  edit(
-    'the viewer is not passed to the stamps',
-    'const stamping = { viewer: context.viewer, now: context.now }',
-    'const stamping = { viewer: Option.none(), now: context.now }',
   ),
   {
     name: 'a pending create joins no list',

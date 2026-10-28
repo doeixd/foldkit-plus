@@ -1,8 +1,8 @@
 /**
- * A stamp's column shared with another member, each check broken in turn:
- * `pnpm mutate packages/remote-drizzle/test/stampColumn.mutations.ts`.
+ * A member the context sets on a column shared with another, each check
+ * broken in turn: `pnpm mutate packages/remote-drizzle/test/setsColumn.mutations.ts`.
  */
-const tests = ['packages/remote-drizzle/test/stampColumn.test.ts']
+const tests = ['packages/remote-drizzle/test/setsColumn.test.ts']
 const edit = (name: string, file: string, find: string, replace: string) => ({
   name,
   edits: [{ file, find, replace }],
@@ -11,21 +11,21 @@ const edit = (name: string, file: string, find: string, replace: string) => ({
 
 export default [
   edit(
-    'bind lets one of two members on a column be stamped',
+    'bind lets one of two members on a column be set',
     '../src/bind.ts',
-    'of stampSharers(stamps, columns, relations))',
-    'of stampSharers({}, columns, relations))',
+    'of contextSharers(entity.sets, columns, relations))',
+    'of contextSharers({}, columns, relations))',
   ),
   edit(
-    'the writer lets a write set a stamp’s column',
+    'the writer lets a write set the column the context sets',
     '../src/index.ts',
-    '      ...stampOverwrites(write, binding),\n',
+    '      ...contextOverwrites(write, binding),\n',
     '',
   ),
   edit(
-    'a stamped member shares with itself',
+    'a member the context sets shares with itself',
     '../src/columns.ts',
-    '.filter(([member, other]) => other === column && !Object.hasOwn(stamps, member))',
+    '.filter(([member, other]) => other === column && !Object.hasOwn(sets, member))',
     '.filter(([, other]) => other === column)',
   ),
   edit(

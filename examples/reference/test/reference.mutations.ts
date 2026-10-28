@@ -38,8 +38,8 @@ export default [
     edits: [
       {
         file: '../src/domain.ts',
-        find: 'authorId: Stamp.viewer, author: Stamp.viewer,',
-        replace: 'authorId: Stamp.viewer,',
+        find: '      author: Expr.viewer(MemberFields),\n',
+        replace: '',
       },
     ],
     tests: page,

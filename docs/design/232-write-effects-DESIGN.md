@@ -6,6 +6,10 @@ placed in the lists their bodies admit (#266). `GuardServer.writer`'s
 `presets` and `stamps`, and `EntityWriter.sets`, are removed. Proven in
 `examples/chirp` and `examples/reference`. See [Deferred](#deferred).
 
+`Entity.stamps` and `Stamp` were replaced, before release, by `Entity.sets`
+over `Expr.viewer` and `Expr.now`: see
+[operations-phase3-DESIGN.md](./operations-phase3-DESIGN.md).
+
 ## The problem
 
 The issue opened with a table: a write's consequences (who wrote it and when,

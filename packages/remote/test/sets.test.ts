@@ -1,12 +1,13 @@
 /**
- * An insert's stamps predicted while it is pending (#232): who asks, from
- * `Remote.make`'s viewer, and when, from the time the reader acted
- * (`Data.mutate`'s `now`), which the request sends too. With a new row's
- * derived members, the row shows whole before the answer.
+ * What the write's context sets (`Entity.sets`), predicted while the write is
+ * pending: who asks, from `Remote.make`'s viewer, and when, from the time the
+ * reader acted (`Data.mutate`'s `now`), which the request sends too. With a
+ * new row's derived members, the row shows whole before the answer.
+ * operations-phase3-DESIGN.
  */
 import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Derived, Entity, Expr, Order, Relation, Stamp, Write } from 'foldkit-entity'
+import { Derived, Entity, Expr, Order, Relation, Write } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Mutation, Query, Remote } from '../src/index.js'
@@ -19,6 +20,7 @@ const PostFields = Entity.define(
     body: Schema.String,
     authorId: Schema.String,
     createdAt: Schema.Number,
+    editedAt: Schema.Number,
   }),
 )
 const LikeFields = Entity.define('Like', Schema.Struct({ id: Schema.String }))
@@ -28,18 +30,25 @@ const Social = Entity.relate(
 )
 // Who wrote a post and when, and whose a like is, are the server's to choose.
 const Post = Social.Post.pipe(
-  Entity.stamps({ authorId: Stamp.viewer, createdAt: Stamp.clock }),
+  Entity.sets({ authorId: Expr.viewer(UserFields), createdAt: Expr.now }, { on: 'create' }),
+  Entity.sets({ editedAt: Expr.now }, { on: 'write' }),
   Entity.derived({
     likeCount: Derived.count(Social.Like.relations.post),
     liked: Derived.exists(Social.Like.relations.post, { viewer: Social.Like.relations.user }),
   }),
 )
 const { User } = Social
-const Like = Social.Like.pipe(Entity.stamps({ user: Stamp.viewer }))
+const Like = Social.Like.pipe(Entity.sets({ user: Expr.viewer(UserFields) }, { on: 'create' }))
 
 const PostChirp = Mutation.write(
   'PostChirp',
   Write.insert(Entity.input(Post, Schema.Struct({ id: Schema.String, body: Schema.String })), {
+    id: 'id',
+  }),
+)
+const EditPost = Mutation.write(
+  'EditPost',
+  Write.update(Entity.input(Post, Schema.Struct({ id: Schema.String, body: Schema.String })), {
     id: 'id',
   }),
 )
@@ -71,7 +80,7 @@ const config = {
   model: App.model.remote,
   entities: [User, Post, Like],
   queries: [Newest, ByAuthor],
-  mutations: [PostChirp, LikePost],
+  mutations: [PostChirp, EditPost, LikePost],
 }
 const Data = Remote.make({ ...config, viewer: model => Option.some(Remote.ref(User, model.me)) })
 const Unviewed = Remote.make(config)
@@ -104,6 +113,7 @@ const Chirp = Entity.select(Post, {
   body: true,
   authorId: true,
   createdAt: true,
+  editedAt: true,
   likeCount: true,
   liked: true,
 })
@@ -114,13 +124,14 @@ const shown = (data: typeof Data, model: Model, id: string) => {
     : read._tag
 }
 
-describe("an insert's stamps while it is pending", () => {
+describe('what the context sets, while the write is pending', () => {
   it('shows a new row whole: who asked, when they acted, and nothing pointing at it', () => {
     const { model } = Data.mutate(heard(Data), PostChirp, { id: 'n1', body: 'Hi' }, { now: acted })
     expect(shown(Data, model, 'n1')).toEqual({
       body: 'Hi',
       authorId: 'ada',
       createdAt: acted,
+      editedAt: acted,
       likeCount: 0,
       liked: null,
     })
@@ -147,7 +158,23 @@ describe("an insert's stamps while it is pending", () => {
     expect(Data.get(When, 'n1').read(model)._tag).not.toBe('Ready')
   })
 
-  it('points a stamped link at the viewer, so what it finds and counts moves at once', () => {
+  it("sets what is set on: 'write' on an update, at the time the reader acted", () => {
+    const Edited = Entity.select(Post, { body: true, editedAt: true })
+    const { model } = Data.mutate(
+      heard(Data),
+      EditPost,
+      { id: 'p1', body: 'Again' },
+      { now: acted },
+    )
+    expect(Data.get(Edited, 'p1').read(model)).toMatchObject({
+      value: { body: 'Again', editedAt: acted },
+    })
+    // Given no time, it predicts none: the answer brings the server's.
+    const unclocked = Data.mutate(heard(Data), EditPost, { id: 'p1', body: 'Again' }).model
+    expect(Data.get(Edited, 'p1').read(unclocked)._tag).not.toBe('Ready')
+  })
+
+  it('points a link the context sets at the viewer, so what it finds and counts moves at once', () => {
     const Hearted = Entity.select(Post, { likeCount: true, liked: true })
     const { model } = Data.mutate(heard(Data), LikePost, { id: 'l9', postId: 'p1' })
     expect(Data.get(Hearted, 'p1').read(model)).toMatchObject({

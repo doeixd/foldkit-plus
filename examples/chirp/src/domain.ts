@@ -1,6 +1,6 @@
 /** The domain, declared once: what client and server both interpret. */
 import { Schema } from 'effect'
-import { Derived, Entity, Relation, Stamp } from 'foldkit-entity'
+import { Derived, Entity, Expr, Relation } from 'foldkit-entity'
 
 // #region entity
 export const UserFields = Entity.define(
@@ -59,7 +59,10 @@ export const Chirper = Chirp.User.pipe(
  * no write's input sets them, and the page predicts them for a new chirp.
  */
 export const LikedPost = Chirp.Post.pipe(
-  Entity.stamps({ authorId: Stamp.viewer, author: Stamp.viewer, createdAt: Stamp.clock }),
+  Entity.sets(
+    { authorId: Expr.viewer(UserFields), author: Expr.viewer(UserFields), createdAt: Expr.now },
+    { on: 'create' },
+  ),
   Entity.derived({
     likeCount: Derived.count(Chirp.Like.relations.post),
     liked: Derived.exists(Chirp.Like.relations.post, { viewer: Chirp.Like.relations.user }),
@@ -67,5 +70,7 @@ export const LikedPost = Chirp.Post.pipe(
 )
 
 /** A like is whoever made it: its person, as the field the guards read and as the link. */
-export const Liking = Chirp.Like.pipe(Entity.stamps({ userId: Stamp.viewer, user: Stamp.viewer }))
+export const Liking = Chirp.Like.pipe(
+  Entity.sets({ userId: Expr.viewer(UserFields), user: Expr.viewer(UserFields) }, { on: 'create' }),
+)
 // #endregion

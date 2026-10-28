@@ -23,9 +23,7 @@ import {
   Held,
   Operators,
   SchemaShape,
-  Stamp,
   Write,
-  WriteStamp,
   assertSupported,
   evaluate,
   Query,
@@ -479,7 +477,7 @@ export interface MutationSource<P, R = never> {
     readonly principal: P
     /**
      * Who asks, as a row (`RemoteServer.make`'s `viewer`), or none for a
-     * visitor: what a declared insert's `Stamp.viewer` writes.
+     * visitor: what a declared write's `Expr.viewer` sets (`Entity.sets`).
      */
     readonly viewer: Option.Option<EntityRef>
     /**
@@ -497,7 +495,7 @@ export interface MutationSource<P, R = never> {
      * The write's time, in milliseconds since the epoch: when the reader
      * acted, as the client sent it, if within the server's `clockSkew` of its
      * own clock; otherwise the server's own. What a declared insert's
-     * `Stamp.clock` writes.
+     * `Expr.now` sets (`Entity.sets`).
      */
     readonly now: number
     /** For a declared write: the input keys to write, when the client named only some. */
@@ -567,7 +565,7 @@ export interface ServerDefinition<P, R = never> {
   readonly mutations: ReadonlyMap<string, MutationSource<P, R>>
   readonly queries: ReadonlyMap<string, QuerySource<P, R>>
   readonly live: ReadonlyMap<string, LiveSource<P, R>>
-  /** Who asks, as a row: what a declared insert's `Stamp.viewer` writes. See `make`. */
+  /** Who asks, as a row: what a declared write's `Expr.viewer` sets. See `make`. */
   readonly viewer?: ((principal: P) => Option.Option<EntityRef>) | undefined
   /** How far from its own clock a client's time may be and still be the write's. See `make`. */
   readonly clockSkew?: Duration.Duration | undefined
@@ -1199,7 +1197,7 @@ export type MemoryConfig<P> = {
   ) => Effect.Effect<MemoryReadable, RemoteServerError>
   /** Who the `layer` answers as. Without it there is no `layer`, unless `P` admits `undefined`. */
   readonly principal?: P
-  /** Who asks, as a row: what a declared insert's `Stamp.viewer` writes. See `make`. */
+  /** Who asks, as a row: what a declared write's `Expr.viewer` sets. See `make`. */
   readonly viewer?: ((principal: P) => Option.Option<EntityRef>) | undefined
 }
 
@@ -1917,12 +1915,12 @@ export const RemoteServer = {
         `[foldkit-remote-server] write "${mutation.name}" writes ${writer.entity}, which has invariants, but its writer does not judge them (invariants)`,
       )
     }
-    const stamped = write.stamps.flatMap(
-      WriteStamp.$match({ Field: ({ field }) => [field.key], Link: () => [] }),
+    const contextual = write.context.flatMap(({ member }) =>
+      member._tag === 'Field' ? [member.key] : [],
     )
     // An insert's row is its values: a field it leaves to a default the writer cannot judge.
     if (write._tag === 'Insert') {
-      const sets = new Set(['id', ...write.sets.map(set => set.field.key), ...stamped])
+      const sets = new Set(['id', ...write.sets.map(set => set.field.key), ...contextual])
       const unset = judged.flatMap(held =>
         held.after.filter(key => !sets.has(key)).map(key => `${held.id} reads ${key}`),
       )
@@ -2088,7 +2086,15 @@ export const RemoteServer = {
           Match.tagsExhaustive({
             Update: () =>
               Effect.gen(function* () {
-                const bound = Write.bind(write, given, keys)
+                const named = Write.bind(write, given, keys)
+                // An update sets what its Entity sets `on: 'write'`, whichever keys it names.
+                const set = Write.contextValues(write, { viewer, now: Option.some(now) })
+                if (set.unfilled.length > 0) return yield* Effect.fail(RemoteServer.forbid())
+                const bound = {
+                  ...named,
+                  values: { ...named.values, ...set.values },
+                  links: { ...named.links, ...set.links },
+                }
                 const before = yield* pointedAt(bound.id, principal)
                 if (
                   write.increments.length + write.assignments.length > 0 &&
@@ -2134,14 +2140,14 @@ export const RemoteServer = {
             Insert: () =>
               Effect.gen(function* () {
                 const bound = Write.bind(write, given)
-                const stamps = Write.stamp(write, { viewer, now: Option.some(now) })
-                // Only the viewer can be missing: a visitor has no one to stamp.
-                if (stamps.unknown.length > 0) return yield* Effect.fail(RemoteServer.forbid())
+                const set = Write.contextValues(write, { viewer, now: Option.some(now) })
+                // Only the viewer can come to nothing: a visitor, or one of another Entity.
+                if (set.unfilled.length > 0) return yield* Effect.fail(RemoteServer.forbid())
                 const row = yield* invalid(
                   writer.insert({
                     id: bound.id,
-                    values: { ...bound.values, ...stamps.values },
-                    links: { ...bound.links, ...stamps.links },
+                    values: { ...bound.values, ...set.values },
+                    links: { ...bound.links, ...set.links },
                     operation,
                     request: yield* request,
                     principal,
@@ -2222,7 +2228,7 @@ export const RemoteServer = {
   /**
    * The server: its sources by name. `viewer` says who asks, as a row
    * (`principal => Option.some(Remote.ref(User, principal.id))`), or none for
-   * a visitor: what a declared insert's `Stamp.viewer` writes. A server
+   * a visitor: what a declared write's `Expr.viewer` sets. A server
    * registering such an insert without one is refused here.
    *
    * `clockSkew` is how far from this server's clock a client's time (the
@@ -2241,16 +2247,11 @@ export const RemoteServer = {
   }): ServerDefinition<P, R> => {
     if (config.viewer === undefined) {
       const viewing = (config.mutations ?? []).find(source =>
-        (source.writes?.write.stamps ?? []).some(
-          WriteStamp.$match({
-            Field: ({ stamp }) => Stamp.$match(stamp, { Clock: () => false, Viewer: () => true }),
-            Link: () => true,
-          }),
-        ),
+        (source.writes?.write.context ?? []).some(({ value }) => value._tag === 'Viewer'),
       )
       if (viewing !== undefined) {
         throw new Error(
-          `[foldkit-remote-server] write "${viewing.mutation}" stamps whoever asks (Stamp.viewer), but the server has no viewer; give RemoteServer.make a viewer`,
+          `[foldkit-remote-server] write "${viewing.mutation}" sets a member to whoever asks (Expr.viewer), but the server has no viewer; give RemoteServer.make a viewer`,
         )
       }
       const reading = config.entities.find(source => (source.perViewer ?? []).length > 0)

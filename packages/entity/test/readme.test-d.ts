@@ -10,7 +10,6 @@ import {
   Order,
   Query,
   Relation,
-  Stamp,
   Write,
   dependenciesOf,
   type Dependencies,
@@ -19,6 +18,7 @@ import {
   type QueryDependencies,
   type BoundWrite,
   type EntityRef,
+  type EntitySet,
   type IdOf,
 } from '../src/index.js'
 
@@ -240,5 +240,7 @@ expectTypeOf<typeof PostForEdit.schema.Type>().toEqualTypeOf<{
 
 // ## Declaring what an input writes: what the server chooses
 
-const StampedPost = Blog.Post.pipe(Entity.stamps({ author: Stamp.viewer }))
-expectTypeOf(StampedPost.stamps).toEqualTypeOf<Readonly<Record<string, Stamp>>>()
+const AuthoredPost = Blog.Post.pipe(Entity.sets({ author: Expr.viewer(Author) }, { on: 'create' }))
+expectTypeOf(AuthoredPost.sets).toEqualTypeOf<Readonly<Record<string, EntitySet>>>()
+// @ts-expect-error a relation is set to the viewer of its target
+Blog.Post.pipe(Entity.sets({ author: Expr.viewer(Comment) }, { on: 'create' }))

@@ -381,10 +381,10 @@ export interface DomainMutateOptions {
     | undefined
   /**
    * When the reader acted, in milliseconds since the epoch: what a time the
-   * write stamps (`Stamp.clock`) is predicted as, and the same number the
-   * request sends, which the server takes within its `clockSkew`. Read it
-   * where the action is, with `Remote.now`, since `update` reads no clock.
-   * Without it a stamped time is not predicted, and the server's clock decides.
+   * write sets (`Expr.now` in `Entity.sets`) is predicted as, and the same
+   * number the request sends, which the server takes within its `clockSkew`.
+   * Read it where the action is, with `Remote.now`, since `update` reads no
+   * clock. Without it the time is not predicted, and the server's clock decides.
    */
   readonly now?: number | undefined
   /**
@@ -1290,7 +1290,7 @@ export interface MutateOptions {
   readonly optimistic?: ReadonlyArray<OptimisticOperation> | undefined
   /**
    * When the reader acted, in milliseconds since the epoch, as `Remote.now`
-   * read it: sent for a time the write stamps, which the server takes within
+   * read it: sent for a time the write sets, which the server takes within
    * its `clockSkew`.
    */
   readonly now?: number | undefined
