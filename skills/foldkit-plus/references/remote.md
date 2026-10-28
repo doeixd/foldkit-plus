@@ -237,6 +237,8 @@ case 'SignedOut': {
 
 - Optimistic patches are **layers** over the base store (recomputed base +
   pending layers), released on settle by `requestId`; settlement is idempotent.
+  Answers settle in the order their requests started: an answer leaves a field,
+  or a row's deletion, that a later-started request already settled.
   Optimistic list edits: `optimistic: ({ tempId }) => [Remote.patch(Project, tempId, {...}), ConnectionChange.prepend(projects.ref, Remote.ref(Project, tempId))]`,
   where `projects` is the `Data.query(...)` Projection above. `Remote.patch`
   values are wire-shaped: a relation is its ref key, typed `RefKey<'User'>`
@@ -396,6 +398,8 @@ key it came from in `model.remote.restoredFrom`. Saving waits until that key is
 restored, so startup never writes the empty store over the snapshot. Since a
 restore keeps what memory holds, a change of principal must be `Data.forget`
 in the same `update`, or one person's rows are saved under the next one's key.
+`forget` keeps `restoredFrom`, so an unchanged key is never restored again: the
+emptied cache is saved over it.
 
 `RemotePersistence.save(snapshot, { key, scope, maxBytes })` /
 `restore({ key, scope, maxBytes })` use Effect's `KeyValueStore`. Wrong
