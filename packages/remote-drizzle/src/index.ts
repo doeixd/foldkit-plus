@@ -60,7 +60,7 @@ import {
 import type { AnyEntityBinding, ManyRelation, ManyToManyRelation } from './binding.js'
 import { checkConstraints } from './checks.js'
 import { serverOnlyRules, statementFailed } from './diagnostics.js'
-import { idColumn, projectsAny } from './columns.js'
+import { idColumn, projectsAny, stampOverwrites } from './columns.js'
 import {
   checkFields,
   compileOrderBy,
@@ -1460,6 +1460,7 @@ export const writer = <P = unknown>(
       ...write.assignments.flatMap(({ field, expr }) =>
         operatorProblems([expr], binding, `its assignment to "${field.key}"`),
       ),
+      ...stampOverwrites(write, binding),
     ],
     ...(ledger === undefined
       ? {}
