@@ -88,6 +88,16 @@ pending. A `many` relation, or a relation pointing at another Entity, is refused
 row pointing here through `relation` whose `viewer` relation points at whoever
 reads it, or none.
 
+The write's context is part of `Expr`: `Expr.viewer(User)` is whoever asks, as a
+User's id (null for a visitor), and `Expr.now` the time in milliseconds. Each side
+provides them once: a server from `RemoteServer.make({ viewer })` and its clock, a
+client from `Remote.make({ viewer })`. A run given no context refuses a body that
+reads one (`ContextMissingError`), rather than reading a visitor.
+
+```ts
+Query.from(Note).pipe(Query.where(Expr.eq(Note.fields.ownerId, Expr.viewer(User))))
+```
+
 ```ts
 const Post = Blog.Post.pipe(
   Entity.derived({

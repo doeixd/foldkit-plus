@@ -856,9 +856,12 @@ Storage: field = same-named column or `fields: { name: column }`; `one` =
 `{ foreignKey, localKey?, assumeUnique? }` (the column must be unique); `many` = `{ foreignKey, localKey? }` or `{ through, localColumn,
 foreignColumn }`; a `Derived.make` member = `{ relation, where? }` (a count) or
 `{ supplied: true }`; a `Derived.count` takes no entry (bind counts the pointing
-table by its foreign key, under its `visible`), nor does a `Derived.exists`, whose
-`source(Db.Post, { viewer: principal => Option<{ entity, id }> })` says who reads
-it (required for such a binding, and never `shared`). A required `one`
+table by its foreign key, under its `visible`), nor does a `Derived.exists`, read for
+`RemoteServer.make({ viewer: principal => Option<{ entity, id }> })`, the one viewer of
+every source it mounts (a server without one refuses such a source, and it is never
+`shared`; `source` takes no `viewer`). A query body's `Expr.viewer(User)` and `Expr.now`
+read the same viewer and the server's clock; a write's `when` and its Entity's invariants
+may not read them yet, which `writer` refuses where it is built. A required `one`
 over a nullable column throws: declare it `{ optional: true }`. So does a column
 that plainly cannot hold its field (text under a number, a nullable column under
 a field that admits no `null`); transforming schemas and custom columns pass

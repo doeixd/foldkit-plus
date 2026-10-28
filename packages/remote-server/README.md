@@ -772,6 +772,15 @@ RemoteServer.validate(Data, Server)
 That catches an Entity, Query, or Mutation Source whose name is not declared by
 the shared domain instead of letting it silently answer nothing at runtime.
 
+`viewer` says who asks, as a row, and is the server's one answer to it:
+`RemoteServer.make({ ..., viewer: principal => Option<{ entity, id }> })`. The
+server hands it to every Source it mounts, with each read, query and live
+subscription (`EntitySourceContext.viewer`), and to every write. A Source
+answering a member per reader declares it (`perViewer`, as a `Derived.exists`
+does), and a server with no `viewer` refuses that Source where it is made,
+naming it. A query body's `Expr.viewer` and `Expr.now` read this viewer and the
+server's Effect `Clock` (`exprContext`).
+
 Then compile it into handlers, once per principal, or once for every request
 with a Context key as the principal (see Authentication vs authorization):
 

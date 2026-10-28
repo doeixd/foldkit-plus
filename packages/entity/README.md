@@ -716,6 +716,29 @@ contains nothing, not even the empty string, so its rows drop out. The column
 the CMS searches is declared not-null, which is what makes an empty search
 exactly everything there.
 
+### Who asks, and when: the context
+
+A write's context is part of the language. `Expr.viewer(User)` is whoever
+asks, as a User's id, and null for a visitor or a viewer of another Entity, so
+a comparison with it holds of no row. `Expr.now` is the time, in milliseconds.
+Neither is a field or an input: each interpreter reads them from the context
+it is given.
+
+```ts
+const Mine = Query.from(Note).pipe(
+  Query.where(Expr.eq(Note.fields.ownerId, Expr.viewer(User))),
+)
+evaluate(Mine, {}, rows, { context: { viewer: Option.some(ada), now: Option.none() } })
+```
+
+A server gives them from `RemoteServer.make({ viewer })` and its clock; a
+client from `Remote.make({ viewer })`, with no reading of the time a server
+judges a list at, so a list over `Expr.now` is the server's to say. A run
+given no context, or no reading of a time it reads, refuses the body
+(`ContextMissingError`) rather than reading a visitor or a null. A write's
+computed assignment may not read them; a value the server chooses is
+`Entity.stamps`'s.
+
 ### Which rows: `Query`
 
 A `Query` is an Entity to read, the predicates every row must hold, and the

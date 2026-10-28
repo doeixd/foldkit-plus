@@ -89,8 +89,8 @@ writes: the guarded writer lands them, after `RemoteServer.write` has stamped
 a new chirp's author and time, so the browser sends neither. A like is a
 declared write too (`LikePost` inserts a Like, stamped with whoever asks;
 `Unlike` deletes one by the id `liked` holds, and `isLiker` refuses it to
-anyone else). `RemoteServer.make` and the Post's Source are told who asks
-(`viewer`), so stamps name the asker and each person reads their own `liked`. Every answer carries what the page shows of the rows
+anyone else). `RemoteServer.make` is told who asks (`viewer`), once: stamps
+name the asker, and the Post's Source answers each person's own `liked`. Every answer carries what the page shows of the rows
 it names or points at: the page sends what its Surfaces read with each write,
 and the server reads those fields after the write, so a new chirp lands with
 its author's count, and a like with its post's count and `liked`.

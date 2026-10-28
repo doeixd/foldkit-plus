@@ -307,11 +307,13 @@ rows of the pointing Entity's table by the column its `one` relation is stored
 on (`{ field }`), under that table's `visible` rule, and refuses an entry for it.
 The pointing Entity must be bound in the same call.
 
-A `Derived.exists` takes no entry either. Its value depends on who reads it, so
-its `source` must say who that is, as a row, or none for a visitor:
+A `Derived.exists` takes no entry either. Its value depends on who reads it,
+which the server the source is mounted in says, once, for every source, query
+and write it serves:
 
 ```ts
-source(Db.Post, {
+RemoteServer.make({
+  entities: [source(Db.Post)],
   viewer: (principal: Option.Option<User>) =>
     Option.map(principal, user => ({ entity: 'User', id: user.id })),
 })
@@ -320,10 +322,17 @@ source(Db.Post, {
 For each row read it finds the least id among the pointing rows whose `viewer`
 relation's column holds that id, under the pointing table's `visible` rule, in
 one statement per read, as a count does. A visitor, or a reader of an Entity
-the `viewer` relation does not point at, reads none. A `source` of a binding
-with one and no `viewer` throws, and so does one listing it as `shared`: a
+the `viewer` relation does not point at, reads none. `RemoteServer.make`
+refuses a source with one when it has no `viewer`, naming the binding; a read
+of the member made outside a server (calling `source(…).read` directly) fails,
+since nothing says who reads. A source listing it as `shared` throws: a
 shared field goes to every live subscriber as written, and this one is each
 reader's own.
+
+A query body may read the same context: `Expr.viewer(User)` is that viewer's
+id, and `Expr.now` the server's clock (Effect's `Clock`), each bound as a
+parameter of the request. A write's precondition and its Entity's invariants
+may not read them yet: `writer` refuses one that does where it is built.
 
 A `Derived.make` member is a count of a `many` relation, `{ relation, where? }`,
 which is how a join table with no Entity is counted. One it cannot compute is `{ supplied: true }`: `bind` registers the
