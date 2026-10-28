@@ -858,10 +858,16 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
 - **A Worker's `console.error` never reaches `Stack.start`'s output** (#269).
   An SSR 500 said only "The page could not be rendered". To see the cause,
   run the same `renderPage` in Node against the stack's `/remote`.
-- **A ledger on a D1 example breaks every recorded write, on D1 alone.** The
-  Drizzle ledger needs a transaction D1 refuses, so the reference app's Node
-  SQLite tests would pass while workerd refused every create. Check the
-  runtime database before adding a ledger.
+- **On D1 the ledger is a `batch`, not a transaction.** D1 refuses `BEGIN`, so
+  the ledger reads the record first and writes the row and its record in one
+  batch, recording only where the write changed a row (`changes() > 0`). Node
+  SQLite tests run the transaction path, not the batch one: test a D1 change
+  on workerd. And four requests sent at once through `Stack.start`'s HTTP
+  origin did not interleave their D1 work, so a race test that way passed with
+  the race handling removed; run a race against `stack.env().DB` from Node.
+- **Drizzle 1.0 rc decodes through dialect codecs.** `column.mapFromDriverValue`
+  no longer turns SQLite's `1` into `true`; select a raw value with
+  `sql\`…\`.mapWith(column)` to decode it as the column would.
 - **Miniflare's rate limiter counts in windows on the clock's minute.** Three
   requests across a boundary were all admitted, and CI read `[200, 200, 200]`.
   Test the code that consumes a limiter with a fake binding.

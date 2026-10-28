@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **A write ledger on Cloudflare D1.** D1 refuses a transaction's `BEGIN`, so
+  the ledger reads the record first, then writes the row and its record in one
+  `batch`, the record only where the write changed a row (`changes() > 0`). It
+  keeps the idempotent retry, `request` refusal, retention and pruning of
+  SQLite and Postgres, and a copy that loses a race is answered from the
+  winner's record. A column the answer holds may not be a `blob`. Before, a
+  ledger on D1 refused every write it would record. `examples/reference`'s
+  notes writer keeps one (`migrations/0003_write_ledger.sql`), so a create sent
+  again under its operation is answered with its row.
 - **Three-valued `Expr`, and paths through relations** (#242, operations
   phase 1). `Judge.predicate` and `Judge.query` read a `HeldRow` and answer
   `Known(truth)` or `Unknown { reason }`: a field or row the holder lacks or may
