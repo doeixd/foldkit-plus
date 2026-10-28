@@ -190,8 +190,10 @@ describe('a document host', () => {
     }
     const ada = await serving('ada')
     const grace = await serving('grace')
+    const bob = await serving('bob')
     ada.client.send(JSON.stringify({ id: '1', cursor: 0, pending: await pendingOf('a', ['Milk']) }))
-    await until(() => reported.length > 0)
+    // Bob is asked after Grace, so once he has heard the notice, Grace's answer has landed.
+    await until(() => reported.length > 0 && bob.heard.length > 0)
     expect(grace.heard).toEqual([])
     expect(reported.map(({ diagnostic }) => diagnostic)).toEqual([
       expect.objectContaining({ _tag: 'HostDefect', stage: 'Notice' }),

@@ -141,6 +141,17 @@ export default [
     tests: client,
   },
   {
+    name: 'a press takes back the like it would make, not the one the post shows',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'onSome: id => Data.mutate(model, Unlike, { id }),',
+        replace: 'onSome: () => Data.mutate(model, Unlike, { id: likeOf(postId, model.me) }),',
+      },
+    ],
+    tests: client,
+  },
+  {
     name: 'a post’s likes are counted as given',
     edits: [
       {
