@@ -1,7 +1,7 @@
 /** The README's paths and `Judge` snippets, run: what they say they answer. */
 import { Option, Schema } from 'effect'
 import { expect, it } from 'vitest'
-import { Entity, Expr, Held, Judge, Order, Query, Relation } from '../src/index.js'
+import { Entity, Expr, Held, Judge, Order, Query, Relation, evaluate } from '../src/index.js'
 
 const UserFields = Entity.define(
   'User',
@@ -41,6 +41,18 @@ const Home = Query.from(Post).pipe(
   ),
   Query.orderBy(Order.asc(Post.fields.id)),
 )
+
+// Posts by whoever asks: where `author` points.
+const Mine = Query.from(Post).pipe(Query.where(Expr.eq(Post.relations.author, Expr.viewer(User))))
+
+it("lists the posts whose author link is the viewer's id", () => {
+  const posts = [
+    { id: 'p1', body: 'hi', author: 'u1' },
+    { id: 'p2', body: 'yo', author: 'u2' },
+  ]
+  const context = { viewer: Option.some({ entity: 'User', id: 'u2' }), now: Option.none() }
+  expect(evaluate(Mine, {}, posts, { context }).map(row => row.id)).toEqual(['p2'])
+})
 
 it('judges a post whose author is not held as unknown, and one whose author is as SQL would', () => {
   const holder = Held.rows([

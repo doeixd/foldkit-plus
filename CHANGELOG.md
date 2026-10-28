@@ -18,6 +18,13 @@ version changed; `pnpm` skips versions already in the registry.
   ledger on D1 refused every write it would record. `examples/reference`'s
   notes writer keeps one (`migrations/0003_write_ledger.sql`), so a create sent
   again under its operation is answered with its row.
+- **A `one` relation is an `Expr` operand** (operations phase 3):
+  `Expr.eq(Like.relations.user, Expr.viewer(User))` compares the id the link
+  points at, typed as the target's id and null where an optional one points
+  nowhere. A row given to an interpreter holds the relation under its key as
+  that id, as `Held.rows` takes it, and the key is listed among the fields an
+  expression reads. A `many` relation is refused as an operand, and no list
+  orders by a link.
 - **Three-valued `Expr`, and paths through relations** (#242, operations
   phase 1). `Judge.predicate` and `Judge.query` read a `HeldRow` and answer
   `Known(truth)` or `Unknown { reason }`: a field or row the holder lacks or may

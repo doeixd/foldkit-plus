@@ -23,6 +23,7 @@ import type {
   EntityField,
   EntityIdentity,
   EntityRelation,
+  IdOf,
 } from './index.js'
 
 /** A constant the query was written with. */
@@ -325,8 +326,14 @@ export interface TestPredicate {
  */
 export type Operandish = AnyExpr | Predicate
 
-/** A field, a scalar already built from one, or a predicate used as a boolean. */
-type Operand<T> = EntityField<string, string, Schema.Constraint> | Expr<T> | Predicate
+/**
+ * A field, a `one` relation (the id it points at), a scalar already built from
+ * one, or a predicate used as a boolean.
+ */
+type Operand<T> = OwnOperand<T> | OneRelation
+
+/** A field, a scalar, or a predicate: what an order term takes, since no list orders by a link. */
+type OwnOperand<T> = EntityField<string, string, Schema.Constraint> | Expr<T> | Predicate
 
 /**
  * Type-only: the Entities a predicate's fields belong to, by name, so
@@ -346,15 +353,17 @@ export interface Reads<Names extends string> {
 export type ReadsOf<X> =
   X extends EntityField<infer Name, string, Schema.Constraint>
     ? Name
-    : X extends PlainValue | { readonly _tag: 'Literal' | 'Input' | 'Viewer' | 'Now' }
-      ? never
-      : X extends { readonly '~reads'?: infer Names }
-        ? unknown extends Names
-          ? string
-          : Names extends string
-            ? Names
-            : never
-        : never
+    : X extends EntityRelation<infer Name, string, AnyEntity, 'one', boolean>
+      ? Name
+      : X extends PlainValue | { readonly _tag: 'Literal' | 'Input' | 'Viewer' | 'Now' }
+        ? never
+        : X extends { readonly '~reads'?: infer Names }
+          ? unknown extends Names
+            ? string
+            : Names extends string
+              ? Names
+              : never
+          : never
 
 /**
  * Nothing when a query's predicates read its own Entity, none, or one unknown
@@ -382,11 +391,13 @@ export interface Invalid<Message extends string> {
 export type ValueOf<E> =
   E extends EntityField<string, string, infer S>
     ? Schema.Schema.Type<S>
-    : E extends Predicate
-      ? boolean
-      : E extends Expr<infer T>
-        ? T
-        : never
+    : E extends EntityRelation<string, string, infer Target, 'one', infer Optional>
+      ? IdOf<Target> | (Optional extends true ? null : never)
+      : E extends Predicate
+        ? boolean
+        : E extends Expr<infer T>
+          ? T
+          : never
 
 /**
  * A field or scalar whose value is text, or absent text.
@@ -443,6 +454,25 @@ const fieldExpr = (field: EntityField<string, string, Schema.Constraint>): Field
     ),
   })
 
+/**
+ * A `one` relation read as a value: the id of the row it points at, null for
+ * none. It is the member the row holds under the relation's key, so it is a
+ * field of the owner to every interpreter: a row given to one holds it as that
+ * id, and SQL reads the column the relation is stored on.
+ */
+const linkExpr = (relation: OneRelation): FieldExpr<unknown> =>
+  node({
+    _tag: 'Field',
+    owner: relation.owner,
+    key: relation.key,
+    // A ref's id travels as text, as `Expr.viewer`'s does, so the two compare.
+    schema: (relation.optional
+      ? Schema.NullOr(Schema.String)
+      : Schema.String) as unknown as Schema.Codec<unknown, unknown>,
+    // Nothing orders by one: a list refuses it, and a comparison takes an ordered operand.
+    collation: Option.none(),
+  })
+
 const predicateTags = new Set([
   'Eq',
   'Null',
@@ -473,6 +503,15 @@ const toOperand = <T>(value: Operand<T> | T): Operandish => {
   }
   if (tag === 'Field') {
     return fieldExpr(value as EntityField<string, string, Schema.Constraint>)
+  }
+  if (tag === 'Relation') {
+    const relation = value as EntityRelation<string, string, AnyEntity, Cardinality, boolean>
+    if (relation.cardinality !== 'one') {
+      throw new Error(
+        `[foldkit-entity] ${relation.owner.name}.${relation.key} is a many relation, which holds no one value; ask Expr.exists of the relation that points back`,
+      )
+    }
+    return linkExpr(relation as OneRelation)
   }
   if (
     tag === 'Literal' ||
@@ -1928,13 +1967,28 @@ export interface ChosenOrder {
 /** One entry of a body's ordering: fixed, or chosen by the input. */
 export type Ordering = OrderTerm | ChosenOrder
 
+/**
+ * What an order term orders by, refusing a link: a client holds a link as a
+ * ref, not the id it orders by, so it could not place a row there.
+ */
+const orderOperand = (expr: unknown, step: 'asc' | 'desc'): AnyExpr => {
+  if (tagOf(expr) === 'Relation') {
+    throw new Error(
+      `[foldkit-entity] Order.${step}: a list orders by its own fields, not by where a relation points`,
+    )
+  }
+  return toExpr(expr as never, step)
+}
+
 export const Order = {
   /** Smallest first; rows without a value last, unless `nulls` says first. */
-  asc: <E extends Operand<any>>(expr: E, options?: TermOptions): OrderTerm & Reads<ReadsOf<E>> =>
-    term('asc', toExpr(expr as never, 'asc'), options),
+  asc: <E extends OwnOperand<any>>(expr: E, options?: TermOptions): OrderTerm & Reads<ReadsOf<E>> =>
+    term('asc', orderOperand(expr, 'asc'), options),
   /** Largest first; rows without a value first, unless `nulls` says last. */
-  desc: <E extends Operand<any>>(expr: E, options?: TermOptions): OrderTerm & Reads<ReadsOf<E>> =>
-    term('desc', toExpr(expr as never, 'desc'), options),
+  desc: <E extends OwnOperand<any>>(
+    expr: E,
+    options?: TermOptions,
+  ): OrderTerm & Reads<ReadsOf<E>> => term('desc', orderOperand(expr, 'desc'), options),
 
   /**
    * The order the input names, among `choices`: every name the sort can hold

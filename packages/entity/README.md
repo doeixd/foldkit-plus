@@ -911,6 +911,20 @@ it declares.)
   input; anything past them is refused where it is written.
 - A list does not order by a path.
 
+A `one` relation is itself an operand: the id it points at, typed as the
+target's id, and null where an optional one points nowhere. So a rule compares
+the link, and no field over the same column has to repeat it:
+
+```ts
+// Posts by whoever asks: where `author` points.
+const Mine = Query.from(Post).pipe(Query.where(Expr.eq(Post.relations.author, Expr.viewer(User))))
+```
+
+A row given to an interpreter holds the relation under its key as that id, as
+`Held.rows` takes it; SQL reads the column the relation is stored on. A list
+does not order by a link: a client holds it as a ref, not as the id it would
+order by.
+
 `foldkit-remote-drizzle` compiles both to subqueries under each reached
 table's `visible` rule. `evaluate`, given one row, cannot follow them: it
 refuses such a body, as it refuses any operation it does not run. `Judge`,
@@ -1270,6 +1284,7 @@ from queries, not from what a database could express.
 | `Expr.not(predicate)` | The predicate does not hold; an unknown stays unknown, so a null matches neither side. |
 | `Expr.lt` / `lte` / `gt` / `gte(left, right, { collation? })` | One value orders before or after the other. Numbers as numbers; text only under `binary` or `asciiFold` (the field's declared collation, or the one given), and only against a field. |
 | `Expr.path(relation, end)` | What the row a `one` relation points at holds: a field, a further path, or an exists; null where no row is reached. At most `maxPathLength` (4) relations. |
+| `Expr.eq(Post.relations.author, …)` | A `one` relation as an operand: the id it points at, null for none. |
 | `Expr.exists(relation, where?)` | Some row of another Entity points here through its `one` relation and holds `where`, a predicate over its own fields and the input. |
 | `Judge.predicate(p, row, options)` / `Judge.query(body, input, row, options)` | The reference semantics over a `HeldRow`: a `Verdict`, `Known` (SQL's answer) or `Unknown` with why. `Judge.match` reads one. |
 | `Held.rows(tables)` | A holder over plain records, each table complete or not, with keys hidden; `row(entity, id)` and `rows(entity)` give `HeldRow`s. |
