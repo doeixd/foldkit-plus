@@ -5,6 +5,7 @@
  * rendered as its reader or sent on, and every write is judged by the
  * guard, the decode and the table's CHECKs.
  */
+import { request } from 'node:http'
 import { Effect, Option, Result, type Layer } from 'effect'
 import { fromString } from 'foldkit/url'
 import { Remote, type RemoteClient, type RemoteMessage } from 'foldkit-plus/remote'
@@ -58,11 +59,37 @@ const member = async (name: string): Promise<string> => {
   return cookie.split(';')[0]!
 }
 
-/** A page as a browser navigates to it: a `GET` with the cookie and no CSRF header. */
+/**
+ * A page as a browser navigates to it: a `GET` with the cookie, no CSRF
+ * header, and the `Sec-Fetch-Mode` a navigation has. Sent with `node:http`,
+ * since Node's `fetch` sends `Sec-Fetch-Mode: cors` whatever it is given,
+ * which the page's resolver refuses as no navigation.
+ */
 const page = (path: string, cookie?: string) =>
-  fetch(`${stack.origin}${path}`, {
-    headers: { accept: 'text/html', ...(cookie === undefined ? {} : { cookie }) },
-    redirect: 'manual',
+  new Promise<Response>((resolve, reject) => {
+    const asked = request(
+      `${stack.origin}${path}`,
+      {
+        headers: {
+          accept: 'text/html',
+          'sec-fetch-mode': 'navigate',
+          ...(cookie === undefined ? {} : { cookie }),
+        },
+      },
+      answer => {
+        const chunks: Array<Buffer> = []
+        answer.on('data', (chunk: Buffer) => chunks.push(chunk))
+        answer.on('error', reject)
+        answer.on('end', () => {
+          const headers = new Headers()
+          for (const [name, value] of Object.entries(answer.headers))
+            for (const each of [value ?? []].flat()) headers.append(name, each)
+          resolve(new Response(Buffer.concat(chunks), { status: answer.statusCode ?? 0, headers }))
+        })
+      },
+    )
+    asked.on('error', reject)
+    asked.end()
   })
 
 /** The page's own Remote client, as `cookie`'s member. */
