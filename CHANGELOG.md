@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **"Errors and failures", one guide to how failure works across the packages**
+  (`docs/errors.md`): who owns each kind of failure, what the reader sees, and
+  what the application does, for reads, writes and refusals, forms, what a
+  server tells a client, Sync, a lost session, lazy resources, `Diagnostics`,
+  and testing failures. Published under Learn on the site, and linked from the
+  remote, remote-server, form and sync READMEs and the skill.
 - **`examples/reference`: the recommended stack, end to end.** One Worker over
   D1 serves the page's assets, Yielded's routes, Remote and every page, the
   pages rendered in process as the reader (`pageReader`,
