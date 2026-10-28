@@ -15,8 +15,18 @@
       "foldkit-media/server": ["./src/server/index.ts"],
       "foldkit-media/sharp": ["./src/sharp/index.ts"],
       "foldkit-media/unpic": ["./src/unpic/index.ts"],
-      "foldkit-media/vite": ["./src/vite/index.ts"]
+      "foldkit-media/vite": ["./src/vite/index.ts"],
+      "foldkit-metadata": ["../metadata/src/index.ts"],
+      "foldkit-surface": ["../surface/src/index.ts"]
     }
   },
-  "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"]
+  "include": ["src/**/*.ts", "test/**/*.ts", "tsdown.config.ts"],
+  "references": [
+    {
+      "path": "../metadata/tsconfig.build.json"
+    },
+    {
+      "path": "../surface/tsconfig.build.json"
+    }
+  ]
 }

@@ -81,6 +81,7 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
+    "foldkit-surface": "workspace:*",
     "thumbhash": "^0.1.1"
   },
   "peerDependencies": {

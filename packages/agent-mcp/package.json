@@ -51,8 +51,10 @@
     "effect": "^4.0.5",
     "foldkit": "0.169.0",
     "foldkit-agent": "workspace:*",
-    "foldkit-surface": "workspace:*",
     "tsdown": "^0.23.1",
     "typescript": "7.0.2"
+  },
+  "dependencies": {
+    "foldkit-surface": "workspace:*"
   }
 }
