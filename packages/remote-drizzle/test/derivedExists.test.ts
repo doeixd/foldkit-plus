@@ -70,7 +70,7 @@ const seeded = () => {
     insert into posts values ('p1'), ('p2'), ('p3');
     insert into likes values
       ('l2', 'p1', 'ada', 'yes'), ('l1', 'p1', 'ada', 'yes'), ('l3', 'p1', 'bob', 'yes'),
-      ('l4', 'p2', 'bob', 'no');
+      ('l4', 'p2', 'bob', 'no'), ('l5', 'p3', 'ada', 'yes');
   `)
   return { sqlite, layer: databaseLayer(drizzle({ client: sqlite })) }
 }
@@ -101,7 +101,8 @@ const liked = async (principal: string | null, ids = ['p1', 'p2', 'p3']) => {
 
 describe('a Derived.exists, compiled by bind', () => {
   it("reads each row's like by the reader, the least id where there are two", async () => {
-    expect(await liked('ada')).toEqual({ p1: 'l1', p2: null, p3: null })
+    // One statement reads every post: each finds its own like, not the least of all.
+    expect(await liked('ada')).toEqual({ p1: 'l1', p2: null, p3: 'l5' })
   })
 
   it('answers each reader for themselves', async () => {
@@ -214,7 +215,7 @@ describe("a like's answer reads its post as the asker reads it", () => {
 
   it('reads the new like as the liker', async () => {
     expect(await answered('LikePost', { id: 'l9', postId: 'p3', userId: 'bob' }, 'bob')).toEqual([
-      { id: 'p3', liked: 'l9', likeCount: 1 },
+      { id: 'p3', liked: 'l9', likeCount: 2 },
     ])
   })
 

@@ -106,6 +106,8 @@ describe('a write of a stamped Entity', () => {
   it('stamps nothing on an update or a delete', () => {
     const Edit = Entity.input(Post, Schema.Struct({ id: Schema.String, body: Schema.String }))
     expect(Write.update(Edit, { id: 'id' }).stamps).toEqual([])
+    const Remove = Entity.input(Post, Schema.Struct({ id: Schema.String }))
+    expect(Write.delete(Remove, { id: 'id' }).stamps).toEqual([])
   })
 
   it('refuses an input that sets a stamped field or link, on any write', () => {
