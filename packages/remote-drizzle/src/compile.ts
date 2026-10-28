@@ -41,7 +41,12 @@ import {
   isPredicate,
   contextValue,
   type Collation,
+  type EntityIdentity,
+  type ExistsPredicate,
   type ExprContext,
+  type OneRelation,
+  type PathExpr,
+  dependenciesOf,
   type NowExpr,
   type ViewerExpr,
 } from 'foldkit-entity'
@@ -61,6 +66,7 @@ import type {
   Ordering,
   TestPredicate,
 } from 'foldkit-entity'
+import type { RelationBinding } from './binding.js'
 import { collatedColumn, type OrderTerm } from './cursor.js'
 import { kernelOperators, type BindingOperators } from './operators.js'
 
@@ -89,6 +95,108 @@ export interface CompileTarget {
    * where none is given.
    */
   readonly context?: ExprContext | undefined
+  /** Its `one` relations, by key: a path leaves this table by one stored here (`{ field }`). */
+  readonly relations?: Readonly<Record<string, RelationBinding>> | undefined
+  /** The binding of each Entity a path or an exists may reach, by identity; `bind` sets it. */
+  readonly reach?: ((owner: EntityIdentity<string>) => Option.Option<CompileTarget>) | undefined
+  /**
+   * The rows this request's reader may see of each table reached: its
+   * `visible`, resolved for the principal. A body that reaches another table
+   * is refused without it, rather than read rows its reader may not see.
+   */
+  readonly visibleOf?: ((owner: EntityIdentity<string>) => Option.Option<SQL>) | undefined
+}
+
+/** The binding a path or an exists reaches, refused by name where none is bound. */
+const reachedTable = (
+  target: CompileTarget,
+  owner: EntityIdentity<string>,
+  query: string,
+): CompileTarget =>
+  Option.getOrThrowWith(
+    Option.flatMap(Option.fromUndefinedOr(target.reach), reach => reach(owner)),
+    () =>
+      new QueryCompileError(
+        `query "${query}" reaches ${owner.name}, which is not bound beside it; bind the Entities together with \`bind\``,
+      ),
+  )
+
+/** The column a `one` relation is stored on, in its owner's own table. */
+const linkOf = (table: CompileTarget, relation: OneRelation, query: string): AnyColumn => {
+  const stored =
+    table.relations !== undefined && Object.hasOwn(table.relations, relation.key)
+      ? table.relations[relation.key]
+      : undefined
+  if (stored?.kind !== 'one') {
+    throw new QueryCompileError(
+      `query "${query}" goes through ${relation.owner.name}.${relation.key}, which is not stored on ${relation.owner.name}'s own table ({ field })`,
+    )
+  }
+  return stored.field
+}
+
+/** The rows of a reached table this request's reader may see. */
+const visibleIn = (target: CompileTarget, owner: EntityIdentity<string>, query: string) =>
+  Option.getOrThrowWith(
+    Option.fromUndefinedOr(target.visibleOf),
+    () =>
+      new QueryCompileError(
+        `query "${query}" reaches ${owner.name}, but was compiled without what its reader may see of it`,
+      ),
+  )(owner)
+
+/**
+ * What `read` makes of the row `via` reaches from `from`: a scalar subquery
+ * per relation, each under its table's visibility, so a null link or a row
+ * the reader may not see reads null, as `Judge` reads a path that reaches no
+ * row. Each subquery reads only the row around it, so no alias is needed
+ * while no table repeats along the way (`checkFields` refuses one that does).
+ */
+const atRow = (
+  from: CompileTarget,
+  via: ReadonlyArray<OneRelation>,
+  read: (at: CompileTarget) => SQL,
+  query: string,
+): SQL => {
+  const [first, ...rest] = via
+  if (first === undefined) return read(from)
+  const link = linkOf(from, first, query)
+  const owner = first.target().identity
+  const next = reachedTable(from, owner, query)
+  const visible = visibleIn(from, owner, query)
+  const at = eq(columnFor(next, 'id', query), link)
+  const where = Option.match(visible, {
+    onNone: () => at,
+    onSome: rule => sql`${at} and (${rule})`,
+  })
+  return sql`(select ${atRow(onward(from, next), rest, read, query)} from ${next.table} where ${where})`
+}
+
+/** A reached binding, compiled for the request its query was: the same reader and context. */
+const onward = (from: CompileTarget, next: CompileTarget): CompileTarget => ({
+  ...next,
+  visibleOf: from.visibleOf,
+  context: from.context,
+})
+
+/**
+ * Whether a row pointing at `anchor`'s row through the exists' relation holds
+ * its filter, among the rows its reader may see: `exists (select 1 …)`.
+ */
+const existsAt = (
+  node: ExistsPredicate,
+  anchor: CompileTarget,
+  input: Readonly<Record<string, unknown>>,
+  query: string,
+): SQL => {
+  const owner = node.relation.owner
+  const pointing = onward(anchor, reachedTable(anchor, owner, query))
+  const conditions = [
+    eq(linkOf(pointing, node.relation, query), columnFor(anchor, 'id', query)),
+    ...Option.toArray(Option.map(node.where, where => predicate(where, pointing, input, query))),
+    ...Option.toArray(Option.map(visibleIn(anchor, owner, query), rule => sql`(${rule})`)),
+  ]
+  return sql`exists (select 1 from ${pointing.table} where ${sql.join(conditions, sql` and `)})`
 }
 
 /** A context term's value for this request, as a parameter binds it. */
@@ -323,6 +431,8 @@ const operand = (
     case 'Viewer':
     case 'Now':
       return contextFor(node, target, query)
+    case 'Path':
+      return atRow(target, node.via, at => sql`${columnFor(at, node.field.key, query)}`, query)
     default:
       return absurd(node)
   }
@@ -349,6 +459,18 @@ const unrun = (operator: OperatorDescriptor, query: string): QueryCompileError =
  */
 const holdsNul = (value: unknown): boolean =>
   typeof value === 'string' && value.includes(String.fromCharCode(0))
+
+/**
+ * NaN as a parameter: SQLite binds it as null and Postgres orders it after
+ * every number, so `evaluate` refuses it and so does this.
+ */
+const refuseNaN = (query: string, values: ReadonlyArray<unknown>): void => {
+  if (values.some(value => typeof value === 'number' && Number.isNaN(value))) {
+    throw new QueryCompileError(
+      `query "${query}" compares NaN, which SQLite stores as null and Postgres orders after every number`,
+    )
+  }
+}
 
 /** A predicate used as a value: `(archived_at is not null) = ?` compares one. */
 const side = (
@@ -459,7 +581,7 @@ const connective = (
 const isColumn = (node: Operandish): boolean =>
   !isPredicate(node) &&
   Match.value(node).pipe(
-    Match.tags({ Field: () => true, Next: () => true, Call: () => true }),
+    Match.tags({ Field: () => true, Next: () => true, Call: () => true, Path: () => true }),
     Match.orElse(() => false),
   )
 
@@ -501,6 +623,7 @@ const comparison = (
       `query "${query}" compares text holding a NUL character, which SQL text cannot hold portably`,
     )
   }
+  refuseNaN(query, [left, right])
   const symbol = sql.raw(symbols[operator])
   return Option.match(node.collation, {
     onNone: () =>
@@ -558,6 +681,8 @@ const undecided = (
   query: string,
 ): SQL => {
   switch (node._tag) {
+    case 'Exists':
+      return atRow(target, node.via, at => existsAt(node, at, input, query), query)
     case 'Test':
       return callSql(node, target, input, query)
     case 'And':
@@ -584,6 +709,7 @@ const undecided = (
           `query "${query}" compares text holding a NUL character, which SQL text cannot hold portably`,
         )
       }
+      refuseNaN(query, [left, right])
       // Drizzle's `eq` wants a column or expression on the left; a body may
       // compare either way round, and equality does not care. Normalising keeps
       // the generated SQL the shape a binding would have been written in.
@@ -643,6 +769,7 @@ const undecided = (
           `query "${query}" asks about text holding a NUL character, which SQL text cannot hold portably`,
         )
       }
+      refuseNaN(query, [value, ...among])
       // Over a column, Drizzle encodes each element as the column's own type,
       // as `eq` does; anything else is compared as it is.
       return isColumn(node.value)
@@ -675,6 +802,71 @@ export const supported: ReadonlyArray<Operation> = [
 ]
 
 /**
+ * What a query body may use besides: paths and exists, which read other
+ * tables under the reader's visibility, resolved per request. A rule that is
+ * not a body (an invariant, a `when`, a Read rule) does not reach another
+ * table yet, and is refused one by `supported`.
+ */
+const bodyOperations: ReadonlyArray<Operation> = [...supported, 'path', 'exists']
+
+/**
+ * Every Entity a body's paths and exists reach, once each: the tables whose
+ * `visible` a request resolves for its reader before compiling (`visibleOf`).
+ */
+export const reachedEntities = (body: AnyQuery): ReadonlyArray<EntityIdentity<string>> => {
+  const owners = new Map<symbol, EntityIdentity<string>>()
+  for (const reached of Query.dependencies(body).reaches) {
+    const met = [
+      ...reached.via.map(relation => relation.target().identity),
+      ...(reached._tag === 'Exists' ? [reached.relation.owner] : []),
+    ]
+    for (const owner of met) owners.set(owner.token, owner)
+  }
+  return [...owners.values()]
+}
+
+/**
+ * Refuses, where a query is registered, a path or an exists this binding
+ * cannot compile: a relation not stored on its owner's own table, an Entity
+ * not bound beside this one, a field with no column, or a table met twice,
+ * which would need SQL aliases this compiler does not write.
+ */
+const checkReach = (
+  reached: PathExpr<unknown> | ExistsPredicate,
+  target: CompileTarget,
+  query: string,
+): void => {
+  const met = [target.table]
+  const meet = (table: CompileTarget, owner: EntityIdentity<string>): void => {
+    if (met.includes(table.table)) {
+      throw new QueryCompileError(
+        `query "${query}" reaches ${owner.name}'s table twice in ${Expr.show(reached)}, which this compiler cannot alias yet`,
+      )
+    }
+    met.push(table.table)
+  }
+  let at = target
+  for (const relation of reached.via) {
+    const owner = relation.target().identity
+    const next = reachedTable(at, owner, query)
+    linkOf(at, relation, query)
+    at = next
+    meet(at, owner)
+  }
+  if (reached._tag === 'Path') {
+    columnFor(at, reached.field.key, query)
+    return
+  }
+  const pointing = reachedTable(at, reached.relation.owner, query)
+  meet(pointing, reached.relation.owner)
+  linkOf(pointing, reached.relation, query)
+  columnFor(at, 'id', query)
+  Option.map(reached.where, where => {
+    for (const field of dependenciesOf(where).fields) columnFor(pointing, field.key, query)
+  })
+}
+
+/**
  * Every field the body reads has a column here, every operation it needs is
  * one this compiler runs, and every order it may take (each `Order.chosen`
  * alternative too) compiles here. Checked once, when the source is registered,
@@ -682,8 +874,10 @@ export const supported: ReadonlyArray<Operation> = [
  * than one that fails on whichever request first runs this query.
  */
 export const checkFields = (body: AnyQuery, target: CompileTarget, query: string): void => {
-  requireOperators([...body.where, ...body.orderBy], target, `query "${query}"`)
-  for (const field of Query.dependencies(body).fields) columnFor(target, field.key, query)
+  requireOperators([...body.where, ...body.orderBy], target, `query "${query}"`, bodyOperations)
+  const read = Query.dependencies(body)
+  for (const field of read.fields) columnFor(target, field.key, query)
+  for (const reached of read.reaches) checkReach(reached, target, query)
   const ordered = body.orderBy.flatMap(ordering =>
     Match.valueTags(ordering, {
       Term: ({ expr, collation }) => [{ expr, collation }],

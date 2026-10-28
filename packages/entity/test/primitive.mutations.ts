@@ -77,14 +77,14 @@ export default [
   edit(
     'deciding over the input ignores the table',
     evaluate,
-    'Option.some(holds(node, { row: {}, input, next: {}, operators, context }))',
-    'Option.some(holds(node, { row: {}, input, next: {}, operators: Operators.kernel, context }))',
+    'holds(node, { row: noRow, input, next: noRow, operators, judging: false, context }),',
+    'holds(node, { row: noRow, input, next: noRow, operators: Operators.kernel, judging: false, context }),',
   ),
   edit(
     'a row is judged with the kernel whatever the table',
     evaluate,
-    '): PredicateTruth => holds(node, { row, input, next, operators })',
-    '): PredicateTruth => holds(node, { row, input, next, operators: Operators.kernel })',
+    '  settled(holds(node, { row: flat(row), input, next: flat(next), operators, judging: false }))',
+    '  settled(holds(node, { row: flat(row), input, next: flat(next), operators: Operators.kernel, judging: false }))',
   ),
 
   // ---- tables

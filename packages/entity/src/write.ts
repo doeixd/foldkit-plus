@@ -439,6 +439,9 @@ const kindsOf = (expr: AnyExpr): ReadonlySet<string> => {
     case 'Viewer':
     case 'Now':
       return new Set([...storedKinds(Schema.toEncoded(expr.schema).ast), 'null'])
+    // Refused in an assignment, below; a path reaching no row reads null.
+    case 'Path':
+      return new Set([...storedKinds(Schema.toEncoded(expr.field.schema).ast), 'null'])
   }
 }
 
@@ -529,6 +532,12 @@ const assignmentOf = (
       `computes "${fieldKey}" from the write's context (${context.map(term => `Expr.${term}`).join(', ')}), which an assignment does not read; a value the server chooses is declared with Entity.stamps`,
     )
   }
+  if (reads.reaches.length > 0) {
+    return fail(
+      input,
+      `computes "${fieldKey}" through a relation, from another row, which an assignment does not read`,
+    )
+  }
   const stranger = reads.fields.find(read => read.owner.name !== input.entity.name)
   if (stranger !== undefined) {
     return fail(
@@ -590,6 +599,10 @@ const computationOf = (
     case 'Now':
       throw new Error(
         `[foldkit-entity] an assignment of ${write.input.entity.name} reads the write's context`,
+      )
+    case 'Path':
+      throw new Error(
+        `[foldkit-entity] an assignment of ${write.input.entity.name} reads another row`,
       )
   }
 }

@@ -193,8 +193,8 @@ export default [
     edits: [
       {
         file: evaluate,
-        find: "return truth === 'unknown' ? 'unknown' : !truth",
-        replace: 'return truth !== true',
+        find: "return truth === 'unknown' || isUnheld(truth) ? truth : !truth",
+        replace: 'return isUnheld(truth) ? truth : truth !== true',
       },
     ],
     tests: semantics,

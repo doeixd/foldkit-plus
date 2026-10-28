@@ -14,8 +14,8 @@ export default [
   edit(
     'the query is compiled with no context',
     '../src/index.ts',
-    ': { ...binding, context: exprContext(body, viewer, yield* Clock.currentTimeMillis) }',
-    ': binding',
+    '                context: exprContext(body, viewer, yield* Clock.currentTimeMillis),\n',
+    '',
   ),
   edit(
     'the server gives a query no viewer',

@@ -38,7 +38,9 @@ import {
   evaluate,
   isPredicate,
   viewerIdOf,
+  type AnyQuery,
   type Computation,
+  type EntityIdentity,
   type EntityRef,
   type Change,
   type Evidence,
@@ -71,6 +73,7 @@ import {
   computationSql,
   operatorProblems,
   QueryCompileError,
+  reachedEntities,
   requireOperators,
   supported,
 } from './compile.js'
@@ -123,6 +126,32 @@ const visibleFor = (
   const visible = binding.visible(principal, binding)
   return Effect.isEffect(visible) ? visible : Effect.succeed(visible)
 }
+
+/**
+ * What `principal` may see of each table a body's paths and exists reach,
+ * resolved once per request, so the compiled subqueries read only those rows.
+ * An Entity the body did not name here is a compiler's mistake, refused.
+ */
+const reachedVisibility = (
+  binding: AnyEntityBinding,
+  body: AnyQuery,
+  principal: unknown,
+): Effect.Effect<(owner: EntityIdentity<string>) => Option.Option<SQL>, RemoteServerError> =>
+  Effect.gen(function* () {
+    const seen = new Map<symbol, Option.Option<SQL>>()
+    for (const owner of reachedEntities(body)) {
+      // An Entity not bound beside this one has no rule to read: compiling refuses it.
+      const reached = Option.flatMap(Option.fromUndefinedOr(binding.reach), reach => reach(owner))
+      if (Option.isSome(reached)) {
+        seen.set(owner.token, Option.fromUndefinedOr(yield* visibleFor(reached.value, principal)))
+      }
+    }
+    return owner =>
+      Option.getOrThrowWith(
+        Option.fromUndefinedOr(seen.get(owner.token)),
+        () => new QueryCompileError(`${owner.name}'s visibility was not resolved for this request`),
+      )
+  })
 
 const pick = <T>(record: Readonly<Record<string, T>> | undefined, key: string): T | undefined =>
   record !== undefined && Object.hasOwn(record, key) ? record[key] : undefined
@@ -815,7 +844,11 @@ export const query = <P = unknown, Input = unknown>(
         const target =
           body === undefined
             ? binding
-            : { ...binding, context: exprContext(body, viewer, yield* Clock.currentTimeMillis) }
+            : {
+                ...binding,
+                context: exprContext(body, viewer, yield* Clock.currentTimeMillis),
+                visibleOf: yield* reachedVisibility(binding, body, principal),
+              }
         const shape = shapeWindow(window, {
           defaultSize: options.defaultPageSize,
           maxSize: options.maxPageSize,

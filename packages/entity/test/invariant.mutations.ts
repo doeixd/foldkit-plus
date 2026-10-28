@@ -73,14 +73,14 @@ export default [
   ),
   edit(
     'the evaluator reads the row after as the row',
-    'return scope.next[node.field.key]',
-    'return scope.row[node.field.key]',
+    'return scope.next.field(node.field.key)',
+    'return scope.row.field(node.field.key)',
     '../src/evaluate.ts',
   ),
   edit(
     'a predicate reading only the row after is decided from the input',
-    'field: read.fields.length + read.next.length > 0,',
-    'field: read.fields.length > 0,',
+    'field: read.fields.length + read.next.length + read.reaches.length > 0,',
+    'field: read.fields.length + read.reaches.length > 0,',
     '../src/evaluate.ts',
   ),
   edit(

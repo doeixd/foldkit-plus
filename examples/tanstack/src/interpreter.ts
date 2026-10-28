@@ -64,6 +64,9 @@ const operand = (node: AnyExpr, row: any, input: Readonly<Record<string, unknown
     case 'Now':
       // Refused before compiling, as unsupported: this engine is given no context.
       throw new TanstackCompileError('this engine reads no viewer and no clock')
+    case 'Path':
+      // Refused before compiling, as unsupported: this engine reads one collection.
+      throw new TanstackCompileError('this engine reads no other row')
     default:
       return absurd(node)
   }
@@ -120,6 +123,8 @@ const predicate = (
       throw new TanstackCompileError(`${node._tag} is not run by this interpreter`)
     case 'Test':
       throw new TanstackCompileError(`the operator "${node.operator.id}" has no definition to run`)
+    case 'Exists':
+      throw new TanstackCompileError('this engine reads no other row')
     default:
       return absurd(node)
   }

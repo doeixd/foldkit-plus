@@ -10,7 +10,7 @@ import { Effect } from 'effect'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { drizzle as drizzlePg } from 'drizzle-orm/pglite'
 import { drizzle as drizzleNodePg } from 'drizzle-orm/node-postgres'
-import { sql } from 'drizzle-orm'
+import { ne, sql, type SQL } from 'drizzle-orm'
 import { integer as pgInteger, pgTable, text as pgText } from 'drizzle-orm/pg-core'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { DatabaseSync } from 'node:sqlite'
@@ -23,9 +23,13 @@ import {
   primitiveCases,
   primitiveRefusals,
   refusals,
+  relationalCases,
+  relationalTables,
+  Relational,
   rows,
+  type RelationalCase,
 } from 'foldkit-entity/conformance'
-import { databaseLayer, entity, query } from '../src/index.js'
+import { bind, databaseLayer, entity, query } from '../src/index.js'
 
 const table = sqliteTable('conformance_rows', {
   id: text('id').primaryKey(),
@@ -145,7 +149,7 @@ describe('foldkit-remote-drizzle refuses what no two interpreters agree on', () 
     try {
       sqlite.exec(create)
       const layer = databaseLayer(drizzle({ client: sqlite }))
-      await expect(answer(c, i, binding, layer)).rejects.toThrow(/NUL/)
+      await expect(answer(c, i, binding, layer)).rejects.toThrow(/NUL|NaN/)
     } finally {
       sqlite.close()
     }
@@ -188,7 +192,7 @@ describe('foldkit-remote-drizzle conforms to the query semantics on Postgres', (
   })
   it.each(refused)('refuses on Postgres too: $name', async ({ c, i }) => {
     const layer = databaseLayer(drizzlePg({ client: pglite }))
-    await expect(answer(c, i, pgBinding, layer)).rejects.toThrow(/NUL/)
+    await expect(answer(c, i, pgBinding, layer)).rejects.toThrow(/NUL|NaN/)
   })
 })
 
@@ -276,6 +280,187 @@ if (localePg !== undefined)
       expect(await paged(c, i, pgBinding, layer)).toEqual(c.expected)
     })
     it.each(refused)('refuses: $name', async ({ c, i }) => {
-      await expect(answer(c, i, pgBinding, layer)).rejects.toThrow(/NUL/)
+      await expect(answer(c, i, pgBinding, layer)).rejects.toThrow(/NUL|NaN/)
+    })
+  })
+
+/**
+ * Paths and exists, over tables whose reader may not see every row: each
+ * reached table's `visible` hides what the suite says is hidden, and the
+ * answer must be `expected`, which `Judge` agrees with wherever it knows
+ * (packages/entity/test/judge.test.ts).
+ */
+const relationalCreate = [
+  'create table rel_teams (id text primary key, name text not null, region text)',
+  'create table rel_members (id text primary key, handle text not null, rank integer not null, team_id text)',
+  'create table rel_badges (id text primary key, kind text not null, member_id text not null)',
+  'create table rel_pins (id text primary key, label text not null, team_id text not null)',
+]
+
+/** Each table's name, and its columns in insert order, from the suite's keys. */
+const relationalColumns: ReadonlyArray<readonly [string, ReadonlyArray<string>]> = [
+  ['rel_teams', ['id', 'name', 'region']],
+  ['rel_members', ['id', 'handle', 'rank', 'team']],
+  ['rel_badges', ['id', 'kind', 'member']],
+  ['rel_pins', ['id', 'label', 'team']],
+]
+
+/** Every row the suite stores, visible or not, as `[table, values]`. */
+const relationalInserts = relationalTables.flatMap((table, index) => {
+  const [name, keys] = relationalColumns[index]!
+  return [...table.visible, ...table.hidden].map(
+    row => [name, keys.map(key => row[key] ?? null)] as const,
+  )
+})
+
+const sqliteRelational = (() => {
+  const teams = sqliteTable('rel_teams', {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    region: text('region'),
+  })
+  const members = sqliteTable('rel_members', {
+    id: text('id').primaryKey(),
+    handle: text('handle').notNull(),
+    rank: integer('rank').notNull(),
+    teamId: text('team_id'),
+  })
+  const badges = sqliteTable('rel_badges', {
+    id: text('id').primaryKey(),
+    kind: text('kind').notNull(),
+    memberId: text('member_id').notNull(),
+  })
+  const pins = sqliteTable('rel_pins', {
+    id: text('id').primaryKey(),
+    label: text('label').notNull(),
+    teamId: text('team_id').notNull(),
+  })
+  return bind(Relational, {
+    Team: { table: teams, visible: () => ne(teams.name, 'Hidden') },
+    Member: { table: members, relations: { team: { field: members.teamId } } },
+    Badge: {
+      table: badges,
+      visible: () => ne(badges.kind, 'secret'),
+      relations: { member: { field: badges.memberId } },
+    },
+    Pin: { table: pins, relations: { team: { field: pins.teamId } } },
+  })
+})()
+
+const pgRelational = (() => {
+  const teams = pgTable('rel_teams', {
+    id: pgText('id').primaryKey(),
+    name: pgText('name').notNull(),
+    region: pgText('region'),
+  })
+  const members = pgTable('rel_members', {
+    id: pgText('id').primaryKey(),
+    handle: pgText('handle').notNull(),
+    rank: pgInteger('rank').notNull(),
+    teamId: pgText('team_id'),
+  })
+  const badges = pgTable('rel_badges', {
+    id: pgText('id').primaryKey(),
+    kind: pgText('kind').notNull(),
+    memberId: pgText('member_id').notNull(),
+  })
+  const pins = pgTable('rel_pins', {
+    id: pgText('id').primaryKey(),
+    label: pgText('label').notNull(),
+    teamId: pgText('team_id').notNull(),
+  })
+  return bind(Relational, {
+    Team: { table: teams, visible: () => ne(teams.name, 'Hidden') },
+    Member: { table: members, relations: { team: { field: members.teamId } } },
+    Badge: {
+      table: badges,
+      visible: () => ne(badges.kind, 'secret'),
+      relations: { member: { field: badges.memberId } },
+    },
+    Pin: { table: pins, relations: { team: { field: pins.teamId } } },
+  })
+})()
+
+type Bound = typeof sqliteRelational | typeof pgRelational
+
+/** The binding of the Entity a case queries. */
+const boundFor = (bound: Bound, c: RelationalCase) =>
+  Object.values(bound).find(binding => binding.name === c.body.entity.name)!
+
+/** The ids a relational case's query answers, through `query` as a server runs it. */
+const relationalAnswer = (
+  c: RelationalCase,
+  i: number,
+  bound: Bound,
+  layer: ReturnType<typeof databaseLayer>,
+) => {
+  const descriptor = {
+    ...Query.make(`Relational${i}`, { Input: {}, Result: Query.connection(c.body.entity) }),
+    body: c.body,
+  }
+  return Effect.runPromise(
+    query(descriptor, { entity: boundFor(bound, c) })
+      .run({ input: c.input, window: { first: 50 }, principal: null })
+      .pipe(
+        Effect.map(page => page.edges.map(edge => edge.id)),
+        Effect.provide(layer),
+      ),
+  )
+}
+
+const relational = relationalCases.map((c, i) => ({ c, i, name: c.what }))
+
+describe('paths and exists compile to what the suite expects, on SQLite', () => {
+  const sqlite = new DatabaseSync(':memory:')
+  beforeAll(() => {
+    for (const statement of relationalCreate) sqlite.exec(statement)
+    for (const [name, values] of relationalInserts)
+      sqlite
+        .prepare(`insert into ${name} values (${values.map(() => '?').join(', ')})`)
+        .run(...values)
+  })
+  afterAll(() => sqlite.close())
+
+  it.each(relational)('$name', async ({ c, i }) => {
+    const layer = databaseLayer(drizzle({ client: sqlite }))
+    expect(await relationalAnswer(c, i, sqliteRelational, layer)).toEqual(c.expected)
+  })
+})
+
+/** Seeds the relational tables into a Postgres, through any Drizzle database. */
+const seedRelational = async (run: (statement: SQL) => Promise<unknown>) => {
+  for (const statement of relationalCreate) await run(sql.raw(statement))
+  for (const [name, values] of relationalInserts)
+    await run(
+      sql`insert into ${sql.identifier(name)} values (${sql.join(
+        values.map(value => sql`${value}`),
+        sql`, `,
+      )})`,
+    )
+}
+
+describe('paths and exists compile to what the suite expects, on Postgres', () => {
+  const pglite = new PGlite()
+  const db = drizzlePg({ client: pglite })
+  beforeAll(() => seedRelational(statement => db.execute(statement)), 60_000)
+  afterAll(() => pglite.close())
+
+  it.each(relational)('$name', async ({ c, i }) => {
+    expect(await relationalAnswer(c, i, pgRelational, databaseLayer(db))).toEqual(c.expected)
+  })
+})
+
+if (localePg !== undefined)
+  describe('paths and exists on a Postgres that collates by a locale', () => {
+    const db = drizzleNodePg(localePg)
+    beforeAll(async () => {
+      for (const [name] of relationalColumns)
+        await db.execute(sql.raw(`drop table if exists ${name}`))
+      await seedRelational(statement => db.execute(statement))
+    }, 60_000)
+    afterAll(() => db.$client.end())
+
+    it.each(relational)('$name', async ({ c, i }) => {
+      expect(await relationalAnswer(c, i, pgRelational, databaseLayer(db))).toEqual(c.expected)
     })
   })

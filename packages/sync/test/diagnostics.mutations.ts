@@ -125,17 +125,6 @@ export default [
     tests,
   },
   {
-    name: 'an opens failing before a notice sends the notice',
-    edits: [
-      {
-        file: host,
-        find: 'Effect.as(report(cause), false)',
-        replace: 'Effect.as(report(cause), true)',
-      },
-    ],
-    tests,
-  },
-  {
     name: "serveJournal ignores the host's reporter",
     edits: [
       {

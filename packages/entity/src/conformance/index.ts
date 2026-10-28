@@ -719,6 +719,25 @@ export const refusals: ReadonlyArray<ConformanceRefusal> = [
     body: from.pipe(Query.where(Expr.contains(text, label)), byId),
     input: { text: `a${NUL}b`, label: 'b' },
   },
+  // SQLite stores NaN as null; Postgres orders it after every number, equal to itself.
+  {
+    what: 'an equality refuses NaN',
+    body: from.pipe(Query.where(Expr.eq(Subject.fields.rank, below)), byId),
+    input: { below: Number.NaN },
+  },
+  {
+    what: 'a comparison refuses NaN',
+    body: from.pipe(Query.where(Expr.gt(Subject.fields.rank, below)), byId),
+    input: { below: Number.NaN },
+  },
+  {
+    what: 'a membership test refuses a list holding NaN',
+    body: from.pipe(
+      Query.where(Expr.in(Subject.fields.rank, Expr.input('ranks', Schema.Array(Schema.Number)))),
+      byId,
+    ),
+    input: { ranks: [1, Number.NaN] },
+  },
 ]
 
 /** As `refusals`, for bodies calling the kernel's primitive operators. */
@@ -730,3 +749,4 @@ export const primitiveRefusals: ReadonlyArray<ConformanceRefusal> = [
   },
 ]
 export * from './operator.js'
+export * from './relational.js'

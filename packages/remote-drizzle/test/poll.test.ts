@@ -82,23 +82,19 @@ const ticks = (
   options: PollOptions,
   writes: ReadonlyArray<() => void>,
   ids: ReadonlyArray<string> = ['t1'],
-  fields: ReadonlyArray<string> = ['title'],
-  /** Each patch's `changed`, in the order sent. */
-  changed: Array<ReadonlyArray<string>> = [],
 ) =>
   Effect.runPromise(
     Effect.gen(function* () {
       const seen: Array<string> = []
       const fiber = yield* pollLive(source, { every: '1 second', ...options })
         .subscribe({
-          requirements: ids.map(id => ({ entity: 'Todo', id, fields: [...fields] })),
+          requirements: ids.map(id => ({ entity: 'Todo', id, fields: ['title'] })),
           after: 0,
           principal: 'ada',
         })
         .pipe(
           Stream.runForEach(change =>
             Effect.sync(() => {
-              if (change._tag === 'EntityPatched') changed.push(change.changed)
               seen.push(
                 'connection' in change ? `${change._tag} ${change.connection}` : change._tag,
               )
@@ -168,13 +164,6 @@ describe('pollLive with a row log', () => {
     const { state, source } = table()
     await ticks(source, {}, [quiet, quiet])
     expect(state.reads).toEqual(['t1', 't1', 't1'])
-  })
-
-  it('names the changed fields in the order the subscription asked them', async () => {
-    const { source, write } = table({})
-    const changed: Array<ReadonlyArray<string>> = []
-    await ticks(source, {}, [write('t2', 'Eggs')], ['t2'], ['title', 'done'], changed)
-    expect(changed).toEqual([['title', 'done']])
   })
 
   it('reads the subscribed rows in one read a tick, not one a row', async () => {

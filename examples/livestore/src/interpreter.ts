@@ -71,6 +71,9 @@ const operand = (
     case 'Now':
       // Refused before compiling, as unsupported: this engine is given no context.
       throw new LiveStoreCompileError('this engine reads no viewer and no clock')
+    case 'Path':
+      // Refused before compiling, as unsupported: this engine reads one table.
+      throw new LiveStoreCompileError('this engine reads no other row')
     default:
       return absurd(node)
   }

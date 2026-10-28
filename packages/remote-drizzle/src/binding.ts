@@ -14,8 +14,8 @@ import { createSelectSchema } from 'drizzle-orm/effect-schema'
 import type { BuildSchema } from 'drizzle-orm/effect-schema'
 import { getTableColumns, type AnyColumn, type SQL, type Table as DrizzleTable } from 'drizzle-orm'
 import { Entity, type EntityDescriptor, type EntityRef } from 'foldkit-remote'
-import { Effect, Schema } from 'effect'
-import type { Invariant } from 'foldkit-entity'
+import { Effect, type Option, Schema } from 'effect'
+import type { EntityIdentity, Invariant } from 'foldkit-entity'
 import type { RemoteServerError } from 'foldkit-remote-server'
 import type { OrderTerm } from './cursor.js'
 import { operatorsFrom, type BindingOperators } from './operators.js'
@@ -143,6 +143,12 @@ export interface EntityBinding<
    * given (`bind(…, { operators })`).
    */
   readonly operators: BindingOperators
+  /**
+   * The binding of each Entity bound beside this one, by identity: what a
+   * body's path or exists reaches. `bind` sets it; a binding made with
+   * `entity` reaches nothing.
+   */
+  readonly reach?: ((owner: EntityIdentity<string>) => Option.Option<AnyEntityBinding>) | undefined
 }
 
 /**

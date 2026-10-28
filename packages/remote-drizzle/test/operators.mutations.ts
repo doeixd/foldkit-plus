@@ -107,7 +107,7 @@ export default [
     edits: [
       {
         file: compile,
-        find: 'requireOperators([...body.where, ...body.orderBy], target, `query "${query}"`)',
+        find: 'requireOperators([...body.where, ...body.orderBy], target, `query "${query}"`, bodyOperations)',
         replace: '',
       },
     ],

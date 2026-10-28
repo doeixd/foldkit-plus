@@ -17,7 +17,13 @@ import { Collation } from './collation.js'
 import { SchemaShape } from './shape.js'
 import { Law, type Side } from './law.js'
 import { now, viewer, type NowExpr, type ViewerExpr } from './context.js'
-import type { AnyEntity, EntityField, EntityIdentity } from './index.js'
+import type {
+  AnyEntity,
+  Cardinality,
+  EntityField,
+  EntityIdentity,
+  EntityRelation,
+} from './index.js'
 
 /** A constant the query was written with. */
 export interface LiteralExpr<T> {
@@ -148,6 +154,22 @@ export interface CallExpr<T> {
   readonly collation: Option.Option<Collation>
 }
 
+/** A `one` relation of any Entity: what a path follows and an exists points through. */
+export type OneRelation = EntityRelation<string, string, AnyEntity, 'one', boolean>
+
+/**
+ * A field of the row reached from the row judged by following `one`
+ * relations (`Expr.path`). A null link, or a row the reader may not see,
+ * reaches no row, and the path reads null.
+ */
+export interface PathExpr<T> {
+  readonly _tag: 'Path'
+  /** The relations followed, in order, the first one the judged row's own. */
+  readonly via: Arr.NonEmptyReadonlyArray<OneRelation>
+  /** What is read on the row reached: a field of the last relation's target. */
+  readonly field: FieldExpr<T>
+}
+
 /** A typed scalar: what a comparison compares. */
 export type Expr<T> =
   | LiteralExpr<T>
@@ -157,6 +179,7 @@ export type Expr<T> =
   | CallExpr<T>
   | ViewerExpr<T>
   | NowExpr<T>
+  | PathExpr<T>
 
 /** Any scalar, for the places that hold operands without caring what they are. */
 export type AnyExpr = Expr<unknown>
@@ -179,6 +202,23 @@ export type Predicate =
   | NotPredicate
   | ComparePredicate
   | TestPredicate
+  | ExistsPredicate
+
+/**
+ * Some row points at the row asked about through `relation`, a `one` relation
+ * of another Entity, and holds `where` (`Expr.exists`). The row asked about is
+ * the one judged, or the one `via` reaches from it; a path that reaches none
+ * makes this unknown, as a path's field reads null. Only rows the reader may
+ * see are sought.
+ */
+export interface ExistsPredicate {
+  readonly _tag: 'Exists'
+  /** The relations followed to the row asked about; empty for the row judged itself. */
+  readonly via: ReadonlyArray<OneRelation>
+  readonly relation: OneRelation
+  /** What the pointing row must hold, over its own fields and the input. */
+  readonly where: Option.Option<Predicate>
+}
 
 /** Two values are the same. */
 export interface EqPredicate {
@@ -413,6 +453,7 @@ const predicateTags = new Set([
   'Not',
   'Compare',
   'Test',
+  'Exists',
 ])
 
 /** Whether a value is a predicate, and so usable where a boolean is wanted. */
@@ -440,6 +481,7 @@ const toOperand = <T>(value: Operand<T> | T): Operandish => {
     tag === 'Call' ||
     tag === 'Viewer' ||
     tag === 'Now' ||
+    tag === 'Path' ||
     predicateTags.has(tag as string)
   ) {
     return value as Operandish
@@ -476,6 +518,8 @@ export type Operation =
   | 'next'
   | 'viewer'
   | 'now'
+  | 'path'
+  | 'exists'
 
 /** One field an expression reads: its Entity's name and key, and the identity that owns it. */
 export interface FieldDependency {
@@ -498,6 +542,12 @@ export interface Dependencies {
   readonly operations: ReadonlyArray<Operation>
   /** Each operator it calls, once per descriptor, defined or not. */
   readonly operators: ReadonlyArray<OperatorDescriptor>
+  /**
+   * Each path and exists, once each: what it reads lies in other rows, so none
+   * of it is in `fields`. An exists' filter's inputs, operations and operators
+   * are in the lists above.
+   */
+  readonly reaches: ReadonlyArray<PathExpr<unknown> | ExistsPredicate>
 }
 
 /**
@@ -566,6 +616,7 @@ const sideKind = (side: AnyExpr): 'number' | 'text' | 'none' | 'null' =>
       Call: ({ operator }) => orderKindOf(Schema.toEncoded(operator.output).ast),
       Viewer: ({ schema }) => orderKindOf(Schema.toEncoded(schema).ast),
       Now: ({ schema }) => orderKindOf(Schema.toEncoded(schema).ast),
+      Path: ({ field }) => orderKindOf(Schema.toEncoded(field.schema).ast),
     }),
   )
 
@@ -601,6 +652,7 @@ const collationFor = (
         { name: `${field.owner.name}.${field.key}`, collation: field.collation },
       ]),
       Match.tag('Call', call => [{ name: showExpr(call), collation: call.collation }]),
+      Match.tag('Path', path => [{ name: showExpr(path), collation: path.field.collation }]),
       Match.orElse(() => []),
     ),
   )
@@ -892,6 +944,7 @@ const scalarSchema = (scalar: AnyExpr): Schema.Top =>
       Call: ({ operator }) => operator.output,
       Viewer: ({ schema }) => schema,
       Now: ({ schema }) => schema,
+      Path: ({ field }) => field.schema,
     }),
   )
 
@@ -947,6 +1000,7 @@ const collationOf = (scalar: AnyExpr): Option.Option<Collation> =>
       Input: () => Option.none<Collation>(),
       Viewer: () => Option.none<Collation>(),
       Now: () => Option.none<Collation>(),
+      Path: ({ field }) => field.collation,
     }),
   )
 
@@ -1191,10 +1245,106 @@ const expandedPredicate = (predicate: Predicate): Predicate => {
           onSome: expandedPredicate,
           onNone: () => node<Predicate>({ ...test, args: test.args.map(expandedSide) }),
         }),
+      Exists: exists =>
+        node<Predicate>({ ...exists, where: Option.map(exists.where, expandedPredicate) }),
     }),
   )
   expandedCache.set(predicate, result)
   return result
+}
+
+/**
+ * The most relations one path follows. Each is a subquery in SQL and a lookup
+ * in memory; the deepest rule a real app here writes follows two.
+ */
+export const maxPathLength = 4
+
+/** What a path may end at on a row of `Name`: a field, a further path, or an exists. */
+export type PathEnd<Name extends string> =
+  | EntityField<Name, string, Schema.Constraint>
+  | (PathExpr<any> & Reads<Name>)
+  | (ExistsPredicate & Reads<Name>)
+
+/** A value checked to be a `one` relation, or refused with what to write instead. */
+const oneRelation = (step: 'path' | 'exists', value: unknown): OneRelation => {
+  if (tagOf(value) !== 'Relation') {
+    throw new Error(
+      `[foldkit-entity] Expr.${step}: the first argument is a relation (Post.relations.author)`,
+    )
+  }
+  const relation = value as EntityRelation<string, string, AnyEntity, Cardinality, boolean>
+  if (relation.cardinality !== 'one') {
+    throw new Error(
+      `[foldkit-entity] Expr.${step}: ${relation.owner.name}.${relation.key} is a many relation; name the one relation that points back${step === 'path' ? ', with Expr.exists' : ''}`,
+    )
+  }
+  return relation as OneRelation
+}
+
+/** `Expr.path`: `relation` followed first, then whatever `end` reads, checked to be on its target. */
+const pathOf = (relation: unknown, end: unknown): PathExpr<unknown> | ExistsPredicate => {
+  const first = oneRelation('path', relation)
+  const target = first.target().identity
+  const onTarget = (owner: EntityIdentity<string>, what: string): void => {
+    if (owner.token !== target.token) {
+      throw new Error(
+        `[foldkit-entity] Expr.path: ${first.owner.name}.${first.key} reaches a ${target.name}, but ${what} is read on a ${owner.name}`,
+      )
+    }
+  }
+  const capped = <P extends PathExpr<unknown> | ExistsPredicate>(path: P): P => {
+    if (path.via.length > maxPathLength) {
+      throw new Error(
+        `[foldkit-entity] Expr.path: ${showExpr(path)} follows more than ${maxPathLength} relations`,
+      )
+    }
+    return node(path)
+  }
+  return Match.value(toOperand(end)).pipe(
+    Match.tag('Field', field => {
+      onTarget(field.owner, `${field.owner.name}.${field.key}`)
+      return capped<PathExpr<unknown>>({ _tag: 'Path', via: [first], field })
+    }),
+    Match.tag('Path', path => {
+      onTarget(path.via[0].owner, showExpr(path))
+      return capped<PathExpr<unknown>>({ ...path, via: [first, ...path.via] })
+    }),
+    Match.tag('Exists', exists => {
+      onTarget(existsStart(exists).owner, showExpr(exists))
+      return capped<ExistsPredicate>({ ...exists, via: [first, ...exists.via] })
+    }),
+    Match.orElse(other => {
+      throw new Error(
+        `[foldkit-entity] Expr.path: a path ends at a field, a path or an exists, not ${showExpr(other)}`,
+      )
+    }),
+  )
+}
+
+/** `Expr.exists`: the filter checked to read only the pointing row and the input. */
+const existsOf = (relation: unknown, where: unknown): ExistsPredicate => {
+  const pointing = oneRelation('exists', relation)
+  const filter = Option.fromUndefinedOr(where)
+  Option.map(filter, given => {
+    if (!isPredicate(given)) {
+      throw new Error('[foldkit-entity] Expr.exists: the filter is a predicate')
+    }
+    const read = dependenciesOf(given)
+    const foreign = read.fields.find(field => field.owner.token !== pointing.owner.token)
+    // A filter reading the row asked about, or a further row, would be a
+    // correlation each interpreter has to carry: say it with a path instead.
+    if (foreign !== undefined || read.next.length > 0 || read.reaches.length > 0) {
+      throw new Error(
+        `[foldkit-entity] Expr.exists: the filter reads ${foreign === undefined ? 'past its row' : `${foreign.entity}.${foreign.key}`}; it reads the pointing ${pointing.owner.name}'s own fields and the input`,
+      )
+    }
+  })
+  return node({
+    _tag: 'Exists',
+    via: [],
+    relation: pointing,
+    where: filter as Option.Option<Predicate>,
+  })
 }
 
 /** `Expr.field`: an Entity field, or an expression refused with what to write instead. */
@@ -1278,14 +1428,16 @@ export const Expr = {
    * by name.
    */
   /**
-   * Whether a constant written in these expressions is text holding a NUL, or
-   * a list holding one: SQL refuses such a parameter wherever it compiles, so
-   * an interpreter refuses the run, not one row.
+   * Whether a constant written in these expressions is one no two backends
+   * agree on, text holding a NUL or NaN, or a list holding one: SQL refuses
+   * such a parameter wherever it compiles, so an interpreter refuses the run,
+   * not one row.
    */
-  givesNul: (...nodes: ReadonlyArray<AnyExpr | Predicate>): boolean => {
+  givesUnportable: (...nodes: ReadonlyArray<AnyExpr | Predicate>): boolean => {
     const seen = new Set<object>()
     const nul = (value: unknown) =>
-      typeof value === 'string' && value.includes(String.fromCharCode(0))
+      (typeof value === 'string' && value.includes(String.fromCharCode(0))) ||
+      (typeof value === 'number' && Number.isNaN(value))
     const walk = (node: AnyExpr | Predicate): boolean => {
       if (seen.has(node)) return false
       seen.add(node)
@@ -1340,6 +1492,52 @@ export const Expr = {
    * is refused with that sentence.
    */
   field: fieldOf,
+
+  /**
+   * What the row reached through a `one` relation holds: a field of it, a
+   * further path from it, or an exists asked of it. The first relation is the
+   * judged row's own.
+   *
+   * ```ts
+   * Expr.eq(Expr.path(Post.relations.author, User.fields.handle), input.handle)
+   * Expr.path(Note.relations.project, Expr.path(Project.relations.org, Org.fields.plan))
+   * ```
+   *
+   * A null link, or a row the reader may not see, reaches no row: the field
+   * reads null, and an exists at the end is unknown, as SQL's scalar subquery
+   * is. At most `maxPathLength` relations.
+   */
+  path: pathOf as <
+    Owner extends string,
+    Target extends AnyEntity,
+    E extends PathEnd<Target['name']>,
+  >(
+    relation: EntityRelation<Owner, string, Target, 'one', boolean>,
+    end: E,
+  ) => (E extends ExistsPredicate ? ExistsPredicate : PathExpr<ValueOf<E> | null>) & Reads<Owner>,
+
+  /**
+   * Some row points at this one through `relation`, a `one` relation of
+   * another Entity, and holds `where`, a predicate over that row's own fields
+   * and the input:
+   *
+   * ```ts
+   * // Posts whose author the reader follows.
+   * Expr.path(Post.relations.author,
+   *   Expr.exists(Follow.relations.followee, Expr.eq(Follow.fields.followerId, input.me)))
+   * ```
+   *
+   * Only rows the reader may see are sought. Never unknown in SQL; in memory,
+   * unknown when no held row holds and the holder may lack one that would.
+   */
+  exists: existsOf as <
+    Owner extends string,
+    Target extends AnyEntity,
+    W extends Predicate & Reads<Owner> = never,
+  >(
+    relation: EntityRelation<Owner, string, Target, 'one', boolean>,
+    where?: W,
+  ) => ExistsPredicate & Reads<Target['name']>,
 
   /**
    * Whoever asks, as a row of `entity`: `Expr.eq(Like.fields.userId,
@@ -1607,6 +1805,9 @@ const substituted = (predicate: Predicate, rewrite: OperandRewrite): Predicate =
         args: Object.freeze(predicate.args.map(arg => substitutedSide(arg, rewrite))),
         expansion: Option.map(predicate.expansion, expansion => substituted(expansion, rewrite)),
       })
+    // Its filter reads the pointing row, never the one a rewrite is about.
+    case 'Exists':
+      return predicate
   }
 }
 
@@ -1638,6 +1839,13 @@ export interface TermOptions {
 
 /** A term, its nulls placed by `options` or by the direction's default. */
 const term = (direction: 'asc' | 'desc', expr: AnyExpr, options: TermOptions = {}): OrderTerm => {
+  // A client could not place a row by a value another row holds, and a cursor
+  // over one would page by what can change under it.
+  if (expr._tag === 'Path') {
+    throw new Error(
+      `[foldkit-entity] Order: ${showExpr(expr)} is a path; a list orders by its own row's fields`,
+    )
+  }
   // A number orders alike everywhere, and Postgres refuses a collation on one: a
   // collation it would inherit from a call's text arguments is dropped.
   const number = sideKind(expr) === 'number'
@@ -1858,6 +2066,7 @@ interface Found {
   readonly nextOrder: Array<FieldDependency>
   readonly operations: Set<Operation>
   readonly operators: Set<OperatorDescriptor>
+  readonly reaches: Array<PathExpr<unknown> | ExistsPredicate>
 }
 
 /**
@@ -1944,6 +2153,23 @@ const walk = (expr: AnyExpr | Predicate | Ordering, found: Found): void => {
       walk(expr.sort, found)
       for (const choice of Object.values(expr.choices)) walk(choice, found)
       return
+    case 'Path':
+      found.operations.add('path')
+      found.reaches.push(expr)
+      return
+    case 'Exists': {
+      found.operations.add('exists')
+      found.reaches.push(expr)
+      // The filter's fields are the pointing row's, so they stay out of `fields`;
+      // what else it needs is this expression's need too.
+      Option.map(expr.where, where => {
+        const inner = dependenciesOf(where)
+        inner.inputs.forEach(key => found.inputs.add(key))
+        inner.operations.forEach(operation => found.operations.add(operation))
+        inner.operators.forEach(operator => found.operators.add(operator))
+      })
+      return
+    }
     case 'Call':
     case 'Test':
       found.operators.add(expr.operator)
@@ -1976,6 +2202,7 @@ export const dependenciesOf = (
     nextOrder: [],
     operations: new Set(),
     operators: new Set(),
+    reaches: [],
   }
   for (const term of nodes) walk(term, found)
   return {
@@ -1984,6 +2211,7 @@ export const dependenciesOf = (
     inputs: [...found.inputs],
     operations: [...found.operations],
     operators: [...found.operators],
+    reaches: found.reaches,
   }
 }
 
@@ -2015,11 +2243,14 @@ export interface Query<E extends AnyEntity> extends Pipeable.Pipeable {
 /** A `Query` over any Entity, for the places that hold one without caring which. */
 export type AnyQuery = Query<AnyEntity>
 
-/** Every field an expression reads, as the nodes themselves, each node visited once. */
+/**
+ * Every member of the judged row an expression reads, each node visited once:
+ * a field, or the relation a path or an exists starts from.
+ */
 const fieldsIn = function* (
   expr: AnyExpr | Predicate | Ordering,
   seen: Set<object>,
-): Generator<FieldExpr<unknown>> {
+): Generator<{ readonly owner: EntityIdentity<string>; readonly key: string }> {
   if (seen.has(expr)) return
   seen.add(expr)
   switch (expr._tag) {
@@ -2065,6 +2296,12 @@ const fieldsIn = function* (
       return
     case 'Chosen':
       for (const choice of Object.values(expr.choices)) yield* fieldsIn(choice, seen)
+      return
+    case 'Path':
+      yield expr.via[0]
+      return
+    case 'Exists':
+      yield existsStart(expr)
       return
     // An expansion reads only what its arguments do, which the call checked.
     case 'Call':
@@ -2117,7 +2354,10 @@ const childrenOf = (expr: AnyExpr | Predicate): ReadonlyArray<AnyExpr | Predicat
     case 'Next':
     case 'Viewer':
     case 'Now':
+    case 'Path':
       return []
+    case 'Exists':
+      return Option.toArray(expr.where)
     case 'Eq':
       return [expr.left, expr.right]
     case 'Null':
@@ -2430,8 +2670,32 @@ const showExpr = (node: AnyExpr | Predicate): string => {
     case 'Call':
     case 'Test':
       return `${operatorName(node.operator)}(${node.args.map(showOperand).join(', ')})`
+    // `Post.author.handle`: the judged row's relation, then each next one, then the field.
+    case 'Path':
+      return [`${node.via[0].owner.name}`, ...node.via.map(step => step.key), node.field.key].join(
+        '.',
+      )
+    case 'Exists': {
+      const sought = `exists ${node.relation.owner.name}.${node.relation.key}${Option.match(
+        node.where,
+        { onNone: () => '', onSome: where => ` where ${showExpr(where)}` },
+      )}`
+      const [first] = node.via
+      return first === undefined
+        ? sought
+        : `${[first.owner.name, ...node.via.map(step => step.key)].join('.')}: ${sought}`
+    }
   }
 }
+
+/**
+ * Where an exists starts on the judged row: the relation its path follows
+ * first, or, asked of the row itself, its id, which the pointing rows hold.
+ */
+const existsStart = (
+  exists: ExistsPredicate,
+): { readonly owner: EntityIdentity<string>; readonly key: string } =>
+  exists.via[0] ?? { owner: exists.relation.target().identity, key: 'id' }
 
 /** A call's expansion, scalar or predicate alike. */
 const expansionOf = (call: CallExpr<unknown> | TestPredicate): Option.Option<AnyExpr | Predicate> =>

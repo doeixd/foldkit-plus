@@ -38,7 +38,7 @@ export default [
   edit(
     'a constant holding a NUL is laid to each row',
     evaluate,
-    'Expr.givesNul(...body.where, ...terms.map(term => term.expr)) ||',
+    'Expr.givesUnportable(...body.where, ...terms.map(term => term.expr)) ||',
     '',
   ),
   edit(

@@ -288,6 +288,14 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
   const keyOf = (target: Domain.AnyEntity, owner: string, relation: string): string =>
     Object.keys(entities).find(key => target.identity.token === entities[key]!.identity.token) ??
     fail(`relation "${relation}" on entity "${owner}" targets an Entity that is not being bound`)
+  // Read on use, as a relation's target is: a path may reach a binding made after its own.
+  const reach = (owner: Domain.EntityIdentity<string>): Option.Option<AnyEntityBinding> =>
+    Option.flatMap(
+      Option.fromUndefinedOr(
+        Object.keys(entities).find(key => entities[key]!.identity.token === owner.token),
+      ),
+      key => Option.fromUndefinedOr(bindings[key]),
+    )
 
   /**
    * A `Derived.count`'s or `Derived.exists`'s rows: the pointing Entity's
@@ -475,6 +483,7 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
       computed,
       invariants: Domain.Entity.invariants(entity),
       operators,
+      reach,
       ...(config.visible === undefined ? {} : { visible: config.visible }),
     } as unknown as EntityBinding<string, DrizzleTable>
   }

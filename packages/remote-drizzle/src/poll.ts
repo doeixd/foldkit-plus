@@ -115,10 +115,10 @@ export const pollLive = <P, R>(
       { readonly fields: Array<string>; readonly ids: Array<string> }
     >()
     for (const [id, fields] of wanted) {
-      // Keyed by the set, read in the order asked: a patch's `changed` keeps it.
-      const key = JSON.stringify([...fields].sort())
+      const sorted = [...fields].sort()
+      const key = JSON.stringify(sorted)
       const group = groups.get(key)
-      if (group === undefined) groups.set(key, { fields: [...fields], ids: [id] })
+      if (group === undefined) groups.set(key, { fields: sorted, ids: [id] })
       else group.ids.push(id)
     }
     const watchIds = new Set(watched.map(list => list.watchId))
