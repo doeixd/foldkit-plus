@@ -17,17 +17,8 @@ import { pageReader, serveFetch } from 'foldkit-remote-server/fetch'
 import { ActorId, Journal, OpId } from 'foldkit-durable'
 import type { Operation, Sync } from 'foldkit-sync'
 import { documentHost } from 'foldkit-sync/journal'
-import {
-  AuthApi,
-  type BoardMessage,
-  Domain,
-  G,
-  Me,
-  Note,
-  Notes,
-  PinBoard,
-  type User,
-} from './domain.js'
+import { AuthApi } from './authApi.js'
+import { type BoardMessage, Domain, G, Me, Note, Notes, PinBoard, type User } from './domain.js'
 
 /** Who may sign in: the account Yielded checks, and the principal the guards read. */
 export const accounts = [

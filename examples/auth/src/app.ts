@@ -8,8 +8,8 @@
  * The session never lands in the Model. The cookie is Yielded's, and what
  * the page knows of who it is, is the `Me` row the server answered.
  */
-import * as Client from '@yielded/auth/Client'
-import { Effect, Match, Option, Redacted, Schema, Stream, pipe } from 'effect'
+import type * as Client from '@yielded/auth/Client'
+import { Context, Effect, Match, Option, Redacted, Schema, Stream, pipe } from 'effect'
 import * as Command from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
 import { UrlRequest, replaceUrl } from 'foldkit/navigation'
@@ -19,7 +19,7 @@ import * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
 import { Url } from 'foldkit/url'
 import { SUBJECT_CHANGED, believing } from 'foldkit-auth'
-import { Bundle } from 'foldkit-bundle'
+import { Bundle, Resource } from 'foldkit-bundle'
 import { Entity } from 'foldkit-entity'
 import { ME } from 'foldkit-guard'
 import { BroadcastMessage, broadcastMessages, postBroadcast } from 'foldkit-primitives/net'
@@ -27,21 +27,19 @@ import { Remote, RemoteData, type RemoteClient, type RemoteError } from 'foldkit
 import { Access, Site } from 'foldkit-site'
 import { SSR } from 'foldkit-ssr/client'
 import { Projection, Surface } from 'foldkit-surface'
-import { AuthApi, Me, Note, Notes, served } from './domain.js'
+import type { AuthApi } from './authApi.js'
+import { Me, Note, Notes, served } from './domain.js'
 
 /**
- * Yielded's client, over `fetch` to this origin, which Vite proxies to the
- * server. A sign-in's cookie is set by the response, never read here.
- *
- * The server renders pages with this module too and signs no one in, so it
- * has no page origin to give: `''` is refused when the client's layer is
- * built, which only the browser does.
- *
- * @internal Its type names Yielded's unexported modules (TS2742), as `AuthApi`'s does.
+ * Yielded's client, as the sign-in and sign-out Commands read it. Its code
+ * is a chunk of its own (`authClient.ts`), which `client.ts` loads when it
+ * is first asked for: this module names only its type, so a reader who
+ * neither signs in nor out downloads none of it.
  */
-export const AppClient = Client.make(AuthApi, {
-  baseUrl: typeof location === 'undefined' ? '' : location.origin,
-})
+export class AppClient extends Context.Service<
+  AppClient,
+  { readonly auth: Client.AuthClient<typeof AuthApi.actions> }
+>()('example/Auth/AppClient') {}
 
 /**
  * The `fetch` Remote's transport goes through: it repeats whom the server
@@ -106,14 +104,8 @@ export const Message = defineMessageUnion({
 })
 export type Message = typeof Message.Type
 
-/**
- * `AppClient` as a service, which `Services` names. Like `AuthApi`, it has
- * no declaration that compiles (TS2742); nothing reads this example's.
- */
-export interface AuthClient extends Client.ClientService<'example/Auth', typeof AuthApi.actions> {}
-
 /** What a Command or Subscription here needs from the runtime's `resources`. */
-export type Services = RemoteClient | AuthClient
+export type Services = RemoteClient | Resource.Lazy<AppClient>
 
 export const initial: Model = {
   email: '',
@@ -228,7 +220,7 @@ const SignIn = Command.define('SignIn', {
   messages: [Message.SucceededSignIn, Message.FailedSignIn],
   execute: ({ email, password }) =>
     Effect.gen(function* () {
-      const { auth } = yield* AppClient
+      const { auth } = yield* Resource.get(AppClient)
       const completion = yield* auth.signIn({ email, password: Redacted.value(password) })
       return Match.valueTags(completion, {
         Authenticated: () => {
@@ -254,7 +246,7 @@ const SignIn = Command.define('SignIn', {
 const SignOut = Command.define('SignOut', {
   messages: [Message.SucceededSignOut, Message.FailedSignOut],
   execute: Effect.gen(function* () {
-    const { auth } = yield* AppClient
+    const { auth } = yield* Resource.get(AppClient)
     yield* auth.signOut()
     belief.forget()
     return Message.SucceededSignOut()
@@ -446,8 +438,18 @@ const changedElsewhere = Match.type<typeof Remote.Message.Type>().pipe(
 
 const foldData = Remote.fold(Data, message => Message.GotRemoteMessage({ message }))
 
-export const subscriptions = Subscription.make<Model, Message, Services>()(() => ({
+export const subscriptions = Subscription.make<Model, Message, Services>()(entry => ({
   ...foldData.subscriptions(actives),
+  // Yielded's client starts loading once the reader types an email, so the
+  // sign-in waits for no chunk. A sign-out loads it on the press.
+  authClient: entry(
+    { signingIn: Schema.Boolean },
+    {
+      modelToDependencies: model => ({ signingIn: model.email !== '' }),
+      dependenciesToStream: ({ signingIn }) =>
+        signingIn ? Stream.drain(Stream.fromEffect(Resource.prefetch(AppClient))) : Stream.empty,
+    },
+  ),
   principal: Subscription.persistentEntry(
     Stream.map(broadcastMessages(PRINCIPAL_CHANNEL), message =>
       Message.GotBroadcastMessage({ message }),

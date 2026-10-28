@@ -5,6 +5,7 @@
  * rides along.
  */
 import { Layer } from 'effect'
+import { Resource } from 'foldkit-bundle'
 import { Remote } from 'foldkit-remote'
 import { FOLDKIT_APP_ATTRIBUTE, SSR } from 'foldkit-ssr/client'
 import { AppClient, Message, Model, belief, init, plan, subscriptions, update } from './app.js'
@@ -35,8 +36,9 @@ SSR.hydrate(
           fetch: belief.fetch,
         }),
       ),
-      // Its only failure is a `baseUrl` that is not a URL, which `location.origin` is.
-      AppClient.layerFetch.pipe(Layer.orDie),
+      // Yielded's client, a chunk of its own: `subscriptions` loads it once the
+      // reader types an email, and a sign-out on the press.
+      Resource.lazy(AppClient, () => import('./authClient.js').then(chunk => chunk.layer)),
     ),
     devTools: { Message },
   },

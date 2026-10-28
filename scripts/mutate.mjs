@@ -8,8 +8,8 @@
  * `file` is relative to the spec; `tests` are Vitest filters from the repo
  * root. Each `find` must occur exactly once in its file (every time with
  * `all`), and must change it. The tests run once unmutated first, and must
- * pass. Each mutation is applied in memory by the plugin in
- * `vitest.shared.ts`, never to the file, so a crash leaves nothing mutated.
+ * pass. Each mutation is applied in memory by `mutation-plugin.mjs`, which
+ * every test run loads, never to the file, so a crash leaves nothing mutated.
  *
  * A mutation is killed when a test fails with the same tests collected,
  * survived when every test passes, invalid when the run broke otherwise (a

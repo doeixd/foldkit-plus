@@ -89,6 +89,15 @@ const refusals = (page: Page): Array<number> => {
   return refused
 }
 
+/** How many times `page` asks for Yielded's client, a module of its own (`Resource.lazy`). */
+const clientImports = (page: Page): Array<string> => {
+  const asked: Array<string> = []
+  page.on('request', request => {
+    if (new URL(request.url()).pathname === '/src/authClient.ts') asked.push(request.url())
+  })
+  return asked
+}
+
 const signIn = async (page: Page, subjectId: 'ada' | 'grace') => {
   const account = accounts.find(each => each.subjectId === subjectId)!
   await page.getByLabel('Email').fill(account.email)
@@ -111,6 +120,7 @@ test('a visitor asking for the notes is sent home by the server, and a sign-in g
   const errors: Array<string> = []
   const page = await context.newPage()
   page.on('pageerror', error => errors.push(String(error)))
+  const imported = clientImports(page)
   const response = await page.goto(`${origin}/notes`)
   const asked = response!.request().redirectedFrom()
   expect(new URL(asked!.url()).pathname).toBe('/notes')
@@ -118,10 +128,16 @@ test('a visitor asking for the notes is sent home by the server, and a sign-in g
   expect(response!.status()).toBe(200)
   expect(new URL(page.url()).search).toBe('?returnTo=%2Fnotes')
   await expect.poll(() => who(page), { timeout: 120_000 }).toBe('Visitor')
+  // The page is up, and no one has signed in or out: Yielded's client is not loaded.
+  expect(imported).toEqual([])
+  // Typing an email starts loading it, before the sign-in is pressed.
+  await page.getByLabel('Email').fill('a')
+  await expect.poll(() => imported.length).toBe(1)
 
   await signIn(page, 'ada')
   await expect.poll(() => pathOf(page)).toBe('/notes')
   await expect.poll(() => listed(page)).toEqual(everyTitle)
+  expect(imported).toHaveLength(1)
   expect(errors).toEqual([])
 })
 

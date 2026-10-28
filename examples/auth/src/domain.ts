@@ -1,9 +1,9 @@
 /**
  * What the browser and the server share: who a principal is, who may read a
- * note, the `Me` row, the query the page lists, and Yielded's contract. All
- * of it is data and Schemas, so the browser bundle takes it whole.
+ * note, the `Me` row and the query the page lists. All of it is data and
+ * Schemas, so the browser bundle takes it whole. Yielded's contract is in
+ * `authApi.ts`, which only the client's chunk and the server read.
  */
-import * as AuthContract from '@yielded/auth/AuthContract'
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
@@ -52,21 +52,6 @@ export const Notes = Query.define('Notes', {}, () =>
 /** What Remote serves, named once for the client's `Remote.make` and the server's checks. */
 export const served = { entities: [Note, Me], queries: [Notes] } as const
 export const Domain = Remote.define(served)
-
-/**
- * Yielded's contract: password sign-in, plus the session actions every
- * contract has (`signOut` among them). The claims are empty on purpose: a
- * claim is a snapshot from sign-in, and the principal is read fresh per
- * request instead.
- *
- * @internal Its type names modules `@yielded/auth` does not export, so a
- * declaration file cannot (TS2742); `stripInternal` leaves it out of this
- * example's declarations, which nothing reads.
- */
-export const AuthApi = AuthContract.make('example/Auth', {
-  claims: Schema.Struct({}),
-  actions: sessions => ({ signIn: AuthContract.passwordSignIn(sessions) }),
-})
 
 const Pin = Schema.Struct({ id: Schema.String, text: Schema.NonEmptyString })
 const BoardModel = Schema.Struct({ pins: Schema.Array(Pin) })
