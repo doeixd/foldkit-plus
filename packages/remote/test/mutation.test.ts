@@ -159,7 +159,12 @@ describe('Remote mutations', () => {
   it('bounds the failed-request ledger', () => {
     let state = emptyMutationState
     for (let index = 0; index < 4096; index += 1) {
-      state = failMutation(state, `req-${index}`, offline, `op-${index}`)
+      state = failMutation(
+        beginMutation(state, `req-${index}`),
+        `req-${index}`,
+        offline,
+        `op-${index}`,
+      )
     }
 
     expect(state.failed.size).toBeLessThan(4096)

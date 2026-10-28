@@ -351,6 +351,7 @@ describe('Remote.update', () => {
       requestId: 'req-1',
       entities: [],
     })
+    model = updateRemote(model, { _tag: 'MutationStarted', requestId: 'req-2' })
     model = updateRemote(model, {
       _tag: 'MutationFailed',
       operation: 'op',

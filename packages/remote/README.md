@@ -1546,6 +1546,10 @@ case 'ClickedDiscard':
   is `None` for a write that is not failed, so a second press does nothing.
 - `Data.dismiss(model, requestId)` forgets it.
 
+Only a write in flight can fail: a `MutationFailed` repeated, or arriving after
+the write applied, was dismissed or was settled by `forget`, returns the Model
+it was given, as a repeated `MutationSucceeded` does.
+
 A failed write stays listed until one of those, or `Data.forget` at a change of
 principal. Nothing drops one on a timer: that would hide a failure the reader
 has not seen. The ledger is bounded (the last 1024 failures), and is never

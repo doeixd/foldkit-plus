@@ -148,6 +148,9 @@ export const failMutation = (
   error: RemoteError,
   operation: string,
 ): MutationState => {
+  // Only a request in flight can fail: a repeated failure, one after the
+  // request applied or was dismissed, or one `forget` settled, changes nothing.
+  if (!state.pending.has(requestId)) return state
   const pending = new Set(state.pending)
   pending.delete(requestId)
   const failed = remember(state.failed, requestId)
@@ -242,6 +245,8 @@ export const reconcileMutation = (
   answer: MutationAnswer,
 ): Reconciled => {
   const repeated = state.applied.has(requestId)
+  if (repeated && !state.pending.has(requestId) && !state.failed.has(requestId))
+    return { store, state }
   // The server applied requests in the order they started, so what a later
   // one's answer already settled is newer than this answer: the fields it
   // wrote, and its deletion of a row, stay. An answer of a request no longer
