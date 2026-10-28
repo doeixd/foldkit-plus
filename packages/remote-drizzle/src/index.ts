@@ -571,11 +571,13 @@ export const source = <P = unknown>(
 
             let keyset: SQL | undefined
             if (shape.cursor !== undefined) {
+              // Only a row this principal may see places the page: a hidden one answers as an
+              // unknown one does, so a cursor tells neither that it exists nor where it sorts.
               const cursorRows = yield* selectRows(
                 database,
                 relation.entity.table,
                 cursorSelection(order),
-                { where: eq(targetId, cursorId(shape.cursor)), limit: 1 },
+                { where: and(eq(targetId, cursorId(shape.cursor)), targetVisible), limit: 1 },
               )
               const cursorRow = cursorRows[0]
               if (cursorRow === undefined) {
@@ -1035,7 +1037,7 @@ create or replace trigger ${quoted(trigger)} before update on ${table} for each 
  * ```sql
  * create table write_ledger (
  *   scope text not null, operation text not null, target text not null,
- *   answer text not null, at bigint not null, request text,
+ *   answer text not null, at bigint not null,
  *   primary key (scope, operation, target)
  * );
  * create index write_ledger_at on write_ledger (at);

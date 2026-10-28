@@ -61,4 +61,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a relation page’s cursor is placed by a row hidden from its reader',
+    edits: [
+      {
+        file,
+        find: '{ where: and(eq(targetId, cursorId(shape.cursor)), targetVisible), limit: 1 },',
+        replace: '{ where: eq(targetId, cursorId(shape.cursor)), limit: 1 },',
+      },
+    ],
+    tests,
+  },
 ]

@@ -6,13 +6,16 @@
  * same rows in real SQL.
  */
 import { DatabaseSync } from 'node:sqlite'
+import { PGlite } from '@electric-sql/pglite'
 import { isNotNull } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-sqlite'
+import { drizzle as drizzlePg } from 'drizzle-orm/pglite'
+import { pgTable, text as pgText } from 'drizzle-orm/pg-core'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Schema } from 'effect'
 import { Derived, Entity, Relation } from 'foldkit-entity'
 import { Query } from 'foldkit-remote'
-import { describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { bind, databaseLayer, query, source, type AnyEntityBinding } from '../src/index.js'
 
 const users = sqliteTable('users', { id: text('id').primaryKey(), name: text('name').notNull() })
@@ -99,7 +102,7 @@ const read = async (
   binding: AnyEntityBinding,
   ids: string[],
   fields: string[],
-  windows?: Record<string, { first: number }>,
+  windows?: Record<string, { first: number; after?: string }>,
 ) => {
   const { sqlite, database } = setup()
   try {
@@ -144,6 +147,21 @@ describe('a binding’s visible rows', () => {
     })
   })
 
+  it('as a relation page’s cursor: a hidden row places no page, and answers as an unknown one', async () => {
+    const after = (principal: Principal, cursor: string) =>
+      read(principal, Db.User, ['u1'], ['posts'], { posts: { first: 5, after: cursor } })
+    const failure = (cursor: string) =>
+      after('visitor', cursor).then(
+        () => 'answered',
+        (error: unknown) => String(error),
+      )
+    expect((await after('visitor', 'Post:p1')).u1?.posts).toMatchObject({ refs: ['Post:p3'] })
+    expect((await after('author', 'Post:p2')).u1?.posts).toMatchObject({ refs: ['Post:p3'] })
+    const hidden = await failure('Post:p2')
+    expect(hidden).toContain('Relation "posts" cursor no longer resolves')
+    expect(await failure('Post:p9')).toBe(hidden)
+  })
+
   it('as the target of a ref: a ref to a hidden row reads as none, so it does not say the row exists', async () => {
     const visitor = await read('visitor', Db.Comment, ['c1', 'c2', 'c3'], ['post'])
     expect(visitor).toEqual({ c1: { post: 'Post:p1' }, c2: { post: null }, c3: { post: null } })
@@ -186,5 +204,66 @@ describe('a binding’s visible rows', () => {
     expect(await run('visitor', { first: 1, after: 'p1' })).toEqual(['p3'])
     // A cursor a visitor could not have been given does not resolve for them.
     await expect(run('visitor', { first: 1, after: 'p2' })).rejects.toThrow()
+  })
+})
+
+describe('a relation page’s cursor, on Postgres', () => {
+  const pgUsers = pgTable('users', {
+    id: pgText('id').primaryKey(),
+    name: pgText('name').notNull(),
+  })
+  const pgPosts = pgTable('posts', {
+    id: pgText('id').primaryKey(),
+    title: pgText('title').notNull(),
+    authorId: pgText('author_id').notNull(),
+    publishedAt: pgText('published_at'),
+  })
+  const PgDb = bind(Entity.relate(Domain, { User: { posts: Relation.many(Domain.Post) } }), {
+    User: {
+      table: pgUsers,
+      relations: { posts: { foreignKey: pgPosts.authorId } },
+      derived: { postCount: { relation: 'posts' } },
+    },
+    Post: {
+      table: pgPosts,
+      visible: principal => (principal === 'author' ? undefined : isNotNull(pgPosts.publishedAt)),
+    },
+    Comment: { table: comments },
+    Tag: { table: tags },
+  })
+  const pglite = new PGlite()
+  beforeAll(async () => {
+    await pglite.waitReady
+    await pglite.exec(`
+      create table users (id text primary key, name text not null);
+      create table posts (id text primary key, title text not null, author_id text not null, published_at text);
+      insert into users values ('u1', 'Ada');
+      insert into posts values ('p1', 'Live', 'u1', '2026-01-01'), ('p2', 'Draft', 'u1', null), ('p3', 'Also live', 'u1', '2026-01-02');
+    `)
+  }, 60_000)
+  afterAll(() => pglite.close())
+  const after = (principal: Principal, cursor: string) =>
+    Effect.runPromise(
+      source<Principal>(PgDb.User)
+        .read({
+          ids: ['u1'],
+          fields: ['posts'],
+          principal,
+          windows: { posts: { first: 5, after: cursor } },
+        })
+        .pipe(Effect.result, Effect.provide(databaseLayer(drizzlePg({ client: pglite })))),
+    )
+
+  it('places a page only by a row its reader may see, and answers a hidden one as an unknown one', async () => {
+    expect(await after('author', 'Post:p2')).toMatchObject({
+      _tag: 'Success',
+      success: [{ values: { posts: { refs: ['Post:p3'] } } }],
+    })
+    const hidden = await after('visitor', 'Post:p2')
+    expect(hidden).toMatchObject({
+      _tag: 'Failure',
+      failure: { message: 'Relation "posts" cursor no longer resolves' },
+    })
+    expect(await after('visitor', 'Post:p9')).toEqual(hidden)
   })
 })
