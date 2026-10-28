@@ -48,4 +48,15 @@ export default [
     'const stamping = { viewer: context.viewer, now: lastHeard(context.store) }',
     'const stamping = { viewer: Option.none(), now: lastHeard(context.store) }',
   ),
+  {
+    name: 'a pending create joins no list',
+    edits: [
+      {
+        file: '../src/index.ts',
+        find: 'if (!holds.has(entityKey(change.entity, change.id)) && !created) continue',
+        replace: 'if (!holds.has(entityKey(change.entity, change.id))) continue',
+      },
+    ],
+    tests: [...tests, 'examples/chirp/test/post.test.ts'],
+  },
 ]

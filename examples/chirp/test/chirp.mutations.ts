@@ -3,7 +3,7 @@
  * examples/chirp/test/chirp.mutations.ts`.
  */
 const server = ['examples/chirp/test/server.test.ts']
-const client = ['examples/chirp/test/like.test.ts']
+const client = ['examples/chirp/test/like.test.ts', 'examples/chirp/test/post.test.ts']
 
 export default [
   {
@@ -85,12 +85,12 @@ export default [
     tests: server,
   },
   {
-    name: 'a chirp is stamped with someone other than its poster',
+    name: 'a chirp and a like are stamped with someone other than who asked',
     edits: [
       {
         file: '../src/server/server.ts',
-        find: 'authorId: user => user.id',
-        replace: "authorId: () => 'ada'",
+        find: '  viewer: asker,\n})',
+        replace: "  viewer: () => asker(principalOf('ada')),\n})",
       },
     ],
     tests: server,
@@ -107,23 +107,12 @@ export default [
     tests: server,
   },
   {
-    name: 'a like is anyone’s to make',
-    edits: [
-      {
-        file: '../src/server/server.ts',
-        find: 'mine(context.principal, Entity.refKey(user)),',
-        replace: 'true,',
-      },
-    ],
-    tests: server,
-  },
-  {
     name: 'a like is anyone’s to take back',
     edits: [
       {
-        file: '../src/server/server.ts',
-        find: 'onSome: row => mine(context.principal, row.user),',
-        replace: 'onSome: () => true,',
+        file: '../src/guard.ts',
+        find: 'Guards.attach(G, { row: { Write: [G.isLiker] } })',
+        replace: 'Guards.attach(G, { row: {} })',
       },
     ],
     tests: server,
@@ -140,7 +129,7 @@ export default [
     tests: server,
   },
   {
-    name: 'the page predicts a like for no one',
+    name: 'the page predicts a like and a chirp for no one',
     edits: [
       {
         file: '../src/app.ts',
@@ -157,7 +146,7 @@ export default [
         file: '../src/app.ts',
         find: 'onSome: id => Data.mutate(model, Unlike, { id }),',
         replace:
-          'onSome: () => Data.mutate(model, LikePost, { id: likeOf(postId, model.me), postId, userId: model.me }),',
+          'onSome: () => Data.mutate(model, LikePost, { id: likeOf(postId, model.me), postId }),',
       },
     ],
     tests: client,

@@ -202,7 +202,7 @@ describe('what each reader may do', () => {
 })
 
 describe('liking', () => {
-  const like = (postId: string, userId: Person) => ({ id: likeOf(postId, userId), postId, userId })
+  const like = (postId: string, userId: Person) => ({ id: likeOf(postId, userId), postId })
 
   it('counts a like, and answers the post as it now reads to the liker', async () => {
     const you = sandbox()('you')
@@ -233,18 +233,22 @@ describe('liking', () => {
     expect(await as('linus').read('p3', ['liked'])).toEqual({ liked: null })
   })
 
-  it('refuses a like made in someone else’s name, or taken back by someone else', async () => {
+  it('makes a like its asker’s, whatever the browser names', async () => {
+    const you = sandbox()('you')
+    await you.mutate('LikePost', { ...like('p2', 'you'), userId: 'grace' })
+    expect(await you.read('p2', ['liked'])).toEqual({ liked: likeOf('p2', 'you') })
+  })
+
+  it('refuses a like taken back by someone else', async () => {
     const as = sandbox()
-    expect(await as('you').mutate('LikePost', like('p2', 'grace'))).toMatchObject({
-      _tag: 'Failure',
-      failure: { _tag: 'Forbidden' },
-    })
     expect(await as('ada').mutate('Unlike', { id: likeOf('p1', 'you') })).toMatchObject({
       _tag: 'Failure',
       failure: { _tag: 'Forbidden' },
     })
-    expect(await as('you').read('p1', ['likeCount'])).toEqual({ likeCount: 3 })
-    expect(await as('you').read('p2', ['likeCount'])).toEqual({ likeCount: 2 })
+    expect(await as('you').read('p1', ['likeCount', 'liked'])).toEqual({
+      likeCount: 3,
+      liked: likeOf('p1', 'you'),
+    })
   })
 })
 
@@ -268,7 +272,7 @@ describe('each write answers what the timeline shows', () => {
   it.each([
     ['PostChirp', { id: 'n1', body: 'Hi' }, 'n1'],
     ['EditPost', { id: 'p4', body: 'Edited' }, 'p4'],
-    ['LikePost', { id: likeOf('p2', 'you'), postId: 'p2', userId: 'you' }, 'p2'],
+    ['LikePost', { id: likeOf('p2', 'you'), postId: 'p2' }, 'p2'],
   ] as const)('%s', async (mutation, input, id) => {
     const you = sandbox()('you')
     const answer = await you.mutateShown(mutation, input)

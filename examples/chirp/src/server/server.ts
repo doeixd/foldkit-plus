@@ -5,10 +5,10 @@
  * published demo, which runs this server in the browser (`host.ts`).
  */
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { Effect, Option } from 'effect'
+import { Option } from 'effect'
 import { GuardDrizzle } from 'foldkit-guard/drizzle'
 import { GuardServer } from 'foldkit-guard/server'
-import { Entity, Remote } from 'foldkit-remote'
+import { Remote } from 'foldkit-remote'
 import {
   bind,
   checkConstraints,
@@ -19,9 +19,9 @@ import {
   type AnyEntityBinding,
   type DrizzleDatabase,
 } from 'foldkit-remote-drizzle'
-import { RemoteServer, type EntityWriter } from 'foldkit-remote-server'
-import { Chirp, Chirper } from '../domain.js'
-import { G, Post, type User } from '../guard.js'
+import { RemoteServer } from 'foldkit-remote-server'
+import { Chirper } from '../domain.js'
+import { G, Like, Post, type User } from '../guard.js'
 import { ByAuthor, EditPost, LikePost, PostChirp, Timeline, Unlike } from '../operations.js'
 import { SEED } from './seed.js'
 
@@ -62,7 +62,7 @@ export const Policy = G.implement({
 
 // #region bind
 const Db = bind(
-  { User: Chirper, Post, Like: Chirp.Like },
+  { User: Chirper, Post, Like },
   {
     User: { table: users, relations: { posts: { foreignKey: posts.authorId } } },
     Post: {
@@ -74,6 +74,7 @@ const Db = bind(
     },
     Like: {
       table: likes,
+      visible: GuardDrizzle.visible(Policy, [Like]).Like,
       relations: { post: { field: likes.postId }, user: { field: likes.userId } },
     },
   },
@@ -106,61 +107,21 @@ const SCHEMA = `
 `
 // #endregion
 
-// Every write of a post is decided by its rules before it lands. Who wrote a
-// chirp, and when, are the server's to say: the browser sends neither.
-// #region presets
-const guarded = GuardServer.writer(Post, Policy, writer(Db.Post), {
-  presets: { authorId: user => user.id, createdAt: () => Date.now() },
-})
-// #endregion
+// Every write is decided by its rules before it lands. Who wrote a chirp or
+// made a like, and when, the Entities stamp: the browser sends neither.
+const guarded = GuardServer.writer(Post, Policy, writer(Db.Post))
+const likeWrites = GuardServer.writer(Like, Policy, writer(Db.Like))
 
-// #region likes
-/** Who is asking, as the row a like points at. */
+/** Who is asking, as the row a stamp or a `liked` names. */
 const asker = (principal: Option.Option<User>) =>
   Option.map(principal, user => Remote.ref(Chirper, user.id))
-
-/**
- * A like is its liker's own: one made in another's name, or taken back by
- * anyone else, is refused before anything is written.
- */
-const ownLikes = (
-  likes: EntityWriter<Option.Option<User>, DrizzleDatabase>,
-): EntityWriter<Option.Option<User>, DrizzleDatabase> => {
-  const linked = likes.linked
-  if (linked === undefined) throw new Error('A like writer reads whose a like is')
-  /** Whether `user`, a like's link as stored (`'User:ada'`), is who is asking. */
-  const mine = (principal: Option.Option<User>, user: unknown) =>
-    Option.exists(asker(principal), ref => Entity.refKey(ref) === user)
-  const refused = RemoteServer.forbid('A like is yours to make, and yours to take back.')
-  return {
-    ...likes,
-    insert: context =>
-      Option.exists(context.links.user ?? Option.none(), user =>
-        mine(context.principal, Entity.refKey(user)),
-      )
-        ? likes.insert(context)
-        : Effect.fail(refused),
-    delete: context =>
-      Effect.flatMap(linked({ id: context.id, relations: ['user'] }), held =>
-        // Gone already is gone: a retry of your own unlike.
-        Option.match(held, {
-          onNone: () => true,
-          onSome: row => mine(context.principal, row.user),
-        })
-          ? likes.delete(context)
-          : Effect.fail(refused),
-      ),
-  }
-}
-const likeWrites = ownLikes(writer(Db.Like))
-// #endregion
 
 export const server = RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
   entities: [
     source(Db.User),
     // `liked` is each reader's own: the source answers it for whoever asks.
     source(Db.Post, { filter: GuardServer.filter(Post, Policy), viewer: asker }),
-    source(Db.Like),
+    source(Db.Like, { filter: GuardServer.filter(Like, Policy) }),
   ],
   queries: [query(Timeline, { entity: Db.Post }), query(ByAuthor, { entity: Db.Post })],
   mutations: [
@@ -169,12 +130,13 @@ export const server = RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
     RemoteServer.write(LikePost, likeWrites),
     RemoteServer.write(Unlike, likeWrites),
   ],
+  viewer: asker,
 })
 
 // A guarded Entity served without its rule would serve every row: refuse to start.
 GuardServer.validate(Policy, {
-  entities: [Post],
-  domain: Remote.define({ entities: [Chirper, Post, Chirp.Like], queries: [Timeline, ByAuthor] }),
+  entities: [Post, Like],
+  domain: Remote.define({ entities: [Chirper, Post, Like], queries: [Timeline, ByAuthor] }),
   server,
 })
 

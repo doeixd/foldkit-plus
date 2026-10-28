@@ -59,7 +59,7 @@ import {
   type EntityRef,
   type FieldsFrom,
 } from './entity.js'
-import { Impact, changesOf, impactOn, type EntityChange, type HeldConnection } from './impact.js'
+import { EntityChange, Impact, changesOf, impactOn, type HeldConnection } from './impact.js'
 import { belongsEncoded, matching, type Judged, type Matched } from './matching.js'
 
 /** A body's dependencies as an explanation carries them: without the owner identity, which holds a symbol. */
@@ -3203,9 +3203,10 @@ const bindDomain = <
   /**
    * `pages` with each change to a row they hold placed, judged against
    * `store`: a row that moved goes where the body's order puts it, and one
-   * that stopped matching leaves. A row a change brings in is not added,
-   * since what the list selects of it may not be loaded, and a change the
-   * client cannot place leaves the row where it is.
+   * that stopped matching leaves. A row a pending write creates joins where
+   * the body puts it, since the write holds all it is. Another row a change
+   * brings in is not added, since what the list selects of it may not be
+   * loaded, and a change the client cannot place leaves the row where it is.
    */
   const placedHeld = (
     identity: string,
@@ -3220,7 +3221,11 @@ const bindDomain = <
     const holds = new Set(items(pages).map(edge => entityKey(edge.ref.entity, edge.ref.id)))
     let placed = pages
     for (const change of changes) {
-      if (!holds.has(entityKey(change.entity, change.id))) continue
+      const created = EntityChange.match(change, {
+        Changed: ({ created }) => created,
+        Deleted: () => false,
+      })
+      if (!holds.has(entityKey(change.entity, change.id)) && !created) continue
       placed = Impact.$match(
         impactOn({ ...query.value, connection: placed, holds }, store, change, operators),
         {

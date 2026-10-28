@@ -6,10 +6,10 @@
  */
 import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Derived, Entity, Relation, Stamp, Write } from 'foldkit-entity'
+import { Derived, Entity, Expr, Order, Relation, Stamp, Write } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
-import { Mutation, Remote } from '../src/index.js'
+import { Mutation, Query, Remote } from '../src/index.js'
 
 const UserFields = Entity.define('User', Schema.Struct({ id: Schema.String }))
 const PostFields = Entity.define(
@@ -56,9 +56,21 @@ const LikePost = Mutation.write(
 const Model = Schema.Struct({ remote: Remote.Model, me: Schema.String })
 type Model = typeof Model.Type
 const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
+/** The newest posts first, and one person's. */
+const Newest = Query.define('Newest', {}, () =>
+  Query.from(Post).pipe(Query.orderBy(Order.desc(Post.fields.createdAt))),
+)
+const ByAuthor = Query.define('ByAuthor', { authorId: Schema.String }, ({ input }) =>
+  Query.from(Post).pipe(
+    Query.where(Expr.eq(Post.fields.authorId, input.authorId)),
+    Query.orderBy(Order.desc(Post.fields.createdAt)),
+  ),
+)
+
 const config = {
   model: App.model.remote,
   entities: [User, Post, Like],
+  queries: [Newest, ByAuthor],
   mutations: [PostChirp, LikePost],
 }
 const Data = Remote.make({ ...config, viewer: model => Option.some(Remote.ref(User, model.me)) })
@@ -143,5 +155,56 @@ describe("an insert's stamps while it is pending", () => {
     const posted = Data.mutate(heard(Data), PostChirp, { id: 'n1', body: 'Hi' }).model
     const { model } = Data.mutate(posted, LikePost, { id: 'l9', postId: 'n1' })
     expect(shown(Data, model, 'n1')).toMatchObject({ likeCount: 1, liked: 'l9' })
+  })
+
+  it("joins each loaded list its body admits, where the list's order puts it", () => {
+    const Line = Entity.select(Post, { body: true })
+    const newest = Data.query(Newest, {}, { select: Line, first: 25 })
+    const theirs = Data.query(ByAuthor, { authorId: 'bob' }, { select: Line, first: 25 })
+    const listed = [newest, theirs].reduce(
+      (model, list) =>
+        Data.reduce(model, {
+          _tag: 'ConnectionMerged',
+          connection: list.ref.identity,
+          page: {
+            edges: ['p1', 'p2'].map(id => ({ key: `Post:${id}`, ref: { entity: 'Post', id } })),
+            start: { _tag: 'Terminal' },
+            end: { _tag: 'Terminal' },
+          },
+        }),
+      heard(Data),
+    )
+    const written = Data.reduce(listed, {
+      _tag: 'ReadReceived',
+      requests: ['p1', 'p2'].map(id => ({
+        entity: 'Post',
+        id,
+        fields: ['body', 'authorId', 'createdAt'],
+      })),
+      result: {
+        settled: [],
+        entities: [
+          {
+            entity: 'Post',
+            id: 'p1',
+            values: { body: 'Newer', authorId: 'bob', createdAt: 4_500 },
+          },
+          {
+            entity: 'Post',
+            id: 'p2',
+            values: { body: 'Older', authorId: 'bob', createdAt: 3_000 },
+          },
+        ],
+      },
+      now: 5_000,
+    })
+    const { model } = Data.mutate(written, PostChirp, { id: 'n1', body: 'Hi' })
+    const bodies = (list: typeof newest | typeof theirs) => {
+      const read = list.read(model)
+      return read._tag === 'Ready' ? read.value.items.map(post => post.body) : read._tag
+    }
+    expect(bodies(newest)).toEqual(['Hi', 'Newer', 'Older'])
+    // Ada's chirp is not Bob's.
+    expect(bodies(theirs)).toEqual(['Newer', 'Older'])
   })
 })

@@ -1,6 +1,6 @@
 /** The domain, declared once: what client and server both interpret. */
 import { Schema } from 'effect'
-import { Derived, Entity, Relation } from 'foldkit-entity'
+import { Derived, Entity, Relation, Stamp } from 'foldkit-entity'
 
 // #region entity
 export const UserFields = Entity.define(
@@ -29,7 +29,10 @@ export const PostFields = Entity.define(
 )
 
 /** One person's like of one post, keyed by the pair: see `likeOf` in `operations.ts`. */
-export const LikeFields = Entity.define('Like', Schema.Struct({ id: Schema.String }))
+export const LikeFields = Entity.define(
+  'Like',
+  Schema.Struct({ id: Schema.String, userId: Schema.String }),
+)
 // #endregion
 
 // #region relate
@@ -52,12 +55,17 @@ export const Chirper = Chirp.User.pipe(
 /**
  * A post, with how many like it and whether you do: `liked` is your Like's
  * id, or none. The server reads both for whoever asks; the page predicts both
- * while a like is pending.
+ * while a like is pending. Who wrote it, and when, are the server's to say:
+ * no write's input sets them, and the page predicts them for a new chirp.
  */
 export const LikedPost = Chirp.Post.pipe(
+  Entity.stamps({ authorId: Stamp.viewer, author: Stamp.viewer, createdAt: Stamp.clock }),
   Entity.derived({
     likeCount: Derived.count(Chirp.Like.relations.post),
     liked: Derived.exists(Chirp.Like.relations.post, { viewer: Chirp.Like.relations.user }),
   }),
 )
+
+/** A like is whoever made it: its person, as the field the guards read and as the link. */
+export const Liking = Chirp.Like.pipe(Entity.stamps({ userId: Stamp.viewer, user: Stamp.viewer }))
 // #endregion

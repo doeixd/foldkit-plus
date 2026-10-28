@@ -16,9 +16,9 @@ import { Remote, RemoteData, type RemoteClient } from 'foldkit-remote'
 import { Site } from 'foldkit-site'
 import { Surface } from 'foldkit-surface'
 import { Composer } from './compose.js'
-import { Chirp, Chirper } from './domain.js'
+import { Chirper } from './domain.js'
 import { Editing, Editor } from './editor.js'
-import { Post } from './guard.js'
+import { Like, Post } from './guard.js'
 import {
   ByAuthor,
   EditPost,
@@ -101,10 +101,10 @@ export const App = Surface.application({ Model, Message })
 // #region remote-make
 export const Data = Remote.make({
   model: App.model.remote,
-  entities: [Chirper, Post, Chirp.Like],
+  entities: [Chirper, Post, Like],
   queries: [Timeline, ByAuthor],
   mutations: [PostChirp, EditPost, LikePost, Unlike],
-  // Whom a like is predicted for: the page's reader.
+  // Who reads: whom a like, a chirp's author, and `liked` are predicted for.
   viewer: model => Option.some(Remote.ref(Chirper, model.me)),
 })
 // #endregion
@@ -156,8 +156,7 @@ const Liked = Entity.select(Post, { liked: true })
 const like = (model: Model, postId: string): Return => {
   const toggled = ({ liked }: Selected<typeof Liked>): Return => {
     const sent = Option.match(liked, {
-      onNone: () =>
-        Data.mutate(model, LikePost, { id: likeOf(postId, model.me), postId, userId: model.me }),
+      onNone: () => Data.mutate(model, LikePost, { id: likeOf(postId, model.me), postId }),
       onSome: id => Data.mutate(model, Unlike, { id }),
     })
     return { model: sent.model, commands: [sent.command] }

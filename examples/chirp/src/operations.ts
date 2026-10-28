@@ -2,8 +2,8 @@
 import { Schema } from 'effect'
 import { Entity, Expr, Order, Write, type Selected } from 'foldkit-entity'
 import { Mutation, Query } from 'foldkit-remote'
-import { Chirp, Chirper, PostFields } from './domain.js'
-import { Post } from './guard.js'
+import { Chirper, PostFields } from './domain.js'
+import { Like, Post } from './guard.js'
 
 // #region select
 export const TimelinePost = Entity.select(Post, {
@@ -58,17 +58,16 @@ export const EditInput = Schema.Struct({
 export const likeOf = (postId: string, userId: string): string => `${postId}~${userId}`
 
 /**
- * A like: a row pointing at the post and at you. The page shows it on the post
- * at once (its count, and `liked`), and the server's answer reads the post.
+ * A like: a row pointing at the post, and at you, whom the server stamps. The
+ * page shows it on the post at once (its count, and `liked`), and the
+ * server's answer reads the post.
  */
 export const LikePost = Mutation.write(
   'LikePost',
   Write.insert(
-    Entity.input(
-      Chirp.Like,
-      Schema.Struct({ id: Schema.String, postId: Schema.String, userId: Schema.String }),
-      { postId: 'post', userId: 'user' },
-    ),
+    Entity.input(Like, Schema.Struct({ id: Schema.String, postId: Schema.String }), {
+      postId: 'post',
+    }),
     { id: 'id' },
   ),
 )
@@ -76,7 +75,7 @@ export const LikePost = Mutation.write(
 /** A like taken back, by the id the post's `liked` holds. */
 export const Unlike = Mutation.write(
   'Unlike',
-  Write.delete(Entity.input(Chirp.Like, Schema.Struct({ id: Schema.String })), { id: 'id' }),
+  Write.delete(Entity.input(Like, Schema.Struct({ id: Schema.String })), { id: 'id' }),
 )
 // #endregion
 
