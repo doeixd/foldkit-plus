@@ -1596,9 +1596,30 @@ or holds no count on that post, nothing is predicted.
 
 An insert shows what its Entity stamps (`Entity.stamps`) as well, which no
 input sets: `Stamp.viewer` as the viewer `Remote.make` is told of, and
-`Stamp.clock` as the time the store last heard from the server, since `update`
-reads no clock; the answer brings the server's values. A new row's counts read
-0 and its exists none. The row then joins every loaded list whose body admits
+`Stamp.clock` as `Data.mutate`'s `now`, the time the reader acted. A new
+row's counts read 0 and its exists none.
+
+`update` reads no clock, so the time is read where the action is, by a
+Command, and carried in the Message that starts the write. `Remote.now(toMessage)`
+is that Command; it reads Effect's `Clock`, so a test pins it:
+
+```ts
+// the action asks for the time…
+Posted: ({ post }) => ({ model, commands: [Remote.now(now => Message.Clocked({ post, now }))] }),
+// …and the Message it yields starts the write with it
+Clocked: ({ post, now }) => {
+  const sent = Data.mutate(model, PostChirp, post, { now })
+  return { model: sent.model, commands: [sent.command] }
+},
+```
+
+The request sends the same number, and the server takes it as the row's time
+when it lies within its `clockSkew` of the server's own clock (60 seconds
+unless `RemoteServer.make` says), so the answer agrees with what was shown.
+A retry (`Data.retry`) sends it again. Without `now`, a stamped time is not
+predicted: the row reads as missing it until the server's answer brings the
+server's time. An application that already mints the row's id in a Command
+can read the clock in the same one (`examples/reference`'s `NameNote`). The row then joins every loaded list whose body admits
 it, where the list's order puts it, while pending and once answered: a post
 stamped with its time goes to the top of a newest-first list. A list without a
 body, or one filtered by a read rule the client does not run, is the server's
@@ -2277,8 +2298,10 @@ expect(Trace.tags(trace, list)).toEqual(['Ready', 'Refreshing', 'Ready'])
   what is held. A request abandoned by a restart is no longer held. A
   Subscription or Command that dies throws. An `update` that does not take
   Remote's Messages is a type error.
-- **What it leaves out.** Its clock stands still: a retention `grace`, an
-  age-out and a live restart never fire. A live stream sends nothing, so
+- **What it leaves out.** Its clock stands still, at `now` (0 unless given):
+  every Command it runs and every answer it asks for reads that time
+  (`Remote.now`, an answer's date), and a retention `grace`, an age-out and a
+  live restart never fire. A live stream sends nothing, so
   script its events as `LiveReceived` Messages. Only Remote's Commands run,
   and `entry.skipped` names the others. It drives a domain whose Messages are
   in your union, not a `Remote.fold`.

@@ -6,6 +6,7 @@
  * retention, and a decode failure — against an in-process `RemoteClient`.
  */
 import { Effect, Layer, Option, Schema, Stream } from 'effect'
+import { TestClock } from 'effect/testing'
 import { defineMessageUnion } from 'foldkit/message'
 import {
   Attributes,
@@ -335,15 +336,16 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   // `Data.mutate` is what `update` calls: the request starts in the Model with
   // an id from the Model's own sequence, and the returned Command's Message
   // settles it. Here the Command runs and its Message is reduced in place.
-  // The answer is dated by `now`, as a read is, so the stale-while-revalidate
-  // entry above (whose clock reads 60,000) takes the renamed project as fresh.
-  const rename = Data.mutate(
-    loaded,
-    RenameProject,
-    { id: 'p1', name: 'Apollo II' },
-    { now: () => 59_000 },
+  // The answer is dated by Effect's clock when it lands, as a read is, so with
+  // the clock at 59,000 the stale-while-revalidate entry above (whose clock
+  // reads 60,000) takes the renamed project as fresh.
+  const rename = Data.mutate(loaded, RenameProject, { id: 'p1', name: 'Apollo II' })
+  const settled = await Effect.runPromise(
+    Effect.andThen(TestClock.setTime(59_000), rename.command.effect).pipe(
+      Effect.provide(TestClock.layer()),
+      Effect.provide(FakeClient),
+    ),
   )
-  const settled = await Effect.runPromise(rename.command.effect.pipe(Effect.provide(FakeClient)))
   const renamed = Data.reduce(rename.model, settled)
   lines.push(`mutation RenameProject (${rename.requestId}): ${settled._tag}`)
   lines.push(`after mutation: ${describeData(projection.read(renamed))}`)

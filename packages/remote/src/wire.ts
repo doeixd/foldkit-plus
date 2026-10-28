@@ -182,6 +182,12 @@ export const MutationRequest = Schema.Struct({
   /** For a mutation that is a `Write`: the input keys to write, when not all of them. */
   keys: Schema.optional(Schema.Array(Schema.String)),
   /**
+   * When the reader acted, in milliseconds since the epoch: what the client
+   * predicted the write's time as. A server takes it within its `clockSkew`
+   * of its own clock. Optional, so a client and a server of either age agree.
+   */
+  now: Schema.optional(Schema.Int),
+  /**
    * What the client's active reads show of each entity's rows. The server
    * answers, of each row the mutation names, the shown fields its answer
    * left out, read as any read is (`MutationResult.read`).

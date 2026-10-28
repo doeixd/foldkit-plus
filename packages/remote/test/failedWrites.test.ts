@@ -49,6 +49,7 @@ const client = (...outcomes: ReadonlyArray<Outcome>) => {
     readonly requestId: string
     readonly operation?: string | undefined
     readonly keys?: ReadonlyArray<string> | undefined
+    readonly now?: number | undefined
   }> = []
   const layer = Layer.succeed(RemoteClient, {
     read: () => Effect.die('no reads'),
@@ -86,7 +87,7 @@ const post = (model: Model, id: string, text: string) =>
     model,
     CreatePost,
     { id, text },
-    { optimistic: [Remote.patch(Post, id, { id, text })], keys: ['text'] },
+    { optimistic: [Remote.patch(Post, id, { id, text })], keys: ['text'], now: 1_234 },
   )
 
 const shown = (model: Model, id: string) =>
@@ -190,6 +191,8 @@ describe('Data.retry', () => {
     expect(sent.map(request => request.requestId)).toEqual(['remote-1', 'remote-1'])
     expect(sent[1]?.operation).toBe(sent[0]?.operation)
     expect(sent.map(request => request.keys)).toEqual([['text'], ['text']])
+    // When the reader acted, not when the retry was pressed.
+    expect(sent.map(request => request.now)).toEqual([1_234, 1_234])
     expect(Data.mutation(applied, 'remote-1')).toEqual({ _tag: 'Applied' })
     expect(Data.failedWrites(applied)).toEqual([])
   })

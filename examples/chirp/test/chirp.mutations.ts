@@ -206,4 +206,26 @@ export default [
     ],
     tests: server,
   },
+  {
+    name: 'a chirp is written with no time',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'Data.mutate(model, PostChirp, value, { now })',
+        replace: 'Data.mutate(model, PostChirp, value)',
+      },
+    ],
+    tests: client,
+  },
+  {
+    name: 'a chirp is written at 0, not when you posted',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'ClockedPost: ({ post, now }) => sent(model, post, now),',
+        replace: 'ClockedPost: ({ post }) => sent(model, post, 0),',
+      },
+    ],
+    tests: client,
+  },
 ]

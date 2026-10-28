@@ -1,4 +1,5 @@
 import { Effect, Layer, Option, Schema, Stream } from 'effect'
+import { TestClock } from 'effect/testing'
 import { defineMessageUnion } from 'foldkit/message'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
@@ -412,20 +413,22 @@ describe('Remote domain submodel', () => {
 
   it('mutateInto reconciles patches and returns the typed output', async () => {
     const result = await Effect.runPromise(
-      Remote.mutateInto(
-        AppRemote,
-        { remote: Data.initial },
-        RenameUser,
-        { id: 'u1', name: 'ada' },
-        'req-1',
-        { now: () => 42 },
-      ).pipe(Effect.provide(FakeClient)),
+      Effect.andThen(
+        TestClock.setTime(42),
+        Remote.mutateInto(
+          AppRemote,
+          { remote: Data.initial },
+          RenameUser,
+          { id: 'u1', name: 'ada' },
+          'req-1',
+        ),
+      ).pipe(Effect.provide(TestClock.layer()), Effect.provide(FakeClient)),
     )
     expect(result.output).toEqual({ id: 'u1' })
     expect(readField(result.model.remote.entities, entityKey('User', 'u1'), 'name')).toEqual(
       Option.some('server'),
     )
-    // Dated by the clock it was given, which is how fresh a policy takes it to be.
+    // Dated by Effect's clock when it landed, which is how fresh a policy takes it to be.
     expect(result.model.remote.entities[entityKey('User', 'u1')]?.updatedAt).toBe(42)
   })
 

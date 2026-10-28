@@ -2,7 +2,7 @@
  * `Trace`: the application's `update` and Remote's real Subscriptions, run
  * over scripted Messages, with every request held until a step answers it.
  */
-import { Effect, Option, Schema, Stream } from 'effect'
+import { Clock, Effect, Option, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
@@ -207,6 +207,31 @@ describe('Trace.run', () => {
       ['ReadStarted', []],
     ])
     expect(trace.pending).toEqual(['mutation Create', 'read Project:p2'])
+  })
+
+  it('stands its clock at `now`, for the answers it asks for and the Commands it runs', async () => {
+    // A server that names the row by the time it reads.
+    const clocked: RemoteClient['Service'] = {
+      ...server({}),
+      mutate: () =>
+        Effect.map(Clock.currentTimeMillis, at => ({
+          output: { id: 'p2' },
+          entities: [{ entity: 'Project', id: 'p2', values: { name: `at ${at}` } }],
+        })),
+    }
+    const trace = await Trace.run(Data, {
+      start: closed,
+      update,
+      active,
+      client: clocked,
+      now: 7_000,
+      steps: [Message.Created({ id: 'p2', name: 'Two' }), Respond.mutation(Create)],
+    })
+    expect(trace.entries.at(-1)!.message).toMatchObject({
+      _tag: 'MutationSucceeded',
+      entities: [{ values: { name: 'at 7000' } }],
+      now: 7_000,
+    })
   })
 
   it('answers, with Respond.all, what the answers lead to', async () => {

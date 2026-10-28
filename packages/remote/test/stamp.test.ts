@@ -1,8 +1,8 @@
 /**
  * An insert's stamps predicted while it is pending (#232): who asks, from
- * `Remote.make`'s viewer, and when, from the time the store last heard from
- * the server. With a new row's derived members, the row shows whole before
- * the answer.
+ * `Remote.make`'s viewer, and when, from the time the reader acted
+ * (`Data.mutate`'s `now`), which the request sends too. With a new row's
+ * derived members, the row shows whole before the answer.
  */
 import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
@@ -77,8 +77,8 @@ const Data = Remote.make({ ...config, viewer: model => Option.some(Remote.ref(Us
 const Unviewed = Remote.make(config)
 
 /**
- * Ada's page, which read p1 at 4000 and p2 at 5000, so last heard from the
- * server at 5000. She has liked neither.
+ * Ada's page, which read p1 at 4000 and p2 at 5000. She has liked neither.
+ * She acts at 5500 (`acted`), a time the store holds nowhere.
  */
 const heard = (data: typeof Data): Model =>
   [
@@ -98,6 +98,8 @@ const heard = (data: typeof Data): Model =>
     { remote: Remote.initial, me: 'ada' },
   )
 
+const acted = 5_500
+
 const Chirp = Entity.select(Post, {
   body: true,
   authorId: true,
@@ -113,30 +115,32 @@ const shown = (data: typeof Data, model: Model, id: string) => {
 }
 
 describe("an insert's stamps while it is pending", () => {
-  it('shows a new row whole: who asked, when the page last heard, and nothing pointing at it', () => {
-    const { model } = Data.mutate(heard(Data), PostChirp, { id: 'n1', body: 'Hi' })
+  it('shows a new row whole: who asked, when they acted, and nothing pointing at it', () => {
+    const { model } = Data.mutate(heard(Data), PostChirp, { id: 'n1', body: 'Hi' }, { now: acted })
     expect(shown(Data, model, 'n1')).toEqual({
       body: 'Hi',
       authorId: 'ada',
-      createdAt: 5_000,
+      createdAt: acted,
       likeCount: 0,
       liked: null,
     })
   })
 
   it('leaves out who asked when the page names no viewer, and the answer brings it', () => {
-    const { model } = Unviewed.mutate(heard(Unviewed), PostChirp, { id: 'n1', body: 'Hi' })
+    const { model } = Unviewed.mutate(
+      heard(Unviewed),
+      PostChirp,
+      { id: 'n1', body: 'Hi' },
+      { now: acted },
+    )
     const When = Entity.select(Post, { createdAt: true })
     const Who = Entity.select(Post, { authorId: true })
-    expect(Unviewed.get(When, 'n1').read(model)).toMatchObject({ value: { createdAt: 5_000 } })
+    expect(Unviewed.get(When, 'n1').read(model)).toMatchObject({ value: { createdAt: acted } })
     expect(Unviewed.get(Who, 'n1').read(model)._tag).not.toBe('Ready')
   })
 
-  it('leaves out the time on a page that has heard nothing yet', () => {
-    const { model } = Data.mutate({ remote: Remote.initial, me: 'ada' }, PostChirp, {
-      id: 'n1',
-      body: 'Hi',
-    })
+  it('leaves out the time when it is given none, though the page has heard from the server', () => {
+    const { model } = Data.mutate(heard(Data), PostChirp, { id: 'n1', body: 'Hi' })
     const When = Entity.select(Post, { createdAt: true })
     const Who = Entity.select(Post, { authorId: true })
     expect(Data.get(Who, 'n1').read(model)).toMatchObject({ value: { authorId: 'ada' } })
@@ -152,7 +156,12 @@ describe("an insert's stamps while it is pending", () => {
   })
 
   it('counts a like of a post still pending over the 0 the post started at', () => {
-    const posted = Data.mutate(heard(Data), PostChirp, { id: 'n1', body: 'Hi' }).model
+    const posted = Data.mutate(
+      heard(Data),
+      PostChirp,
+      { id: 'n1', body: 'Hi' },
+      { now: acted },
+    ).model
     const { model } = Data.mutate(posted, LikePost, { id: 'l9', postId: 'n1' })
     expect(shown(Data, model, 'n1')).toMatchObject({ likeCount: 1, liked: 'l9' })
   })
@@ -198,15 +207,16 @@ describe("an insert's stamps while it is pending", () => {
       },
       now: 5_000,
     })
-    const sent = Data.mutate(written, PostChirp, { id: 'n1', body: 'Hi' })
+    // Ada's clock is behind the server's: she acts at 4000, after p2 and before p1.
+    const sent = Data.mutate(written, PostChirp, { id: 'n1', body: 'Hi' }, { now: 4_000 })
     const bodies = (model: Model, list: typeof newest | typeof theirs) => {
       const read = list.read(model)
       return read._tag === 'Ready' ? read.value.items.map(post => post.body) : read._tag
     }
-    expect(bodies(sent.model, newest)).toEqual(['Hi', 'Newer', 'Older'])
+    expect(bodies(sent.model, newest)).toEqual(['Newer', 'Hi', 'Older'])
     // Ada's chirp is not Bob's.
     expect(bodies(sent.model, theirs)).toEqual(['Newer', 'Older'])
-    // The answer, with the server's time, keeps it where the order puts it.
+    // The server took her time, so the answer keeps the row where it stood.
     const answered = Data.reduce(sent.model, {
       _tag: 'MutationSucceeded',
       requestId: sent.requestId,

@@ -29,7 +29,7 @@ import {
   Unlike,
   UserCard,
   likeOf,
-  type NewPost,
+  NewPost,
 } from './operations.js'
 import { PEOPLE, type Person } from './server/seed.js'
 import { AppRoute, ChirpSite, routeOf } from './site.js'
@@ -57,6 +57,7 @@ export const Model = Schema.Struct({
 })
 const own = {
   ClickedLike: { postId: Schema.String },
+  ClockedPost: { post: NewPost, now: Schema.Number },
   ...steps,
 }
 export const Message = defineMessageUnion({
@@ -69,6 +70,7 @@ const Own = defineMessageUnion(own)
 const reduce = (model: Model, message: typeof Own.Type): Return =>
   Own.match(message, {
     ClickedLike: ({ postId }) => like(model, postId),
+    ClockedPost: ({ post, now }) => sent(model, post, now),
     // #endregion
     MintedId: ({ id }) => ComposeForm.helpers.fill({ id })(model),
     ClickedEdit: ({ id }) => EditorForm.helpers.open(id)(model),
@@ -133,14 +135,27 @@ export const Status = App.surface('Status', {
 })
 
 // #region mutate
+/**
+ * A chirp sent: the box empties at once for the next one, which gets an id
+ * of its own, and the clock is read now, when you posted, since `update`
+ * reads none.
+ */
 const post = (model: Model, value: typeof NewPost.Type): Return => {
-  const sent = Data.mutate(model, PostChirp, value)
-  // The box empties for the next chirp, which gets an id of its own.
-  const cleared = ComposeForm.helpers.fill({ body: '' })(sent.model)
+  const cleared = ComposeForm.helpers.fill({ body: '' })(model)
   return {
     model: cleared.model,
-    commands: [sent.command, ...(cleared.commands ?? []), MintId()],
+    commands: [
+      ...(cleared.commands ?? []),
+      MintId(),
+      Remote.now(now => Message.ClockedPost({ post: value, now })),
+    ],
   }
+}
+
+/** The chirp written at the time you posted: shown at it, and sent with it for the server to keep. */
+const sent = (model: Model, value: typeof NewPost.Type, now: number): Return => {
+  const started = Data.mutate(model, PostChirp, value, { now })
+  return { model: started.model, commands: [started.command] }
 }
 // #endregion
 

@@ -1,8 +1,9 @@
 /**
  * What a Remote server answers past without telling the caller why: a defect
- * it answered "Internal error", and a committed mutation whose answer's read
- * or live publish failed. Each is reported through `Diagnostics.report`, so a
- * host's log (a Worker's `wrangler tail`) shows it by default.
+ * it answered "Internal error", a committed mutation whose answer's read or
+ * live publish failed, and a client's time it would not take. Each is
+ * reported through `Diagnostics.report`, so a host's log (a Worker's
+ * `wrangler tail`) shows it by default.
  */
 import { Cause } from 'effect'
 import type { Diagnostic } from 'foldkit-remote'
@@ -30,8 +31,24 @@ export interface PublishFailed extends Diagnostic {
   readonly cause: Cause.Cause<unknown>
 }
 
+/**
+ * A write sent at a time further from this server's clock than its
+ * `clockSkew`: the server wrote its own time instead, so what the client
+ * predicted of it is off until the answer lands.
+ */
+export interface ClockSkewed extends Diagnostic {
+  readonly _tag: 'ClockSkewed'
+  readonly mutation: string
+  /** The client's time, in milliseconds since the epoch. */
+  readonly sent: number
+  /** This server's clock when it read the write, which it wrote instead. */
+  readonly own: number
+  /** The bound, in milliseconds. */
+  readonly bound: number
+}
+
 /** Every diagnostic a Remote server reports. */
-export type RemoteServerDiagnostic = ServerDefect | AnswerUnread | PublishFailed
+export type RemoteServerDiagnostic = ServerDefect | AnswerUnread | PublishFailed | ClockSkewed
 
 export const serverDefect = (cause: Cause.Cause<unknown>): ServerDefect => ({
   _tag: 'ServerDefect',
@@ -57,4 +74,14 @@ export const publishFailed = (mutation: string, cause: Cause.Cause<unknown>): Pu
   message: `${mutation} committed, but its live publish failed, so live subscribers do not hear it\n${Cause.pretty(cause)}`,
   mutation,
   cause,
+})
+
+export const clockSkewed = (
+  facts: Pick<ClockSkewed, 'mutation' | 'sent' | 'own' | 'bound'>,
+): ClockSkewed => ({
+  _tag: 'ClockSkewed',
+  source,
+  level: 'warning',
+  message: `${facts.mutation} was sent at ${facts.sent}, ${Math.abs(facts.sent - facts.own)} ms from this server's clock (${facts.own}), past its clockSkew of ${facts.bound} ms: it was written at the server's time, so the client's prediction of it moves when the answer lands. The client's clock is off, or the request waited that long.`,
+  ...facts,
 })

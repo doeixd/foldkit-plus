@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import {
   MAX_FIELDS_PER_REQUEST,
   MAX_RELATION_DEPTH,
+  MutationRequest,
   REMOTE_PROTOCOL_VERSION,
   ReadBatch,
   QueryRequest,
@@ -76,6 +77,16 @@ describe('Remote wire', () => {
         relations: { manager: { entity: 'User', fields: fields(MAX_FIELDS_PER_REQUEST + 1) } },
       }),
     ).toThrow()
+  })
+
+  it('carries when the reader acted on a mutation request, and needs it from no client', () => {
+    const json = Schema.toCodecJson(MutationRequest)
+    const sent = { requestId: 'r1', mutation: 'PostChirp', input: {}, now: 1_700_000_000_123 }
+    const wire = JSON.parse(JSON.stringify(Schema.encodeUnknownSync(json)(sent)))
+    expect(Schema.decodeUnknownSync(json)(wire)).toEqual(sent)
+    // An older client sends none.
+    const { now: _, ...older } = sent
+    expect(Schema.decodeUnknownSync(json)(older)).toEqual(older)
   })
 
   it('round-trips a relation window on a read request', () => {

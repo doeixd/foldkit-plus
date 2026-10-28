@@ -220,12 +220,13 @@ describe('Data.mutate starts a mutation from update', () => {
   it('the Command yields MutationSucceeded, which reduce settles', async () => {
     const started = Data.mutate(initial, Rename, rename, {
       optimistic: [Project.patch('p1', { name: 'pending' })],
-      now: () => 42,
     })
     expect(started.command.name).toBe('Remote.mutate(Rename)')
     expect(started.command.args).toEqual({ requestId: 'remote-1' })
+    // The answer is dated by Effect's clock when it lands.
     const settled = await Effect.runPromise(
-      started.command.effect.pipe(
+      Effect.andThen(TestClock.setTime(42), started.command.effect).pipe(
+        Effect.provide(TestClock.layer()),
         Effect.provide(
           client(request =>
             Effect.succeed({

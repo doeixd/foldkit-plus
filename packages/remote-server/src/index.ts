@@ -5,7 +5,19 @@
  * turning them into Effect RPC handlers. It does not own HTTP, serialization, or
  * auth protocol; `principal` is resolved outside, and passed in or provided.
  */
-import { Cause, Clock, Context, Effect, Layer, Match, Option, Queue, Schema, Stream } from 'effect'
+import {
+  Cause,
+  Clock,
+  Context,
+  Duration,
+  Effect,
+  Layer,
+  Match,
+  Option,
+  Queue,
+  Schema,
+  Stream,
+} from 'effect'
 import {
   Entity,
   Operators,
@@ -63,7 +75,7 @@ import {
   RELATION_ALIAS,
   aliasedField,
 } from 'foldkit-remote'
-import { answerUnread, publishFailed, serverDefect } from './diagnostics.js'
+import { answerUnread, clockSkewed, publishFailed, serverDefect } from './diagnostics.js'
 import { unauthenticatedAnswer } from './refusal.js'
 
 /** What a call `RemoteServer.answer` makes can fail with, before the answer says so. */
@@ -444,6 +456,13 @@ export interface MutationSource<P, R = never> {
      * when the client sent one (Remote's does); none from an older client.
      */
     readonly operation: Option.Option<string>
+    /**
+     * The write's time, in milliseconds since the epoch: when the reader
+     * acted, as the client sent it, if within the server's `clockSkew` of its
+     * own clock; otherwise the server's own. What a declared insert's
+     * `Stamp.clock` writes.
+     */
+    readonly now: number
     /** For a declared write: the input keys to write, when the client named only some. */
     readonly keys?: ReadonlyArray<string> | undefined
   }) => Effect.Effect<
@@ -509,7 +528,35 @@ export interface ServerDefinition<P, R = never> {
   readonly live: ReadonlyMap<string, LiveSource<P, R>>
   /** Who asks, as a row: what a declared insert's `Stamp.viewer` writes. See `make`. */
   readonly viewer?: ((principal: P) => Option.Option<EntityRef>) | undefined
+  /** How far from its own clock a client's time may be and still be the write's. See `make`. */
+  readonly clockSkew?: Duration.Duration | undefined
 }
+
+/** How far from the server's clock a client's time is taken as a write's, unless `make` says. */
+const DEFAULT_CLOCK_SKEW = Duration.seconds(60)
+
+/**
+ * A write's time: the client's, when it sent one within `clockSkew` of this
+ * server's clock, or this server's. A time refused past a bound above zero is
+ * reported; at zero every client time is refused by design, so none is.
+ */
+const writeTime = (
+  server: Pick<ServerDefinition<unknown, unknown>, 'clockSkew'>,
+  mutation: string,
+  sent: Option.Option<number>,
+): Effect.Effect<number> =>
+  Effect.flatMap(Clock.currentTimeMillis, own =>
+    Option.match(sent, {
+      onNone: () => Effect.succeed(own),
+      onSome: time => {
+        const bound = Duration.toMillis(server.clockSkew ?? DEFAULT_CLOCK_SKEW)
+        if (bound === 0) return Effect.succeed(own)
+        return Math.abs(time - own) <= bound
+          ? Effect.succeed(time)
+          : Effect.as(Diagnostics.report(clockSkewed({ mutation, sent: time, own, bound })), own)
+      },
+    }),
+  )
 
 /** A read batch may not carry more than this many distinct ids per entity. */
 const DEFAULT_MAX_IDS_PER_ENTITY = 1000
@@ -1601,6 +1648,8 @@ export const RemoteServer = {
       readonly requestId: string
       /** The operation's identity across clients, for a record of the write; see `MutationSource`. */
       readonly operation: Option.Option<string>
+      /** The write's time: the client's within the server's `clockSkew`, or its own; see `MutationSource`. */
+      readonly now: number
     }) => Effect.Effect<
       MutationOutcome<Output>,
       RemoteServerError | MutationRefused | RemoteForbidden,
@@ -1617,6 +1666,7 @@ export const RemoteServer = {
         principal: context.principal,
         requestId: context.requestId,
         operation: context.operation,
+        now: context.now,
       }).pipe(
         Effect.map(outcome => ({
           output: outcome.output,
@@ -1846,7 +1896,7 @@ export const RemoteServer = {
       Input: mutation.Input,
       Output: mutation.Output,
       Refusal: mutation.Refusal,
-      run: ({ input, principal, viewer, keys, operation }) => {
+      run: ({ input, principal, viewer, keys, operation, now }) => {
         const given = input as never
         const expect = Write.expected(write, given)
         const conflict = (bound: { readonly entity: string; readonly id: string }) =>
@@ -1989,10 +2039,7 @@ export const RemoteServer = {
             Insert: () =>
               Effect.gen(function* () {
                 const bound = Write.bind(write, given)
-                const stamps = Write.stamp(write, {
-                  viewer,
-                  now: Option.some(yield* Clock.currentTimeMillis),
-                })
+                const stamps = Write.stamp(write, { viewer, now: Option.some(now) })
                 // Only the viewer can be missing: a visitor has no one to stamp.
                 if (stamps.unknown.length > 0) return yield* Effect.fail(RemoteServer.forbid())
                 const row = yield* invalid(
@@ -2078,6 +2125,12 @@ export const RemoteServer = {
    * (`principal => Option.some(Remote.ref(User, principal.id))`), or none for
    * a visitor: what a declared insert's `Stamp.viewer` writes. A server
    * registering such an insert without one is refused here.
+   *
+   * `clockSkew` is how far from this server's clock a client's time (the
+   * `now` a write is sent with, when the reader acted) may be and still be
+   * the write's time: 60 seconds unless given, and `0` to never take it. A
+   * time beyond it is replaced by the server's own, and reported as
+   * `ClockSkewed`. It bounds how far a client can backdate or postdate a row.
    */
   make: <P = unknown, R = never>(config: {
     readonly entities: readonly EntitySource<P, R>[]
@@ -2085,6 +2138,7 @@ export const RemoteServer = {
     readonly queries?: readonly QuerySource<P, R>[]
     readonly live?: readonly LiveSource<P, R>[]
     readonly viewer?: ((principal: P) => Option.Option<EntityRef>) | undefined
+    readonly clockSkew?: Duration.Input | undefined
   }): ServerDefinition<P, R> => {
     if (config.viewer === undefined) {
       const viewing = (config.mutations ?? []).find(source =>
@@ -2107,6 +2161,10 @@ export const RemoteServer = {
       queries: new Map((config.queries ?? []).map(source => [source.query, source])),
       live: new Map((config.live ?? []).map(source => [source.entity, source])),
       viewer: config.viewer,
+      // Read here, so a bound that is no duration fails where it is given.
+      ...(config.clockSkew === undefined
+        ? {}
+        : { clockSkew: Duration.fromInputUnsafe(config.clockSkew) }),
     }
   },
 
@@ -2408,6 +2466,7 @@ export const RemoteServer = {
             viewer: server.viewer === undefined ? Option.none() : server.viewer(caller),
             requestId: payload.requestId,
             operation: Option.fromUndefinedOr(payload.operation),
+            now: yield* writeTime(server, payload.mutation, Option.fromUndefinedOr(payload.now)),
             keys: payload.keys,
           })
           .pipe(
@@ -2574,6 +2633,7 @@ export const RemoteServer = {
 export * from './evaluate.js'
 export type {
   AnswerUnread,
+  ClockSkewed,
   PublishFailed,
   RemoteServerDiagnostic,
   ServerDefect,

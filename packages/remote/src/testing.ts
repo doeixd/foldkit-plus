@@ -159,6 +159,12 @@ export interface TraceConfig<AppModel, Message> {
   readonly active: Readonly<Record<string, ActiveSurface<AppModel> | SurfaceSource<AppModel>>>
   /** As `Data.subscriptions` takes them; the trace's clock stands still, so it sets `now`. */
   readonly options?: Omit<SubscriptionsOptions, 'now'>
+  /**
+   * The time the trace's clock stands at, in milliseconds since the epoch:
+   * what every Command and Subscription it runs reads (`Remote.now`, an
+   * answer's date), and what the answers it asks for are given. Default 0.
+   */
+  readonly now?: number
   /** What answers each request once a step lets it go on: a fake, or a server's in-process client. */
   readonly client: Client
   readonly steps: ReadonlyArray<NoInfer<Message> | Respond>
@@ -211,18 +217,21 @@ const makeScheduler = () => {
 }
 
 /**
- * A clock that stands still: a wait of no time ends, as the next tick would end
- * it, and every longer one never does, so age-outs, a retention `grace` and
- * live restarts wait for good.
+ * A clock that stands still at `at`: a wait of no time ends, as the next tick
+ * would end it, and every longer one never does, so age-outs, a retention
+ * `grace` and live restarts wait for good.
  */
-const stopped: Clock.Clock = {
-  currentTimeMillisUnsafe: () => 0,
-  currentTimeMillis: Effect.succeed(0),
-  currentTimeNanosUnsafe: () => 0n,
-  currentTimeNanos: Effect.succeed(0n),
-  monotonicTimeNanosUnsafe: () => 0n,
-  monotonicTimeNanos: Effect.succeed(0n),
-  sleep: duration => (Duration.isZero(duration) ? Effect.void : Effect.never),
+const stopped = (at: number): Clock.Clock => {
+  const nanos = BigInt(at) * 1_000_000n
+  return {
+    currentTimeMillisUnsafe: () => at,
+    currentTimeMillis: Effect.succeed(at),
+    currentTimeNanosUnsafe: () => nanos,
+    currentTimeNanos: Effect.succeed(nanos),
+    monotonicTimeNanosUnsafe: () => nanos,
+    monotonicTimeNanos: Effect.succeed(nanos),
+    sleep: duration => (Duration.isZero(duration) ? Effect.void : Effect.never),
+  }
 }
 
 const run = async <AppModel, Message>(
@@ -230,6 +239,8 @@ const run = async <AppModel, Message>(
   config: TraceConfig<AppModel, Message>,
 ): Promise<Trace<AppModel, Message>> => {
   const { scheduler, flush } = makeScheduler()
+  const at = config.now ?? 0
+  const clock = stopped(at)
   const held: Array<Held> = []
   const queue: Array<Message> = []
   const entries: Array<TraceEntry<AppModel, Message>> = []
@@ -284,7 +295,7 @@ const run = async <AppModel, Message>(
     const fiber = Effect.runFork(
       effect.pipe(
         Effect.provideService(RemoteClient, client),
-        Effect.provideService(Clock.Clock, stopped),
+        Effect.provideService(Clock.Clock, clock),
       ),
       { scheduler },
     )
@@ -311,7 +322,7 @@ const run = async <AppModel, Message>(
 
   // The entries send Remote's Messages, which `update`'s type makes the application's own.
   const subscriptions = Object.entries(
-    Data.subscriptions(config.active, { ...config.options, now: () => 0 }),
+    Data.subscriptions(config.active, { ...config.options, now: () => at }),
   ) as unknown as ReadonlyArray<[string, Entry<AppModel, Message>]>
   const running = new Map<
     string,
@@ -375,7 +386,7 @@ const run = async <AppModel, Message>(
       Option.match(fail, {
         onNone: () => request.ask(config.client),
         onSome: error => Effect.fail(error),
-      }),
+      }).pipe(Effect.provideService(Clock.Clock, clock)),
     )
     request.resume(exit)
     settle()

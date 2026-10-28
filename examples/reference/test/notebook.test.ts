@@ -70,7 +70,8 @@ beforeAll(async () => {
 })
 
 describe('a note added', () => {
-  const added = () => update(ada, Message.NamedNote({ id: 'a1', title: 'First light', body: '' }))
+  const added = () =>
+    update(ada, Message.NamedNote({ id: 'a1', title: 'First light', body: '', now: 200 }))
 
   it('shows first in the notebook, and in its author’s count, before the server answers', () => {
     expect(notebook(ada)).toEqual({ titles: ['Wire'], count: 0 })

@@ -348,6 +348,8 @@ export type RemoteMessage =
             readonly mutation: string
             readonly input: unknown
             readonly keys?: ReadonlyArray<string> | undefined
+            /** When the reader acted: what the request sends, and a retry sends again. */
+            readonly now?: number | undefined
           }
         | undefined
     }
@@ -486,6 +488,7 @@ export const remoteMessageCases = {
         mutation: Schema.String,
         input: Schema.Unknown,
         keys: Schema.optional(Schema.Array(Schema.String)),
+        now: Schema.optional(Schema.Number),
       }),
     ),
   },
@@ -1078,7 +1081,13 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
           message.requestId,
           message.write === undefined
             ? undefined
-            : { ...message.write, optimistic: message.optimistic ?? [] },
+            : {
+                mutation: message.write.mutation,
+                input: message.write.input,
+                keys: message.write.keys,
+                now: Option.fromUndefinedOr(message.write.now),
+                optimistic: message.optimistic ?? [],
+              },
         ),
         optimistic: beginOptimistic(model.optimistic, message.requestId, message.optimistic ?? []),
       }

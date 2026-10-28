@@ -101,9 +101,11 @@ active while its route is the page's. A Surface does no I/O: Remote reads what
 the active ones are missing and reduces the answers into the Model. Told who
 reads (`viewer`), Remote shows a like at once from the declarations alone: the
 count moves, the heart fills, and nothing in `update` computes either. A new
-chirp is predicted the same way: yours, timed when the page last heard from
-the server, counted in your post count, and placed in each loaded list its
-query admits. The timeline draws it when the answer brings `may`, which only
+chirp is predicted the same way: yours, at the time you posted, counted in
+your post count, and placed in each loaded list its query admits. `update`
+reads no clock, so a post asks for the time first (`Remote.now`), and the
+Message it yields starts the write with it; the server keeps that time, so
+the answer moves nothing. The timeline draws it when the answer brings `may`, which only
 the server can say.
 
 **The forms** (`compose.ts`, `editor.ts`). The compose box is

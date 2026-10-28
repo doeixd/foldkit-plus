@@ -139,4 +139,15 @@ export default [
     ],
     tests: migrations,
   },
+  {
+    name: 'a note is added with no time',
+    edits: [
+      {
+        file: '../src/main.ts',
+        find: 'Data.mutate(model, AddNote, { id, title, body }, { now })',
+        replace: 'Data.mutate(model, AddNote, { id, title, body })',
+      },
+    ],
+    tests: page,
+  },
 ]

@@ -207,9 +207,11 @@ export const mutateRemote = Effect.fn('Remote.mutate')(function* <
     readonly operation?: string | undefined
     /** What the client shows of each entity's rows, for the answer to carry (`Data.mutate` sends it). */
     readonly shown?: ReadonlyArray<RelationRequirement> | undefined
+    /** When the reader acted, as `Data.mutate` predicted it: sent for the server to take. */
+    readonly now?: number | undefined
   } = {},
 ) {
-  const { keys, shown } = options
+  const { keys, shown, now } = options
   const operation = options.operation ?? (yield* Effect.sync(mintOperation))
   yield* Effect.annotateCurrentSpan({ mutation: mutation.name, requestId, operation })
   const client = yield* RemoteClient
@@ -224,6 +226,7 @@ export const mutateRemote = Effect.fn('Remote.mutate')(function* <
     mutation: mutation.name,
     input: encoded,
     ...(keys === undefined ? {} : { keys }),
+    ...(now === undefined ? {} : { now }),
     ...(shown === undefined || shown.length === 0 ? {} : { shown }),
   })
   const output = yield* Schema.decodeUnknownEffect(mutation.Output)(result.output).pipe(

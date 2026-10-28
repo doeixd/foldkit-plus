@@ -5,7 +5,7 @@
  * live classification, optimistic layers) performs no I/O. The `Remote.*`
  * helpers that read or mutate go through the `RemoteClient` Effect service.
  */
-import { Duration, Effect, Layer, Option, Record, Result, Schema, Stream } from 'effect'
+import { Clock, Duration, Effect, Layer, Option, Record, Result, Schema, Stream } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
 import {
   Derivation,
@@ -377,8 +377,14 @@ export interface DomainMutateOptions {
         readonly tempId: string
       }) => ReadonlyArray<OptimisticOperation>)
     | undefined
-  /** The clock `MutationSucceeded` stamps the answer with; default `Date.now`, read at each use. */
-  readonly now?: (() => number) | undefined
+  /**
+   * When the reader acted, in milliseconds since the epoch: what a time the
+   * write stamps (`Stamp.clock`) is predicted as, and the same number the
+   * request sends, which the server takes within its `clockSkew`. Read it
+   * where the action is, with `Remote.now`, since `update` reads no clock.
+   * Without it a stamped time is not predicted, and the server's clock decides.
+   */
+  readonly now?: number | undefined
   /**
    * For a mutation that is a `Write`: the input keys to write, when only some
    * changed (what an author edited). The rest of the input is still sent, whole.
@@ -1262,8 +1268,12 @@ const memoRead = <T>(scopes: ReadonlyArray<object>, key: string, compute: () => 
 export interface MutateOptions {
   /** What the request changes before the server answers; released when it settles. */
   readonly optimistic?: ReadonlyArray<OptimisticOperation> | undefined
-  /** The clock `MutationSucceeded` stamps the answer with; default `Date.now`, read at each use. */
-  readonly now?: (() => number) | undefined
+  /**
+   * When the reader acted, in milliseconds since the epoch, as `Remote.now`
+   * read it: sent for a time the write stamps, which the server takes within
+   * its `clockSkew`.
+   */
+  readonly now?: number | undefined
 }
 
 /**
@@ -2898,6 +2908,21 @@ export const Remote = {
   mutate: mutateRemote,
 
   /**
+   * Reads the clock where the reader acts, for `Data.mutate`'s `now`: a
+   * Command that yields `toMessage(now)`, the time in milliseconds since the
+   * epoch. It reads Effect's `Clock`, so a test pins it, and `Trace.run`
+   * runs it at the trace's time. Chirp's compose box answers a submit with
+   * `Remote.now(now => Message.ClockedPost({ post, now }))`, and
+   * `ClockedPost` starts the write.
+   */
+  now: <M>(
+    toMessage: (now: number) => M,
+  ): { readonly name: 'Remote.now'; readonly effect: Effect.Effect<M> } => ({
+    name: 'Remote.now',
+    effect: Effect.map(Clock.currentTimeMillis, toMessage),
+  }),
+
+  /**
    * Runs a mutation and reconciles its patches into a `RemoteModel` in one step,
    * returning the new model alongside the typed Output. The model-level form of
    * `MutationStarted` → `RemoteClient.mutate` → `MutationSucceeded`; in an
@@ -2923,14 +2948,14 @@ export const Remote = {
       requestId,
       ...(options.optimistic === undefined ? {} : { optimistic: options.optimistic }),
     })
-    const outcome = yield* mutateRemote(mutation, input, requestId)
+    const outcome = yield* mutateRemote(mutation, input, requestId, { now: options.now })
     const settled = updateRemote(started, {
       _tag: 'MutationSucceeded',
       requestId,
       entities: outcome.entities,
       connections: outcome.connections,
       deleted: outcome.deleted,
-      now: (options.now ?? wallClock)(),
+      now: yield* Clock.currentTimeMillis,
     })
     return {
       output: outcome.output,
@@ -4062,6 +4087,7 @@ const bindDomain = <
                   derived: definition.registry.derived,
                   store: visibleStoreOf(remote.entities, remote.optimistic, bound.operators),
                   viewer: viewerOf(model),
+                  now: Option.fromUndefinedOr(options.now),
                 })))
       const started = updateRemote(remote, {
         _tag: 'MutationStarted',
@@ -4071,6 +4097,7 @@ const bindDomain = <
           mutation: mutation.name,
           input,
           ...(options.keys === undefined ? {} : { keys: options.keys }),
+          ...(options.now === undefined ? {} : { now: options.now }),
         },
       })
       const startedModel = store.set(model, started as Store)
@@ -4096,23 +4123,27 @@ const bindDomain = <
                 keys: options.keys,
                 operation,
                 shown,
+                now: options.now,
               }).pipe(
-                Effect.match({
-                  onFailure: (error): RemoteMessage => ({
-                    _tag: 'MutationFailed',
-                    requestId,
-                    error: remoteError(error),
-                    operation,
-                  }),
-                  onSuccess: (outcome): RemoteMessage => ({
-                    _tag: 'MutationSucceeded',
-                    requestId,
-                    entities: outcome.entities,
-                    connections: outcome.connections,
-                    deleted: outcome.deleted,
-                    ...(outcome.read === undefined ? {} : { read: outcome.read }),
-                    now: (options.now ?? wallClock)(),
-                  }),
+                Effect.matchEffect({
+                  onFailure: error =>
+                    Effect.succeed<RemoteMessage>({
+                      _tag: 'MutationFailed',
+                      requestId,
+                      error: remoteError(error),
+                      operation,
+                    }),
+                  // Dated when it lands, by the clock a test pins.
+                  onSuccess: outcome =>
+                    Effect.map(Clock.currentTimeMillis, (at): RemoteMessage => ({
+                      _tag: 'MutationSucceeded',
+                      requestId,
+                      entities: outcome.entities,
+                      connections: outcome.connections,
+                      deleted: outcome.deleted,
+                      ...(outcome.read === undefined ? {} : { read: outcome.read }),
+                      now: at,
+                    })),
                 }),
               ),
           ),
@@ -4159,6 +4190,8 @@ const bindDomain = <
           requestId,
           optimistic: write.optimistic,
           keys: write.keys,
+          // The same time, so the server stores what the retry shows again.
+          now: Option.getOrUndefined(write.now),
         }),
       )
     },

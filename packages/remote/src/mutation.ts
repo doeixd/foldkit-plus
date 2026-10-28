@@ -58,6 +58,12 @@ export interface StartedWrite {
   /** The input as `Data.mutate` was given it, decoded. */
   readonly input: unknown
   readonly keys?: ReadonlyArray<string> | undefined
+  /**
+   * When the reader acted, as `Data.mutate` was given it: what it predicted
+   * a clock stamp as and sent, and what a retry sends again. None when it was
+   * given none, and the server's clock decides.
+   */
+  readonly now: Option.Option<number>
   /** What it showed until it settled, shown again by a retry. */
   readonly optimistic: ReadonlyArray<OptimisticOperation>
 }
@@ -394,20 +400,8 @@ export const patchOfWrite = (bound: BoundWrite): NormalizedPatch => ({
  */
 export interface Stamping {
   readonly viewer: Option.Option<{ readonly entity: string; readonly id: string }>
+  /** When the reader acted (`Data.mutate`'s `now`): the same number the request sends. */
   readonly now: Option.Option<number>
-}
-
-/**
- * The latest reading of the client's clock the store was written at: what a
- * clock stamp is predicted as, since `update` reads no clock. It is when the
- * client last heard from the server, so a new row sorts after every row it
- * has read; the answer brings the server's time. None for a store never written.
- */
-const lastHeard = (store: EntityStore): Option.Option<number> => {
-  let latest = -Infinity
-  for (const entry of Object.values(store))
-    if (Number.isFinite(entry.updatedAt) && entry.updatedAt > latest) latest = entry.updatedAt
-  return latest === -Infinity ? Option.none() : Option.some(latest)
 }
 
 /** A write bound to its input, with what an insert stamps as `stamping` fills it. */
@@ -629,7 +623,7 @@ const freshDerived = (
 /**
  * Everything a declared write shows before the server answers, from its
  * declarations alone: its own row (`optimisticOfWrite`), with what an insert
- * stamps filled from `viewer` and the time the store last heard, a new row's
+ * stamps filled from `viewer` and `now`, a new row's
  * derived members (`freshDerived`), and the derived members it moves on the
  * rows it points at (`derivedOfWrite`). `derived` is the registry's, by the
  * pointing Entity; `store` is the store as shown, layers and all.
@@ -642,9 +636,10 @@ export const predictionOfWrite = (
     readonly derived: ReadonlyMap<string, ReadonlyArray<DerivedBy>>
     readonly store: EntityStore
     readonly viewer: Option.Option<{ readonly entity: string; readonly id: string }>
+    readonly now: Option.Option<number>
   },
 ): ReadonlyArray<PendingPatch | PendingDelete> => {
-  const stamping = { viewer: context.viewer, now: lastHeard(context.store) }
+  const stamping = { viewer: context.viewer, now: context.now }
   return [
     ...Match.value(write).pipe(
       Match.tagsExhaustive({

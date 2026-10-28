@@ -78,4 +78,91 @@ export default [
     ],
     tests,
   },
+  {
+    name: "the server ignores the client's time",
+    edits: [
+      {
+        file,
+        find: 'now: yield* writeTime(server, payload.mutation, Option.fromUndefinedOr(payload.now)),',
+        replace: 'now: yield* Clock.currentTimeMillis,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: "an insert stamps the server's clock, not the write's time",
+    edits: [
+      {
+        file,
+        find: 'Write.stamp(write, { viewer, now: Option.some(now) })',
+        replace: 'Write.stamp(write, { viewer, now: Option.some(yield* Clock.currentTimeMillis) })',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'any client time is taken',
+    edits: [{ file, find: 'return Math.abs(time - own) <= bound', replace: 'return true' }],
+    tests,
+  },
+  {
+    name: 'a time at the bound is refused',
+    edits: [
+      {
+        file,
+        find: 'return Math.abs(time - own) <= bound',
+        replace: 'return Math.abs(time - own) < bound',
+      },
+    ],
+    tests,
+  },
+  {
+    name: "a bound of 0 takes the client's time",
+    edits: [
+      {
+        file,
+        find: 'if (bound === 0) return Effect.succeed(own)',
+        replace: 'if (bound === 0) return Effect.succeed(time)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a bound of 0 reports what it refuses',
+    edits: [{ file, find: 'if (bound === 0) return Effect.succeed(own)', replace: '' }],
+    tests,
+  },
+  {
+    name: 'a skewed time is not reported',
+    edits: [
+      {
+        file,
+        find: ': Effect.as(Diagnostics.report(clockSkewed({ mutation, sent: time, own, bound })), own)',
+        replace: ': Effect.succeed(own)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the default bound is a second',
+    edits: [
+      {
+        file,
+        find: 'const DEFAULT_CLOCK_SKEW = Duration.seconds(60)',
+        replace: 'const DEFAULT_CLOCK_SKEW = Duration.seconds(1)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'make drops the bound it is given',
+    edits: [
+      {
+        file,
+        find: ': { clockSkew: Duration.fromInputUnsafe(config.clockSkew) }),',
+        replace: ': {}),',
+      },
+    ],
+    tests,
+  },
 ]

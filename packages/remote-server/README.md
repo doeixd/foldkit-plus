@@ -473,10 +473,19 @@ RemoteServer.write(EditProject, writer(Db.Project)) // `writer` from foldkit-rem
 The answer is the mutation's patch, or for a delete its deletion. An insert of
 an Entity with `Entity.stamps` is handed its stamped members as well, never
 from the input: `Stamp.viewer` from `RemoteServer.make({ viewer: principal =>
-Option<{ entity, id }> })`, and `Stamp.clock` from the Effect `Clock`. A
+Option<{ entity, id }> })`, and `Stamp.clock` from the write's time. A
 visitor's insert that stamps the viewer is refused as forbidden; a server that
 serves such a write with no `viewer` is refused where it is made. The clock's
 fields reach the writer as `stamped`, so a retried insert keeps its first time.
+
+The write's time is the client's when it sent one (`Data.mutate`'s `now`, the
+moment the reader acted, which the client showed the row at) and it lies
+within `RemoteServer.make({ clockSkew })` of the server's Effect `Clock`: 60
+seconds unless given, `0` to never take a client's time. Otherwise it is the
+server's own, and a time past a bound above zero is reported as a
+`ClockSkewed` diagnostic. The bound is how far a client can backdate or
+postdate a row; nothing else of a write's context comes from the client. A
+hand-written mutation reads the same time as `now` in its context.
 With `expect`, the writer is told the revision the row was read at; no row at it is
 refused as `Refusal.conflict`. With `when`, the writer is handed the
 precondition and the input encoded, checks it in the statement that writes, and

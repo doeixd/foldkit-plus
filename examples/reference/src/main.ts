@@ -6,7 +6,7 @@
  * renders as the new reader, so nothing here forgets a principal in place.
  */
 import type * as Client from '@yielded/auth/Client'
-import { Context, Effect, Match, Option, Redacted, Schema, pipe } from 'effect'
+import { Clock, Context, Effect, Match, Option, Redacted, Schema, pipe } from 'effect'
 import * as Command from 'foldkit/command'
 import { defineMessageUnion } from 'foldkit/message'
 import { load, pushUrl, UrlRequest } from 'foldkit/navigation'
@@ -92,8 +92,8 @@ const own = {
   SubmittedAuth: {},
   FailedAuth: { reason: Schema.String },
   ClickedSignOut: {},
-  /** A draft from the add form, given its id. */
-  NamedNote: { id: Schema.String, title: Schema.String, body: Schema.String },
+  /** A draft from the add form, given its id and the time it was added. */
+  NamedNote: { id: Schema.String, title: Schema.String, body: Schema.String, now: Schema.Number },
   ClickedEdit: { id: Schema.String },
   ClickedDelete: { id: Schema.String },
   ClickedDismiss: { requestId: Schema.String },
@@ -206,12 +206,17 @@ const Page = Bundle.parent({ Model, Message }).withServices<Services>()
 export const NoteEditor = Editor.at({ data: Data, model: App.model.editor })
 export const EditorForm = Page.at(Editing, { onOut: NoteEditor.onOut })
 
-/** A fresh id for a note about to be added: `update` mints none. */
+/**
+ * A fresh id for a note about to be added, and the time it was: `update`
+ * mints no id and reads no clock.
+ */
 const NameNote = Command.define('NameNote', {
   args: { title: Schema.String, body: Schema.String },
   messages: [Message.NamedNote],
   execute: ({ title, body }) =>
-    Effect.sync(() => Message.NamedNote({ id: crypto.randomUUID(), title, body })),
+    Effect.map(Clock.currentTimeMillis, now =>
+      Message.NamedNote({ id: crypto.randomUUID(), title, body, now }),
+    ),
 })
 
 /** The form empties at once for the next note; the note shows as soon as it is named. */
@@ -400,11 +405,11 @@ const submitted = (model: Model): Return => {
 
 /**
  * A named draft, added. Remote shows it at once from the declarations: the
- * reader as its author and its time, both the Note's stamps, its place in the
- * notebook by the list's order, and its author's count.
+ * reader as its author and the time it was added, both the Note's stamps,
+ * its place in the notebook by the list's order, and its author's count.
  */
-const added = (model: Model, { id, title, body }: typeof Message.NamedNote.Type): Return => {
-  const sent = Data.mutate(model, AddNote, { id, title, body })
+const added = (model: Model, { id, title, body, now }: typeof Message.NamedNote.Type): Return => {
+  const sent = Data.mutate(model, AddNote, { id, title, body }, { now })
   return { model: sent.model, commands: [sent.command] }
 }
 

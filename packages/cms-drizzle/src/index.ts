@@ -856,6 +856,7 @@ export const CmsServer = {
             viewer: Option.none(),
             requestId: `publish:${entry.id}:${held ?? 'new'}`,
             operation: Option.some(`publish:${entry.id}:${held ?? 'new'}`),
+            now: at.getTime(),
           })
           const targetId = creating
             ? String((ran.output as { readonly id: unknown }).id)
