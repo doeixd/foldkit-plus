@@ -31,7 +31,7 @@ export const Timeline = Query.define('Timeline', {}, () =>
 /** One person's posts, the newest first. */
 export const ByAuthor = Query.define('ByAuthor', { authorId: Schema.String }, ({ input }) =>
   Query.from(Post).pipe(
-    Query.where(Expr.eq(Post.fields.authorId, input.authorId)),
+    Query.where(Expr.eq(Post.relations.author, input.authorId)),
     Query.orderBy(Order.desc(Post.fields.createdAt)),
   ),
 )
@@ -58,7 +58,7 @@ export const EditInput = Schema.Struct({
 export const likeOf = (postId: string, userId: string): string => `${postId}~${userId}`
 
 /**
- * A like: a row pointing at the post, and at you, whom the server stamps. The
+ * A like: a row pointing at the post, and at you, whom the server sets. The
  * page shows it on the post at once (its count, and `liked`), and the
  * server's answer reads the post.
  */

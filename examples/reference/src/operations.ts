@@ -48,9 +48,9 @@ const { title, body } = Notebook.Note.fields
 export const NoteDraft = Schema.Struct({ title: title.schema, body: body.schema })
 
 /**
- * A new note: its id and what was typed. Its author and its time are the
- * Note's stamps, so the page sends neither and still shows the note at once,
- * placed in the list by its time.
+ * A new note: its id and what was typed. Its author and its time the Note
+ * sets from the write's context, so the page sends neither and still shows
+ * the note at once, placed in the list by its time.
  */
 export const NewNote = Schema.Struct({ ...Entity.fields(Notebook.Note, 'id'), ...NoteDraft.fields })
 

@@ -405,7 +405,7 @@ const submitted = (model: Model): Return => {
 
 /**
  * A named draft, added. Remote shows it at once from the declarations: the
- * reader as its author and the time it was added, both the Note's stamps,
+ * reader as its author and the time it was added, both set by the context,
  * its place in the notebook by the list's order, and its author's count.
  */
 const added = (model: Model, { id, title, body, now }: typeof Message.NamedNote.Type): Return => {

@@ -20,7 +20,6 @@ const NoteFields = Entity.define(
   'Note',
   Schema.Struct({
     id: Schema.String,
-    authorId: Schema.String,
     title: Schema.String.check(Schema.isMinLength(1), Schema.isMaxCodePoints(120)).annotate({
       title: 'Title',
     }),
@@ -49,14 +48,7 @@ export const Notebook = Entity.relate(
  * time. No input sets them; the server sets them, and the page predicts them.
  */
 export const AuthoredNote = Notebook.Note.pipe(
-  Entity.sets(
-    {
-      authorId: Expr.viewer(MemberFields),
-      author: Expr.viewer(MemberFields),
-      createdAt: Expr.now,
-    },
-    { on: 'create' },
-  ),
+  Entity.sets({ author: Expr.viewer(MemberFields), createdAt: Expr.now }, { on: 'create' }),
 )
 
 /** A member, with how many notes name them as author: the server counts, the page predicts. */

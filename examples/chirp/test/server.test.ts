@@ -124,13 +124,13 @@ describe('posting', () => {
     const you = sandbox()('you')
     expect((await you.mutate('PostChirp', { id: 'n1', body: 'Hi' }))._tag).toBe('Success')
     expect((await you.timeline())[0]).toBe('n1')
-    expect(await you.read('n1', ['authorId'])).toEqual({ authorId: 'you' })
+    expect(await you.read('n1', ['author'])).toEqual({ author: 'User:you' })
   })
 
   it('keeps the poster as the author, whatever the browser names', async () => {
     const you = sandbox()('you')
-    await you.mutate('PostChirp', { id: 'n1', authorId: 'ada', body: 'Hi' })
-    expect(await you.read('n1', ['authorId'])).toEqual({ authorId: 'you' })
+    await you.mutate('PostChirp', { id: 'n1', author: 'User:ada', body: 'Hi' })
+    expect(await you.read('n1', ['author'])).toEqual({ author: 'User:you' })
   })
 
   it('answers a chirp sent again under its operation with its row, and refuses another', async () => {
@@ -258,7 +258,7 @@ describe('liking', () => {
 
   it('makes a like its asker’s, whatever the browser names', async () => {
     const you = sandbox()('you')
-    await you.mutate('LikePost', { ...like('p2', 'you'), userId: 'grace' })
+    await you.mutate('LikePost', { ...like('p2', 'you'), user: 'User:grace' })
     expect(await you.read('p2', ['liked'])).toEqual({ liked: likeOf('p2', 'you') })
   })
 

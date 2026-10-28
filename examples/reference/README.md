@@ -55,7 +55,7 @@ A write is shown before the server answers, and the server decides it:
 
 ```text
 Add -> NameNote (id) -> Data.mutate(AddNote)   the note, in its place, and its author's count, at once
-    -> POST /remote -> the Note's stamps (author, time) -> GuardServer.writer: the guard, the decode, the CHECKs -> D1
+    -> POST /remote -> what the Note sets from the context (author, time) -> GuardServer.writer: the guard, the decode, the CHECKs -> D1
     -> the answer, reduced into the Model; another member's page hears it from pollLive
 ```
 
@@ -83,8 +83,9 @@ pnpm mutate examples/reference/test/reference.mutations.ts              # each t
 **The domain** (`domain.ts`, `guard.ts`). A `Member` and a `Note` are
 Entities, related by the note's author. A member's `noteCount` is
 `Derived.count(Note.relations.author)`: the server counts, the page predicts.
-A note's author and its time are `Entity.stamps`: no input sets them, the
-server fills them from who asks and its clock, and the page predicts them,
+A note's author and its time are `Entity.sets` over `Expr.viewer(Member)` and
+`Expr.now`: no input sets them, the server fills them from who asks and the
+write's time, and the page predicts them,
 so a new note shows in its place in the newest-first list at once.
 The title's and the body's limits are Schema checks, in code points, which
 is what SQL counts. The guard says a note is written by its author;

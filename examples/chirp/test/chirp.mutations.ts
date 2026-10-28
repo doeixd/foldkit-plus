@@ -44,8 +44,8 @@ export default [
     edits: [
       {
         file: '../src/guard.ts',
-        find: 'Expr.eq(PostFields.fields.authorId, p.id)',
-        replace: 'Expr.eq(PostFields.fields.authorId, PostFields.fields.authorId)',
+        find: 'Expr.eq(Chirp.Post.relations.author, p.id)',
+        replace: 'Expr.eq(Chirp.Post.relations.author, Chirp.Post.relations.author)',
       },
     ],
     tests: server,
@@ -100,7 +100,7 @@ export default [
     edits: [
       {
         file: '../src/operations.ts',
-        find: 'Query.where(Expr.eq(Post.fields.authorId, input.authorId)),',
+        find: 'Query.where(Expr.eq(Post.relations.author, input.authorId)),',
         replace: '',
       },
     ],

@@ -38,8 +38,8 @@ export default [
     edits: [
       {
         file: '../src/domain.ts',
-        find: '      author: Expr.viewer(MemberFields),\n',
-        replace: '',
+        find: '{ author: Expr.viewer(MemberFields), createdAt: Expr.now }',
+        replace: '{ createdAt: Expr.now }',
       },
     ],
     tests: page,
@@ -78,8 +78,8 @@ export default [
     edits: [
       {
         file: '../src/guard.ts',
-        find: 'p => Expr.eq(Notebook.Note.fields.authorId, p.id)',
-        replace: 'p => Expr.eq(Notebook.Note.fields.authorId, Notebook.Note.fields.authorId)',
+        find: 'p => Expr.eq(Notebook.Note.relations.author, p.id)',
+        replace: 'p => Expr.eq(Notebook.Note.relations.author, Notebook.Note.relations.author)',
       },
     ],
     tests: worker,

@@ -127,7 +127,7 @@ const SCHEMA = `
 // #endregion
 
 /**
- * A like's id is `likeOf` its post and its liker, whom the server stamps, so
+ * A like's id is `likeOf` its post and its liker, whom the server sets, so
  * one under any other id is refused: under another's, it would take the id
  * their own like needs. No rule can say so, as no operator joins two texts,
  * so the writer checks it, behind the guards.
@@ -162,11 +162,11 @@ const ledgered = {
 }
 
 // Every write is decided by its rules before it lands. Who wrote a chirp or
-// made a like, and when, the Entities stamp: the browser sends neither.
+// made a like, and when, the Entities set from the context: the browser sends neither.
 const guarded = GuardServer.writer(Post, Policy, writer(Db.Post, ledgered))
 const likeWrites = GuardServer.writer(Like, Policy, ownLikes(writer(Db.Like, ledgered)))
 
-/** Who is asking, as the row a stamp, a `liked` or an `Expr.viewer` names. */
+/** Who is asking, as the row an `Expr.viewer` or a `liked` names. */
 const asker = (principal: Option.Option<User>) =>
   Option.map(principal, user => Remote.ref(Chirper, user.id))
 

@@ -17,7 +17,7 @@ export const G = Guards.declare(
   Principal,
   guard => ({
     isMember: guard.principal(),
-    isAuthor: guard.row(Notebook.Note, p => Expr.eq(Notebook.Note.fields.authorId, p.id)),
+    isAuthor: guard.row(Notebook.Note, p => Expr.eq(Notebook.Note.relations.author, p.id)),
   }),
   { key: principal => principal.id, unguarded: 'deny' },
 )

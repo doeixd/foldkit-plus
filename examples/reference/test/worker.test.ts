@@ -194,17 +194,17 @@ describe('writes', () => {
     )
     const other = await member('Joan')
 
-    // A request naming Hedy as the author: the server stamps whoever asks.
+    // A request naming Hedy as the author: the server sets whoever asks.
     const forged = await Effect.runPromise(
       Remote.http(`${stack.origin}/remote`, {
         headers: () => ({ ...scripted(), cookie: other }),
       }).FoldkitRemoteMutate({
         requestId: 'forged',
         mutation: 'AddNote',
-        input: { id: 'joan-1', title: 'In Hedy’s name', body: '', authorId: hedy, author: hedy },
+        input: { id: 'joan-1', title: 'In Hedy’s name', body: '', author: hedy },
       }),
     )
-    expect(forged.entities[0]?.values).toMatchObject({ authorId: await idOf(other) })
+    expect(forged.entities[0]?.values).toMatchObject({ author: `Member:${await idOf(other)}` })
     const edited = await write(
       other,
       Data.mutate(initial, EditNote, { id: 'hedy-1', title: 'Mine now', body: '' }),

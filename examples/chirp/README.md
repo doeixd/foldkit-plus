@@ -33,7 +33,7 @@ view ──Message──▶ update ──▶ Model ──▶ view
 ```
 
 A chirp posted is a Message; `update` hands it to Remote as a declared write
-(`PostChirp`), which predicts it and sends it. The server stamps the author
+(`PostChirp`), which predicts it and sends it. The server sets the author
 and the time, checks the guards, writes it, and answers; the answer is
 reduced into the Model like any other Message.
 
@@ -61,10 +61,10 @@ answer carries the new count with no code naming the row it is on. A post's
 `liked` is `Derived.exists(Chirp.Like.relations.post, { viewer:
 Chirp.Like.relations.user })`: your Like's id, or none, read for whoever asks,
 so the page never reads who else liked a post. What the server chooses when a
-row is made is said once, on the Entity, with `Entity.stamps`: a post's author
-(`authorId` and the `author` link, one column) and a like's person are
-`Stamp.viewer`, whoever asks, and a post's `createdAt` is `Stamp.clock`. No
-write's input sets them; the server fills them, and the page predicts them.
+row is made is said once, on the Entity, with `Entity.sets`: a post's `author`
+link and a like's `user` are `Expr.viewer(User)`, whoever asks, and a post's
+`createdAt` is `Expr.now`, on create. The link is the one member over its
+column: a rule or a query compares it directly. No write's input sets them; the server fills them, and the page predicts them.
 Nothing else about a write's effects is declared: counts follow from the
 `Derived` members, and a list's membership and order from its query's body.
 The 280-character rule is the
@@ -75,7 +75,8 @@ them, and `server/server.ts` makes each table's `CHECK`s from them with
 written twice.
 
 **The guards** (`guard.ts`). `Guards.declare` names three guards: `isAuthor`,
-a row guard over the post's `authorId`, `isLiker`, over the like's `userId`,
+a row guard comparing the post's `author` link with the asker
+(`Expr.eq(Chirp.Post.relations.author, p.id)`), `isLiker`, the like's `user`,
 and `isAdmin`, whose body only the server has (`G.implement` in
 `server/server.ts`). `Guards.attach` says a post is written by its author or
 an admin and a like by its liker, and `Guards.may` has the server tell the
@@ -85,15 +86,15 @@ hint; the server's writer checks the rule on every write.
 **The server** (`server/server.ts`). The Entities are bound to SQLite tables
 through Drizzle (`bind`); the timeline and a person's posts are queries
 (`operations.ts`) the server compiles to SQL. Posting and editing are declared
-writes: the guarded writer lands them, after `RemoteServer.write` has stamped
+writes: the guarded writer lands them, after `RemoteServer.write` has set
 a new chirp's author and time, so the browser sends neither. A like is a
-declared write too (`LikePost` inserts a Like, stamped with whoever asks;
+declared write too (`LikePost` inserts a Like pointing at whoever asks;
 `Unlike` deletes one by the id `liked` holds, and `isLiker` refuses it to
 anyone else). A chirp's and a like's id is the browser's, so a create sent
 again finds its id taken: both writers keep a ledger (`write_ledger`), which
 answers the same operation from the same person (as `Data.retry` sends it)
-with its row, and refuses any other create of that id. `RemoteServer.make` is told who asks (`viewer`), once: stamps
-name the asker, and the Post's Source answers each person's own `liked`. Every answer carries what the page shows of the rows
+with its row, and refuses any other create of that id. `RemoteServer.make` is told who asks (`viewer`), once: `Expr.viewer`
+names the asker, and the Post's Source answers each person's own `liked`. Every answer carries what the page shows of the rows
 it names or points at: the page sends what its Surfaces read with each write,
 and the server reads those fields after the write, so a new chirp lands with
 its author's count, and a like with its post's count and `liked`.

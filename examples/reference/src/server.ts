@@ -131,7 +131,7 @@ const notesWriter = GuardServer.writer(
 )
 
 const served = {
-  // Who asks, as the member a new note is stamped with.
+  // Who asks, as the member a new note is set to.
   viewer: (principal: Option.Option<Principal>) =>
     Option.map(principal, ({ id }) => Remote.ref(Member, id)),
   entities: [

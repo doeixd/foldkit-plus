@@ -282,6 +282,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **Chirp and the reference app declare an author once.** `Post.authorId`,
+  `Like.userId` and `Note.authorId` are gone: the `author` and `user` links,
+  set by `Entity.sets` from `Expr.viewer`, are the one member over each
+  column, and the guard rules and `ByAuthor` compare the link (#232,
+  operations phase 3).
 - **Breaking: `MutationSource.run` is given `read`,** one row of another
   Entity as the asker may see it, through the server's own source for it; a
   caller of `run` outside a server passes one (#232, operations phase 3).

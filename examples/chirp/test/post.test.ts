@@ -22,7 +22,7 @@ import { openServer, principalOf } from '../src/server/server.js'
 import { memorySqlite } from '../src/server/sqlite-node.js'
 
 /** What this test reads of a post: none of what only the server can say (`may`). */
-const Line = Entity.select(Post, { body: true, authorId: true, createdAt: true, likeCount: true })
+const Line = Entity.select(Post, { body: true, author: true, createdAt: true, likeCount: true })
 const Card = Entity.select(Chirper, { postCount: true })
 const timeline = Data.query(Timeline, {}, { select: Line, first: 25 })
 
@@ -40,8 +40,8 @@ const held: Model = [
   {
     _tag: 'ReadReceived' as const,
     requests: [
-      { entity: 'Post', id: 'p1', fields: ['id', 'body', 'authorId', 'createdAt', 'likeCount'] },
-      { entity: 'Post', id: 'p2', fields: ['id', 'body', 'authorId', 'createdAt', 'likeCount'] },
+      { entity: 'Post', id: 'p1', fields: ['id', 'body', 'author', 'createdAt', 'likeCount'] },
+      { entity: 'Post', id: 'p2', fields: ['id', 'body', 'author', 'createdAt', 'likeCount'] },
       { entity: 'User', id: 'you', fields: ['postCount'] },
     ],
     result: {
@@ -50,12 +50,12 @@ const held: Model = [
         {
           entity: 'Post',
           id: 'p1',
-          values: { id: 'p1', body: 'Newer', authorId: 'ada', createdAt: 4_000, likeCount: 0 },
+          values: { id: 'p1', body: 'Newer', author: 'User:ada', createdAt: 4_000, likeCount: 0 },
         },
         {
           entity: 'Post',
           id: 'p2',
-          values: { id: 'p2', body: 'Older', authorId: 'ada', createdAt: 3_000, likeCount: 0 },
+          values: { id: 'p2', body: 'Older', author: 'User:ada', createdAt: 3_000, likeCount: 0 },
         },
         { entity: 'User', id: 'you', values: { id: 'you', postCount: 1 } },
       ],
@@ -72,7 +72,12 @@ describe('a chirp posted', () => {
   it('shows at once as yours, at the time you posted, with no likes yet', () => {
     expect(Data.get(Line, 'n1').read(posted(held))).toMatchObject({
       _tag: 'Ready',
-      value: { body: 'Hello', authorId: 'you', createdAt: 6_000, likeCount: 0 },
+      value: {
+        body: 'Hello',
+        author: { entity: 'User', id: 'you' },
+        createdAt: 6_000,
+        likeCount: 0,
+      },
     })
   })
 

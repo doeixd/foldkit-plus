@@ -21,7 +21,6 @@ export const PostFields = Entity.define(
   'Post',
   Schema.Struct({
     id: Schema.String,
-    authorId: Schema.String,
     // Characters as people count them (code points), which is what SQL counts too.
     body: Schema.String.check(Schema.isMaxCodePoints(280)),
     createdAt: Schema.Number,
@@ -29,10 +28,7 @@ export const PostFields = Entity.define(
 )
 
 /** One person's like of one post, keyed by the pair: see `likeOf` in `operations.ts`. */
-export const LikeFields = Entity.define(
-  'Like',
-  Schema.Struct({ id: Schema.String, userId: Schema.String }),
-)
+export const LikeFields = Entity.define('Like', Schema.Struct({ id: Schema.String }))
 // #endregion
 
 // #region relate
@@ -59,18 +55,15 @@ export const Chirper = Chirp.User.pipe(
  * no write's input sets them, and the page predicts them for a new chirp.
  */
 export const LikedPost = Chirp.Post.pipe(
-  Entity.sets(
-    { authorId: Expr.viewer(UserFields), author: Expr.viewer(UserFields), createdAt: Expr.now },
-    { on: 'create' },
-  ),
+  Entity.sets({ author: Expr.viewer(UserFields), createdAt: Expr.now }, { on: 'create' }),
   Entity.derived({
     likeCount: Derived.count(Chirp.Like.relations.post),
     liked: Derived.exists(Chirp.Like.relations.post, { viewer: Chirp.Like.relations.user }),
   }),
 )
 
-/** A like is whoever made it: its person, as the field the guards read and as the link. */
+/** A like is whoever made it: its person is the link, which the guards compare too. */
 export const Liking = Chirp.Like.pipe(
-  Entity.sets({ userId: Expr.viewer(UserFields), user: Expr.viewer(UserFields) }, { on: 'create' }),
+  Entity.sets({ user: Expr.viewer(UserFields) }, { on: 'create' }),
 )
 // #endregion

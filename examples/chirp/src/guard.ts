@@ -2,7 +2,7 @@
 import { Schema } from 'effect'
 import { Expr } from 'foldkit-entity'
 import { Guards } from 'foldkit-guard'
-import { LikeFields, LikedPost, Liking, PostFields } from './domain.js'
+import { Chirp, LikedPost, Liking } from './domain.js'
 
 export const User = Schema.Struct({ id: Schema.String })
 export type User = typeof User.Type
@@ -13,8 +13,8 @@ export const G = Guards.declare(
   User,
   guard => ({
     isAdmin: guard.principal(),
-    isAuthor: guard.row(PostFields, p => Expr.eq(PostFields.fields.authorId, p.id)),
-    isLiker: guard.row(LikeFields, p => Expr.eq(LikeFields.fields.userId, p.id)),
+    isAuthor: guard.row(Chirp.Post, p => Expr.eq(Chirp.Post.relations.author, p.id)),
+    isLiker: guard.row(Chirp.Like, p => Expr.eq(Chirp.Like.relations.user, p.id)),
   }),
   { key: user => user.id, unguarded: 'allow' },
 )
