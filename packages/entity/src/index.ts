@@ -1195,4 +1195,7 @@ export {
   type WriteIncrement,
   type WriteLink,
   type WriteSet,
+  Stamp,
+  WriteStamp,
+  type WriteStamps,
 } from './write.js'
