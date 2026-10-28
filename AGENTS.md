@@ -704,6 +704,12 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   CMS draws it; a test drawing it directly passed. `fillWords`' doc comment
   already said why words are text with blanks. Read the convention in the
   code before a plan's sketch, and test a view input through a submodel.
+- **A module-level call keeps its module in the chunk, read or not.**
+  `AuthApi = AuthContract.make(…)` in the auth example's `domain.ts` kept
+  Yielded's operations and sessions in the entry after the client moved
+  behind `Resource.lazy`, since the entry imported `domain.ts` for `Me`. Move
+  what only a lazy chunk and the server need into a module of its own, and
+  check which modules a chunk holds (`split.test.ts`), not only its size.
 - **A constant from `foldkit/experimental/server` brings the server along.**
   `client.ts` imported `FOLDKIT_APP_ATTRIBUTE` from it, and the browser bundle
   grew by the server renderer and its HTML parser (700 KB to 880 KB); so does
@@ -1629,6 +1635,10 @@ of its own named a form field "fits the Catalog". Read words with
   can stop at "Failed to fetch dynamically imported module", before any
   mutation runs, and pass when run again unchanged. Rerun once before reading it as a
   red baseline; a second failure is real.
+- **A test's own Vite build is outside `pnpm mutate` unless it takes the
+  plugin.** The edits are a Vite plugin, and a nested `build()` has none, so
+  every mutation of what it bundles read "not applied". Pass `mutation()`
+  from `scripts/mutation-plugin.mjs` in that build's `plugins`.
 - **`pnpm mutate` reaches only modules Vitest loads.** A worker esbuild bundles
   for miniflare was never mutated, so a mutation of worker code read as "not
   applied". `examples/cloudflare/src/stack.ts` applies the same edits in an

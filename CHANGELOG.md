@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`Resource.lazy(Tag, load)` in `foldkit-bundle`: a service whose code is its
+  own chunk.** An entry of `resources` that imports nothing until a Command's
+  `yield* Resource.get(Tag)`, which imports and builds it into the runtime's
+  scope once, shared by Commands asking while it loads. A failed import is a
+  typed `Resource.LoadError`, retried by the next `get`; `Resource.prefetch`
+  starts it early; Commands require `Resource.Lazy<Tag>`. The auth example
+  loads Yielded's client this way, prefetched once an email is typed: its
+  entry chunk fell from 248.0 kB to 235.0 kB gzipped (#244).
 - **A server-rendered page reads its data in process, as its reader.**
   `SSR.requestContext<C>(name)` is a value a host attaches to a request
   (`attach`) for `renderPage` to read (`of`, an `Option`), across separately
