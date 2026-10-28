@@ -848,6 +848,9 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
 - **A Worker's `console.error` never reaches `Stack.start`'s output** (#269).
   An SSR 500 said only "The page could not be rendered". To see the cause,
   run the same `renderPage` in Node against the stack's `/remote`.
+- **Miniflare's rate limiter counts in windows on the clock's minute.** Three
+  requests across a boundary were all admitted, and CI read `[200, 200, 200]`.
+  Test the code that consumes a limiter with a fake binding.
 - **Miniflare poisons binding handles on every reload.** A D1 or R2 handle read
   before `setOptions` or a harness `update` throws "Attempted to use poisoned
   stub" after it, which is why `examples/cloudflare`'s `WorkersStack.env` is a
@@ -1403,6 +1406,21 @@ of its own named a form field "fits the Catalog". Read words with
   that parked the pointer at the body's (1, 1), where its menu trigger was
   drawn, so the next test read the trigger hovered. Draw an empty spot away
   from the controls and hover that.
+- **`setTimeout(0)` does not wait for a forked fiber.** `Resource.lazy`'s tests
+  waited one tick for a background load to ask for its import, and a loaded
+  CI runner had not. Wait for evidence the step happened (`asked(n)`).
+- **The default theme moves measured sizes.** Density 1.1 and text scale 1.025
+  changed every pixel size; a test that measures one pins `unitKnobs`,
+  `.touch.browser` files included. With fluid text, CI's DejaVu Sans digits
+  run about 10% wider than Segoe UI's; force `Verdana` locally to see CI's
+  widths.
+- **A colour outside sRGB shifts when painted.** A canvas clips it: the default
+  accent ink `oklch(0.45 0.225 235)` painted at hue 257. Compare painted
+  colours with each other, never with a knob value.
+- **A refresh keeps a tombstone, so "fresh" is not "answered".** Since #263 a
+  row asked for again reads `NotFound` until the answer; the CMS overwrite
+  saved at once against the old copy. Wait until `Data.plan(model,
+  projection)` is empty.
 - **A negative assertion needs a settle, not a sleep.** Registry tests
   asserted "no edit" after a 30-50ms sleep, and one absorbed-edit test failed
   only under full-suite load, when the sleep ran out before the reinstall
@@ -1841,6 +1859,11 @@ of its own named a form field "fits the Catalog". Read words with
   package's last build (`mixins-richtext` did, for `foldkit-primitives`). A
   `tsconfig.build.json` does not inherit `references` from the config it
   extends: `richtext-code` and `richtext-markdown` had none.
+- **Vite bundles a config's relative imports, dynamic ones included.** Chirp's
+  config imported `media/src/vite/index.ts`, which re-exported `images`, whose
+  dynamic import reached the sharp module and its bare `foldkit-surface`
+  import; Node found no `dist` on CI. A config imports a module that reaches
+  no workspace package (`media/src/vite/icons.ts`).
 - **A Vite config's import of a workspace plugin runs in Node, past the source
   condition.** `examples/chirp` imported `icons` from `foldkit-media/vite`:
   locally that read a `dist` built before a fix and failed with the very error

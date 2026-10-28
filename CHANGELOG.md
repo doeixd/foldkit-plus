@@ -364,6 +364,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A CMS overwrite after a conflict waits for the server's copy of the
+  draft,** one the editor had known absent included, instead of saving at
+  once against the old copy and meeting the same conflict. `EditorDomain`
+  gains `plan`, which a bound Data already has.
+- **`foldkit-media/vite`'s icons plugin is a module of its own**
+  (`src/vite/icons.ts`), so a Vite config importing it from source no longer
+  bundles the images plugin's sharp server.
 - **A reload draws the stored list in its first frame.**
   `Data.persistence(...).restore(model)` restores the stored snapshot before
   the first frame, resolved as the runtime's `flags`, so a reload no longer
