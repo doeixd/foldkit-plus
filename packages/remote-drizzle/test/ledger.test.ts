@@ -54,6 +54,16 @@ const Restock = Mutation.write(
     { id: 'id', increment: { stock: 'quantity' } },
   ),
 )
+const Create = Mutation.write(
+  'CreateItem',
+  Write.insert(
+    Entity.input(
+      Item,
+      Schema.Struct({ id: Schema.String, stock: Schema.Int, revision: Schema.Number }),
+    ),
+    { id: 'id' },
+  ),
+)
 
 const schema = `
   create table items (id text primary key, stock integer not null, revision integer not null);
@@ -72,22 +82,36 @@ const stock = () => sqlite.prepare("select stock from items where id = 'i1'").ge
 const records = () => sqlite.prepare('select scope, operation from write_ledger').all()
 
 /** A server whose writer keeps a ledger with this retention, scoped by who is asking. */
-const serving = (retention?: number) =>
-  RemoteServer.make<string, DrizzleDatabase>({
-    entities: [],
-    mutations: [
-      RemoteServer.write(
-        Restock,
-        writer<string>(Db.Item, {
-          ledger: {
-            table: ledgerTable,
-            scope: principal => principal,
-            ...(retention === undefined ? {} : { retention }),
-          },
-        }),
-      ),
-    ],
+const serving = (retention?: number) => {
+  const ledgered = writer<string>(Db.Item, {
+    ledger: {
+      table: ledgerTable,
+      scope: principal => principal,
+      ...(retention === undefined ? {} : { retention }),
+    },
   })
+  return RemoteServer.make<string, DrizzleDatabase>({
+    entities: [],
+    mutations: [RemoteServer.write(Restock, ledgered), RemoteServer.write(Create, ledgered)],
+  })
+}
+/** A create of `i2` holding `stock`, asked by `principal` under `operation`. */
+const create = (
+  server: ReturnType<typeof serving>,
+  principal: string,
+  stock: number,
+  operation: string,
+) =>
+  Effect.runPromise(
+    RemoteServer.handlers(server, principal)
+      .FoldkitRemoteMutate({
+        requestId: 'r',
+        mutation: 'CreateItem',
+        input: { id: 'i2', stock, revision: 1 },
+        operation,
+      })
+      .pipe(Effect.result, Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
+  )
 const send = (
   server: ReturnType<typeof serving>,
   principal: string,
@@ -277,6 +301,46 @@ describe('A writer with a ledger', () => {
     })
     expect(stock()).toEqual({ stock: 10 })
   })
+
+  it('answers a retried create from its record, and every other create of the id alike', async () => {
+    const server = serving()
+    const first = await create(server, 'ada', 4, 'op-c')
+    expect(first).toMatchObject({
+      _tag: 'Success',
+      success: { entities: [{ id: 'i2', values: { stock: 4 } }] },
+    })
+    // The answer was lost; the same operation comes again.
+    expect(await create(server, 'ada', 4, 'op-c')).toEqual(first)
+    // Not that operation, or not that asker's: the id is taken, whatever it proposes.
+    const taken = await create(server, 'ada', 4, 'op-d')
+    expect(taken).toMatchObject({
+      _tag: 'Failure',
+      failure: { message: 'Item i2 could not be created' },
+    })
+    expect(await create(server, 'ada', 9, 'op-d')).toEqual(taken)
+    expect(await create(server, 'grace', 4, 'op-c')).toEqual(taken)
+    expect(sqlite.prepare("select stock from items where id = 'i2'").all()).toEqual([{ stock: 4 }])
+    expect(records()).toEqual([{ scope: 'ada', operation: 'op-c' }])
+  })
+
+  it('answers a retried create with the row as it now is', async () => {
+    const server = serving()
+    await create(server, 'ada', 4, 'op-c')
+    await Effect.runPromise(
+      RemoteServer.handlers(server, 'ada')
+        .FoldkitRemoteMutate({
+          requestId: 'r',
+          mutation: 'Restock',
+          input: { id: 'i2', quantity: 3 },
+          operation: 'op-r',
+        })
+        .pipe(Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
+    )
+    expect(await create(server, 'ada', 4, 'op-c')).toMatchObject({
+      _tag: 'Success',
+      success: { entities: [{ id: 'i2', values: { stock: 7 } }] },
+    })
+  })
 })
 
 describe('A writer with a ledger, on Postgres', () => {
@@ -301,16 +365,15 @@ describe('A writer with a ledger, on Postgres', () => {
   beforeAll(() => pglite.waitReady, 60_000)
   afterAll(() => pglite.close())
   // Registered when a test runs, so a registration that throws fails that test, not the file.
-  const server = () =>
-    RemoteServer.make<string, DrizzleDatabase>({
-      entities: [],
-      mutations: [
-        RemoteServer.write(
-          Restock,
-          writer<string>(PgDb.Item, { ledger: { table: pgLedger, scope: principal => principal } }),
-        ),
-      ],
+  const server = () => {
+    const ledgered = writer<string>(PgDb.Item, {
+      ledger: { table: pgLedger, scope: principal => principal },
     })
+    return RemoteServer.make<string, DrizzleDatabase>({
+      entities: [],
+      mutations: [RemoteServer.write(Restock, ledgered), RemoteServer.write(Create, ledgered)],
+    })
+  }
   const pgSend = (quantity: number, operation: string) =>
     Effect.runPromise(
       RemoteServer.handlers(server(), 'ada')
@@ -338,5 +401,30 @@ describe('A writer with a ledger, on Postgres', () => {
     expect(rows.rows).toEqual([{ stock: 18 }])
     const recorded = await pglite.query('select operation from write_ledger order by operation')
     expect(recorded.rows).toEqual([{ operation: 'op-a' }, { operation: 'op-b' }])
+  })
+
+  it('answers a retried create from its record, and every other create of the id alike', async () => {
+    const pgCreate = (principal: string, operation: string) =>
+      Effect.runPromise(
+        RemoteServer.handlers(server(), principal)
+          .FoldkitRemoteMutate({
+            requestId: 'r',
+            mutation: 'CreateItem',
+            input: { id: 'i2', stock: 4, revision: 1 },
+            operation,
+          })
+          .pipe(Effect.result, Effect.provide(databaseLayer(drizzlePg({ client: pglite })))),
+      )
+    const first = await pgCreate('ada', 'op-c')
+    expect(first._tag).toBe('Success')
+    expect(await pgCreate('ada', 'op-c')).toEqual(first)
+    const taken = await pgCreate('ada', 'op-d')
+    expect(taken).toMatchObject({
+      _tag: 'Failure',
+      failure: { message: 'Item i2 could not be created' },
+    })
+    expect(await pgCreate('grace', 'op-c')).toEqual(taken)
+    const rows = await pglite.query("select stock from items where id = 'i2'")
+    expect(rows.rows).toEqual([{ stock: 4 }])
   })
 })

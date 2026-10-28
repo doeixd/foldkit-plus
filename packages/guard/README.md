@@ -474,9 +474,11 @@ is its creator's, and `RemoteServer.make({ viewer })` says who that is.
 
 No input may set `ownerId`, which is refused where the write is declared. A
 visitor has no one to stamp, and is refused even where the rules would let
-anyone create. A retried insert is answered with its row when the row holds
-what the insert writes, who asked included, so the same id from another
-account is refused; a `Stamp.clock` is left out of that comparison.
+anyone create. A create of an id already taken is refused with one answer,
+whatever the row there holds, so it tells nothing the asker may not read. Only
+the writer's ledger recognises a retry, by its operation and who asked, and
+answers it with its row, first time kept; the same id from another account is
+refused.
 
 A handler writes what its code writes, so it is guarded where it is defined:
 `GuardServer.mutation` is `RemoteServer.mutation` with the row's rule for one

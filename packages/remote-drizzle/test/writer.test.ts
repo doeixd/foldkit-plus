@@ -216,7 +216,7 @@ describe('A write that expects a revision, on Postgres', () => {
     expect(rows.rows).toEqual([{ name: 'First', revision: 2 }])
   })
 
-  it('inserts once, and answers a retry with the row it made', async () => {
+  it('inserts once, and answers every later create of the id alike', async () => {
     const create = (name: string) =>
       Effect.runPromise(
         pgHandlers
@@ -225,12 +225,16 @@ describe('A write that expects a revision, on Postgres', () => {
             mutation: 'CreateProject',
             input: { id: 'p8', name, status: 'active', revision: 1 },
           })
-          .pipe(Effect.provide(pgLayer)),
+          .pipe(Effect.result, Effect.provide(pgLayer)),
       )
-    await create('Pioneer')
-    const retried = await create('Pioneer')
-    expect(retried.entities[0]?.values).toMatchObject({ name: 'Pioneer' })
-    await expect(create('Other')).rejects.toThrow('Project p8 could not be created')
+    expect(await create('Pioneer')).toMatchObject({ _tag: 'Success' })
+    // With no ledger, the same create again is not told from another's.
+    const again = await create('Pioneer')
+    expect(again).toMatchObject({
+      _tag: 'Failure',
+      failure: { message: 'Project p8 could not be created' },
+    })
+    expect(await create('Other')).toEqual(again)
     const rows = await pglite.query("select name from projects where id = 'p8'")
     expect(rows.rows).toEqual([{ name: 'Pioneer' }])
   })
@@ -408,25 +412,23 @@ describe('Inserting and deleting a declared write', () => {
         .pipe(Effect.result, Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
     )
 
-  it('inserts under the id the client chose, and a retry answers the row it made', async () => {
+  it('inserts under the id the client chose, and answers every later create of it alike', async () => {
     const voyager = { id: 'p7', name: 'Voyager', status: 'active', revision: 1 }
     const first = await send('CreateProject', voyager)
-    const retried = await send('CreateProject', voyager)
-    // Another create under that id is not a retry: the row there is not its answer.
+    // With no ledger, the same create again is not told from another under that id:
+    // telling them apart would answer by what the row there holds.
+    const again = await send('CreateProject', voyager)
     const taken = await send('CreateProject', { ...voyager, name: 'Other' })
     expect(row('p7')).toEqual(voyager)
-    expect(taken).toMatchObject({
-      _tag: 'Failure',
-      failure: { _tag: 'RemoteMutationError', message: 'Project p7 could not be created' },
-    })
     expect(first).toMatchObject({
       _tag: 'Success',
       success: { entities: [{ id: 'p7', values: { name: 'Voyager' } }] },
     })
-    expect(retried).toMatchObject({
-      _tag: 'Success',
-      success: { entities: [{ id: 'p7', values: { name: 'Voyager' } }] },
+    expect(again).toMatchObject({
+      _tag: 'Failure',
+      failure: { _tag: 'RemoteMutationError', message: 'Project p7 could not be created' },
     })
+    expect(taken).toEqual(again)
   })
 
   it('fails a write the database refuses without sending its SQL', async () => {

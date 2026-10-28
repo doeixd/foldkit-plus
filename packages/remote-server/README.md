@@ -475,8 +475,8 @@ an Entity with `Entity.stamps` is handed its stamped members as well, never
 from the input: `Stamp.viewer` from `RemoteServer.make({ viewer: principal =>
 Option<{ entity, id }> })`, and `Stamp.clock` from the write's time. A
 visitor's insert that stamps the viewer is refused as forbidden; a server that
-serves such a write with no `viewer` is refused where it is made. The clock's
-fields reach the writer as `stamped`, so a retried insert keeps its first time.
+serves such a write with no `viewer` is refused where it is made. A retried
+insert, which only a writer's ledger recognises, keeps its first time.
 
 The write's time is the client's when it sent one (`Data.mutate`'s `now`, the
 moment the reader acted, which the client showed the row at) and it lies
@@ -514,10 +514,16 @@ computed assignment only where the writer `commutes` it, unless the writer pins
 the row it read (`pins: true`, a guard with a revision). A writer
 may refuse a write for what only its store knows (`refuses`, asked once where
 the write is served): the Drizzle writer refuses an amount that may be a
-fraction for a column that holds integers. An update of no row fails; an insert of an id
-already holding what it writes answers that row, and a delete of a row already
-gone succeeds, so a retry of either is safe. An insert of an id holding
-anything else fails: that row is not its answer. The writer must be for the write's own Entity,
+fraction for a column that holds integers. An update of no row fails, and a
+delete of a row already gone succeeds, so its retry is safe. An insert of an
+id already taken fails with one answer, whatever the row there holds and
+whether its asker may see it: comparing that row with the insert would tell
+the asker what it holds. Only a writer with a ledger (`EntityWriter.ledger`)
+tells a retry from another create of the id, by the operation the client
+sent, and answers it with the row; without one, a create whose answer was
+lost is refused when it is sent again. Give a writer a ledger where a client
+may resend a create, and make ids that a guess cannot find where whether a
+row exists is itself private. The writer must be for the write's own Entity,
 which is checked where the mutation is served.
 
 A writer with a `read` (the row as a principal may see it, under the read

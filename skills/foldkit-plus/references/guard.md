@@ -130,8 +130,9 @@ const Todo = TodoFields.pipe(
   Who owns a new row is the Entity's to say, not the writer's:
   `Entity.stamps({ ownerId: Stamp.viewer, createdAt: Stamp.clock })`, and
   `RemoteServer.write` sets them before the rules run, so a rule over the owner
-  holds of the creator; a retried insert keeps the row's own time, while
-  another asker makes it someone else's row. Pass `revision: 'revision'` (a field stored as a number,
+  holds of the creator. A create of a taken id is refused alike whatever the
+  row holds; only a ledgered writer answers a retry, by its operation, with
+  the row and its own time. Pass `revision: 'revision'` (a field stored as a number,
   which the writer moves on with each write it lands) so an update or delete
   lands only on the revision its rules were decided over, decided again if the
   row moved; an input may `expect` only that field. A change that does not move

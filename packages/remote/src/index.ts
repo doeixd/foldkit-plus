@@ -119,7 +119,6 @@ import {
   connectionIdentity,
   emptyOptimistic,
   goneIn,
-  plannedStore,
   resolvedPatches,
   visibleItems,
   visibleStore,
@@ -1181,24 +1180,6 @@ const visibleStoreOf = (
   return visible
 }
 
-// A visible store is made from one store and one set of layers, so it keys
-// what is planned over it; the read entries ask on every Model change.
-const plannedStores = new WeakMap<EntityStore, EntityStore>()
-
-/** `plannedStore` of the visible store, kept by it. */
-const plannedStoreOf = (
-  entities: EntityStore,
-  optimistic: OptimisticState,
-  visible: EntityStore,
-): EntityStore => {
-  let planned = plannedStores.get(visible)
-  if (planned === undefined) {
-    planned = plannedStore(entities, visible, optimistic)
-    plannedStores.set(visible, planned)
-  }
-  return planned
-}
-
 /**
  * `Failed` naming a field the server settled without a value, when one is
  * among what `relation` reads of the entity; otherwise nothing, and the store
@@ -1659,7 +1640,7 @@ const planAsked = (
   }
   const visible = visibleStoreOf(remote.entities, remote.optimistic, operators)
   const read = [...asked.requirements, ...items]
-  const planned = plan(plannedStoreOf(remote.entities, remote.optimistic, visible), read, options)
+  const planned = plan(visible, read, options)
   return {
     requirements: options.force === true ? planned : withoutFailedFields(remote, planned),
     queries,

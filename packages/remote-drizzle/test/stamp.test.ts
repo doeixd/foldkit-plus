@@ -2,7 +2,8 @@
  * An insert's stamps, written by the server: who asks (`Stamp.viewer`), from
  * `RemoteServer.make`'s viewer, and when (`Stamp.clock`): the time the client
  * sent, within the server's `clockSkew` of the Effect clock, or that clock.
- * The input never sets either, and a retry keeps the row's own time.
+ * The input never sets either, and a retry, which the writer's ledger
+ * recognises, keeps the row's own time.
  */
 import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
@@ -25,6 +26,13 @@ const likes = sqliteTable('likes', {
   id: text('id').primaryKey(),
   postId: text('post_id').notNull(),
   userId: text('user_id').notNull(),
+})
+const ledger = sqliteTable('write_ledger', {
+  scope: text('scope').notNull(),
+  operation: text('operation').notNull(),
+  target: text('target').notNull(),
+  answer: text('answer').notNull(),
+  at: integer('at').notNull(),
 })
 
 const UserFields = Entity.define('User', Schema.Struct({ id: Schema.String }))
@@ -83,7 +91,13 @@ const serverWith = (clockSkew?: Parameters<typeof RemoteServer.make>[0]['clockSk
   RemoteServer.make<string | null, DrizzleDatabase>({
     entities: [source(Db.Post), source(Db.Like)],
     mutations: [
-      RemoteServer.write(PostChirp, writer(Db.Post)),
+      // Its ledger is what tells a retry of a post from another under its id.
+      RemoteServer.write(
+        PostChirp,
+        writer<string | null>(Db.Post, {
+          ledger: { table: ledger, scope: principal => principal ?? '' },
+        }),
+      ),
       RemoteServer.write(LikePost, writer(Db.Like)),
     ],
     viewer,
@@ -110,12 +124,19 @@ const sandbox = (made = server) => {
       id text primary key, body text not null, author_id text not null, created_at integer not null
     );
     create table likes (id text primary key, post_id text not null, user_id text not null);
+    create table write_ledger (
+      scope text not null, operation text not null, target text not null, answer text not null,
+      at integer not null, primary key (scope, operation, target)
+    );
     insert into users values ('ada'), ('bob');
     insert into posts values ('p1', 'Hello', 'ada', 1);
   `)
   const layer = databaseLayer(drizzle({ client: sqlite }))
   const collected = Diagnostics.collect()
-  /** A write asked at the server's time `at`, sent with the client's `now` when given. */
+  /**
+   * A write asked at the server's time `at`, sent with the client's `now` when
+   * given. Every one goes as one operation, so the same write again is its retry.
+   */
   const mutate = (
     principal: string | null,
     mutation: string,
@@ -125,7 +146,7 @@ const sandbox = (made = server) => {
   ) =>
     Effect.runPromise(
       RemoteServer.handlers(made, principal)
-        .FoldkitRemoteMutate({ requestId: 'r1', mutation, input, ...sent })
+        .FoldkitRemoteMutate({ requestId: 'r1', operation: 'o1', mutation, input, ...sent })
         .pipe(
           Effect.result,
           Effect.provide(layer),

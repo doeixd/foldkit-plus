@@ -1077,8 +1077,8 @@ not checked.
 Where it sits beside expected revisions and plain assignments is in the
 [declared writes guide](../../docs/declared-writes.md#retries-three-different-guarantees).
 
-`writer(binding, { ledger: { table, scope } })` records each update it lands
-under the operation that asked for it (the client's `operation` id) and the row
+`writer(binding, { ledger: { table, scope } })` records each update and insert
+it lands under the operation that asked for it (the client's `operation` id) and the row
 it wrote, in the
 transaction that writes the row, and answers a retry of that operation from the
 record instead of writing again. So an increment of an integer needs no

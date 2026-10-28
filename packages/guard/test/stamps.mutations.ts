@@ -8,28 +8,24 @@ const drizzle = '../../remote-drizzle/src/index.ts'
 
 export default [
   {
-    name: 'a retried insert compares its stamp too',
-    edits: [{ file: drizzle, find: '.filter(([key]) => !stamped.includes(key))', replace: '' }],
-    tests,
-  },
-  {
-    name: 'a retried insert compares none of its values',
+    name: 'an insert does not ask its ledger whether it is a retry',
     edits: [
       {
         file: drizzle,
-        find: '.filter(([key]) => !stamped.includes(key))',
-        replace: '.filter(() => false)',
+        find: 'if (ledger !== undefined && Option.isSome(operation)) {',
+        replace: 'if (false) {',
       },
     ],
     tests,
   },
   {
-    name: 'the guard passes no stamps on',
+    name: 'the guard passes no operation on',
     edits: [
       {
         file: guard,
         find: 'return yield* Effect.mapError(writer.insert(context), told)',
-        replace: 'return yield* Effect.mapError(writer.insert({ ...context, stamped: [] }), told)',
+        replace:
+          'return yield* Effect.mapError(writer.insert({ ...context, operation: Option.none() }), told)',
       },
     ],
     tests,

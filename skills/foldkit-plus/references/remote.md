@@ -787,8 +787,8 @@ const ProjectsByOwner = Query.make('ProjectsByOwner', { Input: { ownerId: Schema
 // A declared write needs no handler: RemoteServer.write(EditProject, writer(Db.Project)),
 // with Db = bind({ Project }, { Project: { table } }); it writes only the keys named, and an
 // `expect`ed revision guards the row and moves on in the same statement (else a conflict).
-// An insert retried answers the row it made, comparing all it writes but a clock stamp
-// (Entity.stamps, which EntityWriter.insert's `stamped` names); a delete of a row already gone succeeds;
+// An insert of a taken id fails alike whatever the row holds; only a writer's ledger
+// answers a retry of it, by operation, with its row; a delete of a row already gone succeeds;
 // a guarded write retried after it landed answers its row (EntityWriter.delete says
 // 'deleted' | 'absent' | 'moved'). A binding with `visible` reads the answer back
 // through it (EntityWriter.read): a row the write hid from its writer answers in `deleted`.

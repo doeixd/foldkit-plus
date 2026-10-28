@@ -95,12 +95,7 @@ export default [
     tests,
   },
   {
-    name: 'a retried insert is not answered with the row it made',
-    edits: [{ file: drizzle, find: 'inserted.length > 0', replace: 'true' }],
-    tests,
-  },
-  {
-    name: 'a retried insert fails on the id it took',
+    name: 'a create of a taken id fails with the database error',
     edits: [{ file: drizzle, find: '.onConflictDoNothing()', replace: '' }],
     tests,
   },
@@ -172,17 +167,6 @@ export default [
         file: drizzle,
         find: 'if (hub !== undefined && written.length > 0) {',
         replace: 'if (false) {',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'any row under the id answers an insert',
-    edits: [
-      {
-        file: drizzle,
-        find: 'Option.filter(there, row => holdsWritten(row, compared, links)),',
-        replace: 'there,',
       },
     ],
     tests,

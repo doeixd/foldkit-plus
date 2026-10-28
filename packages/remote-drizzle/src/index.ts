@@ -1027,14 +1027,15 @@ create or replace trigger ${quoted(trigger)} before update on ${table} for each 
 }
 
 /**
- * Where a writer records each update it lands, by the operation that asked for
- * it, so a retry of that operation is answered from the record rather than
- * written again. A table the application migrates:
+ * Where a writer records each update and insert it lands, by the operation that
+ * asked for it, so a retry of that operation is answered from the record rather
+ * than written again. Without one, a create of an id already taken is refused,
+ * retry or not. A table the application migrates:
  *
  * ```sql
  * create table write_ledger (
  *   scope text not null, operation text not null, target text not null,
- *   answer text not null, at bigint not null,
+ *   answer text not null, at bigint not null, request text,
  *   primary key (scope, operation, target)
  * );
  * create index write_ledger_at on write_ledger (at);
@@ -1476,6 +1477,25 @@ export const writer = <P = unknown>(
       )
     })
 
+  /**
+   * A recorded operation's answer: the row as it now is, since the record's
+   * values may be older than a later write; the record only if the row is gone.
+   */
+  const answerOfRecord = (
+    id: string,
+    answered: ReturnType<typeof returning>,
+    record: string,
+  ): Effect.Effect<Readonly<Record<string, unknown>>, RemoteServerError, DrizzleDatabase> =>
+    Effect.gen(function* () {
+      const now = answeredOf(
+        yield* selectRows(yield* DrizzleDatabase, binding.table, answered.columns, {
+          where: eq(idColumn(binding), id),
+        }),
+        answered,
+      )
+      return Option.getOrElse(now, () => JSON.parse(record) as Readonly<Record<string, unknown>>)
+    })
+
   return {
     entity: binding.name,
     preconditions: true,
@@ -1582,19 +1602,9 @@ export const writer = <P = unknown>(
                 .returning(answered.columns),
             landed => answeredOf(landed, answered),
           )
-          if (done._tag === 'Recorded') {
-            // Landed already: not written again, and answered as the row now is, since the
-            // record's values may be older than a later write; the record only if it is gone.
-            const now = answeredOf(
-              yield* selectRows(yield* DrizzleDatabase, binding.table, answered.columns, {
-                where: eq(idColumn(binding), id),
-              }),
-              answered,
-            )
-            return Option.orElse(now, () =>
-              Option.some(JSON.parse(done.answer) as Readonly<Record<string, unknown>>),
-            )
-          }
+          // Landed already: not written again.
+          if (done._tag === 'Recorded')
+            return Option.some(yield* answerOfRecord(id, answered, done.answer))
           rows = done.rows
         } else if (Object.keys(set).length === 0) {
           // Nothing to set: the row as it is, if it is there.
@@ -1673,7 +1683,7 @@ export const writer = <P = unknown>(
           `${binding.name} ${id} does not hold what the write asks of it`,
         )
       }),
-    insert: ({ id, values, links, stamped }) =>
+    insert: ({ id, values, links, operation, principal }) =>
       Effect.gen(function* () {
         yield* serverOnly
         // There is no row yet: the row it would make is its values, judged before it is written.
@@ -1709,45 +1719,39 @@ export const writer = <P = unknown>(
         if (idKey === undefined) return yield* missing('id column to insert')
         const set = { ...(yield* setOf(values, links)), [idKey]: id }
         const answered = returning(binding, [...Object.keys(values), ...Object.keys(links)])
-        const writes = yield* drizzleWrites
-        const inserted = yield* runStatement(
-          () =>
-            writes
-              .insert(binding.table)
-              .values(set)
-              .onConflictDoNothing()
-              .returning(answered.columns),
-          'Database write failed',
-        )
-        if (inserted.length > 0) {
-          return yield* Option.match(answeredOf(inserted, answered), {
-            onNone: () => Effect.fail(missing(`row ${id} after inserting it`)),
-            onSome: Effect.succeed,
-          })
+        const statement = (database: unknown) =>
+          (database as DrizzleWrites)
+            .insert(binding.table)
+            .values(set)
+            .onConflictDoNothing()
+            .returning(answered.columns)
+        // Only the ledger tells a retry from another create of a taken id. The row
+        // there is never compared with this one, since it may hold what the asker
+        // may not read, and a different answer per value would tell them.
+        let inserted: ReadonlyArray<Record<string, unknown>>
+        if (ledger !== undefined && Option.isSome(operation)) {
+          const done = yield* inLedger(
+            ledger,
+            ledger.scope(principal),
+            operation.value,
+            id,
+            statement,
+            landed => answeredOf(landed, answered),
+          )
+          if (done._tag === 'Recorded') return yield* answerOfRecord(id, answered, done.answer)
+          inserted = done.rows
+        } else {
+          const writes = yield* drizzleWrites
+          inserted = yield* runStatement(() => statement(writes), 'Database write failed')
         }
-        // Nothing inserted: the id is taken. A retry of this insert finds the row
-        // holding what it wrote, and is answered with it; anything else is another
-        // row, whose values are not this write's to answer with. A stamp (a
-        // creation time) differs on every attempt, and the row keeps its own.
-        const compared = Object.fromEntries(
-          Object.entries(values).filter(([key]) => !stamped.includes(key)),
-        )
-        const there = answeredOf(
-          yield* selectRows(yield* DrizzleDatabase, binding.table, answered.columns, {
-            where: eq(idColumn(binding), id),
-          }),
-          answered,
-        )
-        return yield* Option.match(
-          Option.filter(there, row => holdsWritten(row, compared, links)),
-          {
-            onNone: () =>
-              Effect.fail(
-                new RemoteServerError({ message: `${binding.name} ${id} could not be created` }),
-              ),
-            onSome: Effect.succeed,
-          },
-        )
+        // Nothing inserted: the id is taken, and every such create is answered alike.
+        return yield* Option.match(answeredOf(inserted, answered), {
+          onNone: () =>
+            Effect.fail(
+              new RemoteServerError({ message: `${binding.name} ${id} could not be created` }),
+            ),
+          onSome: Effect.succeed,
+        })
       }),
     delete: ({ id, expect, when }) =>
       Effect.gen(function* () {

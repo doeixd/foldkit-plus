@@ -327,8 +327,8 @@ operation, so the same request id is a new one there.
 
 ### A write ledger
 
-A ledger records each update the writer lands under the operation that asked for
-it and the row it wrote, in the same transaction as the write. `ledger` is the
+A ledger records each update and insert the writer lands under the operation
+that asked for it and the row it wrote, in the same transaction as the write. `ledger` is the
 Drizzle table below and `User` the principal, as in
 [`examples/writes/src/server.ts`](../examples/writes/src/server.ts):
 
@@ -361,8 +361,11 @@ create index write_ledger_at on write_ledger (at);
 - **Retention**, a day unless given: a retry later than that is a new operation,
   and an increment would be applied again. Records are pruned as new ones are
   made; the index on `at` keeps that from scanning the table.
-- **Only updates are recorded.** A retried insert finds its id taken and answers
-  the row it made; a retried delete finds the row gone.
+- **Updates and inserts are recorded.** A retried insert is answered from its
+  record with the row it made. Without a ledger an insert of a taken id is
+  refused, retry or not, with one answer whatever the row holds, since
+  comparing the row with the insert would tell its asker what it holds. A
+  retried delete finds the row gone.
 
 A retry found in the ledger is not written again, and the guard does not decide
 it again: it was decided when it landed, and deciding it over a row that has

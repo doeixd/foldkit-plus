@@ -1422,11 +1422,6 @@ keeps it gone. A pending delete wins over every pending patch of its row.
 Data.mutate(model, DeletePost, { id }, { optimistic: [Remote.tombstone(Post, id)] })
 ```
 
-A pending patch shows a field before the server has sent it, but does not stand
-in for it: a read still fetches a field of a row the server holds that only a
-layer shows, so a failure that takes the layer away leaves the server's value,
-not `Initial`. A row only a request holds (a temporary id) is not fetched.
-
 **Which lists a mutation changed is worked out from its answer.** Each patch
 says which row it wrote; the fields whose value differs from what the client
 held are what changed (an answer returning a whole row changes only what is

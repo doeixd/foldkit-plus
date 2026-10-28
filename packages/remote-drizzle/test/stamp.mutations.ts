@@ -36,8 +36,14 @@ export default [
     tests,
   },
   {
-    name: 'a retry compares the clock',
-    edits: [{ file, find: 'stamped: clocked,', replace: 'stamped: [],' }],
+    name: 'the server passes no operation to an insert',
+    edits: [
+      {
+        file,
+        find: '...stamps.links },\n                    operation,',
+        replace: '...stamps.links },\n                    operation: Option.none(),',
+      },
+    ],
     tests,
   },
   {

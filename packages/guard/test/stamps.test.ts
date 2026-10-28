@@ -2,9 +2,10 @@
 /**
  * Fields the server stamps on a create (`Entity.stamps`), under a guard, over
  * real SQLite. Who asks and when count as set where an insert is registered
- * (#202), a rule over who asks holds of the creator, and a retried insert
- * keeps the time its first attempt wrote and is answered with the row, while
- * another asker makes it someone else's (#203).
+ * (#202), a rule over who asks holds of the creator, and a retried insert,
+ * which the writer's ledger recognises, keeps the time its first attempt wrote
+ * and is answered with the row, while another asker makes it someone else's
+ * (#203).
  */
 import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
@@ -27,6 +28,13 @@ const likes = sqliteTable('likes', {
   accountId: text('account_id').notNull(),
   postId: text('post_id').notNull(),
   createdAt: integer('created_at').notNull(),
+})
+const ledger = sqliteTable('write_ledger', {
+  scope: text('scope').notNull(),
+  operation: text('operation').notNull(),
+  target: text('target').notNull(),
+  answer: text('answer').notNull(),
+  at: integer('at').notNull(),
 })
 
 const LikeFields = Entity.define(
@@ -71,7 +79,16 @@ const LikePost = Mutation.write(
     id: 'id',
   }),
 )
-const likeWriter = GuardServer.writer(Like, Policy, writer(Db.Like))
+const likeWriter = GuardServer.writer(
+  Like,
+  Policy,
+  writer<Option.Option<User>>(Db.Like, {
+    ledger: {
+      table: ledger,
+      scope: principal => Option.match(principal, { onNone: () => '', onSome: user => user.id }),
+    },
+  }),
+)
 // Made per test, not where the file loads: registration is what the first test checks.
 const serve = () =>
   RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
@@ -83,7 +100,11 @@ const serve = () =>
 const open = () => {
   const sqlite = new DatabaseSync(':memory:')
   sqlite.exec(
-    'create table likes (id text primary key, account_id text not null, post_id text not null, created_at integer not null)',
+    `create table likes (id text primary key, account_id text not null, post_id text not null, created_at integer not null);
+    create table write_ledger (
+      scope text not null, operation text not null, target text not null, answer text not null,
+      at integer not null, primary key (scope, operation, target)
+    );`,
   )
   const layer = databaseLayer(drizzle({ client: sqlite }))
   const server = serve()
@@ -91,7 +112,8 @@ const open = () => {
   const like = (who: string, requestId: string, input: unknown) =>
     Effect.runPromise(
       RemoteServer.handlers(server, Option.some({ id: who }))
-        .FoldkitRemoteMutate({ requestId, mutation: 'LikePost', input })
+        // One operation: the same like again is its retry, by request or not.
+        .FoldkitRemoteMutate({ requestId, operation: 'o1', mutation: 'LikePost', input })
         .pipe(
           Effect.provide(layer),
           Effect.provideService(Clock.Clock, clockAt(++clock)),

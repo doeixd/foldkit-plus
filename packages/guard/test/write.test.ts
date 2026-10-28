@@ -169,6 +169,21 @@ const Create = Mutation.write(
     { id: 'id' },
   ),
 )
+const CreateFull = Mutation.write(
+  'CreateFull',
+  Write.insert(
+    Entity.input(
+      Todo,
+      Schema.Struct({
+        id: Schema.String,
+        ownerId: Schema.String,
+        title: Schema.String,
+        claimedBy: Schema.NullOr(Schema.String),
+      }),
+    ),
+    { id: 'id' },
+  ),
+)
 const CreateBare = Mutation.write(
   'CreateBare',
   Write.insert(Entity.input(Todo, Schema.Struct({ id: Schema.String, title: Schema.String })), {
@@ -198,7 +213,7 @@ const guarded = GuardServer.writer(Todo, Policy, writer(Db.Todo))
 const server = RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
   entities: [],
   mutations: [
-    ...[Edit, Move, Claim, Create, CreateBare, Remove].map(mutation =>
+    ...[Edit, Move, Claim, Create, CreateFull, CreateBare, Remove].map(mutation =>
       RemoteServer.write(mutation, guarded),
     ),
     RemoteServer.write(CreateNote, GuardServer.writer(Note, Policy, writer(Db.Note))),
@@ -354,6 +369,34 @@ describe('GuardServer.writer', () => {
       await mutate(ada, 'CreateTodo', { id: 't6', ownerId: 'grace', title: 'For her' }),
     ).toMatchObject({ _tag: 'Failure', failure: { _tag: 'Forbidden' } })
     expect(row('t6')).toBeUndefined()
+  })
+
+  it('answers every create of a taken id alike, whatever the row holds or its asker may see', async () => {
+    const { mutate, row } = open()
+    const taken = [
+      // grace's, hidden from ada
+      { id: 't2', ownerId: 'ada', title: 'Hidden', claimedBy: null },
+      // ada's own, holding what she proposes but for a member she may not read
+      { id: 't1', ownerId: 'ada', title: 'Own', claimedBy: 'grace' },
+      // ada's own, holding exactly what she proposes
+      { id: 't1', ownerId: 'ada', title: 'Own', claimedBy: null },
+    ]
+    const answers = []
+    for (const input of taken) answers.push(await mutate(ada, 'CreateFull', input))
+    expect(answers).toMatchObject(
+      taken.map(({ id }) => ({
+        _tag: 'Failure',
+        failure: { message: `Todo ${id} could not be created` },
+      })),
+    )
+    // Two answers about one id are the same answer, whatever was proposed.
+    expect(answers[2]).toEqual(answers[1])
+    expect(row('t1')).toMatchObject({ claimed_by: null, title: 'Own' })
+    expect(row('t2')).toMatchObject({ owner_id: 'grace' })
+    // A free id is created.
+    expect(
+      await mutate(ada, 'CreateFull', { id: 't9', ownerId: 'ada', title: 'New', claimedBy: null }),
+    ).toMatchObject({ _tag: 'Success' })
   })
 
   it('refuses a create that leaves a field its rule reads unset', async () => {

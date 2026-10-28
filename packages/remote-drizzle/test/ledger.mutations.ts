@@ -80,6 +80,29 @@ export default [
     '      eq(book.table.target, Entity.refKey({ entity: binding.name, id })),\n',
     '',
   ),
+  edit(
+    'an insert does not ask its ledger whether it is a retry',
+    drizzle,
+    'if (ledger !== undefined && Option.isSome(operation)) {',
+    'if (false) {',
+  ),
+  {
+    // What a create of a taken id answered before: the row, when it held what was proposed.
+    name: 'a create of a taken id is answered by what the row there holds',
+    edits: [
+      {
+        file: drizzle,
+        find: 'onNone: () =>\n            Effect.fail(\n              new RemoteServerError({ message: `${binding.name} ${id} could not be created` }),\n            ),',
+        replace:
+          'onNone: () =>\n            Effect.gen(function* () {\n              const there = answeredOf(yield* selectRows(yield* DrizzleDatabase, binding.table, answered.columns, { where: eq(idColumn(binding), id) }), answered)\n              if (Option.isSome(there) && holdsWritten(there.value, values, links)) return there.value\n              return yield* new RemoteServerError({ message: `${binding.name} ${id} could not be created` })\n            }),',
+      },
+    ],
+    tests: [
+      'packages/remote-drizzle/test/ledger.test.ts',
+      'packages/remote-drizzle/test/writer.test.ts',
+      'packages/guard/test/write.test.ts',
+    ],
+  },
   {
     name: 'D1 is taken for a database with transactions',
     edits: [

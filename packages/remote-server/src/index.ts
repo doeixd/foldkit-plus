@@ -271,9 +271,10 @@ export interface EntityWriter<P, R = never> {
    */
   readonly commutes?: (assignment: WriteAssignment) => boolean
   /**
-   * Whether `update` records each write it lands under its `operation`, in
-   * the transaction that writes, and answers a retry of it from that record
-   * rather than writing again. An increment that expects no revision needs one.
+   * Whether `update` and `insert` record each write they land under its
+   * `operation`, in the transaction that writes, and answer a retry of it from
+   * that record rather than writing again. An increment that expects no
+   * revision needs one, and so does a create a client may send again.
    */
   readonly ledger?: true
   /**
@@ -327,17 +328,18 @@ export interface EntityWriter<P, R = never> {
     R
   >
   /**
-   * Inserts the row, or finds one already there under that id holding what
-   * it writes (a retry); answers the row as it is. Fails when the id holds
-   * any other row. `stamped` names the values stamped once, at creation
-   * (`Entity.stamps`, a clock's): a retry keeps the row's own, so they are
-   * not compared.
+   * Inserts the row and answers it. An id already taken fails with one
+   * answer, whatever the row there holds and whether its asker may see it, so
+   * a create never tells what it may not read; unless the writer's ledger
+   * records `operation` as the insert that made it (a retry), answered with
+   * the row as it now is.
    */
   readonly insert: (context: {
     readonly id: string
+    /** The operation's identity across clients, when the client sent one: a ledger's key. */
+    readonly operation: Option.Option<string>
     readonly values: Readonly<Record<string, unknown>>
     readonly links: Readonly<Record<string, Option.Option<EntityRef>>>
-    readonly stamped: ReadonlyArray<string>
     readonly principal: P
   }) => Effect.Effect<
     Readonly<Record<string, unknown>>,
@@ -1796,9 +1798,10 @@ export const RemoteServer = {
    * input bound to the write lands through `writer`, and the row as written
    * answers as a patch (a deletion as `deleted`). An update writes only the
    * keys the client named, when it named some, and fails for a row that is not
-   * there; an insert of an id already holding what it writes (a retry)
-   * answers with that row, and of one holding anything else fails; a delete of
-   * a row already gone succeeds. A row that moved past the revision the write
+   * there; an insert of an id already taken fails alike whatever the row
+   * holds, unless the writer's ledger records this operation as the insert
+   * that made it (a retry), answered with that row; a delete of a row already
+   * gone succeeds. A row that moved past the revision the write
    * `expect`s is refused as a conflict, and one that does not hold its `when`
    * as unmet; a write with a `when` needs a writer that checks it
    * (`preconditions`), and is refused here without one.
@@ -1881,14 +1884,6 @@ export const RemoteServer = {
     }
     const stamped = write.stamps.flatMap(
       WriteStamp.$match({ Field: ({ field }) => [field.key], Link: () => [] }),
-    )
-    // A retry keeps the row's own time, so the clock is never compared; who asked is.
-    const clocked = write.stamps.flatMap(
-      WriteStamp.$match({
-        Field: ({ field, stamp }) =>
-          Stamp.$match(stamp, { Clock: () => [field.key], Viewer: () => [] }),
-        Link: () => [],
-      }),
     )
     // An insert's row is its values: a field it leaves to a default the writer cannot judge.
     if (write._tag === 'Insert') {
@@ -2104,7 +2099,7 @@ export const RemoteServer = {
                     id: bound.id,
                     values: { ...bound.values, ...stamps.values },
                     links: { ...bound.links, ...stamps.links },
-                    stamped: clocked,
+                    operation,
                     principal,
                   }),
                 )
