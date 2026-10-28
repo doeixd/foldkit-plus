@@ -107,6 +107,35 @@ describe.each(Object.entries(databases))('Operators run by %s', (_, database) =>
 })
 
 describe('The helper over a database', () => {
+  it('finds a Postgres startsWith that reads its prefix as a like pattern', async () => {
+    const liking = entity('Thing', pgThings, {
+      operators: {
+        ...operators,
+        sql: DrizzleOperators.override(
+          operators.sql,
+          DrizzleOperators.implement(
+            Text.startsWith,
+            ({ args: [text, prefix], collate }) =>
+              sql`${collate(text!)} like (${collate(prefix!)} || '%')`,
+          ),
+        ),
+      },
+    })
+    const report = await Conformance.operator(Text.startsWith, {
+      implementations: {
+        memory: Conformance.memory(operators.memory),
+        postgres: selecting(
+          liking,
+          query => new PgDialect().sqlToQuery(query),
+          async (text, params) =>
+            (await pglite.query<{ value: unknown }>(text, [...params])).rows[0]!.value,
+        ),
+      },
+    })
+    expect(report.disagreements.map(each => each.args)).toContainEqual(['ab', '%'])
+    expect(report.disagreements.map(each => each.args)).toContainEqual(['a', '_'])
+  })
+
   it('finds an SQL implementation that folds case where memory does not', async () => {
     const folding = entity('Thing', sqliteThings, {
       operators: {

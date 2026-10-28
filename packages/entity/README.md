@@ -1032,7 +1032,7 @@ Operators.describeTable(recorded) // [{ name: 'acme.concat', …, laws, evidence
   over the non-negative numbers only). Strict null makes both sides null, so no
   law needs a null case.
 - **Testing is sampling, seeded.** Cases come from a fixed sample of each kind
-  (the empty string, mixed case, non-ASCII and astral text; zero, negatives, a
+  (the empty string, mixed case, non-ASCII and astral text, `%`, `_` and `\`; zero, negatives, a
   fraction), kept where the schemas decode them, up to `cases` (200) a law
   chosen by `seed` (0), under each of `binary` and `asciiFold` where the
   operator or a witness its law calls compares text (so a record of such a law

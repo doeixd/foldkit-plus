@@ -4,10 +4,11 @@
  * every implementation given, their answers and refusals compared.
  *
  * Cases are drawn from a fixed sample of each kind of value (text with the
- * empty string, mixed case, non-ASCII and an astral character; numbers with
- * zero, negatives and a fraction; both booleans), kept where the operator's
- * input schema and the law's domain decode them, and chosen by a seeded
- * shuffle when there are more than asked for, so a run is repeatable.
+ * empty string, mixed case, non-ASCII, an astral character and `like`'s
+ * wildcards; numbers with zero, negatives and a fraction; both booleans), kept
+ * where the operator's input schema and the law's domain decode them, and
+ * chosen by a seeded shuffle when there are more than asked for, so a run is
+ * repeatable.
  */
 import { Data, Option, Schema, SchemaAST } from 'effect'
 import {
@@ -79,7 +80,22 @@ export interface OperatorReport {
 
 const NUL = String.fromCharCode(0)
 // 'B' sorts before 'a' by code point and after it folded: what tells the collations apart.
-const texts = ['', 'a', 'A', 'ab', 'aB', 'b', 'B', 'é', 'É', String.fromCodePoint(0x1f600)]
+// `%`, `_` and `\` are what `like` reads as wildcards and its escape.
+const texts = [
+  '',
+  'a',
+  'A',
+  'ab',
+  'aB',
+  'b',
+  'B',
+  'é',
+  'É',
+  String.fromCodePoint(0x1f600),
+  '%',
+  '_',
+  '\\',
+]
 const numbers = [-2, -1, 0, 1, 2, 7, 0.5, -0.5, 1e6]
 const booleans = [true, false]
 

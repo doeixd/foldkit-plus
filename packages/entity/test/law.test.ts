@@ -426,12 +426,12 @@ describe('Running an operator through several implementations', () => {
       again: Conformance.memory(Operators.checked(Operators.kernel)),
     }
     const report = await Conformance.operator(Text.startsWith, { implementations })
-    // Each argument null, ten samples or text holding NUL, under binary and asciiFold: 12 × 12 × 2.
-    expect(report.cases).toBe(288)
+    // Each argument null, thirteen samples or text holding NUL, under binary and asciiFold: 15 × 15 × 2.
+    expect(report.cases).toBe(450)
     expect(report.disagreements).toEqual([])
-    // Text that admits no null is given none: 11 × 11 × 2.
+    // Text that admits no null is given none: 14 × 14 × 2.
     const concatenating = { memory: Conformance.memory(Operators.memory(concatLive)) }
-    expect((await Conformance.operator(concat, { implementations: concatenating })).cases).toBe(242)
+    expect((await Conformance.operator(concat, { implementations: concatenating })).cases).toBe(392)
   })
 
   it('refuses text holding NUL beside a null, as SQL does where it compiles', () => {

@@ -37,6 +37,13 @@ export default [
     tests,
   },
   {
+    name: 'no sample text holds a like wildcard',
+    edits: [
+      { file: '../../entity/src/conformance/operator.ts', find: "  '%',\n  '_',\n", replace: '' },
+    ],
+    tests,
+  },
+  {
     name: 'startsWith compares UTF-16 units',
     edits: [
       { file: kernel, find: ': beginsWith(text, prefix)', replace: ': text.startsWith(prefix)' },
