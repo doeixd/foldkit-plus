@@ -77,20 +77,25 @@ export interface EntityRelation<
   readonly metadata: Metadata
 }
 
+type OneRelation = EntityRelation<string, string, AnyEntity, 'one', boolean>
+
 /**
  * What a derived member is. `Supplied` (`Derived.make`): an interpreter
  * supplies it, and nothing else can say what it is. `Count`
  * (`Derived.count`): how many rows point at this one through `relation`, a
- * `one` relation of the counted Entity, which a client can predict from the
- * rows it writes and a server compiles from that relation's storage.
+ * `one` relation of the counted Entity. `Exists` (`Derived.exists`): the id of
+ * a row pointing here through `relation` whose `viewer` relation points at
+ * whoever reads it, or none. A client predicts both from the rows it writes,
+ * and a server compiles both from the relations' storage.
  */
 export type Derivation = Data.TaggedEnum<{
   Supplied: {}
-  Count: { readonly relation: EntityRelation<string, string, AnyEntity, 'one', boolean> }
+  Count: { readonly relation: OneRelation }
+  Exists: { readonly relation: OneRelation; readonly viewer: OneRelation }
 }>
 export const Derivation = Data.taggedEnum<Derivation>()
 
-/** What `Derived.make` or `Derived.count` returns, before an Entity owns it. */
+/** What `Derived.make`, `Derived.count` or `Derived.exists` returns, before an Entity owns it. */
 export interface DerivedSpec<S extends Schema.Constraint, D extends Derivation = Derivation> {
   readonly schema: S
   readonly derives: D
@@ -167,10 +172,10 @@ type Free<E extends AnyEntity, New> = keyof New & keyof E['members'] extends nev
   ? unknown
   : { readonly alreadyAMember: keyof New & keyof E['members'] }
 
-/** Unsatisfiable when a `Derived.count` names a relation pointing at another Entity. */
+/** Unsatisfiable when a `Derived.count` or `Derived.exists` names a relation pointing at another Entity. */
 type PointsHere<E extends AnyEntity, New extends DerivedSpecs> = {
   [K in keyof New]: New[K]['derives'] extends {
-    readonly _tag: 'Count'
+    readonly _tag: 'Count' | 'Exists'
     readonly relation: EntityRelation<any, any, infer Target, any, any>
   }
     ? [Target['name']] extends [E['name']]
@@ -772,26 +777,36 @@ export const Entity = {
 
   /**
    * Adds readable members that are not part of `entity.schema`. A
-   * `Derived.count` must count rows pointing at this Entity: one over a
-   * relation to another is refused here.
+   * `Derived.count` or `Derived.exists` must read rows pointing at this
+   * Entity: one over a relation to another is refused here, as is an exists
+   * whose viewer is not another `one` relation of the same pointing Entity.
    */
   derived:
     <const New extends DerivedSpecs>(specs: New) =>
     <E extends AnyEntity>(entity: E & Free<E, New> & PointsHere<E, New>): WithDerived<E, New> => {
       assertFree(entity, Object.keys(specs), 'derived member')
       const added = mapValues<DerivedSpec<Schema.Constraint>, EntityMember>(specs, (spec, key) => {
+        const pointingHere = (relation: OneRelation, verb: string): void => {
+          if (relation.cardinality !== 'one')
+            fail(
+              entity,
+              `"${key}" ${verb} "${relation.key}", a many relation; name a one relation that points here`,
+            )
+          if (!isSameEntity(relation.target(), entity))
+            fail(
+              entity,
+              `"${key}" ${verb} "${relation.owner.name}.${relation.key}", which points at ${relation.target().name}`,
+            )
+        }
         Derivation.$match(spec.derives, {
           Supplied: () => undefined,
-          Count: ({ relation }) => {
-            if (relation.cardinality !== 'one')
+          Count: ({ relation }) => pointingHere(relation, 'counts'),
+          Exists: ({ relation, viewer }) => {
+            pointingHere(relation, 'reads')
+            if (viewer.owner.token !== relation.owner.token || viewer.key === relation.key)
               fail(
                 entity,
-                `"${key}" counts "${relation.key}", a many relation; count a one relation that points here`,
-              )
-            if (!isSameEntity(relation.target(), entity))
-              fail(
-                entity,
-                `"${key}" counts "${relation.owner.name}.${relation.key}", which points at ${relation.target().name}`,
+                `"${key}"'s viewer "${viewer.owner.name}.${viewer.key}" must be another one relation of ${relation.owner.name}`,
               )
           },
         })
@@ -1091,6 +1106,11 @@ export const Relation = {
 /** A count: never negative, never a fraction. */
 const CountSchema = Schema.Number.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0))
 
+/** The id of the row an exists found, as every Remote id is held: text, or none. */
+const WitnessSchema = Schema.OptionFromNullOr(Schema.String)
+
+type OwnerName<R> = R extends EntityRelation<infer Name, any, any, any, any> ? Name : never
+
 export const Derived = {
   /** A member only an interpreter can compute, of type `schema`: it supplies the value. */
   make: <S extends Schema.Constraint>(
@@ -1112,6 +1132,33 @@ export const Derived = {
   ): DerivedSpec<typeof CountSchema, { readonly _tag: 'Count'; readonly relation: R }> => ({
     schema: CountSchema,
     derives: Derivation.Count({ relation }) as { readonly _tag: 'Count'; readonly relation: R },
+  }),
+
+  /**
+   * Whether a row points at this one through `relation` and at whoever reads
+   * it through `viewer`, another `one` relation of the same pointing Entity:
+   * `liked: Derived.exists(Like.relations.post, { viewer: Like.relations.user })`
+   * on Post. Its value is that row's id as the store holds it, or none, so the
+   * reader can take it back (`Write.delete` by that id). It depends on who
+   * reads it: a server answers it for the principal it reads as, and a client
+   * predicts it for the viewer it is told of.
+   */
+  exists: <
+    R extends OneRelation,
+    V extends EntityRelation<OwnerName<R>, string, AnyEntity, 'one', boolean>,
+  >(
+    relation: R,
+    options: { readonly viewer: V },
+  ): DerivedSpec<
+    typeof WitnessSchema,
+    { readonly _tag: 'Exists'; readonly relation: R; readonly viewer: V }
+  > => ({
+    schema: WitnessSchema,
+    derives: Derivation.Exists({ relation, viewer: options.viewer }) as {
+      readonly _tag: 'Exists'
+      readonly relation: R
+      readonly viewer: V
+    },
   }),
 }
 

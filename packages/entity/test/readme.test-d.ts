@@ -1,5 +1,5 @@
 // The README's snippets, compiled. Keep the two in step.
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { Metadata } from 'foldkit-metadata'
 import { expectTypeOf } from 'vitest'
 import {
@@ -36,7 +36,7 @@ const Blog = Entity.relate(
       editor: Relation.one(Author, { optional: true }),
       comments: Relation.many(Comment),
     },
-    Comment: { post: Relation.one(Post) },
+    Comment: { post: Relation.one(Post), author: Relation.one(Author) },
   },
 )
 
@@ -56,6 +56,17 @@ expectTypeOf(CountedPost.derived.commentTotal.derives.relation).toEqualTypeOf<
 >()
 expectTypeOf(Entity.select(CountedPost, { commentTotal: true }).schema.Type).toEqualTypeOf<{
   readonly commentTotal: number
+}>()
+
+const CommentedPost = Blog.Post.pipe(
+  Entity.derived({
+    myComment: Derived.exists(Blog.Comment.relations.post, {
+      viewer: Blog.Comment.relations.author,
+    }),
+  }),
+)
+expectTypeOf(Entity.select(CommentedPost, { myComment: true }).schema.Type).toEqualTypeOf<{
+  readonly myComment: Option.Option<string>
 }>()
 
 const Labels = Metadata.key<string>('my-admin/labels', {

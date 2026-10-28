@@ -56,7 +56,7 @@ const Blog = Entity.relate(
       editor: Relation.one(Author, { optional: true }),
       comments: Relation.many(Comment),
     },
-    Comment: { post: Relation.one(Post) },
+    Comment: { post: Relation.one(Post), author: Relation.one(Author) },
   },
 )
 
@@ -83,6 +83,21 @@ const Post = Blog.Post.pipe(
 `remote-drizzle`'s `bind` compiles it with no `derived` entry, and Remote
 predicts it while a declared write that inserts, deletes or relinks a Comment is
 pending. A `many` relation, or a relation pointing at another Entity, is refused.
+
+`Derived.exists(relation, { viewer })` is a viewer-relative member: the id of a
+row pointing here through `relation` whose `viewer` relation points at whoever
+reads it, or none.
+
+```ts
+const Post = Blog.Post.pipe(
+  Entity.derived({
+    myComment: Derived.exists(Blog.Comment.relations.post, {
+      viewer: Blog.Comment.relations.author,
+    }),
+  }),
+)
+// Selected: myComment: Option<string>. Pressed is Option.isSome; unpressing deletes that id.
+```
 
 ## Common tasks
 

@@ -1,4 +1,4 @@
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { Derivation, Derived, Entity, Relation } from '../src/index.js'
 
@@ -56,5 +56,47 @@ describe('Derived.count', () => {
     const step = Entity.derived({ likeCount: many })
     // @ts-expect-error refused above, the count's relation reads as pointing anywhere
     expect(() => Social.Post.pipe(step)).toThrow('"likeCount" counts "likes", a many relation')
+  })
+})
+
+describe('Derived.exists', () => {
+  const liked = Derived.exists(Social.Like.relations.post, {
+    viewer: Social.Like.relations.account,
+  })
+
+  it('keeps the relation it reads and its viewer, and is a row id or none', () => {
+    const Post = Social.Post.pipe(Entity.derived({ liked }))
+    const derives = Post.derived.liked.derives
+    expect(derives._tag).toBe('Exists')
+    expect(derives.relation).toBe(Social.Like.relations.post)
+    expect(derives.viewer).toBe(Social.Like.relations.account)
+    const decode = Schema.decodeUnknownSync(Post.derived.liked.schema)
+    expect(decode('l1')).toEqual(Option.some('l1'))
+    expect(decode(null)).toEqual(Option.none())
+  })
+
+  it('refuses an exists over a relation pointing at another Entity', () => {
+    const step = Entity.derived({ liked })
+    // @ts-expect-error the relation points at Post, not Account
+    expect(() => step(Account)).toThrow('"liked" reads "Like.post", which points at Post')
+  })
+
+  it("refuses a viewer that is another Entity's relation", () => {
+    const exists = Derived.exists(Social.Like.relations.post, {
+      // @ts-expect-error the viewer must be a relation of Like, as the read relation is
+      viewer: Social.Post.relations.replyTo,
+    })
+    expect(() => Social.Post.pipe(Entity.derived({ liked: exists }))).toThrow(
+      `"liked"'s viewer "Post.replyTo" must be another one relation of Like`,
+    )
+  })
+
+  it('refuses a viewer that is the read relation itself', () => {
+    const exists = Derived.exists(Social.Like.relations.post, {
+      viewer: Social.Like.relations.post,
+    })
+    expect(() => Social.Post.pipe(Entity.derived({ liked: exists }))).toThrow(
+      `"liked"'s viewer "Like.post" must be another one relation of Like`,
+    )
   })
 })

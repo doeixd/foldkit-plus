@@ -97,7 +97,7 @@ const Blog = Entity.relate(
       editor: Relation.one(Author, { optional: true }),
       comments: Relation.many(Comment),
     },
-    Comment: { post: Relation.one(Post) },
+    Comment: { post: Relation.one(Post), author: Relation.one(Author) },
   },
 )
 
@@ -127,8 +127,24 @@ Object.keys(Blog.Post.members) // id, title, published, commentCount, author, ed
   A count of a `many` relation, or of rows pointing at another Entity, is
   refused where it is declared. `remote-drizzle` compiles it with no binding
   entry, and Remote predicts it while a write that adds, removes or moves a
-  counted row is pending. Each derived member's `derives` says which kind it is
-  (`Supplied`, `Count`).
+  counted row is pending.
+- `Derived.exists(relation, { viewer })` says whether a row points here
+  through `relation` and at whoever reads it through `viewer`, another `one`
+  relation of the same Entity: "did I comment on this post?"
+
+  ```ts
+  const Post = Blog.Post.pipe(
+    Entity.derived({
+      myComment: Derived.exists(Blog.Comment.relations.post, {
+        viewer: Blog.Comment.relations.author,
+      }),
+    }),
+  )
+  ```
+
+  Its value is that row's id, or none (`Option<string>`), so the reader can
+  take it back by deleting the row. It depends on who reads it. Each derived member's `derives` says which kind it is
+  (`Supplied`, `Count`, `Exists`).
 - `Entity.relate` takes the entities and every relation between them, and
   returns the same entities with `relations` filled in. Use the returned ones
   (`Blog.Post`); the `Post` you passed in still has no relations.
@@ -1122,6 +1138,7 @@ from queries, not from what a database could express.
 | `Entity.valuesFor(input, value)` | The input values that reproduce a loaded value: fields as they are, refs as ids. |
 | `Entity.derived({ key: Derived.make(schema) })` | Pipe step adding readable, externally supplied members. |
 | `Derived.count(Other.relations.pointer)` | A derived member counting the rows whose `one` relation points at this one. |
+| `Derived.exists(Other.relations.pointer, { viewer: Other.relations.by })` | The id of a row pointing at this one and at whoever reads it, or none. |
 | `Entity.annotate(metadata)` | Pipe step attaching metadata to the Entity. |
 | `Entity.annotateMembers({ key: metadata })` | Pipe step attaching metadata to members by key. |
 | `Entity.same(a, b)` | Whether two descriptors are versions of one Entity. |

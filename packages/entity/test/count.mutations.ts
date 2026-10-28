@@ -24,4 +24,12 @@ export default [
     'Schema.isGreaterThanOrEqualTo(-1)',
   ),
   edit('a count may be a fraction', 'Schema.Number.check(Schema.isInt(), ', 'Schema.Number.check('),
+  edit("an exists's relation is not checked", "pointingHere(relation, 'reads')", 'undefined'),
+  edit(
+    "an exists's viewer may be another Entity's",
+    'viewer.owner.token !== relation.owner.token ||',
+    'false ||',
+  ),
+  edit("an exists's viewer may be its relation", '|| viewer.key === relation.key)', '|| false)'),
+  edit('an exists holds a bare string', 'Schema.OptionFromNullOr(Schema.String)', 'Schema.String'),
 ]
