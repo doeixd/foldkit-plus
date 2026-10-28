@@ -214,8 +214,14 @@ export default [
   edit(
     'a table takes evidence of another implementation',
     operators,
-    '!Option.exists(implementationTested(record), tested => tested === implemented)',
+    '!Option.exists(tested, table => table.implementations.includes(implemented))',
     'false',
+  ),
+  edit(
+    'a table takes evidence tested with another witness',
+    operators,
+    '!Option.exists(tested, table => sameRun(runNamed(table, name), runNamed(base, name))),',
+    '!Option.isSome(tested),',
   ),
   edit(
     "a law's domain drops its definitions",

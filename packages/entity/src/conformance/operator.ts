@@ -465,11 +465,8 @@ export const Conformance = {
       implementation: options.implementation ?? 'memory',
       seed,
     })
-    // Each record is of this table's implementation, which `withEvidence` checks.
-    const tested = operators.implementations.find(each => each.operator === operator.descriptor)
-    if (verdict._tag === 'Holds' && tested !== undefined) {
-      verdict.evidence.forEach(record => stampTested(record, tested))
-    }
+    // Each record is of this table's implementations, its witnesses' too, which `withEvidence` checks.
+    if (verdict._tag === 'Holds') verdict.evidence.forEach(record => stampTested(record, operators))
     return verdict
   },
 

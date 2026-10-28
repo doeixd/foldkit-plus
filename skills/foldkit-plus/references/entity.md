@@ -409,7 +409,7 @@ declares equations every implementation keeps (`commutative`, `idempotent`,
 nothing. `Conformance.laws(op, table)` (`foldkit-entity/conformance`) samples
 each, seeded, and answers `Holds` with `Tested` evidence, a `Counterexample`, or
 `Unanswered` for a law no case of which both sides answered (two refusals agree but count as no case);
-`Operators.withEvidence(table, evidence)` records it, only for the implementation it was tested on (`Operators.testedOn`; an SQL table takes only `Conformance.lawsBy`'s records, `Operators.testedByRunner`), and `describeTable(table)`
+`Operators.withEvidence(table, evidence)` records it, only for the implementation it was tested on, beside the same witnesses' (`Operators.testedOn`; an SQL table takes only `Conformance.lawsBy`'s records, `Operators.testedByRunner`), and `describeTable(table)`
 lists each operator as `describe` does (its `name`, …), with its evidence. `Conformance.operator(op, {
 implementations })` runs generated calls through several runners
 (`Conformance.memory(table)`, an SQL one over `compileCall`) and reports where they

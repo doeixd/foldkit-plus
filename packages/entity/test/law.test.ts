@@ -329,6 +329,28 @@ describe('Evidence of a law calling another operator', () => {
     )
     expect(replaced.evidence).toEqual([])
   })
+
+  it('is refused by a table whose witness behaves differently', () => {
+    const verdict = Conformance.laws(mul, arithmetic)
+    const evidence = verdict._tag === 'Holds' ? verdict.evidence : []
+    expect(evidence.map(record => record.law.kind)).toEqual(['absorbing', 'distributes'])
+    const mulLive = arithmetic.implementations.find(({ operator }) => operator === mul.descriptor)!
+    const addOff = Operators.implement(add, (a, b) => a + b + 1)
+    const other = Operators.memory(mulLive, addOff)
+    expect(Conformance.laws(mul, other)).toMatchObject({
+      _tag: 'Counterexample',
+      law: { kind: 'distributes' },
+    })
+    expect(() => Operators.withEvidence(other, evidence)).toThrow(
+      "evidence of acme.mul's distributes law was tested with another implementation of acme.add, which it calls",
+    )
+    // A law that calls no other operator, and a table with the same witness, keep theirs.
+    expect(Operators.withEvidence(other, [evidence[0]!]).evidence).toHaveLength(1)
+    const addLive = arithmetic.implementations.find(({ operator }) => operator === add.descriptor)!
+    expect(
+      Operators.withEvidence(Operators.memory(mulLive, addLive), evidence).evidence,
+    ).toHaveLength(2)
+  })
 })
 
 describe('Evidence in a table', () => {

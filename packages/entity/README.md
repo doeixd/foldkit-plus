@@ -1044,7 +1044,8 @@ Operators.describeTable(recorded) // [{ name: 'acme.concat', …, laws, evidence
 - **Evidence is an implementation's.** `Operators.withEvidence` refuses a record
   of an operator the table lacks or a law it does not declare, and a `Tested`
   record `Conformance.laws` did not make of this table's own implementation
-  (`Operators.testedOn(record)` names the one it did); `override` drops a
+  (`Operators.testedOn(record)` names the one it did), or tested beside another
+  implementation of a witness its law calls; `override` drops a
   replaced implementation's records, and those of a law that called it as a
   witness (`inverse`, `distributes`); `merge` keeps both tables'. An SQL table
   (`DrizzleOperators.withEvidence`) takes only records `Conformance.lawsBy`

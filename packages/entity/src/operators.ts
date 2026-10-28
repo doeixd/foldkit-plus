@@ -4,12 +4,12 @@
  * immutable and implements each operator once; nothing registers anything
  * globally. See `docs/design/expr-operations-DESIGN.md` §5.4.
  */
-import { Data, Option, Schema } from 'effect'
+import { Data, Equivalence, Option, Schema } from 'effect'
 import { Collation } from './collation.js'
 import type { Operator, OperatorDescriptor, OperatorTable } from './expr.js'
 import { Law, LawDescription } from './law.js'
 import { jsonSchemaOf } from './jsonSchema.js'
-import { implementationTested, testedByRunner } from './tested.js'
+import { tableTested, testedByRunner } from './tested.js'
 import { Text } from './text.js'
 
 /** What an implementation is told besides its arguments. */
@@ -156,6 +156,12 @@ const table = (
 const sameLaw = (left: LawDescription, right: LawDescription): boolean =>
   JSON.stringify(left) === JSON.stringify(right)
 
+/** What a table runs for the operator under `name`: none when it implements none. */
+const runNamed = (operators: MemoryOperators, name: string) =>
+  Option.flatMap(operators.named(name), operators.get)
+
+const sameRun = Option.makeEquivalence(Equivalence.strictEqual<MemoryImplementation['run']>())
+
 /** An implementation, its operator's null rule checked against the function chosen for it. */
 const implementation = (
   operator: OperatorDescriptor,
@@ -288,13 +294,22 @@ export const Operators = {
       if (!implemented.operator.laws.map(Law.describe).some(law => sameLaw(law, record.law))) {
         fail(`evidence names a law of ${record.operator} it does not declare (${record.law.kind})`)
       }
+      if (record._tag !== 'Tested') continue
       // Evidence of another implementation, or of a runner, says nothing of this one.
-      if (
-        record._tag === 'Tested' &&
-        !Option.exists(implementationTested(record), tested => tested === implemented)
-      ) {
+      const tested = tableTested(record)
+      if (!Option.exists(tested, table => table.implementations.includes(implemented))) {
         fail(
           `evidence of ${record.operator}'s ${record.law.kind} law was not tested on this table's implementation; test it with Conformance.laws(op, table)`,
+        )
+      }
+      // Nor with another implementation of a witness the law calls (`distributes`, `inverse`).
+      const other = Law.witnessesNamed(record.law).find(
+        name =>
+          !Option.exists(tested, table => sameRun(runNamed(table, name), runNamed(base, name))),
+      )
+      if (other !== undefined) {
+        fail(
+          `evidence of ${record.operator}'s ${record.law.kind} law was tested with another implementation of ${other}, which it calls; test it with Conformance.laws(op, table)`,
         )
       }
     }
@@ -305,7 +320,12 @@ export const Operators = {
    * The memory implementation `Conformance.laws` tested a record on; none for
    * a record of a runner (`Conformance.lawsBy`) or a proof.
    */
-  testedOn: (record: Evidence): Option.Option<MemoryImplementation> => implementationTested(record),
+  testedOn: (record: Evidence): Option.Option<MemoryImplementation> =>
+    Option.flatMap(tableTested(record), table =>
+      Option.fromUndefinedOr(
+        table.implementations.find(({ operator }) => nameOf(operator) === record.operator),
+      ),
+    ),
 
   /**
    * Whether `Conformance.lawsBy` made a record, through a runner: what an SQL
