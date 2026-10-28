@@ -34,7 +34,7 @@ export default [
     edits: [
       {
         file: index,
-        find: 'if (!holds.has(entityKey(change.entity, change.id))) continue',
+        find: 'if (!holds.has(entityKey(change.entity, change.id)) && !created) continue',
         replace: '',
       },
     ],
