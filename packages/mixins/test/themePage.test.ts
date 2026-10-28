@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest'
 import { Diagnostics, Layers, Style } from '../src/index.js'
 import { Knob, Theme } from '../src/theme.js'
+import { fit } from '../src/theme/gamut.js'
 import { palette as colors } from '../src/theme/oklch.js'
 
 const cssOf = (piece: { readonly globalCss?: ReadonlyArray<string> }) =>
@@ -365,10 +366,11 @@ describe('the palette', () => {
       match[2] ?? '',
     ])
 
-  it('has the twenty-four groups', () => {
+  it('has the twenty-five groups', () => {
     expect(Object.keys(brand)).toEqual([
       'knob',
       'hue',
+      'gamut',
       'surface',
       'text',
       'outline',
@@ -396,7 +398,7 @@ describe('the palette', () => {
 
   it('steps every color scale down one lightness ladder, and washes step 6 into the page', () => {
     const names = ['red', 'orange', 'yellow', 'green', 'teal', 'blue', 'purple'] as const
-    const lightness = (value: string) => Number(value.match(/^oklch\(([\d.]+)%/)?.[1])
+    const lightness = (value: string) => Number(value.match(/oklch\(([\d.]+)%/)?.[1])
     const ladder = (name: (typeof names)[number]) =>
       (['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'] as const).map(step =>
         lightness(brand[name][step]),
@@ -411,7 +413,7 @@ describe('the palette', () => {
       expect(ladder(name)).toEqual(first)
       expect(brand[name]['6']).toContain(`var(--fk-knob-${name}-h)`)
       expect(brand[name]['wash-1']).toBe(
-        `color-mix(in oklab, var(--fk-${name}-6) 8%, var(--fk-surface-base))`,
+        fit(`color-mix(in oklab, var(--fk-${name}-6) 8%, var(--fk-surface-base))`, name),
       )
     }
   })
@@ -419,7 +421,7 @@ describe('the palette', () => {
   it('sets the shadow color per scheme, denser on a dark surface', () => {
     const color = brand.shadow.color
     const [light, dark] = color.slice('light-dark('.length, -1).split(/,\s*(?=oklch)/)
-    const alpha = (value = '') => Number(value.match(/\/\s*([\d.]+)\)\s*$/)?.[1])
+    const alpha = (value = '') => Number(value.match(/\/\s*([\d.]+)\)/)?.[1])
     expect(color.startsWith('light-dark(')).toBe(true)
     expect(alpha(dark)).toBeGreaterThan(alpha(light))
   })
@@ -491,20 +493,23 @@ describe('the palette', () => {
 
   it('derives surfaces by mixing the base toward a target by surface-contrast', () => {
     expect(brand.surface.default).toBe(
-      'color-mix(in oklch, var(--fk-surface-base) calc(100% - var(--fk-knob-surface-contrast)), light-dark(oklch(from var(--fk-surface-base) calc(l - 0.1375) calc(c * 1.625) h), oklch(from var(--fk-surface-base) calc(l + 0.1125) calc(c * 1.25) h)) var(--fk-knob-surface-contrast))',
+      fit(
+        'color-mix(in oklch, var(--fk-surface-base) calc(100% - var(--fk-knob-surface-contrast)), light-dark(oklch(from var(--fk-surface-base) calc(l - 0.1375) calc(c * 1.625) h), oklch(from var(--fk-surface-base) calc(l + 0.1125) calc(c * 1.25) h)) var(--fk-knob-surface-contrast))',
+        'neutral',
+      ),
     )
   })
 
   it('scales text chroma by surface saturation and the contrast factor', () => {
     expect(brand.text.default).toBe(
-      'light-dark(oklch(20% calc(var(--fk-knob-surface-c) * 2 * var(--fk-knob-contrast-factor)) var(--fk-hue-neutral)), oklch(88% calc(var(--fk-knob-surface-c-dark) * 0.8 * var(--fk-knob-contrast-factor)) var(--fk-hue-neutral)))',
+      `light-dark(${fit('oklch(20% calc(var(--fk-knob-surface-c) * 2 * var(--fk-knob-contrast-factor)) var(--fk-hue-neutral))', 'neutral')}, ${fit('oklch(88% calc(var(--fk-knob-surface-c-dark) * 0.8 * var(--fk-knob-contrast-factor)) var(--fk-hue-neutral))', 'neutral')})`,
     )
   })
 
   it('draws links in the accent’s ink, and darkens them on hover', () => {
     expect(brand.text.link).toBe('var(--fk-accent-ink)')
     expect(brand.text['link-hover']).toBe(
-      'oklch(from var(--fk-text-link) calc(l - 0.1) calc(c + 0) h)',
+      fit('oklch(from var(--fk-text-link) calc(l - 0.1) calc(c + 0) h)', 'accent'),
     )
   })
 
@@ -520,10 +525,13 @@ describe('the palette', () => {
     ] as const
     for (const name of families) {
       expect(brand[name]['on-fill']).toBe(
-        `oklch(from var(--fk-${name}-default) clamp(0.1, (0.65 / l - 1) * 999, 0.98) min(c, 0.08) h)`,
+        fit(
+          `oklch(from var(--fk-${name}-default) clamp(0.1, (0.65 / l - 1) * 999, 0.98) min(c, 0.08) h)`,
+          name,
+        ),
       )
       expect(brand[name].ink).toBe(
-        `light-dark(oklch(from var(--fk-${name}-default) 0.45 c h), oklch(from var(--fk-${name}-default) 0.8 c h))`,
+        `light-dark(${fit(`oklch(from var(--fk-${name}-default) 0.45 c h)`, name)}, ${fit(`oklch(from var(--fk-${name}-default) 0.8 c h)`, name)})`,
       )
     }
   })
@@ -534,7 +542,8 @@ describe('the palette', () => {
     const after = cssOf(Theme.root(ocean)).split(';')
     expect(after.length).toBe(before.length)
     const changed = before.filter((line, index) => line !== after[index])
-    expect(changed).toEqual([':root{--fk-knob-accent-h:235'])
+    // The boundary written for 235 stays: the browser sees the hue moved, and bounds by any hue's.
+    expect(changed).toEqual([expect.stringMatching(/:root\{--fk-knob-accent-h:235$/)])
   })
 
   it('is a concrete type: a known token autocompletes, an unknown one is refused', () => {
@@ -571,7 +580,8 @@ describe('the page sheet', () => {
     ).toBe(true)
     expect(sheet).toContain('@layer tokens{:root{--fk-knob-density:1.1;')
     // Both themes carry a `knob` group; only the scales' knobs are omitted.
-    expect(sheet).toContain('@layer theme{:root{--fk-knob-accent-h:280;')
+    expect(sheet).toContain('@layer theme{@property --fk-gamut-accent-s{')
+    expect(sheet).toContain(':root{--fk-knob-accent-h:280;')
     expect(sheet).not.toContain('--fk-knob-density:1;--fk-knob-radius-factor:1;--fk-knob-accent-h')
     expect(sheet).toContain('@layer theme{:root[data-theme="ocean"]{--fk-knob-accent-h:215}}')
     expect(sheet).toMatch(

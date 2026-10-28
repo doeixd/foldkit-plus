@@ -8,11 +8,12 @@ import { Layers, Style } from '../src/index.js'
 import { Theme, type Standard, type Values } from '../src/theme.js'
 
 // A tinted page at the contrast the steps' chroma was tuned at: the default's
-// page is untinted, so its steps have no tint to keep.
+// page is untinted, so its steps have no tint to keep. Below white, since
+// white holds no tint inside sRGB.
 const theme = Theme.standard(
   Theme.make({
     accent: { hue: 265, chroma: 0.16 },
-    surface: { saturation: 0.008, contrast: 26 },
+    surface: { saturation: 0.008, contrast: 26, lightness: 97.5 },
   }),
 )
 const L = Layers.standard
@@ -239,7 +240,8 @@ test.each(['light', 'dark'] as const)(
     const accent = { hue: 265, chroma: 0.16 }
     sheet({ accent, surface: { hue: 200 }, shadow: { hue: 40, chroma: 0.06 } })
     expect(distance(hueOf(computed('shadow-color')), 40)).toBeLessThan(5)
-    expect(chromaOf(computed('shadow-color'))).toBeGreaterThan(0.05)
+    // As much of its chroma as sRGB shows: a dark scheme's 5% lightness holds under 0.02.
+    expect(chromaOf(computed('shadow-color'))).toBeGreaterThan(0.01)
     document.head.querySelectorAll('style[data-test]').forEach(element => element.remove())
     sheet({ accent, surface: { hue: 200, saturation: 0.03 } })
     expect(distance(hueOf(computed('shadow-color')), 200)).toBeLessThan(5)

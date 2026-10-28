@@ -9,10 +9,13 @@
  * choice is a `color-scheme` override.
  */
 import { define } from './core.js'
+import { boundaryVariables, chartHue, fit, gamut, hue, type Hue } from './gamut.js'
 import { standard, unsetOf } from './knobs.js'
 
 const v = (group: string, name: string) => `var(--fk-${group}-${name})`
 const ld = (light: string, dark: string) => `light-dark(${light}, ${dark})`
+/** Each half of a `light-dark()` pair fitted into sRGB on `hue`. */
+const fitted = (hue: Hue, light: string, dark: string) => ld(fit(light, hue), fit(dark, hue))
 const offset = (amount: number) => `${amount < 0 ? '-' : '+'} ${Math.abs(amount)}`
 /** `oklch(from <color> …)` with the hue kept. */
 const from = (color: string, l: string, c: string) => `oklch(from ${color} ${l} ${c} h)`
@@ -20,17 +23,16 @@ const shift = (color: string, dl: number, dc: number) =>
   from(color, `calc(l ${offset(dl)})`, `calc(c ${offset(dc)})`)
 const scale = (color: string, dl: number, cx: number) =>
   from(color, `calc(l ${offset(dl)})`, `calc(c * ${cx})`)
-/** The same lightness and chroma as `color` on another hue. */
-const rehue = (color: string, hue: string) => `oklch(from ${color} l c ${hue})`
 /** Near-black or near-white text over `color`. */
-const contrast = (color: string) =>
-  `oklch(from ${color} clamp(0.1, (0.65 / l - 1) * 999, 0.98) min(c, 0.08) h)`
+const contrast = (color: string, hue: Hue) =>
+  fit(`oklch(from ${color} clamp(0.1, (0.65 / l - 1) * 999, 0.98) min(c, 0.08) h)`, hue)
 /**
  * `color` as text on the base surface: dark in a light scheme, light in a
  * dark one. 0.45 reads at WCAG AA on the muted surface too, where 0.5 fell
  * short (4.1:1) once the default surfaces stood further apart.
  */
-const ink = (color: string) => ld(from(color, '0.45', 'c'), from(color, '0.8', 'c'))
+const ink = (color: string, hue: Hue) =>
+  fitted(hue, from(color, '0.45', 'c'), from(color, '0.8', 'c'))
 /**
  * `color` tinted onto the base surface, the same in both schemes. Mixed in
  * OKLab, not OKLCH: OKLCH interpolates hue, so a mix mostly of the base keeps
@@ -64,7 +66,7 @@ const surfaceStep = (lightStep: Step, darkStep: Step) => {
   const amount = v('knob', 'surface-contrast')
   const [light, dark] = [reach(lightStep), reach(darkStep)]
   const target = ld(scale(base, light[0], light[1]), scale(base, dark[0], dark[1]))
-  return `color-mix(in oklch, ${base} calc(100% - ${amount}), ${target} ${amount})`
+  return fit(`color-mix(in oklch, ${base} calc(100% - ${amount}), ${target} ${amount})`, 'neutral')
 }
 
 /** `a` where the 0-or-1 knob `name` is 1, `b` where it is 0. */
@@ -73,7 +75,8 @@ const share = (a: string, name: string, b: string) =>
 
 /** A text color: fixed lightness, chroma scaled by surface saturation and the contrast factor. */
 const text = (light: Step, dark: Step) =>
-  ld(
+  fitted(
+    'neutral',
     `oklch(${light[0]}% calc(${surfaceC} * ${light[1]} * ${contrastFactor}) ${neutral})`,
     `oklch(${dark[0]}% calc(${surfaceCDark} * ${dark[1]} * ${contrastFactor}) ${neutral})`,
   )
@@ -84,16 +87,17 @@ const text = (light: Step, dark: Step) =>
  * (darker in a light scheme, lighter in a dark one), and text on the fill
  * and in the family's color.
  */
-const family = (name: string, defaultValue: string) => {
+const family = (name: Hue, defaultValue: string) => {
   const color = v(name, 'default')
   return {
     default: defaultValue,
-    hover: shift(color, -0.06, 0),
-    active: shift(color, -0.1, 0.05),
-    subtle: tint(color, 85),
-    outline: ld(shift(color, -0.05, 0), shift(color, 0.05, 0)),
-    'on-fill': contrast(color),
-    ink: ink(color),
+    hover: fit(shift(color, -0.06, 0), name),
+    active: fit(shift(color, -0.1, 0.05), name),
+    // A mix of two colors inside sRGB can bend out of it, toward white most.
+    subtle: fit(tint(color, 85), name),
+    outline: fitted(name, shift(color, -0.05, 0), shift(color, 0.05, 0)),
+    'on-fill': contrast(color, name),
+    ink: ink(color, name),
   }
 }
 
@@ -101,8 +105,12 @@ const family = (name: string, defaultValue: string) => {
  * A code color in `hue`: the same lightness for every kind, so no kind shouts,
  * dark enough to read on a light surface and light enough on a dark one.
  */
-const syntaxInk = (hue: string) =>
-  ld(`oklch(48% ${v('knob', 'syntax-c')} ${hue})`, `oklch(80% ${v('knob', 'syntax-c')} ${hue})`)
+const syntaxInk = (name: Hue, hue: string) =>
+  fitted(
+    name,
+    `oklch(48% ${v('knob', 'syntax-c')} ${hue})`,
+    `oklch(80% ${v('knob', 'syntax-c')} ${hue})`,
+  )
 
 /**
  * A chart's series color: a hue a fixed turn from the first, at a lightness
@@ -111,16 +119,26 @@ const syntaxInk = (hue: string) =>
  * slots, in its order, which keeps neighbors apart under protan and deutan
  * vision; moving `chart-h` turns them all and keeps the order.
  */
-const chartInk = (turn: number, light: Step, dark: Step) => {
-  const hue = `calc(${v('knob', 'chart-h')} ${offset(turn)})`
-  return ld(`oklch(${light[0]} ${light[1]} ${hue})`, `oklch(${dark[0]} ${dark[1]} ${hue})`)
+const chartInk = (index: 1 | 2 | 3 | 4 | 5, light: Step, dark: Step) => {
+  const hue = chartHue(index)
+  return fitted(
+    `chart-${index}`,
+    `oklch(${light[0]} ${light[1]} ${hue})`,
+    `oklch(${dark[0]} ${dark[1]} ${hue})`,
+  )
 }
 
 /** A feedback family, lighter in a dark scheme so its fill reads on a dark page. */
-const feedback = (name: string, l: number, c: number, dark: number) =>
+const feedback = (
+  name: 'success' | 'warning' | 'error' | 'info',
+  l: number,
+  c: number,
+  dark: number,
+) =>
   family(
     name,
-    ld(
+    fitted(
+      name,
       `oklch(${l}% ${c} ${v('knob', `${name}-h`)})`,
       `oklch(${dark}% ${c} ${v('knob', `${name}-h`)})`,
     ),
@@ -147,9 +165,9 @@ const scaleC = [0.02, 0.05, 0.09, 0.13, 0.16, 0.17, 0.155, 0.125, 0.09, 0.055]
 const colorScale = (name: ScaleName) => {
   const hue = v('knob', `${name}-h`)
   const step = (index: number) =>
-    `oklch(${scaleL[index]}% calc(${scaleC[index]} * ${v('knob', 'scale-c')}) ${hue})`
+    fit(`oklch(${scaleL[index]}% calc(${scaleC[index]} * ${v('knob', 'scale-c')}) ${hue})`, name)
   const wash = (share: number) =>
-    `color-mix(in oklab, ${v(name, '6')} ${share}%, ${v('surface', 'base')})`
+    fit(`color-mix(in oklab, ${v(name, '6')} ${share}%, ${v('surface', 'base')})`, name)
   return {
     '1': step(0),
     '2': step(1),
@@ -178,6 +196,17 @@ const inked = (line: string, strength: 'subtle' | 'default' | 'overt') =>
 const accent = v('accent', 'default')
 
 /**
+ * The accent's knobs on `hue`, before fitting into sRGB: the secondary and
+ * tertiary turn this, not the fitted accent, so each keeps what its own hue
+ * can show.
+ */
+const accentOn = (hue: string) =>
+  ld(
+    `oklch(${v('knob', 'accent-l')} ${v('knob', 'accent-c')} ${hue})`,
+    `oklch(${v('knob', 'accent-l-dark')} ${v('knob', 'accent-c-dark')} ${hue})`,
+  )
+
+/**
  * The palette: every color a CSS expression over the knobs' variables. The
  * knobs stand at their defaults here; a theme declares its own values over
  * them (`Theme.standard`).
@@ -185,6 +214,7 @@ const accent = v('accent', 'default')
 export const palette = define({
   knob: {
     ...unsetOf(standard),
+    ...boundaryVariables(unsetOf(standard)),
     // How much of the text a state lays over its surface; a hover's is a knob.
     'state-tint': '8%',
     'state-tint-dark': '25%',
@@ -192,14 +222,12 @@ export const palette = define({
     // How much lighter each raised level is in a dark scheme.
     'raise-dark': '0.027',
   },
-  hue: {
-    accent: v('knob', 'accent-h'),
-    secondary: `calc(${v('knob', 'accent-h')} + ${v('knob', 'secondary-shift')})`,
-    tertiary: `calc(${v('knob', 'accent-h')} + ${v('knob', 'tertiary-shift')})`,
-    neutral: v('knob', 'neutral-h'),
-  },
+  hue,
+  // Each hue's sRGB boundary, which every color derived on it is fitted to.
+  gamut,
   surface: {
-    base: ld(
+    base: fitted(
+      'neutral',
       `oklch(${v('knob', 'base-l')} calc(${surfaceC} * 0.9) ${neutral})`,
       `oklch(${v('knob', 'base-l-dark')} calc(${surfaceCDark} * 0.9) ${neutral})`,
     ),
@@ -216,7 +244,8 @@ export const palette = define({
     overt: surfaceStep([-0.31, 2.25], [0.125, 1.2]),
     // The deepest of the page's color in both schemes: under a dialog's
     // backdrop, a veil of it darkens the page; it was near-white in a dark one.
-    bedrock: ld(
+    bedrock: fitted(
+      'neutral',
       `oklch(8% calc(${surfaceC} * 1.2) ${neutral})`,
       `oklch(6% calc(${surfaceCDark} * 1.2) ${neutral})`,
     ),
@@ -228,36 +257,31 @@ export const palette = define({
     overt: text([10, 2.2], [95, 0.6]),
     // The accent's ink: a link lighter than the accent read at 2.9:1 on a white page.
     link: v('accent', 'ink'),
-    'link-hover': shift(v('text', 'link'), -0.1, 0),
+    'link-hover': fit(shift(v('text', 'link'), -0.1, 0), 'accent'),
   },
   // Steps from the base, as the surfaces are: darker in a light scheme,
   // lighter in a dark one, and in the base's own hue with a little more of
   // its chroma, which a thin line needs to read as the page's color. Text mixed into the base, as they were, came out grey on a
   // tinted page: the text is near-neutral, so the mix lost the tint.
   outline: {
-    subtle: inked(ld(scale(base, -0.07, 1.3), scale(base, 0.065, 1.25)), 'subtle'),
+    subtle: inked(fitted('neutral', scale(base, -0.07, 1.3), scale(base, 0.065, 1.25)), 'subtle'),
     // Between two parts of one surface (groups of a list, a panel's
     // header): a step past `subtle`, which a dark page all but hides.
-    divider: inked(ld(scale(base, -0.1, 1.35), scale(base, 0.095, 1.3)), 'subtle'),
-    default: inked(ld(scale(base, -0.13, 1.4), scale(base, 0.12, 1.35)), 'default'),
-    overt: inked(ld(scale(base, -0.27, 1.6), scale(base, 0.23, 1.5)), 'overt'),
+    divider: inked(fitted('neutral', scale(base, -0.1, 1.35), scale(base, 0.095, 1.3)), 'subtle'),
+    default: inked(fitted('neutral', scale(base, -0.13, 1.4), scale(base, 0.12, 1.35)), 'default'),
+    overt: inked(fitted('neutral', scale(base, -0.27, 1.6), scale(base, 0.23, 1.5)), 'overt'),
     // The accent as it is: darker and more saturated, the ring was the
     // harshest color on the page.
     focus: accent,
   },
-  accent: family(
-    'accent',
-    ld(
-      `oklch(${v('knob', 'accent-l')} ${v('knob', 'accent-c')} ${v('hue', 'accent')})`,
-      `oklch(${v('knob', 'accent-l-dark')} ${v('knob', 'accent-c-dark')} ${v('hue', 'accent')})`,
-    ),
-  ),
-  secondary: family('secondary', rehue(accent, v('hue', 'secondary'))),
-  tertiary: family('tertiary', rehue(accent, v('hue', 'tertiary'))),
+  accent: family('accent', fit(accentOn(v('hue', 'accent')), 'accent')),
+  secondary: family('secondary', fit(accentOn(v('hue', 'secondary')), 'secondary')),
+  tertiary: family('tertiary', fit(accentOn(v('hue', 'tertiary')), 'tertiary')),
   // A near-black of the shadow's hue: faint on a light surface, and denser
   // on a dark one, where a light shadow would read as a glow.
   shadow: {
-    color: ld(
+    color: fitted(
+      'shadow',
       `oklch(25% ${v('knob', 'shadow-c')} ${v('knob', 'shadow-h')} / 0.14)`,
       // A third more chroma, as the dark surfaces have.
       `oklch(5% calc(${v('knob', 'shadow-c')} * 4 / 3) ${v('knob', 'shadow-h')} / 0.6)`,
@@ -296,7 +320,8 @@ export const palette = define({
   // A menu's panel and its lit row, which the popup recipes read.
   popup: {
     surface: `color-mix(in oklab, ${share(
-      ld(
+      fitted(
+        'neutral',
         `oklch(${v('knob', 'base-l-dark')} calc(${surfaceCDark} * 0.9) ${neutral})`,
         `oklch(${v('knob', 'base-l')} calc(${surfaceC} * 0.9) ${neutral})`,
       ),
@@ -304,7 +329,8 @@ export const palette = define({
       base,
     )} calc(${v('knob', 'popup-alpha')} * 100%), transparent)`,
     // The other scheme's base, which an inverted panel takes wherever it is raised to.
-    inverted: ld(
+    inverted: fitted(
+      'neutral',
       `oklch(${v('knob', 'base-l-dark')} calc(${surfaceCDark} * 0.9) ${neutral})`,
       `oklch(${v('knob', 'base-l')} calc(${surfaceC} * 0.9) ${neutral})`,
     ),
@@ -333,11 +359,11 @@ export const palette = define({
   // Series colors, `chart-1` to `chart-5` as shadcn names them: a chart
   // assigns them in order, never by rank, so a series keeps its color.
   chart: {
-    '1': chartInk(0, [0.575, 0.163], [0.622, 0.161]),
-    '2': chartInk(145, [0.671, 0.175], [0.622, 0.173]),
-    '3': chartInk(-93, [0.669, 0.141], [0.621, 0.128]),
-    '4': chartInk(180, [0.764, 0.161], [0.67, 0.143]),
-    '5': chartInk(102, [0.716, 0.141], [0.622, 0.171]),
+    '1': chartInk(1, [0.575, 0.163], [0.622, 0.161]),
+    '2': chartInk(2, [0.671, 0.175], [0.622, 0.173]),
+    '3': chartInk(3, [0.669, 0.141], [0.621, 0.128]),
+    '4': chartInk(4, [0.764, 0.161], [0.67, 0.143]),
+    '5': chartInk(5, [0.716, 0.141], [0.622, 0.171]),
   },
   // Color scales of ten even steps, for what is not a role: a tag's
   // color, an illustration, a status of the application's own.
@@ -352,12 +378,12 @@ export const palette = define({
   // `--fk-syntax-keyword`): each kind in a hue the palette already has, so
   // code follows the brand, and the quiet kinds in the text's own grey.
   syntax: {
-    keyword: syntaxInk(v('hue', 'accent')),
-    function: syntaxInk(v('hue', 'secondary')),
-    type: syntaxInk(v('hue', 'tertiary')),
-    string: syntaxInk(v('knob', 'success-h')),
-    number: syntaxInk(v('knob', 'warning-h')),
-    property: syntaxInk(v('knob', 'info-h')),
+    keyword: syntaxInk('accent', v('hue', 'accent')),
+    function: syntaxInk('secondary', v('hue', 'secondary')),
+    type: syntaxInk('tertiary', v('hue', 'tertiary')),
+    string: syntaxInk('success', v('knob', 'success-h')),
+    number: syntaxInk('warning', v('knob', 'warning-h')),
+    property: syntaxInk('info', v('knob', 'info-h')),
     operator: v('text', 'default'),
     punctuation: v('text', 'muted'),
     comment: text([52, 1], [62, 1]),

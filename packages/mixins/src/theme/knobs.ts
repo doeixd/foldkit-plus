@@ -10,6 +10,7 @@ import { Option, Schema } from 'effect'
 import { DiagnosticError } from '../diagnostics.js'
 import { pipeSelf, type Pipeable } from '../pipe.js'
 import { define } from './core.js'
+import { boundaryVariables } from './gamut.js'
 import * as Knob from './knob.js'
 import { asVariables, elevation, reliefs } from './shadows.js'
 
@@ -683,7 +684,10 @@ export const describe =
       meta.description === undefined ? self.description : Option.some(meta.description),
     )
 
-/** Every knob variable `self` declares: the values it sets, and every other knob's unset value. */
+/**
+ * Every knob variable `self` declares: the values it sets, every other knob's
+ * unset value, and the sRGB boundary of each palette hue they place.
+ */
 export const variables = <S extends KnobSet>(self: KnobTheme<S>): Knob.Variables => {
   const declared: Record<string, string> = {}
   for (const [group, knobs] of Object.entries(self.knobs))
@@ -691,7 +695,7 @@ export const variables = <S extends KnobSet>(self: KnobTheme<S>): Knob.Variables
       const value = (self.values[group] as Readonly<Record<string, unknown>> | undefined)?.[name]
       Object.assign(declared, knob.unset, value === undefined ? {} : knob.write(value))
     }
-  return declared
+  return Object.assign(declared, boundaryVariables(declared))
 }
 
 type Intersected<U> = (U extends unknown ? (union: U) => void : never) extends (

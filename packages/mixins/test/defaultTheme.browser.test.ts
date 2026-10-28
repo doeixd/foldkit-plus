@@ -72,9 +72,10 @@ test.each(['light', 'dark'] as const)(
   },
 )
 
-// A label on the accent's fill meets 3:1, AA for large text and for a
-// control's edge, not 4.5:1: the accent's lightness of 55 is #255's choice,
-// and white on it reads 3.9:1.
+// A label on the accent's fill is held at 3:1, AA for large text and for a
+// control's edge: the accent's lightness of 55 is #255's choice. Fitted into
+// sRGB the light accent reads about 4.5:1 under white (3.9:1 when the browser
+// clipped it), too close to hold the test at 4.5.
 test.each(['light', 'dark'] as const)(
   'in a %s scheme, a label on the accent reads at 3:1',
   scheme => {

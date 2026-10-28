@@ -123,8 +123,8 @@ export default [
     edits: [
       {
         file: '../src/theme/oklch.ts',
-        find: 'ld(scale(base, -0.13, 1.4), scale(base, 0.12, 1.35))',
-        replace: 'ld(scale(base, -0.13, 1), scale(base, 0.12, 0.9))',
+        find: "fitted('neutral', scale(base, -0.13, 1.4), scale(base, 0.12, 1.35))",
+        replace: "fitted('neutral', scale(base, -0.13, 1), scale(base, 0.12, 0.9))",
       },
     ],
     tests: ['packages/mixins/test/theme.browser.test.ts'],
@@ -134,8 +134,8 @@ export default [
     edits: [
       {
         file: '../src/theme/oklch.ts',
-        find: 'ld(scale(base, -0.07, 1.3), scale(base, 0.065, 1.25))',
-        replace: 'ld(scale(base, -0.07, 2.2), scale(base, 0.065, 2.2))',
+        find: "fitted('neutral', scale(base, -0.07, 1.3), scale(base, 0.065, 1.25))",
+        replace: "fitted('neutral', scale(base, -0.07, 2.2), scale(base, 0.065, 2.2))",
       },
     ],
     tests: ['packages/mixins/test/theme.browser.test.ts'],
@@ -145,8 +145,8 @@ export default [
     edits: [
       {
         file: '../src/theme/oklch.ts',
-        find: 'outline: ld(shift(color, -0.05, 0), shift(color, 0.05, 0)),',
-        replace: 'outline: shift(color, -0.05, 0),',
+        find: 'outline: fitted(name, shift(color, -0.05, 0), shift(color, 0.05, 0)),',
+        replace: 'outline: fit(shift(color, -0.05, 0), name),',
       },
     ],
     tests: ['packages/mixins/test/theme.browser.test.ts'],
@@ -233,8 +233,8 @@ export default [
     edits: [
       {
         file: '../src/theme/oklch.ts',
-        find: "function: syntaxInk(v('hue', 'secondary')),",
-        replace: "function: syntaxInk(v('hue', 'accent')),",
+        find: "function: syntaxInk('secondary', v('hue', 'secondary')),",
+        replace: "function: syntaxInk('accent', v('hue', 'accent')),",
       },
     ],
     tests: ['packages/mixins/test/theme.browser.test.ts'],
@@ -243,9 +243,9 @@ export default [
     name: 'a neutral hue given is ignored',
     edits: [
       {
-        file: '../src/theme/oklch.ts',
-        find: "    neutral: v('knob', 'neutral-h'),",
-        replace: "    neutral: v('hue', 'accent'),",
+        file: '../src/theme/gamut.ts',
+        find: "  neutral: v('knob', 'neutral-h'),",
+        replace: "  neutral: v('hue', 'accent'),",
       },
     ],
     tests: ['packages/mixins/test/theme.browser.test.ts'],
@@ -328,8 +328,8 @@ export default [
     edits: [
       {
         file: '../src/theme/oklch.ts',
-        find: "'2': chartInk(145,",
-        replace: "'2': chartInk(0,",
+        find: "'2': chartInk(2,",
+        replace: "'2': chartInk(1,",
       },
     ],
     tests: ['packages/mixins/test/theme.browser.test.ts'],

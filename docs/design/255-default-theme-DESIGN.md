@@ -134,10 +134,86 @@ Two derivations failed it, and were changed:
 - The ink's light-scheme lightness moves from 0.5 to 0.45. At 0.5 it read
   4.1:1 on the muted surface, which the higher contrast darkens.
 
-A label on the accent's fill reads 3.9:1, white on an accent of lightness 55.
-That meets AA for large text and for a control's edge (3:1), not 4.5:1. The
-lightness is the issue's value, kept on purpose, and the test holds it at 3:1.
-At about 51 a label would reach 4.5:1.
+A label on the accent's fill read 3.9:1 while the browser clipped the
+accent. Fitted into sRGB (below), the light accent is darker as painted, and
+the label reads 4.5:1. The test still holds it at 3:1, AA for large text and
+for a control's edge, since 4.5 has no margin.
+
+## Gamut
+
+The default accent, `oklch(0.55 0.225 235)`, and its ink,
+`oklch(0.45 0.225 235)`, lie outside sRGB: at hue 235 a screen shows at most
+0.12 and 0.095 of chroma at those lightnesses. A browser clips such a color
+channel by channel, and the ink painted at `rgb(0 91 189)`, hue 257, not the
+235 the knob names. The contrast test measured that clipped color, not the
+one the theme describes.
+
+The palette now maps every color it derives into sRGB the way CSS Color 4
+does: lightness and hue stay, and chroma is reduced until the color fits. The
+knob values stay as they are. A theme still says `chroma: 0.225`, and the
+palette shows as much of it as sRGB holds at each color's lightness and hue.
+
+**Where it happens.** Every palette color is a CSS expression over knob
+variables, and the browser derives it, so the reduction is CSS too: `fit`
+(`packages/mixins/src/theme/gamut.ts`) wraps a color as
+`oklch(from <color> l min(c, <bound at l>) h / alpha)`. The bound for a hue is
+three numbers: `min(l * s, (1 - l) / (ua + ub * l))`. Below the hue's cusp,
+its most vivid color, it is the line from black, which is exact. Above the
+cusp it is a curve from the cusp to white with the boundary's own slope at
+white. The cusp is Björn Ottosson's, a polynomial refined by one step of
+Halley's method. Over the whole wheel the bound keeps within 4% of the most
+chroma sRGB holds, except near yellow's cusp, close to white. It never
+exceeds sRGB by more than 0.004 of a linear channel, which is less than a
+255th once encoded.
+
+**Why the numbers come from JavaScript.** Working the cusp out from a hue in
+CSS is possible, with `cos()`, `pow()` and registered properties, and was
+built first. For the palette's 21 hues it took the default root sheet from
+37 KB to 205 KB, most of it the Ottosson step written again for every hue,
+since CSS has no functions. Instead, wherever knob variables are written
+(`Theme.variables`, so `Theme.standard`, `Themes.make`, `Theme.scope` and
+`chooseKnobs`), `boundaryVariables` works out each hue the palette derives
+from them and writes its bound beside the knobs (`--fk-knob-gamut-accent-s`,
+and so on). It evaluates the palette's own hue expressions rather than
+repeating them. The sheet is then 89 KB (9 KB compressed), most of the growth
+being the `min()` each fitted color carries.
+
+**Why that is still sound.** A knob can be changed where no JavaScript sees
+it: `Theme.scoped` with a raw value, or a rule of the application's own. So
+each hue's bound also records the hue it was worked out for, and the
+palette's `gamut` tokens compare that hue with the one the browser derives.
+Where they differ, the color takes a bound that holds at every hue (`anyHue`,
+chroma 0.169 per unit of lightness below the cusp). Such a color is duller
+than it needs to be, but it is never outside sRGB. The three values a color
+reads are registered with `@property` as numbers (`Theme.root` writes the
+rules). Each is then a number worked out once at the root, rather than an
+expression substituted into every color that reads it.
+
+**Mixes.** A mix of two colors inside sRGB is not always inside it. The
+boundary above the cusp sags inward, so a vivid color mixed toward white in
+OKLab bent out by 0.06. The tints (`subtle`) and washes are fitted too, on
+the hue of the color they tint.
+
+**What moved.** At the default (235), light scheme:
+
+| Token | Was (clipped as painted) | Now |
+| --- | --- | --- |
+| `accent-default` | `oklch(0.55 0.225 235)`, `rgb(0 124 223)` | `oklch(0.55 0.117 235)`, `rgb(0 123 171)` |
+| `accent-ink`, `text-link` | `oklch(0.45 0.225 235)`, `rgb(0 91 189)` | `oklch(0.45 0.095 235)`, `rgb(0 93 130)` |
+| `accent-on-fill` | `oklch(0.98 0.08 235)` | `oklch(0.98 0.011 235)` |
+| `surface-base` | `oklch(1 0 235)` | unchanged |
+
+In the dark scheme the accent moves from `oklch(0.7 0.255 235)` to
+`oklch(0.7 0.148 235)`, and the ink from `oklch(0.8 0.255 235)` to
+`oklch(0.8 0.118 235)`. So the default accent is a deeper, less saturated
+cyan-blue rather than the vivid azure that clipping showed. That azure was
+hue 257, not 235. The secondary and tertiary families turn the accent's
+knobs, not the fitted accent, so each keeps what its own hue can show.
+
+Contrast, before and after: the ink on the page went from 6.50 to 7.27 (light)
+and from 8.82 to 8.92 (dark), and on the muted surface from 5.11 to 5.72 and
+from 10.06 to 10.17. A label on the accent went from 3.86 to 4.50 (light) and
+from 8.23 to 7.88 (dark). Every pair the test checks stays at AA.
 
 ## Deferred
 

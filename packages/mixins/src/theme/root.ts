@@ -4,6 +4,7 @@
  */
 import { global, type StyleValue } from '../styleValue.js'
 import { VAR_PREFIX, type ThemeTokens } from './core.js'
+import { registrations } from './gamut.js'
 
 export interface RootOptions {
   /** Tokens present in this theme are left out, so a scale shipped in another layer goes out once. */
@@ -29,7 +30,7 @@ const declarations = (theme: ThemeTokens, omit?: ThemeTokens): ReadonlyArray<str
 
 export const root = (theme: ThemeTokens, options?: RootOptions): StyleValue =>
   global(
-    `:root{${[...declarations(theme, options?.omit), `color-scheme:${options?.colorScheme ?? 'light dark'}`].join(';')}}`,
+    `${registrations(theme)}:root{${[...declarations(theme, options?.omit), `color-scheme:${options?.colorScheme ?? 'light dark'}`].join(';')}}`,
   )
 
 /** Some of a theme's tokens, by the theme's own group and token names. */
