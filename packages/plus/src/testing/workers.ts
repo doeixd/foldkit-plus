@@ -1,33 +1,34 @@
 /**
- * A Worker on a local workerd, configured by its own `wrangler.toml`.
+ * `foldkit-plus/testing/workers`: a Worker on a local workerd, configured by
+ * its own Wrangler configuration.
  *
  * Wrangler's test harness reads the configuration, so bindings, the
  * compatibility date and flags, `.dev.vars` and D1 migrations mean here what
  * they mean to `wrangler deploy`. This module owns only what Wrangler cannot
  * know: the bundle. esbuild builds the entry with the workspace's source
- * condition into a directory of the stack's own, and the harness runs
- * `wrangler.toml` with `main` pointed there. Nothing here names this example;
- * `stack.ts` is the example's call.
+ * condition into a directory of the stack's own, and the harness runs the
+ * configuration with `main` pointed there.
+ *
+ * `wrangler` and `esbuild` are optional peers of `foldkit-plus`, loaded on the
+ * first call; Miniflare is read from Wrangler's own copy, so the date check
+ * asks the runtime Wrangler starts.
  */
-import {
-  build,
-  context,
-  type BuildContext,
-  type BuildOptions,
-  type OutputFile,
-  type Plugin,
-} from 'esbuild'
 import { Option, Schema } from 'effect'
-import { type DispatchFetch, supportedCompatibilityDate } from 'miniflare'
-import { parse } from 'smol-toml'
-import { createTestHarness, type TestHarness } from 'wrangler'
-import { appendFileSync } from 'node:fs'
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import type { BuildContext, BuildOptions, OutputFile, Plugin } from 'esbuild'
+import type { TestHarness, WorkerHandle } from 'wrangler'
+import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { basename, dirname, join, resolve, sep } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
+import { peer } from './peer.js'
 
-export interface WorkersStackOptions {
-  /** The Worker's `wrangler.toml`. */
+const SUBPATH = 'testing/workers'
+
+const wrangler = () => peer(SUBPATH, 'wrangler', () => import('wrangler'))
+const esbuild = () => peer(SUBPATH, 'esbuild', () => import('esbuild'))
+
+export interface StackOptions {
+  /** The Worker's Wrangler configuration (`wrangler.toml`, `.json` or `.jsonc`). */
   readonly wrangler: string
   /** The source esbuild bundles into what `main` names. */
   readonly entry: string
@@ -35,6 +36,8 @@ export interface WorkersStackOptions {
   readonly vars?: Readonly<Record<string, string>>
   /** Local values for secrets, over any in `.dev.vars`. */
   readonly secrets?: Readonly<Record<string, string>>
+  /** esbuild plugins for the bundle, the deploy's and the stack's alike. */
+  readonly plugins?: ReadonlyArray<Plugin>
 }
 
 /** What a watched stack reports after each change to the bundle's sources. */
@@ -51,7 +54,7 @@ export interface WatchListener {
   readonly onStopped: (message: string) => void
 }
 
-export interface WorkersStack<Env> {
+export interface Stack<Env> {
   /** Where the Worker answers over real HTTP. */
   readonly origin: string
   /**
@@ -60,7 +63,7 @@ export interface WorkersStack<Env> {
    */
   readonly env: () => Promise<Env>
   /** A request straight to the Worker; an upgrade answers with its socket. */
-  readonly dispatch: DispatchFetch
+  readonly dispatch: WorkerHandle['fetch']
   /**
    * Rebuilds on every change to a file the bundle read, and swaps the new
    * Worker in at the same origin. D1, R2 and Durable Object storage stay.
@@ -70,10 +73,10 @@ export interface WorkersStack<Env> {
 }
 
 /**
- * The part of `wrangler.toml` the stack reads itself. Wrangler validates the
- * whole file when the harness loads it.
+ * The part of the configuration the stack reads itself. Wrangler validates
+ * the whole of it when the harness loads it.
  */
-const WranglerToml = Schema.Struct({
+const Config = Schema.Struct({
   main: Schema.String,
   compatibility_date: Schema.String,
   // The stack bundles; Wrangler bundling `main` again would deploy other code.
@@ -82,65 +85,33 @@ const WranglerToml = Schema.Struct({
 })
 
 /**
- * Refuses a date the installed workerd does not know. Miniflare would run the
- * Worker at its own latest date instead, with a warning nobody reads, and the
- * tests would pass on a runtime the deploy does not get.
+ * The newest date the workerd Wrangler starts supports, from Wrangler's own
+ * Miniflare: an application's own `miniflare` may be another release. Call it
+ * after `wrangler()`, which says so when Wrangler is missing.
  */
-export const checkCompatibilityDate = (date: string, supported: string): void => {
-  if (date > supported)
-    throw new Error(
-      `wrangler.toml asks for compatibility_date ${date}, but the installed workerd supports ` +
-        `up to ${supported}. Move wrangler and miniflare to a release that knows ${date}.`,
-    )
+const supportedDate = (): string => {
+  const fromWrangler = createRequire(createRequire(import.meta.url).resolve('wrangler'))
+  return Schema.decodeUnknownSync(Schema.Struct({ supportedCompatibilityDate: Schema.String }))(
+    fromWrangler('miniflare'),
+  ).supportedCompatibilityDate
 }
 
-const readWrangler = async (path: string) => {
-  const raw = parse(await readFile(path, 'utf8'))
+const readConfig = async (path: string) => {
+  const { experimental_readRawConfig } = await wrangler()
+  const { rawConfig: raw } = experimental_readRawConfig({ config: path })
   if ('env' in raw)
     throw new Error(`${path}: the local stack runs the top-level Worker; [env.*] is not read.`)
-  const toml = Schema.decodeUnknownSync(WranglerToml)(raw)
-  checkCompatibilityDate(toml.compatibility_date, supportedCompatibilityDate)
-  return { raw, toml }
+  const config = Schema.decodeUnknownSync(Config)(raw)
+  // Miniflare would run a date it does not know at its own latest, with a
+  // warning nobody reads, and the tests would pass on a runtime the deploy does not get.
+  const supported = supportedDate()
+  if (config.compatibility_date > supported)
+    throw new Error(
+      `${path} asks for compatibility_date ${config.compatibility_date}, but the installed ` +
+        `workerd supports up to ${supported}. Move wrangler to a release that knows it.`,
+    )
+  return { raw, config }
 }
-
-/** One edit of a mutation, as `pnpm mutate` (`scripts/mutate.mjs`) sends it. */
-interface MutationEdit {
-  readonly file: string
-  readonly find: string
-  readonly replace: string
-  readonly all: boolean
-}
-
-// esbuild's paths and the runner's differ in separators and, on Windows, case.
-const pathOf = (path: string) => resolve(path).split(sep).join('/').toLowerCase()
-
-/**
- * `pnpm mutate`'s edits, applied to the Worker's sources as esbuild bundles
- * them, as `vitest.shared.ts` applies them to what Vite loads: this bundle is
- * esbuild's, so that plugin never reaches it. Each edit that applies is
- * recorded in the marker file. Without `FOLDKIT_MUTATION` it does nothing.
- */
-const mutation = (): Plugin => ({
-  name: 'foldkit-mutation',
-  setup: build => {
-    const raw = process.env['FOLDKIT_MUTATION']
-    const marker = process.env['FOLDKIT_MUTATION_MARKER']
-    if (raw === undefined || marker === undefined) return
-    const edits: ReadonlyArray<MutationEdit> = JSON.parse(raw)
-    build.onLoad({ filter: /\.ts$/ }, async ({ path }) => {
-      const code = await readFile(path, 'utf8')
-      let next = code
-      edits.forEach((edit, index) => {
-        if (pathOf(edit.file) !== pathOf(path) || !next.includes(edit.find)) return
-        next = edit.all
-          ? next.split(edit.find).join(edit.replace)
-          : next.replace(edit.find, edit.replace)
-        appendFileSync(marker, `${index}\n`)
-      })
-      return next === code ? undefined : { contents: next, loader: 'ts' }
-    })
-  },
-})
 
 /**
  * How the entry is bundled, for the stack and for `wrangler deploy`: the
@@ -148,16 +119,16 @@ const mutation = (): Plugin => ({
  * Wrangler loads as a compiled module. `node:*` stays external for
  * `nodejs_compat`.
  */
-const bundleOptions = (entry: string, outfile: string) =>
+const bundleOptions = (options: StackOptions, outfile: string) =>
   ({
-    entryPoints: [entry],
+    entryPoints: [options.entry],
     bundle: true,
     format: 'esm',
     platform: 'browser',
     conditions: ['foldkit-plus:source'],
     external: ['cloudflare:workers', 'node:*'],
     loader: { '.wasm': 'copy' },
-    plugins: [mutation()],
+    plugins: [...(options.plugins ?? [])],
     outdir: dirname(outfile),
     entryNames: basename(outfile, '.js'),
     write: false,
@@ -175,27 +146,28 @@ const writeOutputs = async (files: OutputFiles) => {
 
 const identityOf = (files: OutputFiles) => files.map(file => `${file.path}:${file.hash}`).join()
 
-/** Writes the bundle where `main` says, for `wrangler deploy`. */
-export const writeWorker = async (options: Pick<WorkersStackOptions, 'wrangler' | 'entry'>) => {
-  const { toml } = await readWrangler(options.wrangler)
-  const outfile = resolve(dirname(options.wrangler), toml.main)
-  await writeOutputs((await build(bundleOptions(options.entry, outfile))).outputFiles)
-}
-
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error))
+
+/** Writes the bundle where `main` says, for `wrangler deploy`. */
+const writeBundle = async (options: Omit<StackOptions, 'vars' | 'secrets'>): Promise<void> => {
+  const { config } = await readConfig(options.wrangler)
+  const outfile = resolve(dirname(options.wrangler), config.main)
+  const { build } = await esbuild()
+  await writeOutputs((await build(bundleOptions(options, outfile))).outputFiles)
+}
 
 /**
  * Starts the Worker with a fresh, migrated D1 for each `[[d1_databases]]`,
  * and empty R2 and Durable Object storage. Each call is a stack of its own,
  * so test files running side by side share nothing.
  */
-export const startWorkersStack = async <Env>(
-  options: WorkersStackOptions,
-): Promise<WorkersStack<Env>> => {
-  const { raw, toml } = await readWrangler(options.wrangler)
+const start = async <Env>(options: StackOptions): Promise<Stack<Env>> => {
+  const { raw, config } = await readConfig(options.wrangler)
+  const { build, context } = await esbuild()
+  const { createTestHarness } = await wrangler()
   const directory = join(tmpdir(), `foldkit-workers-${crypto.randomUUID()}`)
-  const outfile = join(directory, basename(toml.main))
-  const bundle = bundleOptions(options.entry, outfile)
+  const outfile = join(directory, basename(config.main))
+  const bundle = bundleOptions(options, outfile)
   // In memory: a source that does not build fails here, before anything exists to clean up.
   const first = (await build(bundle)).outputFiles
 
@@ -220,7 +192,8 @@ export const startWorkersStack = async <Env>(
     await writeOutputs(first)
     const { url } = await harness.listen()
     const worker = harness.getWorker()
-    for (const database of toml.d1_databases ?? []) await worker.applyD1Migrations(database.binding)
+    for (const database of config.d1_databases ?? [])
+      await worker.applyD1Migrations(database.binding)
 
     const watch = async (listener: WatchListener) => {
       if (Option.isSome(watching)) throw new Error('This stack is already watching.')
@@ -265,3 +238,10 @@ export const startWorkersStack = async <Env>(
     throw error
   }
 }
+
+/**
+ * The local Workers stack. `Stack.start` runs the Worker for tests and
+ * development; `Stack.writeBundle` writes what `wrangler deploy` uploads,
+ * bundled the same way.
+ */
+export const Stack = { start, writeBundle } as const

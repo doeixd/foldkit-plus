@@ -366,12 +366,9 @@ importers:
       esbuild:
         specifier: 0.28.2
         version: 0.28.2
-      miniflare:
-        specifier: 4.20260730.0
-        version: 4.20260730.0
-      smol-toml:
-        specifier: 1.9.1
-        version: 1.9.1
+      foldkit-plus:
+        specifier: workspace:*
+        version: link:../../packages/plus
       typescript:
         specifier: 7.0.2
         version: 7.0.2
@@ -3349,9 +3346,15 @@ importers:
         specifier: workspace:*
         version: link:../sync
     devDependencies:
+      '@cloudflare/workers-types':
+        specifier: 5.20261022.1
+        version: 5.20261022.1
       effect:
         specifier: ^4.0.5
         version: 4.0.5
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
       foldkit:
         specifier: 0.169.0
         version: 0.169.0(@effect/platform-browser@4.0.5(effect@4.0.5))(effect@4.0.5)
@@ -3379,6 +3382,9 @@ importers:
       foldkit-richtext-code-shiki:
         specifier: workspace:*
         version: link:../richtext-code-shiki
+      playwright:
+        specifier: ^1.64.1
+        version: 1.64.1
       tsdown:
         specifier: ^0.23.1
         version: 0.23.1(tsx@4.23.15)(typescript@7.0.2)(unrun@0.3.1)
@@ -3388,6 +3394,9 @@ importers:
       typescript:
         specifier: 7.0.2
         version: 7.0.2
+      wrangler:
+        specifier: 4.116.0
+        version: 4.116.0(@cloudflare/workers-types@5.20261022.1)
 
   packages/primitives:
     dependencies:
@@ -8180,10 +8189,6 @@ packages:
     resolution: {integrity: sha512-stxByr12oeeOyY2BlviTNQlYV5xOj47GirPr4yA1hE9JCtxfQN0+tVbkxwCtYDQWhEKWFHsEK48ORg5jrouCAg==}
     engines: {node: '>=20'}
 
-  smol-toml@1.9.1:
-    resolution: {integrity: sha512-j7WyPdf0CJoutMzMoPLF/bVXHtKZIT9Rb4eGeEbWw8X2t5oirjPgpL+OpaENZrILYaXqYwnVH+qgUwVbl+pUJQ==}
-    engines: {node: '>= 18'}
-
   source-map-js@1.2.2:
     resolution: {integrity: sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw==}
     engines: {node: '>=0.10.0'}
@@ -12720,8 +12725,6 @@ snapshots:
     dependencies:
       ansi-styles: 6.2.3
       is-fullwidth-code-point: 5.1.0
-
-  smol-toml@1.9.1: {}
 
   source-map-js@1.2.2: {}
 

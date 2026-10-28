@@ -185,6 +185,8 @@
       "foldkit-plus/sync/entity": ["./src/sync/entity.ts"],
       "foldkit-plus/sync/journal": ["./src/sync/journal.ts"],
       "foldkit-plus/sync/remote": ["./src/sync/remote.ts"],
+      "foldkit-plus/testing/playwright": ["./src/testing/playwright.ts"],
+      "foldkit-plus/testing/workers": ["./src/testing/workers.ts"],
       "foldkit-primitives": ["../primitives/src/index.ts"],
       "foldkit-primitives/device": ["../primitives/src/device/index.ts"],
       "foldkit-primitives/dom": ["../primitives/src/dom/index.ts"],

@@ -5,13 +5,14 @@
  * through real `fetch`, so streaming bodies behave as they do deployed; only
  * Sync upgrades ride `dispatch`, which hands back the client socket directly.
  */
+import { Stack } from 'foldkit-plus/testing/workers'
 import { fileURLToPath } from 'node:url'
+import { mutation } from './mutation.js'
 import type { WorkerEnv } from './worker.js'
-import { startWorkersStack, writeWorker, type WorkersStack } from './workers.js'
 
 const here = (file: string) => fileURLToPath(new URL(file, import.meta.url))
 
-export type CloudflareStack = WorkersStack<WorkerEnv>
+export type CloudflareStack = Stack<WorkerEnv>
 
 /** The upload secret the local stack runs with, new each run; a deployment sets its own. */
 export const UPLOAD_TOKEN = crypto.randomUUID()
@@ -22,14 +23,18 @@ export const UPLOAD_TOKEN = crypto.randomUUID()
  */
 export const PAGE_ORIGIN = 'http://127.0.0.1:5177'
 
-const worker = { wrangler: here('../wrangler.toml'), entry: here('./worker.ts') }
+const worker = {
+  wrangler: here('../wrangler.toml'),
+  entry: here('./worker.ts'),
+  plugins: [mutation()],
+}
 
 export const startStack = (): Promise<CloudflareStack> =>
-  startWorkersStack<WorkerEnv>({
+  Stack.start<WorkerEnv>({
     ...worker,
     vars: { AUTH_ORIGIN: PAGE_ORIGIN },
     secrets: { UPLOAD_TOKEN },
   })
 
 /** Writes the bundle `wrangler deploy` uploads, where `main` says. */
-export const writeDeployBundle = () => writeWorker(worker)
+export const writeDeployBundle = () => Stack.writeBundle(worker)

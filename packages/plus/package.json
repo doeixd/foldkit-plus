@@ -33,6 +33,16 @@
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
     },
+    "./testing/workers": {
+      "foldkit-plus:source": "./src/testing/workers.ts",
+      "types": "./dist/testing/workers.d.mts",
+      "import": "./dist/testing/workers.mjs"
+    },
+    "./testing/playwright": {
+      "foldkit-plus:source": "./src/testing/playwright.ts",
+      "types": "./dist/testing/playwright.d.mts",
+      "import": "./dist/testing/playwright.mjs"
+    },
     "./agent": {
       "foldkit-plus:source": "./src/agent.ts",
       "types": "./dist/agent.d.mts",
@@ -638,7 +648,10 @@
     "foldkit-react": "workspace:^",
     "foldkit-react-codegen": "workspace:^",
     "foldkit-remote-drizzle": "workspace:^",
-    "foldkit-richtext-code-shiki": "workspace:^"
+    "foldkit-richtext-code-shiki": "workspace:^",
+    "esbuild": "^0.28.0",
+    "playwright": "^1.64.0",
+    "wrangler": "^4.116.0"
   },
   "peerDependenciesMeta": {
     "foldkit-agent-native": {
@@ -664,14 +677,27 @@
     },
     "foldkit-richtext-code-shiki": {
       "optional": true
+    },
+    "esbuild": {
+      "optional": true
+    },
+    "playwright": {
+      "optional": true
+    },
+    "wrangler": {
+      "optional": true
     }
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "5.20261022.1",
     "effect": "^4.0.5",
+    "esbuild": "0.28.2",
     "foldkit": "0.169.0",
+    "playwright": "^1.64.1",
     "tsdown": "^0.23.1",
     "tsx": "^4.23.15",
     "typescript": "7.0.2",
+    "wrangler": "4.116.0",
     "foldkit-agent-native": "workspace:*",
     "foldkit-auth": "workspace:*",
     "foldkit-cms-drizzle": "workspace:*",

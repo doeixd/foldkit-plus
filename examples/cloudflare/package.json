@@ -41,8 +41,7 @@
     "@cloudflare/workers-types": "5.20261022.1",
     "@effect/sql-d1": "^4.0.5",
     "esbuild": "0.28.2",
-    "miniflare": "4.20260730.0",
-    "smol-toml": "1.9.1",
+    "foldkit-plus": "workspace:*",
     "typescript": "7.0.2",
     "vite": "8.3.5",
     "wrangler": "4.116.0"

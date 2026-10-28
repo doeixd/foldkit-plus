@@ -84,13 +84,23 @@ export const fileOf = (entry: Entry): string =>
   `/** \`${entry.specifier}\`, as \`foldkit-plus/${entry.subpath}\`. */\nexport * from '${entry.specifier}'\n`
 
 /** `foldkit-plus`'s own entry points, beside those it re-exports. */
-const OWN = {
-  '.': {
-    'foldkit-plus:source': './src/index.ts',
-    types: './dist/index.d.mts',
-    import: './dist/index.mjs',
-  },
-} as const
+const OWN = Object.fromEntries(
+  ['index', 'testing/workers', 'testing/playwright'].map(file => [
+    file === 'index' ? '.' : `./${file}`,
+    {
+      'foldkit-plus:source': `./src/${file}.ts`,
+      types: `./dist/${file}.d.mts`,
+      import: `./dist/${file}.mjs`,
+    },
+  ]),
+)
+
+/**
+ * The tools `foldkit-plus/testing/*` drive, optional peers so that no
+ * application installs them for its browser code: `wrangler` and `esbuild`
+ * for the Workers stack, `playwright` for its types alone.
+ */
+const TESTING_PEERS = { esbuild: '^0.28.0', playwright: '^1.64.0', wrangler: '^4.116.0' } as const
 
 /**
  * The fields of `foldkit-plus`'s manifest that follow the workspace. The
@@ -127,8 +137,14 @@ export const generatedFields = (
       effect: '^4.0.0',
       foldkit: `^${foldkit}`,
       ...Object.fromEntries(adapters.map(each => [each.name, 'workspace:^'])),
+      ...TESTING_PEERS,
     },
-    peerDependenciesMeta: Object.fromEntries(adapters.map(each => [each.name, { optional: true }])),
+    peerDependenciesMeta: Object.fromEntries(
+      [...adapters.map(each => each.name), ...Object.keys(TESTING_PEERS)].map(name => [
+        name,
+        { optional: true },
+      ]),
+    ),
     devDependencies: {
       ...Object.fromEntries(
         Object.entries(devDependencies).filter(([name]) => !name.startsWith('foldkit-')),
@@ -163,9 +179,11 @@ export const OWN_FILES: ReadonlyArray<string> = [
   'index.ts',
   'cli.ts',
   'docs.ts',
-  'mcp.ts',
   'project.ts',
   'setup.ts',
+  'testing/peer.ts',
+  'testing/playwright.ts',
+  'testing/workers.ts',
 ]
 
 /** Every generated file now under `src/`, as `remote/port.ts`. */
