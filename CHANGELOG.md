@@ -390,6 +390,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A Menu or Menubar checkbox or radio row is chosen once.** Clicked after a
+  mouse press opened the menu, it was chosen twice and flipped back: upstream's
+  Menu kept the press's origin until the menu shut, so a release on the row
+  more than 200ms later read as a drag from the trigger and clicked it on top
+  of the browser's own click. A Menu's trigger click is now decided from the
+  Model (`ClickedButton`), not from the last drawn frame.
 - **Guarded writes and relation pages, after a security review:**
   - A create of an id already taken is refused with one answer, whatever the
     row there holds and whether its asker may see it. Only a writer's ledger

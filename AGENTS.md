@@ -679,6 +679,12 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
 - **A Mount runs outside the application's `resources`.** Only Commands and
   Subscriptions get them, so a service given there (a diagnostics reporter)
   never reaches a Mount; `MountFailed` goes to the default log.
+- **Upstream's Menu clicks a row for you on a release after a press on the
+  trigger.** It keeps the press's origin until the menu shuts, and a release
+  on the rows over 200ms later and 5px away sends `ClickItem` as well as the
+  browser's click; a check row left open flipped twice. Locally the two clicks
+  fell within 200ms and the test passed; on CI they did not. Test a pointer
+  path with a gap longer than any threshold the component reads.
 - **An element holds one Mount.** Foldkit's `OnMount` replaces the vnode's
   `insert` hook, so a second one on an element silently drops the first. The
   mixins resolver composes the Mounts that Mixins contribute, but not one
