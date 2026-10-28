@@ -1,10 +1,12 @@
 # Derived members say what they derive (#233)
 
-Status: slice 1 built (2026-10-27): `Derived.count`, declared in
+Status: built (2026-10-27). Slice 1: `Derived.count`, declared in
 `foldkit-entity`, compiled by `foldkit-remote-drizzle`, predicted by the
 Remote client, and answered by the server for the rows a write changes
-indirectly (#245's slice 2). `Derived.exists` and viewer-relative members are
-designed here and deferred. See [Deferred](#deferred).
+indirectly (#245's slice 2). Slice 2: `Derived.exists`, a viewer-relative
+member ("liked by me"), end to end, and Chirp's like as a declared write pair
+(#216). See [Viewer-relative members](#viewer-relative-members-slice-2) and
+[Deferred](#deferred).
 
 ## The problem
 
@@ -93,6 +95,7 @@ takes only `Derived.make` members; an entry for a `Derived.count` is refused
 | How it is read from the database (which column, which visibility rule) | `remote-drizzle`'s `bind`, from the pointing relation's storage |
 | What it reads like while a write is pending | the Remote client, from the declaration and the rows it holds |
 | What it is once the write has landed | the server's answer: the fresh read of the rows the write points at |
+| Who reads, for a `Derived.exists` | the application: its principal on the server (`source`'s `viewer`), its Model on the client (`Remote.make`'s `viewer`) |
 
 No layer restates another: the binding no longer names the relation, the client
 no longer receives counts through Messages, and no handler names the post.
@@ -140,30 +143,108 @@ A name with no values (as these are, and as a handler's
 sent as a patch: the client receives the row through the read, or not at all
 when the asker may not read it. A hidden row's id is not disclosed.
 
-## Viewer-relative members (designed, deferred)
+## Viewer-relative members (slice 2)
 
 ```ts
-likedByMe: Derived.exists(Like.relations.post, Viewer, ({ row, viewer }) =>
-  Expr.eq(row.accountId, viewer.id)),
+liked: Derived.exists(Like.relations.post, { viewer: Like.relations.user }),
 ```
 
-- **Declaration.** The same pointing relation, a predicate over the pointing
-  row, and a viewer schema whose fields are `Expr.input`s, as a guard's
-  principal fields are.
-- **Server.** An `exists (select 1 … where fk = id and <predicate>)`, with the
-  viewer's values from the principal. The binding needs that mapping
-  (`principal → Option<Viewer>`); with none, the member is `false`.
-- **Live and caching.** Its value depends on the asker, so a source must not
-  list it as `shared`, and the live hub keys it by principal, as it does `may`.
-- **Client.** A pending insert predicts `true` when the predicate holds over
-  the written row with the client's viewer. That needs a viewer on the client
-  (`Remote.make({ viewer })`), and the field the predicate reads must be in the
-  written row: a server preset (`accountId` from the principal) is not, which is
-  what #232's stamps fix. A delete predicts `false` only for a held row the
-  predicate held for, and is exact only where at most one row can match.
+### The declaration
 
-Each of those is a piece of its own, and none is needed for counts, so slice 1
-ships counts alone.
+The slice-1 sketch was a predicate over the pointing row with a viewer
+schema (`({ row, viewer }) => Expr.eq(row.accountId, viewer.id)`). It was
+rejected for the reason a count names an edge rather than the owner's
+`many`: "liked by me", "followed by me", "replied to by me" are each two edges
+of one pointing row, one to the row that shows the member and one to the
+reader. Named as relations, the client predicts from the written row's links
+with nothing to evaluate, the server compiles from both relations' storage
+with no Expr and no input mapping, and there is no viewer schema for the two
+sides to disagree on. A filtered exists can come later, as a filtered count
+would.
+
+- `relation` is a `one` relation pointing at the Entity it is added to, as a
+  count's; `viewer` is another `one` relation of the same pointing Entity.
+  Either wrong is refused by the type and where it is declared.
+- **Its value is the id of the row it found, or none** (`Option<string>`,
+  `OptionFromNullOr` on the wire, so it stores and sends). Not a boolean,
+  because a reader who sees "liked" must be able to take it back: the id is
+  what `Unlike` deletes. It also makes a delete predictable with no Like row
+  held (below).
+- `Derivation` gains `Exists { relation, viewer }`.
+
+### The server
+
+`bind` takes no entry for it, and records beside the count's `over` the
+pointing table's column for `viewer` and the Entity that relation points at.
+`source(binding, { viewer })` says who reads, as a row: `principal =>
+Option<{ entity, id }>`. Each read runs one statement per batch, as a count
+does: `select parent, min(id) ... where parent in (...) and viewer_col = ? and
+<the pointing table's visible> group by parent`, the least id where a reader
+has two. A visitor, or a reader of an Entity `viewer` does not point at, reads
+none. It is the semi-join an `exists (...)` subquery would be, batched the way
+counts already are rather than correlated per row.
+
+### Caching: who may hold it
+
+A viewer-relative value is a fact about a (row, reader) pair, stored under the
+row. Every holder is either one reader's, or must not hold it:
+
+| Holder | Keyed by | So |
+| --- | --- | --- |
+| The client store (`Entity:id` to fields) | one principal already: `Data.forget` at a change of principal | holds it as any field; a change of viewer is a change of principal |
+| Client persistence | one snapshot per principal key | as the store |
+| A server render's resumed store | one request | as the store |
+| The live hub's re-read groups | `key(principal)` | the key must tell readers apart (`Policy.keyOf` does; a key by role does not), said in remote-server's README |
+| A Source's `shared` fields | nobody: sent to every subscriber as written | refused: `source` throws for an exists listed as shared |
+| A write's answer | the asker | read through the Sources as the asker |
+
+So the client store needs no viewer dimension: it was never shared between
+principals. What would be wrong is sharing across readers on the server, and
+the one declared form of that (`shared`) refuses it.
+
+`source` refuses a binding with an exists and no `viewer`: answering none for
+everyone would be a quiet wrong value. A `writer` builds its reading source
+without one, since it reads only stored fields.
+
+### The client
+
+`Remote.make({ viewer: model => Option<{ entity, id }> })`, read from the
+application's Model at `Data.mutate` (`Remote.ref(User, model.me)`). For a
+declared write of the pointing Entity:
+
+| Write | Prediction |
+| --- | --- |
+| insert pointing `relation` at p and `viewer` at the viewer | p's member becomes the new id, where p is held with the member read as none |
+| delete | each held row whose member is this id becomes none |
+| update relinking `relation` or `viewer` | a row showing this id loses it unless the row still points there and at the viewer; the row it now points at gains it as an insert would |
+| anything the client cannot place | none: the answer decides |
+
+Where the written row pointed before is read from the store as in slice 1,
+and now also from a row whose exists shows this id: that row is where it
+points through `relation`, and the viewer is where it points through
+`viewer`. So an unlike lowers its post's count too, though the client never
+read the Like. Finding those rows scans the store once per exists of the
+written Entity, at `Data.mutate`, not per render.
+
+Without `viewer`, nothing is found; a delete still loses its id, which needs
+no viewer.
+
+### Chirp (#216)
+
+A `Like` is an Entity pointing at a post and a person. A post's `likeCount`
+is `Derived.count(Like.post)` and its `liked` is the exists. `LikePost` and
+`Unlike` are `Mutation.write`s, so the heart and the count move at once with no
+`optimistic` list and no counts in Messages, and `update` reads `liked` from
+the Model to choose, so a second press before the answer takes back the
+pending like. A like's id is the pair (`likeOf(postId, userId)`), so liking
+twice is one row. The `ToggleLike` handler, the join table without ids, and
+the `likedBy` read of every liker are gone.
+
+The client sends the like's `user` itself: a server preset would keep it out
+of the written row, and then nothing could predict `liked` (#232's stamps fix
+that). A guard rule cannot say "this link is the asker", since a rule is an
+Expr over fields, so Chirp wraps its Like writer (`ownLikes`) to refuse a like
+made or taken back in another's name.
 
 ## Failure semantics
 
@@ -183,14 +264,17 @@ ships counts alone.
 
 ## Deferred
 
-- `Derived.exists` and viewer-relative members, above, with a client viewer
-  and #232's stamps.
+- A viewer link a server presets (#232's stamps): today the client sends it
+  for `liked` to be predicted, and the application checks it is the asker.
+- A guard rule over where a relation points ("this link is the asker"), which
+  would replace Chirp's `ownLikes`.
+- An exists with a filter, and exactness where several rows match one reader:
+  deleting one of two predicts none until the answer.
+- `RemoteServer.memory` computing derived members.
 - Counts with a filter (`Derived.count(relation, where)`): predicted only where
   the filter can be evaluated over the written row.
 - Other aggregates (sum, max): server-only at first.
 - Live subscribers: the hub hears what a write answered; telling other viewers a
-  post's count changed needs the hub to read a pointed-at row's derived members.
+  post's count changed, or another tab of yours that you liked it, needs the
+  hub to read a pointed-at row's derived members.
 - `Guards.may` as a viewer-relative derived member underneath.
-- Chirp's like as a declared write pair over a `Like` Entity (#216): needs
-  `exists` for its pressed state. Until then Chirp's like stays a handler over a
-  join table, and Chirp proves the count on a person's post count.
