@@ -1248,6 +1248,11 @@ of its own named a form field "fits the Catalog". Read words with
   refusal, so the refusal can only come from the check under test.
 - **Verifying by hand is not coverage.** `Agent.pick`'s snapshot bug was
   confirmed in a scratch script and shipped without a test.
+- **A seeded walk moves when a case is added.** Adding a Message case to
+  `heldValue.test.ts`'s generators changed every walk, and seed 174 then
+  found a list going `Refreshing` to `Loading` on a `MutationSucceeded`
+  (#263). Leaving the new case's generators empty to keep the seeds hid it.
+  File what a moved walk finds before keeping the seeds.
 - **A fixture too small cannot tell right from wrong.** An ordering test with
   one row passed while ids were parsed by splitting on every colon; two ids
   agreeing up to the first colon caught it. A filter test where every row
@@ -1697,6 +1702,13 @@ of its own named a form field "fits the Catalog". Read words with
   run `pnpm check`. `server` is one too: two example READMEs said
   `pnpm server`, which fails with `Unknown option: 'recursive'`; write
   `pnpm run server`.
+- **`git add -N` stages into the shared index.** Used so a review sees new
+  files, it rides another session's next commit like any staging. Do not use
+  it in a shared worktree; pass new files to the review another way.
+- **`tsc` without `--noEmit` at the root writes `.d.ts` files beside the
+  source.** A `vitest.shared.d.ts` and its map appeared untracked and failed
+  `format:check` locally. Check with `tsc -b` or `--noEmit`, and delete such
+  strays.
 - **The index is shared: stage and commit in one command.** Two sessions in
   one worktree share `git add`'s staging area, so files one session stages
   and leaves for a review step are swept into the other's next `git commit`.

@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`Diagnostics`: one typed channel for fallbacks, refusals and swallowed
+  failures.** In `foldkit-surface`, re-exported by `foldkit-remote`: each
+  package declares its own variants on a base `{ _tag, source, level,
+  message }`; reports go to the `Diagnostics.Reporter` service, Effect's log
+  by default (`Layer.succeed(Diagnostics.Reporter, report)` replaces it), and
+  `Diagnostics.collect()` gathers them for a test. Remote's wiring and
+  `Remote.fold` report what its reducer recorded, including a new
+  `WriteUnheard` for a failed write when the wiring does not share
+  `MutationFailed` (#237, #260).
 - **`Derived.exists(Like.relations.post, { viewer: Like.relations.user })`:
   "liked by me".** The id of a row pointing here and at whoever reads it, or
   none (`Option<string>`), so an unlike knows what to delete. `bind` compiles
@@ -185,6 +194,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **Breaking: Remote's and the server's reports are diagnostics.**
+  `RemoteModel.placementMismatches` and `answerGaps` (and those `Data.inspect`
+  fields) are one `diagnostics` list holding `PlacementMismatch` and
+  `AnswerGap`, which now names its `mutation`; Remote has a no-op
+  `CompletedReportDiagnostics` Message. `foldkit-remote-server` removes
+  `logDefect`, `RemoteServer.answer`'s third argument and `serveFetch`'s
+  `onError`: a defect reports `ServerDefect`, `serveFetch` takes
+  `diagnostics(diagnostic, request)`, and a failed answer read or live publish
+  reports `AnswerUnread` or `PublishFailed` (#237).
 - **Breaking: `RemoteDescriptor.registry.counts` is `registry.derived`**
   (`DerivedBy`: `Count` | `Exists`), and `countsOfWrite` is `derivedOfWrite`
   (#233).
