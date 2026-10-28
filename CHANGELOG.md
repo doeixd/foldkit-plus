@@ -379,6 +379,24 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **Declared writes, after review** (#277):
+  - `Write.update` refuses a computed assignment into a `Schema.Int` field that
+    may not come to an integer, and the Drizzle writer refuses one over an
+    integer column at registration; SQLite stored the fraction, Postgres
+    rounded it, and `Write.apply` predicted the fraction.
+  - **Breaking:** a write ledger refuses an operation id sent again with
+    another mutation, keys or input, where it answered it as a retry and
+    wrote nothing. Ledger tables need a nullable `request` column
+    (`alter table write_ledger add column request text`; add
+    `request: text('request')` to the Drizzle table), and `EntityWriter`'s
+    `update`, `insert` and `recorded` contexts carry `request`. A record
+    without one is still answered as a retry until its retention passes.
+  - On Postgres, a retry sent while its original is still writing waits for
+    it and is answered from the ledger, where it failed as "Database write
+    failed".
+  - Under a ledger, an update with no record is judged by its `when` and
+    transition invariants even when the row already holds what it sets,
+    where it was taken for a retry and answered Success.
 - **A write's answer, stamps, live reads and page reads, after a security
   review:**
   - A declared write's answer names the rows its row points at only for a
