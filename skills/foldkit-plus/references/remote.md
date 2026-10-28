@@ -915,7 +915,9 @@ where the write is served (`GuardServer.writer` passes it on). Each `Write` incr
 its amount is an integer (`WriteIncrement.integer`).
 Migrate `checkConstraints(binding)` (each state invariant as `check ((…) is true)`, and each
 column's field rules SQL holds exactly; `serverOnly` lists the rest, which a binding's first
-write through `writer` reports as one `ServerOnlyRules` warning) or put `entityChecks(Entity, t)`
+write through `writer` reports as one `ServerOnlyRules` warning: on SQLite a number bound
+compiles only over `Schema.Finite`, since SQLite stores NaN as NULL, and on Postgres no number
+rule compiles over a float4 `real` column) or put `entityChecks(Entity, t)`
 in the Drizzle table for `drizzle-kit`, never a CHECK written by hand; and,
 for a guarded writer's `revision` pin, `revisionTrigger(binding, 'revision')`, so a
 handler's write and raw SQL are held to the invariants and move the revision too.

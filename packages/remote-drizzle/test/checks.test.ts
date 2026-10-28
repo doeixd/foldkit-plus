@@ -12,6 +12,7 @@ import {
   doublePrecision,
   getTableConfig as pgTableConfig,
   PgDialect,
+  real as pgReal,
   pgTable,
   text as pgText,
 } from 'drizzle-orm/pg-core'
@@ -43,14 +44,20 @@ const Rule = Entity.define(
     span: Schema.String.check(Schema.isBetweenCodePoints(2, 4)),
     kind: Schema.Literals(['draft', "it's"]),
     level: Schema.Literals([0, 1, 2]),
-    amount: Schema.Number.check(Schema.isGreaterThan(0), Schema.isLessThanOrEqualTo(100)),
-    ratio: Schema.Number.check(
+    amount: Schema.Finite.check(Schema.isGreaterThan(0), Schema.isLessThanOrEqualTo(100)),
+    ratio: Schema.Finite.check(
       Schema.isBetween({ minimum: 0, maximum: 1, exclusiveMaximum: true }),
     ),
-    floor: Schema.Number.check(Schema.isGreaterThanOrEqualTo(-5), Schema.isLessThan(5)),
+    floor: Schema.Finite.check(Schema.isGreaterThanOrEqualTo(-5), Schema.isLessThan(5)),
+    // Effect's upper bound accepts NaN and its lower bound refuses it.
+    cap: Schema.Number.check(Schema.isLessThanOrEqualTo(10)),
+    least: Schema.Number.check(Schema.isGreaterThan(0)),
+    scale: Schema.Finite,
     bio: Schema.NullOr(Schema.String.check(Schema.isMaxCodePoints(3))),
   }),
 )
+/** Bounds over a field that may be NaN, which SQLite cannot hold: Postgres' alone. */
+const nanBounded = new Set(['cap', 'least'])
 
 const valid = {
   handle: 'ada',
@@ -62,6 +69,9 @@ const valid = {
   amount: 1,
   ratio: 0.5,
   floor: 0,
+  cap: 1,
+  least: 1,
+  scale: 1,
   bio: null,
 }
 type Field = keyof typeof valid
@@ -80,6 +90,9 @@ const sqliteRules = sqliteTable(
     amount: real('amount').notNull(),
     ratio: real('ratio').notNull(),
     floor: real('floor').notNull(),
+    cap: real('cap').notNull(),
+    least: real('least').notNull(),
+    scale: real('scale').notNull(),
     bio: text('bio'),
   },
   t => entityChecks(Rule, t),
@@ -97,6 +110,9 @@ const pgRules = pgTable(
     amount: doublePrecision('amount').notNull(),
     ratio: doublePrecision('ratio').notNull(),
     floor: doublePrecision('floor').notNull(),
+    cap: doublePrecision('cap').notNull(),
+    least: doublePrecision('least').notNull(),
+    scale: doublePrecision('scale').notNull(),
     bio: pgText('bio'),
   },
   t => entityChecks(Rule, t),
@@ -112,7 +128,7 @@ const createTable = (
   dialect: SQLiteDialect | PgDialect,
   kinds: { readonly text: string; readonly number: string; readonly kind: string },
 ) => {
-  const number = new Set<string>(['level', 'amount', 'ratio', 'floor'])
+  const number = new Set<string>(['level', 'amount', 'ratio', 'floor', 'cap', 'least', 'scale'])
   const columns = fields.map(field =>
     field === 'kind'
       ? `kind ${kinds.kind} not null`
@@ -133,6 +149,11 @@ const random = (seed: number) => () => {
   return seed / 2 ** 31
 }
 const next = random(259)
+const NUL = String.fromCharCode(0)
+const BACKSLASH = String.fromCharCode(92)
+/** How SQLite counts a column's code points, a NUL among them. */
+const nulSafeLength = (column: string) =>
+  `length(json_extract(replace(replace(json_quote(${column}), '${BACKSLASH}${BACKSLASH}', '${BACKSLASH}u005c'), '${BACKSLASH}u0000', ' '), '$'))`
 const ALPHABET = [
   'a',
   'b',
@@ -167,6 +188,18 @@ const texts = [
   'A-',
   '-9Z1',
   'AB-C9',
+  // SQLite's GLOB and length stop at a NUL; the Schema reads past it.
+  ...[
+    ['ab', 'XY!'],
+    ['abc', ''],
+    ['ab', 'cdefg'],
+    ['a', ''],
+    ['', ''],
+    ['', 'ab'],
+    ['😀', '😀'],
+  ].map(([before, after]) => `${before}${NUL}${after}`),
+  // The six characters JSON writes for a NUL, as text: not a NUL.
+  `${BACKSLASH}u0000`,
   ...Array.from({ length: 250 }, () =>
     Array.from(
       { length: Math.floor(next() * 18) },
@@ -175,8 +208,29 @@ const texts = [
   ),
 ]
 const numbers = [
-  -10, -5.000001, -5, -4.999, -0, 0, 1e-9, 0.5, 0.999999, 1, 2, 3, 4.999, 5, 99.5, 100, 100.000001,
+  -10,
+  -5.000001,
+  -5,
+  -4.999,
+  -0,
+  0,
+  1e-9,
+  0.5,
+  0.999999,
+  1,
+  2,
+  3,
+  4.999,
+  5,
+  10,
+  10.5,
+  99.5,
+  100,
+  100.000001,
   1e9,
+  Infinity,
+  -Infinity,
+  NaN,
 ]
 
 /** Each field's candidates: every value of its kind, and `null` where the field admits it. */
@@ -186,6 +240,9 @@ const candidates = (field: Field): ReadonlyArray<unknown> =>
 describe.each([
   {
     dialect: 'SQLite',
+    // A NaN reaches SQLite as NULL, so the law there is over every other value.
+    holds: (value: unknown) => !Number.isNaN(value),
+    fields: fields.filter(field => !nanBounded.has(field)),
     open: async () => {
       const db = new DatabaseSync(':memory:')
       db.exec(
@@ -211,6 +268,9 @@ describe.each([
   },
   {
     dialect: 'Postgres',
+    // Postgres refuses a NUL in text before any CHECK reads it.
+    holds: (value: unknown) => typeof value !== 'string' || !value.includes(NUL),
+    fields,
     open: async () => {
       await pglite.exec('drop table if exists rules')
       await pglite.exec(
@@ -235,7 +295,7 @@ describe.each([
       }
     },
   },
-])('the law on $dialect', ({ open }) => {
+])('the law on $dialect', ({ open, holds, fields }) => {
   it.each(fields)(
     'accepts %s exactly when its Schema does',
     async field => {
@@ -243,7 +303,7 @@ describe.each([
       const accepts = Schema.is(Schema.toType(Rule.fields[field].schema))
       let id = 0
       const disagreements: Array<unknown> = []
-      for (const value of candidates(field)) {
+      for (const value of candidates(field).filter(holds)) {
         const row = { ...valid, id: `${field}-${id++}`, [field]: value }
         if ((await insert(row)) !== accepts(value)) disagreements.push(value)
       }
@@ -257,23 +317,113 @@ describe.each([
 const pglite = new PGlite()
 afterAll(() => pglite.close())
 
+it('Postgres holds no NUL in text, so its law has none to judge', async () => {
+  await expect(pglite.query('select $1::text', [`a${NUL}`])).rejects.toThrow(
+    'invalid byte sequence',
+  )
+})
+
 describe('checkConstraints', () => {
   it('names one CHECK per ruled column, each the clause entityChecks puts in the table', () => {
     const { constraints, serverOnly } = checkConstraints(SqliteDb.Rule)
-    expect(serverOnly).toEqual([])
+    expect(serverOnly).toEqual([
+      'Rule.cap: a value less than or equal to 10 (SQLite stores NaN as NULL; a finite field (Schema.Finite) compiles it)',
+      'Rule.least: a value greater than 0 (SQLite stores NaN as NULL; a finite field (Schema.Finite) compiles it)',
+    ])
     expect(constraints).toEqual(
       sqliteTableConfig(sqliteRules).checks.map(({ name, value }) => ({
         name,
         constraint: `constraint "${name}" check (${new SQLiteDialect().sqlToQuery(value).sql})`,
       })),
     )
-    expect(constraints.map(each => each.name)).toEqual(fields.map(field => `rules_${field}_check`))
-    expect(constraints[0]!.constraint).toBe(
-      `constraint "rules_handle_check" check ("rules"."handle" not glob '*[^a-z0-9_]*' and length("rules"."handle") >= 1 and length("rules"."handle") >= 3 and length("rules"."handle") <= 15)`,
+    expect(constraints.map(each => each.name)).toEqual(
+      fields.filter(field => !nanBounded.has(field)).map(field => `rules_${field}_check`),
     )
-    expect(checkConstraints(PgDb.Rule).constraints[0]!.constraint).toBe(
+    const sqlite = new Map(constraints.map(each => [each.name, each.constraint]))
+    expect(sqlite.get('rules_handle_check')).toBe(
+      `constraint "rules_handle_check" check (instr("rules"."handle", char(0)) = 0 and "rules"."handle" not glob '*[^a-z0-9_]*' and length("rules"."handle") >= 1 and length("rules"."handle") >= 3 and length("rules"."handle") <= 15)`,
+    )
+    expect(sqlite.get('rules_span_check')).toBe(
+      `constraint "rules_span_check" check (${nulSafeLength('"rules"."span"')} >= 2 and ${nulSafeLength('"rules"."span"')} <= 4)`,
+    )
+    const postgres = checkConstraints(PgDb.Rule)
+    expect(postgres.serverOnly).toEqual([])
+    const pg = new Map(postgres.constraints.map(each => [each.name, each.constraint]))
+    expect(pg.get('rules_handle_check')).toBe(
       `constraint "rules_handle_check" check ("rules"."handle" !~ '[^a-z0-9_]' and length("rules"."handle") >= 1 and length("rules"."handle") >= 3 and length("rules"."handle") <= 15)`,
     )
+    expect(pg.get('rules_cap_check')).toBe(
+      `constraint "rules_cap_check" check (("rules"."cap" <= 10 or "rules"."cap" = 'NaN'::double precision))`,
+    )
+    expect(pg.get('rules_least_check')).toBe(
+      `constraint "rules_least_check" check (("rules"."least" > 0 and "rules"."least" <> 'NaN'::double precision))`,
+    )
+  })
+
+  it('leaves every rule over a float4 column to the server', () => {
+    const Price = Entity.define(
+      'Price',
+      Schema.Struct({
+        id: Schema.String,
+        amount: Schema.Finite.check(Schema.isLessThanOrEqualTo(0.1)),
+        tier: Schema.Literals([1, 2]),
+      }),
+    )
+    const prices = pgTable('prices', {
+      id: pgText('id').primaryKey(),
+      amount: pgReal('amount').notNull(),
+      tier: pgReal('tier').notNull(),
+    })
+    const { constraints, serverOnly } = checkConstraints(
+      bind({ Price }, { Price: { table: prices } }).Price,
+    )
+    expect(constraints).toEqual([])
+    const rounds = 'a float4 column holds the number rounded; double precision compiles it'
+    expect(serverOnly).toEqual([
+      `Price.amount: a finite number (${rounds})`,
+      `Price.amount: a value less than or equal to 0.1 (${rounds})`,
+      `Price.tier: one of 1, 2 (${rounds})`,
+    ])
+  })
+
+  it('lists the rules inside a record and a recursive schema', () => {
+    interface Tree {
+      readonly label: string
+      readonly children: ReadonlyArray<Tree>
+    }
+    const Tree: Schema.Codec<Tree> = Schema.Struct({
+      label: Schema.String.check(Schema.isMaxCodePoints(5)),
+      children: Schema.Array(Schema.suspend(() => Tree)),
+    })
+    const Tagged = Entity.define(
+      'Tagged',
+      Schema.Struct({
+        id: Schema.String,
+        tags: Schema.fromJsonString(
+          Schema.Record(
+            Schema.String.check(Schema.isMaxCodePoints(3)),
+            Schema.Number.check(Schema.isGreaterThan(0)),
+          ),
+        ),
+        tree: Schema.fromJsonString(Tree),
+        note: Schema.suspend(() => Schema.String.check(Schema.isMaxCodePoints(4))),
+      }),
+    )
+    const tagged = sqliteTable('tagged', {
+      id: text('id').primaryKey(),
+      tags: text('tags').notNull(),
+      tree: text('tree').notNull(),
+      note: text('note').notNull(),
+    })
+    expect(checkConstraints(bind({ Tagged }, { Tagged: { table: tagged } }).Tagged)).toEqual({
+      constraints: [],
+      serverOnly: [
+        'Tagged.tags: a string with at most 3 code points',
+        'Tagged.tags: a value greater than 0',
+        'Tagged.tree: a string with at most 5 code points',
+        'Tagged.note: a string with at most 4 code points',
+      ],
+    })
   })
 
   it('lists, by field, each rule SQL cannot say exactly, and a transition invariant', () => {
@@ -329,7 +479,7 @@ describe('checkConstraints', () => {
       bind({ Profile }, { Profile: { table: profiles } }).Profile,
     )
     expect(constraints.map(each => each.constraint)).toEqual([
-      `constraint "profiles_bio_check" check (length("profiles"."bio") <= 3)`,
+      `constraint "profiles_bio_check" check (${nulSafeLength('"profiles"."bio"')} <= 3)`,
     ])
     expect(serverOnly).toEqual([])
   })
@@ -434,7 +584,30 @@ describe('bind, over a table that holds checks', () => {
       check('posts_likesCount', sql`(${t.likes} >= 0) is true`),
     ])
     expect(bindTo(posts)).toThrow(
-      `table "posts"'s CHECK "posts_body_check" says length("posts"."body") <= 300, but Post's rules say length("posts"."body") <= 280`,
+      `table "posts"'s CHECK "posts_body_check" says length("posts"."body") <= 300, but Post's rules say ${nulSafeLength('"posts"."body"')} <= 280`,
+    )
+  })
+
+  it('takes one whose checks name their columns unqualified, as drizzle-kit pull writes them', () => {
+    const posts = sqliteTable('posts', columns, () => [
+      check('posts_body_check', sql.raw(`${nulSafeLength('"body"')} <= 280`)),
+      check('posts_likesCount', sql.raw('("likes" >= 0) is true')),
+    ])
+    expect(bindTo(posts)).not.toThrow()
+  })
+
+  it('reads a qualifier inside a string literal as text', () => {
+    const Tag = Entity.define(
+      'Tag',
+      Schema.Struct({ id: Schema.String, kind: Schema.Literals(['"tags".a']) }),
+    )
+    const tags = sqliteTable(
+      'tags',
+      { id: text('id').primaryKey(), kind: text('kind').notNull() },
+      t => [check('tags_kind_check', sql`${t.kind} collate binary in ('a')`)],
+    )
+    expect(() => bind({ Tag }, { Tag: { table: tags } })).toThrow(
+      `table "tags"'s CHECK "tags_kind_check" says "tags"."kind" collate binary in ('a')`,
     )
   })
 
@@ -449,9 +622,7 @@ describe('bind, over a table that holds checks', () => {
   })
 
   it('refuses one missing a check beside the others', () => {
-    const posts = sqliteTable('posts', columns, t => [
-      check('posts_body_check', sql`length(${t.body}) <= 280`),
-    ])
+    const posts = sqliteTable('posts', columns, t => entityChecks(Post, t).slice(0, 1))
     expect(bindTo(posts)).toThrow(
       'table "posts" lacks the CHECK "posts_likesCount" that Post\'s rules imply',
     )

@@ -5,10 +5,12 @@
  * checks those against the Entity (kind, nullability) as it always has.
  *
  * A rule compiles only where the database's answer is the Schema's for every
- * value of the field's kind: a CHECK never refuses a row the Schema accepts, and
- * never accepts one it refuses. Anything else is listed as held by the server
- * only (`checkConstraints(...).serverOnly`), neither dropped in silence nor
- * refused, since the server still holds it on every declared write.
+ * value of the field's kind the column can hold: a CHECK never refuses a row the
+ * Schema accepts, and never accepts one it refuses. Anything else is listed as
+ * held by the server only (`checkConstraints(...).serverOnly`), neither dropped
+ * in silence nor refused, since the server still holds it on every declared
+ * write. What no column holds is outside the law, and so outside any CHECK:
+ * Postgres refuses NUL in text, and SQLite stores a NaN it is sent as NULL.
  */
 import {
   getColumnTable,
@@ -76,10 +78,28 @@ const render = (table: Table, condition: SQL, what: string): string => {
 }
 
 const number = (value: number): SQL => sql.raw(String(value))
-const count = (column: AnyColumn): SQL => sql`length(${column})`
-const atLeast = (column: AnyColumn, minimum: number): ReadonlyArray<SQL> =>
+
+/** How a dialect counts a column's code points. */
+type Count = (column: AnyColumn) => SQL
+
+const plainLength: Count = column => sql`length(${column})`
+
+const BACKSLASH = String.fromCharCode(92)
+/**
+ * SQLite's `length` stops at the first NUL, which a Schema counts. JSON writes a
+ * NUL as a six-character escape, which `replace` turns into one space before
+ * the string is read back; each escaped backslash is spelled as an escape of its
+ * own first, so a value holding those six characters as text is not taken for a
+ * NUL. Postgres needs none of it: it holds no NUL in text.
+ */
+const nulSafeLength: Count = column =>
+  sql`length(json_extract(replace(replace(json_quote(${column}), ${sql.raw(
+    `'${BACKSLASH}${BACKSLASH}', '${BACKSLASH}u005c'`,
+  )}), ${sql.raw(`'${BACKSLASH}u0000'`)}, ' '), '$'))`
+
+const atLeast = (count: Count, column: AnyColumn, minimum: number): ReadonlyArray<SQL> =>
   minimum <= 0 ? [] : [sql`${count(column)} >= ${number(minimum)}`]
-const atMost = (column: AnyColumn, maximum: number): ReadonlyArray<SQL> => [
+const atMost = (count: Count, column: AnyColumn, maximum: number): ReadonlyArray<SQL> => [
   sql`${count(column)} <= ${number(maximum)}`,
 ]
 
@@ -140,12 +160,22 @@ const asciiClass = (source: string, flags: string): Option.Option<AsciiClass> =>
   })
 }
 
+/**
+ * GLOB stops at a NUL as `length` does, and no class holds one, so on SQLite a
+ * NUL anywhere refuses the value; with none, `length` counts it all.
+ */
 const classSql = (column: AnyColumn, held: AsciiClass, dialect: Dialect): ReadonlyArray<SQL> => [
-  dialect === 'sqlite'
-    ? sql`${column} not glob ${sql.raw(`'*[^${held.body}]*'`)}`
-    : sql`${column} !~ ${sql.raw(`'[^${held.body}]'`)}`,
-  ...atLeast(column, held.minimum),
-  ...Option.match(held.maximum, { onNone: () => [], onSome: maximum => atMost(column, maximum) }),
+  ...(dialect === 'sqlite'
+    ? [
+        sql`instr(${column}, char(0)) = 0`,
+        sql`${column} not glob ${sql.raw(`'*[^${held.body}]*'`)}`,
+      ]
+    : [sql`${column} !~ ${sql.raw(`'[^${held.body}]'`)}`]),
+  ...atLeast(plainLength, column, held.minimum),
+  ...Option.match(held.maximum, {
+    onNone: () => [],
+    onSome: maximum => atMost(plainLength, column, maximum),
+  }),
 ]
 
 const Pattern = Schema.Struct({ source: Schema.String, flags: Schema.String })
@@ -170,19 +200,35 @@ const UNIT_LENGTHS = new Set([
   'effect/schema/isBetweenLength',
 ])
 
+interface Context {
+  readonly dialect: Dialect
+  /** An ASCII class compiled beside: every value it passes is ASCII, with no NUL. */
+  readonly ascii: boolean
+}
+
 type Translate = (
   payload: Schema.Json,
   column: AnyColumn,
-  context: { readonly dialect: Dialect; readonly ascii: boolean },
+  context: Context,
 ) => Option.Option<ReadonlyArray<SQL>>
 
+/**
+ * Postgres orders NaN above every number, while Effect's upper bounds accept it
+ * and its lower bounds refuse it, so each bound says what it does with NaN.
+ */
+const NAN = sql.raw(`'NaN'::double precision`)
+const lower = (column: AnyColumn, condition: SQL, dialect: Dialect): SQL =>
+  dialect === 'postgres' ? sql`(${condition} and ${column} <> ${NAN})` : condition
+const upper = (column: AnyColumn, condition: SQL, dialect: Dialect): SQL =>
+  dialect === 'postgres' ? sql`(${condition} or ${column} = ${NAN})` : condition
+
 const bound =
-  (key: string, toSql: (column: AnyColumn, value: number) => SQL): Translate =>
-  (payload, column) =>
+  (key: string, side: typeof lower, toSql: (column: AnyColumn, value: number) => SQL): Translate =>
+  (payload, column, { dialect }) =>
     Schema.decodeUnknownOption(Bound(key))(payload).pipe(
       Option.map(read => read[key]!),
       Option.filter(Number.isFinite),
-      Option.map(value => [toSql(column, value)]),
+      Option.map(value => [side(column, toSql(column, value), dialect)]),
     )
 
 const lengths =
@@ -190,14 +236,19 @@ const lengths =
     read: (payload: Schema.Json) => Option.Option<readonly [number, Option.Option<number>]>,
     exact: (minimum: number, ascii: boolean) => boolean,
   ): Translate =>
-  (payload, column, { ascii }) =>
-    read(payload).pipe(
+  (payload, column, { dialect, ascii }) => {
+    const count = dialect === 'sqlite' && !ascii ? nulSafeLength : plainLength
+    return read(payload).pipe(
       Option.filter(([minimum]) => exact(minimum, ascii)),
       Option.map(([minimum, maximum]) => [
-        ...atLeast(column, minimum),
-        ...Option.match(maximum, { onNone: () => [], onSome: most => atMost(column, most) }),
+        ...atLeast(count, column, minimum),
+        ...Option.match(maximum, {
+          onNone: () => [],
+          onSome: most => atMost(count, column, most),
+        }),
       ]),
     )
+  }
 
 const least = (key: string) => (payload: Schema.Json) =>
   Schema.decodeUnknownOption(Bound(key))(payload).pipe(
@@ -227,11 +278,31 @@ const TEXT: Readonly<Record<string, Translate>> = {
     Option.map(classOf(payload), held => classSql(column, held, dialect)),
 }
 
+const FINITE = 'effect/schema/isFinite'
+/** The rules that refuse NaN and both infinities. */
+const FINITES = new Set([FINITE, 'effect/schema/isInt'])
+
 const NUMBER: Readonly<Record<string, Translate>> = {
-  'effect/schema/isGreaterThan': bound('exclusiveMinimum', (c, v) => sql`${c} > ${number(v)}`),
-  'effect/schema/isGreaterThanOrEqualTo': bound('minimum', (c, v) => sql`${c} >= ${number(v)}`),
-  'effect/schema/isLessThan': bound('exclusiveMaximum', (c, v) => sql`${c} < ${number(v)}`),
-  'effect/schema/isLessThanOrEqualTo': bound('maximum', (c, v) => sql`${c} <= ${number(v)}`),
+  'effect/schema/isGreaterThan': bound(
+    'exclusiveMinimum',
+    lower,
+    (c, v) => sql`${c} > ${number(v)}`,
+  ),
+  'effect/schema/isGreaterThanOrEqualTo': bound(
+    'minimum',
+    lower,
+    (c, v) => sql`${c} >= ${number(v)}`,
+  ),
+  'effect/schema/isLessThan': bound('exclusiveMaximum', upper, (c, v) => sql`${c} < ${number(v)}`),
+  'effect/schema/isLessThanOrEqualTo': bound('maximum', upper, (c, v) => sql`${c} <= ${number(v)}`),
+  // Postgres' NaN passes `> -Infinity` and fails `< Infinity`.
+  [FINITE]: (_, column, { dialect }) =>
+    Option.some([
+      dialect === 'postgres'
+        ? sql`(${column} > '-Infinity'::double precision and ${column} < 'Infinity'::double precision)`
+        : sql`abs(${column}) <= ${number(Number.MAX_VALUE)}`,
+    ]),
+  // Both ends refuse NaN on Postgres, as Effect's isBetween does.
   'effect/schema/isBetween': (payload, column) =>
     Schema.decodeUnknownOption(Between)(payload).pipe(
       Option.filter(({ minimum, maximum }) => Number.isFinite(minimum) && Number.isFinite(maximum)),
@@ -259,26 +330,46 @@ const filtersIn = (
     ),
   )
 
-/** Every filter anywhere in a schema: what a field's rules are, compiled or not. */
-const filtersOf = (ast: SchemaAST.AST): ReadonlyArray<SchemaAST.Filter<unknown>> => [
-  ...filtersIn(ast.checks ?? []),
-  ...(SchemaAST.isUnion(ast)
-    ? ast.types.flatMap(filtersOf)
-    : SchemaAST.isDeclaration(ast)
-      ? ast.typeParameters.flatMap(filtersOf)
-      : SchemaAST.isObjects(ast)
-        ? ast.propertySignatures.flatMap(signature => filtersOf(signature.type))
-        : SchemaAST.isArrays(ast)
-          ? [...ast.elements, ...ast.rest].flatMap(filtersOf)
-          : []),
-]
+/**
+ * Every filter anywhere in a schema: what a field's rules are, compiled or not.
+ * A recursive schema meets its own suspension again, which is read once.
+ */
+const filtersOf = (
+  ast: SchemaAST.AST,
+  seen: Set<SchemaAST.AST> = new Set(),
+): ReadonlyArray<SchemaAST.Filter<unknown>> => {
+  if (seen.has(ast)) return []
+  seen.add(ast)
+  const inner = (each: SchemaAST.AST) => filtersOf(each, seen)
+  return [
+    ...filtersIn(ast.checks ?? []),
+    ...(SchemaAST.isUnion(ast)
+      ? ast.types.flatMap(inner)
+      : SchemaAST.isDeclaration(ast)
+        ? ast.typeParameters.flatMap(inner)
+        : SchemaAST.isObjects(ast)
+          ? [
+              ...ast.propertySignatures.map(signature => signature.type),
+              ...ast.indexSignatures.flatMap(signature => [signature.parameter, signature.type]),
+            ].flatMap(inner)
+          : SchemaAST.isArrays(ast)
+            ? [...ast.elements, ...ast.rest].flatMap(inner)
+            : SchemaAST.isSuspend(ast)
+              ? inner(ast.thunk())
+              : []),
+  ]
+}
 
-const describe = (filter: SchemaAST.Filter<unknown>): string => {
+const describe = (filter: SchemaAST.Filter<unknown>, why: Option.Option<string>): string => {
   const id = filter.annotations?.representation?.id
   const said = filter.annotations?.expected ?? id ?? 'a check of its own'
-  return id !== undefined && UNIT_LENGTHS.has(id)
-    ? `${said} (counted in UTF-16 units; SQL counts code points, as Schema.isMaxCodePoints does)`
-    : said
+  return Option.match(why, {
+    onSome: reason => `${said} (${reason})`,
+    onNone: () =>
+      id !== undefined && UNIT_LENGTHS.has(id)
+        ? `${said} (counted in UTF-16 units; SQL counts code points, as Schema.isMaxCodePoints does)`
+        : said,
+  })
 }
 
 const literalList = (values: ReadonlyArray<unknown>): Option.Option<SQL> => {
@@ -303,29 +394,38 @@ const fieldRules = (
 ): { readonly parts: ReadonlyArray<SQL>; readonly serverOnly: ReadonlyArray<string> } => {
   const encoded = SchemaAST.toEncoded(ast)
   const compiled = new Set<SchemaAST.Filter<unknown>>()
+  const withheld = new Map<SchemaAST.Filter<unknown>, string>()
   const parts: Array<SQL> = []
   const shapes: Array<string> = []
+  // Postgres' `real` is float4: a CHECK would compare a rounding of the number written.
+  const rounds = dialect === 'postgres' && column.getSQLType() === 'real'
+  const ROUNDS = 'a float4 column holds the number rounded; double precision compiles it'
   const present = SchemaShape.present(encoded)
   const literals = present.flatMap(member => (SchemaAST.isLiteral(member) ? [member.literal] : []))
   const [only] = present
   if (present.length > 0 && literals.length === present.length) {
-    Option.match(literalList(literals), {
-      onNone: () => shapes.push(`one of ${literals.map(value => String(value)).join(', ')}`),
-      onSome: list =>
-        parts.push(
-          typeof literals[0] === 'string'
-            ? dialect === 'sqlite'
-              ? sql`${column} collate binary in (${list})`
-              : sql`(${column} collate "C") in (${list})`
-            : sql`${column} in (${list})`,
-        ),
-    })
+    const listed = `one of ${literals.map(value => String(value)).join(', ')}`
+    if (rounds && literals.some(value => typeof value === 'number'))
+      shapes.push(`${listed} (${ROUNDS})`)
+    else
+      Option.match(literalList(literals), {
+        onNone: () => shapes.push(listed),
+        onSome: list =>
+          parts.push(
+            typeof literals[0] === 'string'
+              ? dialect === 'sqlite'
+                ? sql`${column} collate binary in (${list})`
+                : sql`(${column} collate "C") in (${list})`
+              : sql`${column} in (${list})`,
+          ),
+      })
   } else if (
     present.length === 1 &&
     only !== undefined &&
     (SchemaAST.isString(only) || SchemaAST.isNumber(only))
   ) {
-    const table = SchemaAST.isString(only) ? TEXT : NUMBER
+    const numeric = SchemaAST.isNumber(only)
+    const table = numeric ? NUMBER : TEXT
     const represented = filtersIn(only.checks ?? []).flatMap(filter => {
       const representation = filter.annotations?.representation
       return representation === undefined ? [] : [{ filter, ...representation }]
@@ -333,8 +433,20 @@ const fieldRules = (
     const ascii = represented.some(
       ({ id, payload }) => id === PATTERN && Option.isSome(classOf(payload)),
     )
+    const finite = represented.some(({ id }) => FINITES.has(id))
+    // A bound decides NaN one way or the other, and SQLite holds no NaN to decide.
+    const why =
+      numeric && rounds
+        ? Option.some(ROUNDS)
+        : numeric && dialect === 'sqlite' && !finite
+          ? Option.some('SQLite stores NaN as NULL; a finite field (Schema.Finite) compiles it')
+          : Option.none<string>()
     for (const { filter, id, payload } of represented) {
       if (!Object.hasOwn(table, id)) continue
+      if (Option.isSome(why)) {
+        withheld.set(filter, why.value)
+        continue
+      }
       Option.match(table[id]!(payload, column, { dialect, ascii }), {
         onNone: () => {},
         onSome: held => {
@@ -351,7 +463,12 @@ const fieldRules = (
   const every = new Set([...filtersOf(SchemaAST.toType(ast)), ...filtersOf(encoded)])
   return {
     parts,
-    serverOnly: [...shapes, ...[...every].filter(filter => !compiled.has(filter)).map(describe)],
+    serverOnly: [
+      ...shapes,
+      ...[...every]
+        .filter(filter => !compiled.has(filter))
+        .map(filter => describe(filter, Option.fromNullishOr(withheld.get(filter)))),
+    ],
   }
 }
 
@@ -445,7 +562,11 @@ export interface EntityCheckOptions<E extends Domain.AnyEntity> {
  * definition, so `drizzle-kit` writes them into the migration that makes it:
  *
  * ```ts
- * const posts = sqliteTable('posts', { … }, t => entityChecks(Post, t))
+ * const posts = sqliteTable(
+ *   'posts',
+ *   { id: text('id').primaryKey(), body: text('body').notNull() },
+ *   t => entityChecks(Post, t),
+ * )
  * ```
  *
  * It takes the Entity, not a binding: Drizzle reads the callback lazily, and the
@@ -519,11 +640,25 @@ export const checkConstraints = (
 }
 
 /**
+ * A condition without its own table's qualifier on a column, outside string
+ * literals, so `length("body")` (as `drizzle-kit pull` writes it) reads as the
+ * `length("posts"."body")` that `entityChecks` writes. Splitting at every quote
+ * leaves the literals at odd places, a doubled quote included.
+ */
+const unqualified = (condition: string, table: string): string =>
+  condition
+    .split("'")
+    .map((part, index) => (index % 2 === 0 ? part.replaceAll(`${quoted(table)}.`, '') : part))
+    .join("'")
+
+/**
  * Refuses a table whose own Drizzle CHECKs say something other than the
  * Entity's rules: a derived check that differs, a column's check whose rules are
- * gone, or a derived check missing beside the others. A table holding none of
- * them is not checked: its database holds the rules some other way, or not at
- * all. Not exported from the package.
+ * gone, or a derived check missing beside the others. It reads the table's
+ * definition, never the database: a migration not yet run, or a constraint
+ * changed by hand, goes unseen. A table holding none of them is not checked: its
+ * database holds the rules some other way, or not at all. Not exported from the
+ * package.
  */
 export const holdsChecks = (
   entity: Domain.AnyEntity,
@@ -559,7 +694,7 @@ export const holdsChecks = (
       fail(
         `table "${tableName}" holds the CHECK "${name}", but ${entity.name} declares no rule a CHECK holds there; drop it, or write the table's checks with entityChecks(${entity.name}, t)`,
       )
-    else if (wanted !== condition)
+    else if (unqualified(wanted, tableName) !== unqualified(condition, tableName))
       fail(
         `table "${tableName}"'s CHECK "${name}" says ${condition}, but ${entity.name}'s rules say ${wanted}; write the table's checks with entityChecks(${entity.name}, t)`,
       )

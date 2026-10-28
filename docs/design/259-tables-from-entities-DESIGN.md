@@ -111,14 +111,27 @@ unknown), which is right: a column can be null only under a field that admits
 null, and `bind` refuses any other. An invariant keeps its `(…) is true`, since
 an invariant calls a null comparison false.
 
-Known gaps, narrow enough to state:
+The law is over the values a column can hold. Where the dialects part:
 
-- **NaN.** `Schema.Number` admits it and every comparison refuses it. Postgres
-  orders NaN above every number, so `c > 0` accepts it. That is looser, never
-  stricter. SQLite cannot store NaN.
-- **NUL in text.** SQLite's `length` stops at the first NUL, so a length CHECK
-  miscounts such text. Postgres refuses NUL in text altogether. The law's
-  values hold no NUL.
+- **NaN.** Effect 4's upper bounds (`isLessThan`, `isLessThanOrEqualTo`) accept
+  NaN; its lower bounds and `isBetween` refuse it. Postgres orders NaN above
+  every number, so a bare `c <= 10` refused NaN (stricter than the Schema) and
+  `c > 0` accepted it (looser). Each bound now says what it does with NaN on
+  Postgres: `(c <= 10 or c = 'NaN'::double precision)`, `(c > 0 and c <>
+  'NaN'::double precision)`. SQLite binds NaN as NULL, so it holds no NaN to
+  decide: there a bound compiles only over a finite field (`isFinite`, `isInt`),
+  and is `serverOnly` otherwise. `isFinite` compiles on both.
+- **NUL in text.** SQLite's `length` and `GLOB` stop at the first NUL, in both
+  directions: `"ab\0XY!"` passed `/^[a-z]+$/` and `"a\0"` failed
+  `isBetweenCodePoints(2, 2)`. A pattern's CHECK refuses a NUL outright
+  (`instr(c, char(0)) = 0`), as the pattern does; a length with no pattern
+  counts through `json_quote`, where a NUL is a six-character escape replaced
+  by one space before `json_extract` reads it back. Postgres refuses NUL in
+  text before any CHECK reads it.
+- **float4.** Postgres' `real` holds a rounding of the number written, so
+  `isLessThanOrEqualTo(0.1)` refused 0.1. Every number rule over a float4
+  column is `serverOnly`. `bind` does not refuse the column: storage stays the
+  application's, and a float4 field with no rule is not wrong.
 
 ## Failure semantics
 
@@ -130,9 +143,14 @@ Known gaps, narrow enough to state:
 - **A table holding none of the derived names** is not checked. Its database
   may hold the rules through SQL (`checkConstraints`, as Chirp does), through
   `alter table` on Postgres, or not at all. The server holds them either way.
-  The conditions are compared as the dialect renders them, so a rule written by
-  hand that means the same but reads differently is refused. Write it with
-  `entityChecks`.
+  The conditions are compared as the dialect renders them, a column's table
+  qualifier aside (`drizzle-kit pull` writes `length("body")`), so a rule
+  written by hand that means the same but reads differently is refused. Write
+  it with `entityChecks`. The comparison reads the Drizzle definition, never
+  the migrated database: a migration not yet run, or a constraint changed by
+  hand, goes unseen. Reading it back is not sound to compare as text, since
+  Postgres' `pg_get_constraintdef` rewrites a condition (casts, `= ANY
+  (ARRAY[…])` for `in`, parentheses).
 - **A check of the application's own** under another name (`own_short_id`) is
   left alone.
 - **An invariant that cannot compile** (an operator with no SQL, a value a

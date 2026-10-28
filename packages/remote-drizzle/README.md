@@ -992,7 +992,11 @@ from the Entity, never written again in SQL, while its columns stay yours and
 
 ```ts
 // drizzle-kit writes the migration: the table holds the CHECKs.
-const posts = sqliteTable('posts', { … }, t => entityChecks(Post, t))
+const posts = sqliteTable(
+  'posts',
+  { id: text('id').primaryKey(), body: text('body').notNull() },
+  t => entityChecks(Post, t),
+)
 
 // A migration written in SQL: the same CHECKs as clauses.
 const { constraints, serverOnly } = checkConstraints(Db.Post)
@@ -1006,22 +1010,45 @@ gets one `constraint "<table>_<column>_check"`; each state invariant gets
 check passes a row its condition calls unknown, and an invariant does not).
 
 A rule compiles only where SQL says it exactly: for every value of the field's
-kind, the database accepts it when the Schema does and refuses it when the
-Schema does (tested on SQLite and Postgres). That covers lengths in code points
-(`isMaxCodePoints` and its kin, and `isNonEmpty`), a whole-string pattern of one
-ASCII bracket (`/^[a-z0-9_]{3,15}$/`, with unit lengths beside it), numeric
-bounds, and literals. Everything else is in `serverOnly`, a sentence per rule,
-and is held by the server's writes alone: a length in UTF-16 units with no
-ASCII pattern (`isMaxLength`: SQL counts code points), a custom filter, a rule
-made after a transformation, a transition invariant. One the dialect cannot
-compile, such as an invariant over an operator with no SQL, is refused by name.
+kind that the column can hold, the database accepts it when the Schema does and
+refuses it when the Schema does (tested on SQLite and Postgres, NaN, infinities
+and NUL included). That covers lengths in code points (`isMaxCodePoints` and its
+kin, and `isNonEmpty`), a whole-string pattern of one ASCII bracket
+(`/^[a-z0-9_]{3,15}$/`, with unit lengths beside it), numeric bounds,
+`isFinite`, and literals. Everything else is in `serverOnly`, a sentence per
+rule, and is held by the server's writes alone: a length in UTF-16 units with
+no ASCII pattern (`isMaxLength`: SQL counts code points), a custom filter, a
+rule made after a transformation, a rule inside a record, an array or a
+recursive schema, a transition invariant. One the dialect cannot compile, such
+as an invariant over an operator with no SQL, is refused by name.
+
+What a column cannot hold is where the dialects part:
+
+- **NaN.** Effect's upper bounds (`isLessThan`, `isLessThanOrEqualTo`) accept
+  NaN; its lower bounds and `isBetween` refuse it. Postgres orders NaN above
+  every number, so each bound's CHECK says what it does with NaN. SQLite stores
+  a NaN it is sent as NULL, so there a bound compiles only over a finite field
+  (`Schema.Finite`, or `Schema.Int`), which refuses NaN itself; any other is in
+  `serverOnly`.
+- **NUL in text.** SQLite's `length` and `GLOB` stop at the first NUL, so its
+  length CHECK counts through JSON, where a NUL is an escape, and a pattern's
+  CHECK refuses a NUL outright, as the pattern does. Postgres refuses NUL in
+  text before any CHECK reads it.
+- **`real` on Postgres** is float4, which holds a rounding of the number
+  written: `isLessThanOrEqualTo(0.1)` would refuse 0.1. A number rule over a
+  float4 column is in `serverOnly`; use `double precision` to compile it. `bind`
+  does not refuse the column, since how a field is stored stays yours.
 A binding's first write through `writer` reports its `serverOnly` rules as
 one `ServerOnlyRules` [diagnostic](#diagnostics), since a write past the
 server (raw SQL, another service) is not refused by them.
 
 `bind` compares a table's own Drizzle CHECKs with the derived ones and refuses
 one that says another rule, a column's check whose rules are gone, or a derived
-check missing beside the others. A table holding none of them is not checked.
+check missing beside the others. A column named without its table
+(`length("body")`, as `drizzle-kit pull` writes it) reads as the same column. It
+reads the table's definition, not the database: a migration not yet run, or a
+constraint changed there by hand, goes unseen. A table holding none of them is
+not checked.
 
 - **Postgres** adds one to a table (`alter table … add`). A table already
   holding rows that break it refuses the constraint; add it `not valid`, repair
