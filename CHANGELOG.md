@@ -378,6 +378,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A law no call answered no longer holds** (#275). Two refusals still agree,
+  but only cases where both sides answer a value count; a law with none
+  answers the new `Unanswered` verdict and records no evidence, where an
+  operator refusing every input was recorded as tested. `Operators.withEvidence`
+  refuses a record of a law whose witness the table runs differently.
+  `Text.startsWith` in memory compares by character (a lone surrogate as
+  U+FFFD), as SQLite and Postgres do; the conformance texts hold `%`, `_` and
+  `\`. A key cursor carries `Infinity`, `-Infinity` and `NaN` as themselves,
+  where paging past one skipped the rows tied with it. Breaking:
+  `LawsVerdict` has an `Unanswered` variant, and a `Tested` record's `cases`
+  counts answered cases only.
 - **A CMS overwrite after a conflict waits for the server's copy of the
   draft,** one the editor had known absent included, instead of saving at
   once against the old copy and meeting the same conflict. `EditorDomain`

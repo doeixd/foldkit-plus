@@ -910,6 +910,14 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   `onExcessProperty: 'error'`. Use `Schema.Record(Schema.String, Schema.Never)`.
   Run a scratch probe against the installed version before relying on semantics
   inferred from a name.
+- **`JSON.stringify` writes `Infinity` and `NaN` as `null`.** A key cursor paged
+  past an infinite key as if it were null and dropped the rows tied with it.
+  Tag every value JSON cannot carry, as dates and bigints are.
+- **SQLite's and Postgres's drivers store a lone surrogate as U+FFFD,** so
+  `'a\uD83D'` and `'a\uDE00'` compare equal there; memory code comparing text
+  replaces lone surrogates the same way. Python cannot write such a string to
+  a file at all: a script writing one raised after `open(p, 'w')` had emptied
+  AGENTS.md. Write text holding surrogate escapes with the Edit tool.
 - **`Schema.Record` drops a key its key schema refuses.** Decoding `{ constructor: … }`
   against `Schema.Record(Id, Entry)` returned `{}`, with no error, unless the call passes
   `onExcessProperty: 'error'`. That keeps a bad key out, and also loses its value silently.
@@ -1240,6 +1248,11 @@ of its own named a form field "fits the Catalog". Read words with
   comment said Foldkit keeps the last of two `OnClick`s on an element; its
   `addDataOn` chains them all, so the resumable builder dropped bindings. Cite
   the source line, or test it.
+- **Two refusals agree, and agreeing is not evidence.** The law helper treated
+  two refused calls as equal, so an SQL body that was not SQL "held" every law
+  and its records let a computed write land. A check comparing two sides
+  passes when neither answers: count only cases where both return a value,
+  and require one.
 - **A surviving mutation usually means redundancy, not missing coverage.** This
   has now happened three times: overlapping disposal guards, then a `release()`
   duplicating an `Effect.ensuring`. The fix is to delete the redundant guard, not
