@@ -36,17 +36,25 @@ const table = (rows: Record<string, string> = { t1: 'Milk' }) => {
     trimmed: 0,
     reads: [] as Array<string>,
     calls: 0,
+    /** Rows whose next read fails. */
+    failing: new Set<string>(),
   }
   const source: EntitySource<string, DrizzleDatabase> = {
     entity: 'Todo',
     read: ({ ids }) =>
-      Effect.sync(() => {
+      Effect.suspend(() => {
         state.calls++
         state.reads.push(...ids)
-        return ids.flatMap(id => {
-          const title = state.rows[id]
-          return title === undefined ? [] : [{ id, values: { id, title, done: 0 } }]
-        })
+        const failed = ids.filter(id => state.failing.delete(id))
+        if (failed.length > 0) {
+          return Effect.fail(new RemoteServerError({ message: `could not read ${failed}` }))
+        }
+        return Effect.succeed(
+          ids.flatMap(id => {
+            const title = state.rows[id]
+            return title === undefined ? [] : [{ id, values: { id, title, done: 0 } }]
+          }),
+        )
       }),
   }
   const log: RowLog = {
@@ -157,6 +165,16 @@ describe('pollLive with a row log', () => {
     await ticks(source, {}, [quiet, quiet])
     expect(state.reads).toEqual(['t1', 't1', 't1'])
   })
+
+  it('reads the subscribed rows in one read a tick, not one a row', async () => {
+    const ids = ['t1', 't2', 't3', 't4', 't5']
+    const { state, source, write } = table(Object.fromEntries(ids.map(id => [id, id])))
+    const seen = await ticks(source, {}, [write('t3', 'Bread'), quiet], ids)
+    expect(seen).toEqual(['EntityPatched'])
+    // As the stream opened, then once a tick.
+    expect(state.calls).toBe(3)
+    expect(state.reads).toEqual([...ids, ...ids, ...ids])
+  })
 })
 
 describe('pollLive watching lists, with a row log', () => {
@@ -222,6 +240,51 @@ describe('pollLive watching lists, with a row log', () => {
       'ConnectionRemove AllTodos',
     ])
     expect(windows.reads).toBe(1)
+  })
+
+  it('joins a row whose read failed once, on a later tick', async () => {
+    const { state, source, log, write } = table()
+    const { list } = watching(state)
+    const failing = () => {
+      write('t2', 'Eggs')()
+      state.failing.add('t2')
+    }
+    const seen = await ticks(
+      source,
+      { changes: log, lists: [list] },
+      [failing, quiet, quiet, quiet],
+      ['watch'],
+    )
+    expect(seen).toEqual([
+      'ConnectionInvalidate AllTodos',
+      'EntityPatched',
+      'ConnectionInsert AllTodos',
+    ])
+  })
+
+  it('reads again for the list that failed, and repeats nothing to the one that did not', async () => {
+    const { state, source, log, write } = table()
+    const mine = watching(state, 'Mine', 'watch-mine')
+    const theirs = watching(state, 'Theirs', 'watch-theirs')
+    const failing = () => {
+      write('t2', 'Eggs')()
+      // Mine reads first.
+      state.failing.add('t2')
+    }
+    const seen = await ticks(
+      source,
+      { changes: log, lists: [mine.list, theirs.list] },
+      [failing, quiet, quiet],
+      ['watch-mine', 'watch-theirs'],
+    )
+    expect(seen).toEqual([
+      'ConnectionInvalidate Mine',
+      'ConnectionInvalidate Theirs',
+      'EntityPatched',
+      'ConnectionInsert Theirs',
+      'EntityPatched',
+      'ConnectionInsert Mine',
+    ])
   })
 
   it('patches a listed row the log names, and joins nothing', async () => {
@@ -315,6 +378,27 @@ describe('rowChangeLog and rowLog over SQLite', () => {
     }
     expect(await run(log.since(2))).toEqual({ through: 4, ids: Option.some(['three', 'four']) })
     expect(await run(log.since(0))).toEqual({ through: 4, ids: Option.none() })
+  })
+
+  it('says it no longer reaches back when the log is trimmed while it is read', async () => {
+    const { sqlite, run, log } = open(2)
+    for (const name of ['one', 'two']) {
+      sqlite.exec(`insert into item_rows values ('${name}', '${name}')`)
+    }
+    // Five writes land just before the entries are selected, trimming three and four.
+    const prepare = sqlite.prepare.bind(sqlite)
+    let pending = ['three', 'four', 'five', 'six', 'seven']
+    sqlite.prepare = (sql: string) => {
+      if (sql.includes('order by')) {
+        for (const name of pending) {
+          sqlite.exec(`insert into item_rows values ('${name}', '${name}')`)
+        }
+        pending = []
+      }
+      return prepare(sql)
+    }
+    expect(await run(log.since(2))).toEqual({ through: 7, ids: Option.none() })
+    expect(pending).toEqual([])
   })
 
   it('runs again over a database that has it', () => {

@@ -1384,13 +1384,16 @@ const statements = rowChangeLog(Db.Todo)
 ```
 
 Without `changes`, every tick (`every`, 250 milliseconds by default) reads
-every subscribed row and each watched list's window. `rowChangeLog(Db.Todo)`
-is the SQLite statements for a table of the rows each write touched and the
-triggers that fill it, so every path that writes the table is logged. With
-`changes: rowLog(Db.Todo)` a tick reads only the rows logged since the last
-one, which on a quiet tick is none. A log that cannot be read, or that was
-trimmed past the last entry read (`keep`, 1000 by default), falls back to
-reading everything. A logged row the subscriber can read is counted as in the
+every subscribed row, in one read for each set of fields asked, and each
+watched list's window. `rowChangeLog(Db.Todo)` is the SQLite statements for a
+table of the rows each write touched and the triggers that fill it, so every
+path that writes the table is logged. With `changes: rowLog(Db.Todo)` a tick
+reads only the rows logged since the last one, which on a quiet tick is none.
+A log that cannot be read, or that was trimmed past the last entry read
+(`keep`, 1000 by default), falls back to reading everything. A list whose read
+fails is asked again from the same log entry on the next tick, so its rows
+still arrive; a subscribed row's failed read ends the stream, and the client's
+reconnect reads again. A logged row the subscriber can read is counted as in the
 list, which holds only for a list of every readable row; give a filtered list
 no `changes`. Postgres is refused: a server there can push. `examples/cloudflare`
 runs this on D1, and its `test/migrations.test.ts` keeps its migration equal

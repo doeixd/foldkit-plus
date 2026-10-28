@@ -16,7 +16,11 @@ export default [
     'readAt = Option.some(logged.value.through)',
     'readAt = readAt',
   ),
-  edit('every subscribed row is read, logged or not', 'if (!reads(id)) continue', ''),
+  edit(
+    'every subscribed row is read, logged or not',
+    'const ids = group.ids.filter(reads)',
+    'const ids = group.ids',
+  ),
   edit(
     'an unreadable log reads nothing',
     'readAt = yield* Effect.option(changes.head)\n            return Option.none<ReadonlySet<string>>()',
@@ -52,8 +56,18 @@ export default [
   edit('a delete is not logged', "    trigger('delete', 'old'),\n", ''),
   edit(
     'the log is read past its trimmed end as if whole',
-    'if (oldest !== null && after < oldest - 1) {',
-    'if (false) {',
+    'const trimmed = first !== undefined && first.seq > after + 1',
+    'const trimmed = false',
+  ),
+  edit(
+    'a list read that failed moves on past its rows',
+    'if (Option.isNone(listed)) readAt = from',
+    'if (Option.isNone(listed)) readAt = readAt',
+  ),
+  edit(
+    'each subscribed row is read on its own',
+    '(yield* read(ids, group.fields)).map(',
+    '(yield* Effect.forEach(ids, id => read([id], group.fields))).flat().map(',
   ),
   edit(
     'a Postgres table gets SQLite triggers',

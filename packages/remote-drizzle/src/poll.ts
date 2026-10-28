@@ -5,7 +5,7 @@
  * triggers (`rowChangeLog`), tells a tick which rows to read again, so a quiet
  * tick is one small query.
  */
-import { asc, getTableName, gt, is, max, min } from 'drizzle-orm'
+import { asc, getTableName, gt, is, max } from 'drizzle-orm'
 import { integer, sqliteTable, SQLiteTable, text } from 'drizzle-orm/sqlite-core'
 import { Duration, Effect, Option, Schedule, Schema, Stream } from 'effect'
 import { entityKey, type LiveChange } from 'foldkit-remote'
@@ -84,7 +84,10 @@ const picked = (
  * With `changes`, a tick asks the log first and reads only the rows it names:
  * none on a quiet tick. The log is read before the rows, so a write between
  * the two shows on the next tick. A log that fails, or no longer reaches back
- * to the last entry read, reads everything, as with no log.
+ * to the last entry read, reads everything, as with no log. A list whose read
+ * fails is asked again from the same entry on the next tick; a subscribed
+ * row's failed read fails the stream, and the client's reconnect reads again.
+ * The subscribed rows are read once a tick for each set of fields they ask.
  */
 export const pollLive = <P, R>(
   source: EntitySource<P, R>,
@@ -106,6 +109,18 @@ export const pollLive = <P, R>(
     }
     const watched = (options.lists ?? []).filter(list => wanted.has(list.watchId))
     if (wanted.size === 0) return Stream.never
+    // The subscribed rows by the fields they are read with: one read a group.
+    const groups = new Map<
+      string,
+      { readonly fields: Array<string>; readonly ids: Array<string> }
+    >()
+    for (const [id, fields] of wanted) {
+      const sorted = [...fields].sort()
+      const key = JSON.stringify(sorted)
+      const group = groups.get(key)
+      if (group === undefined) groups.set(key, { fields: sorted, ids: [id] })
+      else group.ids.push(id)
+    }
     const watchIds = new Set(watched.map(list => list.watchId))
     // Asked for watch ids alone: a page read before the stream opened may be stale.
     const onlyWatches =
@@ -126,9 +141,8 @@ export const pollLive = <P, R>(
         // What each subscribed row holds when the stream opens: a change that
         // landed before it is already in it, so open the stream before the change.
         const previous = new Map<string, Readonly<Record<string, unknown>>>()
-        for (const [id, fields] of wanted) {
-          const [record] = yield* read([id], [...fields])
-          if (record !== undefined) previous.set(id, record.values)
+        for (const { ids, fields } of groups.values()) {
+          for (const record of yield* read(ids, fields)) previous.set(record.id, record.values)
         }
 
         /** One watched list's state in this stream. */
@@ -207,7 +221,7 @@ export const pollLive = <P, R>(
           return Option.map(logged.value.ids, (ids): ReadonlySet<string> => new Set(ids))
         })
 
-        /** A watched list's patches this tick, after the rows' own. */
+        /** A watched list's patches this tick, after the rows' own; none when its read failed. */
         const diff = (
           listing: Listing,
           only: Option.Option<ReadonlySet<string>>,
@@ -234,11 +248,11 @@ export const pollLive = <P, R>(
                   })),
                 ),
             })
-            if (Option.isNone(loaded)) return []
+            if (Option.isNone(loaded)) return Option.none<ReadonlyArray<LivePatch>>()
             const { edges, rows } = loaded.value
             if (Option.isNone(listing.known)) {
               seed(listing, loaded.value)
-              return invalidate(listing)
+              return Option.some(invalidate(listing))
             }
             const current = listing.known.value
             const listed = Option.match(logged, {
@@ -254,6 +268,7 @@ export const pollLive = <P, R>(
                 return kept
               },
             })
+            const edgeOf = new Map(edges.map(edge => [edge.id, edge]))
             const patches: Array<LivePatch> = []
             for (const id of current) {
               const values = rows.get(id)
@@ -279,7 +294,7 @@ export const pollLive = <P, R>(
             for (const id of listed) {
               if (current.has(id)) continue
               const values = rows.get(id)
-              const edge = edges.find(item => item.id === id)
+              const edge = edgeOf.get(id)
               // No row to assemble from: leave it unknown, so the next tick tries again.
               if (edge === undefined || values === undefined) {
                 listed.delete(id)
@@ -319,10 +334,11 @@ export const pollLive = <P, R>(
               listing.values.delete(id)
             }
             listing.known = Option.some(listed)
-            return patches
+            return Option.some(patches)
           })
 
         const tick = Effect.gen(function* () {
+          const from = readAt
           // A quiet tick (the log names nothing) reads no row and no window.
           const only = yield* touched
           const reads = (id: string) =>
@@ -330,33 +346,44 @@ export const pollLive = <P, R>(
           const patches: Array<LivePatch> = []
           const patched = new Set<string>()
           const deleted = new Set<string>()
-          for (const [id, fields] of wanted) {
-            if (!reads(id)) continue
-            const [record] = yield* read([id], [...fields])
-            const before = previous.get(id)
-            if (record === undefined) {
-              if (before !== undefined) {
-                previous.delete(id)
-                deleted.add(id)
-                patches.push({ _tag: 'EntityDeleted', entity: source.entity, id, cursor: next() })
+          for (const group of groups.values()) {
+            const ids = group.ids.filter(reads)
+            if (ids.length === 0) continue
+            const records = new Map(
+              (yield* read(ids, group.fields)).map(record => [record.id, record.values]),
+            )
+            for (const id of ids) {
+              const values = records.get(id)
+              const before = previous.get(id)
+              if (values === undefined) {
+                if (before !== undefined) {
+                  previous.delete(id)
+                  deleted.add(id)
+                  patches.push({ _tag: 'EntityDeleted', entity: source.entity, id, cursor: next() })
+                }
+                continue
               }
-              continue
+              const changed = group.fields.filter(field => before?.[field] !== values[field])
+              if (changed.length === 0) continue
+              previous.set(id, values)
+              patched.add(id)
+              patches.push({
+                _tag: 'EntityPatched',
+                entity: source.entity,
+                id,
+                values: picked(values, changed),
+                changed,
+                cursor: next(),
+              })
             }
-            const changed = [...fields].filter(field => before?.[field] !== record.values[field])
-            if (changed.length === 0) continue
-            previous.set(id, record.values)
-            patched.add(id)
-            patches.push({
-              _tag: 'EntityPatched',
-              entity: source.entity,
-              id,
-              values: picked(record.values, changed),
-              changed,
-              cursor: next(),
-            })
           }
           for (const listing of listings) {
-            patches.push(...(yield* diff(listing, only, patched, deleted)))
+            const listed = yield* diff(listing, only, patched, deleted)
+            // A list that could not be read still owes this tick's rows: the next
+            // tick asks the log from where this one did, and diffing them again
+            // against what the stream holds sends only what it has not seen.
+            if (Option.isNone(listed)) readAt = from
+            else patches.push(...listed.value)
           }
           return patches
         })
@@ -412,8 +439,8 @@ export const rowChangeLog = (
   ]
 }
 
-const decodeBounds = Schema.decodeUnknownEffect(
-  Schema.Struct({ oldest: Schema.NullOr(Schema.Number), newest: Schema.NullOr(Schema.Number) }),
+const decodeHead = Schema.decodeUnknownEffect(
+  Schema.Struct({ newest: Schema.NullOr(Schema.Number) }),
 )
 const decodeEntries = Schema.decodeUnknownEffect(
   Schema.Array(Schema.Struct({ seq: Schema.Number, id: Schema.String })),
@@ -434,24 +461,24 @@ export const rowLog = (
   })
   const failed = 'The row log could not be read'
   const unread = () => new RemoteServerError({ message: failed })
-  const bounds = Effect.gen(function* () {
+  const head = Effect.gen(function* () {
     const db = yield* DrizzleDatabase
     const [row] = yield* runStatement(
-      () => db.select({ oldest: min(changes.seq), newest: max(changes.seq) }).from(changes),
+      () => db.select({ newest: max(changes.seq) }).from(changes),
       failed,
     )
-    return yield* decodeBounds(row).pipe(Effect.mapError(unread))
+    return yield* decodeHead(row).pipe(
+      Effect.map(({ newest }) => newest ?? 0),
+      Effect.mapError(unread),
+    )
   })
   return {
-    head: Effect.map(bounds, ({ newest }) => newest ?? 0),
+    head,
     since: after =>
       Effect.gen(function* () {
         const db = yield* DrizzleDatabase
-        const { oldest, newest } = yield* bounds
-        // Trimmed past `after`: the entries after it are gone, so they cannot say.
-        if (oldest !== null && after < oldest - 1) {
-          return { through: newest ?? after, ids: Option.none() }
-        }
+        // One statement, so a trim cannot land between reading the log's
+        // reach and its entries.
         const rows = yield* runStatement(
           () =>
             db
@@ -463,9 +490,14 @@ export const rowLog = (
           failed,
         )
         const entries = yield* decodeEntries(rows).pipe(Effect.mapError(unread))
+        const first = entries[0]
+        // Only the trim deletes, oldest first, so a first entry past `after + 1`
+        // means some after `after` are gone. A gap with another cause would
+        // only make the stream read everything once.
+        const trimmed = first !== undefined && first.seq > after + 1
         return {
           through: entries.at(-1)?.seq ?? after,
-          ids: Option.some(entries.map(entry => entry.id)),
+          ids: trimmed ? Option.none() : Option.some(entries.map(entry => entry.id)),
         }
       }),
   }
