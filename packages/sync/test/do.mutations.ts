@@ -108,9 +108,8 @@ export default [
     edits: [
       {
         file: host,
-        find: '    ).catch(() => undefined)\n    if (opened === undefined)',
-        replace:
-          '    ).catch((error: unknown) => {\n      throw error\n    })\n    if (opened === undefined)',
+        find: "    if (Exit.isFailure(opened)) return defect('Resolve', opened.cause)",
+        replace: '    if (Exit.isFailure(opened)) throw Cause.squash(opened.cause)',
       },
     ],
     tests,
@@ -136,9 +135,9 @@ export default [
     edits: [
       {
         file: host,
-        find: '.catch(() => undefined)\n    if (journal === undefined) return refuse(internalError())',
+        find: "    if (Result.isFailure(journal)) return defect('Journal', Cause.die(journal.failure))",
         replace:
-          '.catch((error: unknown) => String(error))\n    if (typeof journal === "string") return refuse(Response.json({ error: journal }, { status: 500 }))',
+          '    if (Result.isFailure(journal))\n      return refuse(Response.json({ error: String(journal.failure) }, { status: 500 }))',
       },
     ],
     tests,
@@ -236,7 +235,7 @@ export default [
     edits: [
       {
         file: host,
-        find: "      console.error('[foldkit-sync] answering an upgrade broke:', error)\n      return refuse(internalError())",
+        find: "      return defect('Exchange', Cause.die(error))",
         replace: '      throw error',
       },
     ],
@@ -247,8 +246,9 @@ export default [
     edits: [
       {
         file,
-        find: "        console.error('[foldkit-sync] serving an upgrade broke:', error)\n        return Response.json({ error: 'Internal error' }, { status: 500 })",
-        replace: '        throw error',
+        find: '        pair = (config.pair ?? defaultPair)()\n      } catch (error) {\n        return broke(error)',
+        replace:
+          '        pair = (config.pair ?? defaultPair)()\n      } catch (error) {\n        throw error',
       },
     ],
     tests,

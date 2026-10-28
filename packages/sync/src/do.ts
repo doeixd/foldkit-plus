@@ -24,8 +24,9 @@
  * .documentId)`); its in-memory cache and change stream are then exact
  * because nothing else writes.
  */
-import { type Duration, type Effect, type Layer, Result } from 'effect'
+import { Cause, type Duration, Effect, type Layer, Result } from 'effect'
 import type { RemoteUnauthenticated } from 'foldkit-remote'
+import type { Diagnostic } from 'foldkit-surface'
 import type { Journal } from 'foldkit-durable/core'
 import {
   documentHost,
@@ -34,6 +35,7 @@ import {
   type DocumentHostOptionsLayer,
 } from './journal.js'
 import { checkRevalidate } from './revalidate.js'
+import { hostDefect, reportTo } from './diagnostics.js'
 import type { AuthorizeDecision } from './make.js'
 import type { Operation, Sync } from './sync.js'
 import { workerSocket } from './transport.js'
@@ -114,6 +116,16 @@ export interface DocumentHostConfig<Message, Shared, Principal, Env, RP = never>
    * worker, miniflare); pass one in tests.
    */
   readonly pair?: (() => readonly [client: WebSocket, server: AcceptingWebSocket]) | undefined
+  /**
+   * Where each upgrade's diagnostics go, with its request: a `HostDefect`
+   * for every failure answered "Internal error" (making the socket pair,
+   * the resolver, the journal, the exchange) and the rest `documentHost`
+   * reports. The reporter in the Effect context when not given, by default
+   * the log.
+   */
+  readonly diagnostics?:
+    | ((diagnostic: Diagnostic, request: Request) => Effect.Effect<void>)
+    | undefined
 }
 
 /**
@@ -197,6 +209,7 @@ export const defineDocumentHost = <Message, Shared, Principal, Env, RP = never>(
         settle: settle === undefined ? undefined : journal => settle(env, journal),
         opens: config.opens,
         admit: config.admit,
+        diagnostics: config.diagnostics,
         // `DocumentHostLayer` already tied `layer` to `RP` on the config; the
         // conditional cannot be resolved for an `RP` still generic here.
       } as DocumentHostOptions<Message, Shared, Principal, RP> & DocumentHostOptionsLayer<RP>)
@@ -205,14 +218,23 @@ export const defineDocumentHost = <Message, Shared, Principal, Env, RP = never>(
     async fetch(request: Request): Promise<Response> {
       if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket')
         return Response.json({ error: 'not found' }, { status: 404 })
+      // The replica learns nothing of it; whoever runs the host must.
+      const broke = async (error: unknown): Promise<Response> => {
+        const { diagnostics } = config
+        await Effect.runPromise(
+          reportTo(
+            diagnostics === undefined ? undefined : diagnostic => diagnostics(diagnostic, request),
+            hostDefect('Upgrade', Cause.die(error)),
+          ),
+        )
+        return Response.json({ error: 'Internal error' }, { status: 500 })
+      }
       // Made first: a runtime without WebSocketPair is a 500 that resolves no one.
       let pair: readonly [client: WebSocket, server: AcceptingWebSocket]
       try {
         pair = (config.pair ?? defaultPair)()
       } catch (error) {
-        // The replica learns nothing of it; whoever runs the host must.
-        console.error('[foldkit-sync] serving an upgrade broke:', error)
-        return Response.json({ error: 'Internal error' }, { status: 500 })
+        return broke(error)
       }
       const [client, server] = pair
       const answered = await this.host(request)
@@ -231,9 +253,8 @@ export const defineDocumentHost = <Message, Shared, Principal, Env, RP = never>(
           webSocket: client,
         } as ResponseInit)
       } catch (error) {
-        console.error('[foldkit-sync] serving an upgrade broke:', error)
         abandon()
-        return Response.json({ error: 'Internal error' }, { status: 500 })
+        return broke(error)
       }
     }
   }

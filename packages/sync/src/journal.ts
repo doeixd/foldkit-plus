@@ -24,6 +24,7 @@ import {
   Stream,
 } from 'effect'
 import type { RemoteUnauthenticated } from 'foldkit-remote'
+import type { Diagnostic, ReportDiagnostic } from 'foldkit-surface'
 import {
   Cursor,
   DocumentId as JournalDocumentId,
@@ -35,6 +36,9 @@ import { sequence } from './ids.js'
 import type { AuthorizeDecision } from './make.js'
 import type { Operation, Sync, TransportClient } from './sync.js'
 import { checkRevalidate } from './revalidate.js'
+import { hostDefect, reportTo, type HostStage } from './diagnostics.js'
+
+export type { HostDefect, HostStage } from './diagnostics.js'
 import { serveSocket, type SocketLike } from './transport.js'
 
 export interface JournalExchangeOptions<Message, Shared, Principal> {
@@ -239,11 +243,15 @@ export const journalChanges =
  */
 export const serveJournal = <Message, Shared, Principal>(
   socket: SocketLike,
-  options: JournalExchangeOptions<Message, Shared, Principal>,
+  options: JournalExchangeOptions<Message, Shared, Principal> & {
+    /** Where an `opens` that failed before a notice is reported; the reporter in context when not given. */
+    readonly diagnostics?: ReportDiagnostic | undefined
+  },
 ): (() => void) => {
   const client = journalExchange(options)
   const notices = journalChanges(options.journal, options.sync.documentId)
-  const { opens } = options
+  const { opens, diagnostics } = options
+  const report = (cause: Cause.Cause<unknown>) => reportTo(diagnostics, hostDefect('Notice', cause))
   return serveSocket(socket, {
     exchange: (cursor, pending, epoch) => client.exchange(sequence(cursor), pending, epoch),
     // A connection that may not open the document is told nothing of its commits.
@@ -253,12 +261,12 @@ export const serveJournal = <Message, Shared, Principal>(
         : listener =>
             notices(
               () =>
-                void Effect.runPromise(opens).then(
-                  open => {
-                    if (open) listener()
-                  },
-                  () => {},
-                ),
+                void Effect.runPromise(
+                  // A failed `opens` sends no notice, as a refusal does, and is reported.
+                  Effect.catchCause(opens, cause => Effect.as(report(cause), false)),
+                ).then(open => {
+                  if (open) listener()
+                }),
             ),
   })
 }
@@ -458,6 +466,16 @@ export interface DocumentHostOptions<Message, Shared, Principal, RP = never> {
         operation: Operation,
       ) => AuthorizeDecision | Effect.Effect<AuthorizeDecision, unknown>)
     | undefined
+  /**
+   * Where this upgrade's diagnostics go, with its request: each `HostDefect`,
+   * a failure answered "Internal error" (or a socket closed with 1011, or a
+   * notice not sent) whose cause the replica is never told. The reporter in
+   * the Effect context (`Diagnostics.Reporter`) when not given, by default the
+   * log.
+   */
+  readonly diagnostics?:
+    | ((diagnostic: Diagnostic, request: Request) => Effect.Effect<void>)
+    | undefined
 }
 
 /** What a revalidation that found another principal fails with. */
@@ -497,13 +515,22 @@ export const documentHost = <Message, Shared, Principal, RP = never>(
       release()
       return Result.fail(response)
     }
+    const { diagnostics } = options
+    const reporter: ReportDiagnostic | undefined =
+      diagnostics === undefined ? undefined : diagnostic => diagnostics(diagnostic, request)
+    const report = (stage: HostStage, cause: Cause.Cause<unknown>) =>
+      reportTo(reporter, hostDefect(stage, cause))
+    const defect = async (stage: HostStage, cause: Cause.Cause<unknown>) => {
+      await Effect.runPromise(report(stage, cause))
+      return refuse(internalError())
+    }
     const { layer } = options
     // Suspended, so the resolver is called each time this runs (a resolver
     // may decide when called, not when its Effect runs), and one that throws
     // is a 500 like one that dies.
     const ask = Effect.suspend(() => options.resolvePrincipal(request))
     // The layer and the first answer in one run: either breaking is a 500.
-    const opened = await Effect.runPromise(
+    const opened = await Effect.runPromiseExit(
       Effect.gen(function* () {
         const services: Context.Context<RP> =
           layer === undefined
@@ -513,39 +540,41 @@ export const documentHost = <Message, Shared, Principal, RP = never>(
         const resolve = Effect.provide(ask, services)
         return { resolve, resolved: yield* Effect.result(resolve) }
       }),
-    ).catch(() => undefined)
-    if (opened === undefined) return refuse(internalError())
-    const { resolve, resolved } = opened
+    )
+    if (Exit.isFailure(opened)) return defect('Resolve', opened.cause)
+    const { resolve, resolved } = opened.value
     if (Result.isFailure(resolved))
       return refuse(Response.json({ error: resolved.failure.message }, { status: 401 }))
     const principal = resolved.success
     // A throw is a rejection like any other: a 500.
     const journal = await Promise.resolve()
       .then(options.journal)
-      .catch(() => undefined)
-    if (journal === undefined) return refuse(internalError())
+      .then(
+        open => Result.succeed(open),
+        (error: unknown) => Result.fail(error),
+      )
+    if (Result.isFailure(journal)) return defect('Journal', Cause.die(journal.failure))
     // An application's `opens` or `settle` may throw: a 500, before any socket opens.
     let exchange: JournalExchangeOptions<Message, Shared, Principal>
     try {
       const { admit, settle, opens } = options
       exchange = {
         sync: options.sync,
-        journal,
+        journal: journal.success,
         principal,
-        ...(settle === undefined ? {} : { settle: settle(journal) }),
+        ...(settle === undefined ? {} : { settle: settle(journal.success) }),
         ...(opens === undefined ? {} : { opens: opens(principal) }),
         ...(admit === undefined
           ? {}
           : { admit: (operation: Operation) => admit(principal, operation) }),
       }
     } catch (error) {
-      console.error('[foldkit-sync] answering an upgrade broke:', error)
-      return refuse(internalError())
+      return defect('Exchange', Cause.die(error))
     }
     return Result.succeed({
       abandon: release,
       serve: socket => {
-        const stop = serveJournal(socket, exchange)
+        const stop = serveJournal(socket, { ...exchange, diagnostics: reporter })
         const { revalidate } = options
         if (revalidate !== undefined) {
           const { every, key } = revalidate
@@ -577,7 +606,14 @@ export const documentHost = <Message, Shared, Principal, RP = never>(
                 } finally {
                   release()
                 }
-              }),
+              }).pipe(
+                // The replica reads 1011 and no more: the cause is reported here.
+                Effect.andThen(
+                  Option.isNone(Cause.findErrorOption(cause)) && !Cause.hasInterruptsOnly(cause)
+                    ? report('Revalidate', cause)
+                    : Effect.void,
+                ),
+              ),
             ),
           )
           const fiber = Effect.runFork(checking)

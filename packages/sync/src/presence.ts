@@ -10,6 +10,8 @@ import {
   type Scope,
 } from 'effect'
 import type { SocketLike } from './transport.js'
+import { Diagnostics } from 'foldkit-surface'
+import { listenerFailed } from './diagnostics.js'
 
 /** One peer's presence. A `null` value means the peer left. */
 export interface PresenceUpdate<Update> {
@@ -107,8 +109,8 @@ export const createPresence = Effect.fn('Presence.create')(function* <Update>(
       for (const listener of [...listeners]) {
         try {
           listener()
-        } catch {
-          // Deliberately swallowed.
+        } catch (thrown) {
+          yield* Diagnostics.report(listenerFailed('Presence', thrown))
         }
       }
       yield* PubSub.publish(signals, undefined)

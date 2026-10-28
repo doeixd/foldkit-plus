@@ -35,6 +35,8 @@ import {
   sequence,
 } from './ids.js'
 import { Transport, TransportError } from './transport.js'
+import { Diagnostics } from 'foldkit-surface'
+import { exchangeFailed, historyRebuilt } from './diagnostics.js'
 
 /** Wire and persisted-format versions. A bump must handle the older value explicitly. */
 const PROTOCOL_VERSION = 1
@@ -733,11 +735,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
               response.epoch !== undefined &&
               current.epoch !== undefined &&
               response.epoch !== current.epoch
-            if (restarted)
-              yield* Effect.logWarning('sync server history changed; rebuilding', {
-                documentId,
-                replicaId,
-              })
+            if (restarted) yield* Diagnostics.report(historyRebuilt(documentId, replicaId))
             let cursor = restarted ? sequence(0) : current.cursor
             let committed = restarted ? definition.empty : current.committed
             // A checkpoint folds committed history into its snapshot, so the
@@ -872,11 +870,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
         // so it is recorded and announced rather than left for the next submit.
         Effect.tapError(error =>
           Effect.gen(function* () {
-            yield* Effect.logWarning('sync exchange failed', {
-              documentId,
-              replicaId,
-              error: error.message,
-            })
+            yield* Diagnostics.report(exchangeFailed(documentId, replicaId, error))
             yield* Ref.set(lastError, error.message)
             yield* PubSub.publish(statusSignals, undefined)
           }),

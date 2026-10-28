@@ -1,6 +1,8 @@
 import { Clock, Context, Duration, Effect, Layer, PubSub, Schema, Stream } from 'effect'
 import { sequence } from './ids.js'
 import type { Operation, TransportClient } from './sync.js'
+import { Diagnostics } from 'foldkit-surface'
+import { listenerFailed } from './diagnostics.js'
 
 /** The wire failure of a transport. A refusal is a result, not an error. */
 export class TransportError extends Schema.TaggedError<TransportError>()('SyncTransportError', {
@@ -378,6 +380,9 @@ export const layerSocket = (options: SocketOptions): Layer.Layer<Transport, Tran
         Duration.fromInputUnsafe(options.maxRetryDelay ?? '5 seconds'),
       )
       const clock = yield* Clock.Clock
+      // Listeners run in a socket's callback, outside any Effect: their
+      // failures go to the reporter this layer was built with.
+      const reporter = yield* Effect.service(Diagnostics.Reporter)
 
       interface Entry {
         readonly id: string
@@ -459,7 +464,13 @@ export const layerSocket = (options: SocketOptions): Layer.Layer<Transport, Tran
               for (const listener of [...listeners]) {
                 try {
                   listener(data)
-                } catch {}
+                } catch (thrown) {
+                  Effect.runFork(
+                    Diagnostics.report(listenerFailed('Socket', thrown)).pipe(
+                      Effect.provideService(Diagnostics.Reporter, reporter),
+                    ),
+                  )
+                }
               }
               let reply: ExchangeReply | NotifyFrame
               try {

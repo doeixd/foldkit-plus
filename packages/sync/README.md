@@ -328,7 +328,8 @@ Sync.transport.socket({ url: 'wss://example.com/sync' })
   by failing with a `RemoteUnauthenticated` (`RemoteServer.unauthenticated()`
   makes one): a 401 carrying its message. Non-upgrades are 404s that open
   nothing. A resolver that breaks, a `layer` that fails to build, or a
-  journal that never opened, is a 500 that says nothing of it.
+  journal that never opened, is a 500 that says nothing of it to the caller;
+  the cause is reported as a `HostDefect` (see [Diagnostics](#diagnostics)).
 - A resolver that reads a service (a session store) takes it from
   `layer: env => Layer`, required exactly when the resolver needs one. It is
   built per upgrade and kept until the socket closes, so `revalidate` reads
@@ -717,6 +718,38 @@ application come first.
 - **The server answers nonsense.** Malformed exchanges, gaps in the committed
   order, acknowledgements or rejections for operations the replica never sent:
   each fails the exchange rather than touch local work.
+
+### Diagnostics
+
+What Sync keeps going past it reports as a typed diagnostic through
+`Diagnostics.Reporter` (`foldkit-surface`'s channel), which by default is
+Effect's log: the console in a browser, `wrangler tail` on a Worker.
+
+| `_tag` | `level` | When |
+| --- | --- | --- |
+| `ExchangeFailed` | `warning` | An exchange failed; it is in `status.lastError` and retried on a backoff. Carries the `error`. |
+| `HistoryRebuilt` | `warning` | The server answered from another epoch, so the committed state was rebuilt from it (the outbox is kept). |
+| `HostDefect` | `error` | A document host broke on its side, at a `stage`: `Upgrade` (the socket pair), `Resolve` (the `layer` or resolver), `Journal`, `Exchange` (`opens` or `settle` threw) answer a 500; `Revalidate` closes the socket with 1011; `Notice` (`opens` failed before a commit notice) sends none. Carries the `cause`, which the replica is never told. |
+| `ListenerFailed` | `error` | A listener the application gave threw: a presence subscriber, or a listener on the socket transport's shared `socket`. The others still ran. |
+
+A replica reports to the reporter in the Effect context it runs in:
+`Layer.succeed(Diagnostics.Reporter, report)` in the runtime's resources. A
+host takes one with the upgrade request beside it, used for everything that
+upgrade runs:
+
+```ts
+export class SyncHost extends defineDocumentHost(DurableObject, {
+  sync: TodoSync,
+  openJournal: (_ctx, env) => openTodosJournal(env.DB),
+  resolvePrincipal: request => Effect.succeed(request.headers.get('x-actor') ?? 'anon'),
+  diagnostics: (diagnostic, request) =>
+    Effect.logError(`${request.url}: ${diagnostic.message}`),
+}) {}
+```
+
+`documentHost` takes the same `diagnostics`, and `serveJournal` a
+`diagnostics` reporter of its own. In a test, `Diagnostics.collect()` gives a
+reporter and the array it fills.
 
 ## Advanced: the replica
 

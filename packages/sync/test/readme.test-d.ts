@@ -13,12 +13,15 @@ import {
   DocumentId,
   ReplicaId,
   Sync,
+  type Operation,
   type Replica,
   type SocketLike,
   type Storage,
   type TransportClient,
 } from '../src/index.js'
 import { serveJournal } from '../src/journal.js'
+import { defineDocumentHost, type DocumentHostContext } from '../src/do.js'
+import type { Journal as JournalOf } from 'foldkit-durable/core'
 import { ActorId, Journal, OpId } from 'foldkit-durable'
 import { EditableEntity } from 'foldkit-sync/entity'
 
@@ -110,6 +113,19 @@ const server = Effect.gen(function* () {
     serveJournal(socket, { sync: TodoSync, journal, principal })
 })
 void server
+
+// Diagnostics: a host's reporter, with the request
+declare const DurableObject: new (ctx: DocumentHostContext, env: { readonly DB: unknown }) => object
+/** A D1 journal as the durable D1 guide opens one. */
+declare const openTodosJournal: (
+  db: unknown,
+) => Promise<JournalOf<Operation, Pick<Model, 'todos'>, string, Operation>>
+export class SyncHost extends defineDocumentHost(DurableObject, {
+  sync: TodoSync,
+  openJournal: (_ctx, env) => openTodosJournal(env.DB),
+  resolvePrincipal: request => Effect.succeed(request.headers.get('x-actor') ?? 'anon'),
+  diagnostics: (diagnostic, request) => Effect.logError(`${request.url}: ${diagnostic.message}`),
+}) {}
 
 // What to show the user
 const status = Effect.runSync(replica.status)

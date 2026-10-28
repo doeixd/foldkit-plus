@@ -96,6 +96,15 @@ export const Sync = {
   },
 }
 
+export type {
+  ExchangeFailed,
+  HistoryRebuilt,
+  HostDefect,
+  HostStage,
+  ListenerFailed,
+  ListenerSite,
+  SyncDiagnostic,
+} from './diagnostics.js'
 export { indexedDb, type OutboxEntry, type Storage } from './indexedDb.js'
 export {
   fact,

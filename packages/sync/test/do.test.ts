@@ -8,6 +8,7 @@
 import { ActorId, Journal, OpId } from 'foldkit-durable'
 import { Context, Effect, Layer, Result, Scope, type Duration } from 'effect'
 import { RemoteUnauthenticated } from 'foldkit-remote'
+import type { Diagnostic } from 'foldkit-surface'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Sync, type Operation } from '../src/index.js'
 import { defineDocumentHost, type AcceptingWebSocket } from '../src/do.js'
@@ -429,6 +430,7 @@ describe("defineDocumentHost, the resolver's layer", () => {
 
   const withSessions = (revoked: Set<string>, breaks: Breaks = 'nothing') => {
     const log: Array<string> = []
+    const reported: Array<Diagnostic> = []
     const pairs: Array<readonly [FakeWebSocket, FakeWebSocket]> = []
     const sessions = Layer.effect(
       Sessions,
@@ -477,8 +479,9 @@ describe("defineDocumentHost, the resolver's layer", () => {
         pairs.push(pair)
         return pair as unknown as readonly [WebSocket, AcceptingWebSocket]
       },
+      diagnostics: diagnostic => Effect.sync(() => void reported.push(diagnostic)),
     })
-    return { Host, pairs, log }
+    return { Host, pairs, log, reported }
   }
 
   const settledOn = async (done: () => boolean): Promise<void> => {
@@ -489,23 +492,36 @@ describe("defineDocumentHost, the resolver's layer", () => {
   }
 
   it.each([
-    ['a layer that fails to build', 'layer', ['acquire', 'release']],
-    ['a layer function that throws', 'layer function', []],
-    ['a resolver that dies', 'resolver', ['acquire', 'release']],
-    ['a journal that never opens', 'journal', ['acquire', 'release']],
-    ['an opens that throws', 'opens', ['acquire', 'release']],
-  ] as const)('answers %s with a 500, releasing what it built', async (_, breaks, released) => {
-    const { Host, log } = withSessions(new Set(), breaks)
-    const served = new Host({}, undefined)
-    const response = await served.fetch(
-      new Request('http://host/sync', { headers: { Upgrade: 'websocket', 'x-actor': 'ada' } }),
-    )
-    expect(response.status).toBe(500)
-    expect(await response.json()).toEqual({ error: 'Internal error' })
-    await settledOn(() => log.length === released.length)
-    await new Promise(resolve => setTimeout(resolve, 10))
-    expect(log).toEqual(released)
-  })
+    ['a layer that fails to build', 'layer', ['acquire', 'release'], 'Resolve', 'no pool'],
+    ['a layer function that throws', 'layer function', [], 'Resolve', 'no binding'],
+    [
+      'a resolver that dies',
+      'resolver',
+      ['acquire', 'release'],
+      'Resolve',
+      'the session store password',
+    ],
+    ['a journal that never opens', 'journal', ['acquire', 'release'], 'Journal', 'no storage'],
+    ['an opens that throws', 'opens', ['acquire', 'release'], 'Exchange', 'the membership store'],
+  ] as const)(
+    'answers %s with a 500, releasing what it built, and reports it',
+    async (_, breaks, released, stage, cause) => {
+      const { Host, log, reported } = withSessions(new Set(), breaks)
+      const served = new Host({}, undefined)
+      const response = await served.fetch(
+        new Request('http://host/sync', { headers: { Upgrade: 'websocket', 'x-actor': 'ada' } }),
+      )
+      expect(response.status).toBe(500)
+      expect(await response.json()).toEqual({ error: 'Internal error' })
+      await settledOn(() => log.length === released.length)
+      await new Promise(resolve => setTimeout(resolve, 10))
+      expect(log).toEqual(released)
+      expect(reported).toEqual([
+        expect.objectContaining({ _tag: 'HostDefect', level: 'error', stage }),
+      ])
+      expect(reported[0]!.message).toContain(cause)
+    },
+  )
 
   it('keeps it while the socket is open, and closes it with the socket', async () => {
     const { Host, pairs, log } = withSessions(new Set())

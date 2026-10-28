@@ -1,5 +1,6 @@
 import { Clock, Effect, Fiber, Layer, PubSub, Schema, Stream, type Scope } from 'effect'
 import { TestClock } from 'effect/testing'
+import { Diagnostics } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import {
   createPresence,
@@ -271,8 +272,9 @@ describe('presence', () => {
       }),
     ))
 
-  it('notifies subscribers, stops on unsubscribe, and survives a throwing one', () =>
-    run(
+  it('notifies subscribers, stops on unsubscribe, and survives a throwing one, reporting it', () => {
+    const collected = Diagnostics.collect()
+    return run(
       Effect.gen(function* () {
         const channel = yield* loopbackPresenceChannel<Cursor>()
         const a = yield* make({ id: 'a', ttl: '100 millis', channel })
@@ -295,8 +297,15 @@ describe('presence', () => {
         yield* a.set({ cursor: 2 })
         yield* settle
         expect(notifications).toBe(1)
-      }),
-    ))
+        // The throwing one is still subscribed: once per change.
+        expect(collected.reported).toEqual([
+          expect.objectContaining({ _tag: 'ListenerFailed', site: 'Presence', level: 'error' }),
+          expect.objectContaining({ _tag: 'ListenerFailed', site: 'Presence' }),
+        ])
+        expect(collected.reported[0]!.message).toContain('subscriber failed')
+      }).pipe(Effect.provideService(Diagnostics.Reporter, collected.report)),
+    )
+  })
 
   it('stops receiving once closed', () =>
     run(

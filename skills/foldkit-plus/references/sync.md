@@ -104,7 +104,9 @@ const program = Effect.gen(function* () {
 - `submit` validates, replays, assigns an `opId`, and persists to the outbox. It
   **sends nothing**. `replica.start` is the loop: one exchange, then one after
   each submit and each server notice on `Transport.changes`. A failed exchange lands in `status.lastError` and is retried on
-  a backoff (0.5 s to 30 s), or at once on the next submit. A contract's
+  a backoff (0.5 s to 30 s), or at once on the next submit. It is also reported on
+  `Diagnostics` (`foldkit-surface`) as `ExchangeFailed`, and a reset server history as
+  `HistoryRebuilt`. A contract's
   `durable(message)` says whether a Message is recorded. The optional
   `coalesce(last, next)` merges a submit into the last operation while
   no exchange has carried it (a burst of typing becomes one operation).
@@ -309,7 +311,10 @@ from `layer: env => Layer` (kept while the socket is open); `revalidate: { every
 key? }` asks it again while the socket is open, closing with 4401 on a
 refusal and 1012 on a changed principal. `settle: (env, journal) =>
 Effect` runs after each exchange's appends to apply what committed elsewhere
-(`journal.recover` makes it idempotent). `Sync.transport.workerSocket` wraps an
+(`journal.recover` makes it idempotent). A failure answered 500 (or 1011, or
+a notice unsent) is reported as a `HostDefect` with its `stage` and `cause`, to
+`diagnostics: (diagnostic, request) => Effect` when given, else
+`Diagnostics.Reporter`. `Sync.transport.workerSocket` wraps an
 accepted pair end anywhere else a platform hands one over. Off Cloudflare,
 `documentHost({ sync, journal, resolvePrincipal, layer?, revalidate?, … })`
 (`foldkit-sync/journal`) answers each upgrade request (`Result`: the refusal's
