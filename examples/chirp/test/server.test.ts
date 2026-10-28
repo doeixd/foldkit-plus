@@ -239,6 +239,23 @@ describe('liking', () => {
     expect(await you.read('p2', ['liked'])).toEqual({ liked: likeOf('p2', 'you') })
   })
 
+  it('refuses a like under another’s id, so theirs still lands', async () => {
+    const as = sandbox()
+    expect(await as('grace').mutate('LikePost', like('p4', 'ada'))).toMatchObject({
+      _tag: 'Failure',
+      failure: { _tag: 'Forbidden' },
+    })
+    expect(await as('grace').mutate('LikePost', { id: 'mine', postId: 'p4' })).toMatchObject({
+      _tag: 'Failure',
+      failure: { _tag: 'Forbidden' },
+    })
+    expect((await as('ada').mutate('LikePost', like('p4', 'ada')))._tag).toBe('Success')
+    expect(await as('ada').read('p4', ['likeCount', 'liked'])).toEqual({
+      likeCount: 1,
+      liked: likeOf('p4', 'ada'),
+    })
+  })
+
   it('refuses a like taken back by someone else', async () => {
     const as = sandbox()
     expect(await as('ada').mutate('Unlike', { id: likeOf('p1', 'you') })).toMatchObject({

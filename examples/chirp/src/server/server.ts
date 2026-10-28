@@ -5,7 +5,7 @@
  * published demo, which runs this server in the browser (`host.ts`).
  */
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { Option } from 'effect'
+import { Effect, Option } from 'effect'
 import { GuardDrizzle } from 'foldkit-guard/drizzle'
 import { GuardServer } from 'foldkit-guard/server'
 import { Remote } from 'foldkit-remote'
@@ -19,10 +19,10 @@ import {
   type AnyEntityBinding,
   type DrizzleDatabase,
 } from 'foldkit-remote-drizzle'
-import { RemoteServer } from 'foldkit-remote-server'
+import { RemoteServer, type EntityWriter } from 'foldkit-remote-server'
 import { Chirper } from '../domain.js'
 import { G, Like, Post, type User } from '../guard.js'
-import { ByAuthor, EditPost, LikePost, PostChirp, Timeline, Unlike } from '../operations.js'
+import { ByAuthor, EditPost, LikePost, PostChirp, Timeline, Unlike, likeOf } from '../operations.js'
 import { SEED } from './seed.js'
 
 /** A SQLite database the server runs on, and whether it is new, so needs its tables. */
@@ -107,10 +107,32 @@ const SCHEMA = `
 `
 // #endregion
 
+/**
+ * A like's id is `likeOf` its post and its liker, whom the server stamps, so
+ * one under any other id is refused: under another's, it would take the id
+ * their own like needs. No rule can say so, as no operator joins two texts,
+ * so the writer checks it, behind the guards.
+ */
+const ownLikes = (
+  likes: EntityWriter<Option.Option<User>, DrizzleDatabase>,
+): EntityWriter<Option.Option<User>, DrizzleDatabase> => ({
+  ...likes,
+  insert: context => {
+    const linked = (relation: string) =>
+      Option.flatten(Option.fromUndefinedOr(context.links[relation]))
+    const own = Option.zipWith(linked('post'), linked('user'), (post, user) =>
+      likeOf(post.id, user.id),
+    )
+    return Option.exists(own, id => id === context.id)
+      ? likes.insert(context)
+      : Effect.fail(RemoteServer.forbid())
+  },
+})
+
 // Every write is decided by its rules before it lands. Who wrote a chirp or
 // made a like, and when, the Entities stamp: the browser sends neither.
 const guarded = GuardServer.writer(Post, Policy, writer(Db.Post))
-const likeWrites = GuardServer.writer(Like, Policy, writer(Db.Like))
+const likeWrites = GuardServer.writer(Like, Policy, ownLikes(writer(Db.Like)))
 
 /** Who is asking, as the row a stamp or a `liked` names. */
 const asker = (principal: Option.Option<User>) =>
