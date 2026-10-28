@@ -13,6 +13,7 @@ import { mapMessages } from 'foldkit/command'
 import type { HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
 import { Layers, Style } from 'foldkit-mixins'
+import { Frames } from 'foldkit-mixins/testing'
 import { Theme } from 'foldkit-mixins/theme'
 import { afterEach, expect, test, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
@@ -176,6 +177,85 @@ test('checkbox and radio rows carry their roles and state, in groups under their
   }
 })
 
+/** Upstream reads a release on a row this long after the press on its trigger as a drag from it. */
+const HOLD_MS = 200
+
+/**
+ * Clicks `trigger` open, and resolves once a click on a row could no longer
+ * be quick enough to pass for the release of that press, as a person's never is.
+ */
+const pressOpen = async (trigger: HTMLElement) => {
+  let pressedAt = Number.POSITIVE_INFINITY
+  trigger.addEventListener('pointerdown', event => (pressedAt = event.timeStamp), { once: true })
+  await userEvent.click(trigger)
+  await heldPast(pressedAt)
+}
+
+const heldPast = (pressedAt: number) =>
+  expect.poll(() => performance.now() - pressedAt).toBeGreaterThan(HOLD_MS)
+
+/** A mouse event of `type` at the screen point `at`, sent to `target`; the real pointer stays put. */
+const pointer = (target: Element, type: string, at: number): PointerEvent => {
+  const event = new PointerEvent(type, {
+    bubbles: true,
+    pointerType: 'mouse',
+    button: 0,
+    screenX: at,
+    screenY: at,
+  })
+  target.dispatchEvent(event)
+  return event
+}
+
+test('a check row clicked after a press opened the menu is set once', async () => {
+  const frames = Frames.track()
+  const handle = mount()
+  try {
+    await pressOpen(
+      await vi.waitFor(() => {
+        const found = byId('view-button')
+        expect(found).not.toBeNull()
+        return found!
+      }),
+    )
+    await vi.waitFor(() => expect(row(0)?.getAttribute('role')).toBe('menuitemcheckbox'))
+    await userEvent.click(row(0))
+    await vi.waitFor(() => expect(row(0).getAttribute('aria-checked')).toBe('true'))
+    await frames.settle()
+    expect(row(0).getAttribute('aria-checked')).toBe('true')
+  } finally {
+    handle.dispose()
+    frames.dispose()
+  }
+})
+
+test('a check row clicked after one chosen by a drag from the trigger is set once', async () => {
+  const frames = Frames.track()
+  const handle = mount()
+  try {
+    const trigger = await vi.waitFor(() => {
+      const found = byId('view-button')
+      expect(found).not.toBeNull()
+      return found!
+    })
+    const pressedAt = pointer(trigger, 'pointerdown', 0).timeStamp
+    await vi.waitFor(() => expect(row(0)?.getAttribute('role')).toBe('menuitemcheckbox'))
+    pointer(row(0), 'pointermove', 100)
+    await vi.waitFor(() => expect(row(0).hasAttribute('data-active')).toBe(true))
+    await heldPast(pressedAt)
+    pointer(row(0), 'pointerup', 100)
+    await vi.waitFor(() => expect(row(0).getAttribute('aria-checked')).toBe('true'))
+    await userEvent.click(row(1))
+    await vi.waitFor(() => expect(row(1).getAttribute('aria-checked')).toBe('false'))
+    await frames.settle()
+    expect(row(1).getAttribute('aria-checked')).toBe('false')
+    expect(row(0).getAttribute('aria-checked')).toBe('true')
+  } finally {
+    handle.dispose()
+    frames.dispose()
+  }
+})
+
 test('a click, Space or Enter on a check row sets it and leaves the menu open', async () => {
   const handle = mount()
   try {
@@ -274,7 +354,8 @@ type BarModel = typeof BarModel.Type
 type BarMessage = { readonly _tag: 'Got'; readonly message: Menubar.Message }
 const gotBar = (message: Menubar.Message): BarMessage => ({ _tag: 'Got', message })
 
-test("a Menubar's checkbox row is set with its menu left open", async () => {
+test("a Menubar's checkbox row is set once with its menu left open", async () => {
+  const frames = Frames.track()
   install(style.css)
   const container = document.createElement('div')
   container.id = 'bar'
@@ -315,7 +396,7 @@ test("a Menubar's checkbox row is set with its menu left open", async () => {
       expect(found).not.toBeNull()
       return found!
     })
-    await userEvent.click(trigger)
+    await pressOpen(trigger)
     const grid = await vi.waitFor(() => {
       const found = byId('bar-view-item-0')
       expect(found?.getAttribute('role')).toBe('menuitemcheckbox')
@@ -325,8 +406,11 @@ test("a Menubar's checkbox row is set with its menu left open", async () => {
     await vi.waitFor(() =>
       expect(byId('bar-view-item-0')?.getAttribute('aria-checked')).toBe('true'),
     )
+    await frames.settle()
+    expect(byId('bar-view-item-0')?.getAttribute('aria-checked')).toBe('true')
     expect(byId('bar-view-items')).not.toBeNull()
   } finally {
     handle.dispose()
+    frames.dispose()
   }
 })

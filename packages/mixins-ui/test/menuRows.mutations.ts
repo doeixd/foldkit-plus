@@ -5,6 +5,7 @@
  */
 const file = '../src/menu.ts'
 const recipe = '../src/recipes/menu.ts'
+const view = '../src/menuView.ts'
 const browser = ['packages/mixins-ui/test/menuRows.browser.test.ts']
 const unit = ['packages/mixins-ui/test/menuUpdate.test.ts']
 
@@ -119,6 +120,50 @@ export default [
         file: recipe,
         find: `Style.pseudo('[data-tone="destructive"]', { color: ref.error.ink }),`,
         replace: '',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a press on the trigger outlives its release',
+    edits: [
+      {
+        file: view,
+        find: 'cast(pressEnded(message, upstream.update(model, message)))',
+        replace: 'cast(upstream.update(model, message))',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a click on the trigger leaves its press open',
+    edits: [
+      {
+        file: view,
+        find: "Match.tag('ClickedButton', 'ReleasedPointerOnItems',",
+        replace: "Match.tag('ReleasedPointerOnItems',",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'a drag released on a row leaves its press open',
+    edits: [
+      {
+        file: view,
+        find: "Match.tag('ClickedButton', 'ReleasedPointerOnItems',",
+        replace: "Match.tag('ClickedButton',",
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: 'the trigger decides its click from the drawn Model',
+    edits: [
+      {
+        file: view,
+        find: 'h.OnClick(Message.ClickedButton()),',
+        replace: 'h.OnClick(Message.Opened({ maybeActiveItemIndex: Option.none() })),',
       },
     ],
     tests: browser,

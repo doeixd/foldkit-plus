@@ -1,7 +1,8 @@
 /**
  * A Menu view with the consumer `toView` seam `@foldkit/ui/menu` lacks.
  * State, Messages, update, Commands, and Mounts stay upstream (imported
- * from `@foldkit/ui/menu`); only markup assembly is transcribed, from
+ * from `@foldkit/ui/menu`), but for `update` ending a press at its release
+ * (`pressEnded`); only markup assembly is transcribed, from
  * `@foldkit/ui@0.165.0` (`packages/ui/src/menu/index.ts`, MIT (c) 2025
  * Devin Jameson) at tag `@foldkit/ui@0.165.0`, with the computed bundles
  * named (`MenuRenderInfo`) and handed to `toView`.
@@ -19,6 +20,7 @@ import * as Menu from '@foldkit/ui/menu'
 import { Message } from '@foldkit/ui/menu'
 import type { GroupHeading, ItemConfig, Model, ViewInputs } from '@foldkit/ui/menu'
 import type { ChildAttribute, Html, HtmlBuilder } from 'foldkit/html'
+import { modifyFields } from 'foldkit/struct'
 import { childAttributes } from 'foldkit/html'
 import { defineView, type View as SubmodelView } from 'foldkit/submodel'
 import type { ReturnWithOutMessage } from 'foldkit/update'
@@ -91,7 +93,6 @@ const computeRender = <Item extends string>(
     animation: { transitionState },
     maybeActiveItemIndex,
     searchQuery,
-    maybeLastButtonPointerType,
   } = model
 
   const {
@@ -202,18 +203,6 @@ const computeRender = <Item extends string>(
       }),
     )
 
-  const handleButtonClick = (): Message => {
-    const isMouse = Option.exists(maybeLastButtonPointerType, type => type === 'mouse')
-
-    if (isMouse) {
-      return Message.IgnoredMouseClick()
-    } else if (isOpen) {
-      return Message.Closed()
-    } else {
-      return Message.Opened({ maybeActiveItemIndex: Option.none() })
-    }
-  }
-
   const handleSpaceKeyUp = (key: string): Option.Option<Message> =>
     when(key === ' ', Message.SuppressedSpaceScroll())
 
@@ -292,7 +281,9 @@ const computeRender = <Item extends string>(
           h.OnPointerDown(handleButtonPointerDown),
           h.OnKeyDownPreventDefault(handleButtonKeyDown),
           h.OnKeyUpPreventDefault(handleSpaceKeyUp),
-          h.OnClick(handleButtonClick()),
+          // Upstream's `update` decides, from the Model: this drawing may be a
+          // frame behind the press that opened the menu.
+          h.OnClick(Message.ClickedButton()),
         ]),
     ...(isVisible
       ? [h.DataAttribute('open', ''), h.Style({ position: 'relative', zIndex: '1' })]
@@ -539,6 +530,29 @@ export type MenuBundle<Item extends string = string> = Readonly<{
   close: (model: Model) => BundleUpdateReturn<Item>
 }>
 
+/**
+ * `result` with the press it started on the trigger ended, when `message` is
+ * the release of that press. Upstream keeps the press's origin until the menu
+ * shuts, so a release on a row long enough after it reads as a drag from the
+ * trigger and clicks the row for the user, on top of the click the browser
+ * sends; a row that leaves the menu open (a checkbox's) was chosen twice.
+ */
+const pressEnded = <Out>(
+  message: Message,
+  result: ReturnWithOutMessage<Model, Message, Out>,
+): ReturnWithOutMessage<Model, Message, Out> =>
+  Match.value(message).pipe(
+    Match.tag('ClickedButton', 'ReleasedPointerOnItems', () =>
+      Option.isSome(result.model.maybePointerOrigin)
+        ? {
+            ...result,
+            model: modifyFields(result.model, { maybePointerOrigin: () => Option.none() }),
+          }
+        : result,
+    ),
+    Match.orElse(() => result),
+  )
+
 /** The forked `view` with upstream's `update` and helpers. */
 export const create = <Item extends string = string>(): MenuBundle<Item> => {
   const upstream = Menu.create<Item>()
@@ -547,7 +561,7 @@ export const create = <Item extends string = string>(): MenuBundle<Item> => {
   ): BundleUpdateReturn<Item> => result
   return {
     view: internalView<Item>(),
-    update: (model, message) => cast(upstream.update(model, message)),
+    update: (model, message) => cast(pressEnded(message, upstream.update(model, message))),
     selectItem: (model, item, index) => cast(upstream.selectItem(model, item, index)),
     open: model => cast(upstream.open(model)),
     close: model => cast(upstream.close(model)),
