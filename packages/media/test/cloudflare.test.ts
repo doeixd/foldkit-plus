@@ -29,7 +29,6 @@ import { Diagnostics } from 'foldkit-surface'
 interface Env {
   readonly MEDIA: R2Bucket
   readonly IMAGES: ImagesBinding
-  readonly LIMITER: RateLimit
 }
 
 let mf: Miniflare
@@ -42,7 +41,6 @@ beforeAll(async () => {
     script: 'export default { fetch: () => new Response(null) }',
     r2Buckets: ['MEDIA'],
     images: { binding: 'IMAGES' },
-    ratelimits: { LIMITER: { namespace_id: '1001', simple: { limit: 2, period: 60 } } },
   })
   env = await mf.getBindings<Env>()
   const caches = await mf.getCaches()
@@ -259,6 +257,16 @@ describe('the Cloudflare layers', () => {
 
 describe('admissionRateLimit', () => {
   it('refuses a client past the binding’s limit, after the period it is told', async () => {
+    // Miniflare's limiter counts in windows on the clock's minute, so three
+    // requests across a minute's turn were all admitted. This one counts each
+    // key's asks, as the binding does within one window.
+    const asked = new Map<string, number>()
+    const counting: RateLimit = {
+      limit: async ({ key }) => {
+        asked.set(key, (asked.get(key) ?? 0) + 1)
+        return { success: asked.get(key)! <= 2 }
+      },
+    }
     const limited = serveFetch<Env>({
       images: {
         provider: Provider.hosted({ space: Variant.space({ formats: ['avif', 'webp', 'png'] }) }),
@@ -267,7 +275,7 @@ describe('admissionRateLimit', () => {
             originalsR2(bindings.MEDIA),
             transformerImages(bindings.IMAGES),
             variantsR2(bindings.MEDIA),
-            admissionRateLimit(bindings.LIMITER, { retryAfterSeconds: 60 }),
+            admissionRateLimit(counting, { retryAfterSeconds: 60 }),
           ),
       },
     })
@@ -284,6 +292,7 @@ describe('admissionRateLimit', () => {
       if (response.status === 429) expect(response.headers.get('retry-after')).toBe('60')
     }
     expect(statuses).toEqual([200, 200, 429])
+    expect([...asked]).toEqual([['foldkit-media:limited-client', 3]])
   })
 
   it('admits a client when the binding fails, and reports it', async () => {
