@@ -264,8 +264,9 @@ made or taken back in another's name.
 
 ## Deferred
 
-- A viewer link a server presets (#232's stamps): today the client sends it
-  for `liked` to be predicted, and the application checks it is the asker.
+- ~~A viewer link a server presets~~: built with #232 as `Entity.stamps({ user:
+  Stamp.viewer })`; Chirp's like no longer sends its user, and `ownLikes` is
+  gone (see [232-write-effects-DESIGN.md](./232-write-effects-DESIGN.md)).
 - A guard rule over where a relation points ("this link is the asker"), which
   would replace Chirp's `ownLikes`.
 - An exists with a filter, and exactness where several rows match one reader:

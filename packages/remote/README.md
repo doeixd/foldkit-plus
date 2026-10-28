@@ -1582,6 +1582,16 @@ one away from the post it pointed at, and pointing it elsewhere does both, each
 added as an increment is. Where the client does not hold where the row pointed,
 or holds no count on that post, nothing is predicted.
 
+An insert shows what its Entity stamps (`Entity.stamps`) as well, which no
+input sets: `Stamp.viewer` as the viewer `Remote.make` is told of, and
+`Stamp.clock` as the time the store last heard from the server, since `update`
+reads no clock; the answer brings the server's values. A new row's counts read
+0 and its exists none. The row then joins every loaded list whose body admits
+it, where the list's order puts it, while pending and once answered: a post
+stamped with its time goes to the top of a newest-first list. A list without a
+body, or one filtered by a read rule the client does not run, is the server's
+to place.
+
 A viewer-relative member is predicted for the viewer `Remote.make` is told of.
 With a `Like` pointing at a `Post` and a `User` (`examples/chirp` declares the
 whole domain, its writes and its server):
