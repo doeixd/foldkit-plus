@@ -15,6 +15,14 @@ export {
 } from './services.js'
 export { originalsKeyValueStore, variantsKeyValueStore } from './stores.js'
 export { Admission, RateLimited, admissionRateLimiter } from './admission.js'
+export type {
+  AdmissionFailed,
+  FactsUnanswered,
+  ImageFailed,
+  MediaDiagnostic,
+  RequestDefect,
+  StoreFailed,
+} from './diagnostics.js'
 export { headersRule, materialize, type Materialized } from './materialize.js'
 export { FactsUnavailable, factsOf, type FactsOptions } from './facts.js'
 export {

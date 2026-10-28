@@ -1,11 +1,13 @@
-import { Cache, Effect, Layer, Option, Schema } from 'effect'
+import { Cache, Cause, Effect, Layer, Option, Schema } from 'effect'
 import { HttpRouter, HttpServer, HttpServerResponse, type HttpServerRequest } from 'effect/http'
 import { HttpApiBuilder } from 'effect/http-api'
+import { Diagnostics } from 'foldkit-surface'
 import type { Hosted } from '../provider.js'
 import * as Variant from '../variant.js'
 import { nonNegativeInteger } from '../limits.js'
 import { MediaApi } from './api.js'
 import { Admission } from './admission.js'
+import { requestDefect } from './diagnostics.js'
 import { OriginalTooLarge } from './errors.js'
 import { Answer, headersFor, matches, statusOf, type From } from './headers.js'
 import { Originals, Transformer, Variants, type Encoded } from './services.js'
@@ -190,9 +192,23 @@ export const layer = (options: Options = {}) =>
   HttpApiBuilder.layer(MediaApi).pipe(Layer.provide(handlers({ coalesce: true, ...options })))
 
 /**
+ * The defects of a request answered 500. The router also dies with the 500
+ * response it answers, which is no defect of the request's.
+ */
+const reportDefects = (cause: Cause.Cause<unknown>): Effect.Effect<void> => {
+  const defects = cause.reasons.filter(
+    reason => Cause.isDieReason(reason) && !HttpServerResponse.isHttpServerResponse(reason.defect),
+  )
+  return defects.length === 0
+    ? Effect.void
+    : Diagnostics.report(requestDefect(Cause.fromReasons(defects)))
+}
+
+/**
  * A Worker's fetch handler over `app`, built from each environment's bindings
  * once and kept, since a Worker hands every request the same bindings. A
- * layer that fails to build answers a 500.
+ * layer that fails to build answers a 500. With the router's logger off, a
+ * defect answered 500 is reported as `RequestDefect`.
  */
 export const fetchOf = <Env extends object>(
   app: (
@@ -209,7 +225,7 @@ export const fetchOf = <Env extends object>(
     if (known !== undefined) return known(request)
     const { handler } = HttpRouter.toWebHandler(
       app(env).pipe(Layer.provide(HttpServer.layerServices)),
-      { disableLogger: true },
+      { disableLogger: true, middleware: Effect.tapCause(reportDefects) },
     )
     const answer = (incoming: Request) => handler(incoming)
     built.set(env, answer)

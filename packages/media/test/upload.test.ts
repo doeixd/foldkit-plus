@@ -30,6 +30,7 @@ import {
   variantsKeyValueStore,
 } from 'foldkit-media/server'
 import { inspectorSharp, transformerSharp } from 'foldkit-media/sharp'
+import { Diagnostics, type ReportDiagnostic } from 'foldkit-surface'
 
 const MAX_BYTES = 64 * 1024
 
@@ -55,7 +56,7 @@ const policy = () => {
   return { asked, service }
 }
 
-const server = (facts: UploadOptions['facts'] = {}) => {
+const server = (facts: UploadOptions['facts'] = {}, report: ReportDiagnostic = Diagnostics.log) => {
   const allowed = policy()
   const kept = new Map<string, Uint8Array>()
   const keptFacts = new Map<string, string>()
@@ -90,6 +91,7 @@ const server = (facts: UploadOptions['facts'] = {}) => {
           inspectorSharp(),
           transformerSharp(),
           allowed.service,
+          Layer.succeed(Diagnostics.Reporter, report),
         ),
       ),
       Layer.provide(store),
@@ -499,16 +501,25 @@ describe('the facts route', () => {
     ],
     ['a session that ended', 'https://images.test/hero.png', 'Bearer gone', 401, 'Unauthenticated'],
   ])(
-    'refuses %s, saying only its kind',
+    'refuses %s, saying only its kind, and reporting why',
     async (_, url, authorization, status, error) => {
       const { asked, facts } = await host()
-      const response = await factsOf(server(facts), url, authorization)
+      const collected = Diagnostics.collect()
+      const response = await factsOf(server(facts, collected.report), url, authorization)
       expect([
         response.status,
         response.headers.get('cache-control'),
         await response.json(),
       ]).toEqual([status, 'no-store', { error }])
       if (status < 422 || url.includes('elsewhere')) expect(asked).toEqual([])
+      // Only what the caller is not told why; a refused caller is told.
+      expect(collected.reported).toMatchObject(
+        status === 422 ? [{ _tag: 'FactsUnanswered', level: 'warning', url }] : [],
+      )
+      if (status === 422)
+        expect(collected.reported[0]?.message).toContain(
+          url.includes('elsewhere') ? 'is not an allowed host' : 'the original answered 404',
+        )
     },
     60_000,
   )

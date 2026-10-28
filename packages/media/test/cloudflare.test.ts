@@ -24,6 +24,7 @@ import {
 } from 'foldkit-media/cloudflare'
 import { ImageAsset, Inspector, Provider, Variant } from 'foldkit-media'
 import { Originals, StoredFacts, Uploads, serveFetch } from 'foldkit-media/server'
+import { Diagnostics } from 'foldkit-surface'
 
 interface Env {
   readonly MEDIA: R2Bucket
@@ -78,6 +79,16 @@ const store = async (bytes: Uint8Array<ArrayBuffer>) => {
   return hash
 }
 
+// Every diagnostic the servers below report; a test reads what it added.
+const collected = Diagnostics.collect()
+const reporting = Layer.succeed(Diagnostics.Reporter, collected.report)
+/** The diagnostics reported while `run` ran. */
+const reportedBy = async (run: () => Promise<unknown>) => {
+  const from = collected.reported.length
+  await run()
+  return collected.reported.slice(from)
+}
+
 // PNG beside the standard formats: a PNG's width is in its header.
 const server = serveFetch<Env>({
   images: {
@@ -87,6 +98,7 @@ const server = serveFetch<Env>({
         originalsR2(bindings.MEDIA),
         transformerImages(bindings.IMAGES),
         variantsR2(bindings.MEDIA, { cache: edge }),
+        reporting,
       ),
   },
 })
@@ -167,15 +179,20 @@ describe('the Cloudflare layers', () => {
             originalsR2(bindings.MEDIA),
             transformerImages(bindings.IMAGES),
             variantsR2(bindings.MEDIA, { cache: failing }),
+            reporting,
           ),
       },
     })
-    const response = await withoutEdge(
-      new Request(`https://media.test/_image/${hash}/w320.png`),
-      env,
-    )
-    expect(response.status).toBe(200)
-    expect(response.headers.get('server-timing')).toBe('media;desc="store"')
+    const key = `${hash}/w320.png`
+    const reported = await reportedBy(async () => {
+      const response = await withoutEdge(new Request(`https://media.test/_image/${key}`), env)
+      expect(response.status).toBe(200)
+      expect(response.headers.get('server-timing')).toBe('media;desc="store"')
+    })
+    expect(reported).toMatchObject([
+      { _tag: 'StoreFailed', level: 'error', store: 'edge', operation: 'read', key },
+      { _tag: 'StoreFailed', level: 'error', store: 'edge', operation: 'write', key },
+    ])
   })
 
   it('answer a made variant when filling the edge cache fails', async () => {
@@ -192,15 +209,19 @@ describe('the Cloudflare layers', () => {
             originalsR2(bindings.MEDIA),
             transformerImages(bindings.IMAGES),
             variantsR2(bindings.MEDIA, { cache: failing }),
+            reporting,
           ),
       },
     })
-    const response = await withoutFill(
-      new Request(`https://media.test/_image/${hash}/w320.png`),
-      env,
-    )
-    expect(response.status).toBe(200)
-    expect(response.headers.get('server-timing')).toBe('media;desc="made"')
+    const key = `${hash}/w320.png`
+    const reported = await reportedBy(async () => {
+      const response = await withoutFill(new Request(`https://media.test/_image/${key}`), env)
+      expect(response.status).toBe(200)
+      expect(response.headers.get('server-timing')).toBe('media;desc="made"')
+    })
+    expect(reported).toMatchObject([
+      { _tag: 'StoreFailed', level: 'error', store: 'edge', operation: 'write', key },
+    ])
   })
 
   it('answer an original R2 does not hold with a 404', async () => {
@@ -209,8 +230,11 @@ describe('the Cloudflare layers', () => {
 
   it('answer an original the binding cannot read with a 502, keeping nothing', async () => {
     const hash = await store(new TextEncoder().encode('not an image'))
-    expect((await get(`/_image/${hash}/w320.png`)).status).toBe(502)
+    const reported = await reportedBy(async () =>
+      expect((await get(`/_image/${hash}/w320.png`)).status).toBe(502),
+    )
     expect(await env.MEDIA.head(`variants/${hash}/w320.png`)).toBeNull()
+    expect(reported).toMatchObject([{ _tag: 'ImageFailed', level: 'error', step: 'transform' }])
   })
 
   it('answer a spent allowance with a 503', async () => {
@@ -224,8 +248,12 @@ describe('the Cloudflare layers', () => {
           transform: () => ({ output: () => Promise.reject(spent) }),
         }) as unknown as ReturnType<ImagesBinding['input']>,
     }
-    const response = await get(`/_image/${hash}/w320.png`, { ...env, IMAGES: refusing })
-    expect(response.status).toBe(503)
+    // A spent allowance is answered for what it is, so nothing is reported.
+    const reported = await reportedBy(async () => {
+      const response = await get(`/_image/${hash}/w320.png`, { ...env, IMAGES: refusing })
+      expect(response.status).toBe(503)
+    })
+    expect(reported).toEqual([])
   })
 })
 
@@ -256,6 +284,36 @@ describe('admissionRateLimit', () => {
       if (response.status === 429) expect(response.headers.get('retry-after')).toBe('60')
     }
     expect(statuses).toEqual([200, 200, 429])
+  })
+
+  it('admits a client when the binding fails, and reports it', async () => {
+    const down = { limit: () => Promise.reject(new Error('binding down')) } as RateLimit
+    const admitting = serveFetch<Env>({
+      images: {
+        provider: Provider.hosted({ space: Variant.space({ formats: ['avif', 'webp', 'png'] }) }),
+        layer: bindings =>
+          Layer.mergeAll(
+            originalsR2(bindings.MEDIA),
+            transformerImages(bindings.IMAGES),
+            variantsR2(bindings.MEDIA),
+            admissionRateLimit(down),
+            reporting,
+          ),
+      },
+    })
+    const hash = await store(await png(310, 100))
+    const reported = await reportedBy(async () => {
+      const response = await admitting(
+        new Request(`https://media.test/_image/${hash}/w320.webp`, {
+          headers: { 'cf-connecting-ip': 'some-client' },
+        }),
+        env,
+      )
+      expect(response.status).toBe(200)
+    })
+    expect(reported).toMatchObject([
+      { _tag: 'AdmissionFailed', level: 'error', limiter: 'binding', client: 'some-client' },
+    ])
   })
 })
 
@@ -336,6 +394,7 @@ describe('inspectorImages', () => {
       Effect.exit(
         Inspector.use(inspector => inspector.inspect(bytes)).pipe(
           Effect.provide(inspectorImages(env.IMAGES)),
+          Effect.provideService(Diagnostics.Reporter, collected.report),
         ),
       ),
     )
@@ -363,6 +422,9 @@ describe('inspectorImages', () => {
     const svg = new TextEncoder().encode(
       '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"></svg>',
     )
-    expect(Exit.isFailure(await inspect(svg))).toBe(true)
+    const reported = await reportedBy(async () =>
+      expect(Exit.isFailure(await inspect(svg))).toBe(true),
+    )
+    expect(reported).toMatchObject([{ _tag: 'ImageFailed', level: 'warning', step: 'inspect' }])
   })
 })

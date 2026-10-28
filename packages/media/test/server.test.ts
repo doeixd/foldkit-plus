@@ -9,6 +9,7 @@ import { Effect, Layer } from 'effect'
 import { HttpRouter, HttpServer } from 'effect/http'
 import { KeyValueStore, RateLimiter } from 'effect/persistence'
 import { afterEach, describe, expect, it } from 'vitest'
+import { Diagnostics } from 'foldkit-surface'
 import { memoryStores } from './stores.js'
 import { Provider, Variant, Widths } from 'foldkit-media'
 import {
@@ -280,7 +281,8 @@ describe('serveFetch', () => {
     ])
   })
 
-  it('answers when its variant store fails, by making the variant', async () => {
+  it('answers when its variant store fails, by making the variant, and reports each failure', async () => {
+    const collected = Diagnostics.collect()
     const failing = KeyValueStore.make({
       get: key =>
         Effect.fail(new KeyValueStore.KeyValueStoreError({ message: 'down', method: 'get', key })),
@@ -306,6 +308,7 @@ describe('serveFetch', () => {
             variantsKeyValueStore().pipe(
               Layer.provide(Layer.succeed(KeyValueStore.KeyValueStore, failing)),
             ),
+            Layer.succeed(Diagnostics.Reporter, collected.report),
           ),
       },
     })
@@ -314,6 +317,21 @@ describe('serveFetch', () => {
       expect([response.status, await response.text()]).toEqual([200, '640.webp'])
     }
     expect(transforms).toEqual(['640.webp', '640.webp'])
+    const key = `${IMAGE}/w640.webp`
+    const failed = (operation: string) => ({
+      _tag: 'StoreFailed',
+      source: 'foldkit-media',
+      level: 'error',
+      store: 'variants',
+      operation,
+      key,
+    })
+    expect(collected.reported).toMatchObject([
+      failed('read'),
+      failed('write'),
+      failed('read'),
+      failed('write'),
+    ])
   })
 
   describe('coalescing', () => {
@@ -380,6 +398,7 @@ describe('serveFetch', () => {
   })
 
   describe('admission', () => {
+    const collected = Diagnostics.collect()
     const admitted = (store: Layer.Layer<RateLimiter.RateLimiterStore>) => {
       const fetch = serveFetch<object>({
         images: {
@@ -392,6 +411,7 @@ describe('serveFetch', () => {
                 window: '1 minute',
                 algorithm: 'fixed-window',
               }).pipe(Layer.provide(RateLimiter.layer), Layer.provide(store)),
+              Layer.succeed(Diagnostics.Reporter, collected.report),
             ),
         },
       })
@@ -438,10 +458,60 @@ describe('serveFetch', () => {
         adaptiveFeedback: down,
       })
       const get = admitted(failing)
+      const from = collected.reported.length
       for (const spelling of ['w320.webp', 'w640.webp', 'w1280.webp']) {
         expect((await get(spelling, 'a')).status).toBe(200)
       }
+      const admittedA = {
+        _tag: 'AdmissionFailed',
+        level: 'error',
+        limiter: 'RateLimiter',
+        client: 'a',
+      }
+      expect(collected.reported.slice(from)).toMatchObject([admittedA, admittedA, admittedA])
     })
+  })
+
+  it('reports a defect it answers 500, and nothing for a refusal or a path it does not know', async () => {
+    const collected = Diagnostics.collect()
+    const fetch = serveFetch<object>({
+      images: {
+        layer: () =>
+          Layer.mergeAll(
+            memoryStores(originals),
+            fakeTransformer,
+            Layer.succeed(Diagnostics.Reporter, collected.report),
+          ),
+      },
+    })
+    const env = {}
+    const status = async (path: string) =>
+      (await fetch(new Request(`http://media.test${path}`), env)).status
+    expect(await status(`/_image/${NOT_AN_IMAGE}/w640.webp`)).toBe(502)
+    expect(await status('/_image/nothing-here')).toBe(404)
+    expect(collected.reported).toEqual([])
+
+    const broke = new Error('sharp broke')
+    const dying = serveFetch<object>({
+      images: {
+        layer: () =>
+          Layer.mergeAll(
+            memoryStores(originals),
+            Layer.succeed(Transformer, { transform: () => Effect.die(broke) }),
+            Layer.succeed(Diagnostics.Reporter, collected.report),
+          ),
+      },
+    })
+    const response = await dying(new Request(`http://media.test/_image/${IMAGE}/w640.webp`), env)
+    expect(response.status).toBe(500)
+    // The defect alone: the router's own death with the 500 it answered is left out.
+    expect(collected.reported).toMatchObject([
+      {
+        _tag: 'RequestDefect',
+        level: 'error',
+        cause: { reasons: [{ _tag: 'Die', defect: broke }] },
+      },
+    ])
   })
 
   it('builds its services once per environment', async () => {

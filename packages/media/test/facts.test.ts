@@ -9,6 +9,7 @@ import { KeyValueStore } from 'effect/persistence'
 import { describe, expect, it } from 'vitest'
 import { Inspector } from 'foldkit-media'
 import { factsOf, type FactsOptions } from 'foldkit-media/server'
+import { Diagnostics } from 'foldkit-surface'
 
 let inspected = 0
 const inspector = Layer.succeed(Inspector, {
@@ -35,9 +36,18 @@ const image =
   () =>
     new Response(new Uint8Array(size), { status: 200, headers })
 
+const collected = Diagnostics.collect()
+
 const run = (url: string, options: FactsOptions) => {
   inspected = 0
-  return Effect.runPromise(Effect.exit(factsOf(url, options).pipe(Effect.provide(inspector))))
+  return Effect.runPromise(
+    Effect.exit(
+      factsOf(url, options).pipe(
+        Effect.provide(inspector),
+        Effect.provideService(Diagnostics.Reporter, collected.report),
+      ),
+    ),
+  )
 }
 
 const reasonOf = (exit: Exit.Exit<unknown, { readonly reason: string }>) =>
@@ -144,5 +154,34 @@ describe('factsOf', () => {
       { url: 'https://cdn.example.com/start.jpg', ifNoneMatch: null },
       { url: 'https://cdn.example.com/final.jpg', ifNoneMatch: '"final-v1"' },
     ])
+  })
+
+  it('reads afresh when its cache fails, answering the facts and reporting each failure', async () => {
+    const { fetch } = host({ 'https://cdn.example.com/a.jpg': image(42, { etag: '"v1"' }) })
+    const down = (method: string, key: string) =>
+      Effect.fail(new KeyValueStore.KeyValueStoreError({ message: 'down', method, key }))
+    const cache = KeyValueStore.make({
+      get: key => down('get', key),
+      getUint8Array: key => down('getUint8Array', key),
+      set: key => down('set', key),
+      remove: key => down('remove', key),
+      clear: Effect.void,
+      size: Effect.succeed(0),
+    })
+    const from = collected.reported.length
+    const exit = await run('https://cdn.example.com/a.jpg', {
+      allow: ['cdn.example.com'],
+      fetch,
+      cache,
+    })
+    expect(Exit.isSuccess(exit) && exit.value.width).toBe(42)
+    const failed = (operation: string) => ({
+      _tag: 'StoreFailed',
+      level: 'error',
+      store: 'facts',
+      operation,
+      key: 'facts/https://cdn.example.com/a.jpg',
+    })
+    expect(collected.reported.slice(from)).toMatchObject([failed('read'), failed('write')])
   })
 })

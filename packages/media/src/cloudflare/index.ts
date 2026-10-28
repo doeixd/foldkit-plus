@@ -13,7 +13,9 @@ import type {
 } from '@cloudflare/workers-types'
 import { Effect, Layer, Option } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
+import { Diagnostics } from 'foldkit-surface'
 import { Admission, RateLimited } from '../server/admission.js'
+import { admissionFailed, imageFailed, storeFailed } from '../server/diagnostics.js'
 import { Inspector } from '../describe.js'
 import { OriginalNotFound, QuotaExhausted, TransformFailed } from '../server/errors.js'
 import { Originals, Transformer, Variants, type Encoded, type Kept } from '../server/services.js'
@@ -97,7 +99,7 @@ export const transformerImages = (images: ImagesBinding): Layer.Layer<Transforme
         Effect.catch((cause): Effect.Effect<never, QuotaExhausted | TransformFailed> =>
           isImagesError(cause) && cause.code === QUOTA_EXHAUSTED
             ? Effect.fail(new QuotaExhausted({}))
-            : Effect.logWarning('Media.transform failed', cause).pipe(
+            : Diagnostics.report(imageFailed('transform', cause)).pipe(
                 Effect.andThen(Effect.fail(new TransformFailed({}))),
               ),
         ),
@@ -175,7 +177,11 @@ const withEdge = (behind: Variants['Service'], edge: Cache): Variants['Service']
           }) as never,
         ),
       catch: cause => cause,
-    }).pipe(Effect.catch(cause => Effect.logWarning('Media: the edge cache failed a write', cause)))
+    }).pipe(
+      Effect.catch(cause =>
+        Diagnostics.report(storeFailed({ store: 'edge', operation: 'write', key, cause })),
+      ),
+    )
   const behindEdge = (key: string) =>
     behind.get(key).pipe(
       Effect.tap(found =>
@@ -203,7 +209,7 @@ const withEdge = (behind: Variants['Service'], edge: Cache): Variants['Service']
         catch: cause => cause,
       }).pipe(
         Effect.catch(cause =>
-          Effect.logWarning('Media: the edge cache failed a read', cause).pipe(
+          Diagnostics.report(storeFailed({ store: 'edge', operation: 'read', key, cause })).pipe(
             Effect.as(Option.none<Kept>()),
           ),
         ),
@@ -250,7 +256,8 @@ export const variantsR2 = (
  * Admission through a Workers rate-limit binding (`[[ratelimits]]`), whose
  * limit and period are its configuration. It answers yes or no, not when, so
  * a refusal says to retry after `retryAfterSeconds` (the binding's period, 60
- * by default). A binding that fails admits the request, logged.
+ * by default). A binding that fails admits the request, reported as
+ * `AdmissionFailed`.
  */
 export const admissionRateLimit = (
   binding: RateLimit,
@@ -259,8 +266,8 @@ export const admissionRateLimit = (
   Layer.succeed(Admission, {
     admit: client =>
       Effect.tryPromise(() => binding.limit({ key: `foldkit-media:${client}` })).pipe(
-        Effect.catch(error =>
-          Effect.logWarning('Media: the rate limit binding failed; admitting', error).pipe(
+        Effect.catch(cause =>
+          Diagnostics.report(admissionFailed({ limiter: 'binding', client, cause })).pipe(
             Effect.as({ success: true }),
           ),
         ),
@@ -303,7 +310,7 @@ export const inspectorImages = (images: ImagesBinding): Layer.Layer<Inspector> =
             : Effect.fail(info),
         ),
         Effect.catch(cause =>
-          Effect.logWarning('Media.inspect failed', cause).pipe(
+          Diagnostics.report(imageFailed('inspect', cause)).pipe(
             Effect.andThen(Effect.fail(new TransformFailed({}))),
           ),
         ),

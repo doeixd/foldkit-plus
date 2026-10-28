@@ -13,6 +13,7 @@ import { describe, expect, it } from 'vitest'
 import { Inspector, Provider, Variant, describe as describeOriginal } from 'foldkit-media'
 import { Transformer, limitTransforms, serveFetch } from 'foldkit-media/server'
 import { inspectorSharp, transformerSharp } from 'foldkit-media/sharp'
+import { Diagnostics, type ReportDiagnostic } from 'foldkit-surface'
 import { memoryStores } from './stores.js'
 
 const hashOf = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex')
@@ -42,7 +43,10 @@ const portrait = new Uint8Array(
 
 const space = Variant.space({ formats: ['avif', 'webp', 'jpeg'], qualities: [40, 90] })
 
-const serve = (options: { readonly maxPixels?: number } = {}) => {
+const serve = (
+  options: { readonly maxPixels?: number } = {},
+  report: ReportDiagnostic = Diagnostics.log,
+) => {
   const fetch = serveFetch<object>({
     images: {
       provider: Provider.hosted({ space }),
@@ -56,6 +60,7 @@ const serve = (options: { readonly maxPixels?: number } = {}) => {
             ]),
           ),
           transformerSharp({ ...options, concurrency: 2 }),
+          Layer.succeed(Diagnostics.Reporter, report),
         ),
     },
   })
@@ -96,8 +101,13 @@ describe('transformerSharp', () => {
     expect(low).toBeLessThan(high * 0.7)
   })
 
-  it('answers bytes that are not an image with a 502', async () => {
-    expect((await get(hashOf(notAnImage), 'w320.webp')).status).toBe(502)
+  it('answers bytes that are not an image with a 502, and reports why', async () => {
+    const collected = Diagnostics.collect()
+    expect((await serve({}, collected.report)(hashOf(notAnImage), 'w320.webp')).status).toBe(502)
+    expect(collected.reported).toMatchObject([
+      { _tag: 'ImageFailed', source: 'foldkit-media', level: 'error', step: 'transform' },
+    ])
+    expect(collected.reported[0]?.message).toContain('unsupported image format')
   })
 
   it('refuses an original above the pixel limit with a 413, before decoding it', async () => {
@@ -155,11 +165,13 @@ describe('limitTransforms', () => {
 })
 
 describe('inspectorSharp and describe', () => {
+  const collected = Diagnostics.collect()
   const describeWith = (bytes: Uint8Array<ArrayBuffer>, maxPixels?: number) =>
     Effect.runPromise(
       Effect.exit(
         describeOriginal('photo.png', bytes).pipe(
           Effect.provide(inspectorSharp(maxPixels === undefined ? {} : { maxPixels })),
+          Effect.provideService(Diagnostics.Reporter, collected.report),
         ),
       ),
     )
@@ -208,9 +220,15 @@ describe('inspectorSharp and describe', () => {
     expect(Exit.isSuccess(exit) && exit.value.alpha).toBe(transparent)
   })
 
-  it('refuses an original above the pixel limit, and bytes that are not an image', async () => {
+  it('refuses an original above the pixel limit, and bytes that are not an image, reporting those', async () => {
+    const from = collected.reported.length
     const tooLarge = await describeWith(original, 1000)
+    // A refusal by size is answered for what it is: nothing to report.
+    expect(collected.reported.slice(from)).toEqual([])
     const garbage = await describeWith(notAnImage)
+    expect(collected.reported.slice(from)).toMatchObject([
+      { _tag: 'ImageFailed', level: 'warning', step: 'inspect' },
+    ])
     expect(
       [tooLarge, garbage].map(exit =>
         Exit.isFailure(exit)

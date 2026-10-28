@@ -1,8 +1,10 @@
 import { Effect, Option, Schema } from 'effect'
 import type { KeyValueStore } from 'effect/persistence'
+import { Diagnostics } from 'foldkit-surface'
 import { ImageAsset } from '../asset.js'
 import { describe, type Inspector } from '../describe.js'
 import { nonNegativeInteger } from '../limits.js'
+import { storeFailed } from './diagnostics.js'
 
 /** No facts could be read for the image at `url`; `reason` says why, for the build's report. */
 export class FactsUnavailable extends Schema.TaggedError<FactsUnavailable>()('FactsUnavailable', {
@@ -27,7 +29,11 @@ export interface FactsOptions {
   readonly allow: ReadonlyArray<string>
   /** The largest original read, in bytes, counted as it streams. */
   readonly maxBytes?: number
-  /** Facts kept by URL and revalidated with the original's `ETag`. */
+  /**
+   * Facts kept by URL and revalidated with the original's `ETag`. A read that
+   * fails is a miss and a write that fails is dropped, each reported as
+   * `StoreFailed`.
+   */
   readonly cache?: KeyValueStore.KeyValueStore
   /** How to fetch; the platform's `fetch` by default. */
   readonly fetch?: (request: Request) => Promise<Response>
@@ -61,7 +67,11 @@ export const factsOf = (
         Effect.map(text =>
           Option.flatMap(Option.fromNullishOr(text), Schema.decodeUnknownOption(CachedJson)),
         ),
-        Effect.catch(() => Effect.succeed(Option.none<typeof Cached.Type>())),
+        Effect.catch(cause =>
+          Diagnostics.report(
+            storeFailed({ store: 'facts', operation: 'read', key: cacheKey, cause }),
+          ).pipe(Effect.as(Option.none<typeof Cached.Type>())),
+        ),
       ),
   })
 
@@ -148,7 +158,15 @@ export const factsOf = (
         etag: Option.fromNullishOr(response.headers.get('etag')),
         asset,
       })
-      yield* store.set(cacheKey, entry).pipe(Effect.ignore)
+      yield* store
+        .set(cacheKey, entry)
+        .pipe(
+          Effect.catch(cause =>
+            Diagnostics.report(
+              storeFailed({ store: 'facts', operation: 'write', key: cacheKey, cause }),
+            ),
+          ),
+        )
     }
     return asset
   })

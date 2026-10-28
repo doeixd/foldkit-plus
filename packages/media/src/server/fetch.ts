@@ -37,14 +37,16 @@ export const serveFetch = <Env extends object>(
   if (images === undefined && uploads === undefined) {
     throw new Error('serveFetch: give it `images`, `uploads`, or both')
   }
+  // Merged, not provided: a `Diagnostics.Reporter` in a layer reaches what
+  // runs around the routes too, the report of a defect answered 500.
   const media = fetchOf<Env>(env =>
     Layer.mergeAll(
       images === undefined
         ? Layer.empty
-        : layer({ ...images, coalesce: false }).pipe(Layer.provide(images.layer(env))),
+        : layer({ ...images, coalesce: false }).pipe(Layer.provideMerge(images.layer(env))),
       uploads === undefined
         ? Layer.empty
-        : uploadLayer(uploads).pipe(Layer.provide(uploads.layer(env))),
+        : uploadLayer(uploads).pipe(Layer.provideMerge(uploads.layer(env))),
     ),
   )
   return (request, env) => {

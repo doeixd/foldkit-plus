@@ -7,6 +7,8 @@
 import { availableParallelism } from 'node:os'
 import { Effect, Layer, Option } from 'effect'
 import sharp from 'sharp'
+import { Diagnostics } from 'foldkit-surface'
+import { imageFailed, type ImageFailed } from '../server/diagnostics.js'
 import { OriginalTooLarge, TransformFailed } from '../server/errors.js'
 import { Inspector } from '../describe.js'
 import { nonNegativeInteger } from '../limits.js'
@@ -15,9 +17,9 @@ import { Transformer, limitTransforms } from '../server/services.js'
 // About 50 megapixels: a 9000×5500 photograph decodes; a decompression bomb does not.
 const DEFAULT_MAX_PIXELS = 50_000_000
 
-/** What a failed sharp call ends in: logged under `label`, and answered as a 502. */
-const failedAs = (label: string) => (cause: unknown) =>
-  Effect.logWarning(`${label} failed`, cause).pipe(
+/** What a failed sharp call ends in: reported as `ImageFailed` at `step`, and answered as a 502. */
+const failedAs = (step: ImageFailed['step']) => (cause: unknown) =>
+  Diagnostics.report(imageFailed(step, cause)).pipe(
     Effect.andThen(Effect.fail(new TransformFailed({}))),
   )
 
@@ -53,7 +55,7 @@ export const transformerSharp = (
   } = {},
 ): Layer.Layer<Transformer> => {
   const maxPixels = nonNegativeInteger('maxPixels', options.maxPixels ?? DEFAULT_MAX_PIXELS)
-  const failed = failedAs('Media.transform')
+  const failed = failedAs('transform')
   return Layer.succeed(Transformer, {
     transform: (original, variant) =>
       Effect.gen(function* () {
@@ -94,7 +96,7 @@ export const inspectorSharp = (
   options: { readonly maxPixels?: number } = {},
 ): Layer.Layer<Inspector> => {
   const maxPixels = nonNegativeInteger('maxPixels', options.maxPixels ?? DEFAULT_MAX_PIXELS)
-  const failed = failedAs('Media.inspect')
+  const failed = failedAs('inspect')
   return Layer.succeed(Inspector, {
     inspect: bytes =>
       Effect.gen(function* () {

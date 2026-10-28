@@ -112,6 +112,15 @@ enters: `describe(key, bytes)` (from `foldkit-media`) through an `Inspector` (`i
 URL, kept by URL and revalidated with its `ETag`. Variants
 are a cache: a store that fails is answered by making the variant.
 
+What the server answers past without telling the caller why is reported through
+`Diagnostics.Reporter` (`foldkit-surface`; Effect's log by default), typed as `MediaDiagnostic`
+from `foldkit-media/server`: `StoreFailed` (a variant, edge or facts store read taken as a miss
+or a write dropped), `AdmissionFailed` (a limiter down, so the client was admitted),
+`ImageFailed` (a transform or inspection answered `TransformFailed`), `FactsUnanswered` (the
+facts route's `Unavailable`, with its reason) and `RequestDefect` (a defect `serveFetch`
+answered 500). Provide `Layer.succeed(Diagnostics.Reporter, report)` in `serveFetch`'s `layer`;
+collect them in a test with `Diagnostics.collect()`.
+
 A Worker is one `serveFetch({ images?, uploads?, otherwise? })`: it owns `/_image/` and
 `/_media/` (anything else under them, a preflight included, is a 404) and hands every other path
 to `otherwise`. Uploads: `uploadLayer({ maxBytes? })` (or `serveFetch`'s `uploads` in a

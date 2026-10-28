@@ -1,5 +1,7 @@
 import { Context, Duration, Effect, Layer, Match, Schema } from 'effect'
 import { RateLimiter } from 'effect/persistence'
+import { Diagnostics } from 'foldkit-surface'
+import { admissionFailed } from './diagnostics.js'
 
 /** The client has made too many variants lately; it may try again after `retryAfterSeconds`. */
 export class RateLimited extends Schema.TaggedError<RateLimited>()(
@@ -22,8 +24,9 @@ export class Admission extends Context.Service<
 /**
  * Admission through Effect's `RateLimiter`, `limit` misses a client per
  * `window`, over the limiter's store (`RateLimiter.layerStoreMemory` for one
- * process, Redis for several). A store that fails admits the request, logged:
- * a limiter that is down should not take the images down with it.
+ * process, Redis for several). A store that fails admits the request, reported
+ * as `AdmissionFailed`: a limiter that is down should not take the images
+ * down with it.
  */
 export const admissionRateLimiter = (options: {
   readonly limit: number
@@ -55,7 +58,9 @@ export const admissionRateLimiter = (options: {
                       }),
                     ),
                   RateLimitStoreError: () =>
-                    Effect.logWarning('Media: the rate limiter failed; admitting', error),
+                    Diagnostics.report(
+                      admissionFailed({ limiter: 'RateLimiter', client, cause: error }),
+                    ),
                 }),
               ),
             ),

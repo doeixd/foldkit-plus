@@ -108,7 +108,7 @@ export default [
     edits: [
       {
         file: '../src/cloudflare/index.ts',
-        find: "Effect.logWarning('Media: the edge cache failed a read', cause).pipe(\n            Effect.as(Option.none<Kept>()),\n          )",
+        find: "Diagnostics.report(storeFailed({ store: 'edge', operation: 'read', key, cause })).pipe(\n            Effect.as(Option.none<Kept>()),\n          )",
         replace: 'Effect.fail(cause)',
       },
     ],
@@ -119,8 +119,8 @@ export default [
     edits: [
       {
         file: '../src/cloudflare/index.ts',
-        find: "Effect.catch(cause => Effect.logWarning('Media: the edge cache failed a write', cause))",
-        replace: 'Effect.catch(cause => Effect.fail(cause))',
+        find: "Diagnostics.report(storeFailed({ store: 'edge', operation: 'write', key, cause })),",
+        replace: 'Effect.fail(cause),',
       },
     ],
     tests: ['packages/media/test/cloudflare.test.ts'],

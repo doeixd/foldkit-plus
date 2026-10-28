@@ -350,8 +350,9 @@ const stores = Layer.mergeAll(originalsKeyValueStore(), variantsKeyValueStore())
   `layerSql` over SQLite or D1, `keyValueStoreR2` (below) over R2.
 - `variantsKeyValueStore({ prefix })` keeps a variant's bytes under
   `variants/<hash>/<spelling>`; its media type is the key's extension, so
-  nothing else is stored. A store that fails a read or a write is logged and
-  the request is answered by making the variant: variants are a cache.
+  nothing else is stored. A store that fails a read or a write is reported
+  (`StoreFailed`) and the request is answered by making the variant: variants
+  are a cache.
 - `originalsKeyValueStore({ prefix })` reads an original under its hash. A
   store that fails is a 500, not a 404: the original is the data.
 
@@ -368,7 +369,8 @@ served to anyone. It is optional; without it every miss is admitted.
   rate-limit binding (`[[ratelimits]]`), whose limit and period are its
   configuration.
 - A refused client gets a 429 with `Retry-After`. A limiter that fails admits
-  the request, logged: a limiter that is down should not take the images down.
+  the request, reported (`AdmissionFailed`): a limiter that is down should not
+  take the images down.
 - The client is `CF-Connecting-IP`, else the connection's address. Pass
   `clientOf` to read your own proxy's header; `X-Forwarded-For` is the
   client's to write, so it is not read by default.
@@ -606,7 +608,7 @@ export default {
 
 - `transformerImages(images)` is the Images binding: it scales down, never up,
   and names the format. Cloudflare's code for a spent allowance (9422) is the
-  503; any other refusal is the 502, its reason logged.
+  503; any other refusal is the 502, its reason reported (`ImageFailed`).
 - `keyValueStoreR2(bucket)` is an R2 bucket as a `KeyValueStore`, for the
   store adapters above or the application's own (`clear` and `size` list the
   bucket).
@@ -624,6 +626,42 @@ Cloudflare bills each new width of each original once a month (format and
 quality do not count), so the ladder is the cost: eight widths are at most
 eight transformations an original. `examples/cloudflare` is such a Worker,
 with Remote and Sync as its `otherwise`.
+
+### Diagnostics
+
+Where the server answers past a failure without telling the caller why, it
+reports a typed diagnostic through `Diagnostics.Reporter` (`foldkit-surface`'s
+channel), which by default is Effect's log, a Worker's `wrangler tail`.
+Reporting changes no answer. Each is exported as a type from
+`foldkit-media/server` (`MediaDiagnostic` is the union):
+
+| `_tag` | `level` | When |
+| --- | --- | --- |
+| `StoreFailed` | `error` | A store failed and was worked around: a read taken as a miss, a write dropped. `store` is `variants`, `edge` (the Cache API in front of R2) or `facts` (`factsOf`'s `cache`), with the `operation`, `key` and `cause`. |
+| `AdmissionFailed` | `error` | A rate limiter failed (`limiter`: `RateLimiter` or `binding`), so `client` was admitted with no limit. |
+| `ImageFailed` | `error` for a `transform`, `warning` for an `inspect` | The transformer or inspector failed, answered `TransformFailed` with its `cause` left out. An inspection that fails is most often an upload that is no image. |
+| `FactsUnanswered` | `warning` | The facts route answered `Unavailable`; the diagnostic carries the `url` and the `reason`. |
+| `RequestDefect` | `error` | A defect `serveFetch` answered 500, with its `cause`. Behind `layer`, a defect is the application's router's to log. |
+
+Provide another reporter as any service, in the layer the services come from:
+
+```ts
+serveFetch<WorkerEnv>({
+  images: {
+    layer: env =>
+      Layer.mergeAll(
+        originalsR2(env.MEDIA),
+        transformerImages(env.IMAGES),
+        variantsR2(env.MEDIA, { cache: true }),
+        Layer.succeed(Diagnostics.Reporter, diagnostic =>
+          Effect.logError(`media: ${diagnostic._tag}: ${diagnostic.message}`),
+        ),
+      ),
+  },
+})
+```
+
+In a test, `Diagnostics.collect()` gives a reporter and the array it fills.
 
 ## Icons
 

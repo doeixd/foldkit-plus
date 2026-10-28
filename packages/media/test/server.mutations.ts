@@ -199,7 +199,7 @@ export default [
     edits: [
       {
         file: '../src/server/admission.ts',
-        find: "Effect.logWarning('Media: the rate limiter failed; admitting', error),",
+        find: "Diagnostics.report(\n                      admissionFailed({ limiter: 'RateLimiter', client, cause: error }),\n                    ),",
         replace: 'Effect.fail(new RateLimited({ retryAfterSeconds: 1 })),',
       },
     ],
@@ -397,8 +397,8 @@ export default [
     edits: [
       {
         file: '../src/server/stores.ts',
-        find: "Effect.logWarning('Media: the variant store failed a read', error).pipe(\n          Effect.as(Option.none()),\n        ),",
-        replace: 'Effect.die(error),',
+        find: "Diagnostics.report(storeFailed({ store: 'variants', operation: 'read', key, cause })).pipe(\n          Effect.as(Option.none()),\n        ),",
+        replace: 'Effect.die(cause),',
       },
     ],
     tests: ['packages/media/test/server.test.ts'],
@@ -408,7 +408,7 @@ export default [
     edits: [
       {
         file: '../src/server/stores.ts',
-        find: "Effect.catch(error => Effect.logWarning('Media: the variant store failed a write', error)),",
+        find: "Effect.catch(cause =>\n          Diagnostics.report(storeFailed({ store: 'variants', operation: 'write', key, cause })),\n        ),",
         replace: 'Effect.orDie,',
       },
     ],

@@ -9,9 +9,11 @@ import { Context, Effect, Layer, Option, Schema, Stream } from 'effect'
 import { HttpServerResponse, type HttpServerRequest } from 'effect/http'
 import { HttpApi, HttpApiBuilder, HttpApiEndpoint, HttpApiGroup } from 'effect/http-api'
 import { KeyValueStore } from 'effect/persistence'
+import { Diagnostics } from 'foldkit-surface'
 import { HashedAsset, ImageAsset } from '../asset.js'
 import { describe, type Inspector } from '../describe.js'
 import { nonNegativeInteger } from '../limits.js'
+import { factsUnanswered } from './diagnostics.js'
 import { OriginalTooLarge } from './errors.js'
 import { factsOf, type FactsOptions } from './facts.js'
 import { Answer, headersFor, statusOf } from './headers.js'
@@ -200,7 +202,10 @@ export const uploadHandlers = (options: UploadOptions = {}) => {
               UploadUnauthenticated: () =>
                 Effect.succeed(refused(Answer.cases.Unauthenticated.make({}))),
               // Why stays in the server: a host refused, a read failed, a file that is no image.
-              FactsUnavailable: () => Effect.succeed(refused(Answer.cases.Unavailable.make({}))),
+              FactsUnavailable: ({ url, reason }) =>
+                Diagnostics.report(factsUnanswered(url, reason)).pipe(
+                  Effect.as(refused(Answer.cases.Unavailable.make({}))),
+                ),
             }),
             Effect.withSpan('Media.facts'),
           ),

@@ -1,6 +1,8 @@
 import { Effect, Layer, Option, Schema } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
+import { Diagnostics } from 'foldkit-surface'
 import { Format, mimeType } from '../format.js'
+import { storeFailed } from './diagnostics.js'
 import { OriginalNotFound } from './errors.js'
 import { Originals, Variants } from './services.js'
 
@@ -13,8 +15,8 @@ const mediaTypeOf = (key: string): string => {
 /**
  * `Variants` over a `KeyValueStore`. A variant's bytes are its value and its
  * media type is its key's extension, so nothing else is stored. A store that
- * fails is logged and read as a miss, or a write it drops: a variant is a
- * cache, and the request is answered either way.
+ * fails is reported (`StoreFailed`) and read as a miss, or a write it drops: a
+ * variant is a cache, and the request is answered either way.
  */
 export const makeVariants = (store: KeyValueStore.KeyValueStore): Variants['Service'] => ({
   get: key =>
@@ -25,8 +27,8 @@ export const makeVariants = (store: KeyValueStore.KeyValueStore): Variants['Serv
           from: 'store' as const,
         })),
       ),
-      Effect.catch(error =>
-        Effect.logWarning('Media: the variant store failed a read', error).pipe(
+      Effect.catch(cause =>
+        Diagnostics.report(storeFailed({ store: 'variants', operation: 'read', key, cause })).pipe(
           Effect.as(Option.none()),
         ),
       ),
@@ -35,7 +37,9 @@ export const makeVariants = (store: KeyValueStore.KeyValueStore): Variants['Serv
     store
       .set(key, encoded.bytes)
       .pipe(
-        Effect.catch(error => Effect.logWarning('Media: the variant store failed a write', error)),
+        Effect.catch(cause =>
+          Diagnostics.report(storeFailed({ store: 'variants', operation: 'write', key, cause })),
+        ),
       ),
 })
 
