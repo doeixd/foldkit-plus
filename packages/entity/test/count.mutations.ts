@@ -11,7 +11,7 @@ const edit = (name: string, find: string, replace: string) => ({
 })
 
 export default [
-  edit('a many relation is counted', "if (relation.cardinality !== 'one')", 'if (false)'),
+  edit('a many relation is counted', "if (relation.cardinality !== 'one')\n", 'if (false)\n'),
   edit(
     'a relation pointing elsewhere is counted',
     'if (!isSameEntity(relation.target(), entity))',

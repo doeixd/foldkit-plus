@@ -39,9 +39,8 @@ export default [
     edits: [
       {
         file,
-        find: '            principal: caller,\n            requestId: payload.requestId,',
-        replace:
-          '            principal: undefined as P,\n            requestId: payload.requestId,',
+        find: '            principal: caller,\n            viewer: server.viewer',
+        replace: '            principal: undefined as P,\n            viewer: server.viewer',
       },
     ],
     tests,
