@@ -101,8 +101,10 @@ flag, `isTrimmed`, a custom filter, a rule made after a transformation (the
 column stores the encoded side; a `NumberFromString`'s `isGreaterThan(0)` judges
 the number, not the stored text), and a transition invariant, which reads the
 row before the write. Such a rule is listed, not refused: the server still
-holds it on every declared write. When #237's diagnostics channel exists, `bind`
-is where it would report them at startup.
+holds it on every declared write. A binding reports them as one
+`ServerOnlyRules` diagnostic (#237) on its first write through `writer`: `bind`
+is synchronous, and that write is the first Effect where the server's reporter
+applies.
 
 A field's rules join into one CHECK. A null passes it (SQL calls the condition
 unknown), which is right: a column can be null only under a field that admits
@@ -172,6 +174,5 @@ domain and `check (length(body) <= 280)` in its SQL. Now:
   `examples/cloudflare`'s migrations test holds `rowChangeLog`. Reading
   `sqlite_master` or `pg_constraint` at startup would compare text that
   `drizzle-kit` and Postgres format their own ways.
-- **Reporting `serverOnly` at startup.** Waits on #237's diagnostics channel.
 - **More exact rules.** `isInt` (`c = round(c)` agrees except at infinities),
   `isStartingWith` and its kin, case-insensitive patterns.

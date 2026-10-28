@@ -1,9 +1,9 @@
 # One typed channel for what fails quietly (#237)
 
-Status: first slice built (2026-10-27). The channel is `Diagnostics` in
-`foldkit-surface`; `foldkit-remote` and `foldkit-remote-server` report into
-it. SSR, Sync, Mirror, Media, the remote-drizzle startup report and the rest
-are deferred, each listed below.
+Status: built (2026-10-28). The channel is `Diagnostics` in
+`foldkit-surface`. Remote and its server report into it (first slice), and
+so do SSR, Sync, Mirror, Media, Guard, remote-drizzle, agent-mcp and the
+mixins resolver (second slice). What is still deferred is listed below.
 
 ## The problem
 
@@ -89,6 +89,19 @@ change with each, and a package added later could not report.
   `WriteUnheard` records the separate fact that the application's update was
   not wired to hear it.
 
+- **Code outside any Effect context** (a Promise-based host, a function
+  that runs before any runtime exists) takes the reporter as an option:
+  `diagnostics?: ReportDiagnostic`, or `(diagnostic, request) => Effect`
+  where there is a request. `serveFetch`, `SSR.entry`, Sync's
+  `documentHost` and `defineDocumentHost` take the request form;
+  `SSR.hydrate`, `serveJournal`, agent-mcp's hosts and `GuardServer.validate`
+  take the plain one. `SSR.hydrate` needs it because a refused page never
+  starts a runtime, so the reporter in the runtime's `resources` is never in
+  effect.
+- **One exception.** Foldkit runs a Mount with the runtime's own context,
+  not the application's `resources`, so the mixins resolver's `MountFailed`
+  always goes to the default log.
+
 ### How an application reads it
 
 - **Development.** Nothing to do: the default reporter is Effect's log, the
@@ -120,17 +133,59 @@ read, write or answer does; reporting runs after the Model is settled.
 | `serveFetch({ onError(cause, request) })` | `serveFetch({ diagnostics(diagnostic, request) })` |
 | `Effect.logWarning` on a failed answer read / live publish | `AnswerUnread` / `PublishFailed` |
 
+Second slice, by package:
+
+| Package | Before | Now |
+| --- | --- | --- |
+| SSR | `console.error` when `SSR.hydrate` has no build id, or the page cannot resume (state, route, bindings) | `PageContained { reason }`: `NoBuildId` or the `ResumeRefused` reason |
+| SSR | `console.error` for a static region missing from the server's page | `StaticRegionMissing` |
+| SSR | `console.error` "a bundle's bodies did not load" | `BundleUnloaded` |
+| SSR | `console.error` when `headers` threw, or a page was answered 500 | `PageFailed { url, cause }` |
+| SSR | `console.warn` for a handler the page cannot name | `HandlerUnnamed` (still once per process) |
+| Sync | `Effect.logWarning` "sync exchange failed" / "history changed; rebuilding" | `ExchangeFailed` / `HistoryRebuilt` |
+| Sync | `console.error`s in `do.ts` and the journal's upgrade, `.catch(() => undefined)` on the resolver and the journal, a revalidation defect's dropped cause, a swallowed notice failure | `HostDefect { stage, cause }`, stage `Upgrade`, `Exchange`, `Resolve`, `Journal`, `Revalidate` or `Notice` |
+| Sync | A presence subscriber or socket listener that threw, swallowed | `ListenerFailed` |
+| Mirror | `Effect.logWarning` could not read / write | `StoreUnread` / `StoreUnwritten` |
+| Mirror | A stored document no mirror writes, discarded silently; its failed removal, swallowed | `StoreMalformed`; `StoreUnwritten` |
+| Media | `Effect.logWarning` on a variant or edge store; the facts cache's swallowed read and ignored write | `StoreFailed { store, operation, key, cause }` |
+| Media | `Effect.logWarning` "rate limiter failed; admitting" | `AdmissionFailed` |
+| Media | `Effect.logWarning` "Media.transform / Media.inspect failed" | `ImageFailed { step }` |
+| Media | The facts route's `Unavailable`, its reason dropped | `FactsUnanswered` |
+| Media | A defect `serveFetch` answered 500, logged nowhere | `RequestDefect` |
+| Guard | `Effect.logError` when an operator refuses a computed value | `ComputeRefused` |
+| Guard | `GuardServer.validate`'s `console.warn` of writes with no revision | `UnpinnedWrites`, through `validate({ diagnostics })` |
+| remote-drizzle | `Effect.logError` in `runStatement` and the ledger | `StatementFailed` (the caller gets only `RemoteServerError`) |
+| remote-drizzle | `serverOnly` rules (#259), reported nowhere | `ServerOnlyRules`, once per binding, on its first write through `writer` |
+| agent-mcp | `console.error` "authenticate broke" | `AuthenticateDefect` |
+| agent-mcp | Capability, request and tool-list defects and a transport's `end` that threw, swallowed | `CapabilityDefect`, `RequestDefect`, `ToolListDefect`, `TransportEndDefect` |
+| mixins | The resolver's `console.error('[OnMount …] unhandled failure')` | `MountFailed` |
+
+Each variant is reported where it happens, and the fallback it reports is
+unchanged. One exception: Media's `serveFetch` now merges its images and
+uploads layers into the router's context with `Layer.provideMerge`, which
+`Layer.provide` hid. A reporter given in `layer(env)` would not otherwise
+reach the middleware that reports `RequestDefect`.
+
+`serverOnly` is reported on a binding's first write, not at startup. `bind`
+is synchronous and runs before any Effect, and the first write is the
+earliest Effect the binding writes in, where the server's reporter applies.
+`stdio` (agent-mcp) reports to stderr by default, because Effect's default
+logger writes every level to stdout in Node, which carries the MCP protocol
+there.
+
 ## Deferred
 
-- **SSR** (#210): `SSR.hydrate`'s fallbacks and `console.error`s become
-  `ResumeRefused { reason }`; the client's are Effect-free, so they report
-  through `Effect.runFork(Diagnostics.report(...))` with the runtime's layer,
-  or a Command at start.
-- **`serverOnly` at startup** (#259): `bind` is synchronous; the server's
-  startup Effect should report each rule no CHECK holds.
-- **Sync, Mirror, Media, Guard, the mixins resolver's `OnMount` failures, the
-  agent MCP host**: each `console.*` / `Effect.logWarning` above is a
-  variant waiting for its package.
+- **#210's compiled build id**: `SSR.hydrate` reading the id when `buildId`
+  is omitted needs Foldkit to export it.
+- **Left quiet on purpose**, each judged and named in its commit:
+  - refusals answered to the caller with their reason (SSR's
+    `FallbackRefused`, malformed Sync frames, agent-mcp's unparseable body,
+    Media's typed refusals);
+  - Sync's `logDebug` "checkpoint adopted", which is not a failure;
+  - a mirror URL key that does not decode, which `mirror.decode(keys).issues`
+    exposes.
+- **Sync's `journalChanges`**: if its subscribe fiber fails, notices stop
+  with no report. Its type says it fails only by defect.
 - **Prediction laws** (#257): a disagreement found when an answer lands is
   one more Remote variant.
 - **A harness that fails on any diagnostic** (#239, #250's `Trace`), a
@@ -157,3 +212,9 @@ read, write or answer does; reporting runs after the Model is settled.
   `mutationAnswer` tests assert `ServerDefect` (with the request through
   `serveFetch`), `PublishFailed` and `AnswerUnread`; their mutation specs
   were re-anchored and extended.
+- Second slice: each package's tests assert its variants with
+  `Diagnostics.collect()` in place of console spies, and its
+  `test/diagnostics.mutations.ts` proves each report can fail: SSR 17, Sync
+  18 (and `do.mutations.ts` re-anchored, 28), Mirror 6, Media 19, Guard 5,
+  remote-drizzle 7, agent-mcp 9 (and `http.mutations.ts`, 5), mixins
+  `mountRuntime.mutations.ts` 5. All killed.
