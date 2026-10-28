@@ -1,7 +1,7 @@
 # DataGrid design
 
 **Status:** Phases 0 to 8 built as `foldkit-data-grid` and
-`foldkit-mixins-data-grid` (both private, `0.0.0`), each with the gaps its
+`foldkit-mixins-data-grid` (both published to npm), each with the gaps its
 "as built" section names, and an in-memory reference application in
 `examples/data-grid`. Proposed in
 [issue #144](https://github.com/doeixd/foldkit-plus/issues/144) on 2026-10-03,
@@ -345,11 +345,12 @@ from §8:
   the cell's DOM id and the update parses and checks it, so the mapping
   holds no state: a Mount reads its args once, and a mapping that closed
   over the projection would read the first render's rows forever.
-- **So a Shift click over rows is not a row range.** The rows between the
-  anchor and the click need the row order, which the update does not have;
-  Shift+Space, from the root's key handler (bound fresh each render), does
-  it. Carrying the order into the Model, or a range resolved at read time,
-  is the open choice.
+- **So a Shift click over rows asks the application for the range.** The
+  rows between the anchor and the click need the row order, which the update
+  does not have, so the press reports `Out.RowsRequested({ from, to })` and
+  the application, which holds the rows, adds them with `Grid.extendRows`.
+  Shift+Space, from the root's key handler (bound fresh each render), works
+  the range out in the view.
 - **A key reads the last render's state,** as `GridNavigation`'s do: two keys
   inside one frame start from the same cell.
 

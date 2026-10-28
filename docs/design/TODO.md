@@ -634,13 +634,14 @@ the steps land in the packages that own them.
 
 `foldkit-data-grid` and `foldkit-mixins-data-grid`, in the order of
 [data-grid-DESIGN.md](./data-grid-DESIGN.md) §21
-([#144](https://github.com/doeixd/foldkit-plus/issues/144)). Phases 0 to 3
-are built. Each phase lists its deliverables and acceptance there.
+([#144](https://github.com/doeixd/foldkit-plus/issues/144)). Phases 0 to 8
+are built, each with the gaps noted below. Each phase lists its deliverables
+and acceptance there.
 
 - [x] **Phase 0, the pure model:** `Column`, `RowModel` with its row-count
   union, `RowKey`/`ColumnKey`, `CellAddress`, `CellRange`, `GridProjection`, a
   static array adapter, and table-driven tests of hide, order, pin and
-  reorder geometry. Built 2026-10-03 as `foldkit-data-grid`, private; the
+  reorder geometry. Built 2026-10-03 as `foldkit-data-grid`; the
   design's "Phase 0 as built" records where it departs from the sketch.
 - [x] **Phase 1, `GridFocus`:** keyed movement over the projection, one tab
   stop, RTL, Home/End, Ctrl+Home/End, a PageUp/PageDown hook, and an
@@ -667,30 +668,35 @@ are built. Each phase lists its deliverables and acceptance there.
   `restore`, pointer and keyboard resize and reorder, header drag within a
   region, and a column menu to pin, hide and show; a drag across regions
   is not (the design's "Phase 4 as built so far").
-- [ ] **Phase 5, selection:** rows (adapt `Selection` or replace it; it holds
+- [x] **Phase 5, selection:** rows (adapt `Selection` or replace it; it holds
   every id in an array) and a rectangular `CellSelection`. Built 2026-10-03:
   `RowSelection` (`Keys` or `AllExcept`), one cell range, the clicks and keys
-  that drive them and their ARIA. Open: a Shift click over rows as a range,
-  and multi-range; see the design's "Phase 5 as built so far".
+  that drive them and their ARIA, and a Shift click over rows as a range
+  (`Out.RowsRequested`, added by `Grid.extendRows`). Open: multi-range; see
+  the design's "Phase 5 as built so far".
 - [x] **Phase 6, editing:** `Editing.bundle` and the `Editor` contract; a
   commit leaves the grid as the application's Message. Built 2026-10-03 as
   text editing in the `DataGrid` Bundle, the commit an `Edited` OutMessage
   (the design's "Phase 6 as built"); typed editors from Schema (a choice,
   a number) are built too, and a date editor is not.
-- [ ] **Phase 7, CRUD and Remote:** columns from an Entity Selection, a
+- [x] **Phase 7, CRUD and Remote:** columns from an Entity Selection, a
   `RowModel` over Remote pages, server sort through the query input (with
   `aria-sort` on the header), load-more and an unknown count, and the
   view's loading and error states. Build the reference application here.
   Built 2026-10-03 as `foldkit-data-grid/crud` and the view's `status`,
   `onRetry`, `onMore` and `sort`, and `MoreOnScroll` reads the next page as
-  the end comes into view; the reference application over Remote is not.
-- [ ] **Phase 8, spreadsheet operations:** TSV copy, cut and paste, fill, and
+  the end comes into view; the reference application over Remote is
+  `examples/registry`.
+- [x] **Phase 8, spreadsheet operations:** TSV copy, cut and paste, fill, and
   bulk edits grouped as one transaction. Copy, cut and paste are built
-  (2026-10-03), a paste reported as one `Out.Pasted`; fill is not.
+  (2026-10-03), a paste reported as one `Out.Pasted`, and fill as `Fill` with
+  Ctrl+D, Ctrl+R and a fill handle, reported as `Out.Filled`. Open: HTML
+  clipboard data, multi-range copy, and series of dates.
 - [ ] **The reference application:** a 100k-row product registry (§22).
   Built in memory as `examples/data-grid`, and over Remote with local-first
-  edits through Sync as `examples/registry` (2026-10-03); search and saved
-  layouts are not.
+  edits through Sync as `examples/registry` (2026-10-03), with a search
+  compiled by the server and a column layout saved to `localStorage`. Open:
+  custom columns, and a per-column filter control drawn by the grid.
 - [x] **`examples/todo-app`'s exchange threw on an operation it cannot
   decode,** as the registry's did. `foldkit-sync/journal` is now the shared
   exchange (#152); todo-app, the registry and the kitchen sink use it.

@@ -311,11 +311,12 @@ error model and one Schema reach from `alchemy.run.ts` to the browser.
   `foldkit-guard` then decides what that principal may do. The layout gains
   `src/auth.ts`, and its routes mount beside the Worker's own.
 
-No example here yet shows Yielded's routes or `foldkit-ssr` rendering inside a
-Worker. `examples/auth` runs both on a Node server. Moving them into the
-Worker's `fetch` is work for the application's first slice, so plan a test for
-it rather than assuming it works. `Website.Foldkit`'s `main` also cannot be
-combined with Foldkit's `ssr.build`; see [alchemy.md](alchemy.md).
+[`examples/reference`](https://github.com/doeixd/foldkit-plus/tree/main/examples/reference)
+runs Yielded's routes and `foldkit-ssr` inside one Worker's `fetch`
+(`src/worker.ts`, `src/page.ts`) over D1, tested on a local workerd and in
+Chromium; start the first slice from it. It deploys with `wrangler.toml`, not
+Alchemy, and `Website.Foldkit`'s `main` cannot be combined with Foldkit's
+`ssr.build`; see [alchemy.md](alchemy.md).
 
 Adopting CAFE keeps `create-foldkit-app`'s scaffold and adds the Alchemy
 packages and `alchemy.run.ts`. Phase 7's first slice wires them to the
