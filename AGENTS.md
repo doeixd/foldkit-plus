@@ -1258,6 +1258,11 @@ of its own named a form field "fits the Catalog". Read words with
   bytes (grep said "Binary file matches"). Build such characters with
   `String.fromCharCode(92)` or `chr(92)`, and check the bytes before
   committing.
+- **A failure judged over several keys must not live in one key's own
+  validation.** The form wrote an invariant's error into `reserved`'s field
+  state; a submit validates only `NotValidated` keys, and the fix was to raise
+  `quantity`, so every submit was refused until `reserved` itself was edited.
+  Keep such failures apart (`model.marks`) and clear them on any edit.
 - **A pending patch over a tombstone is also a create.** Hiding every pending
   patch over a base tombstone fixed a stub row but hid the CMS draft preview
   (a create of an id the client knew absent); every remote test stayed green

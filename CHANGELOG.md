@@ -379,6 +379,24 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **Forms, AppShell and `Layout.center`, after review** (#276):
+  - An Entity invariant's failure no longer blocks every later submit until
+    the key it names is edited. Invariant failures and `Message.Refused` are
+    marks in a new `model.marks`, apart from each key's own validation:
+    `form.field` and `control(key).field` show them on their key, any edit
+    clears them, a submit stops while they stand, and the next submit after an
+    edit judges again; two failures on one key both show. **Behaviour
+    change:** `model.fields.<key>` no longer holds such an error, so read a
+    key through `form.field`. `model.marks` decodes as `{}` from a Model stored
+    before it existed.
+  - **Breaking:** `Message.Refused` takes `value`, the key's value in the
+    refused submit, and is dropped when the key holds something else since,
+    so a refusal no longer lands on text typed while the save was in flight.
+    `Crud.editor`'s and the CMS's refusals follow.
+  - Below `md`, AppShell's side column, which holds a Sidebar's opener, stays
+    in the header's row as the page scrolls.
+  - `Layout.center` fills to its measure inside `Layout.stack` (and a flex
+    row) instead of shrinking to its content.
 - **Declared writes, after review** (#277):
   - `Write.update` refuses a computed assignment into a `Schema.Int` field that
     may not come to an integer, and the Drizzle writer refuses one over an
