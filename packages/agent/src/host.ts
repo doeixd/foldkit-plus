@@ -126,63 +126,91 @@ export const host = <Config extends HostableConfig<any, any>>(
   if (config.subscriptions !== undefined && Object.hasOwn(config.subscriptions, HOST_ENTRY))
     throw new Error('Agent.host: this config is already hosted')
   const core = makeCore<Model, Message>('Agent.host')
-  // `booted` from the runtime's first read of its Model until its Subscriptions
-  // start, when the host starts accepting Messages; `running` until they stop.
-  let phase: 'idle' | 'booted' | 'running' = 'idle'
-  let current = Option.none<Model>()
-  // What this boot's `update` produced, to tell the runtime's later reads of
-  // its Model, which lag behind `update`, from the next runtime's first one.
-  let produced = new WeakSet<object>()
-  let queue = Effect.runSync(Queue.unbounded<Message>())
+  type Boot = {
+    readonly id: number
+    /** The Model this runtime holds. */
+    current: Model
+    /**
+     * The Models it booted with and its `update` produced: its later reads,
+     * which lag behind `update`, are of these, and another runtime's first is not.
+     */
+    readonly produced: WeakSet<object>
+    /** Its own queue, so nothing sent to a runtime that stopped reaches the next. */
+    readonly queue: Queue.Queue<Message>
+    crashed: boolean
+  }
+  // Each runtime started from this config, from its first read of its Model.
+  // One disposed before its Subscriptions start never reports stopping, so
+  // until one starts, a runtime booted while another is booted may be its
+  // restart or a second runtime beside it.
+  const boots = new Map<number, Boot>()
+  let nextBoot = 0
+  // The runtime whose Subscriptions run: the one the host reads and drives.
+  let running = Option.none<Boot>()
+  const refusals = new WeakSet<Error>()
+  const refuse = (): Error => {
+    const error = new Error(
+      'Agent.host: a second runtime was started from this config; host each one',
+    )
+    refusals.add(error)
+    return error
+  }
 
   const update = (model: Model, message: Message) => {
     const result = config.update(model, message)
     // DevTools' time travel replays `update` over older Models; only a
-    // transition of the Model the runtime holds is a commit.
-    if (phase !== 'idle' && Option.exists(current, held => held === model)) {
-      current = Option.some(result.model)
-      if (result.model !== model) produced.add(result.model)
-      if (phase === 'running') core.applied(message, model, result.model)
+    // transition of the Model a runtime holds is a commit.
+    for (const boot of boots.values()) {
+      if (boot.current !== model) continue
+      boot.current = result.model
+      boot.produced.add(result.model as object)
+      if (Option.exists(running, held => held === boot)) core.applied(message, model, result.model)
+      break
     }
     return result
   }
 
-  const boot = (model: Model): void => {
-    phase = 'booted'
-    current = Option.some(model)
-    produced = new WeakSet()
-    // A fresh queue, so nothing sent to a runtime that stopped reaches this one.
-    queue = Effect.runSync(Queue.unbounded<Message>())
-  }
-
   const entry = {
-    dependenciesSchema: Schema.Struct({}),
+    dependenciesSchema: Schema.Struct({ boot: Schema.Number }),
     // The runtime reads this first with the Model it booted with (fresh,
     // hydrated, or restored by a development reload, which skips `init`),
-    // before it processes any Message. A runtime disposed before its
-    // Subscriptions start never reports stopping, so in `booted` a Model this
-    // boot did not produce is the next runtime's.
+    // before it processes any Message.
     modelToDependencies: (model: Model) => {
-      const ours = produced.has(model as object)
-      if (phase === 'idle' || (phase === 'booted' && !ours)) boot(model)
-      else if (!ours && Option.exists(current, held => held !== model))
-        throw new Error('Agent.host: a second runtime was started from this config; host each one')
-      return {}
+      for (const boot of boots.values()) {
+        if (boot.produced.has(model as object)) return { boot: boot.id }
+      }
+      if (Option.isSome(running)) throw refuse()
+      const boot: Boot = {
+        id: nextBoot++,
+        current: model,
+        produced: new WeakSet([model as object]),
+        queue: Effect.runSync(Queue.unbounded<Message>()),
+        crashed: false,
+      }
+      boots.set(boot.id, boot)
+      return { boot: boot.id }
     },
-    dependenciesToStream: () =>
+    dependenciesToStream: ({ boot: id }: { readonly boot: number }) =>
       Stream.unwrap(
         Effect.sync(() => {
-          phase = 'running'
-          core.started(Option.getOrThrow(current))
-          return Stream.fromQueue(queue)
+          const boot = boots.get(id)
+          // The first runtime to start its Subscriptions is the one hosted: one
+          // booted before it that has not started was disposed first.
+          if (boot === undefined || Option.isSome(running)) return Stream.die(refuse())
+          for (const earlier of boots.keys()) if (earlier < id) boots.delete(earlier)
+          running = Option.some(boot)
+          core.started(boot.current)
+          return Stream.fromQueue(boot.queue).pipe(
+            Stream.ensuring(
+              Effect.sync(() => {
+                running = Option.none()
+                boots.delete(id)
+                // A crash already halted the host, and says why.
+                if (!boot.crashed) core.stopped('stopped')
+              }),
+            ),
+          )
         }),
-      ).pipe(
-        Stream.ensuring(
-          Effect.sync(() => {
-            phase = 'idle'
-            core.stopped('stopped')
-          }),
-        ),
       ),
   }
 
@@ -193,7 +221,11 @@ export const host = <Config extends HostableConfig<any, any>>(
     crash: {
       ...config.crash,
       report: (context: { readonly error: Error }) => {
-        core.stopped('crashed')
+        // A refused second runtime crashes alone; the hosted one runs on.
+        if (!refusals.has(context.error)) {
+          if (Option.isSome(running)) running.value.crashed = true
+          core.stopped('crashed')
+        }
         config.crash?.report?.(context)
       },
     },
@@ -201,7 +233,9 @@ export const host = <Config extends HostableConfig<any, any>>(
 
   return {
     config: hosted,
-    host: core.host(message => Queue.offerUnsafe(queue, message)),
+    host: core.host(message => {
+      if (Option.isSome(running)) Queue.offerUnsafe(running.value.queue, message)
+    }),
   }
 }
 

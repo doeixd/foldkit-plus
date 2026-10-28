@@ -12,33 +12,59 @@ export default [
     edits: [
       {
         file,
-        find: "if (phase !== 'idle' && Option.exists(current, held => held === model)) {",
-        replace: "if (phase !== 'idle') {",
+        find: '      if (boot.current !== model) continue\n',
+        replace: '',
       },
     ],
     tests: page,
   },
   {
-    name: 'a runtime booted while the last one never started is not hosted',
+    name: 'a runtime booted while the last one never started is refused',
     edits: [
       {
         file,
-        find: "if (phase === 'idle' || (phase === 'booted' && !ours)) boot(model)",
-        replace: "if (phase === 'idle') boot(model)",
+        find: 'if (Option.isSome(running)) throw refuse()',
+        replace: 'if (boots.size > 0) throw refuse()',
       },
     ],
     tests: page,
   },
   {
-    name: 'a second runtime from one config is not refused',
+    name: 'a second runtime from one config is not refused at its first read',
     edits: [
-      { file, find: 'else if (!ours && Option.exists', replace: 'else if (false && Option.exists' },
+      {
+        file,
+        find: 'if (Option.isSome(running)) throw refuse()',
+        replace: 'if (false) throw refuse()',
+      },
     ],
+    tests: page,
+  },
+  {
+    name: 'a second runtime started at once replaces the first',
+    edits: [
+      {
+        file,
+        find: 'if (boot === undefined || Option.isSome(running)) return Stream.die(refuse())',
+        replace: 'if (boot === undefined) return Stream.die(refuse())',
+      },
+    ],
+    tests: page,
+  },
+  {
+    name: 'a refused second runtime halts the hosted one',
+    edits: [{ file, find: 'if (!refusals.has(context.error)) {', replace: 'if (true) {' }],
     tests: page,
   },
   {
     name: 'a dispatched Message never reaches the runtime',
-    edits: [{ file, find: 'return Stream.fromQueue(queue)', replace: 'return Stream.never' }],
+    edits: [
+      {
+        file,
+        find: 'return Stream.fromQueue(boot.queue).pipe(',
+        replace: 'return Stream.never.pipe(',
+      },
+    ],
     tests: [...page, 'packages/agent/test/host.browser.test.ts'],
   },
   {
@@ -46,20 +72,37 @@ export default [
     edits: [
       {
         file,
-        find: '    // A fresh queue, so nothing sent to a runtime that stopped reaches this one.\n    queue = Effect.runSync(Queue.unbounded<Message>())\n',
-        replace: '',
+        find: '  const boots = new Map<number, Boot>()\n',
+        replace:
+          '  const boots = new Map<number, Boot>()\n  const shared = Effect.runSync(Queue.unbounded<Message>())\n',
+      },
+      {
+        file,
+        find: 'queue: Effect.runSync(Queue.unbounded<Message>()),',
+        replace: 'queue: shared,',
       },
     ],
     tests: page,
   },
   {
     name: 'a stopped runtime is still taken for a running one',
-    edits: [{ file, find: "            core.stopped('stopped')\n", replace: '' }],
+    edits: [{ file, find: "if (!boot.crashed) core.stopped('stopped')", replace: '' }],
+    tests: page,
+  },
+  {
+    name: 'a crashed runtime reads as stopped once disposed',
+    edits: [
+      {
+        file,
+        find: "if (!boot.crashed) core.stopped('stopped')",
+        replace: "core.stopped('stopped')",
+      },
+    ],
     tests: page,
   },
   {
     name: 'a crash leaves the host accepting Messages',
-    edits: [{ file, find: "        core.stopped('crashed')\n", replace: '' }],
+    edits: [{ file, find: "          core.stopped('crashed')\n", replace: '' }],
     tests: page,
   },
   {

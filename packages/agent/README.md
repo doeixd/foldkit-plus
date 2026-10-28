@@ -164,8 +164,11 @@ A host has no policy: authorization lives in the contract, so pass the host to
 `host: { ...host, principal: () => principal }`.
 
 `Agent.host` refuses a config it has already hosted, and a second runtime
-started from one hosted config fails to boot: host each runtime with its own
-call.
+started from one hosted config: host each runtime with its own call. Started
+while the first runs, the second fails to boot. Started in the same tick, the
+first to start its Subscriptions is hosted and the other crashes ("a second
+runtime was started from this config"), since a runtime disposed before its
+Subscriptions start, as a remount does, never says it stopped.
 
 `Agent.headless` runs the same `init`, `update`, Commands and Subscriptions,
 with `resources` built once for its life, and no DOM. One per session is the

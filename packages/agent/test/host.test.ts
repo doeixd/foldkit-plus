@@ -144,6 +144,32 @@ describe('Agent.host', () => {
     expect(host.model().count).toBe(1)
   })
 
+  it('hosts the first of two runtimes started from one config at once, and refuses the second', async () => {
+    const reported: Array<string> = []
+    const { config, host } = configFor({ report: ({ error }) => reported.push(error.message) })
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    const other = document.createElement('div')
+    other.id = 'agent-host-other'
+    document.body.appendChild(other)
+    embed(config)
+    embed({ ...config, container: other })
+    await vi.waitFor(() => expect(reported).toEqual([expect.stringMatching(/second runtime/)]))
+    await host.dispatch(Message.Incremented())
+    expect(host.model().count).toBe(1)
+    await vi.waitFor(() => expect(document.getElementById('count')?.textContent).toBe('1'))
+  })
+
+  it('says a runtime that crashed crashed, after it is disposed too', async () => {
+    const { config, host } = configFor({ report: () => {} })
+    const handle = embed(config)
+    await until(host, () => true)
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    await expect(host.dispatch(Message.Exploded())).rejects.toThrow(/crashed/)
+    handle.dispose()
+    await expect(host.dispatch(Message.Incremented())).rejects.toThrow(/crashed/)
+  })
+
   it('stops on a crash, rejecting that dispatch, and still calls the application’s report', async () => {
     const reported: Array<string> = []
     const { config, host } = configFor({ report: ({ error }) => reported.push(error.message) })
