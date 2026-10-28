@@ -167,6 +167,31 @@ describe('Testing laws', () => {
     expect(verdict).toMatchObject({ _tag: 'Counterexample', law: { kind: 'preservesCollation' } })
   })
 
+  it('shows nothing of a law whose every call is refused, and counts only answered cases', () => {
+    const refusing = Operators.override(
+      arithmetic,
+      Operators.implement(add, () => {
+        throw new Error('no')
+      }),
+    )
+    expect(Conformance.laws(add, refusing)).toMatchObject({
+      _tag: 'Unanswered',
+      law: { kind: 'associative' },
+    })
+    // Refused for 2 and 7 in either order, both sides alike: agreeing, and no case.
+    const half = Operators.override(
+      arithmetic,
+      Operators.implement(max, (a, b) => {
+        if (a + b === 9) throw new Error('no')
+        return Math.max(a, b)
+      }),
+    )
+    const verdict = Conformance.laws(max, half)
+    expect(verdict._tag === 'Holds' && verdict.evidence.map(record => record.cases)).toEqual([
+      7, 47,
+    ])
+  })
+
   it('tests a law only over its domain', () => {
     const square = (domain: Option.Option<Schema.Top>) => {
       const law = Law.monotonic('increasing', 0)

@@ -1038,7 +1038,9 @@ Operators.describeTable(recorded) // [{ name: 'acme.concat', …, laws, evidence
   operator or a witness its law calls compares text (so a record of such a law
   counts twice the cases). The verdict is `Holds` with one `Tested` record a law, or the
   first `Counterexample` with both sides and its collation: declaring `concat` commutative
-  finds `"a"` and `"A"`, which give `"aA"` and `"Aa"`.
+  finds `"a"` and `"A"`, which give `"aA"` and `"Aa"`. Two sides that both refuse agree,
+  but are no case: a record counts only cases whose sides both answered, and a law with
+  none is `Unanswered`, with the first refusal's reason, and records nothing.
 - **Evidence is an implementation's.** `Operators.withEvidence` refuses a record
   of an operator the table lacks or a law it does not declare, and a `Tested`
   record `Conformance.laws` did not make of this table's own implementation

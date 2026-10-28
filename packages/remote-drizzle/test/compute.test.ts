@@ -512,6 +512,21 @@ describe("A SQL table's evidence", () => {
     ).toThrow('write "ScoreSome" computes "score" and expects no revision')
   })
 
+  it('records nothing of a law whose every call the database refuses', async () => {
+    const broken = DrizzleOperators.make(
+      DrizzleOperators.implement(concat, ({ args: [left, right] }) => sql`(${left} || ${right})`),
+      DrizzleOperators.implement(add, ({ args: [left, right] }) => sql`${left} +* ${right}`),
+    )
+    const Db = bind(
+      { Part },
+      { Part: { table: sqliteParts } },
+      { operators: { memory, sql: broken } },
+    )
+    const verdict = await Conformance.lawsBy(add, selectingSqlite(Db), { implementation: 'sqlite' })
+    expect(verdict).toMatchObject({ _tag: 'Unanswered', law: { kind: 'commutative' } })
+    expect(verdict._tag === 'Unanswered' && verdict.reason).toContain('syntax error')
+  })
+
   it('keeps its records through a merge, and drops a replaced implementation’s', async () => {
     const table = DrizzleOperators.withEvidence(sqlTable, await record())
     expect(DrizzleOperators.merge(table, DrizzleOperators.kernel).evidence).toHaveLength(2)

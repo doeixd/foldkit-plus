@@ -35,9 +35,18 @@ export type Outcome = Data.TaggedEnum<{
 }>
 export const Outcome = Data.taggedEnum<Outcome>()
 
-/** What `Conformance.laws` found: every law held, with the evidence, or the first case one did not. */
+/**
+ * What `Conformance.laws` found: every law held, with the evidence; the first
+ * case one did not; or a law no case of which both sides answered, which
+ * shows nothing of it.
+ */
 export type LawsVerdict = Data.TaggedEnum<{
   Holds: { readonly evidence: ReadonlyArray<TestedEvidence> }
+  Unanswered: {
+    readonly law: LawDescription
+    /** Why the first refused call was refused. */
+    readonly reason: string
+  }
   Counterexample: {
     readonly law: LawDescription
     readonly args: ReadonlyArray<unknown>
@@ -360,7 +369,10 @@ const lawPlans = (op: AnyOperator, limit: number, seed: number): ReadonlyArray<L
 
 /**
  * The verdict over laws whose calls' outcomes `answered` gives: the first
- * failure, or evidence of each.
+ * failure, or evidence of each. Two sides that both refuse agree, as a law
+ * over values says nothing of a call neither answers, but they are no case of
+ * it: a law is shown only by the cases whose sides both answer a value, and
+ * one with none is `Unanswered`.
  */
 const verdictOf = (
   op: AnyOperator,
@@ -380,6 +392,8 @@ const verdictOf = (
   }
   const evidence: Array<TestedEvidence> = []
   for (const { law, plans } of laws) {
+    let cases = 0
+    let refusal = Option.none<string>()
     for (const plan of plans) {
       const left = outcomes(plan.left)
       const right = outcomes(plan.right)
@@ -392,13 +406,21 @@ const verdictOf = (
           right,
         })
       }
+      if (left._tag === 'Value' && right._tag === 'Value') cases += 1
+      else if (Option.isNone(refusal) && left._tag === 'Refused') refusal = Option.some(left.reason)
+    }
+    if (cases === 0) {
+      return LawsVerdict.Unanswered({
+        law,
+        reason: Option.getOrElse(refusal, () => 'no call was answered'),
+      })
     }
     evidence.push(
       Evidence.Tested({
         operator: nameOf(op),
         law,
         implementation: options.implementation,
-        cases: plans.length,
+        cases,
         seed: options.seed,
       }),
     )

@@ -345,6 +345,7 @@ Every failure is a refusal by name, at the earliest moment that can see it:
 | an operator the client's table lacks | not judged on the client: an incomplete filter, a live row the server places | a client can be behind its server |
 | text holding a NUL | that row, or the run when the input holds it | Postgres text cannot hold one; SQLite's `like` stops at it |
 | a law an implementation breaks | `Conformance.laws` answers `Counterexample` with both sides | a declared law is a claim until tested |
+| a law whose every call is refused | `Conformance.laws` answers `Unanswered`, and records nothing | two refusals agree, but show nothing of the law |
 
 A refusal never becomes an empty answer. A body the client cannot judge is
 "I could not tell" (`skipped`, `complete: false`, `unknown`), never "no rows".

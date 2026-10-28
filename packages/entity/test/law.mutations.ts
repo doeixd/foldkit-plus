@@ -144,6 +144,17 @@ export default [
   ),
   edit('every two values are alike', helper, ': sameValue(left.value, right.value)', ': true'),
   edit('a failed law is not reported', helper, 'if (!plan.holds(left, right)) {', 'if (false) {'),
+  {
+    name: 'a law no call answered holds',
+    edits: [{ file: helper, find: '    if (cases === 0) {', replace: '    if (false) {' }],
+    tests: [...tests, 'packages/remote-drizzle/test/compute.test.ts'],
+  },
+  edit(
+    'two refusals count as a case',
+    helper,
+    "if (left._tag === 'Value' && right._tag === 'Value') cases += 1",
+    "if (left._tag === 'Value' || right._tag === 'Refused') cases += 1",
+  ),
 
   // ---- choosing and running cases
   edit(
