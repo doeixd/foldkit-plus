@@ -40,7 +40,13 @@ Three rules follow from it.
 
 - **A value once shown stays on screen.** A refresh that fails keeps the value
   it was refreshing; a list keeps the rows it can draw. A reader keeps working
-  with what they had, told that it may be stale.
+  with what they had, told that it may be stale. One case breaks it: a field
+  that only a write's optimistic layer showed, and that its answer left out,
+  reads `Loading` until it is fetched again. The answer carries what the
+  Surfaces show of every row it names, so this is a row the server did not
+  name, or an answer whose read failed (`AnswerUnread`); `verifyAnswers`
+  reports such a field as an `AnswerGap` (see [Checking an answer
+  against what was shown](../packages/remote/README.md#checking-an-answer-against-what-was-shown)).
 - **Nothing a reader started is retried on its own.** A failed read waits for
   `Data.refresh`, and a failed write for `Data.retry`. A persistent error
   asked again on every unrelated change would hammer the server and hide the
@@ -153,6 +159,7 @@ send:
 | `_tag` | Meaning | Asking again |
 | --- | --- | --- |
 | `RemoteReadError`, `RemoteQueryError` | the request failed: the network, or the server's Source (its message) | may work |
+| `RemoteMutationError` | a mutation failed: the network, the server's Source (its message), or the mutation's declared refusal (`refusal`, which `Data.refusal` decodes) | may work; a refusal will not, with the same input |
 | `RemoteLiveError` | a live stream broke; `Data.liveStatus` carries it while the stream restarts itself | not needed |
 | `RemoteProtocolError` | client and server speak different protocol versions | never: deploy one version |
 | `DecodeError` | what the server sent does not decode against the Selection | never: the shapes disagree |
@@ -300,13 +307,13 @@ internal leaks. Over `RemoteServer.answer` and `serveFetch`:
 
 | On the server | The client receives |
 | --- | --- |
-| A Source fails with `RemoteServerError(message)` | `RemoteReadError` or `RemoteMutationError` with that message: write it for the reader |
+| A Source fails with `RemoteServerError(message)` | `RemoteReadError`, `RemoteQueryError` or `RemoteMutationError` with that message: write it for the reader |
 | `RemoteServer.refuse(mutation, refusal)` | a 422 with the refusal, which `Data.refusal` decodes |
 | `RemoteServer.forbid(reason?)` | a 403, `_tag: 'Forbidden'`, with `reason` only when given |
 | `RemoteServer.unauthenticated(reason?)` from a resolver | a 401, `_tag: 'Unauthenticated'`, with `reason` only when given |
 | A mutation's input does not decode | `Invalid mutation input`, and nothing of the schema's message |
 | A field `authorize` withholds | the field settled, never why; an id withheld whole reads like an id that does not exist |
-| A Drizzle statement fails | `Database write failed`; the driver's error goes to `StatementFailed` |
+| A Drizzle statement fails | `Database query failed` for a read or query, `Database write failed` for a write; the driver's error goes to `StatementFailed` |
 | A defect, or a layer or resolver that breaks | a 500, `Internal error`; the cause goes to `ServerDefect` |
 | A write committed and its answer's read failed | the answer without the rows; the client reads them again (`AnswerUnread`) |
 | A write committed and its live publish failed | the write's answer; live subscribers do not hear it (`PublishFailed`) |
@@ -329,8 +336,10 @@ are different from a mutation's. See [When things go wrong](../packages/sync/REA
 - **A rejected edit** arrives on the next exchange, not as an error. The
   replica drops it from the outbox and replays the rest, and the field reverts.
   `status.rejected` lists it with the operation and a `reason`: the
-  `authorize` rule's own words when it gave some, otherwise `Not a valid
-  operation`. An error's message is never sent.
+  `authorize` rule's own words when it gave some, `Refused by the server` when
+  it refused without any (a plain `false`), and `Not a valid operation` when
+  the operation itself failed (`validate` refused or threw, `authorize` threw,
+  or the reducer could not apply it). An error's message is never sent.
 - **A persist that fails** reverts the edit and calls `onPersistenceFailure`,
   whose returned Model is what the reader sees next. The reader must redo it.
 - **The outbox is user data, not a cache.** Edits not yet committed live only

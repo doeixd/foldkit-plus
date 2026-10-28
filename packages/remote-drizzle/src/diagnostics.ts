@@ -12,7 +12,7 @@ const source = 'foldkit-remote-drizzle'
 /** The driver failed a statement; the caller was answered `failed` and nothing of why. */
 export interface StatementFailed extends Diagnostic {
   readonly _tag: 'StatementFailed'
-  /** What the caller was told: `Database write failed`. */
+  /** What the caller was told: `Database query failed` (a read) or `Database write failed`. */
   readonly failed: string
   /** The driver's error, which may carry the SQL and its parameters. */
   readonly error: unknown

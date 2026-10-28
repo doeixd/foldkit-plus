@@ -1353,7 +1353,7 @@ through `foldkit-surface`'s `Diagnostics` channel (re-exported by
 
 | `_tag` | `level` | When |
 | --- | --- | --- |
-| `StatementFailed` | `error` | The driver failed a statement (`runStatement`, every read and write here); the caller was answered `failed` (`Database write failed`), and this carries the driver's `error`, with its SQL. |
+| `StatementFailed` | `error` | The driver failed a statement (`runStatement`, every read and write here); the caller was answered `failed` (`Database query failed` for a read or query, `Database write failed` for a write), and this carries the driver's `error`, with its SQL. |
 | `ServerOnlyRules` | `warning` | Once per binding, on its first write through `writer`: the Entity's rules no CHECK can hold (`checkConstraints(...).serverOnly`), held by the server's declared writes alone. Nothing when there are none. |
 
 Each is reported inside the read or write, so the reporter the server runs

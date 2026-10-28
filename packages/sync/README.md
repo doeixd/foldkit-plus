@@ -431,10 +431,12 @@ error. The replica drops it and replays the rest; the mount re-installs the
 shared slice, and the field the user edited reverts. `onPersistenceFailure`
 does not run for this, since the local save succeeded. Watch `rejected` to
 explain the revert: `journalExchange` gives each rejection a reason, the
-`authorize` rule's own when it gave one, and otherwise a fixed sentence
-("Not a valid operation"). It never sends an error's message, which may carry
-internals, so a rule a person should read about belongs in `authorize` with a
-`reason`, not in `validate`.
+`authorize` rule's own when it gave one. Otherwise it gives a fixed sentence:
+"Refused by the server" when `authorize` refused with none (a plain `false`),
+and "Not a valid operation" when the operation failed (`validate` refused or
+threw, `authorize` threw, or the reducer could not apply it). It never sends
+an error's message, which may carry internals, so a rule a person should read
+about belongs in `authorize` with a `reason`, not in `validate`.
 
 **Waiting for the server.** The Model shows an edit before the server has it.
 Something that must not report success until the edit is committed, an agent
