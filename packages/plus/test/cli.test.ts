@@ -19,11 +19,10 @@ afterAll(() => rmSync(root, { recursive: true, force: true }))
 
 // The package as npx unpacks it: its manifest beside the built CLI.
 const installed = join(root, 'node_modules', 'foldkit-plus')
-const run = (folder: string, args: ReadonlyArray<string>, input?: string) =>
+const run = (folder: string, args: ReadonlyArray<string>) =>
   spawnSync(process.execPath, [join(installed, 'dist', 'cli.mjs'), ...args], {
     cwd: folder,
     encoding: 'utf8',
-    ...(input === undefined ? {} : { input }),
   })
 
 beforeAll(async () => {
@@ -86,30 +85,4 @@ test('the built CLI answers from the installed docs, and fails on nothing found'
   const unknown = run(app, ['docs', '--list', 'mirror'])
   expect(unknown.status).toBe(1)
   expect(unknown.stderr).toContain('The topics are: remote.')
-})
-
-test('the built CLI serves the docs over MCP on stdio', () => {
-  const lines = [
-    { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } },
-    { jsonrpc: '2.0', method: 'notifications/initialized' },
-    {
-      jsonrpc: '2.0',
-      id: 2,
-      method: 'tools/call',
-      params: { name: 'search_docs', arguments: { query: 'preloading' } },
-    },
-  ]
-  const served = run(
-    join(root, 'app'),
-    ['mcp'],
-    lines.map(line => JSON.stringify(line)).join('\n') + '\n',
-  )
-  expect(served.stderr).toBe('')
-  const replies = served.stdout
-    .trim()
-    .split('\n')
-    .map(line => JSON.parse(line))
-  expect(replies.map(each => each.id)).toEqual([1, 2])
-  expect(replies[1].result.isError).toBe(false)
-  expect(replies[1].result.content[0].text).toContain('Call `Data.preload`.')
 })

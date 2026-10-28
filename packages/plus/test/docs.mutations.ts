@@ -1,10 +1,9 @@
 /**
- * `docs` and `mcp`, broken in turn:
+ * `docs`, broken in turn:
  * `pnpm mutate packages/plus/test/docs.mutations.ts` checks that a test fails
  * for every one.
  */
 const docsTests = ['packages/plus/test/docs.test.ts']
-const mcpTests = ['packages/plus/test/mcp.test.ts']
 const projectTests = ['packages/plus/test/project.test.ts']
 
 const edit = (
@@ -17,8 +16,6 @@ const edit = (
 
 const docs = (name: string, find: string, replace: string) =>
   edit(name, '../src/docs.ts', find, replace, docsTests)
-const mcp = (name: string, find: string, replace: string) =>
-  edit(name, '../src/mcp.ts', find, replace, mcpTests)
 const project = (name: string, find: string, replace: string) =>
   edit(name, '../src/project.ts', find, replace, projectTests)
 
@@ -66,22 +63,6 @@ export default [
   ),
   docs('a cut section leaves its fence open', "...(fences % 2 === 1 ? ['```'] : []),", ''),
   docs('an unknown topic outlines nothing, as if found', '? Option.none()', "? Option.some('')"),
-  mcp(
-    'a tool takes arguments its schema does not name',
-    'decode(definition.input, input, strict)',
-    'decode(definition.input, input)',
-  ),
-  mcp(
-    'the advertised schema leaves arguments open',
-    'toJsonSchemaDocument(definition.input, strict)',
-    'toJsonSchemaDocument(definition.input)',
-  ),
-  mcp(
-    "the client's revision is ignored",
-    'VERSIONS.includes(protocolVersion) ? protocolVersion : VERSIONS[0]',
-    'VERSIONS[0]',
-  ),
-  mcp('a notification is answered', 'if (id === undefined) return Option.none()', ''),
   project(
     'a copy above the project stands for what foldkit-plus brings',
     'const named = project.value.versions[name] !== undefined',

@@ -47,14 +47,6 @@ program. A query that matches nothing, a project with no Foldkit Plus package,
 or one whose `package.json` names a package that is not installed exits 1 and
 says which.
 
-`npx foldkit-plus mcp` serves the same over the Model Context Protocol on
-stdio, as two tools: `search_docs` (`{ query }`) and `outline_docs`
-(`{ topic? }`). Start it in the project's folder, as MCP clients do:
-
-```json
-{ "mcpServers": { "foldkit-plus": { "command": "npx", "args": ["foldkit-plus", "mcp"] } } }
-```
-
 ## What it is
 
 [Foldkit Plus](https://foldkit-plus.pages.dev) is a family of packages that

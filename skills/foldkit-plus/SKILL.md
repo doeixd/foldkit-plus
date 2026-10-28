@@ -64,8 +64,7 @@ symbol or topic, query the docs instead of reading a long file:
 `npx foldkit-plus docs Data.preload` (or `"optimistic delete"`) prints the
 best sections of the installed packages' READMEs and this skill, with the
 symbol's declaration from the installed types, each with its file and line;
-`docs --list remote` prints an outline. `npx foldkit-plus mcp` serves the
-same as MCP tools. An application's
+`docs --list remote` prints an outline. An application's
 own `AGENTS.md` takes the working rules and traps in [agents-md.md](references/agents-md.md).
 
 ## How they connect

@@ -61,9 +61,7 @@ version changed; `pnpm` skips versions already in the registry.
   (`Data.preload`) its declaration, each naming its package version, file and
   line. `--list [topic]` prints an outline and `--json` is for programs; a
   folder with no project, nothing installed, or no match exits 1 with a
-  reason. `npx foldkit-plus mcp` serves the same over stdio as the MCP tools
-  `search_docs` and `outline_docs`. `foldkit-plus/remote/testing` re-exports
-  `Trace` (#252, #250).
+  reason. `foldkit-plus/remote/testing` re-exports `Trace` (#252, #250).
 - **`Site.routing` preloads a link's page on intent.** `preload: { links,
   intended, read }` subscribes to `links` (`pointedLinks()`), sends and claims
   the application's `intended` Message, skips addresses the tree does not hold

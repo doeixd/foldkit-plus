@@ -1,7 +1,9 @@
 # Docs from the installed packages: `npx foldkit-plus docs` (#252)
 
-Status: built (2026-10-27) in `packages/plus` (`src/docs.ts`, `src/mcp.ts`,
+Status: built (2026-10-27) in `packages/plus` (`src/docs.ts`,
 `src/project.ts`, `src/cli.ts`). What is left is under [Deferred](#deferred).
+The MCP server first built beside it (`npx foldkit-plus mcp`) was removed at
+the user's request the same day; an agent runs the CLI command instead.
 
 ## The problem
 
@@ -19,7 +21,7 @@ on `main` naming an API the pinned release lacks. So the source is what is in
 ## The choice
 
 `npx foldkit-plus docs <query>`, a command beside `setup` in the `foldkit-plus`
-CLI, and `npx foldkit-plus mcp`, which serves it as MCP tools. No new package.
+CLI. No new package.
 
 ```text
 project folder
@@ -148,48 +150,17 @@ A query that found nothing is reported in words on stderr even under
 topic, it prints each matching document's headings as an indented outline,
 with line numbers.
 
-## The MCP tool
-
-`npx foldkit-plus mcp` is a stdio server with two tools:
-
-- `search_docs { query }`: the Markdown answer above.
-- `outline_docs { topic? }`: the `--list` output.
-
-Each call reads the project afresh, so a reinstall shows at once. A refusal
-or an empty answer is a tool result with `isError: true` and the same message,
-so the model reads it, rather than a protocol error.
-
-The protocol is written by hand in `src/mcp.ts`, about 150 lines, rather than
-bundling `@modelcontextprotocol/sdk` and its `zod` into the CLI. A server
-that offers only tools needs four methods:
-
-- `initialize`: answers the client's revision if it is one of 2024-11-05,
-  2025-03-26, 2025-06-18 or 2025-11-25, else the newest.
-- `ping`.
-- `tools/list`.
-- `tools/call`.
-
-Notifications get no reply, and anything else is `-32601`.
-
-Each tool's `inputSchema` is derived from the Effect Schema its arguments are
-decoded with: `Schema.toJsonSchemaDocument(…, { onExcessProperty: 'error' })`.
-So what it advertises (`additionalProperties: false`, `query` required and
-non-empty) is what it enforces. The protocol's own messages are decoded
-leniently, because they carry fields this server does not read (`_meta`,
-`capabilities`).
-
 ## Tests
 
 - `docs.test.ts`: sections, ranking, declarations and rendering, as pure
   functions.
-- `mcp.test.ts`: the server, line by line, against a stub.
 - `project.test.ts`: discovery on a pnpm-shaped fixture. `foldkit-plus` is
   linked into a store that holds its dependency, and an older copy of that
   dependency sits above the project and must not be read.
-- `cli.test.ts`: builds the CLI with tsdown and runs `docs` and `mcp` beneath
-  a stray Effect 3.
+- `cli.test.ts`: builds the CLI with tsdown and runs `setup` and `docs`
+  beneath a stray Effect 3.
 
-`docs.mutations.ts` breaks each of these in 24 ways, and each is killed. The
+`docs.mutations.ts` breaks each of these in 20 ways, and each is killed. The
 CLI's own glue is not in it: `cli.test.ts` builds from the disk, which
 `pnpm mutate`'s in-memory edits never reach, so that one was checked by hand.
 
