@@ -9,6 +9,25 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **Every package's quiet reports go through `Diagnostics`** (#237). Each
+  declares its variants in its own union:
+  - `foldkit-ssr`: `PageContained`, `StaticRegionMissing`, `BundleUnloaded`,
+    `PageFailed`, `HandlerUnnamed`; `SSR.hydrate` takes `diagnostics`,
+    `SSR.entry` takes `diagnostics(diagnostic, request)`, and `Diagnostics` is
+    re-exported (#210).
+  - `foldkit-sync`: `ExchangeFailed`, `HistoryRebuilt`, `HostDefect { stage }`
+    for every 500, 1011 close or unsent notice, and `ListenerFailed`;
+    `documentHost` and `defineDocumentHost` take `diagnostics(diagnostic,
+    request)`, `serveJournal` takes `diagnostics`.
+  - `foldkit-mirror`: `StoreUnread`, `StoreUnwritten`, `StoreMalformed`.
+  - `foldkit-media/server`: `StoreFailed`, `AdmissionFailed`, `ImageFailed`,
+    `FactsUnanswered`, `RequestDefect`, with a reporter in `serveFetch`'s
+    `layer(env)`.
+  - `foldkit-remote-drizzle`: `StatementFailed`, and `ServerOnlyRules` once
+    per binding on its first write (#259).
+  - `foldkit-mixins`: a composed Mount that fails reports `MountFailed`.
+  Several of these (a malformed mirror document, `factsOf`'s cache failures,
+  Sync's swallowed listener and host failures) were silent before.
 - **`Diagnostics`: one typed channel for fallbacks, refusals and swallowed
   failures.** In `foldkit-surface`, re-exported by `foldkit-remote`: each
   package declares its own variants on a base `{ _tag, source, level,
@@ -195,6 +214,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **Breaking: SSR, agent-mcp and guard no longer write to `console`.** They
+  report diagnostics, which Effect's log still shows by default; code that
+  spied on `console` provides a reporter. `foldkit-agent-mcp`'s `handler`,
+  `httpHandler`, `httpApp` and `stdio` take `diagnostics`, and its capability,
+  request, tool-list and transport-end defects, swallowed before, are reported
+  (to stderr under `stdio`). `GuardServer.validate`'s no-revision warning is an
+  `UnpinnedWrites` diagnostic through its `diagnostics` option, and an
+  operator's refused computed value reports `ComputeRefused`. remote-drizzle's
+  failed statement is `StatementFailed`, not `Effect.logError` (#237).
 - **Breaking: Remote's and the server's reports are diagnostics.**
   `RemoteModel.placementMismatches` and `answerGaps` (and those `Data.inspect`
   fields) are one `diagnostics` list holding `PlacementMismatch` and

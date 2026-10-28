@@ -671,6 +671,9 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   false` cannot help, and the examples never showed it because they resolve
   source. Keep namespaces ESM (one entry per file, relative imports external,
   `mixins-ui/tsdown.config.ts`), and measure a package's `dist`, not its source.
+- **A Mount runs outside the application's `resources`.** Only Commands and
+  Subscriptions get them, so a service given there (a diagnostics reporter)
+  never reaches a Mount; `MountFailed` goes to the default log.
 - **An element holds one Mount.** Foldkit's `OnMount` replaces the vnode's
   `insert` hook, so a second one on an element silently drops the first. The
   mixins resolver composes the Mounts that Mixins contribute, but not one
@@ -784,6 +787,14 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   A counter the component keeps in its Model is not such a key: CMS fills from the form's fixed
   `initial`, so the count repeated. Key by the value itself (see "Scene does not model keys").
 
+- **Effect's default logger writes every level to stdout in Node.** A server
+  speaking a protocol over stdio (MCP) must not report through it; agent-mcp's
+  `stdio` sends diagnostics to stderr.
+- **A service given with `Layer.provide` is hidden from `toWebHandler`'s
+  `middleware`.** Media's reporter never reached the middleware reporting
+  `RequestDefect` until `serveFetch` used `Layer.provideMerge`. The
+  middleware's cause also holds the router's own `Die(HttpServerResponse)`:
+  filter it out before reporting a defect.
 - **`Effect.provide(layer)` closes the layer when that effect ends.** The
   sandbox opened its journal with `makeJournalOn(…).pipe(Effect.provide(
   WasmClient.layerMemory({})))`, so the database closed as soon as the
@@ -1608,6 +1619,9 @@ of its own named a form field "fits the Catalog". Read words with
   printed "Finished in 341ms on 3380 files", the line after "Format issues found", and
   an unformatted mutation spec went to CI and failed lint. Read the exit status (`echo
   $?`) or grep the verdict line, never only the tail.
+- **A `for` loop at the end of an `&&` chain gates nothing.** Its exit status is
+  the last iteration's. And `git update-index --cacheinfo` needs `--add` for
+  a new file.
 - **A heredoc ends the `&&` chain.** `cp … && python - <<'EOF' … EOF` then
   `cp mine CHANGELOG.md && git commit` on the next line runs the commit even
   when the script failed its own assert, with whatever `mine` an earlier run
@@ -1778,6 +1792,8 @@ of its own named a form field "fits the Catalog". Read words with
   tighter match-arm inference failed `Idle`/`Interval` updates the package
   check passed. The root check is what CI runs: verify with it (or plain
   `npx tsc -b <project>`) before committing, not just the package script.
+- **`jev-pref review --include a b c` reviews only `a`.** Repeat the flag
+  (`--include a --include b`) or run one file at a time.
 - **Gate the commit on the review's verdict, not on the command finishing.**
   `jev-pref review … ; git commit …` commits whatever the review says. One
   change here went in on a `fix_now` for a skill reference it had not updated,
