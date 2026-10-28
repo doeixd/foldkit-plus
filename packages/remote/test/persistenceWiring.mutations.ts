@@ -119,6 +119,11 @@ export default [
     tests,
   },
   {
+    name: 'forget restores the snapshot it forgot',
+    edits: [{ file: model, find: '    restoredFrom: model.restoredFrom,\n', replace: '' }],
+    tests,
+  },
+  {
     name: 'an oversized snapshot leaves the older one stored',
     edits: [{ file, find: 'onNone: () => kv.remove(key),', replace: 'onNone: () => Effect.void,' }],
     tests,

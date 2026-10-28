@@ -1993,6 +1993,11 @@ Without `restore` in `init`, the wiring restores at start too, a frame late.
   then saved under their key; `forget` clears it as the key changes. The
   `scope` check refuses a snapshot written for another reader; it cannot see
   facts that are only in memory.
+- **`forget` never brings back what it forgot.** It keeps `restoredFrom`, so
+  a key that does not change (a sign-out that keeps the key) is not restored
+  again; the emptied cache is saved over its snapshot after the debounce
+  instead. A key that changes is restored as any new key is, so both
+  `forget` alone and `forget` with a new key are safe at a change of principal.
 - **Nothing is saved before its own key is restored.** `Hydrated` records the
   key it came from in `model.remote.restoredFrom`. Until that key is restored,
   nothing is saved, so the empty store at startup cannot overwrite the

@@ -216,11 +216,16 @@ export const emptyRefresh: RefreshState = {
  * flight. For a change of principal, whose facts these were. The mutation
  * sequence is kept, so request ids stay unique, and a mutation in flight is
  * treated as applied: its answer, when it comes, writes nothing here.
+ *
+ * `restoredFrom` is kept too: the emptied store is now what that key holds,
+ * so `Data.persistence` saves it over the old snapshot and never restores the
+ * key again. Restoring would bring back exactly what was forgotten.
  */
 export const forgetRemote = (model: RemoteModel): RemoteModel => {
   const generation = model.refresh.generation + 1
   return {
     ...initialRemoteModel,
+    restoredFrom: model.restoredFrom,
     refresh: { generation, requested: new Map(), started: new Map(), floor: generation },
     mutations: {
       ...emptyMutationState,

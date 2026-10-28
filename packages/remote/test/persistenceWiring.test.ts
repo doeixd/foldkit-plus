@@ -140,6 +140,27 @@ describe('Data.persistence', () => {
     expect(await Effect.runPromise(kv.get('cache:grace'))).toContain('Gemini')
   })
 
+  it('never restores what `forget` forgot, and saves the forgotten cache over it (#273)', async () => {
+    const kv = storeWith('ada', 'Secret')
+    const restored = (await step(kv, restore, fresh('ada'))).reduce(Data.reduce, fresh('ada'))
+    const forgotten = Data.forget(restored)
+
+    expect(await step(kv, restore, forgotten)).toEqual([])
+    expect(shown(forgotten)).toBe('Initial')
+    await step(kv, save, forgotten)
+    expect(await Effect.runPromise(kv.get('cache:ada'))).not.toContain('Secret')
+  })
+
+  it('restores the next principal’s key after `forget`', async () => {
+    const kv = storeWith('grace', 'Gemini')
+    const restored = (await step(kv, restore, fresh('ada'))).reduce(Data.reduce, fresh('ada'))
+    const switched = { ...Data.forget(restored), actor: 'grace' }
+    const messages = await step(kv, restore, switched)
+
+    expect(messages).toMatchObject([{ _tag: 'Hydrated', from: 'cache:grace' }])
+    expect(shown(messages.reduce(Data.reduce, switched))).toBe('Gemini')
+  })
+
   it('removes a snapshot grown past maxBytes, so no older one outlives it', async () => {
     const small = Data.persistence({
       key: model => `cache:${model.actor}`,
