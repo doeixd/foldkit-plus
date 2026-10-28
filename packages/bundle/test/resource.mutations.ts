@@ -44,4 +44,15 @@ export default [
     edits: [{ file, find: '        Effect.provideContext(context),\n', replace: '' }],
     tests,
   },
+  {
+    name: 'a get after the runtime closed waits for good',
+    edits: [
+      {
+        file,
+        find: 'return Scope.addFinalizer(scope, Deferred.interrupt(deferred)).pipe(',
+        replace: 'return Effect.void.pipe(',
+      },
+    ],
+    tests,
+  },
 ]

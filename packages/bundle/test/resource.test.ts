@@ -140,6 +140,13 @@ describe('Resource.lazy', () => {
     await runtime.close()
   })
 
+  it('interrupts a Command that asks after the runtime closed, rather than leaving it waiting', async () => {
+    const runtime = await built(Resource.lazy(Greeter, async () => greeter))
+    await runtime.close()
+    const exit = await runtime.run(greet)
+    expect(Exit.hasInterrupts(exit)).toBe(true)
+  })
+
   it('builds the loaded Layer with the services the rest of `resources` gives', async () => {
     const punctuated = Layer.effect(
       Greeter,

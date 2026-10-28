@@ -6,7 +6,7 @@
  * import and the build, once; every later one shares what was built, until
  * the runtime's scope closes.
  */
-import { Context, Data, Deferred, Effect, Layer, Option } from 'effect'
+import { Context, Data, Deferred, Effect, Layer, Option, Scope } from 'effect'
 
 declare const LazyTypeId: unique symbol
 
@@ -71,7 +71,7 @@ export const lazy = <Identifier, Shape, RIn = never>(
           onNone: () => {
             const deferred = Deferred.makeUnsafe<Shape, LoadError>()
             loading = Option.some(deferred)
-            return build.pipe(
+            const load = build.pipe(
               // Forgotten before the waiters wake, so a retry starts a new import.
               Effect.onError(() =>
                 Effect.sync(() => {
@@ -80,6 +80,12 @@ export const lazy = <Identifier, Shape, RIn = never>(
               ),
               Deferred.into(deferred),
               Effect.forkIn(scope),
+            )
+            // A load forked into a scope already closed never runs, and would
+            // leave its waiters waiting for good. A closed scope runs this
+            // finalizer at once; an open one interrupts nothing that settled.
+            return Scope.addFinalizer(scope, Deferred.interrupt(deferred)).pipe(
+              Effect.andThen(load),
               Effect.as(deferred),
             )
           },
