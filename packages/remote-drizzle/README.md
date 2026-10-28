@@ -1133,8 +1133,9 @@ table.
   another's write; an operation id is only unique per client that minted it.
 - A record is kept for `retention` milliseconds, a day unless given; a retry
   later than that is a new operation. Records are pruned as new ones are made.
-- Only an update is recorded. An insert and a delete are already answered
-  exactly on a retry (an id holding what it wrote; a row already gone).
+- Updates and inserts are recorded. A retried insert is answered from its
+  record with the row it made; without a ledger, a create of a taken id is
+  refused, retry or not. A retried delete finds the row gone.
 - The ledger runs in a transaction: synchronous on SQLite, awaited on Postgres.
   D1 offers none (its Drizzle database has a `transaction`, whose `BEGIN` D1
   refuses), so a ledger there refuses each write it would record, rather than
@@ -1171,9 +1172,9 @@ its schema. The revision column must be `not null`: the trigger compares it with
 changes in one operation, which the trigger would move past its sequence.
 
 An insert is one `insert ... on conflict do nothing returning` under the id the
-client chose: a retry finds the id taken and answers the row it made, the row
-holding what the insert writes (a stamp, such as `GuardServer.writer`'s
-creation time, aside). A delete
+client chose. An id already taken is refused with one answer, whatever the row
+there holds, since comparing it with the insert would tell the asker what it
+holds; only a ledger tells a retry from another create of that id. A delete
 is one `delete` by id, guarded by the revision when it expects one; a row
 already gone is gone.
 
