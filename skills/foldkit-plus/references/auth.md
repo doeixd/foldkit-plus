@@ -97,7 +97,8 @@ on every Remote call kind.
 - A page's own reads before it renders (`foldkit-remote-server/fetch`'s
   `pageReader`) resolve the page request, a navigation with no `Origin` or
   CSRF header: pass `requests: 'navigation'`, which reads the cookie of a
-  `GET` or `HEAD` only. That reader cannot write, which is why no check is
+  `GET` or `HEAD` navigation only (never an `Upgrade`, nor a request whose
+  `Sec-Fetch-Mode` is not `navigate`). That reader cannot write, which is why no check is
   needed there; never give this resolver to `serveFetch`.
 - Yielded counts password attempts (10 per email and per account, then one
   every 6s, successes included) in memory unless given an Effect

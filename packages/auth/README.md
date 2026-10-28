@@ -269,8 +269,10 @@ header, and, followed from a link elsewhere or typed into the address bar, no
 `Origin` and no `Sec-Fetch-Site: same-origin` either, so the resolver above
 refuses its cookie. `requests: 'navigation'` reads the cookie of a `GET` or
 `HEAD` without asking for either, as any server-rendered site reads its
-reader's session for the page they asked for, and refuses it on any other
-method:
+reader's session for the page they asked for. It refuses it on any other
+method, on a protocol upgrade (a WebSocket's, which any site may open and
+read), and on a request the browser marks as no navigation (`Sec-Fetch-Mode`
+other than `navigate`, a script's `fetch`):
 
 ```ts
 import { pageReader } from 'foldkit-remote-server/fetch'
@@ -295,7 +297,7 @@ both from one fetch handler.
 | --- | --- |
 | No session cookie | a visitor |
 | A cookie, from a request without a trusted `Origin` or, lacking one, `Sec-Fetch-Site: same-origin` (and, for `'scripted'`, the CSRF header) | 401, `The request did not show it came from this application.` |
-| For `'navigation'`, a cookie on any method but `GET` and `HEAD` | 401, `The request did not show it came from this application.` |
+| For `'navigation'`, a cookie on any method but `GET` and `HEAD`, on an `Upgrade` request, or with a `Sec-Fetch-Mode` other than `navigate` | 401, `The request did not show it came from this application.` |
 | A cookie that no longer verifies (signed out, expired, idle, revoked) | 401, `Your session ended.` |
 | Two session cookies | 401, `Sign in again.` |
 | `x-foldkit-subject` naming someone other than the session | 401, `Who is signed in changed.` (`SUBJECT_CHANGED`) |

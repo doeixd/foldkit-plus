@@ -422,15 +422,35 @@ describe("AuthServer.resolver for requests: 'navigation'", () => {
     },
   )
 
+  const refused = Exit.fail(
+    new RemoteUnauthenticated({
+      message: 'The request did not show it came from this application.',
+      reason: 'The request did not show it came from this application.',
+    }),
+  )
+
+  it('reads the cookie of a page the browser says it navigates to', async () => {
+    expect(
+      await navigate('GET', { 'sec-fetch-mode': 'navigate', 'sec-fetch-site': 'cross-site' }),
+    ).toEqual(Exit.succeed(Option.some('ada')))
+  })
+
   it('refuses the cookie of any other method, from wherever it came', async () => {
-    expect(await navigate('POST', fromApplication)).toEqual(
-      Exit.fail(
-        new RemoteUnauthenticated({
-          message: 'The request did not show it came from this application.',
-          reason: 'The request did not show it came from this application.',
-        }),
-      ),
-    )
+    expect(await navigate('POST', fromApplication)).toEqual(refused)
+  })
+
+  it.each([
+    [
+      'a WebSocket upgrade',
+      { upgrade: 'websocket', connection: 'Upgrade', origin: 'https://evil.test' },
+    ],
+    [
+      'a WebSocket upgrade the browser marks',
+      { upgrade: 'websocket', 'sec-fetch-mode': 'websocket' },
+    ],
+    ['a script’s fetch', { 'sec-fetch-mode': 'cors', 'sec-fetch-site': 'cross-site' }],
+  ])('refuses the cookie of %s, which is no navigation', async (_, headers) => {
+    expect(await navigate('GET', headers)).toEqual(refused)
   })
 })
 

@@ -60,6 +60,19 @@ const cameFrom = (request: Request, trusted: ReadonlySet<string>): boolean => {
     : trusted.has(origin)
 }
 
+/**
+ * Whether `request` is a page the browser navigates to: a `GET` or `HEAD`
+ * that upgrades to no other protocol and, where the browser says (Fetch
+ * Metadata's `Sec-Fetch-Mode`), is a navigation. A WebSocket upgrade is a
+ * `GET` that any site may open, and no same-origin rule keeps its answer from
+ * that site, so a navigation's resolver handed to an upgrade (a Sync socket,
+ * a document host) must not read its cookie; nor to a script's `fetch`.
+ */
+const navigated = (request: Request): boolean =>
+  (request.method === 'GET' || request.method === 'HEAD') &&
+  request.headers.get('upgrade') === null &&
+  (request.headers.get('sec-fetch-mode') ?? 'navigate') === 'navigate'
+
 const refuse = (reason: string) => new RemoteUnauthenticated({ message: reason, reason })
 
 /** Refuses a request whose `x-foldkit-subject` names someone other than `subject`. */
@@ -90,8 +103,10 @@ export interface ResolverConfig<I, S extends VerifiedSession, User, R> {
    * `'navigation'`: a page the browser navigates to, for a render's reader
    * that cannot write (`pageReader`): the cookie of a `GET` or `HEAD` is used
    * with no `Origin` or header asked, as any server-rendered page reads its
-   * reader's session, since a link from anywhere opens one; on any other
-   * method it is refused.
+   * reader's session, since a link from anywhere opens one. It is refused on
+   * any other method, on a protocol upgrade (a WebSocket's), and on a request
+   * the browser marks as no navigation (a script's `fetch`), so a resolver
+   * made for page reads cannot vouch for a socket or a request that writes.
    */
   readonly requests?: 'scripted' | 'browser' | 'navigation' | undefined
   /**
@@ -122,7 +137,7 @@ const resolver = <I, S extends VerifiedSession, User, R = never>(
   const csrf = config.http.csrf ?? { header: 'x-effect-auth-csrf', value: '1' }
   const vouched = (request: Request): boolean =>
     config.requests === 'navigation'
-      ? request.method === 'GET' || request.method === 'HEAD'
+      ? navigated(request)
       : cameFrom(request, trusted) &&
         (config.requests === 'browser' || request.headers.get(csrf.header) === csrf.value)
   return request =>

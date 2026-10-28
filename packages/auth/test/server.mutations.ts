@@ -295,8 +295,8 @@ export default [
     edits: [
       {
         file,
-        find: "      ? request.method === 'GET' || request.method === 'HEAD'\n",
-        replace: '      ? true\n',
+        find: "(request.method === 'GET' || request.method === 'HEAD') &&",
+        replace: 'true &&',
       },
     ],
     tests,
@@ -306,8 +306,35 @@ export default [
     edits: [
       {
         file,
-        find: "request.method === 'GET' || request.method === 'HEAD'",
-        replace: "request.method === 'GET'",
+        find: "(request.method === 'GET' || request.method === 'HEAD')",
+        replace: "(request.method === 'GET')",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a protocol upgrade reads as a navigation',
+    edits: [{ file, find: "request.headers.get('upgrade') === null &&", replace: '' }],
+    tests,
+  },
+  {
+    name: 'what the browser marks as no navigation reads as one',
+    edits: [
+      {
+        file,
+        find: "(request.headers.get('sec-fetch-mode') ?? 'navigate') === 'navigate'",
+        replace: 'true',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a request with no Fetch Metadata is no navigation',
+    edits: [
+      {
+        file,
+        find: "(request.headers.get('sec-fetch-mode') ?? 'navigate') === 'navigate'",
+        replace: "request.headers.get('sec-fetch-mode') === 'navigate'",
       },
     ],
     tests,
