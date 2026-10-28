@@ -27,8 +27,8 @@ export default [
     edits: [
       {
         file,
-        find: 'GuardServer.writer(Like, Policy, ownLikes(writer(Db.Like)))',
-        replace: 'GuardServer.writer(Like, Policy, writer(Db.Like))',
+        find: 'GuardServer.writer(Like, Policy, ownLikes(writer(Db.Like, ledgered)))',
+        replace: 'GuardServer.writer(Like, Policy, writer(Db.Like, ledgered))',
       },
     ],
     tests,

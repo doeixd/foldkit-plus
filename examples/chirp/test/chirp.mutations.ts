@@ -228,4 +228,37 @@ export default [
     ],
     tests: client,
   },
+  {
+    name: 'a chirp is posted with no ledger',
+    edits: [
+      {
+        file: '../src/server/server.ts',
+        find: 'writer(Db.Post, ledgered)',
+        replace: 'writer(Db.Post)',
+      },
+    ],
+    tests: server,
+  },
+  {
+    name: 'a like is made with no ledger',
+    edits: [
+      {
+        file: '../src/server/server.ts',
+        find: 'writer(Db.Like, ledgered)',
+        replace: 'writer(Db.Like)',
+      },
+    ],
+    tests: server,
+  },
+  {
+    name: 'the ledger is everyone’s',
+    edits: [
+      {
+        file: '../src/server/server.ts',
+        find: "Option.match(principal, { onNone: () => '', onSome: user => user.id }),",
+        replace: "''",
+      },
+    ],
+    tests: server,
+  },
 ]

@@ -4,7 +4,7 @@
  * for the tests (`sqlite-node.ts`), SQLite compiled to WebAssembly for the
  * published demo, which runs this server in the browser (`host.ts`).
  */
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Option } from 'effect'
 import { GuardDrizzle } from 'foldkit-guard/drizzle'
 import { GuardServer } from 'foldkit-guard/server'
@@ -50,6 +50,19 @@ const likes = sqliteTable('likes', {
   postId: text('post_id').notNull(),
   userId: text('user_id').notNull(),
 })
+/** Each create and edit the writers landed, by whose operation it was, so a retry is answered. */
+const ledger = sqliteTable(
+  'write_ledger',
+  {
+    scope: text('scope').notNull(),
+    operation: text('operation').notNull(),
+    target: text('target').notNull(),
+    answer: text('answer').notNull(),
+    at: integer('at').notNull(),
+    request: text('request'),
+  },
+  table => [primaryKey({ columns: [table.scope, table.operation, table.target] })],
+)
 // #endregion
 
 // #region implement
@@ -104,6 +117,12 @@ const SCHEMA = `
     user_id text not null references users(id),
     unique (post_id, user_id)
   );
+  create table write_ledger (
+    scope text not null, operation text not null, target text not null,
+    answer text not null, at integer not null, request text,
+    primary key (scope, operation, target)
+  );
+  create index write_ledger_at on write_ledger (at);
 `
 // #endregion
 
@@ -129,10 +148,23 @@ const ownLikes = (
   },
 })
 
+/**
+ * A chirp's or a like's id is the browser's, so a create sent again finds it
+ * taken. The ledger tells a retry, the same operation from the same person,
+ * from another create of that id: the retry is answered with its row.
+ */
+const ledgered = {
+  ledger: {
+    table: ledger,
+    scope: (principal: Option.Option<User>) =>
+      Option.match(principal, { onNone: () => '', onSome: user => user.id }),
+  },
+}
+
 // Every write is decided by its rules before it lands. Who wrote a chirp or
 // made a like, and when, the Entities stamp: the browser sends neither.
-const guarded = GuardServer.writer(Post, Policy, writer(Db.Post))
-const likeWrites = GuardServer.writer(Like, Policy, ownLikes(writer(Db.Like)))
+const guarded = GuardServer.writer(Post, Policy, writer(Db.Post, ledgered))
+const likeWrites = GuardServer.writer(Like, Policy, ownLikes(writer(Db.Like, ledgered)))
 
 /** Who is asking, as the row a stamp, a `liked` or an `Expr.viewer` names. */
 const asker = (principal: Option.Option<User>) =>

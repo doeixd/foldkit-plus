@@ -36,8 +36,11 @@ const over = (database: Database, fresh: boolean): Sandbox => ({
 const restore = (SQL: SqlJsStatic, bytes: Uint8Array): Option.Option<Database> => {
   try {
     const database = new SQL.Database(bytes)
-    // A sandbox kept before likes had ids does not open: it starts from the seed.
-    database.exec('select count(*) from users, posts, likes where likes.id is not null')
+    // A sandbox kept before likes had ids, or before its ledger, does not open: it
+    // starts from the seed.
+    database.exec(
+      'select count(*) from users, posts, likes, write_ledger where likes.id is not null',
+    )
     return Option.some(database)
   } catch {
     return Option.none()

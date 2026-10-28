@@ -56,10 +56,16 @@ const sandbox = () => {
             .FoldkitRemoteRead({ version: REMOTE_PROTOCOL_VERSION, requests: [{ ...shown, id }] })
             .pipe(Effect.provide(database)),
         ),
-      mutate: (mutation: Mutation, input: object) =>
+      /** The mutation as the page sends it, under `operation` when given, as `Data.retry` repeats. */
+      mutate: (mutation: Mutation, input: object, operation?: string) =>
         Effect.runPromise(
           handlers
-            .FoldkitRemoteMutate({ requestId: `r-${mutation}`, mutation, input })
+            .FoldkitRemoteMutate({
+              requestId: `r-${mutation}`,
+              mutation,
+              input,
+              ...(operation === undefined ? {} : { operation }),
+            })
             .pipe(Effect.result, Effect.provide(database)),
         ),
       /** A read of what a profile's header shows of `id`. */
@@ -125,6 +131,23 @@ describe('posting', () => {
     const you = sandbox()('you')
     await you.mutate('PostChirp', { id: 'n1', authorId: 'ada', body: 'Hi' })
     expect(await you.read('n1', ['authorId'])).toEqual({ authorId: 'you' })
+  })
+
+  it('answers a chirp sent again under its operation with its row, and refuses another', async () => {
+    const as = sandbox()
+    const first = await as('you').mutate('PostChirp', { id: 'n1', body: 'Hi' }, 'op-1')
+    expect(first._tag).toBe('Success')
+    // Its answer lost, the page sends it again as itself.
+    expect(await as('you').mutate('PostChirp', { id: 'n1', body: 'Hi' }, 'op-1')).toEqual(first)
+    // Another create of the id, or another person's under the same operation, is no retry.
+    for (const [person, operation] of [
+      ['you', 'op-2'],
+      ['ada', 'op-1'],
+    ] as const) {
+      expect((await as(person).mutate('PostChirp', { id: 'n1', body: 'Hi' }, operation))._tag).toBe(
+        'Failure',
+      )
+    }
   })
 
   it('refuses a body over 280 characters', async () => {
@@ -254,6 +277,15 @@ describe('liking', () => {
       likeCount: 1,
       liked: likeOf('p4', 'ada'),
     })
+  })
+
+  it('answers a like sent again under its operation with its row', async () => {
+    const you = sandbox()('you')
+    const first = await you.mutate('LikePost', like('p2', 'you'), 'op-1')
+    expect(first._tag).toBe('Success')
+    expect(await you.mutate('LikePost', like('p2', 'you'), 'op-1')).toEqual(first)
+    expect(await you.read('p2', ['likeCount'])).toEqual({ likeCount: 3 })
+    expect((await you.mutate('LikePost', like('p2', 'you'), 'op-2'))._tag).toBe('Failure')
   })
 
   it('refuses a like taken back by someone else', async () => {
