@@ -31,7 +31,10 @@ on the server, never a page the browser silently redraws.
 
 `FOLDKIT_BUILD_ID` names the deployment being built and served: a commit or
 release tag, public and unique per deployment. The `foldkit` Vite plugin
-compiles it into both bundles, and `serve.ts` renders pages as it.
+compiles it into both bundles, and `serve.ts` renders pages as it. `build` and
+`start` are separate processes, so both are given it: `vite.config.ts` refuses
+a build without one, and the host refuses to start without one. `dev` needs
+none (the plugin names a dev server's build `development`).
 
 ```bash
 pnpm --filter foldkit-example-foldkit-ssr dev     # renders each request; Vite serves the modules
@@ -120,3 +123,5 @@ From the repository root: `npx vitest run examples/foldkit/ssr`.
   `405`, and a preflight handed to the entry.
 - `test/view.test.ts`: the page drawn inert, each element through a Slot, and
   every token the drawn styles read defined in the stylesheet.
+- `e2e/dev.e2e.ts` (`pnpm e2e`): the dev server with no build id set, and
+  Chromium taking the page over and counting, with no error logged.

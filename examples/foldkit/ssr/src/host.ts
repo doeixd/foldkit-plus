@@ -131,7 +131,10 @@ export const host = (options: {
   Layer.unwrap(
     Effect.gen(function* () {
       const { address } = yield* HttpServer.HttpServer
-      const port = address._tag === 'UnixPathAddress' ? options.port : address.port
+      const port = Match.value(address).pipe(
+        Match.tag('UnixPathAddress', () => options.port),
+        Match.orElse(inet => inet.port),
+      )
       const origin = Option.getOrElse(options.origin, () => `http://localhost:${port}`)
       return HttpServer.serve(app(yield* options.assets, origin))
     }),
@@ -149,7 +152,10 @@ export const startServer = (options: Parameters<typeof host>[0]) =>
       const services = yield* Layer.buildWithScope(host(options), scope)
       const { address } = Context.get(services, HttpServer.HttpServer)
       return {
-        url: address._tag === 'UnixPathAddress' ? address.path : `http://127.0.0.1:${address.port}`,
+        url: Match.value(address).pipe(
+          Match.tag('UnixPathAddress', unix => unix.path),
+          Match.orElse(inet => `http://127.0.0.1:${inet.port}`),
+        ),
         close: () => Effect.runPromise(Scope.close(scope, Exit.void)),
       }
     }),

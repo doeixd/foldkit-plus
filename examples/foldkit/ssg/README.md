@@ -35,11 +35,12 @@ draws the same list without fetching.
 
 `FOLDKIT_BUILD_ID` names the deployment being built: a commit or release tag,
 public and unique per deployment. The `foldkit` Vite plugin compiles it into
-both bundles, and `staticSite` writes it into the pages, so the browser adopts
-them instead of refusing them.
+the client bundle, and `staticSite` writes it into the pages, so the browser
+adopts them instead of containing them. One `vite build` makes both, so when
+nothing sets it, `vite.config.ts` names the build with a random id first.
 
 ```bash
-FOLDKIT_BUILD_ID=$(git rev-parse --short HEAD) pnpm --filter foldkit-example-foldkit-ssg build
+pnpm --filter foldkit-example-foldkit-ssg build    # or FOLDKIT_BUILD_ID=$(git rev-parse --short HEAD) before it
 pnpm --filter foldkit-example-foldkit-ssg dev      # renders each request, like the build
 pnpm --filter foldkit-example-foldkit-ssg preview  # serves dist/ as a static host
 ```
@@ -58,7 +59,7 @@ the pages, a sitemap and `robots.txt` into `dist/`.
 | Rendering each path to a file in the built `index.html`, with the sitemap and `robots.txt` | `foldkit-ssr/vite` (`staticSite` over `generateStaticSite`) | `src/site.ts` |
 | Serving each request in development | Foldkit's pipeline (`foldkit({ ssr })`) | `src/entry.server.ts`, `vite.config.ts` |
 | Taking the page over, and drawing afresh where nothing was rendered | `foldkit-ssr` (`SSR.hydrate`) | `src/entry.ts` |
-| The build id both sides compare | the deployment, compiled into both bundles | `FOLDKIT_BUILD_ID`, read as `import.meta.env.FOLDKIT_BUILD_ID` in `src/entry.server.ts` and `src/entry.ts` |
+| The build id both sides compare | the deployment, compiled into both bundles (a random one when unset) | `FOLDKIT_BUILD_ID`, set in `vite.config.ts` when absent, read as `import.meta.env.FOLDKIT_BUILD_ID` in `src/entry.server.ts` and `src/entry.ts` |
 | Appearance, and the CSS in each page's head | `foldkit-mixins` (`AppStyle`; `Style.usedIn` for the page's classes; `Style.install`, which keeps the copy a generated page carries) | `src/style.ts`, `head` in `src/site.ts`, `src/entry.ts` |
 
 `foldkit-surface` appears only to name the route field for the plan

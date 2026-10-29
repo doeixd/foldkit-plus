@@ -89,10 +89,15 @@ test('the count it persists is the one the next request renders', async () => {
   ).toBe('2')
 })
 
-test('refuses a page rendered by another build', async () => {
-  vi.spyOn(console, 'error').mockImplementation(() => {})
+test('refuses a page rendered by another build, and says which two builds', async () => {
+  const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
   await open(`${COUNT_COOKIE}=5`, 'other-build')
   await waitFor(() => expect(document.body.inert).toBe(true))
+  await waitFor(() =>
+    expect(errors.mock.calls.flat().map(String).join(' ')).toMatch(
+      /served by deployment "test-build", but this client belongs to deployment "other-build"/,
+    ),
+  )
 })
 
 test('refuses to start on a page the server did not render', async () => {

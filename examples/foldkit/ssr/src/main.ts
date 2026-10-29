@@ -132,12 +132,7 @@ const parseEquivalenceView = (slots: Slots, h: HtmlBuilder<Message>): Html =>
     ]),
     h.pre(slots.equivalencePre.attrs([h.Id('equivalence-pre'), h.InnerHTML('\nleading')])),
     h.textarea(
-      // A Slot's attributes are typed for any element, InnerHTML included, which
-      // `h.textarea` refuses; nothing here supplies InnerHTML (a mixin cannot).
-      slots.equivalenceTextarea.attrs([
-        h.Id('equivalence-textarea'),
-        h.Value('\nleading'),
-      ]) as Parameters<typeof h.textarea>[0],
+      slots.equivalenceTextarea.attrs([h.Id('equivalence-textarea'), h.Value('\nleading')]),
     ),
   ])
 

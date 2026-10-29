@@ -10,7 +10,7 @@ export default mergeConfig(
   shared,
   defineConfig({
     test: {
-      include: ['examples/*/e2e/**/*.e2e.ts'],
+      include: ['examples/*/e2e/**/*.e2e.ts', 'examples/foldkit/*/e2e/**/*.e2e.ts'],
       // A first load pre-bundles the workspace packages, which takes a while.
       testTimeout: 180_000,
       hookTimeout: 180_000,

@@ -50,9 +50,9 @@ npx vitest run examples/foldkit/api-cache               # its tests, from the ro
 npx tsc -b examples/foldkit/api-cache                   # its types
 ```
 
-`ssg` needs a build id to build (`FOLDKIT_BUILD_ID=$(git rev-parse --short
-HEAD) pnpm --filter foldkit-example-foldkit-ssg build`), and `ssr` takes one
-for `start`; each README says why.
+`ssr` needs a build id to build and to `start` (`FOLDKIT_BUILD_ID=$(git
+rev-parse --short HEAD)` before each), since they run apart; `ssg` makes one
+when none is set. Each README says why.
 
 ## Where to start
 
