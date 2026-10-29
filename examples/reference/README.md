@@ -141,6 +141,10 @@ that id, so a page is always adopted by its own build's script.
 - **A write the server refuses** (another's note, a title too long) changes
   nothing it stores. The note leaves the list, and the page lists the failed
   write with Retry and Dismiss (`Data.failedWrites`).
+- **A write nothing answered** (offline, or a gateway's error page) fails as
+  `Unreachable`: the server may or may not have written it, and the page says
+  so. Retry sends the same operation, which the ledger answers with its row if
+  it landed, so it is written once either way.
 - **A session that ended** reads nothing: the page is rendered unread, and
   the browser's read is refused with a reason. A page that needs a member
   sends the reader to sign in, naming where they were.

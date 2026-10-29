@@ -27,6 +27,7 @@ import {
   type Model,
 } from '../src/main.js'
 import { server } from '../src/server.js'
+import { failedWriteWords } from '../src/view.js'
 
 const sqlite = new DatabaseSync(':memory:')
 for (const file of ['0001_accounts.sql', '0002_notes.sql', '0003_write_ledger.sql'])
@@ -91,6 +92,23 @@ describe('a note added', () => {
     ).model
     expect(notebook(refused)).toEqual({ titles: ['Wire'], count: 0 })
     expect(Data.failedWrites(refused).map(failed => failed.requestId)).toEqual([requestId])
+    expect(Data.failedWrites(refused).map(failedWriteWords)).toEqual(['AddNote failed: Forbidden'])
+  })
+
+  it('says a write nothing answered may have landed, and that a retry saves it once', () => {
+    const { model, commands } = added()
+    const requestId = String(commands?.[0]?.args?.['requestId'])
+    const unanswered = update(
+      model,
+      Message.MutationFailed({
+        requestId,
+        error: { _tag: 'Unreachable', message: 'Failed to fetch' },
+        operation: 'op-1',
+      }),
+    ).model
+    expect(Data.failedWrites(unanswered).map(failedWriteWords)).toEqual([
+      'AddNote may not have reached the server. Retry sends it again, and it is saved once.',
+    ])
   })
 })
 

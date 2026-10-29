@@ -223,4 +223,26 @@ export default [
     ],
     tests: migrations,
   },
+  {
+    name: 'a failed write is named by its descriptor, not its name',
+    edits: [
+      {
+        file: '../src/view.ts',
+        find: '`${failed.mutation.name} failed: ${failed.error.message}`',
+        replace: '`${String(failed.mutation)} failed: ${failed.error.message}`',
+      },
+    ],
+    tests: page,
+  },
+  {
+    name: 'a write nothing answered reads as any failure',
+    edits: [
+      {
+        file: '../src/view.ts',
+        find: "failed.error._tag === 'Unreachable'",
+        replace: "failed.error._tag === 'Unheard'",
+      },
+    ],
+    tests: page,
+  },
 ]

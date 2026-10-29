@@ -146,11 +146,25 @@ const signIn = (model: Model, slots: Slots, h: H): Html => {
   )
 }
 
+/**
+ * What a failed write says. A write nothing answered may have landed; the
+ * notes writer keeps a ledger, so Retry, which sends the same operation, is
+ * written once either way.
+ */
+export const failedWriteWords = (failed: {
+  readonly mutation: { readonly name: string }
+  readonly error: RemoteError
+}): string =>
+  // tag-check: open: a RemoteError's tag is any failure a transport reports.
+  failed.error._tag === 'Unreachable'
+    ? `${failed.mutation.name} may not have reached the server. Retry sends it again, and it is saved once.`
+    : `${failed.mutation.name} failed: ${failed.error.message}`
+
 /** Each write that failed: what it was, why, and a retry or a dismiss. */
 const failedWrites = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> =>
   Data.failedWrites(model).map(failed =>
     h.div(slots.actions.attrs(), [
-      notice(h, `${failed.mutation} failed: ${failed.error.message}`),
+      notice(h, failedWriteWords(failed)),
       Button.view(
         {
           label: 'Retry',
