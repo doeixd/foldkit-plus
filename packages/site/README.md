@@ -277,8 +277,7 @@ first and the feed in a later pass, so a server render draws the feed whole.
 Without `viewer`, `params` has no second argument to read; the type refuses
 one.
 
-A
-layout surface active for several tags is not yet expressible — that is a
+A layout surface active for several tags is not yet expressible — that is a
 `Surface.whenAny`-shaped extension, deliberately deferred until a real layout
 needs it.
 
