@@ -644,6 +644,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-form`'s published declarations check with `skipLibCheck:
+  false`.** The emitter wrote `Form.input`'s return type out in full, through
+  `foldkit-entity`'s unexported `InputMembers`, and the expansion failed on
+  its own (TS2536), so an application checking its libraries could not
+  compile against `foldkit-form` (0.8.1 included). `Form.input` now names its
+  return type, and `foldkit-entity` exports `InputMembers`. `pnpm pack:check`
+  now compiles a consumer of every published subpath of every package with
+  `skipLibCheck: false`.
 - **A page keeps only the modules it reads of a published package** (#215).
   `foldkit-mixins`, `-bundle`, `-media`, `-primitives`, `-entity`, `-crud`,
   `-form` and `-ssr` were each linked into a few files, so `sideEffects:

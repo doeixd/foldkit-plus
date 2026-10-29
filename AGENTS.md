@@ -687,6 +687,17 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   false` cannot help, and the examples never showed it because they resolve
   source. Keep namespaces ESM (one entry per file, relative imports external,
   `mixins-ui/tsdown.config.ts`), and measure a package's `dist`, not its source.
+- **A declaration the emitter writes out in full may not check.** `Form.input`
+  returned `Entity.input`'s type, whose `InputMembers` `foldkit-entity` did not
+  export, so the emitter expanded it into conditionals that fail alone (TS2536)
+  and every consumer with `skipLibCheck: false` failed, while the workspace,
+  reading source with library checks skipped, never did. Name an exported type
+  for what a public function returns; `pack:check`'s consumer compile
+  (`scripts/published-types.mjs`) catches the rest.
+- **tsdown's declarations read a referenced project's `.tsbuild`, stale or
+  not.** Reverting a source change and rebuilding a dependent package still
+  emitted the change, from the reference's last `tsc -b` output. Run `tsc -b`
+  before a `pnpm build` whose declarations must follow a source edit.
 - **A linked package keeps what its modules run, read or not.** Without one
   namespace, `foldkit-entity`'s one linked file kept its top-level
   `Schema.Struct(...)` calls in every page: `Collation.binary` alone kept 73 kB
