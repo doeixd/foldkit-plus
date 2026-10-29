@@ -1023,6 +1023,11 @@ carries `drawn`.
   disagreement went unreported; outcomes are now a record with no prototype.
   An implementation named `expansion` beside a defined operator was silently
   replaced by the expansion; it is now refused.
+- **`evaluateEach` reads only the order the input chose** (#299). Whether an
+  input refuses the whole run (a NUL or NaN no row causes) was judged over
+  every alternative of an `Order.chosen`, so a NaN in an input only an
+  unchosen alternative reads failed the run instead of setting the one bad
+  row aside in `refused`.
 
 ## 0.35.0
 

@@ -96,6 +96,47 @@ describe('What no one row causes refuses the run', () => {
     expect(ids(judged.refused)).toEqual(['b'])
   })
 
+  it('nor an input only an order alternative the input did not choose reads (#299)', () => {
+    const distance = Expr.operator('acme.distance', {
+      input: [Schema.Int, Schema.Number],
+      output: Schema.Number,
+    })
+    const near = Operators.merge(
+      operators,
+      Operators.memory(Operators.implement(distance, (rank, to) => Math.abs(rank - to))),
+    )
+    const sort = Expr.input(
+      'sort',
+      Schema.Struct({ by: Schema.Literals(['rank', 'near']), direction: Schema.Literal('asc') }),
+    )
+    const sorted = Query.from(Doc).pipe(
+      Query.where(Expr.eq(fields.title, title)),
+      Query.orderBy(
+        Order.chosen(sort, {
+          rank: fields.rank,
+          near: distance(fields.rank, Expr.input('extra', Schema.Number)),
+        }),
+      ),
+    )
+    const judged = evaluateEach(
+      sorted,
+      { title: 'Intro', sort: { by: 'rank', direction: 'asc' }, extra: Number.NaN },
+      [...rows, { id: 'b', title: `In${NUL}tro`, rank: 2 }],
+      { operators: near },
+    )
+    expect(ids(judged.matched)).toEqual(['a'])
+    expect(ids(judged.refused)).toEqual(['b'])
+    // Chosen, it is read, and a NaN in it refuses the run.
+    expect(() =>
+      evaluateEach(
+        sorted,
+        { title: 'Intro', sort: { by: 'near', direction: 'asc' }, extra: Number.NaN },
+        [...rows, { id: 'b', title: `In${NUL}tro`, rank: 2 }],
+        { operators: near },
+      ),
+    ).toThrow(QueryEvaluateError)
+  })
+
   it('an operator the table lacks', () => {
     const byRoot = Query.from(Doc).pipe(Query.orderBy(Order.asc(root(fields.rank))))
     expect(() => evaluateEach(byRoot, {}, rows)).toThrow('acme.root')

@@ -792,7 +792,7 @@ export const Judge = {
     row: HeldRow,
     options: Omit<JudgeOptions, 'input'> & { readonly serverOnly?: string | undefined } = {},
   ): Verdict<boolean> => {
-    if (givenUnportable(body, [], input)) {
+    if (givenUnportable(body.where, Query.dependencies(body).inputs, input)) {
       throw new QueryEvaluateError(
         `query "${body.entity.name}" was given text holding a NUL character, or NaN, which no two backends agree on`,
       )
@@ -1112,6 +1112,7 @@ export const evaluateEach = (
   const { context } = options
   assertSupported(body, operators)
   const terms = Query.orderFor(body, input)
+  const read = [...body.where, ...terms.map(term => term.expr)]
   const scope = { input, operators, context }
   const keyed: Array<{ readonly row: Row; readonly keys: ReadonlyArray<unknown> }> = []
   const refused: Row[] = []
@@ -1123,7 +1124,8 @@ export const evaluateEach = (
       if (
         !(error instanceof QueryEvaluateError) ||
         error instanceof ContextMissingError ||
-        givenUnportable(body, terms, input)
+        // An alternative of `Order.chosen` this input did not choose reads nothing.
+        givenUnportable(read, dependenciesOf(...read).inputs, input)
       )
         throw error
       refused.push(row)
@@ -1146,9 +1148,14 @@ export const evaluateEach = (
  * Whether a constant or an input the body reads is one no two backends agree
  * on (text holding a NUL, NaN), or a list holding one: every row would refuse.
  */
-const givenUnportable = (body: AnyQuery, terms: ReadonlyArray<OrderTerm>, input: Row): boolean =>
-  Expr.givesUnportable(...body.where, ...terms.map(term => term.expr)) ||
-  Query.dependencies(body).inputs.some(key => {
+/** Whether `read` holds a literal, or `inputs` name a value of `input`, no backend agrees on. */
+const givenUnportable = (
+  read: ReadonlyArray<AnyExpr | Predicate>,
+  inputs: ReadonlyArray<string>,
+  input: Row,
+): boolean =>
+  Expr.givesUnportable(...read) ||
+  inputs.some(key => {
     const value = input[key]
     const unportable = (each: unknown) => holdsNul(each) || isNaNValue(each)
     return Array.isArray(value) ? value.some(unportable) : unportable(value)

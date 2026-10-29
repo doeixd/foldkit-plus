@@ -36,7 +36,7 @@ export default [
     edits: [
       {
         file: '../src/evaluate.ts',
-        find: '        givenUnportable(body, terms, input)\n',
+        find: '        givenUnportable(read, dependenciesOf(...read).inputs, input)\n',
         replace: '        false\n',
       },
     ],
@@ -47,8 +47,19 @@ export default [
     edits: [
       {
         file: '../src/evaluate.ts',
-        find: 'Query.dependencies(body).inputs.some(key => {',
-        replace: 'Object.keys(input).some(key => {',
+        find: 'dependenciesOf(...read).inputs, input)',
+        replace: 'Object.keys(input), input)',
+      },
+    ],
+    tests: ['packages/entity/test/evaluateEach.test.ts'],
+  },
+  {
+    name: 'an order alternative the input did not choose is read too',
+    edits: [
+      {
+        file: '../src/evaluate.ts',
+        find: 'dependenciesOf(...read).inputs, input)',
+        replace: 'Query.dependencies(body).inputs, input)',
       },
     ],
     tests: ['packages/entity/test/evaluateEach.test.ts'],
