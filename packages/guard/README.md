@@ -120,34 +120,8 @@ What each call does, and does not:
 
 - `Guards.declare` reads nothing and stores nothing. It builds each row
   guard's predicate once, with placeholders (`p.id` is the input
-  `principal.id`), and checks it reads only its Entity's fields. Branching on
+  `principal.id`), and checks it is a rule over its own Entity. Branching on
   a placeholder (`p.role === 'admin'`) is a type error: there is no value yet.
-- A row guard may compare a `one` relation itself, the id it points at
-  (`guard.row(Like, p => Expr.eq(Like.relations.user, p.id))`), so no field
-  repeats the link. SQL reads the relation's column; a rule judged over a
-  row a Source read, whose link is a ref key (`'User:ada'`), reads the id.
-- A set that names the Entity its principals are rows of (`{ viewer: User }`,
-  each by `key`) lets a rule read who asks:
-  `guard.row(Like, () => Expr.eq(Like.relations.user, Expr.viewer(User)))`.
-  `Policy.viewer(principal)` is that row's ref, the server's one viewer:
-  `RemoteServer.make({ viewer: Policy.viewer })`. A rule over `Expr.viewer`
-  in a set without one, or over `Expr.now`, is refused where it is declared.
-- A row's `Read`, `Update` and `Delete` rules may reach another row
-  (`Expr.path`, `Expr.exists`, a path from the viewer: `Expr.eq(Note.fields.orgId,
-  orgOfViewer)`). A Read rule compiles to SQL, which reads the rows it reaches
-  as stored: the rule is the server's decision, as a principal guard's body is.
-  An Update or Delete rule is judged in the write's own statement
-  (`update … where … and <rule>`): `GuardServer.writer` judges what the row
-  alone decides in memory and hands the rest to its writer as `requires`,
-  which remote-drizzle's `writer` holds the row to, refusing with `Forbidden`
-  (and the `explain`) where it fails. So the rule reads the other row as the
-  write lands. Such a rule is judged over the row as stored, so a write that
-  would change what it reads of its own row (its fields, the relation its path
-  leaves by) is refused; `may` leaves such an interaction unanswered, since one
-  row cannot decide it; and `GuardServer.writer` over a writer without
-  `requires` throws where it is made. Every other surface (`Create`, `Write`,
-  a member, a relation, a named interaction, `always`) is judged over one row
-  in memory, so `Guards.attach` refuses such a rule there.
 - `G.implement` is the only place a body exists. A missing or extra key is a
   type error, and refused at runtime for a caller the types do not reach.
 - `Policy.decide` is an `Effect` of a `Decision`: `true`, `false`, or
@@ -235,6 +209,28 @@ Guards.matrix([Todo])
   `unguarded`, which `declare` requires so the choice is written down:
   `'deny'` refuses it (the matrix prints `closed`), `'allow'` lets everyone
   (`open`).
+
+### What a row guard may read
+
+A row guard is an `Expr` over its Entity's row and the principal's fields.
+Beyond the row's own fields:
+
+- A row guard may compare a `one` relation itself, the id it points at
+  (`guard.row(Like, p => Expr.eq(Like.relations.user, p.id))`), so no field
+  repeats the link. SQL reads the relation's column; a rule judged over a
+  row a Source read, whose link is a ref key (`'User:ada'`), reads the id.
+- A set that names the Entity its principals are rows of (`{ viewer: User }`,
+  each by `key`) lets a rule read who asks:
+  `guard.row(Like, () => Expr.eq(Like.relations.user, Expr.viewer(User)))`.
+  `Policy.viewer(principal)` is that row's ref, the server's one viewer:
+  `RemoteServer.make({ viewer: Policy.viewer })`. A rule over `Expr.viewer`
+  in a set without one, or over `Expr.now`, is refused where it is declared.
+- A row's `Read`, `Update` and `Delete` rules may reach another row
+  (`Expr.path`, `Expr.exists`, a path from the viewer: `Expr.eq(Note.fields.orgId,
+  orgOfViewer)`). A Read rule compiles to SQL; an Update or Delete rule is
+  judged in the write's own statement ([Rules that read another
+  row](#rules-that-read-another-row)). Every other surface is judged over one
+  row, so `Guards.attach` refuses such a rule there.
 
 ## Deciding reads and writes
 
@@ -495,7 +491,10 @@ Over a writer with a ledger (`foldkit-remote-drizzle`'s `writer(binding, {
 ledger })`), a retry of an operation that landed is answered from the ledger,
 before any rule: it was decided when it landed, and deciding it again over a row
 that has moved since could refuse a write that happened. A new operation is
-decided as any write is.
+decided as any write is. A durable write that Remote's outbox sends again,
+after a reload or a send nothing answered, is such a retry when its first send
+landed; when it did not, it is a new write, decided as whoever the request
+carrying it authenticates.
 
 The binding must have a `visible` rule, which is how the writer reads a row
 as its writer may see it; the writer refuses one without. That the rule is
@@ -546,6 +545,31 @@ GuardServer.mutation(
   its `authorize` and `filter` applied, as a declared write's is: the answer
   shows the writer only what they may now see of the fields it named, and a
   row the handler hid from them answers as deleted.
+
+### Rules that read another row
+
+A row's `Read`, `Update` and `Delete` rules may reach another row: a path
+(`Expr.path`), an exists (`Expr.exists`), or a path from the viewer. A Read
+rule compiles to SQL, which reads the rows it reaches as stored: the rule is
+the server's decision, as a principal guard's body is.
+
+An Update or Delete rule is judged in the write's own statement (`update …
+where … and <rule>`), so it reads the other row as the write lands, not as it
+was read a moment before. `GuardServer.writer` judges what the row alone
+decides in memory and hands the rest to its writer as `requires`, which
+remote-drizzle's `writer` holds the row to, refusing with `Forbidden` (and the
+`explain`) where it fails, on SQLite and Postgres.
+
+- Such a rule is judged over the row as stored, so a write that would change
+  what it reads of its own row (its fields, the relation its path leaves by)
+  is refused: a member of one team cannot move a note into a team they hold
+  no seat on.
+- `may` leaves such an interaction unanswered, since one row cannot decide it.
+- `GuardServer.writer` over a writer without `requires` throws where it is
+  made, rather than letting the rule go unchecked.
+- Every other surface (`Create`, `Write`, a member, a relation, a named
+  interaction, `always`) is judged over one row in memory, so `Guards.attach`
+  refuses such a rule there and names the surfaces that may hold one.
 
 ## Checking a server at startup
 
@@ -657,23 +681,6 @@ derived member, `may`, which `GuardServer.filter` answers from the row as its
 reader sees it. `Todo` above is piped through it after its guards, and over
 Drizzle its binding marks it `supplied`, since it is not a column.
 
-For a row the client writes, which the server has not answered yet, Remote
-foresees `may` from the same rules (`Derived.make`'s `predict`): a row guard
-over the row, its links and `Expr.viewer` is judged over what the store holds;
-a principal guard, a rule over the principal's fields, and one over a row or
-field the store lacks are unknown. Every rule is an `or` of `and`s with no
-negation, so it is decided where it comes out the same with every unknown part
-taken to hold and taken not to. `may` is foreseen only when every part of it
-is, so a new post's Edit shows at once where its author's rule allows it, and
-nothing is shown where an admin's body would decide.
-
-A held `may` also refuses a write where it is made (`Derived.make`'s
-`forbids`): `Data.mutate` of an update whose row's `may.row.Update` is `false`,
-or whose written member or relinked relation reads `false`, or of a delete
-whose `Delete` does, is refused at once with `Forbidden` and the `explain` as
-`reason`, as the server would refuse it. Each is judged over the row before the
-write, which is where the server's writer judges it first.
-
 ```ts
 import { May } from 'foldkit-guard'
 
@@ -700,6 +707,27 @@ May.canLink(row.may, Todo, 'project', 'Link')
   unavailable.
 - `foldkit-crud`'s editor locks the keys the reader may not set with
   `locks: May.locks(Todo)`, for `foldkit-mixins-form`'s `locked`.
+
+For a row the client writes, which the server has not answered yet, Remote
+foresees `may` from the same rules (`Derived.make`'s `predict`): a row guard
+over the row, its links and `Expr.viewer` is judged over what the store holds;
+a principal guard, a rule over the principal's fields, and one over a row or
+field the store lacks are unknown. Every rule is an `or` of `and`s with no
+negation, so it is decided where it comes out the same with every unknown part
+taken to hold and taken not to. `may` is foreseen only when every part of it
+is, so a new post's Edit shows at once where its author's rule allows it, and
+nothing is shown where an admin's body would decide.
+
+A held `may` also refuses a write where it is made (`Derived.make`'s
+`forbids`): `Data.mutate` of an update whose row's `may.row.Update` is `false`,
+or whose written member or relinked relation reads `false`, or of a delete
+whose `Delete` does, is refused at once with `Forbidden` and the `explain` as
+`reason`, as the server would refuse it. Each is judged over the row before the
+write, which is where the server's writer judges it first. It spares a round
+trip and decides nothing for the server, which judges the write again when it
+arrives. `Law.check` (`foldkit-remote/testing`) runs one write through both and
+compares a refusal made here with the server's, by its `refusal`, or by its
+`_tag` where the mutation declares none.
 
 ### What `may` tells a reader, and what it does not
 
@@ -946,10 +974,11 @@ const uploads = uploadLayer().pipe(
 - **A handler's own writes are its own to check.** `GuardServer.mutation`
   checks the row's rule for its interaction; members it sets and relations
   it points are not known to it, and no startup check can read them.
-- **Under a guard, a create refetches the lists over its Entity.** The client
-  cannot tell an answer read back under the writer's rule from one a plain
-  handler made up, so it does not place a created row by the list's body
-  alone.
+- **Under a Read rule over fields, a new row is fetched into a list, not
+  placed.** `Guards.attach` records the members the row's Read rules read, and
+  the client, which runs none of them, refetches a list when a row it does not
+  hold changes one of them, as a create does: only the server can say whether
+  the rule lets it in.
 - **A Sync document is one audience.** Per-member or per-row secrecy within
   one is not something a replicated log offers: `GuardSync.document` refuses
   it where it is declared.
@@ -972,5 +1001,6 @@ const uploads = uploadLayer().pipe(
 - **Sync's `authorize` is synchronous.** Its principal guards' bodies must not
   suspend; row guards run in `admit`, which may.
 - **A row guard over a field the client sets on create** reads as matching
-  nothing while the create leaves it unset; use a preset (`presets`) for a
-  field that should be the creator's.
+  nothing while the create leaves it unset; declare a field that should be the
+  creator's with `Entity.sets` (see [Serving writes](#serving-writes)), and the
+  server sets it before the rules are judged.
