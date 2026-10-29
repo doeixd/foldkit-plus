@@ -43,6 +43,11 @@ export default [
   edit('the vars given are dropped', 'vars: options.vars,', ''),
   edit('a change is reported but not swapped in', 'await harness.update(same => same)', ''),
   edit(
+    'an entry emptied as it is saved is swapped in, and stops the stack',
+    'file.path === outfile && file.contents.length === 0',
+    'false',
+  ),
+  edit(
     'a Worker that did not start is reported as a build error',
     'listener.onStopped(errorText(error))',
     'listener.onBuildError(errorText(error))',

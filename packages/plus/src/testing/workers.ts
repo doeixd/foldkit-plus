@@ -44,7 +44,10 @@ export interface StackOptions {
 export interface WatchListener {
   /** The new Worker answers at the same origin, over the same storage. */
   readonly onSwap: () => void
-  /** The change did not build. The running Worker keeps answering. */
+  /**
+   * The change did not build, or built no code, as an entry saved in place
+   * reads for a moment. The running Worker keeps answering.
+   */
   readonly onBuildError: (message: string) => void
   /**
    * The new Worker did not start. Wrangler's harness tears its runtime down
@@ -243,10 +246,21 @@ const start = async <Env>(options: StackOptions): Promise<Stack<Env>> => {
                   listener.onBuildError(result.errors.map(error => error.text).join('\n'))
                   return
                 }
-                const next = identityOf(result.outputFiles ?? [])
+                const files = result.outputFiles ?? []
+                // An editor saving in place empties the file before writing it, and a
+                // rebuild can read it then. A Worker with no code never starts, and one
+                // that does not start takes the runtime down, D1 with it; the write's own
+                // rebuild swaps.
+                if (files.some(file => file.path === outfile && file.contents.length === 0)) {
+                  listener.onBuildError(
+                    `${options.entry} bundles to no code, so no Worker could start.`,
+                  )
+                  return
+                }
+                const next = identityOf(files)
                 if (Option.contains(running, next)) return
                 try {
-                  await writeOutputs(result.outputFiles ?? [])
+                  await writeOutputs(files)
                   await harness.update(same => same)
                   running = Option.some(next)
                   listener.onSwap()

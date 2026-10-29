@@ -8,7 +8,7 @@
  * runtime would quietly run differently is refused before anything starts.
  */
 import type { Plugin } from 'esbuild'
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -74,6 +74,15 @@ const project = async (edit: (toml: string) => string = toml => toml) => {
   }
 }
 
+/**
+ * Writes `text` to `path` in one step. `writeFile` empties the file before it
+ * writes, and a rebuild that reads it then sees an empty entry.
+ */
+const save = async (path: string, text: string) => {
+  await writeFile(`${path}.next`, text)
+  await rename(`${path}.next`, path)
+}
+
 afterAll(async () => {
   for (const directory of directories) await rm(directory, { recursive: true, force: true })
 })
@@ -109,22 +118,40 @@ describe('a watched stack', () => {
       onBuildError: message => outcomes.push(`build error: ${message}`),
       onStopped: message => outcomes.push(`stopped: ${message}`),
     })
-    await writeFile(entry, source('two'))
+    await save(entry, source('two'))
     await expect.poll(() => outcomes, { timeout: 20_000 }).toEqual(['swapped'])
     expect(await answer()).toBe('two')
     const rows = await (await stack.env()).DB.prepare('SELECT id FROM notes').all()
     expect(rows.results).toEqual([{ id: 'kept' }])
 
-    await writeFile(entry, `${source('three')}\nexport const broken = (`)
+    await save(entry, `${source('three')}\nexport const broken = (`)
     await expect.poll(() => outcomes.length, { timeout: 20_000 }).toBe(2)
     expect(outcomes[1]).toMatch(/^build error: /)
     expect(await answer()).toBe('two')
 
     // Builds, but workerd refuses a named export that is not a handler.
-    await writeFile(entry, `${source('three')}\nexport const notAHandler = 1`)
+    await save(entry, `${source('three')}\nexport const notAHandler = 1`)
     await expect.poll(() => outcomes.length, { timeout: 20_000 }).toBe(3)
     expect(outcomes[2]).toMatch(/^stopped: .*notAHandler/s)
     await expect(answer()).rejects.toThrow()
+  }, 120_000)
+
+  it('keeps the running Worker through an entry emptied as it is saved', async () => {
+    const worker = await project()
+    const own = await Stack.start(worker)
+    try {
+      const outcomes: Array<string> = []
+      await own.watch(listener(outcomes))
+      await writeFile(worker.entry, '')
+      await expect.poll(() => outcomes.length, { timeout: 20_000 }).toBe(1)
+      expect(outcomes[0]).toMatch(/^build error: .*no code/)
+      expect(await (await fetch(own.origin)).text()).toBe('one')
+      await save(worker.entry, source('two'))
+      await expect.poll(() => outcomes, { timeout: 20_000 }).toEqual([outcomes[0], 'swapped'])
+      expect(await (await fetch(own.origin)).text()).toBe('two')
+    } finally {
+      await own.stop()
+    }
   }, 120_000)
 })
 

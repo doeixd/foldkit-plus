@@ -1343,6 +1343,18 @@ of its own named a form field "fits the Catalog". Read words with
 - **`esbuild`'s `dispose()` waits for an `onEnd` still running,** so a rebuild's
   swap can run on a stack being stopped. Guard the swap on "stopping", not on
   the harness being closed.
+- **`writeFile` empties the file before it writes, and a watcher can read it
+  then.** On CI esbuild's watch rebuilt the stack's entry from that empty
+  moment, the empty Worker failed to start ("internal error"), and the stack
+  stopped with its D1. The stack now refuses a bundle with no code; a test
+  that edits a watched file writes a temporary and renames it over (`save`
+  in `workers.test.ts`).
+- **Foldkit's slow-render warning logs the Model, and a browser test pays to
+  format it.** Vitest formats a console call's arguments in the page: with
+  the registry's 100,000 rows, about 200ms a warning. On a loaded runner every
+  render is over budget, and the warnings took the test past its 15s. A
+  browser test of a large Model passes `slow: false`; reproduce with
+  `Emulation.setCPUThrottlingRate` at 4.
 - **`forkIn` on a closed scope never runs the fiber,** and a Deferred it should
   complete stays pending for good. `Scope.addFinalizer` on a closed scope runs
   at once, so it can interrupt the Deferred.

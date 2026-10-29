@@ -486,6 +486,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A watched `Stack` survives an entry saved in place.** An editor that
+  empties the file before writing it could let a rebuild read it empty, and
+  the empty Worker failed to start, which stopped the stack and lost its D1.
+  A rebuild that bundles to no code is now reported through `onBuildError`,
+  and the running Worker keeps answering until the write's own rebuild swaps.
+
 - **A held solid or primary Button stands 1px in.** Their fills were
   written with the `background` shorthand, which resets `background-clip` to
   `border-box`, so hovered and held the fill ran under the cleared border to
