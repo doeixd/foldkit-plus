@@ -1914,6 +1914,23 @@ of its own named a form field "fits the Catalog". Read words with
   it. Check `pnpm-lock.yaml` for two copies after any move.
   After a version move, count the copies (`grep -o 'name@[0-9.]*'
   pnpm-lock.yaml | sort | uniq -c`) and regenerate from the old lockfile.
+- **npx adds a newer version to the tree an older one cached.** `npx
+  foldkit-plus setup` reused `_npx/<hash>` holding 0.10.0 and its peers, and
+  adding 0.17.0 failed `ERESOLVE` on the old tree's `foldkit` (#200); a fresh
+  cache passed, so "cannot reproduce" was the cache. A bin that reads no peer
+  runs as `npx --legacy-peer-deps`. Reproduce with `npm_config_cache` set to a
+  folder holding such a tree.
+- **npm `overrides` does let a peer in.** #205 said it does not; `"effect":
+  "$effect"` let Foldkit's exact `effect: 4.0.0` peer take 4.0.5 with no
+  warning. An override of a package the project depends on must be its
+  `$name` (or the same spec), or npm stops with `EOVERRIDE`.
+- **An `@effect/*` package floats past Foldkit's exact Effect.** Each release
+  peers on an `effect` at least its own version, so `foldkit-durable`'s
+  `@effect/sql-sqlite-node: ^4.0.5` took 4.1.0 the day it shipped, and every
+  install warned. `setup` pins the Effect packages `pnpm-workspace.yaml` pins.
+- **A bare library name installs its `latest` tag.** `@yielded/auth`'s is
+  beta.1 while `foldkit-auth` peers on beta.43: npm picked the peer's version,
+  pnpm the tag. A printed install line names the version the peer asks for.
 - **A `package.json` change without `pnpm install` reds every job.** CI
   installs with `--frozen-lockfile`, so a new dependency without a
   regenerated lockfile fails all jobs in 30s. Regenerate in the same change
