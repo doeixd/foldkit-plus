@@ -1628,7 +1628,10 @@ when it lies within its `clockSkew` of the server's own clock (60 seconds
 unless `RemoteServer.make` says), so the answer agrees with what was shown.
 A retry (`Data.retry`) sends it again. Without `now`, a time the write sets is
 not predicted: the row reads as missing it until the server's answer brings the
-server's time. An application that already mints the row's id in a Command
+server's time. A supplied member declared with a `predict` (`Derived.make(schema,
+{ predict })`, as Guard's `may` is) is foreseen over the row the write leaves,
+the store's row with the write's values over it and a field the write moves
+unknown; where it foresees none, the row reads as missing it until the answer. An application that already mints the row's id in a Command
 can read the clock in the same one (`examples/reference`'s `NameNote`). The row then joins every loaded list whose body admits
 it, where the list's order puts it, while pending and once answered: a post
 set at its time goes to the top of a newest-first list. A list without a

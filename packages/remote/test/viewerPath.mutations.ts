@@ -19,7 +19,7 @@ export default [
   edit('a field the store lacks reads as held', 'entry.present.has(key)', 'true'),
   edit(
     'the prediction reads no store',
-    '...optimisticOfWrite(write, input, keys, by, context.store),',
-    '...optimisticOfWrite(write, input, keys, by),',
+    'const own = optimisticOfWrite(write, input, keys, by, context.store)',
+    'const own = optimisticOfWrite(write, input, keys, by)',
   ),
 ]

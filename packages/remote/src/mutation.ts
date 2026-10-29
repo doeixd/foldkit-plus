@@ -13,11 +13,16 @@ import {
   type Computation,
   type ConditionedWrite,
   type ContextRead,
+  Derivation,
   Held,
+  type AnyEntity,
+  type EntityDerived,
   type ExprContext,
   type Invariant,
+  type Predict,
   type Write,
 } from 'foldkit-entity'
+import { holderOf } from './held.js'
 import type { OptimisticOperation } from './optimistic.js'
 import { refParts } from './relation.js'
 import type { RemoteError } from './remoteData.js'
@@ -26,7 +31,6 @@ import {
   entityKey,
   tombstone,
   writeEntities,
-  type EntityEntry,
   type EntityStore,
 } from './store.js'
 
@@ -656,13 +660,61 @@ const freshDerived = (
   return [{ entity, id, values }]
 }
 
+/** Each supplied member of `entity` that says how a client foresees it, by key. */
+const predicted = new WeakMap<AnyEntity, ReadonlyArray<readonly [string, Predict]>>()
+const predictorsOf = (entity: AnyEntity): ReadonlyArray<readonly [string, Predict]> => {
+  const known = predicted.get(entity)
+  if (known !== undefined) return known
+  const derived: Readonly<Record<string, EntityDerived<string, string, Schema.Constraint>>> =
+    entity.derived
+  const found = Object.entries(derived).flatMap(([key, member]) =>
+    Derivation.$match(member.derives, {
+      Supplied: ({ predict }) =>
+        Option.match(predict, { onNone: () => [], onSome: run => [[key, run] as const] }),
+      Count: () => [],
+      Exists: () => [],
+    }),
+  )
+  predicted.set(entity, found)
+  return found
+}
+
+/**
+ * The supplied members a write's row foresees (`Derived.make`'s `predict`),
+ * judged over the row it leaves, held over the store with the write's values:
+ * a member foreseen as none is left out, so the row waits for the answer.
+ */
+const suppliedOfWrite = (
+  write: AnyWrite,
+  own: PendingPatch,
+  by: ExprContext,
+  store: EntityStore,
+): ReadonlyArray<PendingPatch> => {
+  const entity = write.input.entity
+  const predictors = predictorsOf(entity)
+  if (predictors.length === 0) return []
+  const holder = holderOf(store)
+  const row = holder.written(entity, own.id, own.values, [
+    ...Object.keys(own.adds ?? {}),
+    ...Object.keys(own.computes ?? {}),
+  ])
+  const values: Record<string, unknown> = {}
+  for (const [key, predict] of predictors) {
+    Option.map(predict({ entity, row, rows: holder.rows, context: by }), value => {
+      values[key] = value
+    })
+  }
+  return Object.keys(values).length === 0 ? [] : [{ entity: entity.name, id: own.id, values }]
+}
+
 /**
  * Everything a declared write shows before the server answers, from its
  * declarations alone: its own row (`optimisticOfWrite`), with what the
  * context sets filled from `viewer` and `now`, a new row's
- * derived members (`freshDerived`), and the derived members it moves on the
- * rows it points at (`derivedOfWrite`). `derived` is the registry's, by the
- * pointing Entity; `store` is the store as shown, layers and all.
+ * derived members (`freshDerived`), what its supplied members foresee
+ * (`suppliedOfWrite`, Guard's `may`), and the derived members it moves on
+ * the rows it points at (`derivedOfWrite`). `derived` is the registry's, by
+ * the pointing Entity; `store` is the store as shown, layers and all.
  */
 export const predictionOfWrite = (
   write: AnyWrite,
@@ -676,6 +728,7 @@ export const predictionOfWrite = (
   },
 ): ReadonlyArray<PendingPatch | PendingDelete> => {
   const by: ExprContext = { viewer: context.viewer, now: context.now }
+  const own = optimisticOfWrite(write, input, keys, by, context.store)
   return [
     ...Match.value(write).pipe(
       Match.tagsExhaustive({
@@ -684,7 +737,10 @@ export const predictionOfWrite = (
         Delete: () => [],
       }),
     ),
-    ...optimisticOfWrite(write, input, keys, by, context.store),
+    ...own,
+    ...own.flatMap(patch =>
+      '_tag' in patch ? [] : suppliedOfWrite(write, patch, by, context.store),
+    ),
     ...derivedOfWrite(
       write,
       input,

@@ -20,7 +20,7 @@
  */
 import { Match, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Entity as DomainEntity, Expr, Order, Relation } from 'foldkit-entity'
+import { Derived, Entity as DomainEntity, Expr, Held, Order, Relation, Write } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import {
@@ -33,6 +33,7 @@ import {
   emptyStore,
   entityKey,
   isTombstone,
+  predictionOfWrite,
   stableStringify,
   terminal,
   writeEntities,
@@ -58,7 +59,32 @@ const Blog = DomainEntity.relate(
   { User, Project: ProjectBase },
   { Project: { owner: Relation.one(User) } },
 )
-const Project = Blog.Project
+/** `mine`: the server's to answer, foreseen by the client for a project it writes. */
+const Project = Blog.Project.pipe(
+  DomainEntity.derived({
+    mine: Derived.make(Schema.Boolean, {
+      predict: ({ row, context }) =>
+        Held.match(row.field('owner'), {
+          onHeld: owner =>
+            Option.map(context.viewer, viewer => viewer.entity === 'User' && viewer.id === owner),
+          onUnheld: () => Option.none(),
+        }),
+    }),
+  }),
+)
+const CreateProject = Write.insert(
+  DomainEntity.input(
+    Project,
+    Schema.Struct({
+      id: Schema.String,
+      name: Schema.String,
+      status: Schema.String,
+      owner: Schema.String,
+    }),
+    { owner: 'owner' },
+  ),
+  { id: 'id' },
+)
 
 const All = Query.define('All', {}, () =>
   Query.from(Project).pipe(Query.orderBy(Order.asc(Project.fields.id))),
@@ -75,7 +101,7 @@ type Model = typeof Model.Type
 const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
 const Data = Remote.make({
   model: App.model.remote,
-  entities: [Blog.Project, Blog.User],
+  entities: [Project, Blog.User],
   queries: [All, ByStatus],
 })
 
@@ -338,6 +364,25 @@ const messages = {
       _tag: 'MutationStarted',
       requestId: 'delete',
       optimistic: [Remote.tombstone(Project, 'p2')],
+    }),
+    // What `Data.mutate` foresees of a new row: its own values, and a supplied member read off them.
+    'a project of yours created, whose `mine` is foreseen': model => ({
+      _tag: 'MutationStarted',
+      requestId: 'create',
+      optimistic: [
+        ...predictionOfWrite(
+          CreateProject,
+          { id: 'p7', name: 'Seven', status: 'open', owner: 'u1' },
+          undefined,
+          {
+            derived: new Map(),
+            store: Data.storeOf(model),
+            viewer: Option.some({ entity: 'User', id: 'u1' }),
+            now: Option.some(1),
+          },
+        ),
+        ConnectionChange.prepend(list.ref, { entity: 'Project', id: 'p7' }),
+      ],
     }),
   },
   MutationSucceeded: {

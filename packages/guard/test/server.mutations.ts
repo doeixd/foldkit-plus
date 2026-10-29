@@ -3,6 +3,7 @@
  * `pnpm mutate packages/guard/test/server.mutations.ts`.
  */
 const file = '../src/server.ts'
+const may = '../src/may.ts'
 const poll = '../../remote-drizzle/src/poll.ts'
 const tests = ['packages/guard/test/server.test.ts']
 
@@ -198,23 +199,29 @@ export default [
   },
   {
     name: 'may names no interaction the application named',
-    edits: [{ file, find: "['Update', 'Delete', ...named]", replace: "['Update', 'Delete']" }],
+    edits: [{ file: may, find: "['Update', 'Delete', ...named]", replace: "['Update', 'Delete']" }],
     tests,
   },
   {
     name: 'may answers no member',
     edits: [
       {
-        file,
-        find: 'policy.writeMembers(entity, principal, ruledMembers, ' + "'Update'),",
-        replace: "policy.writeMembers(entity, principal, [], 'Update'),",
+        file: may,
+        find: 'ask.members(ruledMembers),',
+        replace: 'ask.members([]),',
       },
     ],
     tests,
   },
   {
     name: 'a relation with no rule for one direction is refused it',
-    edits: [{ file, find: 'onNone: () => true,', replace: 'onNone: () => false,' }],
+    edits: [
+      {
+        file: may,
+        find: 'Option.match(rule, { onNone: () => true,',
+        replace: 'Option.match(rule, { onNone: () => false,',
+      },
+    ],
     tests,
   },
   {
@@ -233,8 +240,8 @@ export default [
     edits: [
       {
         file,
-        find: "fields: ['id', ...new Set(conditions.flatMap(Condition.members))],",
-        replace: 'fields: [...new Set(conditions.flatMap(Condition.members))],',
+        find: "fields: ['id', ...new Set(mayConditions(rules).flatMap(Condition.members))],",
+        replace: 'fields: [...new Set(mayConditions(rules).flatMap(Condition.members))],',
       },
     ],
     tests: ['packages/guard/test/drizzle.test.ts'],
@@ -243,9 +250,9 @@ export default [
     name: 'may holds every row rule',
     edits: [
       {
-        file,
-        find: 'rows.map(([interaction, { condition }]) => [interaction, holds(condition, values)]),',
-        replace: 'rows.map(([interaction]) => [interaction, true]),',
+        file: may,
+        find: 'rules.rows.map(([interaction, { condition }]) => [interaction, holds(condition)]),',
+        replace: 'rules.rows.map(([interaction]) => [interaction, true]),',
       },
     ],
     tests,
@@ -254,7 +261,7 @@ export default [
     name: 'may gives no reason',
     edits: [
       {
-        file,
+        file: may,
         find: 'Explain: ({ reason }) => [[interaction, reason] as const],',
         replace: 'Explain: () => [],',
       },
@@ -265,9 +272,9 @@ export default [
     name: 'may gives a reason for what it allows',
     edits: [
       {
-        file,
-        find: 'holds(condition, values)\n                ? []',
-        replace: 'false\n                ? []',
+        file: may,
+        find: '        holds(condition)\n          ? []',
+        replace: '        false\n          ? []',
       },
     ],
     tests,

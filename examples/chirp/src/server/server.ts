@@ -166,10 +166,6 @@ const ledgered = {
 const guarded = GuardServer.writer(Post, Policy, writer(Db.Post, ledgered))
 const likeWrites = GuardServer.writer(Like, Policy, ownLikes(writer(Db.Like, ledgered)))
 
-/** Who is asking, as the row an `Expr.viewer` or a `liked` names. */
-const asker = (principal: Option.Option<User>) =>
-  Option.map(principal, user => Remote.ref(Chirper, user.id))
-
 export const server = RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
   entities: [
     source(Db.User),
@@ -184,7 +180,8 @@ export const server = RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
     RemoteServer.write(LikePost, likeWrites),
     RemoteServer.write(Unlike, likeWrites),
   ],
-  viewer: asker,
+  // Who is asking, as the row an `Expr.viewer` or a `liked` names: the guard set's.
+  viewer: Policy.viewer,
 })
 
 // A guarded Entity served without its rule would serve every row: refuse to start.

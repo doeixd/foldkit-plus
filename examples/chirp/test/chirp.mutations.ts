@@ -44,7 +44,7 @@ export default [
     edits: [
       {
         file: '../src/guard.ts',
-        find: 'Expr.eq(Chirp.Post.relations.author, p.id)',
+        find: 'Expr.eq(Chirp.Post.relations.author, Expr.viewer(UserFields))',
         replace: 'Expr.eq(Chirp.Post.relations.author, Chirp.Post.relations.author)',
       },
     ],
@@ -89,8 +89,8 @@ export default [
     edits: [
       {
         file: '../src/server/server.ts',
-        find: '  viewer: asker,\n})',
-        replace: "  viewer: () => asker(principalOf('ada')),\n})",
+        find: '  viewer: Policy.viewer,\n})',
+        replace: "  viewer: () => Policy.viewer(principalOf('ada')),\n})",
       },
     ],
     tests: server,

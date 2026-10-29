@@ -7,10 +7,13 @@
 import { Effect, Match, Option } from 'effect'
 import {
   Held,
+  Judge,
   Query,
   evaluateEach,
   type AnyEntity,
   type ExprContext,
+  type HeldRow,
+  type HeldRows,
   type MemoryOperators,
 } from 'foldkit-entity'
 import { attached, defaultDeny, surfaceOf, type AnyRule, type Deny } from './attach.js'
@@ -95,6 +98,34 @@ export const Condition = {
         Or: ({ conditions }) => conditions.some(holds),
       })
     return holds(condition)
+  },
+
+  /**
+   * Whether a row a client holds meets `condition`, a part it cannot decide
+   * taken to be `assumed`: a row guard over the principal's fields, which a
+   * client is not given, an inherited Read, and a rule over a row or field
+   * the holder lacks. A row guard reads the holder's rows (`rows`) where it
+   * follows a path from the viewer. Run once assuming each way, it is decided
+   * where both agree, since no part of a condition is negated.
+   */
+  judge: (condition: Condition, row: HeldRow, rows: HeldRows, assumed: boolean): boolean => {
+    const judge = (each: Condition): boolean =>
+      Match.valueTags(each, {
+        Always: () => true,
+        Never: () => false,
+        Row: ({ guard, context }) =>
+          readsPrincipal(guard)
+            ? assumed
+            : Judge.match(Judge.predicate(guard.body, row, { context, rows }), {
+                // SQL's null leaves a row out, as false does.
+                onKnown: truth => truth === true,
+                onUnknown: () => assumed,
+              }),
+        Inherit: () => assumed,
+        And: ({ conditions }) => conditions.every(judge),
+        Or: ({ conditions }) => conditions.some(judge),
+      })
+    return judge(condition)
   },
 
   /**

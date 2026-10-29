@@ -508,7 +508,8 @@ one viewer's, so a change of viewer is `Data.forget`. A write of an Entity with
 `Entity.sets` shows what the server will set: the viewer, and as the time
 `Data.mutate(model, M, input, { now })`, the time the reader acted (an update those set
 `on: 'write'`); a new row's counts
-read 0 and its exists none, and it joins each loaded list whose body admits it, where
+read 0 and its exists none, a supplied member with a `predict` (Guard's `may`) reads
+what that foresees over the row the write leaves, and it joins each loaded list whose body admits it, where
 the order puts it (a list without a body is the server's to order). `update` reads no
 clock, so read it at the action with `Remote.now(now => Message.Clocked({ ..., now }))`
 and start the write from that Message; without `now` the time is not predicted. The

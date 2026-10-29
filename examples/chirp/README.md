@@ -76,12 +76,15 @@ written twice.
 
 **The guards** (`guard.ts`). `Guards.declare` names three guards: `isAuthor`,
 a row guard comparing the post's `author` link with the asker
-(`Expr.eq(Chirp.Post.relations.author, p.id)`), `isLiker`, the like's `user`,
-and `isAdmin`, whose body only the server has (`G.implement` in
-`server/server.ts`). `Guards.attach` says a post is written by its author or
-an admin and a like by its liker, and `Guards.may` has the server tell the
-page, per post, whether you may edit it: the page shows Edit there. That is a
-hint; the server's writer checks the rule on every write.
+(`Expr.eq(Chirp.Post.relations.author, Expr.viewer(UserFields))`, the set
+naming `viewer: UserFields`), `isLiker`, the like's `user`, and `isAdmin`,
+whose body only the server has (`G.implement` in `server/server.ts`).
+`Guards.attach` says a post is written by its author or an admin and a like by
+its liker, and `Guards.may` has the server tell the page, per post, whether
+you may edit it: the page shows Edit there. A chirp you just posted is drawn
+before the answer with its Edit: the page reads the same rules, and its author
+is you whatever the server says of admins. That is a hint; the server's writer
+checks the rule on every write.
 
 **The server** (`server/server.ts`). The Entities are bound to SQLite tables
 through Drizzle (`bind`); the timeline and a person's posts are queries

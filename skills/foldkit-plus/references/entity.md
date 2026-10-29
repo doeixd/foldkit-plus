@@ -70,7 +70,10 @@ Blog.Post.derived.commentCount.schema      // Schema.Number
 Use the entities `Entity.relate` returns (`Blog.Post`). The `Post` passed in
 still has no relations.
 
-`Derived.make` says only a member's schema: the server supplies it. A count
+`Derived.make` says only a member's schema: the server supplies it.
+`Derived.make(schema, { predict })` adds how a client foresees it for a row it
+writes, over the row the write leaves (`HeldRow`), none where it cannot know
+(Guard's `may` declares one). A count
 says what it counts, the rows whose `one` relation points here, so it is added
 after `Entity.relate`:
 

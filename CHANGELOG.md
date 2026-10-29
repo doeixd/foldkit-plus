@@ -9,6 +9,18 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`may` foreseen for a row the client writes** (#242, operations phase 5).
+  `Derived.make(schema, { predict })` says how a client foresees a supplied
+  member: `predict({ entity, row, rows, context })` over the row a write
+  leaves, held over the store (a field the write moves unknown), none where it
+  cannot know. `predictionOfWrite` runs it for an insert and an update.
+  `Guards.may` declares one: every rule judged over the store with `Judge`,
+  principal guards, the principal's fields and what the store lacks unknown;
+  `may` is foreseen only where it comes out the same however those turn out
+  (`Condition.judge`). The server's `may` is assembled by the same code
+  (`mayRules`, `answerOf`). Chirp's rules compare with `Expr.viewer`, its
+  server's viewer is `Policy.viewer`, and a chirp you post is drawn in the
+  timeline, with its Edit, before the answer.
 - **Guard rules read who asks** (operations phase 5). `Guards.declare(…, {
   viewer: User })` names the Entity each principal is a row of, by `key`, so
   a rule compares with `Expr.viewer(User)`, on the server in memory and in

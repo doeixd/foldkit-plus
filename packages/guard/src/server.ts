@@ -49,7 +49,7 @@ import {
 } from './attach.js'
 import { Condition, type MemberRead, type RowRule } from './condition.js'
 import type { Policy } from './index.js'
-import type { MayAnswer } from './may.js'
+import { answerOf, mayConditions, mayRules, type MayAnswer } from './may.js'
 import { ME, type MeEntity } from './me.js'
 import { memberRules, rowRules, writeRules } from './placed.js'
 import { computeRefused, unpinnedWrites } from './diagnostics.js'
@@ -1190,9 +1190,6 @@ interface MayPlan {
   readonly answer: (values: Readonly<Record<string, unknown>>) => MayAnswer
 }
 
-/** The interactions a row answers `may` for: `Update`, `Delete`, and each one the set named. */
-const builtInRow = new Set(['Read', 'Create', 'Update', 'Delete'])
-
 /**
  * `may` for `principal`: each row interaction's rule, each member's own
  * `Update`, each relation's `Link` and `Unlink`, decided once and held over
@@ -1202,92 +1199,27 @@ const mayOf = <User, R>(
   entity: AnyEntity,
   policy: Policy<User, R>,
   principal: Option.Option<User>,
-): Effect.Effect<MayPlan, never, R> => {
-  const attachment = attached(entity)
-  const named = Option.match(attachment, {
-    onNone: () => [],
-    onSome: ({ row }) => Object.keys(row).filter(interaction => !builtInRow.has(interaction)),
-  })
-  const ruledMembers = Option.match(attachment, {
-    onNone: () => [],
-    onSome: ({ members }) => Object.keys(members),
-  })
-  const ruledRelations = Option.match(attachment, {
-    onNone: () => [],
-    onSome: ({ relations }) => Object.keys(relations),
-  })
-  return Effect.map(
-    Effect.all([
-      Effect.forEach(['Update', 'Delete', ...named], interaction =>
-        Effect.map(
-          // A named one was attached as an `InteractionKey`; its key is the name.
-          policy.writable(entity, principal, interaction as InteractionKey),
-          rule => [interaction, rule] as const,
-        ),
-      ),
-      policy.writeMembers(entity, principal, ruledMembers, 'Update'),
-      Effect.forEach(ruledRelations, relation =>
-        Effect.map(
-          Effect.all([
-            policy.linkable(entity, principal, relation, 'Link'),
-            policy.linkable(entity, principal, relation, 'Unlink'),
-          ]),
-          ([link, unlink]) => ({ relation, link, unlink }),
-        ),
-      ),
-    ]),
-    ([rows, members, relations]): MayPlan => {
+): Effect.Effect<MayPlan, never, R> =>
+  Effect.map(
+    mayRules(entity, {
+      // A named one was attached as an `InteractionKey`; its key is the name.
+      row: interaction => policy.writable(entity, principal, interaction as InteractionKey),
+      members: members => policy.writeMembers(entity, principal, members, 'Update'),
+      relation: (relation, interaction) =>
+        policy.linkable(entity, principal, relation, interaction),
+    }),
+    (rules): MayPlan => {
       const input = policy.inputOf(principal)
-      const holds = (condition: Condition, values: Readonly<Record<string, unknown>>) =>
-        Condition.holds(condition, values, input, () => false, policy.operators)
-      // A relation without a rule for one direction leaves it to the row's Update.
-      const allows = (rule: Option.Option<RowRule>, values: Readonly<Record<string, unknown>>) =>
-        Option.match(rule, {
-          onNone: () => true,
-          onSome: ({ condition }) => holds(condition, values),
-        })
-      const conditions = [
-        ...rows.map(([, { condition }]) => condition),
-        ...members.map(({ condition }) => condition),
-        ...relations.flatMap(({ link, unlink }) =>
-          [...Option.toArray(link), ...Option.toArray(unlink)].map(({ condition }) => condition),
-        ),
-      ]
       return {
         // `id` too, so a row is read when its rules read none of it (an admin's).
-        fields: ['id', ...new Set(conditions.flatMap(Condition.members))],
-        answer: values => ({
-          row: Object.fromEntries(
-            rows.map(([interaction, { condition }]) => [interaction, holds(condition, values)]),
+        fields: ['id', ...new Set(mayConditions(rules).flatMap(Condition.members))],
+        answer: values =>
+          answerOf(rules, condition =>
+            Condition.holds(condition, values, input, () => false, policy.operators),
           ),
-          // Only an `explain`'s sentence is for whoever asked.
-          reasons: Object.fromEntries(
-            rows.flatMap(([interaction, { condition, deny }]) =>
-              holds(condition, values)
-                ? []
-                : Match.valueTags(deny, {
-                    Explain: ({ reason }) => [[interaction, reason] as const],
-                    Forbidden: () => [],
-                    NotFound: () => [],
-                    Omit: () => [],
-                    Redact: () => [],
-                  }),
-            ),
-          ),
-          members: Object.fromEntries(
-            members.map(({ member, condition }) => [member, holds(condition, values)]),
-          ),
-          relations: Object.fromEntries(
-            relations.map(({ relation, link, unlink }) => [
-              relation,
-              { Link: allows(link, values), Unlink: allows(unlink, values) },
-            ]),
-          ),
-        }),
       }
     },
   )
-}
 
 /** A refused write as the client receives it: the sentence an `explain` gave, or none. */
 const refused = (deny: Deny) =>

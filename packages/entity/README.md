@@ -114,6 +114,10 @@ Object.keys(Blog.Post.members) // id, title, published, commentCount, author, ed
   identity. Calling it twice with the same name makes two different entities.
 - `Derived.make` states a readable value's schema and nothing about how it is
   produced. `Entity.derived` is a pipe step because it concerns one entity.
+  `Derived.make(schema, { predict })` also says how a client foresees it for a
+  row it writes: `predict({ entity, row, rows, context })` reads the row the
+  write leaves as the holder has it (`HeldRow`) and returns the value, encoded,
+  or none where it cannot know; Guard's `may` is one.
 - `Derived.count(relation)` says what it is: how many rows point at this one
   through `relation`, a `one` relation of the counted Entity. It names another
   Entity's relation, so it is added after `Entity.relate`:

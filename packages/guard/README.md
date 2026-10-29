@@ -25,11 +25,12 @@ server:
 | A principal guard's body | `G.implement`, on the server only |
 | Which rows a read returns | each binding's `visible`, compiled from the rules |
 | Enforcement | each seam of `foldkit-remote-server`, `-drizzle` and `foldkit-sync`, through this package's subpaths |
-| What a client shows as allowed | the server's `may` answer; no rule runs on a client |
+| What a client shows as allowed | the server's `may` answer, foreseen by the client for a row it writes |
 
 It does not authenticate, and it does not trust the client: a hint the client
-reads (`may`) is the server's answer, and the server checks every write
-again when it is made.
+reads (`may`) is the server's answer, or the client's reading of the shared
+rules for a row it just wrote, and the server checks every write again when
+it is made.
 
 ## Mental model
 
@@ -632,12 +633,22 @@ fact the cache holds was read as someone.
 
 ## What the client may do
 
-The client must not run a rule: it has no bodies, its row may be stale, and it
-is not where a write is checked. To grey out a button for the reason the
-server would refuse it, it reads the server's answer instead: `Guards.may`
-adds a derived member, `may`, which `GuardServer.filter` answers from the row
-as its reader sees it. `Todo` above is piped through it after its guards, and
-over Drizzle its binding marks it `supplied`, since it is not a column.
+The client has no principal guard's body and none of the principal's fields,
+and it is not where a write is checked. To grey out a button for the reason
+the server would refuse it, it reads the server's answer: `Guards.may` adds a
+derived member, `may`, which `GuardServer.filter` answers from the row as its
+reader sees it. `Todo` above is piped through it after its guards, and over
+Drizzle its binding marks it `supplied`, since it is not a column.
+
+For a row the client writes, which the server has not answered yet, Remote
+foresees `may` from the same rules (`Derived.make`'s `predict`): a row guard
+over the row, its links and `Expr.viewer` is judged over what the store holds;
+a principal guard, a rule over the principal's fields, and one over a row or
+field the store lacks are unknown. Every rule is an `or` of `and`s with no
+negation, so it is decided where it comes out the same with every unknown part
+taken to hold and taken not to. `may` is foreseen only when every part of it
+is, so a new post's Edit shows at once where its author's rule allows it, and
+nothing is shown where an admin's body would decide.
 
 ```ts
 import { May } from 'foldkit-guard'
@@ -865,9 +876,9 @@ const uploads = uploadLayer().pipe(
 
 ## Limits
 
-- **No rule runs on the client.** `may` is the server's answer for the row as
-  it was read, as stale as the row; a live patch of a field its rules read
-  does not answer it again.
+- **`may` is as stale as its row.** It is the server's answer for the row as
+  it was read, or the client's reading of the rules for a row it wrote; a
+  live patch of a field its rules read does not answer it again.
 - **A handler's own writes are its own to check.** `GuardServer.mutation`
   checks the row's rule for its interaction; members it sets and relations
   it points are not known to it, and no startup check can read them.

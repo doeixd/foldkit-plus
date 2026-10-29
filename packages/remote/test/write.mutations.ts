@@ -10,7 +10,7 @@ export default [
     edits: [
       {
         file: '../src/mutation.ts',
-        find: '...optimisticOfWrite(write, input, keys, by, context.store),',
+        find: '    ...own,\n',
         replace: '',
       },
     ],

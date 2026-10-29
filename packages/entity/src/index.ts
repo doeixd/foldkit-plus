@@ -7,7 +7,7 @@
  * renders nothing. Remote, Drizzle, and form packages interpret it and attach
  * what they need as `foldkit-metadata`.
  */
-import { Data, type Option, Pipeable, Schema } from 'effect'
+import { Data, Option, Pipeable, Schema } from 'effect'
 import { Metadata } from 'foldkit-metadata'
 import {
   check,
@@ -19,7 +19,8 @@ import {
   readsBefore,
 } from './invariant.js'
 import { SchemaShape } from './shape.js'
-import type { NowExpr, ViewerExpr, ViewerPathExpr } from './context.js'
+import type { ExprContext, NowExpr, ViewerExpr, ViewerPathExpr } from './context.js'
+import type { HeldRow, HeldRows } from './held.js'
 import { checkedSet, type EntitySet, type SetOn } from './sets.js'
 
 export const EntityTypeId: unique symbol = Symbol.for('foldkit-entity/Entity')
@@ -91,11 +92,29 @@ type OneRelation = EntityRelation<string, string, AnyEntity, 'one', boolean>
  * and a server compiles both from the relations' storage.
  */
 export type Derivation = Data.TaggedEnum<{
-  Supplied: {}
+  /** `predict`: how a client foresees it for a row it writes; none, it waits for the server. */
+  Supplied: { readonly predict: Option.Option<Predict> }
   Count: { readonly relation: OneRelation }
   Exists: { readonly relation: OneRelation; readonly viewer: OneRelation }
 }>
 export const Derivation = Data.taggedEnum<Derivation>()
+
+/** What a supplied member's prediction is given: the row a write leaves, as its holder has it. */
+export interface Predicting {
+  /** The Entity written, as the write declared it. */
+  readonly entity: AnyEntity
+  readonly row: HeldRow
+  /** The holder's other rows, where a rule's path reads. */
+  readonly rows: HeldRows
+  /** The operation's context: who asks, and the write's time. */
+  readonly context: ExprContext
+}
+
+/**
+ * A supplied member foreseen: its value **encoded**, as the store holds it, or
+ * none where the holder cannot know it, so nothing is shown before the answer.
+ */
+export type Predict = (predicting: Predicting) => Option.Option<unknown>
 
 /** What `Derived.make`, `Derived.count` or `Derived.exists` returns, before an Entity owns it. */
 export interface DerivedSpec<S extends Schema.Constraint, D extends Derivation = Derivation> {
@@ -1184,12 +1203,17 @@ const WitnessSchema = Schema.OptionFromNullOr(Schema.String)
 type OwnerName<R> = R extends EntityRelation<infer Name, any, any, any, any> ? Name : never
 
 export const Derived = {
-  /** A member only an interpreter can compute, of type `schema`: it supplies the value. */
+  /**
+   * A member only an interpreter can compute, of type `schema`: it supplies the
+   * value. `predict` says how a client foresees it for a row it writes (Guard's
+   * `may`); without it the row reads as missing the member until the answer.
+   */
   make: <S extends Schema.Constraint>(
     schema: S,
+    options: { readonly predict?: Predict | undefined } = {},
   ): DerivedSpec<S, Extract<Derivation, { readonly _tag: 'Supplied' }>> => ({
     schema,
-    derives: Derivation.Supplied(),
+    derives: Derivation.Supplied({ predict: Option.fromUndefinedOr(options.predict) }),
   }),
 
   /**

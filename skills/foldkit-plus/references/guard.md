@@ -164,6 +164,9 @@ const Todo = TodoFields.pipe(
   `May.can(may, Archive.key)`, `May.canSet(may, Todo, 'ownerId')`,
   `May.canLink(may, Todo, 'project', 'Link')`, and `May.reason(may, 'Delete')`
   (an `explain`'s sentence for a refusal, else none). A hint, never the check.
+  For a row the client writes, Remote foresees it from the shared rules before
+  the answer, where principal guards, the principal's fields and what the store
+  lacks cannot change it; otherwise it waits for the server.
 - `Me`, the visitor as an Entity: `const Me = Guards.me(G, { interactions: {
   [OpenAdmin.key]: [G.isAdmin] } })` in shared code, `GuardServer.me(Me,
   Policy)` among the Sources. One row, `me` (`ME`): `signedIn`, `key`
