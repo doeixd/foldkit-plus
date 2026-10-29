@@ -99,49 +99,107 @@ in its manifest, and `pnpm publish` skips it.
 
 Every package except `foldkit-metadata` and `foldkit-react-codegen`
 peer-depends on `effect@^4.0.0`; `foldkit-auth` on `effect@^4.0.4`, the
-floor its peer `@yielded/auth@0.1.0-beta.43` (exact) sets, and on
-`foldkit-remote` (`workspace:^`). Every package also peer-depends on
-`foldkit@^0.169.0` except the fourteen that never draw or run a Foldkit
-runtime: `foldkit-entity`, `foldkit-metadata` and `foldkit-media` (whose `Icon.draw` takes any
-builder of its shape), the server and storage
-packages (`foldkit-remote-server`, `foldkit-remote-drizzle`, `foldkit-durable`,
-`foldkit-cms-drizzle`, `foldkit-guard`, `foldkit-auth`), the rich-text model and its grammars
-and Markdown (`foldkit-richtext`, `foldkit-richtext-code`,
-`foldkit-richtext-code-shiki`, `foldkit-richtext-markdown`), and
-`foldkit-react-codegen`. `foldkit-react` additionally peer-depends on
-`react@^19.0.0` and `react-dom@^19.0.0`. `foldkit-react-codegen` is a build
-tool that reads source text with TypeScript's compiler API: its only peer is
-`typescript@>=5.7.2 <7` (TypeScript 7 has no such API), and it ships
-a `foldkit-react-codegen` bin.
-
-Peer edges between workspace packages, declared as `workspace:^` and rewritten on
-publish:
-
-- the four agent adapters (`foldkit-agent-webmcp`, `-mcp`, `-a2a`, `-native`) →
-  `foldkit-agent`;
-- `foldkit-mixins-surface` → `foldkit-mixins`, `foldkit-surface`;
-- `foldkit-mixins-ui` → `foldkit-mixins`, `foldkit-primitives` and `foldkit-media`;
-- `foldkit-agent-native` additionally → `@agent-native/core@0.214.0`;
-- `foldkit-mixins-ui` additionally → `@foldkit/ui@^0.169.0`;
-- `foldkit-richtext-dom` → `foldkit-bundle`;
-- `foldkit-media` → `sharp@>=0.34.0` and `unpic@^4.0.0`, each optional, needed only by
-  the `/sharp` and `/unpic` subpaths.
-- `foldkit-guard` → `foldkit-remote`, `foldkit-remote-server`,
-  `foldkit-remote-drizzle` and `foldkit-sync`, and `drizzle-orm@1.0.0-rc.5`, each
-  optional, needed only by the subpath that enforces guards there.
+floor its peer `@yielded/auth@0.1.0-beta.43` (exact) sets. Every package also
+peer-depends on `foldkit@^0.169.0` except the fourteen that never draw or run
+a Foldkit runtime: `foldkit-entity`, `foldkit-metadata` and `foldkit-media`
+(whose `Icon.draw` takes any builder of its shape), the server and storage
+packages (`foldkit-remote-server`, `foldkit-remote-drizzle`,
+`foldkit-durable`, `foldkit-cms-drizzle`, `foldkit-guard`, `foldkit-auth`),
+the rich-text model and its grammars and Markdown (`foldkit-richtext`,
+`foldkit-richtext-code`, `foldkit-richtext-code-shiki`,
+`foldkit-richtext-markdown`), and `foldkit-react-codegen`.
+`foldkit-react-codegen` is a build tool that reads source text with
+TypeScript's compiler API: its only peer is `typescript@>=5.7.2 <7`
+(TypeScript 7 has no such API), and it ships a `foldkit-react-codegen` bin.
 
 Regular `dependencies` between workspace packages, declared as `workspace:*`
-and rewritten to the exact version on publish: `foldkit-surface` and `foldkit-entity` depend on
-`foldkit-metadata`; `foldkit-agent`, `foldkit-mirror`,
-`foldkit-remote`, `foldkit-remote-server`, and `foldkit-sync` depend on
-`foldkit-surface`; `foldkit-remote` and `foldkit-remote-drizzle` also depend on `foldkit-entity`; `foldkit-form` depends on `foldkit-bundle`, `foldkit-entity`, and `foldkit-metadata`; `foldkit-mixins-form` depends on `foldkit-bundle`, `foldkit-form`, and `foldkit-mixins`; `foldkit-form-recipes` depends on `foldkit-bundle`, `foldkit-crud` and `foldkit-form`; `foldkit-crud` depends on `foldkit-bundle`, `foldkit-entity`, `foldkit-form`, `foldkit-metadata`, `foldkit-remote`, and `foldkit-surface`; `foldkit-cms-drizzle` depends on `foldkit-cms`, `foldkit-entity`, `foldkit-guard`, `foldkit-remote`, `foldkit-remote-drizzle`, `foldkit-remote-server`, and `drizzle-orm`; `foldkit-cms` depends on `foldkit-bundle`, `foldkit-crud`, `foldkit-entity`, `foldkit-form`, `foldkit-metadata`, `foldkit-mixins`, `foldkit-remote`, and `foldkit-surface`; `foldkit-mixins-crud` depends on `foldkit-crud`, `foldkit-form`, `foldkit-mixins`, and `foldkit-remote`; `foldkit-remote-server` and `foldkit-remote-drizzle` depend on
-`foldkit-remote`; `foldkit-bundle-surface` depends on `foldkit-bundle` and
-`foldkit-surface`; `foldkit-primitives` depends on `foldkit-bundle` (and has `foldkit-mixins` as an optional peer, needed only by its `interaction` subpath); `foldkit-remote-drizzle` additionally depends on
-`foldkit-remote-server` and `drizzle-orm@1.0.0-rc.5`.
-`foldkit-builder` depends on `foldkit-bundle`, `foldkit-composition`, `foldkit-form` and `foldkit-primitives`; `foldkit-mixins-builder` depends on `foldkit-builder`, `foldkit-composition`, `foldkit-entity`, `foldkit-form`, `foldkit-metadata`, `foldkit-mixins` and `foldkit-primitives`; `foldkit-composition` depends on `foldkit-metadata`, with `foldkit`, `foldkit-richtext`, `foldkit-mixins`, and `foldkit-remote` with `foldkit-surface`, as optional peers for its `/foldkit`, `/richtext`, `/appearance`, `/remote` and `/surface` subpaths; `foldkit-ssr` depends on `foldkit-surface`; `foldkit-richtext` depends on `foldkit-media`; `foldkit-richtext-dom` depends on
-`foldkit-richtext`; `foldkit-mixins-richtext` depends on `foldkit-media`, `foldkit-mixins`,
-`foldkit-primitives`, `foldkit-richtext`, `foldkit-richtext-dom` and `foldkit-richtext-markdown`.
-`foldkit-guard` depends on `foldkit-entity` and `foldkit-metadata`; `foldkit-site`
-depends on `foldkit-bundle` and `foldkit-surface`.
-`foldkit-durable` depends on `@effect/sql-sqlite-node@4.0.5`; its Node entry
+and rewritten to the exact version on publish:
+
+- `foldkit-surface` and `foldkit-entity` → `foldkit-metadata`;
+- `foldkit-agent`, `foldkit-agent-mcp`, `foldkit-mirror`, `foldkit-mixins`,
+  `foldkit-media`, `foldkit-ssr` and `foldkit-sync` → `foldkit-surface`;
+- `foldkit-remote` → `foldkit-entity`, `foldkit-metadata` and
+  `foldkit-surface`;
+- `foldkit-remote-server` → `foldkit-entity` and `foldkit-remote`;
+- `foldkit-remote-drizzle` → `foldkit-entity`, `foldkit-remote` and
+  `foldkit-remote-server`;
+- `foldkit-guard` → `foldkit-entity` and `foldkit-metadata`;
+- `foldkit-cms-drizzle` → `foldkit-cms`, `foldkit-entity`, `foldkit-guard`,
+  `foldkit-remote`, `foldkit-remote-drizzle` and `foldkit-remote-server`;
+- `foldkit-bundle-surface` → `foldkit-bundle` and `foldkit-surface`;
+- `foldkit-primitives` and `foldkit-data-grid` → `foldkit-bundle`;
+- `foldkit-form` → `foldkit-bundle`, `foldkit-entity` and `foldkit-metadata`;
+- `foldkit-mixins-form` → `foldkit-bundle`, `foldkit-form` and
+  `foldkit-mixins`;
+- `foldkit-form-recipes` → `foldkit-bundle`, `foldkit-crud` and
+  `foldkit-form`;
+- `foldkit-crud` → `foldkit-bundle`, `foldkit-entity`, `foldkit-form`,
+  `foldkit-metadata`, `foldkit-remote` and `foldkit-surface`;
+- `foldkit-mixins-crud` → `foldkit-crud`, `foldkit-form`, `foldkit-mixins` and
+  `foldkit-remote`;
+- `foldkit-mixins-data-grid` → `foldkit-data-grid`, `foldkit-mixins` and
+  `foldkit-primitives`;
+- `foldkit-cms` → `foldkit-bundle`, `foldkit-crud`, `foldkit-entity`,
+  `foldkit-form`, `foldkit-metadata`, `foldkit-mixins`, `foldkit-remote` and
+  `foldkit-surface`;
+- `foldkit-composition` → `foldkit-metadata`;
+- `foldkit-builder` → `foldkit-bundle`, `foldkit-composition`,
+  `foldkit-entity`, `foldkit-form`, `foldkit-metadata`, `foldkit-mixins` and
+  `foldkit-primitives`;
+- `foldkit-mixins-builder` → `foldkit-builder`, `foldkit-composition`,
+  `foldkit-entity`, `foldkit-form`, `foldkit-mixins`, `foldkit-mixins-form`
+  and `foldkit-primitives`;
+- `foldkit-richtext` → `foldkit-media`; `foldkit-richtext-dom`,
+  `foldkit-richtext-code`, `foldkit-richtext-code-shiki` and
+  `foldkit-richtext-markdown` → `foldkit-richtext`;
+- `foldkit-mixins-richtext` → `foldkit-media`, `foldkit-mixins`,
+  `foldkit-primitives`, `foldkit-richtext`, `foldkit-richtext-dom` and
+  `foldkit-richtext-markdown`;
+- `foldkit-site` → `foldkit-bundle`, `foldkit-ssr` and `foldkit-surface`;
+- `foldkit-plus` → every package except the eight it takes as optional peers
+  (below).
+
+Peer edges between workspace packages, declared as `workspace:^` (or
+`workspace:*`) and rewritten on publish:
+
+- the four agent adapters (`foldkit-agent-webmcp`, `-mcp`, `-a2a`,
+  `-native`) → `foldkit-agent`;
+- `foldkit-auth` → `foldkit-remote`;
+- `foldkit-mixins-surface` → `foldkit-mixins` and `foldkit-surface`;
+- `foldkit-mixins-ui` → `foldkit-mixins`, `foldkit-primitives` and
+  `foldkit-media`;
+- `foldkit-richtext-dom` → `foldkit-bundle`.
+
+Optional peers, needed only by the subpath or feature that names them:
+
+- `foldkit-primitives` → `foldkit-mixins` (its `interaction` subpath);
+- `foldkit-composition` → `foldkit`, `foldkit-richtext`, `foldkit-mixins`, and
+  `foldkit-remote` with `foldkit-surface` (its `/foldkit`, `/richtext`,
+  `/appearance`, `/remote` and `/surface` subpaths);
+- `foldkit-guard` → `foldkit-remote`, `foldkit-remote-server`,
+  `foldkit-remote-drizzle`, `foldkit-sync`, `foldkit-media` and
+  `drizzle-orm@1.0.0-rc.5`, each for the subpath that enforces guards there;
+- `foldkit-sync` → `foldkit-durable` and `foldkit-remote` (its `/journal`,
+  `/do` and `/remote` subpaths);
+- `foldkit-data-grid` → `foldkit-crud` and `foldkit-remote` (its `/crud` subpath);
+- `foldkit-richtext-dom` → `foldkit-form` (its `/input` subpath);
+- `foldkit-mixins-form` → `foldkit-mixins-ui` (its `/ui` and `/recipes` subpaths);
+- `foldkit-form-recipes` → `foldkit-media`, `foldkit-mixins`,
+  `foldkit-mixins-form`, `foldkit-mixins-ui` and `@foldkit/ui@^0.169.0` (its
+  `/ui` and `/image` subpaths);
+- `foldkit-media` → `sharp@>=0.34.0` and `unpic@^4.0.0` (its `/sharp` and
+  `/unpic` subpaths);
+- `foldkit-plus` → `foldkit-agent-native`, `foldkit-auth`,
+  `foldkit-cms-drizzle`, `foldkit-mixins-ui`, `foldkit-react`,
+  `foldkit-react-codegen`, `foldkit-remote-drizzle` and
+  `foldkit-richtext-code-shiki`, which bring a library of their own, and
+  `esbuild`, `playwright` and `wrangler` for its `testing/*` subpaths.
+
+Libraries outside the workspace: `foldkit-remote-drizzle` and
+`foldkit-cms-drizzle` peer-depend on `drizzle-orm@1.0.0-rc.5`, so the
+application's Drizzle is the one their tables type-check against;
+`foldkit-react` on `react@^19.0.0` and `react-dom@^19.0.0`;
+`foldkit-agent-native` on `@agent-native/core@0.214.0`; `foldkit-mixins-ui`
+on `@foldkit/ui@^0.169.0`; `foldkit-richtext-code-shiki` on `shiki@^4.4.3`.
+`foldkit-durable` depends on `@effect/sql-sqlite-node@^4.0.5`; its Node entry
 requires Node 22 for `node:sqlite`, which its `engines.node` (`>=22`) states.
