@@ -90,10 +90,10 @@ const principalOf = (db: D1Database) => (session: { readonly subjectId: string }
     ),
   )
 
-/** Everything that answers for the origin: Yielded's routes, Remote, and a page's reader. */
 type AuthServices =
   Awaited<ReturnType<typeof authServices>> extends Context.Context<infer S> ? S : never
 
+/** Everything that answers for the origin: Yielded's routes, Remote, and a page's reader. */
 const hostFor = (services: Context.Context<AuthServices>, db: D1Database, origin: string) => {
   const shared = Layer.succeedContext(services)
   const http = { origin } as const

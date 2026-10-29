@@ -47,9 +47,10 @@ Stack.start({ vars: origin => ({ ORIGIN: origin }) })
 - **Polled, not subscribed.** The harness offers no handler; its own
   `structuredLogsHandler` is fixed. The stack drains `getLogs()` and
   `clearLogs()` in one synchronous step every 100 ms on an unref'd timer, so
-  nothing is read twice or lost between them. `logs()` and `stop()` drain first,
-  so a line written before stopping is printed and kept, and so is the console
-  of a Worker that failed to start.
+  nothing is read twice or lost between them. `logs()` drains before it
+  returns, and `stop()` stops the timer and drains once workerd has stopped,
+  so a line written just before stopping is printed and kept, and so is the
+  console of a Worker that failed to start.
 - **No ordering promise against the response.** workerd writes its logs to a
   pipe the HTTP response does not travel on. In the probe they had arrived
   when `fetch` resolved, but nothing guarantees it, so a test reads them with
@@ -98,9 +99,11 @@ same Worker would, and it is refused.
 
 - `packages/plus/test/workers.test.ts`: a Worker that logs at each level and
   logs an `Error` is printed by level with the stack, `logs()` takes each line
-  once, `'quiet'` prints nothing but still keeps; a Worker that throws at load
-  prints its error when the start fails; `vars` as a function reaches the
+  once, `'quiet'` prints nothing but still keeps; a line written just before
+  `stop()` is printed; a Worker that throws at load prints what it logged when
+  the start fails; `vars` as a function reaches the
   Worker as the stack's own origin, from the first request.
 - `examples/reference/test/worker.test.ts`: a scripted sign-in under another
-  host is refused.
+  host is refused, and the same sign-in at the stack's origin is not; a Worker
+  started without `ORIGIN` answers a 500 naming it.
 - `workers.mutations.ts` and `reference.mutations.ts` break each piece.
