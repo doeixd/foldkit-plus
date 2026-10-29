@@ -694,10 +694,13 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   reading source with library checks skipped, never did. Name an exported type
   for what a public function returns; `pack:check`'s consumer compile
   (`scripts/published-types.mjs`) catches the rest.
-- **tsdown's declarations read a referenced project's `.tsbuild`, stale or
-  not.** Reverting a source change and rebuilding a dependent package still
-  emitted the change, from the reference's last `tsc -b` output. Run `tsc -b`
-  before a `pnpm build` whose declarations must follow a source edit.
+- **tsdown's declarations depend on a referenced project's `.tsbuild`.** With
+  it, they come from that last `tsc -b` output, stale or not (a reverted edit
+  was still emitted); without it, as on a fresh checkout, thirteen packages
+  emitted names they never declared (`Root_1`, `RemoteMessage`) while the same
+  build here, with `.tsbuild` present, was clean. The root `build` runs
+  `tsc -b` first so every build, `pack:check` and `release` included, reads
+  current outputs; reproduce a CI-only build fault in a fresh clone.
 - **A linked package keeps what its modules run, read or not.** Without one
   namespace, `foldkit-entity`'s one linked file kept its top-level
   `Schema.Struct(...)` calls in every page: `Collation.binary` alone kept 73 kB

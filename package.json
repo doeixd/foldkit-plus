@@ -17,7 +17,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "pnpm -r build",
+    "build": "tsc -b && pnpm -r build",
     "test": "vitest run",
     "e2e": "vitest run --config vitest.e2e.config.ts",
     "bench": "vitest bench --run",
