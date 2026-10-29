@@ -63,8 +63,10 @@ export const empty = (): Document => ({ format: 1, roots: [], nodes: {} })
  * The node an id names, read as an own key: stored ids are untrusted, and an
  * id such as `constructor` would otherwise read `Object`'s own.
  */
-export const nodeAt = (document: Document, id: NodeId): Node | undefined =>
-  Object.hasOwn(document.nodes, id) ? document.nodes[id] : undefined
+export const nodeAt = (
+  holder: { readonly nodes: Readonly<Record<NodeId, Node>> },
+  id: NodeId,
+): Node | undefined => (Object.hasOwn(holder.nodes, id) ? holder.nodes[id] : undefined)
 
 /** Where a node is: at the root, or in a parent's Region, at an index. */
 export interface Place {

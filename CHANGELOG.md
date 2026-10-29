@@ -694,6 +694,12 @@ carries `drawn`.
 
 ### Fixed
 
+- **The Builder reads a page's own nodes only** (#298). `Selected`, the
+  layers' focus, an undo's kept selection and every other node lookup read
+  `document.nodes[id]`, so an id such as `constructor` (from `?block=`, say)
+  found `Object`'s function, was selected, and the properties panel threw.
+  They read through `Composition.nodeAt`, now public and taking a Document
+  or a Tree.
 - **A write ledger, after review** (#277):
   - A write ledger refuses an operation id sent again with another mutation,
     keys or input, where it answered it as a retry and wrote nothing.

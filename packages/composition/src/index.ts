@@ -10,7 +10,7 @@ import { holds, when } from './condition.js'
 import { statefulNodes } from './stateful.js'
 import { describe } from './describe.js'
 import { migrate, migration, promoteUnknown, renameBlock, renameProp } from './migrate.js'
-import { Document, Node, NodeId, empty, index, newIds } from './document.js'
+import { Document, Node, NodeId, empty, index, newIds, nodeAt } from './document.js'
 import {
   Operation,
   Op,
@@ -71,6 +71,8 @@ export const Composition = {
   validate,
   /** `validate` as a Schema check: `Composition.Document.check(Composition.valid(Site))`. */
   valid,
+  /** The node an id names in a Document or a Tree, read as an own key; undefined for none. */
+  nodeAt,
   /** Where each reachable node is: its parent, Region and index. Derived, memoized per Document. */
   index,
   /** The Document as indented text, one node per line. */

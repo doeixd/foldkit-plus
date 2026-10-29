@@ -444,6 +444,25 @@ describe('the keyboard, the layers and the announcer', () => {
     expect(stray.selected).toEqual(model.selected)
   })
 
+  it.each(['constructor', '__proto__', 'toString'])(
+    'reads the page’s own nodes only: %s is no node to select, focus or keep',
+    name => {
+      const { model, first } = twoSections()
+      const missing = NodeId.make(name)
+      const chosen = send(model, Message.Selected({ id: first }))
+      expect(send(chosen, Message.Selected({ id: missing })).selected).toEqual(Option.none())
+      const focused = send(
+        chosen,
+        Layers.wrapper.make(TreeNavigation.Message.Focused({ id: missing })),
+      )
+      expect(focused.selected).toEqual(Option.some(first))
+      // An undone edit keeps a selection only when the page it restores holds it.
+      const removed = send(chosen, Message.Applied({ op: Composition.Op.remove(first) }))
+      const undone = send({ ...removed, selected: Option.some(missing) }, Message.Undid())
+      expect(undone.selected).toEqual(Option.none())
+    },
+  )
+
   it('keeps the layers’ keys where a removed node was: after it, else before, else its holder', () => {
     const { model, first } = twoSections()
     const [one, two] = body(model, first)

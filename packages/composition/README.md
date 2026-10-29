@@ -265,6 +265,9 @@ Agent.expose(Message, {
 - `Composition.index(document)` says where each reachable node is: its parent,
   Region and index. It is derived, never stored, and computed once per Document
   value.
+- `Composition.nodeAt(document, id)` is the node an id names, or `undefined`.
+  It reads the Document's own keys, so an id from a URL or a Message such as
+  `constructor` names no node, where `document.nodes[id]` reads `Object`'s.
 - `Composition.describe(catalog, document)` writes the Document as indented
   text, one node per line, with a Block the Catalog does not know marked `?`
   and a label that says more than the name after it (`Banner "Promo banner"`).

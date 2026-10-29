@@ -311,7 +311,7 @@ const placeFor = (
     block.provides.some(content => accepted.includes(content))
   /** Last in the first of a node's Regions with room that accepts the Block. */
   const inside = (id: NodeId): Option.Option<Position> => {
-    const node = document.nodes[id]
+    const node = Composition.nodeAt(document, id)
     const owner = node === undefined ? undefined : Catalog.block(catalog, node.block)
     if (node !== undefined && owner !== undefined)
       for (const [name, region] of Object.entries(owner.regions)) {
@@ -329,7 +329,7 @@ const placeFor = (
     ? Composition.index(document).get(selected.value)
     : undefined
   if (place !== undefined && place.parent !== undefined && place.region !== undefined) {
-    const parent = document.nodes[place.parent]
+    const parent = Composition.nodeAt(document, place.parent)
     const parentBlock = parent === undefined ? undefined : Catalog.block(catalog, parent.block)
     const region = parentBlock?.regions[place.region]
     const siblings = parent?.regions[place.region] ?? []
@@ -346,7 +346,8 @@ const placeFor = (
   const order: Array<NodeId> = []
   const visit = (id: NodeId): void => {
     order.push(id)
-    for (const ids of Object.values(document.nodes[id]?.regions ?? {})) ids.forEach(visit)
+    for (const ids of Object.values(Composition.nodeAt(document, id)?.regions ?? {}))
+      ids.forEach(visit)
   }
   document.roots.forEach(visit)
   for (const id of order.reverse()) {
@@ -359,7 +360,7 @@ const placeFor = (
 /** Whether a place has room for one more node: a root always, a Region below its most. */
 const hasRoom = (catalog: Catalog, document: Document, at: Position): boolean => {
   if (at._tag === 'Root') return true
-  const holder = document.nodes[at.parent]
+  const holder = Composition.nodeAt(document, at.parent)
   const region =
     holder === undefined ? undefined : Catalog.block(catalog, holder.block)?.regions[at.region]
   return region !== undefined && (holder?.regions[at.region] ?? []).length < region.max
@@ -373,7 +374,7 @@ const moveBy = (document: Document, id: NodeId, delta: number): Option.Option<Op
   const siblings =
     place.parent === undefined
       ? document.roots
-      : (document.nodes[place.parent]?.regions[place.region ?? ''] ?? [])
+      : (Composition.nodeAt(document, place.parent)?.regions[place.region ?? ''] ?? [])
   if (to < 0 || to >= siblings.length) return Option.none()
   return Option.some(
     Composition.Op.move(
@@ -434,7 +435,7 @@ const landingBy = (
     const siblings =
       place.parent === undefined
         ? document.roots
-        : (document.nodes[place.parent]?.regions[place.region ?? ''] ?? [])
+        : (Composition.nodeAt(document, place.parent)?.regions[place.region ?? ''] ?? [])
     const at = without(siblings).indexOf(target) + offset
     return Option.some(
       place.parent === undefined
@@ -443,7 +444,7 @@ const landingBy = (
     )
   }
   const inside = (): Option.Option<Position> => {
-    const holder = document.nodes[target]
+    const holder = Composition.nodeAt(document, target)
     if (holder === undefined) return Option.none()
     const named = Option.orElse(region, () => regionTaking(catalog, holder.block, dragged.block))
     return Option.map(named, regionName =>
@@ -519,14 +520,14 @@ const outdent = (document: Document, id: NodeId): Option.Option<Operation> => {
  */
 const indent = (catalog: Catalog, document: Document, id: NodeId): Option.Option<Operation> => {
   const place = Composition.index(document).get(id)
-  const node = document.nodes[id]
+  const node = Composition.nodeAt(document, id)
   if (place === undefined || node === undefined || place.index === 0) return Option.none()
   const siblings =
     place.parent === undefined
       ? document.roots
-      : (document.nodes[place.parent]?.regions[place.region ?? ''] ?? [])
+      : (Composition.nodeAt(document, place.parent)?.regions[place.region ?? ''] ?? [])
   const above = siblings[place.index - 1]
-  const target = above === undefined ? undefined : document.nodes[above]
+  const target = above === undefined ? undefined : Composition.nodeAt(document, above)
   if (above === undefined || target === undefined) return Option.none()
   return Option.map(regionTaking(catalog, target.block, node.block), regionName =>
     Composition.Op.move(
@@ -558,7 +559,7 @@ const describeEdit = (
   op: Operation,
 ): Option.Option<string> => {
   const labelOf = (document: Document, id: NodeId): string =>
-    Option.match(Option.fromUndefinedOr(document.nodes[id]), {
+    Option.match(Option.fromUndefinedOr(Composition.nodeAt(document, id)), {
       onNone: () => id,
       onSome: node => blockLabel(catalog, node.block),
     })
@@ -568,7 +569,7 @@ const describeEdit = (
     const siblings =
       place.parent === undefined
         ? after.roots.length
-        : (after.nodes[place.parent]?.regions[place.region ?? '']?.length ?? 0)
+        : (Composition.nodeAt(after, place.parent)?.regions[place.region ?? '']?.length ?? 0)
     const container =
       place.parent === undefined
         ? words.thePage
@@ -606,7 +607,7 @@ const describeEdit = (
 
 /** The selection, kept only while the Document still holds it. */
 const keptIn = (document: Document, selected: Option.Option<NodeId>): Option.Option<NodeId> =>
-  Option.filter(selected, id => document.nodes[id] !== undefined)
+  Option.filter(selected, id => Composition.nodeAt(document, id) !== undefined)
 
 /** The Model showing another Document: what a fill, a reset or a restored revision does. */
 const replace = (model: Model, document: Document): Model => ({
@@ -849,7 +850,7 @@ export const Builder = {
     /** What a drag carries, as `landing` weighs it; none for a node gone or a Block not offered. */
     const draggedOf = (document: Document, source: DragSource): Option.Option<Dragged> => {
       if (source._tag === 'Existing') {
-        const node = document.nodes[source.id]
+        const node = Composition.nodeAt(document, source.id)
         return node === undefined
           ? Option.none()
           : Option.some({
@@ -860,7 +861,7 @@ export const Builder = {
       }
       // Tried with an id no node on this page has; the drop asks for a real one.
       let unused = 'dragged'
-      while (document.nodes[NodeId.make(unused)] !== undefined) unused = `${unused}-`
+      while (Composition.nodeAt(document, NodeId.make(unused)) !== undefined) unused = `${unused}-`
       const trial = NodeId.make(unused)
       return Option.map(startingProps(source.block), props => ({
         block: source.block,
@@ -1001,7 +1002,7 @@ export const Builder = {
       model: Pick<Model, 'page' | 'selected' | 'inspector'>,
     ): Option.Option<Inspecting> =>
       Option.flatMap(model.selected, id => {
-        const node = documentOf(model).nodes[id]
+        const node = Composition.nodeAt(documentOf(model), id)
         const block: AnyBlock | undefined =
           node === undefined ? undefined : Catalog.block(catalog, node.block)
         if (node === undefined || block === undefined) return Option.none()
@@ -1050,7 +1051,7 @@ export const Builder = {
       message: { readonly id: NodeId; readonly form: string; readonly message: Schema.Json },
     ): { readonly model: Model; readonly commands?: Commands } => {
       const target = Option.filter(inspecting(model), each => each.id === message.id)
-      const node = documentOf(model).nodes[message.id]
+      const node = Composition.nodeAt(documentOf(model), message.id)
       if (Option.isNone(target) || node === undefined) return { model }
       const { id, block, props, on } = target.value
       const forms = formsOf(id, node, block)
@@ -1117,7 +1118,7 @@ export const Builder = {
             }
           if (!refused) return { model: result.model, commands }
           // Refused: the form shows what the node holds, not a value it never took.
-          const now = formsOf(id, documentOf(result.model).nodes[id] ?? node, block)
+          const now = formsOf(id, Composition.nodeAt(documentOf(result.model), id) ?? node, block)
           const holds = [now.props, ...now.on].find(form => form.key === known.key)
           return {
             model: {
@@ -1150,7 +1151,7 @@ export const Builder = {
       const { id, forms: held } = after.inspector.value
       if (!Option.contains(after.selected, id)) return { ...after, inspector: Option.none() }
       if (documentOf(after) === documentOf(before)) return after
-      const node = documentOf(after).nodes[id]
+      const node = Composition.nodeAt(documentOf(after), id)
       const block: AnyBlock | undefined =
         node === undefined ? undefined : Catalog.block(catalog, node.block)
       if (node === undefined || block === undefined) return { ...after, inspector: Option.none() }
@@ -1186,7 +1187,7 @@ export const Builder = {
           })
         case 'Selected':
           // A node the page does not hold selects nothing.
-          return documentOf(model).nodes[message.id] === undefined
+          return Composition.nodeAt(documentOf(model), message.id) === undefined
             ? { model: { ...model, selected: Option.none() } }
             : { model: { ...model, selected: Option.some(message.id), panel: 'properties' } }
         case 'Deselected':
@@ -1205,7 +1206,7 @@ export const Builder = {
               })
             : { model, commands: mint(1, { _tag: 'Insert', block: message.block, at: message.at }) }
         case 'DuplicateAsked': {
-          if (documentOf(model).nodes[message.id] === undefined)
+          if (Composition.nodeAt(documentOf(model), message.id) === undefined)
             return refuse(model, {
               code: 'composition:missing-node',
               message: fillWords(words.notANode, { id: message.id }),
@@ -1220,7 +1221,7 @@ export const Builder = {
         }
         case 'CopyAsked':
         case 'CutAsked': {
-          const node = documentOf(model).nodes[message.id]
+          const node = Composition.nodeAt(documentOf(model), message.id)
           if (node === undefined)
             return refuse(model, {
               code: 'composition:missing-node',
@@ -1285,7 +1286,7 @@ export const Builder = {
               }),
             })
           // `treeRefusal` found the root and its Block, so only a full page leaves no place.
-          const block = tree.value.nodes[tree.value.root]?.block ?? ''
+          const block = Composition.nodeAt(tree.value, tree.value.root)?.block ?? ''
           const place = placeFor(catalog, documentOf(model), model.selected, block)
           if (Option.isNone(place))
             return refuse(model, {
@@ -1324,7 +1325,7 @@ export const Builder = {
           return Option.match(fieldOf(message.field), {
             onNone: () => ({ model }),
             onSome: ({ id, key }) => {
-              const stored = documentOf(model).nodes[id]?.props[key]
+              const stored = Composition.nodeAt(documentOf(model), id)?.props[key]
               // Only text the page draws as a field, so what is edited is what shows.
               if (
                 typeof stored !== 'string' ||
@@ -1368,7 +1369,7 @@ export const Builder = {
               const ended = { ...model, page, editing: Option.none() }
               // Written only where the page does not hold it yet, so no step is empty; and
               // written where another edit came between, so Escape still puts the text back.
-              return documentOf(ended).nodes[editing.id]?.props[editing.key] === kept
+              return Composition.nodeAt(documentOf(ended), editing.id)?.props[editing.key] === kept
                 ? { model: ended }
                 : applyOp(ended, Composition.Op.setProp(editing.id, editing.key, kept), group)
             },
@@ -1417,7 +1418,7 @@ export const Builder = {
               return applyOp(model, Composition.Op.insertTree({ tree: renamed, at: request.at }))
             }
             case 'Duplicate': {
-              if (documentOf(model).nodes[request.id] === undefined)
+              if (Composition.nodeAt(documentOf(model), request.id) === undefined)
                 return refuse(model, {
                   code: 'composition:missing-node',
                   message: fillWords(words.notANode, { id: request.id }),
@@ -1583,7 +1584,7 @@ export const Builder = {
       const siblings =
         place.parent === undefined
           ? was.roots
-          : (was.nodes[place.parent]?.regions[place.region ?? ''] ?? [])
+          : (Composition.nodeAt(was, place.parent)?.regions[place.region ?? ''] ?? [])
       const beside = [
         ...siblings.slice(place.index + 1),
         ...siblings.slice(0, place.index).reverse(),
@@ -1605,7 +1606,7 @@ export const Builder = {
       // Moving focus in the layers moves the selection with it.
       if (message._tag === Layers.wrapper.tag && message.message._tag === 'Focused') {
         const id = NodeId.make(message.message.id)
-        return documentOf(next.model).nodes[id] === undefined
+        return Composition.nodeAt(documentOf(next.model), id) === undefined
           ? next
           : { ...next, model: { ...next.model, selected: Option.some(id) } }
       }
@@ -1663,7 +1664,7 @@ export const Builder = {
           }),
       )
       const layer = (id: NodeId): Html => {
-        const node = documentOf(model).nodes[id]
+        const node = Composition.nodeAt(documentOf(model), id)
         if (node === undefined) return null
         const known = Catalog.block(catalog, node.block) !== undefined
         const children = Object.values(node.regions).flat()
@@ -1702,7 +1703,7 @@ export const Builder = {
         ],
       })
       const inspect = (id: NodeId): Html => {
-        const node = documentOf(model).nodes[id]
+        const node = Composition.nodeAt(documentOf(model), id)
         if (node === undefined) return null
         const fields = Object.entries(node.props).filter(
           (entry): entry is [string, string] => typeof entry[1] === 'string',
@@ -1962,8 +1963,9 @@ export const Builder = {
       /** Where a pattern goes, as a new node of its root's Block would; none where it may not. */
       patternAt: (document: Document, selected: Option.Option<NodeId>, pattern: string) =>
         Option.flatMap(Catalog.pattern(catalog, pattern), found =>
-          Option.flatMap(Option.fromUndefinedOr(found.tree.nodes[found.tree.root]), root =>
-            placeFor(catalog, document, selected, root.block),
+          Option.flatMap(
+            Option.fromUndefinedOr(Composition.nodeAt(found.tree, found.tree.root)),
+            root => placeFor(catalog, document, selected, root.block),
           ),
         ),
       moveBy,

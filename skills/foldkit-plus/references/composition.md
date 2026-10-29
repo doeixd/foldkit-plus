@@ -50,6 +50,9 @@ Composition.validate(Site, page) // [] or diagnostics { code, node, path, messag
   finding at its path.
 - **Where is a node:** `Composition.index(document).get(id)` gives
   `{ parent, region, index }`, memoized per Document value.
+- **Read a node by an id from outside** (a URL, a Message, an agent):
+  `Composition.nodeAt(document, id)`, which reads own keys only, so
+  `constructor` names no node.
 - **Show a page as text** (tests, agent context): `Composition.describe(Site, doc)`.
 - **List the vocabulary:** `Catalog.describe(Site)`; attach metadata with
   `Block.annotate(key.of(value))`.
