@@ -744,8 +744,9 @@ carries `drawn`.
     An increment or computed assignment to a member is that member's own
     change; `Unlink` rules hold over the row before alone. `GuardSync.admit`
     judges each changed member the same way.
-  - A relation page's cursor is placed only by a row its reader may see, and
-    one naming a hidden row is refused like one naming no row.
+  - A relation page's cursor is placed only by a row the page could show, and
+    one naming a row hidden from it, by the target's Read rule or the
+    relation's `policies` (#290), is refused like one naming no row.
   - A writer refuses a write that sets a member stored on the column of one
     the context sets, which in 0.35.0 could overwrite a `presets` field
     through a relation stored on its column.

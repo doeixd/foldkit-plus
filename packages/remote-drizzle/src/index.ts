@@ -630,14 +630,14 @@ export const source = <P = unknown>(
 
             let keyset: SQL | undefined
             if (shape.cursor !== undefined) {
-              // Only a row this principal may see places the page: a hidden one answers as an
-              // unknown one does, so a cursor tells neither that it exists nor where it sorts.
-              const cursorRows = yield* selectRows(
-                database,
-                relation.entity.table,
-                cursorSelection(order),
-                { where: and(eq(targetId, cursorId(shape.cursor)), targetVisible), limit: 1 },
-              )
+              // Only a row the page could show places it: one hidden by the target's Read rule
+              // or the relation's policy answers as an unknown one does, so a cursor tells
+              // neither that it exists nor where it sorts. A policy may read a through table.
+              const cursorRows = yield* selectRows(database, side.table, cursorSelection(order), {
+                where: and(eq(targetId, cursorId(shape.cursor)), policyWhere),
+                innerJoin: side.join,
+                limit: 1,
+              })
               const cursorRow = cursorRows[0]
               if (cursorRow === undefined) {
                 return yield* new RemoteServerError({
