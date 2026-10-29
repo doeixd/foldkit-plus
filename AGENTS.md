@@ -1045,6 +1045,12 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   of every row, which nothing leaves but by deletion. Read a leaving row to
   tell the two apart, and test a filtered, windowed list through the client
   (`pollWindow.test.ts`).
+- **A bound on how many rows a read names is no bound on what it reads.**
+  `maxIdsPerEntity` capped a read's ids, but a collection relation read
+  whole selected every child of each, and `pollLive` did so every tick, from
+  before 0.35.0 until remote-drizzle's `maxCollection`. Bound what each
+  named thing fans out to, and refuse past it: a whole list has no `hasNext`
+  to say it was cut short.
 - **Readable is not listed.** With a row log, `pollLive` once listed every
   logged row the subscriber could read, so a filtered list took in rows its
   query excludes and grew past its `first`. Membership is the query's: run

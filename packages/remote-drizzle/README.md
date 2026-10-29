@@ -588,6 +588,25 @@ That predicate is combined with the relation's static `where`. Policies are only
 valid for collection relations; putting one on a singular relation is rejected
 at definition time because it would not filter the target read correctly.
 
+### A collection read whole is bounded
+
+A collection relation read with no window (`comments: true`) comes back as the
+whole list of refs, which has no `hasNext` to say it was cut short. So the
+Source reads at most `maxCollection` rows of it for one parent (100 unless
+given) and refuses a read that finds more, naming the relation, rather than
+sending the first 100 as all of them. The statement ranks each parent's
+children and selects no more than one past the bound, so a parent with a
+million children costs what one with 101 does, on a read and on every tick of
+`pollLive`. A collection that can grow without limit is read with a window
+(next section); one the application knows is larger but bounded raises the
+bound:
+
+```ts
+const PostSource = source(Post, { maxCollection: 500 })
+```
+
+The inverse side of a one-to-one reads one child.
+
 ## Windowed collection relations
 
 A Selection can ask for a bounded connection instead of the full collection:

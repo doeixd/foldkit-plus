@@ -940,6 +940,11 @@ const Db = bind(Blog, {
 source(Db.Post) // an ordinary binding
 ```
 
+A collection relation read whole (`fans: true`, no window) holds at most
+`maxCollection` rows of one parent (`source(Db.Post, { maxCollection: 500 })`,
+default 100); a read finding more is refused, naming the relation, never cut
+short. A collection that can grow without limit is read with `Entity.page`.
+
 Storage: field = same-named column or `fields: { name: column }`; `one` =
 `{ field }`, or for an optional `one` read from the target's table
 `{ foreignKey, localKey?, assumeUnique? }` (the column must be unique); `many` = `{ foreignKey, localKey? }` or `{ through, localColumn,

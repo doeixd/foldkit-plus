@@ -420,7 +420,9 @@ const cursorId = (cursor: string): string => {
  * A `RemoteServer.entity` source backed by the `DrizzleDatabase` service. It
  * selects the requested columns in one batch, then resolves each selected
  * relation: a `one` relation becomes a ref key, and a `many` relation loads the
- * target ids in one `IN (...)`. `options.policies` adds a principal-scoped filter
+ * target ids in one statement, at most `options.maxCollection` (100) a row
+ * unless the read asks a window: a row holding more is refused, as a whole
+ * list cannot say it was cut short. `options.policies` adds a principal-scoped filter
  * to a collection relation (e.g. only rows this principal may see), and
  * `options.filter` decides what a principal sees of each record, as
  * `RemoteServer.entity`'s does.
@@ -439,8 +441,19 @@ export const source = <P = unknown>(
     readonly policies?:
       | Readonly<Record<string, ((principal: P) => SQL | undefined) | undefined>>
       | undefined
+    /**
+     * The most rows a collection relation read whole (with no window) may
+     * hold for one row; a read finding more is refused. Default 100.
+     */
+    readonly maxCollection?: number | undefined
   },
 ): EntitySource<P, DrizzleDatabase> => {
+  const maxCollection = options?.maxCollection ?? 100
+  if (!Number.isInteger(maxCollection) || maxCollection < 1) {
+    throw new Error(
+      `[foldkit-remote-drizzle] ${binding.name}'s maxCollection must be a whole number above 0`,
+    )
+  }
   for (const field of Object.keys(options?.policies ?? {})) {
     const relation = binding.relations[field]
     if (relation === undefined || relation.kind === 'one') {
@@ -561,6 +574,27 @@ export const source = <P = unknown>(
               rows.map(row => row[field]).filter(key => key !== null && key !== undefined),
             ),
           ]
+          // One statement for every parent: rank each parent's children in
+          // `order` and keep the first `keep` of each, so the statement count does
+          // not grow with the parents, nor its rows with their children.
+          const ranked = (where: SQL, order: ReadonlyArray<SQL>, keep: number) => {
+            const ranking = sql`row_number() over (partition by ${side.parent} order by ${sql.join([...order], sql`, `)})`
+            const joined =
+              side.join === undefined
+                ? sql`${side.table}`
+                : sql`${side.table} inner join ${side.join.table} on ${side.join.on}`
+            const kept = sql`(select p, k from (select ${side.parent} as p, ${targetId} as k, ${ranking} as rn from ${joined} where ${where}) as ranked where rn <= ${keep})`
+            return selectRows(
+              database,
+              side.table,
+              { child: targetId, parent: side.parent },
+              {
+                where: sql`(${side.parent}, ${targetId}) in ${kept}`,
+                innerJoin: side.join,
+                orderBy: order,
+              },
+            )
+          }
 
           if (window !== undefined) {
             const shape = shapeWindow(window, { defaultSize: 20 })
@@ -599,25 +633,7 @@ export const source = <P = unknown>(
                 policyWhere,
                 keyset,
               )
-              // One statement for every parent: rank each parent's children in
-              // a window and keep the first `pageSize + 1` of each, so the
-              // statement count does not grow with the number of parents.
-              const ranking = sql`row_number() over (partition by ${side.parent} order by ${sql.join([...traversalOrder], sql`, `)})`
-              const joined =
-                side.join === undefined
-                  ? sql`${side.table}`
-                  : sql`${side.table} inner join ${side.join.table} on ${side.join.on}`
-              const ranked = sql`(select p, k from (select ${side.parent} as p, ${targetId} as k, ${ranking} as rn from ${joined} where ${where}) as ranked where rn <= ${shape.pageSize + 1})`
-              const childRows = yield* selectRows(
-                database,
-                side.table,
-                { child: targetId, parent: side.parent },
-                {
-                  where: sql`(${side.parent}, ${targetId}) in ${ranked}`,
-                  innerJoin: side.join,
-                  orderBy: traversalOrder,
-                },
-              )
+              const childRows = yield* ranked(where, traversalOrder, shape.pageSize + 1)
               for (const child of childRows) {
                 const rows_ = byParent.get(String(child.parent)) ?? []
                 rows_.push(child)
@@ -652,17 +668,16 @@ export const source = <P = unknown>(
             continue
           }
 
+          // The inverse side of a one-to-one reads as the one ref, or none.
+          const single = relation.kind === 'many' && relation.single === true
           const byParent = new Map<string, string[]>()
           if (parentKeys.length > 0) {
-            const childRows = yield* selectRows(
-              database,
-              side.table,
-              { child: targetId, parent: side.parent },
-              {
-                where: withFilters(inArray(side.parent, parentKeys), relation.where, policyWhere),
-                innerJoin: side.join,
-                orderBy: naturalOrder,
-              },
+            // A list read whole has no `hasNext` to say it was cut short: one past
+            // the bound is read, so a parent holding more is refused, not truncated.
+            const childRows = yield* ranked(
+              withFilters(inArray(side.parent, parentKeys), relation.where, policyWhere),
+              naturalOrder,
+              single ? 1 : maxCollection + 1,
             )
             for (const child of childRows) {
               const refs = byParent.get(String(child.parent)) ?? []
@@ -670,11 +685,14 @@ export const source = <P = unknown>(
               byParent.set(String(child.parent), refs)
             }
           }
-          // The inverse side of a one-to-one reads as the one ref, or none.
-          const single = relation.kind === 'many' && relation.single === true
           for (const row of rows) {
             const key = row[field]
             const refs = key === null || key === undefined ? [] : (byParent.get(String(key)) ?? [])
+            if (refs.length > maxCollection) {
+              return yield* new RemoteServerError({
+                message: `${binding.name}.${field} holds more than ${maxCollection} rows for one ${binding.name}, more than a read of it whole may: read it with a window (Entity.page), or raise the source's maxCollection`,
+              })
+            }
             row[field] = single ? (refs[0] ?? null) : refs
           }
         }
