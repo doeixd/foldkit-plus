@@ -31,5 +31,6 @@ export default [
   linked('crud', ['src/index.ts']),
   linked('form', ['src/index.ts']),
   linked('ssr', ['src/index.ts', 'src/client.ts', 'src/vite.ts']),
+  linked('remote', ['src/index.ts', 'src/port.ts', 'src/testing.ts']),
   ...['mixins', 'bundle', 'media', 'primitives'].map(namespacesLinked),
 ]

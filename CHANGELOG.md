@@ -659,10 +659,11 @@ version changed; `pnpm` skips versions already in the registry.
   could not resolve `foldkit-mixins` (TS2307, 0.3.14 included).
 - **A page keeps only the modules it reads of a published package** (#215).
   `foldkit-mixins`, `-bundle`, `-media`, `-primitives`, `-entity`, `-crud`,
-  `-form` and `-ssr` were each linked into a few files, so `sideEffects:
+  `-form`, `-ssr` and `-remote` were each linked into a few files, so `sideEffects:
   false` had nothing to drop and `export * as` namespaces became objects
   keeping every member: a page reading `Collation.binary` kept 73 kB of
-  `foldkit-entity` against 1.9 kB from source. Each is now published one file
+  `foldkit-entity` against 1.9 kB from source, and one reading
+  `beginOptimistic` kept 350 kB of `foldkit-remote` against 1.6 kB. Each is now published one file
   per source module, `.js` and `.d.ts` (the export map's paths changed, its
   subpaths did not). Chirp's client entry, built against the published
   packages, fell from 1,043 kB to 1,009 kB minified (286 to 281 kB gzipped);

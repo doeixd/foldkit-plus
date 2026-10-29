@@ -57,6 +57,7 @@ const cases: ReadonlyArray<readonly [name: string, page: string]> = [
   ['crud', `import { Sort } from 'pkg'\nexport const used = Sort`],
   ['form', `import { Input } from 'pkg'\nexport const used = Input`],
   ['ssr', `import { metaMarkup } from 'pkg'\nexport const used = metaMarkup`],
+  ['remote', `import { beginOptimistic } from 'pkg'\nexport const used = beginOptimistic`],
 ]
 
 test.each(cases)(

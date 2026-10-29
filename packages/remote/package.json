@@ -29,18 +29,18 @@
   "exports": {
     ".": {
       "foldkit-plus:source": "./src/index.ts",
-      "types": "./dist/index.d.mts",
-      "import": "./dist/index.mjs"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     },
     "./port": {
       "foldkit-plus:source": "./src/port.ts",
-      "types": "./dist/port.d.mts",
-      "import": "./dist/port.mjs"
+      "types": "./dist/port.d.ts",
+      "import": "./dist/port.js"
     },
     "./testing": {
       "foldkit-plus:source": "./src/testing.ts",
-      "types": "./dist/testing.d.mts",
-      "import": "./dist/testing.mjs"
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.js"
     }
   },
   "files": [
