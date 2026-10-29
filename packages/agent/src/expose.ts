@@ -397,7 +397,8 @@ const payloadSchemaOf = (
   constructor: unknown,
 ): { schema: Schema.Codec<any, any, never, never>; empty: boolean } => {
   const fields = (constructor as { fields?: Fields }).fields ?? {}
-  const payload: Record<string, unknown> = {}
+  // A field may be named `__proto__`, which a plain object would take as its prototype.
+  const payload: Record<string, unknown> = Object.create(null)
   for (const key of Object.keys(fields)) {
     if (key !== '_tag') payload[key] = (fields as Record<string, unknown>)[key]
   }
@@ -448,7 +449,8 @@ export const expose = <
     // A bare string is the description; every other field takes its default.
     const config: VariantConfig<any, any, Model, Principal> =
       typeof declared === 'string' ? { description: declared } : declared
-    const constructor = union[tag]
+    // Own keys only: the union inherits `constructor` and `toString`, which are functions.
+    const constructor = Object.hasOwn(union, tag) ? union[tag] : undefined
 
     if (typeof constructor !== 'function') {
       throw new Error(`Cannot expose "${tag}": it is not a variant of this Message union`)

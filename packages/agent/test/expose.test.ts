@@ -1,5 +1,6 @@
 import { Effect, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
+import { defineMessageUnion } from 'foldkit/message'
 import { Agent } from '../src/index.js'
 import { Message, emptyModel } from './todoApp.js'
 
@@ -73,6 +74,20 @@ describe('Agent.expose', () => {
       // @ts-expect-error NotAMessage is not a variant of this Message union.
       Agent.expose(Message, { NotAMessage: { description: 'nope' } }),
     ).toThrow(/not a variant/)
+  })
+
+  it('rejects toString and constructor, which only the union inherits', () => {
+    // @ts-expect-error toString is not a variant of this Message union.
+    expect(() => Agent.expose(Message, { toString: 'nope' })).toThrow(/not a variant/)
+    // @ts-expect-error constructor is not a variant of this Message union.
+    expect(() => Agent.expose(Message, { constructor: 'nope' })).toThrow(/not a variant/)
+  })
+
+  it.each(['__proto__', 'constructor', 'toString'])('keeps a payload field named %s', name => {
+    const Named = defineMessageUnion({ Got: Object.fromEntries([[name, Schema.String]]) })
+    const messages = Agent.expose(Named, { Got: 'Got something' })
+
+    expect(Object.keys(messages.variants[0]?.inputJsonSchema.properties ?? {})).toEqual([name])
   })
 
   it('rejects input without toMessage', () => {

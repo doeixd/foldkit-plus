@@ -760,6 +760,12 @@ carries `drawn`.
 
 ### Fixed
 
+- **Agent keeps names that `Object.prototype` holds.** `Agent.expose`
+  dropped a Message field named `__proto__` from the capability's input,
+  and took `constructor` or `toString` as a variant of any union; the audit
+  log dropped a nested `__proto__` key from recorded input. Payload fields
+  gather on an object with no prototype, a variant is looked up among the
+  union's own keys, and recorded input is copied by definition.
 - **A guard's principal placeholders hold a field named `__proto__` as their
   own** (prototype-key sweep). `guard.row`'s placeholders were built by
   assignment, so such a field became their prototype rather than a key.

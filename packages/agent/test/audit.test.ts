@@ -319,6 +319,15 @@ describe('recorded input is a snapshot', () => {
     expect(recorded.self).toBe(recorded)
   })
 
+  it.each(['__proto__', 'constructor', 'toString'])('keeps a nested key named %s', name => {
+    const audit = Agent.auditLog({ includeInput: true })
+
+    record(audit, { nested: JSON.parse(`{"${name}":"kept"}`) })
+
+    const recorded = (audit.entries()[0]?.input as { nested: object }).nested
+    expect(Object.getOwnPropertyDescriptor(recorded, name)?.value).toBe('kept')
+  })
+
   it('still redacts only the top-level fields named', () => {
     const audit = Agent.auditLog({ includeInput: true, redact: ['token'] })
 

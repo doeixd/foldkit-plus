@@ -132,7 +132,15 @@ const snapshot = (value: unknown, seen: WeakMap<object, unknown>): unknown => {
 
   const copy: Record<string, unknown> = {}
   seen.set(value, copy)
-  for (const [key, item] of Object.entries(value)) copy[key] = snapshot(item, seen)
+  // Defined, not assigned: an input parsed from JSON may hold an own `__proto__` key.
+  for (const [key, item] of Object.entries(value)) {
+    Object.defineProperty(copy, key, {
+      value: snapshot(item, seen),
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    })
+  }
   return copy
 }
 
