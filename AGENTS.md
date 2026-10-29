@@ -1931,6 +1931,10 @@ of its own named a form field "fits the Catalog". Read words with
 - **A bare library name installs its `latest` tag.** `@yielded/auth`'s is
   beta.1 while `foldkit-auth` peers on beta.43: npm picked the peer's version,
   pnpm the tag. A printed install line names the version the peer asks for.
+- **A script under `pnpm <script>` carries pnpm's user agent to its children.**
+  `setup` picks the manager from `npm_config_user_agent`, so the npm setup
+  check passed run by `node` and printed pnpm's commands in CI's `pnpm
+  pack:check`. Give a child the agent of the tool you are imitating.
 - **A `package.json` change without `pnpm install` reds every job.** CI
   installs with `--frozen-lockfile`, so a new dependency without a
   regenerated lockfile fails all jobs in 30s. Regenerate in the same change
