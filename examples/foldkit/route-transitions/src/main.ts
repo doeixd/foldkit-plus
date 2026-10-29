@@ -453,13 +453,11 @@ const studioView = (
       'Write something, then leave. Exiting this route fires a one-shot SaveDraft Command with whatever is here.',
     ]),
     h.textarea(
-      // A Slot's attributes are typed for any element, InnerHTML included, which
-      // `h.textarea` refuses; nothing here supplies InnerHTML (a mixin cannot).
       slots.draft.attrs([
         h.Value(studioDraft),
         h.OnInput(value => Message.UpdatedStudioDraft({ value })),
         h.Placeholder('A half-finished thought…'),
-      ]) as Parameters<typeof h.textarea>[0],
+      ]),
     ),
     h.div(slots.saved.attrs(), [
       Option.match(maybeSavedDraft, {

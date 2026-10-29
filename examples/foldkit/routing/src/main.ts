@@ -105,7 +105,9 @@ export const AppSite = Site.make(
 const PeoplePage = Site.placement(PeopleNode, People.PeopleBundle, {
   link: Link.field<Model>()('peoplePage', Link.wrapper(Message.GotPeopleMessage)),
   args: parent => ({
-    searchText: parent.route._tag === 'People' ? parent.route.searchText : Option.none(),
+    searchText: AppRoute.matchOrElse(parent.route, { People: ({ searchText }) => searchText }, () =>
+      Option.none<string>(),
+    ),
   }),
   changed: route => People.Message.ChangedRoute({ route }),
 })

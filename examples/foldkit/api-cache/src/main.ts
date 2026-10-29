@@ -8,7 +8,7 @@ import { modifyFields } from 'foldkit/struct'
 import { Entity, type Selected } from 'foldkit-entity'
 import { SlotView, Style, type NamedStyle, type SlotBuilders } from 'foldkit-mixins'
 import { Button, ButtonSlots, Tabs } from 'foldkit-mixins-ui'
-import { Remote, RemoteData, RemotePolicy, type RemoteClient } from 'foldkit-remote'
+import { Remote, RemoteData, RemotePolicy, type Freshness, type RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 
 import { Post, PostsQuery, STATS_ID, Stats } from './data.js'
@@ -339,7 +339,12 @@ const postsListView = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Htm
           style: ToolbarButtonStyle,
           onClick: Message.ClickedInvalidatePosts(),
           isDisabled: isPending(posts),
-          content: [posts._tag === 'Refreshing' ? 'Refreshing...' : 'Invalidate'],
+          content: [
+            Match.value(posts).pipe(
+              Match.tag('Refreshing', () => 'Refreshing...'),
+              Match.orElse(() => 'Invalidate'),
+            ),
+          ],
         },
         h,
       ),
@@ -353,9 +358,7 @@ const postsListView = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Htm
       failed: error => errorView(error.message, Message.ClickedRetryPosts(), slots, h),
       data: (page, freshness) =>
         h.div(slots.section.attrs(), [
-          ...(freshness._tag === 'Stale'
-            ? [errorView(freshness.error.message, Message.ClickedRetryPosts(), slots, h)]
-            : []),
+          ...staleView(freshness, Message.ClickedRetryPosts(), slots, h),
           h.ul(
             slots.list.attrs(),
             Array.map(page.items, post => postListItem(model, post, slots, h)),
@@ -409,9 +412,7 @@ const postDetailView = (
       failed: error => errorView(error.message, retry, slots, h),
       data: (detail, freshness) =>
         h.div(slots.section.attrs(), [
-          ...(freshness._tag === 'Stale'
-            ? [errorView(freshness.error.message, retry, slots, h)]
-            : []),
+          ...staleView(freshness, retry, slots, h),
           h.article(slots.card.attrs(), [
             h.h2(slots.cardTitle.attrs(), [detail.title]),
             h.p(slots.byline.attrs(), [`By ${detail.author}`]),
@@ -451,9 +452,7 @@ const statsTabView = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html
       failed: error => errorView(error.message, Message.ClickedRetryStats(), slots, h),
       data: (current, freshness) =>
         h.div(slots.section.attrs(), [
-          ...(freshness._tag === 'Stale'
-            ? [errorView(freshness.error.message, Message.ClickedRetryStats(), slots, h)]
-            : []),
+          ...staleView(freshness, Message.ClickedRetryStats(), slots, h),
           h.div(slots.stats.attrs(), [
             statView('Active users', `${current.activeUsers}`, slots, h),
             statView('Requests per second', `${current.requestsPerSecond}`, slots, h),
@@ -461,9 +460,11 @@ const statsTabView = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html
           ]),
           h.div(slots.status.attrs(), [
             h.span(slots.updatedAt.attrs(), [`Updated at ${formatTime(current.sampledAt)}`]),
-            ...(freshness._tag === 'Refreshing'
-              ? [h.span(slots.refreshing.attrs(), ['Refreshing'])]
-              : []),
+            ...Match.valueTags(freshness, {
+              Fresh: () => [],
+              Refreshing: () => [h.span(slots.refreshing.attrs(), ['Refreshing'])],
+              Stale: () => [],
+            }),
           ]),
         ]),
     }),
@@ -489,3 +490,16 @@ const errorView = (
     h.p(slots.alertText.attrs(), [message]),
     styledButton({ style: RetryButtonStyle, onClick: retryMessage, content: ['Retry'] }, h),
   ])
+
+/** A later read's failure, drawn above the answer it left on screen. */
+const staleView = (
+  freshness: Freshness,
+  retryMessage: Message,
+  slots: Slots,
+  h: HtmlBuilder<Message>,
+): ReadonlyArray<Html> =>
+  Match.valueTags(freshness, {
+    Fresh: () => [],
+    Refreshing: () => [],
+    Stale: ({ error }) => [errorView(error.message, retryMessage, slots, h)],
+  })

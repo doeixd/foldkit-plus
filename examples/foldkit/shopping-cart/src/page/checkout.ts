@@ -64,9 +64,7 @@ const deliveryInstructionsView = (
         )
         return h.div(slots.field.attrs(), [
           h.label(label, ['Delivery Instructions']),
-          // `resolve` types its attributes for any element, InnerHTML included,
-          // which `h.textarea` refuses; a mixin cannot supply InnerHTML.
-          h.textarea(textarea as Parameters<typeof h.textarea>[0]),
+          h.textarea(textarea),
         ])
       },
     },

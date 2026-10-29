@@ -85,7 +85,10 @@ test('a todo added before a reload is there after it', async () => {
 })
 
 test('keeps in-memory changes when saving fails', async () => {
-  const failing: Storage = Object.assign(Object.create(window.localStorage) as Storage, {
+  const failing: Storage = {
+    length: 0,
+    clear: () => {},
+    key: () => null,
     getItem: () => null,
     setItem: () => {
       throw new Error('QuotaExceededError')
@@ -93,7 +96,7 @@ test('keeps in-memory changes when saving fails', async () => {
     removeItem: () => {
       throw new Error('QuotaExceededError')
     },
-  })
+  }
   mount(failing)
   await vi.waitFor(() => expect(text()).toContain('No todos yet. Add one above!'))
   addTodo('Buy milk')
