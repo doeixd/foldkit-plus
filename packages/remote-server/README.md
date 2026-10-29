@@ -66,6 +66,13 @@ That separation matters. `RemoteServer` can decide that a client may read
 that field comes from Postgres, another service, an in-memory index, or
 something else.
 
+It does **not** own HTTP or WebSocket transport, authentication or session
+storage, a database connection, the client's normalized cache, or Surface
+activation. A durable write is the client's to keep (Remote's outbox) and the
+writer's to recognise when it comes again (a ledger); this package only passes
+its operation id through. Client-authored state that must merge across devices
+is [`foldkit-sync`](../sync)'s.
+
 ## Install
 
 ```bash
@@ -297,10 +304,10 @@ const ProjectsByOwner = Query.make('ProjectsByOwner', {
   Result: Query.connection(Project),
 })
 
+// `projectsPage` is your own reader: one page of edges for the window.
 const ProjectsByOwnerSource = RemoteServer.query(
   ProjectsByOwner,
-  ({ input, window, principal, select }) =>
-    projectsPage({ ownerId: input.ownerId, window, principal }),
+  ({ input, window, principal }) => projectsPage({ ownerId: input.ownerId, window, principal }),
 )
 
 const Server = RemoteServer.make({
@@ -330,78 +337,13 @@ of guessing from row count.
 
 Query input is decoded through the Query's own Schema before your callback runs.
 The callback receives the decoded input, the requested `QueryWindow`, the
-`select` slice when the client sent one, and the principal.
+`select` slice when the client sent one, the principal, and the server's
+`viewer` of it.
 
-### Running a query body over rows you already hold
-
-A descriptor declared with
-[`Query.define`](../remote#queries-and-pagination) carries its meaning as a
-value, and `evaluate` runs that value directly:
-
-```ts
-import { evaluate } from 'foldkit-entity'
-
-evaluate(PostsBySlug.body!, { slug: 'intro' }, rows)
-// the matching rows, in the order the body asks for
-```
-
-It lives in [`foldkit-entity`](../entity), beside the IR it interprets, because
-it is that IR's reference semantics rather than anything this package does —
-and because a client judging rows it already holds needs it without depending on
-a server package. This package re-exports it, so importing it from either place
-means the same thing.
-
-It is pure — it reads the rows it is given and nothing else — and it is the
-reference the compiled interpreters are checked against. `foldkit-remote-drizzle`
-turns the same body into SQL; the test suite runs both over the same rows in a
-real SQLite and requires the same ids in the same order. That is what makes a
-body source-neutral in fact rather than in principle.
-
-**It follows SQL, not JavaScript.** The case that matters is null: `null = null`
-is *unknown* in SQL and matches no row, where JavaScript would call the two
-equal. A comparison keeps a row only when it is true, so a null on either side
-drops it.
-
-What it refuses rather than guesses:
-
-- **Ordering by a column that is null in some row.** SQLite sorts nulls first,
-  Postgres sorts them last for `asc`: the databases disagree with each other, so
-  there is no answer to be conformant to and picking one would make this wrong
-  against the other.
-- **Comparing values it has no order for**, such as a number against a string.
-- **Searching text that holds a NUL character**, which Postgres text cannot
-  hold and SQLite's `like` stops at.
-
-Each throws where the query runs, naming the query. An ordering is checked
-before anything is sorted: every term over every matched row, in row order, so
-the error names the first row that breaks it (`number and string` when a later
-row holds text), the same on every engine, whichever pair a sort would have
-compared first. One matched row, or none, has nothing to order and is never
-refused.
-
-### Checking an interpreter against the semantics
-
-`evaluate` is the reference, and `cases` is what it is a reference *to*: the
-conformance suite, exported so an interpreter written elsewhere can be held to
-the same semantics.
-
-```ts
-import { Subject, cases, rows } from 'foldkit-remote-server'
-
-for (const { what, body, input, expected } of cases) {
-  expect(yourInterpreter(body, input, rows).map(row => row.id)).toEqual(expected)
-}
-```
-
-Every case is chosen to make interpreters **disagree**, which is the only kind
-that tests anything: mixed case, nulls on both sides of a comparison, `%` and
-`_` as literal text, the empty search, a predicate compared to a boolean either
-way round. That is not caution for its own sake — `contains` reached a released
-package meaning three different things because every value in the original
-fixture happened to be lowercase.
-
-Both interpreters here run it: this package over rows in memory, and
-`foldkit-remote-drizzle` compiled to SQL against a real SQLite.
+A query declared with `Query.define` carries its meaning as a value, so it
+needs no hand-written Source: `RemoteServer.memory` runs its body with
+`evaluate`, and `foldkit-remote-drizzle` compiles it to SQL (see [Reference
+semantics](#reference-semantics-evaluate-and-the-conformance-suite)).
 
 ## Mutations
 
@@ -418,6 +360,7 @@ const RenameProject = Mutation.make('RenameProject', {
   Output: Schema.Struct({ id: Schema.String }),
 })
 
+// `renameProject` is your own write, answering the Output.
 const RenameProjectSource = RemoteServer.mutation(
   RenameProject,
   ({ input, principal }) =>
@@ -443,14 +386,9 @@ A refusal of who is asking, rather than of what they asked, is
 `Effect.fail(RemoteServer.forbid('Only an admin may archive.'))`: sent as
 `Forbidden` with the reason (a 403 over JSON), or with none when `forbid()` is
 given none, so the refusal says nothing of why. It is the same for every
-mutation, so it needs no `Refusal` declared. The Source is also given `requestId`, the client's id for the
-request, and `operation`, the operation's id across clients, both the same on
-every retry of it. Record a write under `operation`, never `requestId`: a
-request id is a counter in one client's Model, so two clients' first requests
-share it, and a record keyed by it would answer one client with another's write.
-`operation` is none from a client that sends none, and bounded on the wire (128
-characters of `A-Z a-z 0-9 : . _ -`). A Source
-may additionally return connection changes:
+mutation, so it needs no `Refusal` declared.
+
+A Source may additionally return connection changes:
 
 ```ts
 RemoteServer.prepend(connection, Project.ref(id))
@@ -461,6 +399,37 @@ RemoteServer.remove(connection, Project.ref(id))
 Those confirmed changes replace the corresponding optimistic connection layers
 on the client.
 
+### A write sent again: `operation`
+
+The Source is also given `requestId`, the client's id for the request, and
+`operation`, the operation's id across clients, both the same on every retry of
+it. Record a write under `operation`, never `requestId`: a request id is a
+counter in one client's Model, so two clients' first requests share it, and a
+record keyed by it would answer one client with another's write. `operation`
+is none from a client that sends none, and bounded on the wire (128
+characters of `A-Z a-z 0-9 : . _ -`).
+
+Expect the same operation more than once. A write that no answer came back
+for fails on the client with `Unreachable` (`RemoteUnreachable`): the request
+did not go, or what came back was no Remote answer (not JSON, or under a 408,
+429, 502, 503 or 504, which this package never answers with but a gateway or
+a rate limiter may). The server may have landed it. `Data.retry` sends it
+again under the same operation, and a durable write (`Data.mutate(…, {
+durable: true })`) is stored in the page's outbox and sent again on its own,
+after an `Unreachable` and after a reload, with the same operation id and the
+same `now`. What a retry does depends on the write: setting a value sets it
+again, an `expect`ed revision answers `Conflict`, and only a ledger (below)
+recognises the operation and answers it from its record. A durable Mutation
+therefore needs a writer with a ledger, or a handler that records by
+`operation`.
+
+The outbox never sends one principal's waiting writes as another's: it holds
+its queue for one store key and scope, and sends none of it once either
+changes. The server still decides each send as whoever that request
+authenticates as.
+
+### Declared writes: no handler
+
 A mutation declared as a `Write` (`Mutation.write`) needs no handler.
 `RemoteServer.write(mutation, writer)` binds the input to the write, only the
 keys the client named when it named some, and hands the row's id and new values
@@ -470,70 +439,79 @@ to an `EntityWriter`, which writes them and answers the row as written:
 RemoteServer.write(EditProject, writer(Db.Project)) // `writer` from foldkit-remote-drizzle
 ```
 
-The answer is the mutation's patch, or for a delete its deletion. A write of
-an Entity with `Entity.sets` is handed the members its context sets as well,
-never from the input (an insert all of them, an update those set `on:
-'write'`): `Expr.viewer` from `RemoteServer.make({ viewer: principal =>
-Option<{ entity, id }> })`, and `Expr.now` from the write's time. A write whose
-value comes to null where the member holds none (a visitor's) is refused as
-forbidden; a server that serves a write setting the viewer with no `viewer` is
-refused where it is made. A path from the viewer is read through the
-server's own sources, as the asker may see each row (the run context's
-`read`); a server that mounts no source for a row the path reaches is refused
-where it is made, and a path reaching no row the asker may see is null. A retried
-insert, which only a writer's ledger recognises, keeps its first time.
+The answer is the mutation's patch, or for a delete its deletion. The writer
+must be for the write's own Entity, which is checked where the mutation is
+served. The [declared writes guide](../../docs/declared-writes.md) walks
+through the whole path; what this package does with each part of a write:
 
-The write's time is the client's when it sent one (`Data.mutate`'s `now`, the
-moment the reader acted, which the client showed the row at) and it lies
-within `RemoteServer.make({ clockSkew })` of the server's Effect `Clock`: 60
-seconds unless given, `0` to never take a client's time. Otherwise it is the
-server's own, and a time past a bound above zero is reported as a
-`ClockSkewed` diagnostic. The bound is how far a client can backdate or
-postdate a row; nothing else of a write's context comes from the client. A
-hand-written mutation reads the same time as `now` in its context.
-With `expect`, the writer is told the revision the row was read at; no row at it is
-refused as `Refusal.conflict`. With `when`, the writer is handed the
-precondition and the input encoded, checks it in the statement that writes, and
-fails a row at the revision that does not hold it with `RemoteUnmet`
-(`RemoteServer.unmet()`), which is refused as `Refusal.unmet`: absent first, then
-a moved revision, then the precondition. A row the write would leave that
-breaks an invariant of its Entity (`Entity.invariant`) is the writer's to
-refuse, with `RemoteServer.invalid(message, rule, path)`, which is refused as
-`Refusal.invalid`: the invariant's id and path, or none and empty when the
-caller may not be told them. A writer says it judges invariants
-(`invariants: true`), and a write over an Entity that has some, through a writer
-that does not, is refused where it is served. A writer says it checks one
-(`preconditions: true` on `EntityWriter`), and a write with a `when` over a
-writer that does not is refused where it is served, rather than written whatever
-the row holds. A write's increments reach the writer apart from its values
-(`increments`, each field's amount, encoded), to be added in the statement that
-writes; a writer says it adds them (`increments: true`), and a write with one
-over a writer that does not is refused where it is served; so are computed
-assignments (`assignments`, each a `Computation`), over a writer that computes
-them (`assignments: true`). An increment or a computed assignment that expects
-no revision is served only over a writer with a ledger (`ledger: true`), which
-records each update under its `operation` and answers a retry from the record
-(`recorded`), and only for a request carrying an operation id. Even so, a
-concurrent pair must land as one result: an increment only of an integer, and a
-computed assignment only where the writer `commutes` it, unless the writer pins
-the row it read (`pins: true`, a guard with a revision). A writer that holds
-an update's or a delete's row to a `requires` (`RowRequirement`: bodies over
-the row, all or any of them) in its own statement says so (`requires: true`),
-and refuses a row that fails it with `Forbidden`: a guard's rule that reads
-another row is handed to it that way (remote-drizzle's `writer` does). A writer
-may refuse a write for what only its store knows (`refuses`, asked once where
-the write is served): the Drizzle writer refuses an amount that may be a
-fraction for a column that holds integers. An update of no row fails, and a
-delete of a row already gone succeeds, so its retry is safe. An insert of an
-id already taken fails with one answer, whatever the row there holds and
-whether its asker may see it: comparing that row with the insert would tell
-the asker what it holds. Only a writer with a ledger (`EntityWriter.ledger`)
-tells a retry from another create of the id, by the operation the client
-sent, and answers it with the row; without one, a create whose answer was
-lost is refused when it is sent again. Give a writer a ledger where a client
-may resend a create, and make ids that a guess cannot find where whether a
-row exists is itself private. The writer must be for the write's own Entity,
-which is checked where the mutation is served.
+- **What the server chooses.** A write of an Entity with `Entity.sets` is
+  handed the members its context sets as well, never from the input (an
+  insert all of them, an update those set `on: 'write'`): `Expr.viewer` from
+  `RemoteServer.make({ viewer: principal => Option<{ entity, id }> })`, and
+  `Expr.now` from the write's time. A value that comes to null where the
+  member holds none (a visitor's) is refused as forbidden; a server that
+  serves a write setting the viewer with no `viewer` is refused where it is
+  made. A path from the viewer is read through the server's own sources, as
+  the asker may see each row (the run context's `read`); a server that mounts
+  no source for a row the path reaches is refused where it is made, and a
+  path reaching no row the asker may see is null.
+- **The write's time** is the client's when it sent one (`Data.mutate`'s
+  `now`, the moment the reader acted, which the client showed the row at) and
+  it lies within `RemoteServer.make({ clockSkew })` of the server's Effect
+  `Clock`: 60 seconds unless given, `0` to never take a client's time.
+  Otherwise it is the server's own, and a time past a bound above zero is
+  reported as a `ClockSkewed` diagnostic: a durable write sent long after it
+  was made takes the server's time. The bound is how far a client can backdate
+  or postdate a row; nothing else of a write's context comes from the client.
+  A hand-written mutation reads the same time as `now` in its context. A
+  retried insert, which only a writer's ledger recognises, keeps its first
+  time.
+- **`expect`**: the writer is told the revision the row was read at; no row
+  at it is refused as `Refusal.conflict`.
+- **`when`**: the writer is handed the precondition and the input encoded,
+  checks it in the statement that writes, and fails a row at the revision
+  that does not hold it with `RemoteUnmet` (`RemoteServer.unmet()`), refused
+  as `Refusal.unmet`: absent first, then a moved revision, then the
+  precondition.
+- **Invariants** (`Entity.invariant`) are the writer's to judge over the row
+  the write would leave, refusing with `RemoteServer.invalid(message, rule,
+  path)`, sent as `Refusal.invalid`: the invariant's id and path, or none and
+  empty when the caller may not be told them.
+- **Increments and computed assignments** reach the writer apart from its
+  values (`increments`, each field's amount, encoded; `assignments`, each a
+  `Computation`), to be applied in the statement that writes. One that
+  expects no revision is served only over a writer with a ledger, and only
+  for a request carrying an operation id; even so, a concurrent pair must land
+  as one result: an increment only of an integer, and a computed assignment
+  only where the writer `commutes` it, unless the writer pins the row it read
+  (`pins: true`, a guard with a revision).
+- **A rule over another row.** A writer that holds an update's or a delete's
+  row to a `requires` (`RowRequirement`: bodies over the row, all or any of
+  them) in its own statement refuses a row that fails it with `Forbidden`:
+  `foldkit-guard` hands it a rule that reads another row that way.
+- **Creates and deletes.** An update of no row fails, and a delete of a row
+  already gone succeeds, so its retry is safe. An insert of an id already
+  taken fails with one answer, whatever the row there holds and whether its
+  asker may see it: comparing that row with the insert would tell the asker
+  what it holds. Only a writer with a ledger tells a retry from another create
+  of the id, by the operation the client sent, and answers it with the row;
+  without one, a create whose answer was lost is refused when it is sent
+  again. Give a writer a ledger where a client may resend a create, and make
+  ids that a guess cannot find where whether a row exists is itself private.
+
+A writer says what it can do, and `RemoteServer.write` refuses, where the
+write is served, one that needs what its writer lacks rather than writing it
+wrongly:
+
+| `EntityWriter` says | It | Needed by |
+| --- | --- | --- |
+| `preconditions: true` | checks `when` in the statement | a write with a `when` |
+| `invariants: true` | judges the Entity's invariants | a write of an Entity that has any |
+| `increments: true` | adds `increments` in the statement | a write with an increment |
+| `assignments: true` | computes `assignments` in the statement | a write with a computed assignment |
+| `ledger: true` (with `recorded`) | records each update and insert under its `operation`, and answers a retry from the record | an increment or computed assignment with no `expect` |
+| `requires: true` | holds the row to `requires` | `GuardServer.writer` over a rule reading another row |
+| `refuses(write)` | names what only its store knows it cannot land (the Drizzle writer: a fractional amount for an integer column) | every write, asked once |
 
 A writer with a `read` (the row as a principal may see it, under the read
 rule its Source applies) answers through it: the patch is the written row as
@@ -568,12 +546,14 @@ A Source whose write the server cannot see (a row of a join table, a count it
 keeps itself) names the row with no values, and the read answers all of it:
 
 ```ts
-// A like in a join table changes its post: name the post, read nothing yourself.
+// Sketch, inside a mutation Source over a `Post` Entity: a like in a join table
+// changes its post, so name the post and read nothing yourself.
 return { output: { liked: true }, entities: [Remote.patch(Post, input.postId, {})] }
 ```
 
 The read runs after the write commits, outside its transaction. If it fails,
-the failure is logged and the mutation is answered without it: the write has
+it is reported as an `AnswerUnread` [diagnostic](#diagnostics) and the
+mutation is answered without it: the write has
 landed, and the client fetches what it lacks as it would have. A deleted row is
 not read.
 
@@ -586,17 +566,21 @@ names them. These rows are read, never sent as patches of their own: one the
 asker may not see is not answered at all. Live subscribers hear the outcome's
 own patches, not the read, which is one asker's view.
 
-Remote mutations are immediate requests against **server-owned** state. They are
-not a durable offline intent log; client-authored edits that must survive offline
-belong to `foldkit-sync`.
-
 ## Live data
 
-There are two ways to produce live changes.
+A live subscription is one stream per Entity, from that Entity's live Source.
+There are three ways to produce one:
+
+- write a live Source directly, below;
+- over Drizzle, `foldkit-remote-drizzle`'s `pollLive`, a live Source that
+  re-reads the subscribed rows and lists from inside the subscriber's own
+  request, which is what Workers need;
+- in a long-lived process, a `liveHub` that re-reads what each write changed.
 
 ### Write a live Source directly
 
 ```ts
+// `projectEvents` is your own stream of `LiveChange`s.
 const ProjectLive = RemoteServer.live(Project, {
   subscribe: ({ requirements, queries, after, principal }) =>
     projectEvents({
@@ -639,8 +623,8 @@ const asReader = RemoteServer.readAs(ProjectSource, {
   fields: ['name', 'privateNotes'],
   principal: { isAdmin: false },
 })
-// Option.some([{ id: 'p1', values: { name: 'Apollo' } }]); Option.none() when
-// the principal may read none of the fields asked.
+// An Effect that succeeds with Option.some([{ id: 'p1', values: { name: 'Apollo' } }]),
+// or Option.none() when the principal may read none of the fields asked.
 ```
 
 `RemoteServer.allowedFields(ProjectSource, principal, fields)` says which of
@@ -662,6 +646,7 @@ fields it carries, each deletion as a deletion. A mutation Source names nothing
 twice.
 
 ```ts
+// Inside an Effect.gen: building a hub is an Effect.
 const entitySources = [ProjectSource]
 const hub = yield* RemoteServer.liveHub(entitySources)
 
@@ -670,13 +655,14 @@ const handlers = RemoteServer.handlers(Server, principal, {
 })
 
 // Only for a write that is not a mutation: a database trigger consumer, a job.
-yield* hub.changed(Project.ref(projectId), ['status', 'updatedAt'])
-yield* hub.deleted(Project.ref(projectId))
+yield* hub.changed(Project.ref('p1'), ['name'])
+yield* hub.deleted(Project.ref('p1'))
 ```
 
 A mutation's publish runs after its Source returned, so after a write that
-commits as it goes. A failed publish is logged and the mutation still answers:
-its write has happened, and a failed answer would be retried.
+commits as it goes. A failed publish is reported as a `PublishFailed`
+[diagnostic](#diagnostics) and the mutation still answers: its write has
+happened, and a failed answer would be retried.
 
 The hub remembers each subscriber's requirements and principal. `changed`:
 
@@ -743,9 +729,10 @@ const SharedProjectSource = RemoteServer.entity<Principal>(Project, {
 A hub is an in-memory fan-out, so whatever calls `changed` must be able to wake
 the subscriber's fiber. In a worker it cannot: one request cannot wake another's
 stream, so a hub fed from a second request delivers nothing and tears the first
-stream down (see `AGENTS.md`). On Workers, poll the shared store from inside the
-subscriber's own request instead — `examples/cloudflare` has the shape. A hub is
-right for a long-lived server process that owns both sides.
+stream down: the open response belongs to the request that opened it, and the
+Workers runtime cancels it when another request wakes it. On Workers, poll the
+shared store from inside the subscriber's own request instead, as `pollLive`
+does. A hub is right for a long-lived server process that owns both sides.
 
 A hand-written live Source and a hub number their events independently. Use one
 or the other for a given subscription path rather than mixing cursor domains.
@@ -804,7 +791,7 @@ A complete server definition is just the collection of Sources:
 
 ```ts
 const Server = RemoteServer.make({
-  entities: [ProjectSource, UserSource],
+  entities: [ProjectSource],
   queries: [ProjectsByOwnerSource],
   mutations: [RenameProjectSource],
   live: [ProjectLive],
@@ -816,7 +803,7 @@ Source names at startup:
 
 ```ts
 const Data = Remote.define({
-  entities: [Project, User],
+  entities: [Project],
   queries: [ProjectsByOwner],
   mutations: [RenameProject],
 })
@@ -893,6 +880,10 @@ The handler applies bounded, protocol-level safeguards before or around Sources:
 - the wire decoder also rejects a selection deeper than
   `MAX_RELATION_DEPTH` (`8`) or more than `MAX_FIELDS_PER_REQUEST` (`256`)
   fields for one Entity;
+- a collection relation read with no window is the Source's to bound:
+  `foldkit-remote-drizzle`'s `source` reads at most `maxCollection` children
+  of one row (default 100) and refuses a read that finds more, rather than
+  answering a list cut short;
 - returned field names are copied with `Object.hasOwn` into null-prototype
   objects, so names such as `__proto__` or `toString` cannot reach prototypes;
 - Source errors are remapped to protocol error types without echoing application
@@ -900,8 +891,10 @@ The handler applies bounded, protocol-level safeguards before or around Sources:
 
 A live subscription is held to the same bounds, checked once by the handler
 before any live Source or the hub sees it: more than `maxIdsPerEntity` ids of
-one Entity, or more pages of one relation than a read may ask, fails the stream
-with `RemoteLiveRefused` and nothing is read. That matters most for a polling
+one Entity (the `first` of each live list of it counted with them), or more
+pages of one relation than a read may ask, fails the stream with
+`RemoteLiveRefused` and nothing is read; more than `MAX_LIVE_QUERIES` (32) live
+lists fails the wire decoder before that. That matters most for a polling
 Source such as `pollLive`, which re-reads every subscribed row each tick. A
 refusal is not truncation: the client does not reconnect it, and
 `Data.liveStatus` reads `Refused`. A hand-written live Source can rely on what
@@ -920,10 +913,9 @@ is refused where the server is built.
 
 ```ts
 const backend = RemoteServer.memory({
-  domain: Data, // or the definition from Remote.define
+  domain: Data, // the definition from Remote.define, or a domain from Remote.make
   rows: {
-    User: [{ id: 'u1', name: 'Ada' }],
-    Project: [{ id: 'p1', name: 'Apollo', status: 'active', owner: 'User:u1' }],
+    Project: [{ id: 'p1', name: 'Apollo', privateNotes: 'Internal' }],
   },
   // Optional: each mutation writes through the store, and the next read sees it.
   mutations: store => [
@@ -1082,6 +1074,12 @@ const route = async (request: Request): Promise<Response> => {
   [diagnostic](#diagnostics), by default to the log, so a Worker's log
   (`wrangler tail`) shows what broke.
 
+It never answers 408, 429, 502, 503 or 504. Remote's client reads a body
+under one of those, or one that is not JSON, as no answer at all
+(`Unreachable`): a proxy, gateway or rate limiter in front that answers one
+leaves the client unsure whether the write ran, and a durable write is sent
+again (see [A write sent again](#a-write-sent-again-operation)).
+
 It binds no principal: pass the `handlers` for the request's own,
 established by your authentication, as everywhere else. It carries no live
 data.
@@ -1098,6 +1096,7 @@ what `layer` provides (a session store, an auth service):
 ```ts
 import { serveFetch } from 'foldkit-remote-server/fetch'
 
+// `server` is your RemoteServer.make; `databaseLayer` and `drizzle` provide what its Sources need.
 export default {
   fetch: serveFetch({
     server,
@@ -1108,8 +1107,12 @@ export default {
 }
 ```
 
-Only `POST`s to `path` (default `/remote`) are answered; anything else is a 404. A body that is not JSON, or not a request, is a 400 that reaches no
-handler; a handler's failure a 500 with its message.
+Only `POST`s to `path` (default `/remote`) are answered; anything else is a
+404. A body that is not JSON, or not a request, is a 400 that reaches no
+handler; a handler's failure a 500 with its message. Every response, refusals
+and errors included, says `cache-control: no-store` unless `headers` gives a
+`cache-control` of its own: each answer is one principal's rows (and `may`), so
+no shared cache may keep one.
 
 A resolver refuses the caller by failing with
 `RemoteServer.unauthenticated(reason?)`: a 401 whose body is
@@ -1204,6 +1207,7 @@ channel, re-exported by `foldkit-remote`), which by default is Effect's log:
 | `ServerDefect` | `error` | Something on this side broke (a layer, a resolver, a handler's defect) and the caller was answered `Internal error`; it carries the `cause`. |
 | `AnswerUnread` | `warning` | A mutation committed, but reading its answer failed: the client reads those rows again. |
 | `PublishFailed` | `error` | A mutation committed, but its live publish failed: live subscribers do not hear it. |
+| `ClockSkewed` | `warning` | A write's time was past `clockSkew` from the server's clock (a client clock that is off, or a durable write that waited), so the server wrote its own; it carries `sent`, `own` and `bound`. |
 
 Provide another reporter as any service: `Layer.succeed(Diagnostics.Reporter,
 report)` in the layer the handlers run in. `serveFetch` takes one with the
@@ -1222,19 +1226,83 @@ serveFetch({
 
 In a test, `Diagnostics.collect()` gives a reporter and the array it fills.
 
-## What it does not own
+## Reference semantics: `evaluate` and the conformance suite
 
-`foldkit-remote-server` intentionally does **not** own:
+### Running a query body over rows you already hold
 
-- HTTP/WebSocket transport or serialization;
-- authentication protocol or session storage;
-- a database connection;
-- the client's normalized cache;
-- client rendering or Surface activation;
-- durable/offline client-authored state.
+A descriptor declared with
+[`Query.define`](../remote#queries-and-pagination) carries its meaning as a
+value (`body`), and `evaluate` runs a body directly:
 
-Those boundaries keep this package an interpreter of the Remote contract rather
-than another application runtime.
+```ts
+import { Entity, Expr, Order, Query, evaluate } from 'foldkit-entity'
+
+const Post = Entity.define('Post', Schema.Struct({ id: Schema.String, slug: Schema.String }))
+const intro = Query.from(Post).pipe(
+  Query.where(Expr.eq(Post.fields.slug, 'intro')),
+  Query.orderBy(Order.asc(Post.fields.id)),
+)
+
+evaluate(intro, {}, [{ id: 'p1', slug: 'intro' }, { id: 'p2', slug: 'outro' }])
+// [{ id: 'p1', slug: 'intro' }]: the matching rows, in the order the body asks for
+```
+
+It lives in [`foldkit-entity`](../entity), beside the IR it interprets, because
+it is that IR's reference semantics rather than anything this package does —
+and because a client judging rows it already holds needs it without depending on
+a server package. This package re-exports it, so importing it from either place
+means the same thing.
+
+It is pure — it reads the rows it is given and nothing else — and it is the
+reference the compiled interpreters are checked against. `foldkit-remote-drizzle`
+turns the same body into SQL; the test suite runs both over the same rows in a
+real SQLite and Postgres and requires the same ids in the same order. That is
+what makes a body source-neutral in fact rather than in principle.
+
+**It follows SQL, not JavaScript.** The case that matters is null: `null = null`
+is *unknown* in SQL and matches no row, where JavaScript would call the two
+equal. A comparison keeps a row only when it is true, so a null on either side
+drops it. Where an ordering puts null is the term's to say
+(`Order.asc(field, { nulls: 'first' })`); unsaid, it is Postgres's (last
+ascending, first descending), which the SQL compiler writes out for SQLite too.
+
+What it refuses rather than guesses, each where the query runs:
+
+- **Ordering by values it has no order for**, such as a number in one row and
+  text in another, or by a backend's locale collation, which only that backend
+  has. Every term is checked over every matched row before anything is sorted,
+  so the refusal is the same on every engine, whichever pair a sort would have
+  compared first. One matched row, or none, has nothing to order.
+- **NaN**, which SQLite stores as null and Postgres orders after every number.
+- **Text holding a NUL character** in a comparison or a search, which Postgres
+  text cannot hold and SQLite's `like` stops at.
+- **A term with no context.** A body reading `Expr.viewer` or `Expr.now` is
+  refused when run without them (`ContextMissingError`), never read as null.
+
+### Checking an interpreter against the semantics
+
+`evaluate` is the reference, and `cases` (in `foldkit-entity/conformance`) is
+what it is a reference *to*: the conformance suite, exported so an interpreter
+written elsewhere can be held to the same semantics. Here `run` is your
+interpreter:
+
+```ts
+import { cases, rows } from 'foldkit-entity/conformance'
+
+for (const { what, body, input, expected } of cases) {
+  expect(run(body, input, rows).map(row => row.id), what).toEqual(expected)
+}
+```
+
+Every case is chosen to make interpreters **disagree**, which is the only kind
+that tests anything: mixed case, nulls on both sides of a comparison, `%` and
+`_` as literal text, the empty search, a predicate compared to a boolean either
+way round. That is not caution for its own sake — `contains` reached a released
+package meaning three different things because every value in the original
+fixture happened to be lowercase.
+
+Both interpreters here run it: this package over rows in memory, and
+`foldkit-remote-drizzle` compiled to SQL against a real SQLite and Postgres.
 
 ## See also
 
