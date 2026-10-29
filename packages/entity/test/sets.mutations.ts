@@ -88,8 +88,8 @@ export default [
   edit(
     'a required relation points nowhere',
     write,
-    'else if (member.optional) links[member.key] = Option.none()',
-    'else if (true) links[member.key] = Option.none()',
+    'else if (member.optional) put(links, member.key, Option.none())',
+    'else if (true) put(links, member.key, Option.none())',
   ),
   edit(
     'a missing time is not named',

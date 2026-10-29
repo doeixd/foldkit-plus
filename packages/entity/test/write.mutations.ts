@@ -53,8 +53,8 @@ export default [
     edits: [
       {
         file,
-        find: 'values[field.key] = encoded(field, held)',
-        replace: 'values[field.key] = held',
+        find: 'put(values, field.key, encoded(field, held))',
+        replace: 'put(values, field.key, held)',
       },
     ],
     tests,
@@ -76,8 +76,8 @@ export default [
     edits: [
       {
         file,
-        find: 'Option.flatMap(given(input[key]), Option.fromNullishOr)',
-        replace: 'given(input[key])',
+        find: 'Option.flatMap(given(own(input, key)), Option.fromNullishOr)',
+        replace: 'given(own(input, key))',
       },
     ],
     tests,

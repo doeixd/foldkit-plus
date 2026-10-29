@@ -50,7 +50,7 @@ export default [
   edit(
     "a row's inherited key is its value",
     '../src/evaluate.ts',
-    'field: key => (Object.hasOwn(row, key) ? row[key] : undefined),',
+    'field: key => own(row, key),',
     'field: key => row[key],',
   ),
 ]

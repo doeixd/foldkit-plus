@@ -44,6 +44,7 @@ import { Held, type HeldRow, type HeldRows } from './held.js'
 import type { AnyEntity } from './index.js'
 import { Operators, type MemoryImplementation, type MemoryOperators } from './operators.js'
 import { contextValue, type ExprContext, type NowExpr, type ViewerExpr } from './context.js'
+import { own } from './record.js'
 
 /** A row as this interpreter reads one: values by field key. */
 export type Row = Readonly<Record<string, unknown>>
@@ -153,7 +154,7 @@ interface View {
  * SQL binds a missing value, and no other row can be reached from it.
  */
 const flat = (row: Row): View => ({
-  field: key => (Object.hasOwn(row, key) ? row[key] : undefined),
+  field: key => own(row, key),
   follow: relation => new Unheld(`${relation.owner.name}.${relation.key} leads to another row`),
   pointing: relation => ({
     rows: [],
@@ -224,7 +225,7 @@ const valueOf = (node: AnyExpr, scope: Scope): unknown => {
     case 'Literal':
       return node.value
     case 'Input':
-      return scope.input[node.key]
+      return own(scope.input, node.key)
     case 'Call':
       return called(node, scope)
     case 'Viewer':

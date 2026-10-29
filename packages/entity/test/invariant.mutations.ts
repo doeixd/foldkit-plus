@@ -59,7 +59,11 @@ export default [
     'merge: values => [...new Set(values)],',
     'merge: values => values,',
   ),
-  edit('a decoded value is judged unencoded', ')(decoded[key])', ')(decoded[key]) && decoded[key]'),
+  edit(
+    'a decoded value is judged unencoded',
+    '          decoded[key],\n        ),',
+    '          decoded[key],\n        ) && decoded[key],',
+  ),
   edit(
     'a failure is reported nowhere',
     'path: [key], issue: failure.message',

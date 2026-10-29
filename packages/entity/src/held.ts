@@ -10,6 +10,7 @@
 import { Option } from 'effect'
 import { Query, type AnyQuery, type OneRelation } from './expr.js'
 import type { AnyEntity, EntityIdentity } from './index.js'
+import { own, put } from './record.js'
 
 /** A value a holder has, or why it does not have it. */
 export type Held<A> =
@@ -201,8 +202,9 @@ const fromRefs = (
   if (links.length === 0) return row
   const read: Record<string, unknown> = { ...row }
   for (const key of links) {
-    const ref = row[key]
-    if (ref !== null && ref !== undefined) read[key] = idOfRef(ref, `${query.entity.name}.${key}`)
+    const ref = own(row, key)
+    if (ref !== null && ref !== undefined)
+      put(read, key, idOfRef(ref, `${query.entity.name}.${key}`))
   }
   return read
 }

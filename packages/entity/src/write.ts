@@ -41,6 +41,7 @@ import type { BeforeRow } from './invariant.js'
 import { contextValue, viewerIdOf, type ExprContext, type ViewerPathExpr } from './context.js'
 import { Held, idOfRef } from './held.js'
 import type { MemoryOperators } from './operators.js'
+import { own, put } from './record.js'
 import { SchemaShape } from './shape.js'
 import type { ContextValue } from './sets.js'
 
@@ -293,7 +294,7 @@ const given = (value: unknown): Option.Option<unknown> => {
 }
 
 const fieldAt = (input: EntityInput<AnyEntity, any, any>, key: string, role: string): AnyField => {
-  const member = membersOf(input)[key]
+  const member = own(membersOf(input), key)
   if (member === undefined) return fail(input, `${role} "${key}" is not a key of the input`)
   if (member._tag !== 'Field') return fail(input, `${role} "${key}" is not mapped to a field`)
   return member
@@ -729,7 +730,7 @@ const incrementOf = (
   if (!storedAsNumber(field.schema as unknown as Schema.Top)) {
     return fail(input, `increments "${fieldKey}", which is not stored as a number`)
   }
-  const member = membersOf(input)[key]
+  const member = own(membersOf(input), key)
   if (member === undefined) return fail(input, `"${key}" is not a key of the input`)
   if (member._tag !== 'Unmapped') {
     return fail(input, `"${key}" is an amount, so it must be unmapped, not written as a member`)
@@ -871,11 +872,11 @@ export const Write = {
           // `Entity.sets` points a relation only at the viewer of its target.
           const id = comes.value
           if (id !== null)
-            links[member.key] = Option.some({ entity: member.target().name, id: String(id) })
-          else if (member.optional) links[member.key] = Option.none()
+            put(links, member.key, Option.some({ entity: member.target().name, id: String(id) }))
+          else if (member.optional) put(links, member.key, Option.none())
           else unfilled.push(member.key)
         } else if (comes.value !== null || holdsNull(member)) {
-          values[member.key] = comes.value
+          put(values, member.key, comes.value)
         } else {
           unfilled.push(member.key)
         }
@@ -932,17 +933,19 @@ export const Write = {
     for (const { key, field } of write.sets) {
       if (!asked(key)) continue
       // A key the input leaves out, or an `Option` holding nothing, writes nothing.
-      Option.map(given(input[key]), held => {
-        values[field.key] = encoded(field, held)
-      })
+      Option.map(given(own(input, key)), held => put(values, field.key, encoded(field, held)))
     }
     const links: Record<string, Option.Option<EntityRef>> = {}
     for (const { key, relation } of write.links) {
       if (!asked(key)) continue
       const target = relation.target()
-      links[relation.key] = Option.map(
-        Option.flatMap(given(input[key]), Option.fromNullishOr),
-        id => ({ entity: target.name, id: String(encoded(target.fields.id as AnyField, id)) }),
+      put(
+        links,
+        relation.key,
+        Option.map(Option.flatMap(given(own(input, key)), Option.fromNullishOr), id => ({
+          entity: target.name,
+          id: String(encoded(target.fields.id as AnyField, id)),
+        })),
       )
     }
     const increments: Record<string, number> = {}
@@ -950,14 +953,14 @@ export const Write = {
       // `keys` names input keys, so an increment is asked for by its amount's key.
       if (!asked(key)) continue
       const schema = write.input.schema.fields[key] as unknown as Schema.Codec<unknown, number>
-      Option.map(given(input[key]), held => {
-        increments[field.key] = Schema.encodeUnknownSync(schema)(held)
-      })
+      Option.map(given(own(input, key)), held =>
+        put(increments, field.key, Schema.encodeUnknownSync(schema)(held)),
+      )
     }
     // Every assignment: it reads the row as well as the input, so no key alone asks for it.
     const assignments: Record<string, Computation> = {}
     for (const { field, expr } of write.assignments) {
-      assignments[field.key] = computationOf(write, expr, input)
+      put(assignments, field.key, computationOf(write, expr, input))
     }
     return {
       entity: write.input.entity.name,
@@ -1013,9 +1016,7 @@ export const Write = {
     for (const [field, computation] of Object.entries(bound.assignments)) {
       Option.match(computed(computation, row, options.operators), {
         onNone: () => unknown.push(field),
-        onSome: value => {
-          after[field] = value
-        },
+        onSome: value => put(after, field, value),
       })
     }
     return { row: after, unknown }

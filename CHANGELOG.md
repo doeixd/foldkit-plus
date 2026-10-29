@@ -1145,6 +1145,17 @@ carries `drawn`.
   was a bare `Schema.Boolean`. A predicate is now taken wherever the input
   stores both booleans, null or another kind beside them or not, which is
   what `ArgumentOf` types.
+- **A field, input key or Entity named `__proto__` or `constructor` keeps its
+  place** (#329, #330). Records built by assignment lost a `__proto__` key,
+  which set the prototype instead: `Write.bind` dropped such a field's value,
+  link, increment or computed assignment, `Write.contextValues` its context
+  value, `Write.apply` its computed value, and `Entity.judgeInput` and
+  `Entity.check` judged the invariant over it `Undecided`. Lookups by such a
+  name read the inherited value: an input left out read `Object.prototype`'s
+  function in `evaluate` and in `Order.chosen`'s sort, a write naming a key of
+  no input was refused with the wrong reason, and `Entity.relate` took
+  relations for `toString`, which it does not relate. Each now reads and
+  writes own keys only.
 
 ## 0.35.0
 

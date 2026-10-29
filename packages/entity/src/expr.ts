@@ -17,6 +17,7 @@ import { Collation } from './collation.js'
 import { SchemaShape } from './shape.js'
 import { Law, type Side } from './law.js'
 import { now, viewer, type NowExpr, type ViewerExpr, type ViewerPathExpr } from './context.js'
+import { own } from './record.js'
 import type {
   AnyEntity,
   Cardinality,
@@ -2172,7 +2173,7 @@ const chosenTerms = (
   chosen: ChosenOrder,
   input: Readonly<Record<string, unknown>>,
 ): ReadonlyArray<OrderTerm> => {
-  const sort = input[chosen.sort.key]
+  const sort = own(input, chosen.sort.key)
   if (sort === null || sort === undefined) return []
   const picked =
     typeof sort === 'object' && 'by' in sort && typeof sort.by === 'string' ? sort.by : undefined

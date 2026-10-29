@@ -49,8 +49,8 @@ export default [
   ),
   edit(
     'it is not bound',
-    'assignments[field.key] = computationOf(write, expr, input)',
-    'void computationOf',
+    'put(assignments, field.key, computationOf(write, expr, input))',
+    'void computationOf(write, expr, input)',
   ),
 
   // ---- the row it leaves

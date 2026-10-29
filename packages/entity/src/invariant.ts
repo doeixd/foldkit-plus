@@ -20,6 +20,7 @@ import { Metadata } from 'foldkit-metadata'
 import { Option, Schema, type SchemaAST } from 'effect'
 import { OperatorMissingError, truthOver, type Row } from './evaluate.js'
 import { Operators, type MemoryOperators } from './operators.js'
+import { put } from './record.js'
 import { Expr, Query, type FieldExpr, type NextExpr, type Predicate, type Reads } from './expr.js'
 // A cycle with `index.ts`, safe because `Entity` is read only when an invariant is attached.
 import {
@@ -277,9 +278,7 @@ export const judgeInput = (
     const stored = Option.orElse(encode(given), () => Option.flatMap(held, encode))
     Option.map(
       Option.flatMap(held, () => stored),
-      encoded => {
-        row[member.key] = encoded
-      },
+      encoded => put(row, member.key, encoded),
     )
   }
   return judgeAgainst(invariants, { after: row }, operators)
@@ -300,9 +299,13 @@ export const check = <E extends AnyEntity>(
     const row: Record<string, unknown> = {}
     for (const [key, field] of Object.entries(fields)) {
       if (!Object.hasOwn(decoded, key)) continue
-      row[key] = Schema.encodeUnknownSync(
-        field.schema as unknown as Schema.Codec<unknown, unknown>,
-      )(decoded[key])
+      put(
+        row,
+        key,
+        Schema.encodeUnknownSync(field.schema as unknown as Schema.Codec<unknown, unknown>)(
+          decoded[key],
+        ),
+      )
     }
     const judged = judge(entity, { after: row }, options.operators)
     if (judged._tag !== 'Invalid') return undefined

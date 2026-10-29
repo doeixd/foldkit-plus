@@ -21,6 +21,7 @@ import {
 import { SchemaShape } from './shape.js'
 import type { ExprContext, NowExpr, ViewerExpr, ViewerPathExpr } from './context.js'
 import type { HeldRow, HeldRows } from './held.js'
+import { own, put } from './record.js'
 import { checkedSet, type EntitySet, type SetOn } from './sets.js'
 
 export const EntityTypeId: unique symbol = Symbol.for('foldkit-entity/Entity')
@@ -676,11 +677,6 @@ const isEntity = (value: unknown): value is AnyEntity =>
 
 const kindName = { Field: 'field', Relation: 'relation', Derived: 'derived member' } as const
 
-// A record read by a key that is a name a caller chose: an own property only,
-// since `constructor` or `toString` would otherwise read `Object.prototype`.
-const own = <A>(record: Readonly<Record<string, A>>, key: string): A | undefined =>
-  Object.hasOwn(record, key) ? record[key] : undefined
-
 const kindOf = (entity: AnyEntity, key: string): string | undefined => {
   const member = (entity.members as Readonly<Record<string, EntityMember>>)[key]
   return member && kindName[member._tag]
@@ -747,12 +743,12 @@ export const Entity = {
     }
     const given: Readonly<Record<string, RelationSpecs | undefined>> = relations
     for (const owner of Object.keys(given))
-      if (!(owner in entities))
+      if (!Object.hasOwn(entities, owner))
         throw new Error(`Entity.relate: relations given for "${owner}", which is not being related`)
 
     const related: Record<string, AnyEntity> = {}
     for (const [ownerKey, entity] of Object.entries(entities)) {
-      const specs = given[ownerKey] ?? {}
+      const specs = own(given, ownerKey) ?? {}
       assertFree(entity, Object.keys(specs), 'relation')
       const added = mapValues<RelationSpec<AnyEntity, Cardinality, boolean>, EntityMember>(
         specs,
@@ -776,7 +772,7 @@ export const Entity = {
           })
         },
       )
-      related[ownerKey] = make({ ...entity, relations: { ...entity.relations, ...added } })
+      put(related, ownerKey, make({ ...entity, relations: { ...entity.relations, ...added } }))
     }
     return Object.freeze(related) as never
   },
@@ -944,7 +940,7 @@ export const Entity = {
       const added: Record<string, EntitySet> = {}
       for (const [key, value] of Object.entries(given)) {
         if (value === undefined) continue
-        added[key] = checkedSet(entity, key, value, options.on)
+        put(added, key, checkedSet(entity, key, value, options.on))
       }
       return make({ ...entity, sets: { ...entity.sets, ...added } }) as E
     },
