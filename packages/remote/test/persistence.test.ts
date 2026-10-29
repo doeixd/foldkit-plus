@@ -207,26 +207,31 @@ describe('snapshot hardening', () => {
   it('hydrating the same text twice gives equal stores', () => {
     const text = RemotePersistence.dehydrate(only(store))
     expect(RemotePersistence.hydrate(text)).toEqual(RemotePersistence.hydrate(text))
-    expect(RemotePersistence.hydrate(text)?.entities).toEqual(store)
+    expect(Option.map(RemotePersistence.hydrate(text), held => held.entities)).toEqual(
+      Option.some(store),
+    )
   })
 
   it('a snapshot for another scope is discarded, and the key removed', async () => {
     expect(
-      RemotePersistence.hydrate(RemotePersistence.dehydrate(only(store), { scope: 'u1' }), {
-        scope: 'u1',
-      })?.entities,
-    ).toEqual(store)
+      Option.map(
+        RemotePersistence.hydrate(RemotePersistence.dehydrate(only(store), { scope: 'u1' }), {
+          scope: 'u1',
+        }),
+        held => held.entities,
+      ),
+    ).toEqual(Option.some(store))
     expect(
       RemotePersistence.hydrate(RemotePersistence.dehydrate(only(store), { scope: 'u1' }), {
         scope: 'u2',
       }),
-    ).toBeUndefined()
+    ).toEqual(Option.none())
     expect(
       RemotePersistence.hydrate(RemotePersistence.dehydrate(only(store), { scope: 'u1' })),
-    ).toBeUndefined()
+    ).toEqual(Option.none())
     expect(
       RemotePersistence.hydrate(RemotePersistence.dehydrate(only(store)), { scope: 'u1' }),
-    ).toBeUndefined()
+    ).toEqual(Option.none())
 
     const result = await run(
       Effect.gen(function* () {
@@ -245,7 +250,7 @@ describe('snapshot hardening', () => {
     expect(RemotePersistence.dehydrate(only(store), { maxBytes: size - 1 })).toBeUndefined()
     expect(
       RemotePersistence.hydrate(RemotePersistence.dehydrate(only(store)), { maxBytes: size - 1 }),
-    ).toBeUndefined()
+    ).toEqual(Option.none())
 
     const result = await run(
       Effect.gen(function* () {
@@ -348,7 +353,7 @@ describe('snapshot hardening', () => {
     // Client: hydrate into a fresh model; the plan is empty and the read is Ready.
     const client = updateRemote(initialRemoteModel, {
       _tag: 'Hydrated',
-      entities: RemotePersistence.hydrate(html, { scope: 'u1' })!.entities,
+      entities: Option.getOrThrow(RemotePersistence.hydrate(html, { scope: 'u1' })).entities,
       merge: 'replace',
     })
     expect(Remote.plan(AppRemote, { remote: client }, projection)).toEqual([])

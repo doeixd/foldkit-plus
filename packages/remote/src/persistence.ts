@@ -11,7 +11,7 @@
  * `KeyValueStore`, so the backend (memory, filesystem, SQL, Web Storage) is the
  * application's choice.
  */
-import { Effect } from 'effect'
+import { Effect, Option } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
 import { type Connection, type Edge } from './connection.js'
 import { connectionIdentity, type ConnectionIdentity } from './optimistic.js'
@@ -222,36 +222,36 @@ const exceeds = (text: string, maxBytes: number | undefined): boolean => {
 }
 
 /**
- * The store a snapshot text holds, or `undefined` when the text is missing,
+ * The store a snapshot text holds, or none when the text is missing,
  * oversized, not this version, for another scope, or malformed. Hydrating the
  * same text twice yields equal stores.
  */
 const hydrate = (
   raw: string | undefined | null,
   options: SnapshotOptions = {},
-): Snapshot | undefined => {
-  if (raw === undefined || raw === null) return undefined
-  if (exceeds(raw, options.maxBytes)) return undefined
+): Option.Option<Snapshot> => {
+  if (raw === undefined || raw === null) return Option.none()
+  if (exceeds(raw, options.maxBytes)) return Option.none()
   let parsed: unknown
   try {
     parsed = JSON.parse(raw)
   } catch {
-    return undefined
+    return Option.none()
   }
-  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return undefined
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return Option.none()
   const candidate = parsed as {
     readonly version?: unknown
     readonly scope?: unknown
     readonly entities?: unknown
   }
-  if (candidate.version !== REMOTE_CACHE_VERSION) return undefined
-  if ((candidate.scope ?? null) !== (options.scope ?? null)) return undefined
-  if (candidate.entities === null || typeof candidate.entities !== 'object') return undefined
-  if (Array.isArray(candidate.entities)) return undefined
+  if (candidate.version !== REMOTE_CACHE_VERSION) return Option.none()
+  if ((candidate.scope ?? null) !== (options.scope ?? null)) return Option.none()
+  if (candidate.entities === null || typeof candidate.entities !== 'object') return Option.none()
+  if (Array.isArray(candidate.entities)) return Option.none()
   try {
-    return deserializeStore(candidate as SerializedStore)
+    return Option.some(deserializeStore(candidate as SerializedStore))
   } catch {
-    return undefined
+    return Option.none()
   }
 }
 
@@ -278,7 +278,7 @@ const emptySnapshot: Snapshot = { entities: emptyStore, connections: {} }
 export const RemotePersistence = {
   /** The snapshot text, or `undefined` when it would exceed `maxBytes`. */
   dehydrate,
-  /** What a snapshot text holds, or `undefined` when it is refused. */
+  /** What a snapshot text holds, or none when it is refused. */
   hydrate,
   /**
    * What to keep of a Model, naming the connections that should survive a
@@ -314,10 +314,10 @@ export const RemotePersistence = {
       const raw = yield* kv.get(options.key)
       if (raw === undefined) return emptySnapshot
       const restored = hydrate(raw, options)
-      if (restored === undefined) {
+      if (Option.isNone(restored)) {
         yield* kv.remove(options.key)
         return emptySnapshot
       }
-      return restored
+      return restored.value
     }),
 }

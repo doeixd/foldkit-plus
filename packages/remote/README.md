@@ -2155,6 +2155,7 @@ cursors, optimistic layers, mutation bookkeeping, gaps, retention roots) is
 never in one.
 
 ```ts
+import { Option } from 'effect'
 import { RemotePersistence } from 'foldkit-remote'
 
 // A cache carried in the page: prefetch on the server, embed, then hydrate.
@@ -2165,8 +2166,11 @@ const text = RemotePersistence.dehydrate(
   { scope: userId },
 )
 
-const restored =
-  RemotePersistence.hydrate(text, { scope: userId }) ?? RemotePersistence.emptySnapshot
+// None when the text is refused (another scope, version, or a corrupt text).
+const restored = Option.getOrElse(
+  RemotePersistence.hydrate(text, { scope: userId }),
+  () => RemotePersistence.emptySnapshot,
+)
 
 Data.reduce(model, {
   _tag: 'Hydrated',

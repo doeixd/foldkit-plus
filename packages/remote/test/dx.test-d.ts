@@ -299,6 +299,10 @@ const _snapshot: string = RemotePersistence.dehydrate(snapshot, { scope: 'u1' })
 const _bounded: string = RemotePersistence.dehydrate(snapshot, { maxBytes: 10 })
 // @ts-expect-error a snapshot is not a bare entity store: connections are declared, not assumed
 RemotePersistence.dehydrate(entityStore)
+// A text may be refused (another scope, version, a corrupt text), so what it holds is an Option.
+const _hydrated: Option.Option<Snapshot> = RemotePersistence.hydrate('text')
+// @ts-expect-error a refused text holds no snapshot to read entities from
+void RemotePersistence.hydrate('text').entities
 // Which connections survive is the application's to say, and none is the default.
 const _declared: Snapshot = RemotePersistence.snapshotOf(Remote.initial)
 

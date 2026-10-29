@@ -224,14 +224,16 @@ describe('the mark survives', () => {
     const text = RemotePersistence.dehydrate({ entities: store, connections: {} })
     expect(JSON.parse(text).version).toBe(REMOTE_CACHE_VERSION)
     expect(JSON.parse(text).entities[p1].unavailable).toEqual(['privateNotes'])
-    expect(RemotePersistence.hydrate(text)?.entities).toEqual(store)
+    expect(Option.map(RemotePersistence.hydrate(text), held => held.entities)).toEqual(
+      Option.some(store),
+    )
   })
 
   it('is refused from a snapshot that lacks it', () => {
     const text = RemotePersistence.dehydrate({ entities: store, connections: {} })
     const older = JSON.parse(text)
     delete older.entities[p1].unavailable
-    expect(RemotePersistence.hydrate(JSON.stringify(older))).toBeUndefined()
+    expect(RemotePersistence.hydrate(JSON.stringify(older))).toEqual(Option.none())
   })
 
   it('a server render, so the browser does not ask once more', () => {

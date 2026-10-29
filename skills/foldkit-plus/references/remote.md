@@ -395,7 +395,7 @@ meanwhile.
 Prefetch (SSR, route/hover, tests) and persistence:
 
 ```ts
-import { Effect } from 'effect'
+import { Effect, Option } from 'effect'
 import { Remote, RemotePersistence } from 'foldkit-remote'
 
 const ssr = Effect.gen(function* () {
@@ -409,8 +409,10 @@ const ssr = Effect.gen(function* () {
     scope: 'user-1',
   }) // string
   // client side:
-  const restored =
-    RemotePersistence.hydrate(text, { scope: 'user-1' }) ?? RemotePersistence.emptySnapshot
+  const restored = Option.getOrElse(
+    RemotePersistence.hydrate(text, { scope: 'user-1' }), // none when refused
+    () => RemotePersistence.emptySnapshot,
+  )
   return Data.reduce(
     App.initial,
     Remote.Message.Hydrated({
@@ -448,7 +450,7 @@ emptied cache is saved over it.
 
 `RemotePersistence.save(snapshot, { key, scope, maxBytes })` /
 `restore({ key, scope, maxBytes })` use Effect's `KeyValueStore`. Wrong
-version/scope, oversized, or malformed snapshots yield `undefined` from
+version/scope, oversized, or malformed snapshots yield `Option.none()` from
 `hydrate` (`restore` yields `RemotePersistence.emptySnapshot` and removes the key). An oversized
 `dehydrate` returns `undefined`, and an oversized `save` removes the key instead of writing.
 
@@ -569,7 +571,7 @@ invariants: [entity.md](entity.md).
 the server may refuse with (`Refusal.field(key, reason)`, `Refusal.conflict`,
 or any codec); a `Mutation.write` whose write has a `when` may also be refused
 as `Refusal.unmet`, and only then does its `Refusal` type include it; every `Mutation.write` may be refused as
-`Refusal.invalid` (`{ rule: Option<string>, message, path }`), when the row it would leave breaks an invariant, and `Refusal.isInvalidBy(refusal, invariant)` matches it against the value `Entity.invariant` returned; a Source fails with `RemoteServer.refuse(mutation, value)`, and
+`Refusal.invalid` (`{ entity: Option<string>, rule: Option<string>, message, path }`), when the row it would leave breaks an invariant, and `Refusal.isInvalidBy(refusal, invariant)` matches it, by Entity and id (ids are unique only within an Entity), against the value `Entity.invariant` returned once attached; a Source fails with `RemoteServer.refuse(mutation, value)`, and
 `Data.refusal(model, requestId, mutation)` reads it decoded, as an `Option`.
 A declared write (given no `optimistic` of its own) whose row the client can tell breaks an invariant (judged over
 the store's row with the write's values over it) is refused by `Data.mutate`

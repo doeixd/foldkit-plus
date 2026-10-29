@@ -493,6 +493,11 @@ carries `drawn`.
   folded it with Effect's `Match.valueTags`; `Freshness.match` folds it
   exhaustively, and `Freshness.Fresh()`, `.Refreshing()` and
   `.Stale({ error })` make one.
+- **Breaking: `RemotePersistence.hydrate` returns an `Option`.** It gave
+  `undefined` for a text it refused (another scope or version, oversized,
+  corrupt), so a caller wrote `?? emptySnapshot` or a `!`; it gives none.
+  Read it with `Option.getOrElse(hydrate(text, { scope }), () =>
+  RemotePersistence.emptySnapshot)`.
 - **Breaking: `Data.why` returns a `ReadWhy`** (#248). It lists, in
   `because`, every fact the Model holds about what a read reads, as typed
   references (`Why`, a tagged union with an exhaustive `match`): its list or a

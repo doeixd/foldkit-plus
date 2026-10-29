@@ -233,7 +233,10 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   })
   const fresh = withStore(
     App.initial,
-    RemotePersistence.hydrate(snapshot, { scope: 'u1' })!.entities,
+    Option.getOrElse(
+      RemotePersistence.hydrate(snapshot, { scope: 'u1' }),
+      () => RemotePersistence.emptySnapshot,
+    ).entities,
   )
   say(
     `hydrated: ${describeData(projection.read(fresh))}, plan ${
