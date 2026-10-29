@@ -705,6 +705,13 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   reading source with library checks skipped, never did. Name an exported type
   for what a public function returns; `pack:check`'s consumer compile
   (`scripts/published-types.mjs`) catches the rest.
+- **A reference directive after a statement is ignored, silently.** The
+  consumer `published-types.mjs` wrote `/// <reference types=
+  "foldkit-media/client" />` after the imports, so `client.d.ts` was never
+  read and an error in it passed (#278); in first place it failed TS2688 too,
+  since a directive, unlike an import, does not resolve a package's own name.
+  Directives go first, the package is linked into the probe's `node_modules`,
+  and the compile's `--listFiles` must name every ambient export's file.
 - **tsdown's declarations depend on a referenced project's `.tsbuild`.** With
   TypeScript 7 installed, rolldown-plugin-dts picks its `tsgo` generator, which
   runs `tsc -p tsconfig.json --noCheck --emitDeclarationOnly` (no build mode).

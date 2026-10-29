@@ -18,12 +18,14 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs'
 import { availableParallelism } from 'node:os'
-import { join, relative, resolve, sep } from 'node:path'
+import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
@@ -67,7 +69,9 @@ for (const dir of manifests.keys()) {
 
 // The probe sits in the package's own `node_modules`, so every import resolves
 // as it would for an application that installed the package: by the package's
-// name, through `types`, with no `foldkit-plus:source` condition. `lib` is
+// name, through `types`, with no `foldkit-plus:source` condition. The package
+// is linked into the probe's own `node_modules` as well, since a reference
+// directive, unlike an import, does not resolve a package's own name. `lib` is
 // ESNext because Effect's own declarations need it.
 const consumerOptions = {
   target: 'ES2022',
@@ -91,37 +95,54 @@ const consume = dir =>
       }))
     const probe = join(packagesDir, dir, 'node_modules', '.published-types')
     rmSync(probe, { recursive: true, force: true })
-    mkdirSync(probe, { recursive: true })
+    mkdirSync(join(probe, 'node_modules'), { recursive: true })
+    // A junction needs no privilege on Windows; elsewhere the type is ignored.
+    symlinkSync(join(packagesDir, dir), join(probe, 'node_modules', pkg.name), 'junction')
     // A subpath whose declarations are ambient (`foldkit-media/client`, the
     // type of a `?image` import) is no module: a consumer names it in `types`,
-    // which a reference directive does the same as.
+    // which a reference directive does the same as. TypeScript ignores a
+    // directive after the first statement, silently (#278), so the directives
+    // come first, and the compile lists its files to prove each was read.
+    const ambient = subpaths.filter(
+      ({ types }) =>
+        !/^(?:import|export)\b/m.test(readFileSync(join(packagesDir, dir, types), 'utf8')),
+    )
+    const modules = subpaths.filter(subpath => !ambient.includes(subpath))
     writeFileSync(
       join(probe, 'consumer.ts'),
-      subpaths
-        .map(({ name, types }, i) =>
-          /^(?:import|export)\b/m.test(readFileSync(join(packagesDir, dir, types), 'utf8'))
-            ? `import type * as M${i} from '${name}'\nexport type T${i} = typeof M${i}\n`
-            : `/// <reference types="${name}" />\n`,
-        )
-        .join('') + 'export {}\n',
+      ambient.map(({ name }) => `/// <reference types="${name}" />\n`).join('') +
+        modules
+          .map(
+            ({ name }, i) =>
+              `import type * as M${i} from '${name}'\nexport type T${i} = typeof M${i}\n`,
+          )
+          .join('') +
+        'export {}\n',
     )
     writeFileSync(
       join(probe, 'tsconfig.json'),
       JSON.stringify({ compilerOptions: consumerOptions, files: ['consumer.ts'] }),
     )
-    const child = spawn(process.execPath, [tsc, '-p', probe, '--pretty', 'false'], { cwd: probe })
+    const child = spawn(process.execPath, [tsc, '-p', probe, '--pretty', 'false', '--listFiles'], {
+      cwd: probe,
+    })
     let output = ''
     child.stdout.on('data', chunk => (output += chunk))
     child.stderr.on('data', chunk => (output += chunk))
     child.on('close', code => {
-      rmSync(probe, { recursive: true, force: true })
-      // A dependency's own declarations are not ours to fix, and several do
-      // not check on their own (miniflare's, drizzle-orm 0.45's, better-auth's
+      // A line naming a file that exists is `--listFiles` output. A
+      // dependency's own declarations are not ours to fix, and several do not
+      // check on their own (miniflare's, drizzle-orm 0.45's, better-auth's
       // reaching for `bun:sqlite`), so a diagnostic counts only in a file
       // outside the store. Indented lines continue the diagnostic above them.
       const diagnostics = []
+      const read = new Set()
       for (const line of output.split(/\r?\n/)) {
         if (line.trim() === '') continue
+        if (isAbsolute(line) && existsSync(line)) {
+          read.add(realpathSync(line))
+          continue
+        }
         if (/^\s/.test(line) && diagnostics.length > 0) {
           diagnostics.at(-1).lines.push(line)
           continue
@@ -133,10 +154,14 @@ const consume = dir =>
           lines: [at === null ? line : file + line.slice(at[1].length)],
         })
       }
+      const unread = ambient
+        .filter(({ types }) => !read.has(realpathSync(join(packagesDir, dir, types))))
+        .map(({ name, types }) => `${name} (${types}) is not part of the consumer's program`)
+      rmSync(probe, { recursive: true, force: true })
       done({
         dir,
         failed: code !== 0 && diagnostics.length === 0,
-        lines: diagnostics.filter(d => d.ours).flatMap(d => d.lines),
+        lines: [...diagnostics.filter(d => d.ours).flatMap(d => d.lines), ...unread],
       })
     })
   })
