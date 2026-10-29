@@ -56,8 +56,10 @@ without a network.
 
 What Remote does not have: a component hook (it has Surfaces and Foldkit
 Subscriptions), a devtools panel of its own (`Data.inspect`, `Data.why` and
-`Data.timeline` are the data one would show), and retries on failure (a failed read stays failed
-until something asks again; see [When a read fails](#when-a-read-fails)).
+`Data.timeline` are the data one would show), and retries of a failed read (it
+stays failed until something asks again; see
+[When a read fails](#when-a-read-fails)). Only a durable write is sent again
+on its own, and only when nothing answered it.
 
 ### And TanStack DB, and fate
 
@@ -68,8 +70,9 @@ Its unit is the collection; a screen queries what is already local. Remote's
 unit is the field: a screen declares which fields of which entities it reads,
 and only those are fetched, so there is no collection to load first and a page
 carries what it shows. Remote has no live query engine: `Data.filtered` and
-`matching` judge the rows a list already holds, and a new list is a
-server query. Where TanStack DB syncs client-authored writes through a sync
+`matching` judge the rows a list already holds, a new list is a server query,
+and a list read `live` is kept current by the server's live source, not by
+the client. Where TanStack DB syncs client-authored writes through a sync
 engine, that job here belongs to [`foldkit-sync`](../sync), and Remote stays
 the disposable cache of what the server owns.
 
@@ -95,12 +98,15 @@ what you are doing:
 | A list shows old rows | [Why is it stale?](#why-is-it-stale) |
 | A saved change showed, then vanished | [Why did my change disappear?](#why-did-my-change-disappear) |
 | A page I came back to reads `Refreshing` or `Loading` | [Why `Refreshing`?](#why-does-a-page-i-went-back-to-read-refreshing) |
+| Ask the Model why a read shows what it shows | [`Data.why`](#why-is-it-loading) |
 | Test that a list never blinks to `Loading`, without a browser | [`Trace`](#testing-what-a-reader-sees-trace) |
 | Test that what a write shows is what the server stores | [`Law`](#testing-that-a-prediction-is-the-truth-law) |
 | Show a failed read, and let the user retry | [When a read fails](#when-a-read-fails) |
 | Load an ordered, paged list | [Queries and pagination](#queries-and-pagination) |
 | Filter a list already on screen | [Filtering a loaded list](#filtering-a-loaded-list-without-asking-the-server) |
 | Save, and show the result before the server answers | [Mutations](#mutations-and-optimistic-state) |
+| Save a write that must reach the server across a reload or offline | [`Data.outbox`](#a-write-that-outlives-the-page-dataoutbox) |
+| Keep a list current as the server changes it | [Live data](#live-data) |
 | Fetch outside an active screen | [Policies and prefetch](#reading-policies-and-prefetch) |
 | Keep data across a reload | [Hydration](#persistence-and-hydration) |
 | Hand a server render's data to the browser | [Server rendering](#server-rendering-remoteresume) |
@@ -315,7 +321,7 @@ while there is nothing to read.
 
 ```ts
 const detail = Data.active('ProjectDetail', model =>
-  Option.map(model.openProjectId, id => Data.get(Project.select({ name: true }), id)),
+  Option.map(model.openProjectId, id => Data.get(Entity.select(Project, { name: true }), id)),
 )
 foldData.subscriptions({ detail })
 ```
@@ -358,8 +364,7 @@ const clientLayer = Layer.unwrap(
 Or, with no Effect RPC on the server, plain JSON over HTTP: each call a `POST`
 of `{ operation, payload }`, answered `{ result }` or `{ error }`.
 [`RemoteServer.answer`](../remote-server/README.md#over-plain-json) is the
-other end. `Remote.json(send)` is the same client over any other way of
-sending the request, a worker or a server running in the page:
+other end:
 
 ```ts
 const overHttp = Remote.clientLayer(
@@ -367,75 +372,13 @@ const overHttp = Remote.clientLayer(
 )
 ```
 
-**Testing a server over HTTP.** Call it as the application does: give
-`` Remote.http(`${origin}/remote`, { headers, fetch }) `` the server's address
-(miniflare's `(await mf.ready).origin` for a Worker) and call
-`FoldkitRemoteRead`, `FoldkitRemoteQuery` and `FoldkitRemoteMutate` on it, as
-`examples/cloudflare/src/client.ts` does over its local stack. To speak the
-wire yourself, each `POST` body is one of these, `version` being
-`REMOTE_PROTOCOL_VERSION`:
-
-```json
-{ "operation": "read", "payload": { "version": 4, "requests": [{ "entity": "Post", "id": "p1", "fields": ["title"] }] } }
-{ "operation": "query", "payload": { "query": "PostsByAuthor", "input": { "authorId": "a1" }, "window": { "first": 20 } } }
-{ "operation": "mutate", "payload": { "requestId": "r1", "mutation": "RenamePost", "input": { "id": "p1", "title": "Hello" } } }
-```
-
-`headers` is read for each request, so a token that changes reaches the next
-call. A 401 fails every call kind, a read, a query, a mutation or a live
-stream, with `_tag: 'Unauthenticated'` (and `reason` when the server gave
-one): the server could not tell who is asking. `RemoteData.denied(error)`
-reads a failure as that or a 403 (`Forbidden`), typed, and as none for any
-other, so a view tells "sign in again" from "could not load" without
-comparing tags. Remote treats it as any failure: a read or query is `Failed`, and a live stream restarts with its
-backoff, refused again each time, until the application signs in again and
-calls `Remote.forget`. A 403 whose body does not
-say `forbidden` itself, as Remote's server's does, comes from middleware in
-front of it refusing a session (a bare `{ error }` included): it fails a
-mutation as `Forbidden` and any other call with the status. A 401 is read the
-same whatever its body says. Neither carries live data. For live data over the same `POST`s,
-`Remote.httpWithLive` keeps reads, queries, and mutations as `http` sends
-them and streams live requirements as a `text/event-stream` of changes;
-[`serveFetch`](../remote-server/README.md#over-fetch-workers) is the other
-end. Abandoning the stream aborts the request, which interrupts the
-subscription server-side.
-
-For a server in a worker or in the page (a sandbox), `foldkit-remote/port`
-speaks Effect's own RPC worker protocol over a `MessagePort`, so live data,
-typed errors and interruption cross it too.
-[`servePort`](../remote-server/README.md#over-a-messageport) is the other end:
-
-```ts
-import { port } from 'foldkit-remote/port'
-
-// A new conversation each time the protocol connects: one port here, the other to the server.
-const overPort = port(() => {
-  const channel = new MessageChannel()
-  worker.port.postMessage({ open: 'remote' }, [channel.port2])
-  return channel.port1
-})
-```
-
-It is a `Layer<RemoteClient>` like the others; a port that cannot be set up is
-a defect, not a failed read.
-
-The stock client is accepted as it is. When its transport fails, a read, a
-query or a live stream fails with its own Remote error (`RemoteReadError`,
-`RemoteQueryError`, `RemoteLiveError`), which the UI shows and retries like any
-other failure. A mutation fails with `RemoteUnreachable` (`_tag:
-'Unreachable'`): nothing answered, so the server may or may not have run it.
-`Remote.json`, `Remote.http` and `Remote.httpWithLive` say the same of a
-request they could not send, and of a response that is no Remote answer: a
-body that is not JSON, JSON that is not `{ result }` or `{ error }` (a
-gateway's `{}`), or any body under 408, 429, 502, 503 or 504, which Remote's
-server never answers with. Each is a
-`RemoteJsonClient`, a `RemoteRpcClient` whose transport error is
-`RemoteUnreachable`. A mutation the server failed is a `RemoteMutationError`.
-
-Either is a Layer the runtime provides to `subscriptions` and Commands. The
+Each is a Layer the runtime provides to `subscriptions` and Commands; the
 transport itself is not owned by Remote. See
 [`RemoteServer.memory`](../remote-server/README.md#a-backend-held-in-memory)
-for what the in-memory one can and cannot do.
+for what the in-memory one can and cannot do, and
+[Clients and transports](#clients-and-transports) for the others (a worker or
+a `MessagePort`, live data over HTTP), what a refused or unreachable call
+does, and testing a server over HTTP.
 
 ### 6. Watch it arrive
 
@@ -490,8 +433,11 @@ function update(model: Model, message: Message): Update.Return<Model, Message, R
 }
 ```
 
-The rest of this guide uses the fold. With the spread, read `Data.subscriptions`
-for `foldData.subscriptions` and `Data.mutate` for `foldData.mutate`.
+The snippets below call the domain itself (`Data.subscriptions`,
+`Data.mutate`, `Data.retry`, `Data.preload`), as the spread form does. Under
+the fold, call the fold's members of the same names (`foldData.mutate`, …),
+which yield the wrapper Message; the members that only read or write the Model
+(`Data.get`, `Data.refresh`, `Data.overlay`, …) stay on the domain either way.
 
 ### One value with `foldkit-bundle`: `Data.wiring`
 
@@ -644,8 +590,8 @@ Data.why(model, projection, { surfaces }) // the record you give Data.subscripti
 The first reason is the one that decides `Initial`:
 
 - `NotObserved`: no active Surface reads it. The Surface is not in the record
-  you gave `Data.subscriptions`, or its params are `undefined` for this Model
-  (the route is not there yet).
+  you gave `Data.subscriptions`, or its `Surface.at` function returns none for
+  this Model (the route is not there yet).
 - `NotFetching`: an active Surface reads it and nothing started a request.
   Right after a Message that is the moment before the read entry asks; if it
   stays so, Remote's Subscriptions are not installed in the runtime.
@@ -704,9 +650,6 @@ read's tag: the Message that made it, `why` at the Model it changed to, and
 reason a reader can see. Foldkit's devtools has no place for a panel of
 another package's, so the timeline is the data, not a panel.
 
-`Data.plan(model, projection)` shows whether Remote believes anything is
-missing at all.
-
 ### Why is it stale?
 
 Under the default `RemotePolicy.cacheFirst`, a present field is never asked for
@@ -734,9 +677,11 @@ what the server said:
 
 - **It failed.** `MutationFailed` removes the layers; `Data.mutation(model,
   requestId)` reads `Failed` with the error. Nothing retries it on its own
-  (`Data.retry` sends it again; see [When a write fails](#when-a-write-fails)):
-  the mutation is not a durable queue, and if losing it is data loss the edit
-  belongs to [`foldkit-sync`](../sync).
+  (`Data.retry` sends it again; see [When a write fails](#when-a-write-fails)).
+  A write survives a reload only when it is sent `durable`
+  ([`Data.outbox`](#a-write-that-outlives-the-page-dataoutbox)); an edit that
+  must converge with other devices' offline edits belongs to
+  [`foldkit-sync`](../sync).
 - **It succeeded, but the answer did not name the row.** The answer carries
   what the active Surfaces and the request's layer show of each row it names
   ([What an answer carries](#what-an-answer-carries)); a row it changed
@@ -881,6 +826,12 @@ const card = Data.get(ProjectCard, 'p1') // Projection<Model, RemoteData<{ name;
   A cursor is not part of the name: a page read from a cursor continues its page.
   The server refuses a request that pages one relation more than four ways, and
   a field's own name may not contain `@`.
+- A `many` relation read whole, with no window, is bounded on the server:
+  `foldkit-remote-drizzle`'s `source` reads at most `maxCollection` children of
+  one row (100 unless its Source says), and fails the read, naming the
+  relation, when a row has more, since a whole list cannot say it was cut
+  short. The read then reads `Failed`. Read a collection that can grow without
+  limit through `Entity.page`.
 
 `Entity.make` with `Entity.ref` keeps working, and both kinds can share one
 domain. Both packages export `Entity`; a module that needs `Entity.from` beside
@@ -1113,7 +1064,8 @@ const Data = Remote.make({
 something the client should be able to state, declare it with a body instead:
 
 ```ts
-import { Entity, Expr, Order, Query } from 'foldkit-entity'
+import { Entity, Expr, Order } from 'foldkit-entity'
+import { Query } from 'foldkit-remote'
 
 const Task = Entity.define(
   'Task',
@@ -1503,7 +1455,33 @@ in for it: a read still fetches a field of a row the server holds that only a
 layer shows, so a failure that takes the layer away leaves the server's value,
 not `Initial`. A row only a request holds (a temporary id) is not fetched.
 
-**Which lists a mutation changed is worked out from its answer.** Each patch
+Optimistic entity patches are **layers over the base store**, not inverse
+patches. If multiple mutations overlap, the visible cache is recomputed as base
+plus the still-pending layers, so settling one does not require trying to undo
+its old value manually.
+
+Connections can be optimistic too:
+
+```ts
+import { ConnectionChange } from 'foldkit-remote'
+
+const { model: started, command } = Data.mutate(model, AddComment, input, {
+  optimistic: ({ tempId }) => [
+    Remote.patch(Comment, tempId, { id: tempId, body: input.body }),
+    ConnectionChange.prepend(
+      CommentsForPost.ref({ postId }),
+      Remote.ref(Comment, tempId),
+    ),
+  ],
+})
+```
+
+A successful server result can replace the request's temporary connection
+overlays with confirmed ones in place.
+
+### Which lists a write moves
+
+Which lists a mutation changed is worked out from its answer. Each patch
 says which row it wrote; the fields whose value differs from what the client
 held are what changed (an answer returning a whole row changes only what is
 new). Every loaded list over that Entity is judged by its query's body against
@@ -1589,6 +1567,8 @@ shown.
 `Data.refresh` stays for what an answer cannot say, such as a server-side
 effect on rows it did not return.
 
+### What became of a write
+
 `Data.mutation(model, requestId)` reads what became of it from the Model:
 `Pending`, `Applied`, `Failed` with the error the server or transport gave, or
 `Unknown` for an id never started here (or settled so long ago it left the
@@ -1654,8 +1634,14 @@ A wiring that does not share it records each failed write as a `WriteUnheard`
 [diagnostic](#diagnostics), which by default logs it: the change went, and
 nothing in the application's update was told.
 
-A mutation can say what the server may refuse it with, as data rather than a
-message to parse:
+**Refused for who asks.** A server may also refuse who is asking, whatever the mutation
+(`RemoteServer.forbid`). Then `Data.mutation(model, requestId)` is `Failed`
+with an error of `_tag: 'Forbidden'`, and `reason` when the server gave one,
+for the person who asked. Asking again as the same person is refused again,
+so show it rather than retry.
+
+**Refusals as data.** A mutation can say what the server may refuse it with,
+as data rather than a message to parse:
 
 ```ts
 const SetPrice = Mutation.make('SetPrice', {
@@ -1667,7 +1653,26 @@ const SetPrice = Mutation.make('SetPrice', {
 Data.refusal(model, requestId, SetPrice) // Option<{ _tag: 'Field', key: 'price', reason: string } | { _tag: 'Conflict' }>
 ```
 
-A mutation can also be a declared write: `Mutation.write(name, write)` over a
+`Refusal.field(key, reason)` names an input key and the Schema of why;
+`Refusal.conflict` says the row moved on, and `Refusal.unmet` that it does not
+hold what a [declared write](#declared-writes-what-the-client-predicts)'s
+`when` asks of it. A `Mutation.write` is refused as unmet only when its write
+has a `when`, and its `Refusal` type says so: without one it stays `Conflict`,
+so a match over it needs no `Unmet` arm. `Refusal.invalid` says the row it
+would leave breaks an invariant of its Entity (`Entity.invariant`): its `rule`
+and `path`, which a form shows the `message` beside, or none and empty when the
+invariant reads something the caller may not see. Every `Mutation.write` may be
+refused so, since the server's Entity may hold invariants the client's does not
+show. `Refusal.isInvalidBy(refusal, invariant)` asks whether it names one
+invariant, given as `Entity.invariant` returned it (export it beside the
+Entity), so its id is never spelled again; an unnamed refusal matches none. The
+server sends the refusal encoded by this schema and `Data.refusal` decodes it
+by the same one; it is none while the mutation is pending or applied, or when
+it failed for another reason.
+
+### Declared writes: what the client predicts
+
+A mutation can be a declared write: `Mutation.write(name, write)` over a
 `foldkit-entity` `Write.update`, `Write.insert` or `Write.delete`. Its input is
 the write's, it answers nothing of its own, and `Data.mutate` shows an update's
 or an insert's row until the server answers, so it needs no `optimistic` list;
@@ -1712,9 +1717,10 @@ not predicted: the row reads as missing it until the server's answer brings the
 server's time. A supplied member declared with a `predict` (`Derived.make(schema,
 { predict })`, as Guard's `may` is) is foreseen over the row the write leaves,
 the store's row with the write's values over it and a field the write moves
-unknown; where it foresees none, the row reads as missing it until the answer. An application that already mints the row's id in a Command
-can read the clock in the same one (`examples/reference`'s `NameNote`). The row then joins every loaded list whose body admits
-it, where the list's order puts it, while pending and once answered: a post
+unknown; where it foresees none, the row reads as missing it until the answer.
+An application that already mints the row's id in a Command can read the
+clock in the same one (`examples/reference`'s `NameNote`). The row then joins
+every loaded list whose body admits it, where the list's order puts it, while pending and once answered: a post
 set at its time goes to the top of a newest-first list. A list without a
 body, or one filtered by a read rule the client does not run, is the server's
 to place.
@@ -1744,9 +1750,12 @@ another post or person, takes it from the post it is shown on. That post also
 says where the deleted Like pointed, so its count goes down with no Like row
 held: unliking is `Data.mutate(model, Unlike, { id })` with the id `liked`
 holds. The store holds one viewer's values, as it holds one principal's, so a
-change of viewer is a change of principal: `Data.forget`. A field the client has not read, or a computation by an operator its
-table lacks, is not guessed; it shows the server's value when the answer comes. The prediction is never authority: the server decides, and its answer
-replaces it. The [declared writes guide](../../docs/declared-writes.md) follows
+change of viewer is a change of principal: `Data.forget`.
+
+A field the client has not read, or a computation by an operator its table
+lacks, is not guessed; it shows the server's value when the answer comes. The
+prediction is never authority: the server decides, and its answer replaces
+it. The [declared writes guide](../../docs/declared-writes.md) follows
 one write from here to the statement that lands it. `keys` names the input keys
 an author changed: only those are shown, and the request carries them for the
 server to write; the input is still sent and validated whole.
@@ -1759,72 +1768,41 @@ const EditProject = Mutation.write(
 Data.mutate(model, EditProject, { id: 'p1', name: 'Apollo II', status: 'active' }, { keys: ['name'] })
 ```
 
-`Refusal.field(key, reason)` names an input key and why; `Refusal.conflict`
-says the row moved on, and `Refusal.unmet` that it does not hold what a declared
-write's `when` asks of it. A `Mutation.write` is refused as unmet only when its
-write has a `when`, and its `Refusal` type says so: without one it stays
-`Conflict`, so a match over it needs no `Unmet` arm. `Refusal.invalid` says the
-row it would leave breaks an invariant of its Entity (`Entity.invariant`): its
-`rule` and `path`, which a form shows the `message` beside, or none and empty
-when the invariant reads something the caller may not see. Every
-`Mutation.write` may be refused so, since the server's Entity may hold
-invariants the client's does not show. `Refusal.isInvalidBy(refusal, invariant)`
-asks whether it names one invariant, given as `Entity.invariant` returned it
-(export it beside the Entity), so its id is never spelled again; an unnamed
-refusal matches none. The server sends the refusal encoded by this schema and
-`Data.refusal` decodes it by the same one; it is none while the mutation is
-pending or applied, or when it failed for another reason.
+### Refused where it is made
 
-**A write the client can tell is invalid is refused where it is made.**
-`Data.mutate` judges a declared write's Entity invariants over the row it
-would leave, as the client holds it: the store's row with the write's values
-over it, a field it moves (an increment, a computed value) not held. Where one
-is definitely broken, it shows nothing and sends nothing; its Command answers
-`MutationFailed` at once with the very `Refusal.invalid` the server would send,
-so `Data.refusal`, `Data.failedWrites` and your `update` handle it as a
-server's. An invariant over a field the client lacks is undecided and refuses
-nothing: the server judges it. Passing `optimistic` yourself skips the check.
+Before it shows or sends a declared write, `Data.mutate` refuses the ones the
+client can already tell the server would refuse, in the order the server
+checks: who asks, then the row.
 
-A server may also refuse who is asking, whatever the mutation
-(`RemoteServer.forbid`). Then `Data.mutation(model, requestId)` is `Failed`
-with an error of `_tag: 'Forbidden'`, and `reason` when the server gave one,
-for the person who asked. Asking again as the same person is refused again,
-so show it rather than retry.
+**A write the held `may` says no to.** A supplied member may say which write
+its value forbids (`Derived.make(schema, { forbids })`); Guard's `may` does:
+the row's `Update` or `Delete`, a written member's own rule, or a relation's
+`Link` or `Unlink`, where it reads `false` for the row as the store holds it.
+`Data.mutate` asks each such member it holds before it judges the invariants,
+as the server refuses who asks first, and answers `MutationFailed` with `_tag:
+'Forbidden'` and the `explain`'s words as `reason`, showing and sending
+nothing. A `may` not held, or one that does not name the part, refuses nothing;
+a held `may` is the server's answer as of its read, so `Data.refresh` asks
+again.
 
-**A write the held `may` says no to is refused where it is made, too.** A
-supplied member may say which write its value forbids (`Derived.make(schema, {
-forbids })`); Guard's `may` does: the row's `Update` or `Delete`, a written
-member's own rule, or a relation's `Link` or `Unlink`, where it reads `false`
-for the row as the store holds it. `Data.mutate` asks each such member it holds
-before it judges the invariants, as the server refuses who asks first, and
-answers `MutationFailed` with `_tag: 'Forbidden'` and the `explain`'s words as
-`reason`, showing and sending nothing. A `may` not held, or one that does not
-name the part, refuses nothing; a held `may` is the server's answer as of its
-read, so `Data.refresh` asks again.
+`may` is a UI hint, and the server enforces every write. A `may` that says
+yes, stale after a change of role, foreseen for a row the client wrote, or
+edited in the page's Model, decides nothing: the request carries no `may`,
+the server checks the write by its rules as the request's principal, and a
+refusal comes back as `Forbidden`, which takes the shown change back. The
+client's refusal only saves the round trip for a no it already holds. See
+[`foldkit-guard`](../guard/README.md#what-may-tells-a-reader-and-what-it-does-not)
+for what `may` tells a reader.
 
-Optimistic entity patches are **layers over the base store**, not inverse
-patches. If multiple mutations overlap, the visible cache is recomputed as base
-plus the still-pending layers, so settling one does not require trying to undo
-its old value manually.
-
-Connections can be optimistic too:
-
-```ts
-import { ConnectionChange } from 'foldkit-remote'
-
-const { model: started, command } = Data.mutate(model, AddComment, input, {
-  optimistic: ({ tempId }) => [
-    Remote.patch(Comment, tempId, { id: tempId, body: input.body }),
-    ConnectionChange.prepend(
-      CommentsForPost.ref({ postId }),
-      Remote.ref(Comment, tempId),
-    ),
-  ],
-})
-```
-
-A successful server result can replace the request's temporary connection
-overlays with confirmed ones in place.
+**A write the client can tell is invalid.** `Data.mutate` judges a declared
+write's Entity invariants over the row it would leave, as the client holds it:
+the store's row with the write's values over it, a field it moves (an
+increment, a computed value) not held. Where one is definitely broken, it shows
+nothing and sends nothing; its Command answers `MutationFailed` at once with
+the very `Refusal.invalid` the server would send, so `Data.refusal`,
+`Data.failedWrites` and your `update` handle it as a server's. An invariant
+over a field the client lacks is undecided and refuses nothing: the server
+judges it. Passing `optimistic` yourself skips the check.
 
 ### What an answer carries
 
@@ -1942,7 +1920,14 @@ capability that must not claim success before the server reflects it:
 ```ts
 Agent.when({
   projection: Data.confirmed(Data.get(ProjectSummary, projectId)),
-  predicate: (project, request) => project.name === request.name,
+  // The projection reads a RemoteData: only a value the server holds can match.
+  predicate: (project, request: { readonly name: string }) =>
+    RemoteData.render(project, {
+      loading: () => false,
+      notFound: () => false,
+      failed: () => false,
+      data: value => value.name === request.name,
+    }),
 })
 ```
 
@@ -2048,7 +2033,11 @@ Data.query(Notes, {}, { select: NoteRow, first: 50, live: true })
 A Surface's live entry (`<key>.live`) subscribes the rows and the lists its
 reads mark live in one stream, sending each list as its read sends it (query,
 input, window, `select`). A list read live needs `first`, since a server reads
-it again for every change it checks; `Data.query` throws without one. A live
+it again for every change it checks; `Data.query` throws without one. The
+server admits a stream before it asks any live source: its lists' `first`
+count toward `maxIdsPerEntity` with the rows it follows, and it may carry at
+most `MAX_LIVE_QUERIES` (32) lists; past either it is refused
+(`RemoteLiveRefused`, below). A live
 source that watches lists (`foldkit-remote-drizzle`'s `pollLive`) diffs it;
 `RemoteServer.liveHub` watches none, so on a server with only a hub a live
 list changes only when read again.
@@ -2106,7 +2095,7 @@ Match.value(Data.liveStatus(model, Watched)).pipe(
 `Reconnecting` lasts from the break until the stream has resubscribed, and
 carries the error, which is none for a gap. `Refused` is a stream the server
 would not open for what it asks (`RemoteLiveRefused`: more rows of one Entity
-than its `maxIdsPerEntity`). Asking again would be refused again, so it is
+than its `maxIdsPerEntity`, or more than 32 lists). Asking again would be refused again, so it is
 not restarted until the entry's live requirements change, which opens a new
 stream; a `LiveRefused` diagnostic records it once. `RemoteModel.streams` holds each
 stream's restarts, its breaks in a row and its last error. `forget` clears it
@@ -2356,6 +2345,85 @@ execution are layer choices rather than Remote semantics.
 See [`foldkit-remote-server`](../remote-server) for Source and authorization
 rules, and [`examples/kitchen-sink`](../../examples/kitchen-sink) for the real
 server packages together.
+
+## Clients and transports
+
+Every client is a `Layer<RemoteClient>`, and Remote's semantics do not change
+with it: a read, a query, a write and a live stream mean the same over Effect
+RPC, JSON or a port. What differs is how each reports a request that did not
+get an answer.
+
+`Remote.json(send)` is the JSON client over any way of sending the request
+text; `Remote.http(url, { headers, fetch })` is it over `fetch`. `headers` is
+read for each request, so a token that changes reaches the next call.
+
+**Who is asking.** A 401 fails every call kind, a read, a query, a mutation or
+a live stream, with `_tag: 'Unauthenticated'` (and `reason` when the server
+gave one): the server could not tell who is asking. A 401 is read so whatever
+its body says. A 403 whose body does not say `forbidden` itself, as Remote's
+server's does, comes from middleware in front of it refusing a session (a
+bare `{ error }` included): it fails a mutation as `Forbidden` and any other
+call with the status. `RemoteData.denied(error)` reads a failure as
+`Unauthenticated` or `Forbidden`, typed, and as none for any other, so a view
+tells "sign in again" from "could not load" without comparing tags. Remote
+treats either as any failure: a read or query is `Failed`, and a live stream
+restarts with its backoff, refused again each time, until the application
+signs in again and calls `Data.forget`.
+
+The JSON clients carry no live data. For live data over the same `POST`s,
+`Remote.httpWithLive` keeps reads, queries, and mutations as `http` sends
+them and streams live requirements as a `text/event-stream` of changes;
+[`serveFetch`](../remote-server/README.md#over-fetch-workers) is the other
+end. Abandoning the stream aborts the request, which interrupts the
+subscription server-side.
+
+For a server in a worker or in the page (a sandbox), `foldkit-remote/port`
+speaks Effect's own RPC worker protocol over a `MessagePort`, so live data,
+typed errors and interruption cross it too.
+[`servePort`](../remote-server/README.md#over-a-messageport) is the other end:
+
+```ts
+import { port } from 'foldkit-remote/port'
+
+// A new conversation each time the protocol connects: one port here, the other to the server.
+const overPort = port(() => {
+  const channel = new MessageChannel()
+  worker.port.postMessage({ open: 'remote' }, [channel.port2])
+  return channel.port1
+})
+```
+
+It is a `Layer<RemoteClient>` like the others; a port that cannot be set up is
+a defect, not a failed read.
+
+**Nothing answered.** The client `RpcClient.make(RemoteRpc)` builds is
+accepted as it is. When its transport fails, a read, a
+query or a live stream fails with its own Remote error (`RemoteReadError`,
+`RemoteQueryError`, `RemoteLiveError`), which the UI shows and retries like any
+other failure. A mutation fails with `RemoteUnreachable` (`_tag:
+'Unreachable'`): nothing answered, so the server may or may not have run it.
+`Remote.json`, `Remote.http` and `Remote.httpWithLive` say the same of a
+request they could not send, and of a response that is no Remote answer: a
+body that is not JSON, JSON that is not `{ result }` or `{ error }` (a
+gateway's `{}`), or a response with status 408, 429, 502, 503 or 504, which
+Remote's server never answers with. Each is a `RemoteJsonClient`, a
+`RemoteRpcClient` whose transport error is `RemoteUnreachable`. A mutation the
+server failed is a `RemoteMutationError`. The difference matters for a [durable write](#a-write-that-outlives-the-page-dataoutbox):
+an `Unreachable` one is sent again, a refused one is settled `Failed`.
+
+**Testing a server over HTTP.** Call it as the application does: give
+`` Remote.http(`${origin}/remote`, { headers, fetch }) `` the server's address
+(miniflare's `(await mf.ready).origin` for a Worker) and call
+`FoldkitRemoteRead`, `FoldkitRemoteQuery` and `FoldkitRemoteMutate` on it, as
+`examples/cloudflare/src/client.ts` does over its local stack. To speak the
+wire yourself, each `POST` body is one of these, `version` being
+`REMOTE_PROTOCOL_VERSION`:
+
+```json
+{ "operation": "read", "payload": { "version": 5, "requests": [{ "entity": "Post", "id": "p1", "fields": ["title"] }] } }
+{ "operation": "query", "payload": { "query": "PostsByAuthor", "input": { "authorId": "a1" }, "window": { "first": 20 } } }
+{ "operation": "mutate", "payload": { "requestId": "r1", "mutation": "RenamePost", "input": { "id": "p1", "title": "Hello" } } }
+```
 
 ## Introspection
 
@@ -2745,10 +2813,14 @@ and orders by, so the rows it holds can be compared with one that changed.
 
 ```ts
 // Schematic: `ProjectsByRank` is a Query.define ordered by a number, and
-// `connection` one of `remote.connections`. test/placement.test.ts runs it.
-placeIn(remote.entities, connection, ProjectsByRank.body!, {}, 'Project:p7')
+// `connection` one of `remote.connections`; `Operators` is foldkit-entity's.
+// test/placement.test.ts runs it.
+placeIn(remote.entities, connection, ProjectsByRank.body!, {}, 'Project:p7', Operators.kernel)
 // Before { segment, edge } | End { segment } | Outside | Unknown { reason }
 ```
+
+The last argument is the operator table the body's calls run by, the one
+`Remote.make`'s `operators` names (`Operators.kernel` by default).
 
 - `Before` and `End` are positions among loaded edges: before an edge, or at
   the end of a segment that ends the list (`Terminal`).
@@ -2823,13 +2895,16 @@ Remote does **not** own:
 
 ## Limits
 
-- Effect RPC is the wire contract; the application supplies deployment layers.
-  `ReadBatch` and `LiveRequirement` carry `REMOTE_PROTOCOL_VERSION`, and a
-  mismatched version fails with `RemoteProtocolError` rather than silently
-  drifting.
+- `RemoteRpc`'s schemas are the wire contract, carried by Effect RPC, by JSON
+  over `POST` (`Remote.http`), or over a `MessagePort`; the application
+  supplies deployment layers. `ReadBatch` and `LiveRequirement` carry
+  `REMOTE_PROTOCOL_VERSION`, and a mismatched version fails with
+  `RemoteProtocolError` rather than silently drifting.
 - One request may name at most `MAX_FIELDS_PER_REQUEST` (256) fields of one
   entity and nest relations at most `MAX_RELATION_DEPTH` (8) levels; the wire
-  rejects larger inputs.
+  rejects larger inputs. A live stream carries at most `MAX_LIVE_QUERIES` (32)
+  lists, and a `many` relation read whole is bounded by the server's Source
+  (`maxCollection` in `foldkit-remote-drizzle`).
 - The wire `LiveChange` union carries entity patches/deletes and connection
   insert/remove/invalidate changes; `RemoteServer.live` serves them as a stream.
 - Coalescing is scoped to one `RemoteClient` layer. Separate layers do not share
