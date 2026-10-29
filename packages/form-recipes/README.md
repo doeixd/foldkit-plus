@@ -154,7 +154,9 @@ no floating point stands between what was typed and what is stored:
 What is refused rather than guessed at: grouping other than the locale's (`12,3`
 in `en-US` is not `123`, and `12.3` in `de-DE` is not either), more decimals than
 the scale (never rounded), a minus unless `negative: true`, a space inside an
-amount where the locale groups with none, a symbol anywhere but at either end,
+amount where the locale groups with none, a symbol anywhere but at either end, a
+minus after the amount but where the locale writes it there (`fy`'s money:
+`US$ 1.234,56-`),
 a minor amount past what a JavaScript number holds exactly (use `'decimal'` for
 those), and a `decimal` or `percent` a JavaScript number would round. A partial
 amount (`-`, or `1,2` in `en-US`) reads `Enter an amount`: the form checks a key

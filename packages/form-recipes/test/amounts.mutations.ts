@@ -59,7 +59,9 @@ export default [
   },
   {
     name: 'a minus is taken where an amount may not be negative',
-    edits: [{ file: number, find: 'if (signed && !negative) return Option.none()', replace: '' }],
+    edits: [
+      { file: number, find: 'if (inner.signed && !negative) return Option.none()', replace: '' },
+    ],
     tests,
   },
   {
@@ -122,6 +124,35 @@ export default [
   {
     name: 'a percentage is grouped as its format scales it',
     edits: [{ file: number, find: "(options.style === 'percent'", replace: '(false' }],
+    tests,
+  },
+  {
+    name: 'a minus is read first only, wherever the locale writes it',
+    edits: [
+      { file: number, find: 'if (minusAfter && minusLast.test(text))', replace: 'if (false)' },
+    ],
+    tests,
+  },
+  {
+    name: 'a minus is read last in every locale',
+    edits: [
+      {
+        file: number,
+        find: 'if (minusAfter && minusLast.test(text))',
+        replace: 'if (minusLast.test(text))',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'where a locale writes its minus is not read from its format',
+    edits: [
+      {
+        file: number,
+        find: "parts.findIndex(part => part.type === 'minusSign') >",
+        replace: "parts.findIndex(part => part.type === 'minusSign') <",
+      },
+    ],
     tests,
   },
   {

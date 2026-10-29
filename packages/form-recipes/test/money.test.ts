@@ -198,6 +198,38 @@ describe('every amount reads back what it shows', () => {
   }
   it.each([...locales, ...more])('in %s', locale => expect(misreadIn(locale)).toEqual([]))
 
+  // Each language's own conventions, where a region's differ least: `fy` and
+  // `mr` were found this way.
+  it('in every language the runtime formats', () => {
+    const letters = 'abcdefghijklmnopqrstuvwxyz'
+    const languages = Intl.NumberFormat.supportedLocalesOf(
+      [...letters].flatMap(first => [...letters].map(second => first + second)),
+    )
+    expect(languages.length).toBeGreaterThan(100)
+    expect(
+      Object.fromEntries(
+        languages.flatMap(locale => {
+          const misread = misreadIn(locale)
+          return misread.length === 0 ? [] : [[locale, misread]]
+        }),
+      ),
+    ).toEqual({})
+  })
+
+  // West Frisian writes money's minus last (#316).
+  it('reads back a minus written after the amount, where the locale writes it there', () => {
+    const fy = FieldRecipes.money({ currency: 'USD', unit: 'minor', locale: 'fy', negative: true })
+    expect(shown(fy.control, -123456)).toBe('US$ 1.234,56-')
+    expect(read(fy.control, 'US$ 1.234,56-')).toBe(-123456)
+    expect(read(fy.control, '-US$ 1.234,56')).toBe(-123456)
+    expect(read(fy.control, '1.234,56-')).toBe(-123456)
+    // Not a second minus, and not where the locale never writes one.
+    expect(read(fy.control, '-1.234,56-')).toBeUndefined()
+    expect(read(usd.control, '1,234.56-')).toBeUndefined()
+    const unsigned = FieldRecipes.money({ currency: 'USD', unit: 'minor', locale: 'fy' })
+    expect(read(unsigned.control, 'US$ 1.234,56-')).toBeUndefined()
+  })
+
   // These group a percentage in thousands and a plain number in lakhs (#317).
   it.each(['mr', 'ml', 'ne', 'or', 'te', 'mr-IN'])(
     'reads back a percentage past a thousand as %s groups it',

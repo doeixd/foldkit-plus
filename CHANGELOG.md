@@ -723,6 +723,13 @@ carries `drawn`.
 
 ### Fixed
 
+- **`FieldRecipes.money` reads a minus written after the amount, where the
+  locale writes it there** (#316). West Frisian (`fy`) writes `US$ 1.234,56-`,
+  which its own field refused, so a filled negative amount could not be
+  submitted unchanged. Where a locale's format writes its minus last, a minus
+  last is read; a leading one is read in any locale. The amounts' round-trip
+  test now runs over every language the runtime formats, which is how `fy`
+  and the percentages of #317 were found.
 - **`FieldRecipes.percent` reads back the grouping it writes** (#317). In
   `mr`, `ml`, `ne`, `or` and `te` a percentage groups in thousands
   (`-123,450%`) where a plain number groups in lakhs, and a typed

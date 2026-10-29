@@ -19,11 +19,14 @@ interface Symbols {
   readonly decimal: string
   /** Text that is not part of the amount: a currency symbol, a percent sign. */
   readonly affixes: ReadonlyArray<string>
+  /** Whether the format writes a minus after the digits, as `fy`'s money does: `€ 12,00-`. */
+  readonly minusAfter: boolean
   /** Whole digits grouped as this kind of amount groups them, to compare a grouped draft against. */
   readonly grouped: (digits: string) => string
 }
 
 const minus = /^[-−]/
+const minusLast = /[-−]$/
 const apostrophe = /^['’]$/
 const apostrophes = /['’]/g
 const spaces = /[\s\u00a0\u202f]/
@@ -33,6 +36,16 @@ const allSpaces = /[\s\u00a0\u202f]/g
 const bidi = /[\u061c\u200e\u200f\u2066-\u2069]/g
 /** The full-width forms a keyboard in East Asia types: `１２，３`. Only these are folded. */
 const fullWidth = /[\uff01-\uff5e\uffe0-\uffe6]/g
+
+/** `text` without a minus at its start, or at its end where the locale writes one there. */
+const unsigned = (
+  text: string,
+  minusAfter: boolean,
+): { readonly signed: boolean; readonly text: string } => {
+  if (minus.test(text)) return { signed: true, text: text.slice(1).trim() }
+  if (minusAfter && minusLast.test(text)) return { signed: true, text: text.slice(0, -1).trim() }
+  return { signed: false, text }
+}
 
 const symbolsCache = new Map<string, Symbols>()
 
@@ -71,6 +84,9 @@ const symbolsOf = (locale: string, options: Intl.NumberFormatOptions): Symbols =
     affixes: parts
       .filter(part => part.type === 'currency' || part.type === 'percentSign')
       .map(part => part.value.normalize('NFKC')),
+    minusAfter:
+      parts.findIndex(part => part.type === 'minusSign') >
+      parts.findIndex(part => part.type === 'integer'),
     grouped: digits =>
       whole
         // A percentage's format scales what it is given by 100, so it is given the
@@ -94,7 +110,8 @@ const symbolsOf = (locale: string, options: Intl.NumberFormatOptions): Symbols =
  * none for text that is not an amount, has more than `scale` fraction digits,
  * groups its digits other than the locale does (`12,3` in `en-US` is no
  * thousand), or is negative where `negative` is false. A currency symbol or a
- * percent sign is taken at either end only, and a minus before or after it.
+ * percent sign is taken at either end only, and a minus before or after it, or
+ * last where the locale writes it last.
  */
 export const readDigits = (
   draft: string,
@@ -112,17 +129,15 @@ export const readDigits = (
     .replace(fullWidth, form => form.normalize('NFKC'))
     .replace(bidi, '')
     .trim()
-  // A minus, then at most one symbol at one end, then a minus after a leading symbol.
-  let signed = minus.test(text)
-  if (signed) text = text.slice(1).trim()
+  // A minus, then at most one symbol at one end, then a minus inside the symbol.
+  const outer = unsigned(text, symbols.minusAfter)
+  text = outer.text
   const affix = symbols.affixes.find(held => text.startsWith(held) || text.endsWith(held))
   if (affix !== undefined)
     text = (text.startsWith(affix) ? text.slice(affix.length) : text.slice(0, -affix.length)).trim()
-  if (!signed && minus.test(text)) {
-    signed = true
-    text = text.slice(1).trim()
-  }
-  if (signed && !negative) return Option.none()
+  const inner = outer.signed ? { signed: true, text } : unsigned(text, symbols.minusAfter)
+  text = inner.text
+  if (inner.signed && !negative) return Option.none()
   // A locale that groups with a space groups with any space a person types; in
   // one that does not, a space inside an amount is no part of it.
   if (spaces.test(symbols.group)) text = text.replace(allSpaces, symbols.group)
@@ -138,7 +153,7 @@ export const readDigits = (
   // Grouped only as the locale groups that number, or not at all.
   if (digits !== whole && symbols.grouped(digits) !== whole) return Option.none()
   return Option.some({
-    negative: signed,
+    negative: inner.signed,
     whole: digits.replace(/^0+(?=\d)/, '') || '0',
     fraction: fraction.padEnd(scale, '0'),
   })
