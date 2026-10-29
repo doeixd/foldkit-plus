@@ -281,8 +281,8 @@ const collateFor =
  */
 const castFor = (schema: Schema.Top, value: unknown): Option.Option<SQL> => {
   const present = SchemaShape.present(Schema.toEncoded(schema).ast)
-  if (present.length > 0 && present.every(SchemaAST.isNumber)) {
-    if (!present.every(SchemaShape.holdsIntegers)) return Option.some(sql.raw('double precision'))
+  if (present.length > 0 && present.every(isNumeric)) {
+    if (!present.every(holdsIntegers)) return Option.some(sql.raw('double precision'))
     const fits = typeof value !== 'number' || (value >= -(2 ** 31) && value < 2 ** 31)
     return Option.some(fits ? sql.raw('integer') : sql.raw('bigint'))
   }
@@ -290,6 +290,14 @@ const castFor = (schema: Schema.Top, value: unknown): Option.Option<SQL> => {
     return Option.some(sql.raw('boolean'))
   return Option.none()
 }
+
+/** A number, or a literal naming one (`Schema.Literal(1)`): typed alike on Postgres. */
+const isNumeric = (ast: SchemaAST.AST): boolean =>
+  SchemaAST.isNumber(ast) || (SchemaAST.isLiteral(ast) && typeof ast.literal === 'number')
+
+/** Whether every value `ast` admits is an integer: checked to be one, or a literal that is. */
+const holdsIntegers = (ast: SchemaAST.AST): boolean =>
+  SchemaAST.isLiteral(ast) ? Number.isInteger(ast.literal) : SchemaShape.holdsIntegers(ast)
 
 /**
  * A literal or input value an operator takes, as a parameter: cast by the input

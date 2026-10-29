@@ -415,6 +415,46 @@ describe('A primitive operator run by the database', () => {
       expect(page.edges.map(edge => edge.id)).toEqual(['i1'])
     })
 
+    // A literal's type is the number it names (#323): its parameter is cast as Schema.Int's is.
+    it('casts an input of numeric literals by the numbers they name', async () => {
+      const plus = Expr.operator('acme.plus', {
+        input: [Schema.Literals([1, 3]), Schema.Literal(0.5)],
+        output: Schema.Number,
+      })
+      const tables = {
+        memory: Operators.memory(Operators.implement(plus, (left, right) => left + right)),
+        sql: DrizzleOperators.make(
+          DrizzleOperators.implement(plus, ({ args: [left, right] }) => sql`(${left} + ${right})`),
+        ),
+      }
+      const Plus = {
+        ...Query.make('Plus', {
+          Input: { a: Schema.Literals([1, 3]), b: Schema.Literal(0.5) },
+          Result: Query.connection(Item),
+        }),
+        body: Relational.from(Item).pipe(
+          Relational.where(
+            Expr.lt(
+              Item.fields.rank,
+              plus(Expr.input('a', Schema.Literals([1, 3])), Expr.input('b', Schema.Literal(0.5))),
+            ),
+          ),
+          Relational.orderBy(Order.asc(Item.fields.id)),
+        ),
+      }
+      const target = entity('Item', pgItems, { operators: tables })
+      const [compiled] = compilePredicates(Plus.body.where, target, { a: 3, b: 0.5 }, 'Plus')
+      expect(renderedPg(compiled!).sql).toBe(
+        '"items"."rank" < (cast($1 as integer) + cast($2 as double precision))',
+      )
+      const page = await Effect.runPromise(
+        query(Plus, { entity: target })
+          .run({ input: { a: 3, b: 0.5 }, window: { first: 5 }, principal: null })
+          .pipe(Effect.provide(databaseLayer(drizzlePg({ client: pglite })))),
+      )
+      expect(page.edges.map(edge => edge.id)).toEqual(['i1'])
+    })
+
     it('takes any integer Schema.Int admits, past the 32 bits of an integer', async () => {
       const input = { a: 3_000_000_000, b: -2_999_999_997 }
       expect(await ids(onPostgres, databaseLayer(drizzlePg({ client: pglite })), input)).toEqual([

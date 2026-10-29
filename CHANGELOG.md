@@ -753,6 +753,13 @@ carries `drawn`.
 
 ### Fixed
 
+- **An operator input of numeric literals is typed on Postgres** (#323).
+  remote-drizzle cast an operator's parameter by its input schema only when
+  that was `Schema.Number`, so one declared `Schema.Literal(1)` or
+  `Schema.Literals([1, 2])` went untyped and Postgres refused `$1 + $2`
+  ("operator is not unique"). A numeric literal is cast as the number it
+  names: `integer` (or `bigint`) where every literal is whole, else `double
+  precision`.
 - **A Postgres enum ordered under a collation orders by its labels** (#300).
   remote-drizzle collated only text columns on Postgres, so an enum column
   under `Collation.asciiFold` or `binary` kept Postgres's own order, the order

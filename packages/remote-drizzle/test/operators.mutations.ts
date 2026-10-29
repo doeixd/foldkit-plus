@@ -10,6 +10,28 @@ const operators = '../src/operators.ts'
 
 export default [
   {
+    name: 'a numeric literal input is left untyped (#323)',
+    edits: [
+      {
+        file: compile,
+        find: "SchemaAST.isNumber(ast) || (SchemaAST.isLiteral(ast) && typeof ast.literal === 'number')",
+        replace: 'SchemaAST.isNumber(ast)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'an integer literal input is cast as a real number (#323)',
+    edits: [
+      {
+        file: compile,
+        find: 'SchemaAST.isLiteral(ast) ? Number.isInteger(ast.literal) : SchemaShape.holdsIntegers(ast)',
+        replace: 'SchemaShape.holdsIntegers(ast)',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'NaN given to an operator is bound (#296)',
     edits: [{ file: compile, find: 'if (isNaNValue(value)) {', replace: 'if (false) {' }],
     tests,
@@ -41,7 +63,7 @@ export default [
     edits: [
       {
         file: compile,
-        find: "if (!present.every(SchemaShape.holdsIntegers)) return Option.some(sql.raw('double precision'))",
+        find: "if (!present.every(holdsIntegers)) return Option.some(sql.raw('double precision'))",
         replace: "return Option.some(sql.raw('double precision'))",
       },
     ],
