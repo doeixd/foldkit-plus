@@ -7,7 +7,7 @@
  * point. A menu opened without one (the keyboard) sits under the row.
  * Dismissing closes without choosing.
  */
-import { Option, Schema } from 'effect'
+import { Option, Schema, Match } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
 import { DismissLayer, ListNavigation, Selection } from 'foldkit-primitives/interaction'
@@ -83,8 +83,8 @@ export const initial = assembly.initial({
 })
 
 export const update = assembly.update((model, message) => {
-  switch (message._tag) {
-    case 'Pointed': {
+  return Match.valueTags(message, {
+    Pointed: message => {
       const next = { id: message.id, x: message.x, y: message.y }
       if (
         Option.isSome(model.point) &&
@@ -94,11 +94,12 @@ export const update = assembly.update((model, message) => {
       )
         return { model }
       return { model: { ...model, point: Option.some(next) } }
-    }
-    case 'OpenedFor':
+    },
+    OpenedFor: message => {
       if (Option.isSome(model.openFor) && model.openFor.value === message.id) return { model }
       return { model: { ...model, openFor: Option.some(message.id) } }
-    case 'ChoseAction': {
+    },
+    ChoseAction: message => {
       const open = model.openFor
       if (Option.isNone(open)) return { model }
       return {
@@ -112,6 +113,6 @@ export const update = assembly.update((model, message) => {
           ).model,
         },
       }
-    }
-  }
+    },
+  })
 })

@@ -60,13 +60,11 @@ describe('view structure', () => {
       input: update(initial.model, Message.Entered()).model,
       h,
     })
-    const mount = Attributes.find(builders.card.attrs([]), 'OnMount') as unknown as {
-      readonly action?: { readonly name?: string }
-    }
-    expect(mount?.action?.name).toContain('FocusScope')
-    expect(mount?.action?.name).not.toContain('ScrollLock')
-    expect(mount?.action?.name).not.toContain('HideOutside')
-    expect(mount?.action?.name).toContain('KeepWithin')
+    const mount = Attributes.find(builders.card.attrs([]), 'OnMount')
+    expect(mount?.action.name).toContain('FocusScope')
+    expect(mount?.action.name).not.toContain('ScrollLock')
+    expect(mount?.action.name).not.toContain('HideOutside')
+    expect(mount?.action.name).toContain('KeepWithin')
   })
 })
 

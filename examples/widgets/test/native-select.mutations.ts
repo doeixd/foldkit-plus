@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file: '../src/native-select/app.ts',
-        find: 'if (isChannel(message.value) === false || message.value === model.value) return { model }',
-        replace: 'if (message.value === model.value) return { model }',
+        find: 'if (isChannel(value) === false || value === model.value) return { model }',
+        replace: 'if (value === model.value) return { model }',
       },
     ],
     tests,

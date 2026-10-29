@@ -5,8 +5,9 @@
  * outside press nor Escape, so its `Dismiss` outmessage never closes: only
  * the dialog's own buttons answer.
  */
-import { Option, Schema } from 'effect'
+import { Option, Schema, Match } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
 import { DismissLayer } from 'foldkit-primitives/interaction'
 
@@ -50,13 +51,13 @@ const assembly = Parent.assemble(
 
 export const initial = assembly.initial({ open: false, answer: Option.none() })
 
+const answered = (model: Model, answer: 'confirmed' | 'cancelled'): Model =>
+  modifyFields(model, { open: () => false, answer: () => Option.some(answer) })
+
 export const update = assembly.update((model, message) => {
-  switch (message._tag) {
-    case 'Opened':
-      return { model: { ...model, open: true } }
-    case 'Confirmed':
-      return { model: { ...model, open: false, answer: Option.some('confirmed') } }
-    case 'Cancelled':
-      return { model: { ...model, open: false, answer: Option.some('cancelled') } }
-  }
+  return Match.valueTags(message, {
+    Opened: () => ({ model: modifyFields(model, { open: () => true }) }),
+    Confirmed: () => ({ model: answered(model, 'confirmed') }),
+    Cancelled: () => ({ model: answered(model, 'cancelled') }),
+  })
 })

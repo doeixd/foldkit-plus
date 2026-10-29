@@ -6,7 +6,7 @@
  * click, or touch toggles. Intent delays stay upstream's `HoverIntent`: this card carries no
  * interactive content, so nothing flickers between trigger and panel.
  */
-import { Schema } from 'effect'
+import { Schema, Match } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
 import { DismissLayer } from 'foldkit-primitives/interaction'
@@ -44,18 +44,19 @@ const assembly = Parent.assemble(
 export const initial = assembly.initial({ open: false, openedByPointer: false })
 
 export const update = assembly.update((model, message) => {
-  switch (message._tag) {
-    case 'Entered':
-      return model.open ? { model } : { model: { ...model, open: true, openedByPointer: true } }
-    case 'Left':
-      return model.open ? { model: { ...model, open: false, openedByPointer: false } } : { model }
-    case 'Focused':
-      return model.open ? { model } : { model: { ...model, open: true, openedByPointer: false } }
-    case 'Blurred':
-      return model.open ? { model: { ...model, open: false, openedByPointer: false } } : { model }
-    case 'Toggled':
+  return Match.valueTags(message, {
+    Entered: () =>
+      model.open ? { model } : { model: { ...model, open: true, openedByPointer: true } },
+    Left: () =>
+      model.open ? { model: { ...model, open: false, openedByPointer: false } } : { model },
+    Focused: () =>
+      model.open ? { model } : { model: { ...model, open: true, openedByPointer: false } },
+    Blurred: () =>
+      model.open ? { model: { ...model, open: false, openedByPointer: false } } : { model },
+    Toggled: () => {
       if (model.openedByPointer && model.open)
         return { model: { ...model, openedByPointer: false } }
       return { model: { ...model, open: !model.open, openedByPointer: false } }
-  }
+    },
+  })
 })

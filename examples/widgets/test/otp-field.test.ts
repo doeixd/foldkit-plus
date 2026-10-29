@@ -90,10 +90,7 @@ describe('view structure', () => {
     )
     const page = Inert.draw(OtpField, one)
     for (const cell of Inert.byTag(page, 'input')) {
-      expect(
-        (cell as { readonly data?: { readonly on?: { readonly keydown?: unknown } } })?.data?.on
-          ?.keydown,
-      ).toBeTypeOf('function')
+      expect(cell.data?.on?.keydown).toBeTypeOf('function')
     }
   })
   it('advances from a filled cell to the first empty one, never otherwise', () => {

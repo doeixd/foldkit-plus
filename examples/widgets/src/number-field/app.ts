@@ -22,10 +22,10 @@ export type Message = typeof Message.Type
 export const initial: Model = { value: 3 }
 
 export const update = (model: Model, message: Message): { readonly model: Model } => {
-  switch (message._tag) {
-    case 'SetValue': {
+  return Message.match(message, {
+    SetValue: message => {
       const value = clamp(message.value)
       return value === model.value ? { model } : { model: { ...model, value } }
-    }
-  }
+    },
+  })
 }

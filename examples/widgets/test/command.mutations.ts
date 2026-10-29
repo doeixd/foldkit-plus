@@ -22,8 +22,8 @@ export default [
     edits: [
       {
         file: '../src/command/app.ts',
-        find: 'return { model: { ...model, query: message.text } }',
-        replace: 'return { model }',
+        find: 'Queried: message => ({ model: { ...model, query: message.text } }),',
+        replace: 'Queried: () => ({ model }),',
       },
     ],
     tests,

@@ -7,7 +7,7 @@
  * already opened it); the next click, a keyboard click, or touch toggles.
  * Following a link records `section/link` and shuts.
  */
-import { Option, Schema } from 'effect'
+import { Option, Schema, Match } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
 import { DismissLayer, ListNavigation, Selection } from 'foldkit-primitives/interaction'
@@ -101,9 +101,9 @@ export const initial = assembly.initial({
 })
 
 export const update = assembly.update((model, message) => {
-  switch (message._tag) {
-    case 'EnteredSection':
-      return isSection(model.openSection, message.section)
+  return Match.valueTags(message, {
+    EnteredSection: message =>
+      isSection(model.openSection, message.section)
         ? { model }
         : {
             model: {
@@ -111,10 +111,9 @@ export const update = assembly.update((model, message) => {
               openSection: Option.some(message.section),
               openedByPointer: true,
             },
-          }
-    case 'LeftBar':
-      return { model: shut(model) }
-    case 'ToggledSection':
+          },
+    LeftBar: () => ({ model: shut(model) }),
+    ToggledSection: message => {
       if (model.openedByPointer && isSection(model.openSection, message.section)) {
         return { model: { ...model, openedByPointer: false } }
       }
@@ -127,7 +126,8 @@ export const update = assembly.update((model, message) => {
             : Option.some(message.section),
         },
       }
-    case 'FollowedLink': {
+    },
+    FollowedLink: message => {
       const open = model.openSection
       if (Option.isNone(open)) return { model }
       const id = linkElementId(open.value, message.link)
@@ -144,6 +144,6 @@ export const update = assembly.update((model, message) => {
           ).model,
         },
       }
-    }
-  }
+    },
+  })
 })

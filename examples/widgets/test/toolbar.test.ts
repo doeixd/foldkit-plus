@@ -1,4 +1,5 @@
 import { Option } from 'effect'
+import type { Html } from 'foldkit/html'
 import { describe, expect, it } from 'vitest'
 import { Attributes, SlotView } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
@@ -11,8 +12,7 @@ const pressed = (model: Model, id: string): Model =>
   update(model, Message.PressedTool({ id })).model
 
 /** The drawn node's click handler, if the view wired one. */
-const clickOf = (node: unknown): unknown =>
-  (node as { readonly data?: { readonly on?: { readonly click?: unknown } } })?.data?.on?.click
+const clickOf = (node: Html | undefined): unknown => node?.data?.on?.click
 
 describe('update flows', () => {
   it('starts with no tab stop and nothing pressed', () => {

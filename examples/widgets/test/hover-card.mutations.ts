@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file: '../src/hover-card/app.ts',
-        find: "case 'Left':\n      return model.open ? { model: { ...model, open: false, openedByPointer: false } } : { model }",
-        replace: "case 'Left':\n      return { model }",
+        find: 'Left: () =>\n      model.open ? { model: { ...model, open: false, openedByPointer: false } } : { model },',
+        replace: 'Left: () => ({ model }),',
       },
     ],
     tests,

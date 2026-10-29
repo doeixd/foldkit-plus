@@ -69,12 +69,10 @@ describe('view structure', () => {
       AlertOverlay.map(behavior => behavior.mixin),
       { input: update(initial.model, { _tag: 'Opened' }).model, h },
     )
-    const mount = Attributes.find(builders.panel.attrs([]), 'OnMount') as unknown as {
-      readonly action?: { readonly name?: string }
-    }
-    expect(mount?.action?.name).toContain('FocusScope')
-    expect(mount?.action?.name).toContain('ScrollLock')
-    expect(mount?.action?.name).toContain('HideOutside')
+    const mount = Attributes.find(builders.panel.attrs([]), 'OnMount')
+    expect(mount?.action.name).toContain('FocusScope')
+    expect(mount?.action.name).toContain('ScrollLock')
+    expect(mount?.action.name).toContain('HideOutside')
     const text = JSON.stringify(builders.panel.attrs([]))
     expect(text).toContain('data-foldkit-plus-layer-outside')
     expect(text).toContain('data-foldkit-plus-layer-escape')

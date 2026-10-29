@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file: '../src/toggle/app.ts',
-        find: 'return { model: { ...model, on: !model.on } }',
-        replace: 'return { model: { ...model, on: true } }',
+        find: 'Toggled: () => ({ model: { ...model, on: !model.on } }),',
+        replace: 'Toggled: () => ({ model: { ...model, on: true } }),',
       },
     ],
     tests,

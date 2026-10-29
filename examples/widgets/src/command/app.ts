@@ -4,7 +4,7 @@
  * placement in single mode (the chosen command). Filtering is a function of
  * the Model — three lines below, no helper, no store.
  */
-import { Option, Schema } from 'effect'
+import { Option, Schema, Match } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
 import { ListNavigation, Selection } from 'foldkit-primitives/interaction'
@@ -68,10 +68,9 @@ const assembly = Parent.assemble(
 export const initial = assembly.initial({ query: '' })
 
 export const update = assembly.update((model, message) => {
-  switch (message._tag) {
-    case 'Queried':
-      return { model: { ...model, query: message.text } }
-  }
+  return Match.valueTags(message, {
+    Queried: message => ({ model: { ...model, query: message.text } }),
+  })
 })
 
 export const selectedOf = (model: Model): Option.Option<string> => {

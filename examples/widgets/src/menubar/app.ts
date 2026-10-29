@@ -8,7 +8,7 @@
  * shuts. Choosing records `menu/item` and shuts. The selection id is the
  * same id the open menu's items carry.
  */
-import { Option, Schema } from 'effect'
+import { Option, Schema, Match } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
 import {
@@ -104,19 +104,15 @@ const assembly = Parent.assemble(
 export const initial = assembly.initial({ openMenu: Option.none(), choice: Option.none() })
 
 export const update = assembly.update((model, message) => {
-  switch (message._tag) {
-    case 'OpenedMenu':
-      return {
-        model: {
-          ...model,
-          openMenu: isMenu(model.openMenu, message.menu)
-            ? Option.none()
-            : Option.some(message.menu),
-        },
-      }
-    case 'ClosedMenu':
-      return { model: shut(model) }
-    case 'ChoseItem': {
+  return Match.valueTags(message, {
+    OpenedMenu: message => ({
+      model: {
+        ...model,
+        openMenu: isMenu(model.openMenu, message.menu) ? Option.none() : Option.some(message.menu),
+      },
+    }),
+    ClosedMenu: () => ({ model: shut(model) }),
+    ChoseItem: message => {
       const open = model.openMenu
       if (Option.isNone(open)) return { model }
       return {
@@ -131,6 +127,6 @@ export const update = assembly.update((model, message) => {
           ).model,
         },
       }
-    }
-  }
+    },
+  })
 })

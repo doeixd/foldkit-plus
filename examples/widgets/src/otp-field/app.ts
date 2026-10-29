@@ -8,7 +8,7 @@
  * Message that updated the Model dispatches the focus as a Command — the
  * platform's own prescribed path for Model-driven DOM effects.
  */
-import { Effect, Option, Schema } from 'effect'
+import { Effect, Option, Schema, Match } from 'effect'
 import { Command } from 'foldkit'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
@@ -100,8 +100,8 @@ export const advanceTarget = (
 }
 
 export const update = assembly.update((model, message) => {
-  switch (message._tag) {
-    case 'CellTyped': {
+  return Match.valueTags(message, {
+    CellTyped: message => {
       // Empty text is a deletion: the cell clears instead of sticking.
       if (message.char === '') {
         return message.index < 0 || message.index >= LENGTH || model.cells[message.index] === ''
@@ -111,11 +111,12 @@ export const update = assembly.update((model, message) => {
       const char = message.char.slice(-1)
       if (message.index < 0 || message.index >= LENGTH || !/[0-9]/.test(char)) return { model }
       return filled(model, at(model.cells, message.index, char), message.index)
-    }
-    case 'CellCleared':
+    },
+    CellCleared: message => {
       if (message.index < 0 || message.index >= LENGTH) return { model }
       return { model: { ...model, cells: at(model.cells, message.index, '') } }
-    case 'PastedCode': {
+    },
+    PastedCode: message => {
       // Digits land left to right from the focused cell; dashes, spaces,
       // and anything past the last cell fall away.
       const digits = [...message.text].filter(char => /[0-9]/.test(char))
@@ -125,8 +126,7 @@ export const update = assembly.update((model, message) => {
         if (message.index + offset < LENGTH) cells[message.index + offset] = digit
       })
       return filled(model, cells, message.index)
-    }
-    case 'FocusAdvanced':
-      return { model }
-  }
+    },
+    FocusAdvanced: () => ({ model }),
+  })
 })

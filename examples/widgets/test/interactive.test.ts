@@ -22,7 +22,18 @@ const click = (target: Element): void => {
 const button = (text: string): HTMLButtonElement => {
   const found = [...document.querySelectorAll('button')].find(each => each.textContent === text)
   if (found === undefined) throw new Error(`no button reading ${text}`)
-  return found as HTMLButtonElement
+  return found
+}
+
+/** The first element `selector` finds in `root`, which must be a `type`. */
+const one = <E extends Element>(
+  type: abstract new () => E,
+  selector: string,
+  root: ParentNode = document,
+): E => {
+  const found = root.querySelector(selector)
+  if (!(found instanceof type)) throw new Error(`no ${type.name} at ${selector}`)
+  return found
 }
 
 describe('showcase islands', () => {
@@ -70,7 +81,7 @@ describe('showcase islands', () => {
     await vi.waitFor(() => expect(document.body.textContent).toContain('Last answer: cancelled.'))
 
     // Autocomplete: typing narrows, picking fills and closes.
-    const fruit = document.querySelector('input[role="combobox"]') as HTMLInputElement
+    const fruit = one(HTMLInputElement, 'input[role="combobox"]')
     fruit.value = 'berry'
     fruit.dispatchEvent(new Event('input', { bubbles: true }))
     await vi.waitFor(() =>
@@ -86,7 +97,7 @@ describe('showcase islands', () => {
     )
 
     // One-time code: typing fills the first cell and advances focus.
-    const digit1 = document.querySelector('input[aria-label="Digit 1"]') as HTMLInputElement
+    const digit1 = one(HTMLInputElement, 'input[aria-label="Digit 1"]')
     digit1.focus()
     digit1.value = '7'
     digit1.dispatchEvent(new Event('input', { bubbles: true }))
@@ -96,12 +107,8 @@ describe('showcase islands', () => {
     )
 
     // Checkbox group: picking cheese checks its box.
-    const boxes = [
-      ...document.querySelectorAll('input[type="checkbox"]'),
-    ] as Array<HTMLInputElement>
-    const cheese = boxes.find(box => box.getAttribute('aria-label') === 'cheese')
-    if (cheese === undefined) throw new Error('no cheese box')
-    click(cheese.closest('label')!)
+    const cheese = one(HTMLInputElement, 'input[type="checkbox"][aria-label="cheese"]')
+    click(one(HTMLLabelElement, 'label:has(input[aria-label="cheese"])'))
     await vi.waitFor(() => expect(cheese.checked).toBe(true))
 
     // Meter: using 10 more reaches 72.
@@ -115,15 +122,14 @@ describe('showcase islands', () => {
     await vi.waitFor(() => expect(document.body.textContent).toContain('Sending…'))
 
     // Command: typing narrows to two options.
-    const search = document.querySelector('input[aria-label="Search commands"]') as HTMLInputElement
+    const search = one(HTMLInputElement, 'input[aria-label="Search commands"]')
     search.value = 'new'
     search.dispatchEvent(new Event('input', { bubbles: true }))
     await vi.waitFor(() => expect(document.querySelectorAll('[role="option"]').length).toBe(2))
 
     // Context menu: right-clicking a row opens its menu, choosing acts.
-    const notes = [...document.querySelectorAll('div')].find(
-      each => each.textContent === 'notes.txt' && each.id === 'context-menu/notes.txt',
-    )!
+    const notes = one(HTMLDivElement, '[id="context-menu/notes.txt"]')
+    expect(notes.textContent).toBe('notes.txt')
     notes.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }))
     await vi.waitFor(() =>
       expect(document.querySelector('[aria-label="Actions for notes.txt"]')).not.toBeNull(),
@@ -154,7 +160,7 @@ describe('showcase islands', () => {
     )
 
     // Native select: choosing phone names it.
-    const reach = document.querySelector('select') as HTMLSelectElement
+    const reach = one(HTMLSelectElement, 'select')
     reach.value = 'phone'
     reach.dispatchEvent(new Event('change', { bubbles: true }))
     await vi.waitFor(() => expect(document.body.textContent).toContain('Chosen: phone.'))
@@ -166,7 +172,7 @@ describe('showcase islands', () => {
     await vi.waitFor(() => expect(document.body.textContent).toContain('Install'))
 
     // Resizable: stepping right grows the first panel.
-    const grip = document.querySelector('[role="separator"]') as HTMLElement
+    const grip = one(HTMLElement, '[role="separator"]')
     grip.focus()
     grip.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
     await vi.waitFor(() => expect(document.body.textContent).toContain('First panel 55%.'))
@@ -176,8 +182,8 @@ describe('showcase islands', () => {
     await vi.waitFor(() =>
       expect(document.querySelector('[aria-label="Command palette"]')).not.toBeNull(),
     )
-    const panel = document.querySelector('[aria-label="Command palette"]') as HTMLElement
-    const query = panel.querySelector('input[aria-label="Search commands"]') as HTMLInputElement
+    const panel = one(HTMLElement, '[aria-label="Command palette"]')
+    const query = one(HTMLInputElement, 'input[aria-label="Search commands"]', panel)
     query.value = 'new'
     query.dispatchEvent(new Event('input', { bubbles: true }))
     await vi.waitFor(() => expect(panel.querySelectorAll('[role="option"]').length).toBe(2))

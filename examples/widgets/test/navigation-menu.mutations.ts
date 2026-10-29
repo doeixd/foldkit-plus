@@ -23,8 +23,8 @@ export default [
     edits: [
       {
         file: '../src/navigation-menu/app.ts',
-        find: "case 'LeftBar':\n      return { model: shut(model) }",
-        replace: "case 'LeftBar':\n      return { model }",
+        find: 'LeftBar: () => ({ model: shut(model) }),',
+        replace: 'LeftBar: () => ({ model }),',
       },
     ],
     tests,

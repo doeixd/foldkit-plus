@@ -5,7 +5,7 @@
  * or a click), and only when that id was not already the pick. An arrow
  * moves the pointer and runs nothing.
  */
-import { Option, Schema } from 'effect'
+import { Option, Schema, Match } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
 import { DismissLayer, ListNavigation, Selection } from 'foldkit-primitives/interaction'
@@ -49,12 +49,10 @@ const assembly = Parent.assemble(
 )
 
 const apply = assembly.update((model, message) => {
-  switch (message._tag) {
-    case 'Queried':
-      return { model: { ...model, query: message.text } }
-    case 'Opened':
-      return { model: { ...model, open: true } }
-  }
+  return Match.valueTags(message, {
+    Queried: message => ({ model: { ...model, query: message.text } }),
+    Opened: () => ({ model: { ...model, open: true } }),
+  })
 })
 
 export const initial = assembly.initial({

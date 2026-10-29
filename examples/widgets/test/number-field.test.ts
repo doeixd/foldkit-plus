@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Option } from 'effect'
-import type { KeyboardModifiers } from 'foldkit/html'
+import type { Html, KeyboardModifiers } from 'foldkit/html'
 import { Attributes, SlotView } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { Message, initial, update } from '../src/number-field/app.js'
@@ -37,8 +37,7 @@ describe('view structure', () => {
   })
 
   it('disables each end button at its bound', () => {
-    const clickOf = (node: unknown): unknown =>
-      (node as { readonly data?: { readonly on?: { readonly click?: unknown } } })?.data?.on?.click
+    const clickOf = (node: Html | undefined): unknown => node?.data?.on?.click
     const bottom = Inert.draw(NumberField, update(initial, Message.SetValue({ value: 0 })).model)
     const less = Inert.byLabel(bottom, 'Decrease (at minimum)')[0]
     expect(Inert.value(less, 'aria-disabled')).toBe('true')
@@ -58,9 +57,7 @@ describe('view structure', () => {
       input: initial,
       h,
     })
-    const key = Attributes.find(builders.control.attrs(), 'OnKeyDownPreventDefault') as unknown as {
-      f: (key: string, modifiers: KeyboardModifiers) => Option.Option<Message>
-    }
+    const key = Attributes.find(builders.control.attrs(), 'OnKeyDownPreventDefault')
     if (key === undefined) throw new Error('no spin key handler on the control')
     expect(Option.getOrThrow(key.f('ArrowUp', plain))).toEqual(Message.SetValue({ value: 4 }))
     expect(Option.isNone(key.f('a', plain))).toBe(true)

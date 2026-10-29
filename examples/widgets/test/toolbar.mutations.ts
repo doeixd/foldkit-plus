@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file: '../src/toolbar/app.ts',
-        find: 'return { model: { ...model, active: Option.some(message.id) } }',
-        replace: 'return { model: { ...model, active: Option.none() } }',
+        find: 'PressedTool: message => ({ model: { ...model, active: Option.some(message.id) } }),',
+        replace: 'PressedTool: () => ({ model: { ...model, active: Option.none() } }),',
       },
     ],
     tests,

@@ -3,13 +3,14 @@
  * Activating the selected option deselects it (`allowEmpty`), so the group
  * can say nothing chosen.
  */
-import { Option, Schema } from 'effect'
+import { Array, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
 import { Selection } from 'foldkit-primitives/interaction'
 
 export const OPTIONS = ['left', 'center', 'right'] as const
-export type Alignment = (typeof OPTIONS)[number]
+const Alignment = Schema.Literals(OPTIONS)
+export type Alignment = typeof Alignment.Type
 
 export const textOf = (value: Option.Option<string>): string =>
   Option.isSome(value) ? value.value : 'none'
@@ -36,8 +37,5 @@ export const initial = assembly.initial({})
 
 export const update = assembly.update()
 
-export const selectedOf = (model: Model): Option.Option<Alignment> => {
-  const [first] = model.alignment.selected
-  if (first === undefined) return Option.none()
-  return Option.some(first as Alignment)
-}
+export const selectedOf = (model: Model): Option.Option<Alignment> =>
+  Array.head(model.alignment.selected).pipe(Option.filter(Schema.is(Alignment)))

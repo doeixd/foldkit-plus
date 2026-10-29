@@ -5,12 +5,10 @@
  */
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
 
 export const CHANNELS = ['email', 'phone', 'mail'] as const
-export type Channel = (typeof CHANNELS)[number]
-
-export const isChannel = (value: string): value is Channel =>
-  (CHANNELS as ReadonlyArray<string>).includes(value)
+const isChannel = Schema.is(Schema.Literals(CHANNELS))
 
 export const Model = Schema.Struct({
   value: Schema.String,
@@ -24,11 +22,10 @@ export type Message = typeof Message.Type
 
 export const initial: Model = { value: 'email' }
 
-export const update = (model: Model, message: Message): { readonly model: Model } => {
-  switch (message._tag) {
-    case 'SetValue': {
-      if (isChannel(message.value) === false || message.value === model.value) return { model }
-      return { model: { ...model, value: message.value } }
-    }
-  }
-}
+export const update = (model: Model, message: Message): { readonly model: Model } =>
+  Message.match(message, {
+    SetValue: ({ value }) => {
+      if (isChannel(value) === false || value === model.value) return { model }
+      return { model: modifyFields(model, { value: () => value }) }
+    },
+  })

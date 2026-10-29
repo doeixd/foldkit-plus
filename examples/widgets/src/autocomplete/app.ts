@@ -6,7 +6,7 @@
  * behaviors mark through. Filtering is a function of the Model. Picking
  * fills the query, records the label, and closes; dismissing only closes.
  */
-import { Option, Schema } from 'effect'
+import { Option, Schema, Match } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
 import { DismissLayer, ListNavigation, Selection } from 'foldkit-primitives/interaction'
@@ -95,12 +95,9 @@ const pick = (model: Model, id: string): Model => ({
 })
 
 export const update = assembly.update((model, message) => {
-  switch (message._tag) {
-    case 'Queried':
-      return { model: { ...model, query: message.text, open: true } }
-    case 'Opened':
-      return model.open ? { model } : { model: { ...model, open: true } }
-    case 'PickedOption':
-      return { model: pick(model, message.id) }
-  }
+  return Match.valueTags(message, {
+    Queried: message => ({ model: { ...model, query: message.text, open: true } }),
+    Opened: () => (model.open ? { model } : { model: { ...model, open: true } }),
+    PickedOption: message => ({ model: pick(model, message.id) }),
+  })
 })

@@ -119,10 +119,7 @@ describe('view structure', () => {
     const rows = Inert.byTag(shut, 'div').filter(node => FILES.includes(Inert.text(node)))
     expect(rows.length).toBeGreaterThan(0)
     for (const row of rows) {
-      expect(
-        (row as { readonly data?: { readonly on?: { readonly contextmenu?: unknown } } })?.data?.on
-          ?.contextmenu,
-      ).toBeTypeOf('function')
+      expect(row.data?.on?.contextmenu).toBeTypeOf('function')
     }
   })
 })

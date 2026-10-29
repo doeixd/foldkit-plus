@@ -25,15 +25,12 @@ export type Message = typeof Message.Type
 export const initial: Model = { sent: 34, known: true }
 
 export const update = (model: Model, message: Message): { readonly model: Model } => {
-  switch (message._tag) {
-    case 'SetSent': {
+  return Message.match(message, {
+    SetSent: message => {
       const sent = clamp(message.sent)
       return sent === model.sent ? { model } : { model: { ...model, sent } }
-    }
-    case 'SetKnown': {
-      return message.known === model.known
-        ? { model }
-        : { model: { ...model, known: message.known } }
-    }
-  }
+    },
+    SetKnown: message =>
+      message.known === model.known ? { model } : { model: { ...model, known: message.known } },
+  })
 }

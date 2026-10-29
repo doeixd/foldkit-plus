@@ -19,8 +19,7 @@ export type Message = typeof Message.Type
 export const initial: Model = { on: false }
 
 export const update = (model: Model, message: Message): { readonly model: Model } => {
-  switch (message._tag) {
-    case 'Toggled':
-      return { model: { ...model, on: !model.on } }
-  }
+  return Message.match(message, {
+    Toggled: () => ({ model: { ...model, on: !model.on } }),
+  })
 }

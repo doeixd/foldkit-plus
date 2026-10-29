@@ -42,28 +42,23 @@ export type Message = typeof Message.Type
 export const initial: Model = { first: 0.5, from: Option.none(), width: 0 }
 
 export const update = (model: Model, message: Message): { readonly model: Model } => {
-  switch (message._tag) {
-    case 'DragStarted': {
-      return Option.isSome(model.from) && model.from.value === model.first
+  return Message.match(message, {
+    DragStarted: () =>
+      Option.isSome(model.from) && model.from.value === model.first
         ? { model }
-        : { model: { ...model, from: Option.some(model.first) } }
-    }
-    case 'Dragged': {
+        : { model: { ...model, from: Option.some(model.first) } },
+    Dragged: message => {
       if (Option.isNone(model.from) || model.width <= 0) return { model }
       const first = clampShare(model.from.value + message.delta / model.width)
       return first === model.first ? { model } : { model: { ...model, first } }
-    }
-    case 'DragEnded': {
-      return Option.isNone(model.from) ? { model } : { model: { ...model, from: Option.none() } }
-    }
-    case 'Resized': {
-      return message.width === model.width
-        ? { model }
-        : { model: { ...model, width: message.width } }
-    }
-    case 'Sized': {
+    },
+    DragEnded: () =>
+      Option.isNone(model.from) ? { model } : { model: { ...model, from: Option.none() } },
+    Resized: message =>
+      message.width === model.width ? { model } : { model: { ...model, width: message.width } },
+    Sized: message => {
       const first = clampShare(message.first)
       return first === model.first ? { model } : { model: { ...model, first } }
-    }
-  }
+    },
+  })
 }
