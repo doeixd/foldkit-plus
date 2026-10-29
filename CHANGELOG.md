@@ -963,6 +963,12 @@ carries `drawn`.
   agreeing and no case, so an operator refusing some arguments was a
   `Counterexample` though every answered pair was in order, and one refusing
   every call was a `Counterexample` rather than `Unanswered`.
+- **`Conformance.operator` compares every implementation it is given**
+  (#319). An implementation named `__proto__` set the prototype of the
+  outcomes record instead of adding a key, so it was never compared and a
+  disagreement went unreported; outcomes are now a record with no prototype.
+  An implementation named `expansion` beside a defined operator was silently
+  replaced by the expansion; it is now refused.
 
 ## 0.35.0
 

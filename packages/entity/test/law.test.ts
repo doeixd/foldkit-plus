@@ -525,6 +525,31 @@ describe('Running an operator through several implementations', () => {
     ])
   })
 
+  it('compares an implementation of any name, __proto__ too (#319)', async () => {
+    const one = Expr.operator('acme.one', { input: [Schema.Number], output: Schema.Number })
+    const report = await Conformance.operator(one, {
+      implementations: { good: () => 1, ['__proto__']: () => 2 },
+      cases: [[1]],
+    })
+    expect(report.disagreements).toHaveLength(1)
+    const { outcomes } = report.disagreements[0]!
+    expect(Object.keys(outcomes)).toEqual(['good', '__proto__'])
+    expect(Object.getOwnPropertyDescriptor(outcomes, '__proto__')?.value).toEqual(
+      Outcome.Value({ value: 2 }),
+    )
+  })
+
+  it('refuses an implementation named expansion beside a defined operator’s own', async () => {
+    const blank = Expr.operator('acme.blankNamed', {
+      input: [Schema.String],
+      output: Schema.Boolean,
+      definedAs: text => Expr.eq(text, ''),
+    })
+    await expect(
+      Conformance.operator(blank, { implementations: { expansion: () => true }, cases: [['']] }),
+    ).rejects.toThrow('"expansion" names the expansion')
+  })
+
   it('runs a defined operator’s expansion beside its implementations', async () => {
     const blank = Expr.operator('acme.blankText', {
       input: [Schema.String],

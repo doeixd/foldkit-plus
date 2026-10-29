@@ -521,6 +521,11 @@ export const Conformance = {
     const { descriptor } = operator
     const runners: Record<string, Runner> = { ...options.implementations }
     if (Option.isSome(descriptor.definedAs)) {
+      if (Object.hasOwn(runners, 'expansion')) {
+        throw new Error(
+          `[foldkit-entity] Conformance.operator: "expansion" names the expansion of ${nameOf(operator)}, which runs beside the implementations; name yours otherwise`,
+        )
+      }
       const table = options.expansionTable ?? Operators.kernel
       runners.expansion = call => valueOfOperand(Expr.expanded(call), { operators: table })
     }
@@ -547,7 +552,8 @@ export const Conformance = {
       for (const collation of collations) {
         cases += 1
         const call = callOf(operator, args, collation)
-        const outcomes: Record<string, Outcome> = {}
+        // No prototype: an implementation named `__proto__` would set it, not a key.
+        const outcomes: Record<string, Outcome> = Object.create(null)
         for (const [name, run] of Object.entries(runners)) {
           try {
             outcomes[name] = Outcome.Value({ value: await run(call) })

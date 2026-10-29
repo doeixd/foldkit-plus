@@ -1308,7 +1308,8 @@ every implementation given and reports where they disagree, a refusal included:
 generated from each argument's samples, null where its schema admits one, and
 text holding NUL, under `binary` and `asciiFold` where the operator compares
 text. `Conformance.memory(table)` is the reference interpreter's runner; a
-defined operator's expansion runs beside the others. `foldkit-remote-drizzle`
+defined operator's expansion runs beside the others as `expansion`, a name an
+implementation of it may not take. `foldkit-remote-drizzle`
 runs the kernel's operators and an application's through it on SQLite and
 Postgres.
 

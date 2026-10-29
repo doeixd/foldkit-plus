@@ -167,6 +167,18 @@ export default [
     '',
   ),
   edit(
+    'outcomes are recorded in a plain object',
+    helper,
+    'const outcomes: Record<string, Outcome> = Object.create(null)',
+    'const outcomes: Record<string, Outcome> = {}',
+  ),
+  edit(
+    'an implementation named expansion is replaced',
+    helper,
+    "if (Object.hasOwn(runners, 'expansion')) {",
+    'if (false) {',
+  ),
+  edit(
     'a defined operator runs without its expansion',
     helper,
     'if (Option.isSome(descriptor.definedAs)) {',
