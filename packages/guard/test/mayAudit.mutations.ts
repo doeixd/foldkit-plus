@@ -6,8 +6,25 @@ const tests = ['packages/guard/test/mayAudit.test.ts']
 
 export default [
   {
+    name: 'a write lands past its rules, as its stale may said it could',
+    edits: [
+      {
+        file: './mayAudit.test.ts',
+        find: 'GuardServer.writer(Todo, Policy, writer(Db.Todo))',
+        replace: 'writer(Db.Todo)',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a row its reader cannot see is read with its may',
-    edits: [{ file: './mayAudit.test.ts', find: 'visible: visible.Todo,', replace: '' }],
+    edits: [
+      {
+        file: './mayAudit.test.ts',
+        find: 'entities: [source(Db.Todo, {',
+        replace: 'entities: [source({ ...Db.Todo, visible: undefined }, {',
+      },
+    ],
     tests,
   },
   {

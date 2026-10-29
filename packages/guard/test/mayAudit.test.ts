@@ -8,9 +8,9 @@ import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Option, Schema } from 'effect'
-import { Entity, Expr, Relation } from 'foldkit-entity'
-import { REMOTE_PROTOCOL_VERSION, Remote } from 'foldkit-remote'
-import { bind, databaseLayer, source } from 'foldkit-remote-drizzle'
+import { Entity, Expr, Relation, Write } from 'foldkit-entity'
+import { Mutation, REMOTE_PROTOCOL_VERSION, Remote } from 'foldkit-remote'
+import { bind, databaseLayer, source, writer } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
 import { GuardDrizzle } from '../src/drizzle.js'
@@ -81,16 +81,23 @@ const Db = bind(
     Project: { table: projects, visible: visible.Project },
   },
 )
+const Retitle = Mutation.write(
+  'Retitle',
+  Write.update(Entity.input(Todo, Schema.Struct({ id: Schema.String, title: Schema.String })), {
+    id: 'id',
+  }),
+)
 const server = RemoteServer.make({
   entities: [source(Db.Todo, { filter: GuardServer.filter(Todo, Policy) }), source(Db.Project)],
+  mutations: [RemoteServer.write(Retitle, GuardServer.writer(Todo, Policy, writer(Db.Todo)))],
 })
 
 const ada = Option.some<User>({ id: 'ada', role: 'member' })
 const root = Option.some<User>({ id: 'root', role: 'admin' })
 const visitor = Option.none<User>()
 
-/** Remote's read of `ids`, as `principal` sends it, on a fresh database. */
-const read = (principal: Option.Option<User>, ids: ReadonlyArray<string>, fields: string[]) => {
+/** A fresh database. */
+const open = () => {
   const sqlite = new DatabaseSync(':memory:')
   sqlite.exec(`
     create table projects (id text primary key);
@@ -98,6 +105,12 @@ const read = (principal: Option.Option<User>, ids: ReadonlyArray<string>, fields
     insert into projects values ('p1');
     insert into todos values ('t1', 'ada', 'Own', 'p1'), ('t2', 'grace', 'Hidden', 'p1');
   `)
+  return sqlite
+}
+
+/** Remote's read of `ids`, as `principal` sends it, on a fresh database. */
+const read = (principal: Option.Option<User>, ids: ReadonlyArray<string>, fields: string[]) => {
+  const sqlite = open()
   return Effect.runPromise(
     RemoteServer.handlers(server, principal)
       .FoldkitRemoteRead({
@@ -151,6 +164,29 @@ describe('may, as its reader receives it', () => {
 
   it('reads no row to a visitor', async () => {
     expect((await read(visitor, ['t1', 't2'], ['may'])).entities).toEqual([])
+  })
+})
+
+describe('may after its reader’s role changed', () => {
+  it('still says yes, and the server refuses the write all the same', async () => {
+    // Read as an admin; the next request is the same person, no longer one.
+    expect((await mayOf(root, 't2')).row.Update).toBe(true)
+    const demoted = Option.some<User>({ id: 'root', role: 'member' })
+    const sqlite = open()
+    const answer = await Effect.runPromise(
+      RemoteServer.handlers(server, demoted)
+        .FoldkitRemoteMutate({
+          requestId: 'r1',
+          mutation: 'Retitle',
+          input: { id: 't2', title: 'Mine' },
+        })
+        .pipe(Effect.result, Effect.provide(databaseLayer(drizzle({ client: sqlite })))),
+    )
+    expect(answer).toMatchObject({ _tag: 'Failure', failure: { _tag: 'Forbidden' } })
+    expect(sqlite.prepare('select title from todos where id = ?').get('t2')).toEqual({
+      title: 'Hidden',
+    })
+    sqlite.close()
   })
 })
 
