@@ -644,6 +644,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **The skill's Remote reference no longer says the write ledger cannot run
+  on D1** (#285). It has run there since the D1 ledger moved to one atomic
+  `batch`: the reference now says so, with the batch's limits, as
+  `foldkit-remote-drizzle`'s README does.
 - **`foldkit-form`'s published declarations check with `skipLibCheck:
   false`.** The emitter wrote `Form.input`'s return type out in full, through
   `foldkit-entity`'s unexported `InputMembers`, and the expansion failed on

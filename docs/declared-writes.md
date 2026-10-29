@@ -328,7 +328,8 @@ operation, so the same request id is a new one there.
 ### A write ledger
 
 A ledger records each update and insert the writer lands under the operation
-that asked for it and the row it wrote, in the same transaction as the write. `ledger` is the
+that asked for it and the row it wrote, atomically with the write (in its transaction, or on D1
+in one batch with it). `ledger` is the
 Drizzle table below and `User` the principal, as in
 [`examples/writes/src/server.ts`](../examples/writes/src/server.ts):
 

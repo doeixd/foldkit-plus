@@ -1036,8 +1036,13 @@ An increment with neither an `expect` nor a ledger is refused, and so is one of 
 `expect` even under a ledger (unless the writer `pins`, as a guard with a revision does). A computed
 assignment (`compute`) is its compiled computation in the same `set`; without `expect` it needs a ledger
 and a writer that `pins` the row it read, or an operator the writer `commutes`: `op(field, amount)` with
-commutativity and associativity tested over every value in both of the binding's tables (`Operators.withEvidence`, `DrizzleOperators.withEvidence`). The ledger
-needs a transaction, which D1 lacks.
+commutativity and associativity tested over every value in both of the binding's tables (`Operators.withEvidence`, `DrizzleOperators.withEvidence`).
+The ledger records a write atomically with it: in a transaction on SQLite and Postgres, and on D1,
+which refuses `BEGIN`, by reading the record first and then pruning, writing the row and recording it
+in one `batch` that commits whole or not at all, the record decided in SQL (`changes() > 0`). Two
+copies sent at once meet at the ledger's primary key, and the second is answered from the first's
+record. On D1 a column the answer holds may not be a `blob` (`json_object` refuses one, so the write
+fails rather than landing unrecorded).
 An increment of a column that holds integers needs a `Schema.Int` amount, whatever the field is
 declared as: the writer refuses it through `EntityWriter.refuses`, which `RemoteServer.write` asks
 where the write is served (`GuardServer.writer` passes it on). Each `Write` increment says whether
