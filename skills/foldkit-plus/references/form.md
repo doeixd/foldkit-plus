@@ -39,6 +39,7 @@ import { Bundle } from 'foldkit-bundle'
 import { Entity } from 'foldkit-entity'
 import { Form } from 'foldkit-form'
 import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
 
 const Post = Entity.define(
   'Post',
@@ -61,7 +62,7 @@ const Message = defineMessageUnion({ ...Slot.cases })
 const Page = Bundle.parent({ Model, Message })
 const RenameForm = Page.at(Slot, {
   onOut: submitted => model => ({
-    model: { ...model, saved: [...model.saved, submitted.value] },
+    model: modifyFields(model, { saved: saved => [...saved, submitted.value] }),
   }),
 })
 ```
@@ -75,10 +76,10 @@ const RenameForm = Page.at(Slot, {
   Message (`Message.GotRenameMessage({ message })`).
 - **When a failure shows:** an edit validates its key at once; a blur validates
   nothing, so tabbing through a field never says `Required`; a submit validates
-  every key and sets `model.attempted`, after which `FormView` draws its list
-  of fields to fix (none for a form of one control), as the one alert.
+  every key and sets `model.attempted` (`form.attempted(model)`; `Reset` and
+  `fill` clear it), after which `FormView` draws its list of fields to fix.
   `Validated({ key })` checks one key on request (a stored value
-  shown by `fill`).
+  shown by `fill`, which validates nothing).
 - **Posting without scripts:** `foldkit-mixins-form` names every control by
   its key (`name=<key>`; a relation picker's checkboxes also carry `value`), so
   a plain form post carries the drafts.
@@ -86,8 +87,8 @@ const RenameForm = Page.at(Slot, {
   (`Text`, `Multiline`, `Hidden`, `Number`, `Toggle`, `Select` with `options` (string or number
   literals; the value is the option itself), `Choices` with `options` (any number
   of them), `RelationOne` / `RelationMany` with `target`), `label`, `description`,
-  `required`, and the Entity `member`. Read a key's state from
-  `model.rename.fields[key]` with `foldkit/fieldValidation` (`match`,
+  `required`, and the Entity `member`. Read a key's state with
+  `Rename.field(model.rename, key)` and `foldkit/fieldValidation` (`match`,
   `isInvalid`); cross-key failures are in `model.rename.errors`.
 - **Choose a control:** `Form.make(name, input, { inputs: { body: Input.multiline() } })`
   for this form; `Entity.annotateMembers({ body: Input.of(Input.multiline()) })`
@@ -157,8 +158,9 @@ const RenameForm = Page.at(Slot, {
   (`invalid(field, message)`), and cross-key failures (`form(message)`).
 - **Carry a key without showing it** (the id being edited):
   `inputs: { id: Input.hidden() }`, then set it with `fill`.
-- **Read any key's state while walking `controls`:** `Rename.field(model.rename, key)`
-  gives `Field<Draft>`; `model.rename.fields.title` is the same value typed to its key.
+- **Read a key as a view shows it:** `Rename.field(model.rename, key)` gives
+  `Field<Draft>` with its marks applied; `model.rename.fields.title` is the key's own
+  validation, typed to its key, without the marks.
 - **Edit existing values:** `RenameForm.helpers.fill({ id, title })` is an
   `Update.Step` of the parent; keys not passed keep their draft. With Remote:
   load `Data.get(Entity.selectFor(Rename.input), id)`, then
@@ -183,7 +185,7 @@ const RenameForm = Page.at(Slot, {
 - **Show a stored Model again:** `form.settled(model)`; a check that was running
   when it was stored never answers, so its key reads `NotValidated`.
 - **Save unfinished work:** `form.partial(model)` is the value less every key that
-  is not valid yet; `engine.value` is all or nothing.
+  is not valid yet; `form.value` is all or nothing.
 
 ## Drawing it
 
@@ -222,13 +224,15 @@ blank choice of a picker; a chosen value the choices lack is shown as `? value`.
 `number`, `toggle`, `select` with its `option`s, `choices`, `choiceLabel`, `choice`), plus `control`, `search`, `more` (the
 "Show more" button under a picker the view's `more` input names), and
 `group`/`affix` for a renderer's control with text beside it. `FormSlots`: `root`, `errors`,
-`summary` (with `summaryTitle`, `issues`, `issue`, `issueLink`), `submit`. While any field is invalid, `summary` lists each
-one above the submit button as a link to its control (`href="#id"`; a press focuses the
-control and sends `FollowedIssue({ id })`, which changes nothing), worded by `words.summary`
-and `words.issue` (`{label}: {error}`), a row's field named with its row by `words.inRow`
-(`{row}, {label}`). The view owns `id`, `label for`, `aria-invalid`, `aria-required`,
-`aria-describedby`, and `role="alert"` on errors; a Behavior that supplies one of
-those throws a two-owners conflict at render.
+`summary` (with `summaryTitle`, `issues`, `issue`, `issueLink`), `submit`, and for nested
+rows `group`, `legend`, `row`, `add`, `remove`. After a submit (`form.attempted`), while any
+field is invalid, `summary` lists each one above the submit button as a link to its control
+(`href="#id"`; a press focuses the control and sends `FollowedIssue({ id })`, which changes
+nothing), worded by `words.summary` (`Check these fields:`) and `words.issue`
+(`{label}: {error}`), a row's field named with its row by `words.inRow` (`{row}, {label}`).
+A form of one control draws no list. The view owns `id`, `label for`, `aria-invalid`,
+`aria-required`, `aria-describedby`, and `role="alert"`: on the list while it shows, else on
+each field's error; a Behavior that supplies one of those throws a two-owners conflict at render.
 
 While a key's check runs, its field draws a `checking` line (`role="status"`,
 words `words.checking`) and its `root` carries `data-validation` with the
@@ -308,8 +312,9 @@ const View = FormView.define(Meeting, { renderers: renderers() }) // date and da
   other than the locale's, extra decimals, an unasked-for minus and a value a
   double would round are refused. A bad scale or a malformed currency code throws when
   the recipe is made.
-- Kinds are named `FieldRecipes.Date`, `FieldRecipes.Money`, …, so an
-  application's own `Date` kind does not meet a recipe's renderer.
+- Kinds are named `'FieldRecipes.Date'`, `'FieldRecipes.Money'`, …, so an
+  application's own `Date` kind does not meet a recipe's renderer; the kinds
+  themselves are `FieldRecipes.Kinds.Date` and so on (`FieldRecipes.Kinds.Date.is(control)`).
 - `foldkit-form-recipes/ui`'s `renderers({ input? })` draws the same inputs under
   `foldkit-mixins-ui`'s Input Slot, beside `UiForm.renderers(...)`.
 - `foldkit-form-recipes/image`'s `image({ id, url?, headers?, words?, styles? })` is a

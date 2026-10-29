@@ -1,10 +1,10 @@
 # foldkit-composition, foldkit-builder and foldkit-mixins-builder
 
-**Experimental, `0.1.0`, on npm from the 0.16.0 release.** Phases 1 to 7 of the page builder design are
-built: Blocks, Regions, Content, a Catalog, the stored Document, its validation,
-editing Operations, migrations, a Foldkit renderer, the headless Builder, the
-CMS example's pages, and the drawn editor with pointer drag and drop. Rich
-text edited on the canvas is not.
+**Experimental (`0.3.x`).** Built: Blocks, Regions, Content, a Catalog, the
+stored Document, its validation, editing Operations, migrations, a Foldkit
+renderer, conditions, actions, appearance, the headless Builder, the CMS
+example's pages, and the drawn editor with pointer drag and drop. Rich text
+edited on the canvas is not.
 
 ## What it owns
 
@@ -130,7 +130,7 @@ Catalog's Blocks only (name literal, props' encoded Schema); use it as an
 The agent mints ids; context: `Composition.describe(Site, doc)`. Decode it
 with `onExcessProperty: 'error'` (as `foldkit-agent` does) so a misspelled prop
 is refused, not dropped. See
-`examples/cms/src/pageAgent.ts`.
+https://github.com/doeixd/foldkit-plus/blob/main/examples/cms/src/content/pageAgent.ts.
 
 ## Surface Blocks: `foldkit-composition/surface`
 
@@ -164,7 +164,8 @@ one Projection (node id → RemoteData<Page<Row>>), an `Option` (none: no Query 
 as an active Surface for `Data.wiring` / `subscriptions` / an SSR plan's `surfaces` (with
 `Remote.resume(Data)`); `Renderer.render(r, doc, h, { data: reads.data(model) })`
 (`{}` while inactive), and `reads.answered(model)` once every read has an answer; in the
-view, `LatestPages.rows(data)` (typed; `Initial` without data). Don't close
+view, the Block's own `rows(data)` (`LatestPages.rows(data)` for a Query Block named
+so; typed, `Initial` without data). Don't close
 over `Data` in a Block: the Catalog is in the Model through the Builder. The
 drawn Builder's canvas has no app data, so it shows the Initial state.
 
@@ -177,7 +178,10 @@ Mixins.
 
 ```ts
 import { Appearance } from 'foldkit-composition/appearance'
+import { Layers, Style } from 'foldkit-mixins'
+import { Theme } from 'foldkit-mixins/theme'
 
+// HeroSlots: the Block's own Slots.define({ root: … })
 const HeroLook = Appearance.make(HeroSlots, {
   recipe: Style.recipeFor(HeroSlots)({
     base: { root: Style.class('hero') },
@@ -217,13 +221,19 @@ The page editor's state, as a Bundle, designed as one form key's control
 (`Input.bundle`): the Document is the key's value.
 
 ```ts
+import { Schema } from 'effect'
 import { Builder } from 'foldkit-builder'
+import { Composition } from 'foldkit-composition'
+import { Form } from 'foldkit-form'
 
+// Site from Basic use; SiteRenderer a `Renderer.make(Site, …)` (Draw a page, below).
 const PageBuilder = Builder.make('PageBuilder', {
   catalog: Site,
   renderer: SiteRenderer,
-  starters: { Section: {}, Heading: { text: 'New heading' } }, // the palette offers exactly these
+  // Each starter is a whole set of props; the palette offers exactly these Blocks.
+  starters: { Section: { tone: 'plain' }, Heading: { text: 'New heading', level: 2 } },
 })
+const PageInput = Form.input(Schema.Struct({ document: Composition.Document }))
 const PageForm = Form.make('PageForm', PageInput, { inputs: { document: PageBuilder.input } })
 ```
 
@@ -277,6 +287,7 @@ const PageForm = Form.make('PageForm', PageInput, { inputs: { document: PageBuil
 ## The drawn editor: `foldkit-mixins-builder`
 
 ```ts
+import { Bundle } from 'foldkit-bundle'
 import { BuilderView } from 'foldkit-mixins-builder'
 
 const PageEditing = BuilderView.define(PageBuilder) // a SlotView over BuilderSlots

@@ -4,7 +4,7 @@
 owns the document and local selection; the package supplies pure data validation
 and text transitions. It has no DOM editor, persistence runtime, or hidden store;
 the editable DOM adapter is the separate `foldkit-richtext-dom` package, also
-0.1.0 and early.
+early.
 
 The current loop is `EditorState + Transaction → next state + ChangeSet + positionMap`,
 or a diagnostic with no partial result. Call `apply` inside the application's
@@ -218,6 +218,9 @@ selection starts in, outermost first. `commandPalette<Message>()` searches the s
 catalogue from its own field: `{ id, entries, query, index, changed, closed }` in,
 `CommandPaletteSlots` (`root`, `input`, `list`, `option`) out; the application keeps
 `{ query, index } | null`, and Enter or a click sends the entry's own Message.
+A whole page wiring this chrome (the slash menu with `slashMove` and `DismissedSlash`, the
+floating mark bar, link editor and style menu, and a block handle with a menu of its own):
+https://github.com/doeixd/foldkit-plus/blob/main/examples/pages/src/view.ts.
 
 `foldkit-richtext-dom/editor` carries the editor's own layer: the Message
 vocabulary (`Typed`, `Entered`, `ToggledMark`, `AppliedMark`, `ClearedMark`, `RetypedBlock`,
@@ -421,12 +424,16 @@ declaration the document contradicts. Marks are definitions with a boundary poli
 and, when they carry data, a prop schema:
 
 ```ts
+import { Schema } from 'effect'
+import * as RichText from 'foldkit-richtext'
+
+// nodes, state, command and ids are the application's.
 const Link = RichText.mark('Link', {
   Props: Schema.Struct({ href: Schema.String }),
   expand: 'none',
 })
 Link.of({ href: '/docs' }) // { name: 'Link', props: { href: '/docs' } }
-RichText.kit({ nodes, marks: [RichText.Bold, Link] })
+const kit = RichText.kit({ nodes, marks: [RichText.Bold, Link] })
 RichText.run(state, command, ids, { marks: RichText.markRegistry(kit.marks) })
 ```
 
