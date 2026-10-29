@@ -98,6 +98,7 @@ retention, rendering, decode failure, and a refresh from `update` onto that same
 surface: ProjectPage
 plan: Project:p1 [id,name,status]
 before fetch: Initial
+why: NotFetching, Fields
 after fetch: Ready {"id":"p1","name":"Apollo","status":"active"}
 stale-while-revalidate: ReadStarted, RefreshStarted, ReadReceived; Refreshing {...} -> Ready {...}
 query page: Ready p1 Apollo; next page: none
@@ -139,10 +140,15 @@ with the normalized cache already in `Remote.Model` and reports what is missing.
 
 ```text
 before fetch: Initial
+why: NotFetching, Fields
 after fetch: Ready {...}
 ```
 
-Before those fields exist, the Projection reads `Initial`. The demo then uses
+Before those fields exist, the Projection reads `Initial`. `Data.why(model,
+projection, { surfaces })` says why, as typed reasons: the page is active and
+reads it (`NotFetching`, where `NotObserved` would mean no active Surface
+does), and its fields are missing and not in flight (`Fields`). It is pure, so
+it belongs in a test or a development panel. The demo then uses
 `Data.prefetch(...)` as an explicit imperative fetch helper. The in-process
 `RemoteClient` returns server facts, those facts are reduced into the Remote
 Submodel, and the **same Projection** now reads `Ready`.
@@ -238,12 +244,14 @@ refetch after mutation: none
 
 `Data.mutate` records the request in the Model and returns the Command that asks
 the `RemoteClient` to perform it. The result comes back as Remote Messages and
-settles into the same normalized cache. The answer is dated by `Data.mutate`'s `now`, as a read
-is, so the stale-while-revalidate entry from step 3 takes the renamed project
-as fresh and plans no refetch.
+settles into the same normalized cache. The answer is dated by Effect's clock
+when it lands, as a read is, so the stale-while-revalidate entry from step 3
+takes the renamed project as fresh and plans no refetch.
 
-This is **not** an offline durable intent queue. If an edit must survive restart
-and converge later, that is [`foldkit-sync`](../../packages/sync), not Remote.
+This write is sent once. A write that must be sent even after a reload or while
+offline is made `durable: true` and sent by `Data.outbox`, which this
+in-process demo does not assemble; see [Chirp](../chirp). Client-authored edits
+that must converge with other replicas are [`foldkit-sync`](../../packages/sync).
 
 ### 8. Retention is dependency-driven
 
@@ -296,8 +304,11 @@ answer; this in-process client answers instantly, so the demo does not show it.
   deterministic. See [`foldkit-remote-server`](../../packages/remote-server).
 - **SQL compilation.** See [`foldkit-remote-drizzle`](../../packages/remote-drizzle)
   and [`examples/kitchen-sink`](../kitchen-sink).
-- **Offline durable edits.** Remote caches another owner's facts. See
-  [`examples/sync`](../sync) for client-authored state that must converge.
+- **Durable writes and live data.** The outbox (`Data.outbox`) and live reads
+  (`Data.live`, `Data.query(..., { live: true })`) need a client that stays
+  connected; [Chirp](../chirp) shows the outbox and
+  [`examples/reference`](../reference) a live list. Client-authored state that
+  must converge is [`examples/sync`](../sync).
 
 ## See also
 

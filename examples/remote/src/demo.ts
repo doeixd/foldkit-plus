@@ -41,8 +41,10 @@ const Project = Entity.make(
 
 const ProjectSummary = Project.select({ id: true, name: true, status: true })
 
+const RenameInput = Schema.Struct({ id: Schema.String, name: Schema.String })
+
 const RenameProject = Mutation.make('RenameProject', {
-  Input: { id: Schema.String, name: Schema.String },
+  Input: RenameInput.fields,
   Output: { id: Schema.String },
 })
 
@@ -202,7 +204,7 @@ const FakeClient = Layer.succeed(RemoteClient, {
     })),
   mutate: request =>
     Effect.sync(() => {
-      const input = request.input as { readonly id: string; readonly name: string }
+      const input = Schema.decodeUnknownSync(RenameInput)(request.input)
       return {
         output: { id: input.id },
         entities: [{ entity: 'Project', id: input.id, values: { name: input.name } }],
@@ -254,6 +256,13 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     `plan: ${requirements.map(entry => `${entry.entity}:${entry.id} [${entry.fields.join(',')}]`).join(', ')}`,
   )
   lines.push(`before fetch: ${describeData(projection.read(initial))}`)
+  // `Data.why` tells the two reasons for `Initial` apart: nothing reads it, or
+  // something does and nothing fetches. Here the page is active, and nothing has
+  // fetched yet: the step below is the I/O.
+  const why = Data.why(initial, projection, {
+    surfaces: { page: Surface.at(ProjectPage, { projectId: 'p1' }) },
+  })
+  lines.push(`why: ${why.because.map(reason => reason._tag).join(', ')}`)
 
   // The store stamps each write with the clock it is given, so the refresh
   // below can decide staleness without waiting.
@@ -309,27 +318,22 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     `inspect: ${inspection.entities.length} entities, ${inspection.connections.length} connection, ${Data.registry.queries.size} registered queries`,
   )
 
-  let resolved:
-    | {
-        readonly root: SlotAttributes<PageMessage>
-        readonly name: SlotAttributes<PageMessage>
-        readonly status: SlotAttributes<PageMessage>
-      }
-    | undefined
+  let resolved: Option.Option<{
+    readonly root: SlotAttributes<PageMessage>
+    readonly status: SlotAttributes<PageMessage>
+  }> = Option.none()
   const ProjectView = SurfaceView.define(ProjectPage, ProjectSlots, (model, slots, h) => {
-    resolved = {
-      root: slots.root.attrs(),
-      name: slots.name.attrs(),
-      status: slots.status.attrs(),
-    }
-    return h.article(resolved.root, [
-      h.h2(resolved.name, [describeData(model.project)]),
-      h.span(resolved.status, [statusText(model.project)]),
+    const root = slots.root.attrs()
+    const status = slots.status.attrs()
+    resolved = Option.some({ root, status })
+    return h.article(root, [
+      h.h2(slots.name.attrs(), [describeData(model.project)]),
+      h.span(status, [statusText(model.project)]),
     ])
   }).pipe(Style.attach(ProjectStyle), Behavior.attach(StatusBehavior))
 
   SurfaceView.render(ProjectView, ProjectPage, { projectId: 'p1' }, loaded)
-  const view = resolved!
+  const view = Option.getOrThrowWith(resolved, () => new Error('the view was not drawn'))
   lines.push(`rendered classes: ${classTokens(view.root).join(' ')}`)
   lines.push(`rendered status: ${String(dataAttribute(view.status, 'status'))}`)
 

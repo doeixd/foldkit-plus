@@ -7,6 +7,7 @@ describe('foldkit-remote example', () => {
     expect(lines).toContain('surface: ProjectPage')
     expect(lines).toContain('plan: Project:p1 [id,name,status]')
     expect(lines).toContain('before fetch: Initial')
+    expect(lines).toContain('why: NotFetching, Fields')
     expect(lines).toContain('after fetch: Ready {"id":"p1","name":"Apollo","status":"active"}')
     expect(lines).toContain(
       'stale-while-revalidate: ReadStarted, RefreshStarted, ReadReceived; Refreshing {"id":"p1","name":"Apollo","status":"active"} -> Ready {"id":"p1","name":"Apollo","status":"active"}',
