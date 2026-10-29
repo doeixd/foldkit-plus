@@ -265,7 +265,9 @@ Surface.rootView(TodoDetail, undefined, render)    // bound to the app root
 The Surface's Model is the projected value (`{ todos; selectedTodoId }`), its
 Params the fields, and its Message the union of the constructors listed; a
 constructor from another application is a compile error at the constructor.
-A parameterized Surface's projection is not evaluated until it has params.
+A parameterized Surface's projection is not evaluated until it has params:
+`Surface.read(ById, root)` without them is a type error, and a caller the types
+do not reach is refused with an error naming the Surface.
 
 `Surface.at(surface, params)` is the Surface as the Model activates it: `params`
 is the value, or a function of the Model returning it as an `Option` (none while

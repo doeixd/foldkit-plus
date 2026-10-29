@@ -222,9 +222,11 @@ rejects copies and hand-built values.
   `Schema`, `optic`, `dependency`, `key`, `read`, `get`, `set`, `at`, `index`,
   or `select`. The check also covers nested Structs.
 - **Params.** A Surface declared without `params` has Params type `void`. Call it
-  as `Surface.read(s, model)`, `s.projection()`, or
+  as `Surface.read(s, model)`, `Surface.contract(s)`, `s.projection()`, or
   `Surface.rootView(s, undefined, ...)`. A Surface with params builds its
-  projection only once it gets params. So `Module.make` takes such a Surface
+  projection only once it gets params: `Surface.read`, `contract` and `inspect`
+  without them are type errors, and throw `Surface "<name>" declares params`
+  for a caller typed `any`. So `Module.make` takes such a Surface
   only as `Surface.contract(surface, params)`, never directly. `projectionOf` on
   a `Surface.at` value returns `undefined` only if the Surface declares params.
 - **How `App.surface` spots a Projection.** A value returned from `model` counts

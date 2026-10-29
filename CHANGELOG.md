@@ -534,6 +534,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`Surface.read` without the params a Surface declares is a type error**
+  (#268). It took `params?`, so the read compiled and threw a `TypeError`
+  from inside the Surface's `model` at render. `Surface.read`,
+  `Surface.contract` and `Surface.inspect` now require params unless
+  `undefined` is one (a Surface without params takes none, so
+  `Surface.contract(s)` needs no `undefined`), and a caller the types do not
+  reach is refused with `Surface "<name>" declares params, and was given
+  none`.
+
 - **A watched `Stack` survives an entry saved in place.** An editor that
   empties the file before writing it could let a rebuild read it empty, and
   the empty Worker failed to start, which stopped the stack and lost its D1.

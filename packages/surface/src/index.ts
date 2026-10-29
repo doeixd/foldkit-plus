@@ -638,6 +638,12 @@ export type ParamsSchema<Params> = unknown extends Params
         Schema.Codec<Params, unknown> | undefined
       : Schema.Codec<Params, unknown>
 
+/**
+ * The params argument of `Surface.read`, `contract` and `inspect`: required
+ * unless `undefined` is a params value, as it is for a Surface without params.
+ */
+type ParamsArgument<Params> = undefined extends Params ? [params?: Params] : [params: Params]
+
 export interface Surface<Root, Model, Message, Params> {
   readonly name: string
   /** Identity token of the application this Surface belongs to. */
@@ -1396,8 +1402,18 @@ export const Surface = {
   ): Surface<Root, Model, MsgOf<Ms>, Params> => {
     // Deliberately no eager `projection(undefined)`: a parameterized Surface's
     // projection may read `params`.
-    const projection = (params: Params): Projection<Root, Model> =>
-      config.model({ model: app.model, params })
+    const projection = (params: Params): Projection<Root, Model> => {
+      // The types refuse a missing argument; a caller typed `any`, or plain
+      // JavaScript, otherwise meets a TypeError from inside `model`.
+      if (
+        params === undefined &&
+        config.Params !== undefined &&
+        !Schema.is(config.Params)(undefined)
+      ) {
+        throw new Error(`Surface "${name}" declares params, and was given none`)
+      }
+      return config.model({ model: app.model, params })
+    }
     return {
       name,
       owner: app.owner,
@@ -1412,8 +1428,8 @@ export const Surface = {
   read: <Root, Model, Message, Params>(
     surface: Surface<Root, Model, Message, Params>,
     root: Root,
-    params?: Params,
-  ): Model => surface.projection(params as Params).read(root),
+    ...params: ParamsArgument<Params>
+  ): Model => surface.projection(params[0] as Params).read(root),
 
   /**
    * Binds a renderer to a Surface's projected Model and Message set. A
@@ -1466,9 +1482,9 @@ export const Surface = {
    */
   contract: <Root, Model, Message, Params>(
     surface: Surface<Root, Model, Message, Params>,
-    params: Params,
+    ...params: ParamsArgument<Params>
   ): Contract => {
-    const projection = surface.projection(params)
+    const projection = surface.projection(params[0] as Params)
     return {
       kind: 'surface',
       name: surface.name,
@@ -1486,9 +1502,9 @@ export const Surface = {
    */
   inspect: <Root, Model, Message, Params>(
     surface: Surface<Root, Model, Message, Params>,
-    params: Params,
+    ...params: ParamsArgument<Params>
   ): SurfaceInspection => {
-    const projection = surface.projection(params)
+    const projection = surface.projection(params[0] as Params)
     return {
       name: surface.name,
       dependencies: projection.dependencies,
