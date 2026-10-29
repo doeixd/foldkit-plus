@@ -145,8 +145,11 @@ const RESERVED_REF_NAMES = new Set([
   'select',
 ])
 
+// A key may be a stored id (`at(id)`), so only the container's own keys count.
 function propertyReader(root: unknown, key: string): unknown {
-  return root === null || root === undefined ? undefined : (root as Record<string, unknown>)[key]
+  return root === null || root === undefined || !Object.hasOwn(root, key)
+    ? undefined
+    : (root as Record<string, unknown>)[key]
 }
 
 function optionalReader(value: unknown): Option.Option<unknown> {
@@ -203,15 +206,21 @@ function makeTree(
       if (RESERVED_REF_NAMES.has(key)) {
         throw new Error(`Model field "${key}" is reserved by ModelRef`)
       }
-      node[key] = makeTree(
-        fields[key] as AnySchema,
-        [...path, key],
-        erasedOptic.key(key),
-        root => propertyReader(get(root), key),
-        false,
-        undefined,
-        owner,
-      )
+      // Defined, not assigned: assigning `__proto__` would set the prototype.
+      Object.defineProperty(node, key, {
+        value: makeTree(
+          fields[key] as AnySchema,
+          [...path, key],
+          erasedOptic.key(key),
+          root => propertyReader(get(root), key),
+          false,
+          undefined,
+          owner,
+        ),
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      })
     }
   }
 
@@ -373,7 +382,8 @@ export const Projection = {
     <const Sel extends OfSelection<F>>(
       selection: Sel,
     ): Projection<Schema.Struct.Type<F>, OfValue<F, Sel>> => {
-      const picked: Record<string, AnySchema> = {}
+      // No prototype, so a field named `__proto__` stays a key (see `struct`).
+      const picked: Record<string, AnySchema> = Object.create(null)
       const dependencies: (readonly string[])[] = []
       const metadata: Metadata[] = []
       const readers: (readonly [string, (root: unknown) => unknown])[] = []
@@ -393,7 +403,7 @@ export const Projection = {
       }
 
       const read = (root: unknown): unknown => {
-        const out: Record<string, unknown> = {}
+        const out: Record<string, unknown> = Object.create(null)
         for (const [key, reader] of readers) out[key] = reader(root)
         return out
       }
@@ -510,8 +520,9 @@ export const Projection = {
     // different paths with the same name would be one field: `get` would keep
     // one value and `set` would write it into both. The same field picked twice
     // is harmless and kept once; two different ones are refused here.
-    const fields: Record<string, AnySchema> = {}
-    const paths: Record<string, string> = {}
+    // No prototype: a field named `constructor` must not read as already picked.
+    const fields: Record<string, AnySchema> = Object.create(null)
+    const paths: Record<string, string> = Object.create(null)
     for (const ref of [...selected]) {
       const path = ref.dependency.join('.')
       const existing = paths[ref.key]
@@ -531,7 +542,7 @@ export const Projection = {
       schema: objectSchema(fields) as never,
       dependencies: mergeDependencies(selected.map(ref => ref.dependency)),
       get: model => {
-        const out: Record<string, unknown> = {}
+        const out: Record<string, unknown> = Object.create(null)
         for (const ref of selected) out[ref.key] = ref.get(model as never)
         return out as never
       },
@@ -554,11 +565,11 @@ export const Projection = {
     ...projections: Ps & (IsUnion<ProjectionModel<Ps[number]>> extends true ? never : unknown)
   ): WritableProjection<ProjectionModel<Ps[number]>, MergeFields<Ps>> => {
     const parts = [...projections]
-    const fields: Record<string, AnySchema> = {}
+    const fields: Record<string, AnySchema> = Object.create(null)
     // Where each field is read from, where the part says: a dependency path
     // ending in the field's name. The same name from two different paths is two
     // fields that would be read as one, as in `pick`.
-    const paths: Record<string, string> = {}
+    const paths: Record<string, string> = Object.create(null)
     const pathOf = (part: (typeof parts)[number], key: string): string | undefined =>
       part.dependencies.find(dependency => dependency.at(-1) === key)?.join('.')
     for (const part of parts) {
@@ -583,7 +594,7 @@ export const Projection = {
       schema: objectSchema(fields) as never,
       dependencies: mergeDependencies(parts.flatMap(part => [...part.dependencies])),
       get: model => {
-        const out: Record<string, unknown> = {}
+        const out: Record<string, unknown> = Object.create(null)
         for (const part of parts) Object.assign(out, part.get(model as never))
         return out as never
       },

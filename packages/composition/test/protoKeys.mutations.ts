@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file: struct,
-        find: '    const picked: Record<string, AnySchema> = Object.create(null)',
-        replace: '    const picked: Record<string, AnySchema> = {}',
+        find: 'must stay a key.\n    const picked: Record<string, AnySchema> = Object.create(null)',
+        replace: 'must stay a key.\n    const picked: Record<string, AnySchema> = {}',
       },
     ],
     tests: ['packages/surface/test/edge.test.ts'],
@@ -22,8 +22,9 @@ export default [
     edits: [
       {
         file: struct,
-        find: '      const out: Record<string, unknown> = Object.create(null)',
-        replace: '      const out: Record<string, unknown> = {}',
+        find: '    const read = (root: unknown): unknown => {\n      const out: Record<string, unknown> = Object.create(null)',
+        replace:
+          '    const read = (root: unknown): unknown => {\n      const out: Record<string, unknown> = {}',
       },
     ],
     tests: ['packages/surface/test/edge.test.ts'],

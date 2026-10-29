@@ -760,6 +760,14 @@ carries `drawn`.
 
 ### Fixed
 
+- **Surface keeps Model fields and record keys named like `Object.prototype`
+  members.** A Model field named `__proto__` got no `ModelRef` (it was
+  assigned to the reference tree, setting its prototype); `Projection.pick`
+  refused a field named `constructor` or `__proto__` as picked twice, and
+  `Projection.of`, `pick` and `compose` dropped a `__proto__` field from what
+  they read; and `at(key)` over a record read `constructor`, `toString` or
+  `__proto__` as present when the record held no such key. Each is now an own
+  key, and `at` reads only the record's own keys.
 - **Agent keeps names that `Object.prototype` holds.** `Agent.expose`
   dropped a Message field named `__proto__` from the capability's input,
   and took `constructor` or `toString` as a variant of any union; the audit
