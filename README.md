@@ -279,7 +279,7 @@ in a line.
 | You want to… | Reach for | Read |
 | --- | --- | --- |
 | Let an LLM or another agent use the app, safely, over MCP, WebMCP, A2A, or Agent Native | `foldkit-agent` + one adapter | [Agents](./docs/agents.md) |
-| Cache server entities once, know what is missing, mutate optimistically, get live updates | `foldkit-remote` (+ `-server`, `-drizzle` on the server) | [Server-derived state](./docs/remote.md) |
+| Cache server entities once, know what is missing, mutate optimistically, keep a write across a reload until the server has it, get live updates | `foldkit-remote` (+ `-server`, `-drizzle` on the server) | [Server-derived state](./docs/remote.md) |
 | Work offline, on several devices, or with other people, and converge | `foldkit-sync` on the client, `foldkit-durable` on the server | [Replicated state](./docs/replication.md) |
 | Edit rows a server owns offline, with the table kept as the journal's read model | `foldkit-sync/entity` and `foldkit-sync/journal`, over `foldkit-remote` | [Editing server data](./docs/editing-server-data.md) |
 | Keep the filter and page in the URL, remember a draft or a preference | `foldkit-mirror` | [Mirrored state](./docs/mirror.md) |
@@ -560,8 +560,9 @@ components.
 
 `foldkit` and `effect` are peer dependencies. These packages ask for
 `effect@^4.0.0` and are tested on 4.0.5; Foldkit `0.169.0` itself asks for
-exactly `effect@4.0.0` and `@effect/platform-browser@4.0.0`, so an application
-on it installs those. `foldkit-durable`'s Node entry
+exactly `effect@4.0.0` and `@effect/platform-browser@4.0.0`, which is why the
+overrides above let its exact peers accept 4.0.5, so the application holds one
+copy of Effect. `foldkit-durable`'s Node entry
 requires Node 22 for `node:sqlite`; `foldkit-durable/core` runs on any SQLite
 client, a browser's included. `drizzle-orm` is a peer of the Drizzle
 packages, so the application's copy is the one they use. The [release matrix](./docs/releases.md)
@@ -588,6 +589,8 @@ README documents its API.
 | --- | --- |
 | Agent contracts and adapters | [Agents](./docs/agents.md) |
 | Server-owned normalized state | [Server-derived state](./docs/remote.md) |
+| A write's effects declared once, for the server and the optimistic client | [Declared writes](./docs/declared-writes.md) |
+| What fails where, and what recovers it | [Errors and failures](./docs/errors.md) |
 | One domain for the cache, the database, forms, and edit screens | [One domain declaration](./docs/entity.md) |
 | Local-first replication and the durable server log | [Replicated state](./docs/replication.md) |
 | URL and key-value mirrors | [Mirrored state](./docs/mirror.md) |

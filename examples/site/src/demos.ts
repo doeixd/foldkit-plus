@@ -172,6 +172,10 @@ export const chirpDemo: Demo = {
       title: 'Like',
       text: 'Press a heart, then reload: the like was kept, and pressing again takes it back.',
     },
+    {
+      title: 'Offline',
+      text: 'Add ?offline to the address and post: the chirp waits to send, and a reload keeps it. Reload without ?offline and it is sent, once.',
+    },
   ],
   readFirst: 'examples/chirp/src/domain.ts',
   packages: ['entity', 'guard', 'remote', 'remote-drizzle', 'form', 'crud', 'site', 'mixins-ui'],

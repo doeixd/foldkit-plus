@@ -395,7 +395,7 @@ const status = (slots: Slots, h: H): Html =>
       ' and may break between minor versions; the ',
       h.a([h.Href(onGitHub('CHANGELOG.md'))], ['changelog']),
       ' says how to upgrade. They target Foldkit ',
-      code(h, '0.168'),
+      code(h, '0.169'),
       ' and Effect ',
       code(h, '4'),
       '. Some are marked early or experimental; ',

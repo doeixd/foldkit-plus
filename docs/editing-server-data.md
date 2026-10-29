@@ -14,6 +14,7 @@ those first. [`examples/registry`](../examples/registry) is the whole pattern,
 | You have | Use | Who owns the fact |
 | --- | --- | --- |
 | Rows a server holds, edited online, where losing the cache loses nothing | a Remote mutation | the server; the client's optimistic layer goes when the request settles |
+| A write the server decides once, which must still be sent after a reload or a dropped connection | a durable Remote mutation (`Data.mutate(…, { durable: true })` with `Data.outbox`) | the server; the outbox stores the operation until it answers, and a refusal is final |
 | Shared state small enough for every replica to hold whole | a Sync slice | the journal; every replica keeps the document |
 | Rows too many to replicate, edited offline, and the edits must converge | this pattern | the journal owns the edits; the table is derived from them |
 
