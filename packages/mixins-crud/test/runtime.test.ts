@@ -232,6 +232,37 @@ it('draws every column of a kind through the renderer given for that kind', () =
   expect(found).toEqual(['strong', 'span', 'strong', 'span'])
 })
 
+it('draws a kind it has no renderer for as text, whatever the kind is named (#307)', () => {
+  const Odd = Display.kind('toString', { text: (_, value) => `odd ${String(value)}` })
+  const Note = Entity.define(
+    'Note',
+    Schema.Struct({ id: Schema.String, body: Schema.String }),
+  ).pipe(Entity.annotateMembers({ body: Display.of(Odd.of({})) }))
+  const Notes = Crud.list('Notes', {
+    query: Query.make('Notes', { Input: {}, Result: Query.connection(Note) }),
+    selection: Entity.select(Note, { body: true }),
+  })
+  const Detail = Crud.detail('Note', { selection: Entity.select(Note, { body: true }) })
+  // Renderers are given, but none for this kind.
+  const renderers = { Flag: ({ h }: { readonly h: HtmlBuilder<Message> }) => h.span([], []) }
+  const listed = ListView.forMessages<Message>().define(Notes)(
+    {
+      page: {
+        _tag: 'Ready',
+        value: { items: [{ body: 'hi' }], hasNext: false, hasPrevious: false },
+      },
+      renderers,
+    },
+    SlotView.inertBuilder(),
+  )
+  const detailed = DetailView.forMessages<Message>().define(Detail)(
+    { value: { _tag: 'Ready', value: { body: 'hi' } }, renderers },
+    SlotView.inertBuilder(),
+  )
+  expect(Inert.text(listed)).toContain('odd hi')
+  expect(Inert.text(detailed)).toContain('odd hi')
+})
+
 it('gives a renderer the badge Slot, which the list’s Style reaches', () => {
   const Styled = ListView.forMessages<Message>()
     .define(Posts)

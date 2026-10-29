@@ -606,7 +606,12 @@ const field = <Key extends string, Model, Message extends { readonly _tag: strin
     readonly attrs?: { readonly [K in Key]?: FieldAttrs }
   } = {},
 ): FieldView<Key, Message> => {
-  const renderers: Renderers<Message> = { ...plainRenderers<Message>(), ...options.renderers }
+  // No prototype: a kind named `constructor` or `toString` has a renderer only if given one.
+  const renderers: Renderers<Message> = Object.assign(
+    Object.create(null),
+    plainRenderers<Message>(),
+    options.renderers,
+  )
   return SlotView.forMessages<Message>().define(
     FieldSlots,
     (input: FieldInput<Key>, slots, h) => {

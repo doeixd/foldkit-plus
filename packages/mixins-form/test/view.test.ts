@@ -501,6 +501,22 @@ describe('renderers', () => {
       'FormView: no renderer for a "Stars" control ("stars"); pass one under "renderers"',
     )
   })
+
+  it.each(['constructor', 'toString', '__proto__'])(
+    'finds no renderer for a kind named %s that it was not given (#307)',
+    name => {
+      const Odd = Input.kind(name, { draft: 'text' })
+      const Named = Form.make('Named', Form.input(Schema.Struct({ odd: Schema.String })), {
+        inputs: { odd: Odd.of({}) },
+      })
+      expect(() =>
+        FormView.define(Named)(
+          { model: Named.initial, errors: [], canSubmit: true },
+          SlotView.inertBuilder(),
+        ),
+      ).toThrow(`FormView: no renderer for a "${name}" control ("odd")`)
+    },
+  )
 })
 
 describe('a control backed by a Bundle', () => {

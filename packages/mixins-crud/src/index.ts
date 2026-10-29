@@ -222,6 +222,18 @@ export const Failure = {
   ): Html => h.p(status.attrs([h.Role('alert')]), [text]),
 }
 
+/**
+ * The renderer given for a display kind, read as an own key: a kind named
+ * `toString` would otherwise call `Object`'s and draw what it returns.
+ */
+const rendererOf = <R extends object>(
+  renderers: R | undefined,
+  kind: string,
+): R[keyof R] | undefined =>
+  renderers !== undefined && Object.hasOwn(renderers, kind)
+    ? (renderers as Readonly<Record<string, R[keyof R]>>)[kind]
+    : undefined
+
 const ariaSort = (direction: 'asc' | 'desc' | undefined): 'ascending' | 'descending' | 'none' =>
   direction === 'asc' ? 'ascending' : direction === 'desc' ? 'descending' : 'none'
 
@@ -306,7 +318,10 @@ const list = <Message>() => ({
       (input: ListInput<Row, Message, Key>, slots, h) => {
         const { words } = input
         const draw = (column: DisplayColumn, value: unknown, row: unknown): Html | string =>
-          input.renderers?.[column.display.kind]?.({
+          rendererOf(
+            input.renderers,
+            column.display.kind,
+          )?.({
             display: column.display,
             value,
             row,
@@ -509,7 +524,10 @@ const detail = <Message>() => ({
                   h.dt(slots.term.attrs(), [field.label]),
                   h.dd(slots.value.attrs(), [
                     special?.(value, h) ??
-                      input.renderers?.[field.display.kind]?.({
+                      rendererOf(
+                        input.renderers,
+                        field.display.kind,
+                      )?.({
                         display: field.display,
                         value: (value as Readonly<Record<string, unknown>>)[field.key],
                         row: value,

@@ -718,6 +718,12 @@ carries `drawn`.
 
 ### Fixed
 
+- **A renderer is found only for a kind it was given for** (#307).
+  `FormView` looked a control's kind up on a plain object, so a kind named
+  `constructor` or `toString` found `Object`'s, which was called and drawn
+  in place of the "no renderer" error; `ListView` and `DetailView` did the
+  same with a display kind. The form's registry has no prototype, and the
+  list and detail read the renderers given as own keys.
 - **`foldkit-form-recipes/image` never sends a file it refused before
   sending** (#301). A dropped file that is no image was refused unsent, but
   Try again sent it. Such a refusal now offers no retry, and a `Retried` sent
