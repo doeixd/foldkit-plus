@@ -7,6 +7,22 @@ const file = '../src/fetch.ts'
 
 export default [
   {
+    name: 'a cache may keep an answer for whoever asks next',
+    edits: [
+      {
+        file,
+        find: "if (!response.headers.has('cache-control')) response.headers.set('cache-control', 'no-store')",
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: "the application's cache-control is overwritten",
+    edits: [{ file, find: "if (!response.headers.has('cache-control')) ", replace: '' }],
+    tests,
+  },
+  {
     name: 'every method and path is answered',
     edits: [
       {

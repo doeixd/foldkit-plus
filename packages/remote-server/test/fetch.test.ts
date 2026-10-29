@@ -293,6 +293,46 @@ describe('serveFetch, headers for whom it answered', () => {
     await Promise.all([admin.body?.cancel(), guest.body?.cancel()])
   })
 
+  it.each([
+    ['an answer', JSON.stringify({ operation: 'read', payload: readA }), 'yes'],
+    ['a body that is not JSON', '{', 'yes'],
+    [
+      'a live stream',
+      JSON.stringify({
+        operation: 'live',
+        payload: { version: REMOTE_PROTOCOL_VERSION, requirements: [], after: 0 },
+      }),
+      'yes',
+    ],
+    ['a refusal', JSON.stringify({ operation: 'read', payload: readA }), 'refused'],
+  ])('lets no cache keep %s, which is one principal’s (#284)', async (_, body, admin) => {
+    const response = await send(body, admin)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    await response.body?.cancel()
+  })
+
+  it('keeps a cache-control the application gives', async () => {
+    const response = await serveFetch({
+      server: backend.server,
+      resolvePrincipal: () => Effect.succeed<Principal>({ isAdmin: false }),
+      layer: () => Layer.empty,
+      headers: () => ({ 'cache-control': 'private, no-store', vary: 'cookie' }),
+    })(
+      new Request('http://worker.test/remote', {
+        method: 'POST',
+        body: JSON.stringify({ operation: 'read', payload: readA }),
+      }),
+      {},
+    )
+    expect(response.headers.get('cache-control')).toBe('private, no-store')
+  })
+
+  it('lets no cache keep a path it does not serve either', async () => {
+    expect(
+      (await fetch(new Request('http://worker.test/remote'), {})).headers.get('cache-control'),
+    ).toBe('no-store')
+  })
+
   it('names nobody on a refusal, which answered no one', async () => {
     const refused = await send(JSON.stringify({ operation: 'read', payload: readA }), 'refused')
     expect(refused.status).toBe(401)

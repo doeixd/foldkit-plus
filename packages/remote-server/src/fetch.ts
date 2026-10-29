@@ -223,7 +223,6 @@ const liveResponse = <R, RC>(
               headers: {
                 ...headers,
                 'content-type': 'text/event-stream',
-                'cache-control': 'no-cache',
               },
             }),
         ),
@@ -238,7 +237,9 @@ const liveResponse = <R, RC>(
  * body that is not JSON, or not a request, is a 400 that reaches no handler;
  * a handler's failure a 500 with its message; anything else this side
  * breaks, the resolver's defects and the layer included, a 500 that says
- * nothing of it. A live open is answered with the stream instead.
+ * nothing of it. A live open is answered with the stream instead. Each
+ * answer is one principal's, so every response says `cache-control:
+ * no-store`, unless `headers` gives a `cache-control` of its own.
  *
  * ```ts
  * export default {
@@ -337,7 +338,7 @@ export const serveFetch = <P, R, Env, RP = never>(
         return Effect.succeed({ response: Response.json(body, { status }), live: false })
       }),
     )
-  return async (request, env) => {
+  const served = async (request: Request, env: Env): Promise<Response> => {
     if (request.method !== 'POST' || new URL(request.url).pathname !== path) {
       return Response.json({ error: 'not found' }, { status: 404 })
     }
@@ -364,6 +365,13 @@ export const serveFetch = <P, R, Env, RP = never>(
       Diagnostics.report(serverDefect(exit.cause)).pipe(reportingFor(request)),
     )
     return Response.json({ error: 'Internal error' }, { status: 500 })
+  }
+  // Every answer is read as one principal: no cache may keep it for another.
+  // A `cache-control` of the application's own (`headers`) stands.
+  return async (request, env) => {
+    const response = await served(request, env)
+    if (!response.headers.has('cache-control')) response.headers.set('cache-control', 'no-store')
+    return response
   }
 }
 

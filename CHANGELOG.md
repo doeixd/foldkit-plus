@@ -615,6 +615,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Security
 
+- **`serveFetch` answers every request `cache-control: no-store`** (#284;
+  published in 0.35.0 without it). Each answer is read as one principal, its
+  `may` and `Me` included, and none said so: a cache configured to keep POST
+  answers could have served one person's to another. A `cache-control` the
+  application's `headers` gives stands; a live stream's `no-cache` is now
+  `no-store` too.
+
 - **`GuardServer.validate` refuses a Source sharing `may`** (#284; the
   check it extends shipped in 0.35.0). `shared` tells the live hub to send a
   declared write's value of a field to every subscriber as it is, and
