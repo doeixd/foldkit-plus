@@ -113,6 +113,9 @@ What each call does:
   the selected members in the Selection's order, each with its `key`,
   `member`, a `label` found the way a form finds one (the schema's `title`,
   else `Form.label` metadata, else the key), and a `display`.
+  `live: true` asks for the list live (`Data.query`'s `live`): rows another
+  page writes join, change and leave it while it is shown, given a server
+  whose live source watches lists (`pollLive`).
 - **`Authors.at`** binds it to your Remote domain and your Model. It still does
   no I/O.
 - **`AuthorList.active`** is the requirement: while `input` gives a value, the
@@ -565,10 +568,6 @@ in it. With `chosen`, those rows stay among the choices, first, and
 `pickers.active` makes them a requirement so Remote reads them and they can be
 named. Without it a `select` would show a post's author as blank the moment a
 search stopped finding them.
-
-`live: true` reads the list live (`Data.query`'s `live`): rows another page
-writes join, change and leave it while it is shown, given a server whose live
-source watches lists (`pollLive`).
 
 A list shows one page at a time (`pageSize`, 25 by default), so a picker can
 offer fewer rows than there are. `pickers.more(model)` names the pickers whose
