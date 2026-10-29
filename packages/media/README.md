@@ -581,6 +581,25 @@ export const site = {
 `serveFetch` is the Worker:
 
 ```ts
+import type { ImagesBinding, R2Bucket, RateLimit } from '@cloudflare/workers-types'
+import { Layer } from 'effect'
+import {
+  admissionRateLimit,
+  inspectorImages,
+  originalsR2,
+  transformerImages,
+  uploadsR2,
+  variantsR2,
+} from 'foldkit-media/cloudflare'
+import { serveFetch, uploadPolicyBearer } from 'foldkit-media/server'
+
+interface WorkerEnv {
+  readonly MEDIA: R2Bucket
+  readonly IMAGES: ImagesBinding
+  readonly LIMITER: RateLimit
+  readonly UPLOAD_TOKEN: string
+}
+
 export default {
   fetch: serveFetch<WorkerEnv>({
     images: {
@@ -643,9 +662,13 @@ Reporting changes no answer. Each is exported as a type from
 | `FactsUnanswered` | `warning` | The facts route answered `Unavailable`; the diagnostic carries the `url` and the `reason`. |
 | `RequestDefect` | `error` | A defect `serveFetch` answered 500, with its `cause`. Behind `layer`, a defect is the application's router's to log. |
 
-Provide another reporter as any service, in the layer the services come from:
+Provide another reporter as any service, in the layer the services come from
+(`Diagnostics` is `foldkit-surface`'s):
 
 ```ts
+import { Effect, Layer } from 'effect'
+import { Diagnostics } from 'foldkit-surface'
+
 serveFetch<WorkerEnv>({
   images: {
     layer: env =>
