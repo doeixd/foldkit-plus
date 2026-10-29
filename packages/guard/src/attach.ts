@@ -361,7 +361,11 @@ const surfaceFrom = (slot: ReadonlyArray<AnyRule> | On<AnyRule, Deny>): Surface 
     ? { rules: slot.rules, deny: Option.some(slot.deny) }
     : { rules: Object.freeze([...slot]), deny: Option.none() }
 
-/** Throws for a row guard over another Entity that shares the target's name. */
+/**
+ * Throws for a row guard over another Entity that shares the target's name,
+ * and, where the surface is judged over one row in memory (any but the row's
+ * Read, which compiles to SQL), for one that reads another row.
+ */
 const checkRules = (
   set: string,
   entity: AnyEntity,
@@ -375,6 +379,11 @@ const checkRules = (
         if (!Entity.same(guard.entity, entity)) {
           throw new Error(
             `[foldkit-guard] ${set}.attach: ${where} names ${guard.name}, a guard over another Entity named ${entity.name}`,
+          )
+        }
+        if (where !== 'Read' && Query.dependencies(guard.query).reaches.length > 0) {
+          throw new Error(
+            `[foldkit-guard] ${set}.attach: ${where} names ${guard.name}, which reads another row (a path or an exists); only a row's Read rule may, which is judged in SQL`,
           )
         }
       },

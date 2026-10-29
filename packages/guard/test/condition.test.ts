@@ -231,6 +231,7 @@ describe('Condition.unsetting', () => {
       { key: user => user.id, unguarded: 'allow' },
     )
     const unset = new Set(['notes'])
+    const asked = { viewer: Option.none(), now: Option.none() }
     // Every followed row is readable here, so only `unset` can refuse one.
     const holds = (condition: Condition) =>
       Condition.holds(
@@ -241,15 +242,15 @@ describe('Condition.unsetting', () => {
         Operators.kernel,
       )
     for (const guard of [D.claimed, D.unclaimed, D.mentions]) {
-      expect(holds({ _tag: 'Row', guard })).toBe(false)
+      expect(holds({ _tag: 'Row', guard, context: asked })).toBe(false)
     }
     // A guard over set fields still decides; a disjunction keeps it.
-    expect(holds({ _tag: 'Row', guard: D.owned })).toBe(true)
+    expect(holds({ _tag: 'Row', guard: D.owned, context: asked })).toBe(true)
     expect(
       holds(
         Condition.or([
-          { _tag: 'Row', guard: D.claimed },
-          { _tag: 'Row', guard: D.owned },
+          { _tag: 'Row', guard: D.claimed, context: asked },
+          { _tag: 'Row', guard: D.owned, context: asked },
         ]),
       ),
     ).toBe(true)

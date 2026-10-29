@@ -11,15 +11,15 @@ export default [
     edits: [
       {
         file,
-        find: 'import { Held, Query, evaluateEach,',
-        replace: 'import { Held, Query, evaluate, evaluateEach,',
+        find: '  Query,\n  evaluateEach,\n',
+        replace: '  Query,\n  evaluate,\n  evaluateEach,\n',
       },
       {
         file,
         find: 'evaluateEach(guard.query, input,',
         replace: 'evaluate(guard.query, input,',
       },
-      { file, find: '            .matched.length === 1,', replace: '            .length === 1,' },
+      { file, find: '          }).matched.length === 1,', replace: '          }).length === 1,' },
     ],
     tests,
   },
@@ -78,8 +78,8 @@ export default [
     edits: [
       {
         file,
-        find: '            .matched.length === 1,',
-        replace: '            .matched.length >= 0,',
+        find: '          }).matched.length === 1,',
+        replace: '          }).matched.length >= 0,',
       },
     ],
     tests,
@@ -162,8 +162,13 @@ export default [
     edits: [
       {
         file: '../src/index.ts',
-        find: 'evaluate(rowGuard.query, {}, [row], { operators }).length === 1,',
-        replace: 'false,',
+        find: [
+          '                    evaluate(rowGuard.query, {}, [row], {',
+          '                      operators,',
+          '                      context: contextOf(principal),',
+          '                    }).length === 1,',
+        ].join('\n'),
+        replace: '                    false,',
       },
     ],
     tests,

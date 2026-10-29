@@ -851,12 +851,11 @@ export const supported: ReadonlyArray<Operation> = [
 ]
 
 /**
- * What a query body may use besides: paths and exists, which read other
- * tables under the reader's visibility, resolved per request. A rule that is
- * not a body (an invariant, a `when`, a Read rule) does not reach another
- * table yet, and is refused one by `supported`.
+ * What a query body, and a guard's Read rule, may use besides: paths and
+ * exists, which read other tables. A rule judged elsewhere (an invariant, a
+ * `when`) does not reach another table yet, and is refused one by `supported`.
  */
-const bodyOperations: ReadonlyArray<Operation> = [...supported, 'path', 'exists']
+export const bodyOperations: ReadonlyArray<Operation> = [...supported, 'path', 'exists']
 
 /**
  * Every Entity a body's paths and exists reach, once each: the tables whose

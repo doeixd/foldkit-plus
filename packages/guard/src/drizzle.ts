@@ -8,9 +8,9 @@ import { Effect, Match, Option } from 'effect'
 import { Query, type AnyEntity } from 'foldkit-entity'
 import {
   DrizzleOperators,
+  bodyOperations,
   compileWhere,
   idColumn,
-  supported,
   type AnyEntityBinding,
   type Visible,
 } from 'foldkit-remote-drizzle'
@@ -65,7 +65,7 @@ export const GuardDrizzle = {
         Match.valueTags(rule, {
           PrincipalGuard: () => {},
           RowGuard: guard => {
-            const missing = Query.unsupported(guard.query, supported, sqlOperators)
+            const missing = Query.unsupported(guard.query, bodyOperations, sqlOperators)
             if (missing.length > 0) {
               fail(
                 `${entity.name}'s ${guard.name} needs ${missing.join(', ')}, which SQL here does not run`,
@@ -109,11 +109,18 @@ export const GuardDrizzle = {
           Never: () => nothing,
           // By the tables the rule was checked against: the SQL one given here, and
           // the policy's for what is decided from the input alone, as Guard judges.
-          Row: ({ guard }) =>
+          // A rule reads the rows it reaches as they are stored: it is the server's
+          // decision, as a principal guard's body is, not a read by the principal.
+          Row: ({ guard, context }) =>
             and(
               ...compileWhere(
                 guard.query,
-                { ...binding, operators: { memory: policy.operators, sql: sqlOperators } },
+                {
+                  ...binding,
+                  operators: { memory: policy.operators, sql: sqlOperators },
+                  context,
+                  visibleOf: () => Option.none(),
+                },
                 input,
                 `${name}.${guard.name}`,
               ),

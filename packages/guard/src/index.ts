@@ -25,6 +25,8 @@ import {
   Query,
   evaluate,
   type AnyEntity,
+  type EntityRef,
+  type ExprContext,
   type MemoryOperators,
   type AnyQuery,
   type InputExpr,
@@ -214,6 +216,13 @@ export interface Policy<User, R = never> {
   /** The principal's fields as row guards' inputs; a visitor has none. */
   readonly inputOf: (principal: Option.Option<User>) => Readonly<Record<string, unknown>>
   /**
+   * Who the principal is as a row: `declare`'s `viewer` Entity, by `key`.
+   * What a rule's `Expr.viewer` reads, and the server's viewer:
+   * `RemoteServer.make({ viewer: Policy.viewer })`. None for a visitor, and
+   * for a set that names no `viewer`.
+   */
+  readonly viewer: (principal: Option.Option<User>) => Option.Option<EntityRef>
+  /**
    * Who the principal is: `declare`'s `key`, the same function as `G.key`,
    * here for a server seam that holds the Policy and not the set. Not
    * `keyOf`, which names a principal by every field, for sharing re-reads.
@@ -364,6 +373,12 @@ export const Guards = {
        * a decision written down; `Guards.matrix` prints it `closed` or `open`.
        */
       readonly unguarded: 'allow' | 'deny'
+      /**
+       * The Entity whose row each principal is, by `key`: what a row guard's
+       * `Expr.viewer` of it reads, on the server and the client alike. A set
+       * without one refuses a rule that reads the viewer.
+       */
+      readonly viewer?: AnyEntity | undefined
     },
   ): GuardSet<Name, Schema.Struct.Type<Fields>, S> => {
     type User = Schema.Struct.Type<Fields>
@@ -376,7 +391,22 @@ export const Guards = {
     const placeholders = placeholdersOf<User>(principal.fields)
     const specs = build({
       principal: () => Object.freeze({ _tag: 'PrincipalSpec' }),
-      row: (entity, body) => Object.freeze({ _tag: 'RowSpec', entity, body: body(placeholders) }),
+      row: (entity, body) => {
+        const predicate = body(placeholders)
+        const { operations } = Query.dependencies(Query.from(entity).pipe(Query.where(predicate)))
+        // Who may is decided when asked, not at a write's time, which the rule is never given.
+        if (operations.includes('now')) {
+          throw new Error(
+            `[foldkit-guard] ${name}: a rule over ${entity.name} reads Expr.now; who may do something does not move with the clock here`,
+          )
+        }
+        if (operations.includes('viewer') && options.viewer === undefined) {
+          throw new Error(
+            `[foldkit-guard] ${name}: a rule over ${entity.name} reads Expr.viewer, but the set names no viewer Entity; declare it with { viewer }`,
+          )
+        }
+        return Object.freeze({ _tag: 'RowSpec', entity, body: predicate })
+      },
     })
     const guards: Record<string, AnyGuard<User>> = Object.create(null)
     for (const [guard, spec] of Object.entries(specs)) {
@@ -416,6 +446,16 @@ export const Guards = {
       }
       return input
     }
+
+    const viewerOf = (user: Option.Option<User>): Option.Option<EntityRef> =>
+      Option.flatMap(Option.fromUndefinedOr(options.viewer), entity =>
+        Option.map(user, each => ({ entity: entity.name, id: options.key(each) })),
+      )
+    // A rule reads who asks, never a time.
+    const contextOf = (user: Option.Option<User>): ExprContext => ({
+      viewer: viewerOf(user),
+      now: Option.none(),
+    })
 
     const isPrincipal = Schema.is(Schema.Option(principal))
     // Every claim as JSON keeps it, a set, a number past JSON's or a date
@@ -459,9 +499,15 @@ export const Guards = {
                   // A visitor has no fields: only a guard over the row alone can hold.
                   onNone: () =>
                     !readsPrincipal(rowGuard) &&
-                    evaluate(rowGuard.query, {}, [row], { operators }).length === 1,
+                    evaluate(rowGuard.query, {}, [row], {
+                      operators,
+                      context: contextOf(principal),
+                    }).length === 1,
                   onSome: user =>
-                    evaluate(rowGuard.query, inputOf(user), [row], { operators }).length === 1,
+                    evaluate(rowGuard.query, inputOf(user), [row], {
+                      operators,
+                      context: contextOf(principal),
+                    }).length === 1,
                 }),
             ),
         })
@@ -481,6 +527,7 @@ export const Guards = {
             Effect.map(decide(guard, { principal, interaction }), decision => decision === true),
           Option.isNone(principal),
           interaction,
+          contextOf(principal),
         )
       }
       const policy: Policy<User, R> = {
@@ -502,6 +549,7 @@ export const Guards = {
           decidingFor(entity, principal, interaction).relation(entity, relation),
         inputOf: principal =>
           Option.match(principal, { onNone: () => ({}), onSome: user => inputOf(user) }),
+        viewer: viewerOf,
         key: options.key,
         // Prefixed, so no user's key is the visitor's. Not `declare`'s `key`
         // alone: a re-read shared under it would read a newer request as an

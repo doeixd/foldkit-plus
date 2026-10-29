@@ -106,8 +106,8 @@ export default [
     edits: [
       {
         file: '../../guard/src/drizzle.ts',
-        find: '{ ...binding, operators: { memory: policy.operators, sql: sqlOperators } },',
-        replace: 'binding,',
+        find: '                  operators: { memory: policy.operators, sql: sqlOperators },\n',
+        replace: '',
       },
     ],
     tests: ['packages/guard/test/drizzle.test.ts'],

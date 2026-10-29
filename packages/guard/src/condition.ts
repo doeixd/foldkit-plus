@@ -5,14 +5,26 @@
  * never reach it, so their bodies stay on the server that decided them.
  */
 import { Effect, Match, Option } from 'effect'
-import { Held, Query, evaluateEach, type AnyEntity, type MemoryOperators } from 'foldkit-entity'
+import {
+  Held,
+  Query,
+  evaluateEach,
+  type AnyEntity,
+  type ExprContext,
+  type MemoryOperators,
+} from 'foldkit-entity'
 import { attached, defaultDeny, surfaceOf, type AnyRule, type Deny } from './attach.js'
 import type { PrincipalGuard, RowGuard } from './index.js'
 
 export type Condition =
   | { readonly _tag: 'Always' }
   | { readonly _tag: 'Never' }
-  | { readonly _tag: 'Row'; readonly guard: RowGuard<any, AnyEntity> }
+  /** A row guard, and what its `Expr.viewer` reads: the principal it was decided for. */
+  | {
+      readonly _tag: 'Row'
+      readonly guard: RowGuard<any, AnyEntity>
+      readonly context: ExprContext
+    }
   /** The row its `one` relation points at is readable. */
   | { readonly _tag: 'Inherit'; readonly relation: string }
   | { readonly _tag: 'And'; readonly conditions: ReadonlyArray<Condition> }
@@ -73,9 +85,11 @@ export const Condition = {
         Always: () => true,
         Never: () => false,
         // A row as a Source reads it holds its links as ref keys; the rule reads ids.
-        Row: ({ guard }) =>
-          evaluateEach(guard.query, input, [Held.fromRefs(guard.query, values)], { operators })
-            .matched.length === 1,
+        Row: ({ guard, context }) =>
+          evaluateEach(guard.query, input, [Held.fromRefs(guard.query, values)], {
+            operators,
+            context,
+          }).matched.length === 1,
         Inherit: ({ relation }) => inherit(relation),
         And: ({ conditions }) => conditions.every(holds),
         Or: ({ conditions }) => conditions.some(holds),
@@ -158,6 +172,7 @@ const conditionsFor = <R>(
   rules: ReadonlyArray<AnyRule>,
   decide: (guard: PrincipalGuard<any>) => Effect.Effect<boolean, never, R>,
   visitor: boolean,
+  context: ExprContext,
 ): Effect.Effect<(rules: ReadonlyArray<AnyRule>, join: typeof and) => Condition, never, R> =>
   Effect.map(
     Effect.forEach(principalGuardsIn(rules), guard =>
@@ -171,7 +186,7 @@ const conditionsFor = <R>(
           RowGuard: guard =>
             visitor && readsPrincipal(guard)
               ? never
-              : Object.freeze({ _tag: 'Row' as const, guard }),
+              : Object.freeze({ _tag: 'Row' as const, guard, context }),
           All: ({ rules }) => and(rules.map(conditionOf)),
           Inherit: ({ relation }) => Object.freeze({ _tag: 'Inherit' as const, relation }),
         })
@@ -193,6 +208,7 @@ export const deciding = <R>(
   decide: (guard: PrincipalGuard<any>) => Effect.Effect<boolean, never, R>,
   visitor: boolean,
   interaction: string,
+  context: ExprContext,
 ) => ({
   /** Who may do it to which rows of `entity`: `always`, then the row's rules for it. */
   row: (entity: AnyEntity): Effect.Effect<RowRule, never, R> =>
@@ -209,7 +225,7 @@ export const deciding = <R>(
         // An interaction left without rules falls to the set's default.
         const unguarded = attachment.unguarded === 'allow' ? always : never
         return Effect.map(
-          conditionsFor([...attachment.always, ...rules], decide, visitor),
+          conditionsFor([...attachment.always, ...rules], decide, visitor, context),
           condition => ({
             condition: and([
               condition(attachment.always, and),
@@ -252,6 +268,7 @@ export const deciding = <R>(
             surfaces.flatMap(({ rules }) => rules),
             decide,
             visitor,
+            context,
           ),
           condition =>
             surfaces.map(({ member, rules, deny }) => ({
@@ -274,7 +291,7 @@ export const deciding = <R>(
       {
         onNone: () => Effect.succeed(Option.none()),
         onSome: ({ rules, deny }) =>
-          Effect.map(conditionsFor(rules, decide, visitor), condition =>
+          Effect.map(conditionsFor(rules, decide, visitor, context), condition =>
             Option.some({
               condition: condition(rules, or),
               deny: Option.getOrElse(deny, () => defaultDeny(target)),

@@ -32,14 +32,14 @@ export default [
   edit(
     'a guard asked alone runs with the kernel',
     guard,
-    'evaluate(rowGuard.query, {}, [row], { operators }).length === 1,',
-    'evaluate(rowGuard.query, {}, [row]).length === 1,',
+    'evaluate(rowGuard.query, {}, [row], {\n                      operators,\n',
+    'evaluate(rowGuard.query, {}, [row], {\n',
   ),
   edit(
     'a condition runs with the kernel',
     condition,
-    '[Held.fromRefs(guard.query, values)], { operators })',
-    '[Held.fromRefs(guard.query, values)])',
+    '[Held.fromRefs(guard.query, values)], {\n            operators,\n',
+    '[Held.fromRefs(guard.query, values)], {\n',
   ),
   edit(
     'a server starts with a rule calling an operator its policy lacks',

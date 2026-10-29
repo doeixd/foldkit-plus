@@ -9,6 +9,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **Guard rules read who asks** (operations phase 5). `Guards.declare(…, {
+  viewer: User })` names the Entity each principal is a row of, by `key`, so
+  a rule compares with `Expr.viewer(User)`, on the server in memory and in
+  SQL; `Policy.viewer(principal)` is that ref, for `RemoteServer.make({ viewer:
+  Policy.viewer })`. A row's `Read` rule may reach other rows (a path, an
+  exists, a path from the viewer), compiled to SQL over the rows as stored;
+  `Guards.attach` refuses such a rule on any other surface, which is judged
+  over one row. A rule over `Expr.viewer` without a set's `viewer`, or over
+  `Expr.now`, is refused where declared. remote-drizzle exports
+  `bodyOperations`.
 - **A path from the viewer in query bodies** (operations phase 5):
   `Expr.path(Expr.viewer(Member), …)` is an `Expr` operand, so
   `Expr.eq(Note.fields.orgId, orgOfViewer)` is a body. remote-drizzle compiles

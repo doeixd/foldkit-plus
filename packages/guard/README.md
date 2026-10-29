@@ -125,6 +125,18 @@ What each call does, and does not:
   (`guard.row(Like, p => Expr.eq(Like.relations.user, p.id))`), so no field
   repeats the link. SQL reads the relation's column; a rule judged over a
   row a Source read, whose link is a ref key (`'User:ada'`), reads the id.
+- A set that names the Entity its principals are rows of (`{ viewer: User }`,
+  each by `key`) lets a rule read who asks:
+  `guard.row(Like, () => Expr.eq(Like.relations.user, Expr.viewer(User)))`.
+  `Policy.viewer(principal)` is that row's ref, the server's one viewer:
+  `RemoteServer.make({ viewer: Policy.viewer })`. A rule over `Expr.viewer`
+  in a set without one, or over `Expr.now`, is refused where it is declared.
+- Only a row's `Read` rule may reach another row (`Expr.path`,
+  `Expr.exists`, a path from the viewer: `Expr.eq(Note.fields.orgId,
+  orgOfViewer)`). It compiles to SQL, which reads the rows it reaches as
+  stored: the rule is the server's decision, as a principal guard's body is.
+  Every other surface is judged over one row in memory, so `Guards.attach`
+  refuses such a rule there.
 - `G.implement` is the only place a body exists. A missing or extra key is a
   type error, and refused at runtime for a caller the types do not reach.
 - `Policy.decide` is an `Effect` of a `Decision`: `true`, `false`, or

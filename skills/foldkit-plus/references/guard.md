@@ -33,6 +33,13 @@ the application's, handed in through `G.Principal`.
 - `G.inputOf(user)` is the principal's fields as query inputs, encoded.
 - `Expr.in(field, p.projectIds)` is how a membership the principal carries
   reads in a row guard.
+- `{ viewer: User }` in `declare`'s options names the Entity each principal is
+  a row of (by `key`), so a rule reads who asks:
+  `guard.row(Post, () => Expr.eq(Post.relations.author, Expr.viewer(User)))`.
+  `Policy.viewer(principal)` is that ref: `RemoteServer.make({ viewer: Policy.viewer })`.
+- Only a row's `Read` rule may reach other rows (`Expr.path`, `Expr.exists`, a
+  path from the viewer); SQL reads them as stored. `Guards.attach` refuses such
+  a rule on a write, member, relation or `always` surface, judged over one row.
 
 ## Attaching
 

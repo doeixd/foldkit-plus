@@ -2891,6 +2891,9 @@ importers:
         specifier: workspace:*
         version: link:../metadata
     devDependencies:
+      '@electric-sql/pglite':
+        specifier: 0.5.11
+        version: 0.5.11
       drizzle-orm:
         specifier: 1.0.0-rc.5
         version: 1.0.0-rc.5(@cloudflare/workers-types@5.20261022.1)(@effect/sql-d1@4.0.5(effect@4.0.5))(@effect/sql-pg@4.0.5(effect@4.0.5))(@effect/sql-sqlite-node@4.0.5(effect@4.0.5))(@effect/sql-sqlite-wasm@4.0.5(@effect/wa-sqlite@0.1.2)(effect@4.0.5))(@electric-sql/pglite@0.5.11)(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(@types/sql.js@1.4.11)(effect@4.0.5)(pg@8.23.0)(postgres@3.4.9)(sql.js@1.15.1)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.1)
