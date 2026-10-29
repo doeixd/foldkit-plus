@@ -694,6 +694,9 @@ carries `drawn`.
 
 ### Fixed
 
+- **`Cms.Display.Moment` keeps one formatter per locale** (#306). It made an
+  `Intl.DateTimeFormat` (or `RelativeTimeFormat`) for every value, so a list
+  redraw made one per row; it now makes each once per locale.
 - **The Builder reads a page's own nodes only** (#298). `Selected`, the
   layers' focus, an undo's kept selection and every other node lookup read
   `document.nodes[id]`, so an id such as `constructor` (from `?block=`, say)

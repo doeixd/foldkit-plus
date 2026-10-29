@@ -66,6 +66,29 @@ const units: ReadonlyArray<readonly [Intl.RelativeTimeFormatUnit, number]> = [
   ['minute', 60_000],
 ]
 
+// One formatter per locale, kept: a list draws a Moment in every row, and
+// making an Intl formatter costs far more than formatting with one.
+const absolutes = new Map<string, Intl.DateTimeFormat>()
+const relatives = new Map<string, Intl.RelativeTimeFormat>()
+const absoluteIn = (locale: string): Intl.DateTimeFormat => {
+  const known = absolutes.get(locale)
+  if (known !== undefined) return known
+  const made = new Intl.DateTimeFormat(locale, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'UTC',
+  })
+  absolutes.set(locale, made)
+  return made
+}
+const relativeIn = (locale: string): Intl.RelativeTimeFormat => {
+  const known = relatives.get(locale)
+  if (known !== undefined) return known
+  const made = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' })
+  relatives.set(locale, made)
+  return made
+}
+
 /**
  * A time. Given a clock it reads relative to it ("3 days ago"), and the view
  * decides how often that clock moves; given none it is the date and the time.
@@ -77,14 +100,9 @@ const Moment = Display.kind<{
   text: (data, value) => {
     const at = new Date(String(value))
     if (Number.isNaN(at.getTime())) return String(value)
-    if (data.now === undefined)
-      return new Intl.DateTimeFormat(data.locale ?? 'en', {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-        timeZone: 'UTC',
-      }).format(at)
+    if (data.now === undefined) return absoluteIn(data.locale ?? 'en').format(at)
     const delta = at.getTime() - data.now().getTime()
-    const relative = new Intl.RelativeTimeFormat(data.locale ?? 'en', { numeric: 'auto' })
+    const relative = relativeIn(data.locale ?? 'en')
     const unit = units.find(([, size]) => Math.abs(delta) >= size)
     return unit === undefined
       ? relative.format(0, 'minute')

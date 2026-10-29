@@ -3,7 +3,7 @@ import { Entity } from 'foldkit-entity'
 import { SlotView } from 'foldkit-mixins'
 import { ListView } from 'foldkit-mixins-crud'
 import { Inert } from 'foldkit-mixins/testing'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Cms, type State } from '../src/index.js'
 
 const state = (tag: State['_tag'], schedule: State['schedule'] = null): State => ({
@@ -56,6 +56,31 @@ describe('Cms.Display.Moment', () => {
 
   it('says what is no time as it is', () => {
     expect(Display.show(Cms.Display.Moment.of({}), 'soon')).toBe('soon')
+  })
+
+  describe('makes one formatter per locale for a whole list (#306)', () => {
+    afterEach(() => vi.restoreAllMocks())
+    const rows = Array.from(
+      { length: 20 },
+      (_, day) => `2026-03-${String(day + 1).padStart(2, '0')}T10:00:00.000Z`,
+    )
+
+    // A locale no other test reads, so the first row here makes the only formatter.
+    it('absolute', () => {
+      const made = vi.spyOn(Intl, 'DateTimeFormat')
+      const display = Cms.Display.Moment.of({ locale: 'en-GB' })
+      const said = rows.map(row => Display.show(display, row))
+      expect(said[0]).toBe('1 Mar 2026, 10:00')
+      expect(made).toHaveBeenCalledTimes(1)
+    })
+
+    it('relative', () => {
+      const made = vi.spyOn(Intl, 'RelativeTimeFormat')
+      const display = Cms.Display.Moment.of({ locale: 'en-GB', now: () => new Date(at) })
+      const said = rows.map(row => Display.show(display, row))
+      expect(said[0]).toBe('yesterday')
+      expect(made).toHaveBeenCalledTimes(1)
+    })
   })
 })
 
