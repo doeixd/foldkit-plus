@@ -7,7 +7,8 @@
 import { Option } from 'effect'
 import { Behavior, Behaviors, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import { sidebarStyle } from '../style.js'
-import { Message, NAV_ID, SECTIONS, contentId, initial, textOf, update, type Model } from './app.js'
+import { Message, NAV_ID, SECTIONS, contentId, initial, update, type Model } from './app.js'
+import { textOf } from '../text.js'
 
 export const SidebarSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),

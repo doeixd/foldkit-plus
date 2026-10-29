@@ -37,9 +37,6 @@ export const linksOf = (section: Option.Option<string>): ReadonlyArray<string> =
     onSome: name => SECTIONS[name] ?? [],
   })
 
-export const textOf = (value: Option.Option<string>): string =>
-  Option.isSome(value) ? value.value : 'none'
-
 const isSection = (section: Option.Option<string>, name: string): boolean =>
   Option.isSome(section) && section.value === name
 

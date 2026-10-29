@@ -81,9 +81,6 @@ const assembly = Parent.assemble(
   }),
 )
 
-export const textOf = (value: Option.Option<string>): string =>
-  Option.isSome(value) ? value.value : 'none'
-
 export const initial = assembly.initial({ query: '', open: false, picked: Option.none() })
 
 const pick = (model: Model, id: string): Model =>

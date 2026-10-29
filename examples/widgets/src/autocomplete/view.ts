@@ -22,10 +22,10 @@ import {
   matching,
   navArgs,
   selArgs,
-  textOf,
   update,
   type Model,
 } from './app.js'
+import { textOf } from '../text.js'
 
 export const AutocompleteSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),

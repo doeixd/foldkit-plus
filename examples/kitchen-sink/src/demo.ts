@@ -6,7 +6,6 @@
  */
 import { Effect, Fiber, Option, Schema, Stream } from 'effect'
 import { ConnectionChange, RemotePersistence } from 'foldkit-remote'
-import { defineMessageUnion } from 'foldkit/message'
 import { Agent } from 'foldkit-agent'
 import { AgentA2a } from 'foldkit-agent-a2a'
 import { AgentMcp } from 'foldkit-agent-mcp'
@@ -37,7 +36,6 @@ import {
   ProjectSummary,
   ProjectsByOwner,
   RenameProject,
-  KitchenSync,
   liveHub,
   makeSyncServer,
   openReplica,
@@ -87,17 +85,6 @@ const BoardSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
   name: Slot.make({ capability: Capability.Container }),
 })
-
-type Projected = {
-  readonly project: RemoteData<{
-    readonly id: string
-    readonly name: string
-    readonly status: string
-    readonly owner: { readonly name: string }
-  }>
-  readonly notes: ReadonlyArray<{ readonly id: string; readonly body: string }>
-  readonly selectedNoteId: Option.Option<string>
-}
 
 const BoardStyle = Style.forSlots(BoardSlots)({
   root: Style.compose(Style.class('board'), Style.inline({ display: 'grid' })),

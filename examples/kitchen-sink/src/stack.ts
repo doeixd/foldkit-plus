@@ -19,14 +19,7 @@ import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Update from 'foldkit/update'
-import {
-  Mutation,
-  Query,
-  Remote,
-  RemoteClient,
-  type RemoteMessageTag,
-  type RemoteModel,
-} from 'foldkit-remote'
+import { Mutation, Query, Remote, RemoteClient, type RemoteMessageTag } from 'foldkit-remote'
 import {
   databaseLayer,
   entity,

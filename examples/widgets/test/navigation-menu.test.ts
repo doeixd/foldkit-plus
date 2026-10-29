@@ -12,12 +12,7 @@ import {
   triggerId,
   update,
 } from '../src/navigation-menu/app.js'
-import {
-  NavigationMenu,
-  NavigationMenuSlots,
-  NavigationOverlay,
-  runDemo,
-} from '../src/navigation-menu/view.js'
+import { NavigationMenu, NavigationMenuSlots, runDemo } from '../src/navigation-menu/view.js'
 
 const dismissOpen = (model: typeof initial.model) =>
   update(

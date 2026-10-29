@@ -1,9 +1,8 @@
 import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Attributes, SlotView } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { LENGTH, Message, advanceTarget, codeOf, initial, update } from '../src/otp-field/app.js'
-import { OtpField, OtpFieldSlots, backspaceOf, runDemo } from '../src/otp-field/view.js'
+import { OtpField, backspaceOf, runDemo } from '../src/otp-field/view.js'
 
 const filled = (): ReturnType<typeof update>['model'] => {
   let model = initial.model
@@ -94,11 +93,10 @@ describe('view structure', () => {
     }
   })
   it('advances from a filled cell to the first empty one, never otherwise', () => {
-    expect(advanceTarget(['4', '', '', '', '', ''], 0)).toBe(1)
-    expect(advanceTarget(['4', '2', '', '', '', ''], 1)).toBe(2)
-    expect(advanceTarget(['', '', '', '', '', ''], 0)).toBe(null)
-    expect(advanceTarget(['4', '', '', '', '', ''], null)).toBe(null)
-    expect(advanceTarget(['1', '2', '3', '4', '5', '6'], 5)).toBe(null)
+    expect(advanceTarget(['4', '', '', '', '', ''], 0)).toEqual(Option.some(1))
+    expect(advanceTarget(['4', '2', '', '', '', ''], 1)).toEqual(Option.some(2))
+    expect(advanceTarget(['', '', '', '', '', ''], 0)).toEqual(Option.none())
+    expect(advanceTarget(['1', '2', '3', '4', '5', '6'], 5)).toEqual(Option.none())
   })
 
   it('typing and pasting issue a focus command for the first empty cell', () => {

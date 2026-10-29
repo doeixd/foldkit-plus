@@ -16,9 +16,6 @@ export const NAV_ID = `${ISLAND}/docs-nav`
 /** Element id of a section's panel. The trigger's `aria-controls` names it. */
 export const contentId = (id: string): string => `${ISLAND}/${id}-content`
 
-export const textOf = (value: Option.Option<string>): string =>
-  Option.isSome(value) ? value.value : 'none'
-
 /** The section after a click: the open one shuts, any other opens. */
 export const toggled = (open: Option.Option<string>, id: string): Option.Option<string> =>
   Option.isSome(open) && open.value === id ? Option.none() : Option.some(id)

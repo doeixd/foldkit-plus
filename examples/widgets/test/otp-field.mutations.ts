@@ -55,8 +55,8 @@ export default [
     edits: [
       {
         file: '../src/otp-field/app.ts',
-        find: '        commands: [AdvanceFocus({ to: target })],\n',
-        replace: '',
+        find: 'onSome: to => ({ model: next, commands: [AdvanceFocus({ to })] }),',
+        replace: 'onSome: () => ({ model: next }),',
       },
     ],
     tests,

@@ -1,6 +1,6 @@
 import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Attributes, SlotView } from 'foldkit-mixins'
+import { SlotView } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { DismissLayer } from 'foldkit-primitives/interaction'
 import {
@@ -13,12 +13,7 @@ import {
   rowId,
   update,
 } from '../src/context-menu/app.js'
-import {
-  ContextMenu,
-  ContextMenuOverlay,
-  ContextMenuSlots,
-  runDemo,
-} from '../src/context-menu/view.js'
+import { ContextMenu, ContextMenuSlots, runDemo } from '../src/context-menu/view.js'
 
 const dismissOpen = (model: typeof initial.model) =>
   update(

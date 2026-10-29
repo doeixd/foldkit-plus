@@ -3,7 +3,7 @@ import { Attributes, SlotView } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { DismissLayer } from 'foldkit-primitives/interaction'
 import { Stack, Message, initial, update } from '../src/hover-card/app.js'
-import { HoverCard, HoverCardSlots, HoverOverlay, runDemo } from '../src/hover-card/view.js'
+import { HoverCard, HoverCardSlots, runDemo } from '../src/hover-card/view.js'
 
 const dismissOpen = (model: typeof initial.model) =>
   update(

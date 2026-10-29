@@ -43,9 +43,6 @@ export const itemsOf = (menu: Option.Option<string>): ReadonlyArray<string> =>
     onSome: name => MENUS[name] ?? [],
   })
 
-export const textOf = (value: Option.Option<string>): string =>
-  Option.isSome(value) ? value.value : 'none'
-
 const isMenu = (menu: Option.Option<string>, name: string): boolean =>
   Option.isSome(menu) && menu.value === name
 

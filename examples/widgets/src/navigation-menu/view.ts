@@ -22,11 +22,11 @@ import {
   linkElementId,
   navArgs,
   selArgs,
-  textOf,
   triggerId,
   update,
   type Model,
 } from './app.js'
+import { textOf } from '../text.js'
 
 export const NavigationMenuSlots = Slots.define({
   bar: Slot.make({ capability: Capability.Container }),

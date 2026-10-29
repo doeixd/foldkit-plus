@@ -24,9 +24,6 @@ export const rowId = (file: string): string => `${ISLAND}/${file}`
 /** Element id of an action. The collection and `Selection.Activated` share it. */
 export const actionId = (action: string): string => `${ISLAND}/${action}`
 
-export const textOf = (value: Option.Option<string>): string =>
-  Option.isSome(value) ? value.value : 'none'
-
 export const Nav = Bundle.declare(ListNavigation.bundle, 'fileNav')
 
 export const Sel = Bundle.declare(Selection.bundle, 'filePick')

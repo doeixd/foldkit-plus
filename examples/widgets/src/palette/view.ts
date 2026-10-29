@@ -8,7 +8,8 @@ import { Option } from 'effect'
 import { Behavior, Behaviors, Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import { ListNavigation, Overlay, Selection } from 'foldkit-primitives/interaction'
 import { paletteStyle } from '../style.js'
-import { Nav, Sel, matching, navArgs, selArgs, textOf } from '../command/app.js'
+import { Nav, Sel, matching, navArgs, selArgs } from '../command/app.js'
+import { textOf } from '../text.js'
 import { Message, Stack, initial, update, type Model } from './app.js'
 
 export const PaletteSlots = Slots.define({

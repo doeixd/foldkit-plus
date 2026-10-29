@@ -15,10 +15,10 @@ import {
   Message,
   TITLE_ID,
   initial,
-  textOf,
   update,
   type Model,
 } from './app.js'
+import { textOf } from '../text.js'
 
 export const AlertDialogSlots = Slots.define({
   trigger: Slot.make({ capability: Capability.Interactive, events: [Event.Click] }),

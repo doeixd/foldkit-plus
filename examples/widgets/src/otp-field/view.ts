@@ -16,12 +16,12 @@ import {
   Roving,
   cellIdOf,
   codeOf,
-  textOf,
   initial,
   otpArgs,
   update,
   type Model,
 } from './app.js'
+import { textOf } from '../text.js'
 
 export const OtpFieldSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),

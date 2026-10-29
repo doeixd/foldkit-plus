@@ -7,8 +7,7 @@
  * contract into their respective surfaces.
  */
 import { Agent } from 'foldkit-agent'
-import { Projection, Surface } from 'foldkit-surface'
-import { Schema } from 'effect'
+import { Projection } from 'foldkit-surface'
 import { App, Data, Message, ProjectSummary, ProjectsByOwner } from './stack.js'
 
 /** Who is calling the agent. A real application resolves this from a session. */

@@ -17,10 +17,10 @@ import {
   navArgs,
   selArgs,
   selectedOf,
-  textOf,
   update,
   type Model,
 } from './app.js'
+import { textOf } from '../text.js'
 
 export const CommandSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),

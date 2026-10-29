@@ -66,18 +66,13 @@ export const ISLAND = 'otp-field'
 /** Element id of a cell. Collection, focus selectors, and `AdvanceFocus` share it. */
 export const cellIdOf = (index: number): string => `${ISLAND}/digit-${index + 1}`
 
-export const textOf = (value: Option.Option<string>): string =>
-  Option.isSome(value) ? value.value : 'none'
-
 /** The Model after a fill plus the focus Command when somewhere is left to go. */
 const filled = (model: Model, cells: ReadonlyArray<string>, from: number) => {
-  const target = advanceTarget(cells, from)
-  return target === null
-    ? { model: modifyFields(model, { cells: () => cells }) }
-    : {
-        model: modifyFields(model, { cells: () => cells }),
-        commands: [AdvanceFocus({ to: target })],
-      }
+  const next = modifyFields(model, { cells: () => cells })
+  return Option.match(advanceTarget(cells, from), {
+    onNone: () => ({ model: next }),
+    onSome: to => ({ model: next, commands: [AdvanceFocus({ to })] }),
+  })
 }
 
 /** The entered code, once every cell holds a character. */
@@ -90,17 +85,17 @@ export const codeOf = (model: Model): Option.Option<string> => {
 
 /**
  * Where focus goes after the cells change: the first empty cell, but only
- * when focus sits in a cell that holds a digit (just typed or pasted into).
- * Anything else — an empty cell, outside the group, nowhere — stays put,
- * so the rule never steals focus, only advances it.
+ * when the cell focus sits in holds a digit (just typed or pasted into).
+ * From an empty cell it stays put, so the rule never steals focus, only
+ * advances it.
  */
 export const advanceTarget = (
   cells: ReadonlyArray<string>,
-  activeIndex: number | null,
-): number | null => {
-  if (activeIndex === null || cells[activeIndex] === '') return null
+  activeIndex: number,
+): Option.Option<number> => {
+  if (cells[activeIndex] === '') return Option.none()
   const first = cells.findIndex(cell => cell === '')
-  return first === -1 ? null : first
+  return first === -1 ? Option.none() : Option.some(first)
 }
 
 export const update = assembly.update((model, message) => {

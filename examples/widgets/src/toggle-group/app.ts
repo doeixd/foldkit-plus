@@ -12,9 +12,6 @@ export const OPTIONS = ['left', 'center', 'right'] as const
 const Alignment = Schema.Literals(OPTIONS)
 export type Alignment = typeof Alignment.Type
 
-export const textOf = (value: Option.Option<string>): string =>
-  Option.isSome(value) ? value.value : 'none'
-
 export const Sel = Bundle.declare(Selection.bundle, 'alignment')
 
 export const selArgs = { mode: 'single', allowEmpty: true } as const

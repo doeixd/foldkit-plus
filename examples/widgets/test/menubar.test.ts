@@ -13,7 +13,7 @@ import {
   triggerId,
   update,
 } from '../src/menubar/app.js'
-import { Menubar, MenubarOverlay, MenubarSlots, runDemo } from '../src/menubar/view.js'
+import { Menubar, MenubarSlots, runDemo } from '../src/menubar/view.js'
 
 const dismissOpen = (model: typeof initial.model) =>
   update(

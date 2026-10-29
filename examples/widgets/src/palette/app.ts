@@ -9,8 +9,8 @@ import { Option, Schema, Match } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
-import { DismissLayer, ListNavigation, Selection } from 'foldkit-primitives/interaction'
-import { Nav, Sel, matching, navArgs, selArgs, selectedOf, textOf } from '../command/app.js'
+import { DismissLayer } from 'foldkit-primitives/interaction'
+import { Nav, Sel, matching, navArgs, selArgs, selectedOf } from '../command/app.js'
 
 export const Stack = Bundle.declare(DismissLayer.bundle, 'layers')
 

@@ -4,12 +4,7 @@ import { Attributes, SlotView } from 'foldkit-mixins'
 import { Inert } from 'foldkit-mixins/testing'
 import { DismissLayer } from 'foldkit-primitives/interaction'
 import { LIST_ID, Stack, initial, matching, update, type Message } from '../src/autocomplete/app.js'
-import {
-  Autocomplete,
-  AutocompleteOverlay,
-  AutocompleteSlots,
-  runDemo,
-} from '../src/autocomplete/view.js'
+import { Autocomplete, AutocompleteSlots, runDemo } from '../src/autocomplete/view.js'
 
 const dismissOpen = (model: typeof initial.model) =>
   update(

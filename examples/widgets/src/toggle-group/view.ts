@@ -14,11 +14,11 @@ import {
   initial,
   selArgs,
   selectedOf,
-  textOf,
   update,
   type Message,
   type Model,
 } from './app.js'
+import { textOf } from '../text.js'
 
 export const ToggleGroupSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),

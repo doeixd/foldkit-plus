@@ -24,10 +24,10 @@ import {
   navArgs,
   rowId,
   selArgs,
-  textOf,
   update,
   type Model,
 } from './app.js'
+import { textOf } from '../text.js'
 
 export const ContextMenuSlots = Slots.define({
   files: Slot.make({ capability: Capability.Container }),

@@ -22,9 +22,6 @@ export const TITLE_ID = `${ISLAND}/title`
 
 export const DESCRIPTION_ID = `${ISLAND}/description`
 
-export const textOf = (value: Option.Option<string>): string =>
-  Option.isSome(value) ? value.value : 'none'
-
 export const Model = Schema.Struct({
   ...Stack.fields,
   open: Schema.Boolean,

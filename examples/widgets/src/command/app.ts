@@ -78,6 +78,3 @@ export const selectedOf = (model: Model): Option.Option<string> => {
   const [first] = model.palettePick.selected
   return first === undefined ? Option.none() : Option.some(first)
 }
-
-export const textOf = (value: Option.Option<string>): string =>
-  Option.isSome(value) ? value.value : 'none'

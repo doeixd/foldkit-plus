@@ -29,11 +29,11 @@ import {
   navArgs,
   rovingArgs,
   selArgs,
-  textOf,
   triggerId,
   update,
   type Model,
 } from './app.js'
+import { textOf } from '../text.js'
 
 export const MenubarSlots = Slots.define({
   bar: Slot.make({ capability: Capability.Container }),
