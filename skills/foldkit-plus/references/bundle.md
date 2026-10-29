@@ -29,6 +29,7 @@ the parent's `update`.
 import { Schema, Stream } from 'effect'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
 import * as Subscription from 'foldkit/subscription'
 import { Bundle } from 'foldkit-bundle'
 
@@ -73,14 +74,12 @@ const placements = Page.assemble(
 declare const view: (model: Model, h: HtmlBuilder<Message>) => Html
 
 // `runtime` derives init, subscriptions, and managedResources from the
-// assembly; the update routes the narrow own-update first, and the rest
-// (Model, view, ...) passes through.
+// assembly; the update routes the placed bundles' Messages first, so the own
+// update sees only ClickedHelp, and the rest (Model, view, ...) passes through.
 export const config = placements.runtime({
   Model,
   initial: { helpOpen: false },
-  update: placements.update((model, message) =>
-    message._tag === 'ClickedHelp' ? { model: { ...model, helpOpen: true } } : { model },
-  ),
+  update: placements.update(model => ({ model: modifyFields(model, { helpOpen: () => true }) })),
   view,
 })
 ```
@@ -96,13 +95,13 @@ the user, the workspace):
 ```ts
 const SearchPlaced = SearchPage.at(Bundle.declare(Search, 'search'), {
   args: parent => ({
-    searchText: parent.route._tag === 'People' ? parent.route.searchText : '',
+    searchText: parent.savedQuery,
   }),
 })
 ```
 
 with `Search` a bundle taking `{ searchText }` and `SearchPage` a parent
-whose Model holds `route` and `search`. The seed is what
+whose Model holds `savedQuery` and `search`. The seed is what
 `assembly.initial(rest)` was given, minus the placement's own field; every
 factory sees the same seed, so placement order never matters. The result is
 checked against the bundle's args Schema and retained for `update` and
@@ -177,9 +176,9 @@ need (`init` when a wiring restores, `url` when one reads the URL).
   placement's wrapper: type it `Bundle.OwnMessage<Message, typeof
   placements.placements>` and match it with Effect `Match.valueTags` (a union's
   own `match` still demands every variant).
-- **An ask that waits for its owner:** `Bundle.follow(placed, { pending:
+- **An ask that waits for its owner:** `follow(placed, { pending:
   model => …, release, ready: (child, model) => …, toMessages: (ask, child,
-  model) => …, send? })` wraps an update result: while a pending ask
+  model) => …, send? })` (from `foldkit-bundle`) wraps an update result: while a pending ask
   waits and its owner is ready, the ask goes through the owner's own Messages
   and is let go (Commands merged after the result's own). `send` replaces the
   dispatch when hooks around the placement must run too. Otherwise the result passes through untouched, pending kept. Apply outside whatever

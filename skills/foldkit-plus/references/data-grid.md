@@ -1,6 +1,6 @@
 # foldkit-data-grid and foldkit-mixins-data-grid
 
-**Experimental, `0.1.0`, on npm from the 0.15.0 release.** Phases 0 to 8 of the DataGrid design are
+**Experimental** (on npm since the 0.15.0 release). Phases 0 to 8 of the DataGrid design are
 built: the pure model, focus, two-axis virtualization, the accessible view in
 `foldkit-mixins-data-grid`, column state, selection, editing as text, Remote
 and CRUD rows, the clipboard, header drag, a column menu, and editing typed
@@ -72,7 +72,8 @@ grid.moveBy({ row: 'p1', column: 'sku' }, { rows: 1, columns: 1 })
   one Model. Send `Moved({ address, reveal })` for a key (with `reveal` from
   `VirtualGrid.reveal`) and `Focused({ address })` for the pointer; the
   update scrolls the container whose DOM id is `id`.
-- The parts are `GridFocus.make(columns)`, a Bundle with one Message, `Focused`.
+- The parts are `GridFocus.make(columns)`, a Bundle whose Messages are `Focused`
+  (a cell) and `HeaderFocused` (a column's header).
   `GridFocus.target(projection, { current, key, modifiers, pageRows })` is
   the cell a key moves to, or none for a key the grid leaves to the page
   (Enter, Tab, anything with Shift, Alt or Meta). Dispatch `Focused` with it.

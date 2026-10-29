@@ -80,13 +80,13 @@ export const heroView = (h: HtmlBuilder<never>) =>
 - `Provider.hosted({ baseUrl?, space?, sources?, fallback?, quality? })`: this
   package's own server, `/_image/<sha-256>/w640.avif`; a `Provider<HashedAsset>`,
   so facts without a `hash` are a type error in `Picture.derive` and `Image.view` (decode
-  stored facts with `HashedAsset`, or narrow with `isHashed`). `Variant.space({ widths, formats, qualities, revision })` bounds what it makes
+  stored facts with `HashedAsset`, or narrow with `isHashed`). `Variant.space({ widths?, formats?, qualities?, revision? })` bounds what it makes
   (the URL names the variant, not its bytes, and nothing checks that two makings agree, so a
   change to how variants are made, an encoder's settings included, is a new `revision` the
   application bumps: `w640.r1.avif`, an earlier one answered while kept, else a brief `302` to
   the current URL);
   `foldkit-media/server` serves the route, its space read from the same provider
-  (`serveFetch({ images: { provider } })`), decoding with the same Schema, and
+  (`serveFetch({ images: { provider, layer } })`), decoding with the same Schema, and
   decides every response's headers in `headersFor` (immutable variants, ETag
   and 304, a lifetime per error, CORS). The route checks no permission: whoever holds a variant's URL
   reads it, so a private original does not belong there.
@@ -118,8 +118,9 @@ from `foldkit-media/server`: `StoreFailed` (a variant, edge or facts store read 
 or a write dropped), `AdmissionFailed` (a limiter down, so the client was admitted),
 `ImageFailed` (a transform or inspection answered `TransformFailed`), `FactsUnanswered` (the
 facts route's `Unavailable`, with its reason) and `RequestDefect` (a defect `serveFetch`
-answered 500). Provide `Layer.succeed(Diagnostics.Reporter, report)` in `serveFetch`'s `layer`;
-collect them in a test with `Diagnostics.collect()`.
+answered 500). To report elsewhere, merge `Layer.succeed(Diagnostics.Reporter, report)` into the
+`layer: env => …` that gives `serveFetch`'s `images` or `uploads` its services; collect them in a
+test with `Diagnostics.collect()`.
 
 A Worker is one `serveFetch({ images?, uploads?, otherwise? })`: it owns `/_image/` and
 `/_media/` (anything else under them, a preflight included, is a 404) and hands every other path
