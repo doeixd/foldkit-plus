@@ -182,7 +182,9 @@ While watching:
   (`getLogs`) and offers no subscription. Done by #269: the stack drains them.
 - **Watching `wrangler.toml` itself.** Restart `pnpm dev` after editing it.
 - **Assets with `run_worker_first`.** The example has no assets binding. The
-  harness reads `[assets]`, but a stack that sets one has not been run.
+  harness reads `[assets]`, but a stack that sets one has not been run. Since
+  run by `examples/reference` (#269): `binding` and `run_worker_first = true`
+  behave as deployed.
 - **Lifting `workers.ts` into `foldkit-plus/testing/workers`** (#239), with
   the typed Remote client and the Playwright behavior assertions #239
   proposes, once #228's reference app is the second consumer.
