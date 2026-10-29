@@ -31,7 +31,7 @@ describe('the weather view', () => {
   test('draws the submit button as the solid Button recipe', () => {
     const buttons = Inert.byTag(Inert.draw(Weather, weatherModel), 'button')
     expect(buttons).toHaveLength(1)
-    expect(Inert.css(buttons)).toContain('background:var(--_fk-tone-fill)')
+    expect(Inert.css(buttons)).toContain('background-color:var(--_fk-tone-fill)')
   })
 
   test.each([

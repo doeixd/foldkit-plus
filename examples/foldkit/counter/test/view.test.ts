@@ -20,7 +20,7 @@ describe('the counter view', () => {
     const buttons = Inert.byTag(tree, 'button')
     expect(buttons).toHaveLength(3)
     for (const button of buttons) {
-      expect(Inert.css([button])).toContain('background:var(--_fk-tone-fill)')
+      expect(Inert.css([button])).toContain('background-color:var(--_fk-tone-fill)')
     }
   })
 
