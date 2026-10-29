@@ -425,7 +425,10 @@ query or a live stream fails with its own Remote error (`RemoteReadError`,
 other failure. A mutation fails with `RemoteUnreachable` (`_tag:
 'Unreachable'`): nothing answered, so the server may or may not have run it.
 `Remote.json`, `Remote.http` and `Remote.httpWithLive` say the same of a
-request they could not send or an answer that was not JSON: each is a
+request they could not send, and of a response that is no Remote answer: a
+body that is not JSON, JSON that is not `{ result }` or `{ error }` (a
+gateway's `{}`), or any body under 408, 429, 502, 503 or 504, which Remote's
+server never answers with. Each is a
 `RemoteJsonClient`, a `RemoteRpcClient` whose transport error is
 `RemoteUnreachable`. A mutation the server failed is a `RemoteMutationError`.
 
@@ -1992,7 +1995,7 @@ reload       → outbox.restore: the queue back, layers shown → sent again, sa
   the server in that order. A refused write, or one this version cannot read,
   does not hold back the rest.
 - **Sent again only when nothing answered.** A send that fails with
-  `Unreachable` (the request did not go, or its answer was no answer) keeps the
+  `Unreachable` (the request did not go, or what came back was no Remote answer) keeps the
   write waiting and sends it again after 1 second doubling to 30 (`retry: {
   base, max }`), and as soon as the browser is `online`; each attempt is
   `OutboxDelayed`. A refusal, `Forbidden` or a server error settles it as

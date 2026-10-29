@@ -144,7 +144,8 @@ Everything else settles as today: a refusal, `Forbidden`, `Unauthenticated`,
 a server's error answer. The write is `Failed` in the store and the ledger,
 listed by `Data.failedWrites`, and a later write is sent. `Unreachable` is
 what `Remote.http` and `Remote.json` report when the request cannot be sent
-or its answer is not JSON, and what `Remote.clientLayer` reports for an RPC
+or what comes back is no Remote answer (not JSON, JSON that is not an answer,
+or a 408, 429, 502, 503 or 504; #282), and what `Remote.clientLayer` reports for an RPC
 transport error; a mutation's own error answer stays `RemoteMutationError`.
 
 ### 6. Status, retry and discard

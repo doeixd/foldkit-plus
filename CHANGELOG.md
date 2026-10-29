@@ -644,6 +644,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A durable write is sent again when what came back is no Remote answer**
+  (#282). `Remote.json` failed a mutation answered with JSON that is not
+  `{ result }` or `{ error }` (a gateway's `{}`) as `RemoteMutationError`, so
+  the outbox settled it as failed though the server may have applied it; and
+  `Remote.http` read a 502, 503 or 504 whose body was JSON `{ error }` as the
+  server's own failure. Both are now `RemoteUnreachable`, as is any body under
+  408, 429, 502, 503 or 504, statuses Remote's server never answers with. The
+  outbox sends the write again under its operation id, which a ledgered writer
+  answers from its record. A read or a query so answered still fails with its
+  own error.
 - **The skill's Remote reference no longer says the write ledger cannot run
   on D1** (#285). It has run there since the D1 ledger moved to one atomic
   `batch`: the reference now says so, with the batch's limits, as

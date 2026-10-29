@@ -43,7 +43,10 @@ const decodeAnswer = Schema.decodeUnknownEffect(RemoteJsonAnswer)
 
 /**
  * Sends one request's text and resolves with its answer as parsed JSON. It
- * rejects when nothing came back, and the call fails with that message.
+ * rejects when nothing came back, and the call fails with that message. A
+ * value that is not a `RemoteJsonAnswer` is no answer either: a mutation fails
+ * `RemoteUnreachable` for both, a read or a query its own error, which is
+ * retried like any failed read.
  */
 export type RemoteJsonSend = (request: string) => Promise<unknown>
 
@@ -52,7 +55,7 @@ const call = <A, E, U>(
   operation: RemoteJsonRequest['operation'],
   payload: unknown,
   fail: (answer: ErrorAnswer) => E,
-  /** What nothing coming back is: the request was not sent, or its answer not read. */
+  /** What no answer coming back is: the request was not sent, or what came back was no answer. */
   unreached: (message: string) => U,
 ): Effect.Effect<A, E | U> =>
   Effect.tryPromise({
@@ -61,8 +64,10 @@ const call = <A, E, U>(
   }).pipe(
     Effect.flatMap(answer =>
       decodeAnswer(answer).pipe(
+        // JSON that is not an answer came from something in front of Remote
+        // (a gateway's `{}`), so the request may have reached the server.
         Effect.mapError(() =>
-          fail({ error: 'The server answered with something that is not an answer' }),
+          unreached('The server answered with something that is not an answer'),
         ),
       ),
     ),
@@ -157,8 +162,16 @@ const refusalOf = (
   Option.getOrElse(ownRefusal[kind](body), () => ({ error: status, [kind]: {} }))
 
 /**
+ * Statuses Remote's server never answers with, which say the request was not
+ * served (yet): a body under one is a gateway's or a limiter's, never an answer.
+ */
+const unanswered: ReadonlySet<number> = new Set([408, 429, 502, 503, 504])
+
+/**
  * Remote's client over HTTP: each call a `POST` of the request to `url`, the
- * answer its JSON body whatever its status. A 401 is answered as
+ * answer its JSON body. A body that is not JSON, or one under 408, 429, 502,
+ * 503 or 504, is no answer: a mutation fails `RemoteUnreachable`, so a
+ * durable one is sent again. A 401 is answered as
  * unauthenticated, for every call kind, and a 403 as forbidden, whatever the
  * body says: the server's own says why, and middleware in front of Remote
  * may say anything.
@@ -184,6 +197,6 @@ export const http = (
     const body: unknown = await response.json().catch(() => notJson)
     if (response.status === 401) return refusalOf(body, 'unauthenticated', status)
     if (response.status === 403) return refusalOf(body, 'forbidden', status)
-    if (body === notJson) throw new Error(status)
+    if (body === notJson || unanswered.has(response.status)) throw new Error(status)
     return body
   })

@@ -162,6 +162,58 @@ describe('Remote.json', () => {
       message: 'not today',
     })
   })
+
+  it.each([
+    ['an empty object', {}],
+    ['null', null],
+    ['an array', []],
+    ['a string', 'ok'],
+    ['an object of its own', { maybe: 1 }],
+  ])('tells a write answered with %s, which is no answer, as unreached', async (_, body) => {
+    // A gateway may have passed the request on and lost the answer.
+    const garbled = Remote.json(() => Promise.resolve(body))
+    expect(
+      await Effect.runPromise(
+        Effect.flip(garbled.FoldkitRemoteMutate({ requestId: 'r1', mutation: 'M', input: {} })),
+      ),
+    ).toMatchObject({ _tag: 'Unreachable', message: /not an answer/ })
+  })
+})
+
+describe('Remote.http, for a write', () => {
+  /** The failure of a write whose response is `body` under `status`. */
+  const writeAnsweredWith = (status: number, statusText: string, body: string) =>
+    Effect.runPromise(
+      Effect.flip(
+        Remote.http('https://example.test/remote', {
+          fetch: () => Promise.resolve(new Response(body, { status, statusText })),
+        }).FoldkitRemoteMutate({ requestId: 'r1', mutation: 'M', input: {} }),
+      ),
+    )
+
+  it.each([
+    [200, 'OK', ''],
+    [200, 'OK', '{}'],
+    [502, 'Bad Gateway', '<h1>Bad gateway</h1>'],
+    [503, 'Service Unavailable', '{"error":"Service Unavailable"}'],
+    [504, 'Gateway Timeout', '{"error":"upstream timed out"}'],
+    [429, 'Too Many Requests', '{"error":"slow down"}'],
+    [408, 'Request Timeout', '{"error":"too slow"}'],
+  ])('is unreached under %i %s with %j', async (status, statusText, body) => {
+    expect(await writeAnsweredWith(status, statusText, body)).toMatchObject({
+      _tag: 'Unreachable',
+    })
+  })
+
+  it.each([
+    [500, 'Internal Server Error', '{"error":"boom"}'],
+    [422, 'Unprocessable Content', '{"error":"no","refusal":{"_tag":"Conflict"}}'],
+  ])('is failed by the server under %i %s', async (status, statusText, body) => {
+    expect(await writeAnsweredWith(status, statusText, body)).toMatchObject({
+      _tag: 'RemoteMutationError',
+      message: JSON.parse(body).error,
+    })
+  })
 })
 
 describe('Remote.http', () => {

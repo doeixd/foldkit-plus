@@ -5,7 +5,7 @@
  * Remote error of the call, which it shows and retries, never as a defect.
  */
 import { Effect, Layer, Result, Stream } from 'effect'
-import { HttpClient, HttpClientError } from 'effect/http'
+import { HttpClient, HttpClientError, HttpClientResponse } from 'effect/http'
 import { RpcClient, RpcSerialization } from 'effect/rpc'
 import { describe, expect, it } from 'vitest'
 import { REMOTE_PROTOCOL_VERSION, Remote, RemoteClient, RemoteRpc } from '../src/index.js'
@@ -19,27 +19,35 @@ const offline = HttpClient.make(request =>
   ),
 )
 
+/** A network whose every request is answered `body` under `status`, as a gateway in front would. */
+const answering = (status: number, body: string) =>
+  HttpClient.make(request =>
+    Effect.succeed(HttpClientResponse.fromWeb(request, new Response(body, { status }))),
+  )
+
 /** The stock client over HTTP, handed to `Remote.clientLayer` as it is. */
-const stockClientLayer = Layer.unwrap(
-  Effect.map(RpcClient.make(RemoteRpc), client => Remote.clientLayer(client)),
-).pipe(
-  Layer.provide(
-    Layer.effect(RpcClient.Protocol, RpcClient.makeProtocolHttp(offline)).pipe(
-      Layer.provide(RpcSerialization.layerJson),
+const stockClientLayer = (network: HttpClient.HttpClient) =>
+  Layer.unwrap(Effect.map(RpcClient.make(RemoteRpc), client => Remote.clientLayer(client))).pipe(
+    Layer.provide(
+      Layer.effect(RpcClient.Protocol, RpcClient.makeProtocolHttp(network)).pipe(
+        Layer.provide(RpcSerialization.layerJson),
+      ),
     ),
-  ),
-)
+  )
 
 /**
  * The call's failure, if it failed. A defect is not caught by `Effect.result`,
  * so it rejects the promise and fails the test on its own.
  */
-const failureOf = <A, E>(use: (client: RemoteClient['Service']) => Effect.Effect<A, E>) =>
+const failureOf = <A, E>(
+  use: (client: RemoteClient['Service']) => Effect.Effect<A, E>,
+  network: HttpClient.HttpClient = offline,
+) =>
   Effect.runPromise(
     Effect.scoped(
       Effect.gen(function* () {
         return yield* Effect.result(use(yield* RemoteClient))
-      }).pipe(Effect.provide(stockClientLayer)),
+      }).pipe(Effect.provide(stockClientLayer(network))),
     ),
   ).then(result => (Result.isFailure(result) ? result.failure : undefined))
 
@@ -66,5 +74,19 @@ describe('Remote.clientLayer with the stock RpcClient', () => {
       'RemoteLiveError',
     ])
     expect(failures.every(failure => (failure?.message ?? '').length > 0)).toBe(true)
+  })
+
+  it.each([
+    [502, '<h1>Bad gateway</h1>'],
+    [503, '{"error":"Service Unavailable"}'],
+    [200, ''],
+    [200, '{}'],
+    [200, '[]'],
+  ])('fails a write answered %i %j, which is no answer, as unreached', async (status, body) => {
+    const failure = await failureOf(
+      client => client.mutate({ requestId: 'r1', mutation: 'M', input: {} }),
+      answering(status, body),
+    )
+    expect(failure?._tag).toBe('Unreachable')
   })
 })
