@@ -52,8 +52,13 @@ jobs:
       # Forced, so a warm `.tsbuild` cannot hide a project-graph change.
       - run: pnpm typecheck:force
 
+  # Sharded: alone it took over ten minutes, the slowest job by four.
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v7
 
@@ -78,7 +83,7 @@ jobs:
       # The browser tests (`*.browser.test.ts`) run in headless Chromium.
       - run: pnpm exec playwright install --with-deps chromium
 
-      - run: pnpm test
+      - run: pnpm test --shard=${{ matrix.shard }}/4
 
   # PGlite's database collates by `C`, so a collation the Drizzle compiler
   # forgets to write passes every other test (expr-operations-DESIGN §17). These
