@@ -39,7 +39,7 @@
     "check": "pnpm format:check && pnpm paths:check && pnpm icons:check && pnpm tags:check && pnpm mutate:check && pnpm typecheck && pnpm test && pnpm demo && pnpm pack:check",
     "format": "oxfmt --write \"**/*.{ts,json,yaml}\"",
     "format:check": "oxfmt --check \"**/*.{ts,json,yaml}\"",
-    "pack:check": "pnpm build:packages && node scripts/published-types.mjs && pnpm -r --filter \"./packages/*\" exec pnpm pack",
+    "pack:check": "pnpm build:packages && node scripts/published-types.mjs && pnpm -r --filter \"./packages/*\" exec pnpm pack && node scripts/published-setup.mjs",
     "release": "pnpm build:packages && pnpm -r --filter \"./packages/*\" publish --access public --no-git-checks"
   },
   "devDependencies": {
