@@ -190,8 +190,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       # And that every package still packs with those entry points, which is
-      # what a release actually publishes. The build id names no deployment;
-      # see above.
+      # what a release actually publishes. It builds the packages alone, as a
+      # release does; `demo` builds the examples.
       - run: pnpm pack:check
-        env:
-          FOLDKIT_BUILD_ID: ci

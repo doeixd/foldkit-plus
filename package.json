@@ -17,7 +17,8 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "tsc -b && pnpm -r build",
+    "build": "node scripts/declarations.mjs && pnpm -r build",
+    "build:packages": "node scripts/declarations.mjs && pnpm -r --filter \"./packages/*\" build",
     "test": "vitest run",
     "e2e": "vitest run --config vitest.e2e.config.ts",
     "bench": "vitest bench --run",
@@ -38,8 +39,8 @@
     "check": "pnpm format:check && pnpm paths:check && pnpm icons:check && pnpm tags:check && pnpm mutate:check && pnpm typecheck && pnpm test && pnpm demo && pnpm pack:check",
     "format": "oxfmt --write \"**/*.{ts,json,yaml}\"",
     "format:check": "oxfmt --check \"**/*.{ts,json,yaml}\"",
-    "pack:check": "pnpm build && node scripts/published-types.mjs && pnpm -r --filter \"./packages/*\" exec pnpm pack",
-    "release": "pnpm build && pnpm -r --filter \"./packages/*\" publish --access public --no-git-checks"
+    "pack:check": "pnpm build:packages && node scripts/published-types.mjs && pnpm -r --filter \"./packages/*\" exec pnpm pack",
+    "release": "pnpm build:packages && pnpm -r --filter \"./packages/*\" publish --access public --no-git-checks"
   },
   "devDependencies": {
     "@effect/language-service": "^0.87.5",

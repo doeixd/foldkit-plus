@@ -695,12 +695,17 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   for what a public function returns; `pack:check`'s consumer compile
   (`scripts/published-types.mjs`) catches the rest.
 - **tsdown's declarations depend on a referenced project's `.tsbuild`.** With
-  it, they come from that last `tsc -b` output, stale or not (a reverted edit
-  was still emitted); without it, as on a fresh checkout, thirteen packages
-  emitted names they never declared (`Root_1`, `RemoteMessage`) while the same
-  build here, with `.tsbuild` present, was clean. The root `build` runs
-  `tsc -b` first so every build, `pack:check` and `release` included, reads
-  current outputs; reproduce a CI-only build fault in a fresh clone.
+  TypeScript 7 installed, rolldown-plugin-dts picks its `tsgo` generator, which
+  runs `tsc -p tsconfig.json --noCheck --emitDeclarationOnly` (no build mode).
+  A referenced package then resolves to its `.tsbuild/build` declarations:
+  stale ones are emitted as they are (a reverted edit was still emitted), and
+  missing ones, as on a fresh checkout, are TS6305 errors `--noCheck` hides, so
+  the imports read as nothing and thirteen packages emitted names they never
+  declared (`Root_1`, `RemoteMessage`). The root `build` and `build:packages`
+  first run `scripts/declarations.mjs` (`tsc -b --noCheck` over the packages'
+  build projects: 10s here, where a checked root `tsc -b` took 4 minutes and
+  added 3.5 to CI's `pack` job); a later checked `tsc -b` still reports what it
+  skipped. Reproduce a CI-only build fault in a fresh clone.
 - **A linked package keeps what its modules run, read or not.** Without one
   namespace, `foldkit-entity`'s one linked file kept its top-level
   `Schema.Struct(...)` calls in every page: `Collation.binary` alone kept 73 kB
