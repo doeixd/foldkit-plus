@@ -79,7 +79,7 @@ export interface FormViewWords {
  * What the view needs that the form does not own: the choices of each relation
  * picker (a query the application makes), and the submit button's words.
  */
-export interface FormViewInputs<Key extends string = string> {
+export interface FormViewInputs<Key extends string = string, ControlKey extends string = never> {
   readonly options?: { readonly [K in Key]?: ReadonlyArray<Option> } | undefined
   /**
    * The pickers whose list has more rows than `options` holds (`Crud.options`'
@@ -116,7 +116,7 @@ export interface FormViewInputs<Key extends string = string> {
    * renderer has its Bundle's view drawn in a disabled fieldset, which disables
    * the buttons and inputs it draws; a key in a nested row is not locked by this.
    */
-  readonly locked?: ReadonlyArray<Key> | undefined
+  readonly locked?: ReadonlyArray<Key | ControlKey> | undefined
   /**
    * Whether the application's own work with a submitted value is in flight, such
    * as its request: the form hands the value over and cannot see what follows.
@@ -186,7 +186,11 @@ export interface BundleInput {
 }
 
 /** What the form's own Style and Behavior attachments may read. */
-export interface FormInput<Model, Key extends string = string> extends FormViewInputs<Key> {
+export interface FormInput<
+  Model,
+  Key extends string = string,
+  ControlKey extends string = never,
+> extends FormViewInputs<Key, ControlKey> {
   readonly model: Model
   readonly errors: ReadonlyArray<string>
   readonly canSubmit: boolean
@@ -275,12 +279,12 @@ export const FormSlots = Slots.define({
 })
 
 /** The parts of a `Form.make` result the view reads. */
-interface FormLike<Key extends string, Model, Message> {
+interface FormLike<Key extends string, Model, Message, ControlKey extends string = never> {
   /** Every key, nested ones too; `Key` is the keys that hold a draft. */
   readonly controls: ReadonlyArray<FormControl>
   readonly field: (model: Model, key: Key) => FieldValidation.Field<Draft>
   /** A key edited by a control backed by a Bundle. A form with none takes no key here. */
-  readonly control: (key: never) => {
+  readonly control: (key: ControlKey) => {
     readonly field: (model: Model) => FieldValidation.Field<unknown>
   }
   /** The rows of a nested key. A form with none takes no key here. */
@@ -782,21 +786,28 @@ export const FormView = {
    * order, a hidden key left out. Pass a styled `field` to change how fields
    * look; attach Style and Behavior to the result to change the form around them.
    */
-  define: <Key extends string, Model, Message extends { readonly _tag: string }>(
-    form: FormLike<Key, Model, Message> & { readonly bundle: { readonly name: string } },
+  define: <
+    Key extends string,
+    Model,
+    Message extends { readonly _tag: string },
+    ControlKey extends string = never,
+  >(
+    form: FormLike<Key, Model, Message, ControlKey> & {
+      readonly bundle: { readonly name: string }
+    },
     options: {
       readonly field?: FieldView<Key, Message>
       /** Renderers by kind, for the field view this makes. With `field` given, give them to `FormView.field`. */
       readonly renderers?: Renderers<Message>
     } = {},
-  ): SlotView.SlotView<typeof FormSlots, FormInput<Model, Key>, Message> => {
+  ): SlotView.SlotView<typeof FormSlots, FormInput<Model, Key, ControlKey>, Message> => {
     const fieldView =
       options.field ??
       field(form, options.renderers === undefined ? {} : { renderers: options.renderers })
     type Make = (payload: object) => unknown
     return SlotView.forMessages<Message>().define(
       FormSlots,
-      (input: FormInput<Model, Key>, slots, h) => {
+      (input: FormInput<Model, Key, ControlKey>, slots, h) => {
         const options: Readonly<Record<string, ReadonlyArray<Option> | undefined>> = {
           ...input.nestedOptions,
           ...input.options,
@@ -1043,15 +1054,26 @@ export const FormView = {
    * only through `view` (or an override); `field` without one refuses them,
    * naming the key.
    */
-  fields: <Key extends string, Model, FormMessage extends { readonly _tag: string }>(
-    form: FormLike<Key, Model, FormMessage> & { readonly bundle: { readonly name: string } },
+  fields: <
+    Key extends string,
+    Model,
+    FormMessage extends { readonly _tag: string },
+    ControlKey extends string = never,
+  >(
+    form: FormLike<Key, Model, FormMessage, ControlKey> & {
+      readonly bundle: { readonly name: string }
+    },
     options: {
       readonly field?: FieldView<Key, FormMessage>
       /** Renderers by kind, for the field views this makes. */
       readonly renderers?: Renderers<FormMessage>
     } & FieldsOptions<Key, FormMessage> = {},
   ): {
-    readonly view: SlotView.SlotView<typeof FormSlots, FormInput<Model, Key>, FormMessage>
+    readonly view: SlotView.SlotView<
+      typeof FormSlots,
+      FormInput<Model, Key, ControlKey>,
+      FormMessage
+    >
     readonly field: FieldsField<Key, Model, FormMessage>
   } => {
     const base =
@@ -1157,9 +1179,10 @@ export const FormView = {
     Key extends string,
     Model extends { readonly errors: ReadonlyArray<string>; readonly submitPending: boolean },
     Message extends { readonly _tag: string },
+    ControlKey extends string = never,
   >(
-    form: FormLike<Key, Model, Message>,
-    view: SlotView.SlotView<typeof FormSlots, FormInput<Model, Key>, Message>,
+    form: FormLike<Key, Model, Message, ControlKey>,
+    view: SlotView.SlotView<typeof FormSlots, FormInput<Model, Key, ControlKey>, Message>,
     options: {
       /**
        * When the submit waits instead of staying disabled. `true` while a
@@ -1173,8 +1196,8 @@ export const FormView = {
        */
       readonly canSubmit?: (model: Model) => boolean
     } = {},
-  ): Submodel.View<Model, Message, FormViewInputs<Key>> =>
-    Submodel.defineView<Model, Message, FormViewInputs<Key>>((model, inputs, h) =>
+  ): Submodel.View<Model, Message, FormViewInputs<Key, ControlKey>> =>
+    Submodel.defineView<Model, Message, FormViewInputs<Key, ControlKey>>((model, inputs, h) =>
       view(
         {
           ...inputs,

@@ -752,6 +752,10 @@ carries `drawn`.
 
 ### Fixed
 
+- **`locked` takes a Bundle-backed key** (#312). `FormView`'s `locked`, and
+  `fields` and `submodel`'s inputs, were typed by the keys that hold a draft,
+  so a key edited by a Bundle could not be named without a cast; they now
+  take those keys too, inferred from the form's `control`.
 - **`FieldRecipes.dateTime`'s input edits seconds and milliseconds** (#302).
   `html` drew `datetime-local` with the browser's default step of a minute,
   which offered no seconds and failed native validation for a value that
