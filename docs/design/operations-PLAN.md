@@ -185,15 +185,15 @@ interface Operation<W> {
 
 ## Phases
 
-| Phase | What | Replaces / closes | Breaking | Done when |
-| --- | --- | --- | --- | --- |
-| 1 | Three-valued `Expr` evaluation and relation paths in `foldkit-entity` | #242 (core) | No | Every operator has a three-valued memory interpreter; `unknown` is produced for unheld rows and hidden fields; paths compile to SQL on SQLite and Postgres; conformance passes |
-| 2 | Context terms (`Expr.viewer`, `Expr.now`); one context provider per side | plan step 2; part of #251 | Yes: `source`'s `viewer` | `viewer` is defined once per side; a binding that needs it fails at `RemoteServer.make`, naming it |
-| 3 | `Entity.sets(…, { on })` over context; remove `Entity.stamps`; relation-only author; rules compare relation refs | stamps, plan steps 1, 3, 5 | Yes: `Entity.stamps`, `Stamp`, Chirp's `authorId`/`userId` | Chirp and the reference app declare `author`/`user` once; `orgId` from a viewer path in a test domain; `editedAt` on update |
-| 4 | `Operation` with captured `now`; `clockSkew` on the server | plan step 4; #203's class | No | A new row's predicted `createdAt` equals the stored one in a Trace with a fixed clock; out-of-bound time reports `ClockSkewed` |
-| 5 | The client runs the existing interpreters (derived members, invariants, guard rules) three-valued, over the operation | the special cases in `predictionOfWrite`; #242's `may` | No | Chirp draws a new chirp before the answer; the form validates with the Entity's invariants |
-| 6 | The law: conformance in CI; `PredictionMismatch` in development | #257; folds `PlacementMismatch`, `AnswerGap` | Yes: those diagnostic variants become cases of one | Conformance runs in `pnpm test`; a deliberately wrong interpreter fails it |
-| 7 | The durable outbox on stored `Operation`s | #247; `Data.retry`'s reload gap (#260) | No | A failed or pending write survives a reload and retries with the same id and `now` |
+| Phase | What | Replaces / closes | Breaking | Done when | Status |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Three-valued `Expr` evaluation and relation paths in `foldkit-entity` | #242 (core) | No | Every operator has a three-valued memory interpreter; `unknown` is produced for unheld rows and hidden fields; paths compile to SQL on SQLite and Postgres; conformance passes | Built ([ops-1](./ops-1-three-valued-expr-DESIGN.md)) |
+| 2 | Context terms (`Expr.viewer`, `Expr.now`); one context provider per side | plan step 2; part of #251 | Yes: `source`'s `viewer` | `viewer` is defined once per side; a binding that needs it fails at `RemoteServer.make`, naming it | Built ([ops-2](./ops-2-context-terms-DESIGN.md)) |
+| 3 | `Entity.sets(…, { on })` over context; remove `Entity.stamps`; relation-only author; rules compare relation refs | stamps, plan steps 1, 3, 5 | Yes: `Entity.stamps`, `Stamp`, Chirp's `authorId`/`userId` | Chirp and the reference app declare `author`/`user` once; `orgId` from a viewer path in a test domain; `editedAt` on update | Built ([phase 3](./operations-phase3-DESIGN.md)) |
+| 4 | `Operation` with captured `now`; `clockSkew` on the server | plan step 4; #203's class | No | A new row's predicted `createdAt` equals the stored one in a Trace with a fixed clock; out-of-bound time reports `ClockSkewed` | Built ([ops-4](./ops-4-captured-now-DESIGN.md)) |
+| 5 | The client runs the existing interpreters (derived members, invariants, guard rules) three-valued, over the operation | the special cases in `predictionOfWrite`; #242's `may` | No | Chirp draws a new chirp before the answer; the form validates with the Entity's invariants | Built ([phase 5](./operations-phase5-DESIGN.md)); client list judgement over paths, and counts and exists as `Expr`, moved to 6 |
+| 6 | The law: conformance in CI; `PredictionMismatch` in development; the client's list judgement (`matching`) on `Judge` over the store; `Derived.count`/`exists` predicted as `Expr` | #257; folds `PlacementMismatch`, `AnswerGap` | Yes: those diagnostic variants become cases of one | Conformance runs in `pnpm test`; a deliberately wrong interpreter fails it | Not started |
+| 7 | The durable outbox on stored `Operation`s | #247; `Data.retry`'s reload gap (#260) | No | A failed or pending write survives a reload and retries with the same id and `now` | Not started |
 
 - Phase 1 is the foundation: 2 needs paths through the viewer, and 5 needs
   three-valued evaluation.

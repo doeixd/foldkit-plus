@@ -1918,6 +1918,11 @@ of its own named a form field "fits the Catalog". Read words with
   tighter match-arm inference failed `Idle`/`Interval` updates the package
   check passed. The root check is what CI runs: verify with it (or plain
   `npx tsc -b <project>`) before committing, not just the package script.
+- **A Jev review scoped away from the skill fails its sync check.** Reviewing
+  a public API change with `--include` over the sources alone answered
+  `fix_now` (`foldkit_skill_sync`) though the skill reference was updated:
+  the change-level check sees only the included diff. Include the
+  `skills/foldkit-plus/references/` file and the README with the sources.
 - **`jev-pref review --include a b c` reviews only `a`.** Repeat the flag
   (`--include a --include b`) or run one file at a time.
 - **Gate the commit on the review's verdict, not on the command finishing.**
