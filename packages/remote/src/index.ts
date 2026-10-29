@@ -201,7 +201,6 @@ import {
   RemoteLiveError,
   RemoteForbidden,
   RemoteLiveRefused,
-  RemoteMutationError,
   RemoteProtocolError,
   RemoteQueryError,
   RemoteReadError,
