@@ -684,6 +684,25 @@ stands still (no `grace`, age-out or live restart fires), live streams send
 nothing (script `LiveReceived`), and only Remote's Commands run. `update` must
 take Remote's Messages; a `Remote.fold` domain is not supported yet.
 
+**Testing that a prediction is the truth.** `Law.check` (`foldkit-remote/testing`)
+runs one write through `Data.mutate` and through the server, with the same
+principal and `now`, and compares every part the client predicted (fields,
+whether a row is there, list order) with what the server then holds:
+
+```ts
+const report = await Effect.runPromise(
+  Law.check(Data, { model, holds: [{ entity: Card, ids: ['c1'] }], lists: [ByRank.ref({})],
+    mutation: AddCard, input, now }).pipe(
+    Effect.provide(Remote.clientLayer(RemoteServer.handlers(server, 'u1')).pipe(Layer.provide(db))),
+  ),
+)
+expect(report.disagreed).toEqual([])
+expect(report.agreed).toEqual(expect.arrayContaining(['Card:c9.createdAt']))
+```
+
+Pin the server's `Clock` to `now`. What the client left unknown is not
+compared; a check that compared nothing throws.
+
 **The same properties in a real browser.** `foldkit-plus/testing/playwright`
 checks the drawn page over the real network, where SSR, persistence and the
 Worker take part (`playwright` is an optional peer, for its types):

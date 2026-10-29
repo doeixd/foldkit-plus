@@ -350,6 +350,12 @@ export type RemoteMessage =
       readonly requestId: string
       readonly optimistic?: ReadonlyArray<OptimisticOperation> | undefined
       /**
+       * Who the operation is predicted for: what a list's `Expr.viewer` reads
+       * while the client places the rows it changes. `Data.mutate` gives
+       * `Remote.make`'s viewer; absent, a list over the viewer is the server's.
+       */
+      readonly viewer?: { readonly entity: string; readonly id: string } | undefined
+      /**
        * Which mutation, with what input: what the ledger keeps until the
        * request applies, so a failure can be listed and retried. `Data.mutate`
        * always gives it.
@@ -494,6 +500,7 @@ export const remoteMessageCases = {
   MutationStarted: {
     requestId: Schema.String,
     optimistic: Schema.optional(Schema.Array(Schema.Unknown)),
+    viewer: Schema.optional(Schema.Struct({ entity: Schema.String, id: Schema.String })),
     write: Schema.optional(
       Schema.Struct({
         mutation: Schema.String,
@@ -1173,7 +1180,12 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
                 optimistic: message.optimistic ?? [],
               },
         ),
-        optimistic: beginOptimistic(model.optimistic, message.requestId, message.optimistic ?? []),
+        optimistic: beginOptimistic(
+          model.optimistic,
+          message.requestId,
+          message.optimistic ?? [],
+          Option.fromUndefinedOr(message.viewer),
+        ),
       }
     case 'MutationSucceeded': {
       // Settling is release-the-layer-and-overlays, so overlapping optimistic

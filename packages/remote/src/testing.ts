@@ -519,3 +519,5 @@ export const Trace = {
       })
     }),
 }
+
+export { Law, type LawConfig, type LawPart, type LawReport } from './law.js'

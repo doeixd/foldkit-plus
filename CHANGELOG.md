@@ -9,6 +9,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`Law.check`, the law between the client and the server** (#257,
+  operations phase 6). `foldkit-remote/testing` runs one declared write
+  through `Data.mutate`, over a Model holding what the server sends the
+  principal, and through the server (`RemoteServer.handlers`), with the same
+  `now`, and compares every part the client predicted (each field, whether a
+  row is there, each list's order) with what the server then holds. What the
+  client left unknown is not compared; a check that compared nothing throws.
+  remote-drizzle's `law.test.ts` runs it over a test domain on SQLite, PGlite
+  and the locale Postgres job.
+
 - **`may` foreseen for a row the client writes** (#242, operations phase 5).
   `Derived.make(schema, { predict })` says how a client foresees a supplied
   member: `predict({ entity, row, rows, context })` over the row a write
@@ -459,6 +469,13 @@ version changed; `pnpm` skips versions already in the registry.
   `border-box`, so hovered and held the fill ran under the cleared border to
   the edge. They are `backgroundColor` now; an override of a Button's fill
   in the `app` layer still wins.
+
+- **A pending create is placed in a list over the viewer** (operations phase
+  6, found by `Law.check`). Pending placement judged list bodies with no
+  context, so a card you made was left out of `Mine` (`Expr.eq(author,
+  Expr.viewer(User))`) until the answer. Each pending layer now keeps the
+  viewer its operation was predicted for (`EntityLayer.viewer`, from
+  `MutationStarted.viewer`), and the client places with it.
 
 - **`GuardServer.validate` refuses a body reaching a hidden member through
   another row (security).** It refused a query body that filters or orders by

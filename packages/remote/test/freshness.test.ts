@@ -1,4 +1,4 @@
-import { Effect, Fiber, Layer, Schema, Stream } from 'effect'
+import { Effect, Fiber, Layer, Option, Schema, Stream } from 'effect'
 import { TestClock } from 'effect/testing'
 import { defineMessageUnion } from 'foldkit/message'
 import { Surface } from 'foldkit-surface'
@@ -269,6 +269,7 @@ describe('a value a pending request patches', () => {
           { entity: 'Project', id: 'm1.tmp', values: { name: 'Created' } },
         ],
         deletes: [],
+        viewer: Option.none(),
       },
     ],
     overlays: [],

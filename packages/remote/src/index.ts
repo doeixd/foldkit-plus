@@ -125,6 +125,7 @@ import {
   visibleStore,
   type ConnectionIdentity,
   type ConnectionOverlay,
+  type EntityLayer,
   type OptimisticState,
   type OptimisticOperation,
 } from './optimistic.js'
@@ -3282,7 +3283,8 @@ const bindDomain = <
     pages: Connection,
     changes: ReadonlyArray<EntityChange>,
     store: EntityStore,
-    // None for pending placement, which reads no Model: a body over the context is the server's.
+    // For pending placement, the viewer its operations were predicted for; none
+    // when no operation named one, and a body over the context is the server's.
     context?: ExprContext,
   ): Connection => {
     const query = queryOf(identity)
@@ -3310,6 +3312,16 @@ const bindDomain = <
   }
 
   /**
+   * What a list body's context reads while pending layers are placed: the
+   * viewer the newest operation was predicted for. The viewer is the
+   * reader's, so every operation since the last `forget` names the same one.
+   */
+  const layersContext = (layers: ReadonlyArray<EntityLayer>): ExprContext | undefined => {
+    const viewer = [...layers].reverse().find(layer => Option.isSome(layer.viewer))?.viewer
+    return viewer === undefined ? undefined : { viewer, now: Option.none() }
+  }
+
+  /**
    * A loaded list with the pending layers placed in its pages, so a row a
    * pending edit moves, or takes out of the list, shows where its answer
    * will be placed until the edit settles.
@@ -3326,6 +3338,7 @@ const bindDomain = <
           remote.entities,
         ),
         visibleStoreOf(remote.entities, remote.optimistic, operators),
+        layersContext(layers),
       ),
     )
   }
@@ -4125,6 +4138,7 @@ const bindDomain = <
       // A retry of a failed request sends the operation id it was first sent with.
       const known = Option.fromUndefinedOr(remote.mutations.operations.get(requestId))
       // A declared write shows what it writes until the server answers; one given wins.
+      const viewer = viewerOf(model)
       const optimistic =
         typeof options.optimistic === 'function'
           ? options.optimistic({ requestId, tempId })
@@ -4134,13 +4148,14 @@ const bindDomain = <
               : predictionOfWrite(mutation.write, input, options.keys, {
                   derived: definition.registry.derived,
                   store: visibleStoreOf(remote.entities, remote.optimistic, bound.operators),
-                  viewer: viewerOf(model),
+                  viewer,
                   now: Option.fromUndefinedOr(options.now),
                 })))
       const started = updateRemote(remote, {
         _tag: 'MutationStarted',
         requestId,
         ...(optimistic === undefined ? {} : { optimistic }),
+        ...(Option.isSome(viewer) ? { viewer: viewer.value } : {}),
         write: {
           mutation: mutation.name,
           input,

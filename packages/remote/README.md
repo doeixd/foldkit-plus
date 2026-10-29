@@ -93,6 +93,7 @@ what you are doing:
 | A saved change showed, then vanished | [Why did my change disappear?](#why-did-my-change-disappear) |
 | A page I came back to reads `Refreshing` or `Loading` | [Why `Refreshing`?](#why-does-a-page-i-went-back-to-read-refreshing) |
 | Test that a list never blinks to `Loading`, without a browser | [`Trace`](#testing-what-a-reader-sees-trace) |
+| Test that what a write shows is what the server stores | [`Law`](#testing-that-a-prediction-is-the-truth-law) |
 | Show a failed read, and let the user retry | [When a read fails](#when-a-read-fails) |
 | Load an ordered, paged list | [Queries and pagination](#queries-and-pagination) |
 | Filter a list already on screen | [Filtering a loaded list](#filtering-a-loaded-list-without-asking-the-server) |
@@ -2330,6 +2331,50 @@ expect(Trace.tags(trace, list)).toEqual(['Ready', 'Refreshing', 'Ready'])
   script its events as `LiveReceived` Messages. Only Remote's Commands run,
   and `entry.skipped` names the others. It drives a domain whose Messages are
   in your union, not a `Remote.fold`.
+
+## Testing that a prediction is the truth: `Law`
+
+A declared write is interpreted twice: by `Data.mutate`, in memory, over what
+the client holds (what it shows while the write is pending), and by the
+server, in SQL (what it stores). The law between them: **where the client
+predicts a part, the server's answer equals it**. `Law.check` runs one
+operation through both, as an application does, and compares:
+
+```ts
+import { Law } from 'foldkit-remote/testing'
+
+const report = await Effect.runPromise(
+  Law.check(Data, {
+    model: { remote: Remote.initial, me: 'u1' }, // whom Remote.make's viewer reads
+    holds: [{ entity: Card, ids: ['c1', 'c2'] }], // read whole, as the principal
+    lists: [ByRank.ref({})], // loaded whole; their placements compared
+    mutation: AddCard,
+    input: { id: 'c9', title: 'delta', rank: 3, votes: 0 },
+    now: 1_000_000,
+  }).pipe(
+    Effect.provide(Remote.clientLayer(RemoteServer.handlers(server, 'u1')).pipe(Layer.provide(db))),
+  ),
+)
+expect(report.disagreed).toEqual([])
+expect(report.agreed).toEqual(expect.arrayContaining(['Card:c9.createdAt', ByRank.ref({}).identity]))
+```
+
+- **Nothing is stubbed.** The rows in `holds` are read through the server as
+  its principal sees them and reduced into the Model, so the client holds what
+  the server would send it; the lists are queried and merged; `Data.mutate`
+  predicts; its own Command sends the write. Each row the request's layer
+  changed is read back, every list queried again.
+- **A part is `Entity:id.field`, `Entity:id`** (whether the row is there) **or
+  a list's identity.** What the client left to the server (a field it could not
+  work out, a list with a row it could not judge) is in `unknown`, and is not
+  compared.
+- **Pin the server's clock to `now`** (a `Clock` service, or `TestClock`), or a
+  `now` outside the server's `clockSkew` is replaced by its own, and every time
+  the write sets disagrees.
+- **It fails when it compared nothing**, as for a mutation the client foresees
+  nothing of: two sides that both said nothing agree, and that is no evidence.
+  Name the parts you expect compared, as above, so a prediction that silently
+  stops is caught too.
 
 ## Advanced: the kernel
 

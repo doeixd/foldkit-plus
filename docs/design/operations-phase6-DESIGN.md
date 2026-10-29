@@ -21,7 +21,7 @@ CI:          Law.check(client, server, operation)      → parts compared, misma
 development: verifyPredictions                         → one PredictionMismatch per part
 ```
 
-### 1. `Law.check`, in `foldkit-remote-server`
+### 1. `Law.check`, in `foldkit-remote/testing`
 
 `Law.check` runs one operation through both interpreters as an application
 does, with nothing stubbed:
@@ -46,9 +46,16 @@ compared nothing**: two sides that both said nothing agree, and agreeing is
 not evidence. A test asserts the mismatches are none and names the parts it
 expects compared, so a prediction that silently stops is caught too.
 
-It lives beside `RemoteServer` because it needs both packages and the server
-already depends on the client. It is exported from the package root, not a
-new subpath.
+It takes the server as a `RemoteClient` (`Remote.clientLayer(RemoteServer.handlers(…))`),
+so it needs no server package and lives in `foldkit-remote/testing` beside
+`Trace`. Lists are compared only when the client predicted something, and a
+list holding a changed row the client could not judge (`belongsEncoded` is
+unknown) is unknown.
+
+**What it found at once:** a pending create was never placed in a list over
+the viewer (`Mine`). Pending placement reads no app Model, so it judged with
+no context. Each pending layer now keeps the viewer its operation was
+predicted for (`EntityLayer.viewer`), and the client places with it.
 
 ### 2. `PredictionMismatch`, in development
 

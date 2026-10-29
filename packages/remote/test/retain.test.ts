@@ -1,4 +1,4 @@
-import { Effect, Fiber, Schema, Stream, type Duration } from 'effect'
+import { Effect, Fiber, Option, Schema, Stream, type Duration } from 'effect'
 import { TestClock } from 'effect/testing'
 import { defineMessageUnion } from 'foldkit/message'
 import { Projection, Surface } from 'foldkit-surface'
@@ -146,6 +146,7 @@ describe('gc', () => {
           id: 'req-1',
           patches: [{ entity: 'User', id: 'u4', values: { name: 'temp' } }],
           deletes: [],
+          viewer: Option.none(),
         }),
         {
           id: 'req-2',

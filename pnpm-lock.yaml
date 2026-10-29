@@ -3621,6 +3621,12 @@ importers:
       effect:
         specifier: ^4.0.5
         version: 4.0.5
+      foldkit:
+        specifier: 0.169.0
+        version: 0.169.0(@effect/platform-browser@4.0.5(effect@4.0.5))(effect@4.0.5)
+      foldkit-surface:
+        specifier: workspace:*
+        version: link:../surface
       miniflare:
         specifier: 4.20260730.0
         version: 4.20260730.0

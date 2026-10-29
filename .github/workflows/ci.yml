@@ -120,6 +120,7 @@ jobs:
       - run: >-
           pnpm exec vitest run --project unit
           packages/remote-drizzle/test/conformance.test.ts
+          packages/remote-drizzle/test/law.test.ts
           packages/remote-drizzle/test/orderCall.test.ts
           packages/remote-drizzle/test/ledgerRace.test.ts
         env:

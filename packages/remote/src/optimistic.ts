@@ -4,7 +4,14 @@
  * patched with inverses. Settling is remove-the-layer, so overlapping layers
  * rebase for free.
  */
-import { Operators, QueryEvaluateError, Write, type MemoryOperators } from 'foldkit-entity'
+import { Option } from 'effect'
+import {
+  Operators,
+  QueryEvaluateError,
+  Write,
+  type EntityRef,
+  type MemoryOperators,
+} from 'foldkit-entity'
 import { type Connection, type Edge, edge, items } from './connection.js'
 import {
   reconcileMutation,
@@ -29,6 +36,12 @@ export interface EntityLayer {
   readonly patches: ReadonlyArray<PendingPatch>
   /** Rows it deletes. A delete wins over every layer's patch of its row, as in an answer. */
   readonly deletes: ReadonlyArray<PendingDelete>
+  /**
+   * Who the operation was predicted for (`Remote.make`'s viewer when it
+   * started): what a list body's `Expr.viewer` reads when the client places
+   * the rows this layer changes. None for a preview with no operation.
+   */
+  readonly viewer: Option.Option<EntityRef>
 }
 
 /**
@@ -113,6 +126,7 @@ export const beginOptimistic = (
   optimistic: OptimisticState,
   requestId: string,
   operations: ReadonlyArray<OptimisticOperation>,
+  viewer: Option.Option<EntityRef> = Option.none(),
 ): OptimisticState => {
   const patches: PendingPatch[] = []
   const deletes: PendingDelete[] = []
@@ -127,7 +141,7 @@ export const beginOptimistic = (
     layers:
       patches.length === 0 && deletes.length === 0
         ? optimistic.layers
-        : [...optimistic.layers, { id: requestId, patches, deletes }],
+        : [...optimistic.layers, { id: requestId, patches, deletes, viewer }],
     overlays:
       changes.length === 0
         ? optimistic.overlays

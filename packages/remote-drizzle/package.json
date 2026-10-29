@@ -56,7 +56,9 @@
     "@electric-sql/pglite": "0.5.11",
     "drizzle-orm": "1.0.0-rc.5",
     "effect": "^4.0.5",
+    "foldkit": "0.169.0",
     "foldkit-remote-server": "workspace:*",
+    "foldkit-surface": "workspace:*",
     "miniflare": "4.20260730.0",
     "tsdown": "^0.23.1",
     "typescript": "7.0.2"
