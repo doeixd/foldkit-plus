@@ -8,6 +8,7 @@
  */
 import { Schema, Match } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
 import { DismissLayer } from 'foldkit-primitives/interaction'
 
@@ -36,7 +37,9 @@ const Parent = Bundle.parent({ Model, Message })
 const assembly = Parent.assemble(
   Parent.at(Stack, {
     onOut: (_out: DismissLayer.Dismiss) => (model: Model) => ({
-      model: model.open ? { ...model, open: false, openedByPointer: false } : model,
+      model: model.open
+        ? modifyFields(model, { open: () => false, openedByPointer: () => false })
+        : model,
     }),
   }),
 )
@@ -46,17 +49,27 @@ export const initial = assembly.initial({ open: false, openedByPointer: false })
 export const update = assembly.update((model, message) => {
   return Match.valueTags(message, {
     Entered: () =>
-      model.open ? { model } : { model: { ...model, open: true, openedByPointer: true } },
+      model.open
+        ? { model }
+        : { model: modifyFields(model, { open: () => true, openedByPointer: () => true }) },
     Left: () =>
-      model.open ? { model: { ...model, open: false, openedByPointer: false } } : { model },
+      model.open
+        ? { model: modifyFields(model, { open: () => false, openedByPointer: () => false }) }
+        : { model },
     Focused: () =>
-      model.open ? { model } : { model: { ...model, open: true, openedByPointer: false } },
+      model.open
+        ? { model }
+        : { model: modifyFields(model, { open: () => true, openedByPointer: () => false }) },
     Blurred: () =>
-      model.open ? { model: { ...model, open: false, openedByPointer: false } } : { model },
+      model.open
+        ? { model: modifyFields(model, { open: () => false, openedByPointer: () => false }) }
+        : { model },
     Toggled: () => {
       if (model.openedByPointer && model.open)
-        return { model: { ...model, openedByPointer: false } }
-      return { model: { ...model, open: !model.open, openedByPointer: false } }
+        return { model: modifyFields(model, { openedByPointer: () => false }) }
+      return {
+        model: modifyFields(model, { open: () => !model.open, openedByPointer: () => false }),
+      }
     },
   })
 })

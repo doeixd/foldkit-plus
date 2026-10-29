@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file: '../src/autocomplete/app.ts',
-        find: 'query: id,\n  open: false,',
-        replace: 'query: id,\n  open: true,',
+        find: 'query: () => id,\n    open: () => false,',
+        replace: 'query: () => id,\n    open: () => true,',
       },
     ],
     tests,
@@ -22,8 +22,9 @@ export default [
     edits: [
       {
         file: '../src/autocomplete/app.ts',
-        find: 'model: model.open ? { ...model, open: false } : model,',
-        replace: 'model: model.open ? { ...model, open: false, picked: model.query } : model,',
+        find: 'model: model.open ? modifyFields(model, { open: () => false }) : model,',
+        replace:
+          'model: model.open ? modifyFields(model, { open: () => false, picked: () => Option.some(model.query) }) : model,',
       },
     ],
     tests,

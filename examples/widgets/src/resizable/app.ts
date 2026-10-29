@@ -7,6 +7,7 @@
  */
 import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
 
 /** The narrowest either panel goes, as a share. */
 export const MIN = 0.2
@@ -46,19 +47,27 @@ export const update = (model: Model, message: Message): { readonly model: Model 
     DragStarted: () =>
       Option.isSome(model.from) && model.from.value === model.first
         ? { model }
-        : { model: { ...model, from: Option.some(model.first) } },
+        : { model: modifyFields(model, { from: () => Option.some(model.first) }) },
     Dragged: message => {
       if (Option.isNone(model.from) || model.width <= 0) return { model }
       const first = clampShare(model.from.value + message.delta / model.width)
-      return first === model.first ? { model } : { model: { ...model, first } }
+      return first === model.first
+        ? { model }
+        : { model: modifyFields(model, { first: () => first }) }
     },
     DragEnded: () =>
-      Option.isNone(model.from) ? { model } : { model: { ...model, from: Option.none() } },
+      Option.isNone(model.from)
+        ? { model }
+        : { model: modifyFields(model, { from: () => Option.none() }) },
     Resized: message =>
-      message.width === model.width ? { model } : { model: { ...model, width: message.width } },
+      message.width === model.width
+        ? { model }
+        : { model: modifyFields(model, { width: () => message.width }) },
     Sized: message => {
       const first = clampShare(message.first)
-      return first === model.first ? { model } : { model: { ...model, first } }
+      return first === model.first
+        ? { model }
+        : { model: modifyFields(model, { first: () => first }) }
     },
   })
 }

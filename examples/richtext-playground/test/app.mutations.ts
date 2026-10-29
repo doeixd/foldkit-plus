@@ -67,7 +67,7 @@ export default [
     edits: [
       {
         file,
-        find: "const toggle = message._tag === 'Entered' ? closedToggleTitled(model) : undefined",
+        find: 'const toggle = closedToggleTitled(model)',
         replace: 'const toggle = undefined as RichText.NodeId | undefined',
       },
     ],
@@ -122,8 +122,8 @@ export default [
     edits: [
       {
         file,
-        find: "if (message._tag === 'ActivatedAdornment' && message.action === RETURN_TO_REFERENCE) {",
-        replace: 'if (false) {',
+        find: "Match.when({ _tag: 'ActivatedAdornment', action: RETURN_TO_REFERENCE }, ({ node }) =>",
+        replace: "Match.when({ _tag: 'ActivatedAdornment', action: 'nothing' }, ({ node }) =>",
       },
     ],
     tests,

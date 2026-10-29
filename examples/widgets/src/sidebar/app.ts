@@ -6,6 +6,7 @@
  */
 import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
 
 export const ISLAND = 'sidebar'
 
@@ -71,7 +72,9 @@ export const initial: Model = { open: Option.some('guides'), collapsed: false }
 
 export const update = (model: Model, message: Message): { readonly model: Model } => {
   return Message.match(message, {
-    ToggledSection: message => ({ model: { ...model, open: toggled(model.open, message.id) } }),
-    ToggledCollapse: () => ({ model: { ...model, collapsed: !model.collapsed } }),
+    ToggledSection: message => ({
+      model: modifyFields(model, { open: () => toggled(model.open, message.id) }),
+    }),
+    ToggledCollapse: () => ({ model: modifyFields(model, { collapsed: () => !model.collapsed }) }),
   })
 }

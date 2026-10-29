@@ -653,27 +653,32 @@ export const update = (model: Model, message: Message): Return =>
 
 const step = (model: Model, message: Message): Return =>
   Message.match<Return>(message, {
-    GotEditor: ({ message }) => {
-      if (message._tag === 'ActivatedAdornment' && message.action === RETURN_TO_REFERENCE) {
-        return backToReference(model, message.node)
-      }
-      // Enter in a closed toggle's title adds a line inside it, which a closed toggle hides;
-      // it opens first, in the same transition, so the new line is there to type on.
-      const toggle = message._tag === 'Entered' ? closedToggleTitled(model) : undefined
-      const result =
-        toggle === undefined
-          ? edit(model, message)
-          : edits(model, [
-              EditorMessage.ChangedProps({ node: toggle, props: { open: true } }),
-              message,
-            ])
-      // A caret moved elsewhere ends a discussion being started, as clicking away does.
-      return message._tag === 'Selected' &&
-        model.composing &&
-        !RichText.coversText(result.model.editor.selection)
-        ? { ...result, model: modifyFields(result.model, { composing: () => false }) }
-        : result
-    },
+    GotEditor: ({ message }) =>
+      Match.value(message).pipe(
+        Match.withReturnType<Return>(),
+        Match.when({ _tag: 'ActivatedAdornment', action: RETURN_TO_REFERENCE }, ({ node }) =>
+          backToReference(model, node),
+        ),
+        // Enter in a closed toggle's title adds a line inside it, which a closed toggle hides;
+        // it opens first, in the same transition, so the new line is there to type on.
+        Match.tag('Entered', entered => {
+          const toggle = closedToggleTitled(model)
+          return toggle === undefined
+            ? edit(model, entered)
+            : edits(model, [
+                EditorMessage.ChangedProps({ node: toggle, props: { open: true } }),
+                entered,
+              ])
+        }),
+        // A caret moved elsewhere ends a discussion being started, as clicking away does.
+        Match.tag('Selected', selected => {
+          const result = edit(model, selected)
+          return model.composing && !RichText.coversText(result.model.editor.selection)
+            ? { ...result, model: modifyFields(result.model, { composing: () => false }) }
+            : result
+        }),
+        Match.orElse(other => edit(model, other)),
+      ),
     MenuEdit: ({ message }) => edit(closed(model), message),
     HoveredBlock: ({ node }) =>
       Option.getOrUndefined(model.hovered) === node

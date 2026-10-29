@@ -6,6 +6,7 @@
  */
 import { Option, Schema, Match } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
 import { ListNavigation, Selection } from 'foldkit-primitives/interaction'
 
@@ -69,7 +70,7 @@ export const initial = assembly.initial({ query: '' })
 
 export const update = assembly.update((model, message) => {
   return Match.valueTags(message, {
-    Queried: message => ({ model: { ...model, query: message.text } }),
+    Queried: message => ({ model: modifyFields(model, { query: () => message.text }) }),
   })
 })
 

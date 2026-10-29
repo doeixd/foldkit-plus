@@ -10,6 +10,7 @@
  */
 import { Option, Schema, Match } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
 import {
   DismissLayer,
@@ -90,7 +91,7 @@ export type Message = typeof Message.Type
 const Parent = Bundle.parent({ Model, Message })
 
 const shut = (model: Model): Model =>
-  Option.isNone(model.openMenu) ? model : { ...model, openMenu: Option.none() }
+  Option.isNone(model.openMenu) ? model : modifyFields(model, { openMenu: () => Option.none() })
 
 const assembly = Parent.assemble(
   Parent.at(Roving, { args: rovingArgs }),
@@ -106,26 +107,26 @@ export const initial = assembly.initial({ openMenu: Option.none(), choice: Optio
 export const update = assembly.update((model, message) => {
   return Match.valueTags(message, {
     OpenedMenu: message => ({
-      model: {
-        ...model,
-        openMenu: isMenu(model.openMenu, message.menu) ? Option.none() : Option.some(message.menu),
-      },
+      model: modifyFields(model, {
+        openMenu: () =>
+          isMenu(model.openMenu, message.menu) ? Option.none() : Option.some(message.menu),
+      }),
     }),
     ClosedMenu: () => ({ model: shut(model) }),
     ChoseItem: message => {
       const open = model.openMenu
       if (Option.isNone(open)) return { model }
       return {
-        model: {
-          ...model,
-          openMenu: Option.none(),
-          choice: Option.some(choiceOf(open.value, message.item)),
-          menuPick: Selection.bundle.update(
-            model.menuPick,
-            Selection.Message.Activated({ id: itemElementId(open.value, message.item) }),
-            selArgs,
-          ).model,
-        },
+        model: modifyFields(model, {
+          openMenu: () => Option.none(),
+          choice: () => Option.some(choiceOf(open.value, message.item)),
+          menuPick: () =>
+            Selection.bundle.update(
+              model.menuPick,
+              Selection.Message.Activated({ id: itemElementId(open.value, message.item) }),
+              selArgs,
+            ).model,
+        }),
       }
     },
   })

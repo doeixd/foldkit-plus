@@ -11,7 +11,7 @@ export default [
     edits: [
       {
         file: '../src/hover-card/app.ts',
-        find: 'Left: () =>\n      model.open ? { model: { ...model, open: false, openedByPointer: false } } : { model },',
+        find: 'Left: () =>\n      model.open\n        ? { model: modifyFields(model, { open: () => false, openedByPointer: () => false }) }\n        : { model },',
         replace: 'Left: () => ({ model }),',
       },
     ],
@@ -33,7 +33,7 @@ export default [
     edits: [
       {
         file: '../src/hover-card/app.ts',
-        find: 'if (model.openedByPointer && model.open)\n        return { model: { ...model, openedByPointer: false } }\n',
+        find: 'if (model.openedByPointer && model.open)\n        return { model: modifyFields(model, { openedByPointer: () => false }) }\n',
         replace: '',
       },
     ],

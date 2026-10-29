@@ -5,6 +5,7 @@
  */
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
 
 export const QUOTA = 100
 
@@ -26,7 +27,7 @@ export const update = (model: Model, message: Message): { readonly model: Model 
   return Message.match(message, {
     SetUsed: message => {
       const used = clamp(message.used)
-      return used === model.used ? { model } : { model: { ...model, used } }
+      return used === model.used ? { model } : { model: modifyFields(model, { used: () => used }) }
     },
   })
 }

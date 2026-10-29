@@ -4,6 +4,7 @@
  */
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
 
 export const BOUNDS = { min: 0, max: 10, step: 1 } as const
 
@@ -25,7 +26,9 @@ export const update = (model: Model, message: Message): { readonly model: Model 
   return Message.match(message, {
     SetValue: message => {
       const value = clamp(message.value)
-      return value === model.value ? { model } : { model: { ...model, value } }
+      return value === model.value
+        ? { model }
+        : { model: modifyFields(model, { value: () => value }) }
     },
   })
 }

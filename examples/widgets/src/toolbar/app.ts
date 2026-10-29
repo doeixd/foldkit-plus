@@ -5,6 +5,7 @@
  */
 import { Option, Schema, Match } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
 import { RovingTabindex } from 'foldkit-primitives/interaction'
 
@@ -45,6 +46,8 @@ export const initial = assembly.initial({ active: Option.none() })
 
 export const update = assembly.update((model, message) => {
   return Match.valueTags(message, {
-    PressedTool: message => ({ model: { ...model, active: Option.some(message.id) } }),
+    PressedTool: message => ({
+      model: modifyFields(model, { active: () => Option.some(message.id) }),
+    }),
   })
 })

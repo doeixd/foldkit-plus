@@ -8,6 +8,7 @@
  */
 import { Option, Schema, Match } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
 import { DismissLayer, ListNavigation, Selection } from 'foldkit-primitives/interaction'
 
@@ -75,7 +76,7 @@ const assembly = Parent.assemble(
   Parent.at(Stack, {
     // Dismissing closes the popup without picking: the query stays as typed.
     onOut: (_out: DismissLayer.Dismiss) => (model: Model) => ({
-      model: model.open ? { ...model, open: false } : model,
+      model: model.open ? modifyFields(model, { open: () => false }) : model,
     }),
   }),
 )
@@ -85,19 +86,21 @@ export const textOf = (value: Option.Option<string>): string =>
 
 export const initial = assembly.initial({ query: '', open: false, picked: Option.none() })
 
-const pick = (model: Model, id: string): Model => ({
-  ...model,
-  query: id,
-  open: false,
-  picked: Option.some(id),
-  fruitPick: Selection.bundle.update(model.fruitPick, Selection.Message.Activated({ id }), selArgs)
-    .model,
-})
+const pick = (model: Model, id: string): Model =>
+  modifyFields(model, {
+    query: () => id,
+    open: () => false,
+    picked: () => Option.some(id),
+    fruitPick: () =>
+      Selection.bundle.update(model.fruitPick, Selection.Message.Activated({ id }), selArgs).model,
+  })
 
 export const update = assembly.update((model, message) => {
   return Match.valueTags(message, {
-    Queried: message => ({ model: { ...model, query: message.text, open: true } }),
-    Opened: () => (model.open ? { model } : { model: { ...model, open: true } }),
+    Queried: message => ({
+      model: modifyFields(model, { query: () => message.text, open: () => true }),
+    }),
+    Opened: () => (model.open ? { model } : { model: modifyFields(model, { open: () => true }) }),
     PickedOption: message => ({ model: pick(model, message.id) }),
   })
 })

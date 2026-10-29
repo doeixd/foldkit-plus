@@ -7,6 +7,7 @@
  */
 import { Option, Schema, Match } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
 import { DismissLayer, ListNavigation, Selection } from 'foldkit-primitives/interaction'
 import { Nav, Sel, matching, navArgs, selArgs, selectedOf, textOf } from '../command/app.js'
@@ -42,7 +43,7 @@ const assembly = Parent.assemble(
     onOut: (out: DismissLayer.Dismiss) => (model: Model) => ({
       model:
         out.ids.includes('palette-layer') && model.open
-          ? { ...model, open: false, query: '' }
+          ? modifyFields(model, { open: () => false, query: () => '' })
           : model,
     }),
   }),
@@ -50,8 +51,8 @@ const assembly = Parent.assemble(
 
 const apply = assembly.update((model, message) => {
   return Match.valueTags(message, {
-    Queried: message => ({ model: { ...model, query: message.text } }),
-    Opened: () => ({ model: { ...model, open: true } }),
+    Queried: message => ({ model: modifyFields(model, { query: () => message.text }) }),
+    Opened: () => ({ model: modifyFields(model, { open: () => true }) }),
   })
 })
 

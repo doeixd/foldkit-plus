@@ -11,9 +11,9 @@ export default [
     edits: [
       {
         file: '../src/navigation-menu/app.ts',
-        find: 'openSection: Option.none(),\n          openedByPointer: false,\n          followed:',
+        find: 'openSection: () => Option.none(),\n          openedByPointer: () => false,\n          followed:',
         replace:
-          'openSection: model.openSection,\n          openedByPointer: false,\n          followed:',
+          'openSection: () => model.openSection,\n          openedByPointer: () => false,\n          followed:',
       },
     ],
     tests,
@@ -45,7 +45,7 @@ export default [
     edits: [
       {
         file: '../src/navigation-menu/app.ts',
-        find: 'if (model.openedByPointer && isSection(model.openSection, message.section)) {\n        return { model: { ...model, openedByPointer: false } }\n      }\n',
+        find: 'if (model.openedByPointer && isSection(model.openSection, message.section)) {\n        return { model: modifyFields(model, { openedByPointer: () => false }) }\n      }\n',
         replace: '',
       },
     ],

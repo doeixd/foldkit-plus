@@ -5,6 +5,7 @@
  */
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
 
 export const Model = Schema.Struct({
   on: Schema.Boolean,
@@ -20,6 +21,6 @@ export const initial: Model = { on: false }
 
 export const update = (model: Model, message: Message): { readonly model: Model } => {
   return Message.match(message, {
-    Toggled: () => ({ model: { ...model, on: !model.on } }),
+    Toggled: () => ({ model: modifyFields(model, { on: () => !model.on }) }),
   })
 }

@@ -9,6 +9,7 @@
  */
 import { Option, Schema, Match } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
 import { DismissLayer, ListNavigation, Selection } from 'foldkit-primitives/interaction'
 
@@ -66,7 +67,7 @@ const Parent = Bundle.parent({ Model, Message })
 const close = (model: Model): Model =>
   Option.isNone(model.openFor) && Option.isNone(model.point)
     ? model
-    : { ...model, openFor: Option.none(), point: Option.none() }
+    : modifyFields(model, { openFor: () => Option.none(), point: () => Option.none() })
 
 const assembly = Parent.assemble(
   Parent.at(Nav, { args: navArgs }),
@@ -93,11 +94,11 @@ export const update = assembly.update((model, message) => {
         model.point.value.y === next.y
       )
         return { model }
-      return { model: { ...model, point: Option.some(next) } }
+      return { model: modifyFields(model, { point: () => Option.some(next) }) }
     },
     OpenedFor: message => {
       if (Option.isSome(model.openFor) && model.openFor.value === message.id) return { model }
-      return { model: { ...model, openFor: Option.some(message.id) } }
+      return { model: modifyFields(model, { openFor: () => Option.some(message.id) }) }
     },
     ChoseAction: message => {
       const open = model.openFor

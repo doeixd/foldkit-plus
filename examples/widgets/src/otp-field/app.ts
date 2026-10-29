@@ -11,6 +11,7 @@
 import { Effect, Option, Schema, Match } from 'effect'
 import { Command } from 'foldkit'
 import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
 import { RovingTabindex } from 'foldkit-primitives/interaction'
 
@@ -72,8 +73,11 @@ export const textOf = (value: Option.Option<string>): string =>
 const filled = (model: Model, cells: ReadonlyArray<string>, from: number) => {
   const target = advanceTarget(cells, from)
   return target === null
-    ? { model: { ...model, cells } }
-    : { model: { ...model, cells }, commands: [AdvanceFocus({ to: target })] }
+    ? { model: modifyFields(model, { cells: () => cells }) }
+    : {
+        model: modifyFields(model, { cells: () => cells }),
+        commands: [AdvanceFocus({ to: target })],
+      }
 }
 
 /** The entered code, once every cell holds a character. */
@@ -106,7 +110,7 @@ export const update = assembly.update((model, message) => {
       if (message.char === '') {
         return message.index < 0 || message.index >= LENGTH || model.cells[message.index] === ''
           ? { model }
-          : { model: { ...model, cells: at(model.cells, message.index, '') } }
+          : { model: modifyFields(model, { cells: () => at(model.cells, message.index, '') }) }
       }
       const char = message.char.slice(-1)
       if (message.index < 0 || message.index >= LENGTH || !/[0-9]/.test(char)) return { model }
@@ -114,7 +118,7 @@ export const update = assembly.update((model, message) => {
     },
     CellCleared: message => {
       if (message.index < 0 || message.index >= LENGTH) return { model }
-      return { model: { ...model, cells: at(model.cells, message.index, '') } }
+      return { model: modifyFields(model, { cells: () => at(model.cells, message.index, '') }) }
     },
     PastedCode: message => {
       // Digits land left to right from the focused cell; dashes, spaces,

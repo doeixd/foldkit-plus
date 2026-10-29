@@ -9,6 +9,7 @@
  */
 import { Option, Schema, Match } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
+import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
 import { DismissLayer, ListNavigation, Selection } from 'foldkit-primitives/interaction'
 
@@ -84,7 +85,7 @@ const Parent = Bundle.parent({ Model, Message })
 const shut = (model: Model): Model =>
   Option.isNone(model.openSection)
     ? model
-    : { ...model, openSection: Option.none(), openedByPointer: false }
+    : modifyFields(model, { openSection: () => Option.none(), openedByPointer: () => false })
 
 const assembly = Parent.assemble(
   Parent.at(Nav, { args: navArgs }),
@@ -106,25 +107,24 @@ export const update = assembly.update((model, message) => {
       isSection(model.openSection, message.section)
         ? { model }
         : {
-            model: {
-              ...model,
-              openSection: Option.some(message.section),
-              openedByPointer: true,
-            },
+            model: modifyFields(model, {
+              openSection: () => Option.some(message.section),
+              openedByPointer: () => true,
+            }),
           },
     LeftBar: () => ({ model: shut(model) }),
     ToggledSection: message => {
       if (model.openedByPointer && isSection(model.openSection, message.section)) {
-        return { model: { ...model, openedByPointer: false } }
+        return { model: modifyFields(model, { openedByPointer: () => false }) }
       }
       return {
-        model: {
-          ...model,
-          openedByPointer: false,
-          openSection: isSection(model.openSection, message.section)
-            ? Option.none()
-            : Option.some(message.section),
-        },
+        model: modifyFields(model, {
+          openedByPointer: () => false,
+          openSection: () =>
+            isSection(model.openSection, message.section)
+              ? Option.none()
+              : Option.some(message.section),
+        }),
       }
     },
     FollowedLink: message => {
@@ -132,17 +132,14 @@ export const update = assembly.update((model, message) => {
       if (Option.isNone(open)) return { model }
       const id = linkElementId(open.value, message.link)
       return {
-        model: {
-          ...model,
-          openSection: Option.none(),
-          openedByPointer: false,
-          followed: Option.some(followedOf(open.value, message.link)),
-          sitePick: Selection.bundle.update(
-            model.sitePick,
-            Selection.Message.Activated({ id }),
-            selArgs,
-          ).model,
-        },
+        model: modifyFields(model, {
+          openSection: () => Option.none(),
+          openedByPointer: () => false,
+          followed: () => Option.some(followedOf(open.value, message.link)),
+          sitePick: () =>
+            Selection.bundle.update(model.sitePick, Selection.Message.Activated({ id }), selArgs)
+              .model,
+        }),
       }
     },
   })

@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file: '../src/toolbar/app.ts',
-        find: 'PressedTool: message => ({ model: { ...model, active: Option.some(message.id) } }),',
-        replace: 'PressedTool: () => ({ model: { ...model, active: Option.none() } }),',
+        find: 'model: modifyFields(model, { active: () => Option.some(message.id) }),',
+        replace: 'model: modifyFields(model, { active: () => Option.none() }),',
       },
     ],
     tests,
