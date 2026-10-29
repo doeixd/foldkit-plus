@@ -41,15 +41,17 @@ export default [
     edits: [
       {
         file: '../src/server.ts',
-        find: `        yield* require([rules.row, ...rules.members, ...relations], before, principal)
+        find: `        const requires = yield* rowRule(rules.row, before, principal)
+        yield* require([...rules.members, ...relations], before, principal)
         // What the writer will store`,
         replace: `        // What the writer will store`,
       },
       {
         file: '../src/server.ts',
-        find: `        yield* require([rules.row], after, principal)`,
-        replace: `        yield* require([rules.row, ...rules.members, ...relations], before, principal)
-        yield* require([rules.row], after, principal)`,
+        find: `        const leaving = yield* rowRule(rules.row, after, principal)`,
+        replace: `        const requires = yield* rowRule(rules.row, before, principal)
+        yield* require([...rules.members, ...relations], before, principal)
+        const leaving = yield* rowRule(rules.row, after, principal)`,
       },
     ],
     tests: ['packages/guard/test/compute.test.ts'],

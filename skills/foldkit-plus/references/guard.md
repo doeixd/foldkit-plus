@@ -37,9 +37,13 @@ the application's, handed in through `G.Principal`.
   a row of (by `key`), so a rule reads who asks:
   `guard.row(Post, () => Expr.eq(Post.relations.author, Expr.viewer(User)))`.
   `Policy.viewer(principal)` is that ref: `RemoteServer.make({ viewer: Policy.viewer })`.
-- Only a row's `Read` rule may reach other rows (`Expr.path`, `Expr.exists`, a
-  path from the viewer); SQL reads them as stored. `Guards.attach` refuses such
-  a rule on a write, member, relation or `always` surface, judged over one row.
+- A row's `Read`, `Update` and `Delete` rules may reach other rows (`Expr.path`,
+  `Expr.exists`, a path from the viewer); SQL reads them as stored. Update and
+  Delete rules are judged in the write's statement (remote-drizzle's `writer`,
+  whose `requires` the guard fills; another writer throws when guarded), a write
+  changing what such a rule reads of its own row is refused, and `may` leaves
+  the interaction out. `Guards.attach` refuses such a rule on `Create`, `Write`,
+  a member, relation, named interaction or `always`, judged over one row.
 
 ## Attaching
 
@@ -82,6 +86,10 @@ const Todo = TodoFields.pipe(
   Policy.inputOf(principal), inherit, Policy.operators)` runs it over stored
   values, the row guards' primitive operators by the policy's table
   (`G.implement(bodies, { operators })`, `Operators.kernel` by default).
+  `Condition.residual(condition, values, input, operators)` decides it as far
+  as one row can, keeping the row guards that read another row (what a
+  writer's `requires` then judges); `Condition.decided` reads `Always`/`Never`
+  off it, and `Condition.reachedFrom` names what those guards read of the row.
 - `Policy.readMembers(Todo, principal, members)` gives each ruled member's
   condition and its refusal (`Omit` or `Redact`).
 - `Policy.writable(Todo, principal, 'Update' | 'Create' | 'Delete' | Archive.key)`
@@ -167,7 +175,11 @@ const Todo = TodoFields.pipe(
   (an `explain`'s sentence for a refusal, else none). A hint, never the check.
   For a row the client writes, Remote foresees it from the shared rules before
   the answer, where principal guards, the principal's fields and what the store
-  lacks cannot change it; otherwise it waits for the server.
+  lacks cannot change it; otherwise it waits for the server. A held `may` that
+  says no (row `Update`/`Delete`, a written member, a relinked relation) has
+  `Data.mutate` refuse the write where it is made, with `Forbidden`. The server
+  leaves out of `may.row` an interaction whose rule reads another row, which
+  one row cannot decide (the write's statement does), so it refuses nothing.
 - `Me`, the visitor as an Entity: `const Me = Guards.me(G, { interactions: {
   [OpenAdmin.key]: [G.isAdmin] } })` in shared code, `GuardServer.me(Me,
   Policy)` among the Sources. One row, `me` (`ME`): `signedIn`, `key`

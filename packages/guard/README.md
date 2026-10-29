@@ -132,12 +132,22 @@ What each call does, and does not:
   `Policy.viewer(principal)` is that row's ref, the server's one viewer:
   `RemoteServer.make({ viewer: Policy.viewer })`. A rule over `Expr.viewer`
   in a set without one, or over `Expr.now`, is refused where it is declared.
-- Only a row's `Read` rule may reach another row (`Expr.path`,
-  `Expr.exists`, a path from the viewer: `Expr.eq(Note.fields.orgId,
-  orgOfViewer)`). It compiles to SQL, which reads the rows it reaches as
-  stored: the rule is the server's decision, as a principal guard's body is.
-  Every other surface is judged over one row in memory, so `Guards.attach`
-  refuses such a rule there.
+- A row's `Read`, `Update` and `Delete` rules may reach another row
+  (`Expr.path`, `Expr.exists`, a path from the viewer: `Expr.eq(Note.fields.orgId,
+  orgOfViewer)`). A Read rule compiles to SQL, which reads the rows it reaches
+  as stored: the rule is the server's decision, as a principal guard's body is.
+  An Update or Delete rule is judged in the write's own statement
+  (`update … where … and <rule>`): `GuardServer.writer` judges what the row
+  alone decides in memory and hands the rest to its writer as `requires`,
+  which remote-drizzle's `writer` holds the row to, refusing with `Forbidden`
+  (and the `explain`) where it fails. So the rule reads the other row as the
+  write lands. Such a rule is judged over the row as stored, so a write that
+  would change what it reads of its own row (its fields, the relation its path
+  leaves by) is refused; `may` leaves such an interaction unanswered, since one
+  row cannot decide it; and `GuardServer.writer` over a writer without
+  `requires` throws where it is made. Every other surface (`Create`, `Write`,
+  a member, a relation, a named interaction, `always`) is judged over one row
+  in memory, so `Guards.attach` refuses such a rule there.
 - `G.implement` is the only place a body exists. A missing or extra key is a
   type error, and refused at runtime for a caller the types do not reach.
 - `Policy.decide` is an `Effect` of a `Decision`: `true`, `false`, or

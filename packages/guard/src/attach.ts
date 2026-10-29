@@ -362,9 +362,16 @@ const surfaceFrom = (slot: ReadonlyArray<AnyRule> | On<AnyRule, Deny>): Surface 
     : { rules: Object.freeze([...slot]), deny: Option.none() }
 
 /**
+ * The row surfaces a rule that reads another row may sit on: Read, compiled
+ * to SQL, and Update and Delete, judged in the write's own statement. Every
+ * other is judged over one row in memory.
+ */
+const reachingSurfaces = new Set(['Read', 'Update', 'Delete'])
+
+/**
  * Throws for a row guard over another Entity that shares the target's name,
- * and, where the surface is judged over one row in memory (any but the row's
- * Read, which compiles to SQL), for one that reads another row.
+ * and, where the surface is judged over one row in memory, for one that reads
+ * another row.
  */
 const checkRules = (
   set: string,
@@ -381,9 +388,9 @@ const checkRules = (
             `[foldkit-guard] ${set}.attach: ${where} names ${guard.name}, a guard over another Entity named ${entity.name}`,
           )
         }
-        if (where !== 'Read' && Query.dependencies(guard.query).reaches.length > 0) {
+        if (!reachingSurfaces.has(where) && Query.dependencies(guard.query).reaches.length > 0) {
           throw new Error(
-            `[foldkit-guard] ${set}.attach: ${where} names ${guard.name}, which reads another row (a path or an exists); only a row's Read rule may, which is judged in SQL`,
+            `[foldkit-guard] ${set}.attach: ${where} names ${guard.name}, which reads another row (a path or an exists); only a row's Read rule may (judged in SQL), and its Update and Delete rules (judged in the write's statement), so name those rather than Write`,
           )
         }
       },

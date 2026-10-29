@@ -37,7 +37,7 @@ export default [
   edit(
     'a rule over one row may reach another',
     '../src/attach.ts',
-    "if (where !== 'Read' && Query.dependencies(guard.query).reaches.length > 0) {",
+    'if (!reachingSurfaces.has(where) && Query.dependencies(guard.query).reaches.length > 0) {',
     'if (false) {',
   ),
   edit(

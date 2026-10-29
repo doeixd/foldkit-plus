@@ -251,8 +251,8 @@ export default [
     edits: [
       {
         file: may,
-        find: 'rules.rows.map(([interaction, { condition }]) => [interaction, holds(condition)]),',
-        replace: 'rules.rows.map(([interaction]) => [interaction, true]),',
+        find: 'row: Object.fromEntries(decided.map(({ interaction, answer }) => [interaction, answer])),',
+        replace: 'row: Object.fromEntries(decided.map(({ interaction }) => [interaction, true])),',
       },
     ],
     tests,
@@ -273,7 +273,7 @@ export default [
     edits: [
       {
         file: may,
-        find: '        holds(condition)\n          ? []',
+        find: '        answer\n          ? []',
         replace: '        false\n          ? []',
       },
     ],

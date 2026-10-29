@@ -9,6 +9,19 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **Write rules over paths, judged in the write's statement** (operations
+  phase 7). A row's `Update` and `Delete` guard rules may read another row (a
+  path, an exists, a path from the viewer). `GuardServer.writer` judges what
+  the row alone decides and hands the rest to its writer as `requires`
+  (`RowRequirement`, `WriteRequirement` in `foldkit-remote-server`; an
+  `EntityWriter` with `requires: true` holds the row to it); remote-drizzle's
+  `writer` compiles it into the UPDATE or DELETE that writes, and refuses a row
+  that fails it with `Forbidden`, so the rule reads the other row as the write
+  lands, on SQLite and Postgres. A write that would change what such a rule
+  reads of its own row is refused; the server's `may` leaves such an
+  interaction out; `GuardServer.writer` over a writer without `requires`
+  throws. `Create`, members, relations, named interactions and `always` still
+  refuse such a rule at `Guards.attach`.
 - **A write the held `may` says no to is refused where it is made**
   (operations phase 7). `Derived.make(schema, { forbids })` lets a supplied
   member say which write its value refuses (`WriteSurface`: `kind`,

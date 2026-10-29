@@ -33,6 +33,10 @@ export type Condition =
   | { readonly _tag: 'And'; readonly conditions: ReadonlyArray<Condition> }
   | { readonly _tag: 'Or'; readonly conditions: ReadonlyArray<Condition> }
 
+/** Whether a row guard reads another row: one row cannot judge it. */
+const reachesOther = (guard: RowGuard<any, AnyEntity>): boolean =>
+  Query.dependencies(guard.query).reaches.length > 0
+
 const always: Condition = Object.freeze({ _tag: 'Always' })
 const never: Condition = Object.freeze({ _tag: 'Never' })
 
@@ -98,6 +102,75 @@ export const Condition = {
         Or: ({ conditions }) => conditions.some(holds),
       })
     return holds(condition)
+  },
+
+  /**
+   * `condition` decided over one row as far as one row can: each row guard
+   * over the row alone judged (`holds`), an inherited Read refused, as a
+   * writer refuses one, and each row guard that reads another row (a path, an
+   * exists) kept for a statement to judge. `Always` or `Never` when the row
+   * alone decides it.
+   */
+  residual: (
+    condition: Condition,
+    values: Readonly<Record<string, unknown>>,
+    input: Readonly<Record<string, unknown>>,
+    operators: MemoryOperators,
+  ): Condition => {
+    const decided = (each: Condition): Condition =>
+      Match.valueTags(each, {
+        Always: () => each,
+        Never: () => each,
+        Row: row =>
+          reachesOther(row.guard)
+            ? each
+            : Condition.holds(each, values, input, () => false, operators)
+              ? always
+              : never,
+        Inherit: () => never,
+        And: ({ conditions }) => and(conditions.map(decided)),
+        Or: ({ conditions }) => or(conditions.map(decided)),
+      })
+    return decided(condition)
+  },
+
+  /** `Always` and `Never` as what one row decided; none where a statement must judge the rest. */
+  decided: (condition: Condition): Option.Option<boolean> =>
+    Match.valueTags(condition, {
+      Always: () => Option.some(true),
+      Never: () => Option.some(false),
+      Row: () => Option.none(),
+      Inherit: () => Option.none(),
+      And: () => Option.none(),
+      Or: () => Option.none(),
+    }),
+
+  /**
+   * The members of its own row that a condition's guards reading another row
+   * start from: each one's fields, and the relation each path leaves by. A
+   * write that changes one would need the guard judged over the row it
+   * leaves, which a statement over the stored row does not do.
+   */
+  reachedFrom: (condition: Condition): ReadonlyArray<string> => {
+    const read = (each: Condition): ReadonlyArray<string> =>
+      Match.valueTags(each, {
+        Always: () => [],
+        Never: () => [],
+        Row: ({ guard }) => {
+          if (!reachesOther(guard)) return []
+          const dependencies = Query.dependencies(guard.query)
+          return [
+            ...dependencies.predicate.map(field => field.key),
+            ...dependencies.reaches.flatMap(reach =>
+              reach._tag === 'Path' ? [reach.via[0]!.key] : [],
+            ),
+          ]
+        },
+        Inherit: () => [],
+        And: ({ conditions }) => conditions.flatMap(read),
+        Or: ({ conditions }) => conditions.flatMap(read),
+      })
+    return [...new Set(read(condition))]
   },
 
   /**

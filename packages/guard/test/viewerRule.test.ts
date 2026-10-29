@@ -96,9 +96,15 @@ describe('a rule over Expr.viewer', () => {
     ).toThrow('reads Expr.now')
   })
 
-  it('reaches another row only on a row’s Read, which SQL judges', () => {
-    expect(() => Related.Note.pipe(Guards.attach(G, { row: { Update: [G.inOrg] } }))).toThrow(
-      'Update names inOrg, which reads another row',
+  it('reaches another row only on a row’s Read, Update and Delete, which SQL judges', () => {
+    expect(() =>
+      Related.Note.pipe(Guards.attach(G, { row: { Update: [G.inOrg], Delete: [G.inOrg] } })),
+    ).not.toThrow()
+    expect(() => Related.Note.pipe(Guards.attach(G, { row: { Write: [G.inOrg] } }))).toThrow(
+      'Write names inOrg, which reads another row',
+    )
+    expect(() => Related.Note.pipe(Guards.attach(G, { row: { Create: [G.inOrg] } }))).toThrow(
+      'Create names inOrg, which reads another row',
     )
     expect(() =>
       Related.Note.pipe(Guards.attach(G, { members: { orgId: { Read: [G.inOrg] } } })),

@@ -27,6 +27,7 @@ import {
   RemoteInvalid,
   RemoteServer,
   RemoteServerError,
+  RowRequirement,
   type EntityRecord,
   type EntitySource,
   type EntityWriter,
@@ -36,6 +37,7 @@ import {
   type MemoryReadable,
   type ReadPlan,
   type ServerDefinition,
+  type WriteRequirement,
   type WriteWhen,
 } from 'foldkit-remote-server'
 import {
@@ -382,6 +384,59 @@ export const GuardServer = {
         `[foldkit-guard] GuardServer.writer: ${entity.name}'s writer reads no row as its writer may see it; bind it with a visible rule (GuardDrizzle.visible)`,
       )
     }
+    // A rule reading another row is judged in the statement that writes: the writer must.
+    const reaching = Option.match(attached(entity), {
+      onNone: () => [],
+      onSome: ({ row }) =>
+        (['Update', 'Delete'] as const).flatMap(interaction =>
+          (row[interaction]?.rules ?? []).flatMap(function names(rule): ReadonlyArray<string> {
+            return Match.valueTags(rule, {
+              PrincipalGuard: () => [],
+              RowGuard: guard =>
+                Query.dependencies(guard.query).reaches.length > 0 ? [guard.name] : [],
+              All: ({ rules }) => rules.flatMap(names),
+              Inherit: () => [],
+            })
+          }),
+        ),
+    })
+    if (reaching.length > 0 && writer.requires !== true) {
+      throw new Error(
+        `[foldkit-guard] GuardServer.writer: ${entity.name}'s ${reaching.join(', ')} reads another row, which only a writer judging rules in its statement can hold it to (foldkit-remote-drizzle's writer); this writer does not`,
+      )
+    }
+    /**
+     * The row rule over `values` as far as one row decides it: refused where it
+     * fails, and otherwise what the writer's statement must still judge.
+     */
+    const rowRule = (
+      rule: RowRule,
+      values: Readonly<Record<string, unknown>>,
+      principal: Option.Option<User>,
+    ): Effect.Effect<Option.Option<WriteRequirement>, RemoteForbidden> => {
+      const left = Condition.residual(
+        rule.condition,
+        values,
+        policy.inputOf(principal),
+        policy.operators,
+      )
+      return Match.valueTags(left, {
+        Always: () => Effect.succeed(Option.none()),
+        Never: () => Effect.fail(refused(rule.deny)),
+        Row: () => Effect.succeed(Option.some(required(left, rule.deny, principal))),
+        Inherit: () => Effect.succeed(Option.some(required(left, rule.deny, principal))),
+        And: () => Effect.succeed(Option.some(required(left, rule.deny, principal))),
+        Or: () => Effect.succeed(Option.some(required(left, rule.deny, principal))),
+      })
+    }
+    const required = (
+      left: Condition,
+      deny: Deny,
+      principal: Option.Option<User>,
+    ): WriteRequirement => ({
+      holds: requirementOf(left, policy.inputOf(principal)),
+      reason: explained(deny),
+    })
     const holds = (
       rule: { readonly condition: Condition },
       values: Readonly<Record<string, unknown>>,
@@ -710,8 +765,10 @@ export const GuardServer = {
         )
         const relations = linking(rules.relating, was)
         // The rules over the row as stored refuse first: a writer they refuse learns
-        // nothing of what its input would compute.
-        yield* require([rules.row, ...rules.members, ...relations], before, principal)
+        // nothing of what its input would compute. What the row alone cannot decide
+        // of its own rule is the statement's to judge, over the row it writes.
+        const requires = yield* rowRule(rules.row, before, principal)
+        yield* require([...rules.members, ...relations], before, principal)
         // What the writer will store, over the row read, which the pin keeps as the row
         // written: `Write.apply`'s, as the writer works it out.
         const after = {
@@ -720,7 +777,23 @@ export const GuardServer = {
             Object.entries(links).map(([relation, link]) => [relation, linkKey(link)]),
           ),
         }
-        yield* require([rules.row], after, principal)
+        // Over the row it leaves, a rule reading another row is the statement's too,
+        // which judges the stored row: so a write may not change what such a rule
+        // reads of its own row, the one difference between the two.
+        const leaving = yield* rowRule(rules.row, after, principal)
+        if (Option.isSome(leaving)) {
+          const read = Condition.reachedFrom(
+            Condition.residual(
+              rules.row.condition,
+              after,
+              policy.inputOf(principal),
+              policy.operators,
+            ),
+          )
+          if (read.some(key => !sameStored(before[key], after[key]))) {
+            return yield* Effect.fail(refused(rules.row.deny))
+          }
+        }
         // Each member's rule and each link's also over the row it leaves with that one
         // change undone: may it change, given all else the write does. Over the row before
         // alone, one write could set together what each change alone may not; over the
@@ -740,6 +813,7 @@ export const GuardServer = {
           ({ rule, key }) => require([rule], { ...after, [key]: before[key] }, principal),
           { discard: true },
         )
+        return requires
       })
     const guarded: EntityWriter<Option.Option<User>, R | RW> = {
       entity: writer.entity,
@@ -792,10 +866,14 @@ export const GuardServer = {
                   const current = yield* readBefore(context, rules)
                   if (Option.isNone(current)) return yield* Effect.fail(refused(rules.row.deny))
                   if (moved(context.expect, current.value)) return Option.none()
-                  yield* decideUpdate(context, rules, current.value)
+                  const requires = yield* decideUpdate(context, rules, current.value)
                   return yield* writer.update({
                     ...context,
                     expect: pin(context.expect, current.value),
+                    ...Option.match(requires, {
+                      onNone: () => ({}),
+                      onSome: held => ({ requires: held }),
+                    }),
                   })
                 }),
               ),
@@ -847,10 +925,14 @@ export const GuardServer = {
                 // Hidden or gone, the writer sees no row: there is nothing of theirs to delete.
                 if (Option.isNone(current)) return 'absent' as const
                 if (moved(context.expect, current.value)) return 'moved' as const
-                yield* require([row], current.value, context.principal)
+                const requires = yield* rowRule(row, current.value, context.principal)
                 return yield* writer.delete({
                   ...context,
                   expect: pin(context.expect, current.value),
+                  ...Option.match(requires, {
+                    onNone: () => ({}),
+                    onSome: held => ({ requires: held }),
+                  }),
                 })
               }),
           ),
@@ -1265,15 +1347,47 @@ const mayOf = <User, R>(
       return {
         // `id` too, so a row is read when its rules read none of it (an admin's).
         fields: ['id', ...new Set(mayConditions(rules).flatMap(Condition.members))],
+        // A rule reading another row is the write's statement's to judge: not answered here.
         answer: values =>
           answerOf(rules, condition =>
-            Condition.holds(condition, values, input, () => false, policy.operators),
+            Condition.decided(Condition.residual(condition, values, input, policy.operators)),
           ),
       }
     },
   )
 
 /** A refused write as the client receives it: the sentence an `explain` gave, or none. */
+/** The words a refusal gives: an `explain`'s, or none. */
+const explained = (deny: Deny): Option.Option<string> =>
+  Match.valueTags(deny, {
+    Explain: ({ reason }) => Option.some(reason),
+    Forbidden: () => Option.none(),
+    NotFound: () => Option.none(),
+    Omit: () => Option.none(),
+    Redact: () => Option.none(),
+  })
+
+/**
+ * What is left of a condition, as a writer's statement judges it: each row
+ * guard a body over the row, its input the principal's (`G.inputOf`), and its
+ * context the one it was decided for. An inherited Read, which a writer
+ * refuses, requires what no row holds.
+ */
+const requirementOf = (
+  condition: Condition,
+  input: Readonly<Record<string, unknown>>,
+): RowRequirement =>
+  Match.valueTags(condition, {
+    Always: () => RowRequirement.All({ of: [] }),
+    Never: () => RowRequirement.Any({ of: [] }),
+    Row: ({ guard, context }) => RowRequirement.Body({ query: guard.query, input, context }),
+    Inherit: () => RowRequirement.Any({ of: [] }),
+    And: ({ conditions }) =>
+      RowRequirement.All({ of: conditions.map(each => requirementOf(each, input)) }),
+    Or: ({ conditions }) =>
+      RowRequirement.Any({ of: conditions.map(each => requirementOf(each, input)) }),
+  })
+
 const refused = (deny: Deny) =>
   Match.valueTags(deny, {
     Explain: ({ reason }) => RemoteServer.forbid(reason),

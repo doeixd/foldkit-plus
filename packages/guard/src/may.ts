@@ -116,19 +116,32 @@ export const mayConditions = (rules: MayRules): ReadonlyArray<Condition> => [
   ),
 ]
 
-/** The answer over one row, each condition judged by `holds`. */
-export const answerOf = (rules: MayRules, holds: (condition: Condition) => boolean): MayAnswer => {
+/**
+ * The answer over one row, each condition decided by `decide`. A row
+ * interaction it cannot decide over one row (a rule reading another row,
+ * which the write's statement judges) is left out, and so refuses nothing.
+ */
+export const answerOf = (
+  rules: MayRules,
+  decide: (condition: Condition) => Option.Option<boolean>,
+): MayAnswer => {
+  // Member and relation rules never read another row (`Guards.attach` refuses one).
+  const holds = (condition: Condition) => Option.getOrElse(decide(condition), () => false)
   // A relation without a rule for one direction leaves it to the row's Update.
   const allows = (rule: Option.Option<RowRule>) =>
     Option.match(rule, { onNone: () => true, onSome: ({ condition }) => holds(condition) })
+  const decided = rules.rows.flatMap(([interaction, rule]) =>
+    Option.match(decide(rule.condition), {
+      onNone: () => [],
+      onSome: answer => [{ interaction, rule, answer }],
+    }),
+  )
   return {
-    row: Object.fromEntries(
-      rules.rows.map(([interaction, { condition }]) => [interaction, holds(condition)]),
-    ),
+    row: Object.fromEntries(decided.map(({ interaction, answer }) => [interaction, answer])),
     // Only an `explain`'s sentence is for whoever asked.
     reasons: Object.fromEntries(
-      rules.rows.flatMap(([interaction, { condition, deny }]) =>
-        holds(condition)
+      decided.flatMap(({ interaction, rule: { deny }, answer }) =>
+        answer
           ? []
           : Match.valueTags(deny, {
               Explain: ({ reason }) => [[interaction, reason] as const],
@@ -171,7 +184,7 @@ const predict: Predict = ({ entity, row, rows, context }) => {
         relation: (relation, interaction) => decide(interaction).relation(entity, relation),
       }),
     )
-    return answerOf(rules, condition => Condition.judge(condition, row, rows, assumed))
+    return answerOf(rules, condition => Option.some(Condition.judge(condition, row, rows, assumed)))
   }
   const held = answerAssuming(true)
   return sameMay(held, answerAssuming(false)) ? Option.some(held) : Option.none()

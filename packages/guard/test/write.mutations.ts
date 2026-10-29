@@ -11,8 +11,8 @@ export default [
     edits: [
       {
         file,
-        find: 'yield* require([rules.row, ...rules.members, ...relations], before, principal)',
-        replace: 'yield* require([...rules.members, ...relations], before, principal)',
+        find: 'const requires = yield* rowRule(rules.row, before, principal)',
+        replace: 'const requires: Option.Option<WriteRequirement> = Option.none()',
       },
     ],
     tests,
@@ -22,8 +22,8 @@ export default [
     edits: [
       {
         file,
-        find: 'yield* require([rules.row], after, principal)',
-        replace: '',
+        find: 'const leaving = yield* rowRule(rules.row, after, principal)',
+        replace: 'const leaving: Option.Option<WriteRequirement> = Option.none()',
       },
     ],
     tests,
@@ -101,7 +101,13 @@ export default [
   },
   {
     name: 'a delete is not checked',
-    edits: [{ file, find: 'yield* require([row], current.value, context.principal)', replace: '' }],
+    edits: [
+      {
+        file,
+        find: 'const requires = yield* rowRule(row, current.value, context.principal)',
+        replace: 'const requires: Option.Option<WriteRequirement> = Option.none()',
+      },
+    ],
     tests,
   },
   {
