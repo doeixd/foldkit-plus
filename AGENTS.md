@@ -1591,6 +1591,12 @@ of its own named a form field "fits the Catalog". Read words with
   callback, so a batch that added `data-closed` beside `data-leave` and then
   moved on recorded only `leave`, and CI failed it now and then. Observe with
   `attributeOldValue` and replay the records (`packages/mixins-ui/test/observe.ts`).
+- **A prediction checked only while pending says nothing about after.**
+  `Law.check` compared every predicted count with the server's while the
+  write was pending, and agreed; once the answer released the layer, a count
+  no active Surface read went back to its old value (#265), because the
+  answer read only what the page showed. Compare the Model after the answer
+  too, and check a test domain from a page that shows none of what it moves.
 - **A wait is only tested where something re-evaluates it.** The Agent + Sync
   test asserted "still pending before the exchange" and passed with the
   committed view reading the optimistic value: nothing notified between persist

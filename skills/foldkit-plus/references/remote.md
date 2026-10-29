@@ -250,7 +250,8 @@ case 'SignedOut': {
   values are wire-shaped: a relation is its ref key, typed `RefKey<'User'>`
   (`` `User:${string}` ``), so a ref to the wrong entity is a type error.
 - An answer carries what the page shows of each row it names: `Data.mutate`
-  sends what the active Surfaces read of each entity (`shown`), and the server
+  sends what the active Surfaces read of each entity and every field its own
+  layer shows (`shown`: a count moved on a page left behind), and the server
   reads those fields after the write, as any read, beside the answer (`read`),
   written in the reduction that releases the layer. No option: a declared
   insert lands with the derived counts, `may` and relations the list reads. A
@@ -727,7 +728,8 @@ take Remote's Messages; a `Remote.fold` domain is not supported yet.
 **Testing that a prediction is the truth.** `Law.check` (`foldkit-remote/testing`)
 runs one write through `Data.mutate` and through the server, with the same
 principal and `now`, and compares every part the client predicted (fields,
-whether a row is there, list order) with what the server then holds:
+whether a row is there, list order) with what the server then holds, while
+pending and again once the answer has landed (each disagreement's `when`):
 
 ```ts
 const report = await Effect.runPromise(

@@ -4,18 +4,37 @@
  * knows which rows a write changed, the client what it reads of a row of
  * each kind.
  */
+import type { PendingPatch } from './mutation.js'
+import type { OptimisticOperation } from './optimistic.js'
 import { Requirement, type ConnectionRequirement, type RelationRequirement } from './requirement.js'
+
+/** A patch is the one optimistic operation with no tag. */
+export const isPatch = (operation: OptimisticOperation): operation is PendingPatch =>
+  !('_tag' in operation)
+
+/** Every field a pending patch shows: those it sets, adds to, and computes. */
+export const patchedFields = (patch: PendingPatch): ReadonlyArray<string> => [
+  ...Object.keys(patch.values),
+  ...Object.keys(patch.adds ?? {}),
+  ...Object.keys(patch.computes ?? {}),
+]
 
 /**
  * The union, per entity, of every slice the reads ask: each requirement's,
  * each connection's item `select`, and every relation's target slice under
  * its own entity too, so a row the answer names is read the way any read
- * reaches it.
+ * reaches it. Every field the write's own patches show is added: the
+ * prediction is released when the answer lands, so a field it moved that no
+ * Surface reads now (a count on a page left behind) would otherwise read the
+ * value from before the write (#265).
  */
-export const shownOf = (asked: {
-  readonly requirements: ReadonlyArray<Requirement>
-  readonly connections: ReadonlyArray<ConnectionRequirement>
-}): ReadonlyArray<RelationRequirement> => {
+export const shownOf = (
+  asked: {
+    readonly requirements: ReadonlyArray<Requirement>
+    readonly connections: ReadonlyArray<ConnectionRequirement>
+  },
+  predicted: ReadonlyArray<OptimisticOperation>,
+): ReadonlyArray<RelationRequirement> => {
   const byEntity = new Map<string, RelationRequirement>()
   const add = (slice: RelationRequirement): void => {
     // A merge keeps a slice's own keys only, so a requirement's `id` and `live` stay behind.
@@ -25,5 +44,7 @@ export const shownOf = (asked: {
   }
   for (const requirement of asked.requirements) add(requirement)
   for (const connection of asked.connections) add(connection.select)
+  for (const patch of predicted.filter(isPatch))
+    add({ entity: patch.entity, fields: [...patchedFields(patch)] })
   return [...byEntity.values()]
 }

@@ -37,7 +37,11 @@ export default [
   {
     name: 'Data.mutate sends nothing shown',
     edits: [
-      { file: index, find: '                      shown: shownAt(startedModel),\n', replace: '' },
+      {
+        file: index,
+        find: '                      shown: shownAt(startedModel, optimistic ?? []),\n',
+        replace: '',
+      },
     ],
     tests,
   },

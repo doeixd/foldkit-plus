@@ -678,7 +678,7 @@ what the server said:
   the mutation is not a durable queue, and if losing it is data loss the edit
   belongs to [`foldkit-sync`](../sync).
 - **It succeeded, but the answer did not name the row.** The answer carries
-  what the active Surfaces show of each row it names
+  what the active Surfaces and the request's layer show of each row it names
   ([What an answer carries](#what-an-answer-carries)); a row it changed
   without naming (a post's count, after a like) keeps the old value until a
   read writes the new one. Name the row in the answer.
@@ -693,8 +693,8 @@ The answer left out fields the row showed while the request was pending. Once
 the layer comes off, the store lacks them, so the read entry fetches them:
 until they arrive, a list leaves the row out (and reads `Refreshing`), and a
 read of that entity alone reads `Loading`. An answer carries what the active
-Surfaces read of every row it names, so this is a row the answer did not
-name, a field the optimistic patch wrote that no Surface reads, or a server
+Surfaces read and the layer showed of every row it names, so this is a row
+the answer did not name, a field the server's read left out, or a server
 that answers without the read (one older than the client, or whose read
 failed). `Remote.make({ verifyPredictions: true })` names each one: see
 [Checking an answer against what was shown](#checking-an-answer-against-what-was-shown).
@@ -1772,14 +1772,18 @@ When the answer comes, the request's layer comes off, so the answer must hold
 everything the layer showed. The client says what that is: `Data.mutate` sends,
 with the request, what every active Surface reads of each entity (each
 `Data.get`'s fields and each `Data.query`'s `select`, relation targets
-included). The server reads, of each row its answer names, the fields it
+included), and every field the layer itself shows. The second matters when
+a write moves a count no Surface reads now: a note deleted on its own page
+lowers its author's `noteCount`, which only the notebook page reads, and
+without it the answer would leave the count as it was before the write. The
+server reads, of each row its answer names, the fields it
 shows that the answer left out, after the write and as any read is, and sends
 that read with the answer (`foldkit-remote-server`'s
 [What an answer carries](../remote-server/README.md#what-an-answer-carries)).
 The client writes it in the reduction that releases the layer:
 
 ```text
-answer (rows the write names) + read (what the Surfaces show of them) -> store, layer released
+answer (rows the write names) + read (what the Surfaces and the layer show of them) -> store, layer released
 ```
 
 So a created post lands with the count, the `may` and the author's name the
@@ -2462,8 +2466,10 @@ expect(Trace.tags(trace, list)).toEqual(['Ready', 'Refreshing', 'Ready'])
 A declared write is interpreted twice: by `Data.mutate`, in memory, over what
 the client holds (what it shows while the write is pending), and by the
 server, in SQL (what it stores). The law between them: **where the client
-predicts a part, the server's answer equals it**. `Law.check` runs one
-operation through both, as an application does, and compares:
+predicts a part, the server's answer equals it**, while the write is pending
+and again once its answer has landed and the prediction is released.
+`Law.check` runs one operation through both, as an application does, and
+compares:
 
 ```ts
 import { Law } from 'foldkit-remote/testing'
@@ -2488,7 +2494,12 @@ expect(report.agreed).toEqual(expect.arrayContaining(['Card:c9.createdAt', ByRan
   its principal sees them and reduced into the Model, so the client holds what
   the server would send it; the lists are queried and merged; `Data.mutate`
   predicts; its own Command sends the write. Each row the request's layer
-  changed is read back, every list queried again.
+  changed is read back, every list queried again, and compared twice: with
+  the Model as it showed the write (`when: 'pending'`) and with the Model
+  once the answer is reduced into it (`when: 'answered'`). A part is agreed
+  only when both agree. A field the answer left out, which the client would
+  read again, is not compared once answered; a list the answer left stale is
+  fetched again, and is not either.
 - **A part is `Entity:id.field`, `Entity:id`** (whether the row is there) **or
   a list's identity.** What the client left to the server (a field it could not
   work out, a list with a row it could not judge) is in `unknown`, and is not

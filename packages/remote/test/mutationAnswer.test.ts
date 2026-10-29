@@ -95,25 +95,32 @@ const sent = async (active: boolean) => {
 describe('shownOf', () => {
   it('unions, per entity, what every read asks, relation targets included', () => {
     expect(
-      shownOf({
-        requirements: [
-          { entity: 'Post', id: 'p1', fields: ['title'], live: true },
-          {
-            entity: 'Post',
-            id: 'p2',
-            fields: ['body', 'author'],
-            relations: { author: { entity: 'User', fields: ['name'] } },
-          },
-        ],
-        connections: [
-          {
-            identity: 'Feed',
-            window: { first: 25 },
-            select: { entity: 'Post', fields: ['likes'], windows: { likes: { first: 3 } } },
-          },
-          { identity: 'Users', window: { first: 25 }, select: { entity: 'User', fields: ['id'] } },
-        ],
-      }),
+      shownOf(
+        {
+          requirements: [
+            { entity: 'Post', id: 'p1', fields: ['title'], live: true },
+            {
+              entity: 'Post',
+              id: 'p2',
+              fields: ['body', 'author'],
+              relations: { author: { entity: 'User', fields: ['name'] } },
+            },
+          ],
+          connections: [
+            {
+              identity: 'Feed',
+              window: { first: 25 },
+              select: { entity: 'Post', fields: ['likes'], windows: { likes: { first: 3 } } },
+            },
+            {
+              identity: 'Users',
+              window: { first: 25 },
+              select: { entity: 'User', fields: ['id'] },
+            },
+          ],
+        },
+        [],
+      ),
     ).toEqual([
       {
         entity: 'Post',
@@ -122,6 +129,34 @@ describe('shownOf', () => {
         relations: { author: { entity: 'User', fields: ['name'] } },
       },
       { entity: 'User', fields: ['name', 'id'] },
+    ])
+  })
+
+  it('adds every field the write’s own patches show, and nothing for a delete or a list change', () => {
+    expect(
+      shownOf(
+        { requirements: [{ entity: 'Post', id: 'p1', fields: ['title'] }], connections: [] },
+        [
+          { entity: 'Post', id: 'p1', values: { body: 'b' } },
+          { entity: 'User', id: 'u1', values: {}, adds: { postCount: -1 }, computes: {} },
+          {
+            entity: 'Tag',
+            id: 't1',
+            values: {},
+            computes: { label: { _tag: 'Value', value: 'x' } },
+          },
+          { _tag: 'Delete', entity: 'Post', id: 'p2' },
+          {
+            _tag: 'Remove',
+            connection: 'Feed',
+            edge: { key: 'k', ref: { entity: 'Card', id: 'c1' } },
+          },
+        ],
+      ),
+    ).toEqual([
+      { entity: 'Post', fields: ['title', 'body'] },
+      { entity: 'User', fields: ['postCount'] },
+      { entity: 'Tag', fields: ['label'] },
     ])
   })
 })

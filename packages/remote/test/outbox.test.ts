@@ -80,6 +80,8 @@ const server = (script: ReadonlyArray<Answer> = []) => {
     readonly input: unknown
     readonly now: number | undefined
   }> = []
+  /** What each send says the page shows. */
+  const shown: Array<unknown> = []
   const client: RemoteClient['Service'] = {
     read: () => Effect.succeed({ settled: [], entities: [] }),
     query: () => Effect.succeed({ edges: [], start: terminal, end: terminal }),
@@ -90,6 +92,7 @@ const server = (script: ReadonlyArray<Answer> = []) => {
         input: request.input,
         now: request.now,
       })
+      shown.push(request.shown)
       const answer = answers.shift() ?? 'applied'
       if (answer === 'unanswered') return Effect.never
       if (answer === 'unreachable')
@@ -109,7 +112,7 @@ const server = (script: ReadonlyArray<Answer> = []) => {
     },
     live: () => Stream.empty,
   }
-  return { sent, client }
+  return { sent, shown, client }
 }
 
 const memory = () =>
@@ -231,6 +234,8 @@ describe('a durable write', () => {
         now: 1234,
       },
     ])
+    // What its layer showed, though no Surface reads it, for the answer to read back (#265).
+    expect(tab.shown).toEqual([[{ entity: 'Item', fields: ['count'] }]])
     expect(count(settled, 'i1')).toBe(2)
     expect(Data.mutation(settled, started.requestId)).toEqual({ _tag: 'Applied' })
     expect(Data.outboxStatus(settled)).toEqual({ waiting: 0, failed: 0, items: [] })

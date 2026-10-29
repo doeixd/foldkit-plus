@@ -5,6 +5,7 @@
 const tests = ['packages/remote/test/verifyAnswers.test.ts']
 const index = '../src/index.ts'
 const gaps = '../src/answerGaps.ts'
+const shown = '../src/shown.ts'
 
 export default [
   {
@@ -42,12 +43,12 @@ export default [
   },
   {
     name: 'a patched field is not shown',
-    edits: [{ file: gaps, find: '        ...Object.keys(patch.values),', replace: '' }],
+    edits: [{ file: shown, find: '  ...Object.keys(patch.values),', replace: '' }],
     tests,
   },
   {
     name: 'a field moved by an amount is not shown',
-    edits: [{ file: gaps, find: '        ...Object.keys(patch.adds ?? {}),', replace: '' }],
+    edits: [{ file: shown, find: '  ...Object.keys(patch.adds ?? {}),', replace: '' }],
     tests,
   },
   {

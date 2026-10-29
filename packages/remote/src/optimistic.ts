@@ -21,6 +21,7 @@ import {
   type PendingDelete,
   type PendingPatch,
 } from './mutation.js'
+import { isPatch } from './shown.js'
 import {
   entityKey,
   isTombstone,
@@ -132,7 +133,7 @@ export const beginOptimistic = (
   const deletes: PendingDelete[] = []
   const changes: ConnectionChange[] = []
   for (const operation of operations) {
-    if (!('_tag' in operation)) patches.push(operation)
+    if (isPatch(operation)) patches.push(operation)
     else if (operation._tag === 'Delete') deletes.push(operation)
     else changes.push(operation)
   }

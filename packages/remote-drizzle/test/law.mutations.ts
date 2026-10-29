@@ -60,8 +60,8 @@ export default [
   edit(
     'a check that compared nothing reports agreement',
     '../../remote/src/law.ts',
-    'return agreed.length === 0 && disagreed.length === 0',
-    'return false',
+    'if (agreed.length === 0 && disagreed.length === 0) return nothingCompared',
+    'if (false) return nothingCompared',
   ),
   edit(
     'a list the client foresaw nothing in is compared',

@@ -8,6 +8,7 @@
 import type { Option } from 'effect'
 import { PredictionPart, predictionMismatch, type PredictionMismatch } from './diagnostics.js'
 import type { OptimisticState } from './optimistic.js'
+import { patchedFields } from './shown.js'
 import type { Requirement } from './requirement.js'
 import { entityKey, type EntityStore } from './store.js'
 
@@ -40,12 +41,7 @@ export const answerGaps = (
   }
   for (const layer of before.layers) {
     if (layer.id !== requestId) continue
-    for (const patch of layer.patches)
-      show(patch.entity, patch.id, [
-        ...Object.keys(patch.values),
-        ...Object.keys(patch.adds ?? {}),
-        ...Object.keys(patch.computes ?? {}),
-      ])
+    for (const patch of layer.patches) show(patch.entity, patch.id, patchedFields(patch))
   }
   const confirmed = `confirmed:${requestId}`
   for (const overlay of [...before.overlays, ...after.overlays]) {

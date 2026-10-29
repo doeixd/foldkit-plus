@@ -133,9 +133,9 @@ test('signing up, writing, editing and deleting notes, live across members', asy
   expect(graceErrors()).toEqual([])
 })
 
-// #265: the count is predicted one lower while the delete is held, and reads
-// one too high once it is answered. Red once that is fixed: make it a `test`.
-test.fails('a deleted note leaves its author’s count', async () => {
+// #265: pressed on the note's own page, where no Surface reads the count, so
+// only the write's own prediction tells the answer to read it back.
+test('a deleted note leaves its author’s count', async () => {
   const page = await browser.newPage()
   await signUp(page, 'Barbara')
   await page.getByLabel('Title').fill('Liskov substitution')

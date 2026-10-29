@@ -103,6 +103,8 @@ describe('Data.mutate of a write', () => {
         mutation: 'EditProject',
         input: edit,
         keys: ['name'],
+        // What its own patch shows, though no Surface reads it (#265).
+        shown: [{ entity: 'Project', fields: ['name'] }],
       },
     ])
   })

@@ -17,7 +17,7 @@ import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Clock, Effect, Layer, Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Collation, Derived, Entity, Expr, Order, Relation, Write } from 'foldkit-entity'
-import { Mutation, Query, Remote } from 'foldkit-remote'
+import { Mutation, Query, Remote, RemoteClient } from 'foldkit-remote'
 import { Law } from 'foldkit-remote/testing'
 import { RemoteServer } from 'foldkit-remote-server'
 import { Surface } from 'foldkit-surface'
@@ -438,7 +438,15 @@ const cases: ReadonlyArray<LawCase> = [
 ]
 
 /** One case, as u1. */
-const checked = (Db: Bound, layer: Layer.Layer<DrizzleDatabase>, c: LawCase) =>
+/** What the server's answer to a write holds. */
+type Answer = Effect.Success<ReturnType<RemoteClient['Service']['mutate']>>
+
+const checked = (
+  Db: Bound,
+  layer: Layer.Layer<DrizzleDatabase>,
+  c: LawCase,
+  answered: (answer: Answer) => Answer = answer => answer,
+) =>
   Effect.runPromise(
     Law.check(Data, {
       model: { remote: Remote.initial, me: 'u1' },
@@ -449,7 +457,19 @@ const checked = (Db: Bound, layer: Layer.Layer<DrizzleDatabase>, c: LawCase) =>
       now: NOW,
     }).pipe(
       Effect.provide(
-        Remote.clientLayer(RemoteServer.handlers(serverOf(Db), 'u1')).pipe(Layer.provide(layer)),
+        Layer.effect(
+          RemoteClient,
+          Effect.map(RemoteClient, client => ({
+            ...client,
+            mutate: request => Effect.map(client.mutate(request), answered),
+          })),
+        ).pipe(
+          Layer.provide(
+            Remote.clientLayer(RemoteServer.handlers(serverOf(Db), 'u1')).pipe(
+              Layer.provide(layer),
+            ),
+          ),
+        ),
       ),
       Effect.provideService(Clock.Clock, stoppedAt(NOW)),
     ),
@@ -541,6 +561,66 @@ describe('the law, on SQLite', () => {
       }
     },
   )
+
+  // The prediction is released when the answer lands, so what the client
+  // holds then must be the server's too (#265). Each answer here leaves out
+  // what a correct one carries, and is caught only after it lands.
+  it.each([
+    {
+      what: 'a delete answered without reading its author back keeps the old count',
+      mutation: DropCard,
+      input: { id: 'c3' },
+      answer: ({ read: _, ...rest }: Answer): Answer => rest,
+      parts: ['User:u1.cardCount'],
+    },
+    {
+      what: 'a delete answered without naming the row it deleted shows the row again',
+      mutation: DropCard,
+      input: { id: 'c3' },
+      answer: (answer: Answer): Answer => ({ ...answer, deleted: [] }),
+      parts: ['Card:c3'],
+    },
+    {
+      what: 'an edit answered without its row puts the row and its lists back',
+      mutation: EditCard,
+      input: { id: 'c1', title: 'omega', rank: 9 },
+      answer: (answer: Answer): Answer => ({ ...answer, entities: [] }),
+      parts: ['Card:c1.title', 'Card:c1.rank', 'Card:c1.editedAt', byRank!, byTitle!],
+    },
+  ])('$what: caught once answered', async ({ what, mutation, input, answer, parts }) => {
+    const { layer, close } = await freshSqlite()
+    try {
+      const report = await checked(sqliteDb, layer, { what, mutation, input, compares: [] }, answer)
+      expect(report.disagreed.map(each => [each.part, each.when])).toEqual(
+        expect.arrayContaining(parts.map(part => [part, 'answered'])),
+      )
+      expect(report.disagreed.every(each => each.when === 'answered')).toBe(true)
+      expect(report.agreed).not.toEqual(expect.arrayContaining(parts.slice(0, 1)))
+    } finally {
+      await close()
+    }
+  })
+
+  it('a new row answered without its values is read again, which is not a disagreement', async () => {
+    const { layer, close } = await freshSqlite()
+    try {
+      const report = await checked(
+        sqliteDb,
+        layer,
+        {
+          what: 'unanswered',
+          mutation: AddCard,
+          input: { id: 'c9', title: 'delta', rank: 3, votes: 0 },
+          compares: [],
+        },
+        answer => ({ ...answer, entities: [] }),
+      )
+      expect(report.disagreed).toEqual([])
+      expect(report.agreed).toEqual(expect.arrayContaining(['Card:c9.title']))
+    } finally {
+      await close()
+    }
+  })
 })
 
 /** Runs the statements on a Postgres through any Drizzle database. */

@@ -228,7 +228,7 @@ import {
   type PredictionMismatch,
 } from './diagnostics.js'
 import { reduceReporting } from './reporting.js'
-import { shownOf } from './shown.js'
+import { patchedFields, shownOf } from './shown.js'
 
 import { http as httpClient, json as jsonClient } from './json.js'
 import { httpWithLive as httpWithLiveClient } from './sse.js'
@@ -3403,11 +3403,7 @@ const bindDomain = <
     const stillPatched = new Set(
       after.optimistic.layers.flatMap(each =>
         each.patches.flatMap(patch =>
-          [
-            ...Object.keys(patch.values),
-            ...Object.keys(patch.adds ?? {}),
-            ...Object.keys(patch.computes ?? {}),
-          ].map(field => `${entityKey(patch.entity, patch.id)}.${field}`),
+          patchedFields(patch).map(field => `${entityKey(patch.entity, patch.id)}.${field}`),
         ),
       ),
     )
@@ -3416,11 +3412,7 @@ const bindDomain = <
       const values = answered.get(key)
       const entry = shown[key]
       if (values === undefined || entry === undefined || entry.tombstone) return []
-      return [
-        ...Object.keys(patch.values),
-        ...Object.keys(patch.adds ?? {}),
-        ...Object.keys(patch.computes ?? {}),
-      ].flatMap(field =>
+      return patchedFields(patch).flatMap(field =>
         stillPatched.has(`${key}.${field}`) ||
         !entry.present.has(field) ||
         !Object.hasOwn(values, field) ||
@@ -3746,14 +3738,21 @@ const bindDomain = <
     ])
   }
   const assertOwned = (entry: ActiveEntry<AppModel>) => assertOwnedBy(bound.contract, entry)
-  /** What the reader is shown of each entity in `model`, for a write's answer to carry (#245). */
-  const shownAt = (model: AppModel): ReadonlyArray<RelationRequirement> =>
+  /**
+   * What the reader is shown of each entity in `model`, and what the write
+   * itself shows (`predicted`), for its answer to carry (#245, #265).
+   */
+  const shownAt = (
+    model: AppModel,
+    predicted: ReadonlyArray<OptimisticOperation>,
+  ): ReadonlyArray<RelationRequirement> =>
     shownOf(
       askedUnion(
         [...readers.values()].flatMap(resolvedAt =>
           resolvedAt(model).map(({ projection }) => projection),
         ),
       ),
+      predicted,
     )
   /**
    * A durable write's request id, which is its operation id: this page's
@@ -4434,7 +4433,7 @@ const bindDomain = <
                 // Encoded here, so an input its Mutation cannot encode throws at the call.
                 durable: {
                   input: Schema.encodeUnknownSync(mutation.Input)(input),
-                  shown: shownAt(model),
+                  shown: shownAt(model, optimistic ?? []),
                 },
               }
             : {}),
@@ -4465,7 +4464,7 @@ const bindDomain = <
                   : mutateRemote(mutation, input, requestId, {
                       keys: options.keys,
                       operation,
-                      shown: shownAt(startedModel),
+                      shown: shownAt(startedModel, optimistic ?? []),
                       now: options.now,
                     }).pipe(
                       Effect.matchEffect({

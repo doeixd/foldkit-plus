@@ -400,6 +400,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`Law.check` holds the client to the server once the answer lands too**
+  (#265). Each predicted part is compared with the Model as it showed the
+  write and with the Model after the answer is reduced into it, and agrees
+  only when both do. **Breaking:** `LawPart` has `when: 'pending' |
+  'answered'`.
 - **`GuardServer.writer` no longer hands on its writer's `linked`.** It read
   links as stored, whatever the asker may see; nothing read it from a guarded
   writer, whose answer names rows through its guarded `read`, and a caller
@@ -541,6 +546,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A write's answer reads back what its own prediction moved** (#265). A
+  count predicted on a row no active Surface reads (a note deleted on its own
+  page lowering its author's `noteCount`, which only the notebook reads) went
+  back to its old value once the answer released the prediction: the answer
+  read only what the active Surfaces showed. `Data.mutate` now adds every
+  field its layer shows to the request's `shown`, durable writes included, so
+  the server reads it back from each row the answer names.
 - **`Surface.read` without the params a Surface declares is a type error**
   (#268). It took `params?`, so the read compiled and threw a `TypeError`
   from inside the Surface's `model` at render. `Surface.read`,
