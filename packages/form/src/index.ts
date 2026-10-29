@@ -66,6 +66,7 @@ export {
   type NestedForm,
   type RelationData,
 } from './input.js'
+import { own } from './record.js'
 
 /** The draft a key holds, as far as the input's type says: a flag, a list of ids, or text. */
 export type DraftOf<Value> = [Exclude<Value, null | undefined>] extends [boolean]
@@ -857,7 +858,7 @@ const Core = {
           key,
           input.schema.fields[key] as Schema.Top,
           members[key]!,
-          overrides[key],
+          own(overrides, key),
           (options.messages ?? {}) as FormMessages,
         ),
       ]),
@@ -866,7 +867,7 @@ const Core = {
     // The keys whose control is backed by a Bundle: each holds that Bundle's Model.
     const controlKeys = keys.filter(key => plans[key].bundled !== undefined)
     for (const key of controlKeys)
-      if (options.checks !== undefined && key in options.checks)
+      if (options.checks !== undefined && Object.hasOwn(options.checks, key))
         fail(
           name,
           `"${key}" is edited by a control backed by a Bundle, which takes no check; say what is valid in its schema`,
@@ -882,7 +883,7 @@ const Core = {
           key,
           input.schema.fields[key] as Schema.Top,
           members[key] as Extract<InputMember, { readonly _tag: 'NestedInput' }>,
-          givenForms[key],
+          own(givenForms, key),
           // A nested form made here takes this form's words and pace.
           { messages: options.messages, debounce: options.debounce, operators: options.operators },
         ),
@@ -1226,7 +1227,7 @@ const Core = {
       ) {
         return { model, commands: [] }
       }
-      const check = checks[key]
+      const check = own(checks, key)
       if (check === undefined || state._tag !== 'Valid') {
         return { model: withField(model, key, state), commands: [] }
       }
@@ -1517,7 +1518,7 @@ const Core = {
         // because its title did. One given nothing follows again.
         touched: Object.fromEntries(
           followers.flatMap(key =>
-            key in given
+            Object.hasOwn(given, key)
               ? isEmpty(shown(plans[key], given[key]))
                 ? []
                 : [[key, true] as const]
@@ -1532,7 +1533,7 @@ const Core = {
         marks: {},
         submitPending: false,
         fields: fieldsFrom(plan =>
-          plan.key in given
+          Object.hasOwn(given, plan.key)
             ? FieldValidation.NotValidated({
                 value:
                   plan.bundled !== undefined
@@ -1547,7 +1548,7 @@ const Core = {
       }
       return {
         model: rowsKeys.reduce<Model>((next, key) => {
-          if (!(key in given)) return next
+          if (!Object.hasOwn(given, key)) return next
           const { form, optional } = nestedPlans[key]
           const held = given[key]
           const shown = Array.isArray(held)

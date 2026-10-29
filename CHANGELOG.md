@@ -760,6 +760,12 @@ carries `drawn`.
 
 ### Fixed
 
+- **A form key named `constructor`, `toString` or `__proto__` is given
+  only what the application gave it**. `Form.make` read its control, its
+  nested form and its check through the prototype, so such a key without
+  one got `Object`'s member: a plain key failed to build, or asked a check
+  that did not exist. `fill` likewise treated the key as given when the
+  value left it out. Each now reads the record's own keys alone.
 - **`Virtual` keeps the height of a row keyed `__proto__`**. Restored
   `initialHeights` and a `Prune` built the heights by assignment, which for
   that key set the record's prototype and dropped the measurement, so the
