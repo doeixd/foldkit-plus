@@ -760,6 +760,14 @@ carries `drawn`.
 
 ### Fixed
 
+- **A row only a pending request holds is read once the request is
+  answered.** Remote asked the server for a field a pending create's
+  prediction lacked (the reference notebook's `may`); the server had no such
+  row, and the create's answer, which carries no `may`, left the read's plan
+  as it was, so the read entry never restarted: a note opened before its add
+  was answered never drew Delete. A plan now leaves out a row the store has
+  never read, or read as absent, while only a pending layer shows it, and
+  asks for its missing fields once the answer lands.
 - **`revisionTrigger` names each table's trigger apart** (#328). It named
   one `<table>_<column>_moves`, which `a_b`'s `c` and `a`'s `b_c` share: on
   SQLite the second migration's `create trigger if not exists` installed
