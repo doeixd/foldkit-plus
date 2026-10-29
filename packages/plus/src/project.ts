@@ -8,7 +8,7 @@ import { homedir } from 'node:os'
 import { dirname, join, relative, sep } from 'node:path'
 
 import { declarationsIn, type Declaration, type Doc } from './docs.js'
-import type { Manager, Project } from './setup.js'
+import type { Manager, PnpmSettings, Project } from './setup.js'
 
 const Versions = Schema.Record(Schema.String, Schema.String)
 const Manifest = Schema.Struct({
@@ -37,6 +37,26 @@ const projectFolders = (folder: string): ReadonlyArray<string> => {
   return folders
 }
 
+/**
+ * Where pnpm reads `folder`'s `overrides` and `peerDependencyRules`: the
+ * workspace root, the nearest folder at or above it with a
+ * `pnpm-workspace.yaml`, since pnpm ignores them in a member's `package.json`.
+ * There, the root `package.json`'s `pnpm` field if it already has one, else
+ * the YAML; with no workspace, the project's own `package.json`.
+ */
+const pnpmSettingsIn = (folder: string): PnpmSettings => {
+  const root = projectFolders(folder).find(at => existsSync(join(at, 'pnpm-workspace.yaml')))
+  if (root === undefined) return { folder: '.', file: 'package.json' }
+  const manifest = join(root, 'package.json')
+  const field =
+    existsSync(manifest) &&
+    Object.hasOwn(JSON.parse(readFileSync(manifest, 'utf8')) as object, 'pnpm')
+  return {
+    folder: relative(folder, root).split(sep).join('/') || '.',
+    file: field ? 'package.json' : 'pnpm-workspace.yaml',
+  }
+}
+
 /** The project in `folder`, if it is one. */
 export const projectIn = (folder: string): Option.Option<Project> => {
   const path = join(folder, 'package.json')
@@ -50,6 +70,7 @@ export const projectIn = (folder: string): Option.Option<Project> => {
       ...manifest.dependencies,
     },
     gitattributes: projectFolders(folder).some(at => existsSync(join(at, '.gitattributes'))),
+    pnpmSettings: pnpmSettingsIn(folder),
   })
 }
 

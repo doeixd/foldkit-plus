@@ -29,6 +29,37 @@ test("a `.gitattributes` counts at the repository's root, and not above it", () 
   expect(gitattributesIn(app)).toEqual(Option.some(true))
 })
 
+describe("where pnpm reads a project's settings", () => {
+  const settingsIn = (folder: string) => Option.map(projectIn(folder), each => each.pnpmSettings)
+  const workspace = (name: string, rootManifest: object) => {
+    const top = join(root, name)
+    const app = join(top, 'apps', 'web')
+    mkdirSync(join(top, '.git'), { recursive: true })
+    mkdirSync(app, { recursive: true })
+    writeFileSync(join(top, 'package.json'), JSON.stringify(rootManifest))
+    writeFileSync(join(app, 'package.json'), JSON.stringify({ name: 'web' }))
+    return { top, app }
+  }
+
+  it("is a standalone project's own `package.json`", () => {
+    const { app } = workspace('standalone', { name: 'top' })
+    expect(settingsIn(app)).toEqual(Option.some({ folder: '.', file: 'package.json' }))
+  })
+
+  it("is a workspace root's `pnpm-workspace.yaml`, at or above the member", () => {
+    const { top, app } = workspace('yaml', { name: 'top' })
+    writeFileSync(join(top, 'pnpm-workspace.yaml'), "packages:\n  - 'apps/*'\n")
+    expect(settingsIn(app)).toEqual(Option.some({ folder: '../..', file: 'pnpm-workspace.yaml' }))
+    expect(settingsIn(top)).toEqual(Option.some({ folder: '.', file: 'pnpm-workspace.yaml' }))
+  })
+
+  it("is the root's `package.json` where its `pnpm` field already holds settings", () => {
+    const { top, app } = workspace('field', { name: 'top', pnpm: { overrides: {} } })
+    writeFileSync(join(top, 'pnpm-workspace.yaml'), "packages:\n  - 'apps/*'\n")
+    expect(settingsIn(app)).toEqual(Option.some({ folder: '../..', file: 'package.json' }))
+  })
+})
+
 describe('libraryIn', () => {
   // app/node_modules/foldkit-plus links into pnpm's store, where its own
   // dependencies sit beside it and nowhere the project's folder reaches.

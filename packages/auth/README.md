@@ -105,9 +105,9 @@ later release in its `package.json`. With pnpm:
 }
 ```
 
-npm takes the same pins as `overrides`, where a package the project depends
-on itself is written `$name` (`"effect": "$effect"`) and installed at the
-release. `npx --legacy-peer-deps foldkit-plus setup` prints the fields for the
+npm takes the same pins as `overrides`, and overrides a package the project
+depends on itself only where `dependencies` names that same release, so set
+those to it too. `npx --legacy-peer-deps foldkit-plus setup` prints the fields for the
 project's package manager.
 
 ## Sixty seconds

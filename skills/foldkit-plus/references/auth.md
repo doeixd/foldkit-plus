@@ -80,7 +80,7 @@ on every Remote call kind.
 - Yielded needs `effect` 4.0.3 or later, and Foldkit names 4.0.0 exactly: pin
   every Effect package to one later release, as `npx --legacy-peer-deps
   foldkit-plus setup` prints (npm `overrides`, pnpm `overrides` with
-  `peerDependencyRules`), and install `@yielded/auth@0.1.0-beta.43`, the
+  `peerDependencyRules` at the workspace root), and install `@yielded/auth@0.1.0-beta.43`, the
   release `foldkit-auth` names, not the `latest` tag.
 
 - `x-foldkit-subject` (`SUBJECT_HEADER` from `foldkit-auth`, browser-safe):

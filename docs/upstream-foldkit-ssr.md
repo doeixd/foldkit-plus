@@ -264,7 +264,7 @@ npm refuses the install (`ERESOLVE`); pnpm, Yarn and Bun warn. Our workaround
 pins every Effect package to the release this repository tests: `overrides`
 and `peerDependencyRules` in `pnpm-workspace.yaml` here, and the fields
 `npx foldkit-plus setup` prints for an application (npm `overrides`, with
-`$name` for a package the application depends on itself).
+the application's own Effect dependencies set to the same release).
 
 **The ask:** peer on `effect: ^4.0.0` and `@effect/platform-browser: ^4.0.0`,
 and depend on `@effect/platform-node` and `@effect/platform-node-shared` at

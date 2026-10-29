@@ -1931,10 +1931,14 @@ of its own named a form field "fits the Catalog". Read words with
   cache passed, so "cannot reproduce" was the cache. A bin that reads no peer
   runs as `npx --legacy-peer-deps`. Reproduce with `npm_config_cache` set to a
   folder holding such a tree.
-- **npm `overrides` does let a peer in.** #205 said it does not; `"effect":
-  "$effect"` let Foldkit's exact `effect: 4.0.0` peer take 4.0.5 with no
-  warning. An override of a package the project depends on must be its
-  `$name` (or the same spec), or npm stops with `EOVERRIDE`.
+- **npm `overrides` does let a peer in.** #205 said it does not; it does,
+  but for a package the project depends on only where `dependencies` names
+  the override's exact spec (else `EOVERRIDE`, or a literal override that
+  leaves the peer refused). `$name` references follow the dependency, but
+  npm 10 (Node 22) fails a scoped one, `$@effect/platform-browser`, with
+  "Unable to resolve reference": CI's `pack` went red where npm 11 passed.
+  Write the version in both places, and test npm steps with npm 10 too
+  (`volta run --node 22 --bundled-npm`).
 - **An `@effect/*` package floats past Foldkit's exact Effect.** Each release
   peers on an `effect` at least its own version, so `foldkit-durable`'s
   `@effect/sql-sqlite-node: ^4.0.5` took 4.1.0 the day it shipped, and every

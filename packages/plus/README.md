@@ -167,7 +167,9 @@ Foldkit `0.169`, and `setup` installs the Foldkit and the Effect this
 repository tests (`package.json`'s `setup` field). Foldkit and its Vite plugin
 name one Effect release exactly (`4.0.0`), older than that, so `setup` first
 has the project pin every Effect package to the tested one: npm `overrides`,
-pnpm `overrides` with `peerDependencyRules`, Yarn `resolutions`. That also
+pnpm `overrides` with `peerDependencyRules` (at the workspace root, the only
+place pnpm reads them: its `pnpm-workspace.yaml`, or its `package.json` where
+that already holds a `pnpm` field), Yarn `resolutions`. That also
 holds `foldkit-durable`'s `@effect/sql-sqlite-node`, whose every release peers
 on an `effect` at least its own version. Each release of `foldkit-plus` pins the release of every
 package it brings, so the set is one tested combination; the

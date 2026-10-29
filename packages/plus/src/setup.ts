@@ -14,6 +14,14 @@ export interface Project {
   readonly versions: Readonly<Record<string, string>>
   /** Whether a `.gitattributes` applies here: in the project's folder or one above it in its repository. */
   readonly gitattributes: boolean
+  /** Where pnpm reads this project's settings, which a workspace keeps at its root. */
+  readonly pnpmSettings: PnpmSettings
+}
+
+/** A file pnpm reads settings from, in `folder` relative to the project (`.`, `../..`). */
+export interface PnpmSettings {
+  readonly folder: string
+  readonly file: 'package.json' | 'pnpm-workspace.yaml'
 }
 
 /**
@@ -224,34 +232,72 @@ export const effectPackages: ReadonlyArray<string> = [
   '@effect/sql-sqlite-node',
 ]
 
+/** Where the pins go, and the block that holds them. */
+interface Pins {
+  /** The file, as the step names it: `package.json`, `../../pnpm-workspace.yaml`. */
+  readonly file: string
+  readonly language: 'json' | 'yaml'
+  readonly text: string
+}
+
+/** A YAML key, quoted where `@` would start something else. */
+const yamlKey = (key: string) => (key.startsWith('@') ? `'${key}'` : key)
+
 /**
- * The `package.json` fields that hold every Effect package at `effect`, as
- * JSON to merge in. npm refuses an override of a package the project depends
- * on unless it is spelled `$name`, the version the project names.
+ * The settings that hold every Effect package at `effect`, to merge into the
+ * file the manager reads them from. npm applies an override to a package the
+ * project depends on only where the project names that same version, so its
+ * block sets those dependencies too (a `$name` reference would follow them,
+ * but npm 10 cannot resolve a scoped one); pnpm reads them only at a
+ * workspace's root.
  */
-const pinsOf = (manager: Manager, effect: string, direct: ReadonlySet<string>): string => {
-  const pins = Object.fromEntries(
-    effectPackages.map(name => [name, manager === 'npm' && direct.has(name) ? `$${name}` : effect]),
-  )
+const pinsOf = (
+  manager: Manager,
+  effect: string,
+  direct: ReadonlySet<string>,
+  pnpmSettings: PnpmSettings,
+): Pins => {
+  const pins = Object.fromEntries(effectPackages.map(name => [name, effect]))
+  const allowedVersions = { effect, '@effect/platform-browser': effect }
+  if (manager === 'pnpm' && pnpmSettings.file === 'pnpm-workspace.yaml') {
+    const lines = (entries: Readonly<Record<string, string>>, indent: string) =>
+      Object.entries(entries).map(([name, version]) => `${indent}${yamlKey(name)}: ${version}`)
+    return {
+      file: `${pnpmSettings.folder}/pnpm-workspace.yaml`,
+      language: 'yaml',
+      text: [
+        'overrides:',
+        ...lines(pins, '  '),
+        'peerDependencyRules:',
+        '  allowedVersions:',
+        ...lines(allowedVersions, '    '),
+      ].join('\n'),
+    }
+  }
   const fields = {
-    npm: { overrides: pins },
-    pnpm: {
-      pnpm: {
-        overrides: pins,
-        peerDependencyRules: {
-          allowedVersions: { effect, '@effect/platform-browser': effect },
-        },
-      },
+    npm: {
+      dependencies: Object.fromEntries(
+        effectPackages.filter(name => direct.has(name)).map(name => [name, effect]),
+      ),
+      overrides: pins,
     },
+    pnpm: { pnpm: { overrides: pins, peerDependencyRules: { allowedVersions } } },
     yarn: { resolutions: pins },
     bun: { overrides: pins },
   }[manager]
-  return JSON.stringify(fields, null, 2)
+  return {
+    file:
+      manager === 'pnpm' && pnpmSettings.folder !== '.'
+        ? `${pnpmSettings.folder}/package.json`
+        : 'package.json',
+    language: 'json',
+    text: JSON.stringify(fields, null, 2),
+  }
 }
 
 /** Why `manager` needs the pins, after "first merge this into `package.json`". */
 const pinsWhy: Readonly<Record<Manager, string>> = {
-  npm: 'npm refuses a peer it does not match, and `overrides` lets one in without turning every peer check off',
+  npm: 'npm refuses a peer it does not match, and `overrides` lets one in without turning every peer check off; it overrides a dependency of the project only at the version the project names, so the block sets those too',
   pnpm: "`overrides` sets the version, and `peerDependencyRules` lets Foldkit's exact peers accept it",
   yarn: "`resolutions` sets the version; Yarn warns of Foldkit's exact peers, and installs",
   bun: "`overrides` sets the version; Bun warns of Foldkit's exact peers, and installs",
@@ -300,14 +346,23 @@ export const setupGuide = ({ project, manager, versions }: SetupInput): string =
     onSome: found => effectPackages.filter(name => found.versions[name] !== undefined),
   })
   const moved = new Set(['effect', '@effect/platform-browser', ...listed])
+  const pins = pinsOf(
+    manager,
+    versions.effect,
+    moved,
+    Option.match(project, {
+      onNone: () => ({ folder: '.', file: 'package.json' }),
+      onSome: found => found.pnpmSettings,
+    }),
+  )
+  // npm's block already names the Effect packages the project depends on.
   const install = addCommand(
     manager,
     [
-      `effect@${versions.effect}`,
+      ...(manager === 'npm'
+        ? []
+        : effectPackages.filter(name => moved.has(name)).map(name => `${name}@${versions.effect}`)),
       `foldkit@${versions.foldkit}`,
-      ...effectPackages
-        .filter(name => name !== 'effect' && moved.has(name))
-        .map(name => `${name}@${versions.effect}`),
       'foldkit-plus',
     ],
     true,
@@ -362,10 +417,10 @@ export const setupGuide = ({ project, manager, versions }: SetupInput): string =
     '',
     '## 2. Install',
     '',
-    `Foldkit and its tooling name one Effect release exactly, and Foldkit Plus is tested on ${versions.effect}. To install one copy of each Effect package, at that release, first merge this into \`package.json\` (${pinsWhy[manager]}):`,
+    `Foldkit and its tooling name one Effect release exactly, and Foldkit Plus is tested on ${versions.effect}. To install one copy of each Effect package, at that release, first merge this into \`${pins.file}\`, keeping what it holds (${pinsWhy[manager]}${pins.file === 'package.json' ? '' : '; pnpm reads them only at the workspace root'}):`,
     '',
-    '```json',
-    pinsOf(manager, versions.effect, moved),
+    `\`\`\`${pins.language}`,
+    pins.text,
     '```',
     '',
     'Then install:',

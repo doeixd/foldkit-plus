@@ -5,13 +5,24 @@
 import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 
-import { SCAFFOLDER, addCommand, setupGuide, type Manager, type Project } from '../src/setup.js'
+import {
+  SCAFFOLDER,
+  addCommand,
+  setupGuide,
+  type Manager,
+  type PnpmSettings,
+  type Project,
+} from '../src/setup.js'
 
 const versions = { plus: '0.1.0', effect: '4.0.5', foldkit: '0.165.0' }
 const guide = (project: Option.Option<Project>, manager: Manager = 'pnpm') =>
   setupGuide({ project, manager, versions })
-const project = (deps: Readonly<Record<string, string>>, gitattributes = true) =>
-  Option.some({ name: 'todo', versions: deps, gitattributes })
+const standalone: PnpmSettings = { folder: '.', file: 'package.json' }
+const project = (
+  deps: Readonly<Record<string, string>>,
+  gitattributes = true,
+  pnpmSettings = standalone,
+) => Option.some({ name: 'todo', versions: deps, gitattributes, pnpmSettings })
 
 describe('setupGuide', () => {
   it('sends an agent with no project to the greenfield guide, and scaffolds with its manager', () => {
@@ -70,7 +81,7 @@ describe('setupGuide', () => {
 
   it("installs with the project's package manager, adapters one by one", () => {
     expect(guide(Option.none(), 'pnpm')).toContain(
-      'pnpm add --save-exact effect@4.0.5 foldkit@0.165.0 @effect/platform-browser@4.0.5 foldkit-plus',
+      'pnpm add --save-exact effect@4.0.5 @effect/platform-browser@4.0.5 foldkit@0.165.0 foldkit-plus',
     )
     expect(guide(Option.none(), 'npm')).toContain(
       'npm install foldkit-react "react@^19.0.0" "react-dom@^19.0.0"',
@@ -124,22 +135,21 @@ describe('one Effect for every Effect package', () => {
     '@effect/sql-sqlite-node': '4.0.5',
   }
 
-  it('has npm override what the project installs as `$name`, the rest at the release', () => {
+  // npm overrides a dependency of the project only at the version the project
+  // names, and npm 10 cannot resolve a scoped `$name` reference to it.
+  it('has npm name the release for every Effect package the project depends on', () => {
     // An ssr scaffold names `@effect/platform-node` itself.
     const ssr = project({ effect: '4.0.0', '@effect/platform-node': '4.0.0' })
     const text = guide(ssr, 'npm')
     expect(pins(text)).toEqual({
-      overrides: {
-        ...effect,
-        effect: '$effect',
-        '@effect/platform-browser': '$@effect/platform-browser',
-        '@effect/platform-node': '$@effect/platform-node',
+      dependencies: {
+        effect: '4.0.5',
+        '@effect/platform-browser': '4.0.5',
+        '@effect/platform-node': '4.0.5',
       },
+      overrides: effect,
     })
-    // Each `$name` names a version the install line moves to the release.
-    expect(text).toContain(
-      'npm install --save-exact effect@4.0.5 foldkit@0.165.0 @effect/platform-browser@4.0.5 @effect/platform-node@4.0.5 foldkit-plus',
-    )
+    expect(text).toContain('npm install --save-exact foldkit@0.165.0 foldkit-plus')
   })
 
   it.each([
@@ -159,5 +169,36 @@ describe('one Effect for every Effect package', () => {
   ] as const)('gives %s the release itself', (manager, fields) => {
     const text = guide(project({ '@effect/platform-node': '4.0.0' }), manager)
     expect(pins(text)).toEqual(fields)
+    expect(text).toContain('first merge this into `package.json`, keeping what it holds')
+  })
+
+  // pnpm reads `overrides` and `peerDependencyRules` only at a workspace's root (#280).
+  it("gives a pnpm workspace member's pins to the root's `pnpm-workspace.yaml`", () => {
+    const text = guide(project({}, true, { folder: '../..', file: 'pnpm-workspace.yaml' }), 'pnpm')
+    expect(text).toContain(
+      'first merge this into `../../pnpm-workspace.yaml`, keeping what it holds',
+    )
+    expect(text).toContain(
+      [
+        '```yaml',
+        'overrides:',
+        '  effect: 4.0.5',
+        "  '@effect/platform-browser': 4.0.5",
+        "  '@effect/platform-node': 4.0.5",
+        "  '@effect/platform-node-shared': 4.0.5",
+        "  '@effect/sql-sqlite-node': 4.0.5",
+        'peerDependencyRules:',
+        '  allowedVersions:',
+        '    effect: 4.0.5',
+        "    '@effect/platform-browser': 4.0.5",
+        '```',
+      ].join('\n'),
+    )
+  })
+
+  it("gives them to the root's `package.json` where its `pnpm` field already holds settings", () => {
+    const text = guide(project({}, true, { folder: '..', file: 'package.json' }), 'pnpm')
+    expect(text).toContain('first merge this into `../package.json`')
+    expect(pins(text)).toHaveProperty('pnpm.overrides.effect', '4.0.5')
   })
 })

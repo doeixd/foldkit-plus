@@ -126,10 +126,10 @@ export default [
     tests: ['packages/plus/test/cli.test.ts'],
   },
   edit(
-    'npm overrides a package the project depends on by version, which npm refuses',
+    'npm overrides a dependency of the project at a version the project does not name',
     '../src/setup.ts',
-    "manager === 'npm' && direct.has(name)",
-    'false',
+    'effectPackages.filter(name => direct.has(name))',
+    'effectPackages.filter(() => false)',
   ),
   edit(
     'an Effect package the project names stays where it was',
@@ -166,6 +166,34 @@ export default [
     '../scripts/entries.ts',
     '({ foldkit: foldkit.version, effect: effect.version })',
     "({ foldkit: foldkit.version, effect: '4.0.0' })",
+  ),
+  {
+    name: "a pnpm workspace member's pins stay in its own package.json",
+    edits: [
+      {
+        file: '../src/project.ts',
+        find: "projectFolders(folder).find(at => existsSync(join(at, 'pnpm-workspace.yaml')))",
+        replace: "[folder].find(at => existsSync(join(at, 'pnpm-workspace.yaml')))",
+      },
+    ],
+    tests: ['packages/plus/test/project.test.ts'],
+  },
+  {
+    name: "the root's pnpm field is passed over for the YAML",
+    edits: [
+      {
+        file: '../src/project.ts',
+        find: "file: field ? 'package.json' : 'pnpm-workspace.yaml',",
+        replace: "file: 'pnpm-workspace.yaml',",
+      },
+    ],
+    tests: ['packages/plus/test/project.test.ts'],
+  },
+  edit(
+    'the YAML pins are written as package.json fields',
+    '../src/setup.ts',
+    "if (manager === 'pnpm' && pnpmSettings.file === 'pnpm-workspace.yaml') {",
+    'if (false) {',
   ),
   edit(
     "a project is not given the skill's AGENTS.md block",

@@ -104,8 +104,13 @@ writeFileSync(
 )
 writeFileSync(join(stranger, 'index.js'), "throw new Error('the ancestor effect was loaded')\n")
 
-const setup = cwd => {
-  const result = spawnSync(process.execPath, [cli, 'setup'], { cwd, env, encoding: 'utf8' })
+/** The guide for `cwd`, run as `agent` (pnpm's `dlx` gives its own) would run it. */
+const setup = (cwd, agent = env.npm_config_user_agent) => {
+  const result = spawnSync(process.execPath, [cli, 'setup'], {
+    cwd,
+    env: { ...env, npm_config_user_agent: agent },
+    encoding: 'utf8',
+  })
   if (result.status !== 0 || !result.stdout.startsWith('# Foldkit Plus'))
     fail(`setup failed in ${cwd}:\n${result.stdout}${result.stderr}`)
   return result.stdout
@@ -137,11 +142,14 @@ if (commands.length < 2) fail(`the install step names too few npm commands:\n${i
 
 const manifestPath = join(app, 'package.json')
 const readManifest = () => JSON.parse(readFileSync(manifestPath, 'utf8'))
-if (fields !== null)
-  writeFileSync(
-    manifestPath,
-    JSON.stringify({ ...readManifest(), ...JSON.parse(fields[1]) }, null, 2),
-  )
+// Merged a field at a time, as told: the block's `dependencies` join the
+// project's rather than replace them.
+if (fields !== null) {
+  const manifest = readManifest()
+  for (const [field, value] of Object.entries(JSON.parse(fields[1])))
+    manifest[field] = { ...manifest[field], ...value }
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2))
+}
 const ownOverrides = readManifest().overrides ?? {}
 
 const direct = new Set()
@@ -187,5 +195,90 @@ for (const command of commands) {
   console.log(`published-setup: ${command}`)
 }
 
-rmSync(work, { recursive: true, force: true })
 console.log(`published-setup: npm runs every step setup prints, for an ssr scaffold`)
+
+// 4. pnpm, which reads `overrides` and `peerDependencyRules` only at a
+// workspace's root (#280): a standalone project, and a workspace member.
+const pnpmCase = (name, workspace) => {
+  const top = join(home, name)
+  const project = join(top, 'app')
+  mkdirSync(project, { recursive: true })
+  if (workspace) {
+    writeFileSync(join(top, 'package.json'), JSON.stringify({ name: 'top', private: true }))
+    writeFileSync(join(top, 'pnpm-workspace.yaml'), 'packages:\n  - app\n')
+  }
+  // The Effect packages an ssr scaffold names, at the release Foldkit names.
+  writeFileSync(
+    join(project, 'package.json'),
+    JSON.stringify({
+      name: 'app',
+      private: true,
+      dependencies: {
+        effect: '4.0.0',
+        '@effect/platform-browser': '4.0.0',
+        '@effect/platform-node': '4.0.0',
+        foldkit: '0.169.0',
+      },
+    }),
+  )
+  const text = setup(project, `pnpm/10.32.1 npm/? node/${process.version}`)
+  const step = text.split('\n## 3.')[0].split('\n## 2. Install\n')[1] ?? ''
+  const into = /first merge this into `([^`]+)`/.exec(step)?.[1]
+  const block = /```(json|yaml)\n([\s\S]*?)\n```/.exec(step)
+  if (into === undefined || block === null) fail(`${name}: the guide gives pnpm no pins:\n${step}`)
+  const target = join(project, into)
+  const wanted = workspace ? join(top, 'pnpm-workspace.yaml') : join(project, 'package.json')
+  if (target !== wanted) fail(`${name}: the guide pins in ${target}, where pnpm reads ${wanted}`)
+
+  const commands = [
+    /^(pnpm add [^`\n]+)$/m.exec(step)?.[1],
+    /`(pnpm add foldkit-auth [^`]+)`/.exec(step)?.[1],
+  ]
+  if (commands.includes(undefined)) fail(`${name}: the guide names no pnpm install line`)
+  const direct = new Set(commands.flatMap(command => command.split(' ')))
+  const ours = [...tarballs].filter(([each]) => !direct.has(each))
+  if (block[1] === 'yaml') {
+    const tarballLines = ours.map(([each, file]) => `  ${each}: 'file:${file}'`)
+    const merged = block[2].replace('overrides:\n', `overrides:\n${tarballLines.join('\n')}\n`)
+    writeFileSync(target, `${readFileSync(target, 'utf8')}${merged}\n`)
+  } else {
+    const manifest = JSON.parse(readFileSync(target, 'utf8'))
+    const { pnpm } = JSON.parse(block[2])
+    pnpm.overrides = {
+      ...pnpm.overrides,
+      ...Object.fromEntries(ours.map(([each, file]) => [each, `file:${file}`])),
+    }
+    writeFileSync(target, JSON.stringify({ ...manifest, pnpm }, null, 2))
+  }
+
+  for (const command of commands) {
+    const local = command
+      .split(' ')
+      .map(word => (tarballs.has(word) ? `"file:${tarballs.get(word)}"` : word))
+      .join(' ')
+    const installed = run(local, project)
+    if (installed.status !== 0) fail(`${name}: ${command} failed:\n${installed.output}`)
+    // pnpm names an unmet peer and installs anyway, so its words are the verdict.
+    const unmet = installed.output
+      .split('\n')
+      .filter(line => /unmet peer (?:effect|@effect\/|foldkit|@foldkit\/)/.test(line))
+    if (unmet.length > 0) fail(`${name}: ${command} left peers unmet:\n${unmet.join('\n')}`)
+    const store = readdirSync(join(workspace ? top : project, 'node_modules', '.pnpm'))
+    for (const each of ['effect', 'foldkit']) {
+      const versions = new Set(
+        store
+          .map(entry => /^(.+?)@([^_]+)/.exec(entry))
+          .filter(found => found?.[1] === each)
+          .map(found => found[2]),
+      )
+      if (versions.size !== 1)
+        fail(`${name}: after ${command} pnpm holds ${each} ${[...versions].join(', ')}`)
+    }
+    console.log(`published-setup: ${name}: ${command}`)
+  }
+}
+pnpmCase('pnpm-standalone', false)
+pnpmCase('pnpm-workspace', true)
+
+rmSync(work, { recursive: true, force: true })
+console.log('published-setup: pnpm runs them too, in a standalone project and a workspace member')
