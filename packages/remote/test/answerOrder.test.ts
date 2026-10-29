@@ -81,7 +81,9 @@ const remove = (model: Model, requestId: string): Model =>
     { requestId, optimistic: [Remote.tombstone(Post, 'p1')] },
   ).model
 
-const edited = (requestId: string, body: string): RemoteMessage => ({
+type Succeeded = Extract<RemoteMessage, { readonly _tag: 'MutationSucceeded' }>
+
+const edited = (requestId: string, body: string): Succeeded => ({
   _tag: 'MutationSucceeded',
   requestId,
   entities: [{ entity: 'Post', id: 'p1', values: { body } }],
@@ -154,6 +156,61 @@ describe('An edit started after a delete', () => {
     }
     const recreated = [deleted('delete'), whole].reduce(Data.reduce, started)
     expect(shown(recreated).post).toBe('back')
+  })
+})
+
+/** An edit's answer with the read the server attaches of the row it wrote (#288). */
+const editedWithRead = (requestId: string, body: string): Succeeded => ({
+  ...edited(requestId, body),
+  read: {
+    requests: [{ entity: 'Post', id: 'p1', fields: ['id', 'body'] }],
+    result: { settled: [], entities: [{ entity: 'Post', id: 'p1', values: { id: 'p1', body } }] },
+  },
+})
+
+describe("An earlier answer's read", () => {
+  it('leaves the field a later edit settled', () => {
+    const started = edit(edit(loaded, 'a', 'A'), 'b', 'B')
+    const settled = [edited('b', 'B'), editedWithRead('a', 'A')].reduce(Data.reduce, started)
+    expect(shown(settled)).toEqual({ post: 'B', list: ['p1', 'p2'] })
+  })
+
+  it('leaves the row a later delete settled deleted', () => {
+    const started = remove(edit(loaded, 'edit', 'edited'), 'delete')
+    const settled = [deleted('delete'), editedWithRead('edit', 'edited')].reduce(
+      Data.reduce,
+      started,
+    )
+    expect(shown(settled)).toEqual({ post: 'NotFound', list: ['p2'] })
+  })
+
+  it('does not take a row a later edit wrote for absent', () => {
+    const started = edit(edit(loaded, 'a', 'A'), 'b', 'B')
+    const absent: RemoteMessage = {
+      ...edited('a', 'A'),
+      read: {
+        requests: [{ entity: 'Post', id: 'p1', fields: ['id', 'body'] }],
+        result: { settled: [], entities: [] },
+      },
+    }
+    const settled = [edited('b', 'B'), absent].reduce(Data.reduce, started)
+    expect(shown(settled)).toEqual({ post: 'B', list: ['p1', 'p2'] })
+  })
+
+  it('is written when no later request settled the row', () => {
+    const started = edit(edit(loaded, 'a', 'A'), 'b', 'B')
+    const stored: RemoteMessage = {
+      ...editedWithRead('a', 'A'),
+      read: {
+        requests: [{ entity: 'Post', id: 'p1', fields: ['id', 'body'] }],
+        result: {
+          settled: [],
+          entities: [{ entity: 'Post', id: 'p1', values: { id: 'p1', body: 'A, as stored' } }],
+        },
+      },
+    }
+    const settled = Data.reduce(started, stored)
+    expect(settled.remote.entities['Post:p1']?.values).toMatchObject({ body: 'A, as stored' })
   })
 })
 

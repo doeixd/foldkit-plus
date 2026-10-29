@@ -4,6 +4,7 @@
  */
 const tests = ['packages/remote/test/answerOrder.test.ts']
 const file = '../src/mutation.ts'
+const model = '../src/model.ts'
 
 export default [
   {
@@ -75,5 +76,58 @@ export default [
     name: 'a settled request keeps its order',
     edits: [{ file, find: '  order.delete(requestId)\n', replace: '' }],
     tests,
+  },
+  {
+    name: "an earlier answer's read is written whole",
+    edits: [
+      {
+        file: model,
+        find: ': unsettledRead(message.read, settledLater(model.mutations, message.requestId))',
+        replace: ': message.read',
+      },
+    ],
+    tests,
+  },
+  {
+    name: "an earlier answer's read rewrites a row a later one deleted",
+    edits: [
+      {
+        file: model,
+        find: '    if (newer(entityKey(entity.entity, entity.id))) return []\n',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: "an earlier answer's read overwrites a field a later one settled",
+    edits: [
+      {
+        file: model,
+        find: '([field]) => !newer(fieldMark(entity.entity, entity.id, field)),',
+        replace: '() => true,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: "an earlier answer's read tombstones a row a later one wrote",
+    edits: [
+      { file: model, find: 'return answered.has(key) || !rewritten(key)', replace: 'return true' },
+    ],
+    tests,
+  },
+  {
+    name: "an earlier answer's read loses the request of a row it answers",
+    edits: [
+      {
+        file: model,
+        find: 'return answered.has(key) || !rewritten(key)',
+        replace: 'return !rewritten(key)',
+      },
+    ],
+    tests,
+    survives:
+      'Only the windows of its relation fields ride on such a request (its values and failures are written from the result), and Post has no relation.',
   },
 ]

@@ -247,6 +247,29 @@ export interface MutationAnswer {
 }
 
 /**
+ * What requests started after `requestId` already settled, which its answer
+ * leaves alone. The server applied requests in the order they started, so a
+ * later one's answer is newer: `newer` holds of a field it wrote (its mark)
+ * and of a row it deleted (its key), `rewritten` of a row it wrote any field
+ * of. An answer of a request no longer pending (after `forget`, or a failure)
+ * has no order, and nothing is newer than it.
+ */
+export const settledLater = (
+  state: MutationState,
+  requestId: string,
+): {
+  readonly newer: (mark: string) => boolean
+  readonly rewritten: (key: string) => boolean
+} => {
+  const at = state.order.get(requestId) ?? Infinity
+  return {
+    newer: mark => (state.settled.get(mark) ?? -Infinity) > at,
+    rewritten: key =>
+      [...state.settled].some(([mark, by]) => by > at && mark.startsWith(`${key}\u0000`)),
+  }
+}
+
+/**
  * Applies a mutation result once and marks the request settled. A second call
  * with the same `requestId` (a retry, or a live event describing the same change)
  * does not re-apply the entities, but still clears `pending`.
@@ -260,12 +283,7 @@ export const reconcileMutation = (
   const repeated = state.applied.has(requestId)
   if (repeated && !state.pending.has(requestId) && !state.failed.has(requestId))
     return { store, state }
-  // The server applied requests in the order they started, so what a later
-  // one's answer already settled is newer than this answer: the fields it
-  // wrote, and its deletion of a row, stay. An answer of a request no longer
-  // pending (after `forget`, or a failure) has no order and is applied as it comes.
-  const at = state.order.get(requestId) ?? Infinity
-  const newer = (mark: string): boolean => (state.settled.get(mark) ?? -Infinity) > at
+  const { newer, rewritten } = settledLater(state, requestId)
   const writes = repeated
     ? []
     : answer.entities.flatMap(entity => {
@@ -276,8 +294,6 @@ export const reconcileMutation = (
         )
         return Object.keys(values).length === 0 ? [] : [{ key, values }]
       })
-  const rewritten = (key: string): boolean =>
-    [...state.settled].some(([mark, by]) => by > at && mark.startsWith(`${key}\u0000`))
   const deleted = repeated
     ? []
     : (answer.deleted ?? [])

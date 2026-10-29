@@ -730,6 +730,13 @@ carries `drawn`.
   `first: 1` of a list whose third row was deleted read empty while its first
   row loaded. A window now judges a delete by the rows it would show, and
   reads `Loading` otherwise.
+- **An earlier mutation answer's read leaves what a later one settled**
+  (#288). Answers settle in the order their requests started, but the `read`
+  an answer carries was written whole: an edit answered after a later edit
+  wrote its body back, and one answered after a later delete brought the row
+  back. The read now passes the patch's checks: a field or a delete a later
+  request settled stays, and a row a later request wrote is not tombstoned by
+  the earlier read's absence of it.
 - **`Crud.options` reads each listed choice once** (#308). It checked every
   chosen id against a picker's whole list, so a many-picker holding N of N
   loaded choices did quadratic work on each derivation. It groups the held

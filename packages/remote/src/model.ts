@@ -45,6 +45,7 @@ import {
   emptyMutationState,
   failMutation,
   forgetFailure,
+  settledLater,
   type MutationState,
   type NormalizedPatch,
 } from './mutation.js'
@@ -1556,11 +1557,12 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
         message,
       )
       // What the answer read lands with it, so no frame shows the row without
-      // a field the layer showed. A repeated answer writes nothing, read included.
+      // a field the layer showed. A repeated answer writes nothing, read included,
+      // and the read leaves what a later request settled, as the patch does.
       const read =
         message.read === undefined || model.mutations.applied.has(message.requestId)
           ? undefined
-          : message.read
+          : unsettledRead(message.read, settledLater(model.mutations, message.requestId))
       return {
         ...model,
         entities:
@@ -1977,6 +1979,40 @@ const mergeWireRefPages = (
   return direction === 'after'
     ? { refs, hasNext: next.hasNext, hasPrevious: current.hasPrevious }
     : { refs, hasNext: current.hasNext, hasPrevious: next.hasPrevious }
+}
+
+/**
+ * A mutation answer's read without what a later request settled (#288): a
+ * field it wrote, a row it deleted, and the absence of a row it wrote, which
+ * the read would otherwise tombstone.
+ */
+const unsettledRead = (
+  read: Schema.Schema.Type<typeof AnswerRead>,
+  { newer, rewritten }: ReturnType<typeof settledLater>,
+): Schema.Schema.Type<typeof AnswerRead> => {
+  const entities = read.result.entities.flatMap(entity => {
+    if (newer(entityKey(entity.entity, entity.id))) return []
+    const values = Object.fromEntries(
+      Object.entries(entity.values).filter(
+        ([field]) => !newer(fieldMark(entity.entity, entity.id, field)),
+      ),
+    )
+    return Object.keys(values).length === 0 ? [] : [{ ...entity, values }]
+  })
+  const settled = read.result.settled.flatMap(entry => {
+    if (newer(entityKey(entry.entity, entry.id))) return []
+    const fields = entry.fields.filter(field => !newer(fieldMark(entry.entity, entry.id, field)))
+    return fields.length === 0 ? [] : [{ ...entry, fields }]
+  })
+  const answered = new Set(
+    [...entities, ...settled].map(entry => entityKey(entry.entity, entry.id)),
+  )
+  // A request is kept for its windows, or to tombstone a row no later request wrote.
+  const requests = read.requests.filter(request => {
+    const key = entityKey(request.entity, request.id)
+    return answered.has(key) || !rewritten(key)
+  })
+  return { requests, result: { entities, settled } }
 }
 
 /**
