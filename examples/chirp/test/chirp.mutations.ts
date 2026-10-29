@@ -5,6 +5,7 @@
 const server = ['examples/chirp/test/server.test.ts']
 const client = ['examples/chirp/test/like.test.ts', 'examples/chirp/test/post.test.ts']
 const why = ['examples/chirp/test/why.test.ts']
+const stale = ['examples/chirp/test/stale.test.ts']
 
 /**
  * #284: a served write landing past its guarded writer. The startup check
@@ -20,7 +21,7 @@ const pastGuards = (name: string, find: string, replace: string, survives?: stri
       replace: 'void (Policy, {',
     },
   ],
-  tests: server,
+  tests: [...server, ...stale],
   ...(survives === undefined ? {} : { survives }),
 })
 
@@ -211,7 +212,7 @@ export default [
         replace: '',
       },
     ],
-    tests: server,
+    tests: [...server, ...stale],
   },
   {
     name: 'a person counts no posts',
