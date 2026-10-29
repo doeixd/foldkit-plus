@@ -1,5 +1,5 @@
 /**
- * `verifyPlacement`: a placement is made as usual, the list is fetched too,
+ * `verifyPredictions`: a placement is made as usual, the list is fetched too,
  * and the server's first page is compared with the order placed, so a
  * collation that drifts is found by a test rather than a reader.
  */
@@ -8,14 +8,22 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Entity as DomainEntity, Expr, Operators, Order, evaluate } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
-import { Query, Remote, type PlacementMismatch, type RemoteModel } from '../src/index.js'
+import {
+  PredictionPart,
+  Query,
+  Remote,
+  type PredictionMismatch,
+  type RemoteModel,
+} from '../src/index.js'
 
 /** The placement mismatches `remote` records, as the facts each names. */
 const mismatchesOf = (remote: RemoteModel) =>
   remote.diagnostics
     .filter(
-      (diagnostic): diagnostic is PlacementMismatch => diagnostic._tag === 'PlacementMismatch',
+      (diagnostic): diagnostic is PredictionMismatch => diagnostic._tag === 'PredictionMismatch',
     )
+    .map(diagnostic => diagnostic.part)
+    .filter(PredictionPart.$is('Placement'))
     .map(({ connection, placed, served }) => ({ connection, placed, served }))
 
 const Project = DomainEntity.define(
@@ -28,8 +36,13 @@ const ByPrice = Query.define('ByPrice', {}, () =>
 const Model = Schema.Struct({ remote: Remote.Model })
 type Model = typeof Model.Type
 const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
-const make = (verifyPlacement: boolean) =>
-  Remote.make({ model: App.model.remote, entities: [Project], queries: [ByPrice], verifyPlacement })
+const make = (verifyPredictions: boolean) =>
+  Remote.make({
+    model: App.model.remote,
+    entities: [Project],
+    queries: [ByPrice],
+    verifyPredictions,
+  })
 
 const list = ByPrice.ref({}).identity
 const edges = (ids: ReadonlyArray<string>) =>
@@ -85,7 +98,7 @@ const order = (remote: RemoteModel) =>
     .visibleItems(remote, list)
     .map(edge => edge.ref.id)
 
-describe('verifyPlacement', () => {
+describe('verifyPredictions', () => {
   it('places, and also fetches the list, keeping the order it placed', () => {
     const Data = make(true)
     const model = repriced(Data)
@@ -130,7 +143,7 @@ describe('verifyPlacement', () => {
     // And it is what an inspection shows, said for a log.
     expect(Data.inspect(checked).diagnostics).toEqual(checked.remote.diagnostics)
     expect(checked.remote.diagnostics[0]).toMatchObject({
-      _tag: 'PlacementMismatch',
+      _tag: 'PredictionMismatch',
       source: 'foldkit-remote',
       level: 'warning',
       message: `The client placed rows in ${list} as [Project:p2, Project:p1], and the server's first page lists [Project:p1, Project:p2]: the client's order and the server's disagree.`,
@@ -179,7 +192,7 @@ describe('verifyPlacement', () => {
   })
 })
 
-describe('verifyPlacement over a list ordered by a call', () => {
+describe('verifyPredictions over a list ordered by a call', () => {
   /** How far a price lies from a target. */
   const distance = Expr.operator('acme.distance', {
     input: [Schema.Number, Schema.Number],
@@ -197,7 +210,7 @@ describe('verifyPlacement over a list ordered by a call', () => {
     model: App.model.remote,
     entities: [Project],
     queries: [Nearest],
-    verifyPlacement: true,
+    verifyPredictions: true,
     operators: client,
   })
   const nearest = Nearest.ref({ target: 12 }).identity

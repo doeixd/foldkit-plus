@@ -42,7 +42,7 @@ const Data = Remote.make({
   entities: [Post],
   queries: [Feed],
   mutations: [CreatePost],
-  verifyAnswers: true,
+  verifyPredictions: true,
 })
 const feed = Data.query(Feed, {}, { select: Entity.select(Post, { title: true }), first: 10 })
 const actives = { feed: App.surface('Feed', { model: () => ({ feed }) }) }
@@ -59,7 +59,7 @@ const started: RemoteMessage = {
   optimistic,
   write: { mutation: 'CreatePost', input: { title: 'One' } },
 }
-/** The answer leaves out the title the client showed: an `AnswerGap`. */
+/** The answer leaves out the title the client showed: a `PredictionMismatch`'s `Gap`. */
 const answered: RemoteMessage = {
   _tag: 'MutationSucceeded',
   requestId: 'r1',
@@ -115,7 +115,7 @@ describe('Remote diagnostics through the wiring', () => {
     const pending = route(wiring, initial, started)
     expect(pending.commands ?? []).toEqual([])
     const settled = route(wiring, pending.model, answered)
-    expect(settled.model.remote.diagnostics.map(d => d._tag)).toEqual(['AnswerGap'])
+    expect(settled.model.remote.diagnostics.map(d => d._tag)).toEqual(['PredictionMismatch'])
     const { reported, answers } = run(settled.commands)
     expect(reported).toEqual(settled.model.remote.diagnostics)
     expect(answers).toEqual([{ _tag: 'CompletedReportDiagnostics' }])
@@ -210,7 +210,7 @@ describe('Remote diagnostics through Remote.fold', () => {
   it('reports what it recorded, the answer wrapped, and records no unheard write', () => {
     const settled = fold(fold(initial, started).model, answered)
     const { reported, answers } = run(settled.commands)
-    expect(reported.map(d => d._tag)).toEqual(['AnswerGap'])
+    expect(reported.map(d => d._tag)).toEqual(['PredictionMismatch'])
     expect(answers).toEqual([
       Message.GotRemote({ message: { _tag: 'CompletedReportDiagnostics' } }),
     ])

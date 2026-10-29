@@ -132,11 +132,12 @@ export const Data = Remote.make({
   entities: Object.values(Blog),
   mutations: [EditPostMutation, DeletePostMutation, WritePostMutation],
   queries: [PostsQuery, AuthorsQuery],
-  // In development and tests each list a placement moved is fetched too, and
-  // the server's order compared with it: a disagreement is a `PlacementMismatch`
-  // in `Data.inspect(...).diagnostics`.
+  // In development and tests each answer is compared with what its write
+  // showed, and each list a placement moved is fetched too and compared with
+  // the server's order: a disagreement is a `PredictionMismatch` in
+  // `Data.inspect(...).diagnostics`.
   // Off in a build; `tsx` has no `import.meta.env`.
-  verifyPlacement: import.meta.env?.DEV === true,
+  verifyPredictions: import.meta.env?.DEV === true,
 })
 
 // Two lists: a query and a Selection each. They hold no state, so nothing is

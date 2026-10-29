@@ -43,8 +43,8 @@ export default [
     edits: [
       {
         file: '../src/app.ts',
-        find: 'verifyPlacement: import.meta.env?.DEV === true,',
-        replace: 'verifyPlacement: false,',
+        find: 'verifyPredictions: import.meta.env?.DEV === true,',
+        replace: 'verifyPredictions: false,',
       },
     ],
     tests,

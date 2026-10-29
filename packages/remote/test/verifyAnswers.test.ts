@@ -1,5 +1,5 @@
 /**
- * `verifyAnswers`: a mutation settles as usual, and each row its answer left
+ * `verifyPredictions`' `Gap`: a mutation settles as usual, and each row its answer left
  * without fields the client showed while it was pending is kept, so the
  * refetch (and the `Loading` frame) it causes is named rather than sampled.
  */
@@ -11,8 +11,9 @@ import { describe, expect, it } from 'vitest'
 import {
   ConnectionChange,
   Query,
+  PredictionPart,
   Remote,
-  type AnswerGap,
+  type PredictionMismatch,
   type RemoteMessage,
 } from '../src/index.js'
 
@@ -34,12 +35,12 @@ type Model = typeof Model.Type
 const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
 
 /** A domain whose active Surface lists the feed, reading each post's title and editedAt. */
-const make = (verifyAnswers: boolean) => {
+const make = (verifyPredictions: boolean) => {
   const Data = Remote.make({
     model: App.model.remote,
     entities: [Post],
     queries: [Feed],
-    verifyAnswers,
+    verifyPredictions,
   })
   const feed = Data.query(
     Feed,
@@ -95,7 +96,11 @@ const created = (
 /** The answer gaps a Model records, as the facts each names. */
 const gaps = (model: Model) =>
   model.remote.diagnostics
-    .filter((diagnostic): diagnostic is AnswerGap => diagnostic._tag === 'AnswerGap')
+    .filter(
+      (diagnostic): diagnostic is PredictionMismatch => diagnostic._tag === 'PredictionMismatch',
+    )
+    .map(diagnostic => diagnostic.part)
+    .filter(PredictionPart.$is('Gap'))
     .map(({ requestId, entity, id, fields }) => ({ requestId, entity, id, fields }))
 
 const answered = (values: Readonly<Record<string, unknown>>): RemoteMessage => ({
@@ -106,7 +111,7 @@ const answered = (values: Readonly<Record<string, unknown>>): RemoteMessage => (
   now: 2,
 })
 
-describe('verifyAnswers', () => {
+describe('verifyPredictions, its Gap', () => {
   it('keeps the fields a list reads of a created row that its answer left out', () => {
     const Data = make(true)
     const model = created(Data, { id: 'p2', title: 'Two' })
@@ -129,16 +134,18 @@ describe('verifyAnswers', () => {
     })
     expect(Data.reduce(started, answered({ id: 'p2', title: 'Two' })).remote.diagnostics).toEqual([
       {
-        _tag: 'AnswerGap',
+        _tag: 'PredictionMismatch',
         source: 'foldkit-remote',
         level: 'warning',
         message:
           'CreatePost (request r1) answered Post:p2 without editedAt, which the client showed while it was pending. They are read again, so the row reads Loading meanwhile: answer with them, or select fewer.',
-        requestId: 'r1',
-        mutation: Option.some('CreatePost'),
-        entity: 'Post',
-        id: 'p2',
-        fields: ['editedAt'],
+        part: PredictionPart.Gap({
+          requestId: 'r1',
+          mutation: Option.some('CreatePost'),
+          entity: 'Post',
+          id: 'p2',
+          fields: ['editedAt'],
+        }),
       },
     ])
   })

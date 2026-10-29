@@ -1,5 +1,5 @@
 /**
- * `verifyPlacement`, broken in turn:
+ * `verifyPredictions`' Placement, broken in turn:
  * `pnpm mutate packages/remote/test/verifyPlacement.mutations.ts`.
  */
 const tests = ['packages/remote/test/verifyPlacement.test.ts']
@@ -17,7 +17,7 @@ export default [
     edits: [
       {
         file: index,
-        find: 'if (options.verifyPlacement !== true) return invalidateConnections(withPlaced, invalidated)',
+        find: 'if (options.verifyPredictions !== true) return invalidateConnections(withPlaced, invalidated)',
         replace: '',
       },
     ],

@@ -1,12 +1,12 @@
 /**
- * `verifyAnswers`: the fields a mutation's answer left out that the client
+ * `verifyPredictions`' `Gap`: the fields a mutation's answer left out that the client
  * showed while it was pending. Releasing the layer leaves such a field to be
  * read again, so the row reads `Loading` for a frame, or nothing at all where
  * no Selection reads it. A check for development and tests, which changes
  * nothing it is given.
  */
 import type { Option } from 'effect'
-import { answerGap, type AnswerGap } from './diagnostics.js'
+import { PredictionPart, predictionMismatch, type PredictionMismatch } from './diagnostics.js'
 import type { OptimisticState } from './optimistic.js'
 import type { Requirement } from './requirement.js'
 import { entityKey, type EntityStore } from './store.js'
@@ -27,7 +27,7 @@ export const answerGaps = (
   after: OptimisticState,
   visible: EntityStore,
   read: ReadonlyArray<Requirement>,
-): ReadonlyArray<AnswerGap> => {
+): ReadonlyArray<PredictionMismatch> => {
   const shown = new Map<
     string,
     { readonly entity: string; readonly id: string; readonly fields: Set<string> }
@@ -60,7 +60,7 @@ export const answerGaps = (
     asked.add(key)
     show(requirement.entity, requirement.id, requirement.fields)
   }
-  const gaps: Array<AnswerGap> = []
+  const gaps: Array<PredictionMismatch> = []
   for (const [key, row] of shown) {
     const entry = visible[key]
     // A row nothing holds or reads any longer is not shown: a temporary id
@@ -70,7 +70,11 @@ export const answerGaps = (
       field => entry === undefined || !(entry.present.has(field) || entry.unavailable.has(field)),
     )
     if (fields.length > 0)
-      gaps.push(answerGap({ requestId, mutation, entity: row.entity, id: row.id, fields }))
+      gaps.push(
+        predictionMismatch(
+          PredictionPart.Gap({ requestId, mutation, entity: row.entity, id: row.id, fields }),
+        ),
+      )
   }
   return gaps
 }

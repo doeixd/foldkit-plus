@@ -6,7 +6,8 @@
 import { Option, Schema } from 'effect'
 import {
   liveRefused,
-  placementMismatch,
+  PredictionPart,
+  predictionMismatch,
   withDiagnostics,
   type RemoteDiagnostic,
 } from './diagnostics.js'
@@ -137,16 +138,16 @@ export interface RemoteModel {
    */
   readonly restoredFrom: Option.Option<string>
   /**
-   * Under `verifyPlacement`, the order each list was placed in, by edge key,
+   * Under `verifyPredictions`, the order each list was placed in, by edge key,
    * and the rows placing took out of its first page, until the server's page
    * for it arrives to be compared with them.
    */
   readonly placed: Readonly<Record<string, PlacedOrder>>
   /**
    * What the client met and kept going past, oldest first: under
-   * `verifyPlacement` each placement the server's page disagreed with, under
-   * `verifyAnswers` each row an answer left without fields the client showed,
-   * and each failed write the application's update does not hear. The newest
+   * `verifyPredictions` each part of a prediction the server's answer
+   * disagreed with, and each failed write the application's update does not
+   * hear. The newest
    * 256 are kept; the wiring reports each as it is recorded.
    */
   readonly diagnostics: ReadonlyArray<RemoteDiagnostic>
@@ -980,7 +981,7 @@ const sameFields = (model: RemoteModel, next: RemoteModel): boolean => {
 
 /**
  * A placement compared with the server's first page of the list it placed
- * in, under `verifyPlacement`: the keys as far as both reach must agree, and
+ * in, under `verifyPredictions`: the keys as far as both reach must agree, and
  * no row placing took out may be one the page still lists. The record goes
  * once compared; a disagreement is kept.
  */
@@ -1007,7 +1008,7 @@ const checkedPlacement = (
     diagnostics: agrees
       ? model.diagnostics
       : withDiagnostics(model.diagnostics, [
-          placementMismatch({ connection, placed: asPlaced, served }),
+          predictionMismatch(PredictionPart.Placement({ connection, placed: asPlaced, served })),
         ]),
   }
 }

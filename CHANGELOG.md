@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`PredictionMismatch`, the law in development** (#257, operations phase
+  6). **Breaking:** `Remote.make({ verifyPredictions })` replaces
+  `verifyPlacement` and `verifyAnswers`, and one diagnostic,
+  `PredictionMismatch`, replaces `PlacementMismatch` and `AnswerGap`: its
+  `part` (`PredictionPart`) is a `Placement` or a `Gap`, as they were, or the
+  new `Value`, a field a pending write showed that its answer carries another
+  value of (a field another pending request also shows is not judged).
 - **`Law.check`, the law between the client and the server** (#257,
   operations phase 6). `foldkit-remote/testing` runs one declared write
   through `Data.mutate`, over a Model holding what the server sends the

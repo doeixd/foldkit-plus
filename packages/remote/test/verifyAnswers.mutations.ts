@@ -1,5 +1,5 @@
 /**
- * `verifyAnswers`, broken in turn:
+ * `verifyPredictions`' Gap, broken in turn:
  * `pnpm mutate packages/remote/test/verifyAnswers.mutations.ts`.
  */
 const tests = ['packages/remote/test/verifyAnswers.test.ts']
@@ -12,7 +12,7 @@ export default [
     edits: [
       {
         file: index,
-        find: 'answer === undefined || options.verifyAnswers !== true',
+        find: 'answer === undefined || options.verifyPredictions !== true',
         replace: 'answer === undefined',
       },
     ],
@@ -34,7 +34,7 @@ export default [
     edits: [
       {
         file: index,
-        find: 'planAsked(after, askedUnion(projections), {}, operators).requirements,',
+        find: 'planAsked(unverified(after), askedUnion(projections), {}, operators).requirements,',
         replace: '[],',
       },
     ],
@@ -99,8 +99,8 @@ export default [
     edits: [
       {
         file: index,
-        find: 'diagnostics: withDiagnostics(after.diagnostics, gaps)',
-        replace: 'diagnostics: gaps',
+        find: 'diagnostics: withDiagnostics(after.diagnostics, found)',
+        replace: 'diagnostics: found',
       },
     ],
     tests,
@@ -110,7 +110,7 @@ export default [
     edits: [
       {
         file: index,
-        find: '        write => write.mutation,',
+        find: '      write => write.mutation,',
         replace: '        () => undefined as never,',
       },
     ],

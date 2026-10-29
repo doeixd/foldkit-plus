@@ -44,8 +44,8 @@ Three rules follow from it.
   that only a write's optimistic layer showed, and that its answer left out,
   reads `Loading` until it is fetched again. The answer carries what the
   Surfaces show of every row it names, so this is a row the server did not
-  name, or an answer whose read failed (`AnswerUnread`); `verifyAnswers`
-  reports such a field as an `AnswerGap` (see [Checking an answer
+  name, or an answer whose read failed (`AnswerUnread`); `verifyPredictions`
+  reports such a field as a `PredictionMismatch`'s `Gap` (see [Checking an answer
   against what was shown](../packages/remote/README.md#checking-an-answer-against-what-was-shown)).
 - **Nothing a reader started is retried on its own.** A failed read waits for
   `Data.refresh`, and a failed write for `Data.retry`. A persistent error
@@ -431,7 +431,7 @@ package's variants:
 
 | Package | `_tag`s |
 | --- | --- |
-| `foldkit-remote` | `WriteUnheard`; `AnswerGap` and `PlacementMismatch` under `verifyAnswers` and `verifyPlacement` |
+| `foldkit-remote` | `WriteUnheard`, `LiveRefused`; `PredictionMismatch` under `verifyPredictions` |
 | `foldkit-remote-server` | `ServerDefect`, `AnswerUnread`, `PublishFailed` |
 | `foldkit-remote-drizzle` | `StatementFailed`, `ServerOnlyRules` |
 | `foldkit-guard` | `ComputeRefused`, `UnpinnedWrites` |
@@ -450,8 +450,8 @@ nothing.
 
 **Development and production report the same.** No diagnostic is switched off
 in production. What development adds is checks you opt into:
-`Remote.make({ verifyAnswers: true, verifyPlacement: true })`, which cost a
-comparison per answer and a fetch per placed list. `GuardServer.validate`
+`Remote.make({ verifyPredictions: true })`, which costs a comparison per
+answer and a fetch per placed list. `GuardServer.validate`
 throws at startup for a guard a server does not apply, and reports
 `UnpinnedWrites` for a write a change can come between.
 

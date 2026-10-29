@@ -687,7 +687,7 @@ read of that entity alone reads `Loading`. An answer carries what the active
 Surfaces read of every row it names, so this is a row the answer did not
 name, a field the optimistic patch wrote that no Surface reads, or a server
 that answers without the read (one older than the client, or whose read
-failed). `Remote.make({ verifyAnswers: true })` names each one: see
+failed). `Remote.make({ verifyPredictions: true })` names each one: see
 [Checking an answer against what was shown](#checking-an-answer-against-what-was-shown).
 
 ### Why does a page I went back to read `Refreshing`?
@@ -1477,10 +1477,11 @@ does not run is judged by the server, as any row the client cannot judge is:
 `Data.filtered` answers it incomplete and a change to it refetches.
 
 **A placement can be checked against the server.** `Remote.make({ ...,
-verifyPlacement: true })` places as usual, and also fetches each list it placed
+verifyPredictions: true })` places as usual, and also fetches each list it placed
 what the server said in (an answer, as above, or a read or a live patch, as
 below); when the server's first page arrives it is compared with the order
-placed, and a disagreement is a `PlacementMismatch` [diagnostic](#diagnostics):
+placed, and a disagreement is a `PredictionMismatch` [diagnostic](#diagnostics)
+whose `part` is a `Placement`:
 an order the page does not share, or a row placing took out that the page
 still lists. A pending edit is not checked: the server does not have it
 yet. Turn it on in development and tests: a collation the client
@@ -1755,16 +1756,29 @@ a `Data.mutate` with none registered sends nothing to show.
 ### Checking an answer against what was shown
 
 When the answer comes, the request's layer comes off, and what the row shows
-is what the store holds. A field the layer showed that the answer left out,
-and the store does not hold, is then missing: an active Surface that reads it
-fetches it again, and the row reads `Loading` meanwhile. `Remote.make({ ...,
-verifyAnswers: true })` settles every mutation as usual and also records each
-such row as an `AnswerGap` [diagnostic](#diagnostics):
+is what the store holds. Two things can then differ from what was shown.
+`Remote.make({ ..., verifyPredictions: true })` settles every mutation as usual
+and records each as a `PredictionMismatch` [diagnostic](#diagnostics), its
+`part` naming which:
+
+- **`Value`:** a field the layer showed that the answer carries another value
+  of. The client's prediction and the server's write disagree: a count moved
+  by two, a time from another clock, a hand-written `optimistic` patch that
+  guessed. A field another pending request also shows is not judged, since
+  that request's value shows before and after.
+- **`Gap`:** a field the layer showed that the answer left out, and the store
+  does not hold. It is then missing: an active Surface that reads it fetches it
+  again, and the row reads `Loading` meanwhile.
 
 ```ts
 // requestId: the one Data.mutate returned; mutation: its name
-{ _tag: 'AnswerGap', requestId, mutation: Option.some('CreatePost'), entity: 'Post', id: 'p9', fields: ['editedAt', 'author'], … }
+{ _tag: 'PredictionMismatch', part: { _tag: 'Value', requestId, mutation, entity: 'Post', id: 'p9', field: 'likeCount', shown: 3, answered: 4 }, … }
+{ _tag: 'PredictionMismatch', part: { _tag: 'Gap', requestId, mutation, entity: 'Post', id: 'p9', fields: ['editedAt', 'author'] }, … }
 ```
+
+Match on the part with `PredictionPart.$match`. `Law.check`
+([below](#testing-that-a-prediction-is-the-truth-law)) is the same law, in a
+test, over every part rather than the ones an answer carries.
 
 A row's shown fields are those the request's optimistic patch wrote, added
 to or computed (a declared write's own included), plus those the active
@@ -2198,8 +2212,7 @@ first, the newest 256 kept:
 
 | `_tag` | When |
 | --- | --- |
-| `AnswerGap` | Under `verifyAnswers`, an answer left out fields the client showed. |
-| `PlacementMismatch` | Under `verifyPlacement`, the server listed a placed list in another order. |
+| `PredictionMismatch` | Under `verifyPredictions`, an answer disagreed with what the client predicted: a field's value (`Value`), a list's order (`Placement`), or a field left out (`Gap`). |
 | `WriteUnheard` | A write failed, and the wiring does not share `MutationFailed`. |
 
 Each carries its facts, `source: 'foldkit-remote'`, a `level` and a `message`

@@ -66,7 +66,7 @@ describe('the HTTP transport the browser uses', () => {
         Refreshing: value => value.items.map(row => row.title),
       })
     expect(placed(saved)).toEqual(['Notes on the Engine', 'about HTTP'])
-    // In tests the list is fetched too (`verifyPlacement`), and SQLite's page
+    // In tests the list is fetched too (`verifyPredictions`), and SQLite's page
     // agrees with the order placed.
     expect(Posts.page(saved)._tag).toBe('Refreshing')
     const verified = await run(

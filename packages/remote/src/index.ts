@@ -183,7 +183,12 @@ import {
 } from './requirement.js'
 import { markAll, resumePart } from './resume.js'
 import { answerGaps } from './answerGaps.js'
-import { withDiagnostics } from './diagnostics.js'
+import {
+  PredictionPart,
+  predictionMismatch,
+  withDiagnostics,
+  type PredictionMismatch,
+} from './diagnostics.js'
 import { reduceReporting } from './reporting.js'
 import { shownOf } from './shown.js'
 
@@ -191,12 +196,12 @@ import { http as httpClient, json as jsonClient } from './json.js'
 import { httpWithLive as httpWithLiveClient } from './sse.js'
 export * from './client.js'
 export type { RemoteResumePart } from './resume.js'
-export type {
-  AnswerGap,
-  LiveRefused,
-  PlacementMismatch,
-  RemoteDiagnostic,
-  WriteUnheard,
+export {
+  PredictionPart,
+  type LiveRefused,
+  type PredictionMismatch,
+  type RemoteDiagnostic,
+  type WriteUnheard,
 } from './diagnostics.js'
 // The channel Remote reports into, for a server or a test that uses Remote alone.
 export { Diagnostics, type Diagnostic, type ReportDiagnostic } from 'foldkit-surface'
@@ -2417,23 +2422,18 @@ export const Remote = {
     readonly queries?: Queries
     readonly mutations?: Mutations
     /**
-     * Places what the server said (a mutation's answer, a read, a live
-     * patch) as usual, and also fetches each list it placed in, comparing the
-     * server's first page with the order it placed: a disagreement is a
-     * `PlacementMismatch` in `diagnostics`. A pending edit is not checked,
-     * since the server does not have it yet. For development and tests, where
-     * a collation that drifts should be found.
+     * Checks each prediction against the server's answer, and records a
+     * `PredictionMismatch` in `diagnostics` for each part that disagrees:
+     * `Value`, a field a pending write showed that the answer holds otherwise;
+     * `Placement`, a list placed in an order the server's first page does not
+     * keep (each placed list is fetched too, for its page; a pending edit is
+     * not checked, since the server does not have it yet); `Gap`, a row whose
+     * answer left out fields the client showed while it was pending and the
+     * store does not otherwise hold, so they are read again and the row reads
+     * `Loading` meanwhile. Everything else behaves as without it. For
+     * development and tests.
      */
-    readonly verifyPlacement?: boolean | undefined
-    /**
-     * Settles each mutation as usual, and also records an `AnswerGap` in
-     * `diagnostics` for each row whose answer left out fields the client
-     * showed while it was pending (those its optimistic layer patched, and
-     * those the active Surfaces read of the rows it touched) and the store
-     * does not otherwise hold: they are read again, so the row reads
-     * `Loading` meanwhile. For development and tests.
-     */
-    readonly verifyAnswers?: boolean | undefined
+    readonly verifyPredictions?: boolean | undefined
     /**
      * How the client runs a body's primitive operators when it judges rows it
      * holds (`Operators`): the kernel's when not given. A body calling one this
@@ -2453,8 +2453,7 @@ export const Remote = {
       | undefined
   }): RemoteDomain<AppModel, Store, Entities, Queries, Mutations> =>
     bindDomain(defineRemote(config), config.model, {
-      verifyPlacement: config.verifyPlacement,
-      verifyAnswers: config.verifyAnswers,
+      verifyPredictions: config.verifyPredictions,
       operators: config.operators,
       viewer: config.viewer,
     }),
@@ -3120,8 +3119,7 @@ const bindDomain = <
   definition: RemoteDescriptor<Entities, Queries, Mutations>,
   store: ModelRef<AppModel, Store>,
   options: {
-    readonly verifyPlacement?: boolean | undefined
-    readonly verifyAnswers?: boolean | undefined
+    readonly verifyPredictions?: boolean | undefined
     readonly operators?: MemoryOperators | undefined
     readonly viewer?:
       | ((model: AppModel) => Option.Option<{ readonly entity: string; readonly id: string }>)
@@ -3222,39 +3220,129 @@ const bindDomain = <
             contextOf(model),
           )
     const checked =
-      answer === undefined || options.verifyAnswers !== true
+      answer === undefined || options.verifyPredictions !== true
         ? next
-        : withAnswerGaps(model, remote, next, answer.requestId)
+        : withAnswerChecked(model, remote, next, answer)
     return checked === remote ? model : store.set(model, checked as Store)
   }
 
-  /** `after` with the rows its answer left without fields the client showed (`verifyAnswers`). */
-  const withAnswerGaps = (
+  /**
+   * `after` with each part of the request's prediction the answer disagreed
+   * with (`verifyPredictions`): a field it showed that the answer holds
+   * otherwise (`Value`), and a row it left without fields the client showed
+   * (`Gap`).
+   */
+  const withAnswerChecked = (
     model: AppModel,
     before: RemoteModel,
     after: RemoteModel,
-    requestId: string,
+    answer: Extract<RemoteMessage, { _tag: 'MutationSucceeded' }>,
   ): RemoteModel => {
+    const { requestId } = answer
     // A repeated answer writes nothing, so it leaves nothing out.
     if (before.mutations.applied.has(requestId)) return after
+    const mutation = Option.map(
+      Option.fromUndefinedOr(before.mutations.writes.get(requestId)),
+      write => write.mutation,
+    )
     const settled = store.set(model, after as Store)
     const projections = [...readers.values()].flatMap(resolvedAt =>
       resolvedAt(settled).map(({ projection }) => projection),
     )
-    const gaps = answerGaps(
-      requestId,
-      Option.map(
-        Option.fromUndefinedOr(before.mutations.writes.get(requestId)),
-        write => write.mutation,
+    const found = [
+      ...valueMismatches(requestId, mutation, before, after, answer),
+      ...answerGaps(
+        requestId,
+        mutation,
+        before.optimistic,
+        after.optimistic,
+        visibleStoreOf(after.entities, after.optimistic, operators),
+        planAsked(unverified(after), askedUnion(projections), {}, operators).requirements,
       ),
-      before.optimistic,
-      after.optimistic,
-      visibleStoreOf(after.entities, after.optimistic, operators),
-      planAsked(after, askedUnion(projections), {}, operators).requirements,
-    )
-    return gaps.length === 0
+    ]
+    return found.length === 0
       ? after
-      : { ...after, diagnostics: withDiagnostics(after.diagnostics, gaps) }
+      : { ...after, diagnostics: withDiagnostics(after.diagnostics, found) }
+  }
+
+  /**
+   * `remote` with each list placed only to be checked (`placed`) read as it
+   * would be without the check: such a list is fetched for its page, and a
+   * stale list plans no reads of its rows, so a gap in them would go unseen.
+   */
+  const unverified = (remote: RemoteModel): RemoteModel => {
+    const checked = Object.keys(remote.placed).filter(
+      identity => remote.connections[identity] !== undefined,
+    )
+    if (checked.length === 0) return remote
+    const connections = { ...remote.connections }
+    for (const identity of checked)
+      connections[identity] = { ...connections[identity]!, stale: false }
+    return { ...remote, connections }
+  }
+
+  /**
+   * Each field the request's layer showed that its answer carries another
+   * value of. A field the answer does not carry is the `Gap`'s; one a request
+   * still pending also patches shows that request's value before and after,
+   * so it is not judged.
+   */
+  const valueMismatches = (
+    requestId: string,
+    mutation: Option.Option<string>,
+    before: RemoteModel,
+    after: RemoteModel,
+    answer: Extract<RemoteMessage, { _tag: 'MutationSucceeded' }>,
+  ): ReadonlyArray<PredictionMismatch> => {
+    const layer = before.optimistic.layers.find(each => each.id === requestId)
+    if (layer === undefined) return []
+    const shown = visibleStoreOf(before.entities, before.optimistic, operators)
+    const answered = new Map<string, Readonly<Record<string, unknown>>>()
+    for (const row of [...answer.entities, ...(answer.read?.result.entities ?? [])]) {
+      const key = entityKey(row.entity, row.id)
+      answered.set(key, { ...answered.get(key), ...row.values })
+    }
+    const stillPatched = new Set(
+      after.optimistic.layers.flatMap(each =>
+        each.patches.flatMap(patch =>
+          [
+            ...Object.keys(patch.values),
+            ...Object.keys(patch.adds ?? {}),
+            ...Object.keys(patch.computes ?? {}),
+          ].map(field => `${entityKey(patch.entity, patch.id)}.${field}`),
+        ),
+      ),
+    )
+    return layer.patches.flatMap(patch => {
+      const key = entityKey(patch.entity, patch.id)
+      const values = answered.get(key)
+      const entry = shown[key]
+      if (values === undefined || entry === undefined || entry.tombstone) return []
+      return [
+        ...Object.keys(patch.values),
+        ...Object.keys(patch.adds ?? {}),
+        ...Object.keys(patch.computes ?? {}),
+      ].flatMap(field =>
+        stillPatched.has(`${key}.${field}`) ||
+        !entry.present.has(field) ||
+        !Object.hasOwn(values, field) ||
+        sameData(entry.values[field], values[field])
+          ? []
+          : [
+              predictionMismatch(
+                PredictionPart.Value({
+                  requestId,
+                  mutation,
+                  entity: patch.entity,
+                  id: patch.id,
+                  field,
+                  shown: entry.values[field],
+                  answered: values[field],
+                }),
+              ),
+            ],
+      )
+    })
   }
 
   /** The registered query a connection identity names, and its encoded input. */
@@ -3526,7 +3614,7 @@ const bindDomain = <
   }
 
   /**
-   * The lists placed and invalidated. Under `verifyPlacement`, each placed
+   * The lists placed and invalidated. Under `verifyPredictions`, each placed
    * list is fetched too, and the order it was placed in kept to compare with
    * the server's page.
    */
@@ -3538,7 +3626,7 @@ const bindDomain = <
     const identities = Object.keys(placed)
     if (identities.length === 0) return invalidateConnections(remote, invalidated)
     const withPlaced = { ...remote, connections: { ...remote.connections, ...placed } }
-    if (options.verifyPlacement !== true) return invalidateConnections(withPlaced, invalidated)
+    if (options.verifyPredictions !== true) return invalidateConnections(withPlaced, invalidated)
     const firstPage = (connection: Connection | undefined) =>
       (connection?.segments[0]?.edges ?? []).map(edge => edge.key)
     const orders = Object.fromEntries(

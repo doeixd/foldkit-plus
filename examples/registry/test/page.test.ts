@@ -237,7 +237,7 @@ const mount = async (
   return {
     replica,
     mounted,
-    // Every list the page placed rows in was fetched too (`verifyPlacement`,
+    // Every list the page placed rows in was fetched too (`verifyPredictions`,
     // on in tests), and none disagreed with the server's order: nothing was diagnosed.
     dispose: async () => {
       const diagnostics = Data.inspect(mounted.model()).diagnostics
