@@ -4,6 +4,7 @@
  */
 import { global, type StyleValue } from '../styleValue.js'
 import { VAR_PREFIX, type ThemeTokens } from './core.js'
+import { own } from '../record.js'
 import { registrations } from './gamut.js'
 
 export interface RootOptions {
@@ -22,7 +23,7 @@ export interface RootOptions {
 const declarations = (theme: ThemeTokens, omit?: ThemeTokens): ReadonlyArray<string> =>
   Object.entries(theme).flatMap(([group, names]) =>
     Object.entries(names).flatMap(([name, value]) =>
-      omit !== undefined && Object.hasOwn(omit[group] ?? {}, name)
+      omit !== undefined && Object.hasOwn(own(omit, group) ?? {}, name)
         ? []
         : [`${VAR_PREFIX}-${group}-${name}:${value}`],
     ),
@@ -56,9 +57,9 @@ export const scoped = <T extends ThemeTokens>(
   selector: string,
   overrides: Overrides<T>,
 ): StyleValue => {
-  const tokens: Record<string, Record<string, string>> = {}
+  const tokens: Record<string, Record<string, string>> = Object.create(null)
   for (const [group, names] of Object.entries(overrides)) {
-    const defined: Record<string, string> = {}
+    const defined: Record<string, string> = Object.create(null)
     for (const [name, value] of Object.entries(names ?? {})) {
       if (typeof value === 'string') defined[name] = value
     }

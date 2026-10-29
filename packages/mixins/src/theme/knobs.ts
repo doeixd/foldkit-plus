@@ -9,6 +9,7 @@
 import { Option, Schema } from 'effect'
 import { DiagnosticError } from '../diagnostics.js'
 import { pipeSelf, type Pipeable } from '../pipe.js'
+import { own } from '../record.js'
 import { define } from './core.js'
 import { boundaryVariables } from './gamut.js'
 import * as Knob from './knob.js'
@@ -609,6 +610,10 @@ const checked = <S extends KnobSet>(knobs: S, values: Values<S>): Values<S> => {
   return values
 }
 
+/** What `values` set the knob `group.name` to, read from their own keys alone. */
+const setIn = (values: object, group: string, name: string): unknown =>
+  own(own(values as Readonly<Record<string, Readonly<Record<string, unknown>>>>, group), name)
+
 const valueOf = <S extends KnobSet>(
   knobs: S,
   values: Values<S>,
@@ -665,7 +670,7 @@ export function make(...args: [Values<Standard>] | [KnobSet, Values<KnobSet>]): 
 export const set =
   <S extends KnobSet>(values: Values<NoInfer<S>>) =>
   (self: KnobTheme<S>): KnobTheme<S> => {
-    const merged: Record<string, Record<string, unknown>> = {}
+    const merged: Record<string, Record<string, unknown>> = Object.create(null)
     for (const source of [self.values, checked(self.knobs, values)])
       for (const [group, names] of Object.entries(source))
         merged[group] = { ...merged[group], ...names }
@@ -692,7 +697,7 @@ export const variables = <S extends KnobSet>(self: KnobTheme<S>): Knob.Variables
   const declared: Record<string, string> = {}
   for (const [group, knobs] of Object.entries(self.knobs))
     for (const [name, knob] of Object.entries(knobs)) {
-      const value = (self.values[group] as Readonly<Record<string, unknown>> | undefined)?.[name]
+      const value = setIn(self.values, group, name)
       Object.assign(declared, knob.unset, value === undefined ? {} : knob.write(value))
     }
   return Object.assign(declared, boundaryVariables(declared))
@@ -764,9 +769,8 @@ const atDefault = (knob: Knob.Knob<unknown>, value: unknown): boolean =>
  */
 export const print = <S extends KnobSet>(self: KnobTheme<S>): string => {
   const groups = Object.entries(self.knobs).flatMap(([group, knobs]) => {
-    const values = (self.values[group] ?? {}) as Readonly<Record<string, unknown>>
     const set = Object.entries(knobs).flatMap(([name, knob]) => {
-      const value = values[name]
+      const value = setIn(self.values, group, name)
       return value === undefined || atDefault(knob, value) ? [] : [`${name}: ${literal(value)}`]
     })
     if (set.length === 0) return []
@@ -817,8 +821,7 @@ export const valueAt = <S extends KnobSet, P extends PathOf<S>>(
   path: P,
 ): ValueOf<KnobAt<S, P>> => {
   const [group, name] = split(path)
-  const set = (values[group] as Readonly<Record<string, unknown>> | undefined)?.[name]
-  return (set ?? at(knobs, path).default) as ValueOf<KnobAt<S, P>>
+  return (setIn(values, group, name) ?? at(knobs, path).default) as ValueOf<KnobAt<S, P>>
 }
 
 /** `values` with the knob at `path` set to `value`, checked by the knob as `make` checks it. */

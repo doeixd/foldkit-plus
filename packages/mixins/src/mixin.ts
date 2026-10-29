@@ -67,16 +67,19 @@ const mergeSlot = <Message>(
   return context => mergeStatic(evaluate(left, context), evaluate(right, context))
 }
 
+// With no prototype, so a slot named `constructor` that a Mixin leaves alone reads as none.
+const ownCopy = <A extends object>(contributions: A): Readonly<A> =>
+  Object.freeze(Object.assign(Object.create(null), contributions))
+
 export const make = <Message = never>(
   name: string,
   contributions: StaticContributionMap<Message>,
-): StaticMixin<Message> =>
-  Object.freeze({ name, contributions: Object.freeze({ ...contributions }) })
+): StaticMixin<Message> => Object.freeze({ name, contributions: ownCopy(contributions) })
 
 export const dynamic = <Message = never>(
   name: string,
   contributions: Contribution<Message>,
-): Mixin<Message> => Object.freeze({ name, contributions: Object.freeze({ ...contributions }) })
+): Mixin<Message> => Object.freeze({ name, contributions: ownCopy(contributions) })
 
 export const empty = <Message = never>(): StaticMixin<Message> => make('Empty', {})
 

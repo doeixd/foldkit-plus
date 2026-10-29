@@ -83,7 +83,7 @@ export const compose = <A extends ThemeTokens, B extends ThemeTokens>(
   base: A,
   over: B,
 ): Readonly<Merge<A, B>> => {
-  const merged: Record<string, Record<string, string>> = {}
+  const merged: Record<string, Record<string, string>> = Object.create(null)
   for (const source of [base, over]) {
     for (const [group, names] of Object.entries(source)) {
       merged[group] = { ...merged[group], ...(names as Record<string, string>) }

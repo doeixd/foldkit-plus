@@ -9,6 +9,7 @@ import * as Capability from './capability.js'
 import { declaredNames, isUnordered, layerOf, topLevelBlocks } from './cssBlocks.js'
 import type { InputContribution, SlotContribution } from './contribution.js'
 import { DiagnosticError } from './diagnostics.js'
+import { own } from './record.js'
 import * as Mixin from './mixin.js'
 import type { Mixin as MixinValue } from './mixin.js'
 import * as SlotModule from './slot.js'
@@ -440,10 +441,10 @@ export const recipe =
   (selection: RecipeSelection<RecipeDef<Variants>>): StyleValue => {
     const pieces: Array<StyleValue> = []
     if (def.base !== undefined) pieces.push(def.base)
-    const effective: Record<string, string> = {}
+    const effective: Record<string, string> = Object.create(null)
     for (const [variant, values] of Object.entries(def.variants ?? {})) {
       const chosen =
-        (selection as Record<string, string | undefined>)[variant] ??
+        own(selection as Record<string, string | undefined>, variant) ??
         (def.defaults as Record<string, string | undefined> | undefined)?.[variant]
       if (chosen === undefined) continue
       effective[variant] = chosen
@@ -503,7 +504,7 @@ const mergePieces = <Slots>(
   left: StylePieces<Slots> | undefined,
   right: StylePieces<Slots> | undefined,
 ): StyleValues<Slots> => {
-  const merged: Record<string, StyleValue> = {}
+  const merged: Record<string, StyleValue> = Object.create(null)
   for (const source of [left, right]) {
     for (const [slot, piece] of Object.entries((source ?? {}) as Record<string, Piece>)) {
       const existing = merged[slot]
@@ -555,9 +556,9 @@ export const recipeFor =
     for (const entry of def.compound ?? []) assertKnownSlots(slots, entry.style, 'compound')
     const select = (selection: SlotRecipeSelection<Variants> = {}): StyleValues<Slots> => {
       let pieces = mergePieces(def.base, undefined)
-      const effective: Record<string, string> = {}
+      const effective: Record<string, string> = Object.create(null)
       for (const [axis, values] of Object.entries(axes)) {
-        const picked = (selection as Record<string, string | null | undefined>)[axis]
+        const picked = own(selection as Record<string, string | null | undefined>, axis)
         const chosen =
           picked === null
             ? undefined
@@ -575,7 +576,7 @@ export const recipeFor =
       return pieces
     }
     const extend = (patch: SlotRecipePatch<Slots, Variants>): SlotRecipe<Slots, Variants> => {
-      const variants: Record<string, Record<string, StylePieces<Slots>>> = {}
+      const variants: Record<string, Record<string, StylePieces<Slots>>> = Object.create(null)
       for (const [axis, values] of Object.entries(axes)) {
         variants[axis] = { ...(values as Record<string, StylePieces<Slots>>) }
       }
@@ -614,7 +615,7 @@ export const forCapability =
   ): NamedStyle<Slots> => {
     const source = slots as unknown as Record<string, AnySlot>
     const value = toStyleValue(piece)
-    const pieces: Record<string, StyleValue> = {}
+    const pieces: Record<string, StyleValue> = Object.create(null)
     for (const [name, slot] of Object.entries(source)) {
       if (slot.hidden) continue
       if (Capability.extendsCapability(slot.capability, capability)) pieces[name] = value

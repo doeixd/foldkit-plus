@@ -760,6 +760,16 @@ carries `drawn`.
 
 ### Fixed
 
+- **A slot, variant axis, token group or knob named `__proto__`,
+  `constructor` or `toString` is read and written as its own key**.
+  Recipes read such an axis from the selection through the prototype, so
+  its default never applied and its compounds never matched; `extend`,
+  `forCapability`, `Theme.compose`, `Theme.scoped` and `Theme.set` dropped
+  a `__proto__` key; `Mixin.contributionsFor` answered `Object`'s member
+  for a slot a Mixin left alone; and `Theme.variables`, `Theme.print` and
+  `Knobs.valueAt` wrote or threw on `Object`'s member for an unset knob.
+  Each now reads own keys alone and gathers into a record with no
+  prototype.
 - **`Resume.builder` fills a Message field named `constructor`,
   `toString` or `__proto__` from the event**. It counted a field as fixed
   when `in` found it, which every object answers for those names, so
