@@ -2131,6 +2131,13 @@ of its own named a form field "fits the Catalog". Read words with
   only Vite transforms, and read `process.env` in scripts tsx runs; a server
   entry shared by both is a factory taking the id, with one thin Vite-only
   module applying the define.
+- **`@foldkit/vite-plugin` defines `import.meta.env.FOLDKIT_BUILD_ID` only
+  for an id it was given.** The id it generates for a client-and-server build
+  is compiled into Foldkit's own `buildToken.js` alone (0.28), so an entry
+  reading the variable got `undefined`, and a page stamped with the generated
+  id fell back to the baseline Model with nothing said (#210). Set
+  `FOLDKIT_BUILD_ID` before `foldkit()` reads it; `SSR.hydrate` now reports
+  `NoBuildId` and `OtherBuild`.
 - **`git checkout -- <file>` drops every uncommitted change in it.** Used to
   take a debug line back out of a test, it also took the session's new tests
   in that file, which had to be written again. Copy the file aside (`cp`)

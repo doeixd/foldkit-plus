@@ -303,6 +303,18 @@ both bundles; a script outside Vite, such as a prerender, reads
 `SSR.hydrate`, given no id, contains the page and reports why
 ([`PageContained`](#diagnostics), reason `NoBuildId`) rather than adopting it.
 
+The client and the server must be built with one id. A page whose stamp is
+not the client's is contained and reported as reason `OtherBuild`, naming both
+ids. When nothing sets the variable and one `vite build` makes both bundles,
+set it in `vite.config.ts` before `foldkit()` reads it, so every environment
+of the build sees the same value (a script run after the build does not):
+
+```ts
+import { randomUUID } from 'node:crypto'
+
+process.env.FOLDKIT_BUILD_ID ??= randomUUID()
+```
+
 Set it even though `@foldkit/vite-plugin` can now generate an id on its own.
 The generated one is compiled into Foldkit alone, where `foldkit-ssr` cannot
 read it, and the client must compare builds before it reads a page's payload,
@@ -854,7 +866,7 @@ Effect's log: the browser's console, or a server's or Worker's log.
 
 | `_tag`                | `level`   | When                                                                                                          |
 | --------------------- | --------- | ------------------------------------------------------------------------------------------------------------- |
-| `PageContained`       | `error`   | The browser contained the page instead of resuming it: `reason` is `NoBuildId` or the `ResumeRefused` reason |
+| `PageContained`       | `error`   | The browser contained the page instead of resuming it: `reason` is `NoBuildId`, `OtherBuild` or the `ResumeRefused` reason |
 | `StaticRegionMissing` | `error`   | A static region the browser drew is not in the server's page, so it was rendered in the browser (`region`)   |
 | `BundleUnloaded`      | `error`   | A lazy bundle's bodies did not load, and the page booted without them (`error`)                               |
 | `PageFailed`          | `error`   | `SSR.entry` answered `500`: `headers` threw, or the page could not be rendered (`url`, `cause`)              |

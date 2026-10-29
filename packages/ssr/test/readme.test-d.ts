@@ -23,6 +23,7 @@ declare const reported: SsrDiagnostic
 if (reported._tag === 'PageContained') {
   const reason:
     | 'NoBuildId'
+    | 'OtherBuild'
     | 'Route'
     | 'Plan'
     | 'Missing'

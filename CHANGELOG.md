@@ -418,6 +418,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **Breaking: `SSR.hydrate` reports a page from another build** (#210). A
+  page whose stamped build id is not the client's was contained by Foldkit's
+  refusal alone; it is now reported as `PageContained` with the new reason
+  `OtherBuild` (an exhaustive match on `reason` needs the case), naming both
+  ids and how to give the client and the server one
+  (`process.env.FOLDKIT_BUILD_ID ??= randomUUID()` before `foldkit()` reads
+  it). A client and server built with different ids looked like a silent
+  fallback to the baseline Model.
 - **Breaking: `pollLive` takes no `lists`** (#270), and `ListWatch` and
   `ListedEdge` are gone: it watches the lists a subscriber reads live.
   `LiveSource.subscribe` (now a method) takes `queries`, `RemoteClient.live`

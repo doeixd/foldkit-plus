@@ -4,7 +4,7 @@
  * answered 500, and a handler that keeps a page from answering before boot.
  * Each is reported through `Diagnostics.report`, by default to the log.
  */
-import { Cause, Effect } from 'effect'
+import { Cause, Effect, Option } from 'effect'
 import { Diagnostics, type Diagnostic, type ReportDiagnostic } from 'foldkit-surface'
 import type { ResumeRefused } from './shared.js'
 
@@ -13,8 +13,11 @@ const source = 'foldkit-ssr'
 /** A served page the browser contained instead of resuming: it stays in view, inert, and no runtime starts. */
 export interface PageContained extends Diagnostic {
   readonly _tag: 'PageContained'
-  /** `NoBuildId` when `SSR.hydrate` was given none; otherwise why the envelope was refused. */
-  readonly reason: 'NoBuildId' | ResumeRefused['reason']
+  /**
+   * `NoBuildId` when `SSR.hydrate` was given none, `OtherBuild` when the page
+   * names another deployment; otherwise why the envelope was refused.
+   */
+  readonly reason: 'NoBuildId' | 'OtherBuild' | ResumeRefused['reason']
 }
 
 /** A static region the browser asked for that the server's page did not hold, rendered in the browser. */
@@ -64,6 +67,16 @@ export const noBuildId: PageContained = pageContained(
   'NoBuildId',
   "SSR.hydrate was given no build id, so it cannot tell this page from another deployment's. Pass the id the server stamped: with @foldkit/vite-plugin, set FOLDKIT_BUILD_ID (or `foldkit({ buildId })`) so that `import.meta.env.FOLDKIT_BUILD_ID` is defined in the client too.",
 )
+
+/** The page's stamped build id, if it has one, is not the client's `client`. */
+export const otherBuild = (served: Option.Option<string>, client: string): PageContained =>
+  pageContained(
+    'OtherBuild',
+    `it was served by ${Option.match(served, {
+      onNone: () => 'no known deployment',
+      onSome: id => `deployment "${id}"`,
+    })}, but this client belongs to deployment "${client}". If both came from one build, they were given different ids: with @foldkit/vite-plugin, set FOLDKIT_BUILD_ID in the build's environment, or once in vite.config.ts before \`foldkit()\` reads it (\`process.env.FOLDKIT_BUILD_ID ??= randomUUID()\`). Otherwise serve the page from the running deployment.`,
+  )
 
 export const staticRegionMissing = (region: string): StaticRegionMissing => ({
   _tag: 'StaticRegionMissing',

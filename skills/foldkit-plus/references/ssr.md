@@ -123,7 +123,7 @@ served page stays in view while the fresh one draws hidden, and is swapped once 
   `Invalid`, `Route`), is contained with the reason reported, never re-rendered.
 - What SSR keeps going past is a diagnostic on `foldkit-surface`'s channel
   (`Diagnostics`, re-exported), by default Effect's log: `PageContained`
-  (`reason`: `NoBuildId` or the refusal's), `StaticRegionMissing`,
+  (`reason`: `NoBuildId`, `OtherBuild` or the refusal's), `StaticRegionMissing`,
   `BundleUnloaded`, `PageFailed` (a `500`), `HandlerUnnamed`.
   `SSR.hydrate(config, plan, { buildId, diagnostics })` takes a reporter, since
   a refusal comes before any runtime's `resources`; `SSR.entry`'s

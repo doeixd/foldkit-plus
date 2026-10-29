@@ -23,6 +23,28 @@ export default [
     tests: ['packages/ssr/test/noBuildId.test.ts'],
   },
   {
+    name: 'a page from another build is contained in silence',
+    edits: [
+      {
+        file: client,
+        find: '    report(otherBuild(Option.fromNullOr(served), options.buildId))',
+        replace: '',
+      },
+    ],
+    tests: ['packages/ssr/test/otherBuild.test.ts'],
+  },
+  {
+    name: 'a page with no build id is said to come from a deployment named "null"',
+    edits: [
+      {
+        file: client,
+        find: 'otherBuild(Option.fromNullOr(served), options.buildId)',
+        replace: 'otherBuild(Option.some(String(served)), options.buildId)',
+      },
+    ],
+    tests: ['packages/ssr/test/otherBuild.test.ts'],
+  },
+  {
     name: 'a page whose state cannot resume is contained in silence',
     edits: [
       {

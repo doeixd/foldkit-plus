@@ -4,7 +4,7 @@
  * `foldkit/experimental/server`, whose renderer and HTML parser a hydrating
  * page would otherwise carry; `foldkit-ssr` is this and the server side.
  */
-import { Effect, Result, Schema, Stream } from 'effect'
+import { Effect, Option, Result, Schema, Stream } from 'effect'
 import { hydrate as adopt, makeApplication, run } from 'foldkit/runtime'
 import * as Render from 'foldkit/render'
 import { Diagnostics, type ReportDiagnostic } from 'foldkit-surface'
@@ -12,6 +12,7 @@ import { withContext, type RenderContext } from './context.js'
 import {
   bundleUnloaded,
   noBuildId,
+  otherBuild,
   pageContained,
   reportingTo,
   type SsrDiagnostic,
@@ -150,7 +151,9 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     contain()
     return
   }
-  if (root.getAttribute(BUILD_ATTRIBUTE) !== options.buildId) {
+  const served = root.getAttribute(BUILD_ATTRIBUTE)
+  if (served !== options.buildId) {
+    report(otherBuild(Option.fromNullOr(served), options.buildId))
     adopt(program({ model: plan.baseline }), { buildId: options.buildId })
     return
   }
