@@ -384,6 +384,19 @@ const messages = {
         ConnectionChange.prepend(list.ref, { entity: 'Project', id: 'p7' }),
       ],
     }),
+    // A layer keeps the viewer its operation was foreseen for, which pending placement reads.
+    'p1 renamed by its owner, the layer keeping who asked': () => ({
+      _tag: 'MutationStarted',
+      requestId: 'rename',
+      optimistic: [{ entity: 'Project', id: 'p1', values: { name: 'Renamed' } }],
+      viewer: { entity: 'User', id: 'u1' },
+    }),
+    // A write `Data.mutate` refused where it was made: it shows nothing.
+    'a write refused where it was made': () => ({
+      _tag: 'MutationStarted',
+      requestId: 'refused',
+      write: { mutation: 'CreateProject', input: {} },
+    }),
   },
   MutationSucceeded: {
     'the rename confirmed': () => ({
@@ -432,6 +445,16 @@ const messages = {
       requestId: 'delete',
       error: down,
       operation: 'op-delete',
+    }),
+    'the write refused where it was made answered': () => ({
+      _tag: 'MutationFailed',
+      requestId: 'refused',
+      error: {
+        _tag: 'RemoteMutationError',
+        message: 'Invalid',
+        refusal: { _tag: 'Invalid', rule: 'rule', message: 'Invalid', path: [] },
+      },
+      operation: 'op-refused',
     }),
   },
   OverlayShown: {
