@@ -407,7 +407,8 @@ arguments. `foldkit-cms`'s `Cms.published(entity)` is one, over the `published` 
 Without `definedAs` an operator is **primitive**: each interpreter implements it.
 In memory, `Operators.memory(Operators.implement(op, (a, b, { collation }) => …))`
 is a table passed to `evaluate(body, input, rows, { operators })`, `Entity.judge`,
-`judgeInput` and `Entity.check(entity, { operators })`; `Operators.kernel` is the
+`judgeInput` and `Entity.check(entity, { operators })` (which throws where it is made
+for an operator the table lacks); `Operators.kernel` is the
 default and holds `Text.startsWith(text, prefix, { collation? })`. A strict operator
 (the default) never sees a null; `nulls: 'handled'` with
 `Operators.implementHandlingNulls` does. `collation: 'operands'` makes a text result

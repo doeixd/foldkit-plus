@@ -1158,6 +1158,12 @@ carries `drawn`.
   no input was refused with the wrong reason, and `Entity.relate` took
   relations for `toString`, which it does not relate. Each now reads and
   writes own keys only.
+- **`Entity.check` refuses an operator its table does not run** (#327). An
+  invariant calling one was `Undecided`, which the check passed, so the Schema
+  check accepted every value by that invariant. **Breaking:** `Entity.check`
+  now throws where it is made, naming the operators; pass the table that runs
+  them as `operators`. `Entity.judge` and `Entity.judgeInput` still answer
+  `Undecided`, for a form that leaves such an invariant to the server.
 
 ## 0.35.0
 

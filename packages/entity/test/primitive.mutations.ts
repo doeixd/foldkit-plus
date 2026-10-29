@@ -207,4 +207,16 @@ export default [
     'const judged = judge(entity, { after: row }, options.operators)',
     'const judged = judge(entity, { after: row })',
   ),
+  edit(
+    'a check is made over an operator its table lacks',
+    invariant,
+    'if (missing.length > 0) {',
+    'if (false) {',
+  ),
+  edit(
+    'a check counts what the judge runs as missing',
+    invariant,
+    'operations: dependenciesOf(...predicates).operations,',
+    'operations: [],',
+  ),
 ]

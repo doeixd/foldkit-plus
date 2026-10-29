@@ -339,12 +339,10 @@ describe('An invariant calling an operator the table does not run', () => {
     expect(Entity.judgeInput(Edit, { code: 'CD' }, table)._tag).toBe('Invalid')
     const checked = Guarded.schema.check(Entity.check(Guarded, { operators: table }))
     expect(() => Schema.decodeUnknownSync(checked)({ id: 'g1', code: 'CD' })).toThrow('Code it')
-    // Without the table it cannot judge, and a check passes what it cannot judge.
-    const unchecked = Guarded.schema.check(Entity.check(Guarded))
-    expect(Schema.decodeUnknownSync(unchecked)({ id: 'g1', code: 'CD' })).toEqual({
-      id: 'g1',
-      code: 'CD',
-    })
+    // A check that cannot run an invariant would pass every value, so it is not made (#327).
+    expect(() => Entity.check(Guarded)).toThrow(
+      'Entity.check of Guarded: its invariants call acme.joined, which the operator table does not run',
+    )
   })
 
   it('still fails on anything else an evaluation refuses', () => {

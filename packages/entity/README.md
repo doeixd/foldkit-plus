@@ -1105,7 +1105,9 @@ Refusal.isInvalidBy(refusal, reservedWithinQuantity)
   `Undecided`, never `Valid`.
 - `Entity.check(entity)` is the state invariants as a Schema check over the row
   type (`entity.schema.check(Entity.check(entity))`): it encodes the value, and
-  reports each failure at its `path` with its `message`.
+  reports each failure at its `path` with its `message`. It throws where it is
+  made when an invariant calls an operator its table does not run, since it
+  could judge no value by that invariant and would pass them all.
 
 Text compares only under a declared collation, here too: a date stored as text
 needs `{ collation: Collation.binary }` on its comparison. An interpreter that

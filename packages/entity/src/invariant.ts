@@ -21,7 +21,15 @@ import { Option, Schema, type SchemaAST } from 'effect'
 import { OperatorMissingError, truthOver, type Row } from './evaluate.js'
 import { Operators, type MemoryOperators } from './operators.js'
 import { put } from './record.js'
-import { Expr, Query, type FieldExpr, type NextExpr, type Predicate, type Reads } from './expr.js'
+import {
+  Expr,
+  Query,
+  dependenciesOf,
+  type FieldExpr,
+  type NextExpr,
+  type Predicate,
+  type Reads,
+} from './expr.js'
 // A cycle with `index.ts`, safe because `Entity` is read only when an invariant is attached.
 import {
   Entity,
@@ -287,13 +295,26 @@ export const judgeInput = (
 /**
  * The Entity's state invariants as an Effect Schema check over its row type:
  * each failure at its path, with its message. The value is encoded first,
- * field by field, so it is judged as the store would hold it.
+ * field by field, so it is judged as the store would hold it. Refused where it
+ * is made when an invariant calls an operator `operators` does not run: such a
+ * check would pass every value.
  */
 export const check = <E extends AnyEntity>(
   entity: E,
   options: { readonly operators?: MemoryOperators | undefined } = {},
-): SchemaAST.Filter<Schema.Schema.Type<E['schema']>> =>
-  Schema.makeFilter(value => {
+): SchemaAST.Filter<Schema.Schema.Type<E['schema']>> => {
+  const predicates = invariantsOf(entity).map(held => held.predicate)
+  // The judge runs every operation an invariant reads; an operator alone can be missing.
+  const missing = Expr.unsupported(predicates, {
+    operations: dependenciesOf(...predicates).operations,
+    operators: options.operators ?? Operators.kernel,
+  })
+  if (missing.length > 0) {
+    throw new Error(
+      `[foldkit-entity] Entity.check of ${entity.name}: its invariants call ${missing.join(', ')}, which the operator table does not run; pass one that does as \`operators\``,
+    )
+  }
+  return Schema.makeFilter(value => {
     const fields = entity.fields as Readonly<Record<string, AnyField>>
     const decoded = value as Readonly<Record<string, unknown>>
     const row: Record<string, unknown> = {}
@@ -315,3 +336,4 @@ export const check = <E extends AnyEntity>(
         : failure.path.map(key => ({ path: [key], issue: failure.message })),
     )
   })
+}
