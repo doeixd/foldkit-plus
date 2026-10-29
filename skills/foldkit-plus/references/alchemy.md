@@ -14,7 +14,7 @@ Alchemy owns **infrastructure**: which Worker, D1 database, R2 bucket, Durable
 Object namespace, rate limit and secret exist, and which binding names the
 Worker sees them under. It owns no application state. The Worker's code is the
 same code `examples/cloudflare` runs (Remote's `serveFetch`, `foldkit-media`'s
-server, Sync's `defineDocumentHost`). Alchemy only declares what that code's
+server, Sync's `defineDocumentHost`, Yielded Auth's routes). Alchemy only declares what that code's
 `env` holds.
 
 ```text
@@ -26,13 +26,16 @@ versions, and record the choice in the plan.
 
 ## What was checked here
 
-On 2026-10-27, `alchemy@2.0.0-beta.84` and `@alchemy.run/cloudflare@2.0.0-beta.84`
-were tested against the stack below:
+Against `alchemy@2.0.0-beta.84` and `@alchemy.run/cloudflare@2.0.0-beta.84`:
 
-- It type-checks, and `InferEnv` of it is assignable to `examples/cloudflare`'s
-  `WorkerEnv`. Removing a binding fails the check.
-- `alchemy plan` against a real account answered "3 to create, 6 binding
-  changes": the Worker, the database and the bucket, and the six bindings.
+- On 2026-10-29 the stack below type-checked, and `InferEnv` of it was
+  assignable to `examples/cloudflare`'s `WorkerEnv`. Removing a required
+  binding (`DB`, `MEDIA`) fails the check; the optional `UPLOAD_TOKEN` and
+  `AUTH_ORIGIN` are not checked, so a stack without them still compiles and
+  the Worker refuses uploads or answers `/auth/…` with a 404.
+- On 2026-10-27, before the Worker served sign-in, `alchemy plan` of the
+  stack without `AUTH_ORIGIN` against a real account answered "3 to create,
+  6 binding changes": the Worker, the database and the bucket, and six bindings.
 
 Nothing was deployed, so whether `alchemy deploy` or `alchemy dev` builds and
 runs this app has not been shown here. Run `alchemy dev` before the first
@@ -65,11 +68,14 @@ export const App = Cloudflare.Website.Foldkit('App', {
     }),
     SYNC_HOST: Cloudflare.DurableObject<SyncHost>('SyncHost'),
     UPLOAD_TOKEN: Config.Redacted('UPLOAD_TOKEN'),
+    AUTH_ORIGIN: Config.String('AUTH_ORIGIN'),
   },
-  assets: { runWorkerFirst: ['/remote', '/sync', '/_image/*', '/_media/*'] },
+  assets: {
+    runWorkerFirst: ['/remote', '/sync', '/me', '/auth/*', '/_image/*', '/_media/*'],
+  },
 })
 
-// A binding the Worker reads that the stack does not declare is a type error.
+// A required binding the Worker reads that the stack does not declare is a type error.
 const fits = (env: Cloudflare.InferEnv<typeof App>): WorkerEnv => env
 void fits
 
@@ -101,7 +107,9 @@ What each part does, and what it does not do:
   its table and stops writing Wrangler's.
 - **`Config.Redacted('UPLOAD_TOKEN')`** reads the secret from the environment
   (or `.env`) when the stack runs. Planning fails while it is unset. The
-  Worker sees it as a `string`.
+  Worker sees it as a `string`. `Config.String('AUTH_ORIGIN')` is read the same
+  way: the origin of the page that signs people in, which here is the site's
+  own URL. Without it the Worker answers `/auth/…` and `/me` with a 404.
 - **`Images` and `RateLimit`** are bindings only, with no resource behind
   them. Images must be enabled on the account.
 - **`Cloudflare.state()`** keeps the deploy state in a Worker on the account

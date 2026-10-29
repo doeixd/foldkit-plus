@@ -74,6 +74,9 @@ agent reads all of it at the start of every session.
   re-read the diff. Commit small; fix what review finds in a follow-up commit.
 - A claim about focus, layout or the pointer is a browser test: jsdom moves no
   focus and lays nothing out.
+- A Worker is tested on a local workerd with `Stack.start`
+  (`foldkit-plus/testing/workers`), its pages in Chromium with `Behaviors`
+  (`foldkit-plus/testing/playwright`).
 - A flaky test is a bug: reproduce it and fix the cause, never retry to green.
 - Report only what was verified; say which checks were skipped or failed.
 
@@ -118,8 +121,10 @@ Remote
   Surface wiring before drawing `Initial` as a spinner.
 - A `Query.make` list is invalidated by any change to its Entity; use
   `Query.define` for a list the client should place (#238).
-- A write's answer must carry every field the page reads (derived counts,
-  relations), or the row reverts or refetches (#226, #245).
+- A mutation handler's answer is read back only for the rows it names: name
+  each row it changed (`Remote.patch(Entity, id, {})`), or what it moved
+  reverts. `Remote.make({ verifyPredictions: true })` reports such gaps in
+  development (#226).
 - `Expr.input(...)` is a placeholder built once: compare it, never `input.x ? a : b`.
 
 SSR

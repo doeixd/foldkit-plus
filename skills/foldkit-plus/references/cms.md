@@ -9,7 +9,7 @@ of that is CMS-specific and none is repeated here.
 **Status: core, editor state, server.** `foldkit-cms` is roles, content types,
 three Entities, the operations as descriptors, the lifecycle, and `Cms.editor`.
 `foldkit-cms-drizzle` is its server: the audience boundary, saving, discarding,
-publishing and unpublishing, the worklist, an entry's derived state. Both are on npm at 0.2.0. The editor is state, not a screen: render its form with `foldkit-mixins-form`.
+publishing and unpublishing, the worklist, an entry's derived state. The editor is state, not a screen: render its form with `foldkit-mixins-form`.
 
 ## Ownership
 
@@ -51,9 +51,9 @@ const Posts = Cms.content('posts', {
 
 Cms.rolesOf(Post).slug // Post.fields.slug
 
-Cms.state({ archivedAt: null, row: 'visible', draft: { scheduledFor: null, scheduleError: null } }, now)
-// { _tag: 'Changed', schedule: null }
-Cms.offers(facts, now, Posts) // ['save', 'discard', 'publish', 'schedule', 'unpublish', 'restore', 'archive']
+const facts = { archivedAt: null, row: 'visible', draft: { scheduledFor: null, scheduleError: null } } as const
+Cms.state(facts, new Date()) // { _tag: 'Changed', schedule: null }
+Cms.offers(facts, new Date(), Posts) // ['save', 'discard', 'publish', 'schedule', 'unpublish', 'restore', 'archive']
 ```
 
 ## Common tasks
@@ -111,7 +111,8 @@ Bundle.declare(Editor.bundle.pipe(Bundle.withView(Cms.editorView(FormView.submod
   so the app's own views draw it. Nothing is sent. `PostEditor.canPreview`, `.previewing(model)`.
 - `open`/`create`/`close` drop the form: run `PostEditor.flush(model)` first (it
   returns `{ model, commands }`) so edits made within the rest are saved.
-- `Conflict`: `ReloadAsked` takes the server's copy, `OverwriteAsked` saves over it.
+- `Conflict`: `ReloadAsked` takes the server's copy; `OverwriteAsked` reads the
+  server's draft again, waits for the answer (`Data.plan` empty), and saves over it.
 - Register `Cms.Entities` and `Cms.operations` with `Remote.make`.
 
 ## Kinds

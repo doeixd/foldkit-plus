@@ -28,6 +28,7 @@ Nothing is generated from an Entity alone: no form and mutation, no editor.
 over the same input struct (see [form.md](form.md), [remote.md](remote.md)).
 
 ```ts
+import { Schema } from 'effect'
 import { Crud } from 'foldkit-crud'
 import { Bundle } from 'foldkit-bundle'
 import { defineMessageUnion } from 'foldkit/message'
@@ -103,15 +104,17 @@ const Authors = Crud.list('Authors', {
   query: AuthorsQuery, // Query.make('Authors', { Input: { search }, Result: Query.connection(Blog.Author) })
   selection: Entity.select(Blog.Author, { id: true, name: true }),
   pageSize: 25,
-  // live: true reads the list live: rows written elsewhere join and leave it.
+  // Read live while shown: rows written elsewhere join and leave it (the
+  // server's live source must serve the query; see remote.md).
+  live: true,
   // How a row reads as a choice, for a list that feeds relation pickers.
   choice: { value: row => row.id, label: row => row.name },
 })
 
 const AuthorList = Authors.at({
   data: Data,
-  // The query's input as the Model has it; none while the list is not shown.
-  input: model => Option.map(Option.fromNullOr(model.search), search => ({ search })),
+  // The query's input as the Model has it; `Option.none()` while the list is not shown.
+  input: model => Option.some({ search: model.search }),
 })
 
 const subscriptions = Data.subscriptions({ authors: AuthorList.active })

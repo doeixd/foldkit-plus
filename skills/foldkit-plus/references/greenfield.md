@@ -43,6 +43,9 @@ back two things:
   `const theme = Theme.make({ … })` (none for the shipped theme) and exporting `t`, `slots`, `forSlots` and
   `stylesheet` from `AppStyle.make`. With `foldkit-plus` installed, change those
   two imports to `foldkit-plus/mixins/app` and `foldkit-plus/mixins/theme`.
+  A theme with another icon pack also imports `Icons` from `foldkit-mixins-ui`
+  (an adapter, installed on its own) and icons from `virtual:foldkit-icons/<set>`,
+  which `foldkit-media/vite`'s `icons` plugin serves (see [media.md](media.md)).
 - **The page's address**: the theme is in its query, so the link reopens it
   for a later change.
 
@@ -71,8 +74,11 @@ cd <name>
 npx --legacy-peer-deps foldkit-plus setup
 ```
 
-Follow the second `setup` output (install, the skill, imports). Install an
-adapter only when the mapping (phase 5) calls for it. Then:
+Follow the second `setup` output: the `.gitattributes` it gives when the
+project has none, the block that pins every Effect package to the release
+Foldkit Plus is tested on (in a pnpm workspace it names the root's file, since
+pnpm reads pins only there), the install, the skill, and the imports. Install
+an adapter only when the mapping (phase 5) calls for it. Then:
 
 - Run the project's `typecheck` and `test` once, so a later failure is yours.
 - Keep the root application's Model, Message and `update` in `src/main.ts`, as
@@ -262,7 +268,7 @@ record the decisions in `docs/domain/plan.md`.
 | Accessibility | The level aimed for (WCAG 2.2 AA is the usual answer). Keyboard paths through every flow, focus after each navigation and dialog, reduced motion, contrast through the theme. |
 | Mobile | The devices and the smallest width aimed for, and whether the app is phone-first. A recipe's controls are already at least 44px on a coarse pointer (`Defaults.reset`'s `--fk-touch-floor`); `Touch.target` or `Touch.targets` floors your own. One column at 320–360px with no sideways scroll. The screen's safe areas (`Theme.tokens.safe`, with a `viewport-fit=cover` meta when a fixed bar pads an edge). A field's text at 16px or more on a coarse pointer, so iOS Safari does not zoom into it. Nothing that only a hover shows (`hover: none` draws it too, as a Card's dismiss does), drags and swipes read from pointer events, and a `*.touch.browser.test.ts` for what only a phone shows. |
 | Design and polish | The look from phase 2, revisited now that the screens are known: dark mode, more than one theme, the components from `foldkit-mixins-ui`. Every screen's empty, loading, failed and offline state. Copy and tone. |
-| Testing | What each kind proves: `update` and invariants as unit tests, views as Scene tests, focus, layout and the pointer as browser tests, flows that cross the server as end-to-end tests in a real browser. Guards and invariants under mutation testing, so each test is shown able to fail. Type tests for what must not compile. |
+| Testing | What each kind proves: `update` and invariants as unit tests, views as Scene tests, focus, layout and the pointer as browser tests, flows that cross the server as end-to-end tests in a real browser. On Workers, `Stack.start` (`foldkit-plus/testing/workers`) runs the Worker from its `wrangler.toml` on a local workerd with a migrated D1, and `Behaviors` (`foldkit-plus/testing/playwright`) checks a page in Chromium: a write shows before its answer and after it (`optimistic`), a text never shows during some steps (`neverShows`), no error is logged (`consoleErrors`); `examples/reference` tests itself this way. Guards and invariants under mutation testing, so each test is shown able to fail. Type tests for what must not compile. |
 | CI | The checks every push runs (format, typecheck, tests, end-to-end, build) and what blocks a merge. Preview deployments, if the host offers them. |
 | Deployment | The host and its project, environments (preview, production), domains, secrets (session keys, an upload token), database migrations (with each table's `checkConstraints` or `entityChecks`, a `revisionTrigger` where a guarded writer pins a revision, and the ledger's table) and backups, where images are kept and resized (`foldkit-media`'s server, a CDN). Who may deploy, and confirm before the first public one. Propose the CAFE stack below, and ask. |
 | Security | Authentication and its CSRF and origin checks (`foldkit-auth`), guards checked at startup (`GuardServer.validate`), who may upload, rate limits, response headers. |
@@ -286,10 +292,11 @@ error model and one Schema reach from `alchemy.run.ts` to the browser.
 - **Alchemy is the infrastructure.** `alchemy.run.ts` declares the site, the
   Worker, D1, R2, the Durable Object, the rate limit and the secrets as Effect
   values. `Cloudflare.InferEnv` types the Worker's `env` from them, so a
-  binding the Worker reads but the stack does not declare is a type error.
+  required binding the stack does not declare is a type error (an optional
+  one, such as a secret the Worker can run without, is not).
   - Follow [alchemy.md](alchemy.md). Its stack declares `examples/cloudflare`'s
-    Worker as one `Cloudflare.Website.Foldkit`. It type-checks and plans
-    against a real account; a deploy of it has not been run here.
+    Worker as one `Cloudflare.Website.Foldkit`. It type-checks; it has not
+    been deployed here (alchemy.md says what was checked).
   - Alchemy v2 is in beta. Pin its version, and run `alchemy dev` and
     `alchemy plan` before the first `alchemy deploy`.
   - **Wrangler** is the fallback, and the path `examples/cloudflare` itself
@@ -314,9 +321,8 @@ error model and one Schema reach from `alchemy.run.ts` to the browser.
 [`examples/reference`](https://github.com/doeixd/foldkit-plus/tree/main/examples/reference)
 runs Yielded's routes and `foldkit-ssr` inside one Worker's `fetch`
 (`src/worker.ts`, `src/page.ts`) over D1, tested on a local workerd and in
-Chromium; start the first slice from it. It deploys with `wrangler.toml`, not
-Alchemy, and `Website.Foldkit`'s `main` cannot be combined with Foldkit's
-`ssr.build`; see [alchemy.md](alchemy.md).
+Chromium; start the first slice from it. It deploys with `wrangler.toml`; no
+Alchemy stack for it has been checked here (see [alchemy.md](alchemy.md)).
 
 Adopting CAFE keeps `create-foldkit-app`'s scaffold and adds the Alchemy
 packages and `alchemy.run.ts`. Phase 7's first slice wires them to the
