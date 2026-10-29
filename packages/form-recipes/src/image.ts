@@ -148,6 +148,13 @@ export interface ImageOptions extends UploadOptions {
   }
 }
 
+/**
+ * Whether the control sends `file` at all. `accept` filters the picker, not a
+ * drop, so what is no image is refused here, before its bytes go anywhere, and
+ * a retry asks again.
+ */
+const sendable = (file: File): boolean => file.type.startsWith('image/')
+
 /** The facts and the Model that holds them, whatever was in flight. */
 const keep = (model: ImageModel, asset: HashedAsset): ImageModel =>
   modifyFields(model, { upload: () => ImageUpload.Kept({ asset }) })
@@ -191,10 +198,8 @@ const update = (
         model: Option.match(Option.fromNullishOr(dropped.outMessage), {
           onNone: () => next,
           onSome: UiFileDrop.OutMessage.match({
-            // `accept` filters the picker, not a drop: what is no image is refused here,
-            // before its bytes go anywhere.
             ReceivedFiles: ({ files }) =>
-              files[0].type.startsWith('image/')
+              sendable(files[0])
                 ? send(next, files[0])
                 : modifyFields(next, {
                     upload: () =>
@@ -229,10 +234,10 @@ const update = (
       ImageUpload.matchOrElse(
         model.upload,
         {
-          Refused: ({ file }) => ({
-            model: send(model, file),
-            commands: [focus(`#${model.drop.id}-cancel`)],
-          }),
+          Refused: ({ file }) =>
+            sendable(file)
+              ? { model: send(model, file), commands: [focus(`#${model.drop.id}-cancel`)] }
+              : { model },
         },
         () => ({ model }),
       ),
@@ -354,8 +359,9 @@ const view = (options: ImageOptions, words: ImageWords) =>
           ),
           button('cancel', ImageMessage.Cancelled()),
         ],
-        Refused: () => [
-          button('retry', ImageMessage.Retried()),
+        // A file refused before it was sent would be refused again: no retry for it.
+        Refused: ({ file }) => [
+          ...(sendable(file) ? [button('retry', ImageMessage.Retried())] : []),
           button('remove', ImageMessage.Removed()),
           drop,
         ],

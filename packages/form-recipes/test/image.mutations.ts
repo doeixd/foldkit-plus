@@ -52,9 +52,19 @@ export default [
   one('every refusal reads the same', 'words.refused[reason]', 'words.refused.Unexpected', [
     browser,
   ]),
-  one('a dropped file that is no image is sent', "files[0].type.startsWith('image/')", 'true', [
-    unit,
-  ]),
+  one('a dropped file that is no image is sent', 'sendable(files[0])', 'true', [unit]),
+  one(
+    'a retry sends a file refused before it was sent',
+    '? { model: send(model, file)',
+    '|| true ? { model: send(model, file)',
+    [unit],
+  ),
+  one(
+    'a retry is offered for a file refused before it was sent',
+    "...(sendable(file) ? [button('retry'",
+    "...(true ? [button('retry'",
+    [unit],
+  ),
   one(
     'a send forgets the total it reports',
     'ImageUpload.Sending({ ...upload, loaded, total })',

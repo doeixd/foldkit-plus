@@ -189,6 +189,30 @@ describe('the image recipe, after the review', () => {
     expect(held(refused)).toBe(pdf)
   })
 
+  // A retry of it would send the bytes the drop refused to send (#301).
+  it('offers no retry of a file it refused before sending, and sends none', () => {
+    const pdf = new File([new Uint8Array(8)], 'notes.pdf', { type: 'application/pdf' })
+    const refused = update(PostForm.initial, dropped(pdf))
+    expect(update(refused, ImageMessage.Retried())).toBe(refused)
+    const buttons = (model: Model) =>
+      Inert.byTag(
+        Inert.draw(FormView.define(PostForm), { model, errors: [], canSubmit: false }),
+        'button',
+      )
+        .filter(button =>
+          ['cover-retry', 'cover-remove'].includes(String(Inert.value(button, 'id'))),
+        )
+        .map(Inert.text)
+    expect(buttons(refused)).toEqual(['Remove'])
+    // The route's refusal of an image may be retried.
+    const routeRefused = update(
+      PostForm.initial,
+      dropped(file()),
+      ImageMessage.Failed({ attempt: 1, reason: 'Unsupported', status: 415 }),
+    )
+    expect(buttons(routeRefused)).toEqual(['Try again', 'Remove'])
+  })
+
   it('moves focus on when a press takes its button away', () => {
     const sending = update(PostForm.initial, dropped(file()))
     expect(step(sending, ImageMessage.Cancelled()).commands?.map(command => command.args)).toEqual([

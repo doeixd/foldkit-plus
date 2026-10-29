@@ -718,6 +718,10 @@ carries `drawn`.
 
 ### Fixed
 
+- **`foldkit-form-recipes/image` never sends a file it refused before
+  sending** (#301). A dropped file that is no image was refused unsent, but
+  Try again sent it. Such a refusal now offers no retry, and a `Retried` sent
+  for it changes nothing; a refusal from the route can still be retried.
 - **A `Select` or `Choices` refuses options drawn alike** (#305). Both draw
   and read an option by its text, so with `'1'` and `1` in one set the
   second could never be chosen and a choice could be stored as the other's
