@@ -239,9 +239,12 @@ const tagOf = (member: AnyMember): string => {
     : 'the member'
 }
 
-/** The fields a member leaves for the event to fill, given what is fixed. */
+/**
+ * The fields a member leaves for the event to fill, given what is fixed. Only
+ * `fixed`'s own keys fix a field: `in` finds `constructor` on every object.
+ */
 const holeOf = (member: AnyMember, fixed: object): ReadonlyArray<string> =>
-  Object.keys(member.fields).filter(field => field !== '_tag' && !(field in fixed))
+  Object.keys(member.fields).filter(field => field !== '_tag' && !Object.hasOwn(fixed, field))
 
 const NO_MODIFIERS: KeyboardModifiers = {
   shiftKey: false,

@@ -760,6 +760,11 @@ carries `drawn`.
 
 ### Fixed
 
+- **`Resume.builder` fills a Message field named `constructor`,
+  `toString` or `__proto__` from the event**. It counted a field as fixed
+  when `in` found it, which every object answers for those names, so
+  `OnInput(Message.Typed)` was refused as leaving no field. It now counts
+  only the fixed object's own keys.
 - **A form key named `constructor`, `toString` or `__proto__` is given
   only what the application gave it**. `Form.make` read its control, its
   nested form and its check through the prototype, so such a key without
