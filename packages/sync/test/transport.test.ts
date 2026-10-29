@@ -10,6 +10,7 @@ import {
   serveSocket,
   toPromise,
   Transport,
+  TransportSocket,
   type SocketLike,
 } from '../src/index.js'
 import { socketPair } from './sockets.js'
@@ -172,8 +173,7 @@ describe('the socket transport', () => {
       return closing
     }
     const program = Effect.gen(function* () {
-      const transport = yield* Effect.service(Transport)
-      const socket = transport.socket!
+      const socket = yield* Effect.service(TransportSocket)
       const heard: Array<string> = []
       socket.onMessage(data => heard.push(data))
       const received: Array<string> = []
@@ -216,13 +216,13 @@ describe('the socket transport', () => {
       onClose: () => () => {},
     }
     const program = Effect.gen(function* () {
-      const transport = yield* Effect.service(Transport)
+      const socket = yield* Effect.service(TransportSocket)
       while (open === undefined) yield* Effect.sleep('1 millis')
-      transport.socket!.send('early')
+      socket.send('early')
       const opened = open
       open = undefined
       opened()
-      transport.socket!.send('late')
+      socket.send('late')
       return sent
     })
     const result = await Effect.runPromise(
@@ -241,7 +241,8 @@ describe('the socket transport', () => {
     })
     const program = Effect.gen(function* () {
       const transport = yield* Effect.service(Transport)
-      transport.socket!.onMessage(() => {
+      const socket = yield* Effect.service(TransportSocket)
+      socket.onMessage(() => {
         throw new Error('another protocol failed')
       })
       return yield* transport.exchange(0, []).pipe(Effect.timeout('1 second'))

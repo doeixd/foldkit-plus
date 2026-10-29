@@ -13,7 +13,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Sync } from '../src/index.js'
 import { defineDocumentHost, type AcceptingWebSocket } from '../src/do.js'
 import { documentHost, journalExchange } from '../src/journal.js'
-import { layerSocket, Transport, type SocketLike } from '../src/transport.js'
+import { layerSocket, TransportSocket, type SocketLike } from '../src/transport.js'
 import { Message, Todos, closeScopes, openJournal, pendingOf, replica } from './fixtures/todos.js'
 import { socketPair } from './sockets.js'
 
@@ -213,7 +213,7 @@ describe('a listener that throws', () => {
     const heard = await Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
-          const socket = (yield* Effect.service(Transport)).socket!
+          const socket = yield* Effect.service(TransportSocket)
           socket.onMessage(() => {
             throw new Error('not mine')
           })

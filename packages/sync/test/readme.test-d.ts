@@ -17,6 +17,7 @@ import {
   type Replica,
   type SocketLike,
   type Storage,
+  TransportSocket,
   type TransportClient,
 } from '../src/index.js'
 import { serveJournal } from '../src/journal.js'
@@ -345,3 +346,13 @@ void Sync.transport.socket({
   url: 'wss://example.com/sync',
   makeSocket: () => Sync.transport.portSocket(open()),
 })
+
+// The socket transport provides the connection it shares; a loopback has none to share.
+const sharedSocket = Effect.service(TransportSocket)
+const _shared: Effect.Effect<SocketLike, unknown> = sharedSocket.pipe(
+  Effect.provide(Sync.transport.socket({ url: 'wss://example.com/sync' })),
+)
+// @ts-expect-error a loopback transport opens no socket, so none is provided
+const _unshared: Effect.Effect<SocketLike, unknown> = sharedSocket.pipe(
+  Effect.provide(Sync.transport.loopback(() => ({}))),
+)

@@ -104,12 +104,13 @@ const changedCells = (operation: Operation): ReadonlyArray<Pick<Refusal, 'id' | 
  * The transport, paused while `paused()` says so: an exchange fails as the
  * server being unreachable would, so the replica keeps its edits on the
  * device. A notice that arrives meanwhile only starts an exchange that fails
- * the same way. The offline switch's.
+ * the same way. The offline switch's. What else the transport provides, such
+ * as its shared socket, passes through.
  */
-export const pausable = <E>(
-  transport: Layer.Layer<Transport, E>,
+export const pausable = <Out, E>(
+  transport: Layer.Layer<Transport | Out, E>,
   paused: () => boolean,
-): Layer.Layer<Transport, E> =>
+): Layer.Layer<Transport | Out, E> =>
   Layer.effect(
     Transport,
     Effect.gen(function* () {
@@ -122,7 +123,7 @@ export const pausable = <E>(
             : shape.exchange(cursor, pending, epoch),
       }
     }),
-  ).pipe(Layer.provide(transport))
+  ).pipe(Layer.provideMerge(transport))
 
 /**
  * The application over an open replica: an edit applies at once and is

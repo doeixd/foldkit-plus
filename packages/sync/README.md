@@ -819,7 +819,9 @@ replica validates every field; see [when things go wrong](#when-things-go-wrong)
   new exchanges fast until a socket is healthy again. `maxQueue` (64) bounds
   the queue.
   Instead of a `url`, pass `makeSocket: () => SocketLike` to connect over
-  something else; it is called again on each reconnect.
+  something else; it is called again on each reconnect. Beside `Transport` it
+  provides `TransportSocket`, the connection it keeps, for another protocol
+  to share; a layer without a socket has no `TransportSocket` in its type.
 - `Sync.transport.serve(socket, { exchange, changes? })`: the server side of one
   accepted socket. With `changes`, a subscription to the document's commits, it
   sends a notice after each; the client's loop exchanges on every notice, so a
@@ -841,8 +843,9 @@ A refusal is data in the answer; only a wire failure is a `TransportError`.
 does, not replay next week. `Sync.presence.make({ id, ttl, decodeValue, channel?,
 throttle? })` is a TTL'd peer registry outside the log: values are decoded before
 they enter it, a peer that stops refreshing is pruned, and `throttle` sends at
-most one value per interval, the latest. `Sync.presence.socketChannel(transport.socket)`
-shares the sync socket across reconnects; `Sync.presence.hub` and `.serve` are
+most one value per interval, the latest. `Sync.presence.socketChannel(socket)`,
+given the `TransportSocket` the socket transport provides, shares the sync
+socket across reconnects; `Sync.presence.hub` and `.serve` are
 the server side. `.serve` stamps each frame with the connection's `peerId`, so a
 peer cannot speak as another, and with `opens` (the exchange's own) joins only
 a connection that may open the document, relaying nothing to or from one

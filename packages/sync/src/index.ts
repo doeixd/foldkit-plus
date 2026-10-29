@@ -181,6 +181,7 @@ export {
   toPromise,
   workerSocket,
   Transport,
+  TransportSocket,
   TransportError,
   type ExchangeFrame,
   type ExchangeReply,

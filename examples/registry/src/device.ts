@@ -10,9 +10,10 @@ import type { RemoteClient } from 'foldkit-remote'
 import {
   ReplicaId,
   Sync,
-  Transport,
+  TransportSocket,
   type Mounted,
   type SocketLike,
+  type Transport,
   type TransportError,
 } from 'foldkit-sync'
 import { Message, PeerPresence, type Model } from './app.js'
@@ -26,7 +27,7 @@ export const startDevice = async (options: {
   readonly name: (replicaId: string) => string
   readonly resources: Layer.Layer<RemoteClient>
   /** The device's way to the journal, as the name it commits as. */
-  readonly transport: (device: string) => Layer.Layer<Transport, TransportError>
+  readonly transport: (device: string) => Layer.Layer<Transport | TransportSocket, TransportError>
 }): Promise<Mounted<Model, Message>> => {
   // One replica per device, and its storage named after it: a reload opens the
   // same one, edits it has not sent included, while two never write one storage.
@@ -72,9 +73,8 @@ export const startDevice = async (options: {
 
   // Presence, on the same connection: the cell this device has focused, and
   // where the others are. It is passing, so nothing of it is journaled, and a
-  // device that goes quiet drops out. A transport with no socket has none.
-  const socket = Context.get(built, Transport).socket
-  if (socket !== undefined) await sharePresence(mounted, socket, device, scope)
+  // device that goes quiet drops out.
+  await sharePresence(mounted, Context.get(built, TransportSocket), device, scope)
   return mounted
 }
 

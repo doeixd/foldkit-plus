@@ -32,7 +32,9 @@ its Entity; `MutationSource.run` is given `read`, `now` and `viewer`;
 `invariantChecks` is `checkConstraints`; SSR, agent-mcp and guard report
 diagnostics instead of writing to `console`; leaving a form field no longer
 validates it, and `Message.Refused` takes `value`;
-the net and device primitives' `lastError` and `coords` are `Option`s; the shipped theme's
+the net and device primitives' `lastError` and `coords` are `Option`s;
+`RemotePersistence.hydrate` returns an `Option`; a socket transport's
+shared socket is `TransportSocket`; the shipped theme's
 defaults changed. Under Security: `GuardServer.validate` refuses a served
 write no rule governs under `'allow'`, `EntityWriter.insert` takes
 `operation`, `LiveHub.subscribe` takes no `maxIdsPerEntity`, and a collection
@@ -501,6 +503,14 @@ carries `drawn`.
   corrupt), so a caller wrote `?? emptySnapshot` or a `!`; it gives none.
   Read it with `Option.getOrElse(hydrate(text, { scope }), () =>
   RemotePersistence.emptySnapshot)`.
+- **Breaking: a socket transport's shared connection is `TransportSocket`.**
+  `TransportShape.socket` was optional, though `Sync.transport.socket`
+  always set it, so a page sharing it with presence guarded for a socket
+  that was always there. `Sync.transport.socket` now provides
+  `TransportSocket` beside `Transport` (`Layer<Transport | TransportSocket>`),
+  read with `Context.get(built, TransportSocket)` or `yield* TransportSocket`;
+  `TransportShape` has no `socket`, and a layer without one says so in its
+  type.
 - **Breaking: `Data.why` returns a `ReadWhy`** (#248). It lists, in
   `because`, every fact the Model holds about what a read reads, as typed
   references (`Why`, a tagged union with an exhaustive `match`): its list or a

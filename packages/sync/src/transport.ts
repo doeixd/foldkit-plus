@@ -44,12 +44,6 @@ export interface TransportShape {
    * it: `Replica.start` exchanges on each. A wake-up, not data.
    */
   readonly changes?: Stream.Stream<void> | undefined
-  /**
-   * The connection itself, for another protocol to share, such as presence: a send goes to
-   * the socket open now and is dropped while none is, and messages from every socket the
-   * transport opens arrive here. It is the transport's to close.
-   */
-  readonly socket?: SocketLike | undefined
 }
 
 /**
@@ -61,6 +55,17 @@ export interface TransportShape {
  */
 export class Transport extends Context.Service<Transport, TransportShape>()(
   'foldkit-sync/Transport',
+) {}
+
+/**
+ * The connection `layerSocket` keeps, for another protocol to share, such as
+ * presence: a send goes to the socket open now and is dropped while none is,
+ * and messages from every socket the transport opens arrive here. It is the
+ * transport's to close. Only a socket transport provides it, so a layer that
+ * has one says so in its type.
+ */
+export class TransportSocket extends Context.Service<TransportSocket, SocketLike>()(
+  'foldkit-sync/TransportSocket',
 ) {}
 
 const failure = (error: unknown): TransportError =>
@@ -366,9 +371,10 @@ const connector = (options: SocketOptions): (() => SocketLike) => {
  * exchanges with backpressure. The socket is released when the layer's scope
  * ends.
  */
-export const layerSocket = (options: SocketOptions): Layer.Layer<Transport, TransportError> =>
-  Layer.effect(
-    Transport,
+export const layerSocket = (
+  options: SocketOptions,
+): Layer.Layer<Transport | TransportSocket, TransportError> =>
+  Layer.effectContext(
     Effect.fn('Transport.layerSocket')(function* () {
       const makeSocket = connector(options)
       const maxQueue = options.maxQueue ?? 64
@@ -538,9 +544,8 @@ export const layerSocket = (options: SocketOptions): Layer.Layer<Transport, Tran
         }),
       )
 
-      return Transport.of({
+      const transport = Transport.of({
         changes: Stream.fromPubSub(notices),
-        socket: shared,
         exchange: (cursor, pending, epoch) =>
           Effect.callback<unknown, TransportError>(resume => {
             if (disposed) {
@@ -569,5 +574,6 @@ export const layerSocket = (options: SocketOptions): Layer.Layer<Transport, Tran
             })
           }),
       })
+      return Context.make(Transport, transport).pipe(Context.add(TransportSocket, shared))
     })(),
   )
