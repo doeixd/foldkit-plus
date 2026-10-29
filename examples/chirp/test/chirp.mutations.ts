@@ -4,6 +4,7 @@
  */
 const server = ['examples/chirp/test/server.test.ts']
 const client = ['examples/chirp/test/like.test.ts', 'examples/chirp/test/post.test.ts']
+const why = ['examples/chirp/test/why.test.ts']
 
 export default [
   {
@@ -260,5 +261,16 @@ export default [
       },
     ],
     tests: client,
+  },
+  {
+    name: 'your posts are anyone’s, so a chirp of yours does not join them by its author',
+    edits: [
+      {
+        file: '../src/operations.ts',
+        find: 'Query.where(Expr.eq(Post.relations.author, input.authorId)),',
+        replace: "Query.where(Expr.eq(Post.relations.author, 'nobody')),",
+      },
+    ],
+    tests: why,
   },
 ]

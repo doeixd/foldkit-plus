@@ -151,8 +151,15 @@ no I/O and plan nothing; `Data.plan` is what the read entry will fetch.
 
 ## Tests
 
-`packages/remote/test/why.test.ts` (each `Why` from a Model built by the
-Messages that make it, the decisive reason for each tag, the JSON encoding),
-`timeline.test.ts` (steps, the regression rule), `why.test-d.ts` (the
-types), `why.mutations.ts`; `examples/chirp/test/why.test.ts` over Chirp's
-own post and timeline.
+`packages/remote/test/why.test.ts` (the wiring reasons for `Initial`, which
+Surface counts, the JSON encoding) and `whyReasons.test.ts` (every other
+reason, each from a Model built by the Messages that make it, and the reason
+that decides each state), `timeline.test.ts` (steps, the regression rule),
+`why.test-d.ts` (the types, with negatives that go red when the read's type is
+widened), `why.mutations.ts` (23 mutations, all killed).
+`examples/chirp/test/why.test.ts` reads Chirp's own profile list: a posted
+chirp joins it by `PostChirp`, through the term `Post.author = $authorId`,
+and a trace of the post and its answer has no step for the list. Written
+first without an active Surface, that trace's timeline said the list went
+`Initial` (`NotObserved`): retention had dropped it, which is what the
+timeline is for.
