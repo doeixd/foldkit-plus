@@ -470,6 +470,15 @@ version changed; `pnpm` skips versions already in the registry.
   the edge. They are `backgroundColor` now; an override of a Button's fill
   in the `app` layer still wins.
 
+- **A held list over a path re-judges when what the path reaches changes**
+  (operations phase 6, found by the hardening review). `impactOn` read only a
+  body's own predicate fields, so a member relinked out of `Expr.path(team,
+  name) = 'red'`, a team renamed, a row an exists counts deleted, or the
+  viewer's own link moved all left the list as it stood. A change to a member
+  any path, exists or path from the viewer reads in another row now
+  invalidates the list; a change to the link a path starts from re-judges
+  that row.
+
 - **A pending create is placed in a list over the viewer** (operations phase
   6, found by `Law.check`). Pending placement judged list bodies with no
   context, so a card you made was left out of `Mine` (`Expr.eq(author,

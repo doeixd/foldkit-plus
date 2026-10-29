@@ -1455,6 +1455,10 @@ the store the answer left:
   it could answer with the rows before the write;
 - a list over a `Query.make` query, which declares no body, is invalidated by
   any change to its Entity;
+- a list whose body reads other rows (a path, an exists, a path from the
+  viewer) is invalidated by a change to any member those read, or a deletion
+  of such a row: a team renamed moves every member listed by its name. A
+  change to the link a path starts from re-judges that row alone;
 - a row a list does not hold that changes a member the server's own read rule
   filters on (an owner, a team: declared on the Entity as `ReadFilter`, which
   `foldkit-guard` attaches) invalidates it: whether the row now belongs is the

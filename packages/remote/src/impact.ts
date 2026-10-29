@@ -17,14 +17,16 @@
 import {
   Query as Relational,
   dependenciesOf,
+  type AnyQuery,
   type ExprContext,
   type MemoryOperators,
+  type OneRelation,
   type OrderTerm,
 } from 'foldkit-entity'
 import { defineTaggedUnion } from 'foldkit/schema'
 import { edge, hasNext, hasPrevious, isGapped, type Connection } from './connection.js'
 import { RowPlace, placeIn, withEdge, withoutEdge } from './placement.js'
-import { Data, Schema } from 'effect'
+import { Data, Match, Option, Schema } from 'effect'
 import { sameData } from './data.js'
 import { belongsEncoded } from './matching.js'
 import type { NormalizedPatch } from './mutation.js'
@@ -108,6 +110,60 @@ export interface HeldConnection {
 
 const kept = Impact.Kept()
 
+/**
+ * What a body's paths, exists and paths from the viewer read beyond the
+ * fields of the row judged: `own`, the links of that row a path starts from,
+ * which a change re-judges for that row alone; `others`, by Entity name, the
+ * members they read in other rows, a change to any of which may move any row
+ * of the list.
+ */
+interface Reached {
+  readonly own: ReadonlySet<string>
+  readonly others: ReadonlyMap<string, ReadonlySet<string>>
+}
+
+const reachedBy = new WeakMap<AnyQuery, Reached>()
+
+const reachedOf = (body: AnyQuery): Reached => {
+  const known = reachedBy.get(body)
+  if (known !== undefined) return known
+  const own = new Set<string>()
+  const others = new Map<string, Set<string>>()
+  const other = (entity: string, key: string) => {
+    const keys = others.get(entity) ?? new Set<string>()
+    keys.add(key)
+    others.set(entity, keys)
+  }
+  /** Relations followed from the judged row: the first is its own link, the rest other rows'. */
+  const fromRow = (via: ReadonlyArray<OneRelation>) =>
+    via.forEach((relation, index) =>
+      index === 0 ? own.add(relation.key) : other(relation.owner.name, relation.key),
+    )
+  for (const reach of Relational.dependencies(body).reaches)
+    Match.value(reach).pipe(
+      Match.tagsExhaustive({
+        Path: path => {
+          fromRow(path.via)
+          other(path.field.owner.name, path.field.key)
+        },
+        Exists: exists => {
+          fromRow(exists.via)
+          other(exists.relation.owner.name, exists.relation.key)
+          Option.map(exists.where, where =>
+            dependenciesOf(where).fields.forEach(field => other(field.entity, field.key)),
+          )
+        },
+        ViewerPath: path => {
+          for (const relation of path.via) other(relation.owner.name, relation.key)
+          other(path.field.owner.name, path.field.key)
+        },
+      }),
+    )
+  const reached = { own, others }
+  reachedBy.set(body, reached)
+  return reached
+}
+
 /** Whether two versions of a list hold the same rows in the same order, segment by segment. */
 const sameOrder = (left: Connection, right: Connection): boolean =>
   left.segments.length === right.segments.length &&
@@ -134,6 +190,20 @@ export const impactOn = (
   const { descriptor } = connection
   const body = descriptor.body
   const over = body?.entity.name ?? (descriptor.Result as Partial<ConnectionSpec>).entity
+  const reached = body === undefined ? undefined : reachedOf(body)
+  // A row another reads through a path or an exists: any row of the list may have moved.
+  const read = reached?.others.get(change.entity)
+  if (
+    read !== undefined &&
+    EntityChange.match(change, {
+      Deleted: () => true,
+      Changed: ({ fields }) => fields.some(field => read.has(field)),
+    })
+  ) {
+    return Impact.Invalidated({
+      reason: `${entityKey(change.entity, change.id)} changed what "${descriptor.name}" reads through another row`,
+    })
+  }
   if (over !== change.entity) return kept
   return EntityChange.match(change, {
     // A deletion leaves every list through its tombstone; nothing to fetch.
@@ -176,7 +246,8 @@ export const impactOn = (
       }
       const pages = connection.connection
       const reorders = touches(dependenciesOf(...order).fields)
-      const refilters = touches(roles.predicate)
+      const refilters =
+        touches(roles.predicate) || fields.some(field => reached?.own.has(field) === true)
       // A row the list does not hold can join it: one new to the client,
       // whatever the list filters on, and one whose order moved it in from
       // rows the list has not loaded.

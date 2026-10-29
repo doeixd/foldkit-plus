@@ -939,6 +939,12 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
 - **`isMaxLength` counts UTF-16 units; SQL's `length()` counts code points.** A
   CHECK translated from it is looser for an emoji. Use `isMaxCodePoints` for a
   rule the database should hold too.
+- **What a body reads is its `fields` and its `reaches`.** `Query.dependencies`
+  leaves what a path, an exists or a path from the viewer reads out of
+  `fields`, and `impactOn` judged a change by `predicate` alone, so a list
+  over `Expr.path(team, name)` kept a member relinked away, and kept every
+  row when the team was renamed. A caller deciding "did this change touch the
+  body" reads `reaches` too.
 - **Probe, do not assume, what a library type means.** `Schema.Struct({})` is
   not an empty-object schema: it accepts `{foo:1}`, `[]` and `"str"` even with
   `onExcessProperty: 'error'`. Use `Schema.Record(Schema.String, Schema.Never)`.
