@@ -658,17 +658,21 @@ version changed; `pnpm` skips versions already in the registry.
   listed it only as a dev dependency, so an application installing it from npm
   could not resolve `foldkit-mixins` (TS2307, 0.3.14 included).
 - **A page keeps only the modules it reads of a published package** (#215).
-  `foldkit-mixins`, `-bundle`, `-media`, `-primitives`, `-entity`, `-crud`,
-  `-form`, `-ssr` and `-remote` were each linked into a few files, so `sideEffects:
+  Twenty-four packages were each linked into a few files, so `sideEffects:
   false` had nothing to drop and `export * as` namespaces became objects
   keeping every member: a page reading `Collation.binary` kept 73 kB of
   `foldkit-entity` against 1.9 kB from source, and one reading
-  `beginOptimistic` kept 350 kB of `foldkit-remote` against 1.6 kB. Each is now published one file
-  per source module, `.js` and `.d.ts` (the export map's paths changed, its
-  subpaths did not). Chirp's client entry, built against the published
-  packages, fell from 1,043 kB to 1,009 kB minified (286 to 281 kB gzipped);
-  `scripts/test/publishedBuild.test.ts` holds each package to what its
-  source costs.
+  `beginOptimistic` kept 350 kB of `foldkit-remote` against 1.6 kB.
+  `foldkit-mixins`, `-bundle`, `-media`, `-primitives`, `-entity`, `-crud`,
+  `-form`, `-ssr`, `-remote`, `-surface`, `-builder`, `-composition`,
+  `-data-grid`, `-durable`, `-mixins-builder`, `-mixins-crud`,
+  `-mixins-data-grid`, `-mixins-richtext`, `-mixins-surface`, `-react`,
+  `-remote-drizzle`, `-richtext`, `-richtext-markdown` and `-sync` are now
+  published one file per source module, `.js` and `.d.ts` (the export map's
+  paths changed, its subpaths did not). Chirp's client entry, built against
+  the published packages, fell from 818 kB to 806 kB minified (266 to 262 kB
+  gzipped), what it costs from source; `scripts/test/publishedBuild.test.ts`
+  holds each package to what its source costs.
 - **A write's answer reads back what its own prediction moved** (#265). A
   count predicted on a row no active Surface reads (a note deleted on its own
   page lowering its author's `noteCount`, which only the notebook reads) went

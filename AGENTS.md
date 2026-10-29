@@ -687,6 +687,13 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   false` cannot help, and the examples never showed it because they resolve
   source. Keep namespaces ESM (one entry per file, relative imports external,
   `mixins-ui/tsdown.config.ts`), and measure a package's `dist`, not its source.
+- **A workspace build brands a package's `dist`; an installed one does not.**
+  `foldkit:view-identity` writes each view function's module path into the
+  bundle and skips `node_modules`, so Chirp's entry built in the workspace
+  measured 1,031 to 1,039 kB where an installed app's is 806, and a linked
+  chunk's longer name (`condition-DheT5fC0.mjs`) made `foldkit-guard` look
+  2.7 kB worse than one file per module, which it was not. Measure an example against `dist`
+  with that plugin spliced out of `config.plugins` in a `configResolved` hook.
 - **A declaration the emitter writes out in full may not check.** `Form.input`
   returned `Entity.input`'s type, whose `InputMembers` `foldkit-entity` did not
   export, so the emitter expanded it into conditionals that fail alone (TS2536)

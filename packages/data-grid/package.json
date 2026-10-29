@@ -28,13 +28,13 @@
   "exports": {
     "./crud": {
       "foldkit-plus:source": "./src/crud.ts",
-      "types": "./dist/crud.d.mts",
-      "import": "./dist/crud.mjs"
+      "types": "./dist/crud.d.ts",
+      "import": "./dist/crud.js"
     },
     ".": {
       "foldkit-plus:source": "./src/index.ts",
-      "types": "./dist/index.d.mts",
-      "import": "./dist/index.mjs"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     }
   },
   "files": [

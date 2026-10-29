@@ -30,13 +30,13 @@
   "exports": {
     ".": {
       "foldkit-plus:source": "./src/index.ts",
-      "types": "./dist/index.d.mts",
-      "import": "./dist/index.mjs"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     },
     "./recipes": {
       "foldkit-plus:source": "./src/recipes.ts",
-      "types": "./dist/recipes.d.mts",
-      "import": "./dist/recipes.mjs"
+      "types": "./dist/recipes.d.ts",
+      "import": "./dist/recipes.js"
     }
   },
   "files": [

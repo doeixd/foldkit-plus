@@ -32,13 +32,13 @@
   "exports": {
     ".": {
       "foldkit-plus:source": "./src/index.ts",
-      "types": "./dist/index.d.mts",
-      "import": "./dist/index.mjs"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     },
     "./core": {
       "foldkit-plus:source": "./src/core.ts",
-      "types": "./dist/core.d.mts",
-      "import": "./dist/core.mjs"
+      "types": "./dist/core.d.ts",
+      "import": "./dist/core.js"
     }
   },
   "files": [

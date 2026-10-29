@@ -29,7 +29,9 @@ const keptFrom = async (root: string, entry: string, dir: string): Promise<numbe
     resolve: { alias: { pkg: entry }, conditions: ['foldkit-plus:source'] },
     build: {
       write: false,
-      minify: false,
+      // What a page pays: unminified, a published module's doc comment, which
+      // the source build drops, outweighed a small page (mixins-builder).
+      minify: true,
       lib: { entry: join(root, 'page.ts'), formats: ['es'], fileName: 'page' },
     },
   })
@@ -45,8 +47,9 @@ const keptFrom = async (root: string, entry: string, dir: string): Promise<numbe
 /**
  * Each package a page loads, with a page that reads a small part of it. The
  * published build writes the same code a little differently (about 30 bytes
- * here), so it may keep 5% more than the source; linked, it kept from a third
- * more (ssr) to 39 times as much (entity).
+ * a page), so it may keep 5% more than the source; linked, every one kept
+ * more (the mutation spec relinks each). A page under about 600 bytes is
+ * within those 30 bytes of failing, so each reads more.
  */
 const cases: ReadonlyArray<readonly [name: string, page: string]> = [
   ['mixins', `import { Behaviors } from 'pkg'\nexport const used = Behaviors.Disclosure`],
@@ -57,7 +60,22 @@ const cases: ReadonlyArray<readonly [name: string, page: string]> = [
   ['crud', `import { Sort } from 'pkg'\nexport const used = Sort`],
   ['form', `import { Input } from 'pkg'\nexport const used = Input`],
   ['ssr', `import { metaMarkup } from 'pkg'\nexport const used = metaMarkup`],
-  ['remote', `import { beginOptimistic } from 'pkg'\nexport const used = beginOptimistic`],
+  ['remote', `import { refreshIsInFlight } from 'pkg'\nexport const used = refreshIsInFlight`],
+  ['surface', `import { MessageSet } from 'pkg'\nexport const used = MessageSet`],
+  ['builder', `import { editWords } from 'pkg'\nexport const used = editWords`],
+  ['composition', `import { Operation } from 'pkg'\nexport const used = Operation`],
+  ['data-grid', `import { GridProjection } from 'pkg'\nexport const used = GridProjection`],
+  ['durable', `import { EffectFailedError } from 'pkg'\nexport const used = EffectFailedError`],
+  ['mixins-builder', `import { BuilderSlots } from 'pkg'\nexport const used = BuilderSlots`],
+  ['mixins-crud', `import { DetailView } from 'pkg'\nexport const used = DetailView`],
+  ['mixins-data-grid', `import { GridLegend } from 'pkg'\nexport const used = GridLegend`],
+  ['mixins-richtext', `import { blockStyleMenu } from 'pkg'\nexport const used = blockStyleMenu`],
+  ['mixins-surface', `import { SurfaceView } from 'pkg'\nexport const used = SurfaceView`],
+  ['react', `import { FoldkitComponent } from 'pkg'\nexport const used = FoldkitComponent`],
+  ['remote-drizzle', `import { compileCall } from 'pkg'\nexport const used = compileCall`],
+  ['richtext', `import { decodeDocument } from 'pkg'\nexport const used = decodeDocument`],
+  ['richtext-markdown', `import { parse } from 'pkg'\nexport const used = parse`],
+  ['sync', `import { indexedDb } from 'pkg'\nexport const used = indexedDb`],
 ]
 
 test.each(cases)(

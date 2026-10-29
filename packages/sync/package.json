@@ -29,28 +29,28 @@
   "exports": {
     ".": {
       "foldkit-plus:source": "./src/index.ts",
-      "types": "./dist/index.d.mts",
-      "import": "./dist/index.mjs"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     },
     "./journal": {
       "foldkit-plus:source": "./src/journal.ts",
-      "types": "./dist/journal.d.mts",
-      "import": "./dist/journal.mjs"
+      "types": "./dist/journal.d.ts",
+      "import": "./dist/journal.js"
     },
     "./entity": {
       "foldkit-plus:source": "./src/entity.ts",
-      "types": "./dist/entity.d.mts",
-      "import": "./dist/entity.mjs"
+      "types": "./dist/entity.d.ts",
+      "import": "./dist/entity.js"
     },
     "./do": {
       "foldkit-plus:source": "./src/do.ts",
-      "types": "./dist/do.d.mts",
-      "import": "./dist/do.mjs"
+      "types": "./dist/do.d.ts",
+      "import": "./dist/do.js"
     },
     "./remote": {
       "foldkit-plus:source": "./src/remote.ts",
-      "types": "./dist/remote.d.mts",
-      "import": "./dist/remote.mjs"
+      "types": "./dist/remote.d.ts",
+      "import": "./dist/remote.js"
     }
   },
   "files": [

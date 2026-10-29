@@ -29,33 +29,33 @@
   "exports": {
     ".": {
       "foldkit-plus:source": "./src/index.ts",
-      "types": "./dist/index.d.mts",
-      "import": "./dist/index.mjs"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     },
     "./foldkit": {
       "foldkit-plus:source": "./src/foldkit/index.ts",
-      "types": "./dist/foldkit.d.mts",
-      "import": "./dist/foldkit.mjs"
+      "types": "./dist/foldkit/index.d.ts",
+      "import": "./dist/foldkit/index.js"
     },
     "./richtext": {
       "foldkit-plus:source": "./src/richtext/index.ts",
-      "types": "./dist/richtext.d.mts",
-      "import": "./dist/richtext.mjs"
+      "types": "./dist/richtext/index.d.ts",
+      "import": "./dist/richtext/index.js"
     },
     "./appearance": {
       "foldkit-plus:source": "./src/appearance/index.ts",
-      "types": "./dist/appearance.d.mts",
-      "import": "./dist/appearance.mjs"
+      "types": "./dist/appearance/index.d.ts",
+      "import": "./dist/appearance/index.js"
     },
     "./remote": {
       "foldkit-plus:source": "./src/remote/index.ts",
-      "types": "./dist/remote.d.mts",
-      "import": "./dist/remote.mjs"
+      "types": "./dist/remote/index.d.ts",
+      "import": "./dist/remote/index.js"
     },
     "./surface": {
       "foldkit-plus:source": "./src/surface/index.ts",
-      "types": "./dist/surface.d.mts",
-      "import": "./dist/surface.mjs"
+      "types": "./dist/surface/index.d.ts",
+      "import": "./dist/surface/index.js"
     }
   },
   "files": [
