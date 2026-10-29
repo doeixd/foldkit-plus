@@ -39,6 +39,15 @@ describe('A key that is any number of a fixed set', () => {
     expect(form.engine.value(model)).toEqual({ picks: [1, 2] })
   })
 
+  it('shows and submits the options it was filled with, numbers included (#304)', () => {
+    const form = numbers()
+    const filled = form.fill(form.initial, { picks: [1] }).model
+    // The draft is the text an edit would send, which a checkbox's value is.
+    expect(filled.fields.picks.value).toEqual(['1'])
+    const submitted = form.bundle.update(filled, form.Message.ValidatedAll(), undefined).model
+    expect(form.engine.value(submitted)).toEqual({ picks: [1] })
+  })
+
   it('submits what was chosen', () => {
     const form = paint()
     expect(form.engine.value(step(form, form.initial, ['red']))).toEqual({ colours: ['red'] })

@@ -702,6 +702,11 @@ carries `drawn`.
 
 ### Fixed
 
+- **A filled numeric choice shows and submits** (#304). `fill` kept a
+  `Choices` value as it was, so `[1]` became a draft the parser, which
+  reads text, refused ("Choose from the options"), and a checkbox drawn
+  with the value `"1"` was not shown chosen. A list draft is now filled as
+  text, as an edit sends it.
 - **A live stream over two entities' live sources applies both** (#286).
   Each source (two `pollLive`s, or one beside a live hub) numbered its
   changes from the `after` the client sent, and the client, which keeps one

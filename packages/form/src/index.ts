@@ -785,6 +785,8 @@ const attempt = <A>(name: string, run: () => A): A => {
 const draftOf = (plan: Plan, given: unknown): Draft => {
   const value = Option.isOption(given) ? Option.getOrUndefined(given) : given
   if (value === null || value === undefined) return plan.empty
+  // A list draft is text, as an edit sends it: a filled `[1]` reads back as `['1']`.
+  if (plan.kind === 'list' && Array.isArray(value)) return value.map(item => String(item))
   if (plan.kind !== 'text') return value as Draft
   const format = plan.control.format
   return format === undefined ? String(value) : format(value, plan.control.data)
