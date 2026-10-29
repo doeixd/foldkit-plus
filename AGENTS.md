@@ -1827,7 +1827,15 @@ of its own named a form field "fits the Catalog". Read words with
 - **A test's own Vite build is outside `pnpm mutate` unless it takes the
   plugin.** The edits are a Vite plugin, and a nested `build()` has none, so
   every mutation of what it bundles read "not applied". Pass `mutation()`
-  from `scripts/mutation-plugin.mjs` in that build's `plugins`.
+  from `scripts/mutation-plugin.mjs` in that build's `plugins`. A test's worker
+  thread is the same: `examples/site/test/prerender.worker.mjs` loads the site
+  through a Vite server of its own with `mutation()` and `test-resolve.mjs`.
+- **jsdom's `DOMParser` parses every inline stylesheet too.** The site's link
+  check read 3,666 pages with it, each carrying 110 KB of CSS, and spent about
+  a quarter of its eight minutes there; parse5 (which jsdom builds on) reads
+  one such page in 4ms, against jsdom's 18ms and the queries after it.
+  Read links, ids and attributes of many pages with parse5, and keep jsdom for
+  the few a test queries.
 - **`pnpm mutate` reaches only modules Vitest loads.** A worker esbuild bundles
   for miniflare was never mutated, so a mutation of worker code read as "not
   applied". `examples/cloudflare/src/stack.ts` applies the same edits in an
