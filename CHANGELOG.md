@@ -723,6 +723,12 @@ carries `drawn`.
 
 ### Fixed
 
+- **`FieldRecipes.percent` reads back the grouping it writes** (#317). In
+  `mr`, `ml`, `ne`, `or` and `te` a percentage groups in thousands
+  (`-123,450%`) where a plain number groups in lakhs, and a typed
+  percentage's whole digits were checked against the number's grouping, so a
+  filled percentage past a thousand could not be submitted unchanged. They are
+  checked against the percentage's own format.
 - **A renderer is found only for a kind it was given for** (#307).
   `FormView` looked a control's kind up on a plain object, so a kind named
   `constructor` or `toString` found `Object`'s, which was called and drawn

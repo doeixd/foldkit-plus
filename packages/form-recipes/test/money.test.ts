@@ -177,7 +177,8 @@ describe('the amounts’ plain renderers', () => {
 describe('every amount reads back what it shows', () => {
   const locales = ['en-US', 'de-AT', 'de-CH', 'fr-CH', 'fr-FR', 'mr-IN', 'en-IN', 'he-IL']
   const more = ['ar-EG', 'ar-SA', 'fa-IR', 'ur-PK', 'ja-JP', 'tr-TR', 'ru-RU', 'pt-BR']
-  it.each([...locales, ...more])('in %s', locale => {
+  /** What `locale` shows that it reads back as another value, or not at all. */
+  const misreadIn = (locale: string): ReadonlyArray<string> => {
     const misread: Array<string> = []
     const check = (control: Control, value: unknown) => {
       const text = control.format!(value, control.data)
@@ -189,10 +190,29 @@ describe('every amount reads back what it shows', () => {
     }
     const decimal = FieldRecipes.decimal({ scale: 3, locale, negative: true })
     for (const value of [1.5, -1234567.125]) check(decimal.control, value)
-    const percent = FieldRecipes.percent({ unit: 'fraction', locale, negative: true })
-    for (const value of [0.125, -0.5, 12.34]) check(percent.control, value)
-    expect(misread).toEqual([])
-  })
+    const share = FieldRecipes.percent({ unit: 'fraction', locale, negative: true })
+    for (const value of [0.125, -0.5, 12.34, -1234.5, 123456.78]) check(share.control, value)
+    const points = FieldRecipes.percent({ unit: 'points', locale, negative: true })
+    for (const value of [12.5, -123456.75]) check(points.control, value)
+    return misread
+  }
+  it.each([...locales, ...more])('in %s', locale => expect(misreadIn(locale)).toEqual([]))
+
+  // These group a percentage in thousands and a plain number in lakhs (#317).
+  it.each(['mr', 'ml', 'ne', 'or', 'te', 'mr-IN'])(
+    'reads back a percentage past a thousand as %s groups it',
+    locale => {
+      const share = FieldRecipes.percent({ unit: 'fraction', locale, negative: true }).control
+      const points = FieldRecipes.percent({ unit: 'points', locale, negative: true }).control
+      expect(shown(share, -1234.5)).toBe('-123,450%')
+      expect([read(share, shown(share, -1234.5)), read(share, '12,345,678%')]).toEqual([
+        -1234.5, 123456.78,
+      ])
+      expect(read(points, shown(points, -123456.75))).toBe(-123456.75)
+      // A number's own grouping is not the percentage's.
+      expect(read(share, '1,23,450%')).toBeUndefined()
+    },
+  )
 
   it('takes a symbol at either end only, and no space where the locale groups with none', () => {
     expect(read(usd.control, '1 2 3')).toBeUndefined()

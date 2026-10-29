@@ -121,11 +121,17 @@ export default [
   },
   {
     name: 'a percentage is grouped as its format scales it',
+    edits: [{ file: number, find: "(options.style === 'percent'", replace: '(false' }],
+    tests,
+  },
+  {
+    name: 'a percentage is grouped as a plain number',
     edits: [
+      { file: number, find: "(options.style === 'percent'", replace: '(false' },
       {
         file: number,
-        find: "...(options.style === 'percent' ? { style: 'decimal' } : {}),",
-        replace: '',
+        find: 'useGrouping: true,',
+        replace: "useGrouping: true, ...(options.style === 'percent' ? { style: 'decimal' } : {}),",
       },
     ],
     tests,

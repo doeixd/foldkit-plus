@@ -147,7 +147,9 @@ no floating point stands between what was typed and what is stored:
 - **`decimal({ scale, locale?, negative? })`**: a number with at most `scale`
   decimals.
 - **`percent({ unit, scale?, locale?, negative? })`**: shown as `12.5%`, stored as
-  the share (`unit: 'fraction'`, `0.125`) or the points (`'points'`, `12.5`).
+  the share (`unit: 'fraction'`, `0.125`) or the points (`'points'`, `12.5`). It
+  groups as the locale's percentages do, which is not always as its numbers do:
+  `mr` writes `123,450%` but `1,23,450`.
 
 What is refused rather than guessed at: grouping other than the locale's (`12,3`
 in `en-US` is not `123`, and `12.3` in `de-DE` is not either), more decimals than

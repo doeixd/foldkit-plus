@@ -54,10 +54,10 @@ const symbolsOf = (locale: string, options: Intl.NumberFormatOptions): Symbols =
     maximumFractionDigits: 1,
   }).formatToParts(-1234567.5)
   const of = (type: Intl.NumberFormatPartTypes) => parts.find(part => part.type === type)?.value
-  // A percentage's whole digits are grouped as a number: its format would scale them.
+  // Grouped by the field's own format, which for a percentage is not always a
+  // number's (`mr` writes `123,450%` but `1,23,450`).
   const whole = new Intl.NumberFormat(locale, {
     ...options,
-    ...(options.style === 'percent' ? { style: 'decimal' } : {}),
     numberingSystem: 'latn',
     useGrouping: true,
     minimumFractionDigits: 0,
@@ -73,7 +73,13 @@ const symbolsOf = (locale: string, options: Intl.NumberFormatOptions): Symbols =
       .map(part => part.value.normalize('NFKC')),
     grouped: digits =>
       whole
-        .formatToParts(BigInt(digits))
+        // A percentage's format scales what it is given by 100, so it is given the
+        // share, as exact text (see `writeAmount`).
+        .formatToParts(
+          (options.style === 'percent'
+            ? decimalText(shifted({ negative: false, whole: digits, fraction: '' }, 2))
+            : digits) as unknown as number,
+        )
         .filter(part => part.type === 'integer' || part.type === 'group')
         .map(part => part.value)
         .join('')
