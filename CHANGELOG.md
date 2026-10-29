@@ -615,6 +615,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Security
 
+- **`GuardServer.validate` refuses a Source sharing `may`** (#284; the
+  check it extends shipped in 0.35.0). `shared` tells the live hub to send a
+  declared write's value of a field to every subscriber as it is, and
+  `validate` let `may` be shared on an Entity whose rows anyone may read, so
+  one reader's answer could reach every other. `may` is each reader's own.
+
 - **A collection relation read whole is bounded** (published since before
   0.35.0). A read naming a collection relation with no window read every
   child of every row it named, and a `pollLive` stream re-read them each

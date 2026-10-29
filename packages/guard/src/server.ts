@@ -1234,13 +1234,17 @@ export const GuardServer = {
             ]
           })
           // A shared field goes to every live subscriber as written: no rule may tell them apart.
-          const shared = Option.match(source, {
+          const shared: ReadonlyArray<string> = Option.match(source, {
             onNone: () => [],
             onSome: source => [...(source.shared ?? [])],
           })
           const sharedProblems = [
             ...(shared.length > 0 && readRowsRuled(attachment)
               ? [`${name}'s Source shares ${shared.join(', ')}, but its rows have a Read rule`]
+              : []),
+            // Each reader's own answer, whoever may read the row.
+            ...(shared.includes('may') && asksMay(entity, ['may'])
+              ? [`${name}'s Source shares may, which is answered for each reader`]
               : []),
             ...shared.flatMap(member => {
               const own = readRuled(attachment, member)
