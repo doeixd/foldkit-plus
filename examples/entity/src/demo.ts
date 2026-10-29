@@ -60,7 +60,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   const backend = openServer()
   // In process: the server's handlers are the client's transport, and the
   // database is what those handlers need.
-  const client = Remote.clientLayer(RemoteServer.handlers(backend.server, null)).pipe(
+  const client = Remote.clientLayer(RemoteServer.handlers(backend.server, Option.none())).pipe(
     Layer.provide(backend.layer),
   )
   const initial = initialModel()

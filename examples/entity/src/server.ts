@@ -7,7 +7,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { Effect } from 'effect'
+import { Effect, Schema } from 'effect'
 import { bind, databaseLayer, query, returning, source, writer } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import { Blog, PostId } from './domain.js'
@@ -18,6 +18,9 @@ import {
   PostsQuery,
   WritePostMutation,
 } from './operations.js'
+
+/** A `count(*)` row, as node:sqlite returns it. */
+const Counted = Schema.Struct({ n: Schema.Number })
 
 const authors = sqliteTable('authors', {
   id: text('id').primaryKey(),
@@ -142,9 +145,8 @@ export const openServer = () => {
     /** The row as the database holds it, to check a write against. */
     row: (id: string) => sqlite.prepare('select * from posts where id = ?').get(id),
     count: (table: 'posts' | 'comments' | 'authors'): number =>
-      Number(
-        (sqlite.prepare(`select count(*) as n from ${table}`).get() as { readonly n: number }).n,
-      ),
+      Schema.decodeUnknownSync(Counted)(sqlite.prepare(`select count(*) as n from ${table}`).get())
+        .n,
     /** Runs a statement as it is, for a test that needs a state no mutation makes. */
     exec: (statement: string) => sqlite.exec(statement),
     close: () => sqlite.close(),

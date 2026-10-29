@@ -86,13 +86,14 @@ describe('the HTTP transport the browser uses', () => {
         ),
       )
       const page = Posts.page(read)
-      return page._tag === 'Ready' ? page.value.items.map(row => row.title) : page._tag
+      if (page._tag !== 'Ready') throw new Error(`the list read ${page._tag}`)
+      return page.value.items.map(row => row.title)
     }
 
     // A click on Title sorts ascending; a second, descending.
     const byTitle = update(initial(), Message.SortedPosts({ column: 'title' })).model
     expect(byTitle.postSort).toEqual({ by: 'title', direction: 'asc' })
-    const [first, second] = (await titles(byTitle)) as ReadonlyArray<string>
+    const [first, second] = await titles(byTitle)
     expect(first! < second!).toBe(true)
 
     const reversed = update(byTitle, Message.SortedPosts({ column: 'title' })).model

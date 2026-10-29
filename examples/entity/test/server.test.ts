@@ -3,7 +3,7 @@
  * The handlers that write more than one row do it in one transaction: a
  * second statement that fails takes the first back with it.
  */
-import { Effect, Exit, Layer } from 'effect'
+import { Effect, Exit, Layer, Option } from 'effect'
 import { Remote, RemoteClient } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -23,7 +23,7 @@ const mutate = (
     RemoteClient.use(client => client.mutate({ requestId: 'r1', mutation, input })).pipe(
       Effect.exit,
       Effect.provide(
-        Remote.clientLayer(RemoteServer.handlers(backend.server, null)).pipe(
+        Remote.clientLayer(RemoteServer.handlers(backend.server, Option.none())).pipe(
           Layer.provide(backend.layer),
         ),
       ),

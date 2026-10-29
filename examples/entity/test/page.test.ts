@@ -4,7 +4,7 @@
  * SQLite database: Remote's own Subscriptions fetch the lists and the open post,
  * DOM events drive the form, and a save reaches the row.
  */
-import { Effect, Layer } from 'effect'
+import { Effect, Layer, Option } from 'effect'
 import * as Runtime from 'foldkit/runtime'
 import { Remote, RemoteClient, RemoteQueryError } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
@@ -18,8 +18,11 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
-const element = <E extends HTMLElement>(selector: string): E =>
-  document.querySelector(selector) as E
+const element = <E extends HTMLElement>(selector: string): E => {
+  const found = document.querySelector<E>(selector)
+  if (found === null) throw new Error(`nothing is drawn at ${selector}`)
+  return found
+}
 const cells = (): ReadonlyArray<ReadonlyArray<string>> =>
   Array.from(document.querySelectorAll('#Posts tbody tr'), row =>
     Array.from(row.querySelectorAll('td'), cell => cell.textContent ?? ''),
@@ -60,7 +63,7 @@ it('lists posts, edits one through the drawn form, and shows the save in the lis
         view,
         subscriptions: placements.subscriptions(),
         // In process: the server's handlers are the client's transport.
-        resources: Remote.clientLayer(RemoteServer.handlers(backend.server, null)).pipe(
+        resources: Remote.clientLayer(RemoteServer.handlers(backend.server, Option.none())).pipe(
           Layer.provide(backend.layer),
         ),
       }),
@@ -98,7 +101,7 @@ it('lists posts, edits one through the drawn form, and shows the save in the lis
     element('#Posts tbody tr:nth-child(2) td button').click()
     // The form fills from the row's post, and its picker from the author list.
     await vi.waitFor(() =>
-      expect(element<HTMLInputElement>('#EditPost-title')?.value).toBe('Compilers'),
+      expect(element<HTMLInputElement>('#EditPost-title').value).toBe('Compilers'),
     )
     expect(element<HTMLSelectElement>('#EditPost-editorId').value).toBe('a2')
     const offered = () =>
@@ -128,7 +131,7 @@ it('lists posts, edits one through the drawn form, and shows the save in the lis
     type('#EditPost-title', '')
     element('#EditPost-title').dispatchEvent(new Event('blur'))
     await vi.waitFor(() =>
-      expect(element('#EditPost-title-error')?.textContent).toBe('Title is required'),
+      expect(element('#EditPost-title-error').textContent).toBe('Title is required'),
     )
     expect(element<HTMLButtonElement>('#editor form button[type="submit"]').disabled).toBe(true)
 
@@ -151,7 +154,7 @@ it('lists posts, edits one through the drawn form, and shows the save in the lis
 
     // Delete asks first, and a no deletes nothing.
     element('#delete').click()
-    await vi.waitFor(() => expect(element('#remove-question')?.textContent).toBe('Delete p2?'))
+    await vi.waitFor(() => expect(element('#remove-question').textContent).toBe('Delete p2?'))
     answer('No').click()
     await vi.waitFor(() => expect(element('#delete')).not.toBeNull())
     // The no took its button away; focus is back on what asked.
@@ -171,7 +174,7 @@ it('lists posts, edits one through the drawn form, and shows the save in the lis
     Array.from(document.querySelectorAll<HTMLButtonElement>('#editor button'))
       .find(button => button.textContent === 'Close')!
       .click()
-    await vi.waitFor(() => expect(element('#editor')).toBeNull())
+    await vi.waitFor(() => expect(document.querySelector('#editor')).toBeNull())
   } finally {
     handle.dispose()
     backend.close()
@@ -190,7 +193,7 @@ it('says a list could not be read, and reads it again when asked', async () => {
   const backend = openServer()
   // The server, with its queries failing until it comes back.
   let reachable = false
-  const served = Remote.clientLayer(RemoteServer.handlers(backend.server, null)).pipe(
+  const served = Remote.clientLayer(RemoteServer.handlers(backend.server, Option.none())).pipe(
     Layer.provide(backend.layer),
   )
   const flaky = Layer.effect(
@@ -222,7 +225,7 @@ it('says a list could not be read, and reads it again when asked', async () => {
   )
   try {
     await vi.waitFor(() =>
-      expect(element('#Posts [role=alert]')?.textContent).toBe('The server is unreachable.'),
+      expect(element('#Posts [role=alert]').textContent).toBe('The server is unreachable.'),
     )
     expect(cells()).toEqual([])
 
@@ -238,7 +241,7 @@ it('says a list could not be read, and reads it again when asked', async () => {
         ['p2', 'Compilers', 'no'],
       ]),
     )
-    expect(element('#Posts [role=alert]')).toBeNull()
+    expect(document.querySelector('#Posts [role=alert]')).toBeNull()
   } finally {
     handle.dispose()
     backend.close()

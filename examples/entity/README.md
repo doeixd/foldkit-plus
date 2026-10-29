@@ -210,6 +210,12 @@ one placed, and each answer is compared with what its write showed. `test/http.t
 binary order puts after every capital and a case-folding order would not,
 and checks the two agree.
 
+`test/law.test.ts` holds the page to the server for every edit it can make:
+`Law.check` (`foldkit-remote/testing`) runs `EditPost` through the page's own
+`Data.mutate` and through the server over a seeded SQLite, and compares each
+field, the editor relation and both lists' order as the page showed them while
+pending with what SQLite then stores.
+
 ### A picker that searches
 
 The editor's Editor picker has a search box. Its text is the form's

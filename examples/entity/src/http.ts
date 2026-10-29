@@ -5,7 +5,7 @@
  */
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { Effect } from 'effect'
+import { Effect, Option } from 'effect'
 import { RemoteServer } from 'foldkit-remote-server'
 import { openServer } from './server.js'
 
@@ -13,7 +13,7 @@ export const startHttpServer = async (
   port: number,
 ): Promise<{ readonly url: string; readonly close: () => Promise<void> }> => {
   const backend = openServer()
-  const handlers = RemoteServer.handlers(backend.server, null)
+  const handlers = RemoteServer.handlers(backend.server, Option.none())
 
   const server: Server = createServer((request, response) => {
     const reply = (status: number, body: unknown) => {
