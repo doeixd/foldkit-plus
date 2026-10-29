@@ -223,9 +223,16 @@ const matchingEncoded = <Name extends string, Input>(
   return { matched: judged.matched.map(keyOf), skipped: [...skipped, ...judged.refused.map(keyOf)] }
 }
 
+const reachingBodies = new WeakMap<AnyQuery, boolean>()
+
 /** Whether a body's predicates read other rows: a path, an exists, a path from the viewer. */
-const reachesOtherRows = (body: AnyQuery): boolean =>
-  Relational.dependencies(body).reaches.length > 0
+const reachesOtherRows = (body: AnyQuery): boolean => {
+  const known = reachingBodies.get(body)
+  if (known !== undefined) return known
+  const reaching = Relational.dependencies(body).reaches.length > 0
+  reachingBodies.set(body, reaching)
+  return reaching
+}
 
 const ordersOf = new WeakMap<AnyQuery, AnyQuery>()
 
