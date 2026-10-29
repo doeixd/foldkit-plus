@@ -1,6 +1,13 @@
 import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Denied, Freshness, RemoteData, type RemoteError } from '../src/index.js'
+import {
+  Denied,
+  Freshness,
+  RemoteData,
+  RemoteMutationError,
+  RemoteUnreachable,
+  type RemoteError,
+} from '../src/index.js'
 
 describe('RemoteData', () => {
   const label = (data: RemoteData<number>): string =>
@@ -157,5 +164,13 @@ describe('RemoteData.denied', () => {
     expect(RemoteData.denied({ _tag: 'Forbidden', message: 'x' })).toEqual(
       Option.some(Denied.Forbidden({ reason: Option.none() })),
     )
+  })
+})
+
+describe('RemoteData.isUnreachable', () => {
+  it('tells a request nothing answered from a failure the server answered', () => {
+    expect(RemoteData.isUnreachable(new RemoteUnreachable({ message: 'offline' }))).toBe(true)
+    expect(RemoteData.isUnreachable(new RemoteMutationError({ message: 'refused' }))).toBe(false)
+    expect(RemoteData.isUnreachable({ _tag: 'Forbidden', message: 'x' })).toBe(false)
   })
 })

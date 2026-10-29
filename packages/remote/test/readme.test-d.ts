@@ -289,6 +289,13 @@ expectTypeOf(
 // @ts-expect-error every state is handled: `Stale` is missing
 Freshness.match(freshness, { Fresh: () => '', Refreshing: () => '' })
 
+// Whether nothing answered is asked of any RemoteError, not of a Freshness or a RemoteData.
+expectTypeOf(
+  RemoteData.isUnreachable({ _tag: 'Unreachable', message: 'x' }),
+).toEqualTypeOf<boolean>()
+// @ts-expect-error a RemoteData is not the error it may hold
+RemoteData.isUnreachable(project.read(currentModel))
+
 // 10. A query declared by what it means. The body is over a foldkit-entity
 // Entity, which is what has addressable fields.
 const Task = DomainEntity.define(

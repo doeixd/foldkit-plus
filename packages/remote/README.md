@@ -2411,6 +2411,7 @@ query or a live stream fails with its own Remote error (`RemoteReadError`,
 `RemoteQueryError`, `RemoteLiveError`), which the UI shows and retries like any
 other failure. A mutation fails with `RemoteUnreachable` (`_tag:
 'Unreachable'`): nothing answered, so the server may or may not have run it.
+`RemoteData.isUnreachable(error)` asks that of a failure without comparing tags.
 `Remote.json`, `Remote.http` and `Remote.httpWithLive` say the same of a
 request they could not send, and of a response that is no Remote answer: a
 body that is not JSON, JSON that is not `{ result }` or `{ error }` (a

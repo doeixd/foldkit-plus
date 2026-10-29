@@ -1,6 +1,7 @@
 /** `RemoteData`: the state of a value the store may not hold yet. */
 import { Option, Schema } from 'effect'
 import { defineTaggedUnion } from 'foldkit/schema'
+import type { RemoteUnreachable } from './wire.js'
 
 export interface RemoteError {
   readonly _tag: string
@@ -33,6 +34,9 @@ export type Denied = typeof Denied.Type
 const denials: ReadonlySet<string> = new Set<Denied['_tag']>(['Unauthenticated', 'Forbidden'])
 const isDenial = (tag: string): tag is Denied['_tag'] => denials.has(tag)
 const deny = { Unauthenticated: Denied.Unauthenticated, Forbidden: Denied.Forbidden }
+
+/** Typed by the error class, so renaming its tag is a type error here. */
+const unreachable: RemoteUnreachable['_tag'] = 'Unreachable'
 
 export type RemoteData<A> =
   | { readonly _tag: 'Initial' }
@@ -213,6 +217,15 @@ export const RemoteData = {
     isDenial(error._tag)
       ? Option.some(deny[error._tag]({ reason: Option.fromUndefinedOr(error.reason) }))
       : Option.none(),
+
+  /**
+   * Whether nothing answered (`RemoteUnreachable`): the request was not sent,
+   * or what came back was no Remote answer, so a write may or may not have
+   * run. A failure the server answered (a refusal, a denial) is not one.
+   */
+  isUnreachable: (error: RemoteError): boolean =>
+    // tag-check: open — a RemoteError carries any transport failure's tag.
+    error._tag === unreachable,
 
   map: <A, B>(data: RemoteData<A>, f: (value: A) => B): RemoteData<B> => {
     switch (data._tag) {

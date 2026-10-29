@@ -592,7 +592,8 @@ treats it as any failure (a live stream restarts with backoff, refused each
 time); the application signs in again and `forget`s. A mutation nothing answered (the
 request not sent, or a response that is no Remote answer: not JSON, JSON that is not `{ result }`
 or `{ error }`, or a 408, 429, 502, 503 or 504) fails with `_tag:
-'Unreachable'` (`RemoteUnreachable`): the server may or may not have run it.
+'Unreachable'` (`RemoteUnreachable`): the server may or may not have run it;
+`RemoteData.isUnreachable(error)` asks it without comparing tags.
 
 **Outcomes in the Model.** `Data.mutation(model, requestId)` is `Pending`,
 `Applied`, `Failed` (with its `error`), or `Unknown`, for the id `Data.mutate`

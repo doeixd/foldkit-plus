@@ -155,8 +155,7 @@ export const failedWriteWords = (failed: {
   readonly mutation: { readonly name: string }
   readonly error: RemoteError
 }): string =>
-  // tag-check: open: a RemoteError's tag is any failure a transport reports.
-  failed.error._tag === 'Unreachable'
+  RemoteData.isUnreachable(failed.error)
     ? `${failed.mutation.name} may not have reached the server. Retry sends it again, and it is saved once.`
     : `${failed.mutation.name} failed: ${failed.error.message}`
 

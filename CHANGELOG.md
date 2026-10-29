@@ -46,6 +46,9 @@ carries `drawn`.
 - **`Form.controlsByKey`**: a form's controls by key, each typed by its own
   key, for a view that places each field itself
   (`form.controlsByKey.email.label`). Reading `controls` by key took a cast.
+- **`RemoteData.isUnreachable(error)`**: whether nothing answered a request
+  (`RemoteUnreachable`), so a write may or may not have run. A view compared
+  the open `_tag` string itself.
 - **Write rules and query bodies read other rows: three-valued `Expr`, paths
   and exists** (#242). `Expr.path` follows `one` relations (at most four) and
   `Expr.exists` names a pointing edge; remote-drizzle compiles them to
