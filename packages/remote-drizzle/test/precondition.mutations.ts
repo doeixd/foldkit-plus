@@ -32,8 +32,8 @@ export default [
   edit(
     'an update’s miss is not read back when only the precondition could explain it',
     drizzle,
-    'const conditioned = Option.isSome(expect) || Option.isSome(when) || invariants.length > 0',
-    'const conditioned = Option.isSome(expect) || invariants.length > 0',
+    '          Option.isSome(when) ||\n          invariants.length > 0 ||',
+    '          invariants.length > 0 ||',
   ),
   edit(
     'an unmet update reads as a conflict',
@@ -55,8 +55,8 @@ export default [
   edit(
     'a delete’s miss is not read back when only the precondition could explain it',
     drizzle,
-    "if (Option.isNone(expect) && Option.isNone(when)) return 'absent'",
-    "if (Option.isNone(expect)) return 'absent'",
+    "if (Option.isNone(expect) && Option.isNone(when) && requires === undefined) return 'absent'",
+    "if (Option.isNone(expect) && requires === undefined) return 'absent'",
   ),
   edit('an unmet delete reads as moved', drizzle, 'Option.isNone(when) ||', 'true ||'),
   edit(

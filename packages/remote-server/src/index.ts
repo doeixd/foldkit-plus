@@ -9,6 +9,7 @@ import {
   Cause,
   Clock,
   Context,
+  Data,
   Duration,
   Effect,
   Layer,
@@ -259,8 +260,38 @@ const readAs = <P, R>(
  * the expected revision that does not hold it fails with `RemoteUnmet`. The row
  * as written answers; none when no row matched.
  */
+/**
+ * What the row an update or a delete finds must hold for it to land, judged
+ * in the statement that writes it: a guard's rule that reads another row (a
+ * path, an exists), against what that row holds as the statement runs.
+ */
+export type RowRequirement = Data.TaggedEnum<{
+  /** A body over the row, with its input and what its context terms read. */
+  Body: {
+    readonly query: AnyQuery
+    readonly input: Readonly<Record<string, unknown>>
+    readonly context: ExprContext
+  }
+  All: { readonly of: ReadonlyArray<RowRequirement> }
+  Any: { readonly of: ReadonlyArray<RowRequirement> }
+}>
+export const RowRequirement = Data.taggedEnum<RowRequirement>()
+
+/** A row requirement, and the words a refusal of it gives, when its rule explains itself. */
+export interface WriteRequirement {
+  readonly holds: RowRequirement
+  readonly reason: Option.Option<string>
+}
+
 export interface EntityWriter<P, R = never> {
   readonly entity: string
+  /**
+   * Whether `update` and `delete` hold the row to their `requires` in the
+   * statement that writes it, and refuse one that does not with
+   * `Forbidden`. A guard hands such a writer the rules it cannot judge over
+   * one row, and refuses to wrap a writer without it.
+   */
+  readonly requires?: true
   /**
    * Whether `update` and `delete` honour `when`. `RemoteServer.write` refuses
    * a write with a precondition over a writer without it, which would write
@@ -364,6 +395,8 @@ export interface EntityWriter<P, R = never> {
     readonly links: Readonly<Record<string, Option.Option<EntityRef>>>
     readonly expect: Option.Option<{ readonly field: string; readonly revision: unknown }>
     readonly when: Option.Option<WriteWhen>
+    /** What the row must hold, judged where it is written; only a writer with `requires` is given one. */
+    readonly requires?: WriteRequirement | undefined
     readonly principal: P
   }) => Effect.Effect<
     Option.Option<Readonly<Record<string, unknown>>>,
@@ -404,6 +437,8 @@ export interface EntityWriter<P, R = never> {
     readonly id: string
     readonly expect: Option.Option<{ readonly field: string; readonly revision: unknown }>
     readonly when: Option.Option<WriteWhen>
+    /** What the row must hold, judged where it is deleted; only a writer with `requires` is given one. */
+    readonly requires?: WriteRequirement | undefined
     readonly principal: P
   }) => Effect.Effect<
     'deleted' | 'absent' | 'moved',

@@ -965,8 +965,11 @@ term `query({ orderBy })` takes is `{ key, direction, nulls?, collation? }`,
 **What `writer(binding)` guarantees.** One `update … where … returning` per update:
 the id, an `expect`ed revision, the write's `when` and every invariant of the Entity
 (set fields read as their new values, an increment as `column + amount`) are in the
-same `WHERE`, so all of them hold of the row the statement changes. When nothing was
-written, the row read back says why, in this order: gone, `Conflict`, `Unmet`, `Invalid`.
+same `WHERE`, so all of them hold of the row the statement changes, and so does a
+guard's rule that reads another row, which `GuardServer.writer` hands it as `requires`
+(`requires: true` on the writer: an update's and a delete's `RowRequirement`). When nothing was
+written, the row read back says why, in this order: gone, `Forbidden` (a `requires` it fails),
+`Conflict`, `Unmet`, `Invalid`.
 A row already holding what the write sets answers as written (taken for the retry of one that
 landed), unless it increments or a ledger was consulted for it: a ledger answers a retry itself, so
 under one a new write is judged by its `when` and transition invariants. An insert's values are judged before it is written, by its state invariants

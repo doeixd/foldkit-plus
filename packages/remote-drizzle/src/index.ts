@@ -14,6 +14,7 @@ import {
   and,
   eq,
   getTableColumns,
+  or,
   getTableName,
   gte,
   inArray,
@@ -52,6 +53,7 @@ import { Diagnostics, Entity } from 'foldkit-remote'
 import {
   RemoteServer,
   RemoteServerError,
+  RowRequirement,
   exprContext,
   type EntityRecord,
   type EntityWriter,
@@ -59,6 +61,7 @@ import {
   type EntitySource,
   type EntitySourceContext,
   type QuerySource,
+  type WriteRequirement,
   type WriteWhen,
 } from 'foldkit-remote-server'
 import type { AnyEntityBinding, ManyRelation, ManyToManyRelation } from './binding.js'
@@ -1361,6 +1364,53 @@ export const writer = <P = unknown>(
       }
     })
 
+  /**
+   * What a write requires of its row (a guard's rule that reads another row),
+   * as SQL over the row's table: each body compiled as a Read rule is, over
+   * the rows it reaches as they are, since it is the server's decision.
+   */
+  const requiredOf = (
+    requires: WriteRequirement | undefined,
+  ): Effect.Effect<ReadonlyArray<SQL>, RemoteServerError> => {
+    if (requires === undefined) return Effect.succeed([])
+    const compile = RowRequirement.$match({
+      Body: ({ query, input, context }): SQL =>
+        and(
+          ...compileWhere(
+            query,
+            { ...binding, context, visibleOf: () => Option.none() },
+            input,
+            `${binding.name}'s write rule`,
+          ),
+        ) ?? sql`true`,
+      All: ({ of }): SQL => and(...of.map(compile)) ?? sql`true`,
+      Any: ({ of }): SQL => or(...of.map(compile)) ?? sql`false`,
+    })
+    return compileFor(() => [compile(requires.holds)])
+  }
+
+  /**
+   * Refused for who asks when the row is there and does not hold what the
+   * write requires: read once the write missed, so a gone or moved row is
+   * told as before.
+   */
+  const refusedBy = (
+    id: string,
+    requires: WriteRequirement | undefined,
+    required: ReadonlyArray<SQL>,
+  ) =>
+    Effect.gen(function* () {
+      if (requires === undefined) return
+      const holding = yield* selectRows(
+        yield* DrizzleDatabase,
+        binding.table,
+        { id: idColumn(binding) },
+        { where: and(eq(idColumn(binding), id), ...required) },
+      )
+      if (holding.length > 0) return
+      return yield* Effect.fail(RemoteServer.forbid(Option.getOrUndefined(requires.reason)))
+    })
+
   /** Each assignment as its compiled computation, in the statement that writes. */
   const assignmentsOf = (
     assignments: Readonly<Record<string, Computation>>,
@@ -1651,6 +1701,7 @@ export const writer = <P = unknown>(
     preconditions: true,
     increments: true,
     assignments: true,
+    requires: true,
     operators: binding.operators.memory,
     commutes,
     invariants: true,
@@ -1714,6 +1765,7 @@ export const writer = <P = unknown>(
       links,
       expect,
       when,
+      requires,
       operation,
       request,
       principal,
@@ -1721,7 +1773,12 @@ export const writer = <P = unknown>(
       Effect.gen(function* () {
         yield* serverOnly
         const at = yield* rowOf(id, expect, when)
-        const where = and(at.where, ...(yield* holdingInvariants(values, increments, assignments)))
+        const required = yield* requiredOf(requires)
+        const where = and(
+          at.where,
+          ...required,
+          ...(yield* holdingInvariants(values, increments, assignments)),
+        )
         const { bump } = at
         const set = {
           ...(yield* setOf(values, links)),
@@ -1784,7 +1841,11 @@ export const writer = <P = unknown>(
           )
         }
         const written = answeredOf(rows, answered)
-        const conditioned = Option.isSome(expect) || Option.isSome(when) || invariants.length > 0
+        const conditioned =
+          Option.isSome(expect) ||
+          Option.isSome(when) ||
+          invariants.length > 0 ||
+          requires !== undefined
         if (Option.isSome(written) || !conditioned) return written
         // The write missed. Why is read from the row as it is now: gone, moved
         // past the expected revision, not holding the precondition, or else
@@ -1805,6 +1866,8 @@ export const writer = <P = unknown>(
         })
         const whole = answeredOf(current, judged)
         if (Option.isNone(whole)) return whole
+        // Who may write it is refused first, as a guard refuses before all else.
+        yield* refusedBy(id, requires, required)
         const row = whole.value
         // The same row with only what this write answers with: a patch keeps every column read.
         const answers = new Set(['id', ...answeredFields])
@@ -1924,10 +1987,12 @@ export const writer = <P = unknown>(
           onSome: Effect.succeed,
         })
       }),
-    delete: ({ id, expect, when }) =>
+    delete: ({ id, expect, when, requires }) =>
       Effect.gen(function* () {
         yield* serverOnly
-        const { where } = yield* rowOf(id, expect, when)
+        const at = yield* rowOf(id, expect, when)
+        const required = yield* requiredOf(requires)
+        const where = and(at.where, ...required)
         const writes = yield* drizzleWrites
         const deleted = yield* runStatement(
           () =>
@@ -1938,7 +2003,7 @@ export const writer = <P = unknown>(
           'Database write failed',
         )
         if (deleted.length > 0) return 'deleted'
-        if (Option.isNone(expect) && Option.isNone(when)) return 'absent'
+        if (Option.isNone(expect) && Option.isNone(when) && requires === undefined) return 'absent'
         // The delete missed: gone is gone (a retry of this delete, or another's);
         // still there, it moved past the revision this delete expected, or else
         // does not hold its precondition.
@@ -1960,6 +2025,7 @@ export const writer = <P = unknown>(
         )
         const row = still[0]
         if (row === undefined) return 'absent'
+        yield* refusedBy(id, requires, required)
         if (
           Option.isNone(when) ||
           (Option.isSome(expect) && !sameStored(row['revision'], expect.value.revision))

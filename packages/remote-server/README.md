@@ -516,7 +516,11 @@ records each update under its `operation` and answers a retry from the record
 (`recorded`), and only for a request carrying an operation id. Even so, a
 concurrent pair must land as one result: an increment only of an integer, and a
 computed assignment only where the writer `commutes` it, unless the writer pins
-the row it read (`pins: true`, a guard with a revision). A writer
+the row it read (`pins: true`, a guard with a revision). A writer that holds
+an update's or a delete's row to a `requires` (`RowRequirement`: bodies over
+the row, all or any of them) in its own statement says so (`requires: true`),
+and refuses a row that fails it with `Forbidden`: a guard's rule that reads
+another row is handed to it that way (remote-drizzle's `writer` does). A writer
 may refuse a write for what only its store knows (`refuses`, asked once where
 the write is served): the Drizzle writer refuses an amount that may be a
 fraction for a column that holds integers. An update of no row fails, and a
