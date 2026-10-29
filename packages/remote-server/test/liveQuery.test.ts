@@ -185,3 +185,62 @@ describe('a list read live, through the handler', () => {
     )
   })
 })
+
+// Each live source numbers its changes from the one `after` the client sent, and the
+// client keeps one cursor for the stream: the server numbers the merged stream (#286).
+describe('two live sources on one stream', () => {
+  it('number their changes as one sequence, after the cursor the client sent', async () => {
+    const patching = (entity: typeof Item | typeof Tag) =>
+      RemoteServer.live<string>(entity, {
+        subscribe: ({ after }) =>
+          Stream.make(
+            {
+              _tag: 'EntityPatched' as const,
+              cursor: after + 1,
+              entity: entity.name,
+              id: 'x',
+              values: {},
+              changed: [],
+            },
+            { _tag: 'EntityDeleted' as const, cursor: after + 2, entity: entity.name, id: 'y' },
+          ),
+      })
+    const server = RemoteServer.make({
+      entities: [
+        RemoteServer.entity<string>(Item, { read: () => Effect.succeed([]) }),
+        RemoteServer.entity<string>(Tag, { read: () => Effect.succeed([]) }),
+      ],
+      live: [patching(Item), patching(Tag)],
+    })
+    const changes = await Effect.runPromise(
+      Effect.gen(function* () {
+        const client = yield* RpcTest.makeClient(RemoteRpc)
+        return yield* client
+          .FoldkitRemoteLive({
+            version: REMOTE_PROTOCOL_VERSION,
+            requirements: [
+              { entity: 'Item', id: 'x', fields: ['name'] },
+              { entity: 'Tag', id: 'x', fields: ['id'] },
+            ],
+            after: 7,
+          })
+          .pipe(Stream.take(4), Stream.runCollect)
+      }).pipe(
+        Effect.scoped,
+        Effect.provide(RemoteRpc.toLayer(RemoteServer.handlers(server, 'ada'))),
+      ),
+    )
+    expect(changes.map(change => change.cursor)).toEqual([8, 9, 10, 11])
+    // Each source's changes keep their own order within the one sequence.
+    expect(
+      ['Item', 'Tag'].map(entity =>
+        changes
+          .filter(change => 'entity' in change && change.entity === entity)
+          .map(change => change._tag),
+      ),
+    ).toEqual([
+      ['EntityPatched', 'EntityDeleted'],
+      ['EntityPatched', 'EntityDeleted'],
+    ])
+  })
+})

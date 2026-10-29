@@ -3020,6 +3020,12 @@ export const RemoteServer = {
             // An entity with no live source simply contributes nothing; the client's
             // planner refetches it rather than the stream failing.
             return Stream.mergeAll(streams, { concurrency: 'unbounded' }).pipe(
+              // Each source numbers its changes from `after` on its own, and the client
+              // keeps one cursor for the stream, so two sources' would read as repeats.
+              Stream.mapAccum(
+                () => payload.after,
+                (cursor, change) => [cursor + 1, [{ ...change, cursor: cursor + 1 }]] as const,
+              ),
               Stream.mapError(error => new RemoteLiveError({ message: error.message })),
             )
           }),

@@ -702,6 +702,11 @@ carries `drawn`.
 
 ### Fixed
 
+- **A live stream over two entities' live sources applies both** (#286).
+  Each source (two `pollLive`s, or one beside a live hub) numbered its
+  changes from the `after` the client sent, and the client, which keeps one
+  cursor per stream, dropped the second source's as repeats.
+  `RemoteServer.handlers` now numbers the merged stream as one sequence.
 - **`Crud.options` reads each listed choice once** (#308). It checked every
   chosen id against a picker's whole list, so a many-picker holding N of N
   loaded choices did quadratic work on each derivation. It groups the held

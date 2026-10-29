@@ -274,4 +274,15 @@ export default [
     ],
     tests: ['packages/remote-drizzle/test/query.test.ts'],
   },
+  {
+    name: 'two live sources keep the numbers each gave its changes',
+    edits: [
+      {
+        file: server,
+        find: '(cursor, change) => [cursor + 1, [{ ...change, cursor: cursor + 1 }]] as const,',
+        replace: '(cursor, change) => [cursor + 1, [change]] as const,',
+      },
+    ],
+    tests: serverTests,
+  },
 ]
