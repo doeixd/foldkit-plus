@@ -1,6 +1,6 @@
 import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Denied, RemoteData, type RemoteError } from '../src/index.js'
+import { Denied, Freshness, RemoteData, type RemoteError } from '../src/index.js'
 
 describe('RemoteData', () => {
   const label = (data: RemoteData<number>): string =>
@@ -78,11 +78,11 @@ describe('RemoteData.render keeps useful data on screen', () => {
       notFound: () => 'no such row',
       failed: failure => `error:${failure._tag}`,
       data: (value, freshness) =>
-        freshness._tag === 'Stale'
-          ? `${value} (stale: ${freshness.error.message})`
-          : freshness._tag === 'Refreshing'
-            ? `${value} (refreshing)`
-            : `${value}`,
+        Freshness.match(freshness, {
+          Fresh: () => `${value}`,
+          Refreshing: () => `${value} (refreshing)`,
+          Stale: ({ error }) => `${value} (stale: ${error.message})`,
+        }),
     })
 
   it.each([

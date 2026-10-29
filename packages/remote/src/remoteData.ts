@@ -42,27 +42,30 @@ export type RemoteData<A> =
   | { readonly _tag: 'Failed'; readonly error: RemoteError; readonly previous?: A }
   | { readonly _tag: 'NotFound' }
 
-/**
- * What `RemoteData.render` tells the `data` branch about the value it is
- * given: whether a newer answer is on its way, and whether this one is what
- * was last known good before a read failed. It is one tag rather than two
- * booleans because a value cannot be both at once, and a type that can say so
- * invites a view to handle a state that never arrives.
- */
-export type Freshness =
-  | { readonly _tag: 'Fresh' }
-  | { readonly _tag: 'Refreshing' }
-  | { readonly _tag: 'Stale'; readonly error: RemoteError }
-
-const fresh: Freshness = { _tag: 'Fresh' }
-const refreshing: Freshness = { _tag: 'Refreshing' }
-
 export const remoteErrorSchema = Schema.Struct({
   _tag: Schema.String,
   message: Schema.String,
   refusal: Schema.optional(Schema.Unknown),
   reason: Schema.optional(Schema.String),
 })
+
+/**
+ * What `RemoteData.render` tells the `data` branch about the value it is
+ * given: whether a newer answer is on its way, and whether this one is what
+ * was last known good before a read failed. It is one tag rather than two
+ * booleans because a value cannot be both at once, and a type that can say so
+ * invites a view to handle a state that never arrives. Fold it with
+ * `Freshness.match`.
+ */
+export const Freshness = defineTaggedUnion({
+  Fresh: {},
+  Refreshing: {},
+  Stale: { error: remoteErrorSchema },
+})
+export type Freshness = typeof Freshness.Type
+
+const fresh = Freshness.Fresh()
+const refreshing = Freshness.Refreshing()
 
 /** A `RemoteData` schema, so a projection that reads remote state is typed. */
 // A projection is rebuilt on every Model change (a Surface's `model` callback
@@ -189,7 +192,7 @@ export const RemoteData = {
       case 'Failed':
         return data.previous === undefined
           ? cases.failed(data.error)
-          : cases.data(data.previous, { _tag: 'Stale', error: data.error })
+          : cases.data(data.previous, Freshness.Stale({ error: data.error }))
     }
   },
 

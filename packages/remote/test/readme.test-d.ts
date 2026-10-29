@@ -16,6 +16,7 @@ import { Surface } from 'foldkit-surface'
 import {
   Diagnostics,
   Entity,
+  Freshness,
   Mutation,
   Query,
   Refusal,
@@ -275,6 +276,18 @@ const drawnProject = RemoteData.render(project.read(currentModel), {
 })
 
 expectTypeOf(drawnProject).toEqualTypeOf<string>()
+
+// `Freshness` folds through its own exhaustive `match`; the stale one carries its error.
+declare const freshness: Freshness
+expectTypeOf(
+  Freshness.match(freshness, {
+    Fresh: () => '',
+    Refreshing: () => '',
+    Stale: ({ error }) => error.message,
+  }),
+).toEqualTypeOf<string>()
+// @ts-expect-error every state is handled: `Stale` is missing
+Freshness.match(freshness, { Fresh: () => '', Refreshing: () => '' })
 
 // 10. A query declared by what it means. The body is over a foldkit-entity
 // Entity, which is what has addressable fields.

@@ -8,7 +8,7 @@ import { modifyFields } from 'foldkit/struct'
 import { Entity, type Selected } from 'foldkit-entity'
 import { SlotView, Style, type NamedStyle, type SlotBuilders } from 'foldkit-mixins'
 import { Button, ButtonSlots, Tabs } from 'foldkit-mixins-ui'
-import { Remote, RemoteData, RemotePolicy, type Freshness, type RemoteClient } from 'foldkit-remote'
+import { Freshness, Remote, RemoteData, RemotePolicy, type RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 
 import { Post, PostsQuery, STATS_ID, Stats } from './data.js'
@@ -460,7 +460,7 @@ const statsTabView = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html
           ]),
           h.div(slots.status.attrs(), [
             h.span(slots.updatedAt.attrs(), [`Updated at ${formatTime(current.sampledAt)}`]),
-            ...Match.valueTags(freshness, {
+            ...Freshness.match(freshness, {
               Fresh: () => [],
               Refreshing: () => [h.span(slots.refreshing.attrs(), ['Refreshing'])],
               Stale: () => [],
@@ -498,7 +498,7 @@ const staleView = (
   slots: Slots,
   h: HtmlBuilder<Message>,
 ): ReadonlyArray<Html> =>
-  Match.valueTags(freshness, {
+  Freshness.match(freshness, {
     Fresh: () => [],
     Refreshing: () => [],
     Stale: ({ error }) => [errorView(error.message, retryMessage, slots, h)],

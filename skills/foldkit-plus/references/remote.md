@@ -79,13 +79,13 @@ const steps = Data.timeline(start, history, { list }, { surfaces: active })
 ## Minimal client
 
 ```ts
-import { Match, Option, Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
 import { Entity, Relation } from 'foldkit-entity'
-import { Remote, RemoteClient, RemoteData, type RemoteRpcClient } from 'foldkit-remote'
+import { Freshness, Remote, RemoteClient, RemoteData, type RemoteRpcClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 
 // Declare the domain with `foldkit-entity`. Only its entities have addressable
@@ -140,13 +140,14 @@ const label = (data: RemoteData<{ readonly name: string }>) =>
 // Initial/Loading -> loading; Ready/Refreshing -> data; Failed carrying a
 // previous value -> data (freshness `Stale`, with the error); only a Failed
 // with nothing to show -> failed. `freshness` is a `Freshness` (exported):
-// `Fresh | Refreshing | Stale`, the last carrying the error that left it behind.
+// `Fresh | Refreshing | Stale`, the last carrying the error that left it behind,
+// folded with the union's own exhaustive `Freshness.match`.
 const drawn = (data: RemoteData<{ readonly name: string }>) =>
   RemoteData.render(data, {
     loading: () => 'skeleton', notFound: () => 'gone',
     failed: e => `error: ${e.message}`,
     data: (p, freshness) =>
-      Match.valueTags(freshness, {
+      Freshness.match(freshness, {
         Fresh: () => p.name, Refreshing: () => `${p.name}…`, Stale: () => `${p.name} (offline)`,
       }),
   })

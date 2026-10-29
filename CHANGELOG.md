@@ -488,6 +488,11 @@ carries `drawn`.
   `Option.getOrElse(model.chat.lastError, () => '')` where a view wrote
   `?? ''`. A failure repeated with the same text still leaves the Model as
   it was.
+- **`Freshness` is a tagged union with its own `match`.** What
+  `RemoteData.render` tells its `data` branch was a bare type, so a view
+  folded it with Effect's `Match.valueTags`; `Freshness.match` folds it
+  exhaustively, and `Freshness.Fresh()`, `.Refreshing()` and
+  `.Stale({ error })` make one.
 - **Breaking: `Data.why` returns a `ReadWhy`** (#248). It lists, in
   `because`, every fact the Model holds about what a read reads, as typed
   references (`Why`, a tagged union with an exhaustive `match`): its list or a

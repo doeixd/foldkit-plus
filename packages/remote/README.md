@@ -551,7 +551,8 @@ that failed does not throw away what the reader was already looking at. Only a
 `Failed` with nothing to show reaches `failed`.
 
 The `data` branch is told which it got, as a `Freshness` — exported, so a view
-helper that takes one can name it:
+helper that takes one can name it, and folds it with its exhaustive
+`Freshness.match`:
 
 | `Freshness` | What it means |
 | --- | --- |
