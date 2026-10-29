@@ -102,6 +102,14 @@ const Mine = Query.define('Mine', {}, () =>
   ),
 )
 
+/** Ada's cards, by the name their author's row holds: a path the client follows in the store. */
+const Adas = Query.define('Adas', {}, () =>
+  Query.from(Card).pipe(
+    Query.where(Expr.eq(Expr.path(Card.relations.author, Board.User.fields.name), 'Ada')),
+    Query.orderBy(Order.asc(Card.fields.rank), Order.asc(Card.fields.id, binary)),
+  ),
+)
+
 const CardInput = Schema.Struct({ id: Schema.String, title: Schema.String, rank: Schema.Int })
 const AddCard = Mutation.write(
   'AddCard',
@@ -161,7 +169,7 @@ const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote
 const Data = Remote.make({
   model: App.model.remote,
   entities: [Team, User, Card, Vote],
-  queries: [ByRank, ByTitle, Mine],
+  queries: [ByRank, ByTitle, Mine, Adas],
   mutations,
   viewer: model => Option.some(Remote.ref(UserFields, model.me)),
 })
@@ -274,6 +282,7 @@ const serverOf = ({ Db, ledger }: Bound) =>
       query(ByRank, { entity: Db.Card }),
       query(ByTitle, { entity: Db.Card }),
       query(Mine, { entity: Db.Card }),
+      query(Adas, { entity: Db.Card }),
     ],
     mutations: [
       RemoteServer.write(AddCard, writer(Db.Card)),
@@ -341,8 +350,8 @@ const everything = [
   { entity: Card, ids: ['c1', 'c2', 'c3'] },
   { entity: Vote, ids: ['v1', 'v2'] },
 ]
-const lists = [ByRank.ref({}), ByTitle.ref({}), Mine.ref({})]
-const [byRank, byTitle, mine] = lists.map(ref => ref.identity)
+const lists = [ByRank.ref({}), ByTitle.ref({}), Mine.ref({}), Adas.ref({})]
+const [byRank, byTitle, mine, adas] = lists.map(ref => ref.identity)
 
 interface LawCase {
   readonly what: string
@@ -369,6 +378,7 @@ const cases: ReadonlyArray<LawCase> = [
       byRank!,
       byTitle!,
       mine!,
+      adas!,
     ],
   },
   {
@@ -387,7 +397,7 @@ const cases: ReadonlyArray<LawCase> = [
     what: 'a delete: the row gone, its author counting one fewer, its lists without it',
     mutation: DropCard,
     input: { id: 'c3' },
-    compares: ['Card:c3', 'User:u1.cardCount', byRank!, mine!],
+    compares: ['Card:c3', 'User:u1.cardCount', byRank!, mine!, adas!],
   },
   {
     what: 'a vote: its voter, the card counting it, and found by its voter',

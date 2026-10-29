@@ -9,6 +9,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **A list over a path is judged by the client** (operations phase 6).
+  `matching`, `belongsEncoded` and so placement judge a body over a path or a
+  path from the viewer with `Judge` over the whole store: a row whose path the
+  store can follow is placed, filtered or taken out, and one reaching what the
+  store lacks is skipped and left to the server. Such lists were the server's
+  to place.
 - **A write the client can tell is invalid is refused where it is made**
   (operations phase 6). `Data.mutate` judges a declared write's invariants
   over the row it would leave, as the store holds it; where one is definitely

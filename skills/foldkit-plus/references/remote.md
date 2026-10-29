@@ -616,7 +616,9 @@ the rows the store already holds, returning `{ matched, skipped }` — keys that
 satisfy it in the body's order, and keys held but missing a field the body reads
 or holding a value no interpreter answers for, such as text with a NUL (neither a
 match nor a non-match; naming them keeps "could not tell" from becoming "no").
-Each row is judged alone, so one such row never voids the others. It uses the same reference interpreter the server is checked
+Each row is judged alone, so one such row never voids the others. A body over
+a path or a path from the viewer is judged over the whole store (`Judge`): a row
+whose path reaches what the store lacks is skipped. It uses the same reference interpreter the server is checked
 against, takes the input **decoded** and encodes it itself (a decoded value
 produces an empty answer that no error catches), and answers *which of the rows
 I hold match* — never *which rows match*. It applies no `visible` rule and is

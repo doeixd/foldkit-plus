@@ -24,16 +24,19 @@
  * safe only because the client holds only rows the server already released to
  * it. A local filter is not an access decision.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { Query as Relational } from 'foldkit-entity'
 import {
   Held,
+  Judge,
   QueryEvaluateError,
   evaluateEach,
+  type AnyQuery,
   type ExprContext,
   type MemoryOperators,
   type Row,
 } from 'foldkit-entity'
+import { holderOf, type StoreHolder } from './held.js'
 import type { QueryDescriptor } from './query.js'
 import type { EntityKey, EntityStore } from './store.js'
 
@@ -191,9 +194,27 @@ const matchingEncoded = <Name extends string, Input>(
     )
   }
 
+  // A body reading other rows is judged over the store as a holder, three
+  // valued: a row whose answer rests on what the store lacks is skipped.
+  // What it admits is then put in order by its terms alone.
+  const reaching = reachesOtherRows(body)
+  const holder = reaching ? holderOf(store) : undefined
+  const admitted =
+    holder === undefined
+      ? rows
+      : rows.filter(row =>
+          Option.match(judgedOver(holder, body, encoded, row.__key, prefix, options), {
+            onSome: matched => matched,
+            onNone: () => {
+              skipped.push(row.__key)
+              return false
+            },
+          }),
+        )
+
   // Each row judged alone: a refused row is one more that could not be told,
   // not a reason to answer nothing about the others.
-  const judged = evaluateEach(body, encoded, rows, {
+  const judged = evaluateEach(reaching ? orderOnly(body) : body, encoded, admitted, {
     operators: options.operators,
     context: options.context,
   })
@@ -201,6 +222,44 @@ const matchingEncoded = <Name extends string, Input>(
 
   return { matched: judged.matched.map(keyOf), skipped: [...skipped, ...judged.refused.map(keyOf)] }
 }
+
+/** Whether a body's predicates read other rows: a path, an exists, a path from the viewer. */
+const reachesOtherRows = (body: AnyQuery): boolean =>
+  Relational.dependencies(body).reaches.length > 0
+
+const ordersOf = new WeakMap<AnyQuery, AnyQuery>()
+
+/** `body`'s order without its predicates, to put rows it admitted in order. */
+const orderOnly = (body: AnyQuery): AnyQuery => {
+  const known = ordersOf.get(body)
+  if (known !== undefined) return known
+  const ordered = Relational.from(body.entity).pipe(Relational.orderBy(...body.orderBy))
+  ordersOf.set(body, ordered)
+  return ordered
+}
+
+/**
+ * Whether the held row under `key` is in `body`'s result, judged over the
+ * whole store: none where the answer rests on what the store lacks.
+ */
+const judgedOver = (
+  holder: StoreHolder,
+  body: AnyQuery,
+  encoded: Readonly<Record<string, unknown>>,
+  key: EntityKey,
+  prefix: string,
+  options: MatchingOptions,
+): Option.Option<boolean> =>
+  Option.flatMap(holder.rows.row(body.entity, key.slice(prefix.length)), row =>
+    Judge.match(
+      Judge.query(body, encoded, row, {
+        operators: options.operators,
+        context: options.context,
+        rows: holder.rows,
+      }),
+      { onKnown: Option.some, onUnknown: () => Option.none() },
+    ),
+  )
 
 /**
  * Whether one row belongs to a query, as far as the client can tell.

@@ -1166,6 +1166,12 @@ empty-and-complete and empty-and-partial stay different answers — one means
 answer (a search holding NUL, which the server refuses too) gives no items and
 `complete: false`, rather than throwing in `update`.
 
+A body that reads other rows (`Expr.path(Member.relations.team,
+Team.fields.name)`, a path from the viewer) is judged over the whole store: a
+row whose path the store can follow is judged, and one whose path reaches a row
+or field the store lacks is not judged either way, so the answer is
+`complete: false`.
+
 Nothing is created: no connection, nothing new to retain, nothing new to fetch.
 The server stays authoritative for which rows exist.
 

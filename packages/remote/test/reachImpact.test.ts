@@ -133,9 +133,14 @@ const shown = (model: Model, identity: string) =>
     : Data.visibleItems(model.remote, identity).map(edge => edge.ref.id)
 
 describe('a held list over a path, after a write to what the path reaches', () => {
-  it('does not keep a row relinked out of its path filter', () => {
+  it('takes out a row relinked out of its path filter, judged over the store', () => {
     const model = answered([{ entity: 'Member', id: 'm2', values: { team: 'Team:t2' } }])
-    expect(shown(model, ofRed)).not.toEqual(['m1', 'm2'])
+    expect(shown(model, ofRed)).toEqual(['m1'])
+  })
+
+  it('is fetched again when a row is relinked to a team the store does not hold', () => {
+    const model = answered([{ entity: 'Member', id: 'm2', values: { team: 'Team:t9' } }])
+    expect(shown(model, ofRed)).toBe('refetched')
   })
 
   it('does not keep its rows when the row they reach changes the field it reads', () => {
