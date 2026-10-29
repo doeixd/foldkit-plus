@@ -60,6 +60,7 @@ const mount = (duration: number) => {
 const timer = () => document.querySelector<HTMLElement>('[role="timer"]')
 const root = () => timer()!.parentElement!
 const press = (action: string) => document.querySelector<HTMLElement>(`[data-action="${action}"]`)
+const bar = () => Number.parseFloat(getComputedStyle(root(), '::after').inlineSize)
 
 test('a countdown counts down a second at a time to done', async () => {
   const handle = mount(2000)
@@ -77,6 +78,7 @@ test('a countdown counts down a second at a time to done', async () => {
     expect([...seen]).toEqual(expect.arrayContaining(['00:01', '00:00']))
     expect(timer()!.textContent).toBe('00:00')
     expect(press('restart')).not.toBeNull()
+    await vi.waitFor(() => expect(bar()).toBeCloseTo(root().getBoundingClientRect().width, 0))
   } finally {
     handle.dispose()
   }
@@ -105,8 +107,10 @@ test('the press that goes on keeps the focus as it turns, and so does a reset he
   }
 })
 
+// A minute, so the pause lands long before the end however slowly the
+// presses reach the page: a second ran out between them on a loaded runner.
 test('a paused time is drawn apart from a running one, and the bar fills to what is counted', async () => {
-  const handle = mount(1000)
+  const handle = mount(60_000)
   try {
     await vi.waitFor(() => expect(press('start')).not.toBeNull())
     const resting = getComputedStyle(timer()!).color
@@ -117,16 +121,15 @@ test('a paused time is drawn apart from a running one, and the bar fills to what
     await vi.waitFor(() => expect(root().dataset['state']).toBe('paused'))
     expect(getComputedStyle(timer()!).color).not.toBe(running)
     expect(running).toBe(resting)
-    const bar = Number.parseFloat(getComputedStyle(root(), '::after').inlineSize)
-    expect(bar).toBeLessThan(root().getBoundingClientRect().width)
-    await userEvent.click(press('resume')!)
-    await vi.waitFor(() => expect(root().dataset['state']).toBe('done'), { timeout: 3000 })
+    const counted = Number(root().style.getPropertyValue('--fk-timer-progress'))
+    expect(counted).toBeGreaterThan(0)
+    expect(counted).toBeLessThan(1)
     await vi.waitFor(() =>
-      expect(Number.parseFloat(getComputedStyle(root(), '::after').inlineSize)).toBeCloseTo(
-        root().getBoundingClientRect().width,
-        0,
-      ),
+      expect(bar()).toBeCloseTo(counted * root().getBoundingClientRect().width, 0),
     )
+    await userEvent.click(press('resume')!)
+    await vi.waitFor(() => expect(root().dataset['state']).toBe('running'))
+    expect(getComputedStyle(timer()!).color).toBe(running)
   } finally {
     handle.dispose()
   }

@@ -101,6 +101,17 @@ export default [
     tests: [browser],
   },
   {
+    name: 'the bar stays empty',
+    edits: [
+      {
+        file: '../src/timer.ts',
+        find: 'String(Math.min(1, model.elapsed / limit))',
+        replace: "'0'",
+      },
+    ],
+    tests: [browser],
+  },
+  {
     name: 'reset is held by `disabled`, which drops the focus',
     edits: [
       {
