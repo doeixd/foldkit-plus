@@ -269,6 +269,34 @@ describe('Crud.list', () => {
     expect(options(lost).authorId?.map(choice => choice.label)).toEqual(['Grace', 'Ada', 'Alan'])
   })
 
+  it('reads each listed choice once, however many are chosen (#308)', () => {
+    const Club = Entity.define('Club', Schema.Struct({ id: Schema.String }))
+    const Clubs = Entity.relate({ Author, Club }, { Club: { members: Relation.many(Author) } })
+    const EditClub = Form.make(
+      'EditClub',
+      Entity.input(Clubs.Club, Schema.Struct({ memberIds: Schema.Array(Schema.String) }), {
+        memberIds: Relation.input(Clubs.Club.relations.members),
+      }),
+    )
+    const ids = Array.from({ length: 200 }, (_, at) => `m${at}`)
+    let reads = 0
+    const listed = ids.map(id => ({
+      get value() {
+        reads += 1
+        return id
+      },
+      label: id,
+    }))
+    const form = EditClub.fill(EditClub.initial, { memberIds: ids }).model
+    const options = Crud.options(
+      EditClub,
+      [{ ...AuthorList, entity: Clubs.Author, choices: () => listed, choiceOf: () => undefined }],
+      { chosen: () => form },
+    )
+    expect(options(initial).memberIds).toHaveLength(ids.length)
+    expect(reads).toBeLessThanOrEqual(ids.length)
+  })
+
   it('offers a picker more while its list has more rows, and shows them when asked', async () => {
     const EditPost = Form.make(
       'EditPost',

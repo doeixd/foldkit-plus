@@ -702,6 +702,10 @@ carries `drawn`.
 
 ### Fixed
 
+- **`Crud.options` reads each listed choice once** (#308). It checked every
+  chosen id against a picker's whole list, so a many-picker holding N of N
+  loaded choices did quadratic work on each derivation. It groups the held
+  ids by picker and looks them up in a set of the listed values.
 - **`Crud.options` requires every chosen row** (#309). Its `active` keyed
   each chosen row `${key}:${id}`, and keys and ids may hold colons, so key
   `a:b` holding `c` and key `a` holding `b:c` made one entry and one row went

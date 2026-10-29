@@ -659,35 +659,33 @@ export const Crud = {
       return [[key, list] as const]
     })
 
-    /** The ids each picker holds now: the draft of a `one`, or of a `many`. */
-    const held = (root: Root): ReadonlyArray<readonly [Key, (typeof lists)[number], string]> => {
+    /** Each picker with the ids it holds now: the draft of a `one`, or of a `many`. */
+    const held = (
+      root: Root,
+    ): ReadonlyArray<readonly [Key, (typeof lists)[number], ReadonlyArray<string>]> => {
       const model = options.chosen?.(root)
       const field = form.field as
         | ((model: FormModel, key: string) => { readonly value: unknown })
         | undefined
-      if (model === undefined || field === undefined) return []
-      return pickers.flatMap(([key, list]) => {
+      return pickers.map(([key, list]) => {
+        if (model === undefined || field === undefined) return [key, list, []]
         const draft = field(model, key).value
         const ids = Array.isArray(draft) ? draft : typeof draft === 'string' ? [draft] : []
-        return ids
-          .filter((id): id is string => typeof id === 'string' && id !== '')
-          .map(id => [key, list, id] as const)
+        return [key, list, ids.filter((id): id is string => typeof id === 'string' && id !== '')]
       })
     }
 
-    const choices = (root: Root): { readonly [K in Key]?: ReadonlyArray<Choice> } => {
-      const chosen = held(root)
-      return Object.fromEntries(
-        pickers.map(([key, list]) => {
+    const choices = (root: Root): { readonly [K in Key]?: ReadonlyArray<Choice> } =>
+      Object.fromEntries(
+        held(root).map(([key, list, ids]) => {
           const listed = list.choices(root)
-          const missing = chosen
-            .filter(([heldBy, , id]) => heldBy === key && !listed.some(item => item.value === id))
-            .flatMap(([, , id]) => list.choiceOf(root, id) ?? [])
+          if (ids.length === 0) return [key, listed]
+          const shown = new Set(listed.map(item => item.value))
+          const missing = ids.flatMap(id => (shown.has(id) ? [] : (list.choiceOf(root, id) ?? [])))
           // What is chosen leads, so it is in reach whatever the list shows.
           return [key, [...missing, ...listed]]
         }),
       ) as unknown as { readonly [K in Key]?: ReadonlyArray<Choice> }
-    }
 
     const [first] = lists
     if (first === undefined)
@@ -716,17 +714,13 @@ export const Crud = {
         name: `${pickers.map(([key]) => key).join('+')} chosen`,
         owner: first.owner,
         projectionOf: (root: Root) => {
-          const rows = held(root)
+          // Keyed by key and id as JSON: both may hold a colon, so `${key}:${id}` collides.
+          const rows = held(root).flatMap(([key, list, ids]) =>
+            ids.map(id => [JSON.stringify([key, id]), list.row(id)] as const),
+          )
           return rows.length === 0
             ? Option.none()
-            : Option.some(
-                Projection.struct(
-                  // Keyed by key and id as JSON: both may hold a colon, so `${key}:${id}` collides.
-                  Object.fromEntries(
-                    rows.map(([key, list, id]) => [JSON.stringify([key, id]), list.row(id)]),
-                  ),
-                ),
-              )
+            : Option.some(Projection.struct(Object.fromEntries(rows)))
         },
         messages: [],
       } satisfies ActiveSurface<Root>,
