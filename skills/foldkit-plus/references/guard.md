@@ -117,7 +117,9 @@ const Todo = TodoFields.pipe(
 - `GuardServer.validate(Policy, { entities, domain, server })` at startup
   throws for a guarded Entity whose Source, or a query listing it, lacks the
   rule or filter the guard seams built for it (a hand-written Source would
-  serve every row). Every guarded Entity needs both. A query whose body
+  serve every row). Every guarded Entity needs both. A declared write whose
+  interaction has no rule under `unguarded: 'allow'` is refused (give it one,
+  or `[Guards.anyone]`), and so is a Source sharing `may`. A query whose body
   filters or orders by a member with a Read rule is refused too, a member of
   a row it reaches through a path or an exists included: its answer would
   tell what the member hides. A declared write of one
@@ -180,13 +182,21 @@ const Todo = TodoFields.pipe(
   `Data.mutate` refuse the write where it is made, with `Forbidden`. The server
   leaves out of `may.row` an interaction whose rule reads another row, which
   one row cannot decide (the write's statement does), so it refuses nothing.
+- Threat model: `may` is a UI hint; enforcement is server-only. The server
+  never reads `may` from a request, so a stale, foreseen or forged yes is
+  refused when written. A row the reader cannot see is read, `may` and all,
+  as one that does not exist. `may` names the same keys for every reader
+  (the shared declaration's); `reasons` is only an `explain`'s sentence,
+  which ships in the bundle anyway: never name another person, an id, or the
+  rule's logic in it. `serveFetch` answers `no-store`; SSR pages set their own
+  `private, no-store`.
 - `Me`, the visitor as an Entity: `const Me = Guards.me(G, { interactions: {
   [OpenAdmin.key]: [G.isAdmin] } })` in shared code, `GuardServer.me(Me,
   Policy)` among the Sources. One row, `me` (`ME`): `signedIn`, `key`
   (`Policy.key` of the principal; none for a visitor), `may`. Its Read is
   `Guards.anyone`, its writes nobody's. Read it as any row for nav links,
   "who am I", and route-level `may`; `Remote.forget` on any change of principal
-  drops it.
+  drops it. `key` is shown to its own principal: an id, never a token.
 - Sync: `foldkit-guard/sync`. `GuardSync.document(ProductEdits, { readers: [G.isStaff] })`
   (refused at definition when an edit could reach a reader its rows hide it from);
   `authorize: { EditedProducts: GuardSync.authorize(Policy, Edits) }` under the

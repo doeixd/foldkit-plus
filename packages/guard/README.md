@@ -573,7 +573,10 @@ It throws, naming each:
   the viewer or an exists follows, the field it ends at, an exists' filter):
   SQL reads a reached row under its `visible` rule, never its members';
 - for a declared write of such an Entity that does not land through the
-  `GuardServer.writer` built for it;
+  `GuardServer.writer` built for it, and for one whose interaction (`Create`
+  for an insert, `Update`, `Delete`) has no rule under `unguarded: 'allow'`,
+  which would let anyone make it: give it a rule, or `[Guards.anyone]` to say
+  that anyone may;
 - for a live Source over such an Entity that does not read through the Source
   checked here: `pollLive` over that Source names it (`LiveSource.reads`) and
   passes, as a live hub does; a hand-written stream, or a `pollLive` over
@@ -582,7 +585,8 @@ It throws, naming each:
 - for a field its Source declares `shared` (sent to every live subscriber as
   written) when a Read rule could tell readers apart: the rows', `always`, the
   field's own, or, for a relation, its target rows', a target not among
-  `entities` included.
+  `entities` included; and for `may` declared `shared`, which is each
+  reader's own whoever may read the row.
 
 A rule built from another `Policy`, for another Entity, or for this one before
 its guards were attached does not count. Every guarded Entity's Source needs both its rule and its
@@ -697,6 +701,42 @@ May.canLink(row.may, Todo, 'project', 'Link')
 - `foldkit-crud`'s editor locks the keys the reader may not set with
   `locks: May.locks(Todo)`, for `foldkit-mixins-form`'s `locked`.
 
+### What `may` tells a reader, and what it does not
+
+`may` is a UI hint; enforcement is on the server only. Every write is checked
+when it is made, by the rules, whatever the client holds or sends: the server
+never reads a `may` from a request, and a `may` that says yes (stale after a
+change of role, foreseen, or edited in the page's cache) changes nothing it
+decides. These hold, each tested against the real handlers (the audit is
+#284):
+
+- **No existence oracle.** A row its reader may not see is not read, `may`
+  included: the answer is the one for an id that does not exist. A write to
+  it is refused as a write to a missing row is (`Forbidden`, or for a delete,
+  answered gone).
+- **Its shape is the shared declaration's.** `may` names the same
+  interactions, members and relations for every reader and row: those the
+  Entity's attachment rules, which the browser bundle carries already. Only
+  the booleans are the reader's, and they say what the reader may do, never
+  why another may. There is no option to leave a member out, since its name
+  is public in the declaration anyway; a fact the reader should not learn
+  belongs in a principal guard's body, which never leaves the server.
+- **A reason is the declaration's sentence.** `reasons` holds only an
+  `explain`'s text, for an interaction refused to this reader; a plain refusal
+  says nothing. The text is a constant of shared code, so it ships in the
+  bundle whether or not it is sent: write it for the reader, never naming
+  another person, an id, or how the rule decides. No type or lint rule checks
+  wording, so this one is review's.
+- **One reader's answer is no one else's.** `GuardServer.validate` refuses a
+  Source that shares `may` with every live subscriber, and `serveFetch`
+  answers every request `cache-control: no-store`. Pages that render a
+  reader's rows into HTML (`foldkit-ssr`) send their own `private, no-store`
+  through the entry's `headers`, and a client changing principal calls
+  `Remote.forget`.
+- **A foreseen `may` is never sent.** What the client foresees for a row it
+  wrote is shown until the server's answer replaces it; a write's input is its
+  Mutation's, and `may` is not in it.
+
 ## Who the client is: `Me`
 
 "Show the Admin link", "show a sign-in page rather than a 404" and "who am
@@ -730,6 +770,10 @@ const MeSource = GuardServer.me(Me, Policy)
   `validate` lets a Source share them.
 - `may` is read with the row, as any `may` is: a principal whose role
   changes sees it when `Me` is read again.
+- `key` is the set's `key` of the principal, shown to that principal: make it
+  an id, never a session token or anything secret. `Me` is answered per
+  request, shares nothing with live subscribers, and goes out under
+  `serveFetch`'s `no-store`.
 
 ## When a rule refuses
 
