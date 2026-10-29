@@ -90,7 +90,12 @@ const definition = TodoApp.make({
  * the contract's inferred type expands a Foldkit-private alias that declaration
  * emit cannot name. Each is the same value, seen through a nameable type.
  */
-export const TodoSync: SyncContract<Message, Shared> = definition
+/** The Messages a replica records: a local one does not compile at `submit`. */
+export type DurableMessage =
+  | typeof TodosFragment.durable.schema.Type
+  | typeof ListMetaFragment.durable.schema.Type
+
+export const TodoSync: SyncContract<Message, Shared, DurableMessage> = definition
 
 /** For `Module`: this contract owns `todos` and `listTitle` and records the durable tags. */
 export const contract: Contract = definition.contract

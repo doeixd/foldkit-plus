@@ -211,7 +211,7 @@ export interface DefinedSync<
   Principal = unknown,
   /** `true` when `make` was given `authorize`, so the contract's `authorize` is present. */
   Authorized extends boolean = false,
-> extends Sync<Message, Schema.Struct.Type<Fields>> {
+> extends Sync<Message, Schema.Struct.Type<Fields>, MsgOf<Ms>> {
   readonly surface: Surface<AppModel, Schema.Struct.Type<Fields>, MsgOf<Ms>, void>
   readonly projection: WritableProjection<AppModel, Fields>
   /** The reducer the replica replays durable Messages with: derived from `update`, or `make`'s `replay`. */

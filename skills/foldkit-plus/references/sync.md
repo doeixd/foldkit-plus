@@ -89,7 +89,7 @@ const program = Effect.gen(function* () {
   const storage = yield* Sync.indexedDb('todos/tab-1')        // scoped; one per document + writer
   const replica = yield* TodoSync.openReplica(ReplicaId.make('tab-1'), storage)
 
-  yield* replica.submit(Message.CreatedTodo({ id: 't1', title: 'Milk' }))
+  yield* replica.submit(Message.CreatedTodo({ id: 't1', title: 'Milk' })) // durable only: a local Message does not compile
   const optimistic = yield* replica.shared                    // already includes the pending op
   const status = yield* replica.status                        // { pending, cursor, lastError, rejected }
 

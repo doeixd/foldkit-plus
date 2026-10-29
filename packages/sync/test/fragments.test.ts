@@ -75,6 +75,7 @@ describe('Sync fragments', () => {
       members: ['bo'],
     })
     const local = await Effect.runPromise(
+      // @ts-expect-error a local Message is no durable one, and is refused if sent anyway
       Effect.result(replica.submit(Message.SelectedTodo({ id: 'a' }))),
     )
     expect(local._tag).toBe('Failure')

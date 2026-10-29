@@ -772,7 +772,10 @@ const program = Effect.gen(function* () {
 }).pipe(Effect.scoped, Effect.provide(Sync.transport.socket({ url: 'wss://example.com/sync' })))
 ```
 
-`submit(message)` checks that the Message is durable, replays it against the
+`submit(message)` takes a durable Message: on a replica from
+`Sync.forApplication(App).make`, a local one does not compile, and an
+annotated export names the subset (`Sync<Message, Shared, Durable>`). It
+checks again that the Message is durable, replays it against the
 current optimistic state, gives it a stable operation id, saves it to the
 outbox, publishes the new optimistic value, and wakes the loop. It sends
 nothing. A Message replay refuses never enters the outbox.

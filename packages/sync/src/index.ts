@@ -40,7 +40,7 @@ import {
  * This is the type; `Sync` is also the value namespace below, the way
  * `Effect.Effect` is both.
  */
-export type Sync<Message, Shared> = SyncContract<Message, Shared>
+export type Sync<Message, Shared, Durable = Message> = SyncContract<Message, Shared, Durable>
 
 /** The package's public surface, grouped. Each entry is the exported function itself. */
 export const Sync = {

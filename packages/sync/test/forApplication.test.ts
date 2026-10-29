@@ -41,11 +41,11 @@ const TodoSync = forApplication(App).make({
 
 const open = () => Effect.runPromise(TodoSync.openReplica(replicaId('a'), memoryStorage()))
 type Replica = Awaited<ReturnType<typeof open>>
-type AppMessage = Schema.Schema.Type<typeof Message>
-const submit = (replica: Replica, message: AppMessage) => Effect.runPromise(replica.submit(message))
+type Durable = Parameters<Replica['submit']>[0]
+const submit = (replica: Replica, message: Durable) => Effect.runPromise(replica.submit(message))
 const shared = (replica: Replica) => Effect.runSync(replica.shared)
 const pending = (replica: Replica) => Effect.runSync(replica.pending)
-const refuse = (replica: Replica, message: AppMessage) =>
+const refuse = (replica: Replica, message: Durable) =>
   Effect.runPromise(Effect.result(replica.submit(message)))
 
 describe('Sync.forApplication', () => {
@@ -71,6 +71,7 @@ describe('Sync.forApplication', () => {
     expect(shared(replica)).toEqual({ todos: [{ id: 'a', title: 'B' }] })
 
     const refused = await Effect.runPromise(
+      // @ts-expect-error a local Message is no durable one, and is refused if sent anyway
       Effect.result(replica.submit(Message.SelectedTodo({ id: 'a' }))),
     )
     expect(refused._tag).toBe('Failure')

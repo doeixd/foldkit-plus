@@ -164,6 +164,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     TodoSync.openReplica(ReplicaId.make('demo'), memoryStorage()),
   )
   const local = await Effect.runPromise(
+    // @ts-expect-error a local Message does not compile at `submit`; sent anyway, it is refused
     Effect.result(replica.submit(Message.FilterSelected({ filter: 'active' }))),
   )
   say(`submit FilterSelected: ${local._tag === 'Failure' ? local.failure._tag : 'accepted'}`)

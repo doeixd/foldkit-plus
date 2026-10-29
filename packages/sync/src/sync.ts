@@ -214,7 +214,10 @@ export interface Replica<Message, Shared> {
   readonly changes: Stream.Stream<ReplicaSnapshot<Shared>>
   /** The status, `shared`, `committed` and next local sequence, read from one replica state. */
   readonly snapshot: Effect.Effect<ReplicaSnapshot<Shared>>
-  readonly submit: (message: Message) => Effect.Effect<void, ReplicaError>
+  /** Records a durable Message in the outbox and applies it optimistically. */
+  // A method, so a replica of the durable subset is still a `Replica` of the
+  // application's Messages where one is only passed along (`Sync.mount`).
+  submit(message: Message): Effect.Effect<void, ReplicaError>
   /** Reconciles against the server. The `Transport` service must be provided. */
   readonly synchronize: Effect.Effect<void, ReplicaError | TransportError, Transport>
   /**
@@ -261,7 +264,12 @@ export interface CommitStamp {
   readonly replicaId: string
 }
 
-export interface Sync<Message, Shared> {
+/**
+ * A document's protocol. `Durable` is what a replica's `submit` takes: the
+ * durable subset for a contract from `Sync.forApplication(App).make`, every
+ * Message for one from `Sync.define`, which checks `durable` when called.
+ */
+export interface Sync<Message, Shared, Durable = Message> {
   readonly documentId: DocumentId
   /** Whether a Message is one the replica records and replays. */
   readonly durable: (message: Message) => boolean
@@ -281,7 +289,7 @@ export interface Sync<Message, Shared> {
   readonly openReplica: (
     replicaId: ReplicaId,
     storage: Storage,
-  ) => Effect.Effect<Replica<Message, Shared>, ReplicaError>
+  ) => Effect.Effect<Replica<Durable, Shared>, ReplicaError>
 }
 
 /** Structural match for `foldkit-durable`'s journal options; Sync stays independent. */

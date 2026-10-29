@@ -34,7 +34,8 @@ diagnostics instead of writing to `console`; leaving a form field no longer
 validates it, and `Message.Refused` takes `value`;
 the net and device primitives' `lastError` and `coords` are `Option`s;
 `RemotePersistence.hydrate` returns an `Option`; a socket transport's
-shared socket is `TransportSocket`; the shipped theme's
+shared socket is `TransportSocket`;
+a made replica's `submit` takes only durable Messages; the shipped theme's
 defaults changed. Under Security: `GuardServer.validate` refuses a served
 write no rule governs under `'allow'`, `EntityWriter.insert` takes
 `operation`, `LiveHub.subscribe` takes no `maxIdsPerEntity`, and a collection
@@ -511,6 +512,12 @@ carries `drawn`.
   read with `Context.get(built, TransportSocket)` or `yield* TransportSocket`;
   `TransportShape` has no `socket`, and a layer without one says so in its
   type.
+- **Breaking: a replica from `Sync.forApplication(App).make` takes only
+  durable Messages.** Its `submit` accepted any Message of the application
+  and refused a local one when run; now a local one does not compile.
+  `Sync<Message, Shared, Durable>` names the subset for an annotated export
+  (`Durable` defaults to `Message`, as `Sync.define` still checks at run
+  time).
 - **Breaking: `Data.why` returns a `ReadWhy`** (#248). It lists, in
   `because`, every fact the Model holds about what a read reads, as typed
   references (`Why`, a tagged union with an exhaustive `match`): its list or a
