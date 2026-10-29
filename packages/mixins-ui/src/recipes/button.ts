@@ -96,7 +96,10 @@ const square: Declarations = {
  * Functionalism's: the fill stops at the padding box and the 1px border
  * carries its color, which a press clears, while the fill deepens to the
  * family's `active`. It presses on the fast tier and springs back on the
- * moderate one.
+ * moderate one. Every fill of a variant that presses so is a
+ * `backgroundColor`: a `background` shorthand in any of its states resets the
+ * clip to `border-box`, and the held fill then ran under the cleared border to
+ * the edge.
  */
 const press = (fill: string, fillHover: string, fillActive: string): ReadonlyArray<StyleValue> => [
   Style.self({
@@ -107,7 +110,7 @@ const press = (fill: string, fillHover: string, fillActive: string): ReadonlyArr
   }),
   hover({ borderColor: fillHover }),
   Style.pseudo(held, {
-    background: fillActive,
+    backgroundColor: fillActive,
     borderColor: 'transparent',
     transitionDuration: ref.motion.fast,
   }),
@@ -161,15 +164,15 @@ export const Button = Style.recipeFor(ButtonSlots)({
     variant: {
       solid: {
         button: variant(
-          Style.self({ background: toneVar('fill'), color: toneVar('on-fill') }),
-          hover({ background: toneVar('fill-hover') }),
+          Style.self({ backgroundColor: toneVar('fill'), color: toneVar('on-fill') }),
+          hover({ backgroundColor: toneVar('fill-hover') }),
           ...press(toneVar('fill'), toneVar('fill-hover'), toneVar('fill-active')),
           ...raised,
           // On, a solid toggle rests on the active fill, and keeps it hovered:
           // the hover fill, a step from the resting one, read as off. Held,
           // the press applies.
-          on({ background: toneVar('fill-active') }),
-          Style.pseudo(onHovered, { background: toneVar('fill-active') }),
+          on({ backgroundColor: toneVar('fill-active') }),
+          Style.pseudo(onHovered, { backgroundColor: toneVar('fill-active') }),
         ),
       },
       outline: {
@@ -199,9 +202,9 @@ export const Button = Style.recipeFor(ButtonSlots)({
        */
       primary: {
         button: variant(
-          Style.self({ background: ref.text.overt, color: ref.surface.base }),
+          Style.self({ backgroundColor: ref.text.overt, color: ref.surface.base }),
           hover({
-            background: `color-mix(in oklch, ${ref.text.overt} 85%, ${ref.surface.base})`,
+            backgroundColor: `color-mix(in oklch, ${ref.text.overt} 85%, ${ref.surface.base})`,
           }),
           ...press(
             ref.text.overt,

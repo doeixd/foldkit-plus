@@ -1,6 +1,7 @@
 /**
  * A press being its own state, broken in turn: the film's strength, the
- * shared piece's press rule, the fluid highlight's held rule, and the mark
+ * shared piece's press rule, a solid fill that loses its clip held or
+ * hovered, the fluid highlight's held rule, and the mark
  * `FluidHover` sets. `pnpm mutate packages/mixins-ui/test/press.mutations.ts`
  * checks that a test fails for every one.
  */
@@ -26,6 +27,28 @@ export default [
         file: '../src/recipes/design.ts',
         find: 'Style.pseudo(PRESSED, held(declarations))',
         replace: 'Style.pseudo(PRESSED, declarations)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a held solid fill is a background shorthand, which clips it to the border box',
+    edits: [
+      {
+        file: '../src/recipes/button.ts',
+        find: '    backgroundColor: fillActive,',
+        replace: '    background: fillActive,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a hovered solid fill is a background shorthand, which a held one under it keeps',
+    edits: [
+      {
+        file: '../src/recipes/button.ts',
+        find: "hover({ backgroundColor: toneVar('fill-hover') }),",
+        replace: "hover({ background: toneVar('fill-hover') }),",
       },
     ],
     tests,

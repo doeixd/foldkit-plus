@@ -23,7 +23,7 @@ export default [
     edits: [
       {
         file: recipe,
-        find: "          on({ background: toneVar('fill-active') }),\n",
+        find: "          on({ backgroundColor: toneVar('fill-active') }),\n",
         replace: '',
       },
     ],

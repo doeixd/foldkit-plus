@@ -6,7 +6,10 @@
  * and the button gives a little (a 0.98 scale) unless `travel` is 0, as
  * under reduced motion; let go, it comes back. The press is forced through
  * Chrome: a real held mouse races the other test files, which share one
- * pointer and move or press it while this one holds it down.
+ * pointer and move or press it while this one holds it down. For the same
+ * reason nothing here takes the real pointer (`pointer-events: none`): a
+ * pointer another file left over the button hovered it, and the hover's fill
+ * read as the resting one.
  *
  * A row and a fluid highlight press too: the state film is laid at 1.75 while
  * held, and the highlight takes it while `FluidHover` marks its container.
@@ -25,6 +28,7 @@ import { force, nodeOf } from './pseudoState.js'
 const theme = Theme.standard(Theme.make({ accent: { hue: 265, chroma: 0.16 } }))
 const button = Style.forSlots(ButtonSlots)(Recipes.Button({}))
 const Model = Schema.Struct({})
+const unpointable = 'body * { pointer-events: none !important; }'
 
 afterEach(() => {
   document.head.querySelectorAll('style[data-test]').forEach(element => element.remove())
@@ -39,7 +43,9 @@ const mount = (travel?: string) => {
       Layers.standard.declare,
       Layers.standard.in('reset', Defaults.reset),
       Layers.standard.in('theme', Theme.root(theme)),
-    ) + button.css
+    ) +
+    button.css +
+    unpointable
   document.head.append(sheet)
   const container = document.createElement('div')
   container.id = 'press-browser'
@@ -61,8 +67,8 @@ const mount = (travel?: string) => {
   )
 }
 
-/** Holds a node pressed, or lets it go. */
-const press = (nodeId: number, held: boolean) => force(nodeId, held ? ['active'] : [])
+/** Holds a node pressed, under the pointer as a real press is, or lets it go. */
+const press = (nodeId: number, held: boolean) => force(nodeId, held ? ['hover', 'active'] : [])
 
 const transparent = 'rgba(0, 0, 0, 0)'
 
@@ -84,6 +90,8 @@ test('pressed, a solid button stands 1px in on every side, and comes back when l
     await press(target, true)
     await vi.waitFor(() => expect(style.borderTopColor).toBe(transparent))
     expect(style.borderTopWidth).toBe('1px')
+    // The fill stops inside the cleared border, or it would still reach the edge.
+    expect(style.backgroundClip).toBe('padding-box')
     await vi.waitFor(() => expect(style.scale).toBe('0.98'))
     expect(style.backgroundColor).not.toBe(resting)
     await press(target, false)
@@ -139,7 +147,8 @@ const mountRows = () => {
     table.css +
     filled.css +
     pill.css +
-    '* { transition: none !important; }'
+    '* { transition: none !important; }' +
+    unpointable
   document.head.append(sheet)
   const container = document.createElement('div')
   container.id = 'press-rows'

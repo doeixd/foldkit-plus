@@ -78,8 +78,8 @@ export default [
     edits: [
       {
         file: recipe,
-        find: "on({ background: toneVar('fill-active') }),",
-        replace: "on({ background: toneVar('fill-hover') }),",
+        find: "on({ backgroundColor: toneVar('fill-active') }),",
+        replace: "on({ backgroundColor: toneVar('fill-hover') }),",
       },
     ],
     tests,
@@ -89,7 +89,7 @@ export default [
     edits: [
       {
         file: recipe,
-        find: "          Style.pseudo(onHovered, { background: toneVar('fill-active') }),\n",
+        find: "          Style.pseudo(onHovered, { backgroundColor: toneVar('fill-active') }),\n",
         replace: '',
       },
     ],

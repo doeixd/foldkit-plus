@@ -615,7 +615,9 @@ describe('Recipes', () => {
     // The recipe's background is a layered rule; the override's is in app.
     const layered = blocks(sheet.slice(order.length + 1))
     expect(
-      layered.some(block => /^@layer variants\{.*background:var\(--_fk-tone-fill\)/.test(block)),
+      layered.some(block =>
+        /^@layer variants\{.*background-color:var\(--_fk-tone-fill\)/.test(block),
+      ),
     ).toBe(true)
     expect(layered.some(block => /^@layer app\{.*background:red/.test(block))).toBe(true)
 
@@ -666,7 +668,7 @@ describe('Recipes', () => {
 
   it('draws primary in ink whatever the tone', () => {
     const css = Style.forSlots(ButtonSlots)(Recipes.Button({ variant: 'primary', size: 'sm' })).css
-    expect(css).toContain('background:var(--fk-text-overt)')
+    expect(css).toContain('background-color:var(--fk-text-overt)')
     expect(css).toContain('color:var(--fk-surface-base)')
     expect(css).toContain('color-mix(in oklch, var(--fk-text-overt) 85%, var(--fk-surface-base))')
   })
