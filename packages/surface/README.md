@@ -323,6 +323,40 @@ recorded by two replication contracts, and a path or Message the application
 does not declare. `Module.add(module, ...more)` returns a new Module, so feature
 modules can contribute their contracts independently.
 
+## Diagnostics
+
+`Diagnostics` is the one channel every Foldkit Plus package reports into what
+it met and kept going past: a fallback, a refusal it answered generically, a
+failure it swallowed, a check run in development. This package owns the
+channel, not the reports: each package declares its own variants on the base
+`Diagnostic` (`_tag`, `source`, `level`, `message`) and lists them in its
+README.
+
+A report goes to the `Diagnostics.Reporter` in the Effect context, which by
+default is Effect's log at the diagnostic's level (an `error` reaches
+`console.error`, or stderr on a server). Replace it to send reports elsewhere,
+and collect them in a test:
+
+```ts
+import { Effect, Layer } from 'effect'
+import { Diagnostics, type Diagnostic } from 'foldkit-surface'
+
+declare const send: (diagnostic: Diagnostic) => Effect.Effect<void>
+
+// In a runtime's `resources`, or a server's layer: log as before, and send.
+const reporting = Layer.succeed(Diagnostics.Reporter, diagnostic =>
+  Effect.andThen(Diagnostics.log(diagnostic), send(diagnostic)),
+)
+
+// In a test: provide `report`, then assert on `reported`.
+const { report, reported } = Diagnostics.collect()
+const inTest = Layer.succeed(Diagnostics.Reporter, report)
+```
+
+`Diagnostics.report(diagnostic)` reports one and never fails: a reporter that
+breaks is logged with what it was given. A reporter given in a Foldkit
+runtime's `resources` reaches its Commands and Subscriptions, not its Mounts.
+
 ## Advanced: how this relates to Optics and Submodels
 
 Surface sits near two existing ideas in Effect and Foldkit, so the overlap is
@@ -518,6 +552,8 @@ that may observe across those runtime boundaries without creating another one.
 - Typed Message subsets (`MessageSet.make`, `MessageSet.union`).
 - Actions (`Action.define`, `Action.run`): a named capability ending in a Message.
 - Named Surfaces and their renderer binding.
+- The `Diagnostics` channel and its default reporter; each package owns its own
+  variants.
 
 ## Limits
 
