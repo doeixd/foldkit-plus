@@ -103,6 +103,7 @@ const Authors = Crud.list('Authors', {
   query: AuthorsQuery, // Query.make('Authors', { Input: { search }, Result: Query.connection(Blog.Author) })
   selection: Entity.select(Blog.Author, { id: true, name: true }),
   pageSize: 25,
+  // live: true reads the list live: rows written elsewhere join and leave it.
   // How a row reads as a choice, for a list that feeds relation pickers.
   choice: { value: row => row.id, label: row => row.name },
 })

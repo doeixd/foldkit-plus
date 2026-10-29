@@ -31,7 +31,7 @@ import {
   viewerOf,
   type Model,
 } from '../src/main.js'
-import { AddNote, DeleteNote, EditNote, NOTES_WATCH } from '../src/operations.js'
+import { AddNote, DeleteNote, EditNote, NOTES_PAGE, Notes } from '../src/operations.js'
 import { server } from '../src/server.js'
 import { buildPage, startStack, worker, type ReferenceStack } from '../src/stack.js'
 import type { WorkerEnv } from '../src/worker.js'
@@ -396,8 +396,9 @@ describe('a write sent again', () => {
 
 describe('live notes', () => {
   /**
-   * The notes list watched live through `/remote`, as `cookie`'s member or a
-   * visitor: every change the Worker's `pollLive` sends, as it arrives.
+   * The notes list read live through `/remote`, as the page reads it, as
+   * `cookie`'s member or a visitor: every change the Worker's `pollLive`
+   * sends, as it arrives.
    */
   const watch = (cookie: string | undefined) => {
     const sent: Array<typeof LiveChange.Type> = []
@@ -406,7 +407,15 @@ describe('live notes', () => {
         headers: () => ({ ...scripted(), ...(cookie === undefined ? {} : { cookie }) }),
       })({
         version: REMOTE_PROTOCOL_VERSION,
-        requirements: [{ entity: 'Note', id: NOTES_WATCH, fields: ['title'] }],
+        requirements: [],
+        queries: [
+          {
+            query: Notes.name,
+            input: {},
+            window: { first: NOTES_PAGE },
+            select: { entity: 'Note', fields: ['title'] },
+          },
+        ],
         after: 0,
       }).pipe(Stream.runForEach(change => Effect.sync(() => void sent.push(change)))),
     )
@@ -427,7 +436,7 @@ describe('live notes', () => {
     const reader = watch(await member('Emmy'))
     const visitor = watch(undefined)
     try {
-      // Watch ids alone: the stream asks the list again once it is open.
+      // The stream asks the list again once it is open.
       await until(() => reader.sent.some(change => change._tag === 'ConnectionInvalidate'))
       await until(() => visitor.sent.some(change => change._tag === 'ConnectionInvalidate'))
       expect((await write(writer, added('lise-1', 'Fission')))._tag).toBe('MutationSucceeded')

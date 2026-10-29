@@ -57,6 +57,8 @@ export class RemoteClient extends Context.Service<
     >
     readonly live: (request: {
       readonly requirements: ReadonlyArray<Requirement>
+      /** The lists read live, each as its read sends it. */
+      readonly queries: ReadonlyArray<Schema.Schema.Type<typeof QueryRequest>>
       readonly after: LiveCursor
     }) => Stream.Stream<
       LiveEvent,

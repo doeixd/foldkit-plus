@@ -13,6 +13,7 @@ import {
   RemoteServer,
   RemoteServerError,
   type EntitySource,
+  type LiveQuery,
   type LiveSource,
 } from 'foldkit-remote-server'
 import type { AnyEntityBinding } from './binding.js'
@@ -39,29 +40,14 @@ export interface RowLog<R = DrizzleDatabase> {
 }
 
 /** One row of a list's window. */
-export interface ListedEdge {
-  readonly entity: string
-  readonly id: string
-  readonly key: string
-}
+type ListedEdge = Effect.Success<LiveQuery['edges']>[number]
 
 /**
- * A list a stream diffs, besides the rows it subscribed to: how a row the page
- * has never seen joins it. A stream watches it by subscribing to `watchId`.
- * With a row log, a logged row is listed while the principal can read it and
- * leaves when it cannot: right for a list of every readable row, not for one
- * that filters, which reads its whole window each tick (give no `changes`).
+ * What a listed row is diffed by: the fields its read selects, less a paged
+ * relation, which is not polled.
  */
-export interface ListWatch<P, R = DrizzleDatabase> {
-  /** The connection, as the client keys it (`Query.ref(input).identity`). */
-  readonly identity: string
-  /** The id a stream subscribes to, to watch this list. */
-  readonly watchId: string
-  /** What a listed row is drawn with: what a patch of one compares and carries. */
-  readonly fields: ReadonlyArray<string>
-  /** The list's window, as the principal reads it. */
-  readonly edges: (principal: P) => Effect.Effect<ReadonlyArray<ListedEdge>, RemoteServerError, R>
-}
+const listedFields = ({ select }: LiveQuery<unknown>): ReadonlyArray<string> =>
+  select.fields.filter(field => !Object.hasOwn(select.windows ?? {}, field))
 
 /** The fields of `fields` a read returned: one the principal may not read is left out. */
 const heldOf = (
@@ -89,11 +75,15 @@ const picked = (
  * polled. It names `source` as the one it `reads`, so `GuardServer.validate`
  * accepts it over the guarded source it checks.
  *
- * A stream subscribed to a list's `watchId` also diffs that list: a listed
- * row's change is a patch, a row that joined a patch and then an insert, one
- * that left a delete and then a remove. Its first read is silent; when the
- * stream asked for watch ids alone, it then invalidates the list once, so a
- * page read before the stream was watching asks again.
+ * A stream also diffs each list its subscriber reads live
+ * (`Data.query(…, { live: true })`, admitted and run by `handlers` as the
+ * subscriber reads it): a listed row's change is a patch, a row that joined a
+ * patch and then an insert, one that left a delete and then a remove, each by
+ * the fields the read selects. Its first read is silent, and then invalidates
+ * the list once, so a page read before the stream opened (or while it was
+ * down) asks again. With a row log, a logged row is listed while the
+ * principal can read it and leaves when it cannot: right for a list of every
+ * readable row, not for one that filters, which needs no `changes`.
  *
  * With `changes`, a tick asks the log first and reads only the rows it names:
  * none on a quiet tick. The log is read before the rows, so a write between
@@ -109,13 +99,12 @@ export const pollLive = <P, R>(
   options: {
     /** How often a stream polls. Default 250 milliseconds. */
     readonly every?: Duration.Input | undefined
-    readonly lists?: ReadonlyArray<ListWatch<P, R>> | undefined
     readonly changes?: RowLog<R> | undefined
   } = {},
 ): LiveSource<P, R> => ({
   entity: source.entity,
   reads: source,
-  subscribe: ({ requirements, after, principal, viewer }) => {
+  subscribe: ({ requirements, queries, after, principal, viewer }) => {
     const ours = requirements.filter(requirement => requirement.entity === source.entity)
     const wanted = new Map<string, Set<string>>()
     for (const requirement of ours) {
@@ -123,8 +112,8 @@ export const pollLive = <P, R>(
       for (const field of requirement.fields) fields.add(field)
       wanted.set(requirement.id, fields)
     }
-    const watched = (options.lists ?? []).filter(list => wanted.has(list.watchId))
-    if (wanted.size === 0) return Stream.never
+    const watched = queries.filter(query => query.select.entity === source.entity)
+    if (wanted.size === 0 && watched.length === 0) return Stream.never
     // The subscribed rows by the fields they are read with: one read a group.
     const groups = new Map<
       string,
@@ -137,13 +126,6 @@ export const pollLive = <P, R>(
       if (group === undefined) groups.set(key, { fields: [...fields], ids: [id] })
       else group.ids.push(id)
     }
-    const watchIds = new Set(watched.map(list => list.watchId))
-    // Asked for watch ids alone: a page read before the stream opened may be stale.
-    const onlyWatches =
-      watched.length > 0 &&
-      requirements.every(
-        requirement => requirement.entity === source.entity && watchIds.has(requirement.id),
-      )
     const { changes } = options
     return Stream.unwrap(
       Effect.gen(function* () {
@@ -167,6 +149,7 @@ export const pollLive = <P, R>(
         /** One watched list's state in this stream. */
         const listings = watched.map(list => ({
           list,
+          fields: listedFields(list),
           known: Option.none<Set<string>>(),
           values: new Map<string, Readonly<Record<string, unknown>>>(),
           invalidated: false,
@@ -177,7 +160,7 @@ export const pollLive = <P, R>(
         const readable = (listing: Listing, ids: ReadonlyArray<string>) =>
           Effect.option(
             Effect.map(
-              ids.length === 0 ? Effect.succeed(Option.none()) : read(ids, listing.list.fields),
+              ids.length === 0 ? Effect.succeed(Option.none()) : read(ids, listing.fields),
               records =>
                 new Map(
                   Option.getOrElse(records, () => []).map(record => [record.id, record.values]),
@@ -187,7 +170,7 @@ export const pollLive = <P, R>(
         /** The list's whole window and the rows in it the principal can read. */
         const window = (listing: Listing) =>
           Effect.gen(function* () {
-            const edges = yield* Effect.option(listing.list.edges(principal))
+            const edges = yield* Effect.option(listing.list.edges)
             if (Option.isNone(edges)) return Option.none()
             const rows = yield* readable(
               listing,
@@ -212,7 +195,7 @@ export const pollLive = <P, R>(
           listing.known = Option.some(ids)
         }
         const invalidate = (listing: Listing): ReadonlyArray<LivePatch> => {
-          if (!onlyWatches || listing.invalidated) return []
+          if (listing.invalidated) return []
           listing.invalidated = true
           return [
             { _tag: 'ConnectionInvalidate', connection: listing.list.identity, cursor: next() },
@@ -252,8 +235,7 @@ export const pollLive = <P, R>(
           deleted: ReadonlySet<string>,
         ) =>
           Effect.gen(function* () {
-            const { list } = listing
-            const fields = list.fields
+            const { list, fields } = listing
             // Only the logged rows, once the list is known; else its whole window.
             const logged = Option.isNone(listing.known) ? Option.none() : only
             const loaded = yield* Option.match(logged, {

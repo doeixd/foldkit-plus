@@ -1,7 +1,10 @@
 # A list read live (#270)
 
-Status: proposed (2026-10-29). Follows `264-guarded-poll-live-DESIGN.md` and
-`live-limits-DESIGN.md`.
+Status: built (2026-10-29) in `foldkit-remote` (`Data.query`'s `live`,
+`LiveRequirement.queries`, protocol 5), `foldkit-remote-server` (`LiveQuery`,
+the handler's admission), `foldkit-remote-drizzle` (`pollLive`) and
+`foldkit-crud` (`Crud.list`'s `live`). Follows
+`264-guarded-poll-live-DESIGN.md` and `live-limits-DESIGN.md`.
 
 ## The problem
 
@@ -92,3 +95,35 @@ Data.query(Q, input, { select, first, live: true })
   `pollLive` takes no `lists`.
 - `examples/cloudflare` likewise; `LIST_WATCH` and the snapshot's stripping
   of it go.
+
+## As built
+
+- `LiveSource.subscribe` is a method: `queries` carries `R` into its
+  parameter, and as a function property that made a source of `R = never`
+  no `LiveSource<any, any>`, which `ServerDefinition<any, any>` callers take.
+- `pollLive` diffs a listed row by its `select`'s fields less a paged
+  relation (one in `select.windows`), as it polls no relation of a
+  subscribed row.
+- A live list is invalidated on every stream open, beside subscribed rows
+  too. The old watch invalidated only a stream that asked for watch ids
+  alone; a reconnect re-reads rows, not lists, so a list must be asked again
+  by the source.
+
+## What is tested
+
+- `packages/remote/test/liveQuery.test.ts`: the live entry sends a list as
+  its read sends it, nothing for a list read without `live`, a cursor per
+  list, `Data.liveStatus`, `first` required, and a merge stays live.
+- `packages/remote-server/test/liveQuery.test.ts`: the page's own request,
+  through the RPC handlers and through `Remote.clientLayer`, is named as the
+  page keys the list, run as the principal with the page's window, handed only
+  to the live source of its Entity; each refusal before any source is asked;
+  `first` counted with the ids.
+- `packages/remote-drizzle/test/poll.test.ts`, `packages/guard/test/server.test.ts`:
+  the watched-list cases moved onto `LiveQuery`, plus a list of another Entity,
+  an invalidation beside rows, and a paged relation left unread.
+- `packages/crud/test/list.test.ts`: `Crud.list`'s `live`.
+- `examples/reference/test/worker.test.ts` on workerd, and the reference and
+  cloudflare e2e: a member's list hears another member's note join and leave.
+- Mutations: `remote-server/test/liveQuery.mutations.ts` (22, all killed),
+  and the re-anchored `poll`, `liveLimits` and guard `server` specs.

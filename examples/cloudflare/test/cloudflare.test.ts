@@ -19,8 +19,7 @@ import {
   upgradeSync,
   type ClientSocket,
 } from '../src/client.js'
-import { LIST_WATCH } from '../src/cache.js'
-import { AllTodos } from '../src/operations.js'
+import { AllTodos, TODO_PAGE_SIZE } from '../src/operations.js'
 import { startStack, type CloudflareStack } from '../src/stack.js'
 import type { WorkerEnv } from '../src/worker.js'
 
@@ -211,11 +210,18 @@ describe('cloudflare example', () => {
     sockets.push(writer.socket!)
     const anchor = 't-live-a'
     const joined = 't-live-b'
-    // The list is polled only for a stream that watches it, as the page's does.
-    const watchingList = [
-      { entity: 'Todo', id: anchor, fields: ['title'] },
-      { entity: 'Todo', id: LIST_WATCH, fields: ['title'] },
-    ]
+    // The list is polled only for a stream that reads it live, as the page's does.
+    const watchingList = {
+      requirements: [{ entity: 'Todo', id: anchor, fields: ['title'] }],
+      queries: [
+        {
+          query: AllTodos.name,
+          input: {},
+          window: { first: TODO_PAGE_SIZE },
+          select: { entity: 'Todo', fields: ['id', 'title', 'done'] },
+        },
+      ],
+    }
     try {
       const created = await exchange(writer.socket!, {
         id: '1',

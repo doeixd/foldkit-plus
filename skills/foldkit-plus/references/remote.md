@@ -198,6 +198,8 @@ const projects = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: Projec
 
 // Data.live: same as get, but also opens a live stream while the Surface is active.
 // model: ({ params }) => ({ project: Data.live(ProjectSummary, params.projectId), projects })
+// A list read live: Data.query(ProjectsByOwner, input, { select, first: 25, live: true }) streams
+// the rows that join, change or leave it (needs first; a live source that watches lists, pollLive).
 
 // Policy for fields already cached (default RemotePolicy.cacheFirst), as the second argument:
 // Data.subscriptions({ page: Surface.at(...) }, { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 30_000 }), grace: '5 seconds' })
@@ -819,14 +821,21 @@ const inProcess = Remote.clientLayer(handlers)            // tests/SSR/worker
 ```
 
 Also: `RemoteServer.query(Q, ({ input, window, principal }) => ...)` returning
-`{ edges, start, end }` with `Boundary` values; `RemoteServer.live(Entity, { subscribe })`;
+`{ edges, start, end }` with `Boundary` values;
+`RemoteServer.live(Entity, { subscribe: ({ requirements, queries, after, principal }) => … })`
+gets the lists of its Entity read live as `LiveQuery`s (`identity`, `select`, and `edges`, the
+registered query already run as the subscriber with the page's window);
 `const hub = yield* RemoteServer.liveHub(entitySources)` then `handlers(Server, principal, { live: hub })`
 and every mutation's answered patches and deletions are then published to the hub by the handlers (a Source's `shared: ['name']`, fields every principal reads alike, lets a declared write's value of one go out with no re-read per principal); call `yield* hub.changed(Project.ref(id), ['name'])` / `yield* hub.deleted(ref)` only for writes that are not mutations (each re-reads per subscriber: a row the read no longer finds is sent as deleted, one still there as a patch) — and only from a process that can wake the subscriber's fiber: a worker request cannot wake another's stream, so on a Worker poll the store from inside the subscription instead. Connection changes
 from mutations via `RemoteServer.prepend/append/remove`. `handlers` options:
 `maxIdsPerEntity` (default 1000), `maxDepth` (default 8). The handler admits a live
 subscription once, before any live Source (`pollLive`, `RemoteServer.live`) or the
-hub sees it: over `maxIdsPerEntity` ids of one Entity, or more than four pages of
-one relation, it fails with `RemoteLiveRefused` and nothing is read.
+hub sees it: over `maxIdsPerEntity` ids of one Entity (a live list's `first` counted
+with them), more than four pages of one relation, or a live list of an unregistered
+query, an input that does not decode, or no `select` or `first`, it fails with
+`RemoteLiveRefused` and nothing is read. `foldkit-remote-drizzle`'s `pollLive(source,
+{ every, changes })` diffs every list it is handed, and takes no list of its own (its
+old `lists`, with a `watchId` naming no row, is gone); the hub watches none.
 
 On the client, a live row inserted into a connection is decided in this order:
 if the query has a body and the row is held with fresh values for every field

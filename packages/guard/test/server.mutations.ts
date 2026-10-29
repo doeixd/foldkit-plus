@@ -180,8 +180,8 @@ export default [
     edits: [
       {
         file: '../../remote-server/src/index.ts',
-        find: 'Effect.map(asking, caller => {',
-        replace: 'Effect.map(Effect.succeed(Option.none()), caller => {',
+        find: '            const caller = yield* asking\n',
+        replace: '            const caller = Option.none()\n',
       },
     ],
     tests,

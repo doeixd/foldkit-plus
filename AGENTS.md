@@ -1176,7 +1176,10 @@ of its own named a form field "fits the Catalog". Read words with
   not assignable to `EntityDescriptor<any, any>` and `Remote.make({ entities:
   [binding] })` failed while `Selection.make(binding, …)` (which infers `F`)
   passed. Declaring `ref(id): …` as a method restores bivariance. Write the
-  assignability case, not just the call that happens to infer.
+  assignability case, not just the call that happens to infer. It recurs
+  whenever a parameter gains a field carrying `R`: `LiveSource.subscribe`'s
+  context took `queries: LiveQuery<R>[]`, and every `ServerDefinition<string,
+  never>` stopped being a `ServerDefinition<any, any>` (`any` is not `never`).
 - **A cast in a test marks an API gap.** Tests and examples are end-user code:
   an audit found about a fifth of their casts came from our types, such as
   `subscriptions['page.read']!` on keys the runtime always emits, `dehydrate(x)!`

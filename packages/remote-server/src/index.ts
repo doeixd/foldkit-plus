@@ -57,6 +57,7 @@ import {
   refParts,
   refsIn,
   relationShape,
+  queryIdentity,
   stableStringify,
   type Boundary,
   type ConnectionChangeSchema,
@@ -624,21 +625,41 @@ export interface QuerySource<P, R = never> {
   readonly visible?: unknown
 }
 
+/**
+ * A list a subscriber reads live (`Data.query(…, { live: true })`), admitted
+ * and resolved by `handlers`: what a live source diffs to tell a row that
+ * joins, changes or leaves it.
+ */
+export interface LiveQuery<R = never> {
+  /** The connection, as the client keys it: the query's name and input. */
+  readonly identity: string
+  /** What its read selects of each row, of the entity it lists. */
+  readonly select: RelationRequirement
+  /** Its window as the subscriber reads it now: the registered query, run as them. */
+  readonly edges: Effect.Effect<QueryPage['edges'], RemoteServerError, R>
+}
+
 export interface LiveSource<P, R = never> {
   readonly entity: string
   /**
    * Called by `handlers` only with requirements it has admitted: no more
-   * distinct ids of one entity than `maxIdsPerEntity`, and no more pages of
-   * one relation than a read may ask. A larger subscription is refused with
-   * `RemoteLiveRefused` before any live source is asked.
+   * distinct ids of one entity than `maxIdsPerEntity` (a live list's `first`
+   * counted with them), and no more pages of one relation than a read may
+   * ask. A larger subscription is refused with `RemoteLiveRefused` before any
+   * live source is asked.
+   *
+   * A method, not a function property: `queries` carries `R` into the
+   * parameter, which would make a source of `R = never` no `LiveSource<any, any>`.
    */
-  readonly subscribe: (context: {
+  subscribe(context: {
     readonly requirements: ReadonlyArray<Requirement>
+    /** The lists of this entity the subscriber reads live. */
+    readonly queries: ReadonlyArray<LiveQuery<R>>
     readonly after: number
     readonly principal: P
     /** As `EntitySourceContext.viewer`, for the re-reads it makes. */
     readonly viewer?: Option.Option<EntityRef> | undefined
-  }) => Stream.Stream<Schema.Schema.Type<typeof LiveChange>, RemoteServerError, R>
+  }): Stream.Stream<Schema.Schema.Type<typeof LiveChange>, RemoteServerError, R>
   /**
    * The entity source every value it sends is read through, as
    * `RemoteServer.readAs` reads (`pollLive` sets it). The server never reads
@@ -825,6 +846,68 @@ const liveRefusal = (
   }
   return undefined
 }
+
+/** A live list admitted: its request, the query that runs it, and its decoded input. */
+interface AdmittedQuery<P, R> {
+  readonly request: Schema.Schema.Type<typeof QueryRequest>
+  readonly select: RelationRequirement
+  readonly source: QuerySource<P, R>
+  readonly input: unknown
+}
+
+/**
+ * Admits each live list as a read of it is admitted, and refuses what a list
+ * read again every tick may not be: a query the server does not register, an
+ * input it does not decode, no `select` (a row is diffed by what it is drawn
+ * with), no `first`, or a `first` that, with the ids of its entity the
+ * subscription names, passes `maxIds`.
+ */
+const admitQueries = <P, R>(
+  server: ServerDefinition<P, R>,
+  queries: ReadonlyArray<Schema.Schema.Type<typeof QueryRequest>>,
+  requirements: ReadonlyArray<Requirement>,
+  maxIds: number,
+): Effect.Effect<ReadonlyArray<AdmittedQuery<P, R>>, RemoteLiveRefused> =>
+  Effect.gen(function* () {
+    const refused = (message: string) => new RemoteLiveRefused({ message })
+    const admitted: Array<AdmittedQuery<P, R>> = []
+    const rows = new Map<string, number>()
+    for (const request of queries) {
+      const source = server.queries.get(request.query)
+      if (source === undefined) return yield* refused(`Unknown query "${request.query}" read live`)
+      const { select } = request
+      if (select === undefined) {
+        return yield* refused(`Query "${request.query}" is read live with no select`)
+      }
+      const { first } = request.window
+      if (first === undefined) {
+        return yield* refused(`Query "${request.query}" is read live with no first`)
+      }
+      const paged = checkPagesPerRelation([select])
+      if (paged !== undefined) {
+        return yield* refused(`Too many pages of "${paged}" in one live subscription`)
+      }
+      const input = yield* Schema.decodeUnknownEffect(source.Input)(request.input).pipe(
+        Effect.mapError(() => refused(`Invalid input of query "${request.query}" read live`)),
+      )
+      rows.set(select.entity, (rows.get(select.entity) ?? 0) + first)
+      admitted.push({ request, select, source, input })
+    }
+    const ids = new Map<string, Set<string>>()
+    for (const requirement of requirements) {
+      const seen = ids.get(requirement.entity) ?? new Set<string>()
+      seen.add(requirement.id)
+      ids.set(requirement.entity, seen)
+    }
+    for (const [entity, listed] of rows) {
+      if ((ids.get(entity)?.size ?? 0) + listed > maxIds) {
+        return yield* refused(
+          `Too many "${entity}" ids in one live subscription (at most ${maxIds}, the rows of its live lists counted)`,
+        )
+      }
+    }
+    return admitted
+  })
 
 type LiveChangeValue = Schema.Schema.Type<typeof LiveChange>
 type Uncursored<T> = T extends unknown ? Omit<T, 'cursor'> : never
@@ -2862,14 +2945,35 @@ export const RemoteServer = {
         if (mismatch !== undefined) return Stream.fail(mismatch)
         // Admitted once, before any live source or the hub is asked, so every
         // live path is held to the bounds a read is.
-        const refusal = liveRefusal(
-          payload.requirements,
-          Math.max(1, options.maxIdsPerEntity ?? DEFAULT_MAX_IDS_PER_ENTITY),
-        )
+        const maxIds = Math.max(1, options.maxIdsPerEntity ?? DEFAULT_MAX_IDS_PER_ENTITY)
+        const refusal = liveRefusal(payload.requirements, maxIds)
         if (refusal !== undefined) return Stream.fail(refusal)
         return Stream.unwrap(
-          Effect.map(asking, caller => {
-            const entities = [...new Set(payload.requirements.map(request => request.entity))]
+          Effect.gen(function* () {
+            const admitted = yield* admitQueries(
+              server,
+              payload.queries ?? [],
+              payload.requirements,
+              maxIds,
+            )
+            const caller = yield* asking
+            const viewer = viewerOf(server, caller)
+            const queries: ReadonlyArray<LiveQuery<R>> = admitted.map(
+              ({ request, select, source, input }) => ({
+                identity: queryIdentity(request.query, request.input),
+                select,
+                edges: Effect.map(
+                  source.run({ input, window: request.window, principal: caller, viewer, select }),
+                  page => page.edges,
+                ),
+              }),
+            )
+            const entities = [
+              ...new Set([
+                ...payload.requirements.map(request => request.entity),
+                ...queries.map(query => query.select.entity),
+              ]),
+            ]
             const streams: Array<Stream.Stream<LiveChangeValue, RemoteServerError, R>> =
               entities.flatMap(entity => {
                 const source = server.live.get(entity)
@@ -2877,9 +2981,10 @@ export const RemoteServer = {
                 return [
                   source.subscribe({
                     requirements: payload.requirements.filter(request => request.entity === entity),
+                    queries: queries.filter(query => query.select.entity === entity),
                     after: payload.after,
                     principal: caller,
-                    viewer: viewerOf(server, caller),
+                    viewer,
                   }),
                 ]
               })
@@ -2889,7 +2994,7 @@ export const RemoteServer = {
                   requirements: payload.requirements,
                   after: payload.after,
                   principal: caller,
-                  viewer: viewerOf(server, caller),
+                  viewer,
                 }),
               )
             }

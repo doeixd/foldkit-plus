@@ -5,7 +5,7 @@
  * the Workers runtime, so the tests read it from Node.
  */
 import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { Effect, Option } from 'effect'
+import { Option } from 'effect'
 import { GuardDrizzle } from 'foldkit-plus/guard/drizzle'
 import { GuardServer } from 'foldkit-plus/guard/server'
 import { Remote } from 'foldkit-plus/remote'
@@ -24,7 +24,7 @@ import {
 import { RemoteServer } from 'foldkit-plus/remote-server'
 import { accounts } from './auth.js'
 import { G, Me, Member, Note, type Principal } from './guard.js'
-import { AddNote, DeleteNote, EditNote, NOTES_PAGE, NOTES_WATCH, Notes } from './operations.js'
+import { AddNote, DeleteNote, EditNote, Notes } from './operations.js'
 
 export const notes = sqliteTable('notes', {
   id: text('id').primaryKey(),
@@ -94,23 +94,10 @@ const NotesSource = query(Notes, { entity: Db.Note })
 /**
  * Another member's note joins the list, and an edit or a delete reaches every
  * reader: each stream re-reads D1 in its own request, since a Worker cannot
- * wake another request's stream. The page watches the list through
- * `NOTES_WATCH`.
+ * wake another request's stream. The page reads the list live, and the
+ * handler runs `NotesSource` for it with the page's own window.
  */
-const NotesLive = pollLive(NoteSource, {
-  lists: [
-    {
-      identity: Notes.ref({}).identity,
-      watchId: NOTES_WATCH,
-      fields: ['id', 'title', 'createdAt'],
-      edges: principal =>
-        NotesSource.run({ input: {}, window: { first: NOTES_PAGE }, principal }).pipe(
-          Effect.map(page => page.edges),
-        ),
-    },
-  ],
-  changes: rowLog(Db.Note),
-})
+const NotesLive = pollLive(NoteSource, { changes: rowLog(Db.Note) })
 
 /**
  * Every write of a note is judged by its rules before it lands, and lands

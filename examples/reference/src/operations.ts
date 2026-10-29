@@ -74,14 +74,8 @@ export const DeleteNote = Mutation.write(
   Write.delete(Entity.input(Note, Schema.Struct({ id: Schema.String })), { id: 'id' }),
 )
 
-/** How many notes the page reads, and the live list watches. */
+/** How many notes the page reads, and watches live. */
 export const NOTES_PAGE = 50
-
-/**
- * The id a live stream subscribes to in order to watch the list
- * (`server.ts`'s `pollLive`). It names no note.
- */
-export const NOTES_WATCH = 'notes-watch'
 
 /** What Remote serves, named once for the page's `Remote.make` and the server's checks. */
 export const served = {

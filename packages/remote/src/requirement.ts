@@ -33,6 +33,8 @@ export interface ConnectionRequirement {
   readonly identity: string
   readonly window: QueryWindow
   readonly select: RelationRequirement
+  /** The projection also watches the list live (`Data.query(…, { live: true })`). */
+  readonly live?: boolean | undefined
 }
 
 const windowKey = (window: QueryWindow): string =>
@@ -45,7 +47,8 @@ const windowKey = (window: QueryWindow): string =>
 
 /**
  * Merges connection requirements for the same connection and window into one,
- * unioning what they select of each item; the first keeps its other properties.
+ * unioning what they select of each item, live when either is; the first keeps
+ * its other properties.
  */
 function mergeConnections(
   connections: readonly ConnectionRequirement[],
@@ -54,12 +57,16 @@ function mergeConnections(
   for (const connection of connections) {
     const key = `${connection.identity}\u0000${windowKey(connection.window)}`
     const current = merged.get(key)
-    merged.set(
-      key,
-      current === undefined
-        ? connection
-        : { ...current, select: mergeRelation(current.select, connection.select) },
-    )
+    if (current === undefined) {
+      merged.set(key, connection)
+      continue
+    }
+    const live = current.live === true || connection.live === true
+    merged.set(key, {
+      ...current,
+      select: mergeRelation(current.select, connection.select),
+      ...(live ? { live } : {}),
+    })
   }
   return [...merged.values()]
 }

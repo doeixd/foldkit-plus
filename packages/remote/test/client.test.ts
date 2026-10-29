@@ -70,7 +70,11 @@ describe('Remote.clientLayer', () => {
           requests: [{ entity: 'User', id: 'u9', fields: ['name'] }],
         })
         const events = yield* client
-          .live({ requirements: [{ entity: 'User', id: 'u9', fields: ['name'] }], after: 0 })
+          .live({
+            requirements: [{ entity: 'User', id: 'u9', fields: ['name'] }],
+            queries: [],
+            after: 0,
+          })
           .pipe(Stream.runCollect)
         return { read, events: [...events] }
       }).pipe(Effect.provide(layer)),
@@ -91,7 +95,11 @@ describe('Remote.clientLayer', () => {
           requests: [{ entity: 'User', id: 'u1', fields: ['name'] }],
         })
         const events = yield* client
-          .live({ requirements: [{ entity: 'User', id: 'u1', fields: ['name'] }], after: 0 })
+          .live({
+            requirements: [{ entity: 'User', id: 'u1', fields: ['name'] }],
+            queries: [],
+            after: 0,
+          })
           .pipe(Stream.runCollect)
         return { read, events: [...events] }
       }).pipe(Effect.provide(Remote.clientLayer(FakeRpc))),

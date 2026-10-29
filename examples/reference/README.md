@@ -59,6 +59,10 @@ Add -> NameNote (id) -> Data.mutate(AddNote)   the note, in its place, and its a
     -> the answer, reduced into the Model; another member's page hears it from pollLive
 ```
 
+The notebook reads its list live (`Data.query(Notes, {}, { …, live: true })`):
+the page's stream names the list as its read does, and the Worker's `pollLive`
+re-reads it inside that stream's own request.
+
 ## Run it
 
 ```bash
@@ -147,12 +151,6 @@ that id, so a page is always adopted by its own build's script.
 
 ## Limits
 
-- A deleted note's author count is one too high once the server has answered
-  (#265), and a server-rendered Card misses one theme rule until scripts run
-  (#271). The tests mark both with `fails`, naming the issue.
-- The live list needs a hand-written watch (#270).
-- `GuardServer.validate` is run without the live source, which it would
-  refuse (#264).
 - No password reset or email: Yielded's management actions are not served.
 - The deploy is left out: `pnpm build` writes `dist/client` and
   `dist/worker.js`, and `wrangler d1 migrations apply` and `wrangler deploy`

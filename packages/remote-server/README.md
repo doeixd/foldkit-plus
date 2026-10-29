@@ -598,9 +598,10 @@ There are two ways to produce live changes.
 
 ```ts
 const ProjectLive = RemoteServer.live(Project, {
-  subscribe: ({ requirements, after, principal }) =>
+  subscribe: ({ requirements, queries, after, principal }) =>
     projectEvents({
       requirements,
+      queries,
       after,
       principal,
     }),
@@ -610,6 +611,17 @@ const ProjectLive = RemoteServer.live(Project, {
 `after` is the client's resume cursor. Events at or before it are duplicates.
 The stream carries Remote `LiveChange`s: entity patches/deletes and connection
 insert/remove/invalidate events.
+
+`queries` are the lists of this Entity the subscriber reads live
+(`Data.query(…, { live: true })`), each a `LiveQuery` the handler has already
+admitted and resolved: `identity` (the connection as the client keys it, for
+the connection events), `select` (what the read draws of each row), and
+`edges`, the registered query run as the subscriber with the page's window.
+The handler refuses, with `RemoteLiveRefused` and before any live Source is
+asked, a list of a query it does not register, an input that does not
+decode, one with no `select` or no `first`, and one whose `first`, added to
+the ids of its Entity the subscription names, passes `maxIdsPerEntity`. A
+subscription watches at most 32 lists (`MAX_LIVE_QUERIES`), refused at decode.
 
 If an Entity has no live Source, it contributes no stream. That is not an error:
 the client planner can fall back to refetching it.

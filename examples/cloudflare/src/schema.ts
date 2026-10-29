@@ -53,16 +53,8 @@ import {
 } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import { Sync, documentId, type Operation, type Sync as SyncContract } from 'foldkit-sync'
-import { LIST_WATCH } from './cache.js'
 import { Domain } from './domain.js'
-import {
-  AllTodos,
-  CreateTodo,
-  DeleteTodo,
-  RenameTodo,
-  TODO_PAGE_SIZE,
-  ToggleTodo,
-} from './operations.js'
+import { AllTodos, CreateTodo, DeleteTodo, RenameTodo, ToggleTodo } from './operations.js'
 
 export const todos = sqliteTable('todos', {
   id: text('id').primaryKey(),
@@ -222,26 +214,9 @@ export const makeServer = () => {
   const TodoSource = source<string>(Db.Todo)
   // The body's order, title then id, which the page places rows by too.
   const AllTodosSource = query(AllTodos, { entity: Db.Todo })
-  const list = AllTodos.ref({}).identity
-  // The page subscribes only to LIST_WATCH, so the stream stays open across
-  // local edits. This re-read is how another tab's row joins or leaves.
-  const TodoLive = pollLive(TodoSource, {
-    lists: [
-      {
-        identity: list,
-        watchId: LIST_WATCH,
-        // The columns the list paints: what a row's join and patch carry.
-        fields: ['id', 'title', 'done'],
-        edges: principal =>
-          AllTodosSource.run({
-            input: {},
-            window: { first: TODO_PAGE_SIZE },
-            principal,
-          }).pipe(Effect.map(page => page.edges)),
-      },
-    ],
-    changes: rowLog(Db.Todo),
-  })
+  // The page reads the list live: the handler runs AllTodosSource with its
+  // window, and this re-read is how another tab's row joins or leaves.
+  const TodoLive = pollLive(TodoSource, { changes: rowLog(Db.Todo) })
   const written = returning(Db.Todo, ['id', 'title', 'done'])
 
   const Create = RemoteServer.mutation(CreateTodo, ({ input }) =>

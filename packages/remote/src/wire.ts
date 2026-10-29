@@ -12,7 +12,7 @@ import type { RelationRequirement, Requirement } from './requirement.js'
  * server refuses a mismatch with `RemoteProtocolError`, so a shape change never
  * drifts silently: bump it whenever `ReadRequest` or `LiveRequirement` change.
  */
-export const REMOTE_PROTOCOL_VERSION = 4
+export const REMOTE_PROTOCOL_VERSION = 5
 
 export class RemoteReadError extends Schema.TaggedError<RemoteReadError>()('RemoteReadError', {
   message: Schema.String,
@@ -249,9 +249,26 @@ export const MutationResult = Schema.Struct({
   read: Schema.optional(AnswerRead),
 })
 
+export const QueryRequest = Schema.Struct({
+  query: Schema.String,
+  input: Schema.Unknown,
+  window: WindowSchema,
+  /**
+   * What to read of each item, as the relation slice a read asks the server
+   * for. Absent for a query run without one: the response carries only edges,
+   * and the client's read entry fetches fields in a second round trip.
+   */
+  select: Schema.optional(RelationRequest),
+})
+
+/** A live subscription may watch no more lists than this; each is run again every tick. */
+export const MAX_LIVE_QUERIES = 32
+
 export const LiveRequirement = Schema.Struct({
   version: Schema.Number,
   requirements: Schema.Array(ReadRequest),
+  /** Lists read live (`Data.query(…, { live: true })`), each as its read sends it. */
+  queries: Schema.optional(Schema.Array(QueryRequest).check(Schema.isMaxLength(MAX_LIVE_QUERIES))),
   /** Resume cursor; events at or before it are duplicates. */
   after: Schema.Number,
 })
@@ -328,18 +345,6 @@ export const WireBoundary = Schema.Union([
   Schema.Struct({ _tag: Schema.Literal('Cursor'), cursor: Schema.String }),
   Schema.Struct({ _tag: Schema.Literal('Unknown') }),
 ])
-
-export const QueryRequest = Schema.Struct({
-  query: Schema.String,
-  input: Schema.Unknown,
-  window: WindowSchema,
-  /**
-   * What to read of each item, as the relation slice a read asks the server
-   * for. Absent for a query run without one: the response carries only edges,
-   * and the client's read entry fetches fields in a second round trip.
-   */
-  select: Schema.optional(RelationRequest),
-})
 
 export const QueryEdge = Schema.Struct({
   entity: Schema.String,

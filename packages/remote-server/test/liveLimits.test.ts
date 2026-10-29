@@ -181,7 +181,9 @@ describe('a live subscription over maxIdsPerEntity', () => {
     const outcome = await Effect.runPromise(
       RemoteClient.pipe(
         Effect.flatMap(remote =>
-          remote.live({ requirements: requirementsFor(4), after: 0 }).pipe(Stream.runDrain),
+          remote
+            .live({ requirements: requirementsFor(4), queries: [], after: 0 })
+            .pipe(Stream.runDrain),
         ),
         Effect.flip,
         Effect.provide(Remote.clientLayer(client)),

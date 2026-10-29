@@ -532,6 +532,8 @@ export type SubscriptionEntries<AppModel, Active, Message = RemoteMessage> = {
 /** The dependencies of a live entry: what it subscribes to, and where a restart resumes. */
 export interface LiveDependencies {
   readonly requirements: ReadonlyArray<Requirement>
+  /** The lists read live, each as its read sends it. */
+  readonly queries: ReadonlyArray<Schema.Schema.Type<typeof QueryRequest>>
   readonly cursor: LiveCursor
   readonly floor: number
   /** How many times the stream broke; each break restarts it. */
@@ -1068,6 +1070,12 @@ export type QueryWindowOptions =
 export type QueryOptions<Value, Entity extends string, Of extends string = Entity> = {
   /** What to read of each item: a selection of the query's entity (`Of`). */
   readonly select: EntitySelection<Value, Entity> & SelectsEntity<Entity, Of>
+  /**
+   * Watch the list live while a Surface reads it: rows that join, change or
+   * leave it are streamed (by a live source that watches queries, such as
+   * `foldkit-remote-drizzle`'s `pollLive`). Needs `first`.
+   */
+  readonly live?: boolean | undefined
 } & QueryWindowOptions
 
 /** A query connection read as a `Page` of selected items; `ref` is the connection with its first window. */
@@ -1464,13 +1472,15 @@ export interface LiveOptions {
   readonly maxRetryDelay?: Duration.Input | undefined
 }
 
-/** A stable key for a live subscription's requirement set. */
-const liveStreamKey = (requirements: readonly Requirement[]): string =>
-  requirements
-    .map(
+/** A stable key for a live subscription's rows and lists. */
+const liveStreamKey = ({ requirements, queries }: LiveAsk): string =>
+  [
+    ...requirements.map(
       requirement =>
         `${entityKey(requirement.entity, requirement.id)}:${[...requirement.fields].sort().join(',')}`,
-    )
+    ),
+    ...queries.map(query => stableStringify(query)),
+  ]
     .sort()
     .join('|')
 
@@ -1832,30 +1842,57 @@ const itemsOf = (
  * name and the canonical encoded input. A connection requirement built by hand
  * with another identity cannot be run, and fails as a query would.
  */
-const queryRequestOf = (query: {
+const parsedQueryRequest = (query: {
   readonly identity: string
   readonly window: QueryWindow
   readonly select?: RelationRequirement | undefined
-}): Effect.Effect<Schema.Schema.Type<typeof QueryRequest>, RemoteQueryError> => {
+}): Result.Result<Schema.Schema.Type<typeof QueryRequest>, RemoteQueryError> => {
   const separator = query.identity.indexOf('\u0000')
   if (separator < 0) {
-    return Effect.fail(
+    return Result.fail(
       new RemoteQueryError({
         message: `connection "${query.identity}" is not a query's: only a QueryRef identity can be run`,
       }),
     )
   }
-  return Effect.try({
-    try: () => ({
+  try {
+    return Result.succeed({
       query: query.identity.slice(0, separator),
       input: JSON.parse(query.identity.slice(separator + 1)) as unknown,
       window: query.window,
       ...(query.select === undefined ? {} : { select: query.select }),
-    }),
-    catch: () =>
+    })
+  } catch {
+    return Result.fail(
       new RemoteQueryError({ message: `connection "${query.identity}" carries no encoded input` }),
-  })
+    )
+  }
 }
+
+const queryRequestOf = (
+  query: Parameters<typeof parsedQueryRequest>[0],
+): Effect.Effect<Schema.Schema.Type<typeof QueryRequest>, RemoteQueryError> =>
+  Effect.suspend(() =>
+    Result.match(parsedQueryRequest(query), { onFailure: Effect.fail, onSuccess: Effect.succeed }),
+  )
+
+/** What a live stream subscribes to: rows, and lists as their reads send them. */
+interface LiveAsk {
+  readonly requirements: ReadonlyArray<Requirement>
+  readonly queries: ReadonlyArray<Schema.Schema.Type<typeof QueryRequest>>
+}
+
+/**
+ * The live rows and lists of what projections ask. A list read live is a
+ * `Data.query`, whose identity is always a query's, so one that is not is
+ * this package's bug, and throws.
+ */
+const liveAskOf = (asked: Asked): LiveAsk => ({
+  requirements: asked.requirements.filter(requirement => requirement.live === true),
+  queries: asked.connections.flatMap(connection =>
+    connection.live === true ? [Result.getOrThrow(parsedQueryRequest(connection))] : [],
+  ),
+})
 
 /**
  * The `ConnectionMerged` for a query result, in the client's edge shape.
@@ -2145,15 +2182,16 @@ const restartDelay = (options: LiveOptions, failures: number): Duration.Duration
   return Duration.millis(backoff * (0.8 + Math.random() * 0.4))
 }
 
-/** The live entry: subscribes to `requirementsOf(model)` from the Model's resume cursor. */
+/** The live entry: subscribes to `liveOf(model)` from the Model's resume cursor. */
 const liveEntry = <AppModel, Store extends RemoteModel, Message>(
   bound: BoundRemote<AppModel, Store>,
-  requirementsOf: (model: AppModel) => ReadonlyArray<Requirement>,
+  liveOf: (model: AppModel) => LiveAsk,
   toMessage: (message: RemoteMessage) => Message,
   options: LiveOptions,
 ): EntryWithoutKeepAlive<AppModel, Message, LiveDependencies, RemoteClient> => ({
   dependenciesSchema: Schema.Struct({
     requirements: Schema.Array(ReadRequest),
+    queries: Schema.Array(QueryRequest),
     cursor: resumeCursor,
     floor: Schema.Number,
     restarts: Schema.Number,
@@ -2161,12 +2199,13 @@ const liveEntry = <AppModel, Store extends RemoteModel, Message>(
     failures: resumeCursor,
   }),
   modelToDependencies: model => {
-    const requirements = requirementsOf(model)
-    const stream = liveStreamKey(requirements)
+    const asked = liveOf(model)
+    const stream = liveStreamKey(asked)
     const remote = bound.store.get(model)
     const health = remote.streams[stream]
     return {
-      requirements,
+      requirements: asked.requirements,
+      queries: asked.queries,
       cursor: remote.live[stream]?.cursor ?? 0,
       // A stream is the principal's: `forget` moves the floor, and it restarts.
       floor: remote.refresh.floor,
@@ -2174,19 +2213,19 @@ const liveEntry = <AppModel, Store extends RemoteModel, Message>(
       failures: health?.failures ?? 0,
     }
   },
-  dependenciesToStream: ({ requirements, cursor, restarts, failures }) => {
-    if (requirements.length === 0) return Stream.empty
-    const stream = liveStreamKey(requirements)
+  dependenciesToStream: ({ requirements, queries, cursor, restarts, failures }) => {
+    if (requirements.length === 0 && queries.length === 0) return Stream.empty
+    const stream = liveStreamKey({ requirements, queries })
     const live = Stream.unwrap(
       Effect.gen(function* () {
         const client = yield* RemoteClient
-        return client.live({ requirements, after: cursor })
+        return client.live({ requirements, queries, after: cursor })
       }),
     ).pipe(
       Stream.map(event =>
         toMessage({
           _tag: 'LiveReceived',
-          stream: liveStreamKey(requirements),
+          stream,
           event,
           now: (options.now ?? wallClock)(),
         }),
@@ -2205,7 +2244,7 @@ const liveEntry = <AppModel, Store extends RemoteModel, Message>(
               _tag: 'ReadFailed',
               requests: requirements,
               error: remoteError(error),
-              stream: liveStreamKey(requirements),
+              stream,
             }),
           ),
       ),
@@ -2948,9 +2987,14 @@ export const Remote = {
                 ),
                 Effect.provideContext(context),
               ),
-            live: ({ requirements, after }) =>
+            live: ({ requirements, queries, after }) =>
               client
-                .FoldkitRemoteLive({ version: REMOTE_PROTOCOL_VERSION, requirements, after })
+                .FoldkitRemoteLive({
+                  version: REMOTE_PROTOCOL_VERSION,
+                  requirements,
+                  ...(queries.length === 0 ? {} : { queries }),
+                  after,
+                })
                 .pipe(
                   Stream.catchTag(['RpcClientError', 'Unreachable'], error =>
                     Stream.fail(new RemoteLiveError({ message: error.message })),
@@ -3146,7 +3190,16 @@ export const Remote = {
     toMessage: (message: RemoteMessage) => Message = identityMessage as never,
     options: LiveOptions = {},
   ): EntryWithoutKeepAlive<AppModel, Message, LiveDependencies, RemoteClient> =>
-    liveEntry(bound, () => requirementsOf(surface.projection(params)), toMessage, options),
+    liveEntry(
+      bound,
+      () => {
+        const projection = surface.projection(params)
+        // Every row the Surface reads; a list only where it is read live.
+        return { ...liveAskOf(askedOf(projection)), requirements: requirementsOf(projection) }
+      },
+      toMessage,
+      options,
+    ),
 }
 
 // A domain's Subscription entries are unbranded so an application can spread
@@ -3917,7 +3970,7 @@ const bindDomain = <
         entries[`${key}.read`] = observeEntry(bound, asked, identityMessage, options)
         entries[`${key}.live`] = liveEntry(
           bound,
-          model => asked(model).requirements.filter(requirement => requirement.live === true),
+          model => liveAskOf(asked(model)),
           identityMessage,
           options,
         )
@@ -3973,7 +4026,7 @@ const bindDomain = <
       options: QueryOptions<Value, Entity, QueryEntity<Q>>,
     ): QueryProjection<AppModel, Value, Q['name'], QueryInput<Q>> => {
       assertRegistered(bound, 'Query', definition.registry.queries, query.name)
-      const { select: given, ...window } = options
+      const { select: given, live, ...window } = options
       const select = selectionOf<Value, Entity>(given)
       for (const [side, size] of [
         ['first', window.first],
@@ -3984,6 +4037,11 @@ const bindDomain = <
             `Remote: query "${query.name}" asks for ${side}: ${String(size)}; a page size is a non-negative integer`,
           )
         }
+      }
+      if (live === true && window.first === undefined) {
+        throw new Error(
+          `Remote: query "${query.name}" is read live without first; a list watched live is read again every tick, so it needs a size`,
+        )
       }
       const listed = (query.Result as Partial<ConnectionSpec>).entity
       if (listed === undefined) {
@@ -3996,11 +4054,13 @@ const bindDomain = <
           `Remote: the selection is of "${select.entity}", but query "${query.name}" lists "${listed}"`,
         )
       }
-      const { ref, relation, requirement } = placeableReadContract(
+      const contract = placeableReadContract(
         readContract(query.ref(input), select, window),
         query.body,
         operators,
       )
+      const { ref, relation } = contract
+      const requirement = live === true ? { ...contract.requirement, live } : contract.requirement
       const relationKey = stableStringify(relation)
       // A read shows at most its window, whatever else loaded the connection:
       // a picker's `first: 50` and a Block's `first: 3` of one query share it.
@@ -4551,12 +4611,10 @@ const bindDomain = <
     liveStatus: (model, active) => {
       assertOwned(active)
       const resolvedAt = readers.get(active) ?? memoizedResolved(active)
-      const requirements = askedUnion(
-        resolvedAt(model).map(({ projection }) => projection),
-      ).requirements.filter(requirement => requirement.live === true)
-      if (requirements.length === 0) return { _tag: 'Idle' }
+      const live = liveAskOf(askedUnion(resolvedAt(model).map(({ projection }) => projection)))
+      if (live.requirements.length === 0 && live.queries.length === 0) return { _tag: 'Idle' }
       const remote = store.get(model)
-      const stream = liveStreamKey(requirements)
+      const stream = liveStreamKey(live)
       const health = remote.streams[stream]
       if (health === undefined) return { _tag: 'Live' }
       return Option.match(health.refused, {

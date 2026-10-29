@@ -5,10 +5,10 @@
  */
 import { Effect, Option, Stream } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
-import { ConnectionChange, Remote, RemoteData, RemotePersistence, entityKey } from 'foldkit-remote'
+import { ConnectionChange, Remote, RemoteData, RemotePersistence } from 'foldkit-remote'
 import { describe, expect, it } from 'vitest'
 import { Data, initial, persistence, Todos, type Model } from '../src/app.js'
-import { cacheKey, LIST_WATCH, snapshotFor } from '../src/cache.js'
+import { cacheKey, snapshotFor } from '../src/cache.js'
 import { Todo } from '../src/domain.js'
 import { AllTodos, CreateTodo } from '../src/operations.js'
 
@@ -164,28 +164,6 @@ describe('snapshot', () => {
       now: 1,
     })
     expect(edgeIds(deleted)).not.toContain('milk')
-  })
-
-  it('drops the watch sentinel', () => {
-    const loaded = pageOf(initial('ada'), [{ id: 'milk', title: 'Milk', done: 0 }])
-    const started = Data.mutate(
-      loaded,
-      CreateTodo,
-      { id: LIST_WATCH, title: 'Watch' },
-      {
-        requestId: 'req-watch',
-        optimistic: [
-          Remote.patch(Todo, LIST_WATCH, { id: LIST_WATCH, title: 'Watch', done: 0 }),
-          ConnectionChange.prepend(AllTodos.ref({}), Remote.ref(Todo, LIST_WATCH)),
-        ],
-      },
-    )
-    const watched = succeed(started.model, 'req-watch', LIST_WATCH, 'Watch')
-    expect(
-      snapshotFor(watched.remote, Data.visibleItems).entities[entityKey('Todo', LIST_WATCH)],
-    ).toBeUndefined()
-    expect(edgeIds(watched)).not.toContain(LIST_WATCH)
-    expect(edgeIds(watched)).toContain('milk')
   })
 
   it('keeps the page it saved for the next visit', async () => {

@@ -279,7 +279,11 @@ describe('serveFetch live', () => {
       RemoteClient.pipe(
         Effect.flatMap(remote =>
           remote
-            .live({ requirements: [{ entity: 'Item', id: 'a', fields: ['name'] }], after: 0 })
+            .live({
+              requirements: [{ entity: 'Item', id: 'a', fields: ['name'] }],
+              queries: [],
+              after: 0,
+            })
             .pipe(Stream.take(1), Stream.runCollect),
         ),
         Effect.provide(Remote.clientLayer(client)),

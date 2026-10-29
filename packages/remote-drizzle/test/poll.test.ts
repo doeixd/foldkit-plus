@@ -1,8 +1,8 @@
 // @vitest-environment node
 /**
  * `pollLive`: a tick reads only the rows a log names since the last one, none on
- * a quiet tick, and everything when the log cannot say; a watched list's rows
- * join and leave by it. `rowChangeLog` keeps that log over real SQLite, and
+ * a quiet tick, and everything when the log cannot say; a list read live
+ * (a `LiveQuery`, as `handlers` resolve one) has its rows join and leave by it. `rowChangeLog` keeps that log over real SQLite, and
  * `rowLog` reads it.
  */
 import { DatabaseSync } from 'node:sqlite'
@@ -12,7 +12,7 @@ import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Fiber, Layer, Option, Schema, Stream } from 'effect'
 import { TestClock } from 'effect/testing'
 import { Entity } from 'foldkit-entity'
-import { RemoteServerError, type EntitySource } from 'foldkit-remote-server'
+import { RemoteServerError, type EntitySource, type LiveQuery } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
 import {
   bind,
@@ -21,7 +21,6 @@ import {
   rowChangeLog,
   rowLog,
   type DrizzleDatabase,
-  type ListWatch,
   type RowLog,
 } from '../src/index.js'
 
@@ -77,7 +76,10 @@ const table = (rows: Record<string, string> = { t1: 'Milk' }) => {
   return { state, source, log, write }
 }
 
-type PollOptions = NonNullable<Parameters<typeof pollLive<string, DrizzleDatabase>>[1]>
+type PollOptions = NonNullable<Parameters<typeof pollLive<string, DrizzleDatabase>>[1]> & {
+  /** The lists the subscriber reads live. */
+  readonly queries?: ReadonlyArray<LiveQuery<DrizzleDatabase>>
+}
 
 /** The stream's events after each tick, with each write run before the tick it names. */
 const ticks = (
@@ -92,9 +94,11 @@ const ticks = (
   Effect.runPromise(
     Effect.gen(function* () {
       const seen: Array<string> = []
-      const fiber = yield* pollLive(source, { every: '1 second', ...options })
+      const { queries = [], ...poll } = options
+      const fiber = yield* pollLive(source, { every: '1 second', ...poll })
         .subscribe({
           requirements: ids.map(id => ({ entity: 'Todo', id, fields: [...fields] })),
+          queries,
           after: 0,
           principal: 'ada',
         })
@@ -223,22 +227,20 @@ describe('pollLive reading as a read answers the principal', () => {
   })
 })
 
-describe('pollLive watching lists, with a row log', () => {
+describe('pollLive watching lists read live, with a row log', () => {
   const watching = (
     state: ReturnType<typeof table>['state'],
     identity = 'AllTodos',
-    watchId = 'watch',
+    select: LiveQuery['select'] = { entity: 'Todo', fields: ['id', 'title', 'done'] },
   ) => {
     const windows = { reads: 0 }
-    const list: ListWatch<string> = {
+    const list: LiveQuery<DrizzleDatabase> = {
       identity,
-      watchId,
-      fields: ['id', 'title', 'done'],
-      edges: () =>
-        Effect.sync(() => {
-          windows.reads++
-          return Object.keys(state.rows).map(id => ({ entity: 'Todo', id, key: `Todo:${id}` }))
-        }),
+      select,
+      edges: Effect.sync(() => {
+        windows.reads++
+        return Object.keys(state.rows).map(id => ({ entity: 'Todo', id, key: `Todo:${id}` }))
+      }),
     }
     return { windows, list }
   }
@@ -246,21 +248,47 @@ describe('pollLive watching lists, with a row log', () => {
   it('asks the database nothing on a quiet tick', async () => {
     const { state, source, log } = table()
     const { windows, list } = watching(state)
-    await ticks(source, { changes: log, lists: [list] }, [quiet, quiet], ['watch'])
-    // The watch id and the window's rows, read once as the stream opened.
-    expect(state.calls).toBe(2)
+    await ticks(source, { changes: log, queries: [list] }, [quiet, quiet], [])
+    // The window's rows, read once as the stream opened.
+    expect(state.calls).toBe(1)
     expect(windows.reads).toBe(1)
+  })
+
+  it('invalidates a list once as the stream opens, beside the rows it subscribes', async () => {
+    const { state, source, log, write } = table()
+    const { list } = watching(state)
+    const seen = await ticks(source, { changes: log, queries: [list] }, [write('t1', 'Oat')])
+    expect(seen).toEqual(['ConnectionInvalidate AllTodos', 'EntityPatched'])
+  })
+
+  it('reads a listed row by what its read selects, less a paged relation', async () => {
+    const { state, source, log } = table()
+    const { list } = watching(state, 'AllTodos', {
+      entity: 'Todo',
+      fields: ['title', 'tags'],
+      windows: { tags: { first: 3 } },
+    })
+    await ticks(source, { changes: log, queries: [list] }, [quiet], [])
+    expect(state.fields).toEqual([['title']])
+  })
+
+  it('watches no list of another entity', async () => {
+    const { state, source, log, write } = table()
+    const other = watching(state, 'Tags', { entity: 'Tag', fields: ['id'] })
+    const seen = await ticks(
+      source,
+      { changes: log, queries: [other.list] },
+      [write('t2', 'Eggs')],
+      [],
+    )
+    expect(seen).toEqual([])
+    expect(other.windows.reads).toBe(0)
   })
 
   it('joins a row the log names and the principal can read, without reading the window', async () => {
     const { state, source, log, write } = table()
     const { windows, list } = watching(state)
-    const seen = await ticks(
-      source,
-      { changes: log, lists: [list] },
-      [write('t2', 'Eggs')],
-      ['watch'],
-    )
+    const seen = await ticks(source, { changes: log, queries: [list] }, [write('t2', 'Eggs')], [])
     expect(seen).toEqual([
       'ConnectionInvalidate AllTodos',
       'EntityPatched',
@@ -276,9 +304,9 @@ describe('pollLive watching lists, with a row log', () => {
     const { windows, list } = watching(state)
     const seen = await ticks(
       source,
-      { changes: log, lists: [list] },
+      { changes: log, queries: [list] },
       [write('t2', undefined)],
-      ['watch'],
+      [],
     )
     expect(seen).toEqual([
       'ConnectionInvalidate AllTodos',
@@ -297,9 +325,9 @@ describe('pollLive watching lists, with a row log', () => {
     }
     const seen = await ticks(
       source,
-      { changes: log, lists: [list] },
+      { changes: log, queries: [list] },
       [failing, quiet, quiet, quiet],
-      ['watch'],
+      [],
     )
     expect(seen).toEqual([
       'ConnectionInvalidate AllTodos',
@@ -310,8 +338,8 @@ describe('pollLive watching lists, with a row log', () => {
 
   it('reads again for the list that failed, and repeats nothing to the one that did not', async () => {
     const { state, source, log, write } = table()
-    const mine = watching(state, 'Mine', 'watch-mine')
-    const theirs = watching(state, 'Theirs', 'watch-theirs')
+    const mine = watching(state, 'Mine')
+    const theirs = watching(state, 'Theirs')
     const failing = () => {
       write('t2', 'Eggs')()
       // Mine reads first.
@@ -319,9 +347,9 @@ describe('pollLive watching lists, with a row log', () => {
     }
     const seen = await ticks(
       source,
-      { changes: log, lists: [mine.list, theirs.list] },
+      { changes: log, queries: [mine.list, theirs.list] },
       [failing, quiet, quiet],
-      ['watch-mine', 'watch-theirs'],
+      [],
     )
     expect(seen).toEqual([
       'ConnectionInvalidate Mine',
@@ -336,38 +364,19 @@ describe('pollLive watching lists, with a row log', () => {
   it('patches a listed row the log names, and joins nothing', async () => {
     const { state, source, log, write } = table({ t1: 'Milk', t2: 'Eggs' })
     const { list } = watching(state)
-    const seen = await ticks(
-      source,
-      { changes: log, lists: [list] },
-      [write('t2', 'Bread')],
-      ['watch'],
-    )
+    const seen = await ticks(source, { changes: log, queries: [list] }, [write('t2', 'Bread')], [])
     expect(seen).toEqual(['ConnectionInvalidate AllTodos', 'EntityPatched'])
-  })
-
-  it('polls only the lists a stream watches', async () => {
-    const { state, source, log, write } = table()
-    const mine = watching(state, 'Mine', 'watch-mine')
-    const theirs = watching(state, 'Theirs', 'watch-theirs')
-    const seen = await ticks(
-      source,
-      { changes: log, lists: [mine.list, theirs.list] },
-      [write('t2', 'Eggs')],
-      ['watch-mine'],
-    )
-    expect(seen).toEqual(['ConnectionInvalidate Mine', 'EntityPatched', 'ConnectionInsert Mine'])
-    expect(theirs.windows.reads).toBe(0)
   })
 
   it('diffs each list a stream watches', async () => {
     const { state, source, log, write } = table()
-    const mine = watching(state, 'Mine', 'watch-mine')
-    const theirs = watching(state, 'Theirs', 'watch-theirs')
+    const mine = watching(state, 'Mine')
+    const theirs = watching(state, 'Theirs')
     const seen = await ticks(
       source,
-      { changes: log, lists: [mine.list, theirs.list] },
+      { changes: log, queries: [mine.list, theirs.list] },
       [write('t2', 'Eggs')],
-      ['watch-mine', 'watch-theirs'],
+      [],
     )
     // The row is patched once, then joins each list.
     expect(seen).toEqual([

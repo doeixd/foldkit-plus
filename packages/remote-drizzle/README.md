@@ -1462,37 +1462,34 @@ database from inside the subscriber's own request instead, re-reading each
 subscribed row through the Source as a read answers the subscriber
 (`RemoteServer.readAs`: the Source's `authorize` and `filter` applied) and
 sending a patch for what moved. A member the subscriber may not read is never
-sent, and a row it can no longer read is sent as deleted. A list in `lists` is
-diffed for a stream that subscribes to its `watchId`, so a row written
-elsewhere joins or leaves it. Over a guarded Entity, poll through the guarded
+sent, and a row it can no longer read is sent as deleted. A list the page
+reads live (`Data.query(…, { live: true })`) is diffed too, so a row written
+elsewhere joins or leaves it: the handler admits the list and runs its
+registered query as the subscriber, with the page's window, and `pollLive`
+compares each listed row by the fields the read selects (a paged relation is
+not polled). Over a guarded Entity, poll through the guarded
 Source the server mounts: `pollLive` names it as the Source it `reads`, and
 `GuardServer.validate` accepts it there and refuses it over any other.
 
 ```ts
 import { pollLive, rowChangeLog, rowLog } from 'foldkit-remote-drizzle'
 
-const TodoLive = pollLive(TodoSource, {
-  lists: [
-    {
-      identity: AllTodos.ref({}).identity,
-      watchId: 'foldkit-watch',
-      fields: ['id', 'title', 'done'],
-      edges: principal =>
-        AllTodosSource.run({ input: {}, window: { first: 50 }, principal }).pipe(
-          Effect.map(page => page.edges),
-        ),
-    },
-  ],
-  changes: rowLog(Db.Todo),
-})
+const TodoLive = pollLive(TodoSource, { changes: rowLog(Db.Todo) })
 
 // A migration holds these statements, one per line.
 const statements = rowChangeLog(Db.Todo)
+
+// The page: the list, read live while a Surface shows it. It needs a `first`.
+Data.query(AllTodos, {}, { select: TodoRow, first: 50, live: true })
 ```
+
+A stream reads each list silently when it opens, then sends
+`ConnectionInvalidate` once, so a page read before the stream was open (or
+while it was down) asks again.
 
 Without `changes`, every tick (`every`, 250 milliseconds by default) reads
 every subscribed row, in one read for each set of fields asked, and each
-watched list's window. `rowChangeLog(Db.Todo)` is the SQLite statements for a
+live list's window. `rowChangeLog(Db.Todo)` is the SQLite statements for a
 table of the rows each write touched and the triggers that fill it, so every
 path that writes the table is logged. With `changes: rowLog(Db.Todo)` a tick
 reads only the rows logged since the last one, which on a quiet tick is none.

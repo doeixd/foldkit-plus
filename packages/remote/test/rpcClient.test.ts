@@ -54,7 +54,9 @@ describe('Remote.clientLayer with the stock RpcClient', () => {
       ),
       failureOf(client => client.query({ query: 'Q', input: {}, window: {} })),
       failureOf(client => client.mutate({ requestId: 'r1', mutation: 'M', input: {} })),
-      failureOf(client => Stream.runDrain(client.live({ requirements: [], after: 0 }))),
+      failureOf(client =>
+        Stream.runDrain(client.live({ requirements: [], queries: [], after: 0 })),
+      ),
     ])
     expect(failures.map(failure => failure?._tag)).toEqual([
       'RemoteReadError',

@@ -17,7 +17,12 @@ import {
   type Requirement,
 } from 'foldkit-remote'
 import { pollLive } from 'foldkit-remote-drizzle'
-import { RemoteServer, type LiveSource, type MemoryStore } from 'foldkit-remote-server'
+import {
+  RemoteServer,
+  type LiveQuery,
+  type LiveSource,
+  type MemoryStore,
+} from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
 import { Condition, Guards, Interaction, May, MaySchema, type Policy } from '../src/index.js'
 import { GuardServer } from '../src/server.js'
@@ -416,12 +421,14 @@ describe('pollLive over the guarded Source', () => {
 
   /**
    * What ada's stream sends, polling every second through the guarded Todo
-   * Source, while each write lands before the tick after it. The watched list's
-   * window is every stored row, unguarded: only the Source decides what is sent.
+   * Source, while each write lands before the tick after it. With `listed`, it
+   * reads a list live whose window is every stored row, unguarded: only the
+   * Source decides what is sent.
    */
   const polled = (
     requirements: ReadonlyArray<Requirement>,
     writes: ReadonlyArray<(store: MemoryStore) => void>,
+    listed = false,
   ) => {
     const backend = RemoteServer.memory({
       domain: Data,
@@ -429,28 +436,27 @@ describe('pollLive over the guarded Source', () => {
       principal: Option.none<User>(),
       ...GuardServer.memory(Policy, [Todo, Project, Node]),
     })
-    const live = pollLive(backend.server.entities.get('Todo')!, {
-      every: '1 second',
-      lists: [
-        {
-          identity: 'AllTodos',
-          watchId: 'watch',
-          fields: ['id', 'title', 'notes'],
-          edges: () =>
-            Effect.sync(() =>
-              backend.rows('Todo').map(row => {
-                const id = String(row.id)
-                return { entity: 'Todo', id, key: entityKey('Todo', id) }
-              }),
-            ),
-        },
-      ],
-    })
+    const live = pollLive(backend.server.entities.get('Todo')!, { every: '1 second' })
+    const list: LiveQuery = {
+      identity: 'AllTodos',
+      select: { entity: 'Todo', fields: ['id', 'title', 'notes'] },
+      edges: Effect.sync(() =>
+        backend.rows('Todo').map(row => {
+          const id = String(row.id)
+          return { entity: 'Todo', id, key: entityKey('Todo', id) }
+        }),
+      ),
+    }
     return Effect.runPromise(
       Effect.gen(function* () {
         const sent: Array<typeof LiveChange.Type> = []
         const fiber = yield* live
-          .subscribe({ requirements, after: 0, principal: Option.some(ada) })
+          .subscribe({
+            requirements,
+            queries: listed ? [list] : [],
+            after: 0,
+            principal: Option.some(ada),
+          })
           .pipe(
             Stream.runForEach(change => Effect.sync(() => void sent.push(change))),
             Effect.forkChild,
@@ -522,9 +528,9 @@ describe('pollLive over the guarded Source', () => {
     expect(sent).toEqual([{ _tag: 'EntityDeleted', entity: 'Todo', id: 't2', cursor: 1 }])
   })
 
-  it('joins a watched list with the rows the principal may read, as it may read them', async () => {
+  it('joins a list read live with the rows the principal may read, as it may read them', async () => {
     const sent = await polled(
-      [{ entity: 'Todo', id: 'watch', fields: ['title'] }],
+      [],
       [
         store => {
           store.write('Todo', 't4', { ...shared, title: 'Joined', notes: 'secret' })
@@ -532,6 +538,7 @@ describe('pollLive over the guarded Source', () => {
         },
         store => store.write('Todo', 't4', { project: 'Project:p2' }),
       ],
+      true,
     )
     const edge = { entity: 'Todo', id: 't4', key: entityKey('Todo', 't4') }
     expect(sent).toEqual([

@@ -566,6 +566,10 @@ in it. With `chosen`, those rows stay among the choices, first, and
 named. Without it a `select` would show a post's author as blank the moment a
 search stopped finding them.
 
+`live: true` reads the list live (`Data.query`'s `live`): rows another page
+writes join, change and leave it while it is shown, given a server whose live
+source watches lists (`pollLive`).
+
 A list shows one page at a time (`pageSize`, 25 by default), so a picker can
 offer fewer rows than there are. `pickers.more(model)` names the pickers whose
 list has another page (`{ authorId: true }`), and a form view given it as `more`

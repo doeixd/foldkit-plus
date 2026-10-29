@@ -92,6 +92,14 @@ export const stableStringify = (value: unknown): string => {
 }
 
 /**
+ * A connection's identity: the query's name and its input, encoded and
+ * canonical. What the client keys a list by, and what a server that runs a
+ * query from its request (a live list) names the list as.
+ */
+export const queryIdentity = (query: string, encodedInput: unknown): string =>
+  `${query}${IDENTITY_SEPARATOR}${stableStringify(encodedInput)}`
+
+/**
  * `Result: Project` (or anything with the entity's `name`, as `Query.connection`
  * takes) means a connection over it; a `ConnectionSpec` names its `entity`
  * instead and is the result as given.
@@ -177,7 +185,7 @@ export const Query = {
         input,
         Input,
         window: {},
-        identity: `${name}${IDENTITY_SEPARATOR}${stableStringify(encode(input))}`,
+        identity: queryIdentity(name, encode(input)),
       }),
     }
   },

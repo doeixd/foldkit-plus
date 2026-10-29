@@ -16,8 +16,8 @@ import { Style } from 'foldkit-mixins'
 import { FormView } from 'foldkit-mixins-form'
 import { ConnectionChange, Remote, type RemoteClient } from 'foldkit-remote'
 import { modifyFields } from 'foldkit/struct'
-import { Surface, type Projection } from 'foldkit-surface'
-import { LIST_WATCH, cacheKey, snapshotFor } from './cache.js'
+import { Surface } from 'foldkit-surface'
+import { cacheKey, snapshotFor } from './cache.js'
 import { Todo, TodoRow } from './domain.js'
 import { AddTodoForm, RenameTodoForm } from './forms.js'
 import {
@@ -91,6 +91,9 @@ const Listed = Crud.list('Todos', {
   query: AllTodos,
   selection: TodoRow,
   pageSize: TODO_PAGE_SIZE,
+  // Another tab's row joins or leaves while the list is shown. The read does
+  // not change with a local edit, so the stream stays open across one.
+  live: true,
 })
 export type TodoItem = typeof Listed.Row
 export const Todos = Listed.at({
@@ -106,24 +109,7 @@ const inList = (
   change: (list: { readonly identity: string }) => ConnectionChange,
 ): ReadonlyArray<ConnectionChange> => Option.toArray(Option.map(Todos.connection(model), change))
 
-/**
- * One stable row the live stream subscribes to. The id is not a todo, and the
- * requirements do not follow the list, so a local edit does not restart the
- * stream. A restart that invalidated the list was the blink. The worker diffs
- * the list inside that one request.
- */
-const sentinel: Projection<Model, unknown> = {
-  Model: Schema.Unknown,
-  dependencies: [],
-  metadata: Data.live(TodoRow, LIST_WATCH).metadata,
-  read: () => undefined,
-}
-const LiveRows = Data.active('TodoLive', () => Option.some(sentinel))
-
-const remoteWiring = Data.wiring({
-  ...Crud.actives({ todos: Todos, editor: Rename }),
-  live: LiveRows,
-})
+const remoteWiring = Data.wiring(Crud.actives({ todos: Todos, editor: Rename }))
 
 /**
  * The list kept in the browser, one snapshot per actor. A later visit paints

@@ -660,8 +660,8 @@ server said last time. To see change:
   older than `maxAge` the next time it is planned.
 - **Always**: `RemotePolicy.networkOnly` requests every selected field, cached
   value visible meanwhile.
-- **As it happens**: `Data.live` instead of `Data.get`, with a server that
-  publishes changes; see [Live data](#live-data).
+- **As it happens**: `Data.live` instead of `Data.get`, or `live: true` on a
+  `Data.query`, with a server that publishes changes; see [Live data](#live-data).
 
 Connections have no age: a list re-queries when invalidated, refreshed, or
 under `networkOnly`. See [Reading, policies, and prefetch](#reading-policies-and-prefetch).
@@ -1973,7 +1973,21 @@ queue of edits.
 ## Live data
 
 `Data.live` marks a Projection so active `Data.subscriptions` follow server
-changes for it.
+changes for it. A list is marked by its read: `live: true` on `Data.query`
+follows the rows that join, change or leave it, with no row of its own to
+subscribe to:
+
+```ts
+Data.query(Notes, {}, { select: NoteRow, first: 50, live: true })
+```
+
+A Surface's live entry (`<key>.live`) subscribes the rows and the lists its
+reads mark live in one stream, sending each list as its read sends it (query,
+input, window, `select`). A list read live needs `first`, since a server reads
+it again for every change it checks; `Data.query` throws without one. A live
+source that watches lists (`foldkit-remote-drizzle`'s `pollLive`) diffs it;
+`RemoteServer.liveHub` watches none, so on a server with only a hub a live
+list changes only when read again.
 
 The Remote Model owns each stream's cursor. Live events carry monotonically
 ordered cursors:
@@ -2007,10 +2021,9 @@ break -> gap marked, restarts + 1 -> backoff
 - **A gap stays until the restart.** An in-order event that a broken stream
   still delivers is applied, but does not clear it. The event that arrived
   ahead was dropped, and only the refetch brings back what it said.
-- **What a stream covers is its requirements.** A list the server watches
-  for it (a `ConnectionInvalidate` it sends) is the source's to re-send when
-  the stream opens; the cloudflare example's poll invalidates its list on
-  every open for this reason.
+- **What a stream covers is its requirements.** A list read live is the
+  live source's to re-send when the stream opens: `pollLive` sends a
+  `ConnectionInvalidate` for each list on every open for this reason.
 
 `Data.liveStatus(model, active)` says how what one active entry reads live is
 doing, for a view that shows it:

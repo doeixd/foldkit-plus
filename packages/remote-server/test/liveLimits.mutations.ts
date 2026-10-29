@@ -24,8 +24,8 @@ export default [
     edits: [
       {
         file: index,
-        find: '          payload.requirements,\n          Math.max(1, options.maxIdsPerEntity ?? DEFAULT_MAX_IDS_PER_ENTITY),\n',
-        replace: '          payload.requirements,\n          DEFAULT_MAX_IDS_PER_ENTITY,\n',
+        find: '        const maxIds = Math.max(1, options.maxIdsPerEntity ?? DEFAULT_MAX_IDS_PER_ENTITY)\n',
+        replace: '        const maxIds = DEFAULT_MAX_IDS_PER_ENTITY\n',
       },
     ],
     tests,

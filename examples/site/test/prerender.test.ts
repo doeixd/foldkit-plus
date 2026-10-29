@@ -179,7 +179,7 @@ describe('the generated site', () => {
     expect(hrefs(live, 'article a.code-link')).toContain('/remote/api/remote/remotemodel#streams')
     const fence = live.querySelector('article figure')
     expect(fence?.querySelector('[data-copy-code]')?.textContent).toBe('Copy')
-    expect(fence?.querySelector('pre code')?.textContent).toContain('break -> gap marked')
+    expect(fence?.querySelector('pre code')?.textContent).toContain('live: true')
     expect(hrefs(live, 'nav[aria-label="Documentation"] a')).toContain(
       '/remote/guides/remote-server',
     )

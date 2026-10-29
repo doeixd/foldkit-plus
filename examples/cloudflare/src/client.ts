@@ -5,7 +5,12 @@
  * decide what each answer proves.
  */
 import { Effect, Stream } from 'effect'
-import { REMOTE_PROTOCOL_VERSION, Remote, type RemoteJsonClient } from 'foldkit-remote'
+import {
+  REMOTE_PROTOCOL_VERSION,
+  Remote,
+  type QueryRequest,
+  type RemoteJsonClient,
+} from 'foldkit-remote'
 import type { CloudflareStack } from './stack.js'
 
 /** Remote over HTTP with live, posting through `via`. */
@@ -36,28 +41,36 @@ export const queryTodos = (
     page => page.edges.map(edge => edge.id),
   )
 
+/** What a live stream subscribes to: rows, and lists read live as a page's read sends them. */
+export interface LiveSubscription {
+  readonly requirements: ReadonlyArray<{
+    entity: string
+    id: string
+    fields: ReadonlyArray<string>
+  }>
+  readonly queries?: ReadonlyArray<typeof QueryRequest.Type>
+}
+
 /**
- * The first live change of some requirements, collected: start this before the
- * change lands, and collect it while the stream is open.
+ * The live changes of a subscription: start this before the change lands, and
+ * collect it while the stream is open.
  */
-const liveEvents = (
-  client: RemoteJsonClient,
-  requirements: ReadonlyArray<{ entity: string; id: string; fields: ReadonlyArray<string> }>,
-) =>
+const liveEvents = (client: RemoteJsonClient, { requirements, queries }: LiveSubscription) =>
   client.FoldkitRemoteLive({
     version: REMOTE_PROTOCOL_VERSION,
     requirements: requirements.map(requirement => ({
       ...requirement,
       fields: [...requirement.fields],
     })),
+    ...(queries === undefined ? {} : { queries }),
     after: 0,
   })
 
 /** The first live change of some requirements. Start it before the change lands. */
 export const firstChange = (
   client: RemoteJsonClient,
-  requirements: ReadonlyArray<{ entity: string; id: string; fields: ReadonlyArray<string> }>,
-) => liveEvents(client, requirements).pipe(Stream.take(1), Stream.runCollect)
+  requirements: LiveSubscription['requirements'],
+) => liveEvents(client, { requirements }).pipe(Stream.take(1), Stream.runCollect)
 
 const aboutId = (
   event: { readonly _tag: string; readonly id?: string; readonly edge?: { readonly id: string } },
@@ -75,11 +88,11 @@ const aboutId = (
  */
 export const takeChanges = (
   client: RemoteJsonClient,
-  requirements: ReadonlyArray<{ entity: string; id: string; fields: ReadonlyArray<string> }>,
+  subscription: LiveSubscription,
   count: number,
   id?: string,
 ) => {
-  const events = liveEvents(client, requirements)
+  const events = liveEvents(client, subscription)
   const chosen = id === undefined ? events : events.pipe(Stream.filter(event => aboutId(event, id)))
   return chosen.pipe(Stream.take(count), Stream.runCollect)
 }

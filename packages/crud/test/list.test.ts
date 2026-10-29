@@ -116,6 +116,22 @@ describe('Crud.list', () => {
     expect(Option.isNone(AuthorList.more(initial))).toBe(true)
   })
 
+  it('reads its list live only when told to', () => {
+    const Watched = Crud.list('Watched', {
+      query: AuthorsQuery,
+      selection: Entity.select(Blog.Author, { name: true }),
+      live: true,
+    }).at({ data: Data, input: () => Option.some({ search: 'a' }) })
+    const entries = Data.subscriptions({ watched: Watched.active, still: AuthorList.active })
+    const searching = { ...initial, search: 'a' }
+    const lists = (key: 'watched.live' | 'still.live') =>
+      entries[key].modelToDependencies(searching).queries.map(query => query.query)
+    expect({ watched: lists('watched.live'), still: lists('still.live') }).toEqual({
+      watched: ['Authors'],
+      still: [],
+    })
+  })
+
   it('reads a page of rows through the Selection, and follows the input', async () => {
     const searching = await load({ ...initial, search: 'a' })
     expect(shown(searching)).toEqual(['Ada', 'Alan'])

@@ -57,28 +57,22 @@ write path (`hub.changed(...)` in `settle`) reaches nobody on a Worker.
 What does cross requests is D1. So `TodoLive` is a `LiveSource` that polls D1
 **from inside the subscriber's own request**, re-reading each subscribed row
 through the entity's own source under the subscriber's principal, and emitting
-a patch for what moved. It also watches the `AllTodos` list, so an id that
-joins or leaves is a connection event; the page draws a joining row where the
-list's order puts it. The page subscribes to that stream
-(`Remote.httpWithLive`) on one stable id, not on every row, so a local edit
-does not restart it.
+a patch for what moved. The page reads the `AllTodos` list live
+(`Crud.list('Todos', { …, live: true })`), so the stream
+(`Remote.httpWithLive`) also diffs it: an id that joins or leaves is a
+connection event, and the page draws a joining row where the list's order puts
+it. The read does not change with a local edit, so the stream stays open
+across one.
 
 `pollLive`, `rowLog` and `rowChangeLog` come from `foldkit-remote-drizzle`.
-Schematic: `makeServer` passes one list watch, whose `identity` is `AllTodos`,
-whose `watchId` is the page's stable id, whose `fields` are the columns the
-list paints, and whose `edges` runs that query for the subscriber's principal.
-`changes` reads the table's row log.
+The handler runs `AllTodosSource` for the stream with the page's own window
+and the subscriber's principal; `changes` reads the table's row log.
 
 ```ts
 server = RemoteServer.make({
   entities: [TodoSource],
   queries: [AllTodosSource],
-  live: [
-    pollLive(TodoSource, {
-      lists: [{ identity, watchId, fields, edges }],
-      changes: rowLog(Db.Todo),
-    }),
-  ],
+  live: [pollLive(TodoSource, { changes: rowLog(Db.Todo) })],
 })
 ```
 

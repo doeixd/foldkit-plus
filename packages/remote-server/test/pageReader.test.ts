@@ -134,6 +134,7 @@ describe('pageReader', () => {
       Stream.runCollect(
         client.live({
           requirements: [{ entity: 'Item', id: 'a', fields: ['name'] }],
+          queries: [],
           after: 0,
         }),
       ),

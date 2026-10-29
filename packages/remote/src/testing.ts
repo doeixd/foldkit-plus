@@ -18,7 +18,7 @@ import type { EntityLike, OutboxWiring, RemoteDomain, SubscriptionsOptions } fro
 import type { RemoteMessage } from './model.js'
 import type { MutationDescriptor } from './mutation.js'
 import { OutboxLocks } from './outbox.js'
-import { IDENTITY_SEPARATOR, stableStringify, type QueryRef } from './query.js'
+import { IDENTITY_SEPARATOR, queryIdentity, stableStringify, type QueryRef } from './query.js'
 import { RemoteData } from './remoteData.js'
 import type {
   RemoteForbidden,
@@ -306,7 +306,7 @@ const run = async <AppModel, Message>(
       ),
     query: request =>
       hold(
-        [queryKey(`${request.query}${IDENTITY_SEPARATOR}${stableStringify(request.input)}`)],
+        [queryKey(queryIdentity(request.query, request.input))],
         `query ${request.query} ${stableStringify(request.input)}`,
         answer => answer.query(request),
       ),

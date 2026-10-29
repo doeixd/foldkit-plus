@@ -48,9 +48,9 @@ export default [
     'if (rows.has(id)) kept.add(id)',
   ),
   edit(
-    'every list is polled, watched or not',
-    'const watched = (options.lists ?? []).filter(list => wanted.has(list.watchId))',
-    'const watched = options.lists ?? []',
+    'a list of another entity is watched',
+    'const watched = queries.filter(query => query.select.entity === source.entity)',
+    'const watched = queries',
   ),
   edit('a row joining two lists is patched twice', '                patched.add(id)\n', ''),
   edit('the log keeps no limit', 'where seq <= new.seq - ${keep}', 'where 0'),

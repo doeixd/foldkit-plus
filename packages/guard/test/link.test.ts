@@ -10,7 +10,7 @@ import { drizzle } from 'drizzle-orm/node-sqlite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Option, Schema } from 'effect'
 import { Entity, Expr, Relation, Write } from 'foldkit-entity'
-import { Mutation } from 'foldkit-remote'
+import { Mutation, REMOTE_PROTOCOL_VERSION } from 'foldkit-remote'
 import { bind, databaseLayer, source, writer, type DrizzleDatabase } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
@@ -91,7 +91,7 @@ const open = () => {
     read: (who: string, ids: ReadonlyArray<string>) =>
       run(who, handlers =>
         handlers.FoldkitRemoteRead({
-          version: 4,
+          version: REMOTE_PROTOCOL_VERSION,
           requests: ids.map(id => ({ entity: 'Like', id, fields: ['id', 'user'] })),
         }),
       ),

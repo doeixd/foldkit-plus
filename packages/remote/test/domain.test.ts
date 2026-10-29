@@ -559,6 +559,7 @@ describe('Data.live and Data.subscriptions', () => {
   it('the live entry subscribes only what the Surface reads live', () => {
     expect(subscriptions['page.live'].modelToDependencies(at('p7'))).toEqual({
       requirements: [{ entity: 'Project', id: 'p7', fields: ['name'], live: true }],
+      queries: [],
       cursor: 0,
       floor: 0,
       restarts: 0,
@@ -566,6 +567,7 @@ describe('Data.live and Data.subscriptions', () => {
     })
     expect(subscriptions['home.live'].modelToDependencies(at('p7'))).toEqual({
       requirements: [],
+      queries: [],
       cursor: 0,
       floor: 0,
       restarts: 0,

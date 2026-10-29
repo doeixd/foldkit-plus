@@ -457,6 +457,8 @@ export const Crud = {
       readonly selection: Selection<EntityName, Members, S>
       /** How many rows a page holds. Default 25. */
       readonly pageSize?: number
+      /** Watch the list live while it is shown (`Data.query`'s `live`). */
+      readonly live?: boolean
       /**
        * How a row reads as a choice in a relation picker: its id, and the words
        * that identify it to a person. Give it to a list that feeds pickers.
@@ -467,7 +469,7 @@ export const Crud = {
       }
     },
   ) => {
-    const { query, selection, pageSize = 25, choice } = config
+    const { query, selection, pageSize = 25, live = false, choice } = config
     const columns = columnsOf(selection)
 
     return {
@@ -489,7 +491,7 @@ export const Crud = {
         const { data, input } = where
         const projectionOf = (root: Root) =>
           Option.map(input(root), value =>
-            data.query(query, value, { select: selection, first: pageSize }),
+            data.query(query, value, { select: selection, first: pageSize, live }),
           )
         const page = (root: Root): RemoteData<Page<S['Type']>> =>
           Option.match(projectionOf(root), {

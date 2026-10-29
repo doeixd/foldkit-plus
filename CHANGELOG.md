@@ -9,6 +9,18 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **A list read live** (#270). `Data.query(Q, input, { select, first, live:
+  true })` follows the rows that join, change or leave the list while a
+  Surface reads it, with no row of its own to subscribe to. The live entry
+  sends each list as its read sends it (`LiveRequirement.queries`); the
+  handler admits it (a registered query, an input that decodes, a `select`
+  and a `first` counted toward `maxIdsPerEntity`, at most 32 lists, else
+  `RemoteLiveRefused`) and hands the live source of its Entity a `LiveQuery`
+  (`identity`, `select`, and `edges`, the query run as the subscriber with the
+  page's window). `pollLive` diffs each one, invalidating it once as the
+  stream opens. `Crud.list` takes `live`. The reference app and
+  `examples/cloudflare` read their lists live, and the made-up watch row (and
+  the snapshot's stripping of it) are gone.
 - **A local Workers stack shows the Worker's console, and can tell the Worker
   its origin** (#269). `Stack.start` prints each line the Worker writes to its
   console as it arrives, by level and prefixed `[worker]` (an `Error` logged
@@ -402,6 +414,11 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **Breaking: `pollLive` takes no `lists`** (#270), and `ListWatch` and
+  `ListedEdge` are gone: it watches the lists a subscriber reads live.
+  `LiveSource.subscribe` (now a method) takes `queries`, `RemoteClient.live`
+  sends them, and `REMOTE_PROTOCOL_VERSION` is 5, so a server that would
+  ignore a live list refuses the client instead.
 - **`Law.check` holds the client to the server once the answer lands too**
   (#265). Each predicted part is compared with the Model as it showed the
   write and with the Model after the answer is reduced into it, and agrees

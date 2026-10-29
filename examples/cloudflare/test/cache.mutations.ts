@@ -41,28 +41,6 @@ export default [
     tests,
   },
   {
-    name: 'the watch row is stored',
-    edits: [
-      {
-        file: cache,
-        find: 'if (!Object.hasOwn(snapshot.entities, WATCH_KEY)) return snapshot',
-        replace: 'return snapshot',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'a watch edge is stored',
-    edits: [
-      {
-        file: cache,
-        find: 'edge => edge.ref.id !== LIST_WATCH && inStore(remote, edge)',
-        replace: 'edge => inStore(remote, edge)',
-      },
-    ],
-    tests,
-  },
-  {
     name: 'any actor reads the snapshot',
     edits: [{ file: app, find: 'scope: model => model.actor,', replace: "scope: () => 'ada'," }],
     tests,

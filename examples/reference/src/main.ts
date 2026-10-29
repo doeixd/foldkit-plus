@@ -24,13 +24,12 @@ import { SSR } from 'foldkit-plus/ssr/client'
 import { Projection, Surface } from 'foldkit-plus/surface'
 import type { AuthApi } from './authApi.js'
 import { Adding, Editing, Editor } from './forms.js'
-import { Me, Member, Note } from './guard.js'
+import { Me, Member } from './guard.js'
 import {
   AddNote,
   DeleteNote,
   MemberCard,
   NOTES_PAGE,
-  NOTES_WATCH,
   NoteDetail,
   NoteDraft,
   NoteRow,
@@ -142,11 +141,14 @@ export const viewerOf = (model: Model): Option.Option<string> =>
     NotFound: () => Option.none(),
   })
 
-/** Every note, and the reader's own card: who they are and how much they have written. */
+/**
+ * Every note, watched live, and the reader's own card: who they are and how
+ * much they have written.
+ */
 export const NotebookPage = App.surface('NotebookPage', {
   params: { viewer: Schema.String },
   model: ({ params }) => ({
-    notes: Data.query(Notes, {}, { select: NoteRow, first: NOTES_PAGE }),
+    notes: Data.query(Notes, {}, { select: NoteRow, first: NOTES_PAGE, live: true }),
     mine: Data.get(MemberCard, params.viewer),
   }),
 })
@@ -233,29 +235,14 @@ export const AddingForm = Page.at(Adding, {
 })
 
 /**
- * A live stream needs a row to subscribe to: `NOTES_WATCH` names no note,
- * only the list the Worker diffs for it. This active reads nothing; its
- * metadata opens the stream while the notebook is shown.
- */
-const watch: Projection<Model, unknown> = {
-  Model: Schema.Unknown,
-  dependencies: [],
-  metadata: Data.live(NoteRow, NOTES_WATCH).metadata,
-  read: () => undefined,
-}
-
-/**
  * Every read the page makes: who the reader is on every page, each page's
- * Surface while its route is shown, the editor's note, and the live list.
- * The subscriptions, the Worker's render and the handover read the same.
+ * Surface while its route is shown, and the editor's note. The
+ * subscriptions, the Worker's render and the handover read the same.
  */
 export const actives = {
   session: Surface.at(Session, undefined),
   ...Site.sources(AppSite, App.owner, App.model.route),
   editor: NoteEditor.active,
-  live: Data.active('NotesLive', model =>
-    AppRoute.matchOrElse(model.route, { Notebook: () => Option.some(watch) }, () => Option.none()),
-  ),
 }
 
 const Routing = Site.routing<Model, Message, AppRoute, Services>({
