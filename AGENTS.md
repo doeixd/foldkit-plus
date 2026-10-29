@@ -38,10 +38,14 @@ AFTER EVERTY BOUT OF WORK/COMMIT, DOUBLE CHECK AND REVIEW!!!
 
 ## Jev preference review
 
-After a substantial bout of implementation work, run:
+Run it only on a change to a published package's API: one that adds,
+removes, renames or reshapes what a package exports (a function, type,
+option, Message, error or wire schema) or changes what it promises. Include
+the README and skill reference files the change updates. Do not run it on
+internal code, tests, mutation specs, examples, CI, scripts or docs alone.
 
 ```bash
-npx jev-pref review --hunks
+npx jev-pref review --hunks --include <file>
 ```
 
 Treat the result as an independent semantic review of the current diff. Jev
