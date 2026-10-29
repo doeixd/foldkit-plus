@@ -259,7 +259,8 @@ const ProductFields = Entity.define(
   }),
 )
 
-// A state invariant: reads only `after`, the row a write leaves.
+// A state invariant: reads only `after`, the row a write leaves, each field encoded
+// as the store holds it (a date as ISO text), and typed so.
 export const reservedWithinStock = Entity.invariant<typeof ProductFields>(
   'reservedWithinStock',
   ({ after }) => Expr.lte(after.reserved, after.stock),

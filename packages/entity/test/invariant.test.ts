@@ -263,3 +263,20 @@ describe('Entity.judgeInput', () => {
     })
   })
 })
+
+describe('A literal an invariant compares a field with (#326)', () => {
+  it('is written as the store holds the field, a date as its ISO text', () => {
+    const fixed = new Date('2026-01-01T00:00:00.000Z')
+    const Stamped = Entity.define('Stamped', Schema.Struct({ id: Schema.String, at: Day })).pipe(
+      Entity.invariant('fixed', ({ after }) => Expr.eq(after.at, fixed.toISOString()), {
+        message: 'wrong date',
+      }),
+    )
+    expect(Entity.judge(Stamped, { after: { id: 'a', at: fixed.toISOString() } })._tag).toBe(
+      'Valid',
+    )
+    expect(Entity.judge(Stamped, { after: { id: 'a', at: '2027-01-01T00:00:00.000Z' } })._tag).toBe(
+      'Invalid',
+    )
+  })
+})

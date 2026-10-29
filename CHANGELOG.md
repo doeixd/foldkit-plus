@@ -1177,6 +1177,13 @@ carries `drawn`.
   now throws where it is made, naming the operators; pass the table that runs
   them as `operators`. `Entity.judge` and `Entity.judgeInput` still answer
   `Undecided`, for a form that leaves such an invariant to the server.
+- **An invariant's `before` and `after` are typed as the store holds the row**
+  (#326). They were typed by each field's decoded type while the judge reads
+  the encoded row, so `Expr.eq(after.at, someDate)` type-checked and never
+  held against the stored ISO text. **Breaking (types):** `BeforeRow` and
+  `AfterRow`, and so a write's `compute` and `when` row, read each field's
+  encoded type; compare such a field with its encoded value
+  (`Expr.eq(after.at, '2026-01-01T00:00:00.000Z')`).
 
 ## 0.35.0
 

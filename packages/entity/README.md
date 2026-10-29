@@ -1065,6 +1065,11 @@ reads before too   -> transition invariant: every update, the only write with a 
 `Entity.readsBefore(invariant)` says which one is, for each of
 `Entity.invariants(entity)`.
 
+`before` and `after` hold each field as the store does, encoded, and are typed
+so: a date stored as ISO text is compared with ISO text
+(`Expr.eq(after.at, '2026-01-01T00:00:00.000Z')`), since a `Date` would never
+equal it.
+
 `Entity.invariant` returns the step that attaches it, carrying its `id` and,
 once attached, its Entity's name as `entity`: an id is unique only within an
 Entity, so a refusal names both. A declaration attaches to one Entity; reading

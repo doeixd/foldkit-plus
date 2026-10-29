@@ -58,18 +58,22 @@ export interface Invariant {
   readonly after: ReadonlyArray<string>
 }
 
-/** Each field as the row before a write holds it: what an invariant reads as `before`. */
+/**
+ * Each field as the row before a write holds it: what an invariant reads as
+ * `before`. Encoded, as the store holds it and the judge reads it, so a
+ * literal is written so too (a date as its ISO text).
+ */
 export type BeforeRow<E extends AnyEntity> = {
   readonly [K in keyof E['fields'] & string]: FieldExpr<
-    Schema.Schema.Type<E['fields'][K]['schema']>
+    Schema.Codec.Encoded<E['fields'][K]['schema']>
   > &
     Reads<E['name']>
 }
 
-/** Each field as the row after a write holds it: what an invariant reads as `after`. */
+/** Each field as the row after a write holds it, encoded: what an invariant reads as `after`. */
 export type AfterRow<E extends AnyEntity> = {
   readonly [K in keyof E['fields'] & string]: NextExpr<
-    Schema.Schema.Type<E['fields'][K]['schema']>
+    Schema.Codec.Encoded<E['fields'][K]['schema']>
   > &
     Reads<E['name']>
 }

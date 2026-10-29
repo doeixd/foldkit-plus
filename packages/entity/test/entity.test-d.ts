@@ -125,3 +125,22 @@ Post.pipe(Entity.annotate(Tags.of(1)))
   // An Entity's own field is what Expr.field wraps.
   Expr.field(StockFields.fields.quantity)
 }
+
+{
+  // An invariant judges the row as the store holds it, so its fields read as encoded (#326).
+  const Dated = Entity.define(
+    'Dated',
+    Schema.Struct({ id: Schema.String, at: Schema.Date.pipe(Schema.encodeTo(Schema.String)) }),
+  )
+  Entity.invariant<typeof Dated>(
+    'fixed',
+    ({ after }) => Expr.eq(after.at, '2026-01-01T00:00:00.000Z'),
+    { message: 'x' },
+  )
+  Entity.invariant<typeof Dated>(
+    'fixedDecoded',
+    // @ts-expect-error the stored row holds the ISO text, not a Date
+    ({ before }) => Expr.eq(before.at, new Date(0)),
+    { message: 'x' },
+  )
+}
