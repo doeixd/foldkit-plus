@@ -644,8 +644,11 @@ field. The live entry restarts a broken stream itself: after Sync's backoff
 (50 ms doubling to 5 s, ±20% jitter; `retryBase`/`maxRetryDelay` in the
 subscriptions options) it resubscribes from its cursor and refetches what the
 stream covers, since no server replays missed events.
-`Data.liveStatus(model, active)` is `Idle | Live | Reconnecting { attempt, error }`
-for a view.
+`Data.liveStatus(model, active)` is `Idle | Live | Reconnecting { attempt, error } |
+Refused { error }` for a view. `Refused` is the server's `RemoteLiveRefused` (a
+subscription naming more ids of one Entity than `maxIdsPerEntity`): it is not
+restarted until the live requirements change, and a `LiveRefused` diagnostic
+records it.
 
 `Data.explain(model, queryProjection)` explains one query read as a single
 serializable value: `domain`, `query`, `input`, `identity`, `window`, `select`,
@@ -756,7 +759,10 @@ Also: `RemoteServer.query(Q, ({ input, window, principal }) => ...)` returning
 `const hub = yield* RemoteServer.liveHub(entitySources)` then `handlers(Server, principal, { live: hub })`
 and every mutation's answered patches and deletions are then published to the hub by the handlers (a Source's `shared: ['name']`, fields every principal reads alike, lets a declared write's value of one go out with no re-read per principal); call `yield* hub.changed(Project.ref(id), ['name'])` / `yield* hub.deleted(ref)` only for writes that are not mutations (each re-reads per subscriber: a row the read no longer finds is sent as deleted, one still there as a patch) — and only from a process that can wake the subscriber's fiber: a worker request cannot wake another's stream, so on a Worker poll the store from inside the subscription instead. Connection changes
 from mutations via `RemoteServer.prepend/append/remove`. `handlers` options:
-`maxIdsPerEntity` (default 1000), `maxDepth` (default 8).
+`maxIdsPerEntity` (default 1000), `maxDepth` (default 8). The handler admits a live
+subscription once, before any live Source (`pollLive`, `RemoteServer.live`) or the
+hub sees it: over `maxIdsPerEntity` ids of one Entity, or more than four pages of
+one relation, it fails with `RemoteLiveRefused` and nothing is read.
 
 On the client, a live row inserted into a connection is decided in this order:
 if the query has a body and the row is held with fresh values for every field

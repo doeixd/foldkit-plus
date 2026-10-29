@@ -17,8 +17,8 @@ export default [
     edits: [
       {
         file: model,
-        find: 'health.failures === 0 || model.gaps.has(stream)',
-        replace: 'health.failures === 0',
+        find: 'settled || model.gaps.has(stream)',
+        replace: 'settled',
       },
     ],
     tests,
@@ -50,8 +50,8 @@ export default [
     edits: [
       {
         file: model,
-        find: 'return broke(model, message.stream, Option.some(message.error))',
-        replace: 'return broke(model, message.stream, Option.none())',
+        find: ': broke(model, message.stream, Option.some(message.error))',
+        replace: ': broke(model, message.stream, Option.none())',
       },
     ],
     tests,
@@ -147,10 +147,52 @@ export default [
     edits: [
       {
         file: index,
-        find: 'health === undefined || !remote.gaps.has(stream)',
-        replace: 'true',
+        find: "? { _tag: 'Reconnecting', attempt: health.failures, error: health.error }",
+        replace: "? { _tag: 'Live' }",
       },
     ],
+    tests,
+  },
+  {
+    name: 'a refusal is a break, and reconnects',
+    edits: [{ file: model, find: 'message.error._tag === refusedTag', replace: 'false' }],
+    tests,
+  },
+  {
+    name: 'a refused stream reads as Live',
+    edits: [
+      {
+        file: index,
+        find: "onSome: error => ({ _tag: 'Refused', error }),",
+        replace: "onSome: () => ({ _tag: 'Live' }),",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a refusal after a break stays a gap',
+    edits: [{ file: model, find: '...clearGap(model, stream),', replace: '...model,' }],
+    tests,
+  },
+  {
+    name: 'a refusal records no diagnostic',
+    edits: [
+      {
+        file: model,
+        find: 'diagnostics: withDiagnostics(model.diagnostics, [liveRefused({ stream, error })]),',
+        replace: 'diagnostics: model.diagnostics,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a repeated refusal is recorded again',
+    edits: [{ file: model, find: 'if (Option.isSome(health.refused)) return model', replace: '' }],
+    tests,
+  },
+  {
+    name: 'a refused stream that works again still reads Refused',
+    edits: [{ file: model, find: ' && Option.isNone(health.refused)', replace: '' }],
     tests,
   },
 ]

@@ -13,6 +13,7 @@ import {
   Remote,
   RemoteClient,
   RemoteLiveError,
+  RemoteLiveRefused,
   Selection,
   type LiveEvent,
   type RemoteMessage,
@@ -44,7 +45,9 @@ const patched = (name: string, cursor: number): LiveEvent => ({
 })
 
 /** A server holding one project, whose live calls answer from `streams` in turn. */
-const serverWith = (streams: ReadonlyArray<Stream.Stream<LiveEvent, RemoteLiveError>>) => {
+const serverWith = (
+  streams: ReadonlyArray<Stream.Stream<LiveEvent, RemoteLiveError | RemoteLiveRefused>>,
+) => {
   const server = { name: 'Apollo', asked: [] as Array<number> }
   const layer = Layer.succeed(RemoteClient, {
     read: batch =>
@@ -155,6 +158,7 @@ describe('a live stream that breaks', () => {
       restarts: 1,
       failures: 1,
       error: Option.none(),
+      refused: Option.none(),
     })
     expect(Data.liveStatus(broken, Watched)).toEqual({
       _tag: 'Reconnecting',
@@ -187,6 +191,7 @@ describe('a live stream that breaks', () => {
       restarts: 2,
       failures: 0,
       error: Option.none(),
+      refused: Option.none(),
     })
     expect(same(live.modelToDependencies(twice), live.modelToDependencies(working))).toBe(true)
     expect(fail(working).remote.streams[stream]).toMatchObject({ restarts: 3, failures: 1 })
@@ -243,6 +248,7 @@ describe('a live stream that breaks', () => {
           Idle: () => 'not live',
           Live: () => 'live',
           Reconnecting: ({ attempt }) => `reconnecting (attempt ${attempt})`,
+          Refused: ({ error }) => `not live: ${error.message}`,
         }),
       )
     expect(label(initial)).toBe('live')
@@ -259,5 +265,59 @@ describe('a live stream that breaks', () => {
     const forgotten = Data.forget(broken)
     expect(forgotten.remote.streams).toEqual({})
     expect(Data.liveStatus(forgotten, Watched)).toEqual({ _tag: 'Live' })
+  })
+})
+
+describe('a live stream the server refuses', () => {
+  const refusal = { _tag: 'RemoteLiveRefused', message: 'Too many "Project" ids' } as const
+
+  it('reads Refused, records the refusal once, and does not reconnect', async () => {
+    const { server, layer } = serverWith([Stream.fail(new RemoteLiveRefused(refusal))])
+    const refused = await step(layer, live, initial)
+    expect(server.asked).toEqual([0])
+    expect(Data.liveStatus(refused, Watched)).toEqual({ _tag: 'Refused', error: refusal })
+    // Nothing the live entry depends on moved, so it does not subscribe again.
+    expect(same(live.modelToDependencies(initial), live.modelToDependencies(refused))).toBe(true)
+    expect(refused.remote.gaps.size).toBe(0)
+    expect(refused.remote.diagnostics).toMatchObject([
+      { _tag: 'LiveRefused', level: 'warning', error: refusal },
+    ])
+    const stream = keyOf(live.modelToDependencies(initial).requirements)
+    const again = Data.reduce(refused, {
+      _tag: 'ReadFailed',
+      requests: [],
+      error: refusal,
+      stream,
+    })
+    expect(again).toBe(refused)
+  })
+
+  it('reads Live again once a stream opened again for the same rows is admitted', () => {
+    const stream = keyOf(live.modelToDependencies(initial).requirements)
+    const refused = Data.reduce(initial, {
+      _tag: 'ReadFailed',
+      requests: [],
+      error: refusal,
+      stream,
+    })
+    const admitted = Data.reduce(refused, {
+      _tag: 'LiveReceived',
+      stream,
+      event: patched('Apollo', 1),
+      now: 0,
+    })
+    expect(Data.liveStatus(admitted, Watched)).toEqual({ _tag: 'Live' })
+  })
+
+  it('a refusal after a break ends the reconnecting', () => {
+    const stream = keyOf(live.modelToDependencies(initial).requirements)
+    const fail = (model: Model, error: { readonly _tag: string; readonly message: string }) =>
+      Data.reduce(model, { _tag: 'ReadFailed', requests: [], error, stream })
+    const broken = fail(initial, { _tag: 'RemoteLiveError', message: 'dropped' })
+    expect(Data.liveStatus(broken, Watched)._tag).toBe('Reconnecting')
+    const refused = fail(broken, refusal)
+    expect(Data.liveStatus(refused, Watched)).toEqual({ _tag: 'Refused', error: refusal })
+    expect(refused.remote.gaps.size).toBe(0)
+    expect(same(live.modelToDependencies(broken), live.modelToDependencies(refused))).toBe(true)
   })
 })

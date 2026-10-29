@@ -4,7 +4,12 @@
  * change it, and the pure reducer over them.
  */
 import { Option, Schema } from 'effect'
-import { placementMismatch, withDiagnostics, type RemoteDiagnostic } from './diagnostics.js'
+import {
+  liveRefused,
+  placementMismatch,
+  withDiagnostics,
+  type RemoteDiagnostic,
+} from './diagnostics.js'
 import type { RelationRequirement, Requirement } from './requirement.js'
 import {
   emptyConnection,
@@ -64,6 +69,7 @@ import {
   ReadRequest,
   RelationRequest,
   SettledFields,
+  type RemoteLiveRefused,
 } from './wire.js'
 import { remoteErrorSchema, type RemoteError } from './remoteData.js'
 import type { LivePolicy } from './query.js'
@@ -166,6 +172,11 @@ export interface StreamHealth {
   readonly failures: number
   /** Why it last broke; none for a gap, which is not an error. */
   readonly error: Option.Option<RemoteError>
+  /**
+   * The server's refusal of what it asks (`RemoteLiveRefused`). A refused
+   * stream is no gap and does not restart: asking again is refused again.
+   */
+  readonly refused: Option.Option<RemoteError>
 }
 
 /**
@@ -857,7 +868,12 @@ const withLiveState = (
   state: LiveState,
 ): RemoteModel['live'] => (live[stream] === state ? live : heard(live, stream, state))
 
-const noHealth: StreamHealth = { restarts: 0, failures: 0, error: Option.none() }
+const noHealth: StreamHealth = {
+  restarts: 0,
+  failures: 0,
+  error: Option.none(),
+  refused: Option.none(),
+}
 
 /**
  * A stream broke: it is marked a gap and its restart count moves, which
@@ -875,10 +891,35 @@ const broke = (
     restarts: health.restarts + 1,
     failures: health.failures + 1,
     error,
+    // An attempt after a refusal answered otherwise: the refusal no longer stands.
+    refused: Option.none(),
   })
   // A gap is kept only beside its stream's health, which counts its restarts.
   const gaps = new Set([...model.gaps, stream].filter(key => Object.hasOwn(streams, key)))
   return { ...model, gaps, streams }
+}
+
+/** The tag of the server's refusal of a live stream, which `RemoteError` carries open. */
+const refusedTag: RemoteLiveRefused['_tag'] = 'RemoteLiveRefused'
+
+/**
+ * The server refused a stream for what it asks: it is marked refused and not a
+ * gap, so its live entry does not restart it, and the refusal is recorded as
+ * a diagnostic once.
+ */
+const refused = (model: RemoteModel, stream: string, error: RemoteError): RemoteModel => {
+  const health = model.streams[stream] ?? noHealth
+  if (Option.isSome(health.refused)) return model
+  const streams = heard(model.streams, stream, {
+    ...health,
+    error: Option.some(error),
+    refused: Option.some(error),
+  })
+  return {
+    ...clearGap(model, stream),
+    streams,
+    diagnostics: withDiagnostics(model.diagnostics, [liveRefused({ stream, error })]),
+  }
 }
 
 /**
@@ -887,11 +928,18 @@ const broke = (
  */
 const healthy = (model: RemoteModel, stream: string): RemoteModel => {
   const health = model.streams[stream]
-  return health === undefined || health.failures === 0 || model.gaps.has(stream)
+  // A refused stream that applies an event was opened again and admitted.
+  const settled = health !== undefined && health.failures === 0 && Option.isNone(health.refused)
+  return health === undefined || settled || model.gaps.has(stream)
     ? model
     : {
         ...model,
-        streams: heard(model.streams, stream, { ...health, failures: 0, error: Option.none() }),
+        streams: heard(model.streams, stream, {
+          ...health,
+          failures: 0,
+          error: Option.none(),
+          refused: Option.none(),
+        }),
       }
 }
 
@@ -981,7 +1029,10 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
       // would take them out of the read entry's plan, and restart it, which is
       // the opposite of what missing changes calls for.
       if (message.stream !== undefined) {
-        return broke(model, message.stream, Option.some(message.error))
+        // tag-check: open — a RemoteError carries any transport failure's tag.
+        return message.error._tag === refusedTag
+          ? refused(model, message.stream, message.error)
+          : broke(model, message.stream, Option.some(message.error))
       }
       // The read is over. Fields it refreshed read as they did, and every field
       // it asked for carries the error until something settles it.

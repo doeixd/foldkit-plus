@@ -115,8 +115,10 @@ const LiveFetchRequest = Schema.Struct({
  * A terminal stream failure, so the client fails with its message instead of
  * hanging; a refusal of who is asking says so, as a 401's body does.
  */
-const errorFrame = (message: string, refusal: Partial<RemoteJsonAnswer> = {}): string =>
-  `event: error\ndata: ${JSON.stringify({ message, ...refusal })}\n\n`
+const errorFrame = (
+  message: string,
+  refusal: Partial<RemoteJsonAnswer> | { readonly refused: true } = {},
+): string => `event: error\ndata: ${JSON.stringify({ message, ...refusal })}\n\n`
 
 /**
  * The live stream as SSE bytes: one `data:` frame per change, then a
@@ -144,6 +146,8 @@ const liveBytes = <R, RC>(
         Stream.map(change => `data: ${JSON.stringify(change)}\n\n`),
         Stream.catchTags({
           RemoteLiveError: error => Stream.succeed(errorFrame(error.message)),
+          // The client reads `refused` as asking again being refused again.
+          RemoteLiveRefused: error => Stream.succeed(errorFrame(error.message, { refused: true })),
           RemoteProtocolError: error => Stream.succeed(errorFrame(error.message)),
           Unauthenticated: error =>
             Stream.succeed(

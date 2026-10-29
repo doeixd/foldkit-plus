@@ -46,6 +46,7 @@ import {
   RemoteForbidden,
   RemoteUnauthenticated,
   RemoteLiveError,
+  RemoteLiveRefused,
   RemoteMutationError,
   RemoteProtocolError,
   RemoteQueryError,
@@ -590,6 +591,12 @@ export interface QuerySource<P, R = never> {
 
 export interface LiveSource<P, R = never> {
   readonly entity: string
+  /**
+   * Called by `handlers` only with requirements it has admitted: no more
+   * distinct ids of one entity than `maxIdsPerEntity`, and no more pages of
+   * one relation than a read may ask. A larger subscription is refused with
+   * `RemoteLiveRefused` before any live source is asked.
+   */
   readonly subscribe: (context: {
     readonly requirements: ReadonlyArray<Requirement>
     readonly after: number
@@ -711,7 +718,11 @@ const DEFAULT_MAX_IDS_PER_ENTITY = 1000
 const DEFAULT_MAX_DEPTH = 8
 
 export interface HandlerOptions<P, R = never> {
-  /** A read or live subscription may not name more ids of one entity than this; default 1000. */
+  /**
+   * A read or live subscription may not name more ids of one entity than
+   * this; default 1000. A live subscription over it is refused with
+   * `RemoteLiveRefused` before any live source or the hub sees it.
+   */
   readonly maxIdsPerEntity?: number | undefined
   /** A nested selection may not reach further than this many relation levels; default 8. */
   readonly maxDepth?: number | undefined
@@ -719,7 +730,6 @@ export interface HandlerOptions<P, R = never> {
   readonly live?: LiveHub<P, R> | undefined
 }
 
-/** Fails when the requirements name more distinct ids of one entity than `maxIds`. */
 /**
  * Each page of a relation read beside another is a source read of its own, and
  * the names come from the client, so how many one relation may have is bounded.
@@ -746,6 +756,7 @@ const checkPagesPerRelation = (
   return undefined
 }
 
+/** The entity the requirements name more distinct ids of than `maxIds`; `undefined` when none. */
 const checkIdsPerEntity = (
   requirements: ReadonlyArray<Requirement>,
   maxIds: number,
@@ -756,6 +767,26 @@ const checkIdsPerEntity = (
     seen.add(requirement.id)
     ids.set(requirement.entity, seen)
     if (seen.size > maxIds) return requirement.entity
+  }
+  return undefined
+}
+
+/** Why a live subscription asks more than a read may; `undefined` when it does not. */
+const liveRefusal = (
+  requirements: ReadonlyArray<Requirement>,
+  maxIds: number,
+): RemoteLiveRefused | undefined => {
+  const over = checkIdsPerEntity(requirements, maxIds)
+  if (over !== undefined) {
+    return new RemoteLiveRefused({
+      message: `Too many "${over}" ids in one live subscription (at most ${maxIds})`,
+    })
+  }
+  const paged = checkPagesPerRelation(requirements)
+  if (paged !== undefined) {
+    return new RemoteLiveRefused({
+      message: `Too many pages of "${paged}" in one live subscription`,
+    })
   }
   return undefined
 }
@@ -794,15 +825,16 @@ export interface LiveHub<P, R = never> {
    * writer may only be hidden from them, and still there to others.
    */
   readonly deleted: (ref: LiveRef) => Effect.Effect<void, RemoteServerError, R>
-  /** Registers a subscriber for the stream's lifetime; `handlers` calls this. */
+  /**
+   * Registers a subscriber for the stream's lifetime; `handlers` calls this,
+   * with requirements it has admitted (see `LiveSource.subscribe`).
+   */
   readonly subscribe: (context: {
     readonly requirements: ReadonlyArray<Requirement>
     readonly after: number
     readonly principal: P
     /** As `EntitySourceContext.viewer`, for the re-reads it makes. */
     readonly viewer?: Option.Option<EntityRef> | undefined
-    /** Refuses a subscription naming more ids of one entity than this. */
-    readonly maxIdsPerEntity?: number | undefined
   }) => Stream.Stream<LiveChangeValue, RemoteServerError>
   /** How many subscribers are registered now. */
   readonly size: Effect.Effect<number>
@@ -1018,24 +1050,9 @@ const liveHub = <P, R>(
       })
 
     return {
-      subscribe: ({ requirements, after, principal, viewer, maxIdsPerEntity }) =>
+      subscribe: ({ requirements, after, principal, viewer }) =>
         Stream.unwrap(
           Effect.gen(function* () {
-            const over = checkIdsPerEntity(
-              requirements,
-              Math.max(1, maxIdsPerEntity ?? DEFAULT_MAX_IDS_PER_ENTITY),
-            )
-            if (over !== undefined) {
-              return yield* new RemoteServerError({
-                message: `Too many "${over}" ids in one live subscription`,
-              })
-            }
-            const paged = checkPagesPerRelation(requirements)
-            if (paged !== undefined) {
-              return yield* new RemoteServerError({
-                message: `Too many pages of "${paged}" in one live subscription`,
-              })
-            }
             const selected = new Map<string, Selected>()
             for (const requirement of requirements) {
               const key = `${requirement.entity}:${requirement.id}`
@@ -2808,6 +2825,13 @@ export const RemoteServer = {
       FoldkitRemoteLive: payload => {
         const mismatch = protocolMismatch(payload.version)
         if (mismatch !== undefined) return Stream.fail(mismatch)
+        // Admitted once, before any live source or the hub is asked, so every
+        // live path is held to the bounds a read is.
+        const refusal = liveRefusal(
+          payload.requirements,
+          Math.max(1, options.maxIdsPerEntity ?? DEFAULT_MAX_IDS_PER_ENTITY),
+        )
+        if (refusal !== undefined) return Stream.fail(refusal)
         return Stream.unwrap(
           Effect.map(asking, caller => {
             const entities = [...new Set(payload.requirements.map(request => request.entity))]
@@ -2831,7 +2855,6 @@ export const RemoteServer = {
                   after: payload.after,
                   principal: caller,
                   viewer: viewerOf(server, caller),
-                  maxIdsPerEntity: options.maxIdsPerEntity,
                 }),
               )
             }

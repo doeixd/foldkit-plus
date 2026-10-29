@@ -162,6 +162,7 @@ import {
   REMOTE_PROTOCOL_VERSION,
   WindowSchema,
   RemoteLiveError,
+  RemoteLiveRefused,
   RemoteMutationError,
   RemoteProtocolError,
   RemoteQueryError,
@@ -189,7 +190,13 @@ import { http as httpClient, json as jsonClient } from './json.js'
 import { httpWithLive as httpWithLiveClient } from './sse.js'
 export * from './client.js'
 export type { RemoteResumePart } from './resume.js'
-export type { AnswerGap, PlacementMismatch, RemoteDiagnostic, WriteUnheard } from './diagnostics.js'
+export type {
+  AnswerGap,
+  LiveRefused,
+  PlacementMismatch,
+  RemoteDiagnostic,
+  WriteUnheard,
+} from './diagnostics.js'
 // The channel Remote reports into, for a server or a test that uses Remote alone.
 export { Diagnostics, type Diagnostic, type ReportDiagnostic } from 'foldkit-surface'
 export * from './coalesce.js'
@@ -453,7 +460,8 @@ export interface LiveDependencies {
 /**
  * Whether what an active entry reads live is arriving. `Reconnecting` is a
  * stream that broke and waits to resubscribe; until it has, changes are
- * missed, and its rows may be out of date.
+ * missed, and its rows may be out of date. `Refused` is a stream the server
+ * would not open for what it asks: it is not retried until that changes.
  */
 export type LiveStatus =
   /** It reads nothing live. */
@@ -467,6 +475,8 @@ export type LiveStatus =
       /** Why it broke; none for a gap in its events. */
       readonly error: Option.Option<RemoteError>
     }
+  /** The server refused it (`RemoteLiveRefused`); it waits for what it asks to change. */
+  | { readonly _tag: 'Refused'; readonly error: RemoteError }
 
 export interface SubscriptionsOptions extends ObserveOptions, LiveOptions, RetainOptions {}
 
@@ -2079,7 +2089,13 @@ const liveEntry = <AppModel, Store extends RemoteModel, Message>(
         }),
       ),
       Stream.catchIf(
-        (_error): _error is RemoteLiveError | RemoteProtocolError | RemoteUnauthenticated => true,
+        (
+          _error,
+        ): _error is
+          | RemoteLiveError
+          | RemoteLiveRefused
+          | RemoteProtocolError
+          | RemoteUnauthenticated => true,
         error =>
           Stream.succeed(
             toMessage({
@@ -4245,9 +4261,14 @@ const bindDomain = <
       const remote = store.get(model)
       const stream = liveStreamKey(requirements)
       const health = remote.streams[stream]
-      return health === undefined || !remote.gaps.has(stream)
-        ? { _tag: 'Live' }
-        : { _tag: 'Reconnecting', attempt: health.failures, error: health.error }
+      if (health === undefined) return { _tag: 'Live' }
+      return Option.match(health.refused, {
+        onSome: error => ({ _tag: 'Refused', error }),
+        onNone: () =>
+          remote.gaps.has(stream)
+            ? { _tag: 'Reconnecting', attempt: health.failures, error: health.error }
+            : { _tag: 'Live' },
+      })
     },
     reduce,
     inspect: model => inspectRemote(store.get(model)),

@@ -101,7 +101,8 @@ const picked = (
  * to the last entry read, reads everything, as with no log. A list whose read
  * fails is asked again from the same entry on the next tick; a subscribed
  * row's failed read fails the stream, and the client's reconnect reads again.
- * The subscribed rows are read once a tick for each set of fields they ask.
+ * The subscribed rows are read once a tick for each set of fields they ask;
+ * `RemoteServer.handlers` admits no more of them than its `maxIdsPerEntity`.
  */
 export const pollLive = <P, R>(
   source: EntitySource<P, R>,

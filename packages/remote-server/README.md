@@ -875,8 +875,15 @@ The handler applies bounded, protocol-level safeguards before or around Sources:
 - Source errors are remapped to protocol error types without echoing application
   internals.
 
-A `liveHub` applies the same id bound to a subscription. A hand-written live
-Source is responsible for any additional bounds appropriate to its backend.
+A live subscription is held to the same bounds, checked once by the handler
+before any live Source or the hub sees it: more than `maxIdsPerEntity` ids of
+one Entity, or more pages of one relation than a read may ask, fails the stream
+with `RemoteLiveRefused` and nothing is read. That matters most for a polling
+Source such as `pollLive`, which re-reads every subscribed row each tick. A
+refusal is not truncation: the client does not reconnect it, and
+`Data.liveStatus` reads `Refused`. A hand-written live Source can rely on what
+it is given having passed, and is responsible for any further bounds its
+backend needs.
 
 ## A backend held in memory
 

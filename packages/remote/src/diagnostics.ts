@@ -45,8 +45,20 @@ export interface WriteUnheard extends Diagnostic {
   readonly error: RemoteError
 }
 
+/**
+ * A live stream the server refused for what it asks (`RemoteLiveRefused`):
+ * more rows of one Entity than its `maxIdsPerEntity`. It is not reopened
+ * until what it asks changes, so those rows are not live meanwhile.
+ */
+export interface LiveRefused extends Diagnostic {
+  readonly _tag: 'LiveRefused'
+  /** The stream's key, as `Data.liveStatus` and the Model's `streams` name it. */
+  readonly stream: string
+  readonly error: RemoteError
+}
+
 /** Every diagnostic Remote's client records. */
-export type RemoteDiagnostic = AnswerGap | PlacementMismatch | WriteUnheard
+export type RemoteDiagnostic = AnswerGap | LiveRefused | PlacementMismatch | WriteUnheard
 
 const named = (mutation: Option.Option<string>, requestId: string): string =>
   Option.match(mutation, {
@@ -81,6 +93,14 @@ export const writeUnheard = (
   source,
   level: 'warning',
   message: `${named(facts.mutation, facts.requestId)} failed (${facts.error._tag}: ${facts.error.message}) and the application's update does not hear it, so its change went with no word. Share MutationFailed (Data.wiring(actives, { shared: ['MutationFailed'] })) and show Data.failedWrites.`,
+  ...facts,
+})
+
+export const liveRefused = (facts: Pick<LiveRefused, 'stream' | 'error'>): LiveRefused => ({
+  _tag: 'LiveRefused',
+  source,
+  level: 'warning',
+  message: `The server refused a live stream (${facts.error.message}), so what it asks is not live and is not asked again until it changes. Watch fewer rows at once, or raise the server's maxIdsPerEntity.`,
   ...facts,
 })
 

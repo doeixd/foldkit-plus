@@ -177,7 +177,9 @@ never hides the rows already shown.
 A broken live stream is not a failed read. It records a gap, keeps what the
 server last said, and restarts on its own with backoff, refetching what it
 covered; `Data.liveStatus(model, active)` reads `Reconnecting` with the error
-meanwhile. See [When a stream breaks](../packages/remote/README.md#when-a-stream-breaks).
+meanwhile. A stream the server refuses for what it asks (`RemoteLiveRefused`,
+over `maxIdsPerEntity`) is not restarted: it reads `Refused` until its
+requirements change. See [When a stream breaks](../packages/remote/README.md#when-a-stream-breaks).
 
 `Data.inspect(model).failures` lists every unsettled failed read, by
 connection and by field, beside what is loading and the diagnostics Remote

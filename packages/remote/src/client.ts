@@ -18,6 +18,7 @@ import {
   ReadBatchResult,
   type ConnectionChangeSchema,
   RemoteLiveError,
+  RemoteLiveRefused,
   RemoteForbidden,
   RemoteUnauthenticated,
   RemoteMutationError,
@@ -56,7 +57,10 @@ export class RemoteClient extends Context.Service<
     readonly live: (request: {
       readonly requirements: ReadonlyArray<Requirement>
       readonly after: LiveCursor
-    }) => Stream.Stream<LiveEvent, RemoteLiveError | RemoteProtocolError | RemoteUnauthenticated>
+    }) => Stream.Stream<
+      LiveEvent,
+      RemoteLiveError | RemoteLiveRefused | RemoteProtocolError | RemoteUnauthenticated
+    >
   }
 >()('foldkit-remote/RemoteClient') {}
 
@@ -96,7 +100,11 @@ export interface RemoteRpcClient<R = never, TransportError = never> {
     payload: Schema.Schema.Type<typeof LiveRequirement>,
   ) => Stream.Stream<
     Schema.Schema.Type<typeof LiveChange>,
-    RemoteLiveError | RemoteProtocolError | RemoteUnauthenticated | TransportError,
+    | RemoteLiveError
+    | RemoteLiveRefused
+    | RemoteProtocolError
+    | RemoteUnauthenticated
+    | TransportError,
     R
   >
 }

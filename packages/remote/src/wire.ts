@@ -55,6 +55,16 @@ export class RemoteLiveError extends Schema.TaggedError<RemoteLiveError>()('Remo
   message: Schema.String,
 }) {}
 
+/**
+ * The server refused a live subscription for what it asks (more ids of one
+ * Entity than `maxIdsPerEntity`), before reading anything. The same
+ * requirements are refused again, so a client does not reconnect it.
+ */
+export class RemoteLiveRefused extends Schema.TaggedError<RemoteLiveRefused>()(
+  'RemoteLiveRefused',
+  { message: Schema.String },
+) {}
+
 /** The peer speaks another protocol version; nothing was read. */
 export class RemoteProtocolError extends Schema.TaggedError<RemoteProtocolError>()(
   'RemoteProtocolError',
@@ -290,7 +300,12 @@ export const Mutate = Rpc.make('FoldkitRemoteMutate', {
 export const Live = Rpc.make('FoldkitRemoteLive', {
   payload: LiveRequirement,
   success: LiveChange,
-  error: Schema.Union([RemoteLiveError, RemoteProtocolError, RemoteUnauthenticated]),
+  error: Schema.Union([
+    RemoteLiveError,
+    RemoteLiveRefused,
+    RemoteProtocolError,
+    RemoteUnauthenticated,
+  ]),
   stream: true,
 })
 

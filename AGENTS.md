@@ -1032,6 +1032,12 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   before trusting a peer range, and keep library code on a Context tag until the
   two versions are known to agree.
 
+- **A bound one consumer checks is missed by the next.** The `liveHub`
+  refused a live subscription over `maxIdsPerEntity` itself, so `pollLive`,
+  added later beside it, re-read any number of ids every tick. Check a
+  client-chosen size where the request is decoded (`FoldkitRemoteLive`'s
+  admission), before any consumer sees it.
+
 **Effect 4, not 3**
 
 The workspace runs `effect@^4.0.5`, one copy of each Effect package;

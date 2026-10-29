@@ -12,7 +12,13 @@
 import { Effect, Predicate, Schema, Stream } from 'effect'
 import type { RemoteRpcClient } from './client.js'
 import { http } from './json.js'
-import { LiveChange, RemoteLiveError, RemoteUnauthenticated, type LiveRequirement } from './wire.js'
+import {
+  LiveChange,
+  RemoteLiveError,
+  RemoteLiveRefused,
+  RemoteUnauthenticated,
+  type LiveRequirement,
+} from './wire.js'
 
 /** What `httpWithLive` needs besides the URL. Mirrors `http`, plus the fetch itself. */
 export interface LiveFetchOptions {
@@ -94,14 +100,20 @@ async function* changes(
           ...(typeof reason === 'string' ? { reason } : {}),
         })
       }
+      // Refused for what it asks: opening it again is refused again.
+      if (Predicate.isObject(said) && said.refused === true) {
+        throw new RemoteLiveRefused({ message })
+      }
       throw new RemoteLiveError({ message })
     }
     yield decodeChange(JSON.parse(text))
   }
 }
 
-const liveError = (error: unknown): RemoteLiveError | RemoteUnauthenticated =>
-  error instanceof RemoteLiveError || error instanceof RemoteUnauthenticated
+const liveError = (error: unknown): RemoteLiveError | RemoteLiveRefused | RemoteUnauthenticated =>
+  error instanceof RemoteLiveError ||
+  error instanceof RemoteLiveRefused ||
+  error instanceof RemoteUnauthenticated
     ? error
     : new RemoteLiveError({ message: error instanceof Error ? error.message : String(error) })
 

@@ -1894,12 +1894,17 @@ Match.value(Data.liveStatus(model, Watched)).pipe(
     Idle: () => 'not live',
     Live: () => 'live',
     Reconnecting: ({ attempt }) => `reconnecting (attempt ${attempt})`,
+    Refused: ({ error }) => `not live: ${error.message}`,
   }),
 )
 ```
 
 `Reconnecting` lasts from the break until the stream has resubscribed, and
-carries the error, which is none for a gap. `RemoteModel.streams` holds each
+carries the error, which is none for a gap. `Refused` is a stream the server
+would not open for what it asks (`RemoteLiveRefused`: more rows of one Entity
+than its `maxIdsPerEntity`). Asking again would be refused again, so it is
+not restarted until the entry's live requirements change, which opens a new
+stream; a `LiveRefused` diagnostic records it once. `RemoteModel.streams` holds each
 stream's restarts, its breaks in a row and its last error. `forget` clears it
 with every other server-derived fact.
 

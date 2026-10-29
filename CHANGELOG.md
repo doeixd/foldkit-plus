@@ -450,6 +450,23 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **Every live subscription is held to `maxIdsPerEntity` (security).**
+  `RemoteServer.handlers` passed a live Source's requirements on unchecked,
+  so a client could subscribe `pollLive` (`foldkit-remote-drizzle`) or a
+  `RemoteServer.live` Source to any number of ids and have every tick re-read
+  them all; only the `liveHub` refused such a subscription, itself. The
+  handler now admits a live subscription once, before any live Source or the
+  hub sees it: more than `maxIdsPerEntity` ids of one Entity (default 1000),
+  or more than four pages of one relation, fails the stream with the new
+  wire error `RemoteLiveRefused` (over `serveFetch`, an `event: error` frame
+  with `refused: true`), and nothing is read. Refused, not truncated.
+  Breaking: `LiveHub.subscribe` no longer takes `maxIdsPerEntity`. On the
+  client (`foldkit-remote`), a refused stream is not reconnected: it is no
+  gap, `Data.liveStatus` reads the new `Refused { error }`, its
+  `StreamHealth.refused` holds the refusal, and a `LiveRefused` diagnostic
+  records it once; it opens again when its live requirements change.
+  `pollLive` was not yet in a published release.
+
 - **Live polling over a guarded Entity is checked and safe** (#264).
   `pollLive` read each row with `source.read` directly, past what the read
   handlers apply: a member a guard withholds (`GuardServer.filter`) went out

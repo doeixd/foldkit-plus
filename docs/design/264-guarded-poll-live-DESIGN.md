@@ -95,6 +95,7 @@ validate accepts a live Source over a guarded Entity  <=>  live.reads === the So
 
 ## Not done
 
-- A live subscription over a `LiveSource` is not capped by
-  `maxIdsPerEntity`, as the hub's is: a client can ask `pollLive` to re-read
-  many rows a tick. Separate from this issue.
+- Done since: a live subscription over a `LiveSource` was not capped by
+  `maxIdsPerEntity`, as the hub's was, so a client could ask `pollLive` to
+  re-read many rows a tick. The handler now admits every live subscription
+  once; see `live-limits-DESIGN.md`.
