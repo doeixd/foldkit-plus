@@ -32,7 +32,8 @@ describe('the waitlist check', () => {
     ['Demo@Email.com', Option.some('This email is already on our waitlist')],
   ])('answers %j after the fake API delay', async (email, error) => {
     expect(await answerWithin(email, 499)).toEqual(Option.none())
-    expect(await answerWithin(email, 500)).toEqual(
+    // The answer also carries the values and subject it was asked with.
+    expect(await answerWithin(email, 500)).toMatchObject(
       Option.some(Message.GotFormMessage({ message: checked(email, error) })),
     )
   })

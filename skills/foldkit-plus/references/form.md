@@ -109,7 +109,10 @@ const RenameForm = Page.at(Slot, {
   with the `Form.checks` step (`form.pipe(Form.checks({ slug: ask }))`), not in
   `Form.make`'s options, where `R` infers as `never` and the check is refused.
   The ask is the Command `form.Check`; a test resolves it with
-  `Command.resolve(form.Check, form.Message.Checked({ key, draft, error }))`.
+  `Command.resolve(form.Check, form.Message.Checked({ key, draft, error }))`. The
+  Command's own answer also carries the `values` and `subject` it read; one about
+  values or a subject the form no longer holds is asked again, and a waiting submit
+  waits for that.
   `{ values }` is what else decodes; `{ subject }`
   is what the form edits but its values do not carry (a post's row id), set once with
   `Message.About({ subject: { id } })` and read with `form.subject(model)` — `{}` while

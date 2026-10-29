@@ -47,7 +47,8 @@ describe('the email check', () => {
     ['Admin@Foldkit.dev', Option.some('This email is already in use')],
   ])('answers %j after the fake API delay', async (email, error) => {
     expect(await answerWithin(emailCheck(email), 599)).toEqual(Option.none())
-    expect(await answerWithin(emailCheck(email), 600)).toEqual(
+    // The answer also carries the values and subject it was asked with.
+    expect(await answerWithin(emailCheck(email), 600)).toMatchObject(
       Option.some(
         Message.GotPersonalInfoMessage({
           message: PersonalInfo.Message.GotFormMessage({ message: checkedEmail(email, error) }),

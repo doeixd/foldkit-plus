@@ -155,6 +155,40 @@ describe('Form checks', () => {
     expect(PostForm.canSubmit(failed.model)).toBe(false)
   })
 
+  it('asks again when another key changed while it ran, and a waiting submit takes that answer (#303)', async () => {
+    const ready = (
+      await settle((await settle(PostForm.initial, change('id', 'p1'))).model, change('rank', '5'))
+    ).model
+    // 'hello' is p1's own slug, so asked with id p1 it passes.
+    const asking = step(ready, change('slug', 'hello'))
+    const moved = step(asking.model, change('id', 'p2'))
+    const submitted = step(moved.model, Message.Submitted())
+    expect(submitted.model.submitPending).toBe(true)
+
+    // The answer about p1 lands: it is not about this form, so the key asks again.
+    const stale = step(submitted.model, await Effect.runPromise(asking.commands![0]!.effect))
+    expect(stale.outMessage).toBeUndefined()
+    expect(stale.model.fields.slug).toEqual({ _tag: 'Validating', value: 'hello' })
+    expect(stale.commands?.map(command => command.name)).toEqual(['PostForm.check'])
+
+    const answered = step(stale.model, await Effect.runPromise(stale.commands![0]!.effect))
+    expect(asked.at(-1)?.values).toEqual({ id: 'p2', slug: 'hello', rank: 5 })
+    expect(answered.outMessage).toBeUndefined()
+    expect(answered.model.fields.slug._tag).toBe('Invalid')
+    expect(answered.model.submitPending).toBe(false)
+  })
+
+  it('asks again when the subject changed while it ran (#303)', async () => {
+    const own = step(PostForm.initial, Message.About({ subject: { id: 'p1' } })).model
+    const asking = step(own, change('slug', 'hello'))
+    const other = step(asking.model, Message.About({ subject: { id: 'p2' } })).model
+    const stale = step(other, await Effect.runPromise(asking.commands![0]!.effect))
+    expect(stale.model.fields.slug._tag).toBe('Validating')
+    const answered = step(stale.model, await Effect.runPromise(stale.commands![0]!.effect))
+    expect(asked.at(-1)?.subject).toEqual({ id: 'p2' })
+    expect(answered.model.fields.slug._tag).toBe('Invalid')
+  })
+
   it('checks a filled form on submit, since filling validates nothing', async () => {
     const filled = PostForm.fill(PostForm.initial, { id: 'p1', slug: 'hello', rank: 3 }).model
     expect(filled.fields.slug._tag).toBe('NotValidated')

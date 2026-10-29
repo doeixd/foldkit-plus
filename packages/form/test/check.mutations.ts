@@ -23,12 +23,18 @@ export default [
   },
   {
     name: 'the check sees none of the other values',
-    edits: [{ file, find: 'values: decoded(asking),', replace: 'values: {},' }],
+    edits: [{ file, find: '        values: decoded(model),', replace: '        values: {},' }],
     tests,
   },
   {
     name: 'the check does not know what the form edits',
-    edits: [{ file, find: 'subject: model.subject })', replace: 'subject: {} })' }],
+    edits: [
+      {
+        file,
+        find: '        subject: model.subject,\n      })',
+        replace: '        subject: {},\n      })',
+      },
+    ],
     tests,
   },
 ]

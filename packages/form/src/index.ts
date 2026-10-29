@@ -958,8 +958,19 @@ const Core = {
       ValidatedAll: {},
       Submitted: {},
       Reset: {},
-      /** The answer of a check for the draft it was asked about; one for an older draft is dropped. */
-      Checked: { key: KeySchema, draft: DraftSchema, error: Schema.NullOr(Schema.String) },
+      /**
+       * The answer of a check for the draft it was asked about; one for an older
+       * draft is dropped. `form.Check` also says the `values` and `subject` it
+       * read, and an answer about ones the form no longer holds is asked again.
+       * One made without them (a test's) answers the form as it is.
+       */
+      Checked: {
+        key: KeySchema,
+        draft: DraftSchema,
+        values: Schema.optionalKey(Schema.Unknown),
+        subject: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),
+        error: Schema.NullOr(Schema.String),
+      },
       /**
        * The outside world refused this key's value: a unique index, a rule only a
        * server knows. `value` is the key's value in what was refused, as
@@ -1106,7 +1117,9 @@ const Core = {
               subject,
             }),
           ),
-          Effect.map(error => Message.Checked({ key, draft, error: error ?? null })),
+          Effect.map(error =>
+            Message.Checked({ key, draft, values, subject, error: error ?? null }),
+          ),
         ),
     })
 
@@ -1185,6 +1198,15 @@ const Core = {
       return { key, bundled, placed: placed as unknown as PlacedControl<Model> }
     })
 
+    /** The Command asking `key`'s check about its draft, with the values and subject the form holds. */
+    const ask = (model: Model, key: Key): Command<Message, never, R> =>
+      Check({
+        key,
+        draft: drafts(model)[key].value,
+        values: decoded(model),
+        subject: model.subject,
+      }) as Command<Message, never, R>
+
     /**
      * Validates the draft of one key. A key with a check that passes its schema is
      * not `Valid` yet: it is `Validating`, with the Command that asks.
@@ -1209,16 +1231,7 @@ const Core = {
         return { model: withField(model, key, state), commands: [] }
       }
       const asking = withField(model, key, FieldValidation.Validating({ value: draft }))
-      return {
-        model: asking,
-        commands: [
-          Check({ key, draft, values: decoded(asking), subject: model.subject }) as Command<
-            Message,
-            never,
-            R
-          >,
-        ],
-      }
+      return { model: asking, commands: [ask(asking, key)] }
     }
 
     // The keys that follow another, and for each key, the keys that follow it.
@@ -1260,18 +1273,24 @@ const Core = {
         ? { ...model, touched: { ...model.touched, [key]: !handedBack } }
         : model
       const written = validateKey(owned, key, handedBack ? derived(owned, key) : draft)
-      return followedBy(key).reduce((result, follower) => {
-        if (result.model.touched[follower] === true) return result
-        const next = rewritten(result.model, follower)
-        return { model: next.model, commands: [...result.commands, ...next.commands] }
-      }, written)
+      const result = followedBy(key).reduce(
+        (result, follower) => {
+          if (result.model.touched[follower] === true) return result
+          const next = rewritten(result.model, follower)
+          return { model: next.model, asked: [...result.asked, ...next.asked] }
+        },
+        { model: written.model, asked: written.commands.length === 0 ? [] : [key] },
+      )
+      // Each check is asked once every follower is written, so the values it
+      // reads are the ones the form ends with, and its answer is not stale.
+      return { model: result.model, commands: result.asked.map(asked => ask(result.model, asked)) }
     }
 
-    /** A follower written from the key it follows, and its own followers after it. */
+    /** A follower written from the key it follows, and its own followers after it, with the keys it asks. */
     const rewritten = (
       model: Model,
       follower: Key,
-    ): { readonly model: Model; readonly commands: Commands } => {
+    ): { readonly model: Model; readonly asked: ReadonlyArray<Key> } => {
       const draft = derived(model, follower)
       // Nothing to follow yet is nothing entered, not a failure to show.
       const written = isEmpty(draft)
@@ -1280,11 +1299,14 @@ const Core = {
             commands: [] as Commands,
           }
         : validateKey(model, follower, draft)
-      return followedBy(follower).reduce((result, next) => {
-        if (result.model.touched[next] === true) return result
-        const after = rewritten(result.model, next)
-        return { model: after.model, commands: [...result.commands, ...after.commands] }
-      }, written)
+      return followedBy(follower).reduce(
+        (result, next) => {
+          if (result.model.touched[next] === true) return result
+          const after = rewritten(result.model, next)
+          return { model: after.model, asked: [...result.asked, ...after.asked] }
+        },
+        { model: written.model, asked: written.commands.length === 0 ? [] : [follower] },
+      )
     }
 
     const decodeInput = Schema.decodeUnknownResult(
@@ -1619,6 +1641,17 @@ const Core = {
             // An answer for a draft the key no longer holds is dropped.
             if (state._tag !== 'Validating' || !sameDraft(state.value, message.draft)) {
               return { model }
+            }
+            // Another key or the subject changed while it ran: the answer is about
+            // a form that is gone, and a waiting submit must wait for one about this.
+            if (
+              (message.values !== undefined && !Equal.equals(message.values, decoded(model))) ||
+              (message.subject !== undefined && !Equal.equals(message.subject, model.subject))
+            ) {
+              return {
+                model,
+                commands: [ask(model, message.key)],
+              }
             }
             return resume(
               withField(

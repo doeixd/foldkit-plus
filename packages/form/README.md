@@ -429,10 +429,15 @@ const PostForm = Form.make('PostForm', Entity.input(Post, PostInput), {
   }).pipe(Form.checks({ slug: isAddressFree }))
   ```
 - Each edit asks again after `debounce`, and an answer for a draft the key no
-  longer holds is dropped.
+  longer holds is dropped. An answer carries the `values` and `subject` it was
+  asked with; when another key or the subject changed while it ran, it is not
+  taken but asked again, so a submit waiting on it waits for the answer about
+  the form as it is. An answer already taken stands until its own key is
+  edited: the server checks the write.
 - The ask is the form's Command `PostForm.Check` (named `PostForm.check`), a
   Command definition like any other, so a Scene or Story resolves it with
   `Command.resolve(PostForm.Check, PostForm.Message.Checked({ key, draft, error }))`.
+  An answer made so, without `values` and `subject`, answers the form as it is.
 - **A submit waits.** Submitted while a check runs, the form sets `submitPending`
   and sends the value when the last check passes, or nothing if one fails. An
   edit in between cancels the wait. A filled form (`fill` validates nothing) is

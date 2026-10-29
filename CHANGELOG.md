@@ -752,6 +752,14 @@ carries `drawn`.
 
 ### Fixed
 
+- **A check's answer is taken only for the form it was asked about** (#303).
+  An answer was matched by key and draft alone, so one asked with `id: p1`
+  could approve a slug after the id became `p2` and release a waiting submit.
+  `form.Check`'s `Checked` now carries the `values` and `subject` it read
+  (optional, so a hand-made answer in a test answers the form as it is), and
+  one about values or a subject the form no longer holds is asked again. A
+  key's check is also asked once the keys following it are written, so it
+  reads the values the form ends with.
 - **`locked` takes a Bundle-backed key** (#312). `FormView`'s `locked`, and
   `fields` and `submodel`'s inputs, were typed by the keys that hold a draft,
   so a key edited by a Bundle could not be named without a cast; they now
