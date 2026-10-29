@@ -505,9 +505,10 @@ Style.stylesheet(
 unlayered, so place it with `L.in`. Do not split it with `omit: Theme.tokens`: `omit` matches by
 name, and `Theme.tokens` names knobs too, so a theme's own `density` would be dropped. `Style.stylesheet` refuses an unlayered rule — it would beat `app`. A
 page without `Theme.root` has no tokens: pieces that must stand alone (see
-`prose.ts`) read `var(--fk-x, <fallback>)`, and the `missingTokens` gate
-(`packages/mixins/src/testing.ts`) treats every `var(--fk-…)` read, fallback
-or not, as needing a definition in the sheet.
+`prose.ts`) read `var(--fk-x, <fallback>)`. The `missingTokens` gate
+(`packages/mixins/src/testing.ts`) lists the `var(--fk-…)` reads with no
+fallback that nothing defines: such a read makes its declaration invalid,
+while one with a fallback stands without the sheet.
 
 **Pieces: `self` is normal, `inline` is the escape hatch.**
 `Style.self` emits a rule on a generated class, so `Layers.in` can place it and

@@ -25,7 +25,9 @@ export interface ViewerExpr<T, Name extends string = string> {
  * What the row of whoever asks holds, or the row reached from it through `one`
  * relations (`Expr.path(Expr.viewer(User), end)`): a field of that row. Null
  * for a visitor, a viewer of another Entity, a null link, or a row the reader
- * may not see. Read by `Entity.sets` only: no query body or rule reads one yet.
+ * may not see. `Entity.sets` reads one, and so may a query body or a rule:
+ * SQL reads the viewer's row under its Entity's `visible` rule, and the client
+ * judges it from the rows it holds.
  */
 export interface ViewerPathExpr<T> {
   readonly _tag: 'ViewerPath'
