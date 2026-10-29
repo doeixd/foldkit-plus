@@ -1906,6 +1906,13 @@ of its own named a form field "fits the Catalog". Read words with
   installs with `--frozen-lockfile`, so a new dependency without a
   regenerated lockfile fails all jobs in 30s. Regenerate in the same change
   and prove it with `pnpm install --frozen-lockfile` before pushing.
+- **A subpath's optional peer is its importer's dependency.** `foldkit-builder`
+  imports `foldkit-primitives/interaction`, whose types import
+  `foldkit-mixins`, an optional peer of primitives; builder listed mixins
+  only under `devDependencies`, so its published types failed with TS2307
+  from npm. `pack:check` compiles inside the workspace, where dev
+  dependencies resolve, and cannot see it: a package importing such a
+  subpath declares the peer itself.
 - **A publish that fails partway resumes; it does not need a new version.**
   `npm publish` with provenance can stop on `TLOG_CREATE_ENTRY_ERROR (409) an
   equivalent entry already exists` when its own retry collides with the

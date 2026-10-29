@@ -652,6 +652,11 @@ version changed; `pnpm` skips versions already in the registry.
   return type, and `foldkit-entity` exports `InputMembers`. `pnpm pack:check`
   now compiles a consumer of every published subpath of every package with
   `skipLibCheck: false`.
+- **`foldkit-builder` depends on `foldkit-mixins`.** Its types import
+  `foldkit-primitives/interaction`, whose declarations import
+  `foldkit-mixins`, an optional peer of `foldkit-primitives`; `foldkit-builder`
+  listed it only as a dev dependency, so an application installing it from npm
+  could not resolve `foldkit-mixins` (TS2307, 0.3.14 included).
 - **A page keeps only the modules it reads of a published package** (#215).
   `foldkit-mixins`, `-bundle`, `-media`, `-primitives`, `-entity`, `-crud`,
   `-form` and `-ssr` were each linked into a few files, so `sideEffects:
