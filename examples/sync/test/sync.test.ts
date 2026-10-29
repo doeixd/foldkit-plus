@@ -128,6 +128,14 @@ describe('the journal adapter', () => {
     expect(server.snapshot('todos').cursor).toBe(0)
   })
 
+  it('rejects a reader’s operation by its id and commits nothing', async () => {
+    const reader = { ...principal, canWrite: false }
+    await expect(
+      server.transport(reader).exchange(Sequence.make(0), [operation('a', 1)]),
+    ).resolves.toMatchObject({ rejected: ['a:1'], acknowledged: [] })
+    expect(server.snapshot('todos').cursor).toBe(0)
+  })
+
   it('applies the app policy against the authoritative Model', () => {
     const guarded = openJournal(':memory:', {
       authorize: ({ message, model }) =>
@@ -284,6 +292,41 @@ describe('the journal adapter', () => {
       await a.synchronize(guarded.transport(principal))
       expect(notifications).toBe(1)
       expect(a.pending()).toEqual([])
+    } finally {
+      guarded.close()
+    }
+  })
+
+  it('runs a failed server-authority effect again on the next exchange', async () => {
+    let attempts = 0
+    const guarded = openJournal(':memory:', {
+      effects: message =>
+        message._tag === 'RenamedTodo'
+          ? [
+              {
+                name: 'notify',
+                run: async () => {
+                  attempts += 1
+                  if (attempts === 1) throw new Error('provider down')
+                },
+              },
+            ]
+          : [],
+    })
+    try {
+      guarded.append(operation('seed', 1, created('todo')), principal)
+      const a = await open('a')
+      await a.submit(Message.RenamedTodo({ id: 'todo', title: 'renamed' }))
+
+      // The commit is acknowledged; the effect failed, and is left to the next exchange.
+      await a.synchronize(guarded.transport(principal))
+      expect(a.pending()).toEqual([])
+      expect(attempts).toBe(1)
+
+      await a.synchronize(guarded.transport(principal))
+      expect(attempts).toBe(2)
+      await a.synchronize(guarded.transport(principal))
+      expect(attempts).toBe(2)
     } finally {
       guarded.close()
     }

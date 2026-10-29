@@ -238,7 +238,7 @@ local `ws` WebSocket server over the SQLite journal, and
 | --- | --- |
 | `app.ts` | Model, Message union, and `update`; durable facts carry their nondeterministic inputs rather than minting them during replay |
 | `sync.ts` | the shared Projection, durable Message subset, Replica helpers, and `Sync.mount` integration |
-| `journal.ts` | `Journal.make(...TodoSync.journalContract())`, server authorization, and durable effect settlement |
+| `journal.ts` | `Journal.make(...TodoSync.journalContract())`, server authorization, the exchange (`journalExchange` from `foldkit-sync/journal`), and durable effect settlement through `Journal.recover` |
 | `demo.ts` | the smallest end-to-end replication walkthrough |
 | `server.ts` | WebSocket exchange and connection-derived principal identity |
 | `serverAgent.ts` | another producer that must still commit through the journal |
@@ -268,7 +268,7 @@ The tests go much further than the demo. Grouped by the guarantee they exercise:
 | duplicate replica identity | simultaneous handles cannot silently overwrite one persisted replica |
 | closed replica | work after close is refused and retransmitted committed operations remain harmless |
 | credential expiry | the socket is closed/refused once the authenticated credential expires |
-| server-authority effects | a recorded successful effect is not intentionally repeated for the same committed operation |
+| server-authority effects | a recorded successful effect is not intentionally repeated for the same committed operation; one that failed runs again on the next exchange |
 | agent producer | server-agent dispatch cannot bypass journal authorization/order; a browser agent completes on the committed slice, never on a rejected edit |
 | presence | peers are scoped to the document and expire independently of durable state |
 | LWW fields | logical clocks survive reload and advance beyond rejected/unsubmitted writes |

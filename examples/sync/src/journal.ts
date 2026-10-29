@@ -9,13 +9,14 @@ import {
   type AppendResult as DurableAppendResult,
   type Committed as DurableCommitted,
 } from 'foldkit-durable'
+import { journalExchange } from 'foldkit-sync/journal'
 import {
   DocumentId as SyncDocumentId,
   type CommittedOperation as Committed,
   type Operation,
   type TransportClient,
 } from 'foldkit-sync'
-import { decodeMessage, encodeShared, type Message, type Shared } from './app.js'
+import { decodeMessage, type Message, type Shared } from './app.js'
 import { TodoSync } from './sync.js'
 
 /** Supplied by a trusted transport, never decoded from an operation. */
@@ -169,6 +170,34 @@ export const openJournal = (path: string, policy: JournalPolicy = {}): ServerJou
       toCommitted(committed, documentId),
     )
 
+  /** An operation's effects, each keyed by its document, operation and position. */
+  const intentsOf = (operation: Pick<Operation, 'opId' | 'message'>, documentId: string) =>
+    (effectsFor?.(decodeMessage(operation.message)) ?? []).map((effect, index) => ({
+      key: `${documentId}/${operation.opId}/command/${index}`,
+      run: Effect.tryPromise({ try: () => effect.run(), catch: error => error }),
+    }))
+
+  /** Where each document's effects have settled up to, in this process. */
+  const settled = new Map<string, Cursor>()
+
+  /**
+   * Settles the effects of every operation committed since the last settle, as
+   * an exchange's `settle`: recorded successes are reused, and an effect that
+   * fails stops the cursor there, so the next exchange tries it again. A new
+   * process starts from the compacted floor, below which nothing is left to run.
+   */
+  const settleThrough = (documentId: string) =>
+    Effect.gen(function* () {
+      const key = DocumentId.make(documentId)
+      const from = settled.get(documentId) ?? Cursor.make(yield* durable.floor(key))
+      const through = yield* durable.recover({
+        key,
+        from,
+        intents: operation => intentsOf(operation, documentId),
+      })
+      settled.set(documentId, through)
+    })
+
   /**
    * Runs the effects a committed operation declared, once each.
    *
@@ -176,15 +205,8 @@ export const openJournal = (path: string, policy: JournalPolicy = {}): ServerJou
    * replay, or second call is a no-op.
    */
   const settle = async (committed: Committed): Promise<void> => {
-    const effects = effectsFor?.(decodeMessage(committed.message)) ?? []
-    for (const [index, effect] of effects.entries()) {
-      await Effect.runPromise(
-        durable.runEffect(
-          `${committed.documentId}/${committed.opId}/command/${index}`,
-          Effect.tryPromise({ try: () => effect.run(), catch: error => error }),
-        ),
-      )
-    }
+    for (const intent of intentsOf(committed, committed.documentId))
+      await Effect.runPromise(durable.runEffect(intent.key, intent.run))
   }
 
   return {
@@ -205,95 +227,26 @@ export const openJournal = (path: string, policy: JournalPolicy = {}): ServerJou
       )
       return () => Effect.runSync(Fiber.interrupt(fiber))
     },
-    transport: (principal: Principal): TransportClient => ({
-      exchange: async (cursor, pending, seen) => {
-        if (!principal.actorId) throw new Error('Unauthenticated reader')
-        // A replica that saw another epoch holds a cursor into history this server lacks
-        // (it was reset): it is answered from the start, and rebuilds from that. Otherwise
-        // a cursor past the server's is refused before anything is appended, or the
-        // operations would commit and their acknowledgements be lost with the failed read.
-        const epoch = Effect.runSync(durable.epoch(DocumentId.make(principal.documentId)))
-        const from = seen !== undefined && seen !== epoch ? 0 : cursor
-        const at = Effect.runSync(durable.cursor(DocumentId.make(principal.documentId)))
-        if (from > at) throw new Error(`Cursor ${cursor} is ahead of the server's ${at}`)
-        const rejected: string[] = []
-        const acknowledged: string[] = []
-        for (const input of pending) {
-          // An operation that does not decode fails the same way on every retry, so it is
-          // rejected, not left to fail the exchange and be resent forever. The socket passes
-          // pending entries through undecoded, so one with no id has nothing to reject by.
-          let operation: ReturnType<typeof TodoSync.codec.normalizeOperation>
-          try {
-            operation = TodoSync.codec.normalizeOperation(input)
-          } catch {
-            const opId: unknown = (input as { readonly opId?: unknown } | null)?.opId
-            if (typeof opId === 'string') rejected.push(opId)
-            continue
-          }
-          if (!principal.canWrite) {
-            rejected.push(operation.opId)
-            continue
-          }
-          const result = Effect.runSync(
-            durable.append(DocumentId.make(principal.documentId), operation, principal).pipe(
-              // A refusal, an operation the journal cannot apply, and an id reused for other
-              // content all fail the same way on every retry; a `JournalError` may not, so it
-              // still fails the exchange and the client tries again.
-              Effect.catch(error =>
-                error._tag === 'OperationRejectedError' ||
-                error._tag === 'InvalidOperationError' ||
-                error._tag === 'IdentityConflictError'
-                  ? Effect.sync(() => {
-                      rejected.push(operation.opId)
-                      return undefined
-                    })
-                  : Effect.fail(error),
-              ),
-            ),
-          )
-          if (result === undefined) continue
-          if (result._tag === 'AlreadyCommitted') {
-            // The commit happened before, and compaction removed its payload.
-            // Acknowledge without settling; its effects were settled then.
-            acknowledged.push(result.opId)
-            continue
-          }
-          // Settled before the ack, so the client's retry cannot repeat it.
-          await settle(toCommitted(result.committed, principal.documentId))
-          acknowledged.push(result.committed.operation.opId)
-        }
-        // A read below the floor means the client must adopt a checkpoint. The
-        // read decides that itself, so a compaction cannot slip between the
-        // floor check and the read and produce a gapped stream.
-        const caught = Effect.runSync(
-          durable
-            .read(DocumentId.make(principal.documentId), Cursor.make(from), { limit: page })
-            .pipe(
-              Effect.map(rows => ({ rows })),
-              Effect.catchTag('CompactedCursorError', () =>
-                Effect.succeed({ checkpoint: true as const }),
-              ),
-            ),
-        )
-        if ('checkpoint' in caught) {
-          const { cursor: at, model } = snapshot(principal.documentId)
-          return {
-            checkpoint: { cursor: at, model: encodeShared(model) },
-            operations: [],
-            rejected,
-            acknowledged,
-            epoch,
-          }
-        }
-        return {
-          operations: caught.rows.map(committed => toCommitted(committed, principal.documentId)),
-          rejected,
-          acknowledged,
-          more: caught.rows.length === page,
-          epoch,
-        }
-      },
-    }),
+    // The exchange is `foldkit-sync/journal`'s: an operation it cannot take is
+    // rejected by its id, so the edits behind it still go, and a principal that
+    // may only read has every operation refused. Effects settle after the appends
+    // and before the reply, so a resend after a lost reply finds them recorded.
+    transport: (principal: Principal): TransportClient => {
+      const exchange = journalExchange({
+        sync: TodoSync,
+        journal: durable,
+        principal,
+        limit: page,
+        admit: () => principal.canWrite,
+        settle: settleThrough(principal.documentId),
+      })
+      return {
+        exchange: (cursor, pending, epoch) =>
+          principal.actorId
+            ? exchange.exchange(cursor, pending, epoch)
+            : Promise.reject(new Error('Unauthenticated reader')),
+      }
+    },
     close: () => {
       Effect.runSync(Scope.close(scope, Exit.void))
     },

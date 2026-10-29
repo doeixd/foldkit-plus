@@ -1,4 +1,4 @@
-import { Effect } from 'effect'
+import { Effect, Option } from 'effect'
 import { modifyFields } from 'foldkit/struct'
 import { Sync, type Replica, type TransportClient } from 'foldkit-sync'
 import type { Message, Shared } from './app.js'
@@ -17,13 +17,13 @@ export const mountReplica = (replica: Replica<Message, Shared>, container: HTMLE
             [],
             model.todos.map(todo => h.li([], [todo.title])),
           ),
-          h.p([], [`Selection: ${model.selectedTodoId ?? 'none'}`]),
-          h.p([], [model.lastError ?? '']),
+          h.p([], [`Selection: ${Option.getOrElse(model.selectedTodoId, () => 'none')}`]),
+          h.p([], [Option.getOrElse(model.lastError, () => '')]),
         ],
       ),
     }),
     onPersistenceFailure: model =>
-      modifyFields(model, { lastError: () => 'Could not persist this change' }),
+      modifyFields(model, { lastError: () => Option.some('Could not persist this change') }),
   })
   return {
     send: mounted.dispatch,

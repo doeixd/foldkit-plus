@@ -1,4 +1,4 @@
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { modifyFields } from 'foldkit/struct'
 import { defineMessageUnion } from 'foldkit/message'
 import type * as Update from 'foldkit/update'
@@ -6,11 +6,11 @@ import type * as Update from 'foldkit/update'
 const Todo = Schema.Struct({ id: Schema.String, title: Schema.String })
 export const Shared = Schema.Struct({ todos: Schema.Array(Todo) })
 export type Shared = typeof Shared.Type
-export const encodeShared = Schema.encodeSync(Shared)
 export const Model = Schema.Struct({
   ...Shared.fields,
-  selectedTodoId: Schema.NullOr(Schema.String),
-  lastError: Schema.NullOr(Schema.String),
+  // Local to this tab and never stored: only the shared slice is persisted.
+  selectedTodoId: Schema.Option(Schema.String),
+  lastError: Schema.Option(Schema.String),
 })
 export type Model = typeof Model.Type
 export const Message = defineMessageUnion({
@@ -20,7 +20,11 @@ export const Message = defineMessageUnion({
   SelectedTodo: { id: Schema.String },
 })
 export type Message = typeof Message.Type
-export const initialModel: Model = { todos: [], selectedTodoId: null, lastError: null }
+export const initialModel: Model = {
+  todos: [],
+  selectedTodoId: Option.none(),
+  lastError: Option.none(),
+}
 
 // IDs and all other nondeterministic inputs come from the Message.
 export const update = (model: Model, message: Message): Update.Return<Model, Message> => ({
@@ -36,7 +40,7 @@ export const update = (model: Model, message: Message): Update.Return<Model, Mes
       }),
     DeletedTodo: ({ id }) =>
       modifyFields(model, { todos: () => model.todos.filter(todo => todo.id !== id) }),
-    SelectedTodo: ({ id }) => modifyFields(model, { selectedTodoId: () => id }),
+    SelectedTodo: ({ id }) => modifyFields(model, { selectedTodoId: () => Option.some(id) }),
   }),
 })
 
