@@ -326,7 +326,8 @@ const detail = Data.active('ProjectDetail', model =>
 foldData.subscriptions({ detail })
 ```
 
-It belongs to the domain's application and sends no Messages. A domain bound
+Its `projectionOf(model)` gives back that read, with its value's type. It
+belongs to the domain's application and sends no Messages. A domain bound
 to a raw optic (`ModelRef.fromOptic`) names no application, so `Data.active`
 throws for one rather than guess.
 

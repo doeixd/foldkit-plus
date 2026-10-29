@@ -217,7 +217,8 @@ const subscriptions = Data.subscriptions({ editor: PostEditor.active })
   - `onOut` for the placement: a valid submit becomes `Data.mutate`, and the
     editor remembers the request id.
   - `active`: while an id is open, what the form writes is fetched and
-    retained.
+    retained. Its `projectionOf(model)` reads that value, typed by the
+    members the form writes.
   - `after(update)`: wraps `update` so the editor fills the form and
     reconciles its status after every Message. `sync` is that Step on its own,
     for an `update` composed another way.

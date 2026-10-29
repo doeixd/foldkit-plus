@@ -813,7 +813,7 @@ export interface RemoteDomain<
   active<Value>(
     name: string,
     projectionOf: (model: AppModel) => Option.Option<Projection<AppModel, Value>>,
-  ): ActiveSurface<AppModel>
+  ): ActiveSurface<AppModel, Value>
   /**
    * The Foldkit Subscription entries for the active record, keyed for
    * `Subscription.make`: a read entry per record entry (`Remote.observe`), a

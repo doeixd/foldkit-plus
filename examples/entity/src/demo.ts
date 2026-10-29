@@ -211,7 +211,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     lines.push(`status: ${PostEditor.status(model)}`)
     lines.push(`row after: ${JSON.stringify(backend.row('p2'))}`)
     // The mutation's patches reached the store, so every Projection over the post moved.
-    lines.push(`edited: ${describe(editing.read(model) as RemoteData<unknown>)}`)
+    lines.push(`edited: ${describe(editing.read(model))}`)
     lines.push(`author again: ${describe(author.read(model).author)}`)
     // The list too: its row is the same normalized post. The title is what the
     // list is sorted by, so the save also marked it to be fetched again.

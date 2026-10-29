@@ -238,6 +238,7 @@ const projects = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: Projec
 // Entry dependencies are typed: ReadDependencies / LiveDependencies / RetentionRoots.
 // A read that is not a Surface's, active while its function gives it:
 // Data.active('ProjectDetail', m => Option.map(m.openId, id => Data.get(Selection, id)))
+// Its projectionOf(model) is Option<Projection> of that read, typed by its value.
 // Under staleWhileRevalidate the read entry sleeps (Effect clock) until the earliest held value
 // ages out and emits RefreshStarted for it: time reaches Remote only as a Message, and a
 // Projection never reads the clock. The deadline is a dependency (`expires`), so a write moves it.

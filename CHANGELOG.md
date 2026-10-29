@@ -472,6 +472,10 @@ carries `drawn`.
 
 ### Changed
 
+- **`Data.active` and a placed Crud piece's `active` keep the read's type.**
+  `projectionOf(model)` gave a `Projection` of `unknown`, so code reading
+  it cast; it now gives the read itself, and an editor's reads a
+  `RemoteData` of the members its form writes.
 - **Breaking: `Data.why` returns a `ReadWhy`** (#248). It lists, in
   `because`, every fact the Model holds about what a read reads, as typed
   references (`Why`, a tagged union with an exhaustive `match`): its list or a

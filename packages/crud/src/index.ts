@@ -184,10 +184,10 @@ export interface DomainLike<Root> {
   mutation(model: Root, requestId: string): MutationStatus
   refusal(model: Root, requestId: string, mutation: any): Option.Option<unknown>
   /** `Data.active`: a read of the domain as an active Surface of its application. */
-  active(
+  active<Value>(
     name: string,
-    projectionOf: (model: Root) => Option.Option<Projection<Root, any>>,
-  ): ActiveSurface<Root>
+    projectionOf: (model: Root) => Option.Option<Projection<Root, Value>>,
+  ): ActiveSurface<Root, Value>
 }
 
 type Step<Root> = Update.Step<Root, RemoteMessage, RemoteClient>
@@ -874,6 +874,7 @@ export const Crud = {
     })
 
     const written = Entity.selectFor(form.input)
+    type Row = (typeof written)['schema']['Type']
     // What is loaded: what the form writes, and what `locks` reads beside it,
     // which the form never fills from.
     const current: typeof written =
@@ -1108,7 +1109,7 @@ export const Crud = {
            * For `Data.subscriptions`: while an id is being edited, what it loads is
            * a requirement like any Surface's, so Remote fetches and retains it.
            */
-          active: data.active(name, root => {
+          active: data.active<RemoteData<Row>>(name, root => {
             const { mode, target } = slice.get(root)
             return mode === 'edit' && target !== null
               ? Option.some(data.get(current, target))

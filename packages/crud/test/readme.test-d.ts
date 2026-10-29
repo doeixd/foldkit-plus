@@ -90,6 +90,16 @@ expectTypeOf(PostEditor.status).returns.toEqualTypeOf<EditorStatus>()
 declare const root: Root
 expectTypeOf(Placed.helpers.open('p2')(root).model).toEqualTypeOf<Root>()
 void Placed.helpers.blank()
+
+// What the editor loads reads as the members the form writes.
+const editing = Option.getOrThrow(PostEditor.active.projectionOf(root))
+expectTypeOf(editing.read(root)).toEqualTypeOf<RemoteData<typeof Editor.selection.schema.Type>>()
+const loaded = editing.read(root)
+if (loaded._tag === 'Ready') {
+  expectTypeOf(loaded.value.title).toEqualTypeOf<string>()
+  // @ts-expect-error the form writes no "body", so none is loaded
+  void loaded.value.body
+}
 void Placed.helpers.close()
 
 // A screen's Messages, answered through the placements.
