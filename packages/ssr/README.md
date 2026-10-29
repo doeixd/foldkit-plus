@@ -13,6 +13,9 @@ pnpm add foldkit-ssr foldkit-surface foldkit effect
 ```
 
 ```ts
+// In outline; `App`, `config` and `template` are the application's own, and
+// [A first page](#a-first-page) splits this into its modules.
+
 // Which part of the Model the browser owns.
 const Post = SSR.plan(App, {
   id: 'post',
@@ -59,8 +62,10 @@ It owns **the handover**: which slice crosses, how it is written into the page,
 and the checks that the browser can start from it.
 
 - **Rendering and adoption stay Foldkit's.** `SSR.render` calls Foldkit's
-  `renderToString` and `SSR.hydrate` calls `Runtime.hydrate`. Foldkit still
-  refuses a page from another build and still adopts the server's nodes.
+  `renderToString` and `SSR.hydrate` calls `Runtime.hydrate`, which adopts the
+  server's nodes. `SSR.hydrate` compares the page's build id with its own
+  before it reads the envelope, so a Model serialized by another deployment is
+  never decoded.
 - **The Model stays the application's.** A plan names fields of it; it adds no
   state of its own, and every change after boot goes through `update`.
 - **Data belongs to its package.** Remote's store crosses through Remote's own
@@ -284,6 +289,7 @@ export default {
 ```ts
 // vite.config.ts, for the dev server and the build id both entries compile in.
 import { foldkit } from '@foldkit/vite-plugin'
+import { defineConfig } from 'vite'
 
 export default defineConfig({
   plugins: [foldkit({ ssr: { serverEntry: '/src/entry.server.ts' } })],
@@ -464,7 +470,10 @@ application code:
 
 ```ts
 // vite.config.ts
+import { foldkit } from '@foldkit/vite-plugin'
 import { staticSite } from 'foldkit-ssr/vite'
+import { defineConfig } from 'vite'
+
 export default defineConfig({
   plugins: [foldkit(), staticSite({ site: { module: '/src/site.ts' } })],
 })
@@ -711,7 +720,9 @@ boots it, so the Model ends where an eager boot would have taken it.
 ### Bundles whose code loads on demand
 
 A `Bundle.lazy` from `foldkit-bundle` keeps a bundle's `update` and `view` out
-of the boot chunk. Name each in the config's `lazy` list:
+of the boot chunk. Name each in the config's `lazy` list. A sketch, after
+`test/lazyFixture.ts`: `Upload` is the lazy bundle, `PlacedUpload` its
+placement, and `placements` their `Bundle.assemble`:
 
 ```ts
 const config = {
@@ -738,7 +749,9 @@ wrapper variant, `Message.GotUploadMessage`.
 
 A form whose `OnSubmit` names a Message can be answered by the server, before
 any script has run or with scripts blocked, because `update` is pure and the
-server can run it. The plan opts in:
+server can run it. This example is a to-do list, not the post page: its Model
+holds `draft` and `todos`, its Message `Added({ title })` and `Typed({ value
+})`, and the `TodoList` Surface lists both. The plan opts in:
 
 ```ts
 const Todos = SSR.plan(App, {
@@ -799,6 +812,68 @@ which no page or form can set, says `same-origin`, and refused without it. A pla
 runs `flags`, the config's `resources` and its own as whoever the cookie says
 posted: an entry made without them throws. An entry of your own that calls
 `SSR.handle` checks `Origin` itself.
+
+## A reader's preferences in the first frame
+
+A theme, a light or dark choice, a density: a reader expects the page to open
+in what they chose, not in the default and then theirs. Under the rule above,
+the first frame shows whatever the server knew when it rendered.
+
+**Rendered per request, the server can know it, from a cookie.** It is the
+[example's](../../examples/foldkit/ssr) count, by the same route:
+
+```text
+request cookie ─▶ flags ─▶ init ─▶ Model.theme ─┬─ view draws it
+                                                 └─ plan.state carries it, so the browser resumes with it
+```
+
+```ts
+import { Option, Record, Schema, pipe } from 'effect'
+import { Cookies } from 'effect/http'
+import { Theme, Themes } from 'foldkit-mixins/theme'
+
+const themes = Themes.make(
+  { plain: Theme.make({}), dense: Theme.make({ shape: { density: 0.85 } }) },
+  { initial: 'plain' },
+)
+
+/** The kept theme for a request, or the initial one for a missing or unknown cookie. */
+export const readThemeCookie = (cookieHeader: string) =>
+  pipe(
+    Cookies.parseHeader(cookieHeader),
+    Record.get('theme'),
+    Option.flatMap(Schema.decodeUnknownOption(themes.Name)),
+    Option.getOrElse(() => themes.initial),
+  )
+```
+
+Read it in `flags: request => …`, keep it in the plan's `state` (leaving it out
+is refused: the view reads a field the browser would not have), and answer
+with `cache-control: private` and `vary: cookie`, as the example does: such a
+page is one reader's, and no shared cache may keep it.
+
+What the view draws is then right in the first frame. What it cannot draw is
+`<html>`: `Themes` shows a theme by an attribute there, and `color-scheme`
+lives there. The view renders the application's root only, so:
+
+- the host's template carries a head script, `Themes.script(themes)` (and
+  `Theme.schemeScript()`). It is static text, so a template that is the same
+  for every request holds it, and it reads the name the Command kept in
+  `localStorage`;
+- the Command that keeps a choice keeps it twice, the cookie for the server
+  and storage for the script: `Themes.choose(themes, name)`, then
+  `document.cookie = 'theme=…; Path=/; Max-Age=31536000; SameSite=Lax'`
+  (`Secure` on HTTPS);
+- the plan's `boot` applies the Model's theme (`Themes.apply`), so storage that
+  was refused or cleared costs one frame, not the visit.
+
+**Generated at build time** (`SSR.generate`), there is no reader to ask, and
+every page is built in the default. No change inside the application helps:
+its script runs after the browser may have painted. The head script alone
+draws the first frame, written through the generator's `head`; the Model
+catches up in `boot`. `foldkit-mixins/theme` ships the pairs: `schemeScript`
+and `chooseScheme`, `Themes.script` and `Themes.choose`, `Theme.knobScript`
+and `Theme.chooseKnobs`.
 
 ## When a page is refused
 
@@ -890,68 +965,6 @@ SSR.entry(config, plan, {
 
 In a test, `Diagnostics.collect()` gives a reporter and the array it fills.
 
-## A reader's preferences in the first frame
-
-A theme, a light or dark choice, a density: a reader expects the page to open
-in what they chose, not in the default and then theirs. Under the rule above,
-the first frame shows whatever the server knew when it rendered.
-
-**Rendered per request, the server can know it, from a cookie.** It is the
-[example's](../../examples/foldkit/ssr) count, by the same route:
-
-```text
-request cookie ─▶ flags ─▶ init ─▶ Model.theme ─┬─ view draws it
-                                                 └─ plan.state carries it, so the browser resumes with it
-```
-
-```ts
-import { Option, Record, Schema, pipe } from 'effect'
-import { Cookies } from 'effect/http'
-import { Theme, Themes } from 'foldkit-mixins/theme'
-
-const themes = Themes.make(
-  { plain: Theme.make({}), dense: Theme.make({ shape: { density: 0.85 } }) },
-  { initial: 'plain' },
-)
-
-/** The kept theme for a request, or the initial one for a missing or unknown cookie. */
-export const readThemeCookie = (cookieHeader: string) =>
-  pipe(
-    Cookies.parseHeader(cookieHeader),
-    Record.get('theme'),
-    Option.flatMap(Schema.decodeUnknownOption(themes.Name)),
-    Option.getOrElse(() => themes.initial),
-  )
-```
-
-Read it in `flags: request => …`, keep it in the plan's `state` (leaving it out
-is refused: the view reads a field the browser would not have), and answer
-with `cache-control: private` and `vary: cookie`, as the example does: such a
-page is one reader's, and no shared cache may keep it.
-
-What the view draws is then right in the first frame. What it cannot draw is
-`<html>`: `Themes` shows a theme by an attribute there, and `color-scheme`
-lives there. The view renders the application's root only, so:
-
-- the host's template carries a head script, `Themes.script(themes)` (and
-  `Theme.schemeScript()`). It is static text, so a template that is the same
-  for every request holds it, and it reads the name the Command kept in
-  `localStorage`;
-- the Command that keeps a choice keeps it twice, the cookie for the server
-  and storage for the script: `Themes.choose(themes, name)`, then
-  `document.cookie = 'theme=…; Path=/; Max-Age=31536000; SameSite=Lax'`
-  (`Secure` on HTTPS);
-- the plan's `boot` applies the Model's theme (`Themes.apply`), so storage that
-  was refused or cleared costs one frame, not the visit.
-
-**Generated at build time** (`SSR.generate`), there is no reader to ask, and
-every page is built in the default. No change inside the application helps:
-its script runs after the browser may have painted. The head script alone
-draws the first frame, written through the generator's `head`; the Model
-catches up in `boot`. `foldkit-mixins/theme` ships the pairs: `schemeScript`
-and `chooseScheme`, `Themes.script` and `Themes.choose`, `Theme.knobScript`
-and `Theme.chooseKnobs`.
-
 ## Costs and limits
 
 - **`SSR.render` renders the view twice.** That is the view check. A static
@@ -1006,7 +1019,8 @@ and `Theme.chooseKnobs`.
 A post page. `App` is `Surface.application({ Model, Message, initial, update
 })`. The Surfaces (`PostActions`, `Menu`, `Like`), `Data` (a `Remote.make`
 domain over `App.model.remote`) and `LoadPreferences` (a `Command.define`) are
-the application's own. `PostActionsAt` and `PostPageAt` are Surfaces placed
+the application's own; a Surface a resumable page dispatches from lists its
+Messages (`messages: [Message.Liked]`). `PostActionsAt` and `PostPageAt` are Surfaces placed
 for a plan, as `Surface.when(PostActions, App.model.route, AppRoute.Post, route
 => ({ id: route.id }))` places one in
 [the coverage example](#checking-what-the-browser-will-read).
@@ -1020,6 +1034,8 @@ const Model = Schema.Struct({
     id: Schema.String,
     title: Schema.String,
     body: Schema.String,
+    excerpt: Schema.String,
+    publishedAt: Schema.String,
     liked: Schema.Boolean,
   }),
   draft: Schema.String,
