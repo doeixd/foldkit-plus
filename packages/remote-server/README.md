@@ -436,7 +436,8 @@ keys the client named when it named some, and hands the row's id and new values
 to an `EntityWriter`, which writes them and answers the row as written:
 
 ```ts
-RemoteServer.write(EditProject, writer(Db.Project)) // `writer` from foldkit-remote-drizzle
+// `EditProject` is a Mutation.write; `writer` and the binding `Db` are foldkit-remote-drizzle's.
+RemoteServer.write(EditProject, writer(Db.Project))
 ```
 
 The answer is the mutation's patch, or for a delete its deletion. The writer
@@ -510,7 +511,7 @@ wrongly:
 | `increments: true` | adds `increments` in the statement | a write with an increment |
 | `assignments: true` | computes `assignments` in the statement | a write with a computed assignment |
 | `ledger: true` (with `recorded`) | records each update and insert under its `operation`, and answers a retry from the record | an increment or computed assignment with no `expect` |
-| `requires: true` | holds the row to `requires` | `GuardServer.writer` over a rule reading another row |
+| `requires: true` | holds the row to `requires` | `GuardServer.writer` over a rule reading another row, which throws where it is made without it |
 | `refuses(write)` | names what only its store knows it cannot land (the Drizzle writer: a fractional amount for an integer column) | every write, asked once |
 
 A writer with a `read` (the row as a principal may see it, under the read
