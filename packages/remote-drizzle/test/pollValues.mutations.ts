@@ -13,8 +13,8 @@ const edit = (name: string, find: string, replace: string) => ({
 export default [
   edit(
     "a listed row's field compares by identity",
-    'heldOf(values, fields).filter(\n                field => !Equal.equals(before?.[field], values[field]),',
-    'heldOf(values, fields).filter(\n                field => before?.[field] !== values[field],',
+    'field => !already.has(field) && !Equal.equals(before?.[field], values[field]),',
+    'field => !already.has(field) && before?.[field] !== values[field],',
   ),
   edit(
     "a subscribed row's field compares by identity",

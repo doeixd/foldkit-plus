@@ -648,6 +648,12 @@ version changed; `pnpm` skips versions already in the registry.
   on D1** (#285). It has run there since the D1 ledger moved to one atomic
   `batch`: the reference now says so, with the batch's limits, as
   `foldkit-remote-drizzle`'s README does.
+- **`pollLive` sends every changed field of a row two reads select
+  differently** (#279). A tick sent a row once, by whichever read patched it
+  first, so a list selecting `done` beside a subscription to the same row's
+  `title`, or two lists selecting different fields, never heard of the
+  second read's fields. A tick now remembers the fields it sent of each row,
+  and each read sends the changed fields not yet sent. Never published.
 - **`foldkit-form`'s published declarations check with `skipLibCheck:
   false`.** The emitter wrote `Form.input`'s return type out in full, through
   `foldkit-entity`'s unexported `InputMembers`, and the expansion failed on

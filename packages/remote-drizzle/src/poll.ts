@@ -234,8 +234,9 @@ export const pollLive = <P, R>(
         const diff = (
           listing: Listing,
           only: Option.Option<ReadonlySet<string>>,
-          // Shared by the tick's lists: a row joining two is patched once.
-          patched: Set<string>,
+          // The fields of each row sent this tick, shared by the tick's lists:
+          // a field is sent once however many of them select it.
+          sent: Map<string, Set<string>>,
           deleted: ReadonlySet<string>,
         ) =>
           Effect.gen(function* () {
@@ -267,11 +268,13 @@ export const pollLive = <P, R>(
             const patch = (id: string, values: Readonly<Record<string, unknown>>) => {
               const before = listing.values.get(id)
               listing.values.set(id, values)
+              const already = sent.get(id) ?? new Set<string>()
               const changed = heldOf(values, fields).filter(
-                field => !Equal.equals(before?.[field], values[field]),
+                field => !already.has(field) && !Equal.equals(before?.[field], values[field]),
               )
-              if (changed.length === 0 || patched.has(id)) return
-              patched.add(id)
+              if (changed.length === 0) return
+              for (const field of changed) already.add(field)
+              sent.set(id, already)
               patches.push({
                 _tag: 'EntityPatched',
                 entity: source.entity,
@@ -328,7 +331,7 @@ export const pollLive = <P, R>(
           const reads = (id: string) =>
             Option.match(only, { onNone: () => true, onSome: ids => ids.has(id) })
           const patches: Array<LivePatch> = []
-          const patched = new Set<string>()
+          const sent = new Map<string, Set<string>>()
           const deleted = new Set<string>()
           const ids = [...asked.keys()].filter(reads)
           const answered = ids.length === 0 ? Option.none() : yield* read(ids, fields)
@@ -351,7 +354,7 @@ export const pollLive = <P, R>(
               )
               if (changed.length === 0) continue
               previous.set(id, values)
-              patched.add(id)
+              sent.set(id, new Set(changed))
               patches.push({
                 _tag: 'EntityPatched',
                 entity: source.entity,
@@ -363,7 +366,7 @@ export const pollLive = <P, R>(
             }
           }
           for (const listing of listings) {
-            const listed = yield* diff(listing, only, patched, deleted)
+            const listed = yield* diff(listing, only, sent, deleted)
             // A list that could not be read still owes this tick's rows: the next
             // tick asks the log from where this one did, and diffing them again
             // against what the stream holds sends only what it has not seen.

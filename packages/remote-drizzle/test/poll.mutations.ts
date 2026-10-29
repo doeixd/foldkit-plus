@@ -87,10 +87,18 @@ export default [
     'const watched = queries',
   ),
   edit(
-    'a row joining two lists is patched twice',
-    '              if (changed.length === 0 || patched.has(id)) return\n              patched.add(id)',
-    '              if (changed.length === 0 || patched.has(id)) return',
+    'a field two lists select is sent twice',
+    'field => !already.has(field) && !Equal.equals',
+    'field => !Equal.equals',
   ),
+  // What #279 found: a row sent once hid every other field a list selects.
+  edit(
+    'a row sent once is not sent again, whatever the field',
+    'field => !already.has(field) && !Equal.equals',
+    'field => !sent.has(id) && !Equal.equals',
+  ),
+  edit("the subscribed row's sent fields are not recorded", 'sent.set(id, new Set(changed))', ''),
+  edit("a list's sent fields are not recorded", 'sent.set(id, already)', ''),
   edit('the log keeps no limit', 'where seq <= new.seq - ${keep}', 'where 0'),
   edit('a delete is not logged', "    trigger('delete', 'old'),\n", ''),
   edit(

@@ -305,7 +305,8 @@ describe('pollLive watching lists read live, with a row log', () => {
 
   it('invalidates a list once as the stream opens, beside the rows it subscribes', async () => {
     const { state, source, log, write } = table()
-    const { list } = watching(state)
+    // The list selects only what the row is subscribed for, so its change is sent once.
+    const { list } = watching(state, 'AllTodos', { entity: 'Todo', fields: ['title'] })
     const seen = await ticks(source, { changes: log, queries: [list] }, [write('t1', 'Oat')])
     expect(seen).toEqual(['ConnectionInvalidate AllTodos', 'EntityPatched'])
   })
@@ -416,6 +417,38 @@ describe('pollLive watching lists read live, with a row log', () => {
     const { list } = watching(state)
     const seen = await ticks(source, { changes: log, queries: [list] }, [write('t2', 'Bread')], [])
     expect(seen).toEqual(['ConnectionInvalidate AllTodos', 'EntityPatched'])
+  })
+
+  it('sends a field a list selects that the subscribed row does not', async () => {
+    const { state, source, log, write } = table()
+    const { list } = watching(state, 'AllTodos', { entity: 'Todo', fields: ['title', 'done'] })
+    const changed: Array<ReadonlyArray<string>> = []
+    await ticks(
+      source,
+      { changes: log, queries: [list] },
+      [write('t1', 'Bread!')],
+      ['t1'],
+      ['title'],
+      changed,
+    )
+    // `title` once, by the subscribed row; `done` by the list.
+    expect(changed).toEqual([['title'], ['done']])
+  })
+
+  it('sends each field two lists select of one row once', async () => {
+    const { state, source, log, write } = table()
+    const titles = watching(state, 'Titles', { entity: 'Todo', fields: ['title'] })
+    const both = watching(state, 'Both', { entity: 'Todo', fields: ['title', 'done'] })
+    const changed: Array<ReadonlyArray<string>> = []
+    await ticks(
+      source,
+      { changes: log, queries: [titles.list, both.list] },
+      [write('t1', 'Bread!')],
+      [],
+      [],
+      changed,
+    )
+    expect(changed).toEqual([['title'], ['done']])
   })
 
   it('diffs each list a stream watches', async () => {
