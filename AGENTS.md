@@ -1038,6 +1038,15 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   client-chosen size where the request is decoded (`FoldkitRemoteLive`'s
   admission), before any consumer sees it.
 
+- **A body's `fields` are its own row's; what it reaches is in `reaches`.**
+  `Query.dependencies(...).predicate` and `dependenciesOf(...).fields` hold
+  no member a path, a path from the viewer or an exists reads.
+  `GuardServer.validate` judged hidden members over `predicate` alone, so a
+  body filtering by `Expr.path(Todo.relations.tag, Tag.fields.id)` passed
+  while SQL read the hidden link; the client's list impact reads them alone
+  too, and keeps a held row that a relink took out of a path's filter. A
+  check over what a body reads walks `reaches` as well.
+
 **Effect 4, not 3**
 
 The workspace runs `effect@^4.0.5`, one copy of each Effect package;
