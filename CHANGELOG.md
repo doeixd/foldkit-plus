@@ -706,6 +706,11 @@ carries `drawn`.
 
 ### Fixed
 
+- **A `Select` or `Choices` refuses options drawn alike** (#305). Both draw
+  and read an option by its text, so with `'1'` and `1` in one set the
+  second could never be chosen and a choice could be stored as the other's
+  type. Such a set now throws when the control is made, from a schema or
+  from `Input.select` / `Input.choices`.
 - **A filled numeric choice shows and submits** (#304). `fill` kept a
   `Choices` value as it was, so `[1]` became a draft the parser, which
   reads text, refused ("Choose from the options"), and a checkbox drawn

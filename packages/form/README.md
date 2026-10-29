@@ -166,7 +166,9 @@ Form.make('Rename', Entity.input(Cms, RenameInput), { inputs: { id: Input.text()
 A key that holds an id without being a relation asks for a picker with
 `Input.relationOne(Author)` or `Input.relationMany(Tag)`, as the page Builder's
 Block props do. A key the schema cannot spell — `Schema.Array(Schema.Number)` —
-takes the choices it may hold from `Input.choices([1, 2])`.
+takes the choices it may hold from `Input.choices([1, 2])`. A `Select` or
+`Choices` draft is each option as text, filled values included, so two options
+drawn alike (`'1'` and `1`) are refused when the control is made.
 
 ### Your own kind of control
 

@@ -89,6 +89,20 @@ describe('A key that is any number of a fixed set', () => {
     expect(IdsForm.engine.value(model)).toEqual({ ids: [2] })
   })
 
+  it.each([
+    ['a choice group', Schema.Array(Schema.Literals(['1', 1]))],
+    ['a select', Schema.Literals(['2', 1, 2])],
+  ])('refuses %s whose options are drawn alike (#305)', (_, picks) => {
+    expect(() => Form.make('Mixed', Form.input(Schema.Struct({ picks })))).toThrow(
+      'are both drawn as',
+    )
+  })
+
+  it('refuses options drawn alike when named, too (#305)', () => {
+    expect(() => Input.choices([1, '1'])).toThrow('the options 1 and "1" are both drawn as "1"')
+    expect(() => Input.select(['a', 'b', 'a'])).not.toThrow()
+  })
+
   it('still refuses an array of text, which says nothing about its values', () => {
     const Words = Schema.Struct({ words: Schema.Array(Schema.String) })
     expect(() => Form.make('Words', Form.input(Words))).toThrow('no control for "words"')

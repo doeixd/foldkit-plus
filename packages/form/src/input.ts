@@ -281,28 +281,56 @@ const Number_ = kind('Number', {
   unparsed: 'Enter a number',
 })
 const Toggle = kind('Toggle', { draft: 'flag' })
+
+/**
+ * A kind over a fixed set whose draft is each option's text, refusing a set in
+ * which two options share a text (`'1'` and `1`): a draft could not tell them
+ * apart, and would store whichever came first.
+ */
+const spelledApart = <Data extends { readonly options: ReadonlyArray<string | number> }>(
+  made: ControlKind<Data>,
+): ControlKind<Data> => ({
+  ...made,
+  of: data => {
+    const seen = new Map<string, string | number>()
+    for (const option of data.options) {
+      const text = String(option)
+      const earlier = seen.get(text)
+      if (earlier !== undefined && earlier !== option)
+        throw new Error(
+          `Input.${made.kind}: the options ${JSON.stringify(earlier)} and ${JSON.stringify(option)} are both drawn as "${text}", so a choice cannot tell them apart`,
+        )
+      seen.set(text, option)
+    }
+    return made.of(data)
+  },
+})
 /**
  * One of a fixed set, text or numbers. The draft is the option as text, as a
  * `<select>` holds it; the value is the option itself, so `3` is stored as `3`.
  */
-const Select = kind<{ readonly options: ReadonlyArray<string | number> }>('Select', {
-  draft: 'text',
-  parse: (draft, data) => data.options.find(option => String(option) === draft),
-  unparsed: 'Choose one of the options',
-})
+const Select = spelledApart(
+  kind<{ readonly options: ReadonlyArray<string | number> }>('Select', {
+    draft: 'text',
+    parse: (draft, data) => data.options.find(option => String(option) === draft),
+    unparsed: 'Choose one of the options',
+  }),
+)
 /**
  * One or more of a fixed set, text or numbers. The draft is each chosen option
  * as text, as a group of checkboxes holds them; the value is the options
  * themselves, so `3` is stored as `3`.
  */
-const Choices = kind<{ readonly options: ReadonlyArray<string | number> }>('Choices', {
-  draft: 'list',
-  parseList: (draft, data) => {
-    const chosen = draft.map(text => data.options.find(option => String(option) === text))
-    return chosen.some(option => option === undefined) ? undefined : chosen
-  },
-  unparsed: 'Choose from the options',
-})
+const Choices = spelledApart(
+  kind<{ readonly options: ReadonlyArray<string | number> }>('Choices', {
+    draft: 'list',
+    parseList: (draft, data) => {
+      const chosen = draft.map(text => data.options.find(option => String(option) === text))
+      return chosen.some(option => option === undefined) ? undefined : chosen
+    },
+    unparsed: 'Choose from the options',
+  }),
+)
 const RelationOne = kind<RelationData>('RelationOne', {
   draft: 'text',
   searches: data => data.search,
