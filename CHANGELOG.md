@@ -920,6 +920,12 @@ carries `drawn`.
   `Entity.input`, `Entity.fields`, `Entity.select` and `Entity.annotateMembers`
   now read own keys only, and an evaluated row lacking a field so named reads
   it as null rather than as `Object.prototype`'s function.
+- **`Conformance.operator` and `Conformance.laws` build only the cases they
+  run** (#318). Both built every tuple of the samples, then chose `limit` of
+  them, so an operator of six number arguments built 531,441 tuples to run
+  one, and eight built 43 million. A seeded partial shuffle over the tuples'
+  indices now builds only those chosen; a seed chooses other tuples than it
+  did, still the same ones on every run.
 
 ## 0.35.0
 

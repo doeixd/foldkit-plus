@@ -7,6 +7,7 @@ const expr = '../src/expr.ts'
 const law = '../src/law.ts'
 const operators = '../src/operators.ts'
 const helper = '../src/conformance/operator.ts'
+const tuples = '../src/conformance/tuples.ts'
 const edit = (name: string, file: string, find: string, replace: string) => ({
   name,
   edits: [{ file, find, replace }],
@@ -157,13 +158,8 @@ export default [
   ),
 
   // ---- choosing and running cases
-  edit(
-    'every case runs, however many',
-    helper,
-    'if (tuples.length <= limit) return tuples',
-    'return tuples',
-  ),
-  edit('the seed chooses nothing', helper, 'const next = random(seed)', 'const next = random(0)'),
+  edit('every case runs, however many', tuples, 'if (size <= limit) return', 'if (true) return'),
+  edit('the seed chooses nothing', tuples, 'const next = random(seed)', 'const next = random(0)'),
   edit(
     'a defined operator runs without its expansion',
     helper,

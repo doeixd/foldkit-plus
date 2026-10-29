@@ -26,6 +26,7 @@ import {
   type TestedEvidence,
 } from '../index.js'
 import { stampRun, stampTested } from '../tested.js'
+import { tuplesOf } from './tuples.js'
 
 type AnyOperator = Operator<ReadonlyArray<Schema.Top>, Schema.Top>
 
@@ -124,39 +125,6 @@ const samplesOf = (
       schemas.every(schema => decodes(schema)(value)) &&
       Option.match(domain, { onNone: () => true, onSome: within => decodes(within)(value) }),
   )
-
-/** Every tuple of one value from each list. */
-const product = (
-  lists: ReadonlyArray<ReadonlyArray<unknown>>,
-): ReadonlyArray<ReadonlyArray<unknown>> =>
-  lists.reduce<ReadonlyArray<ReadonlyArray<unknown>>>(
-    (tuples, list) => tuples.flatMap(tuple => list.map(value => [...tuple, value])),
-    [[]],
-  )
-
-/** A small seeded generator (mulberry32), so a chosen subset is the same on every run. */
-const random = (seed: number) => {
-  let state = seed >>> 0
-  return () => {
-    state = (state + 0x6d2b79f5) >>> 0
-    let t = state
-    t = Math.imul(t ^ (t >>> 15), t | 1)
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-}
-
-/** At most `limit` of the tuples, a seeded shuffle choosing which when there are more. */
-const chosen = <A>(tuples: ReadonlyArray<A>, limit: number, seed: number): ReadonlyArray<A> => {
-  if (tuples.length <= limit) return tuples
-  const next = random(seed)
-  const shuffled = [...tuples]
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(next() * (i + 1))
-    ;[shuffled[i], shuffled[j]] = [shuffled[j]!, shuffled[i]!]
-  }
-  return shuffled.slice(0, limit)
-}
 
 /** A plain object: what JSON makes, and nothing whose data sits in a prototype. */
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> => {
@@ -268,7 +236,11 @@ const lawPlans = (op: AnyOperator, limit: number, seed: number): ReadonlyArray<L
   return descriptor.laws.map(law => {
     const shared = samplesOf(descriptor.input, law.domain)
     const tuples = (arity: number) =>
-      chosen(product(Array.from({ length: arity }, () => shared)), limit, seed)
+      tuplesOf(
+        Array.from({ length: arity }, () => shared),
+        limit,
+        seed,
+      )
     // The kernel compares text only under a collation, and literals bring none. An
     // implementation is told the collation, and may answer differently under each:
     // a pass under each where `op`, or a witness the law calls, compares text.
@@ -340,12 +312,12 @@ const lawPlans = (op: AnyOperator, limit: number, seed: number): ReadonlyArray<L
           const pairs = each[position]!.flatMap(low =>
             each[position]!.filter(high => order(low, high) < 0).map(high => [low, high] as const),
           )
-          const rest = product(each.filter((_, index) => index !== position))
+          const rest = each.filter((_, index) => index !== position)
           const sign = direction === 'increasing' ? 1 : -1
-          return chosen(product([pairs, rest]), limit, seed).map(([pair, others]) => {
+          return tuplesOf<unknown>([pairs, ...rest], limit, seed).map(([pair, ...others]) => {
             const [low, high] = pair as readonly [unknown, unknown]
             const at = (held: unknown) => {
-              const args = [...(others as ReadonlyArray<unknown>)]
+              const args = [...others]
               args.splice(position, 0, held)
               return args
             }
@@ -551,17 +523,15 @@ export const Conformance = {
       runners.expansion = call => valueOfOperand(Expr.expanded(call), { operators: table })
     }
     const generated = () =>
-      chosen(
-        product(
-          descriptor.input.map(schema => {
-            const text = candidates(Schema.toEncoded(schema).ast).some(
-              value => typeof value === 'string',
-            )
-            // Null only where the schema admits it: a call refuses a null literal otherwise.
-            const nulls = decodes(schema)(null) ? [null] : []
-            return [...nulls, ...samplesOf([schema], Option.none()), ...(text ? [`a${NUL}`] : [])]
-          }),
-        ),
+      tuplesOf(
+        descriptor.input.map(schema => {
+          const text = candidates(Schema.toEncoded(schema).ast).some(
+            value => typeof value === 'string',
+          )
+          // Null only where the schema admits it: a call refuses a null literal otherwise.
+          const nulls = decodes(schema)(null) ? [null] : []
+          return [...nulls, ...samplesOf([schema], Option.none()), ...(text ? [`a${NUL}`] : [])]
+        }),
         options.limit ?? 300,
         options.seed ?? 0,
       )
