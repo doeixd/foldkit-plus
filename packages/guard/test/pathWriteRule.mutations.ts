@@ -44,6 +44,12 @@ export default [
     'if (false) {',
   ),
   edit(
+    'an exists reached through a path reads nothing of its own row',
+    condition,
+    'Exists: ({ via }) => via.slice(0, 1).map(relation => relation.key),',
+    'Exists: () => [],',
+  ),
+  edit(
     'one row decides a rule that reads another, as false',
     condition,
     '          reachesOther(row.guard)',

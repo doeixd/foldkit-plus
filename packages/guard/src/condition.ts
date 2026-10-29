@@ -161,8 +161,14 @@ export const Condition = {
           const dependencies = Query.dependencies(guard.query)
           return [
             ...dependencies.predicate.map(field => field.key),
+            // An exists reached through a path leaves by its first relation as surely
+            // as a path does; one over the row itself reads only its id.
             ...dependencies.reaches.flatMap(reach =>
-              reach._tag === 'Path' ? [reach.via[0]!.key] : [],
+              Match.valueTags(reach, {
+                Path: ({ via }) => [via[0]!.key],
+                Exists: ({ via }) => via.slice(0, 1).map(relation => relation.key),
+                ViewerPath: () => [],
+              }),
             ),
           ]
         },

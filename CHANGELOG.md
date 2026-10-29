@@ -563,6 +563,17 @@ version changed; `pnpm` skips versions already in the registry.
   refuses one without the plugin; the richtext harness, which runs no
   runtime, is exempt by name.
 
+### Security
+
+- **A write rule reaching an exists through a path holds over the row a write
+  leaves.** An Update rule such as "the viewer holds a seat on the note's
+  team" (`Expr.path(Note.relations.team, Expr.exists(Seat.relations.team, …))`)
+  is judged in the write's statement over the stored row, so a write that
+  changes `team` must be refused; only a rule ending in a field was, and a
+  member of one team could move a note into a team they had no seat on. The
+  rule's own relation is now read whether the path ends in a field or an
+  exists. Never published: rules over paths on Update are unreleased.
+
 ### Fixed
 
 - **A write's answer reads back what its own prediction moved** (#265). A

@@ -270,3 +270,122 @@ describe('a write rule over a path, over a writer that cannot judge it', () => {
     )
   })
 })
+
+// A rule reaching through a relation to an exists reads that relation of its own
+// row as surely as a path does: moving the row along it must be refused too.
+describe('a write rule over a path ending in an exists', () => {
+  const Base = {
+    Team: Entity.define('Team', Schema.Struct({ id: Schema.String })),
+    Member: Entity.define('Member', Schema.Struct({ id: Schema.String })),
+    Seat: Entity.define('Seat', Schema.Struct({ id: Schema.String })),
+    Doc: Entity.define('Doc', Schema.Struct({ id: Schema.String, title: Schema.String })),
+  }
+  const Linked = Entity.relate(Base, {
+    Seat: { team: Relation.one(Base.Team), member: Relation.one(Base.Member) },
+    Doc: { team: Relation.one(Base.Team) },
+  })
+  const D = Guards.declare(
+    'Docs',
+    Schema.Struct({ id: Schema.String }),
+    guard => ({
+      seated: guard.row(Linked.Doc, () =>
+        Expr.path(
+          Linked.Doc.relations.team,
+          Expr.exists(
+            Linked.Seat.relations.team,
+            Expr.eq(Linked.Seat.relations.member, Expr.viewer(Linked.Member)),
+          ),
+        ),
+      ),
+    }),
+    { key: user => user.id, unguarded: 'allow', viewer: Linked.Member },
+  )
+  const Doc = Linked.Doc.pipe(Guards.attach(D, { row: { Update: [D.seated] } }))
+  const DocPolicy = D.implement({})
+  const Rehome = Mutation.write(
+    'Rehome',
+    Write.update(
+      Entity.input(Doc, Schema.Struct({ id: Schema.String, teamId: Schema.String }), {
+        teamId: Relation.input(Doc.relations.team),
+      }),
+      { id: 'id' },
+    ),
+  )
+  const Rename = Mutation.write(
+    'Rename',
+    Write.update(Entity.input(Doc, Schema.Struct({ id: Schema.String, title: Schema.String })), {
+      id: 'id',
+    }),
+  )
+  const teams = sqliteTable('teams', { id: text('id').primaryKey() })
+  const members = sqliteTable('members', { id: text('id').primaryKey() })
+  const seats = sqliteTable('seats', {
+    id: text('id').primaryKey(),
+    teamId: text('team_id').notNull(),
+    memberId: text('member_id').notNull(),
+  })
+  const docs = sqliteTable('docs', {
+    id: text('id').primaryKey(),
+    title: text('title').notNull(),
+    teamId: text('team_id').notNull(),
+  })
+  const Db = bind(
+    { Team: Linked.Team, Member: Linked.Member, Seat: Linked.Seat, Doc },
+    {
+      Team: { table: teams },
+      Member: { table: members },
+      Seat: {
+        table: seats,
+        relations: { team: { field: seats.teamId }, member: { field: seats.memberId } },
+      },
+      Doc: {
+        table: docs,
+        visible: GuardDrizzle.visible(DocPolicy, [Doc]).Doc,
+        relations: { team: { field: docs.teamId } },
+      },
+    },
+  )
+  const guarded = GuardServer.writer(Doc, DocPolicy, writer(Db.Doc))
+  const server = RemoteServer.make<Option.Option<{ readonly id: string }>, DrizzleDatabase>({
+    entities: [source(Db.Doc)],
+    mutations: [RemoteServer.write(Rehome, guarded), RemoteServer.write(Rename, guarded)],
+    viewer: DocPolicy.viewer,
+  })
+  const client = new DatabaseSync(':memory:')
+  for (const statement of [
+    'create table teams (id text primary key)',
+    'create table members (id text primary key)',
+    'create table seats (id text primary key, team_id text not null, member_id text not null)',
+    'create table docs (id text primary key, title text not null, team_id text not null)',
+    "insert into teams values ('red'), ('blue')",
+    "insert into members values ('ada'), ('bo')",
+    "insert into seats values ('s1', 'red', 'ada'), ('s2', 'blue', 'bo')",
+    "insert into docs values ('d1', 'Plans', 'red'), ('d2', 'Theirs', 'blue')",
+  ])
+    client.exec(statement)
+  afterAll(() => client.close())
+  const mutate = (mutation: string, input: unknown) =>
+    Effect.runPromise(
+      Effect.result(
+        RemoteServer.handlers(server, as('ada')).FoldkitRemoteMutate({
+          requestId: 'r',
+          mutation,
+          input,
+        }),
+      ).pipe(Effect.provide(databaseLayer(drizzle({ client })))),
+    )
+  const outcome = (result: Result.Result<unknown, { readonly _tag: string }>) =>
+    Result.match(result, { onSuccess: () => 'applied', onFailure: error => error._tag })
+
+  it("lets a seated member change it, and refuses one of another team's", async () => {
+    expect(outcome(await mutate('Rename', { id: 'd1', title: 'Plans, kept' }))).toBe('applied')
+    expect(outcome(await mutate('Rename', { id: 'd2', title: 'Mine now' }))).toBe('Forbidden')
+  })
+
+  it('refuses moving it to a team the writer has no seat on', async () => {
+    expect(outcome(await mutate('Rehome', { id: 'd1', teamId: 'blue' }))).toBe('Forbidden')
+    expect(client.prepare("select team_id from docs where id = 'd1'").get()).toEqual({
+      team_id: 'red',
+    })
+  })
+})
