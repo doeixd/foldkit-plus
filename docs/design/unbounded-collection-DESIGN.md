@@ -18,16 +18,16 @@ every tick.
 
 ```text
 read of a collection relation without a window
-  -> at most maxCollection + 1 children of each parent are selected (ranked per parent)
+  -> each parent asked for its first maxCollection + 1 children (a limit per parent)
   -> a parent with more than maxCollection: the read fails, naming the relation
 ```
 
 1. **A bound per parent, `maxCollection` on `source`, default 100.** It is the
    most children one row may hold for a read of the relation whole. The
-   statement ranks each parent's children (`row_number() over (partition by
-   parent)`), as a windowed read already does, and keeps the first
-   `maxCollection + 1`, so a read selects at most that many per parent however
-   many there are.
+   statement asks each parent for its first `maxCollection + 1` children with
+   a `limit` of its own, as a windowed read asks for its page, so a read
+   selects at most that many per parent however many there are. See "The
+   work, not only the rows" for how.
 2. **Over the bound is refused, not truncated.** A whole list is a bare array
    of refs with no `hasNext`, so a truncated one would read as complete and
    wrong. The read fails with `RemoteServerError` naming the Entity, the
@@ -35,6 +35,51 @@ read of a collection relation without a window
    (`Entity.page`), or to raise `maxCollection` for that Source.
 3. **The inverse side of a one-to-one reads one child.** It already showed only
    the first; it now selects only the first.
+
+## The work, not only the rows (#283)
+
+The first version ranked every child of each parent (`row_number() over
+(partition by parent order by …)`) and kept the first `maxCollection + 1`.
+That bounded the rows sent, not the work: the database still visited and
+ranked the whole partition, so a client polling a parent with 200,000
+children cost about 600 ms a read on SQLite while it returned 101 rows.
+
+Each parent is now asked for its children with its own `limit`, in one
+statement for every parent:
+
+```text
+parents = select parentKey as p from <owner table> where parentKey in (…)
+select parents.p, child from parents, <child table>
+            where parent = parents.p
+              and child in (select child from … where parent = parents.p
+                            order by … limit keep)
+```
+
+Both databases take this form. A Postgres `cross join lateral` was the
+first version; a mutation replacing it with the correlated `in` survived
+(PGlite visits as few rows either way), so it was deleted. SQLite has no
+lateral join; its planner runs the correlated `in` once per
+parent and looks the children up by id, which `EXPLAIN QUERY PLAN` shows as
+`CORRELATED LIST SUBQUERY` over `SEARCH … USING INDEX (parent=?)`. With an
+index on the parent column followed by the order, each parent's walk stops
+after `keep` rows. A through table is ordered by its own column for the
+child (equal to the target's id across the join): SQLite does not carry the
+join's equality into an order, and ordering by the target's id sorted every
+link of the parent. Windows use the same statement, so a page of a large
+collection is bounded the same way.
+
+Without such an index the database still reads and sorts every child of the
+parent; no statement can find the first `keep` in an order no index holds.
+The README says to index the relation.
+
+Coarse timing, 200,000 children under one parent and 101 under another, an
+index on `(parent, id)`, reading both with a bound of 100 (a laptop, one
+run each; the shape matters, not the digits):
+
+| | ranked | a limit per parent |
+| --- | --- | --- |
+| SQLite (`node:sqlite`) | 597 ms | 1.3 ms |
+| PGlite | 199 ms | 3.7 ms |
 
 ## Options considered
 
@@ -64,4 +109,11 @@ read of a collection relation without a window
   the relation, the statement selects no more than the bound plus one per
   parent, `maxCollection` raises it, a windowed read of the same relation is
   unaffected, and the inverse of a one-to-one reads its one child.
+- `packages/remote-drizzle/test/collectionWork.test.ts`, on SQLite and
+  PGlite: the database visits as many child rows for a parent of 20,000 as
+  for one of 5,000, read whole (and refused) or through a window, by a
+  foreign key or a through table. SQLite counts the rows its views pass;
+  Postgres counts them from `explain analyze`, with no timing. Below a few
+  thousand rows Postgres may prefer a sequential scan, so the test compares
+  two sizes past that.
 - Mutations: `collectionBound.mutations.ts`.

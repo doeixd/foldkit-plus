@@ -594,12 +594,17 @@ A collection relation read with no window (`comments: true`) comes back as the
 whole list of refs, which has no `hasNext` to say it was cut short. So the
 Source reads at most `maxCollection` rows of it for one parent (100 unless
 given) and refuses a read that finds more, naming the relation, rather than
-sending the first 100 as all of them. The statement ranks each parent's
-children and selects no more than one past the bound, so a parent with a
-million children costs what one with 101 does, on a read and on every tick of
-`pollLive`. A collection that can grow without limit is read with a window
-(next section); one the application knows is larger but bounded raises the
-bound:
+sending the first 100 as all of them. The statement asks each parent for no
+more than one past the bound, with a `limit` of its own (a correlated `in`,
+on SQLite and Postgres alike), and so does a window for its page.
+With an index on the child's parent column followed by the relation's order
+(by default the child's id; for a through table, its two columns in that
+order), the database stops there, so a parent with a million children costs
+what one with 101 does, on a read and on every tick of `pollLive`. Without
+such an index it still reads and sorts every child of the parent to find the
+first: index the relation you read. A collection that can grow without limit
+is read with a window (next section); one the application knows is larger
+but bounded raises the bound:
 
 ```ts
 const PostSource = source(Post, { maxCollection: 500 })

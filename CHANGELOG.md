@@ -680,11 +680,15 @@ carries `drawn`.
   child of every row it named, and a `pollLive` stream re-read them each
   tick, so a client could make the server read a row's millions of children
   as often as it liked. remote-drizzle's `source` now reads at most
-  `maxCollection` children of one row (default 100) in a statement ranked per
-  parent, and refuses a read that finds more, naming the relation: a whole
-  list cannot say it was cut short. **Breaking** for a page reading a larger
-  collection whole: read it with a window (`Entity.page`), or raise
-  `maxCollection` on its Source. See
+  `maxCollection` children of one row (default 100), and refuses a read that
+  finds more, naming the relation: a whole list cannot say it was cut short.
+  **Breaking** for a page reading a larger collection whole: read it with a
+  window (`Entity.page`), or raise `maxCollection` on its Source. The work is
+  bounded too (#283): each parent is asked for its children with a `limit`
+  of its own (a correlated `in`, on SQLite and Postgres alike) rather
+  than all of them ranked, so with an index on the parent column and the
+  relation's order a parent of a million children costs what one of 101
+  does. A window's page is asked the same way. See
   `docs/design/unbounded-collection-DESIGN.md`.
 - **Every live subscription is held to `maxIdsPerEntity`.**
   `RemoteServer.handlers` passed a live Source's requirements on unchecked,

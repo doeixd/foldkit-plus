@@ -172,6 +172,8 @@ const childSide = (
   readonly table: Table
   readonly parent: AnyColumn
   readonly child: AnyColumn
+  /** The child's id as `table` holds it: `child` itself, or a through table's column. */
+  readonly held: AnyColumn
   readonly join: { readonly table: Table; readonly on: SQL } | undefined
   readonly parentKey: AnyColumn
 } => {
@@ -181,6 +183,7 @@ const childSide = (
         table: relation.entity.table,
         parent: relation.foreignKey,
         child,
+        held: child,
         join: undefined,
         parentKey: relation.localKey,
       }
@@ -188,6 +191,7 @@ const childSide = (
         table: relation.through,
         parent: relation.localColumn,
         child,
+        held: relation.foreignColumn,
         join: { table: relation.entity.table, on: eq(relation.foreignColumn, child) },
         parentKey: idColumn(binding),
       }
@@ -568,22 +572,40 @@ export const source = <P = unknown>(
           const order: ReadonlyArray<OrderTerm> = declared.some(term => term.key === targetId)
             ? declared
             : [...declared, { key: targetId, direction: 'asc' }]
-          const naturalOrder = orderByTerms(order, 'forward')
+          // The same order with the child's id read off the table holding the
+          // parent column, which a join leaves equal: SQLite cannot read an order
+          // of the target's id from an index of a through table, and sorts every
+          // child of the parent to find the first.
+          const heldOrder = order.map(term =>
+            term.key === targetId ? { ...term, key: side.held } : term,
+          )
+          const naturalOrder = orderByTerms(heldOrder, 'forward')
           const parentKeys = [
             ...new Set(
               rows.map(row => row[field]).filter(key => key !== null && key !== undefined),
             ),
           ]
-          // One statement for every parent: rank each parent's children in
-          // `order` and keep the first `keep` of each, so the statement count does
-          // not grow with the parents, nor its rows with their children.
-          const ranked = (where: SQL, order: ReadonlyArray<SQL>, keep: number) => {
-            const ranking = sql`row_number() over (partition by ${side.parent} order by ${sql.join([...order], sql`, `)})`
+          // One statement for every parent, keeping the first `keep` children of
+          // each in `order`: the statement count does not grow with the parents,
+          // nor its rows with their children. Each parent's children are asked
+          // with their own `limit`, through a correlated `in` (SQLite has no
+          // lateral join, and Postgres bounds this form too) rather than all ranked and the rest
+          // dropped, so with an index on the parent column and `order` the
+          // database stops after `keep` of them however many the parent holds.
+          const firstOf = (
+            parents: ReadonlyArray<unknown>,
+            filters: ReadonlyArray<SQL | undefined>,
+            order: ReadonlyArray<SQL>,
+            keep: number,
+          ) => {
             const joined =
               side.join === undefined
                 ? sql`${side.table}`
                 : sql`${side.table} inner join ${side.join.table} on ${side.join.on}`
-            const kept = sql`(select p, k from (select ${side.parent} as p, ${targetId} as k, ${ranking} as rn from ${joined} where ${where}) as ranked where rn <= ${keep})`
+            const each = sql`(select ${side.parentKey} as p from ${binding.table} where ${inArray(side.parentKey, [...parents])}) as foldkit_parents`
+            const own = withFilters(sql`${side.parent} = foldkit_parents.p`, ...filters)
+            const first = sql`select ${targetId} from ${joined} where ${own} order by ${sql.join([...order], sql`, `)} limit ${keep}`
+            const kept = sql`(select foldkit_parents.p, ${targetId} from ${each}, ${joined} where ${side.parent} = foldkit_parents.p and ${targetId} in (${first}))`
             return selectRows(
               database,
               side.table,
@@ -604,7 +626,7 @@ export const source = <P = unknown>(
               })
             }
             const empty = { refs: [] as ReadonlyArray<string>, hasNext: false, hasPrevious: false }
-            const traversalOrder = orderByTerms(order, shape.traversal)
+            const traversalOrder = orderByTerms(heldOrder, shape.traversal)
 
             let keyset: SQL | undefined
             if (shape.cursor !== undefined) {
@@ -622,18 +644,17 @@ export const source = <P = unknown>(
                   message: `Relation "${field}" cursor no longer resolves`,
                 })
               }
-              keyset = keysetWhere(order, keysOf(order, cursorRow), shape.traversal)
+              keyset = keysetWhere(heldOrder, keysOf(order, cursorRow), shape.traversal)
             }
 
             const byParent = new Map<string, Array<Record<string, unknown>>>()
             if (parentKeys.length > 0) {
-              const where = withFilters(
-                inArray(side.parent, parentKeys),
-                relation.where,
-                policyWhere,
-                keyset,
+              const childRows = yield* firstOf(
+                parentKeys,
+                [relation.where, policyWhere, keyset],
+                traversalOrder,
+                shape.pageSize + 1,
               )
-              const childRows = yield* ranked(where, traversalOrder, shape.pageSize + 1)
               for (const child of childRows) {
                 const rows_ = byParent.get(String(child.parent)) ?? []
                 rows_.push(child)
@@ -674,8 +695,9 @@ export const source = <P = unknown>(
           if (parentKeys.length > 0) {
             // A list read whole has no `hasNext` to say it was cut short: one past
             // the bound is read, so a parent holding more is refused, not truncated.
-            const childRows = yield* ranked(
-              withFilters(inArray(side.parent, parentKeys), relation.where, policyWhere),
+            const childRows = yield* firstOf(
+              parentKeys,
+              [relation.where, policyWhere],
               naturalOrder,
               single ? 1 : maxCollection + 1,
             )
