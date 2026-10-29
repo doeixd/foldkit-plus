@@ -179,8 +179,9 @@ asks to keep the time of the attempt that landed. The rule:
   revision compares its new time with the stored one and conflicts with
   itself. That comparison is `foldkit-remote-drizzle`'s (`holdsWritten`); by
   the rule above it should leave out the fields the write sets on its own
-  clock, since a retry's time is not evidence the write differs. It is left
-  to that package.
+  clock, since a retry's time is not evidence the write differs. It does:
+  `bind` names those fields (`EntityBinding.clocked`), and `holdsWritten`
+  leaves them out.
 
 ## Deferred
 

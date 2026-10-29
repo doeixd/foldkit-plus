@@ -137,6 +137,12 @@ export interface EntityBinding<
    */
   readonly invariants: ReadonlyArray<Invariant>
   /**
+   * The fields the bound Entity sets from the write's clock (`Entity.sets`
+   * with `Expr.now`): a retry stamps them anew, so a writer telling a retry
+   * from another write leaves them out. None for a binding made from a table.
+   */
+  readonly clocked?: ReadonlyArray<string> | undefined
+  /**
    * How its expressions' primitive operators run: in SQL (queries, `when`,
    * invariants, Read rules) and in memory (a predicate decided from the input
    * alone, a write's miss explained, an insert judged). Both kernels unless

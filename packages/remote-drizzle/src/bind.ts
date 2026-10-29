@@ -481,6 +481,9 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
       relations,
       computed,
       invariants: Domain.Entity.invariants(entity),
+      clocked: Object.entries(entity.sets)
+        .filter(([, set]) => set.value._tag === 'Now')
+        .map(([field]) => field),
       operators,
       reach,
       ...(config.visible === undefined ? {} : { visible: config.visible }),

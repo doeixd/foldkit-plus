@@ -890,6 +890,11 @@ carries `drawn`.
   attempt's time, the same `now` while it lies within `clockSkew`, else the
   server's clock then. A ledger keeps the first time. The remote-server
   README says so, and `docs/design/ops-4-captured-now-DESIGN.md` records why.
+  An unledgered update pinned to a revision, sent again after it landed, no
+  longer conflicts with itself: remote-drizzle's writer leaves the fields
+  `Entity.sets` fills from the clock out of telling such a retry, so it is
+  answered with the row it wrote, at the time that landed (`EntityBinding`
+  gains `clocked`, which `bind` fills).
 - **The docs date a mutation answer by the clock that dates it** (#292). The
   remote README, the skill and `docs/remote.md` said `MutationSucceeded.now`
   came from `Data.mutate`'s `now` option, `Date.now` by default. It is

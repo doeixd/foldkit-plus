@@ -1507,13 +1507,20 @@ export const writer = <P = unknown>(
       return set
     })
 
-  /** Whether `row` holds what a write set: each value, and each link as its ref. */
+  const clocked = new Set(binding.clocked ?? [])
+  /**
+   * Whether `row` holds what a write set: each value, and each link as its ref.
+   * A field set from the write's clock is left out: a retry is stamped anew, and
+   * its time is no evidence the write differs (#291).
+   */
   const holdsWritten = (
     row: Readonly<Record<string, unknown>>,
     values: Readonly<Record<string, unknown>>,
     links: Readonly<Record<string, Option.Option<EntityRef>>>,
   ): boolean =>
-    Object.entries(values).every(([key, value]) => sameStored(row[key], value)) &&
+    Object.entries(values).every(
+      ([key, value]) => clocked.has(key) || sameStored(row[key], value),
+    ) &&
     Object.entries(links).every(([key, link]) =>
       sameStored(
         row[key],
