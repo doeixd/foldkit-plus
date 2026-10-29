@@ -56,13 +56,17 @@ const nullsLast = (term: OrderTerm): boolean =>
 /** The Postgres column types a collation applies to; an id of type `uuid` takes none. */
 const postgresText = new Set(['PgText', 'PgVarchar', 'PgChar'])
 
+/** The Postgres enum column types: ordered by declaration, so collated as their labels' text. */
+const postgresEnum = new Set(['PgEnumColumn', 'PgEnumObjectColumn'])
+
 /**
  * The column under the term's collation, and a cursor value made comparable to
  * it; none when the column compares as it is (no collation, or `binary` on a
  * Postgres column that is not text, a `uuid` say, which takes no collation and
  * orders by bytes already). Folding ASCII on Postgres lowers both sides; every
  * other collation is said on the column alone, which SQL applies to the
- * comparison.
+ * comparison. A Postgres enum orders by the order its labels were declared
+ * in, so it is collated as its labels' text.
  */
 export const collatedColumn = (
   column: AnyColumn,
@@ -71,13 +75,17 @@ export const collatedColumn = (
   const plain = (value: unknown) => value
   if (collation === undefined) return Option.none()
   const postgres = is(column, PgColumn)
+  const text =
+    postgres && postgresEnum.has(column.columnType) ? sql`cast(${column} as text)` : sql`${column}`
+  const collates =
+    !postgres || postgresText.has(column.columnType) || postgresEnum.has(column.columnType)
   return Match.value(collation).pipe(
     Match.tagsExhaustive({
       Binary: () =>
         !postgres
           ? Option.some({ key: sql`${column} collate binary`, value: plain })
-          : postgresText.has(column.columnType)
-            ? Option.some({ key: sql`${column} collate "C"`, value: plain })
+          : collates
+            ? Option.some({ key: sql`${text} collate "C"`, value: plain })
             : Option.none(),
       // Folded under "C" on both sides: Postgres's `lower` follows the collation
       // of what it folds, and under a UTF-8 one folds `É` too, which the
@@ -86,15 +94,15 @@ export const collatedColumn = (
       AsciiFold: () =>
         !postgres
           ? Option.some({ key: sql`${column} collate nocase`, value: plain })
-          : postgresText.has(column.columnType)
+          : collates
             ? Option.some({
-                key: sql`lower(${column} collate "C")`,
+                key: sql`lower(${text} collate "C")`,
                 value: (value: unknown) => sql`lower(${value} collate "C")`,
               })
             : Option.none(),
       // The compiler refuses a locale on SQLite, which has none.
       Locale: ({ locale }) =>
-        Option.some({ key: sql`${column} collate ${sql.identifier(locale)}`, value: plain }),
+        Option.some({ key: sql`${text} collate ${sql.identifier(locale)}`, value: plain }),
     }),
   )
 }

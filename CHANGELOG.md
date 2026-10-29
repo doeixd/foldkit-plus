@@ -753,6 +753,12 @@ carries `drawn`.
 
 ### Fixed
 
+- **A Postgres enum ordered under a collation orders by its labels** (#300).
+  remote-drizzle collated only text columns on Postgres, so an enum column
+  under `Collation.asciiFold` or `binary` kept Postgres's own order, the order
+  its labels were declared in, and its pages disagreed with `evaluate` and
+  SQLite. An enum is now ordered and paged as its labels' text under the
+  term's collation.
 - **A check's answer is taken only for the form it was asked about** (#303).
   An answer was matched by key and draft alone, so one asked with `id: p1`
   could approve a slug after the id became `p2` and release a waiting submit.
