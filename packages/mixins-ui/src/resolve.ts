@@ -51,7 +51,9 @@ export const resolveFor =
     const builders = buildersOf(slots, mixins, context)
     const out: Record<string, unknown> = Object.assign(Object.create(null), base)
     for (const name of Object.getOwnPropertyNames(slots as object)) {
-      out[name] = builders[name as keyof Slots].attrs(base[name as keyof Slots])
+      // A slot the base leaves out, named `constructor`, must not read `Object`.
+      const own = Object.hasOwn(base, name) ? base[name as keyof Slots] : undefined
+      out[name] = builders[name as keyof Slots].attrs(own)
     }
     return out as Resolved<Base, Slots, Message>
   }

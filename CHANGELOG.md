@@ -760,6 +760,10 @@ carries `drawn`.
 
 ### Fixed
 
+- **`resolve` gives a slot named `constructor`, `toString` or
+  `__proto__` that the base leaves out no attributes**. It read the base
+  bundle through the prototype and threw "not iterable" on `Object`'s
+  member; it now reads the base's own keys alone.
 - **A slot, variant axis, token group or knob named `__proto__`,
   `constructor` or `toString` is read and written as its own key**.
   Recipes read such an axis from the selection through the prototype, so
