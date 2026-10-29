@@ -86,7 +86,8 @@ const ticks = (
   source: EntitySource<string, DrizzleDatabase>,
   options: PollOptions,
   writes: ReadonlyArray<() => void>,
-  ids: ReadonlyArray<string> = ['t1'],
+  /** Each subscribed row, asked for `fields`, or for fields of its own. */
+  ids: ReadonlyArray<string | readonly [string, ReadonlyArray<string>]> = ['t1'],
   fields: ReadonlyArray<string> = ['title'],
   /** Each patch's `changed`, in the order sent. */
   changed: Array<ReadonlyArray<string>> = [],
@@ -97,7 +98,11 @@ const ticks = (
       const { queries = [], ...poll } = options
       const fiber = yield* pollLive(source, { every: '1 second', ...poll })
         .subscribe({
-          requirements: ids.map(id => ({ entity: 'Todo', id, fields: [...fields] })),
+          requirements: ids.map(row =>
+            typeof row === 'string'
+              ? { entity: 'Todo', id: row, fields: [...fields] }
+              : { entity: 'Todo', id: row[0], fields: [...row[1]] },
+          ),
           queries,
           after: 0,
           principal: 'ada',
@@ -223,6 +228,50 @@ describe('pollLive reading as a read answers the principal', () => {
     const { state, source, write } = table()
     const seen = await ticks(declared(source), {}, [write('t1', undefined)], ['t1'], ['done'])
     expect(seen).toEqual([])
+    expect(state.calls).toBe(0)
+  })
+
+  it('reports no deletion of such a row read beside one it may read', async () => {
+    const { source, write } = table({ t1: 'Milk', t2: 'Eggs' })
+    const seen = await ticks(
+      declared(source),
+      {},
+      [write('t1', undefined)],
+      [
+        ['t1', ['done']],
+        ['t2', ['title']],
+      ],
+    )
+    expect(seen).toEqual([])
+  })
+
+  /** Every row of the table, listed live with `fields` selected. */
+  const listing = (
+    state: ReturnType<typeof table>['state'],
+    fields: ReadonlyArray<string>,
+  ): LiveQuery<DrizzleDatabase> => ({
+    identity: 'AllTodos',
+    select: { entity: 'Todo', fields: [...fields] },
+    edges: Effect.sync(() =>
+      Object.keys(state.rows).map(id => ({ entity: 'Todo', id, key: `Todo:${id}` })),
+    ),
+  })
+
+  it('reads a listed row as it reads a subscribed one', async () => {
+    const { state, source, write } = table()
+    const changed: Array<ReadonlyArray<string>> = []
+    const list = listing(state, ['title', 'done', 'constructor'])
+    await ticks(declared(source), { queries: [list] }, [write('t1', 'Oat milk')], [], [], changed)
+    expect(state.fields).toEqual([['title'], ['title']])
+    expect(changed).toEqual([['title']])
+  })
+
+  it('reads no listed row the principal may read nothing selected of', async () => {
+    const { state, source, write } = table()
+    const list = listing(state, ['done'])
+    const seen = await ticks(declared(source), { queries: [list] }, [write('t1', 'Oat')], [])
+    // Opened as every list is, and nothing joins it.
+    expect(seen).toEqual(['ConnectionInvalidate AllTodos'])
     expect(state.calls).toBe(0)
   })
 })

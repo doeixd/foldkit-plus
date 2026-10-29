@@ -18,7 +18,7 @@ export default [
   ),
   edit(
     "a subscribed row's field compares by identity",
-    'heldOf(values, group.fields).filter(\n                field => !Equal.equals(before?.[field], values[field]),',
-    'heldOf(values, group.fields).filter(\n                field => before?.[field] !== values[field],',
+    'heldOf(values, own).filter(\n                field => !Equal.equals(before?.[field], values[field]),',
+    'heldOf(values, own).filter(\n                field => before?.[field] !== values[field],',
   ),
 ]

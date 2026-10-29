@@ -36,15 +36,28 @@ const requirementsFor = (count: number) =>
     { entity: 'Todo', id: `t${at}`, fields: ['title', 'id'] },
   ]).flat()
 
+/** `count` distinct ids, each asked with fields no other is: a set of fields of its own. */
+const scatteredFor = (count: number) =>
+  Array.from({ length: count }, (_, at) => ({
+    entity: 'Todo',
+    id: `t${at}`,
+    fields: ['title', `extra${at}`],
+  }))
+
 /** Opens a live stream for `count` ids and lets `ticks` polls run; how it ended, if it did. */
-const poll = (source: EntitySource<string, DrizzleDatabase>, count: number, ticks: number) =>
+const poll = (
+  source: EntitySource<string, DrizzleDatabase>,
+  count: number,
+  ticks: number,
+  requirements = requirementsFor,
+) =>
   Effect.runPromise(
     Effect.gen(function* () {
       const client = yield* RpcTest.makeClient(RemoteRpc)
       const fiber = yield* client
         .FoldkitRemoteLive({
           version: REMOTE_PROTOCOL_VERSION,
-          requirements: requirementsFor(count),
+          requirements: requirements(count),
           after: 0,
         })
         .pipe(Stream.runDrain, Effect.flip, Effect.forkChild)
@@ -90,6 +103,13 @@ describe('pollLive under maxIdsPerEntity', () => {
     const { reads, source } = counted()
     expect(await poll(source, LIMIT, 3)).toBe('running')
     // The opening read and three ticks.
+    expect(reads).toHaveLength(4)
+    for (const ids of reads) expect(ids).toEqual(['t0', 't1', 't2'])
+  })
+
+  it('reads its rows in one read a tick, however many sets of fields they are asked with', async () => {
+    const { reads, source } = counted()
+    expect(await poll(source, LIMIT, 3, scatteredFor)).toBe('running')
     expect(reads).toHaveLength(4)
     for (const ids of reads) expect(ids).toEqual(['t0', 't1', 't2'])
   })

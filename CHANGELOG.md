@@ -579,6 +579,15 @@ version changed; `pnpm` skips versions already in the registry.
   name it, on a row or a list read live) was sent every subscribed row in full
   on every tick, a flood one request could keep up. Fields now compare by
   value (`Equal.equals`). Never published: `pollLive` is unreleased.
+- **`pollLive` reads its subscribed rows in one read a tick.** It read once
+  for each distinct set of fields its rows were asked with, so a subscriber
+  asking each of `maxIdsPerEntity` rows for a field set of its own made every
+  tick that many statements (1000 by default, four times a second) from one
+  request. A tick now reads every row together, with every field any of them
+  asks that the principal may read, and compares each row on its own fields;
+  a row asked for nothing it may read is still never read. The new
+  `RemoteServer.allowedFields` says which fields a read answers without
+  reading. Never published.
 
 ### Fixed
 

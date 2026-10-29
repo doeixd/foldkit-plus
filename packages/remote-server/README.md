@@ -641,6 +641,11 @@ const asReader = RemoteServer.readAs(ProjectSource, {
 // the principal may read none of the fields asked.
 ```
 
+`RemoteServer.allowedFields(ProjectSource, principal, fields)` says which of
+`fields` that read would read, without reading: a Source reading several rows
+together, each asked for fields of its own, reads them in one read and still
+tells nothing of a row whose fields the principal may read none of.
+
 A live Source that sends only what it reads through one Source names it as
 `reads`, so a startup check can trust it as far as it trusts that Source:
 `GuardServer.validate` accepts a live Source over a guarded Entity only when

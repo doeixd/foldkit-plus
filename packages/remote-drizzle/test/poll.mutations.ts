@@ -19,8 +19,8 @@ export default [
   ),
   edit(
     'every subscribed row is read, logged or not',
-    'const ids = group.ids.filter(reads)',
-    'const ids = group.ids',
+    'const ids = [...asked.keys()].filter(reads)',
+    'const ids = [...asked.keys()]',
   ),
   edit(
     'an unreadable log reads nothing',
@@ -66,14 +66,19 @@ export default [
     'if (Option.isNone(listed)) readAt = readAt',
   ),
   edit(
-    'a group reads its fields sorted, not in the order asked',
-    '{ fields: [...fields], ids: [id] }',
-    '{ fields: [...fields].sort(), ids: [id] }',
+    'a row compares its fields sorted, not in the order asked',
+    'if (allowed.length > 0) asked.set(id, allowed)',
+    'if (allowed.length > 0) asked.set(id, [...allowed].sort())',
   ),
   edit(
     'each subscribed row is read on its own',
-    'const answered = yield* read(ids, group.fields)',
-    'const answered = Option.some((yield* Effect.forEach(ids, id => read([id], group.fields))).flatMap(one => Option.getOrElse(one, () => [])))',
+    'const answered = ids.length === 0 ? Option.none() : yield* read(ids, fields)',
+    'const answered = ids.length === 0 ? Option.none() : Option.some((yield* Effect.forEach(ids, id => read([id], fields))).flatMap(one => Option.getOrElse(one, () => [])))',
+  ),
+  edit(
+    'a row asked for nothing the principal may read is read beside the rest',
+    'if (allowed.length > 0) asked.set(id, allowed)',
+    'asked.set(id, [...fields])',
   ),
   // `readAs` is how pollLive keeps to what a read may answer; each of these
   // breaks that check in memory only, to prove `poll.test.ts` notices.

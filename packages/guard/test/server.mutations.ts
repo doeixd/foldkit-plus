@@ -378,8 +378,8 @@ export default [
     edits: [
       {
         file: poll,
-        find: 'const changed = heldOf(values, group.fields).filter(',
-        replace: 'const changed = group.fields.filter(',
+        find: 'const changed = heldOf(values, own).filter(',
+        replace: 'const changed = own.filter(',
       },
     ],
     tests,

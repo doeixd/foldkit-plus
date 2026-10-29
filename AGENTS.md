@@ -1064,6 +1064,19 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   added later beside it, re-read any number of ids every tick. Check a
   client-chosen size where the request is decoded (`FoldkitRemoteLive`'s
   admission), before any consumer sees it.
+- **Bounding ids does not bound statements.** `pollLive` read once per
+  distinct field set its rows asked, so a client asking each of 1000 rows
+  for a set of its own made each tick 1000 reads; and it compared fields by
+  identity, so a collection relation's refs, a new array each read, patched
+  every row every tick. Bound the work a client-shaped request does per tick
+  (one read, then compare each row on its own fields), and compare polled
+  values with `Equal.equals`.
+- **An exists reached through a path leaves its row too.** The guard refused
+  a write that changed what a path rule reads of its own row by naming each
+  `Path`'s first relation; an `Expr.path(rel, Expr.exists(…))` is an
+  `Exists` with a `via`, and was skipped, so a member moved a note into a
+  team they had no seat on. Match every reach variant
+  (`Path`, `Exists`, `ViewerPath`) when deriving what a rule reads.
 
 - **A body's `fields` are its own row's; what it reaches is in `reaches`.**
   `Query.dependencies(...).predicate` and `dependenciesOf(...).fields` hold

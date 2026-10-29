@@ -2436,6 +2436,13 @@ export const RemoteServer = {
    */
   readAs,
 
+  /**
+   * The fields of `fields` that `readAs` reads for `principal`: those the
+   * source declares and its `authorize` allows, in the order asked. Asks
+   * nothing of the store.
+   */
+  allowedFields,
+
   /** Streams live entity patches for a client's live requirements. */
   live: <P = unknown, R = never>(
     entity: EntityName,

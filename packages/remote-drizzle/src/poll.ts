@@ -92,8 +92,9 @@ const picked = (
  * to the last entry read, reads everything, as with no log. A list whose read
  * fails is asked again from the same entry on the next tick; a subscribed
  * row's failed read fails the stream, and the client's reconnect reads again.
- * The subscribed rows are read once a tick for each set of fields they ask;
- * `RemoteServer.handlers` admits no more of them than its `maxIdsPerEntity`.
+ * The subscribed rows are read in one read a tick, of every field any of them
+ * asks the principal may read; `RemoteServer.handlers` admits no more of them
+ * than its `maxIdsPerEntity`.
  */
 export const pollLive = <P, R>(
   source: EntitySource<P, R>,
@@ -115,18 +116,17 @@ export const pollLive = <P, R>(
     }
     const watched = queries.filter(query => query.select.entity === source.entity)
     if (wanted.size === 0 && watched.length === 0) return Stream.never
-    // The subscribed rows by the fields they are read with: one read a group.
-    const groups = new Map<
-      string,
-      { readonly fields: Array<string>; readonly ids: Array<string> }
-    >()
+    // Each subscribed row by the fields asked of it that the principal may read,
+    // in the order asked: a patch's `changed` keeps it. A row it may read none
+    // of is never read, so it is not told apart from a gone one.
+    const asked = new Map<string, ReadonlyArray<string>>()
     for (const [id, fields] of wanted) {
-      // Keyed by the set, read in the order asked: a patch's `changed` keeps it.
-      const key = JSON.stringify([...fields].sort())
-      const group = groups.get(key)
-      if (group === undefined) groups.set(key, { fields: [...fields], ids: [id] })
-      else group.ids.push(id)
+      const allowed = RemoteServer.allowedFields(source, principal, [...fields])
+      if (allowed.length > 0) asked.set(id, allowed)
     }
+    // Read together, so a tick is one read however the subscriber spreads its
+    // fields over its rows: asking each row for fields of its own would make it one a row.
+    const fields = [...new Set([...asked.values()].flat())]
     const { changes } = options
     return Stream.unwrap(
       Effect.gen(function* () {
@@ -141,10 +141,11 @@ export const pollLive = <P, R>(
         // What each subscribed row holds when the stream opens: a change that
         // landed before it is already in it, so open the stream before the change.
         const previous = new Map<string, Readonly<Record<string, unknown>>>()
-        for (const { ids, fields } of groups.values()) {
-          const records = yield* read(ids, fields)
-          if (Option.isNone(records)) continue
-          for (const record of records.value) previous.set(record.id, record.values)
+        if (asked.size > 0) {
+          const records = yield* read([...asked.keys()], fields)
+          for (const record of Option.getOrElse(records, () => [])) {
+            previous.set(record.id, record.values)
+          }
         }
 
         /** One watched list's state in this stream. */
@@ -353,14 +354,12 @@ export const pollLive = <P, R>(
           const patches: Array<LivePatch> = []
           const patched = new Set<string>()
           const deleted = new Set<string>()
-          for (const group of groups.values()) {
-            const ids = group.ids.filter(reads)
-            if (ids.length === 0) continue
-            const answered = yield* read(ids, group.fields)
-            // Nothing asked may be read: no row is told apart from a gone one.
-            if (Option.isNone(answered)) continue
+          const ids = [...asked.keys()].filter(reads)
+          const answered = ids.length === 0 ? Option.none() : yield* read(ids, fields)
+          if (Option.isSome(answered)) {
             const records = new Map(answered.value.map(record => [record.id, record.values]))
-            for (const id of ids) {
+            for (const [id, own] of asked) {
+              if (!reads(id)) continue
               const values = records.get(id)
               const before = previous.get(id)
               if (values === undefined) {
@@ -371,7 +370,7 @@ export const pollLive = <P, R>(
                 }
                 continue
               }
-              const changed = heldOf(values, group.fields).filter(
+              const changed = heldOf(values, own).filter(
                 field => !Equal.equals(before?.[field], values[field]),
               )
               if (changed.length === 0) continue

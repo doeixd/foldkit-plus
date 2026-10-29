@@ -1488,7 +1488,7 @@ A stream reads each list silently when it opens, then sends
 while it was down) asks again.
 
 Without `changes`, every tick (`every`, 250 milliseconds by default) reads
-every subscribed row, in one read for each set of fields asked, and each
+every subscribed row, in one read of every field any of them asks, and each
 live list's window. `rowChangeLog(Db.Todo)` is the SQLite statements for a
 table of the rows each write touched and the triggers that fill it, so every
 path that writes the table is logged. With `changes: rowLog(Db.Todo)` a tick
