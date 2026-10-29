@@ -737,6 +737,14 @@ carries `drawn`.
   back. The read now passes the patch's checks: a field or a delete a later
   request settled stays, and a row a later request wrote is not tombstoned by
   the earlier read's absence of it.
+- **A stream the live ledger dropped restarts on its next event** (#289). A
+  dropped stream has no cursor, and cursor `0` was taken for a stream with no
+  baseline yet, so its next event was applied whatever it skipped. A stream's
+  cursors now count on from the `after` it opened with, so a new stream starts
+  at `1`, and a dropped stream's next event is a gap that restarts it.
+  **Breaking** for a `RemoteClient.live` transport whose first event is not
+  `after + 1` (`classifyLive(emptyLiveState, 42)` is now a gap): it must count
+  from `after`, as `RemoteServer`'s hub and remote-drizzle's `pollLive` do.
 - **`Crud.options` reads each listed choice once** (#308). It checked every
   chosen id against a picker's whole list, so a many-picker holding N of N
   loaded choices did quadratic work on each derivation. It groups the held

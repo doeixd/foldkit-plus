@@ -71,14 +71,14 @@ describe('Data.forget', () => {
       stream: 'User:u1:name',
       event: {
         _tag: 'EntityPatched',
-        cursor: 3,
+        cursor: 1,
         ref: { entity: 'User', id: 'u1' },
         values: { name: 'Ada!' },
         changed: ['name'],
       },
       now: 1,
     })
-    expect(entry.modelToDependencies(advanced).cursor).toBe(3)
+    expect(entry.modelToDependencies(advanced).cursor).toBe(1)
     expect(entry.modelToDependencies(Data.forget(advanced)).cursor).toBe(0)
     expect(entry.modelToDependencies(Data.forget(initial))).not.toEqual(
       entry.modelToDependencies(initial),

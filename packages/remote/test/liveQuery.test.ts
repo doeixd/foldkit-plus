@@ -52,7 +52,7 @@ const opened = async (entry: (typeof entries)['red.live'], model: Model) => {
       return Stream.make({
         _tag: 'ConnectionInvalidate',
         connection: All.ref({ tag: 'red' }).identity,
-        cursor: 5,
+        cursor: 1,
       } as const)
     },
   })
@@ -85,7 +85,7 @@ describe('a list read live', () => {
   it('keeps a cursor of its own for each list', async () => {
     const { sent } = await opened(entries['red.live'], initial)
     const heard = sent.reduce(Data.reduce, initial)
-    expect(entries['red.live'].modelToDependencies(heard).cursor).toBe(5)
+    expect(entries['red.live'].modelToDependencies(heard).cursor).toBe(1)
     expect(entries['blue.live'].modelToDependencies(heard).cursor).toBe(0)
   })
 

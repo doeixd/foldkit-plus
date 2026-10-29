@@ -10,7 +10,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Entity as DomainEntity } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
-import { Remote, type RemoteMessage } from '../src/index.js'
+import { Remote, isTombstone, type RemoteMessage } from '../src/index.js'
 
 const Post = DomainEntity.define('Post', Schema.Struct({ id: Schema.String, body: Schema.String }))
 const Model = Schema.Struct({ remote: Remote.Model })
@@ -68,6 +68,33 @@ describe('The live ledger', () => {
 
     expect(heard.remote.live[keys[0]!]?.cursor).toBe(2)
     expect(heard.remote.live[keys[1]!]).toBeUndefined()
+  })
+
+  // A dropped stream has no cursor, which once read as a stream with no
+  // baseline yet, so its next event was applied whatever it skipped (#289).
+  it('meets the next event of a stream it dropped as a gap, which restarts it', () => {
+    const opened = keys
+      .slice(0, 257)
+      .map(stream => patched(stream, 1))
+      .reduce(Data.reduce, { remote: Remote.initial })
+    expect(opened.remote.live[keys[0]!]).toBeUndefined()
+
+    const next = Data.reduce(opened, {
+      _tag: 'LiveReceived',
+      stream: keys[0]!,
+      event: { _tag: 'EntityDeleted', ref: { entity: 'Post', id: 'p1' }, cursor: 3 },
+      now: 2,
+    })
+
+    expect(next.remote.gaps.has(keys[0]!)).toBe(true)
+    expect(next.remote.streams[keys[0]!]?.restarts).toBe(1)
+    expect(isTombstone(next.remote.entities, 'Post:p1')).toBe(false)
+  })
+
+  it('applies the first event of a stream opened from the start', () => {
+    const model = Data.reduce({ remote: Remote.initial }, patched(keys[0]!, 1))
+    expect(model.remote.live[keys[0]!]?.cursor).toBe(1)
+    expect(model.remote.gaps.size).toBe(0)
   })
 
   it('keeps no gap for a stream whose health it dropped', () => {

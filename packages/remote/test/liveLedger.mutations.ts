@@ -64,4 +64,26 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a stream with no cursor applies any event',
+    edits: [
+      {
+        file: '../src/live.ts',
+        find: "cursor === state.cursor + 1 ? 'applied' : 'gap'",
+        replace: "state.cursor === 0 || cursor === state.cursor + 1 ? 'applied' : 'gap'",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a stream opened from the start skips its first event',
+    edits: [
+      {
+        file: '../src/live.ts',
+        find: "cursor === state.cursor + 1 ? 'applied' : 'gap'",
+        replace: "cursor === state.cursor + 1 && state.cursor > 0 ? 'applied' : 'gap'",
+      },
+    ],
+    tests,
+  },
 ]

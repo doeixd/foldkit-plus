@@ -593,7 +593,9 @@ const ProjectLive = RemoteServer.live(Project, {
 })
 ```
 
-`after` is the client's resume cursor. Events at or before it are duplicates.
+`after` is the client's resume cursor. Events at or before it are duplicates,
+and the stream's cursors count on from it: its first event is `after + 1`, or
+the client takes the skipped cursors for a gap and restarts the stream.
 The stream carries Remote `LiveChange`s: entity patches/deletes and connection
 insert/remove/invalidate events.
 

@@ -32,8 +32,9 @@ describe('Live data', () => {
     expect(classifyLive({ ...emptyLiveState, cursor: 5 }, 7)).toBe('gap')
   })
 
-  it('accepts a first cursor that is not 1 (no spurious gap on subscribe)', () => {
-    expect(classifyLive(emptyLiveState, 42)).toBe('applied')
+  it('counts on from the cursor a stream opened after, from 1 at the start (#289)', () => {
+    expect(classifyLive(emptyLiveState, 1)).toBe('applied')
+    expect(classifyLive(emptyLiveState, 42)).toBe('gap')
     expect(classifyLive({ ...emptyLiveState, cursor: 42 }, 43)).toBe('applied')
     expect(classifyLive({ ...emptyLiveState, cursor: 42 }, 44)).toBe('gap')
     expect(classifyLive({ ...emptyLiveState, cursor: 42 }, 42)).toBe('duplicate')

@@ -1108,9 +1108,11 @@ handler's write and raw SQL are held to the invariants and move the revision too
   that way is stale, so going back reads `Refreshing` and refetches it.
 - `staleWhileRevalidate` ages entities only; connections refetch only when
   invalidated, left and gone back to, or under `networkOnly`.
-- Live cursors: duplicates ignored, an ahead-of-cursor event is a **gap** (not
+- Live cursors count on from the `after` a stream opened with (a new stream's
+  first event is `1`): duplicates ignored, an ahead-of-cursor event is a **gap** (not
   applied, recorded in `remote.gaps`). It restarts the stream; only the
-  restart clears it, not a later in-order event.
+  restart clears it, not a later in-order event. A stream the 256-stream
+  ledger dropped meets its next event as a gap.
 - Coalescing is per `RemoteClient` layer; separate layers do not share batches.
 - Wire limits: 256 fields per entity request, relation depth 8; protocol version
   mismatch fails with `RemoteProtocolError`.

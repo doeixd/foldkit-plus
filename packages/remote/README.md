@@ -2044,7 +2044,8 @@ source that watches lists (`foldkit-remote-drizzle`'s `pollLive`) diffs it;
 list changes only when read again.
 
 The Remote Model owns each stream's cursor. Live events carry monotonically
-ordered cursors:
+ordered cursors, counting on from the cursor the stream was opened after (`0`
+for a new stream, so its first event is `1`):
 
 - an old/repeated cursor is a duplicate and is ignored;
 - the next cursor is applied;
@@ -2105,8 +2106,8 @@ with every other server-derived fact.
 The live ledger (`live`, `streams`, `gaps`) keeps the 256 streams most
 recently heard from. Retention cannot prune it by what is shown: its roots
 merge every Surface's requirements, and a stream is one Surface's. A stream
-dropped while still open meets its next event as a gap, so it restarts and
-refetches what it covers.
+dropped while still open has no cursor, so its next event, past `1`, is a
+gap: it restarts from the start and refetches what it covers.
 
 ## Retention and garbage collection
 
