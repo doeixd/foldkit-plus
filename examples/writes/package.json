@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "effect": "^4.0.5",
+    "foldkit-surface": "workspace:*",
     "typescript": "7.0.2"
   }
 }

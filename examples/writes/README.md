@@ -13,7 +13,7 @@ domain.ts   Product · who may change it (Shop) · what every row holds (an inva
             and every change (a transition invariant) · Rename · Publish · Revert · Restock · Sell
             (data: no query, no table)
 server.ts   products table, its invariant as a CHECK · GuardServer.writer(…, { revision })
-            RemoteServer.write
+            RemoteServer.write · the product's Source, filtered by its rules
 demo.ts     each write sent as a client sends it, and what the server answered
 ```
 
@@ -109,11 +109,26 @@ row: {"name":"Bolt, M6","status":"published","stock":10,"reserved":2,"revision":
   invariant as declared, so no id is spelled twice.
 
 `GuardServer.validate` runs at startup in `server.ts`. It refuses a write that
-lands through no guarded writer, or whose `when` or `expect` reads a member its
-writer may not read, and warns of a guarded writer with no `revision`.
+lands through no guarded writer, one whose interaction (here `Update`) has no
+rule of its own, or one whose `when` or `expect` reads a member its writer may
+not read, and reports an `UnpinnedWrites` diagnostic for a guarded writer with
+no `revision`.
+
+## The page agrees with the server
+
+`test/law.test.ts` builds a page (`Remote.make` over the same domain) and runs
+`Law.check` from `foldkit-remote/testing` over each write: the write goes
+through the page's own `Data.mutate` and through this server, and every part
+the page predicted (a renamed name, a published status, a stock computed from
+an increment) must be what SQLite then holds, and a write the server refuses
+for its transition invariant must be refused on the page too.
 
 ## Limits
 
+- A transition invariant reads the row before the write, which a `CHECK`
+  cannot, so only the server's declared writes hold `publishedStaysPublished`.
+  The writer says so once, on its first write, as a `ServerOnlyRules`
+  diagnostic: it is the warning the demo prints first.
 - Only an increment is computed; other arithmetic, and copying one field into
   another, are not offered.
 - The revision pin sees only writes that move the revision: a handler or raw SQL
@@ -124,7 +139,9 @@ writer may not read, and warns of a guarded writer with no `revision`.
   record's retention (a day) is a new operation.
 
 On the client, `Data.mutate` shows a pending restock or sale as a predicted sum
-over the stock it holds, re-added as that stock changes, until the answer.
+over the stock it holds, re-added as that stock changes, until the answer. It
+does not yet judge an invariant over that sum: a sale that would leave less in
+stock than is reserved is shown and sent, and only the server refuses it.
 
 The guide is [Declared writes](../../docs/declared-writes.md); see also the [precondition](../../docs/design/write-precondition-DESIGN.md),
 [increment](../../docs/design/write-increment-DESIGN.md) and

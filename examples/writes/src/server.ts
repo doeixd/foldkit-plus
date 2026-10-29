@@ -8,7 +8,13 @@ import { Option } from 'effect'
 import { GuardDrizzle } from 'foldkit-guard/drizzle'
 import { GuardServer } from 'foldkit-guard/server'
 import { Remote } from 'foldkit-remote'
-import { bind, checkConstraints, writer, type DrizzleDatabase } from 'foldkit-remote-drizzle'
+import {
+  bind,
+  checkConstraints,
+  source,
+  writer,
+  type DrizzleDatabase,
+} from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import { Product, Publish, Rename, Restock, Revert, Sell, Shop, type User } from './domain.js'
 
@@ -76,7 +82,8 @@ const ledgered = GuardServer.writer(
 )
 
 export const server = RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
-  entities: [],
+  // A product read back, as its owner may see it: a page reads what it writes.
+  entities: [source(Db.Product, { filter: GuardServer.filter(Product, Policy) })],
   mutations: [
     RemoteServer.write(Rename, guarded),
     RemoteServer.write(Publish, guarded),

@@ -2268,6 +2268,9 @@ importers:
       effect:
         specifier: ^4.0.5
         version: 4.0.5
+      foldkit-surface:
+        specifier: workspace:*
+        version: link:../../packages/surface
       typescript:
         specifier: 7.0.2
         version: 7.0.2
