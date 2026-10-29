@@ -239,8 +239,8 @@ export default [
     edits: [
       {
         file: '../src/view.ts',
-        find: "failed.error._tag === 'Unreachable'",
-        replace: "failed.error._tag === 'Unheard'",
+        find: 'RemoteData.isUnreachable(failed.error)',
+        replace: 'false',
       },
     ],
     tests: page,
