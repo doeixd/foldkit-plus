@@ -24,7 +24,8 @@ version changed; `pnpm` skips versions already in the registry.
   row is there, each list's order) with what the server then holds. What the
   client left unknown is not compared; a check that compared nothing throws.
   remote-drizzle's `law.test.ts` runs it over a test domain on SQLite, PGlite
-  and the locale Postgres job.
+  and the locale Postgres job; Chirp's and the reference app's run it over
+  every write they declare.
 
 - **`may` foreseen for a row the client writes** (#242, operations phase 5).
   `Derived.make(schema, { predict })` says how a client foresees a supplied
