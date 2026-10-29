@@ -179,17 +179,6 @@ export default [
     tests: server,
   },
   {
-    name: 'a guarded writer hides where its row points',
-    edits: [
-      {
-        file: '../../../packages/guard/src/server.ts',
-        find: '...(writer.linked === undefined ? {} : { linked: writer.linked }),',
-        replace: '',
-      },
-    ],
-    tests: server,
-  },
-  {
     name: 'a person counts no posts',
     edits: [
       {

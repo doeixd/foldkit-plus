@@ -110,8 +110,9 @@ const Todo = TodoFields.pipe(
   throws for a guarded Entity whose Source, or a query listing it, lacks the
   rule or filter the guard seams built for it (a hand-written Source would
   serve every row). Every guarded Entity needs both. A query whose body
-  filters or orders by a member with a Read rule is refused too: its answer
-  would tell what the member hides. A declared write of one
+  filters or orders by a member with a Read rule is refused too, a member of
+  a row it reaches through a path or an exists included: its answer would
+  tell what the member hides. A declared write of one
   must land through its `GuardServer.writer`; a handler cannot be checked. A
   field a Source declares `shared` is refused when a Read rule (rows',
   `always`, its own, a relation target's) could tell its readers apart. So are

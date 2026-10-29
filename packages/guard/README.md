@@ -558,7 +558,10 @@ It throws, naming each:
   `cost < $max` halved twenty times reads the cost the row hid. This holds
   whoever asks, since one body serves every principal. Where some readers
   must filter by it, give the value an Entity of its own with a row Read
-  rule: a row a reader may not see is not in their list at all;
+  rule: a row a reader may not see is not in their list at all. A member of
+  another row the body reaches counts too (each relation a path, a path from
+  the viewer or an exists follows, the field it ends at, an exists' filter):
+  SQL reads a reached row under its `visible` rule, never its members';
 - for a declared write of such an Entity that does not land through the
   `GuardServer.writer` built for it;
 - for a live Source over such an Entity that does not read through the Source

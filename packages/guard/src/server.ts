@@ -70,6 +70,42 @@ const hiddenOf = (
   ...new Set(fields.map(field => field.key).filter(key => readRuled(attachment, key))),
 ]
 
+/** A member of a row a body reaches: the Entity it belongs to, by name, and its key. */
+interface ReachedMember {
+  readonly entity: string
+  readonly key: string
+}
+
+/**
+ * Each member a body reads on a row it reaches rather than judges: every
+ * relation a path, a path from the viewer or an exists follows, the field a
+ * path ends at, and an exists' pointing relation and filter. SQL reads such a
+ * row under its `visible` rule alone, never its members'.
+ */
+const reachedMembers = (
+  reaches: ReturnType<typeof dependenciesOf>['reaches'],
+): ReadonlyArray<ReachedMember> =>
+  reaches.flatMap(reached => {
+    const via = reached.via.map(relation => ({ entity: relation.owner.name, key: relation.key }))
+    return Match.valueTags(reached, {
+      Path: ({ field }) => [...via, { entity: field.owner.name, key: field.key }],
+      ViewerPath: ({ field }) => [...via, { entity: field.owner.name, key: field.key }],
+      Exists: ({ relation, where }) => {
+        const filter = Option.match(where, {
+          onNone: () => [],
+          onSome: body => {
+            const read = dependenciesOf(body)
+            return [
+              ...read.fields.map(field => ({ entity: field.entity, key: field.key })),
+              ...reachedMembers(read.reaches),
+            ]
+          },
+        })
+        return [...via, { entity: relation.owner.name, key: relation.key }, ...filter]
+      },
+    })
+  })
+
 /** Each guarded writer's `revision`, or none: one a change can fall between check and write of. */
 const pins = new WeakMap<object, Option.Option<string>>()
 
@@ -738,8 +774,6 @@ export const GuardServer = {
           : []),
       ],
       ...(writer.recorded === undefined ? {} : { recorded: writer.recorded }),
-      // Refs as stored: what a write's answer names, then reads under the asker's rules.
-      ...(writer.linked === undefined ? {} : { linked: writer.linked }),
       read: ({ id, fields, principal }) =>
         seenRow(
           { filter: memberRead },
@@ -956,8 +990,9 @@ export const GuardServer = {
    * `GuardServer.memory`), its Source applies its members' and relations'
    * (`GuardServer.filter`), and each declared write of it lands through
    * `GuardServer.writer`, all built from `policy`; and that no query's body
-   * filters or orders by a member with a Read rule, which would answer for the
-   * value it hides. A hand-written Source over a guarded Entity would serve
+   * filters or orders by a member with a Read rule, its own or one of a row it
+   * reaches through a path or an exists, which would answer for the value it
+   * hides. A hand-written Source over a guarded Entity would serve
    * every row, and a bare writer would take every write; this throws instead,
    * naming each. A handler (`RemoteServer.mutation`) writes what its code
    * writes, which no check at startup can read. A write a change can come
@@ -987,6 +1022,12 @@ export const GuardServer = {
     },
   ): void => {
     const byName = new Map(config.entities.map(entity => [entity.name, entity]))
+    /** Whether a reached member has a Read rule; one of an Entity not validated has none checked. */
+    const hidesFromReach = ({ entity, key }: ReachedMember) =>
+      Option.exists(
+        Option.flatMap(Option.fromUndefinedOr(byName.get(entity)), attached),
+        attachment => readRuled(attachment, key),
+      )
     /** Whether who may read the rows of `entity` depends on who is asking. */
     const rowsRuled = (entity: AnyEntity | undefined) =>
       Option.exists(Option.flatMap(Option.fromUndefinedOr(entity), attached), attachment =>
@@ -1034,7 +1075,17 @@ export const GuardServer = {
           const bodyProblems = [...config.domain.registry.queries].flatMap(
             ([queryName, { body }]) => {
               if (body === undefined || body.entity.name !== name) return []
-              const { predicate, order } = Query.dependencies(body)
+              const { predicate, order, reaches } = Query.dependencies(body)
+              const reached = [
+                ...new Set(
+                  reachedMembers(reaches)
+                    .filter(hidesFromReach)
+                    .map(
+                      ({ entity, key }) =>
+                        `query ${queryName} reaches ${entity}'s ${key}, which has a Read rule`,
+                    ),
+                ),
+              ]
               return [
                 ...hiddenOf(attachment, predicate).map(
                   member =>
@@ -1043,6 +1094,7 @@ export const GuardServer = {
                 ...hiddenOf(attachment, order).map(
                   member => `query ${queryName} orders ${name} by ${member}, which has a Read rule`,
                 ),
+                ...reached,
               ]
             },
           )

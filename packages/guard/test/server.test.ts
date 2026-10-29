@@ -726,6 +726,48 @@ describe('GuardServer.validate', () => {
     )
   })
 
+  it('refuses a body that reaches a member with a Read rule through another row', () => {
+    // SQL reads a reached row under its `visible` rule, never its members': a
+    // path, a path from the viewer, or an exists answers for what each hides.
+    const ByTag = Query.define('ByTag', { tag: Schema.String }, ({ input }) =>
+      Query.from(Todo).pipe(
+        Query.where(Expr.eq(Expr.path(Todo.relations.tag, TagBase.fields.id), input.tag)),
+      ),
+    )
+    const AsNotes = Query.define('AsNotes', {}, () =>
+      Query.from(Project).pipe(
+        Query.where(Expr.eq(Project.fields.name, Expr.path(Expr.viewer(Todo), Todo.fields.notes))),
+      ),
+    )
+    const NotedIn = Query.define('NotedIn', { text: Schema.String }, ({ input }) =>
+      Query.from(Project).pipe(
+        Query.where(
+          Expr.exists(Todo.relations.project, Expr.contains(Todo.fields.notes, input.text)),
+        ),
+      ),
+    )
+    // What a reached row shows everyone says nothing it hides.
+    const Named = Query.define('Named', { name: Schema.String }, ({ input }) =>
+      Query.from(Todo).pipe(
+        Query.where(Expr.eq(Expr.path(Todo.relations.project, Project.fields.name), input.name)),
+      ),
+    )
+    const validating =
+      (query: typeof ByTag | typeof AsNotes | typeof NotedIn | typeof Named) => () =>
+        GuardServer.validate(Policy, {
+          entities: [Todo, Project, Node],
+          domain: Remote.define({
+            entities: [Todo, Project, Node, Tag],
+            queries: [AllTodos, query],
+          }),
+          server: backend(true),
+        })
+    expect(validating(Named)).not.toThrow()
+    expect(validating(ByTag)).toThrow("query ByTag reaches Todo's tag, which has a Read rule")
+    expect(validating(AsNotes)).toThrow("query AsNotes reaches Todo's notes, which has a Read rule")
+    expect(validating(NotedIn)).toThrow("query NotedIn reaches Todo's notes, which has a Read rule")
+  })
+
   it('refuses rules built from another Policy, or another set', () => {
     const Other = G.implement({ isAdmin: () => false })
     expect(() =>

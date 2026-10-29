@@ -504,4 +504,42 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a body may reach what a Read rule hides through a path',
+    edits: [{ file, find: '                ...reached,', replace: '' }],
+    tests,
+  },
+  {
+    name: 'a path from the viewer reads nothing but its relations',
+    edits: [
+      {
+        file,
+        find: 'ViewerPath: ({ field }) => [...via, { entity: field.owner.name, key: field.key }],',
+        replace: 'ViewerPath: () => via,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: "an exists' filter reads nothing",
+    edits: [
+      {
+        file,
+        find: 'return [...via, { entity: relation.owner.name, key: relation.key }, ...filter]',
+        replace: 'return [...via, { entity: relation.owner.name, key: relation.key }]',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a path reads only the field it ends at',
+    edits: [
+      {
+        file,
+        find: 'const via = reached.via.map(relation => ({ entity: relation.owner.name, key: relation.key }))',
+        replace: 'const via: Array<ReachedMember> = []',
+      },
+    ],
+    tests,
+  },
 ]

@@ -313,6 +313,10 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`GuardServer.writer` no longer hands on its writer's `linked`.** It read
+  links as stored, whatever the asker may see; nothing read it from a guarded
+  writer, whose answer names rows through its guarded `read`, and a caller
+  that did would have skipped every Read rule.
 - **Chirp and the reference app declare an author once.** `Post.authorId`,
   `Like.userId` and `Note.authorId` are gone: the `author` and `user` links,
   set by `Entity.sets` from `Expr.viewer`, are the one member over each
@@ -450,6 +454,16 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`GuardServer.validate` refuses a body reaching a hidden member through
+  another row (security).** It refused a query body that filters or orders by
+  a member with a Read rule, but only one of the row it lists: a path
+  (`Expr.path(Todo.relations.tag, Tag.fields.id)`), a path from the viewer,
+  or an exists read the relations they follow, the field a path ends at and
+  an exists' filter unchecked, and SQL reads a reached row under its
+  `visible` rule alone, never its members'. A body comparing such a member
+  with its input answered for it to whoever asked. Each such member of a
+  validated Entity is now refused by name ("query ByTag reaches Todo's tag,
+  which has a Read rule").
 - **Every live subscription is held to `maxIdsPerEntity` (security).**
   `RemoteServer.handlers` passed a live Source's requirements on unchecked,
   so a client could subscribe `pollLive` (`foldkit-remote-drizzle`) or a
