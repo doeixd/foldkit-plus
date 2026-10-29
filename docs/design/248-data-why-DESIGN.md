@@ -71,9 +71,9 @@ predicate is judged over the visible store, as the client placed the row,
 with the viewer the newest pending operation was predicted for:
 
 ```ts
-{ term: 'author = $authorId', truth: 'True' }            // put it in
-{ term: 'status = $status', truth: 'False' }              // took it out
-{ term: 'team.name = $name', truth: 'Unknown', reason: 'Team.name is not held' }
+{ term: 'Post.author = $authorId', truth: 'True', reason: none }      // put it in
+{ term: 'Project.status = $status', truth: 'False', reason: none }    // took it out
+{ term: 'Project.status = $status', truth: 'Unknown', reason: some('Project.status is not held') }
 ```
 
 `truth` is `True`, `False`, `Null` (SQL's unknown: the row is out) or

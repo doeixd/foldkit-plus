@@ -9,6 +9,25 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`Data.why` says why a read is `Loading`, and `Data.timeline` when it
+  became so** (#248). `Data.why(model, read)` lists, in `because`, every fact
+  the Model holds about what the read reads, as typed references (`Why`, a
+  tagged union with an exhaustive `match`): its list or a row's fields
+  `Missing` or `Stale` and whether in flight, with the relation path to the
+  row; a failed list or field (which nothing retries on its own); a field the
+  server settled without a value; a row deleted, and by which write; a live
+  stream reconnecting or refused; a pending write's fields (`Pending`, with
+  its request and mutation); and a row a pending write or an overlay put in a
+  list or took out of it (`Joined`, `Left`), with each `where` term of the
+  list's body judged over the row (`True`, `False`, `Null`, or `Unknown` and
+  what it lacked). The reason that decides the state comes first and
+  `message` says it, with what restarts it. `ReadWhy` is a Schema, so a
+  devtools client gets JSON. `Data.timeline(start, history, reads)` takes
+  recorded (Message, Model) pairs, as Foldkit's devtools records them, and
+  gives each change of each read's tag with the Message, `why` and
+  `regression` (#234's rule); `Trace.regressions` is it kept to regressions,
+  and `Trace.why` is the typed `ReadWhy`. Foldkit's devtools offers no panel
+  for another package, so the timeline is the data a panel would draw.
 - **A list read live** (#270). `Data.query(Q, input, { select, first, live:
   true })` follows the rows that join, change or leave the list while a
   Surface reads it, with no row of its own to subscribe to. The live entry
@@ -426,6 +445,11 @@ version changed; `pnpm` skips versions already in the registry.
   (`process.env.FOLDKIT_BUILD_ID ??= randomUUID()` before `foldkit()` reads
   it). A client and server built with different ids looked like a silent
   fallback to the baseline Model.
+- **Breaking: `Data.why` returns a `ReadWhy`** (#248): `reason` is gone, and
+  its first `because` entry says it (`Why.NotObserved`, `Why.NotFetching`,
+  `Why.NoActiveRecord` for `Unknown`); `surfaces` is an `Option`.
+  `ReadDiagnosis` is removed. `Trace.why` and `Regression.why` are the
+  `ReadWhy`, not its message.
 - **Breaking: `pollLive` takes no `lists`** (#270), and `ListWatch` and
   `ListedEdge` are gone: it watches the lists a subscriber reads live.
   `LiveSource.subscribe` (now a method) takes `queries`, `RemoteClient.live`

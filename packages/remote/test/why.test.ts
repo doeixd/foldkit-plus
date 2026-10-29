@@ -1,34 +1,34 @@
 /**
- * `Data.why`: what a read shows, in words, and for `Initial`, which mistake.
+ * `Data.why`: every fact the Model holds about a read, by typed reference,
+ * the reason that decides its state first (#248).
  *
  * `Initial` means nothing is fetching the read. In the first hour with Remote
  * that is almost always wiring: the Surface that reads it is not active, or it
- * is and Remote's Subscriptions were never installed. Both look identical on
- * screen. Given the active record, the Model can tell them apart.
+ * is and Remote's Subscriptions were never installed. Given the active record,
+ * the Model can tell them apart. Every other state has reasons the read alone
+ * cannot show: which list or which field of which row is missing, stale, in
+ * flight or failed, which pending write shows a value, and which term of a
+ * list's body put a row in it or took it out.
  */
-import { Schema, Option } from 'effect'
-import { defineMessageUnion } from 'foldkit/message'
-import { Entity, Order, Relation } from 'foldkit-entity'
+import { Option, Schema } from 'effect'
+import { Entity, Relation } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
-import { Query, Remote } from '../src/index.js'
-
-const Project = Entity.define(
-  'Project',
-  Schema.Struct({ id: Schema.String, name: Schema.String, status: Schema.String }),
-)
-const All = Query.define('All', {}, () =>
-  Query.from(Project).pipe(Query.orderBy(Order.asc(Project.fields.id))),
-)
-
-const Model = Schema.Struct({ remote: Remote.Model, open: Schema.NullOr(Schema.String) })
-type Model = typeof Model.Type
-const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
-const Data = Remote.make({ model: App.model.remote, entities: [Project], queries: [All] })
-
-const card = Entity.select(Project, { name: true, status: true })
-const project = Data.get(card, 'p1')
-const list = Data.query(All, {}, { select: card, first: 25 })
+import { ReadWhy, Remote, Why } from '../src/index.js'
+import {
+  App,
+  Data,
+  Project,
+  User,
+  card,
+  closed,
+  list,
+  open,
+  p1,
+  project,
+  stored,
+  type Model,
+} from './whyDomain.js'
 
 const Page = App.surface('ProjectPage', {
   params: { projectId: Schema.String },
@@ -51,112 +51,102 @@ const surfaces = {
   ),
 }
 
-const closed: Model = { remote: Remote.initial, open: null }
-const open: Model = { ...closed, open: 'p1' }
-
 describe('Data.why for a read that is Initial', () => {
   it('says it cannot tell without the active record', () => {
-    expect(Data.why(open, project)).toMatchObject({ state: 'Initial', reason: 'Unknown' })
+    const why = Data.why(open, project)
+    expect(why.state).toBe('Initial')
+    expect(why.because[0]).toEqual(Why.NoActiveRecord())
+    expect(why.surfaces).toEqual(Option.none())
   })
 
   it('says no active Surface reads it while the page is closed', () => {
     const why = Data.why(closed, project, { surfaces })
 
-    expect(why).toMatchObject({ state: 'Initial', reason: 'NotObserved', surfaces: [] })
+    expect(why.because[0]).toEqual(Why.NotObserved())
+    expect(why.surfaces).toEqual(Option.some([]))
     expect(why.message).toContain('No active Surface reads it')
   })
 
   it('names the Surface that reads it, and blames the missing Subscriptions', () => {
     const why = Data.why(open, project, { surfaces })
 
-    expect(why).toMatchObject({
-      state: 'Initial',
-      reason: 'NotFetching',
-      surfaces: ['ProjectPage'],
-    })
+    expect(why.because[0]).toEqual(Why.NotFetching({ surfaces: ['ProjectPage'] }))
+    expect(why.surfaces).toEqual(Option.some(['ProjectPage']))
     expect(why.message).toContain('Data.subscriptions')
+  })
+
+  it('says, after the wiring, which fields nothing is fetching', () => {
+    expect(Data.why(open, project, { surfaces }).because.slice(1)).toEqual([
+      Why.Fields({
+        row: p1,
+        via: [],
+        fields: ['name', 'status'],
+        held: 'Missing',
+        inFlight: false,
+      }),
+    ])
   })
 
   it('does not count a Surface that reads only some of it', () => {
     // ProjectTitle reads `name` of p1 and not `status`, so it cannot be why
     // the whole card would be fetched.
-    expect(Data.why(open, project, { surfaces }).surfaces).not.toContain('ProjectTitle')
+    expect(Data.why(open, project, { surfaces }).surfaces).toEqual(Option.some(['ProjectPage']))
   })
 
   it('matches a list by its connection', () => {
-    expect(Data.why(open, list, { surfaces }).reason).toBe('NotObserved')
+    expect(Data.why(open, list, { surfaces }).because[0]).toEqual(Why.NotObserved())
 
     // A Surface with no params is active whenever it is in the record.
     const shown = { ...surfaces, listing: Surface.at(Listing, undefined) }
 
-    expect(Data.why(open, list, { surfaces: shown })).toMatchObject({
-      reason: 'NotFetching',
-      surfaces: ['ProjectList'],
-    })
+    expect(Data.why(open, list, { surfaces: shown }).because[0]).toEqual(
+      Why.NotFetching({ surfaces: ['ProjectList'] }),
+    )
   })
 })
 
 describe('Data.why counts only a Surface that asks for all of the read', () => {
-  const UserBase = Entity.define(
-    'User',
-    Schema.Struct({ id: Schema.String, name: Schema.String, email: Schema.String }),
+  const ownerWith = (fields: { readonly name: true }) =>
+    Entity.select(Project, { owner: Entity.select(User, fields) })
+  const full = Data.get(
+    Entity.select(Project, { name: true, owner: Entity.select(User, { name: true }) }),
+    'p1',
   )
-  const TaskBase = Entity.define('Task', Schema.Struct({ id: Schema.String, title: Schema.String }))
-  const { User, Task } = Entity.relate(
-    { User: UserBase, Task: TaskBase },
-    { Task: { owner: Relation.one(UserBase) } },
-  )
-  const Tasks = Query.define('Tasks', {}, () =>
-    Query.from(Task).pipe(Query.orderBy(Order.asc(Task.fields.id))),
-  )
-  const Work = Remote.make({ model: App.model.remote, entities: [User, Task], queries: [Tasks] })
 
-  const ownerWith = (fields: { readonly name: true; readonly email?: true }) =>
-    Entity.select(Task, { owner: Entity.select(User, fields) })
-  const full = Work.get(ownerWith({ name: true, email: true }), 't1')
-
-  it('not one reading fewer fields of a related entity', () => {
-    const Names = App.surface('OwnerName', {
-      model: () => ({ task: Work.get(ownerWith({ name: true }), 't1') }),
+  it('not one reading fewer fields', () => {
+    const Owner = App.surface('OwnerName', {
+      model: () => ({ project: Data.get(ownerWith({ name: true }), 'p1') }),
     })
 
-    expect(Work.why(open, full, { surfaces: { one: Surface.at(Names, undefined) } }).reason).toBe(
-      'NotObserved',
-    )
+    expect(
+      Data.why(open, full, { surfaces: { one: Surface.at(Owner, undefined) } }).because[0],
+    ).toEqual(Why.NotObserved())
   })
 
   it('but one asking for the same read in two pieces', () => {
     const Both = App.surface('OwnerBoth', {
       model: () => ({
-        name: Work.get(ownerWith({ name: true }), 't1'),
-        email: Work.get(Entity.select(Task, { owner: Entity.select(User, { email: true }) }), 't1'),
+        owner: Data.get(ownerWith({ name: true }), 'p1'),
+        name: Data.get(Entity.select(Project, { name: true }), 'p1'),
       }),
     })
 
-    expect(Work.why(open, full, { surfaces: { one: Surface.at(Both, undefined) } }).reason).toBe(
-      'NotFetching',
-    )
+    expect(
+      Data.why(open, full, { surfaces: { one: Surface.at(Both, undefined) } }).because[0],
+    ).toEqual(Why.NotFetching({ surfaces: ['OwnerBoth'] }))
   })
+})
 
-  it('not one reading a list for fewer fields of its rows', () => {
-    const wide = Work.query(
-      Tasks,
-      {},
-      { select: Entity.select(Task, { id: true, title: true }), first: 5 },
-    )
-    const Narrow = App.surface('TaskIds', {
-      model: () => ({
-        list: Work.query(Tasks, {}, { select: Entity.select(Task, { id: true }), first: 5 }),
-      }),
+describe('ReadWhy', () => {
+  it('encodes to JSON, an Option as null', () => {
+    const why = Data.why(Data.overlay(stored, 'trash', [Remote.tombstone(Project, 'p1')]), project)
+
+    expect(JSON.parse(JSON.stringify(Schema.encodeSync(ReadWhy)(why)))).toEqual({
+      state: 'NotFound',
+      because: [{ _tag: 'Deleted', row: p1, by: { _tag: 'Overlay', id: 'trash' } }],
+      message: why.message,
+      surfaces: null,
     })
-    const Same = App.surface('TaskTitles', { model: () => ({ list: wide }) })
-
-    expect(Work.why(open, wide, { surfaces: { one: Surface.at(Narrow, undefined) } }).reason).toBe(
-      'NotObserved',
-    )
-    expect(Work.why(open, wide, { surfaces: { one: Surface.at(Same, undefined) } }).reason).toBe(
-      'NotFetching',
-    )
   })
 })
 
@@ -175,6 +165,7 @@ describe('Data.why tells apart reads of the same shape', () => {
     Entity.select(Post, {
       comments: Entity.page(Entity.select(Comment, { body: true }), window),
     })
+  const first = (why: ReadWhy) => why.because[0]
 
   it('by id: a Surface reading another post is not reading this one', () => {
     const Other = App.surface('OtherPost', {
@@ -182,10 +173,12 @@ describe('Data.why tells apart reads of the same shape', () => {
     })
 
     expect(
-      Blog.why(open, Blog.get(comments({ first: 2 }), 'a'), {
-        surfaces: { other: Surface.at(Other, undefined) },
-      }).reason,
-    ).toBe('NotObserved')
+      first(
+        Blog.why(open, Blog.get(comments({ first: 2 }), 'a'), {
+          surfaces: { other: Surface.at(Other, undefined) },
+        }),
+      ),
+    ).toEqual(Why.NotObserved())
   })
 
   it('by page: the same size of page from another cursor is another page', () => {
@@ -198,37 +191,11 @@ describe('Data.why tells apart reads of the same shape', () => {
     })
     const read = Blog.get(comments({ first: 2 }), 'a')
 
-    expect(Blog.why(open, read, { surfaces: { later: Surface.at(Later, undefined) } }).reason).toBe(
-      'NotObserved',
-    )
-    expect(Blog.why(open, read, { surfaces: { first: Surface.at(First, undefined) } }).reason).toBe(
-      'NotFetching',
-    )
-  })
-})
-
-describe('Data.why for a read that is not Initial', () => {
-  it('says a request is in flight', () => {
-    const loading = Data.reduce(open, {
-      _tag: 'ReadStarted',
-      requests: [{ entity: 'Project', id: 'p1', fields: ['name', 'status'] }],
-    })
-
-    expect(Data.why(loading, project)).toEqual({
-      state: 'Loading',
-      message: 'A request for it is in flight.',
-    })
-  })
-
-  it('says a request failed, and that nothing retries it on its own', () => {
-    const failed = Data.reduce(open, {
-      _tag: 'ReadFailed',
-      requests: [{ entity: 'Project', id: 'p1', fields: ['name', 'status'] }],
-      error: { _tag: 'RemoteReadError', message: 'offline' },
-    })
-
-    expect(Data.why(failed, project).message).toBe(
-      'Its request failed: offline. Nothing retries a failed read on its own; Data.refresh asks again.',
-    )
+    expect(
+      first(Blog.why(open, read, { surfaces: { later: Surface.at(Later, undefined) } })),
+    ).toEqual(Why.NotObserved())
+    expect(
+      first(Blog.why(open, read, { surfaces: { first: Surface.at(First, undefined) } })),
+    ).toEqual(Why.NotFetching({ surfaces: ['FirstComments'] }))
   })
 })

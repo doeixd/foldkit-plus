@@ -10,6 +10,7 @@ import {
   Duration,
   Effect,
   Layer,
+  Match,
   Option,
   Queue,
   Record,
@@ -73,6 +74,8 @@ import {
 } from './entity.js'
 import { EntityChange, Impact, changesOf, impactOn, type HeldConnection } from './impact.js'
 import { belongsEncoded, matching, type Judged, type Matched } from './matching.js'
+import { readWhy, regressed, Why, type ReadStep, type ReadWhy } from './why.js'
+import { failedReasons, reasonsOf, type WhyReader } from './whyReasons.js'
 
 /** A body's dependencies as an explanation carries them: without the owner identity, which holds a symbol. */
 const explainedDependencies = (dependencies: Domain.Dependencies): ExplainedDependencies => ({
@@ -86,7 +89,6 @@ import {
   inspectRemote,
   type ExplainedDependencies,
   type QueryExplanation,
-  type ReadDiagnosis,
   type RemoteInspection,
 } from './inspect.js'
 import type { LiveCursor, LiveEvent } from './live.js'
@@ -253,6 +255,7 @@ export * from './inspect.js'
 export * from './live.js'
 export * from './matching.js'
 export { placeIn, RowPlace } from './placement.js'
+export { ReadWhy, ShownBy, Why, WhyTerm, type ReadStep } from './why.js'
 export * from './model.js'
 export * from './mutation.js'
 export * from './optimistic.js'
@@ -697,13 +700,17 @@ export interface RemoteDomain<
     },
   ): QueryExplanation
   /**
-   * Why a read shows what it shows, in words. Any Remote read: `Data.get`,
-   * `Data.live` or `Data.query`.
+   * Why a read shows what it shows. Any Remote read: `Data.get`, `Data.live`
+   * or `Data.query`, or a projection made of them.
    *
-   * Its point is `Initial`, which means nothing is fetching the read and is
-   * almost always a wiring mistake. Given `surfaces`, the same active record
-   * `subscriptions` takes, it says which: no active Surface reads it, or one
-   * does and Remote's Subscriptions are not running. Pure, like `explain`.
+   * `because` is every fact the Model holds about what it reads, as typed
+   * references: a list or a row's fields missing, stale, in flight or
+   * failed; a pending write showing a value, and which `where` term put a row
+   * in a list or took it out. The reason that decides the state comes first,
+   * and `message` says it, with what restarts it. For `Initial`, given
+   * `surfaces` (the record `subscriptions` takes), it tells the two wiring
+   * mistakes apart: no active Surface reads it, or one does and Remote's
+   * Subscriptions are not running. Pure: it reads the Model and plans nothing.
    */
   why(
     model: AppModel,
@@ -713,7 +720,24 @@ export interface RemoteDomain<
         | Readonly<Record<string, ActiveSurface<AppModel> | SurfaceSource<AppModel>>>
         | undefined
     },
-  ): ReadDiagnosis
+  ): ReadWhy
+  /**
+   * Each change of each read's tag across a recorded history (the Messages
+   * `update` handled, each with the Model it left, as Foldkit's devtools
+   * records them), with the Message that made it and `why` at the Model it
+   * changed to. `regression` marks a read that showed a value and stopped
+   * with no reason a reader can see (#234).
+   */
+  timeline<Message>(
+    start: AppModel,
+    history: ReadonlyArray<{ readonly message: Message; readonly model: AppModel }>,
+    reads: Readonly<Record<string, Projection<AppModel, RemoteData<unknown>>>>,
+    options?: {
+      readonly surfaces?:
+        | Readonly<Record<string, ActiveSurface<AppModel> | SurfaceSource<AppModel>>>
+        | undefined
+    },
+  ): ReadonlyArray<ReadStep<Message>>
   /**
    * The rows of a loaded list that a body matches, decoded as the list decodes
    * them — a filter that asks the server nothing.
@@ -3243,21 +3267,6 @@ const brandEntries = <AppModel>(
 ): Subscription.Subscriptions<AppModel, RemoteMessage, RemoteClient> =>
   Subscription.make<AppModel, RemoteMessage, RemoteClient>()(() => entries)
 
-/** Why a read failed, in words: Remote's own failures say what to do, and a server's error says itself. */
-const failedReadWords = (error: RemoteError): string => {
-  // tag-check: open — a server names its own errors; only these three are Remote's.
-  switch (error._tag) {
-    case 'DecodeError':
-      return `What the server sent does not decode against the Selection: ${error.message}`
-    case 'Unavailable':
-      return `${error.message} Select without it, or Data.refresh asks again.`
-    case 'Overlaid':
-      return `${error.message} Overlay every field the Selection reads, or select fewer.`
-    default:
-      return `Its request failed: ${error.message}. Nothing retries a failed read on its own; Data.refresh asks again.`
-  }
-}
-
 /** The bound domain: the descriptor, the binding, and the operations over them. */
 const bindDomain = <
   AppModel,
@@ -4270,65 +4279,104 @@ const bindDomain = <
       }
     },
     why: (model, projection, options) => {
-      const state = projection.read(model)
+      const data = projection.read(model)
       const asked = askedOf(projection)
-      const reading =
+      const entries = options?.surfaces === undefined ? [] : Object.values(options.surfaces)
+      // Each active entry whose reads ask for all of this one: one that reads
+      // part of it cannot be why it is fetched.
+      const reading = entries.flatMap(entry => {
+        const names = resolvedOf(entry, model)
+          .filter(({ projection: shown }) => covers(askedOf(shown), asked))
+          .map(({ name }) => name)
+        return names.length === 0 ? [] : [{ entry, names }]
+      })
+      const surfaces =
         options?.surfaces === undefined
-          ? undefined
-          : Object.values(options.surfaces).flatMap(source =>
-              resolvedOf(source, model)
-                .filter(({ projection: shown }) => covers(askedOf(shown), asked))
-                .map(({ name }) => name),
-            )
-      const withSurfaces = reading === undefined ? {} : { surfaces: reading }
-      switch (state._tag) {
-        case 'Ready':
-          return { state: state._tag, message: 'Everything it selects is here.', ...withSurfaces }
-        case 'Refreshing':
+          ? Option.none()
+          : Option.some(reading.flatMap(read => read.names))
+      const initial: ReadonlyArray<Why> =
+        data._tag !== 'Initial'
+          ? []
+          : [
+              Option.match(surfaces, {
+                onNone: () => Why.NoActiveRecord(),
+                onSome: names =>
+                  names.length === 0 ? Why.NotObserved() : Why.NotFetching({ surfaces: names }),
+              }),
+            ]
+      const remote = store.get(model)
+      const live =
+        asked.requirements.some(requirement => requirement.live === true) ||
+        asked.connections.some(connection => connection.live === true)
+      const streams: ReadonlyArray<Why> = live
+        ? reading.flatMap(({ entry }): ReadonlyArray<Why> => {
+            return Match.valueTags(domain.liveStatus(model, entry), {
+              Idle: () => [],
+              Live: () => [],
+              Reconnecting: ({ attempt, error }) => [
+                Why.LiveReconnecting({ surface: entry.name, attempt, error }),
+              ],
+              Refused: ({ error }) => [Why.LiveRefused({ surface: entry.name, error })],
+            })
+          })
+        : []
+      const reader: WhyReader = {
+        remote,
+        visible: visibleStoreOf(remote.entities, remote.optimistic, operators),
+        listOf: identity => ({
+          query: Option.match(queryOf(identity), {
+            onNone: () => identity,
+            onSome: query => query.descriptor.name,
+          }),
+          identity,
+        }),
+        bodyOf: identity =>
+          Option.flatMap(queryOf(identity), query =>
+            Option.map(Option.fromUndefinedOr(query.descriptor.body), body => ({
+              body,
+              encoded: query.encoded,
+            })),
+          ),
+        edgesOf: ({ identity, window }) => {
+          const connection = remote.connections[identity] ?? emptyConnection
+          const placed = shownEdges(remote, identity, connection)
           return {
-            state: state._tag,
-            message: 'It is shown while a newer value is fetched.',
-            ...withSurfaces,
+            shown: cutToWindow(placed, window, windowSize(remote, { identity, window })).edges,
+            placed,
+            pages: items(connection),
           }
-        case 'Loading':
-          return { state: state._tag, message: 'A request for it is in flight.', ...withSurfaces }
-        case 'NotFound':
-          return {
-            state: state._tag,
-            message:
-              'The server answered without it: it does not exist, or this principal may not see it.',
-            ...withSurfaces,
-          }
-        case 'Failed':
-          return {
-            state: state._tag,
-            message: failedReadWords(state.error),
-            ...withSurfaces,
-          }
-        case 'Initial':
-          if (reading === undefined) {
-            return {
-              state: state._tag,
-              reason: 'Unknown',
-              message:
-                'Nothing is fetching it. Pass the active record you give Data.subscriptions as `surfaces` to tell whether an active Surface reads it.',
-            }
-          }
-          return reading.length === 0
-            ? {
-                state: state._tag,
-                reason: 'NotObserved',
-                message:
-                  'No active Surface reads it, so nothing fetches it. Include it in a Surface that is active for this Model, in the record given to Data.subscriptions.',
-                surfaces: reading,
-              }
-            : {
-                state: state._tag,
-                reason: 'NotFetching',
-                message: `${reading.join(', ')} ${reading.length === 1 ? 'reads it and is' : 'read it and are'} active, yet nothing is fetching it. Remote's Subscriptions are most likely not installed: give the runtime Data.subscriptions (or Data.wiring) and a RemoteClient.`,
-                surfaces: reading,
-              }
+        },
+        operators,
+        context: layersContext(remote.optimistic.layers),
       }
+      return readWhy(
+        data._tag,
+        [...initial, ...failedReasons(data), ...reasonsOf(reader, asked), ...streams],
+        surfaces,
+      )
+    },
+    timeline: (start, history, reads, options) => {
+      let before = start
+      return history.flatMap((entry, index) => {
+        const from = before
+        before = entry.model
+        return Object.entries(reads).flatMap(([read, projection]): ReadonlyArray<ReadStep<any>> => {
+          const was = projection.read(from)
+          const is = projection.read(entry.model)
+          if (was._tag === is._tag) return []
+          return [
+            {
+              read,
+              index,
+              message: entry.message,
+              from: was._tag,
+              to: is._tag,
+              why: domain.why(entry.model, projection, options),
+              regression: regressed(was, is),
+            },
+          ]
+        })
+      })
     },
     filtered: (model, over, by, input) => {
       assertRegistered(bound, 'Query', definition.registry.queries, by.name)

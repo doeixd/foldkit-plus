@@ -20,6 +20,7 @@ import {
   isRemoteMessage,
   terminal,
   writeEntities,
+  Why,
 } from '../src/index.js'
 import { Respond, Trace } from '../src/testing.js'
 
@@ -317,7 +318,19 @@ describe('Trace.regressions', () => {
         message: expect.objectContaining({ _tag: 'Hydrated' }),
         from: 'Ready',
         to: 'Initial',
-        why: expect.any(String),
+        // The replace dropped the row's fields, and the read entry has not asked yet.
+        why: expect.objectContaining({
+          because: [
+            Why.NotFetching({ surfaces: ['list'] }),
+            Why.Fields({
+              row: { entity: 'Project', id: 'p1' },
+              via: [],
+              fields: ['name', 'id'],
+              held: 'Missing',
+              inFlight: false,
+            }),
+          ],
+        }),
       },
     ])
   })

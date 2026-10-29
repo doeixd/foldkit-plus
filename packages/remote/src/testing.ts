@@ -19,7 +19,8 @@ import type { RemoteMessage } from './model.js'
 import type { MutationDescriptor } from './mutation.js'
 import { OutboxLocks } from './outbox.js'
 import { IDENTITY_SEPARATOR, queryIdentity, stableStringify, type QueryRef } from './query.js'
-import { RemoteData } from './remoteData.js'
+import type { RemoteData } from './remoteData.js'
+import type { ReadStep, ReadWhy } from './why.js'
 import type {
   RemoteForbidden,
   RemoteMutationError,
@@ -132,7 +133,11 @@ export interface Trace<AppModel, Message> {
   /** The requests still held when the steps ran out. */
   readonly pending: ReadonlyArray<string>
   /** `Data.why` of a read at a Model, given the trace's active record. */
-  readonly why: (model: AppModel, read: Projection<AppModel, RemoteData<unknown>>) => string
+  readonly why: (model: AppModel, read: Projection<AppModel, RemoteData<unknown>>) => ReadWhy
+  /** `Data.timeline` over the trace, given its active record. */
+  readonly timeline: (
+    reads: Readonly<Record<string, Projection<AppModel, RemoteData<unknown>>>>,
+  ) => ReadonlyArray<ReadStep<Message>>
 }
 
 /** A read that showed a value, and then did not, though nothing removed the value. */
@@ -145,7 +150,7 @@ export interface Regression<Message> {
   readonly from: Tag
   readonly to: Tag
   /** `Data.why`, for the Model it regressed in. */
-  readonly why: string
+  readonly why: ReadWhy
 }
 
 export interface TraceConfig<AppModel, Message> {
@@ -470,7 +475,8 @@ const run = async <AppModel, Message>(
       start: config.start,
       entries,
       pending: held.map(request => request.description),
-      why: (at, read) => Data.why(at, read, { surfaces: config.active }).message,
+      why: (at, read) => Data.why(at, read, { surfaces: config.active }),
+      timeline: reads => Data.timeline(config.start, entries, reads, { surfaces: config.active }),
     }
   } finally {
     for (const fiber of [...fibers]) fiber.interruptUnsafe()
@@ -483,27 +489,6 @@ const models = <AppModel>(trace: Trace<AppModel, unknown>): ReadonlyArray<AppMod
   trace.start,
   ...trace.entries.map(entry => entry.model),
 ]
-
-const shows = (data: RemoteData<unknown>): boolean =>
-  RemoteData.match(data, {
-    Initial: () => false,
-    Loading: () => false,
-    Ready: () => true,
-    Refreshing: () => true,
-    Failed: () => false,
-    NotFound: () => false,
-  })
-
-/** Whether a read that showed a value still does, or says why not: failed with it, or found it gone. */
-const keeps = (data: RemoteData<unknown>): boolean =>
-  RemoteData.match(data, {
-    Initial: () => false,
-    Loading: () => false,
-    Ready: () => true,
-    Refreshing: () => true,
-    Failed: (_, previous) => Option.isSome(previous),
-    NotFound: () => true,
-  })
 
 export const Trace = {
   run,
@@ -530,25 +515,17 @@ export const Trace = {
     trace: Trace<AppModel, Message>,
     reads: Readonly<Record<string, Projection<AppModel, RemoteData<unknown>>>>,
   ): ReadonlyArray<Regression<Message>> =>
-    trace.entries.flatMap((entry, at) => {
-      const before = at === 0 ? trace.start : trace.entries[at - 1]!.model
-      return Object.entries(reads).flatMap(([name, read]) => {
-        const from = read.read(before)
-        const to = read.read(entry.model)
-        return shows(from) && !keeps(to)
-          ? [
-              {
-                read: name,
-                step: entry.step,
-                message: entry.message,
-                from: from._tag,
-                to: to._tag,
-                why: trace.why(entry.model, read),
-              },
-            ]
-          : []
-      })
-    }),
+    trace
+      .timeline(reads)
+      .filter(change => change.regression)
+      .map(({ read, index, message, from, to, why }) => ({
+        read,
+        step: trace.entries[index]!.step,
+        message,
+        from,
+        to,
+        why,
+      })),
 }
 
 export { Law, type LawConfig, type LawPart, type LawReport } from './law.js'

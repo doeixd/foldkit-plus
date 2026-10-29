@@ -16,6 +16,7 @@ import {
   readField,
   setUnavailable,
   writeEntity,
+  Why,
   type Boundary,
   type RemoteMessage,
 } from '../src/index.js'
@@ -208,7 +209,11 @@ describe('reading a Selection that names a settled field', () => {
   it('is explained by Data.why', () => {
     const why = Data.why(withheld(initial), Data.get(withNotes, 'p1'))
     expect(why.state).toBe('Failed')
-    expect(why.message).toContain('Select without it, or Data.refresh asks again.')
+    // Settled without a value is not missing: nothing will fetch it again.
+    expect(why.because).toEqual([
+      Why.Unavailable({ row: { entity: 'Project', id: 'p1' }, via: [], fields: ['privateNotes'] }),
+    ])
+    expect(why.message).toContain('Select without them, or Data.refresh asks again.')
   })
 })
 

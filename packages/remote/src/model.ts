@@ -691,7 +691,7 @@ const marksOf = (
  * than a spinner, which is the safer way to be wrong. The refresh generations
  * below key off the same marks, so "what a read asks for" means one thing.
  */
-const fieldMark = (entity: string, id: string, field: string): string =>
+export const fieldMark = (entity: string, id: string, field: string): string =>
   `${entityKey(entity, id)}\u0000${field}`
 
 const fieldMarks = function* (requests: ReadonlyArray<Requirement>): Generator<string> {

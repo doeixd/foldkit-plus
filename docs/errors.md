@@ -149,7 +149,8 @@ A read is a `RemoteData`: `Initial`, `Loading`, `Ready`, `Refreshing`,
 exhaustive fold over the six; `RemoteData.render` the view's fold above.
 `Initial` is not a failure but is often a mistake: nothing is fetching the
 read, which a spinner hides. `Data.why(model, read, { surfaces: actives })`
-says why, in words.
+says why: which list or which field of which row is missing, stale, in
+flight or failed, and what restarts it.
 
 A `RemoteError` is `{ _tag, message }`, with `reason` for a refusal of who is
 asking and `refusal` for a mutation's declared refusal. Its `_tag` is open,

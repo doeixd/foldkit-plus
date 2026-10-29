@@ -303,6 +303,6 @@ describe('Diagnostics see instances', () => {
     const said = Data.why(loaded, Data.get(DomainEntity.select(Project, { name: true }), 'a'), {
       surfaces: { cards: Cards },
     })
-    expect(said).toMatchObject({ state: 'Ready', surfaces: ['Card[a]'] })
+    expect(said).toMatchObject({ state: 'Ready', surfaces: Option.some(['Card[a]']) })
   })
 })

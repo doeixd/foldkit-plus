@@ -55,8 +55,8 @@ screen is a function of the Model, replays from a recording, and is tested
 without a network.
 
 What Remote does not have: a component hook (it has Surfaces and Foldkit
-Subscriptions), a devtools panel of its own (`Data.inspect` and `Data.why` are
-the data one would show), and retries on failure (a failed read stays failed
+Subscriptions), a devtools panel of its own (`Data.inspect`, `Data.why` and
+`Data.timeline` are the data one would show), and retries on failure (a failed read stays failed
 until something asks again; see [When a read fails](#when-a-read-fails)).
 
 ### And TanStack DB, and fate
@@ -91,6 +91,7 @@ what you are doing:
 | --- | --- |
 | See it work before there is a server | [Step 5](#5-provide-a-client) |
 | A read stays `Initial` | [Why is it still `Initial`?](#why-is-it-still-initial) |
+| A read is `Loading` or `Refreshing` and you did not expect it | [Why is it `Loading`?](#why-is-it-loading) |
 | A list shows old rows | [Why is it stale?](#why-is-it-stale) |
 | A saved change showed, then vanished | [Why did my change disappear?](#why-did-my-change-disappear) |
 | A page I came back to reads `Refreshing` or `Loading` | [Why `Refreshing`?](#why-does-a-page-i-went-back-to-read-refreshing) |
@@ -631,18 +632,74 @@ spinner here hides a wiring mistake. Ask the Model:
 
 ```ts
 Data.why(model, projection, { surfaces }) // the record you give Data.subscriptions
-// { state: 'Initial', reason: 'NotFetching', surfaces: ['ProjectPage'],
-//   message: 'ProjectPage reads it and is active, yet nothing is fetching it. …' }
+// { state: 'Initial',
+//   because: [Why.NotFetching({ surfaces: ['ProjectPage'] }), Why.Fields({ … })],
+//   message: 'ProjectPage reads it and is active, yet nothing is fetching it. …',
+//   surfaces: Option.some(['ProjectPage']) }
 ```
+
+The first reason is the one that decides `Initial`:
 
 - `NotObserved`: no active Surface reads it. The Surface is not in the record
   you gave `Data.subscriptions`, or its params are `undefined` for this Model
   (the route is not there yet).
-- `NotFetching`: an active Surface reads it and nothing started a request,
-  which almost always means Remote's Subscriptions are not installed in the
-  runtime.
-- Without `surfaces` it can only say `Unknown`. For every other state it says
-  what the state means in words.
+- `NotFetching`: an active Surface reads it and nothing started a request.
+  Right after a Message that is the moment before the read entry asks; if it
+  stays so, Remote's Subscriptions are not installed in the runtime.
+- `NoActiveRecord`: no `surfaces` were given, so it cannot tell which.
+
+`Data.plan(model, projection)` shows whether Remote believes anything is
+missing at all.
+
+### Why is it `Loading`?
+
+A list reads `Loading` when its page is missing and its query is out, and
+also when it holds its page and one row's field is being fetched. It reads
+`Refreshing` when the page is stale, a row is stale, or a row is left out
+until a field arrives. `Data.why` tells them apart. `because` lists every
+fact the Model holds about what the read reads, by typed reference, never by
+the store's internal marks. The reason that decides the state comes first.
+Match them with `Why.match`:
+
+| `Why` | What it says | What restarts it |
+| --- | --- | --- |
+| `List { list, held, inFlight }` | the list's own page is `Missing` or `Stale` | the read entry, while a Surface reads it |
+| `Fields { row, via, fields, held, inFlight }` | fields of one row are `Missing` or `Stale`; `via` is the relation path (`['owner']`) | the read entry |
+| `ListFailed`, `FieldsFailed` | a request failed | **nothing on its own**: `Data.refresh`, a write of the field, a new page |
+| `Unavailable`, `Undecodable`, `OverlayOnly` | the store holds what cannot be shown | a change of Selection or overlay |
+| `Deleted { row, by }` | the server deleted it (`by` none), or a pending write does | — |
+| `LiveReconnecting`, `LiveRefused` | a live stream of a Surface reading it broke, or was refused | the live entry, with backoff; nothing, for a refusal |
+| `Pending { row, fields, by }` | a pending write shows these fields | its answer |
+| `Joined`, `Left { list, row, by, terms }` | the list shows a row its pages do not hold, or hides one they do | its answer |
+
+`by` is a `ShownBy`: `Write { requestId, mutation }`, `Overlay { id }` or
+`Live { cursor }`. `terms` are the list body's `where` predicates judged over
+the row as the client placed it, so a row that joined says which term put it
+there, and one the client could not judge says what it lacked:
+
+```ts
+// a project archived optimistically, in a list of active ones
+Why.Left({
+  list: { query: 'ByStatus', identity },
+  row: { entity: 'Project', id: 'p1' },
+  by: Option.some(ShownBy.Write({ requestId: 'r7', mutation: Option.some('Archive') })),
+  terms: [{ term: 'Project.status = $status', truth: 'False', reason: Option.none() }],
+})
+```
+
+`truth` is `True`, `False`, `Null` (SQL's unknown, which keeps a row out) or
+`Unknown` (the store lacks what it rests on). `ReadWhy` is a Schema:
+`Schema.encodeSync(ReadWhy)(why)` is JSON for a log or a devtools client.
+`Data.why` reads the Model and nothing else: it plans nothing and fetches
+nothing.
+
+**Across a history.** `Data.timeline(start, history, { feed, post },
+{ surfaces })` takes the Messages `update` handled, each with the Model it
+left (what Foldkit's devtools records), and gives one step per change of a
+read's tag: the Message that made it, `why` at the Model it changed to, and
+`regression` when a read that showed a value stopped showing it with no
+reason a reader can see. Foldkit's devtools has no place for a panel of
+another package's, so the timeline is the data, not a panel.
 
 `Data.plan(model, projection)` shows whether Remote believes anything is
 missing at all.
@@ -2456,7 +2513,8 @@ expect(Trace.tags(trace, list)).toEqual(['Ready', 'Refreshing', 'Ready'])
   to, until nothing is. Reorder the steps to try another interleaving.
 - **`Trace.regressions`** names each time a read that showed a value read
   `Loading`, `Initial`, or `Failed` without it. It gives the step, the Message
-  and `Data.why`. `NotFound` is not a regression, since the server said the row
+  and `Data.why`; it is `Data.timeline` over the trace, kept to its
+  regressions. `NotFound` is not a regression, since the server said the row
   is gone. **`Trace.tags`** is each change of a read's tag.
 - **It fails loudly.** A `Respond` that matches nothing held throws and lists
   what is held. A request abandoned by a restart is no longer held. A

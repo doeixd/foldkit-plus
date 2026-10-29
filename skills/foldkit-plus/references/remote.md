@@ -45,8 +45,9 @@ stale fields. An inactive Surface creates no work. `RemoteData` is a closed unio
 (`RemoteData.match` is exhaustive; `RemoteData.answered(data)` is whether it has an answer yet):
 
 - `Initial`: absent, **nothing is fetching it** (often a wiring bug: not observed).
-  `Data.why(model, projection, { surfaces })` says which: `NotObserved` (no active
-  Surface reads it) or `NotFetching` (one does; Subscriptions not installed).
+  `Data.why(model, projection, { surfaces })` says which: its first reason is
+  `NotObserved` (no active Surface reads it) or `NotFetching` (one does;
+  Subscriptions not installed). See "Why a read is in its state" below.
 - `Loading`: absent, a read or a list's query is in flight (`QueryStarted`).
 - `Ready`: all selected fields present and decode.
 - `Refreshing`: old value still visible while refetching.
@@ -55,6 +56,25 @@ stale fields. An inactive Surface creates no work. `RemoteData` is a closed unio
   server settled a selected field without a value (`error._tag` `Unavailable`,
   naming the field; select without it, or `Data.refresh` asks again).
 - `NotFound`: tombstone (server answered with nothing about the entity).
+
+**Why a read is in its state.** `Data.why` returns a `ReadWhy` (`state`,
+`because`, `message`, `surfaces`), pure over the Model. `because` is every
+fact about what the read reads, typed (`Why`, matched with `Why.match` or
+`Why.guards`): `List`/`Fields` `Missing` or `Stale` and `inFlight` (`via` is
+the relation path to a row), `ListFailed`/`FieldsFailed` (nothing retries
+them; `Data.refresh` does), `Unavailable`, `Undecodable`, `OverlayOnly`,
+`Deleted`, `LiveReconnecting`/`LiveRefused`, `Pending`, and `Joined`/`Left`
+with `terms` (`WhyTerm`: each `where` predicate `True`/`False`/`Null`/`Unknown`).
+`by` is a `ShownBy` (`Write`, `Overlay`, `Live`). The deciding reason is first;
+`message` says it. `ReadDiagnosis` and its `reason` are gone.
+
+```ts
+const why = Data.why(model, list, { surfaces: active })
+const waiting = why.because.filter(Why.guards.Fields) // row, via, fields, held, inFlight
+const json = Schema.encodeSync(ReadWhy)(why) // for a log or a devtools client
+// each change of each read's tag across recorded (Message, Model) pairs
+const steps = Data.timeline(start, history, { list }, { surfaces: active })
+```
 
 ## Minimal client
 
@@ -725,7 +745,10 @@ the oldest held request of their kind (`{ fail }` to fail it); reorder steps for
 another interleaving. A `Respond` that matches nothing held throws. The clock
 stands still (no `grace`, age-out or live restart fires), live streams send
 nothing (script `LiveReceived`), and only Remote's Commands run. `update` must
-take Remote's Messages; a `Remote.fold` domain is not supported yet.
+take Remote's Messages; a `Remote.fold` domain is not supported yet. Each
+regression carries `why`, a `ReadWhy` (its `because[0]` says what the read
+waits on); `trace.timeline({ list })` is `Data.timeline` over the trace, every
+change of tag and not only regressions.
 
 **Testing that a prediction is the truth.** `Law.check` (`foldkit-remote/testing`)
 runs one write through `Data.mutate` and through the server, with the same
