@@ -107,8 +107,8 @@ as its `Surface.when`, keyed by tag, for `Data.wiring` / `subscriptions` /
 own tag only. `Site.sourcesFor(site, App.owner, App.model.route,
 target.route)` is the same entries for the target's chain only — what
 prefetch/SSR read; prepare caller-side with `Data.satisfy({ ...model, route:
-target.route }, active)`. Unknown tags resolve to no Sources. No `SitePlan`
-object yet (chain is `chainOf`; head/access arrive with real consumers).
+target.route }, active)`. Unknown tags resolve to no Sources. There is no
+`SitePlan` object: the chain is `Site.chainOf`, the head `Site.metaOf`.
 A Surface keyed by who is signed in (a home feed) takes `viewer: (model) =>
 Option<Viewer>` beside `params: (route, viewer) => params`; it is active on
 its route only while `viewer` is `Some`, so the app writes no `Surface.at`
@@ -134,7 +134,13 @@ with OutMessages and non-Bundle children stay on `Bundle.at` / `Link.child`.
 
 - A layout surface active for several tags is not expressible yet (a future
   `whenAny`-shaped extension); each entry answers its own tag.
-- Route-local model ownership is still per-application code. Bundles with OutMessages and non-Bundle children stay on
-  `Bundle.at` / `Link.child`.
+- Route-local model ownership is still per-application code.
 - `Site.target(Node, {})` for param-less routes: params are always explicit.
 - Locales are route params when they arrive; themes are preferences, not routes.
+
+## See also
+
+- https://github.com/doeixd/foldkit-plus/blob/main/packages/site/README.md
+- https://github.com/doeixd/foldkit-plus/tree/main/examples/reference (a
+  viewer-keyed node, `access` and `preload` in one app)
+- https://github.com/doeixd/foldkit-plus/tree/main/examples/chirp

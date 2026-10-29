@@ -1,15 +1,14 @@
 # foldkit-ssr
 
-**Published, early.** Phases 0–6, U and R of its plan are built:
-render on the server or at build time (`SSR.generate`) and serve through
-Foldkit's `handleRequest` (`SSR.entry`), the browser takes the page over
-without rerunning `init`, a plan is checked against the Surfaces the browser
-reads, `SSR.static` regions belong to the server alone, and Remote's data
-crosses through `parts`. Resumable pages are in progress: `Resume.builder(h)`
-and `Resume.view(render)` mark bindings, `Resume.listen` answers them before
-boot, a plan's `start` defers the boot, a page dispatches only what its
-Surfaces list, `fallback: 'server'` makes a form work with scripts off, and
-`lazy: [bundle]` loads a `Bundle.lazy`'s bodies before render and boot.
+Server rendering that hands the browser **the Model the server reached**, not
+the inputs to rebuild it: `init` runs once, on the server, and the browser
+starts from the slice of the Model it owns. Early (0.x). Render per request
+(`SSR.entry`, through Foldkit's `handleRequest`) or at build time
+(`SSR.generate`); a plan is checked against the Surfaces the browser reads.
+Opt-in on top: `SSR.static` regions the browser never renders, resumable
+pages that answer events before boot (`Resume`, a plan's `start`), forms that
+work with scripts off (`fallback: 'server'`), and lazy bundles loaded before
+render and boot (`lazy`).
 
 ## What it owns
 
@@ -21,10 +20,14 @@ build emits): the envelope rides the stamped root, so the entry answers
 `Rendered` and never splices markup into a template. `SSR.page` and
 `SSR.generate` place pages only where Plus owns the template: a static file
 it writes itself. It adds a **resume plan**: which slice of the Model
-crosses, as JSON on the stamped root read back through the slice's own Schema. `init`
-runs once, on the server; nothing outside the slice crosses, Flags included.
+crosses, as JSON on the stamped root read back through the slice's own Schema.
+Nothing outside the slice crosses, Flags included.
 
 ## Basic use
+
+`App` is a runnable `Surface.application`, `config` the application's
+`makeApplication` config, `EditorToolbar` one of its Surfaces, and `template`
+the built `index.html`:
 
 ```ts
 import { Effect } from 'effect'
@@ -118,11 +121,20 @@ served page stays in view while the fresh one draws hidden, and is swapped once 
 - `SSR.serving()`: true while the server renders a page, false in the browser and outside a
   render; `foldkit-richtext-dom`'s `editorAt(hostId, { serverRendered: SSR.serving })` sends
   the document's markup in the editor's host, which the browser's editor adopts.
-- In the browser a page from another build, or whose envelope cannot resume
-  (`ResumeRefused`: `Missing`, `Duplicate`, `Unreadable`, `Protocol`, `Plan`,
-  `Invalid`, `Route`), is contained with the reason reported, never re-rendered.
+- In the browser a page whose envelope cannot resume (`ResumeRefused`:
+  `Missing`, `Duplicate`, `Unreadable`, `Protocol`, `Plan`, `Invalid`,
+  `Route`) is contained with the reason reported, never re-rendered.
+- **Give the client and the server one build id.** Both pass `buildId:
+  import.meta.env.FOLDKIT_BUILD_ID`, which the `foldkit` Vite plugin compiles
+  in from the environment (a commit, a release tag). Unset, the client gets
+  `undefined` and contains every page (`NoBuildId`); two builds with
+  different ids contain it too (`OtherBuild`). When nothing sets it and one
+  `vite build` makes both bundles, write `process.env.FOLDKIT_BUILD_ID ??=
+  randomUUID()` in `vite.config.ts` before `foldkit()` reads it. A script run
+  outside Vite reads `process.env.FOLDKIT_BUILD_ID`.
 - What SSR keeps going past is a diagnostic on `foldkit-surface`'s channel
-  (`Diagnostics`, re-exported), by default Effect's log: `PageContained`
+  (`Diagnostics`, re-exported), by default Effect's log (an error on
+  `console.error`): `PageContained`
   (`reason`: `NoBuildId`, `OtherBuild` or the refusal's), `StaticRegionMissing`,
   `BundleUnloaded`, `PageFailed` (a `500`), `HandlerUnnamed`.
   `SSR.hydrate(config, plan, { buildId, diagnostics })` takes a reporter, since
@@ -172,6 +184,9 @@ served page stays in view while the fresh one draws hidden, and is swapped once 
   (`import type { ResumableBuilder } from 'foldkit-ssr'`); it is the only
   builder type the package exports.
 - `SSR.generate` returns pages as a tuple of `paths`: `const [home, about]`.
+  `SSR.sitemap(pages, { origin })` (each `{ path, modified? }`) and
+  `SSR.robots({ origin, sitemap?, disallow? })` write the two files a static
+  host serves beside them; `Site.targets` lists the pages.
 - `staticSite` (`foldkit-ssr/vite`) takes `emit(pages)`: files made from the
   generated pages, written beside them (`foldkit-media`'s `materialize` writes
   the image variants the pages name). A path outside the output, or on a file
@@ -238,3 +253,10 @@ served page stays in view while the fresh one draws hidden, and is swapped once 
   `SSR.resume(plan, document, { route? })`. The envelope rides the stamped
   root as `data-foldkit-plus-resume`, beside Foldkit's own stamps, so any host
   injects the page whole.
+
+## See also
+
+- https://github.com/doeixd/foldkit-plus/blob/main/packages/ssr/README.md
+- https://github.com/doeixd/foldkit-plus/tree/main/examples/foldkit/ssr
+- https://github.com/doeixd/foldkit-plus/tree/main/examples/reference (pages
+  rendered in a Worker as the reader, with `SSR.requestContext`)

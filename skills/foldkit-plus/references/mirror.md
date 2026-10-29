@@ -79,23 +79,18 @@ const Prefs = Mirror.kv(App, {
   fields: Projection.pick(App.model.draft),     // field refs or a writable Projection
 })
 
-// Prefs under one variant of the union, the shape a Submodel gets: `update`
-// matches exhaustively, and the store's answer arrives wrapped.
-const foldPrefs = Mirror.fold(Prefs, message => Message.GotPrefsMessage({ message }))
-
 function update(model: Model, message: Message): Return {
   return Message.match(message, {
-    GotPrefsMessage: ({ message }) => foldPrefs(model, message),
+    MirrorRestored: restored => ({ model: Prefs.reduce(model, restored) }),
     UrlChanged: ({ url }) => ({ model: Filters.reduce(model, url) }),
   })
 }
 
-// URL first; `foldPrefs.init` runs the lifted `restore`, which answers later.
-const init = (url: Url): Return => foldPrefs.init(Filters.reduce(initial, url))
-
-// Shorter, for an update that only reduces: spread `...Mirror.messages` into the
-// union, `if (Mirror.reduces(message)) return { model: Prefs.reduce(model, message) }`,
-// and `commands: [Prefs.restore]` in init. The rest of update is then partial.
+// URL first; `restore` reads the store and answers with MirrorRestored later.
+const init = (url: Url): Return => ({
+  model: Filters.reduce(initial, url),
+  commands: [Prefs.restore],
+})
 
 // Without foldkit-bundle, Mirror.routing wires URL mirrors into makeApplication:
 // Mirror.routing({ mirrors: [Filters], urlChanged: 'UrlChanged', init, update,
@@ -120,13 +115,22 @@ const wiredUrl = wiring.url(url => Message.UrlChanged({ url }))
 Provide the store Layer where the runtime runs (for example,
 `KeyValueStore.layerStorage(() => window.localStorage)`).
 
+To keep a mirror's Message under one variant of the union, the shape a
+Submodel gets, declare `GotPrefsMessage: { message: Mirror.Message }` instead
+of spreading `Mirror.messages`, and fold it:
+`const foldPrefs = Mirror.fold(Prefs, message => Message.GotPrefsMessage({ message }))`,
+then `GotPrefsMessage: ({ message }) => foldPrefs(model, message)` in `update`
+and `foldPrefs.init(model)` in `init`. A KV mirror's `wiring()` needs the
+spread form.
+
 ## Under `Sync.mount`
 
 `Sync.mount` has no `init` Commands. To wire a mirror in, derive the runtime
 pieces from the assembly instead of writing them by hand (as
 `examples/todo-app` does): `wiring.subscriptions()` for `subscriptions`,
 `wiring.url(…)` for `url`, and `wiring.initial(…)` for the startup Commands to
-dispatch once mounted:
+dispatch once mounted (`TodoSync`, `replica`, `container` and `view` as in
+[sync.md](sync.md)):
 
 ```ts
 import { Effect } from 'effect'
@@ -177,7 +181,8 @@ for (const command of start.commands ?? []) {
   whose `MirrorRestored` is missing from the union.
 - Each URL key belongs to one URL mirror per app. A second claim throws and
   names the first mirror. Always set `name`, or the entry key is derived.
-- Without `...Mirror.messages` and the restore, the KV value never returns.
+- Without `MirrorRestored` in the union (spread or wrapped) and the restore,
+  the KV value never returns.
 - Don't mirror Sync or Remote state, or route path segments. Keys that differ
   from `route.query(schema)` coexist with it.
 - A mirror installs top-level fields; it cannot run a transition. State a

@@ -11,7 +11,8 @@ tool can inspect it without running anything.
   dependency paths, opaque metadata; `Metadata` is re-exported from
   `foldkit-metadata`). Also application identity
   (`Surface.application`), typed Message subsets (`MessageSet`), named Surfaces
-  with their renderer binding, and `Module` (static checks across contracts).
+  with their renderer binding, `Module` (static checks across contracts), and
+  `Diagnostics`, the channel every package reports quiet failures on.
 - **Does NOT own:** I/O, transport, state, transitions, or Commands. A Surface is
   an *observation + capability contract*, not a Submodel. It has no private
   Model, no child update, and no Message wrapping. Submodels divide state by
@@ -42,9 +43,9 @@ Schema field -> ModelRef/FieldRef (optic + codec + path + app owner + get/set)
              -> Surface (name, params, projection(params), allowed Messages)
 ```
 
-- `Surface.application({ Model, Message })` builds a tree of field references.
-  Use `App.model` for it. `App.model` is the older name for the same tree, and
-  it is also what `model` means inside `App.surface`. Add `initial` + `update` to
+- `Surface.application({ Model, Message })` builds a tree of field references,
+  `App.model`, which is also what `model` means inside `App.surface`
+  (`App.fields` is the deprecated name for it). Add `initial` + `update` to
   get a `RunnableApplication`. Sync needs one to compute the initial value and
   replay Messages. When the update is built over the references (Remote, a
   Bundle), `App.runnable({ initial, update })` adds it afterwards with the same
@@ -177,6 +178,31 @@ Surface.inspect(TodoDetail, { id: 't1' })   // { name, dependencies, metadata, e
 rules: `foreign-contract`, `duplicate-name`, `ownership-overlap`,
 `message-claimed-twice`, `unknown-path`, `unknown-message`.
 
+**Seeing what packages kept going past.** A fallback, a refusal answered
+generically, or a failure a package swallowed is a typed `Diagnostic`
+(`{ _tag, source, level, message }` plus its own facts: Remote's
+`WriteUnheard`, Sync's `ExchangeFailed`, SSR's `PageContained`, Mirror's
+`StoreMalformed`, ...), reported through the `Diagnostics.Reporter` service.
+The default writes Effect's log, with an `error` on `console.error` (stderr on
+a server) and a `warning` on `console.log`.
+
+```ts
+import { Effect, Layer } from 'effect'
+import { Diagnostics } from 'foldkit-surface'
+
+// Replace the default in a runtime's resources or a server's layer; `send` is yours.
+const reporter = Layer.succeed(Diagnostics.Reporter, diagnostic =>
+  Effect.andThen(Diagnostics.log(diagnostic), send(diagnostic)),
+)
+
+// In a test: provide `report` to the program under test, then read `reported`.
+const collected = Diagnostics.collect()
+const run = Effect.provideService(program, Diagnostics.Reporter, collected.report)
+```
+
+Some reports happen outside any runtime's `resources` (a page `SSR.hydrate`
+refuses, a Sync document host): those take a `diagnostics` option of their own.
+
 **Metadata keys, for package authors only.** App code never needs this.
 
 ```ts
@@ -227,8 +253,7 @@ rejects copies and hand-built values.
   projection only once it gets params: `Surface.read`, `contract` and `inspect`
   without them are type errors, and throw `Surface "<name>" declares params`
   for a caller typed `any`. So `Module.make` takes such a Surface
-  only as `Surface.contract(surface, params)`, never directly. `projectionOf` on
-  a `Surface.at` value returns `undefined` only if the Surface declares params.
+  only as `Surface.contract(surface, params)`, never directly.
 - **How `App.surface` spots a Projection.** A value returned from `model` counts
   as a Projection only if it has a `read` function and a `metadata` value created
   by this package. Anything else goes through `Projection.struct`. So a

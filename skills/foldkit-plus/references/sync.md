@@ -21,7 +21,7 @@ visible = pending.reduce(replay, committed)      replay = app update on the shar
 Remote means the same four words over its cache by a different mechanism:
 `Data.confirmed(projection)` is its committed, optimistic layers are its
 pending, and the projection itself is its visible. See
-`docs/state-model.md#what-a-reader-sees-while-a-change-is-in-flight`.
+[what a reader sees while a change is in flight](https://github.com/doeixd/foldkit-plus/blob/main/docs/state-model.md#what-a-reader-sees-while-a-change-is-in-flight).
 
 Committed `A B C` + pending `D E` shows `replay(A,B,C,D,E)`. If another device
 commits `X` first, the next exchange shows `replay(A,B,C,X,D,E)`. A rejected op
@@ -105,8 +105,9 @@ const program = Effect.gen(function* () {
   **sends nothing**. `replica.start` is the loop: one exchange, then one after
   each submit and each server notice on `Transport.changes`. A failed exchange lands in `status.lastError` and is retried on
   a backoff (0.5 s to 30 s), or at once on the next submit. It is also reported on
-  `Diagnostics` (`foldkit-surface`) as `ExchangeFailed`, and a reset server history as
-  `HistoryRebuilt`. A contract's
+  `Diagnostics` (`foldkit-surface`) as `ExchangeFailed`, a reset server history as
+  `HistoryRebuilt`, and a presence or socket listener of yours that threw as
+  `ListenerFailed`. A contract's
   `durable(message)` says whether a Message is recorded. The optional
   `coalesce(last, next)` merges a submit into the last operation while
   no exchange has carried it (a burst of typing becomes one operation).
@@ -139,7 +140,7 @@ const memoryStorage = (): Storage => {
 ## Mount the Foldkit app over a replica
 
 ```ts
-import { Effect, Scope } from 'effect'
+import { Effect, Option, Scope } from 'effect'
 import { ReplicaId, Sync } from 'foldkit-sync'
 
 const scope = Effect.runSync(Scope.make())
@@ -166,7 +167,7 @@ await mounted.dispose()                                        // waits for in-f
   when an exchange commits, acknowledges, or rejects something, and when a
   failed persist reverts.
 - Options: `subscriptions` + `resources` (for example, Mirror entries and their
-  Layer), `url: { init, onUrlChange, onUrlRequest? }`, and `onReinstall(next,
+  Layer), `url: { onUrlChange, init?, onUrlRequest? }`, and `onReinstall(next,
   previous, { reset })`, which returns the transition when an exchange or a
   failed persist replaces the shared slice (carry a selection across, patch a
   DOM); `reset` says the server's history is a new one (`status.epoch` changed).
@@ -176,7 +177,8 @@ await mounted.dispose()                                        // waits for in-f
 - `Mounted` provides `model`, `dispatch`, `subscribe`, `observe`, `committed`,
   `settled` and `dispose`. `settled()` resolves once the Model has caught up
   with the replica (in a test: `await frames.settle(mounted)`, with
-  `Frames.track` from `foldkit-mixins/testing`). It is the host `foldkit-agent` binds to (add `principal`).
+  `Frames.track` from `foldkit-mixins/testing`). `Mounted` is a `foldkit-agent`
+  host as it is; add a `principal` resolver when the agent's rules read one.
   `dispose()` does not close the replica.
 
 **Waiting for the server.** The Model shows an edit before the server commits
@@ -280,7 +282,7 @@ const server = Effect.gen(function* () {
   live hub when it wrote the row.
 - Durable does **not** speak the sync exchange; `foldkit-sync/journal` does
   (`foldkit-durable` an optional peer): `serveJournal(socket, { sync, journal,
-  principal, admit?, opens?, settle? })` answers one socket and notifies it of each
+  principal, admit?, opens?, settle?, diagnostics? })` answers one socket and notifies it of each
   commit; `admit(operation)` (true, false, a refusal with a reason, or an Effect of one) decides
   before the journal reads an operation, `opens` (an Effect of a boolean) whether the connection
   may exchange at all; `journalExchange(options)` is the same as a `TransportClient` for an
@@ -320,14 +322,8 @@ accepted pair end anywhere else a platform hands one over. Off Cloudflare,
 (`foldkit-sync/journal`) answers each upgrade request (`Result`: the refusal's
 `Response`, or `{ serve, abandon }`: serve the opened `HostSocket`, or abandon
 an upgrade whose socket never opens, which releases its layer), which a Node
-`ws` upgrade handler calls before `handleUpgrade`.
-
-**Live on a worker.** A worker request cannot wake another request's open SSE
-stream — a `Queue.offer`, a `Deferred`, even `enqueue` on the first's captured
-controller tears it down, and a `LiveHub` fed from a second request reaches
-nobody. What crosses requests is the durable store (D1): poll it from inside
-the subscriber's own request as a `LiveSource` (`foldkit-remote-drizzle`'s
-`pollLive`, with `rowLog` over the triggers `rowChangeLog` writes). `serveFetch` heartbeats every stream so an idle one survives.
+`ws` upgrade handler calls before `handleUpgrade`. Remote's live reads on a
+Worker are another matter (`pollLive`): see [remote.md](remote.md).
 
 **Server reset.** A server returns `epoch: journal.epoch(key)` from every
 exchange; the replica sends it back as `exchange`'s third argument. When it
@@ -371,6 +367,8 @@ stamps with `Sync.lww.openClock` before dispatch, never in `update`.
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/sync/README.md
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/durable/README.md
 - https://github.com/doeixd/foldkit-plus/blob/main/docs/replication.md
+- https://github.com/doeixd/foldkit-plus/blob/main/docs/errors.md (what a
+  rejected, failed or reset exchange looks like to the reader)
 - https://github.com/doeixd/foldkit-plus/blob/main/docs/editing-server-data.md
 - https://github.com/doeixd/foldkit-plus/blob/main/docs/sync-runtime-binding.md
 - https://github.com/doeixd/foldkit-plus/tree/main/examples/sync
