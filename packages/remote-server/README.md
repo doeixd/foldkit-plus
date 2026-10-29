@@ -610,6 +610,27 @@ insert/remove/invalidate events.
 If an Entity has no live Source, it contributes no stream. That is not an error:
 the client planner can fall back to refetching it.
 
+A live Source that reads rows to send them must read them as a read would, or
+it sends what the read handlers withhold. `RemoteServer.readAs` is that read:
+only the asked fields the Source declares and its `authorize` allows, each
+record through its `filter`, and no other field.
+
+```ts
+const asReader = RemoteServer.readAs(ProjectSource, {
+  ids: ['p1'],
+  fields: ['name', 'privateNotes'],
+  principal: { isAdmin: false },
+})
+// Option.some([{ id: 'p1', values: { name: 'Apollo' } }]); Option.none() when
+// the principal may read none of the fields asked.
+```
+
+A live Source that sends only what it reads through one Source names it as
+`reads`, so a startup check can trust it as far as it trusts that Source:
+`GuardServer.validate` accepts a live Source over a guarded Entity only when
+it `reads` the guarded Source it checked. `foldkit-remote-drizzle`'s `pollLive`
+reads through `readAs` and sets `reads`.
+
 ### Let a `liveHub` re-read changed fields
 
 A hub fans **what changed** out to live subscribers. Give it to the handlers,

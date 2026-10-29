@@ -428,6 +428,20 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **Live polling over a guarded Entity is checked and safe** (#264).
+  `pollLive` read each row with `source.read` directly, past what the read
+  handlers apply: a member a guard withholds (`GuardServer.filter`) went out
+  in a patch, a redacted one as written, `may` unanswered, and a client's
+  field names reached `read` unchecked. It now reads through
+  `RemoteServer.readAs`, the read the handlers and the live hub make: the
+  declared fields `authorize` allows, through `filter`, and no other field.
+  A member the read leaves out is not sent; a row in a watched list's window
+  that the subscriber can no longer read is deleted and removed, where a full
+  re-read kept it. `LiveSource.reads` names the Source a live source reads
+  through, and `pollLive` sets it, so `GuardServer.validate` accepts a
+  `pollLive` over the guarded Source it checks and refuses any other live
+  Source over a guarded Entity. `examples/reference` validates the server it
+  serves, `live` included.
 - **A server-rendered page carries the global rules its Styles need** (#271).
   `Style.usedIn` wrote the CSS of each compiled class a page's markup carries
   but none of a Style's global rules, so a Card's `fk-raised` had no depth

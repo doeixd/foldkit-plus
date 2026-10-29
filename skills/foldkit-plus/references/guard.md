@@ -108,7 +108,8 @@ const Todo = TodoFields.pipe(
   must land through its `GuardServer.writer`; a handler cannot be checked. A
   field a Source declares `shared` is refused when a Read rule (rows',
   `always`, its own, a relation target's) could tell its readers apart. So are
-  a hand-written live Source over a guarded Entity (use a live hub), a served
+  a live Source over a guarded Entity that does not read through its checked
+  Source (a live hub, or `pollLive` over that Source, passes), a served
   query the domain does not declare, and a seam built from the Entity before
   `Guards.attach` (seams are matched by attachment, not name).
 - Handlers: `GuardServer.mutation(ArchiveTodo, { entity: Todo, policy: Policy,

@@ -548,8 +548,10 @@ It throws, naming each:
   rule: a row a reader may not see is not in their list at all;
 - for a declared write of such an Entity that does not land through the
   `GuardServer.writer` built for it;
-- for a live Source of its own over such an Entity, whose stream nothing can
-  check: serve its changes through a live hub;
+- for a live Source over such an Entity that does not read through the Source
+  checked here: `pollLive` over that Source names it (`LiveSource.reads`) and
+  passes, as a live hub does; a hand-written stream, or a `pollLive` over
+  another Source, is refused;
 - for an Entity carrying another set's guards;
 - for a field its Source declares `shared` (sent to every live subscriber as
   written) when a Read rule could tell readers apart: the rows', `always`, the

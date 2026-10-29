@@ -9,7 +9,12 @@ import { asc, getTableName, gt, is, max } from 'drizzle-orm'
 import { integer, sqliteTable, SQLiteTable, text } from 'drizzle-orm/sqlite-core'
 import { Duration, Effect, Option, Schedule, Schema, Stream } from 'effect'
 import { entityKey, type LiveChange } from 'foldkit-remote'
-import { RemoteServerError, type EntitySource, type LiveSource } from 'foldkit-remote-server'
+import {
+  RemoteServer,
+  RemoteServerError,
+  type EntitySource,
+  type LiveSource,
+} from 'foldkit-remote-server'
 import type { AnyEntityBinding } from './binding.js'
 import { idColumn } from './columns.js'
 import { DrizzleDatabase } from './database.js'
@@ -58,6 +63,12 @@ export interface ListWatch<P, R = DrizzleDatabase> {
   readonly edges: (principal: P) => Effect.Effect<ReadonlyArray<ListedEdge>, RemoteServerError, R>
 }
 
+/** The fields of `fields` a read returned: one the principal may not read is left out. */
+const heldOf = (
+  values: Readonly<Record<string, unknown>>,
+  fields: ReadonlyArray<string>,
+): Array<string> => fields.filter(field => Object.hasOwn(values, field))
+
 const picked = (
   values: Readonly<Record<string, unknown>>,
   fields: ReadonlyArray<string>,
@@ -69,11 +80,14 @@ const picked = (
 
 /**
  * A live source that polls from inside the subscriber's own request. Each
- * tick reads the subscribed rows again through the entity's source, under the
- * subscriber's principal, and patches what moved since the last tick: a row
- * absent at one tick and present at the next patches whole, and one present
- * and then gone is deleted. Scalar fields compare by identity; relations are
- * not polled.
+ * tick reads the subscribed rows again through the entity's source as a read
+ * answers the subscriber (`RemoteServer.readAs`: its `authorize` and `filter`
+ * applied, so a member it may not read is never sent), and patches what moved
+ * since the last tick: a row absent at one tick and present at the next
+ * patches whole, and one present and then gone, or no longer visible to the
+ * subscriber, is deleted. Scalar fields compare by identity; relations are not
+ * polled. It names `source` as the one it `reads`, so `GuardServer.validate`
+ * accepts it over the guarded source it checks.
  *
  * A stream subscribed to a list's `watchId` also diffs that list: a listed
  * row's change is a patch, a row that joined a patch and then an insert, one
@@ -99,6 +113,7 @@ export const pollLive = <P, R>(
   } = {},
 ): LiveSource<P, R> => ({
   entity: source.entity,
+  reads: source,
   subscribe: ({ requirements, after, principal, viewer }) => {
     const ours = requirements.filter(requirement => requirement.entity === source.entity)
     const wanted = new Map<string, Set<string>>()
@@ -133,8 +148,9 @@ export const pollLive = <P, R>(
       Effect.gen(function* () {
         let cursor = after
         const next = () => (cursor += 1)
+        // As a read answers this principal: none when it may read none of the fields.
         const read = (ids: ReadonlyArray<string>, fields: ReadonlyArray<string>) =>
-          source.read({ ids: [...ids], fields: [...fields], principal, viewer })
+          RemoteServer.readAs(source, { ids: [...ids], fields: [...fields], principal, viewer })
         // The log entry the rows were last read at; none reads every tick.
         let readAt =
           changes === undefined ? Option.none<number>() : yield* Effect.option(changes.head)
@@ -142,7 +158,9 @@ export const pollLive = <P, R>(
         // landed before it is already in it, so open the stream before the change.
         const previous = new Map<string, Readonly<Record<string, unknown>>>()
         for (const { ids, fields } of groups.values()) {
-          for (const record of yield* read(ids, fields)) previous.set(record.id, record.values)
+          const records = yield* read(ids, fields)
+          if (Option.isNone(records)) continue
+          for (const record of records.value) previous.set(record.id, record.values)
         }
 
         /** One watched list's state in this stream. */
@@ -158,8 +176,11 @@ export const pollLive = <P, R>(
         const readable = (listing: Listing, ids: ReadonlyArray<string>) =>
           Effect.option(
             Effect.map(
-              ids.length === 0 ? Effect.succeed([]) : read(ids, listing.list.fields),
-              records => new Map(records.map(record => [record.id, record.values])),
+              ids.length === 0 ? Effect.succeed(Option.none()) : read(ids, listing.list.fields),
+              records =>
+                new Map(
+                  Option.getOrElse(records, () => []).map(record => [record.id, record.values]),
+                ),
             ),
           )
         /** The list's whole window and the rows in it the principal can read. */
@@ -256,9 +277,9 @@ export const pollLive = <P, R>(
             }
             const current = listing.known.value
             const listed = Option.match(logged, {
-              onNone: () =>
-                new Set(edges.map(edge => edge.id).filter(id => rows.has(id) || current.has(id))),
-              // A logged row is listed while the principal can read it.
+              // A row is listed while the principal can read it: one in the window
+              // it no longer may is gone to it, not kept as it last read.
+              onNone: () => new Set(edges.map(edge => edge.id).filter(id => rows.has(id))),
               onSome: ids => {
                 const kept = new Set(current)
                 for (const id of ids) {
@@ -278,7 +299,9 @@ export const pollLive = <P, R>(
                 continue
               }
               const before = listing.values.get(id)
-              const changed = fields.filter(field => before?.[field] !== values[field])
+              const changed = heldOf(values, fields).filter(
+                field => before?.[field] !== values[field],
+              )
               if (changed.length > 0) {
                 patches.push({
                   _tag: 'EntityPatched',
@@ -306,8 +329,8 @@ export const pollLive = <P, R>(
                   _tag: 'EntityPatched',
                   entity: source.entity,
                   id,
-                  values: picked(values, fields),
-                  changed: [...fields],
+                  values: picked(values, heldOf(values, fields)),
+                  changed: heldOf(values, fields),
                   cursor: next(),
                 })
               }
@@ -349,9 +372,10 @@ export const pollLive = <P, R>(
           for (const group of groups.values()) {
             const ids = group.ids.filter(reads)
             if (ids.length === 0) continue
-            const records = new Map(
-              (yield* read(ids, group.fields)).map(record => [record.id, record.values]),
-            )
+            const answered = yield* read(ids, group.fields)
+            // Nothing asked may be read: no row is told apart from a gone one.
+            if (Option.isNone(answered)) continue
+            const records = new Map(answered.value.map(record => [record.id, record.values]))
             for (const id of ids) {
               const values = records.get(id)
               const before = previous.get(id)
@@ -363,7 +387,9 @@ export const pollLive = <P, R>(
                 }
                 continue
               }
-              const changed = group.fields.filter(field => before?.[field] !== values[field])
+              const changed = heldOf(values, group.fields).filter(
+                field => before?.[field] !== values[field],
+              )
               if (changed.length === 0) continue
               previous.set(id, values)
               patched.add(id)

@@ -1005,6 +1005,12 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   store they share (D1), and each live stream re-reads it from inside its own
   request. `foldkit-remote-drizzle`'s `pollLive` is the shape; a
   `LiveHub` push reaches nobody.
+- **`EntitySource.read` is not what a reader may see.** The handlers apply
+  `authorize` and `filter` around it, so a guard's member Read rules live
+  outside `read`. `pollLive` called `read` itself and sent a withheld member
+  in every patch, while the Source it read through passed
+  `GuardServer.validate` (#264). Anything that reads to send reads through
+  `RemoteServer.readAs`.
 
 - **A Drizzle `PgColumn` is structurally a `SQLiteColumn`.** An overload
   taking SQLite columns first matched Postgres ones too and returned SQLite

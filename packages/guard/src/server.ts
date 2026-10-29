@@ -1118,9 +1118,16 @@ export const GuardServer = {
                 )
               : [],
           )
-          // A live Source of its own streams whatever it reads: nothing here can check it.
-          const liveProblems = config.server.live.has(name)
-            ? [`${name} has a live Source of its own; serve its changes through a live hub`]
+          // A live Source sends what it reads: only one reading through the Source
+          // checked above is known to send what a read would.
+          const live = Option.fromUndefinedOr(config.server.live.get(name))
+          const liveProblems = Option.exists(
+            live,
+            ({ reads }) => !Option.exists(source, checked => checked === reads),
+          )
+            ? [
+                `${name}'s live Source does not read through its guarded Source; poll through that Source (pollLive) or serve changes through a live hub`,
+              ]
             : []
           return [
             ...sourceProblems,

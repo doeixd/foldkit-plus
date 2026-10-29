@@ -1459,9 +1459,14 @@ the write fails rather than landing unrecorded.
 One Worker request cannot wake another's stream, so a `LiveHub` fed by a
 write reaches nobody there. `pollLive` is a `LiveSource` that polls the
 database from inside the subscriber's own request instead, re-reading each
-subscribed row through the Source under the subscriber's principal and sending
-a patch for what moved. A list in `lists` is diffed for a stream that
-subscribes to its `watchId`, so a row written elsewhere joins or leaves it.
+subscribed row through the Source as a read answers the subscriber
+(`RemoteServer.readAs`: the Source's `authorize` and `filter` applied) and
+sending a patch for what moved. A member the subscriber may not read is never
+sent, and a row it can no longer read is sent as deleted. A list in `lists` is
+diffed for a stream that subscribes to its `watchId`, so a row written
+elsewhere joins or leaves it. Over a guarded Entity, poll through the guarded
+Source the server mounts: `pollLive` names it as the Source it `reads`, and
+`GuardServer.validate` accepts it there and refuses it over any other.
 
 ```ts
 import { pollLive, rowChangeLog, rowLog } from 'foldkit-remote-drizzle'

@@ -130,7 +130,7 @@ const notesWriter = GuardServer.writer(
   { revision: 'revision' },
 )
 
-const served = {
+export const server = RemoteServer.make<Option.Option<Principal>, DrizzleDatabase>({
   // Who asks, as the member a new note is set to.
   viewer: (principal: Option.Option<Principal>) =>
     Option.map(principal, ({ id }) => Remote.ref(Member, id)),
@@ -145,20 +145,14 @@ const served = {
     RemoteServer.write(EditNote, notesWriter),
     RemoteServer.write(DeleteNote, notesWriter),
   ],
-}
-
-export const server = RemoteServer.make<Option.Option<Principal>, DrizzleDatabase>({
-  ...served,
   live: [NotesLive],
 })
 
 // A guarded Entity served without its rule would serve every row: refuse to
-// start. It is checked without the live source: `validate` refuses any live
-// source over a guarded Entity but a hub, and a hub reaches no one on a
-// Worker. `pollLive` re-reads each row through `NoteSource`, the guarded
+// start. `NotesLive` passes because it reads through `NoteSource`, the guarded
 // Source checked here, so it streams nothing the reader could not read.
 GuardServer.validate(Policy, {
   entities: [Member, Note],
   domain: Remote.define({ entities: [Member, Note], queries: [Notes] }),
-  server: RemoteServer.make<Option.Option<Principal>, DrizzleDatabase>(served),
+  server,
 })

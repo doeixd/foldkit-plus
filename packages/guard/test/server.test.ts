@@ -5,9 +5,19 @@
  */
 import { Context, Effect, Fiber, Option, Schema, Stream } from 'effect'
 import { RpcTest } from 'effect/rpc'
+import { TestClock } from 'effect/testing'
 import { Entity, Expr, Operators, Order, Relation } from 'foldkit-entity'
-import { Query, REMOTE_PROTOCOL_VERSION, Remote, RemoteRpc, type Requirement } from 'foldkit-remote'
-import { RemoteServer } from 'foldkit-remote-server'
+import {
+  Query,
+  REMOTE_PROTOCOL_VERSION,
+  Remote,
+  RemoteRpc,
+  entityKey,
+  type LiveChange,
+  type Requirement,
+} from 'foldkit-remote'
+import { pollLive } from 'foldkit-remote-drizzle'
+import { RemoteServer, type LiveSource, type MemoryStore } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
 import { Condition, Guards, Interaction, May, MaySchema, type Policy } from '../src/index.js'
 import { GuardServer } from '../src/server.js'
@@ -400,6 +410,147 @@ describe('a guarded domain in memory', () => {
   })
 })
 
+describe('pollLive over the guarded Source', () => {
+  /** A row ada may read: grace's, in ada's project p1. */
+  const shared = { ownerId: 'grace', email: 'g@x', notes: 'n', project: 'Project:p1' }
+
+  /**
+   * What ada's stream sends, polling every second through the guarded Todo
+   * Source, while each write lands before the tick after it. The watched list's
+   * window is every stored row, unguarded: only the Source decides what is sent.
+   */
+  const polled = (
+    requirements: ReadonlyArray<Requirement>,
+    writes: ReadonlyArray<(store: MemoryStore) => void>,
+  ) => {
+    const backend = RemoteServer.memory({
+      domain: Data,
+      rows,
+      principal: Option.none<User>(),
+      ...GuardServer.memory(Policy, [Todo, Project, Node]),
+    })
+    const live = pollLive(backend.server.entities.get('Todo')!, {
+      every: '1 second',
+      lists: [
+        {
+          identity: 'AllTodos',
+          watchId: 'watch',
+          fields: ['id', 'title', 'notes'],
+          edges: () =>
+            Effect.sync(() =>
+              backend.rows('Todo').map(row => {
+                const id = String(row.id)
+                return { entity: 'Todo', id, key: entityKey('Todo', id) }
+              }),
+            ),
+        },
+      ],
+    })
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const sent: Array<typeof LiveChange.Type> = []
+        const fiber = yield* live
+          .subscribe({ requirements, after: 0, principal: Option.some(ada) })
+          .pipe(
+            Stream.runForEach(change => Effect.sync(() => void sent.push(change))),
+            Effect.forkChild,
+          )
+        for (let i = 0; i < 100; i++) yield* Effect.yieldNow
+        for (const write of writes) {
+          write(backend)
+          yield* TestClock.adjust('1 second')
+          for (let i = 0; i < 100; i++) yield* Effect.yieldNow
+        }
+        yield* Fiber.interrupt(fiber)
+        return sent
+      }).pipe(Effect.provide(TestClock.layer())),
+    )
+  }
+
+  it('never sends a member its rule withholds or redacts, nor a row it hides', async () => {
+    const sent = await polled(
+      [
+        { entity: 'Todo', id: 't2', fields: ['title', 'notes', 'email'] },
+        { entity: 'Todo', id: 't3', fields: ['title', 'notes'] },
+      ],
+      [
+        store => {
+          store.write('Todo', 't2', { title: 'Shared!', notes: 'secret', email: 'z@x' })
+          store.write('Todo', 't3', { title: 'Hidden!', notes: 'secret' })
+        },
+      ],
+    )
+    // `notes` is grace's alone, and `email` reads `hidden` to ada before and after.
+    expect(sent).toEqual([
+      {
+        _tag: 'EntityPatched',
+        entity: 'Todo',
+        id: 't2',
+        values: { title: 'Shared!' },
+        changed: ['title'],
+        cursor: 1,
+      },
+    ])
+  })
+
+  it('sends a member once its rule lets the principal read it, and nothing when it stops', async () => {
+    const sent = await polled(
+      [{ entity: 'Todo', id: 't2', fields: ['title', 'notes'] }],
+      [
+        store => store.write('Todo', 't2', { ownerId: 'ada' }),
+        store => store.write('Todo', 't2', { ownerId: 'grace', notes: 'secret' }),
+      ],
+    )
+    // Ada keeps the notes she was let read; the ones written after are not hers.
+    expect(sent).toEqual([
+      {
+        _tag: 'EntityPatched',
+        entity: 'Todo',
+        id: 't2',
+        values: { notes: 'n' },
+        changed: ['notes'],
+        cursor: 1,
+      },
+    ])
+  })
+
+  it('deletes a subscribed row that leaves what the principal may read', async () => {
+    const sent = await polled(
+      [{ entity: 'Todo', id: 't2', fields: ['title'] }],
+      [store => store.write('Todo', 't2', { project: 'Project:p2' })],
+    )
+    expect(sent).toEqual([{ _tag: 'EntityDeleted', entity: 'Todo', id: 't2', cursor: 1 }])
+  })
+
+  it('joins a watched list with the rows the principal may read, as it may read them', async () => {
+    const sent = await polled(
+      [{ entity: 'Todo', id: 'watch', fields: ['title'] }],
+      [
+        store => {
+          store.write('Todo', 't4', { ...shared, title: 'Joined', notes: 'secret' })
+          store.write('Todo', 't5', { ...shared, title: 'Elsewhere', project: 'Project:p2' })
+        },
+        store => store.write('Todo', 't4', { project: 'Project:p2' }),
+      ],
+    )
+    const edge = { entity: 'Todo', id: 't4', key: entityKey('Todo', 't4') }
+    expect(sent).toEqual([
+      { _tag: 'ConnectionInvalidate', connection: 'AllTodos', cursor: 1 },
+      {
+        _tag: 'EntityPatched',
+        entity: 'Todo',
+        id: 't4',
+        values: { id: 't4', title: 'Joined' },
+        changed: ['id', 'title'],
+        cursor: 2,
+      },
+      { _tag: 'ConnectionInsert', connection: 'AllTodos', position: 'prepend', edge, cursor: 3 },
+      { _tag: 'EntityDeleted', entity: 'Todo', id: 't4', cursor: 4 },
+      { _tag: 'ConnectionRemove', connection: 'AllTodos', edge, cursor: 5 },
+    ])
+  })
+})
+
 describe('GuardServer.validate', () => {
   const backend = (guarded: boolean) =>
     RemoteServer.memory({
@@ -504,23 +655,26 @@ describe('GuardServer.validate', () => {
     ).toThrow("Todo's Source does not apply its Read rules")
   })
 
-  it('refuses a live Source of its own, and a query the domain does not declare', () => {
+  it('passes a live Source polling through the Source it checks, and refuses any other', () => {
     const server = backend(true)
-    expect(() =>
+    const serving = (live: LiveSource<Option.Option<User>>) => () =>
       GuardServer.validate(Policy, {
         entities: [Todo],
         domain: Data,
-        server: {
-          ...server,
-          live: new Map([
-            [
-              'Todo',
-              RemoteServer.live<Option.Option<User>>(Todo, { subscribe: () => Stream.empty }),
-            ],
-          ]),
-        },
-      }),
-    ).toThrow('Todo has a live Source of its own; serve its changes through a live hub')
+        server: { ...server, live: new Map([['Todo', live]]) },
+      })
+    expect(serving(pollLive(server.entities.get('Todo')!))).not.toThrow()
+    const refused =
+      "Todo's live Source does not read through its guarded Source; poll through that Source (pollLive) or serve changes through a live hub"
+    // The same table through a Source with no rules.
+    expect(serving(pollLive(backend(false).entities.get('Todo')!))).toThrow(refused)
+    expect(
+      serving(RemoteServer.live<Option.Option<User>>(Todo, { subscribe: () => Stream.empty })),
+    ).toThrow(refused)
+  })
+
+  it('refuses a query the domain does not declare', () => {
+    const server = backend(true)
     const Extra = Query.define('Extra', {}, () => Query.from(Todo))
     expect(() =>
       GuardServer.validate(Policy, {

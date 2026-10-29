@@ -35,16 +35,18 @@ const table = (rows: Record<string, string> = { t1: 'Milk' }) => {
     log: [] as Array<string>,
     trimmed: 0,
     reads: [] as Array<string>,
+    fields: [] as Array<ReadonlyArray<string>>,
     calls: 0,
     /** Rows whose next read fails. */
     failing: new Set<string>(),
   }
   const source: EntitySource<string, DrizzleDatabase> = {
     entity: 'Todo',
-    read: ({ ids }) =>
+    read: ({ ids, fields }) =>
       Effect.suspend(() => {
         state.calls++
         state.reads.push(...ids)
+        state.fields.push(fields)
         const failed = ids.filter(id => state.failing.delete(id))
         if (failed.length > 0) {
           return Effect.fail(new RemoteServerError({ message: `could not read ${failed}` }))
@@ -52,7 +54,8 @@ const table = (rows: Record<string, string> = { t1: 'Milk' }) => {
         return Effect.succeed(
           ids.flatMap(id => {
             const title = state.rows[id]
-            return title === undefined ? [] : [{ id, values: { id, title, done: 0 } }]
+            // `done` moves with the title, so a field read beside it changes too.
+            return title === undefined ? [] : [{ id, values: { id, title, done: title.length } }]
           }),
         )
       }),
@@ -185,6 +188,38 @@ describe('pollLive with a row log', () => {
     // As the stream opened, then once a tick.
     expect(state.calls).toBe(3)
     expect(state.reads).toEqual([...ids, ...ids, ...ids])
+  })
+})
+
+describe('pollLive reading as a read answers the principal', () => {
+  /** The table's Source, declaring its fields and refusing everyone `done`. */
+  const declared = (source: EntitySource<string, DrizzleDatabase>) => ({
+    ...source,
+    fields: new Set(['id', 'title', 'done']),
+    authorize: (_: string, fields: ReadonlyArray<string>) =>
+      fields.filter(field => field !== 'done'),
+  })
+
+  it('asks only for the declared fields the principal may read, and sends no other', async () => {
+    const { state, source, write } = table()
+    const changed: Array<ReadonlyArray<string>> = []
+    await ticks(
+      declared(source),
+      {},
+      [write('t1', 'Oat milk')],
+      ['t1'],
+      ['title', 'done', 'constructor'],
+      changed,
+    )
+    expect(state.fields).toEqual([['title'], ['title']])
+    expect(changed).toEqual([['title']])
+  })
+
+  it('reports no deletion of a row the principal may read nothing asked of', async () => {
+    const { state, source, write } = table()
+    const seen = await ticks(declared(source), {}, [write('t1', undefined)], ['t1'], ['done'])
+    expect(seen).toEqual([])
+    expect(state.calls).toBe(0)
   })
 })
 

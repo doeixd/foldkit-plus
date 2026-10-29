@@ -6,10 +6,17 @@
  * guard, the decode and the table's CHECKs.
  */
 import { request } from 'node:http'
-import { Effect, Option, Result, type Layer } from 'effect'
+import { Effect, Fiber, Option, Result, Stream, type Layer } from 'effect'
 import { fromString } from 'foldkit/url'
 import { drizzle } from 'drizzle-orm/d1'
-import { Remote, type RemoteClient, type RemoteMessage } from 'foldkit-plus/remote'
+import {
+  REMOTE_PROTOCOL_VERSION,
+  Remote,
+  liveFetch,
+  type LiveChange,
+  type RemoteClient,
+  type RemoteMessage,
+} from 'foldkit-plus/remote'
 import { databaseLayer } from 'foldkit-plus/remote-drizzle'
 import { RemoteServer } from 'foldkit-plus/remote-server'
 import { Surface } from 'foldkit-plus/surface'
@@ -23,7 +30,7 @@ import {
   viewerOf,
   type Model,
 } from '../src/main.js'
-import { AddNote, DeleteNote, EditNote } from '../src/operations.js'
+import { AddNote, DeleteNote, EditNote, NOTES_WATCH } from '../src/operations.js'
 import { server } from '../src/server.js'
 import { buildPage, startStack, type ReferenceStack } from '../src/stack.js'
 
@@ -349,5 +356,65 @@ describe('a write sent again', () => {
     expect(copies.map(copy => copy._tag)).toEqual(['Success', 'Success', 'Success', 'Success'])
     expect(new Set(copies.map(copy => JSON.stringify(copy))).size).toBe(1)
     expect(await stored('annie-1')).toEqual({ notes: 1, records: 1 })
+  }, 60_000)
+})
+
+describe('live notes', () => {
+  /**
+   * The notes list watched live through `/remote`, as `cookie`'s member or a
+   * visitor: every change the Worker's `pollLive` sends, as it arrives.
+   */
+  const watch = (cookie: string | undefined) => {
+    const sent: Array<typeof LiveChange.Type> = []
+    const fiber = Effect.runFork(
+      liveFetch(`${stack.origin}/remote`, {
+        headers: () => ({ ...scripted(), ...(cookie === undefined ? {} : { cookie }) }),
+      })({
+        version: REMOTE_PROTOCOL_VERSION,
+        requirements: [{ entity: 'Note', id: NOTES_WATCH, fields: ['title'] }],
+        after: 0,
+      }).pipe(Stream.runForEach(change => Effect.sync(() => void sent.push(change)))),
+    )
+    return { sent, stop: () => Effect.runPromise(Fiber.interrupt(fiber)) }
+  }
+
+  /** Resolves once `seen` holds, polling; fails after `ms`. */
+  const until = async (seen: () => boolean, ms = 15_000) => {
+    const deadline = Date.now() + ms
+    while (!seen()) {
+      if (Date.now() > deadline) throw new Error('waited too long')
+      await new Promise(resolve => setTimeout(resolve, 50))
+    }
+  }
+
+  it("polls another member's new note into a member's list, and out when it is deleted", async () => {
+    const writer = await member('Lise')
+    const reader = watch(await member('Emmy'))
+    const visitor = watch(undefined)
+    try {
+      // Watch ids alone: the stream asks the list again once it is open.
+      await until(() => reader.sent.some(change => change._tag === 'ConnectionInvalidate'))
+      await until(() => visitor.sent.some(change => change._tag === 'ConnectionInvalidate'))
+      expect((await write(writer, added('lise-1', 'Fission')))._tag).toBe('MutationSucceeded')
+      await until(() => reader.sent.some(change => change._tag === 'ConnectionInsert'))
+      expect(reader.sent).toContainEqual(
+        expect.objectContaining({
+          _tag: 'EntityPatched',
+          id: 'lise-1',
+          values: expect.objectContaining({ title: 'Fission' }),
+        }),
+      )
+      const deleted = await write(writer, Data.mutate(initial, DeleteNote, { id: 'lise-1' }))
+      expect(deleted._tag).toBe('MutationSucceeded')
+      await until(() => reader.sent.some(change => change._tag === 'ConnectionRemove'))
+      expect(reader.sent).toContainEqual(
+        expect.objectContaining({ _tag: 'EntityDeleted', id: 'lise-1' }),
+      )
+      // A visitor reads no note: polled through the same Source, its list stays empty.
+      expect(visitor.sent.map(change => change._tag)).toEqual(['ConnectionInvalidate'])
+    } finally {
+      await reader.stop()
+      await visitor.stop()
+    }
   }, 60_000)
 })

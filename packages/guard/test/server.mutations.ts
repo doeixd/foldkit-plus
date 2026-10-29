@@ -3,6 +3,7 @@
  * `pnpm mutate packages/guard/test/server.mutations.ts`.
  */
 const file = '../src/server.ts'
+const poll = '../../remote-drizzle/src/poll.ts'
 const tests = ['packages/guard/test/server.test.ts']
 
 export default [
@@ -326,8 +327,63 @@ export default [
     edits: [
       {
         file,
-        find: 'const liveProblems = config.server.live.has(name)',
-        replace: 'const liveProblems = false',
+        find: '({ reads }) => !Option.exists(source, checked => checked === reads),',
+        replace: '() => false,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a live Source reading through any Source passes',
+    edits: [{ file, find: 'checked => checked === reads', replace: '() => true' }],
+    tests,
+  },
+  {
+    name: 'a live Source of any kind is refused',
+    edits: [
+      {
+        file,
+        find: '({ reads }) => !Option.exists(source, checked => checked === reads),',
+        replace: '() => true,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'pollLive names no Source it reads',
+    edits: [{ file: poll, find: '  reads: source,', replace: '' }],
+    tests,
+  },
+  {
+    name: 'pollLive reads past the guarded Source’s filter',
+    edits: [
+      {
+        file: poll,
+        find: 'RemoteServer.readAs(source, { ids: [...ids], fields: [...fields], principal, viewer })',
+        replace:
+          'Effect.map(source.read({ ids: [...ids], fields: [...fields], principal, viewer }), Option.some)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a member the read left out is sent as changed',
+    edits: [
+      {
+        file: poll,
+        find: 'const changed = heldOf(values, group.fields).filter(',
+        replace: 'const changed = group.fields.filter(',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a row no longer readable stays in a window read whole',
+    edits: [
+      {
+        file: poll,
+        find: '.filter(id => rows.has(id))),',
+        replace: '.filter(id => rows.has(id) || current.has(id))),',
       },
     ],
     tests,

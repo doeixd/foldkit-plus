@@ -184,6 +184,17 @@ export default [
     tests: worker,
   },
   {
+    name: 'a live re-read may read no field',
+    edits: [
+      {
+        file: '../../../packages/remote-server/src/index.ts',
+        find: 'const allowed = allowedFields(source, principal, context.fields)',
+        replace: 'const allowed: ReadonlyArray<string> = []',
+      },
+    ],
+    tests: worker,
+  },
+  {
     name: 'the ledger has no index on its time',
     edits: [
       { file: '../src/server.ts', find: "index('write_ledger_at').on(table.at),", replace: '' },

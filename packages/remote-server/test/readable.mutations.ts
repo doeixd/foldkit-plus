@@ -21,9 +21,10 @@ export default [
     edits: [
       {
         file,
-        find: 'const records = yield* readFiltered(source, principal, allowed, fields =>\n              source.read({\n                ids: [ref.id]',
+        // A live patch reads through `readAs`, which every live re-read shares.
+        find: 'return readFiltered(source, principal, allowed, fields =>',
         replace:
-          'const records = yield* ((_s: unknown, _p: unknown, a: readonly string[], r: (f: readonly string[]) => any) => r(a))(source, principal, allowed, fields =>\n              source.read({\n                ids: [ref.id]',
+          'return ((_s: unknown, _p: unknown, a: readonly string[], r: (f: readonly string[]) => any) => r(a))(source, principal, allowed, fields =>',
       },
     ],
     tests,

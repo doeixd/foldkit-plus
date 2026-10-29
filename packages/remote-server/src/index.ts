@@ -221,6 +221,36 @@ const readFiltered = <P, R>(
       )
 
 /**
+ * A read as the handlers make it for `context.principal`: the asked fields the
+ * source declares and `authorize` allows, through `filter`, each record holding
+ * no other field. None when the principal may read none of the fields asked,
+ * so a caller can tell nothing to read from a row that is gone.
+ */
+const readAs = <P, R>(
+  source: EntitySource<P, R>,
+  context: EntitySourceContext<P>,
+): Effect.Effect<Option.Option<ReadonlyArray<EntityRecord>>, RemoteServerError, R> => {
+  const { ids, principal, viewer } = context
+  const allowed = allowedFields(source, principal, context.fields)
+  if (allowed.length === 0) return Effect.succeed(Option.none())
+  return readFiltered(source, principal, allowed, fields =>
+    source.read({ ids, fields, principal, viewer, ...windowsOf(context.windows, allowed) }),
+  ).pipe(
+    Effect.map(records =>
+      Option.some(
+        records.map(record => {
+          const values: Record<string, unknown> = Object.create(null)
+          for (const field of allowed) {
+            if (Object.hasOwn(record.values, field)) values[field] = record.values[field]
+          }
+          return { id: record.id, values }
+        }),
+      ),
+    ),
+  )
+}
+
+/**
  * Where a declared write lands: one row's new values, encoded as the store holds
  * them. With `expect`, the row is written only while its revision is still that
  * value, and the revision moves on with the write. With `when`, only while the
@@ -567,6 +597,13 @@ export interface LiveSource<P, R = never> {
     /** As `EntitySourceContext.viewer`, for the re-reads it makes. */
     readonly viewer?: Option.Option<EntityRef> | undefined
   }) => Stream.Stream<Schema.Schema.Type<typeof LiveChange>, RemoteServerError, R>
+  /**
+   * The entity source every value it sends is read through, as
+   * `RemoteServer.readAs` reads (`pollLive` sets it). The server never reads
+   * it: a startup check such as `GuardServer.validate` does, to accept a live
+   * source over the source it has checked.
+   */
+  readonly reads?: EntitySource<P, R> | undefined
 }
 
 export interface ServerDefinition<P, R = never> {
@@ -933,21 +970,17 @@ const liveHub = <P, R>(
         ): Effect.Effect<void, RemoteServerError, R> =>
           Effect.gen(function* () {
             const requested = [...new Set(group.flatMap(entry => entry.fields))]
-            const allowed = allowedFields(source, principal, requested)
-            if (allowed.length === 0) return
-            const allowedSet = new Set(allowed)
             // The group shares a principal key and, where a member is per viewer, a viewer.
             const viewer = group[0]?.subscriber.viewer
-            const records = yield* readFiltered(source, principal, allowed, fields =>
-              source.read({
-                ids: [ref.id],
-                fields,
-                principal,
-                viewer,
-                ...windowsOf(windows, allowed),
-              }),
-            )
-            const record = records.find(candidate => candidate.id === ref.id)
+            const records = yield* readAs(source, {
+              ids: [ref.id],
+              fields: requested,
+              principal,
+              viewer,
+              windows,
+            })
+            if (Option.isNone(records)) return
+            const record = records.value.find(candidate => candidate.id === ref.id)
             for (const { subscriber, fields: wanted } of group) {
               if (gone.has(subscriber)) continue
               if (record === undefined) {
@@ -958,7 +991,7 @@ const liveHub = <P, R>(
               }
               const values: Record<string, unknown> = Object.create(null)
               for (const field of wanted) {
-                if (allowedSet.has(field) && Object.hasOwn(record.values, field)) {
+                if (Object.hasOwn(record.values, field)) {
                   values[renamed(renames, field)] = record.values[field]
                 }
               }
@@ -2258,6 +2291,15 @@ export const RemoteServer = {
         ...(context.select === undefined ? {} : { select: context.select }),
       }),
   }),
+
+  /**
+   * Reads through `source` as the read handlers and the live hub do: only the
+   * asked fields the source declares and its `authorize` allows, each record
+   * through its `filter` and holding no other field. None when the principal
+   * may read none of the fields asked. What a live source of its own reads
+   * with, so it sends no more than a read would.
+   */
+  readAs,
 
   /** Streams live entity patches for a client's live requirements. */
   live: <P = unknown, R = never>(
