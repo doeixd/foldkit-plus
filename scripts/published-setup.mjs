@@ -60,9 +60,12 @@ if (!tarballs.has('foldkit-plus')) throw new Error('No foldkit-plus tarball')
 
 const work = mkdtempSync(join(tmpdir(), 'foldkit-plus-setup-'))
 const home = join(work, 'home')
-// A new user's cache: nothing installed by an earlier run is reused.
+// A new user's cache: nothing installed by an earlier run is reused. The
+// user agent is what npx gives the CLI, which reads it for the manager; run
+// under `pnpm pack:check`, it would otherwise say pnpm.
 const env = {
   ...process.env,
+  npm_config_user_agent: `npm/11 node/${process.version}`,
   npm_config_cache: join(work, 'npm-cache'),
   npm_config_audit: 'false',
   npm_config_fund: 'false',
@@ -102,7 +105,7 @@ writeFileSync(
 writeFileSync(join(stranger, 'index.js'), "throw new Error('the ancestor effect was loaded')\n")
 
 const setup = cwd => {
-  const result = spawnSync(process.execPath, [cli, 'setup'], { cwd, encoding: 'utf8' })
+  const result = spawnSync(process.execPath, [cli, 'setup'], { cwd, env, encoding: 'utf8' })
   if (result.status !== 0 || !result.stdout.startsWith('# Foldkit Plus'))
     fail(`setup failed in ${cwd}:\n${result.stdout}${result.stderr}`)
   return result.stdout
