@@ -14,7 +14,7 @@ import * as Dom from 'foldkit/dom'
 import { Crud } from 'foldkit-crud'
 import { Style } from 'foldkit-mixins'
 import { FormView } from 'foldkit-mixins-form'
-import { ConnectionChange, Remote, type RemoteClient } from 'foldkit-remote'
+import { Remote, type RemoteClient } from 'foldkit-remote'
 import { modifyFields } from 'foldkit/struct'
 import { Surface } from 'foldkit-surface'
 import { cacheKey, snapshotFor } from './cache.js'
@@ -103,12 +103,6 @@ export const Todos = Listed.at({
 
 export const Rename = Editor.at({ data: Data, model: App.model.rename })
 
-/** A write's change to the list, through the list's own connection; none while it is not shown. */
-const inList = (
-  model: Model,
-  change: (list: { readonly identity: string }) => ConnectionChange,
-): ReadonlyArray<ConnectionChange> => Option.toArray(Option.map(Todos.connection(model), change))
-
 const remoteWiring = Data.wiring(Crud.actives({ todos: Todos, editor: Rename }))
 
 /**
@@ -157,17 +151,8 @@ const Page = Base.pipe(
       ({ value }) =>
       model => {
         const id = crypto.randomUUID()
-        const started = Data.mutate(
-          model,
-          CreateTodo,
-          { id, title: value.title },
-          {
-            optimistic: [
-              Remote.patch(Todo, id, { id, title: value.title, done: 0 }),
-              ...inList(model, list => ConnectionChange.prepend(list, Remote.ref(Todo, id))),
-            ],
-          },
-        )
+        // A declared insert: Remote shows the row where the list's order puts it.
+        const started = Data.mutate(model, CreateTodo, { id, title: value.title, done: 0 })
         return {
           model: modifyFields(started.model, {
             add: () => AddTodoForm.initial,
@@ -225,12 +210,8 @@ export const update = Rename.after(
         }
       }
       case 'RemovedTodo': {
-        const started = Data.mutate(
-          model,
-          DeleteTodo,
-          { id: message.id },
-          { optimistic: [Remote.tombstone(Todo, message.id)] },
-        )
+        // A declared delete: the row leaves every list until the server answers.
+        const started = Data.mutate(model, DeleteTodo, { id: message.id })
         const closed =
           Rename.target(started.model) === message.id
             ? RenameForm.helpers.close()(started.model).model

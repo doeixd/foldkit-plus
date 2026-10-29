@@ -5,11 +5,10 @@
  */
 import { Effect, Option, Stream } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
-import { ConnectionChange, Remote, RemoteData, RemotePersistence } from 'foldkit-remote'
+import { Remote, RemoteData, RemotePersistence } from 'foldkit-remote'
 import { describe, expect, it } from 'vitest'
 import { Data, initial, persistence, Todos, type Model } from '../src/app.js'
 import { cacheKey, snapshotFor } from '../src/cache.js'
-import { Todo } from '../src/domain.js'
 import { AllTodos, CreateTodo } from '../src/operations.js'
 
 const select = { entity: 'Todo', fields: ['id', 'title', 'done'] } as const
@@ -122,14 +121,8 @@ describe('snapshot', () => {
     const started = Data.mutate(
       loaded,
       CreateTodo,
-      { id: 'pending', title: 'Pending' },
-      {
-        requestId: 'req-pending',
-        optimistic: [
-          Remote.patch(Todo, 'pending', { id: 'pending', title: 'Pending', done: 0 }),
-          ConnectionChange.prepend(AllTodos.ref({}), Remote.ref(Todo, 'pending')),
-        ],
-      },
+      { id: 'pending', title: 'Pending', done: 0 },
+      { requestId: 'req-pending' },
     )
     expect(edgeIds(started.model)).not.toContain('pending')
     expect(edgeIds(started.model)).toContain('milk')
@@ -140,16 +133,10 @@ describe('snapshot', () => {
     const started = Data.mutate(
       loaded,
       CreateTodo,
-      { id: 'zest', title: 'Zest' },
-      {
-        requestId: 'req-confirmed',
-        optimistic: [
-          Remote.patch(Todo, 'zest', { id: 'zest', title: 'Zest', done: 0 }),
-          ConnectionChange.prepend(AllTodos.ref({}), Remote.ref(Todo, 'zest')),
-        ],
-      },
+      { id: 'zest', title: 'Zest', done: 0 },
+      { requestId: 'req-confirmed' },
     )
-    // Shown first while pending; placed after Milk once the server has it.
+    // Placed after Milk by its title, and kept once the server has it.
     const confirmed = succeed(started.model, 'req-confirmed', 'zest', 'Zest')
     expect(edgeIds(confirmed)).toEqual(['milk', 'zest'])
   })

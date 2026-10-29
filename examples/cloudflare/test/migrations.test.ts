@@ -14,7 +14,7 @@ import {
 import { rowChangeLog } from 'foldkit-remote-drizzle'
 import { expect, it } from 'vitest'
 import { accounts, storage } from '../src/auth.js'
-import { Db } from '../src/schema.js'
+import { Db, ledger } from '../src/schema.js'
 
 /** A migration's statements, one per line, without its comments and drops. */
 const statementsOf = (file: string) =>
@@ -37,11 +37,14 @@ const indexed = (column: IndexColumn) => {
 
 /** The SQLite a Drizzle table declares: its columns, then its indexes. */
 const createTable = (table: SQLiteTable): ReadonlyArray<string> => {
-  const { name, columns, indexes } = getTableConfig(table)
+  const { name, columns, indexes, primaryKeys } = getTableConfig(table)
   const column = (c: (typeof columns)[number]) =>
     `${quoted(c.name)} ${c.getSQLType()}${c.primary ? ' primary key' : ''}${c.notNull ? ' not null' : ''}`
+  const keys = primaryKeys.map(
+    key => `primary key (${key.columns.map(c => quoted(c.name)).join(', ')})`,
+  )
   return [
-    `create table if not exists ${quoted(name)} (${columns.map(column).join(', ')});`,
+    `create table if not exists ${quoted(name)} (${[...columns.map(column), ...keys].join(', ')});`,
     ...indexes.map(
       ({ config }) =>
         `create ${config.unique ? 'unique ' : ''}index if not exists ${quoted(config.name)} on ${quoted(name)} (${config.columns.map(indexed).join(', ')});`,
@@ -56,4 +59,8 @@ it("creates the accounts and Yielded's tables as the auth storage declares them"
   expect(statementsOf('0005_auth.sql')).toEqual(
     [accounts, ...Object.values(storage.schema)].flatMap(createTable),
   )
+})
+
+it("creates the todos writer's ledger, keyed by asker, operation and row, indexed by time", () => {
+  expect(statementsOf('0006_write_ledger.sql')).toEqual(createTable(ledger))
 })

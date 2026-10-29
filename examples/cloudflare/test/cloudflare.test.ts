@@ -296,6 +296,7 @@ describe('cloudflare example', () => {
       readonly requestId: string
       readonly mutation: string
       readonly input: unknown
+      readonly operation?: string
     }) => {
       const response = await fetch(`${stack.origin}/remote`, {
         method: 'POST',
@@ -311,7 +312,8 @@ describe('cloudflare example', () => {
     const answer = await mutate({
       requestId: 'm-create',
       mutation: 'CreateTodo',
-      input: { id: 't-remote', title: 'Peas' },
+      input: { id: 't-remote', title: 'Peas', done: 0 },
+      operation: 'op-create',
     })
     // It names no list: the client places the row by the list's body.
     expect(JSON.stringify(answer.result)).not.toContain('prepend')
@@ -326,12 +328,15 @@ describe('cloudflare example', () => {
       { entity: 'Todo', id: 't-remote', values: { title: 'Peas', done: 0 } },
     ])
 
-    // The id is already there: the second write does not replace the title.
-    await mutate({
-      requestId: 'm-again',
+    // Sent again under its operation, as a page retries a write whose answer
+    // was lost: the ledger answers it with its row, written once.
+    const retried = await mutate({
+      requestId: 'm-create',
       mutation: 'CreateTodo',
-      input: { id: 't-remote', title: 'Beans' },
+      input: { id: 't-remote', title: 'Peas', done: 0 },
+      operation: 'op-create',
     })
+    expect(JSON.stringify(retried.result)).toContain('Peas')
     const kept = await readTodo(remote, 't-remote', ['title', 'done'])
     expect(kept.entities).toEqual([
       { entity: 'Todo', id: 't-remote', values: { title: 'Peas', done: 0 } },
@@ -392,22 +397,22 @@ describe('cloudflare example', () => {
       await mutate({
         requestId: 'm-order-b',
         mutation: 'CreateTodo',
-        input: { id: 'order-b', title: 'Same' },
+        input: { id: 'order-b', title: 'Same', done: 0 },
       })
       await mutate({
         requestId: 'm-order-a',
         mutation: 'CreateTodo',
-        input: { id: 'order-a', title: 'Same' },
+        input: { id: 'order-a', title: 'Same', done: 0 },
       })
       await mutate({
         requestId: 'm-order-c',
         mutation: 'CreateTodo',
-        input: { id: 'order-c', title: 'Later' },
+        input: { id: 'order-c', title: 'Later', done: 0 },
       })
       await mutate({
         requestId: 'm-order-0',
         mutation: 'CreateTodo',
-        input: { id: 'order-0', title: 'same' },
+        input: { id: 'order-0', title: 'same', done: 0 },
       })
       const remote = remoteClient(`${stack.origin}/remote`, 'ada', fetch)
       const listed = await queryTodos(remote, { first: 100 })

@@ -1,8 +1,8 @@
 /**
- * What the page may ask of the server. The list is one query. Each write is a
- * mutation whose input is the value the page submits, except create: the form
- * only has a title, and the page mints the id so the optimistic row and the
- * stored row are the same one.
+ * What the page may ask of the server. The list is one query. Every write is
+ * declared: what it changes is data, so the page shows it before the server
+ * answers, and the server's writer lands it with no handler. Create's id is the
+ * page's, so the row it shows and the row stored are the same one.
  */
 import { Schema } from 'effect'
 import { Entity, Order, Write } from 'foldkit-entity'
@@ -20,10 +20,14 @@ export const TODO_PAGE_SIZE = 100
 const title = Todo.fields.title.schema
 const done = Todo.fields.done.schema
 
-export const CreateTodo = Mutation.make('CreateTodo', {
-  Input: Schema.Struct({ id: Schema.String, title }),
-  Output: { id: Schema.String },
-})
+/** A new todo is not done: the form has a title only, and the page mints the id. */
+export const CreateTodo = Mutation.write(
+  'CreateTodo',
+  Write.insert(
+    Entity.input(Todo, Schema.Struct({ id: Schema.String, title, done: Schema.Literal(0) })),
+    { id: 'id' },
+  ),
+)
 
 /**
  * The rename form and this mutation share one input, which is what an editor
@@ -45,7 +49,8 @@ export const ToggleTodo = Mutation.write(
   Write.update(Entity.input(Todo, Schema.Struct({ id: Schema.String, done })), { id: 'id' }),
 )
 
-export const DeleteTodo = Mutation.make('DeleteTodo', {
-  Input: Schema.Struct({ id: Schema.String }),
-  Output: {},
-})
+/** Shown deleted from every list at once; a row already gone is gone. */
+export const DeleteTodo = Mutation.write(
+  'DeleteTodo',
+  Write.delete(Entity.input(Todo, Schema.Struct({ id: Schema.String })), { id: 'id' }),
+)

@@ -5,9 +5,11 @@
  *
  * - `todos`, a Drizzle table, bound to the domain's `Todo`.
  * - `AllTodos`, the list query, answered by `remote-drizzle` over D1.
- * - `CreateTodo`, `RenameTodo`, `ToggleTodo`, `DeleteTodo`: the page's writes.
- *   Toggle stores the given 0 or 1, so a retry is the same write. Create does
- *   nothing when the id is already there.
+ * - `CreateTodo`, `RenameTodo`, `ToggleTodo`, `DeleteTodo`: the page's writes,
+ *   all declared, landed by the binding's writer. Toggle stores the given 0 or
+ *   1, so a retry is the same write. The writer keeps a ledger, so a create
+ *   sent again under its operation is answered with its row, and another
+ *   create of a taken id is refused.
  * - `App`/`Message`/`update` and `Todos`, the Sync contract: intents mint,
  *   facts record, and the journal orders them.
  * - `openTodosJournal`, a D1 journal through `foldkit-durable/core`.
@@ -20,9 +22,8 @@
  *   requests here is D1, and each live stream re-reads it. A field change is
  *   a patch. The list's own ids are diffed too, so a row can join or leave.
  */
-import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import type { D1Database } from '@cloudflare/workers-types'
 import { Context, Effect, Layer, Schema, Scope } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
@@ -41,15 +42,11 @@ import { Remote } from 'foldkit-remote'
 import {
   bind,
   databaseLayer,
-  drizzleWrites,
   pollLive,
   query,
-  returning,
   rowLog,
-  runStatement,
   source,
   writer,
-  DrizzleDatabase,
 } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
 import { Sync, documentId, type Operation, type Sync as SyncContract } from 'foldkit-sync'
@@ -63,6 +60,26 @@ export const todos = sqliteTable('todos', {
 })
 
 export const Db = bind(Domain, { Todo: { table: todos } })
+
+/**
+ * Each write the writer landed, by who asked and under which operation, so a
+ * write sent again is answered with its row. Migration 0006 creates it.
+ */
+export const ledger = sqliteTable(
+  'write_ledger',
+  {
+    scope: text('scope').notNull(),
+    operation: text('operation').notNull(),
+    target: text('target').notNull(),
+    answer: text('answer').notNull(),
+    at: integer('at').notNull(),
+    request: text('request'),
+  },
+  table => [
+    primaryKey({ columns: [table.scope, table.operation, table.target] }),
+    index('write_ledger_at').on(table.at),
+  ],
+)
 
 const Model = Schema.Struct({
   todos: Schema.Array(
@@ -191,22 +208,6 @@ const applyTodo = (db: D1Database, operation: Operation): Effect.Effect<void, un
     })
   })
 
-/**
- * Inserts that can say "already there". `drizzleWrites` has no conflict
- * clause, so this is the drizzle client the layer holds, seen with one.
- */
-interface InsertOnConflict {
-  insert(table: typeof todos): {
-    values(values: { id: string; title: string; done: number }): {
-      onConflictDoNothing(): {
-        returning(
-          columns: Record<string, unknown>,
-        ): PromiseLike<ReadonlyArray<Record<string, unknown>>>
-      }
-    }
-  }
-}
-
 /** Builds the Remote server over D1: sources, the page's mutations, a polling live source. */
 export const makeServer = () => {
   // Principals are pinned explicitly: every caller is an authenticated actor
@@ -217,42 +218,13 @@ export const makeServer = () => {
   // The page reads the list live: the handler runs AllTodosSource with its
   // window, and this re-read is how another tab's row joins or leaves.
   const TodoLive = pollLive(TodoSource, { changes: rowLog(Db.Todo) })
-  const written = returning(Db.Todo, ['id', 'title', 'done'])
-
-  const Create = RemoteServer.mutation(CreateTodo, ({ input }) =>
-    Effect.gen(function* () {
-      const db = (yield* DrizzleDatabase) as unknown as InsertOnConflict
-      const inserted = yield* runStatement(
-        () =>
-          db
-            .insert(todos)
-            .values({ id: input.id, title: input.title, done: 0 })
-            .onConflictDoNothing()
-            .returning(written.columns),
-        'Database write failed',
-      )
-      // No row back means the id was already there: answer with the row as it is.
-      const entities =
-        inserted.length > 0 ? written.patches(inserted) : yield* returning.row(Db.Todo, input.id)
-      // No list named: the client places the row by the list's body.
-      return { output: { id: input.id }, entities }
-    }),
-  )
-
-  // Declared writes: the binding's writer lands them, and the row as written answers.
-  const Rename = RemoteServer.write(RenameTodo, writer(Db.Todo))
-  const Toggle = RemoteServer.write(ToggleTodo, writer(Db.Todo))
-
-  const Delete = RemoteServer.mutation(DeleteTodo, ({ input }) =>
-    Effect.gen(function* () {
-      const writes = yield* drizzleWrites
-      yield* runStatement(
-        () => writes.delete(todos).where(eq(todos.id, input.id)),
-        'Database write failed',
-      )
-      return { output: {}, deleted: [{ entity: 'Todo', id: input.id }] }
-    }),
-  )
+  // Declared writes: the binding's writer lands them, and the row as written
+  // answers. The ledger is each actor's, by the operation the page sent.
+  const todoWriter = writer<string>(Db.Todo, { ledger: { table: ledger, scope: actor => actor } })
+  const Create = RemoteServer.write(CreateTodo, todoWriter)
+  const Rename = RemoteServer.write(RenameTodo, todoWriter)
+  const Toggle = RemoteServer.write(ToggleTodo, todoWriter)
+  const Delete = RemoteServer.write(DeleteTodo, todoWriter)
 
   const server = RemoteServer.make({
     entities: [TodoSource],

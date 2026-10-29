@@ -29,7 +29,7 @@ are at the end of [Run it](#run-it).
 | `App`/`Message`/`update` + `Todos` (Sync contract) | which Messages are durable, and the replay they imply |
 | `SyncHost` (Durable Object) | the document's single writer: it opens the journal once, and each accepted socket exchanges against that journal |
 | `settleTodos` | applying what the journal committed to the `todos` table, where Remote reads it back |
-| Create, Rename, Toggle, Delete | the page's writes. Remote mutations land in the same table |
+| Create, Rename, Toggle, Delete | the page's writes, declared (`Mutation.write`): the binding's writer lands them in the same table, with a ledger (`write_ledger`, migration 0006) so a write sent again is answered with its row |
 | The page (`app.ts`, `view.ts`) | the list, the forms, and the optimistic paint. It does not open `/sync` |
 | `MEDIA` (R2) and `IMAGES` | image originals, by SHA-256, and the variants made of them (`variants/`); the Images binding makes them; `LIMITER` limits how many a client has made a minute. `foldkit-media`'s server answers `/_image/`, the URLs `Provider.hosted` writes, and `POST /_media/upload` takes an original into R2 and answers its facts, for a request bearing the `UPLOAD_TOKEN` secret (`Authorization: Bearer <token>`); unset, every upload is refused, since `x-actor` proves nothing |
 
@@ -162,7 +162,7 @@ that the list never reads "Loading…" while it does nor across a reload, and
 that the page logs no error (`foldkit-plus/testing/playwright`'s `Behaviors`).
 
 `src/schema.ts` holds the table, the Drizzle binding, the Sync contract, the
-journal, `settle`, the polling source, and the Remote mutation handlers.
+journal, `settle`, the polling source, and the declared writes' writer.
 `src/domain.ts` is the Entity, `src/operations.ts` the query and the
 mutations the page and the server share, and `src/forms.ts`, `src/app.ts`,
 and `src/view.ts` the page. `src/browser.ts` boots it. `src/worker.ts` is the
@@ -181,9 +181,10 @@ editor in `foldkit-mixins-crud/recipes`' looks, and the forms in
 - `Crud.list` joins the `AllTodos` query to that selection. Its status line
   is there from the first paint; `Loading.shown` says "Loading…" only once
   the wait has lasted, and a later refresh keeps the rows.
-- Add, rename, toggle, and delete call `Data.mutate` with an optimistic
-  patch. A new row joins the `AllTodos` connection, and a delete
-  (`Remote.tombstone`) hides the row from every list. That paint is the same update as the click. The list draws by title,
+- Add, rename, toggle, and delete call `Data.mutate` with a declared write,
+  so Remote works out the paint from the write itself: a new row joins the
+  `AllTodos` connection where its title sorts, and a delete hides the row
+  from every list. That paint is the same update as the click. The list draws by title,
   then id, the order the query asks for, so a new or renamed row is already
   where it will stay. The "Saving…" line above the form is reserved the whole
   time, and its words use the same delay, so a fast save neither flashes nor
@@ -201,8 +202,14 @@ editor in `foldkit-mixins-crud/recipes`' looks, and the forms in
   leaving as a connection event. The page does not ask on a clock. The stream
   is SSE. Inside that request the worker still re-reads D1.
 
-Create is idempotent (`ON CONFLICT DO NOTHING`). Toggle writes the stored
-`done`, so sending it twice leaves the row as it is. The page does not open
+A create sent again under its operation id (as `Data.mutate` sends every
+write) is answered from the ledger with its row, written once. Toggle writes
+the stored `done`, so sending it twice leaves the row as it is.
+`test/law.test.ts` holds the page to the server with `Law.check`
+(`foldkit-remote/testing`): each of the four writes runs through the page's
+`Data.mutate` and through the Worker's Remote server over the migrations on
+Node's SQLite, and what the page showed while it was pending (each field, the
+list's order, a deleted row) must be what the table then holds. The page does not open
 the Sync socket. `pnpm demo` and `pnpm test` still write through the journal.
 
 To deploy for real, run Wrangler (a dev dependency here, as `pnpm exec
