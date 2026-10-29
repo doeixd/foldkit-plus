@@ -4,7 +4,7 @@
  * The same `update` is driven by a server-derived read, a durable replicated
  * note, a human, and an agent; the four agent adapters project one contract.
  */
-import { Effect, Fiber, Option, Stream } from 'effect'
+import { Effect, Fiber, Option, Schema, Stream } from 'effect'
 import { ConnectionChange, RemotePersistence } from 'foldkit-remote'
 import { defineMessageUnion } from 'foldkit/message'
 import { Agent } from 'foldkit-agent'
@@ -62,6 +62,11 @@ const withStore = (model: typeof App.initial, store: EntityStore): typeof App.in
   remote: { ...model.remote, entities: store },
 })
 
+/** What an MCP `tools/list` answers, as far as the transcript reads it. */
+const ToolList = Schema.Struct({
+  result: Schema.Struct({ tools: Schema.Array(Schema.Struct({ name: Schema.String })) }),
+})
+
 /** Stands in for `document.modelContext` outside a browser. */
 class RecordingModelContext implements ModelContext {
   readonly tools: Array<{ tool: ToolDescriptor; signal: AbortSignal | undefined }> = []
@@ -72,7 +77,9 @@ class RecordingModelContext implements ModelContext {
     return this.tools.filter(entry => entry.signal?.aborted !== true).map(entry => entry.tool)
   }
   static tool(context: RecordingModelContext, name: string): ToolDescriptor {
-    return context.live().find(tool => tool.name === name) as ToolDescriptor
+    const found = context.live().find(tool => tool.name === name)
+    if (found === undefined) throw new Error(`no live tool named ${name}`)
+    return found
   }
 }
 
@@ -322,10 +329,10 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
 
   const mcp = AgentMcp.handler({ agent, onNotification: () => {} })
   await mcp.handle({ jsonrpc: '2.0', id: 0, method: 'initialize' })
-  const mcpList = (await mcp.handle({ jsonrpc: '2.0', id: 1, method: 'tools/list' })) as {
-    readonly result?: { readonly tools: ReadonlyArray<{ readonly name: string }> }
-  }
-  say(`mcp tools: ${(mcpList.result?.tools ?? []).map(tool => tool.name).join(', ')}`)
+  const mcpList = Schema.decodeUnknownSync(ToolList)(
+    await mcp.handle({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+  )
+  say(`mcp tools: ${mcpList.result.tools.map(tool => tool.name).join(', ')}`)
 
   const card = AgentA2a.agentCard(AppAgent, {
     name: 'Kitchen Sink',

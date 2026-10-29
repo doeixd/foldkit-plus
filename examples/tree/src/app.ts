@@ -6,7 +6,7 @@
  * focus is separate until Enter/Space commits it (`CommittedCurrent`), the
  * manual-selection branch of the WAI-ARIA tree pattern.
  */
-import { Schema } from 'effect'
+import { Match, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
 import { Selection, TreeNavigation } from 'foldkit-primitives/interaction'
@@ -72,8 +72,8 @@ export const initial = assembly.initial({})
  * through the bundle's own `Activated`).
  */
 export const update = assembly.update((model, message) => {
-  switch (message._tag) {
-    case 'CommittedCurrent': {
+  return Match.valueTags(message, {
+    CommittedCurrent: () => {
       const current = model.nav.current
       if (current === null) return { model }
       const selection = Selection.bundle.update(
@@ -82,6 +82,6 @@ export const update = assembly.update((model, message) => {
         selArgs,
       )
       return { model: { ...model, selection: selection.model } }
-    }
-  }
+    },
+  })
 })

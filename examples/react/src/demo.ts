@@ -116,14 +116,11 @@ const reactInsideFoldkit = async (lines: Array<string>) => {
     Model: ReviewModel,
     container: mountPoint('review'),
     init: () => ({ model: { title: 'Dune', stars: 3 } }),
-    update: (model: ReviewModel, message: ReviewMessage) => {
-      switch (message._tag) {
-        case 'Rated':
-          return { model: modifyFields(model, { stars: () => message.stars }) }
-        case 'Renamed':
-          return { model: modifyFields(model, { title: () => `${model.title} (2021)` }) }
-      }
-    },
+    update: (model: ReviewModel, message: ReviewMessage) =>
+      ReviewMessage.match(message, {
+        Rated: ({ stars }) => ({ model: modifyFields(model, { stars: () => stars }) }),
+        Renamed: () => ({ model: modifyFields(model, { title: () => `${model.title} (2021)` }) }),
+      }),
     view: reviewView,
   })
   const handle = Runtime.embed(program)
@@ -185,13 +182,11 @@ const makeCounter = (container: HTMLElement, start: number) =>
     container,
     ports: counterPorts,
     init: () => ({ model: { count: start, step: 1 } }),
-    update: (model: CounterModel, message: CounterMessage) => {
-      switch (message._tag) {
-        case 'ChangedStep':
-          return { model: modifyFields(model, { step: () => message.step }) }
-        case 'Reported':
-          return { model }
-        case 'Incremented': {
+    update: (model: CounterModel, message: CounterMessage) =>
+      CounterMessage.match(message, {
+        ChangedStep: ({ step }) => ({ model: modifyFields(model, { step: () => step }) }),
+        Reported: () => ({ model }),
+        Incremented: () => {
           const count = model.count + model.step
           const report: { name: string; effect: Effect.Effect<CounterMessage> } = {
             name: 'ReportCount',
@@ -200,9 +195,8 @@ const makeCounter = (container: HTMLElement, start: number) =>
             ),
           }
           return { model: modifyFields(model, { count: () => count }), commands: [report] }
-        }
-      }
-    },
+        },
+      }),
     subscriptions: Subscription.make<CounterModel, CounterMessage>()(entry => ({
       step: Port.subscriptionEntry(counterPorts.inbound.stepChanged, step =>
         CounterMessage.ChangedStep({ step }),

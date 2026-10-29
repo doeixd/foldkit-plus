@@ -5,7 +5,7 @@
  * focus is contained and restored, scroll locks, and the rest inerts while
  * open. Presence is CSS (`data-open`): no JS transition state.
  */
-import { Schema } from 'effect'
+import { Match, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Bundle } from 'foldkit-bundle'
 import { DismissLayer } from 'foldkit-primitives/interaction'
@@ -39,12 +39,9 @@ const assembly = Parent.assemble(
 export const initial = assembly.initial({ open: false })
 
 export const update = assembly.update((model, message) => {
-  switch (message._tag) {
-    case 'Opened':
-      return { model: { ...model, open: true } }
-    case 'Closed':
-      return { model: { ...model, open: false } }
-    case 'Toggled':
-      return { model: { ...model, open: !model.open } }
-  }
+  return Match.valueTags(message, {
+    Opened: () => ({ model: { ...model, open: true } }),
+    Closed: () => ({ model: { ...model, open: false } }),
+    Toggled: () => ({ model: { ...model, open: !model.open } }),
+  })
 })

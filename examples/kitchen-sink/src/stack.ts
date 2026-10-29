@@ -14,7 +14,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { Effect, Layer, Schema } from 'effect'
+import { Effect, Layer, Option, Schema } from 'effect'
 import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
 import { defineMessageUnion } from 'foldkit/message'
@@ -290,6 +290,8 @@ export const KitchenSync: SyncContract<
   { readonly notes: ReadonlyArray<typeof Note.Type> }
 > = syncDefinition
 
+const revisionOf = Schema.decodeUnknownOption(Schema.Struct({ revision: Schema.Number }))
+
 /** A minimal in-memory `Storage`, so the replica needs no browser runtime. */
 export const memoryStorage = (): Storage => {
   let stored: unknown
@@ -298,7 +300,9 @@ export const memoryStorage = (): Storage => {
     save: (state, expectedRevision) =>
       Effect.try({
         try: () => {
-          const current = (stored as { revision?: number } | undefined)?.revision ?? null
+          const current = Option.getOrNull(
+            Option.map(revisionOf(stored), ({ revision }) => revision),
+          )
           if (current !== expectedRevision) throw new Error('Replica was changed by another writer')
           stored = state
         },

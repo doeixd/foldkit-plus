@@ -77,9 +77,12 @@ Effect.runFork(
 
 // Presence, on the same connection: where this tab's caret is, and where the others' are.
 // It is ephemeral, so nothing of it is journaled; a tab that goes quiet drops out.
+const socket = transport.socket
+// Both transports the page builds, the server's and the sandbox's, are sockets.
+if (socket === undefined) throw new Error('presence needs a transport with a socket')
 const presence = await Effect.runPromise(
   Effect.gen(function* () {
-    const channel = yield* Sync.presence.socketChannel<PeerPresence>(transport.socket!)
+    const channel = yield* Sync.presence.socketChannel<PeerPresence>(socket)
     return yield* Sync.presence.make({
       id: tab,
       ttl: '30 seconds',

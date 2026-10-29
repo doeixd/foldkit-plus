@@ -4,7 +4,7 @@
  * The parent owns every slice; the assembly is its one list of placements.
  */
 import * as Tabs from '@foldkit/ui/tabs'
-import { Schema, Stream } from 'effect'
+import { Match, Schema, Stream } from 'effect'
 import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
 import type { HtmlBuilder } from 'foldkit/html'
@@ -132,18 +132,14 @@ const placements = Page.assemble(
 export const placementKeys: ReadonlyArray<string> = placements.placements.map(placed => placed.key)
 
 /** The parent's own update: placement Messages never reach it. */
-const updateOwn = (model: Model, message: Message): Update.Return<Model, Message, never> => {
-  switch (message._tag) {
-    case 'ChoseFile':
-      return Uploads.add(message.id, upload => modifyFields(upload, { name: () => message.name }))(
-        model,
-      )
-    case 'ClickedRestart':
-      return Uploads.helpers.restart(message.id)(model)
-    default:
-      return { model }
-  }
-}
+const updateOwn = (model: Model, message: Message): Update.Return<Model, Message, never> =>
+  Match.value(message).pipe(
+    Match.tag('ChoseFile', ({ id, name }) =>
+      Uploads.add(id, upload => modifyFields(upload, { name: () => name }))(model),
+    ),
+    Match.tag('ClickedRestart', ({ id }) => Uploads.helpers.restart(id)(model)),
+    Match.orElse(() => ({ model })),
+  )
 
 export const update = placements.update(updateOwn)
 
