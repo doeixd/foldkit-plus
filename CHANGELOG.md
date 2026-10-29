@@ -573,6 +573,12 @@ version changed; `pnpm` skips versions already in the registry.
   member of one team could move a note into a team they had no seat on. The
   rule's own relation is now read whether the path ends in a field or an
   exists. Never published: rules over paths on Update are unreleased.
+- **`pollLive` sends a field only when what it holds changes.** It compared
+  each field by identity, and a read makes a new array of a collection
+  relation's refs every time, so a subscriber asking for one (any client may
+  name it, on a row or a list read live) was sent every subscribed row in full
+  on every tick, a flood one request could keep up. Fields now compare by
+  value (`Equal.equals`). Never published: `pollLive` is unreleased.
 
 ### Fixed
 

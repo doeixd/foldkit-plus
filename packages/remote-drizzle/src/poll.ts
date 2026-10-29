@@ -7,7 +7,7 @@
  */
 import { asc, getTableName, gt, is, max } from 'drizzle-orm'
 import { integer, sqliteTable, SQLiteTable, text } from 'drizzle-orm/sqlite-core'
-import { Duration, Effect, Option, Schedule, Schema, Stream } from 'effect'
+import { Duration, Effect, Equal, Option, Schedule, Schema, Stream } from 'effect'
 import { entityKey, type LiveChange } from 'foldkit-remote'
 import {
   RemoteServer,
@@ -71,8 +71,9 @@ const picked = (
  * applied, so a member it may not read is never sent), and patches what moved
  * since the last tick: a row absent at one tick and present at the next
  * patches whole, and one present and then gone, or no longer visible to the
- * subscriber, is deleted. Scalar fields compare by identity; relations are not
- * polled. It names `source` as the one it `reads`, so `GuardServer.validate`
+ * subscriber, is deleted. A field compares by what it holds (`Equal.equals`),
+ * since a read makes a new value of a relation's refs or a date every time,
+ * and comparing by identity would patch it on every tick. It names `source` as the one it `reads`, so `GuardServer.validate`
  * accepts it over the guarded source it checks.
  *
  * A stream also diffs each list its subscriber reads live
@@ -283,7 +284,7 @@ export const pollLive = <P, R>(
               }
               const before = listing.values.get(id)
               const changed = heldOf(values, fields).filter(
-                field => before?.[field] !== values[field],
+                field => !Equal.equals(before?.[field], values[field]),
               )
               if (changed.length > 0) {
                 patches.push({
@@ -371,7 +372,7 @@ export const pollLive = <P, R>(
                 continue
               }
               const changed = heldOf(values, group.fields).filter(
-                field => before?.[field] !== values[field],
+                field => !Equal.equals(before?.[field], values[field]),
               )
               if (changed.length === 0) continue
               previous.set(id, values)
