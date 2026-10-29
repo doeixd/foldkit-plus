@@ -158,3 +158,7 @@ icons are Lucide's, imported by name through `foldkit-media/vite`
   `examples/cloudflare` shows Remote served from a Worker over D1.
 - Pages are drawn in the browser; `examples/cms` and `examples/auth` show
   server rendering.
+- The timeline is read, not followed: a chirp posted in another tab shows
+  here once the list is read again (a reload, or going back to it), though
+  both tabs share one server. A list read live (`Data.query(…, { live: true })`
+  over a live source) would follow it; `examples/reference` shows one.
