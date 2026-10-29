@@ -1497,9 +1497,15 @@ A log that cannot be read, or that was trimmed past the last entry read
 (`keep`, 1000 by default), falls back to reading everything. A list whose read
 fails is asked again from the same log entry on the next tick, so its rows
 still arrive; a subscribed row's failed read ends the stream, and the client's
-reconnect reads again. A logged row the subscriber can read is counted as in the
-list, which holds only for a list of every readable row; give a filtered list
-no `changes`. Postgres is refused: a server there can push. `examples/cloudflare`
+reconnect reads again. A live list's window is run again on every tick that
+may have moved it (every tick without a log; with one, a tick the log names a
+row of the Entity), so a row joins by the query's own filter and window, not by
+being readable, and the rows read are only those that join, were logged, or
+leave. A row that leaves the window while the subscriber can still read it is
+removed from the list (`ConnectionRemove`) and keeps its row, patched with what
+changed; one gone, or no longer readable, is deleted too. A write to another
+table that moves a row in or out of a list (a path, an exists) is seen on the
+next tick the log names a row of this one, or on a full re-read. Postgres is refused: a server there can push. `examples/cloudflare`
 runs this on D1, and its `test/migrations.test.ts` keeps its migration equal
 to `rowChangeLog`.
 

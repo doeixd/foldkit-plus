@@ -835,7 +835,10 @@ with them), more than four pages of one relation, or a live list of an unregiste
 query, an input that does not decode, no `select` or `first`, or a `select` of
 another Entity than the query lists (a `QuerySource`'s `entity`), it fails with
 `RemoteLiveRefused` and nothing is read. `foldkit-remote-drizzle`'s `pollLive(source,
-{ every, changes })` diffs every list it is handed, and takes no list of its own (its
+{ every, changes })` diffs every list it is handed, running its window again each tick
+that may have moved it (with a row log, a tick that logged a row of its Entity), so a row
+joins by the query's filter and window; a row that leaves but is still readable is only
+removed from the list, never deleted. It takes no list of its own (its
 old `lists`, with a `watchId` naming no row, is gone); the hub watches none.
 
 On the client, a live row inserted into a connection is decided in this order:

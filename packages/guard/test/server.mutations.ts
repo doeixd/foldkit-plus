@@ -389,8 +389,9 @@ export default [
     edits: [
       {
         file: poll,
-        find: '.filter(id => rows.has(id))),',
-        replace: '.filter(id => rows.has(id) || current.has(id))),',
+        find: 'if (values === undefined) continue\n              listed.add(id)',
+        replace:
+          'if (values === undefined && !current.has(id)) continue\n              listed.add(id)\n              if (values === undefined) continue',
       },
     ],
     tests,

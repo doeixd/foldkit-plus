@@ -33,26 +33,64 @@ export default [
     'return Option.some<ReadonlySet<string>>(new Set(Option.getOrElse(logged.value.ids, () => [])))',
   ),
   edit(
-    'a known list reads its whole window anyway',
-    'const logged = Option.isNone(listing.known) ? Option.none() : only',
-    'const logged = Option.none<ReadonlySet<string>>()',
+    'a known list reads every row of its window again',
+    'filter(id => !current.has(id) || stale(id))',
+    'filter(() => true)',
   ),
   edit(
-    'a logged row the principal can read does not join',
-    'if (rows.has(id)) kept.add(id)\n                  else kept.delete(id)',
-    'if (!rows.has(id)) kept.delete(id)',
+    'a listed row the log does not name is read again',
+    'if (current.has(id) && !stale(id)) {',
+    'if (false) {',
   ),
   edit(
-    'a logged row that is gone stays listed',
-    'if (rows.has(id)) kept.add(id)\n                  else kept.delete(id)',
-    'if (rows.has(id)) kept.add(id)',
+    'a quiet tick runs the window',
+    'if (Option.isSome(only) && only.value.size === 0) return Option.some([])',
+    '',
   ),
+  edit(
+    'a row the window no longer holds stays listed',
+    '              if (listed.has(id)) continue',
+    '              continue',
+  ),
+  {
+    name: 'a row that leaves the window, still there, is deleted',
+    edits: [
+      {
+        file,
+        find: 'if (values !== undefined) patch(id, values)\n              else if (!deleted.has(id)) {',
+        replace: 'if (!deleted.has(id)) {',
+      },
+    ],
+    tests: [...tests, 'packages/remote-drizzle/test/pollWindow.test.ts'],
+  },
+  {
+    name: 'a row that leaves the window is not read',
+    edits: [{ file, find: '...[...current].filter(id => !edgeOf.has(id)),', replace: '' }],
+    tests: [...tests, 'packages/remote-drizzle/test/pollWindow.test.ts'],
+  },
+  {
+    // What the row log did before: a logged row the principal can read is listed.
+    name: 'with a log, a list holds the logged rows rather than its window',
+    edits: [
+      {
+        file,
+        find: 'const edgeOf = new Map(edges.value.map(edge => [edge.id, edge]))',
+        replace:
+          'const edgeOf = new Map([...current, ...Option.getOrElse(only, () => edges.value.map(edge => edge.id))].map(id => [id, { entity: source.entity, id, key: entityKey(source.entity, id) }]))',
+      },
+    ],
+    tests: [...tests, 'packages/remote-drizzle/test/pollWindow.test.ts'],
+  },
   edit(
     'a list of another entity is watched',
     'const watched = queries.filter(query => query.select.entity === source.entity)',
     'const watched = queries',
   ),
-  edit('a row joining two lists is patched twice', '                patched.add(id)\n', ''),
+  edit(
+    'a row joining two lists is patched twice',
+    '              if (changed.length === 0 || patched.has(id)) return\n              patched.add(id)',
+    '              if (changed.length === 0 || patched.has(id)) return',
+  ),
   edit('the log keeps no limit', 'where seq <= new.seq - ${keep}', 'where 0'),
   edit('a delete is not logged', "    trigger('delete', 'old'),\n", ''),
   edit(

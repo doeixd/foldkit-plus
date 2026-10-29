@@ -1038,6 +1038,17 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   in every patch, while the Source it read through passed
   `GuardServer.validate` (#264). Anything that reads to send reads through
   `RemoteServer.readAs`.
+- **A row that leaves a list is not a row that is gone.** `pollLive` sent
+  every row leaving a live list as `EntityDeleted` beside `ConnectionRemove`,
+  so a row pushed out of a full window, or edited out of a filter, read
+  `NotFound` on the page while it existed; the patch-level tests used a list
+  of every row, which nothing leaves but by deletion. Read a leaving row to
+  tell the two apart, and test a filtered, windowed list through the client
+  (`pollWindow.test.ts`).
+- **Readable is not listed.** With a row log, `pollLive` once listed every
+  logged row the subscriber could read, so a filtered list took in rows its
+  query excludes and grew past its `first`. Membership is the query's: run
+  its window again.
 
 - **A Drizzle `PgColumn` is structurally a `SQLiteColumn`.** An overload
   taking SQLite columns first matched Postgres ones too and returned SQLite

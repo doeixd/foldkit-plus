@@ -334,7 +334,7 @@ describe('pollLive watching lists read live, with a row log', () => {
     expect(other.windows.reads).toBe(0)
   })
 
-  it('joins a row the log names and the principal can read, without reading the window', async () => {
+  it('joins a row the log names and the window holds, reading only it', async () => {
     const { state, source, log, write } = table()
     const { windows, list } = watching(state)
     const seen = await ticks(source, { changes: log, queries: [list] }, [write('t2', 'Eggs')], [])
@@ -343,9 +343,10 @@ describe('pollLive watching lists read live, with a row log', () => {
       'EntityPatched',
       'ConnectionInsert AllTodos',
     ])
-    // The window once, when the stream opened; then only the logged row.
-    expect(windows.reads).toBe(1)
-    expect(state.reads.filter(id => id === 't2')).toEqual(['t2'])
+    // The window as the stream opened and on the tick the log named a row; of
+    // the rows, only the logged one, which the stream did not hold.
+    expect(windows.reads).toBe(2)
+    expect(state.reads).toEqual(['t1', 't2'])
   })
 
   it('lets a listed row go when the log names it and it is gone', async () => {
@@ -362,7 +363,7 @@ describe('pollLive watching lists read live, with a row log', () => {
       'EntityDeleted',
       'ConnectionRemove AllTodos',
     ])
-    expect(windows.reads).toBe(1)
+    expect(windows.reads).toBe(2)
   })
 
   it('joins a row whose read failed once, on a later tick', async () => {

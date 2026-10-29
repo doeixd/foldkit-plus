@@ -82,9 +82,11 @@ const picked = (
  * patch and then an insert, one that left a delete and then a remove, each by
  * the fields the read selects. Its first read is silent, and then invalidates
  * the list once, so a page read before the stream opened (or while it was
- * down) asks again. With a row log, a logged row is listed while the
- * principal can read it and leaves when it cannot: right for a list of every
- * readable row, not for one that filters, which needs no `changes`.
+ * down) asks again. A list's window is run again each tick that may have moved
+ * it (every tick without a log, a tick the log names a row of the entity with
+ * one), so a row joins by the query's own filter and window. A row that leaves
+ * it and is still there to the principal is only removed from the list; one
+ * gone, or no longer readable, is deleted too.
  *
  * With `changes`, a tick asks the log first and reads only the rows it names:
  * none on a quiet tick. The log is read before the rows, so a write between
@@ -238,87 +240,59 @@ export const pollLive = <P, R>(
         ) =>
           Effect.gen(function* () {
             const { list, fields } = listing
-            // Only the logged rows, once the list is known; else its whole window.
-            const logged = Option.isNone(listing.known) ? Option.none() : only
-            const loaded = yield* Option.match(logged, {
-              onNone: () => window(listing),
-              onSome: ids =>
-                Effect.map(readable(listing, [...ids]), rows =>
-                  Option.map(rows, rows => ({
-                    rows,
-                    edges: [...rows.keys()].map(id => ({
-                      entity: source.entity,
-                      id,
-                      key: entityKey(source.entity, id),
-                    })),
-                  })),
-                ),
-            })
-            if (Option.isNone(loaded)) return Option.none<ReadonlyArray<LivePatch>>()
-            const { edges, rows } = loaded.value
             if (Option.isNone(listing.known)) {
+              const loaded = yield* window(listing)
+              if (Option.isNone(loaded)) return Option.none<ReadonlyArray<LivePatch>>()
               seed(listing, loaded.value)
               return Option.some(invalidate(listing))
             }
+            // A tick the log names no row of this entity in moved nothing listed.
+            if (Option.isSome(only) && only.value.size === 0) return Option.some([])
+            // The window is run again, so what joins is judged by the query's own
+            // filter and window, not by being readable.
+            const edges = yield* Effect.option(list.edges)
+            if (Option.isNone(edges)) return Option.none<ReadonlyArray<LivePatch>>()
             const current = listing.known.value
-            const listed = Option.match(logged, {
-              // A row is listed while the principal can read it: one in the window
-              // it no longer may is gone to it, not kept as it last read.
-              onNone: () => new Set(edges.map(edge => edge.id).filter(id => rows.has(id))),
-              onSome: ids => {
-                const kept = new Set(current)
-                for (const id of ids) {
-                  if (rows.has(id)) kept.add(id)
-                  else kept.delete(id)
-                }
-                return kept
-              },
-            })
-            const edgeOf = new Map(edges.map(edge => [edge.id, edge]))
+            const edgeOf = new Map(edges.value.map(edge => [edge.id, edge]))
+            const stale = (id: string) =>
+              Option.match(only, { onNone: () => true, onSome: ids => ids.has(id) })
+            // What joins, what was written, and what leaves: a row leaving is read
+            // too, so one still there is told from one gone.
+            const rows = yield* readable(listing, [
+              ...[...edgeOf.keys()].filter(id => !current.has(id) || stale(id)),
+              ...[...current].filter(id => !edgeOf.has(id)),
+            ])
+            if (Option.isNone(rows)) return Option.none<ReadonlyArray<LivePatch>>()
             const patches: Array<LivePatch> = []
-            for (const id of current) {
-              const values = rows.get(id)
-              if (!listed.has(id) || values === undefined) continue
-              if (patched.has(id)) {
-                listing.values.set(id, values)
-                continue
-              }
+            const patch = (id: string, values: Readonly<Record<string, unknown>>) => {
               const before = listing.values.get(id)
+              listing.values.set(id, values)
               const changed = heldOf(values, fields).filter(
                 field => !Equal.equals(before?.[field], values[field]),
               )
-              if (changed.length > 0) {
-                patches.push({
-                  _tag: 'EntityPatched',
-                  entity: source.entity,
-                  id,
-                  values: picked(values, changed),
-                  changed: [...changed],
-                  cursor: next(),
-                })
-              }
-              listing.values.set(id, values)
+              if (changed.length === 0 || patched.has(id)) return
+              patched.add(id)
+              patches.push({
+                _tag: 'EntityPatched',
+                entity: source.entity,
+                id,
+                values: picked(values, changed),
+                changed,
+                cursor: next(),
+              })
             }
-            for (const id of listed) {
-              if (current.has(id)) continue
-              const values = rows.get(id)
-              const edge = edgeOf.get(id)
-              // No row to assemble from: leave it unknown, so the next tick tries again.
-              if (edge === undefined || values === undefined) {
-                listed.delete(id)
+            const listed = new Set<string>()
+            for (const [id, edge] of edgeOf) {
+              if (current.has(id) && !stale(id)) {
+                listed.add(id)
                 continue
               }
-              if (!patched.has(id)) {
-                patched.add(id)
-                patches.push({
-                  _tag: 'EntityPatched',
-                  entity: source.entity,
-                  id,
-                  values: picked(values, heldOf(values, fields)),
-                  changed: heldOf(values, fields),
-                  cursor: next(),
-                })
-              }
+              const values = rows.value.get(id)
+              // One the principal cannot read is not listed to them.
+              if (values === undefined) continue
+              listed.add(id)
+              patch(id, values)
+              if (current.has(id)) continue
               patches.push({
                 _tag: 'ConnectionInsert',
                 connection: list.identity,
@@ -326,11 +300,13 @@ export const pollLive = <P, R>(
                 edge: { entity: edge.entity, id: edge.id, key: edge.key },
                 cursor: next(),
               })
-              listing.values.set(id, values)
             }
             for (const id of current) {
               if (listed.has(id)) continue
-              if (!deleted.has(id)) {
+              const values = rows.value.get(id)
+              // Still there to the principal: it left the list, not the store.
+              if (values !== undefined) patch(id, values)
+              else if (!deleted.has(id)) {
                 patches.push({ _tag: 'EntityDeleted', entity: source.entity, id, cursor: next() })
               }
               patches.push({

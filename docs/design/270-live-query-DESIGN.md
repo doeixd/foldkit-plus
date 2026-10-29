@@ -104,6 +104,21 @@ Data.query(Q, input, { select, first, live: true })
 - `pollLive` diffs a listed row by its `select`'s fields less a paged
   relation (one in `select.windows`), as it polls no relation of a
   subscribed row.
+- A list's window is run again each tick that may have moved it: every tick
+  without a row log, and with one each tick the log names a row of its
+  Entity. Built first, the log path listed a logged row whenever the
+  subscriber could read it, so a filtered list took in rows its query
+  excludes, and a window grew past its `first`. Judging the row with the
+  query's body, as the client's `matching` does, was the other way out; it
+  needs an interpreter of every body on the server's rows and still leaves
+  the window's size unbounded, while the registered query already is the
+  server's judgement of both. A quiet tick still runs nothing, and only the
+  rows that join, were logged or leave are read.
+- A row that leaves a list is read too. One the subscriber can still read is
+  removed from the list and patched with what changed, not deleted: built
+  first, every row that left was sent as `EntityDeleted`, so a row pushed out
+  of a full window, or edited out of a filter, read `NotFound` on the page
+  while it existed.
 - A live list is invalidated on every stream open, beside subscribed rows
   too. The old watch invalidated only a stream that asked for watch ids
   alone; a reconnect re-reads rows, not lists, so a list must be asked again
@@ -122,6 +137,11 @@ Data.query(Q, input, { select, first, live: true })
 - `packages/remote-drizzle/test/poll.test.ts`, `packages/guard/test/server.test.ts`:
   the watched-list cases moved onto `LiveQuery`, plus a list of another Entity,
   an invalidation beside rows, and a paged relation left unread.
+- `packages/remote-drizzle/test/pollWindow.test.ts`: over real SQLite, with
+  and without a row log, from the page through the handlers and back into the
+  Model: a row edited out of the filter, or pushed out of a full window, is
+  removed from the list and still reads `Ready`; a deleted row is deleted; a
+  row written outside the filter never joins.
 - `packages/crud/test/list.test.ts`: `Crud.list`'s `live`.
 - `examples/reference/test/worker.test.ts` on workerd, and the reference and
   cloudflare e2e: a member's list hears another member's note join and leave.

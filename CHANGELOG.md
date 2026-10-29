@@ -19,7 +19,10 @@ version changed; `pnpm` skips versions already in the registry.
   `RemoteLiveRefused`) and hands the live source of its Entity a `LiveQuery`
   (`identity`, `select`, and `edges`, the query run as the subscriber with the
   page's window). `pollLive` diffs each one, invalidating it once as the
-  stream opens. `Crud.list` takes `live`. The reference app and
+  stream opens and running its window again each tick that may have moved
+  it, so a row joins and leaves by the query's filter and window, with a row
+  log too; a row that leaves while it is still there to the subscriber is
+  removed from the list, not deleted from the client's store. `Crud.list` takes `live`. The reference app and
   `examples/cloudflare` read their lists live, and the made-up watch row (and
   the snapshot's stripping of it) are gone.
 - **A local Workers stack shows the Worker's console, and can tell the Worker
