@@ -40,7 +40,8 @@ import type {
   Predicate,
   TestPredicate,
 } from './expr.js'
-import { Held, type HeldRow } from './held.js'
+import { Held, type HeldRow, type HeldRows } from './held.js'
+import type { AnyEntity } from './index.js'
 import { Operators, type MemoryImplementation, type MemoryOperators } from './operators.js'
 import { contextValue, type ExprContext, type NowExpr, type ViewerExpr } from './context.js'
 
@@ -93,7 +94,13 @@ interface Scope {
   readonly judging: boolean
   /** What `Expr.viewer` and `Expr.now` read; a run given none refuses them. */
   readonly context?: ExprContext | undefined
+  /** The row of `entity` with this id, where a path from the viewer starts. */
+  readonly find: (entity: AnyEntity, id: unknown) => View | null | Unheld
 }
+
+/** A run given one row: the viewer's row is another, which it does not have. */
+const noRows = (entity: AnyEntity): Unheld =>
+  new Unheld(`a path from the viewer reads a ${entity.name}, another row`)
 
 /**
  * A run that reads `Expr.viewer` or `Expr.now` and was given no context. No
@@ -225,6 +232,14 @@ const valueOf = (node: AnyExpr, scope: Scope): unknown => {
       return contextOf(node, scope)
     case 'Path': {
       const row = reached(scope.row, node.via)
+      return row === null || isUnheld(row) ? row : row.field(node.field.key)
+    }
+    case 'ViewerPath': {
+      // A visitor, or a viewer of another Entity, has no row to start from.
+      const id = contextOf(node.viewer, scope)
+      if (id === null) return null
+      const start = scope.find(node.viewer.target(), id)
+      const row = start === null || isUnheld(start) ? start : reached(start, node.via)
       return row === null || isUnheld(row) ? row : row.field(node.field.key)
     }
     default:
@@ -451,6 +466,7 @@ export const valueOfOperand = (
     next: noRow,
     operators: options.operators ?? Operators.kernel,
     judging: false,
+    find: noRows,
     context: options.context,
   })
   if (isUnheld(value)) throw new RowsMissingError(value.reason)
@@ -668,7 +684,15 @@ export const decided = (
     ? Option.none()
     : Option.some(
         settled(
-          holds(node, { row: noRow, input, next: noRow, operators, judging: false, context }),
+          holds(node, {
+            row: noRow,
+            input,
+            next: noRow,
+            operators,
+            judging: false,
+            find: noRows,
+            context,
+          }),
         ),
       )
 }
@@ -681,7 +705,16 @@ export const truthOver = (
   next: Row = {},
   operators: MemoryOperators = Operators.kernel,
 ): PredicateTruth =>
-  settled(holds(node, { row: flat(row), input, next: flat(next), operators, judging: false }))
+  settled(
+    holds(node, {
+      row: flat(row),
+      input,
+      next: flat(next),
+      operators,
+      judging: false,
+      find: noRows,
+    }),
+  )
 
 /**
  * What `Judge` comes to: known, or unknown because it rests on something the
@@ -701,7 +734,23 @@ interface JudgeOptions {
   readonly operators?: MemoryOperators | undefined
   /** What `Expr.viewer` and `Expr.now` read; a predicate reading one refuses a run without it. */
   readonly context?: ExprContext | undefined
+  /**
+   * The holder's rows, where a path from the viewer starts. Without them the
+   * viewer's row is not held, and such a path is unknown.
+   */
+  readonly rows?: HeldRows | undefined
 }
+
+/** How a judgement reaches a row by its id: through the holder's rows, when it was given them. */
+const finder =
+  (rows: HeldRows | undefined) =>
+  (entity: AnyEntity, id: unknown): View | null | Unheld =>
+    rows === undefined
+      ? noRows(entity)
+      : Held.match<Option.Option<HeldRow>, View | null | Unheld>(rows.find(entity, id), {
+          onHeld: found => Option.match(found, { onNone: () => null, onSome: viewOf }),
+          onUnheld: reason => new Unheld(reason),
+        })
 
 /**
  * The reference interpreter over what a holder has (`HeldRow`), three-valued:
@@ -724,6 +773,7 @@ export const Judge = {
       operators: options.operators ?? Operators.kernel,
       judging: true,
       context: options.context,
+      find: finder(options.rows),
     })
     return isUnheld(judged) ? unknownBecause(judged.reason) : known(judged)
   },
@@ -754,6 +804,7 @@ export const Judge = {
       operators: options.operators ?? Operators.kernel,
       judging: true,
       context: options.context,
+      find: finder(options.rows),
     }
     // Every predicate is asked, as `evaluate` asks them: one may refuse its value.
     const truths = body.where.map(each => holds(each, scope))
@@ -785,7 +836,15 @@ const matches = (
   body.where
     .map(node =>
       settled(
-        holds(node, { row: flat(row), input, next: noRow, operators, judging: false, context }),
+        holds(node, {
+          row: flat(row),
+          input,
+          next: noRow,
+          operators,
+          judging: false,
+          find: noRows,
+          context,
+        }),
       ),
     )
     .every(truth => truth === true)
@@ -840,6 +899,7 @@ const keysOf = (row: Row, terms: ReadonlyArray<OrderTerm>, scope: OrderScope) =>
       next: noRow,
       operators: scope.operators,
       judging: false,
+      find: noRows,
       context: scope.context,
     })
     // One row's NaN would make every comparison with it NaN, and the sort of

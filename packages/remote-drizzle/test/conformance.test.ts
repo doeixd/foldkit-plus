@@ -24,6 +24,7 @@ import {
   primitiveRefusals,
   refusals,
   relationalCases,
+  relationalContext,
   relationalTables,
   Relational,
   rows,
@@ -400,7 +401,12 @@ const relationalAnswer = (
   }
   return Effect.runPromise(
     query(descriptor, { entity: boundFor(bound, c) })
-      .run({ input: c.input, window: { first: 50 }, principal: null })
+      .run({
+        input: c.input,
+        window: { first: 50 },
+        principal: null,
+        viewer: relationalContext(c).viewer,
+      })
       .pipe(
         Effect.map(page => page.edges.map(edge => edge.id)),
         Effect.provide(layer),

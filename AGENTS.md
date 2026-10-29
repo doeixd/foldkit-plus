@@ -1124,6 +1124,11 @@ of its own named a form field "fits the Catalog". Read words with
   Fix the type instead. Acceptable casts: deliberately invalid input, written as
   `@ts-expect-error` so the rejection is also asserted; an upstream brand we
   cannot construct; and a lookup `!` under `noUncheckedIndexedAccess`.
+- **A path's value type holds null, so a comparison refused it on the right.**
+  `Expr.eq(Note.fields.orgId, orgOfViewer)` failed to type-check: `eq` typed
+  its right side `Expr<ValueOf<L>>`, and a path is `T | null`. Every test of
+  paths since phase 1 put the path on the left. Type-test a comparison both
+  ways round.
 - **Prove a type rejects, not just that it accepts.** Every constraint needs a
   `@ts-expect-error` negative case in `types.test-d.ts`. Both bugs above passed
   a suite full of positive cases.

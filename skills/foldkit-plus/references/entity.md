@@ -98,6 +98,17 @@ reads one (`ContextMissingError`), rather than reading a visitor.
 Query.from(Note).pipe(Query.where(Expr.eq(Note.fields.ownerId, Expr.viewer(User))))
 ```
 
+A path from the viewer reads what their row, or one reached from it, holds, in a
+body or a rule as anywhere a value goes. SQL follows it under each table's
+`visible` rule; `Judge` reads it from the rows a holder has
+(`Judge.query(body, input, row, { context, rows })`), unknown where it lacks one;
+no list orders by one.
+
+```ts
+const orgOfViewer = Expr.path(Expr.viewer(Member), Expr.path(Member.relations.team, Team.fields.orgId))
+Query.from(Note).pipe(Query.where(Expr.eq(Note.fields.orgId, orgOfViewer)))
+```
+
 ```ts
 const Post = Blog.Post.pipe(
   Entity.derived({

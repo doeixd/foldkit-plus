@@ -19,6 +19,7 @@ import {
   Relational,
   heldWorlds,
   relationalCases,
+  relationalContext,
   type RelationalCase,
   type HeldWorld,
 } from '../src/conformance/index.js'
@@ -28,7 +29,13 @@ const judged = (c: RelationalCase, world: HeldWorld) => {
   const holder = Held.rows(world.tables)
   return holder.rows(c.body.entity).map(row => {
     const id = Held.match(row.field('id'), { onHeld: String, onUnheld: () => '?' })
-    return { id, judgement: Judge.query(c.body, c.input, row) }
+    return {
+      id,
+      judgement: Judge.query(c.body, c.input, row, {
+        context: relationalContext(c),
+        rows: holder,
+      }),
+    }
   })
 }
 

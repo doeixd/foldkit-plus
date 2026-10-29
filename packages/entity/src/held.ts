@@ -62,6 +62,11 @@ export interface HeldRows {
   readonly row: (entity: AnyEntity, id: unknown) => Option.Option<HeldRow>
   /** Every held row of `entity`. */
   readonly rows: (entity: AnyEntity) => ReadonlyArray<HeldRow>
+  /**
+   * The row of `entity` with this id as the holder can say: none when it
+   * knows there is no such row it may see, unheld when it cannot tell.
+   */
+  readonly find: (entity: AnyEntity, id: unknown) => Held<Option.Option<HeldRow>>
 }
 
 const held = <A>(value: A): Held<A> => ({ _tag: 'Held', value })
@@ -83,6 +88,18 @@ const rowsOf = (tables: ReadonlyArray<HeldTable>): HeldRows => {
   const byToken = new Map<symbol, Table>()
   const tableOf = (identity: EntityIdentity<string>) =>
     Option.fromUndefinedOr(byToken.get(identity.token))
+  const find = (target: AnyEntity, id: unknown): Held<Option.Option<HeldRow>> =>
+    Option.match(tableOf(target.identity), {
+      onNone: () => unheld(`no ${target.name} is held`),
+      onSome: reached =>
+        Option.match(Option.fromUndefinedOr(reached.byId.get(id)), {
+          onSome: row => held(Option.some(row)),
+          onNone: () =>
+            reached.complete
+              ? held(Option.none<HeldRow>())
+              : unheld(`${target.name} ${String(id)} is not held`),
+        }),
+    })
 
   const view = (table: Table, record: Readonly<Record<string, unknown>>): HeldRow => {
     const read = (key: string): Held<unknown> =>
@@ -97,18 +114,7 @@ const rowsOf = (tables: ReadonlyArray<HeldTable>): HeldRows => {
         const link = read(relation.key)
         if (link._tag === 'Unheld') return link
         if (link.value === null || link.value === undefined) return held(Option.none())
-        const target = relation.target()
-        return Option.match(tableOf(target.identity), {
-          onNone: () => unheld(`no ${target.name} is held`),
-          onSome: reached =>
-            Option.match(Option.fromUndefinedOr(reached.byId.get(link.value)), {
-              onSome: row => held(Option.some(row)),
-              onNone: () =>
-                reached.complete
-                  ? held(Option.none<HeldRow>())
-                  : unheld(`${target.name} ${String(link.value)} is not held`),
-            }),
-        })
+        return find(relation.target(), link.value)
       },
       pointing: relation =>
         Option.match(tableOf(relation.owner), {
@@ -160,6 +166,7 @@ const rowsOf = (tables: ReadonlyArray<HeldTable>): HeldRows => {
       Option.flatMap(tableOf(entity.identity), table => Option.fromUndefinedOr(table.byId.get(id))),
     rows: entity =>
       Option.match(tableOf(entity.identity), { onNone: () => [], onSome: table => table.views }),
+    find,
   }
 }
 

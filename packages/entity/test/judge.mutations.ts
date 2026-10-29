@@ -117,9 +117,14 @@ export default [
     edits: [
       {
         file: evaluate,
-        find: '      return row === null || isUnheld(row) ? row : row.field(node.field.key)',
-        replace:
+        find: [
+          '      const row = reached(scope.row, node.via)',
+          '      return row === null || isUnheld(row) ? row : row.field(node.field.key)',
+        ].join('\n'),
+        replace: [
+          '      const row = reached(scope.row, node.via)',
           "      return row === null ? new Unheld('no row') : isUnheld(row) ? row : row.field(node.field.key)",
+        ].join('\n'),
       },
     ],
     tests: judge,
@@ -181,11 +186,11 @@ export default [
       {
         file: held,
         find: [
-          '                reached.complete',
-          '                  ? held(Option.none<HeldRow>())',
-          '                  : unheld(`${target.name} ${String(link.value)} is not held`),',
+          '            reached.complete',
+          '              ? held(Option.none<HeldRow>())',
+          '              : unheld(`${target.name} ${String(id)} is not held`),',
         ].join('\n'),
-        replace: '                held(Option.none<HeldRow>()),',
+        replace: '            held(Option.none<HeldRow>()),',
       },
     ],
     tests: judge,

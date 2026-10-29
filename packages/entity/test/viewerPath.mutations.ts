@@ -6,6 +6,8 @@ const tests = ['packages/entity/test/viewerPath.test.ts']
 const expr = '../src/expr.ts'
 const write = '../src/write.ts'
 const sets = '../src/sets.ts'
+const evaluate = '../src/evaluate.ts'
+const held = '../src/held.ts'
 const edit = (name: string, file: string, find: string, replace: string) => ({
   name,
   edits: [{ file, find, replace }],
@@ -20,10 +22,40 @@ export default [
     'if (false) {',
   ),
   edit(
-    'a query body takes a path from the viewer',
+    'a visitor starts a path from the viewer',
+    evaluate,
+    '      if (id === null) return null\n',
+    '',
+  ),
+  edit(
+    "a path from the viewer reads the viewer's own row",
+    evaluate,
+    ': reached(start, node.via)',
+    ': start',
+  ),
+  edit(
+    'a row the holder knows absent is unknown',
+    evaluate,
+    'onHeld: found => Option.match(found, { onNone: () => null, onSome: viewOf }),',
+    "onHeld: found => Option.match(found, { onNone: () => new Unheld('x'), onSome: viewOf }),",
+  ),
+  edit(
+    'a holder finds a row it lacks absent from an incomplete table',
+    held,
+    '            reached.complete\n',
+    '            true\n',
+  ),
+  edit(
+    'a path from the viewer reaches no other row',
     expr,
-    "  if (tag === 'ViewerPath') {",
-    '  if (false) {',
+    "      found.operations.add('path')\n      found.reaches.push(expr)\n      return\n    case 'Exists'",
+    "      found.operations.add('path')\n      return\n    case 'Exists'",
+  ),
+  edit(
+    'a list orders by a path from the viewer',
+    expr,
+    'ViewerPath: (path): Option.Option<Collation> => {\n',
+    'ViewerPath: (path): Option.Option<Collation> => {\n        if (path) return Option.none()\n',
   ),
   edit(
     'a path from the viewer follows none of its relations',

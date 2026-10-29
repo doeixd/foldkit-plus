@@ -506,6 +506,7 @@ const kindsOf = (expr: AnyExpr): ReadonlySet<string> => {
       return new Set([...storedKinds(Schema.toEncoded(expr.schema).ast), 'null'])
     // Refused in an assignment, below; a path reaching no row reads null.
     case 'Path':
+    case 'ViewerPath':
       return new Set([...storedKinds(Schema.toEncoded(expr.field.schema).ast), 'null'])
   }
 }
@@ -666,6 +667,7 @@ const computationOf = (
         `[foldkit-entity] an assignment of ${write.input.entity.name} reads the write's context`,
       )
     case 'Path':
+    case 'ViewerPath':
       throw new Error(
         `[foldkit-entity] an assignment of ${write.input.entity.name} reads another row`,
       )

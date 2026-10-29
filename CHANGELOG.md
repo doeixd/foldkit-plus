@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **A path from the viewer in query bodies** (operations phase 5):
+  `Expr.path(Expr.viewer(Member), …)` is an `Expr` operand, so
+  `Expr.eq(Note.fields.orgId, orgOfViewer)` is a body. remote-drizzle compiles
+  it to subqueries started at the viewer's id, each table under its `visible`
+  rule (a visitor, or a viewer the reader may not see, reads null), on SQLite
+  and Postgres. `Judge` reads it from the rows a holder has
+  (`JudgeOptions.rows`, `HeldRows.find`), unknown where it lacks the viewer's
+  row; `evaluate` refuses it as it refuses a path. No list orders by one. The
+  relational conformance suite runs cases over it, with `relationalContext`.
 - **A write ledger on Cloudflare D1.** D1 refuses a transaction's `BEGIN`, so
   the ledger reads the record first, then writes the row and its record in one
   `batch`, the record only where the write changed a row (`changes() > 0`). It

@@ -181,6 +181,7 @@ export type Expr<T> =
   | ViewerExpr<T>
   | NowExpr<T>
   | PathExpr<T>
+  | ViewerPathExpr<T>
 
 /** Any scalar, for the places that hold operands without caring what they are. */
 export type AnyExpr = Expr<unknown>
@@ -504,11 +505,6 @@ const toOperand = <T>(value: Operand<T> | T): Operandish => {
   if (tag === 'Field') {
     return fieldExpr(value as EntityField<string, string, Schema.Constraint>)
   }
-  if (tag === 'ViewerPath') {
-    throw new Error(
-      '[foldkit-entity] a path from the viewer is read by Entity.sets only; no query body or rule reads one yet',
-    )
-  }
   if (tag === 'Relation') {
     const relation = value as EntityRelation<string, string, AnyEntity, Cardinality, boolean>
     if (relation.cardinality !== 'one') {
@@ -526,6 +522,7 @@ const toOperand = <T>(value: Operand<T> | T): Operandish => {
     tag === 'Viewer' ||
     tag === 'Now' ||
     tag === 'Path' ||
+    tag === 'ViewerPath' ||
     predicateTags.has(tag as string)
   ) {
     return value as Operandish
@@ -587,11 +584,11 @@ export interface Dependencies {
   /** Each operator it calls, once per descriptor, defined or not. */
   readonly operators: ReadonlyArray<OperatorDescriptor>
   /**
-   * Each path and exists, once each: what it reads lies in other rows, so none
-   * of it is in `fields`. An exists' filter's inputs, operations and operators
-   * are in the lists above.
+   * Each path, exists and path from the viewer, once each: what it reads lies
+   * in other rows, so none of it is in `fields`. An exists' filter's inputs,
+   * operations and operators are in the lists above.
    */
-  readonly reaches: ReadonlyArray<PathExpr<unknown> | ExistsPredicate>
+  readonly reaches: ReadonlyArray<PathExpr<unknown> | ExistsPredicate | ViewerPathExpr<unknown>>
 }
 
 /**
@@ -661,6 +658,7 @@ const sideKind = (side: AnyExpr): 'number' | 'text' | 'none' | 'null' =>
       Viewer: ({ schema }) => orderKindOf(Schema.toEncoded(schema).ast),
       Now: ({ schema }) => orderKindOf(Schema.toEncoded(schema).ast),
       Path: ({ field }) => orderKindOf(Schema.toEncoded(field.schema).ast),
+      ViewerPath: ({ field }) => orderKindOf(Schema.toEncoded(field.schema).ast),
     }),
   )
 
@@ -696,6 +694,7 @@ const collationFor = (
         ],
         Call: call => [{ name: showExpr(call), collation: call.collation }],
         Path: path => [{ name: showExpr(path), collation: path.field.collation }],
+        ViewerPath: path => [{ name: showExpr(path), collation: path.field.collation }],
         Literal: () => [],
         Input: () => [],
         Viewer: () => [],
@@ -992,6 +991,7 @@ const scalarSchema = (scalar: AnyExpr): Schema.Top =>
       Viewer: ({ schema }) => schema,
       Now: ({ schema }) => schema,
       Path: ({ field }) => field.schema,
+      ViewerPath: ({ field }) => field.schema,
     }),
   )
 
@@ -1048,6 +1048,7 @@ const collationOf = (scalar: AnyExpr): Option.Option<Collation> =>
       Viewer: () => Option.none<Collation>(),
       Now: () => Option.none<Collation>(),
       Path: ({ field }) => field.collation,
+      ViewerPath: ({ field }) => field.collation,
     }),
   )
 
@@ -1656,7 +1657,12 @@ export const Expr = {
     L extends Operand<any> | PlainValue,
     R extends (L extends PlainValue
       ? Invalid<'foldkit-entity: Expr.eq takes the field on the left and the value on the right'>
-      : ValueOf<L> | Expr<ValueOf<L>> | (boolean extends ValueOf<L> ? Predicate : never)),
+      : // A path reads null where it reaches no row, which compares as SQL's unknown.
+        | ValueOf<L>
+        | Expr<ValueOf<L>>
+        | PathExpr<ValueOf<L> | null>
+        | ViewerPathExpr<ValueOf<L> | null>
+        | (boolean extends ValueOf<L> ? Predicate : never)),
   >(
     left: L,
     // The right side is typed from the left, so a plain value on the left has
@@ -1937,6 +1943,11 @@ const term = (direction: 'asc' | 'desc', expr: AnyExpr, options: TermOptions = {
           `[foldkit-entity] Order: ${showExpr(path)} is a path; a list orders by its own row's fields`,
         )
       },
+      ViewerPath: (path): Option.Option<Collation> => {
+        throw new Error(
+          `[foldkit-entity] Order: ${showExpr(path)} is a path from the viewer; a list orders by its own row's fields`,
+        )
+      },
       Literal: () => Option.none<Collation>(),
       Input: () => Option.none<Collation>(),
       Next: () => Option.none<Collation>(),
@@ -2131,6 +2142,7 @@ const unplaceable = (orderTerm: OrderTerm, operators: OperatorTable): Option.Opt
       Now: neither,
       // Refused where the term is made; said here too.
       Path: neither,
+      ViewerPath: neither,
     }),
     Match.exhaustive,
   )
@@ -2185,7 +2197,7 @@ interface Found {
   readonly nextOrder: Array<FieldDependency>
   readonly operations: Set<Operation>
   readonly operators: Set<OperatorDescriptor>
-  readonly reaches: Array<PathExpr<unknown> | ExistsPredicate>
+  readonly reaches: Array<PathExpr<unknown> | ExistsPredicate | ViewerPathExpr<unknown>>
 }
 
 /**
@@ -2273,6 +2285,12 @@ const walk = (expr: AnyExpr | Predicate | Ordering, found: Found): void => {
       for (const choice of Object.values(expr.choices)) walk(choice, found)
       return
     case 'Path':
+      found.operations.add('path')
+      found.reaches.push(expr)
+      return
+    // It needs whoever asks, and the subqueries a path is compiled to.
+    case 'ViewerPath':
+      found.operations.add('viewer')
       found.operations.add('path')
       found.reaches.push(expr)
       return
@@ -2419,6 +2437,9 @@ const fieldsIn = function* (
     case 'Path':
       yield expr.via[0]
       return
+    // It starts at the viewer's row, not the judged one, so any query may read it.
+    case 'ViewerPath':
+      return
     case 'Exists':
       yield existsStart(expr)
       return
@@ -2474,6 +2495,7 @@ const childrenOf = (expr: AnyExpr | Predicate): ReadonlyArray<AnyExpr | Predicat
     case 'Viewer':
     case 'Now':
     case 'Path':
+    case 'ViewerPath':
       return []
     case 'Exists':
       return Option.toArray(expr.where)
@@ -2794,6 +2816,9 @@ const showExpr = (node: AnyExpr | Predicate): string => {
       return [`${node.via[0].owner.name}`, ...node.via.map(step => step.key), node.field.key].join(
         '.',
       )
+    // `viewer Member.team.orgId`: the viewer's row, each relation from it, then the field.
+    case 'ViewerPath':
+      return `viewer ${[node.viewer.entity.name, ...node.via.map(step => step.key), node.field.key].join('.')}`
     case 'Exists': {
       const sought = `exists ${node.relation.owner.name}.${node.relation.key}${Option.match(
         node.where,

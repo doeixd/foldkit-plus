@@ -11,11 +11,15 @@ import {
   Entity,
   Expr,
   Held,
+  Judge,
+  Order,
   Query,
   Relation,
   Write,
+  evaluate,
   type ContextRead,
   type ExprContext,
+  type HeldRows,
 } from '../src/index.js'
 
 const Fields = {
@@ -125,11 +129,87 @@ describe('a path from the viewer', () => {
     ).toThrow('a path from the viewer ends at a field or a path')
   })
 
-  it('is read by no query body yet', () => {
-    expect(() =>
-      // @ts-expect-error no interpreter of a body reads one
-      Query.from(Fields.Note).pipe(Query.where(Expr.eq(Fields.Note.fields.orgId, orgOfViewer))),
-    ).toThrow('a path from the viewer is read by Entity.sets only')
+  describe('in a body, judged over what a holder has', () => {
+    const InOrg = Query.from(Fields.Note).pipe(
+      Query.where(Expr.eq(Fields.Note.fields.orgId, orgOfViewer)),
+    )
+    const notes = [
+      { id: 'n1', body: 'mine', orgId: 'acme' },
+      { id: 'n2', body: 'theirs', orgId: 'globex' },
+    ]
+    const holder = (members: ReadonlyArray<Record<string, unknown>>, complete = true) =>
+      Held.rows([
+        { entity: Fields.Note, rows: notes },
+        { entity: Member, rows: members, complete },
+        { entity: Team, rows: [{ id: 't1', orgId: 'acme' }] },
+      ])
+    const verdicts = (by: ExprContext, rows: HeldRows | undefined) =>
+      notes.map(note =>
+        Judge.query(InOrg, {}, rows!.row(Fields.Note, note.id).pipe(Option.getOrThrow), {
+          context: by,
+          rows,
+        }),
+      )
+    const known = (truth: boolean) => ({ _tag: 'Known', truth })
+
+    it("keeps the notes of the viewer's organisation", () => {
+      const rows = holder([{ id: 'ada', team: 't1' }])
+      expect(verdicts(asking('ada'), rows)).toEqual([known(true), known(false)])
+    })
+
+    it('keeps none for a visitor, a viewer of another Entity, or a viewer in no team', () => {
+      // Not every Member is held: a visitor's path starts at no row, whatever is held.
+      const rows = holder(
+        [
+          { id: 'ada', team: 't1' },
+          { id: 'bo', team: null },
+        ],
+        false,
+      )
+      const none = [known(false), known(false)]
+      expect(verdicts({ viewer: Option.none(), now: Option.none() }, rows)).toEqual(none)
+      expect(verdicts(asking('ada', 'Org'), rows)).toEqual(none)
+      expect(verdicts(asking('bo'), rows)).toEqual(none)
+    })
+
+    it("is unknown where the holder lacks the viewer's row, and absent where it holds every one", () => {
+      expect(verdicts(asking('ada'), holder([], false)).map(each => each._tag)).toEqual([
+        'Unknown',
+        'Unknown',
+      ])
+      expect(verdicts(asking('ada'), holder([], true))).toEqual([known(false), known(false)])
+    })
+
+    it('is unknown where the holder hides the field it reads, or was given no rows', () => {
+      const hidden = Held.rows([
+        { entity: Fields.Note, rows: notes },
+        { entity: Member, rows: [{ id: 'ada', team: 't1' }] },
+        { entity: Team, rows: [{ id: 't1', orgId: 'acme' }], hidden: ['orgId'] },
+      ])
+      const note = hidden.row(Fields.Note, 'n1').pipe(Option.getOrThrow)
+      expect(Judge.query(InOrg, {}, note, { context: asking('ada'), rows: hidden })._tag).toBe(
+        'Unknown',
+      )
+      expect(Judge.query(InOrg, {}, note, { context: asking('ada') })._tag).toBe('Unknown')
+    })
+
+    it('is refused by a run over one row, as a path is', () => {
+      expect(() => evaluate(InOrg, {}, notes, { context: asking('ada') })).toThrow(
+        'does not run path',
+      )
+    })
+
+    it('reads the viewer and the Entities it reaches, and none of the judged row', () => {
+      const read = Query.dependencies(InOrg)
+      expect(read.operations).toEqual(expect.arrayContaining(['viewer', 'path']))
+      expect(read.fields.map(field => field.key)).toEqual(['orgId'])
+      expect(read.reaches).toEqual([orgOfViewer])
+      expect(Expr.show(orgOfViewer)).toBe('viewer Member.team.orgId')
+    })
+
+    it('is no order', () => {
+      expect(() => Order.asc(orgOfViewer)).toThrow('is a path from the viewer')
+    })
   })
 
   it('sets only a field that can hold what its end holds', () => {

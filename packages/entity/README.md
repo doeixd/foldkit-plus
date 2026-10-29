@@ -402,8 +402,11 @@ a row reached from it, holds: `Expr.path(Expr.viewer(Member),
 Expr.path(Member.relations.team, Team.fields.orgId))` sets a note's `orgId` to
 its writer's team's, for a field that holds what the path's end holds. A
 server reads it through its own sources as the asker may see them; a client
-reads it from the rows it holds, and predicts nothing where it lacks one. No
-query body or rule reads a path from the viewer yet. `on: 'create'` sets the member on every
+reads it from the rows it holds, and predicts nothing where it lacks one. A
+query body or a guard rule compares with one as with any value
+(`Expr.eq(Note.fields.orgId, orgOfViewer)`): SQL reads it in subqueries under
+each reached table's `visible` rule, and `Judge` from the rows its holder has
+(`rows`), unknown where it lacks the viewer's row. `on: 'create'` sets the member on every
 insert; `on: 'write'` on every insert and every update (an `editedAt`). A
 delete sets nothing. Every write of the Entity follows from this one
 declaration (`write.context`, worked out by `Write.contextValues(write, {

@@ -13,9 +13,9 @@
  * link, a row the reader may not see), a field that is null on the row
  * reached, and an exists whose only witness is hidden.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { Collation, Entity, Expr, Order, Query, Relation } from '../index.js'
-import type { AnyEntity, AnyQuery, HeldTable } from '../index.js'
+import type { AnyEntity, AnyQuery, EntityRef, ExprContext, HeldTable } from '../index.js'
 
 const Team = Entity.define(
   'Team',
@@ -110,7 +110,17 @@ export interface RelationalCase {
   readonly input: Readonly<Record<string, unknown>>
   /** The ids of the visible rows the body matches, by id. */
   readonly expected: ReadonlyArray<string>
+  /** Who asks, or null for a visitor; a case that reads no viewer has none. */
+  readonly viewer?: EntityRef | null
 }
+
+/** What a case's `Expr.viewer` reads: who asks, or a visitor where nobody does. */
+export const relationalContext = (c: RelationalCase): ExprContext => ({
+  viewer: Option.fromNullishOr(c.viewer),
+  now: Option.none(),
+})
+
+const member = (id: string): EntityRef => ({ entity: 'Member', id })
 
 const { Team: T, Member: M, Badge: B, Pin: P } = Relational
 const members = Query.from(M).pipe(Query.orderBy(Order.asc(M.fields.id)))
@@ -121,6 +131,8 @@ const topPin = Expr.path(
   M.relations.team,
   Expr.exists(P.relations.team, Expr.eq(P.fields.label, 'top')),
 )
+const viewerTeam = Expr.path(Expr.viewer(M), Expr.path(M.relations.team, T.fields.name))
+const viewerTeamId = Expr.path(Expr.viewer(M), Expr.path(M.relations.team, T.fields.id))
 const gold = Expr.exists(B.relations.member, Expr.eq(B.fields.kind, 'gold'))
 
 export const relationalCases: ReadonlyArray<RelationalCase> = [
@@ -270,6 +282,50 @@ export const relationalCases: ReadonlyArray<RelationalCase> = [
     body: members.pipe(Query.where(Expr.not(topPin))),
     input: {},
     expected: ['m2'],
+  },
+
+  // ---- a path from the viewer -------------------------------------------------
+  {
+    what: "a path from the viewer reads their team's name, on the table it judges",
+    body: members.pipe(Query.where(Expr.eq(teamName, viewerTeam))),
+    input: {},
+    viewer: member('m1'),
+    expected: ['m1', 'm5'],
+  },
+  {
+    what: "a path from the viewer reaches another table's row",
+    body: teams.pipe(Query.where(Expr.eq(T.fields.id, viewerTeamId))),
+    input: {},
+    viewer: member('m2'),
+    expected: ['t2'],
+  },
+  {
+    what: 'a path from the viewer reads null through a team the reader may not see',
+    body: members.pipe(Query.where(Expr.isNull(viewerTeam))),
+    input: {},
+    viewer: member('m4'),
+    expected: ['m1', 'm2', 'm3', 'm4', 'm5'],
+  },
+  {
+    what: 'a path from the viewer reads null through a null link',
+    body: teams.pipe(Query.where(Expr.isNull(viewerTeamId))),
+    input: {},
+    viewer: member('m3'),
+    expected: ['t1', 't2'],
+  },
+  {
+    what: 'a path from a viewer the reader may not see reads null, as a path to that row does',
+    body: teams.pipe(Query.where(Expr.isNull(Expr.path(Expr.viewer(T), T.fields.name)))),
+    input: {},
+    viewer: { entity: 'Team', id: 't3' },
+    expected: ['t1', 't2'],
+  },
+  {
+    what: 'a path from a visitor reaches no row, so a comparison with it keeps none',
+    body: teams.pipe(Query.where(Expr.not(Expr.eq(T.fields.id, viewerTeamId)))),
+    input: {},
+    viewer: null,
+    expected: [],
   },
 ]
 

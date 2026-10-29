@@ -77,14 +77,14 @@ export default [
   edit(
     'deciding over the input ignores the table',
     evaluate,
-    'holds(node, { row: noRow, input, next: noRow, operators, judging: false, context }),',
-    'holds(node, { row: noRow, input, next: noRow, operators: Operators.kernel, judging: false, context }),',
+    '            operators,\n            judging: false,\n            find: noRows,\n            context,\n',
+    '            operators: Operators.kernel,\n            judging: false,\n            find: noRows,\n            context,\n',
   ),
   edit(
     'a row is judged with the kernel whatever the table',
     evaluate,
-    '  settled(holds(node, { row: flat(row), input, next: flat(next), operators, judging: false }))',
-    '  settled(holds(node, { row: flat(row), input, next: flat(next), operators: Operators.kernel, judging: false }))',
+    '      next: flat(next),\n      operators,\n',
+    '      next: flat(next),\n      operators: Operators.kernel,\n',
   ),
 
   // ---- tables

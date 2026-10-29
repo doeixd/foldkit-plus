@@ -65,6 +65,7 @@ const operand = (node: AnyExpr, row: any, input: Readonly<Record<string, unknown
       // Refused before compiling, as unsupported: this engine is given no context.
       throw new TanstackCompileError('this engine reads no viewer and no clock')
     case 'Path':
+    case 'ViewerPath':
       // Refused before compiling, as unsupported: this engine reads one collection.
       throw new TanstackCompileError('this engine reads no other row')
     default:

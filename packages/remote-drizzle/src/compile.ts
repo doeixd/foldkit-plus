@@ -46,6 +46,7 @@ import {
   type ExprContext,
   type OneRelation,
   type PathExpr,
+  type ViewerPathExpr,
   dependenciesOf,
   type NowExpr,
   type ViewerExpr,
@@ -170,6 +171,30 @@ const atRow = (
     onSome: rule => sql`${at} and (${rule})`,
   })
   return sql`(select ${atRow(onward(from, next), rest, read, query)} from ${next.table} where ${where})`
+}
+
+/**
+ * A path from the viewer: the subqueries a path is, started at the viewer's
+ * row (by its id, bound) instead of the judged one, under the viewer's
+ * table's visibility too. A visitor, or a viewer of another Entity, binds a
+ * null id, which no row has, so the path reads null, as `Judge` reads it.
+ */
+const viewerRow = (node: ViewerPathExpr<unknown>, target: CompileTarget, query: string): SQL => {
+  const id = contextFor(node.viewer, target, query)
+  const owner = node.viewer.entity
+  const start = reachedTable(target, owner, query)
+  const at = eq(columnFor(start, 'id', query), id)
+  const where = Option.match(visibleIn(target, owner, query), {
+    onNone: () => at,
+    onSome: rule => sql`${at} and (${rule})`,
+  })
+  const read = atRow(
+    onward(target, start),
+    node.via,
+    each => sql`${columnFor(each, node.field.key, query)}`,
+    query,
+  )
+  return sql`(select ${read} from ${start.table} where ${where})`
 }
 
 /** A reached binding, compiled for the request its query was: the same reader and context. */
@@ -446,6 +471,8 @@ const operand = (
       return contextFor(node, target, query)
     case 'Path':
       return atRow(target, node.via, at => sql`${columnFor(at, node.field.key, query)}`, query)
+    case 'ViewerPath':
+      return viewerRow(node, target, query)
     default:
       return absurd(node)
   }
@@ -599,6 +626,7 @@ const isColumn = (node: Operandish): boolean =>
       Next: () => true,
       Call: () => true,
       Path: () => true,
+      ViewerPath: () => true,
       Literal: () => false,
       Input: () => false,
       Viewer: () => false,
@@ -838,6 +866,7 @@ export const reachedEntities = (body: AnyQuery): ReadonlyArray<EntityIdentity<st
   const owners = new Map<symbol, EntityIdentity<string>>()
   for (const reached of Query.dependencies(body).reaches) {
     const met = [
+      ...(reached._tag === 'ViewerPath' ? [reached.viewer.entity] : []),
       ...reached.via.map(relation => relation.target().identity),
       ...(reached._tag === 'Exists' ? [reached.relation.owner] : []),
     ]
@@ -853,11 +882,12 @@ export const reachedEntities = (body: AnyQuery): ReadonlyArray<EntityIdentity<st
  * which would need SQL aliases this compiler does not write.
  */
 const checkReach = (
-  reached: PathExpr<unknown> | ExistsPredicate,
+  reached: PathExpr<unknown> | ExistsPredicate | ViewerPathExpr<unknown>,
   target: CompileTarget,
   query: string,
 ): void => {
-  const met = [target.table]
+  // A path from the viewer reads no column of the judged row, so its table may meet it.
+  const met = reached._tag === 'ViewerPath' ? [] : [target.table]
   const meet = (table: CompileTarget, owner: EntityIdentity<string>): void => {
     if (met.includes(table.table)) {
       throw new QueryCompileError(
@@ -867,6 +897,10 @@ const checkReach = (
     met.push(table.table)
   }
   let at = target
+  if (reached._tag === 'ViewerPath') {
+    at = reachedTable(target, reached.viewer.entity, query)
+    meet(at, reached.viewer.entity)
+  }
   for (const relation of reached.via) {
     const owner = relation.target().identity
     const next = reachedTable(at, owner, query)
@@ -874,7 +908,7 @@ const checkReach = (
     at = next
     meet(at, owner)
   }
-  if (reached._tag === 'Path') {
+  if (reached._tag !== 'Exists') {
     columnFor(at, reached.field.key, query)
     return
   }

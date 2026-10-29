@@ -15,8 +15,8 @@ export default [
     edits: [
       {
         file: compile,
-        find: '    onSome: rule => sql`${at} and (${rule})`,',
-        replace: '    onSome: () => at,',
+        find: 'Option.match(visible, {\n    onNone: () => at,\n    onSome: rule => sql`${at} and (${rule})`,',
+        replace: 'Option.match(visible, {\n    onNone: () => at,\n    onSome: () => at,',
       },
     ],
     tests: conformance,
