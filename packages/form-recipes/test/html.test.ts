@@ -45,6 +45,25 @@ describe('the recipes’ plain renderers', () => {
     ])
   })
 
+  // A date-time input given a value with an offset would show nothing (#313).
+  it('draws a moment that needs its offset as text, and one that does not as a date-time', () => {
+    const NewYork = Form.make('Event', Form.input(Schema.Struct({ at: Schema.String })), {
+      inputs: {
+        at: FieldRecipes.dateTime({ stored: 'instant', zone: 'America/New_York' }).control,
+      },
+    })
+    const drawn = (at: string) =>
+      Inert.byTag(
+        FormView.define(NewYork, { renderers: renderers() })(
+          { model: NewYork.fill(NewYork.initial, { at }).model, errors: [], canSubmit: false },
+          SlotView.inertBuilder(),
+        ),
+        'input',
+      ).map(input => [Inert.value(input, 'type'), Inert.value(input, 'value')])
+    expect(drawn('2026-11-01T05:30:00.000Z')).toEqual([['datetime-local', '2026-11-01T01:30']])
+    expect(drawn('2026-11-01T06:30:00.000Z')).toEqual([['text', '2026-11-01T01:30-05:00']])
+  })
+
   it('serve each input with its name, type and value', async () => {
     const html = await Effect.runPromise(
       renderToString(

@@ -65,15 +65,93 @@ export default [
     tests: dateTime,
   },
   {
-    name: 'local text in an instant key is shown as the runtime reads it',
+    name: 'a stored instant is read as Date.parse reads it',
     edits: [
       {
-        file: index,
-        find: "typeof value === 'string' && instantText.test(value) ? Date.parse(value) : Number.NaN",
-        replace: "typeof value === 'string' ? Date.parse(value) : Number.NaN",
+        file: wall,
+        find: 'const parts = isoInstant.exec(text)',
+        replace:
+          'if (!Number.isNaN(Date.parse(text))) return Option.some(Date.parse(text)); const parts = isoInstant.exec(text)',
       },
     ],
     tests: dateTime,
+  },
+  {
+    name: 'an instant finer than a millisecond is cut to one',
+    edits: [
+      {
+        file: wall,
+        find: 'if (/[1-9]/.test(fraction.slice(3))) return Option.none()',
+        replace: '',
+      },
+    ],
+    tests: dateTime,
+  },
+  {
+    name: 'an offset past 23:59 is taken',
+    edits: [
+      {
+        file: wall,
+        find: 'if (Number(hours) > 23 || Number(minutes) > 59) return Option.none()',
+        replace: '',
+      },
+    ],
+    tests: dateTime,
+  },
+  {
+    name: 'the later of a repeated hour is shown without its offset',
+    edits: [
+      {
+        file: wall,
+        find: 'Option.contains(instantIn(reading, zone), instant)',
+        replace: 'true',
+      },
+    ],
+    tests: dateTime,
+  },
+  {
+    name: 'a typed offset is taken whatever the zone’s clocks read',
+    edits: [
+      {
+        file: wall,
+        find: 'instant => utcOf(wallOf(instant, zone)) === utcOf(wall),',
+        replace: '() => true,',
+      },
+    ],
+    tests: dateTime,
+  },
+  {
+    name: 'a draft that submits another instant is shown',
+    edits: [
+      {
+        file: index,
+        find: 'Option.contains(parse(draft), new Date(at).toISOString())',
+        replace: 'true',
+      },
+    ],
+    tests: dateTime,
+  },
+  {
+    name: 'a list reads an instant as Date.parse does',
+    edits: [
+      {
+        file: index,
+        find: 'Option.match(readInstant(value), {',
+        replace: 'Option.match(Option.liftPredicate(Date.parse(value), at => !Number.isNaN(at)), {',
+      },
+    ],
+    tests: dateTime,
+  },
+  {
+    name: 'a draft with an offset is drawn in a date-time input',
+    edits: [
+      {
+        file: html,
+        find: "context.draft === '' || Option.isSome(readWall(String(context.draft)))",
+        replace: 'true',
+      },
+    ],
+    tests: ['packages/form-recipes/test/html.test.ts'],
   },
   {
     name: 'an unknown zone is taken',
@@ -115,7 +193,7 @@ export default [
   {
     name: 'a moment is drawn as a text input',
     edits: [
-      { file: '../src/html.ts', find: "native('datetime-local')", replace: "native('text')" },
+      { file: html, find: "native<Message>('datetime-local'", replace: "native<Message>('text'" },
     ],
     tests: ['packages/form-recipes/test/html.test.ts'],
   },
@@ -226,7 +304,7 @@ export default [
   {
     name: 'an instant past 9999 is taken',
     edits: [
-      { file: index, find: 'at => new Date(at).getUTCFullYear() <= 9999,', replace: '() => true,' },
+      { file: index, find: 'at => new Date(at).getUTCFullYear() <= 9999)', replace: '() => true)' },
     ],
     tests: dateTime,
   },

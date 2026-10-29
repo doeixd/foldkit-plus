@@ -728,6 +728,23 @@ carries `drawn`.
 
 ### Fixed
 
+- **`FieldRecipes.dateTime` shows a stored instant only as a draft that
+  submits it unchanged** (#313, #314, #315). Its `format` read an instant
+  with `Date.parse` and wrote the zone's reading, which three kinds of
+  instant did not survive:
+  - The later of a repeated hour (New York's second `01:30` on 2026-11-01)
+    was shown as the reading alone, which reads as the earlier, so an
+    unchanged submit moved it an hour back. Its draft now carries its
+    offset, `2026-11-01T01:30-05:00`, which `html` draws as text, since a
+    date-time input cannot hold it. A typed offset the zone's clocks have
+    then names that occurrence; another offset is refused.
+  - An instant finer than a millisecond (`…15.123456Z`) lost the rest; a
+    fill now throws for it, and takes trailing zeros (`.123000Z`).
+  - A date that does not exist (`2026-02-30T10:00:00Z`), an hour, minute or
+    second out of range, or an offset past `±23:59` was moved by
+    `Date.parse` to another date; a fill throws for it, and a list shows it
+    as written. So does an instant the zone's clocks read in no four-digit
+    year.
 - **A locked Bundle-backed key cannot be edited through its Bundle's view**
   (#312). `FormView`'s `locked` put `disabled` on the field's `div`, which
   disables nothing inside it, so an image control's button and file input

@@ -91,6 +91,14 @@ A date and a time, stored in one of two forms, chosen explicitly:
   read at it. A submitted value is written as `Date.prototype.toISOString` writes
   one; any offset is read. An unknown zone throws when the recipe is made.
 
+A stored instant is shown only as a draft that submits it again unchanged. The
+later of a repeated hour (New York's second `01:30` on 2026-11-01) is shown with
+its offset, `2026-11-01T01:30-05:00`, which `html` draws as text, since a
+date-time input cannot hold it; the reading alone would submit the earlier. A
+fill throws for an instant finer than a millisecond, or one naming no real date
+and time (`2026-02-30T10:00:00Z`, which `Date.parse` moves into March), since
+showing either would change it.
+
 The zone is a parameter, never the runtime's, so a server and a browser fill the
 same text. To follow the person's own zone, pass it:
 `Intl.DateTimeFormat().resolvedOptions().timeZone`.
@@ -265,8 +273,10 @@ instant reads in its recipe's zone.
   `Enter a date and a time that exists`, the words for any draft that names no
   time, a partly typed one too. A browser's `new Date` would move it an hour on
   without saying.
-- **A time the clocks repeat reads as the earlier.** `2026-10-25T01:30` in London
-  happens twice; it submits `00:30Z`, the first.
+- **A time the clocks repeat reads as the earlier,** unless an offset says which.
+  `2026-10-25T01:30` in London happens twice; it submits `00:30Z`, the first, and
+  `2026-10-25T01:30+00:00` submits `01:30Z`, the second. An offset the zone's
+  clocks do not have then is refused.
 - **A year under 100 is that year.** `0050-06-01` is not read as 1950, as
   `Date.UTC` would.
 - **A fill with a value of the wrong form throws,** naming the form and the key: a

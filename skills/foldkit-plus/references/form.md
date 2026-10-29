@@ -298,7 +298,10 @@ const View = FormView.define(Meeting, { renderers: renderers() }) // date and da
 - `dateTime({ stored: 'local' })`: the value is the wall-clock text, kept as typed.
   `{ stored: 'instant', zone }`: an ISO instant, shown and read in the IANA
   `zone` (a parameter, never the runtime's); a time the clocks skip is refused, a
-  repeated one reads as the earlier, and an unknown zone throws at definition.
+  repeated one reads as the earlier unless written with its offset
+  (`2026-11-01T01:30-05:00`, how a filled later one is shown, as text), and an
+  unknown zone throws at definition. A fill throws for an instant no draft holds
+  unchanged: finer than a millisecond, or naming a date that does not exist.
 - A fill with a value of the wrong form throws, naming the key. `locale` changes
   only what a display says.
 - `email()`, `url({ protocols? })` (https/http by default), `tel()`,

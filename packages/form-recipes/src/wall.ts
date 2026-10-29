@@ -146,3 +146,73 @@ export const instantOf = (wall: Wall, zone: string): Option.Option<number> => {
     .filter(instant => utcOf(wallOf(instant, zone)) === local)
   return instants.length === 0 ? Option.none() : Option.some(Math.min(...instants))
 }
+
+const offsetText = /^([+-])(\d{2}):(\d{2})$/
+
+/** The milliseconds `Z` or `±HH:MM` is ahead of UTC, or none for an offset past ±23:59. */
+const offsetOf = (text: string): Option.Option<number> => {
+  if (text === 'Z') return Option.some(0)
+  const parts = offsetText.exec(text)
+  if (parts === null) return Option.none()
+  const [, sign, hours = '', minutes = ''] = parts
+  if (Number(hours) > 23 || Number(minutes) > 59) return Option.none()
+  return Option.some((sign === '-' ? -1 : 1) * (Number(hours) * 60 + Number(minutes)) * 60_000)
+}
+
+const writeOffset = (offset: number): string => {
+  const minutes = Math.abs(offset) / 60_000
+  return `${offset < 0 ? '-' : '+'}${two(Math.floor(minutes / 60))}:${two(minutes % 60)}`
+}
+
+// The ISO form alone, offset and all: `Date.parse` takes much else, in the runtime's
+// zone, and moves a day that does not exist (`02-30`) into the next month.
+const isoInstant = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?)(?:\.(\d+))?(Z|[+-]\d{2}:\d{2})$/
+
+/**
+ * The instant stored ISO text names, or none for text that is not one, names
+ * no real date and time, or is finer than a millisecond: a reading holds no
+ * finer, so showing such an instant would change it.
+ */
+export const readInstant = (text: string): Option.Option<number> => {
+  const parts = isoInstant.exec(text)
+  if (parts === null) return Option.none()
+  const [, reading = '', fraction = '', offset = ''] = parts
+  if (/[1-9]/.test(fraction.slice(3))) return Option.none()
+  return Option.flatMap(
+    readWall(fraction === '' ? reading : `${reading}.${fraction.slice(0, 3)}`),
+    wall => Option.map(offsetOf(offset), ahead => utcOf(wall) - ahead),
+  )
+}
+
+const withOffset = /^(.*)([+-]\d{2}:\d{2})$/
+
+/**
+ * The instant a draft names in `zone`. A reading alone names the one instant
+ * the clocks read so, or the earlier of two they repeat; one with an offset
+ * (`2026-11-01T01:30-05:00`) names the instant of that offset, when the clocks
+ * read so then. None for a time they skip, or an offset they do not have there.
+ */
+export const instantIn = (draft: string, zone: string): Option.Option<number> => {
+  const parts = withOffset.exec(draft)
+  if (parts === null) return Option.flatMap(readWall(draft), wall => instantOf(wall, zone))
+  const [, reading = '', offset = ''] = parts
+  return Option.flatMap(readWall(reading), wall =>
+    Option.filter(
+      Option.map(offsetOf(offset), ahead => utcOf(wall) - ahead),
+      instant => utcOf(wallOf(instant, zone)) === utcOf(wall),
+    ),
+  )
+}
+
+/**
+ * The draft of an instant in `zone`: what the clocks read, with the offset
+ * only where the reading alone would name another instant, the later of a
+ * repeated hour, so that it reads back as the instant it shows.
+ */
+export const draftIn = (instant: number, zone: string): string => {
+  const wall = wallOf(instant, zone)
+  const reading = writeWall(wall)
+  return Option.contains(instantIn(reading, zone), instant)
+    ? reading
+    : `${reading}${writeOffset(utcOf(wall) - instant)}`
+}

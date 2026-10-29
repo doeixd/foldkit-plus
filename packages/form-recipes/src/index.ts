@@ -12,7 +12,7 @@ import { Display } from 'foldkit-crud'
 import { Input, type Control, type ControlChange } from 'foldkit-form'
 import { isCalendarDate, type CalendarDate } from 'foldkit/calendar'
 import { decimalText, digitsOf, readDigits, shifted, writeAmount, type Digits } from './number.js'
-import { dateFormat, instantOf, knownZone, readWall, utcOf, wallOf, writeWall } from './wall.js'
+import { dateFormat, draftIn, instantIn, knownZone, readInstant, readWall, utcOf } from './wall.js'
 
 /**
  * One kind of key: how it is edited, and how it reads. Most recipes' control is
@@ -85,8 +85,6 @@ interface Mode {
 }
 
 const shown = { dateStyle: 'medium', timeStyle: 'short' } as const
-// The ISO form alone, offset and all: `Date.parse` takes much else, in the runtime's zone.
-const instantText = /^\d{4,}-\d\d-\d\dT\d\d:\d\d(?::\d\d(?:\.\d+)?)?(?:Z|[+-]\d\d:\d\d)$/
 
 const local: Mode = {
   // The text as typed, once it names a real time: a stored value comes back unchanged.
@@ -104,27 +102,41 @@ const local: Mode = {
     }),
 }
 
-const instant = (zone: string): Mode => ({
-  parse: draft =>
+const instant = (zone: string): Mode => {
+  const parse = (draft: string) =>
     Option.map(
       // An instant whose UTC year is past 9999 would be written `+010000-…`, which
       // no form reads back: refused, as a date past 9999 is.
-      Option.filter(
-        Option.flatMap(readWall(draft), wall => instantOf(wall, zone)),
-        at => new Date(at).getUTCFullYear() <= 9999,
-      ),
+      Option.filter(instantIn(draft, zone), at => new Date(at).getUTCFullYear() <= 9999),
       at => new Date(at).toISOString(),
-    ),
-  format: value => {
-    const at = typeof value === 'string' && instantText.test(value) ? Date.parse(value) : Number.NaN
-    if (!Number.isNaN(at)) return writeWall(wallOf(at, zone))
-    throw new Error(`an instant is ISO text with an offset, not ${JSON.stringify(value)}`)
-  },
-  text: (value, locale) => {
-    const at = instantText.test(value) ? Date.parse(value) : Number.NaN
-    return Number.isNaN(at) ? value : dateFormat(locale, { ...shown, timeZone: zone }).format(at)
-  },
-})
+    )
+  return {
+    parse,
+    // Shown only as a draft that submits the same instant unchanged, or refused.
+    format: value =>
+      Option.match(
+        Option.flatMap(typeof value === 'string' ? readInstant(value) : Option.none(), at => {
+          const draft = draftIn(at, zone)
+          return Option.contains(parse(draft), new Date(at).toISOString())
+            ? Option.some(draft)
+            : Option.none()
+        }),
+        {
+          onSome: draft => draft,
+          onNone: () => {
+            throw new Error(
+              `an instant is ISO text with an offset, naming a real date and time to the millisecond that ${zone} can show, not ${JSON.stringify(value)}`,
+            )
+          },
+        },
+      ),
+    text: (value, locale) =>
+      Option.match(readInstant(value), {
+        onNone: () => value,
+        onSome: at => dateFormat(locale, { ...shown, timeZone: zone }).format(at),
+      }),
+  }
+}
 
 const modeOf = (data: Stored): Mode =>
   Match.value(data).pipe(

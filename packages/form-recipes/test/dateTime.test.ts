@@ -110,6 +110,120 @@ describe('a date and a time stored as an instant, in a zone', () => {
   })
 })
 
+// A stored instant is shown only as a draft that submits it again, unchanged.
+describe('an instant filled and submitted unchanged', () => {
+  const unchanged = (form: EventForm, instant: string) => submitted(form, shown(form, instant))
+
+  // The later of a repeated hour reads back as itself, not as the earlier (#313).
+  it.each([
+    [newYork, '2026-11-01T05:30:00.000Z', '2026-11-01T01:30'],
+    [newYork, '2026-11-01T06:30:00.000Z', '2026-11-01T01:30-05:00'],
+    [london, '2026-10-25T00:30:00.000Z', '2026-10-25T01:30'],
+    [london, '2026-10-25T01:30:00.000Z', '2026-10-25T01:30+00:00'],
+    [
+      formOf({ stored: 'instant', zone: 'America/St_Johns' }),
+      '2026-11-01T04:15:00.000Z',
+      '2026-11-01T01:45',
+    ],
+    [
+      formOf({ stored: 'instant', zone: 'America/St_Johns' }),
+      '2026-11-01T04:45:00.000Z',
+      '2026-11-01T01:15-03:30',
+    ],
+    [
+      formOf({ stored: 'instant', zone: 'Australia/Lord_Howe' }),
+      '2026-04-04T15:15:00.000Z',
+      '2026-04-05T01:45+10:30',
+    ],
+  ])('keeps %#: shows it as its draft, and submits it unchanged', (form, instant, draft) => {
+    expect(shown(form, instant)).toBe(draft)
+    expect(unchanged(form, instant)).toBe(instant)
+  })
+
+  // Around each change of the clocks in 2026, a skipped or repeated hour among them.
+  it.each([
+    'Europe/London',
+    'America/New_York',
+    'America/St_Johns',
+    'Australia/Lord_Howe',
+    'America/Santiago',
+  ])('keeps every quarter hour around each change of the clocks in %s', zone => {
+    const offset = new Intl.DateTimeFormat('en', { timeZone: zone, timeZoneName: 'longOffset' })
+    const offsetAt = (at: number) =>
+      offset.formatToParts(at).find(part => part.type === 'timeZoneName')?.value
+    const day = 86_400_000
+    const changes: Array<number> = []
+    for (let at = Date.UTC(2026, 0, 1); at < Date.UTC(2027, 0, 1); at += day)
+      if (offsetAt(at) !== offsetAt(at + day)) changes.push(at)
+    expect(changes).toHaveLength(2)
+    const { control } = FieldRecipes.dateTime({ stored: 'instant', zone })
+    const moved: Array<string> = []
+    for (const change of changes)
+      for (let at = change - day; at < change + 2 * day; at += 15 * 60_000) {
+        const instant = new Date(at).toISOString()
+        const again = control.parse!(control.format!(instant, control.data), control.data)
+        if (again !== instant) moved.push(`${instant} -> ${String(again)}`)
+      }
+    expect(moved).toEqual([])
+  })
+
+  it('reads a typed offset as that occurrence, if the zone’s clocks have it then', () => {
+    expect(submitted(newYork, '2026-11-01T01:30-04:00')).toBe('2026-11-01T05:30:00.000Z')
+    expect(submitted(newYork, '2026-11-01T01:30-05:00')).toBe('2026-11-01T06:30:00.000Z')
+    expect(submitted(london, '2026-07-01T09:30+01:00')).toBe('2026-07-01T08:30:00.000Z')
+  })
+
+  it.each([
+    [newYork, '2026-11-01T01:30-06:00'],
+    [london, '2026-07-01T09:30+00:00'],
+    [london, '2026-03-29T01:30+00:00'],
+  ])('refuses %#: an offset the zone’s clocks do not have then', (form, draft) =>
+    expect(errorOf(form, draft)).toEqual(['Enter a date and a time that exists']),
+  )
+
+  // Showing a finer instant as a reading would drop the rest of it (#314).
+  it('refuses an instant finer than a millisecond, and keeps one written with zeros', () => {
+    expect(() => shown(london, '2026-07-01T08:30:15.123456Z')).toThrow(/"at".*to the millisecond/)
+    expect(() => shown(london, '2026-07-01T08:30:15.0001Z')).toThrow(/to the millisecond/)
+    expect(shown(london, '2026-07-01T08:30:15.123000Z')).toBe('2026-07-01T09:30:15.123')
+    expect(unchanged(london, '2026-07-01T08:30:15.123000Z')).toBe('2026-07-01T08:30:15.123Z')
+  })
+
+  // `Date.parse` moves `02-30` into March (#315).
+  it.each([
+    '2026-02-30T10:00:00Z',
+    '2025-02-29T10:00:00Z',
+    '2026-04-31T10:00:00Z',
+    '2026-13-01T10:00:00Z',
+    '2026-00-10T10:00:00Z',
+    '2026-07-01T24:00:00Z',
+    '2026-07-01T10:60:00Z',
+    '2026-07-01T10:00:60Z',
+    '2026-07-01T10:00:00+24:00',
+    '2026-07-01T10:00:00+05:60',
+  ])('refuses to fill %s, which names no real time, and lists it as written', value => {
+    expect(() => shown(london, value)).toThrow(/"at".*an instant/)
+    const { display } = FieldRecipes.dateTime({ stored: 'instant', zone: 'Europe/London' })
+    expect(display.text(value, {})).toBe(value)
+  })
+
+  it('fills a leap day, which is real', () => {
+    expect(unchanged(london, '2024-02-29T10:00:00.000Z')).toBe('2024-02-29T10:00:00.000Z')
+  })
+
+  it.each(['2026-02-30T09:30', '2026-02-29T09:30', '2026-02-30T09:30+00:00'])(
+    'reads a typed %s, a day that does not exist, as no time',
+    draft => expect(errorOf(london, draft)).toEqual(['Enter a date and a time that exists']),
+  )
+
+  it.each([
+    ['Europe/Berlin', '9999-12-31T23:30:00.000Z'],
+    ['America/New_York', '0000-01-01T00:30:00.000Z'],
+  ])('refuses to fill an instant %s’s clocks read in no four-digit year', (zone, instant) => {
+    expect(() => shown(formOf({ stored: 'instant', zone }), instant)).toThrow(/"at".*an instant/)
+  })
+})
+
 describe('a date and a time in a list', () => {
   const spaced = (text: string) => text.replace(/\s/g, ' ')
   it('reads an instant in the zone and a local text as written', () => {
