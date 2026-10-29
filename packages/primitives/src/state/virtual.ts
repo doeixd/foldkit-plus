@@ -294,12 +294,14 @@ export const Virtual = Bundle.make<
   }),
   init: args => {
     // Restored measurements pass through the same sanitation as live ones,
-    // so a poisoned cache cannot wedge the sums.
-    const heights: Record<string, number> = {}
-    for (const [key, height] of Object.entries(args.initialHeights ?? {})) {
-      const sane = saneMeasured(height)
-      if (sane !== null) heights[key] = sane
-    }
+    // so a poisoned cache cannot wedge the sums. Built from entries, since
+    // assigning a row keyed `__proto__` sets the prototype.
+    const heights: Record<string, number> = Object.fromEntries(
+      Object.entries(args.initialHeights ?? {}).flatMap(([key, height]) => {
+        const sane = saneMeasured(height)
+        return sane === null ? [] : [[key, sane] as const]
+      }),
+    )
     return {
       model: {
         scrollTop: args.initialScrollTop ?? 0,
@@ -348,13 +350,11 @@ export const Virtual = Bundle.make<
         },
         Prune: ({ keys }) => {
           const kept = new Set(keys)
-          const heights: Record<string, number> = {}
-          let dropped = false
-          for (const [key, height] of Object.entries(model.heights)) {
-            if (kept.has(key)) heights[key] = height
-            else dropped = true
-          }
-          return dropped ? { model: { ...model, heights } } : { model }
+          const entries = Object.entries(model.heights)
+          const held = entries.filter(([key]) => kept.has(key))
+          return held.length < entries.length
+            ? { model: { ...model, heights: Object.fromEntries(held) } }
+            : { model }
         },
         // A superseded silence timer carries an old generation: ignore it.
         Settled: ({ generation }) =>

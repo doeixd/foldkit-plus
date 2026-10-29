@@ -287,6 +287,22 @@ describe('Virtual transitions', () => {
     })
   })
 
+  it.each(['__proto__', 'constructor', 'toString'])(
+    'keeps the height of a row keyed %s through a restore and a prune',
+    key => {
+      // JSON.parse makes `__proto__` an own key, as a stored cache would.
+      const stored: Record<string, number> = JSON.parse(`{"${key}": 12, "gone": 5}`)
+      const restored = Page.at(List, { args: { ...args, initialHeights: stored } })
+      const start = restored.init(fresh).model
+      expect(Object.entries(start.list.heights)).toEqual([
+        [key, 12],
+        ['gone', 5],
+      ])
+      const pruned = fold(start, VirtualMessage.Prune({ keys: [key] }))
+      expect(Object.entries(pruned.heights)).toEqual([[key, 12]])
+    },
+  )
+
   it('rejects bad options at placement', () => {
     expect(() => Page.at(List, { args: { ...args, estimatedHeight: 0 } })).toThrow(
       /args do not match/,

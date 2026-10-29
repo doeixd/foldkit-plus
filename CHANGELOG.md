@@ -760,6 +760,10 @@ carries `drawn`.
 
 ### Fixed
 
+- **`Virtual` keeps the height of a row keyed `__proto__`**. Restored
+  `initialHeights` and a `Prune` built the heights by assignment, which for
+  that key set the record's prototype and dropped the measurement, so the
+  row fell back to its estimate. Both now build the record from entries.
 - **`Bundle.compose` keeps a child in a field named `__proto__`**. The
   child's field was assigned into the parent's fields, which set their
   prototype instead, so the composed Model had no such field. It is now
