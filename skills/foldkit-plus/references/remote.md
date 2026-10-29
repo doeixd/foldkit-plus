@@ -242,8 +242,8 @@ const projects = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: Projec
 // Under staleWhileRevalidate the read entry sleeps (Effect clock) until the earliest held value
 // ages out and emits RefreshStarted for it: time reaches Remote only as a Message, and a
 // Projection never reads the clock. The deadline is a dependency (`expires`), so a write moves it.
-// A mutation's answer dates what it writes too: `MutationSucceeded.now`, from `Data.mutate`'s
-// `now` option (default Date.now).
+// A mutation's answer dates what it writes too: `MutationSucceeded.now`, Effect's Clock when the
+// answer lands (drive TestClock). Data.mutate's `now` option is the write's time sent to the server.
 
 // Cases of update's switch on Message (ClickedRename {id,name}, ClickedMore, ClickedRefresh,
 // ClickedTryAgain, SignedOut), with Data registering ProjectsByOwner and RenameProject:

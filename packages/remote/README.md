@@ -870,8 +870,10 @@ becomes `Refreshing` without discarding the old value. Planning accepts `now`
 as an input, so tests can control time. It defaults to `Date.now`, read at each
 use, so fake timers (`vi.useFakeTimers`) move it; Effect's `TestClock` does not,
 because a plan runs outside Effect, so a test that drives `TestClock` passes
-`now`. A mutation's answer is dated the same way, by `Data.mutate`'s `now`
-option.
+`now`. A mutation's answer is dated by another clock: Effect's `Clock`, read
+when the answer lands, so a test of how written rows age drives `TestClock`.
+`Data.mutate`'s `now` option is the write's time, sent to the server; it does
+not date the answer.
 
 A policy belongs to one `subscriptions` call, and covers every read in it. Reads
 under different policies take a call each:
@@ -2848,8 +2850,9 @@ a request passes the one it first sent.
 `MutationSucceeded` reconciles at most once per `requestId`; an unknown or
 already-applied settlement is a no-op. It carries `now`, the clock reading of
 the answer, which dates the entities it writes as a read's `now` does, so a
-freshness policy ages them from then. `Data.mutate` and `Remote.mutateInto`
-stamp it from their `now` option, `Date.now` by default.
+freshness policy ages them from then. `Data.mutate`, `Remote.mutateInto` and
+the outbox stamp it from Effect's `Clock` when the answer lands, never from the
+`now` option, which is the write's time sent to the server.
 
 ### The transport seam
 

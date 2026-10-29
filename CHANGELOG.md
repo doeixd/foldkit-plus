@@ -759,6 +759,12 @@ carries `drawn`.
   attempt's time, the same `now` while it lies within `clockSkew`, else the
   server's clock then. A ledger keeps the first time. The remote-server
   README says so, and `docs/design/ops-4-captured-now-DESIGN.md` records why.
+- **The docs date a mutation answer by the clock that dates it** (#292). The
+  remote README, the skill and `docs/remote.md` said `MutationSucceeded.now`
+  came from `Data.mutate`'s `now` option, `Date.now` by default. It is
+  Effect's `Clock`, read when the answer lands, so a test of how written rows
+  age drives `TestClock`; the `now` option is the write's time sent to the
+  server.
 - **`Crud.options` reads each listed choice once** (#308). It checked every
   chosen id against a picker's whole list, so a many-picker holding N of N
   loaded choices did quadratic work on each derivation. It groups the held

@@ -225,7 +225,9 @@ sequenceDiagram
 `Data.mutate` applies `MutationStarted` to the Model (the request id comes from
 the Model's own sequence, so `update` stays pure) and returns the Command whose
 Message settles it. That Message carries the normalized entity patches and
-`now`, the clock reading that dates what they write; the typed `Output` is what
+`now`, Effect's `Clock` read when the answer lands, which dates what they
+write. (`Data.mutate`'s `now` option is the write's time, sent to the server;
+it does not date the answer.) The typed `Output` is what
 `Remote.mutateInto` returns. Settling is idempotent per `requestId`, so a transport retry
 cannot apply the same change twice. `Remote.mutateInto` is the one-step
 imperative form for SSR and tests.
