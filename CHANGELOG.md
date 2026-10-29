@@ -760,6 +760,10 @@ carries `drawn`.
 
 ### Fixed
 
+- **`Bundle.compose` keeps a child in a field named `__proto__`**. The
+  child's field was assigned into the parent's fields, which set their
+  prototype instead, so the composed Model had no such field. It is now
+  defined as a field of its own.
 - **A Region or appearance axis named like an `Object.prototype` member draws
   as declared.** The Renderer read a node's Region by a plain index, so a
   Block declaring a Region `constructor` or `toString` that a stored node

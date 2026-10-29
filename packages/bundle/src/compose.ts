@@ -170,7 +170,8 @@ const build = (spec: Spec): AnyComposition => {
       child.kind === 'one'
         ? declare(child.bundle, child.field)
         : declareEach(child.bundle as never, child.field)
-    Object.assign(fields, declaration.fields)
+    // Defined, not assigned: assigning a field named `__proto__` sets the prototype.
+    Object.defineProperties(fields, Object.getOwnPropertyDescriptors(declaration.fields))
     for (const [tag, value] of Object.entries(declaration.cases)) {
       if (Object.hasOwn(cases, tag)) {
         throw new Error(`Bundle.compose: the Message case "${tag}" is declared twice`)

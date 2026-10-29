@@ -143,6 +143,17 @@ describe('Bundle.compose', () => {
       ),
     ).toThrow('the Message case "Reset" is declared twice')
   })
+
+  it.each(['__proto__', 'constructor', 'toString'])(
+    'keeps a child in a field named %s as a field of the Model',
+    field => {
+      const Named = Bundle.compose({}).pipe(Bundle.withChild(field, Hello))
+      expect(Object.keys(Named.Model.fields)).toEqual([field])
+      expect(
+        Schema.decodeUnknownSync(Named.Model)(JSON.parse(`{"${field}":{"name":"Ada"}}`)),
+      ).toEqual(JSON.parse(`{"${field}":{"name":"Ada"}}`))
+    },
+  )
 })
 
 describe('Bundle.configure', () => {
