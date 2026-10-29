@@ -17,6 +17,7 @@ tables with `bind` and lands declared writes with `writer`.
 | Whether a value is valid | the Effect `Schema.Struct` in `entity.schema` |
 | How a relation is stored, how a derived value is computed | the interpreter (`foldkit-remote-drizzle`'s `bind`) |
 | What a write sets and asks of its row (`Write`: `when`, `expect`, `increment`) | `foldkit-entity` declares it as data; the server's writer lands it |
+| What the server chooses on a write: who wrote it, when (`Entity.sets`) | `foldkit-entity` declares it; the server fills it, the client predicts it |
 | What every stored row, and every change of one, must hold (`Entity.invariant`) | `foldkit-entity` declares it; the writer enforces it where it commits |
 | Who may write | `foldkit-guard`, never an invariant |
 | An interpreter's own facts about an entity or member | that interpreter, under its `foldkit-metadata` key |
@@ -28,8 +29,9 @@ tables with `bind` and lands declared writes with `writer`.
 Entity
  ├── fields      the properties of entity.schema
  ├── relations   one / many of another Entity, as the owner sees it (Entity.relate)
- ├── derived     readable values an interpreter supplies
- └── members     all three; a key is only ever one kind
+ ├── derived     readable values an interpreter supplies, or counts and exists it compiles
+ ├── members     all three; a key is only ever one kind
+ └── sets        the members a write's context fills (who asks, when), never an input
 ```
 
 Every pipe step, and `Entity.relate`, returns a new frozen descriptor with the
@@ -92,27 +94,6 @@ pending. A `many` relation, or a relation pointing at another Entity, is refused
 `Derived.exists(relation, { viewer })` is a viewer-relative member: the id of a
 row pointing here through `relation` whose `viewer` relation points at whoever
 reads it, or none.
-
-The write's context is part of `Expr`: `Expr.viewer(User)` is whoever asks, as a
-User's id (null for a visitor), and `Expr.now` the time in milliseconds. Each side
-provides them once: a server from `RemoteServer.make({ viewer })` and its clock, a
-client from `Remote.make({ viewer })`. A run given no context refuses a body that
-reads one (`ContextMissingError`), rather than reading a visitor.
-
-```ts
-Query.from(Note).pipe(Query.where(Expr.eq(Note.fields.ownerId, Expr.viewer(User))))
-```
-
-A path from the viewer reads what their row, or one reached from it, holds, in a
-body or a rule as anywhere a value goes. SQL follows it under each table's
-`visible` rule; `Judge` reads it from the rows a holder has
-(`Judge.query(body, input, row, { context, rows })`), unknown where it lacks one;
-no list orders by one.
-
-```ts
-const orgOfViewer = Expr.path(Expr.viewer(Member), Expr.path(Member.relations.team, Team.fields.orgId))
-Query.from(Note).pipe(Query.where(Expr.eq(Note.fields.orgId, orgOfViewer)))
-```
 
 ```ts
 const Post = Blog.Post.pipe(
@@ -198,7 +179,7 @@ ask of its row.
 
 **What the server chooses:** `Entity.sets({ author: Expr.viewer(User), createdAt: Expr.now }, { on:
 'create' })` and `Entity.sets({ editedAt: Expr.now }, { on: 'write' })`, added after `Entity.relate`, are
-the one place a write's effects are declared. A value may be a path from the viewer too
+the one place a write's effects are declared (the terms are under "Who asks, and when" below). A value may be a path from the viewer too
 (`orgId: Expr.path(Expr.viewer(Member), Expr.path(Member.relations.team, Team.fields.orgId))`). Every
 insert sets those members, every update those set `on: 'write'`, and no input may set them: the server fills them
 (`RemoteServer.make({ viewer })`, and the write's time) and the client predicts them (`Remote.make({ viewer })`,
@@ -332,7 +313,7 @@ const Restock = Write.update(
   which guards judge, writers explain misses by, and clients predict.
 - **An invariant's lifecycle is what it reads.** `after` only: a state invariant, judged on every create
   and update, and a `CHECK` constraint (`checkConstraints`, `entityChecks`). `before` too: a transition invariant, judged
-  on updates only. `Entity.readsBefore(invariant)` tells which. One reading nothing of `after` is refused
+  on updates only. `Entity.readsBefore` of one of `Entity.invariants(entity)` tells which. One reading nothing of `after` is refused
   where it is declared: which rows a write may start from is its `when`.
 - **Strictly true.** A null fails one, as SQL's unknown drops a row from a `WHERE`; write
   `Expr.or(Expr.isNull(after.x), …)` to allow it. Text compares only under a declared collation.
@@ -500,9 +481,6 @@ Query.dependencies(recent)     // every field it reads, also split into `predica
 - **Two `where`s conjoin; two `orderBy`s append.** Neither replaces, so piping a
   fragment only ever narrows a query. There is no reset combinator: nothing has
   needed one.
-- The list of predicates **is** the conjunction, which is why there is no
-  `Expr.and`: three conditions are three `where`s. An `and` is only needed for a
-  conjunction nested inside something else.
 - A `Query` says which rows. Which fields is a Selection; how many, whether
   absence is an error, and whether to watch for changes belong to the consumer.
 - A predicate or ordering term over a **different Entity** than `Query.from` is
@@ -513,14 +491,15 @@ Query.dependencies(recent)     // every field it reads, also split into `predica
   interpreters declare a `supported` list and check it: `foldkit-remote-drizzle`
   at registration, and `evaluate` on every run.
 - **`evaluate(body, input, rows)` is here**, not in a server package: it is the
-  IR's *reference semantics* — what §6.0.1 means over rows already in hand — and
+  IR's *reference semantics* — what a body means over rows already in hand — and
   it may depend on the IR and nothing else. `foldkit-remote-server` re-exports
   it. The conformance suite that checks an interpreter against it is
   `foldkit-entity/conformance`, a subpath so the fixtures stay out of the main
   bundle: `cases` each name the ids a body matches, and `refusals` are bodies
-  every interpreter must refuse rather than answer (text holding NUL).
+  every interpreter must refuse rather than answer (text holding a NUL, NaN;
+  `Expr.givesUnportable(...nodes)` finds such a constant).
   `evaluateEach(body, input, rows)` judges each row alone: a row holding such
-  text goes in `refused` and the others are answered (Remote's `matching` skips
+  a value goes in `refused` and the others are answered (Remote's `matching` skips
   it); an input holding one still refuses the run.
 - `Expr.contains` searches for a **value or an input**, never a field or call (SQL
   would have to escape one as a pattern), and takes a **text or nullable-text** operand only, checked by the
@@ -557,7 +536,9 @@ Expr.path(Post.relations.author,
 - `foldkit-remote-drizzle` compiles both to subqueries under each reached
   table's `visible`, for Entities bound together with `bind`. A path meeting a
   table twice, or a relation not stored on its owner's table, is refused at
-  registration. Invariants, `when` and Read rules take no path yet.
+  registration. Query bodies and a guard's Read, Update and Delete rules take
+  paths ([guard.md](guard.md)); invariants, `when` and computed assignments
+  do not yet.
 - A `one` relation is itself an operand, the id it points at:
   `Expr.eq(Like.relations.user, Expr.viewer(User))`, or a guard's
   `Expr.eq(Like.relations.user, p.id)`. So no field over the same column repeats
@@ -570,6 +551,27 @@ Expr.path(Post.relations.author,
   answer rests on a field or row the holder lacks or may not see, or an operator
   only the server runs. SQL's null stays a known answer. The law, held by
   `relationalCases` on SQLite and Postgres: where `Judge` knows, it is SQL's.
+
+### Who asks, and when
+
+`Expr.viewer(User)` is whoever asks, as a User's id (null for a visitor or a
+viewer of another Entity), and `Expr.now` the time in milliseconds. Each side
+provides them once: a server from `RemoteServer.make({ viewer })` and its clock,
+a client from `Remote.make({ viewer })`. A run given no context refuses a body
+that reads one (`ContextMissingError`) rather than reading a visitor.
+
+```ts
+Query.from(Note).pipe(Query.where(Expr.eq(Note.fields.ownerId, Expr.viewer(User))))
+
+// A path from the viewer: what their row, or one reached from it, holds.
+const orgOfViewer = Expr.path(Expr.viewer(Member), Expr.path(Member.relations.team, Team.fields.orgId))
+Query.from(Note).pipe(Query.where(Expr.eq(Note.fields.orgId, orgOfViewer)))
+```
+
+SQL follows a path from the viewer under each table's `visible` rule; `Judge`
+reads it from the rows a holder has (`Judge.query(body, input, row, { context,
+rows })`), unknown where it lacks one. No list orders by one. `Entity.sets`
+(above) takes the same terms.
 
 ## Gotchas
 
