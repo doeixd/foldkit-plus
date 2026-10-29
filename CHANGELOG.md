@@ -7,133 +7,129 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+Writes the client can judge, and failures it can see. Guard rules and query
+bodies read other rows (`Expr.path`, `Expr.exists`) and the write's context
+(`Expr.viewer`, `Expr.now`), compiled to SQL and judged by the client in three
+values; a declared write the client can tell is invalid or forbidden is
+refused before it is sent, and `Law.check` holds the client's prediction to
+the server's answer. `Entity.sets` declares the members a write's context
+fills. Writes may be durable (`Data.mutate(…, { durable: true })` and
+`Data.outbox`), and a list may be read live (`Data.query(…, { live: true })`,
+served on Workers by remote-drizzle's `pollLive`). Every package reports its
+fallbacks and refusals through one typed `Diagnostics` channel, and
+`Data.why` says, as data, why a read is loading. `examples/reference` is the
+recommended stack end to end, `foldkit-plus/testing/workers` runs a Worker
+from its own Wrangler config, and the shipped theme is new. A security review
+(#284 and others) bounds live subscriptions and collection reads, stops
+caches keeping an answer, and closes several write-rule gaps.
+
+Breaking, under Changed: `Data.why` returns a `ReadWhy`; a mutation nothing
+answered fails with `RemoteUnreachable`; `verifyPlacement` is
+`verifyPredictions`; `Data.mutate`'s `now` is a number; the wire protocol is
+version 5 and `LiveSource.subscribe` takes `queries`; a `QuerySource` names
+its Entity; `MutationSource.run` is given `read`, `now` and `viewer`;
+`GuardServer.writer` loses `presets`; `Operation` has four more members;
+`invariantChecks` is `checkConstraints`; SSR, agent-mcp and guard report
+diagnostics instead of writing to `console`; leaving a form field no longer
+validates it, and `Message.Refused` takes `value`; the shipped theme's
+defaults changed. Under Security: `GuardServer.validate` refuses a served
+write no rule governs under `'allow'`, `EntityWriter.insert` takes
+`operation`, `LiveHub.subscribe` takes no `maxIdsPerEntity`, and a collection
+read whole is bounded. Under Fixed: a write ledger needs a `request` column,
+`Expr.givesNul` is `Expr.givesUnportable`, `LawsVerdict` has an `Unanswered`
+variant, the CMS `EditorDomain` needs `plan`, and `TagsInput`'s `Typed`
+carries `drawn`.
+
 ### Added
 
-- **`Data.why` says why a read is `Loading`, and `Data.timeline` when it
-  became so** (#248). `Data.why(model, read)` lists, in `because`, every fact
-  the Model holds about what the read reads, as typed references (`Why`, a
-  tagged union with an exhaustive `match`): its list or a row's fields
-  `Missing` or `Stale` and whether in flight, with the relation path to the
-  row; a failed list or field (which nothing retries on its own); a field the
-  server settled without a value; a row deleted, and by which write; a live
-  stream reconnecting or refused; a pending write's fields (`Pending`, with
-  its request and mutation); and a row a pending write or an overlay put in a
-  list or took out of it (`Joined`, `Left`), with each `where` term of the
-  list's body judged over the row (`True`, `False`, `Null`, or `Unknown` and
-  what it lacked). The reason that decides the state comes first and
-  `message` says it, with what restarts it. `ReadWhy` is a Schema, so a
-  devtools client gets JSON. `Data.timeline(start, history, reads)` takes
-  recorded (Message, Model) pairs, as Foldkit's devtools records them, and
-  gives each change of each read's tag with the Message, `why` and
-  `regression` (#234's rule); `Trace.regressions` is it kept to regressions,
-  and `Trace.why` is the typed `ReadWhy`. Foldkit's devtools offers no panel
-  for another package, so the timeline is the data a panel would draw.
-- **A list read live** (#270). `Data.query(Q, input, { select, first, live:
-  true })` follows the rows that join, change or leave the list while a
-  Surface reads it, with no row of its own to subscribe to. The live entry
-  sends each list as its read sends it (`LiveRequirement.queries`); the
-  handler admits it (a registered query, an input that decodes, a `select`
-  of the Entity the query lists, and a `first` counted toward
-  `maxIdsPerEntity`, at most 32 lists, else
-  `RemoteLiveRefused`) and hands the live source of its Entity a `LiveQuery`
-  (`identity`, `select`, and `edges`, the query run as the subscriber with the
-  page's window). `pollLive` diffs each one, invalidating it once as the
-  stream opens and running its window again each tick that may have moved
-  it, so a row joins and leaves by the query's filter and window, with a row
-  log too; a row that leaves while it is still there to the subscriber is
-  removed from the list, not deleted from the client's store. `Crud.list` takes `live`. The reference app and
-  `examples/cloudflare` read their lists live, and the made-up watch row (and
-  the snapshot's stripping of it) are gone.
-- **A local Workers stack shows the Worker's console, and can tell the Worker
-  its origin** (#269). `Stack.start` prints each line the Worker writes to its
-  console as it arrives, by level and prefixed `[worker]` (an `Error` logged
-  carries its stack), unless `console: 'quiet'`; `stack.logs()` takes the
-  lines (`WorkerLog`) written since the last call, printed or not. `vars` may
-  be a function of the origin the stack answers at (`origin => ({ ORIGIN:
-  origin })`), given to the Worker before its first request. The reference
-  app checks every request against its configured `ORIGIN` that way, rather
-  than against the host each request arrived at.
-- **Write rules over paths, judged in the write's statement** (operations
-  phase 7). A row's `Update` and `Delete` guard rules may read another row (a
-  path, an exists, a path from the viewer). `GuardServer.writer` judges what
-  the row alone decides and hands the rest to its writer as `requires`
-  (`RowRequirement`, `WriteRequirement` in `foldkit-remote-server`; an
-  `EntityWriter` with `requires: true` holds the row to it); remote-drizzle's
-  `writer` compiles it into the UPDATE or DELETE that writes, and refuses a row
-  that fails it with `Forbidden`, so the rule reads the other row as the write
-  lands, on SQLite and Postgres. A write that would change what such a rule
-  reads of its own row is refused; the server's `may` leaves such an
-  interaction out; `GuardServer.writer` over a writer without `requires`
-  throws. `Create`, members, relations, named interactions and `always` still
-  refuse such a rule at `Guards.attach`.
-- **A write the held `may` says no to is refused where it is made**
-  (operations phase 7). `Derived.make(schema, { forbids })` lets a supplied
-  member say which write its value refuses (`WriteSurface`: `kind`,
-  `members`, `relations`); `Guards.may` declares it. `Data.mutate` asks each
-  such member the store holds for the written row, before it judges the
-  invariants, and refuses at once with `Forbidden` (and the `explain` as
-  `reason`), showing and sending nothing. `Law.check` compares a local refusal
-  with the server's by `refusal`, and by `_tag` where none is declared.
-  **Breaking:** `Derivation.Supplied` holds `forbids` beside `predict`.
-- **The durable outbox** (#247, #260's reload gap, operations phase 7).
-  `Data.mutate(model, M, input, { durable: true })` queues a write rather than
-  sending it, and `Data.outbox({ key, scope, retry })`, assembled beside
-  `Data.wiring`, stores the queue in a `KeyValueStore` and sends it: stored
-  before sent, oldest first, one at a time, by one tab (a Web Lock), with the
-  same operation id (the request id) and `now` again after a reload, and
-  again after a send nothing answered (`Unreachable`, with a backoff and on
-  `online`). A refusal settles as for any write; `Data.retry` queues it
-  again and `Data.dismiss` removes it from the store. `outbox.restore(model)`,
-  resolved as the runtime's `flags`, shows what a reload left and mints the
-  page's session. Tabs share the store and hear each other over a
-  `BroadcastChannel`. `Data.outboxStatus(model)` lists what waits, failed, or
-  cannot be read after a deploy (`OutboxUnreadable`, kept and skipped); a
-  store that cannot be written reports `OutboxUnsaved`. New Messages:
-  `MutationQueued`, `OutboxRead`, `OutboxDelayed`. `Trace.run` takes the
-  `outbox`, so a traced durable write is stored and sent. Chirp posts
-  durably: `?offline` makes its sandbox refuse writes, a chirp then waits
-  ("1 chirp waiting to send"), survives a reload, and is sent once online.
-- **`RemoteUnreachable`: a write nothing answered** (operations phase 7).
-  **Breaking:** a mutation whose request could not be sent, or whose answer
-  was not JSON (a gateway's 502 page), fails with `_tag: 'Unreachable'`
-  rather than `RemoteMutationError`, through `Remote.json`, `Remote.http` and
-  `Remote.clientLayer`'s RPC transport. The server may or may not have run
-  it; a mutation's own error answer is still `RemoteMutationError`. The JSON
-  clients are typed `RemoteJsonClient` (`RemoteRpcClient<never,
-  RemoteUnreachable>`), which `Remote.clientLayer` accepts.
-- **A list over a path is judged by the client** (operations phase 6).
-  `matching`, `belongsEncoded` and so placement judge a body over a path or a
-  path from the viewer with `Judge` over the whole store: a row whose path the
-  store can follow is placed, filtered or taken out, and one reaching what the
-  store lacks is skipped and left to the server. Such lists were the server's
-  to place.
-- **A write the client can tell is invalid is refused where it is made**
-  (operations phase 6). `Data.mutate` judges a declared write's invariants
-  over the row it would leave, as the store holds it; where one is definitely
-  broken it shows and sends nothing, and its Command answers `MutationFailed`
-  with the `Refusal.invalid` the server would send. Undecided refuses nothing.
-  `Law.check` sends such a write to the server too, which must refuse it
-  alike, and remote-drizzle's law suite checks that a row its CHECKs refuse is
-  one the client judges invalid.
-- **`PredictionMismatch`, the law in development** (#257, operations phase
-  6). **Breaking:** `Remote.make({ verifyPredictions })` replaces
-  `verifyPlacement` and `verifyAnswers`, and one diagnostic,
-  `PredictionMismatch`, replaces `PlacementMismatch` and `AnswerGap`: its
-  `part` (`PredictionPart`) is a `Placement` or a `Gap`, as they were, or the
-  new `Value`, a field a pending write showed that its answer carries another
-  value of (a field another pending request also shows is not judged).
-- **`Law.check`, the law between the client and the server** (#257,
-  operations phase 6). `foldkit-remote/testing` runs one declared write
-  through `Data.mutate`, over a Model holding what the server sends the
-  principal, and through the server (`RemoteServer.handlers`), with the same
-  `now`, and compares every part the client predicted (each field, whether a
-  row is there, each list's order) with what the server then holds. What the
-  client left unknown is not compared; a check that compared nothing throws.
-  remote-drizzle's `law.test.ts` runs it over a test domain on SQLite, PGlite
-  and the locale Postgres job; Chirp's and the reference app's run it over
-  every write they declare.
-
-- **`may` foreseen for a row the client writes** (#242, operations phase 5).
+- **Write rules and query bodies read other rows: three-valued `Expr`, paths
+  and exists** (#242). `Expr.path` follows `one` relations (at most four) and
+  `Expr.exists` names a pointing edge; remote-drizzle compiles them to
+  subqueries under each reached table's `visible` rule, and refuses to compile
+  one without the reader's visibility. `Judge.predicate` and `Judge.query`
+  read a `HeldRow` and answer `Known(truth)` or `Unknown { reason }`: a field
+  or row the holder lacks or may not see, or an operator or filter only the
+  server runs. SQL's null stays apart from unknown, so lists over nullable
+  fields stay placeable. `evaluate` and its two-valued kin refuse a path
+  rather than read unknown as false. `GuardServer.validate` refuses a body
+  that reaches a member with a Read rule through another row ("query ByTag
+  reaches Todo's tag, which has a Read rule"), since SQL reads a reached row
+  under its `visible` rule alone.
+- **A `one` relation is an `Expr` operand.** `Expr.eq(Like.relations.user,
+  Expr.viewer(User))` compares the id the link points at, typed as the
+  target's id and null where an optional one points nowhere. A row given to an
+  interpreter holds the relation under its key as that id, as `Held.rows`
+  takes it, and the key is listed among the fields an expression reads. A
+  `many` relation is refused as an operand, and no list orders by a link.
+  remote-drizzle compiles it to the column the relation is stored on (one
+  stored on the other table is refused where the body is registered); the
+  Remote client, the memory server and Guard's rules read their ref-keyed rows
+  through `Held.fromRefs`.
+- **The write's context as `Expr` terms.** `Expr.viewer(Entity)` (who asks, as
+  that Entity's id; null for a visitor) and `Expr.now` (the time in
+  milliseconds). Query bodies over them compile to SQL with the server's
+  viewer and `Clock`, and client list judgements read `Remote.make`'s viewer.
+  A body that reads a term with no context is refused (`ContextMissingError`),
+  never read as null. `RemoteServer.make({ viewer })` is the server's one
+  declaration of the viewer; a Source with a per-reader member (`perViewer`)
+  mounted in a server without one is refused at `make`, naming it (#232).
+- **A path from the viewer in query bodies.** `Expr.path(Expr.viewer(Member),
+  …)` is an operand, so `Expr.eq(Note.fields.orgId, orgOfViewer)` is a body.
+  remote-drizzle compiles it to subqueries started at the viewer's id, each
+  table under its `visible` rule (a visitor, or a viewer the reader may not
+  see, reads null), on SQLite and Postgres. `Judge` reads it from the rows a
+  holder has (its `rows` option, `HeldRows.find`), unknown where it lacks the
+  viewer's row; `evaluate` refuses it as it refuses a path. No list orders by
+  one. The relational conformance suite runs cases over it, with
+  `relationalContext`.
+- **`Entity.sets`: members whose value is the write's context, declared once
+  on the Entity** (#232, #202). `Entity.sets({ author: Expr.viewer(User),
+  createdAt: Expr.now }, { on: 'create' })` sets them on every insert, and
+  `{ on: 'write' }` on every insert and update (an `editedAt`). A relation
+  takes `Expr.viewer` of its target, a text field the viewer's id, a number
+  field the time, and a field a path from the viewer
+  (`Expr.path(Expr.viewer(Member), Expr.path(Member.relations.team,
+  Team.fields.orgId))`), which the server reads through its own sources and
+  the client from the rows it holds. A write whose input sets, links, moves or
+  computes one is refused where it is declared. `RemoteServer.write` fills
+  them from `RemoteServer.make({ viewer })` and the write's time (a value that
+  comes to null where the member holds none, as a visitor's, is forbidden, and
+  a set field counts as set for invariants); `Data.mutate` predicts them from
+  `Remote.make({ viewer })` and its `now`, and `Write.contextValues` is what
+  both read. `bind` refuses an Entity that sets from the context only one of a
+  field and a relation stored on the same column. It replaces
+  `GuardServer.writer`'s `presets` (see Changed).
+- **`RemoteServer.make({ clockSkew })`** bounds how far the time a client
+  sends with a write (`Data.mutate`'s `now`) may be from the server's clock
+  (default 60 seconds; `0` never takes the client's time). Past it the server
+  writes its own time and reports `ClockSkewed`. `Remote.now(toMessage)` is
+  the Command that reads the time where the reader acts, since `update` reads
+  no clock (#232).
+- **Guard rules read who asks.** `Guards.declare(…, { viewer: User })` names
+  the Entity each principal is a row of, by `key`, so a rule compares with
+  `Expr.viewer(User)`, on the server in memory and in SQL;
+  `Policy.viewer(principal)` is that ref, for `RemoteServer.make({ viewer:
+  Policy.viewer })`. A row's `Read` rule may reach other rows (a path, an
+  exists, a path from the viewer), compiled to SQL over the rows as stored;
+  `Guards.attach` refuses such a rule on every surface but `Read`, `Update`
+  and `Delete`. A rule over `Expr.viewer` without a set's `viewer`, or over
+  `Expr.now`, is refused where declared. remote-drizzle exports
+  `bodyOperations`.
+- **Write rules over paths, judged in the write's statement.** A row's
+  `Update` and `Delete` rules may read another row (a path, an exists, a path
+  from the viewer). `GuardServer.writer` judges what the row alone decides and
+  hands the rest to its writer as `requires` (`RowRequirement`,
+  `WriteRequirement` in `foldkit-remote-server`; an `EntityWriter` with
+  `requires: true` holds the row to it); remote-drizzle's `writer` compiles it
+  into the UPDATE or DELETE that writes, and refuses a row that fails it with
+  `Forbidden`, so the rule reads the other row as the write lands, on SQLite
+  and Postgres. A write that would change what such a rule reads of its own
+  row is refused, whether the path ends in a field or an exists (a member of
+  one team cannot move a note into a team they have no seat on); the server's
+  `may` leaves such an interaction out; `GuardServer.writer` throws for such
+  rules over a writer without `requires`. `Create`, members, relations, named
+  interactions and `always` still refuse such a rule at `Guards.attach`.
+- **`may` foreseen for a row the client writes** (#242).
   `Derived.make(schema, { predict })` says how a client foresees a supplied
   member: `predict({ entity, row, rows, context })` over the row a write
   leaves, held over the store (a field the write moves unknown), none where it
@@ -141,493 +137,512 @@ version changed; `pnpm` skips versions already in the registry.
   `Guards.may` declares one: every rule judged over the store with `Judge`,
   principal guards, the principal's fields and what the store lacks unknown;
   `may` is foreseen only where it comes out the same however those turn out
-  (`Condition.judge`). The server's `may` is assembled by the same code
-  (`mayRules`, `answerOf`). Chirp's rules compare with `Expr.viewer`, its
-  server's viewer is `Policy.viewer`, and a chirp you post is drawn in the
-  timeline, with its Edit, before the answer.
-- **Guard rules read who asks** (operations phase 5). `Guards.declare(…, {
-  viewer: User })` names the Entity each principal is a row of, by `key`, so
-  a rule compares with `Expr.viewer(User)`, on the server in memory and in
-  SQL; `Policy.viewer(principal)` is that ref, for `RemoteServer.make({ viewer:
-  Policy.viewer })`. A row's `Read` rule may reach other rows (a path, an
-  exists, a path from the viewer), compiled to SQL over the rows as stored;
-  `Guards.attach` refuses such a rule on any other surface, which is judged
-  over one row. A rule over `Expr.viewer` without a set's `viewer`, or over
-  `Expr.now`, is refused where declared. remote-drizzle exports
-  `bodyOperations`.
-- **A path from the viewer in query bodies** (operations phase 5):
-  `Expr.path(Expr.viewer(Member), …)` is an `Expr` operand, so
-  `Expr.eq(Note.fields.orgId, orgOfViewer)` is a body. remote-drizzle compiles
-  it to subqueries started at the viewer's id, each table under its `visible`
-  rule (a visitor, or a viewer the reader may not see, reads null), on SQLite
-  and Postgres. `Judge` reads it from the rows a holder has
-  (`JudgeOptions.rows`, `HeldRows.find`), unknown where it lacks the viewer's
-  row; `evaluate` refuses it as it refuses a path. No list orders by one. The
-  relational conformance suite runs cases over it, with `relationalContext`.
-- **A write ledger on Cloudflare D1.** D1 refuses a transaction's `BEGIN`, so
-  the ledger reads the record first, then writes the row and its record in one
-  `batch`, the record only where the write changed a row (`changes() > 0`). It
-  keeps the idempotent retry, `request` refusal, retention and pruning of
-  SQLite and Postgres, and a copy that loses a race is answered from the
-  winner's record. A column the answer holds may not be a `blob`. Before, a
-  ledger on D1 refused every write it would record. `examples/reference`'s
-  notes writer keeps one (`migrations/0003_write_ledger.sql`), so a create sent
-  again under its operation is answered with its row.
-- **A `one` relation is an `Expr` operand** (operations phase 3):
-  `Expr.eq(Like.relations.user, Expr.viewer(User))` compares the id the link
-  points at, typed as the target's id and null where an optional one points
-  nowhere. A row given to an interpreter holds the relation under its key as
-  that id, as `Held.rows` takes it, and the key is listed among the fields an
-  expression reads. A `many` relation is refused as an operand, and no list
-  orders by a link. remote-drizzle compiles it to the column the relation is
-  stored on (one stored on the other table is refused where the body is
-  registered); the Remote client, the memory server and Guard's rules read
-  their ref-keyed rows through `Held.fromRefs`, so a guard rule says
-  `Expr.eq(Like.relations.user, p.id)`.
-- **Three-valued `Expr`, and paths through relations** (#242, operations
-  phase 1). `Judge.predicate` and `Judge.query` read a `HeldRow` and answer
-  `Known(truth)` or `Unknown { reason }`: a field or row the holder lacks or may
-  not see, an operator or filter only the server runs. SQL's null stays apart
-  from unknown, so lists over nullable fields stay placeable. `Expr.path`
-  follows `one` relations (at most four) and `Expr.exists` names a pointing
-  edge; remote-drizzle compiles them to subqueries under each reached table's
-  `visible` rule, and refuses compiling one without the reader's visibility.
-  `evaluate` and its two-valued kin refuse a path rather than read unknown as
-  false. Breaking: `Expr.givesNul` is `Expr.givesUnportable`, and also flags
-  NaN.
-- **The write's context as `Expr` terms.** `Expr.viewer(Entity)` (who asks, as
-  that Entity's id; null for a visitor) and `Expr.now` (the time in
-  milliseconds). Query bodies over them compile to SQL with the server's
-  viewer and `Clock`, and client list judgements read `Remote.make`'s viewer.
-  A body that reads a term with no context is refused (`ContextMissingError`),
-  never read as null. `RemoteServer.make({ viewer })` is the server's one
-  declaration of the viewer; a Source with a per-reader member
-  (`perViewer`) mounted in a server without one is refused at `make`, naming
-  it (#232, operations phase 2).
-- **"Errors and failures", one guide to how failure works across the packages**
-  (`docs/errors.md`): who owns each kind of failure, what the reader sees, and
-  what the application does, for reads, writes and refusals, forms, what a
-  server tells a client, Sync, a lost session, lazy resources, `Diagnostics`,
-  and testing failures. Published under Learn on the site, and linked from the
-  remote, remote-server, form and sync READMEs and the skill.
-- **`examples/reference`: the recommended stack, end to end.** One Worker over
-  D1 serves the page's assets, Yielded's routes, Remote and every page, the
-  pages rendered in process as the reader (`pageReader`,
-  `SSR.requestContext`, `requests: 'navigation'`) into Vite's `index.html`.
-  A notebook with sign-up, a list and a detail page, optimistic declared writes
-  through the guarded writer, `Derived.count`, a live list over `pollLive`,
-  and CHECKs derived from the domain; its tests run it from `wrangler.toml`
-  on workerd and in Chromium with `Behaviors` (#228; findings #264 to #271).
-- **Every package's quiet reports go through `Diagnostics`** (#237). Each
-  declares its variants in its own union:
-  - `foldkit-ssr`: `PageContained`, `StaticRegionMissing`, `BundleUnloaded`,
+  (`Condition.judge`). The server's `may` is assembled by the same code.
+  Chirp's rules compare with `Expr.viewer`, its server's viewer is
+  `Policy.viewer`, and a chirp you post is drawn in the timeline, with its
+  Edit, before the answer.
+- **A declared write the client can tell is invalid or forbidden is refused
+  where it is made.** `Data.mutate`, for a declared write called without
+  `optimistic`, judges the Entity's invariants over the row the write would
+  leave, as the store holds it, and asks each supplied member that declares
+  `forbids` (`Derived.make(schema, { forbids })`, which `Guards.may` declares;
+  `WriteSurface`: `kind`, `members`, `relations`) whether its held value
+  refuses the write. Where one is definitely broken or forbidden it shows and
+  sends nothing, and its Command answers `MutationFailed` with the refusal the
+  server would send (`Refusal.invalid`, or `Forbidden` with the `explain` as
+  `reason`). Undecided refuses nothing; the server still decides.
+- **`Law.check`, the law between the client and the server** (#257, #265).
+  `foldkit-remote/testing` runs one declared write through `Data.mutate`, over
+  a Model holding what the server sends the principal, and through the server
+  (`RemoteServer.handlers`), with the same `now`, and compares every part the
+  client predicted (each field, whether a row is there, each list's order)
+  with what the server then holds, both as the Model showed the write and once
+  the answer is reduced into it (`LawPart.when`: `'pending'` or
+  `'answered'`). A write the client refuses as invalid is sent to the server
+  too, which must refuse it alike, and a local refusal is compared with the
+  server's by `refusal`, by `_tag` where none is declared. What the client left
+  unknown is not compared; a check that compared nothing throws.
+  remote-drizzle's `law.test.ts` runs it over a test domain on SQLite, PGlite
+  and the locale Postgres job, and checks that a row its CHECKs refuse is one
+  the client judges invalid; Chirp's and the reference app's run it over every
+  write they declare.
+- **A list over a path is judged by the client.** `matching`,
+  `belongsEncoded` and so placement judge a body over a path or a path from
+  the viewer with `Judge` over the whole store: a row whose path the store can
+  follow is placed, filtered or taken out, and one reaching what the store
+  lacks is skipped and left to the server. A held list re-judges when what a
+  path reaches changes: a member relinked, a reached row renamed, a row an
+  exists counts deleted, or the viewer's own link moved.
+- **A pending insert joins the lists its body admits,** where each loaded
+  list's order puts it, and the answer keeps it there; a list over the viewer
+  places it with the viewer its operation was predicted for
+  (`MutationStarted.viewer`). A list with no body, or one filtered by a read
+  rule the client does not run, is the server's to place (#266).
+- **The durable outbox** (#247, #260). `Data.mutate(model, M, input, {
+  durable: true })` queues a write rather than sending it, and `Data.outbox({
+  key, scope, retry })`, assembled beside `Data.wiring`, stores the queue in a
+  `KeyValueStore` and sends it: stored before sent, oldest first, one at a
+  time, by one tab (a Web Lock), with the same operation id (the request id)
+  and `now` again after a reload, and again after a send nothing answered
+  (`RemoteUnreachable`, with a backoff and on `online`). A refusal settles as
+  for any write; `Data.retry` queues it again and `Data.dismiss` removes it
+  from the store. `outbox.restore(model)`, resolved as the runtime's `flags`,
+  shows what a reload left and mints the page's session. Tabs share the store
+  and hear each other over a `BroadcastChannel`. The queue is held for its
+  `key` and `scope`, so a change of principal neither sends the last one's
+  writes as the new one's nor writes over them. `Data.outboxStatus(model)`
+  lists what waits, failed, or cannot be read after a deploy
+  (`OutboxUnreadable`, kept and skipped); a store that cannot be written
+  reports `OutboxUnsaved`. New Messages: `MutationQueued`, `OutboxRead` (with
+  its `scope`), `OutboxDelayed`. `Trace.run` takes the `outbox`. Chirp posts
+  durably: `?offline` makes its sandbox refuse writes, a chirp then waits ("1
+  chirp waiting to send"), survives a reload, and is sent by a reload without
+  `?offline`.
+- **Failed writes are kept, typed, until dealt with** (#260). The mutation
+  ledger keeps what each write was: `Data.failedWrites(model, mutation?)`
+  lists them with input and refusal typed by the mutation,
+  `Data.retry(model, requestId)` sends one again as itself (its optimistic
+  change shown again), and `Data.dismiss` forgets one; a failure that lands
+  after `dismiss` does not list it again. `Data.wiring(actives, { shared:
+  ['MutationFailed'] })` hands the application's own update Remote's Messages
+  after Remote has reduced them (`RemoteWiring` has a `shared` field), and an
+  applied retry leaves the ledger's `failed`.
+- **A list read live** (#270). `Data.query(Q, input, { select, first, live:
+  true })` follows the rows that join, change or leave the list while a
+  Surface reads it, with no row of its own to subscribe to; `Crud.list` takes
+  `live`. The live entry sends each list as its read sends it
+  (`LiveRequirement.queries`, at most 32, refused at decode); the handler
+  admits it (a registered query, an input that decodes, a `select` of the
+  Entity the query lists, and a `first` counted toward `maxIdsPerEntity`, else
+  `RemoteLiveRefused`) and hands the live source of its Entity a `LiveQuery`
+  (`identity`, `select`, and `edges`, the query run as the subscriber with the
+  page's window). A row that leaves while it is still there to the subscriber
+  is removed from the list, not deleted from the client's store. The reference
+  app and `examples/cloudflare` read their lists live.
+- **`pollLive`, `rowChangeLog` and `rowLog` in `foldkit-remote-drizzle`: live
+  data on Workers** (#206, #264, #274, #279). `pollLive({ every, changes })`
+  is a polling `LiveSource`: each tick it reads every subscribed row in one
+  read, through `RemoteServer.readAs` (the read the handlers make: the
+  declared fields `authorize` allows, through `filter`), and sends each row's
+  fields whose values changed (`Equal.equals`), every changed field a list or a
+  subscription selects. It diffs each list a subscriber reads live, invalidating
+  it as the stream opens and running its window again each tick that may have
+  moved it, so a row joins and leaves by the query's filter and window; a row
+  in the window the subscriber can no longer read is removed. A failed read is
+  asked again from the same log entry next tick. `rowChangeLog(binding)`
+  returns the SQLite statements for a trigger-kept log of the rows each write
+  touched, and `rowLog(binding)` reads it, so a quiet tick reads no rows; a
+  log trimmed while it reads answers `ids: None`. `LiveSource.reads` names the
+  Source a live source reads through, so `GuardServer.validate` accepts a
+  `pollLive` over the guarded Source it checks and refuses any other live
+  Source over a guarded Entity. `RemoteServer.readAs` and
+  `RemoteServer.allowedFields` (which fields a read answers without reading)
+  are exported. `examples/cloudflare` uses them; its migration `0004`
+  replaces its log table with `todos_row_changes`.
+- **`foldkit-plus/testing/workers` and `foldkit-plus/testing/playwright`**
+  (#239, #253, #269, #274). `Stack.start` runs a Worker on a local workerd
+  from its own Wrangler config, read with Wrangler's own reader (bindings,
+  compatibility date and flags, `.dev.vars`, a migrated D1 per stack), and
+  swaps it in place on change, keeping D1, R2 and Durable Object storage; it
+  refuses a date the installed workerd does not support, a config without
+  `no_bundle`, and `[env.*]` sections. A rebuild that bundles to no code (an
+  editor emptying the file before writing it) is reported through
+  `onBuildError`, and the running Worker keeps answering. It prints each line
+  the Worker writes to its console, prefixed `[worker]`, unless `console:
+  'quiet'`; `stack.logs()` takes the lines (`WorkerLog`) since the last call.
+  `vars` may be a function of the origin the stack answers at. `Stack.stop`
+  stops workerd and removes the bundle's directory even after a failed watch,
+  and a second `stop` returns the first's promise. `Stack.writeBundle` writes
+  the same bundle where `main` says. `Behaviors.optimistic` checks a write
+  shows while every Remote mutation is held and after its answer,
+  `Behaviors.neverShows` that a text never shows during some steps, and
+  `Behaviors.consoleErrors` collects errors. `wrangler`, `esbuild` and
+  `playwright` are optional peers, and a missing one says what to install. It
+  moved from `examples/cloudflare`, whose `pnpm dev` now serves the page and
+  swaps the Worker on every change.
+- **`Diagnostics`: one typed channel for fallbacks, refusals and swallowed
+  failures** (#237, #272). In `foldkit-surface`, re-exported by
+  `foldkit-remote`: each package declares its own variants on a base `{ _tag,
+  source, level, message }`; reports go to the `Diagnostics.Reporter` service
+  (`Layer.succeed(Diagnostics.Reporter, report)` replaces it), and
+  `Diagnostics.collect()` gathers them for a test. By default an `error` goes
+  to `console.error` in a browser and stderr on a server, and a `warning` to
+  the log. Each package's variants:
+  - `foldkit-remote`: `PredictionMismatch`, `LiveRefused`, `OutboxUnreadable`,
+    `OutboxUnsaved`, and `WriteUnheard` for a failed write when the wiring
+    does not share `MutationFailed`; the wiring and `Remote.fold` report what
+    the reducer recorded.
+  - `foldkit-remote-server`: `ServerDefect` for every failure `serveFetch` or
+    `RemoteServer.answer` answers with a generic 500 or a live stream's error
+    frame (the caller is still told nothing, #221), `AnswerUnread`,
+    `PublishFailed` and `ClockSkewed`; `serveFetch` takes
+    `diagnostics(diagnostic, request)`.
+  - `foldkit-remote-drizzle`: `StatementFailed`, and `ServerOnlyRules` once
+    per binding on its first write (#259).
+  - `foldkit-guard`: `UnpinnedWrites` and `ComputeRefused`.
+  - `foldkit-ssr`: `PageContained` (with a `reason`, `NoBuildId` and
+    `OtherBuild` among them), `StaticRegionMissing`, `BundleUnloaded`,
     `PageFailed`, `HandlerUnnamed`; `SSR.hydrate` takes `diagnostics`,
-    `SSR.entry` takes `diagnostics(diagnostic, request)`, and `Diagnostics` is
-    re-exported (#210).
+    `SSR.entry` takes `diagnostics(diagnostic, request)` (#210).
   - `foldkit-sync`: `ExchangeFailed`, `HistoryRebuilt`, `HostDefect { stage }`
     for every 500, 1011 close or unsent notice, and `ListenerFailed`;
     `documentHost` and `defineDocumentHost` take `diagnostics(diagnostic,
     request)`, `serveJournal` takes `diagnostics`.
+  - `foldkit-agent-mcp`: `CapabilityDefect`, `RequestDefect`,
+    `ToolListDefect`, `TransportEndDefect` and `AuthenticateDefect`; its
+    `handler`, `httpHandler`, `httpApp` and `stdio` take `diagnostics` (stderr
+    under `stdio`).
   - `foldkit-mirror`: `StoreUnread`, `StoreUnwritten`, `StoreMalformed`.
   - `foldkit-media/server`: `StoreFailed`, `AdmissionFailed`, `ImageFailed`,
     `FactsUnanswered`, `RequestDefect`, with a reporter in `serveFetch`'s
     `layer(env)`.
-  - `foldkit-remote-drizzle`: `StatementFailed`, and `ServerOnlyRules` once
-    per binding on its first write (#259).
-  - `foldkit-mixins`: a composed Mount that fails reports `MountFailed`.
+  - `foldkit-mixins`: a composed Mount that fails reports `MountFailed` (a
+    `foldkit-surface` diagnostic, apart from `foldkit-mixins`' own
+    attachment `Diagnostics`).
+
   Several of these (a malformed mirror document, `factsOf`'s cache failures,
-  Sync's swallowed listener and host failures) were silent before.
-- **`Diagnostics`: one typed channel for fallbacks, refusals and swallowed
-  failures.** In `foldkit-surface`, re-exported by `foldkit-remote`: each
-  package declares its own variants on a base `{ _tag, source, level,
-  message }`; reports go to the `Diagnostics.Reporter` service, Effect's log
-  by default (`Layer.succeed(Diagnostics.Reporter, report)` replaces it), and
-  `Diagnostics.collect()` gathers them for a test. Remote's wiring and
-  `Remote.fold` report what its reducer recorded, including a new
-  `WriteUnheard` for a failed write when the wiring does not share
-  `MutationFailed` (#237, #260).
+  Sync's swallowed listener and host failures, agent-mcp's capability and
+  transport defects) were silent before.
+- **`Data.timeline` and `Trace`: when a read went back to `Loading`** (#234,
+  #248, #250). `foldkit-remote/testing`'s `Trace.run(Data, { start, update,
+  active, client, steps })` runs the application's `update` and the domain's
+  own Subscriptions from a Model, holding every request; `Respond.query`,
+  `Respond.read`, `Respond.mutation` (each with `{ fail }`) and `Respond.all`
+  let held requests go on, and every Model between is recorded.
+  `Trace.regressions` names each time a shown read went to `Loading`,
+  `Initial` or `Failed` without its value, with the step, the Message and its
+  `ReadWhy` (`why`), so a list that blinks for one frame is tested without a
+  browser. `Data.timeline(start, history, reads)` takes recorded (Message,
+  Model) pairs, as Foldkit's devtools records them, and gives each change of
+  each read's tag with the Message, `why` and `regression`. Foldkit's
+  devtools offers no panel for another package, so the timeline is the data a
+  panel would draw.
+- **A mutation's answer carries what the page shows of every row it names**
+  (#243, #245, #265). `Data.mutate` sends what the active Surfaces read of each
+  entity, and every field its own optimistic layer shows (`shown`, bounded),
+  and `RemoteServer.handlers` reads those fields of each row the answer names,
+  through the Sources, `authorize` and `filter`, after the write
+  (`MutationResult.read`). The client writes it in the reduction that releases
+  the optimistic layer, so a created or edited row no longer leaves its lists
+  for a frame, lists place it by every value it carries, and a count predicted
+  on a row no Surface reads keeps its new value. Nothing to configure. A
+  handler names a row it changed with `Remote.patch(Entity, id, {})`; a failed
+  read reports `AnswerUnread` and the mutation still succeeds.
+- **`Remote.tombstone(entity, id)`, a pending delete** (#246). In a
+  mutation's `optimistic` list or `Data.overlay`, the row reads `NotFound` and
+  leaves every list and every relation that lists it until the request
+  settles, as an answer's `deleted` does, so no `ConnectionChange.remove` per
+  list is needed. A failure brings it back everywhere; `Data.confirmed` still
+  reads it; it wins over every pending patch of its row. A `Mutation.write`
+  over `Write.delete` shows its row deleted the same way while pending.
+- **`Derived.count(Other.relations.pointer)`: a derived member that says what
+  it counts** (#233, #245), the rows whose `one` relation points at this one.
+  `bind` compiles it from the pointing relation's column under that table's
+  `visible` rule (and refuses a `derived` entry for it); a declared write
+  predicts the counts it moves (an insert adds one where it points, a delete
+  or relink moves it); and a declared write that wrote names every row its row
+  points at, before and after, read as the asker may see it (stored links only
+  for a writer with no `read`), so a like's answer carries its post's count. A
+  delete that deleted nothing answers the same whether the row was hidden or
+  never there. Each derived member carries `derives` (`Supplied`, `Count` or
+  `Exists`); `MutationSource.run` may return `pointed`;
+  `RemoteDescriptor.registry.derived` (`DerivedBy`: `Count` | `Exists`) and
+  `derivedOfWrite` list them. Chirp's profile shows `postCount`.
 - **`Derived.exists(Like.relations.post, { viewer: Like.relations.user })`:
-  "liked by me".** The id of a row pointing here and at whoever reads it, or
-  none (`Option<string>`), so an unlike knows what to delete. `bind` compiles
-  it with no entry, under the pointing table's `visible` rule;
-  `source(binding, { viewer })` says who reads and is required for such a
-  binding, and listing it as `shared` is refused. `Remote.make({ viewer })`
-  lets a declared write predict the `Derived.exists` it finds or loses, and
-  the count it moves. Chirp's like is a `Like` Entity with `LikePost` and
-  `Unlike` declared writes; `ToggleLike` and `likedBy` are gone (#233, #216).
-- **`foldkit-plus/testing/workers` and `foldkit-plus/testing/playwright`.**
-  `Stack.start` runs a Worker on a local workerd from its own Wrangler config
-  (bindings, date and flags, `.dev.vars`, a migrated D1 per stack) and swaps
-  it in place on change; `Stack.writeBundle` writes the same bundle where
-  `main` says. It moved from `examples/cloudflare` (#253) and reads the config
-  with Wrangler's own reader. `Behaviors.optimistic` checks a write shows
-  while every Remote mutation is held and after its answer,
-  `Behaviors.neverShows` that a text never shows during some steps (checked
-  after every DOM change), and `Behaviors.consoleErrors` collects errors.
-  `wrangler`, `esbuild` and `playwright` are optional peers, and a missing one
-  says what to install (#239).
-- **`Resource.lazy(Tag, load)` in `foldkit-bundle`: a service whose code is its
-  own chunk.** An entry of `resources` that imports nothing until a Command's
-  `yield* Resource.get(Tag)`, which imports and builds it into the runtime's
-  scope once, shared by Commands asking while it loads. A failed import is a
-  typed `Resource.LoadError`, retried by the next `get`; `Resource.prefetch`
-  starts it early; Commands require `Resource.Lazy<Tag>`. The auth example
-  loads Yielded's client this way, prefetched once an email is typed: its
-  entry chunk fell from 248.0 kB to 235.0 kB gzipped (#244).
-- **A server-rendered page reads its data in process, as its reader.**
+  "liked by me"** (#233, #216). The id of a row pointing here and at whoever
+  reads it, or none (`Option<string>`), so an unlike knows what to delete.
+  `bind` compiles it with no entry, under the pointing table's `visible` rule;
+  a server answers it for the viewer `RemoteServer.make({ viewer })` declares
+  (a live hub re-reads it once per viewer, whatever its `key` shares), and
+  listing it as `shared` is refused. `Remote.make({ viewer })` lets a declared
+  write predict the `Derived.exists` it finds or loses, and the count it moves.
+  Chirp's like is a `Like` Entity with `LikePost` and `Unlike` declared writes,
+  accepted only under the id derived from its post and its liker.
+- **CHECK constraints come from the Entity** (#259). `entityChecks(Entity, t)`
+  puts the CHECKs an Entity implies into a Drizzle table, for `drizzle-kit`;
+  `checkConstraints(binding)` gives them as SQL clauses, with `serverOnly`
+  listing each rule only the server holds. A rule compiles only where SQL says
+  it exactly (lengths in code points, non-empty, a single-bracket ASCII
+  pattern, numeric bounds, literals, state invariants), and agrees with the
+  Schema on NaN, NUL and `real`: on Postgres a numeric bound decides NaN as
+  Effect does; on SQLite, which stores NaN as NULL, a bound compiles only over
+  a finite field; a pattern's CHECK refuses NUL; every number rule over a
+  Postgres `real` column is `serverOnly`, as are rules inside a
+  `Schema.Record` or a suspended schema. `bind` refuses a table whose own
+  Drizzle `check()`s say another rule or miss one beside the others, matching
+  a check that names its columns without the table, as `drizzle-kit pull`
+  writes them; it compares the Drizzle definition, never the migrated
+  database. Chirp's tables use them.
+- **A write ledger on Cloudflare D1** (#285). D1 refuses a transaction's
+  `BEGIN`, so the ledger reads the record first, then writes the row and its
+  record in one `batch`, the record only where the write changed a row
+  (`changes() > 0`). It keeps the idempotent retry, `request` refusal,
+  retention and pruning of SQLite and Postgres, and a copy that loses a race is
+  answered from the winner's record. A column the answer holds may not be a
+  `blob`. Before, a ledger on D1 refused every write it would record.
+  `examples/reference`'s notes writer keeps one.
+- **A server-rendered page reads its data in process, as its reader** (#212).
   `SSR.requestContext<C>(name)` is a value a host attaches to a request
   (`attach`) for `renderPage` to read (`of`, an `Option`), across separately
   bundled copies. `pageReader(config)` in `foldkit-remote-server/fetch` is a
   page render's in-process, read-only `RemoteClient` layer from `serveFetch`'s
-  own config: no HTTP, and a mutation or live open fails. `AuthServer.resolver({
-  requests: 'navigation' })` reads a `GET` or `HEAD` page request's cookie
-  without the `Origin` and CSRF checks a script must pass. `examples/auth`
-  serves pages, `/remote` and `/auth` from one fetch handler this way (#212).
-- **CHECK constraints come from the Entity.** `entityChecks(Entity, t)` puts the
-  CHECKs an Entity implies into a Drizzle table, for `drizzle-kit`;
-  `checkConstraints(binding)` gives them as SQL clauses, with `serverOnly`
-  listing each rule only the server holds. A rule compiles only where SQL says
-  it exactly (lengths in code points, non-empty, a single-bracket ASCII
-  pattern, numeric bounds, literals, state invariants). `bind` refuses a table
-  whose own Drizzle `check()`s say another rule or miss one beside the others;
-  it compares the Drizzle definition, never the migrated database. Chirp's
-  tables use them (#259).
-- **`Data.refresh(model, actives)` reads a page again.** It takes the active
-  record or one entry of it (`actives.page`), with params from the Model, as
-  well as a Projection; `{ failed: true }` asks again only what failed, so
-  what loaded keeps its value and a list its later pages (#261).
-- **Failed writes are kept, typed, until dealt with.** The mutation ledger
-  keeps what each write was: `Data.failedWrites(model, mutation?)` lists them
-  with input and refusal typed by the mutation, `Data.retry(model, requestId)`
-  sends one again as itself (its optimistic change shown again), and
-  `Data.dismiss` forgets one. `Data.wiring(actives, { shared: ['MutationFailed']
-  })` hands the application's own update Remote's Messages after Remote has
-  reduced them (#260).
-- **`Agent.host(config)` and `Agent.headless(config)`.** `host` wraps a Foldkit
-  application's config (for `run`, `hydrate`, `embed` or `SSR.hydrate`) and
-  returns a host that reads the Model the runtime committed and queues
-  Messages into it, so an agent's Message runs its Commands and Remote as a
-  click does; `dispatch` resolves once `update` applied it. `headless` runs the
-  same `init`, `update`, Commands and Subscriptions with no view, for tests and
-  servers, one per session. The kitchen-sink agent runs on a headless app
-  (#258).
-- **`Derived.count(Other.relations.pointer)`: a derived member that says what
-  it counts,** the rows whose `one` relation points at this one. `bind`
-  compiles it from the pointing relation's column under that table's `visible`
-  rule (and refuses a `derived` entry for it); a declared write predicts the
-  counts it moves (an insert adds one where it points, a delete or relink
-  moves it); and a declared write's answer reads every row its row points at,
-  before and after, through the writer's `linked`, so a like's answer carries
-  its post's count. Each derived member carries `derives` (`Supplied` or
-  `Count`); `MutationSource.run` may return `pointed`; `GuardServer.writer`
-  passes `linked` through. Chirp's profile shows `postCount` (#233, #245).
+  own config: no HTTP, and a mutation or live open fails.
+  `AuthServer.resolver({ requests: 'navigation' })` reads a `GET` or `HEAD`
+  page request's cookie without the `Origin` and CSRF checks a script must
+  pass; it refuses a protocol upgrade and a request whose `Sec-Fetch-Mode` is
+  not `navigate`. `examples/auth` serves pages, `/remote` and `/auth` from one
+  fetch handler this way.
+- **`Resource.lazy(Tag, load)` in `foldkit-bundle`: a service whose code is its
+  own chunk** (#244). An entry of `resources` that imports nothing until a
+  Command's `yield* Resource.get(Tag)`, which imports and builds it into the
+  runtime's scope once, shared by Commands asking while it loads. A failed
+  import is a typed `Resource.LoadError`, retried by the next `get`; a `get`
+  after the runtime closed is interrupted. `Resource.prefetch` starts it early;
+  Commands require `Resource.Lazy<Tag>`. The auth example loads Yielded's
+  client this way: its entry chunk fell from 248.0 kB to 235.0 kB gzipped.
+- **`Agent.host(config)` and `Agent.headless(config)`** (#258, #274). `host`
+  wraps a Foldkit application's config (for `run`, `hydrate`, `embed` or
+  `SSR.hydrate`) and returns the config to start and a host that reads the
+  Model the runtime committed and queues Messages into it, so an agent's
+  Message runs its Commands and Remote as a click does; `dispatch` resolves
+  once `update` applied it. It hosts the first of two runtimes started in one
+  tick and refuses the second. `headless` runs the same `init`, `update`,
+  Commands and Subscriptions with no view, for tests and servers, one per
+  session. The kitchen-sink agent runs on a headless app.
+- **`Site.routing` preloads a link's page on intent** (#227). `preload: {
+  links, intended, read }` subscribes to `links` (`pointedLinks()`), sends and
+  claims the application's `intended` Message, skips addresses the tree does
+  not hold and the route shown, and hands `read` (`there =>
+  Data.preload(there, actives)`) the Model with the route set there; the Model
+  is unchanged, and the reads land as Remote's `Preloaded`.
+- **A Site node's Surface may read the signed-in viewer** (#219). `surface: {
+  surface, viewer: model => Option<Viewer>, params: (route, viewer) => params
+  }` is active on its route only once `viewer` gives one, and inactive again
+  when it gives none, so a viewer-keyed Surface (a home feed) needs no
+  hand-written `Surface.at` gating. Without `viewer`, reading a second
+  `params` argument is a type error.
 - **`npx foldkit-plus docs <query>` answers from the docs installed in the
-  project:** the best sections of each installed Foldkit Plus package's README
-  and of the `foldkit-plus` skill if installed, and for a symbol
-  (`Data.preload`) its declaration, each naming its package version, file and
-  line. `--list [topic]` prints an outline and `--json` is for programs; a
-  folder with no project, nothing installed, or no match exits 1 with a
-  reason. `foldkit-plus/remote/testing` re-exports `Trace` (#252, #250).
-- **`Site.routing` preloads a link's page on intent.** `preload: { links,
-  intended, read }` subscribes to `links` (`pointedLinks()`), sends and claims
-  the application's `intended` Message, skips addresses the tree does not hold
-  and the route shown, and hands `read` (`there => Data.preload(there,
-  actives)`) the Model with the route set there; the Model is unchanged, and
-  the reads land as Remote's `Preloaded`. No intended-route field or extra
-  Surface is needed (#227).
-- **`AppStyle.make`'s `theme` is optional**: `AppStyle.make({})` is the shipped
-  theme. `pnpm icons` takes `"stroke": { "width": n }` in `icons.json` to redraw
-  a set's strokes when it is generated (#255).
-- **`examples/cloudflare`'s local stack runs `wrangler.toml`** through Wrangler's
-  test harness, so bindings, the compatibility date and flags, `.dev.vars` and
-  D1 migrations are the ones `wrangler deploy` uses. It refuses a date the
-  installed workerd does not support, a config without `no_bundle`, and
-  `[env.*]` sections. `pnpm dev` serves the page and swaps the Worker in place
-  on every change to what it bundles, keeping D1, R2 and Durable Object
-  storage (#253).
-- **A mutation's answer carries what the page shows of every row it names.**
-  `Data.mutate` sends what the active Surfaces read of each entity (`shown`,
-  bounded), and `RemoteServer.handlers` reads those fields of each row the
-  answer names, through the Sources, `authorize` and `filter`, after the write
-  (`MutationResult.read`). The client writes it in the reduction that releases
-  the optimistic layer, so a created or edited row no longer leaves its lists
-  for a frame (#243), and lists place it by every value it carries. Nothing to
-  configure. A handler names a row it changed with `Remote.patch(Entity, id,
-  {})`; a failed read is logged and the mutation still succeeds. Chirp's
-  `ToggleLike` drops its hand-written re-read (#245).
-- **`foldkit-remote/testing`: `Trace` and `Respond`.** `Trace.run(Data, { start,
-  update, active, client, steps })` runs the application's `update` and the
-  domain's own Subscriptions from a Model, holding every request;
-  `Respond.query`, `Respond.read`, `Respond.mutation` (each with `{ fail }`) and
-  `Respond.all` let held requests go on, and every Model between is recorded.
-  `Trace.regressions` names each time a shown read went to `Loading`, `Initial`
-  or `Failed` without its value, with the step, the Message and `Data.why`, so
-  a list that blinks for one frame is tested without a browser (#250).
-- **`Remote.tombstone(entity, id)`, a pending delete.** In a mutation's
-  `optimistic` list or `Data.overlay`, the row reads `NotFound` and leaves
-  every list and every relation that lists it until the request settles, as an
-  answer's `deleted` does, so no `ConnectionChange.remove` per list is needed.
-  A failure brings it back everywhere; `Data.confirmed` still reads it; it wins
-  over every pending patch of its row (#246).
-- **`Remote.make({ verifyAnswers: true })` checks a mutation's answer against
-  what was shown while it was pending.** For each row the request patched or
-  put in a list, it records an `AnswerGap` diagnostic (`Data.inspect(model)
-  .diagnostics`, reported through `Diagnostics`) naming the fields its
-  optimistic patch wrote or active Surfaces read that the answer left out
-  and the store does not hold: fields read again once the layer comes off, so
-  the row leaves its lists, or an entity read reads `Loading`, until they
-  arrive. For development and tests; it changes nothing else (#249).
-- **`npx foldkit-plus setup` gives a `.gitattributes` that keeps LF.** When none
-  applies to the project (in its folder or above it, up to the repository's
-  root), step 1 tells the agent to write one with `* text=auto eol=lf` and
-  `*.wasm binary`, so a Windows checkout does not warn of every file; one the
-  project has is left as it is (#254). For an existing project, step 3 points
-  at the skill's `AGENTS.md` block (#256).
+  project** (#250, #252): the best sections of each installed Foldkit Plus
+  package's README and of the `foldkit-plus` skill if installed, and for a
+  symbol (`Data.preload`) its declaration, each naming its package version,
+  file and line. `--list [topic]` prints an outline and `--json` is for
+  programs; a folder with no project, nothing installed, or no match exits 1
+  with a reason. `foldkit-plus/remote/testing` re-exports `Trace`.
+- **`npx foldkit-plus setup` gives a `.gitattributes` that keeps LF** (#254).
+  When none applies to the project (in its folder or above it, up to the
+  repository's root), step 1 tells the agent to write one with `* text=auto
+  eol=lf` and `*.wasm binary`; one the project has is left as it is. For an
+  existing project, step 3 points at the skill's `AGENTS.md` block (#256).
 - **The skill has a recommended `AGENTS.md` block for applications**
-  (`references/agents-md.md`): use what the packages provide, prefer Effect,
-  read the installed types, which skills to load, house rules, and one-line
-  traps per package. `SKILL.md` and `greenfield.md` point to it (#256).
-- **`examples/cloudflare` signs people in with Yielded Auth on D1.** The Worker
-  serves Yielded's routes (`/auth/…`) and `/me` beside Remote, built once per
-  isolate over `@yielded/auth-persistence-drizzle/D1`, whose commits are D1
-  batches; sign-up writes the application's `accounts` row in the batch that
-  binds the email. Migration `0005` creates the tables, and a miniflare test
-  signs up, in, and out. The Worker now runs with `nodejs_compat` at the local
-  stack's compatibility date, and needs `AUTH_ORIGIN` set (#208).
-- **A Site node's Surface may read the signed-in viewer.** `surface: { surface,
-  viewer: model => Option<Viewer>, params: (route, viewer) => params }` is
-  active on its route only once `viewer` gives one, and inactive again when it
-  gives none, so a viewer-keyed Surface (a home feed) needs no hand-written
-  `Surface.at` gating. The node keeps its route as its activation. Without
-  `viewer`, reading a second `params` argument is a type error (#219).
-- **`foldkit-remote-drizzle`'s `pollLive`, `rowChangeLog` and `rowLog`: live
-  data on Workers.** `pollLive` is the polling `LiveSource` that
-  `examples/cloudflare` wrote for itself, now taking any number of `lists`
-  (polled only for a stream that watches one) and patching a row that joins
-  two of them once. `rowChangeLog(binding)` returns the SQLite statements for a
-  trigger-kept log of the rows each write touched, and `rowLog(binding)` reads
-  that log, so a quiet tick reads no rows. The example now uses them; its
-  migration `0004` renames its log table to `todos_row_changes` (#206).
-- **A server's "Internal error" says what broke, to whoever runs it.** Every
-  failure `serveFetch` or `RemoteServer.answer` answers with a generic 500 or
-  a live stream's error frame (a broken layer, resolver, handler or stream)
-  reports a `ServerDefect` diagnostic, logged by default, so a Worker's log
-  shows it; `serveFetch`'s `diagnostics(diagnostic, request)` sees each. The
-  caller is still told nothing (#221, #237).
-- **`Entity.sets`: members whose value is the write's context, declared once
-  on the Entity** (#232, operations phase 3). `Entity.sets({ author:
-  Expr.viewer(User), createdAt: Expr.now }, { on: 'create' })` sets them on
-  every insert, and `{ on: 'write' }` on every insert and update (an
-  `editedAt`). A relation takes `Expr.viewer` of its target, a text field the
-  viewer's id, a number field the time, and a field a path from the viewer
-  (`Expr.path(Expr.viewer(Member), Expr.path(Member.relations.team,
-  Team.fields.orgId))`), which the server reads through its own sources
-  (`MutationSource.run`'s new `read`) and the client from the rows it holds. A write whose input sets, links, moves
-  or computes one is refused where it is declared. `RemoteServer.write` fills
-  them from `RemoteServer.make({ viewer })` and the write's time (a value that
-  comes to null where the member holds none, as a visitor's, is forbidden, and
-  a set field counts as set for invariants); `Data.mutate` predicts them from
-  `Remote.make({ viewer })` and its `now`, and `Write.contextValues` is what
-  both read. A write's effects are otherwise inferred, never declared per
-  write. It replaces `Entity.stamps` and `Stamp`, which were never released.
-- **A pending insert joins the lists its body admits,** where each loaded
-  list's order puts it, and the answer keeps it there. A list with no body, or
-  one filtered by a read rule the client does not run, is the server's to
-  place (#266).
+  (`references/agents-md.md`, #256): use what the packages provide, prefer
+  Effect, read the installed types, which skills to load, house rules, and
+  one-line traps per package. `SKILL.md` and `greenfield.md` point to it.
+- **The skill has an Alchemy guide** (`references/alchemy.md`, #207), and the
+  greenfield guide's CAFE stack (Cloudflare, Alchemy, Foldkit, Effect) points
+  at it. Its `alchemy.run.ts` deploys `examples/cloudflare`'s Worker as one
+  `Cloudflare.Website.Foldkit`; against `alchemy@2.0.0-beta.84` it
+  type-checks and plans, but has not been deployed. Wrangler, which
+  `examples/cloudflare` publishes with, is the fallback.
+- **"Errors and failures", one guide to how failure works across the
+  packages** (`docs/errors.md`): who owns each kind of failure, what the
+  reader sees, and what the application does, for reads, writes and refusals,
+  forms, what a server tells a client, Sync, a lost session, lazy resources,
+  `Diagnostics`, and testing failures. Published under Learn on the site, and
+  linked from the remote, remote-server, form and sync READMEs and the skill.
+- **`examples/reference`: the recommended stack, end to end** (#228; findings
+  #264 to #271). One Worker over D1 serves the page's assets, Yielded's
+  routes, Remote and every page, the pages rendered in process as the reader
+  (`pageReader`, `SSR.requestContext`, `requests: 'navigation'`) into Vite's
+  `index.html`. A notebook with sign-up, a list and a detail page, optimistic
+  declared writes through the guarded writer (author and time set from the
+  context by `Entity.sets`), `Derived.count`, a live list over `pollLive`,
+  CHECKs derived from the domain, and a validated server, `live` included.
+  Every request is checked against its configured `ORIGIN`. Its tests run it
+  from `wrangler.toml` on workerd and in Chromium with `Behaviors`.
+- **`examples/cloudflare` signs people in with Yielded Auth on D1** (#208). The
+  Worker serves Yielded's routes (`/auth/…`) and `/me` beside Remote, built
+  once per isolate over `@yielded/auth-persistence-drizzle/D1`, whose commits
+  are D1 batches; sign-up writes the application's `accounts` row in the batch
+  that binds the email. Migration `0005` creates the tables, and a miniflare
+  test signs up, in, and out. The Worker runs with `nodejs_compat` and needs
+  `AUTH_ORIGIN` set.
 
 ### Changed
 
-- **Breaking: `GuardServer.validate` refuses a served write no rule
-  governs under `unguarded: 'allow'`** (#284). A declared write (through
-  `GuardServer.writer`) whose interaction (`Create` for an insert, `Update`,
-  `Delete`) has no rule of its own fell to the set's `'allow'`, so a
-  forgotten rule let anyone write. Startup now names it; give the interaction
-  a rule, or `[Guards.anyone]` to say anyone may. Under `'deny'` nothing
-  changes: such a write refuses everyone.
-
-- **Breaking: `SSR.hydrate` reports a page from another build** (#210). A
-  page whose stamped build id is not the client's was contained by Foldkit's
-  refusal alone; it is now reported as `PageContained` with the new reason
-  `OtherBuild` (an exhaustive match on `reason` needs the case), naming both
-  ids and how to give the client and the server one
-  (`process.env.FOLDKIT_BUILD_ID ??= randomUUID()` before `foldkit()` reads
-  it). A client and server built with different ids looked like a silent
-  fallback to the baseline Model.
-- **Breaking: `Data.why` returns a `ReadWhy`** (#248): `reason` is gone, and
-  its first `because` entry says it (`Why.NotObserved`, `Why.NotFetching`,
-  `Why.NoActiveRecord` for `Unknown`); `surfaces` is an `Option`.
-  `ReadDiagnosis` is removed. `Trace.why` and `Regression.why` are the
-  `ReadWhy`, not its message.
-- **Breaking: `pollLive` takes no `lists`** (#270), and `ListWatch` and
-  `ListedEdge` are gone: it watches the lists a subscriber reads live.
-  `LiveSource.subscribe` (now a method) takes `queries`, `RemoteClient.live`
-  sends them, and `REMOTE_PROTOCOL_VERSION` is 5, so a server that would
-  ignore a live list refuses the client instead.
+- **Breaking: `Data.why` returns a `ReadWhy`** (#248). It lists, in
+  `because`, every fact the Model holds about what a read reads, as typed
+  references (`Why`, a tagged union with an exhaustive `match`): its list or a
+  row's fields `Missing` or `Stale` and whether in flight, with the relation
+  path to the row; a failed list or field (which nothing retries on its own); a
+  field the server settled without a value; a row deleted, and by which write;
+  a live stream reconnecting or refused; a pending write's fields (`Pending`,
+  with its request and mutation); and a row a pending write or an overlay put
+  in a list or took out of it (`Joined`, `Left`), with each `where` term of the
+  list's body judged over the row (`True`, `False`, `Null`, or `Unknown` and
+  what it lacked). The reason that decides the state comes first and `message`
+  says it, with what restarts it. `reason` is gone (the first `because` entry
+  says it: `Why.NotObserved`, `Why.NotFetching`, `Why.NoActiveRecord` for
+  `Unknown`), `surfaces` is an `Option`, and `ReadDiagnosis` is removed.
+  `ReadWhy` is a Schema, so a devtools client gets JSON.
+- **Breaking: a mutation nothing answered fails with `RemoteUnreachable`**
+  (#282). A mutation whose request could not be sent, whose answer was not
+  JSON or not `{ result }` or `{ error }` (a gateway's `{}`), or that came
+  under 408, 429, 502, 503 or 504 (statuses Remote's server never answers
+  with) fails with `_tag: 'Unreachable'` rather than `RemoteMutationError`,
+  through `Remote.json`, `Remote.http`, `Remote.httpWithLive` and
+  `Remote.clientLayer`'s RPC transport. The server may or may not have run it,
+  so the durable outbox sends it again under its operation id, which a
+  ledgered writer answers from its record. A mutation's own error answer is
+  still `RemoteMutationError`, and a read or a query so answered still fails
+  with its own error. The JSON clients are typed `RemoteJsonClient`
+  (`RemoteRpcClient<never, RemoteUnreachable>`), which `Remote.clientLayer`
+  accepts.
+- **Breaking: `Remote.make({ verifyPredictions })` replaces `verifyPlacement`**
+  (#249, #257). In development it checks every prediction against the
+  answer and records a `PredictionMismatch` diagnostic (`Data.inspect(model)
+  .diagnostics`, reported through `Diagnostics`), naming its `mutation`, whose
+  `part` (`PredictionPart`) is a `Placement` the server's page disagrees with,
+  a `Gap` (a field a pending write showed or an active Surface read that the
+  answer left out and the store does not hold, so the row leaves its lists
+  until it arrives), or a `Value` (a field a pending write showed that its
+  answer carries another value of; a field another pending request also shows
+  is not judged). `RemoteModel.placementMismatches` and that `Data.inspect`
+  field are now its `diagnostics` list, and the `PlacementMismatch` record
+  type is gone. Remote has a no-op `CompletedReportDiagnostics` Message.
+- **Breaking: `Data.mutate`'s `now` is when the reader acted** (#232). `now`
+  on `Data.mutate` and `Remote.mutateInto` was a clock (`() => number`) that
+  dated the answer; it is now a number, the time the reader acted: what a time
+  the write sets (`Expr.now`) is predicted as, sent with the request
+  (`MutationRequest.now`, optional on the wire), kept by the outbox and sent
+  again by `Data.retry`. Read it with `Remote.now`. The answer is dated by
+  Effect's `Clock`.
+- **Breaking: the wire protocol is version 5, and `LiveSource.subscribe` takes
+  `queries`** (#270). `LiveSource.subscribe` is now a method given the lists a
+  subscriber reads live, `RemoteClient.live` sends them, and
+  `REMOTE_PROTOCOL_VERSION` is 5, so a server that would ignore a live list
+  refuses the client instead.
 - **Breaking: a `QuerySource` names the Entity it lists** (`entity`).
   `RemoteServer.query` reads it from the descriptor, whose `Result` must be a
   connection, and remote-drizzle's `query` from its binding, refusing a
   binding of another Entity than the descriptor lists. The live handler
-  refuses a list whose `select` is of another Entity, which would have read
-  the list's ids as rows of that one.
-- **`Law.check` holds the client to the server once the answer lands too**
-  (#265). Each predicted part is compared with the Model as it showed the
-  write and with the Model after the answer is reduced into it, and agrees
-  only when both do. **Breaking:** `LawPart` has `when: 'pending' |
-  'answered'`.
-- **`GuardServer.writer` no longer hands on its writer's `linked`.** It read
-  links as stored, whatever the asker may see; nothing read it from a guarded
-  writer, whose answer names rows through its guarded `read`, and a caller
-  that did would have skipped every Read rule.
-- **Chirp and the reference app declare an author once.** `Post.authorId`,
-  `Like.userId` and `Note.authorId` are gone: the `author` and `user` links,
-  set by `Entity.sets` from `Expr.viewer`, are the one member over each
-  column, and the guard rules and `ByAuthor` compare the link (#232,
-  operations phase 3).
-- **Breaking: `MutationSource.run` is given `read`,** one row of another
-  Entity as the asker may see it, through the server's own source for it; a
-  caller of `run` outside a server passes one (#232, operations phase 3).
-- **Breaking: `source(binding, { viewer })` is removed;** a `Derived.exists` is
-  answered for the viewer of the server the source is mounted in. The
-  `Operation` union gains `'viewer'` and `'now'`. A write's `when`, invariant or computed
-  assignment over either term is refused for now (#232).
-- **Breaking: `GuardServer.writer` loses `presets`, `EntityWriter.sets` is
-  removed, and `MutationSource.run` is given `viewer`** (`Option.none()` where
-  no one asks). Declare server-chosen values with `Entity.sets`; guard rules
-  see them already set (#232). Chirp's like sends no user and `ownLikes` is
-  gone, a guard rule over the link the context sets keeping a like its
-  liker's; the reference app's author and time are set from the context and
-  its overlay workaround is gone (#266, #267).
-- **Breaking: SSR, agent-mcp and guard no longer write to `console`.** They
-  report diagnostics, which Effect's log still shows by default; code that
-  spied on `console` provides a reporter. `foldkit-agent-mcp`'s `handler`,
-  `httpHandler`, `httpApp` and `stdio` take `diagnostics`, and its capability,
-  request, tool-list and transport-end defects, swallowed before, are reported
-  (to stderr under `stdio`). `GuardServer.validate`'s no-revision warning is an
-  `UnpinnedWrites` diagnostic through its `diagnostics` option, and an
-  operator's refused computed value reports `ComputeRefused`. remote-drizzle's
-  failed statement is `StatementFailed`, not `Effect.logError` (#237).
-- **Breaking: Remote's and the server's reports are diagnostics.**
-  `RemoteModel.placementMismatches` and `answerGaps` (and those `Data.inspect`
-  fields) are one `diagnostics` list holding `PlacementMismatch` and
-  `AnswerGap`, which now names its `mutation`; Remote has a no-op
-  `CompletedReportDiagnostics` Message. `foldkit-remote-server` removes
-  `logDefect`, `RemoteServer.answer`'s third argument and `serveFetch`'s
-  `onError`: a defect reports `ServerDefect`, `serveFetch` takes
-  `diagnostics(diagnostic, request)`, and a failed answer read or live publish
-  reports `AnswerUnread` or `PublishFailed` (#237).
-- **Breaking: `RemoteDescriptor.registry.counts` is `registry.derived`**
-  (`DerivedBy`: `Count` | `Exists`), and `countsOfWrite` is `derivedOfWrite`
-  (#233).
+  refuses a list whose `select` is of another Entity.
+- **Breaking: `MutationSource.run` is given `read`, `now` and `viewer`**
+  (#232). `read` is one row of another Entity as the asker may see it,
+  through the server's own source for it; `now` the write's time; `viewer` an
+  `Option` (`none` where no one asks). A caller of `run` outside a server
+  passes them.
+- **Breaking: `GuardServer.writer` loses `presets`** (#232, #266, #267).
+  Declare server-chosen values with `Entity.sets`; guard rules see them
+  already set. Chirp's like sends no user, a guard rule over the link the
+  context sets keeping a like its liker's, and Chirp and the reference app
+  declare an author once: `Post.authorId`, `Like.userId` and `Note.authorId`
+  are gone, and the `author` and `user` links are the one member over each
+  column.
+- **Breaking: `Operation` gains `'viewer'`, `'now'`, `'path'` and `'exists'`.**
+  A write's `when`, invariant or computed assignment over `Expr.viewer` or
+  `Expr.now` is refused for now (#232).
 - **Breaking: `invariantChecks` is replaced by
   `checkConstraints(binding).constraints`,** which carries the field rules
-  too. `bind` reads a column's nullability from the field's stored side, so an
-  `Option` field may sit on a nullable column (#259).
-- **A failed read asked again reads `Loading`,** then `Failed` again if it
-  fails, instead of `Initial` in between (#261). `RemoteWiring` has a `shared`
-  field, and an applied retry leaves the ledger's `failed` (#260).
-- **Leaving a field no longer validates it, and the list of fields to fix
-  belongs to a submit.** An edit still validates its field at once, so
-  tabbing through an untouched required field, or leaving the field a reset
-  emptied, no longer shows "Required"; a submit still shows every failure and
-  sets `model.attempted` (`form.attempted(model)`), which `Reset` and `fill`
-  clear. `FormView` draws its "Check these fields" list only then, none for a
-  form of one control, and the list is the one `role="alert"`: the errors
-  beside fields drop theirs while it shows. `Message.Validated({ key })`
-  checks one field on request, as `Blurred` used to; a program that sent
-  `Blurred` to show a filled value's failure sends `Validated`. A Model
-  stored without `attempted` decodes it as `false` (#192).
-- **`pointedLinks()` reads intent, not every crossing.** A mouse, pen or
-  keyboard focus counts after resting 50 ms on a link, leaving first cancels
-  it, and a finger counts at once (#227).
-- **The shipped theme is #255's.** `Theme.make({})` is a vivid blue (accent
-  235/0.225/55) on pure greys, radius 0.45, density 1.1, bolder tighter
-  headings, fluid type, a 68ch measure, motion 0.5 on a spring, no resting
-  shadows and inverted menus; a knob a theme sets keeps its value. For the
-  previous look, set `Theme.make({ accent: { hue: 264, chroma: 0.17, lightness:
-  52 }, surface: { saturation: 0.015, lightness: { light: 97.5, dark: 22 },
-  contrast: 26 }, shape: { radius: 1, density: 1 }, type: { headingWeight:
-  600, headingTracking: -0.01, scale: 1, headingScale: 1, leading: 1, fluid: 0
-  }, reading: { measure: 65 }, motion: { scale: 1, easing: 'ease' }, shadow: {
-  strength: 100 }, menu: { panel: 'default' }, scales: { chroma: 1 } })`. The
-  components' own icons are Heroicons' outline set (MIT) at a 2px stroke; to
-  keep Lucide, pass `tokens: Icons.tokens(lucidePack)`. `text.link` is the
-  accent's ink, whose light lightness is 0.45, so links and accent text read
-  at WCAG AA. The site's previews and every example use the shipped theme
-  (#255).
-- **A `Mutation.write` over `Write.delete` shows its row deleted while
-  pending**, where it showed nothing until the answer. Breaking: `EntityLayer`
-  carries `deletes`, and `visibleItems`'s fourth parameter is a `gone` check
-  (`goneIn(store, optimistic)`) in place of a store (#246).
-- **A list shows the rows it can while others are read.** A row whose fields
-  have not arrived (a live insert, a page without its rows' fields, a deleted
-  row asked about again) is left out of `Data.query`'s page until they do, and
-  the list reads `Refreshing`; it read `Initial` or `Loading` as a whole,
-  hiding every row already shown. A property test checks every `RemoteMessage`
-  keeps a shown list or entity on screen (#234).
-- **The skill has an Alchemy guide (`references/alchemy.md`),** and the greenfield
-  guide's CAFE stack (Cloudflare, Alchemy, Foldkit, Effect) points at it. Its
-  `alchemy.run.ts` deploys `examples/cloudflare`'s Worker as one
-  `Cloudflare.Website.Foldkit`; against `alchemy@2.0.0-beta.84` it type-checks
-  and plans, but has not been deployed. Wrangler, which `examples/cloudflare`
-  publishes with, is the fallback (#207).
-- **Going back to a page shows what it held.** Retention now keeps what the
-  Surfaces most recently left reached, up to `departedLimit` (16 lists and 256
-  entity reads), not only what the active ones reach. A list left is held
-  stale, so going back reads `Refreshing` with its rows while it refetches,
-  where it read `Initial` then `Loading` once retention had dropped it.
-  `RemoteModel` has a `recent` field holding those roots (#234, #225).
-
-- **`examples/pages` is written like a Notion page.** `/` on a line opens the
-  slash menu, which the page used to promise and never draw: the arrows move through it,
-  Enter chooses, Escape closes it. Selected words get a bar of marks, the block
-  style and a link; a ⠿ handle beside a block drags it, or opens a menu to
-  retype, move, duplicate or delete it; a task's checkbox ticks it. The page
-  holds a callout, a table and a divider besides the standard kinds. Every
-  menu sends an editor Message, so its edit is shared and undone as typing is.
-  The page shows who else has it open, and is styled on the demos' theme
-  instead of a stylesheet in `index.html`.
-- **`examples/pages` says whether an edit reached the server.** A line in the
-  sidebar reads the replica's status: all saved, saving, or offline with the
-  edits kept in the tab. With the sync server down an edit used to look saved.
-- **`examples/registry` draws on the demos' theme.** Its device page is an
-  `AppShell` with the edits' status in the header, a mixins-ui `Input` for the
-  search, and an `Alert` for each refused, replaced or held-back edit; its 22
-  inline styles are Slot styles, and its foundations are in the page. The
-  sandbox's page around the two devices, plain DOM with colours of its own
-  before, is a runtime that draws each device as a `Card` with a status
-  `Badge`, from the statuses its frames post.
-- **`examples/richtext-playground` draws on the demos' theme, in `AppShell`.**
-  Its own theme (a hue of its own, fluid type) is gone for `demoStyle`, its
-  header is the frame's with Start over among its actions, and its
-  foundations are in the page.
-- **The website draws the docs' Mermaid diagrams.** A `mermaid` fence was
-  shown as its source; it is now an SVG that Pele (`pele`, Obsidian's
-  renderer) lays out when the site is built, drawn in the theme's colours with
-  the source folded beneath it. No page loads any diagram code. A fence Pele
-  cannot read stays a code block, and a diagram wider than the column scrolls
-  in its box rather than shrinking past three quarters of its size (#201).
-- **Every example keeps its Model across an edit.** The CMS and Foldkit's
-  sixteen ported examples now load `@foldkit/vite-plugin`, as the other demos
-  do, so a save no longer reloads the page from `init` or logs "No response
-  from @foldkit/vite-plugin". A test loads each example's Vite config and
-  refuses one without the plugin; the richtext harness, which runs no
-  runtime, is exempt by name.
+  too (#259).
+- **Breaking: SSR, agent-mcp and guard no longer write to `console`** (#237).
+  They report diagnostics (see Added), which the default reporter still
+  shows; code that spied on `console` provides a reporter instead.
+  `GuardServer.validate`'s no-revision warning is an `UnpinnedWrites`
+  diagnostic through its `diagnostics` option, and remote-drizzle's failed
+  statement is `StatementFailed`, not `Effect.logError`.
+- **Breaking: leaving a form field no longer validates it, and an Entity
+  invariant's failure is a mark** (#192, #276). An edit still validates its
+  field at once, so tabbing through an untouched required field, or leaving
+  the field a reset emptied, no longer shows "Required"; a submit still shows
+  every failure and sets `model.attempted` (`form.attempted(model)`), which
+  `Reset` and `fill` clear. `FormView` draws its "Check these fields" list
+  only then, none for a form of one control, and the list is the one
+  `role="alert"`. `Message.Validated({ key })` checks one field on request, as
+  `Blurred` used to. Invariant failures and `Message.Refused` are marks in a
+  new `model.marks`, apart from each key's own validation, so one no longer
+  blocks every later submit until the key it names is edited: `form.field`
+  and `control(key).field` show them on their key, any edit clears them, and
+  `model.fields.<key>` no longer holds such an error. `Message.Refused` takes
+  `value`, the key's value in the refused submit, and is dropped when the key
+  holds something else since, so a refusal no longer lands on text typed while
+  the save was in flight; `Crud.editor`'s and the CMS's refusals follow. A
+  Model stored without `attempted` or `marks` decodes them as `false` and
+  `{}`.
+- **Breaking: the shipped theme is #255's.** `Theme.make({})` is a vivid blue
+  (accent 235/0.225/55) on pure greys, radius 0.45, density 1.1, bolder
+  tighter headings, fluid type, a 68ch measure, motion 0.5 on a spring, no
+  resting shadows and inverted menus; a knob a theme sets keeps its value. For
+  the previous look, set `Theme.make({ accent: { hue: 264, chroma: 0.17,
+  lightness: 52 }, surface: { saturation: 0.015, lightness: { light: 97.5,
+  dark: 22 }, contrast: 26 }, shape: { radius: 1, density: 1 }, type: {
+  headingWeight: 600, headingTracking: -0.01, scale: 1, headingScale: 1,
+  leading: 1, fluid: 0 }, reading: { measure: 65 }, motion: { scale: 1,
+  easing: 'ease' }, shadow: { strength: 100, hue: 264, chroma: 0.03 }, menu: {
+  panel: 'default' }, scales: { chroma: 1 } })`. The components' own icons are
+  Heroicons' outline set (MIT) at a 2px stroke; to keep Lucide's, pass
+  `tokens: Icons.tokens(pack)` with a pack of Lucide's icons by those names.
+  `text.link` is the accent's ink, whose light lightness is 0.45, so links and
+  accent text read at WCAG AA. `AppStyle.make`'s `theme` is optional:
+  `AppStyle.make({})` is the shipped theme.
+- **Every palette colour is fitted into sRGB, keeping its lightness and hue.**
+  A colour beyond sRGB was clipped by the browser channel by channel, which
+  moved its hue (the default accent's ink painted at 257, not 235). Each
+  colour, tints and washes included, now lowers only its chroma to its hue's
+  sRGB boundary at its lightness. `Theme.root` registers the values this reads
+  with `@property`, and the knobs carry each hue's boundary.
+- **`pointedLinks()` reads intent, not every crossing** (#227). A mouse, pen
+  or keyboard focus counts after resting 50 ms on a link, leaving first
+  cancels it, and a finger counts at once.
+- **`Data.refresh` reads a page again.** It takes the active record or one
+  entry of it (`actives.page`), with params from the Model, as well as a
+  Projection; `{ failed: true }` asks again only what failed, so what loaded
+  keeps its value and a list its later pages (#261).
+- **A list shows the rows it can while others are read** (#234). A row whose
+  fields have not arrived (a live insert, a page without its rows' fields, a
+  deleted row asked about again) is left out of `Data.query`'s page until they
+  do, and the list reads `Refreshing`; it read `Initial` or `Loading` as a
+  whole, hiding every row already shown.
+- **Going back to a page shows what it held** (#225, #234). Retention keeps
+  what the Surfaces most recently left reached (up to 16 lists and 256 entity
+  reads), not only what the active ones reach. A list left is held stale, so
+  going back reads `Refreshing` with its rows while it refetches.
+  `RemoteModel` has a `recent` field holding those roots.
+- **`foldkit-mixins`, `foldkit-media` and `foldkit-agent-mcp` depend on
+  `foldkit-surface`,** whose `Diagnostics` channel they report through
+  (`foldkit-agent-mcp` had it as a dev dependency only).
+- **The website draws the docs' Mermaid diagrams** (#201). A `mermaid` fence
+  is an SVG that Pele (`pele`, Obsidian's renderer) lays out when the site is
+  built, drawn in the theme's colours with the source folded beneath it; no
+  page loads diagram code. A fence Pele cannot read stays a code block.
+- **The examples draw on the demos' theme.** `examples/pages` is written like
+  a Notion page (a slash menu, a bar of marks over selected words, a block
+  handle that drags or opens a menu, callouts, tables and dividers, who else
+  has it open) and says whether an edit reached the server; `examples/registry`
+  is an `AppShell` with an `Alert` for each refused, replaced or held-back
+  edit, and its sandbox draws each device as a `Card` with a status `Badge`;
+  `examples/richtext-playground` uses `demoStyle` in `AppShell`. The CMS and
+  Foldkit's sixteen ported examples load `@foldkit/vite-plugin`, so an edit
+  keeps the Model.
 
 ### Security
 
-- **`serveFetch` answers every request `cache-control: no-store`** (#284;
-  published in 0.35.0 without it). Each answer is read as one principal, its
-  `may` and `Me` included, and none said so: a cache configured to keep POST
-  answers could have served one person's to another. A `cache-control` the
-  application's `headers` gives stands; a live stream's `no-cache` is now
-  `no-store` too.
-
-- **`GuardServer.validate` refuses a Source sharing `may`** (#284; the
-  check it extends shipped in 0.35.0). `shared` tells the live hub to send a
-  declared write's value of a field to every subscriber as it is, and
-  `validate` let `may` be shared on an Entity whose rows anyone may read, so
-  one reader's answer could reach every other. `may` is each reader's own.
-
+- **`serveFetch` answers every request `cache-control: no-store`** (#284).
+  Each answer is read as one principal, its `may` and `Me` included, and none
+  said so: a cache configured to keep POST answers could have served one
+  person's to another. A `cache-control` the application's `headers` gives
+  stands; a live stream's `no-cache` is now `no-store` too.
+- **Breaking: `GuardServer.validate` refuses a served write no rule governs
+  under `unguarded: 'allow'`** (#284). A declared write (through
+  `GuardServer.writer`) whose interaction (`Create` for an insert, `Update`,
+  `Delete`) has no rule of its own fell to the set's `'allow'`, so a forgotten
+  rule let anyone write. Startup now names it; give the interaction a rule, or
+  `[Guards.anyone]` to say anyone may. Under `'deny'` nothing changes: such a
+  write refuses everyone.
+- **`GuardServer.validate` refuses a Source sharing `may`** (#284). `shared`
+  tells the live hub to send a declared write's value of a field to every
+  subscriber as it is, and `validate` let `may` be shared on an Entity whose
+  rows anyone may read, so one reader's answer could reach every other. `may`
+  is each reader's own.
 - **A collection relation read whole is bounded** (published since before
   0.35.0). A read naming a collection relation with no window read every
   child of every row it named, and a `pollLive` stream re-read them each
@@ -639,204 +654,29 @@ version changed; `pnpm` skips versions already in the registry.
   collection whole: read it with a window (`Entity.page`), or raise
   `maxCollection` on its Source. See
   `docs/design/unbounded-collection-DESIGN.md`.
-- **A write rule reaching an exists through a path holds over the row a write
-  leaves.** An Update rule such as "the viewer holds a seat on the note's
-  team" (`Expr.path(Note.relations.team, Expr.exists(Seat.relations.team, …))`)
-  is judged in the write's statement over the stored row, so a write that
-  changes `team` must be refused; only a rule ending in a field was, and a
-  member of one team could move a note into a team they had no seat on. The
-  rule's own relation is now read whether the path ends in a field or an
-  exists. Never published: rules over paths on Update are unreleased.
-- **`pollLive` sends a field only when what it holds changes.** It compared
-  each field by identity, and a read makes a new array of a collection
-  relation's refs every time, so a subscriber asking for one (any client may
-  name it, on a row or a list read live) was sent every subscribed row in full
-  on every tick, a flood one request could keep up. Fields now compare by
-  value (`Equal.equals`). Never published: `pollLive` is unreleased.
-- **`pollLive` reads its subscribed rows in one read a tick.** It read once
-  for each distinct set of fields its rows were asked with, so a subscriber
-  asking each of `maxIdsPerEntity` rows for a field set of its own made every
-  tick that many statements (1000 by default, four times a second) from one
-  request. A tick now reads every row together, with every field any of them
-  asks that the principal may read, and compares each row on its own fields;
-  a row asked for nothing it may read is still never read. The new
-  `RemoteServer.allowedFields` says which fields a read answers without
-  reading. Never published.
-
-### Fixed
-
-- **The durable outbox never sends one principal's write as another's**
-  (#284; unreleased). The page held its queue by store `key` alone, so with a
-  `key` shared by principals a change of `scope` in the same page sent the
-  last principal's waiting writes as the new one, and after `Data.forget` the
-  new principal's empty queue was written over them. The queue is now held
-  for its `key` and `scope`: either moving sends none of it and reads the new
-  one's, and a store holding another scope's waiting writes is not written
-  over (`OutboxUnsaved`). `OutboxRead` carries the `scope`.
-
-- **A durable write is sent again when what came back is no Remote answer**
-  (#282). `Remote.json` failed a mutation answered with JSON that is not
-  `{ result }` or `{ error }` (a gateway's `{}`) as `RemoteMutationError`, so
-  the outbox settled it as failed though the server may have applied it; and
-  `Remote.http` read a 502, 503 or 504 whose body was JSON `{ error }` as the
-  server's own failure. Both are now `RemoteUnreachable`, as is any body under
-  408, 429, 502, 503 or 504, statuses Remote's server never answers with. The
-  outbox sends the write again under its operation id, which a ledgered writer
-  answers from its record. A read or a query so answered still fails with its
-  own error.
-- **The skill's Remote reference no longer says the write ledger cannot run
-  on D1** (#285). It has run there since the D1 ledger moved to one atomic
-  `batch`: the reference now says so, with the batch's limits, as
-  `foldkit-remote-drizzle`'s README does.
-- **`pollLive` sends every changed field of a row two reads select
-  differently** (#279). A tick sent a row once, by whichever read patched it
-  first, so a list selecting `done` beside a subscription to the same row's
-  `title`, or two lists selecting different fields, never heard of the
-  second read's fields. A tick now remembers the fields it sent of each row,
-  and each read sends the changed fields not yet sent. Never published.
-- **`foldkit-form`'s published declarations check with `skipLibCheck:
-  false`.** The emitter wrote `Form.input`'s return type out in full, through
-  `foldkit-entity`'s unexported `InputMembers`, and the expansion failed on
-  its own (TS2536), so an application checking its libraries could not
-  compile against `foldkit-form` (0.8.1 included). `Form.input` now names its
-  return type, and `foldkit-entity` exports `InputMembers`. `pnpm pack:check`
-  now compiles a consumer of every published subpath of every package with
-  `skipLibCheck: false`.
-- **`foldkit-builder` depends on `foldkit-mixins`.** Its types import
-  `foldkit-primitives/interaction`, whose declarations import
-  `foldkit-mixins`, an optional peer of `foldkit-primitives`; `foldkit-builder`
-  listed it only as a dev dependency, so an application installing it from npm
-  could not resolve `foldkit-mixins` (TS2307, 0.3.14 included).
-- **A page keeps only the modules it reads of a published package** (#215).
-  Twenty-four packages were each linked into a few files, so `sideEffects:
-  false` had nothing to drop and `export * as` namespaces became objects
-  keeping every member: a page reading `Collation.binary` kept 73 kB of
-  `foldkit-entity` against 1.9 kB from source, and one reading
-  `beginOptimistic` kept 350 kB of `foldkit-remote` against 1.6 kB.
-  `foldkit-mixins`, `-bundle`, `-media`, `-primitives`, `-entity`, `-crud`,
-  `-form`, `-ssr`, `-remote`, `-surface`, `-builder`, `-composition`,
-  `-data-grid`, `-durable`, `-mixins-builder`, `-mixins-crud`,
-  `-mixins-data-grid`, `-mixins-richtext`, `-mixins-surface`, `-react`,
-  `-remote-drizzle`, `-richtext`, `-richtext-markdown` and `-sync` are now
-  published one file per source module, `.js` and `.d.ts` (the export map's
-  paths changed, its subpaths did not). Chirp's client entry, built against
-  the published packages, fell from 818 kB to 806 kB minified (266 to 262 kB
-  gzipped), what it costs from source; `scripts/test/publishedBuild.test.ts`
-  holds each package to what its source costs.
-- **A write's answer reads back what its own prediction moved** (#265). A
-  count predicted on a row no active Surface reads (a note deleted on its own
-  page lowering its author's `noteCount`, which only the notebook reads) went
-  back to its old value once the answer released the prediction: the answer
-  read only what the active Surfaces showed. `Data.mutate` now adds every
-  field its layer shows to the request's `shown`, durable writes included, so
-  the server reads it back from each row the answer names.
-- **`Surface.read` without the params a Surface declares is a type error**
-  (#268). It took `params?`, so the read compiled and threw a `TypeError`
-  from inside the Surface's `model` at render. `Surface.read`,
-  `Surface.contract` and `Surface.inspect` now require params unless
-  `undefined` is one (a Surface without params takes none, so
-  `Surface.contract(s)` needs no `undefined`), and a caller the types do not
-  reach is refused with `Surface "<name>" declares params, and was given
-  none`.
-
-- **A watched `Stack` survives an entry saved in place.** An editor that
-  empties the file before writing it could let a rebuild read it empty, and
-  the empty Worker failed to start, which stopped the stack and lost its D1.
-  A rebuild that bundles to no code is now reported through `onBuildError`,
-  and the running Worker keeps answering until the write's own rebuild swaps.
-
-- **A held solid or primary Button stands 1px in.** Their fills were
-  written with the `background` shorthand, which resets `background-clip` to
-  `border-box`, so hovered and held the fill ran under the cleared border to
-  the edge. They are `backgroundColor` now; an override of a Button's fill
-  in the `app` layer still wins.
-
-- **A held list over a path re-judges when what the path reaches changes**
-  (operations phase 6, found by the hardening review). `impactOn` read only a
-  body's own predicate fields, so a member relinked out of `Expr.path(team,
-  name) = 'red'`, a team renamed, a row an exists counts deleted, or the
-  viewer's own link moved all left the list as it stood. A change to a member
-  any path, exists or path from the viewer reads in another row now
-  invalidates the list; a change to the link a path starts from re-judges
-  that row.
-
-- **A pending create is placed in a list over the viewer** (operations phase
-  6, found by `Law.check`). Pending placement judged list bodies with no
-  context, so a card you made was left out of `Mine` (`Expr.eq(author,
-  Expr.viewer(User))`) until the answer. Each pending layer now keeps the
-  viewer its operation was predicted for (`EntityLayer.viewer`, from
-  `MutationStarted.viewer`), and the client places with it.
-
-- **`GuardServer.validate` refuses a body reaching a hidden member through
-  another row (security).** It refused a query body that filters or orders by
-  a member with a Read rule, but only one of the row it lists: a path
-  (`Expr.path(Todo.relations.tag, Tag.fields.id)`), a path from the viewer,
-  or an exists read the relations they follow, the field a path ends at and
-  an exists' filter unchecked, and SQL reads a reached row under its
-  `visible` rule alone, never its members'. A body comparing such a member
-  with its input answered for it to whoever asked. Each such member of a
-  validated Entity is now refused by name ("query ByTag reaches Todo's tag,
-  which has a Read rule").
-- **Every live subscription is held to `maxIdsPerEntity` (security).**
+- **Every live subscription is held to `maxIdsPerEntity`.**
   `RemoteServer.handlers` passed a live Source's requirements on unchecked,
-  so a client could subscribe `pollLive` (`foldkit-remote-drizzle`) or a
-  `RemoteServer.live` Source to any number of ids and have every tick re-read
-  them all; only the `liveHub` refused such a subscription, itself. The
-  handler now admits a live subscription once, before any live Source or the
-  hub sees it: more than `maxIdsPerEntity` ids of one Entity (default 1000),
-  or more than four pages of one relation, fails the stream with the new
-  wire error `RemoteLiveRefused` (over `serveFetch`, an `event: error` frame
-  with `refused: true`), and nothing is read. Refused, not truncated.
-  Breaking: `LiveHub.subscribe` no longer takes `maxIdsPerEntity`. On the
-  client (`foldkit-remote`), a refused stream is not reconnected: it is no
+  so a client could subscribe a `RemoteServer.live` Source to any number of
+  ids and have every tick re-read them all; only the `liveHub` refused such a
+  subscription, itself. The handler now admits a live subscription once,
+  before any live Source or the hub sees it: more than `maxIdsPerEntity` ids
+  of one Entity (default 1000), or more than four pages of one relation, fails
+  the stream with the new wire error `RemoteLiveRefused` (over `serveFetch`,
+  an `event: error` frame with `refused: true`), and nothing is read. Refused,
+  not truncated. On the client a refused stream is not reconnected: it is no
   gap, `Data.liveStatus` reads the new `Refused { error }`, its
   `StreamHealth.refused` holds the refusal, and a `LiveRefused` diagnostic
   records it once; it opens again when its live requirements change.
-  `pollLive` was not yet in a published release.
-
-- **Live polling over a guarded Entity is checked and safe** (#264).
-  `pollLive` read each row with `source.read` directly, past what the read
-  handlers apply: a member a guard withholds (`GuardServer.filter`) went out
-  in a patch, a redacted one as written, `may` unanswered, and a client's
-  field names reached `read` unchecked. It now reads through
-  `RemoteServer.readAs`, the read the handlers and the live hub make: the
-  declared fields `authorize` allows, through `filter`, and no other field.
-  A member the read leaves out is not sent; a row in a watched list's window
-  that the subscriber can no longer read is deleted and removed, where a full
-  re-read kept it. `LiveSource.reads` names the Source a live source reads
-  through, and `pollLive` sets it, so `GuardServer.validate` accepts a
-  `pollLive` over the guarded Source it checks and refuses any other live
-  Source over a guarded Entity. `examples/reference` validates the server it
-  serves, `live` included.
-- **A server-rendered page carries the global rules its Styles need** (#271).
-  `Style.usedIn` wrote the CSS of each compiled class a page's markup carries
-  but none of a Style's global rules, so a Card's `fk-raised` had no depth
-  rules and its raised background was invalid until scripts ran. Each compiled
-  class now registers its Style's globals (keyframes, `raise`'s depth rules),
-  and `usedIn` writes them once each; in the browser, injection adds no global
-  that a server-written sheet already carries.
-- **An error diagnostic reaches `console.error`** (#272). The default
-  `Diagnostics` reporter logged every level through Effect's default logger,
-  which writes with `console.log`, so `Behaviors.consoleErrors` passed a page
-  that reported a `MountFailed` or `PageContained`, and a server wrote errors
-  to stdout. It now logs an `error` (and a reporter that broke) with
-  `Logger.LogToStderr` set: `console.error` in a browser, stderr on a server.
-  A `warning` stays on `console.log`, and a replaced logger receives both at
-  their level as before.
-- **A Menu or Menubar checkbox or radio row is chosen once.** Clicked after a
-  mouse press opened the menu, it was chosen twice and flipped back: upstream's
-  Menu kept the press's origin until the menu shut, so a release on the row
-  more than 200ms later read as a drag from the trigger and clicked it on top
-  of the browser's own click. A Menu's trigger click is now decided from the
-  Model (`ClickedButton`), not from the last drawn frame.
+  **Breaking:** `LiveHub.subscribe` no longer takes `maxIdsPerEntity`;
+  `LiveStatus` gains `Refused` and `StreamHealth` a `refused` field.
 - **Guarded writes and relation pages, after a security review:**
   - A create of an id already taken is refused with one answer, whatever the
-    row there holds and whether its asker may see it. Only a writer's ledger
+    row there holds and whether its asker may see it; it was answered with the
+    row whenever it held the same values (#203). Only a writer's ledger
     recognises a retry, by its operation, and answers it with the row; without
     a ledger a create sent again is refused. **Breaking:**
-    `EntityWriter.insert` takes `operation`. Chirp's
-    Post and Like writers keep a ledger, so `Data.retry` of a create is
-    answered with its row.
+    `EntityWriter.insert` takes `operation`. Chirp's Post and Like writers keep
+    a ledger, so `Data.retry` of a create is answered with its row.
   - An update's member `Update` rules and relation `Link` rules hold over the
     row before and over the row after with that one change undone (every
     other new value and link applied, that member's old value kept, or that
@@ -848,88 +688,48 @@ version changed; `pnpm` skips versions already in the registry.
     judges each changed member the same way.
   - A relation page's cursor is placed only by a row its reader may see, and
     one naming a hidden row is refused like one naming no row.
-- **NaN is refused wherever values compare or order,** in memory and in SQL, as
-  NUL is: one NaN key left the whole in-memory sort unsorted, and Postgres and
-  SQLite disagree on it. `evaluate` evaluates its whole `where` list, so a
-  refusal no longer depends on predicate order (#242).
-- **Live polling, the Workers stack and the agent host, after review** (#274):
-  - `pollLive` no longer loses a change when a watched list's read fails once:
-    the next tick asks the log again from the same entry. Without a log it
-    reads the subscribed rows once a tick per set of fields, not once per row.
-  - `rowLog.since` sees a log trimmed while it reads, and returns `None`
-    rather than a list with rows missing.
-  - `Stack.stop` stops workerd and removes the bundle's directory even after a
-    failed watch or a throwing close; a second `stop` returns the first's
-    promise. `examples/cloudflare`'s `pnpm dev` stops once, and stops the
-    stack when starting fails.
-  - `Agent.host` hosts the first of two runtimes started in one tick and
-    refuses the second; a crashed runtime keeps saying "crashed" after it is
-    disposed.
-  - `Resource.get` after its runtime closed is interrupted, not left waiting.
-- **Forms, AppShell and `Layout.center`, after review** (#276):
-  - An Entity invariant's failure no longer blocks every later submit until
-    the key it names is edited. Invariant failures and `Message.Refused` are
-    marks in a new `model.marks`, apart from each key's own validation:
-    `form.field` and `control(key).field` show them on their key, any edit
-    clears them, a submit stops while they stand, and the next submit after an
-    edit judges again; two failures on one key both show. **Behaviour
-    change:** `model.fields.<key>` no longer holds such an error, so read a
-    key through `form.field`. `model.marks` decodes as `{}` from a Model stored
-    before it existed.
-  - **Breaking:** `Message.Refused` takes `value`, the key's value in the
-    refused submit, and is dropped when the key holds something else since,
-    so a refusal no longer lands on text typed while the save was in flight.
-    `Crud.editor`'s and the CMS's refusals follow.
-  - Below `md`, AppShell's side column, which holds a Sidebar's opener, stays
-    in the header's row as the page scrolls.
-  - `Layout.center` fills to its measure inside `Layout.stack` (and a flex
-    row) instead of shrinking to its content.
-- **Declared writes, after review** (#277):
-  - `Write.update` refuses a computed assignment into a `Schema.Int` field that
-    may not come to an integer, and the Drizzle writer refuses one over an
-    integer column at registration; SQLite stored the fraction, Postgres
-    rounded it, and `Write.apply` predicted the fraction.
-  - **Breaking:** a write ledger refuses an operation id sent again with
-    another mutation, keys or input, where it answered it as a retry and
-    wrote nothing. Ledger tables need a nullable `request` column
-    (`alter table write_ledger add column request text`; add
-    `request: text('request')` to the Drizzle table), and `EntityWriter`'s
-    `update`, `insert` and `recorded` contexts carry `request`. A record
-    without one is still answered as a retry until its retention passes.
+  - A writer refuses a write that sets a member stored on the column of one
+    the context sets, which in 0.35.0 could overwrite a `presets` field
+    through a relation stored on its column.
+
+### Fixed
+
+- **A write ledger, after review** (#277):
+  - A write ledger refuses an operation id sent again with another mutation,
+    keys or input, where it answered it as a retry and wrote nothing.
+    **Breaking:** ledger tables need a nullable `request` column (`alter
+    table write_ledger add column request text`; add `request:
+    text('request')` to the Drizzle table), and `EntityWriter`'s `update` and
+    `recorded` contexts carry `request` (as the ledgered `insert`'s does). A
+    record without one is still answered as a retry until its retention
+    passes.
   - On Postgres, a retry sent while its original is still writing waits for
     it and is answered from the ledger, where it failed as "Database write
     failed".
   - Under a ledger, an update with no record is judged by its `when` and
-    transition invariants even when the row already holds what it sets,
-    where it was taken for a retry and answered Success.
-- **A write's answer, context sets, live reads and page reads, after a security
-  review:**
-  - A declared write's answer names the rows its row points at only for a
-    write that wrote, reads them as the asker may see the row, and reads back
-    only rows its own read returns; a delete that deleted nothing answers the
-    same whether the row was hidden or never there.
-  - `bind` refuses an Entity that sets from the context only one of a field
-    and a relation stored on the same column, and a writer refuses a write
-    that sets a member stored on the column of one the context sets.
-  - A live hub whose `key` shares re-reads still reads a per-viewer member
-    (`Derived.exists`) once per viewer.
-  - A `requests: 'navigation'` resolver refuses a protocol upgrade, and a
-    request whose `Sec-Fetch-Mode` is not `navigate`.
-  - Chirp's server accepts a like only under the id derived from its post and
-    its liker.
-- **CHECKs derived from an Entity agree with its Schema on NaN, NUL and
-  float4** (#259). On Postgres each numeric bound decides NaN as Effect does
-  (an upper bound accepts it, a lower bound refuses it); on SQLite, which
-  stores NaN as NULL, a bound compiles only over a finite field and is
-  otherwise `serverOnly`. `isFinite` compiles on both. On SQLite a pattern's
-  CHECK refuses NUL and a code-point length counts past one. Every number rule
-  over a Postgres `real` column is `serverOnly`, and `serverOnly` now lists
-  rules inside a `Schema.Record` or a suspended schema. `bind` matches a check
-  naming its columns without the table, as `drizzle-kit pull` writes them.
+    transition invariants even when the row already holds what it sets, where
+    it was taken for a retry and answered Success.
+  - `Write.update` refuses a computed assignment into a `Schema.Int` field
+    that may not come to an integer, and the Drizzle writer refuses one over
+    an integer column at registration; SQLite stored the fraction, Postgres
+    rounded it, and `Write.apply` predicted the fraction.
+- **NaN is refused wherever values compare or order** (#242), in memory and
+  in SQL, as NUL is: one NaN key left the whole in-memory sort unsorted, and
+  Postgres and SQLite disagree on it. `evaluate` evaluates its whole `where`
+  list, so a refusal no longer depends on predicate order. **Breaking:**
+  `Expr.givesNul` is `Expr.givesUnportable`, and also flags NaN.
+- **A law no call answered no longer holds** (#275). Two refusals still agree,
+  but only cases where both sides answer a value count; a law with none
+  answers the new `Unanswered` verdict and records no evidence, where an
+  operator refusing every input was recorded as tested.
+  `Operators.withEvidence` refuses a record of a law whose witness the table
+  runs differently. `Text.startsWith` in memory compares by character (a lone
+  surrogate as U+FFFD), as SQLite and Postgres do; the conformance texts hold
+  `%`, `_` and `\`. A key cursor carries `Infinity`, `-Infinity` and `NaN` as
+  themselves, where paging past one skipped the rows tied with it.
+  **Breaking:** `LawsVerdict` has an `Unanswered` variant, and a `Tested`
+  record's `cases` counts answered cases only.
 - **Remote's state machine, after review** (#273):
-  - `Data.forget` with an unchanged persistence key no longer restores the
-    snapshot it forgot: it keeps `restoredFrom`, and the emptied cache is
-    saved over the old one.
   - Mutation answers settle in the order their requests started: an answer
     does not overwrite a field, clear a deletion, or delete a row that a
     later-started request already settled.
@@ -938,147 +738,163 @@ version changed; `pnpm` skips versions already in the registry.
   - A field only a pending patch shows is still fetched, so a failed request
     leaves the server's value, not `Initial`.
   - A repeated or late `MutationSucceeded` or `MutationFailed` returns the
-    Model it was given, and a failure after `dismiss` no longer lists the
-    write again.
+    Model it was given.
   - `live`, `streams` and `gaps` keep the 256 streams most recently heard
-    from, and retention forgets a `verifyPlacement` record whose list it
-    dropped.
-- **A law no call answered no longer holds** (#275). Two refusals still agree,
-  but only cases where both sides answer a value count; a law with none
-  answers the new `Unanswered` verdict and records no evidence, where an
-  operator refusing every input was recorded as tested. `Operators.withEvidence`
-  refuses a record of a law whose witness the table runs differently.
-  `Text.startsWith` in memory compares by character (a lone surrogate as
-  U+FFFD), as SQLite and Postgres do; the conformance texts hold `%`, `_` and
-  `\`. A key cursor carries `Infinity`, `-Infinity` and `NaN` as themselves,
-  where paging past one skipped the rows tied with it. Breaking:
-  `LawsVerdict` has an `Unanswered` variant, and a `Tested` record's `cases`
-  counts answered cases only.
-- **A CMS overwrite after a conflict waits for the server's copy of the
-  draft,** one the editor had known absent included, instead of saving at
-  once against the old copy and meeting the same conflict. `EditorDomain`
-  gains `plan`, which a bound Data already has.
-- **`foldkit-media/vite`'s icons plugin is a module of its own**
-  (`src/vite/icons.ts`), so a Vite config importing it from source no longer
-  bundles the images plugin's sharp server.
-- **A reload draws the stored list in its first frame.**
+    from, and retention forgets a `verifyPredictions` placement record whose
+    list it dropped.
+- **A failed read asked again reads `Loading`,** then `Failed` again if it
+  fails, instead of `Initial` in between (#261).
+- **A reload draws the stored list in its first frame** (#262).
   `Data.persistence(...).restore(model)` restores the stored snapshot before
   the first frame, resolved as the runtime's `flags`, so a reload no longer
   draws `Loading` first; the wiring then restores only a key the Model is not
   restored from yet. `Data.persistence` returns a `PersistenceWiring` (a
-  `Wiring` plus `restore`) (#262).
-- **A shown list no longer falls back to `Loading` when its rows are deleted.**
-  A list whose every shown row is deleted while its other rows are unread
-  reads `Refreshing` with no rows. `RefreshStarted` keeps a tombstone while the
-  entity is asked about again, so a deleted row stays out of every list until
-  the server answers, and a refreshed `NotFound` stays `NotFound` until then
-  (#263).
+  `Wiring` plus `restore`). `Data.forget` with an unchanged persistence key
+  does not restore the snapshot it forgot: the emptied cache is saved over it.
+- **A shown list no longer falls back to `Loading` when its rows are deleted**
+  (#263). A list whose every shown row is deleted while its other rows are
+  unread reads `Refreshing` with no rows. `RefreshStarted` keeps a tombstone
+  while the entity is asked about again, so a deleted row stays out of every
+  list until the server answers, and a refreshed `NotFound` stays `NotFound`
+  until then. **Breaking:** the CMS `EditorDomain` gains `plan` (a bound Data
+  already has it), so an overwrite after a conflict waits for the server's
+  copy of the draft instead of saving against the old one.
+- **`Surface.read` without the params a Surface declares is a type error**
+  (#268). It took `params?`, so the read compiled and threw a `TypeError`
+  from inside the Surface's `model` at render. `Surface.read`,
+  `Surface.contract` and `Surface.inspect` now require params unless
+  `undefined` is one (a Surface without params takes none), and a caller the
+  types do not reach is refused with `Surface "<name>" declares params, and
+  was given none`.
+- **`SSR.hydrate` reports a page it contains** (#210). With
+  `FOLDKIT_BUILD_ID` unset, the documented `import.meta.env.FOLDKIT_BUILD_ID`
+  is undefined in the client, and `foldkit-ssr` handed Foldkit no id, so every
+  page drew from the baseline Model with nothing logged; and a page from
+  another build was contained silently too. Both are now contained and
+  reported as `PageContained`, with reason `NoBuildId` or `OtherBuild` (naming
+  both ids and how to give the client and the server one).
 - **`SSR.inspect` shows a parent shared by several families once** (#177).
-- **`foldkit-mixins-ui` is published one file per module,** so an application's
-  bundler keeps only the components and recipes it reads. Reading
-  `Recipes.Avatar` kept every recipe, `@foldkit/ui` and floating-ui; an
-  Avatar-only page fell from 238.6 kB to 99.2 kB gzipped. The entry is now
-  `dist/index.js` and `dist/index.d.ts` (#241).
-- **TagsInput keeps a draft typed across a frame drawn mid-burst.** When a
-  frame was drawn while keys still arrived after a commit, and the draft it
-  showed began like the tag just added (`react{Enter}react{Enter}`), the
-  draft was stripped to nothing. `TagsInput.Message.Typed` now carries
-  `drawn`, the commit count of the drawing that read the text, so code that
-  builds `Typed` itself must pass it (#224).
-- **The auth README says how to sign up with a password:** the contract's
-  `register` action, `Password.make({ registration, reset })` (a `resetLink`
-  needs an `https:` URL), `Persistence.Provisioning` writing the account row
-  in the same commit, the services sign-up needs (`CompromisedPasswords`; change
-  and reset ones refused), and register then sign in on the client. On Workers,
-  Yielded's attempt limiter counts per isolate without a shared
-  `RateLimiterStore` (#218).
-- **The auth README says how to run on Workers with D1:** build auth once per
-  isolate, and give Yielded's `AuthenticationClock` a tolerance, since the
-  Worker's clock and D1's differ and the strict default refused a correct
-  password now and then (#222).
-- **`Expr.field` given an expression says what to write.** Wrapping an
-  invariant's `before.x` in `Expr.field` failed with a long error about
-  missing `owner`, `key` and `schema`. A second signature now refuses it with
-  "before.x and after.x are expressions already, so compare them as they
-  are", and the entity README shows the two forms side by side (#209).
-- **`GuardServer.validate` warns only of a write a change can come between.**
-  It named every write through a writer with no `revision`, inserts and
-  deletes of an Entity nothing updates included, where no change can come
-  between the guard's check and the write (#223). It now names an update, and
-  a delete of an Entity the server also updates.
-- **`setup` scaffolds with `create-foldkit-app` 0.40.0**, whose templates install
-  Foldkit 0.169, `@foldkit/ui` 0.169 and `@foldkit/vite-plugin` 0.28, this
-  release's own. 0.39.1 wrote 0.168, which `foldkit-mixins-ui` then refused
-  (#205).
-- **`setup` says how to let `foldkit-auth` need a later Effect.** Foldkit pins
-  `effect` 4.0.0 exactly and Yielded needs 4.0.3 or later. Beside the auth
-  adapter's install line `setup` now prints the fix for the project's manager:
-  npm's `legacy-peer-deps` and `effect@^4.0.4`, or pnpm's
-  `peerDependencyRules` (#205). The auth README gives the npm form too.
-- **`setup` prints a scaffold command that runs for every rendering mode.**
-  It gave one command with `--example counter` for spa, ssg and ssr alike, and
-  `create-foldkit-app` refuses `--example` outside spa (#204). It now prints
-  the spa command with it and the ssg or ssr one without; so does the
-  greenfield guide.
-- **`foldkit-media` no longer brings `node:module` into a page.** Built for
-  Node, the runtime chunk every entry shares opened with `import "node:module"`,
-  so a browser build of `Icon.draw` warned and carried it (#215). The package
-  is built for the neutral platform; its Vite plugin, which runs in Node,
-  still imports what it uses.
-- **A slot's attributes fit `h.textarea`.** `slots.x.attrs()` was typed with
-  every attribute, `InnerHTML` included, which a textarea refuses, so a slot
-  on one needed a cast (#214). It is now typed as its base was, plus what a
-  Mixin adds, which is never `InnerHTML`: a base built for a textarea, or
-  none, stays fit for one. `foldkit-mixins-form`'s field `state` is typed
-  likewise. The casts in the form renderers and the Markdown source editor
-  are gone.
-- **An insert whose invariants read a field the context sets registers.**
-  `RemoteServer.write` refused one, saying it left the field unset, though
-  the server sets it on every create (#202). A field `Entity.sets` names
-  counts as set.
-- **A retried insert with a time the server set is answered, not refused.**
-  The drizzle writer compared every value with the row already there, and a
-  clock read anew never matched, so a retry, same request or not, failed with
-  "could not be created" (#203). A writer's ledger now answers a retry with
-  its row.
-- **`SSR.hydrate` given no build id says so.** With `FOLDKIT_BUILD_ID` unset,
-  the documented `import.meta.env.FOLDKIT_BUILD_ID` is undefined in the
-  client. `foldkit-ssr` read that as another build's page and handed Foldkit no
-  id, so Foldkit compared its own compiled id, which matched, and every page
-  drew from the baseline Model with nothing logged (#210). It now contains the
-  page and logs why.
-- **`npx foldkit-plus setup` carries its own Effect.** Run with
-  `--legacy-peer-deps`, npx installed no peers, and the CLI loaded whatever
-  `effect` an ancestor folder held: an Effect 3 crashed it before it printed
-  anything (#200). Its build now bundles Effect, so it imports only Node's own
-  modules.
-- **`npx foldkit-plus setup` is run with `--legacy-peer-deps`** (#200). npx
-  adds a newer `foldkit-plus` to the tree an older one left in its cache, and
-  the old tree's `foldkit` failed the new peers with `ERESOLVE` before the CLI
-  started. The CLI reads none of its peers, so the README, the skill and the
-  site now give the command with the flag.
-- **`setup` installs one Effect on npm, the one this repository tests**
-  (#205). It installed `effect@4.0.0`, the release Foldkit names exactly,
-  while `foldkit-durable`'s `@effect/sql-sqlite-node` and `foldkit-auth`'s
-  Yielded need a later one, so npm warned on the install and refused
-  `foldkit-auth`; the advice beside it, `legacy-peer-deps`, turned every peer
-  check off. `setup` now first prints the `package.json` fields that pin every
-  Effect package to 4.0.5 (npm `overrides`, pnpm `overrides` and
-  `peerDependencyRules`, Yarn `resolutions`, Bun `overrides`), installs at
-  exactly that release, and names each adapter's library at the version the
-  adapter peers on: a bare `@yielded/auth` installed an older beta on pnpm.
-  `pnpm pack:check` now follows every npm step `setup` prints, from the
-  packed tarballs, in an ssr scaffold made with the command it prints.
-- **`setup` gives a pnpm workspace member's pins to the workspace root**
-  (#280). pnpm reads `overrides` and `peerDependencyRules` only there, and
-  warned that the ones `setup` had put in the member's `package.json` would
-  not take effect. `setup` now names the root's `pnpm-workspace.yaml`, or its
-  `package.json` where a `pnpm` field is already there, and `pnpm
-  pack:check` runs its pnpm steps in a standalone project and in a member.
+- **`bind` reads a column's nullability from the field's stored side,** so an
+  `Option` field may sit on a nullable column (#259).
+- **A server-rendered page carries the global rules its Styles need** (#271).
+  `Style.usedIn` wrote the CSS of each compiled class a page's markup carries
+  but none of a Style's global rules, so a Card's `fk-raised` had no depth
+  rules and its raised background was invalid until scripts ran. Each
+  compiled class now registers its Style's globals (keyframes, `raise`'s depth
+  rules), and `usedIn` writes them once each; in the browser, injection adds no
+  global that a server-written sheet already carries.
+- **A held solid or primary Button stands 1px in.** Their fills were written
+  with the `background` shorthand, which resets `background-clip` to
+  `border-box`, so hovered and held the fill ran under the cleared border to
+  the edge. They are `backgroundColor` now; an override of a Button's fill in
+  the `app` layer still wins.
+- **A Menu or Menubar checkbox or radio row is chosen once.** Clicked after a
+  mouse press opened the menu, it was chosen twice and flipped back: upstream's
+  Menu kept the press's origin until the menu shut, so a release on the row
+  more than 200ms later read as a drag from the trigger and clicked it on top
+  of the browser's own click. A Menu's trigger click is now decided from the
+  Model (`ClickedButton`).
+- **TagsInput keeps a draft typed across a frame drawn mid-burst** (#224).
+  When a frame was drawn while keys still arrived after a commit, and the
+  draft it showed began like the tag just added (`react{Enter}react{Enter}`),
+  the draft was stripped to nothing. **Breaking:** `TagsInput.Message.Typed`
+  carries `drawn`, the commit count of the drawing that read the text, so code
+  that builds `Typed` itself must pass it; the Model gains `commits`, and
+  `added` is a list, so a TagsInput Model stored under 0.35.0 does not decode.
+- **A slot's attributes fit `h.textarea`** (#214). `slots.x.attrs()` was
+  typed with every attribute, `InnerHTML` included, which a textarea refuses,
+  so a slot on one needed a cast. It is now typed as its base was, plus what a
+  Mixin adds, which is never `InnerHTML`. `foldkit-mixins-form`'s field
+  `state` is typed likewise.
+- **AppShell and `Layout.center`** (#276). Below `md`, AppShell's side
+  column, which holds a Sidebar's opener, stays in the header's row as the
+  page scrolls. `Layout.center` fills to its measure inside `Layout.stack`
+  (and a flex row) instead of shrinking to its content.
 - **`foldkit-mixins/foundations` builds from the root Vite resolved.** A build
   compiled the sheet module from the current directory, so one started from
   elsewhere (a test, a workspace script) failed with "Failed to load url
   /src/style.ts". A `root` option still wins where given.
+- **`Expr.field` given an expression says what to write** (#209). Wrapping an
+  invariant's `before.x` in `Expr.field` failed with a long error about
+  missing `owner`, `key` and `schema`. A second signature now refuses it with
+  "before.x and after.x are expressions already, so compare them as they
+  are".
+- **`GuardServer.validate` warns only of a write a change can come between**
+  (#223). It named every write through a writer with no `revision`, inserts
+  and deletes of an Entity nothing updates included. It now names an update,
+  and a delete of an Entity the server also updates.
+- **A page keeps only the modules it reads of a published package** (#215,
+  #241). Twenty-five packages were each linked into a few files, so
+  `sideEffects: false` had nothing to drop and `export * as` namespaces became
+  objects keeping every member: a page reading `Collation.binary` kept 73 kB
+  of `foldkit-entity` against 1.9 kB from source, one reading
+  `beginOptimistic` 350 kB of `foldkit-remote` against 1.6 kB, and an
+  Avatar-only page 238.6 kB of `foldkit-mixins-ui` against 99.2 kB gzipped.
+  `foldkit-mixins`, `-mixins-ui`, `-bundle`, `-media`, `-primitives`,
+  `-entity`, `-crud`, `-form`, `-ssr`, `-remote`, `-surface`, `-builder`,
+  `-composition`, `-data-grid`, `-durable`, `-mixins-builder`,
+  `-mixins-crud`, `-mixins-data-grid`, `-mixins-richtext`, `-mixins-surface`,
+  `-react`, `-remote-drizzle`, `-richtext`, `-richtext-markdown` and `-sync`
+  are now published one file per source module, `.js` and `.d.ts` (the export
+  map's paths changed, its subpaths did not).
+- **`foldkit-media` no longer brings `node:module` into a page** (#215). Built
+  for Node, the runtime chunk every entry shares opened with `import
+  "node:module"`, so a browser build of `Icon.draw` warned and carried it. The
+  package is built for the neutral platform.
+- **`foldkit-form`'s published declarations check with `skipLibCheck:
+  false`.** The emitter wrote `Form.input`'s return type out in full, through
+  `foldkit-entity`'s unexported `InputMembers`, and the expansion failed on
+  its own (TS2536), so an application checking its libraries could not
+  compile against `foldkit-form` (0.8.1 included). `Form.input` now names its
+  return type, and `foldkit-entity` exports `InputMembers`.
+- **`foldkit-builder` depends on `foldkit-mixins`.** Its types import
+  `foldkit-primitives/interaction`, whose declarations import
+  `foldkit-mixins`, an optional peer of `foldkit-primitives`; `foldkit-builder`
+  listed it only as a dev dependency, so an application installing it from npm
+  could not resolve `foldkit-mixins` (TS2307, 0.3.14 included).
+- **`npx foldkit-plus setup` runs, and installs one Effect** (#200, #204,
+  #205, #280):
+  - The CLI bundles Effect, so it imports only Node's own modules; run with
+    `--legacy-peer-deps`, npx installed no peers, and an Effect 3 an ancestor
+    folder held crashed it. The README, the skill and the site give the
+    command with `--legacy-peer-deps`, since npx adds a newer `foldkit-plus`
+    to the tree an older one left in its cache and the old tree's `foldkit`
+    failed the new peers with `ERESOLVE`.
+  - It installed `effect@4.0.0`, the release Foldkit names exactly, while
+    `foldkit-durable`'s `@effect/sql-sqlite-node` and `foldkit-auth`'s Yielded
+    need a later one. It now first prints the `package.json` fields that pin
+    every Effect package to 4.0.5 (npm `overrides` beside the project's own
+    Effect dependencies at that release, which npm 10 needs; pnpm `overrides`
+    and `peerDependencyRules`; Yarn `resolutions`; Bun `overrides`), installs
+    at exactly that release, and names each adapter's library at the version
+    the adapter peers on. A pnpm workspace member's pins go to the workspace
+    root (its `pnpm-workspace.yaml`, or its `package.json` where a `pnpm` field
+    is already there), the only place pnpm reads them. `pnpm pack:check`
+    follows every step `setup` prints, from the packed tarballs.
+  - It scaffolds with `create-foldkit-app` 0.40.0, whose templates install
+    Foldkit 0.169, `@foldkit/ui` 0.169 and `@foldkit/vite-plugin` 0.28; 0.39.1
+    wrote 0.168, which `foldkit-mixins-ui` refused.
+  - It prints the spa scaffold command with `--example counter` and the ssg or
+    ssr one without, since `create-foldkit-app` refuses `--example` outside
+    spa; so does the greenfield guide.
+- **Documentation that was wrong or missing:**
+  - The auth README says how to sign up with a password (#218): the
+    contract's `register` action, `Password.make({ registration, reset })` (a
+    `resetLink` needs an `https:` URL), `Persistence.Provisioning` writing the
+    account row in the same commit, the services sign-up needs, and register
+    then sign in on the client; and how to run on Workers with D1 (#222):
+    build auth once per isolate, and give Yielded's `AuthenticationClock` a
+    tolerance, since the Worker's clock and D1's differ.
+  - The SSR README's `styles` recipe carries the theme's stylesheet beside
+    `Style.usedIn`; without it every page `SSR.entry` served flashed unstyled
+    (#211).
+  - The Sync README names both rejection sentences: "Refused by the server"
+    for an `authorize` that refused with no reason, "Not a valid operation"
+    for one that failed.
+  - The skill says to keep the root's Model, Message and `update` in
+    `src/main.ts`, since the scaffold's lint refuses a root Message from
+    `app.ts` (#220), and to import every package as `foldkit-plus/<package>`
+    (#217).
 
 ## 0.35.0
 
