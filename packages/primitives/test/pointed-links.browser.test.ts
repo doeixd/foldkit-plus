@@ -8,7 +8,7 @@
  */
 import { Effect, Fiber, Stream } from 'effect'
 import { toString as urlToString } from 'foldkit/url'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { pointedLinks } from '../src/dom/index.js'
 
@@ -66,17 +66,26 @@ it('reads the link a mouse rests on once, its text and its box alike', async () 
 
 it('reads the link Tab stops on, not the ones it passes', async () => {
   const { links } = page('/one', '/two', '/three')
+  // Out of the pointer's reach: the last test left it where `/two` is drawn,
+  // and a link drawn under it is pointed at, read if the keys come 50ms late.
+  links.forEach(link => (link.style.pointerEvents = 'none'))
   const start = document.createElement('button')
   document.body.prepend(start)
   start.focus()
+  // The rest is counted on a fake clock, so a busy machine's gap between two
+  // Tabs is no rest on the link between.
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
   const { read, stop } = reading()
   try {
+    await vi.advanceTimersByTimeAsync(0)
     await userEvent.keyboard('{Tab}{Tab}{Tab}')
     expect(document.activeElement).toBe(links[2])
-    await expect.poll(() => read).toEqual([at('/three')])
-    await rested()
+    await vi.advanceTimersByTimeAsync(49)
+    expect(read).toEqual([])
+    await vi.advanceTimersByTimeAsync(200)
     expect(read).toEqual([at('/three')])
   } finally {
+    vi.useRealTimers()
     await stop()
   }
 })
