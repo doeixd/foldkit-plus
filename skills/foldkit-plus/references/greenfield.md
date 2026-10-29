@@ -1,7 +1,7 @@
 # Starting a new application
 
 For an empty folder, or a user who says "build me an app". Extending an
-existing application is `npx foldkit-plus setup` alone.
+existing application is `npx --legacy-peer-deps foldkit-plus setup` alone.
 
 The order is the point: **understand, record, map, plan, agree, then build.** Do not
 scaffold features before the domain is agreed; do not write entities before
@@ -58,7 +58,7 @@ application's style module.
 
 ## 3. Scaffold
 
-In the parent folder, run `npx foldkit-plus setup`: with no `package.json` it
+In the parent folder, run `npx --legacy-peer-deps foldkit-plus setup`: with no `package.json` it
 prints the `create-foldkit-app` release whose Foldkit matches this release, as
 a non-interactive command. Run it with the brief's answers:
 
@@ -68,7 +68,7 @@ npx create-foldkit-app@<version setup names> --name <name> --rendering spa --exa
 # ssg or ssr, which take no --example (the scaffold refuses one):
 npx create-foldkit-app@<version setup names> --name <name> --rendering <ssg|ssr> --package-manager <manager>
 cd <name>
-npx foldkit-plus setup
+npx --legacy-peer-deps foldkit-plus setup
 ```
 
 Follow the second `setup` output (install, the skill, imports). Install an

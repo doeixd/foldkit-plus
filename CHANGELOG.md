@@ -1002,6 +1002,23 @@ version changed; `pnpm` skips versions already in the registry.
   `effect` an ancestor folder held: an Effect 3 crashed it before it printed
   anything (#200). Its build now bundles Effect, so it imports only Node's own
   modules.
+- **`npx foldkit-plus setup` is run with `--legacy-peer-deps`** (#200). npx
+  adds a newer `foldkit-plus` to the tree an older one left in its cache, and
+  the old tree's `foldkit` failed the new peers with `ERESOLVE` before the CLI
+  started. The CLI reads none of its peers, so the README, the skill and the
+  site now give the command with the flag.
+- **`setup` installs one Effect on npm, the one this repository tests**
+  (#205). It installed `effect@4.0.0`, the release Foldkit names exactly,
+  while `foldkit-durable`'s `@effect/sql-sqlite-node` and `foldkit-auth`'s
+  Yielded need a later one, so npm warned on the install and refused
+  `foldkit-auth`; the advice beside it, `legacy-peer-deps`, turned every peer
+  check off. `setup` now first prints the `package.json` fields that pin every
+  Effect package to 4.0.5 (npm `overrides`, pnpm `overrides` and
+  `peerDependencyRules`, Yarn `resolutions`, Bun `overrides`), installs at
+  exactly that release, and names each adapter's library at the version the
+  adapter peers on: a bare `@yielded/auth` installed an older beta on pnpm.
+  `pnpm pack:check` now follows every npm step `setup` prints, from the
+  packed tarballs, in an ssr scaffold made with the command it prints.
 - **`foldkit-mixins/foundations` builds from the root Vite resolved.** A build
   compiled the sheet module from the current directory, so one started from
   elsewhere (a test, a workspace script) failed with "Failed to load url

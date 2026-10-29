@@ -42,9 +42,9 @@ const read = (name: string): Record<string, unknown> =>
   JSON.parse(readFileSync(join(here, name), 'utf8'))
 
 const manifest = read('package.json')
-const setup = setupOf(
-  JSON.parse(readFileSync(join(here, 'node_modules/foldkit/package.json'), 'utf8')),
-)
+const installed = (name: string) =>
+  JSON.parse(readFileSync(join(here, 'node_modules', name, 'package.json'), 'utf8'))
+const setup = setupOf(installed('foldkit'), installed('effect'))
 const devDependencies = manifest['devDependencies']
 if (typeof devDependencies !== 'object' || devDependencies === null)
   throw new Error('packages/plus/package.json has no devDependencies')

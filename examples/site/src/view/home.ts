@@ -14,7 +14,7 @@ import { Message, type Example, type Model } from '../main.js'
 import type { H, Slots } from './layout.js'
 
 /** What the reader hands their coding agent: the command prints the rest for their project. */
-const SETUP = 'Please run `npx foldkit-plus setup` and follow the instructions.'
+const SETUP = 'Please run `npx --legacy-peer-deps foldkit-plus setup` and follow the instructions.'
 
 /** The page's sections, as the rail lists them. */
 const sections = [

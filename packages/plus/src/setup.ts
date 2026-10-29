@@ -16,7 +16,10 @@ export interface Project {
   readonly gitattributes: boolean
 }
 
-/** The versions this release is built and tested against, from its own manifest. */
+/**
+ * The versions this release is built and tested against, from its own
+ * manifest: the workspace's Foldkit and Effect.
+ */
 export interface Versions {
   readonly plus: string
   readonly effect: string
@@ -153,65 +156,122 @@ export const jobs: ReadonlyArray<{
 
 /**
  * The packages `foldkit-plus` does not install, since each needs a library of
- * its own, and that library. `test/setup.test.ts` holds this to the manifest.
+ * its own, and that library at the range the adapter peers on: a manager
+ * given a bare name installs the `latest` tag, which for `@yielded/auth` is a
+ * beta older than the one `foldkit-auth` names. `test/generated.test.ts`
+ * holds this to the manifests.
  */
 export const adapters: ReadonlyArray<{
   readonly name: string
   readonly libraries: ReadonlyArray<string>
   readonly when: string
-  /** The least Effect its library needs, where that is past Foldkit's exact `effect` peer. */
-  readonly effect?: string
 }> = [
   {
     name: 'foldkit-agent-native',
-    libraries: ['@agent-native/core'],
+    libraries: ['@agent-native/core@0.214.0'],
     when: 'agents through Agent Native',
   },
   {
     name: 'foldkit-auth',
-    libraries: ['@yielded/auth'],
+    libraries: ['@yielded/auth@0.1.0-beta.43'],
     when: 'sign-in and sessions with Yielded Auth',
-    effect: '4.0.4',
   },
-  { name: 'foldkit-cms-drizzle', libraries: ['drizzle-orm'], when: "the CMS's server on Drizzle" },
+  {
+    name: 'foldkit-cms-drizzle',
+    libraries: ['drizzle-orm@1.0.0-rc.5'],
+    when: "the CMS's server on Drizzle",
+  },
   {
     name: 'foldkit-mixins-ui',
-    libraries: ['@foldkit/ui'],
+    libraries: ['@foldkit/ui@^0.169.0'],
     when: 'styling `@foldkit/ui` components through slots',
   },
-  { name: 'foldkit-react', libraries: ['react', 'react-dom'], when: 'React interop' },
+  {
+    name: 'foldkit-react',
+    libraries: ['react@^19.0.0', 'react-dom@^19.0.0'],
+    when: 'React interop',
+  },
   {
     name: 'foldkit-react-codegen',
-    libraries: ['typescript'],
+    libraries: ['typescript@>=5.7.2 <7'],
     when: 'compiling Foldkit views to React TSX (a dev dependency)',
   },
   {
     name: 'foldkit-remote-drizzle',
-    libraries: ['drizzle-orm'],
+    libraries: ['drizzle-orm@1.0.0-rc.5'],
     when: 'answering Remote reads with Drizzle',
   },
   {
     name: 'foldkit-richtext-code-shiki',
-    libraries: ['shiki'],
+    libraries: ['shiki@^4.4.3'],
     when: 'highlighting code blocks with Shiki',
   },
 ]
 
 /**
- * How `manager` lets a library need a later Effect than Foldkit's exact
- * `effect` peer allows, which every manager otherwise refuses or warns of.
+ * The Effect packages an application meets that something names at a version
+ * of its own: Foldkit's peers and its Vite plugin's dependencies name one
+ * release exactly, and each `@effect/*` package peers on an `effect` at least
+ * its own version. Setup holds all of them at the Effect this release is
+ * tested on, as `pnpm-workspace.yaml` does here (`test/generated.test.ts`
+ * keeps the two lists together).
  */
-const laterEffect = (manager: Manager, foldkitEffect: string, needed: string): string =>
-  ({
-    npm: `npm refuses it: add \`legacy-peer-deps=true\` to \`.npmrc\`, then install \`effect@^${needed}\`, so one Effect is installed`,
-    pnpm: `allow it in \`package.json\`: \`"pnpm": { "peerDependencyRules": { "allowedVersions": { "foldkit>effect": "${needed}" } } }\``,
-    yarn: `allow Foldkit's \`effect\` peer at ${needed}, or Yarn warns of it`,
-    bun: `allow Foldkit's \`effect\` peer at ${needed}, or Bun warns of it`,
-  })[manager] + ` (Foldkit pins \`effect\` ${foldkitEffect} exactly)`
+export const effectPackages: ReadonlyArray<string> = [
+  'effect',
+  '@effect/platform-browser',
+  '@effect/platform-node',
+  '@effect/platform-node-shared',
+  '@effect/sql-sqlite-node',
+]
 
-/** The command that adds `packages` with `manager`. */
-export const addCommand = (manager: Manager, packages: ReadonlyArray<string>): string =>
-  `${manager} ${manager === 'npm' ? 'install' : 'add'} ${packages.join(' ')}`
+/**
+ * The `package.json` fields that hold every Effect package at `effect`, as
+ * JSON to merge in. npm refuses an override of a package the project depends
+ * on unless it is spelled `$name`, the version the project names.
+ */
+const pinsOf = (manager: Manager, effect: string, direct: ReadonlySet<string>): string => {
+  const pins = Object.fromEntries(
+    effectPackages.map(name => [name, manager === 'npm' && direct.has(name) ? `$${name}` : effect]),
+  )
+  const fields = {
+    npm: { overrides: pins },
+    pnpm: {
+      pnpm: {
+        overrides: pins,
+        peerDependencyRules: {
+          allowedVersions: { effect, '@effect/platform-browser': effect },
+        },
+      },
+    },
+    yarn: { resolutions: pins },
+    bun: { overrides: pins },
+  }[manager]
+  return JSON.stringify(fields, null, 2)
+}
+
+/** Why `manager` needs the pins, after "first merge this into `package.json`". */
+const pinsWhy: Readonly<Record<Manager, string>> = {
+  npm: 'npm refuses a peer it does not match, and `overrides` lets one in without turning every peer check off',
+  pnpm: "`overrides` sets the version, and `peerDependencyRules` lets Foldkit's exact peers accept it",
+  yarn: "`resolutions` sets the version; Yarn warns of Foldkit's exact peers, and installs",
+  bun: "`overrides` sets the version; Bun warns of Foldkit's exact peers, and installs",
+}
+
+/**
+ * The command that adds `packages` with `manager`, at exactly the versions
+ * named when `exact`. A range a shell would read (`^`, `>`, a space) is quoted.
+ */
+export const addCommand = (
+  manager: Manager,
+  packages: ReadonlyArray<string>,
+  exact = false,
+): string =>
+  [
+    manager,
+    manager === 'npm' ? 'install' : 'add',
+    ...(exact ? [manager === 'npm' || manager === 'pnpm' ? '--save-exact' : '--exact'] : []),
+    ...packages.map(spec => (/^[\w@/.-]+$/.test(spec) ? spec : `"${spec}"`)),
+  ].join(' ')
 
 /** The major version a range asks for: `^4.0.0`, `~4.1`, `4.0.0-beta.1` all ask for 4. */
 const majorOf = (range: string): Option.Option<number> =>
@@ -234,12 +294,24 @@ const finding = (project: Project, library: string, wanted: string): string =>
   })
 
 export const setupGuide = ({ project, manager, versions }: SetupInput): string => {
-  const install = addCommand(manager, [
-    `effect@${versions.effect}`,
-    `foldkit@${versions.foldkit}`,
-    `@effect/platform-browser@${versions.effect}`,
-    'foldkit-plus',
-  ])
+  // Every Effect package the project names moves with `effect`, so the pins hold.
+  const listed = Option.match(project, {
+    onNone: () => [],
+    onSome: found => effectPackages.filter(name => found.versions[name] !== undefined),
+  })
+  const moved = new Set(['effect', '@effect/platform-browser', ...listed])
+  const install = addCommand(
+    manager,
+    [
+      `effect@${versions.effect}`,
+      `foldkit@${versions.foldkit}`,
+      ...effectPackages
+        .filter(name => name !== 'effect' && moved.has(name))
+        .map(name => `${name}@${versions.effect}`),
+      'foldkit-plus',
+    ],
+    true,
+  )
   const check = Option.match(project, {
     onNone: () => [
       'There is no `package.json` here: this is a new application. Do not scaffold yet. Follow the greenfield guide, which asks the user about the goals, the look and the domain before any code:',
@@ -253,7 +325,7 @@ export const setupGuide = ({ project, manager, versions }: SetupInput): string =
       `npx ${SCAFFOLDER} --name <name> --rendering <ssg|ssr> --package-manager ${manager}`,
       '```',
       '',
-      'Then run `npx foldkit-plus setup` again in the new folder and continue from step 2.',
+      'Then run `npx --legacy-peer-deps foldkit-plus setup` again in the new folder and continue from step 2.',
     ],
     onSome: found => [
       `This is \`${found.name}\`, installed with ${manager}.`,
@@ -290,6 +362,14 @@ export const setupGuide = ({ project, manager, versions }: SetupInput): string =
     '',
     '## 2. Install',
     '',
+    `Foldkit and its tooling name one Effect release exactly, and Foldkit Plus is tested on ${versions.effect}. To install one copy of each Effect package, at that release, first merge this into \`package.json\` (${pinsWhy[manager]}):`,
+    '',
+    '```json',
+    pinsOf(manager, versions.effect, moved),
+    '```',
+    '',
+    'Then install:',
+    '',
     '```bash',
     install,
     '```',
@@ -297,11 +377,7 @@ export const setupGuide = ({ project, manager, versions }: SetupInput): string =
     '`foldkit-plus` brings every package except the adapters below, each of which needs a library of its own. Add one only when the application needs it:',
     '',
     ...adapters.map(
-      each =>
-        `- ${each.when}: \`${addCommand(manager, [each.name, ...each.libraries])}\`` +
-        (each.effect === undefined
-          ? ''
-          : `. It needs Effect ${each.effect} or later; ${laterEffect(manager, versions.effect, each.effect)}.`),
+      each => `- ${each.when}: \`${addCommand(manager, [each.name, ...each.libraries])}\``,
     ),
     '',
     '## 3. Add the agent skill',

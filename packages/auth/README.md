@@ -82,23 +82,33 @@ cross-site `GET`), and a safe `GET` makes a gap in that check cost nothing.
 pnpm add effect @yielded/auth foldkit-remote foldkit-remote-server foldkit-auth
 ```
 
-`@yielded/auth` is a peer, pinned exactly while Yielded is in beta. Yielded
+`@yielded/auth` is a peer, pinned exactly while Yielded is in beta: install
+`@yielded/auth@0.1.0-beta.43`, since its `latest` tag is an older beta. Yielded
 needs `effect` 4.0.3 or later, while `foldkit` declares exactly `4.0.0`, so
-until Foldkit widens its peer an application allows it in its `package.json`:
+until Foldkit widens its peer an application pins every Effect package to one
+later release in its `package.json`. With pnpm:
 
 ```json
 {
   "pnpm": {
-    "peerDependencyRules": { "allowedVersions": { "foldkit>effect": "4.0.4" } },
-    "overrides": { "foldkit>@effect/platform-browser": "4.0.4" }
+    "overrides": {
+      "effect": "4.0.5",
+      "@effect/platform-browser": "4.0.5",
+      "@effect/platform-node": "4.0.5",
+      "@effect/platform-node-shared": "4.0.5",
+      "@effect/sql-sqlite-node": "4.0.5"
+    },
+    "peerDependencyRules": {
+      "allowedVersions": { "effect": "4.0.5", "@effect/platform-browser": "4.0.5" }
+    }
   }
 }
 ```
 
-npm has no rule that allows one peer, and refuses the pair: add
-`legacy-peer-deps=true` to `.npmrc`, then install `effect@^4.0.4`, so the tree
-holds one Effect. `npx foldkit-plus setup` prints the line for the project's
-package manager beside `foldkit-auth`.
+npm takes the same pins as `overrides`, where a package the project depends
+on itself is written `$name` (`"effect": "$effect"`) and installed at the
+release. `npx --legacy-peer-deps foldkit-plus setup` prints the fields for the
+project's package manager.
 
 ## Sixty seconds
 

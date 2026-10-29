@@ -17,7 +17,7 @@ import {
   setupOf,
   writtenFiles,
 } from '../scripts/entries.js'
-import { adapters, jobs } from '../src/setup.js'
+import { adapters, effectPackages, jobs } from '../src/setup.js'
 
 const here = join(import.meta.dirname, '..')
 const packages = included(join(here, '../..'))
@@ -50,13 +50,24 @@ describe('foldkit-plus, against the workspace', () => {
       expect(manifest[field], field).toEqual(expected[field])
   })
 
-  it('installs the Foldkit tested here, with the Effect it asks for', () => {
-    expect(json('package.json').setup).toEqual(setupOf(json('node_modules/foldkit/package.json')))
+  it('installs the Foldkit and the Effect tested here', () => {
+    expect(json('package.json').setup).toEqual(
+      setupOf(json('node_modules/foldkit/package.json'), json('node_modules/effect/package.json')),
+    )
   })
 
   it('references each from both tsconfigs', () => {
     for (const name of ['tsconfig.json', 'tsconfig.build.json'])
       expect(json(name).references, name).toEqual(references(packages))
+  })
+
+  it("pins in setup's guide the Effect packages the workspace pins", () => {
+    // `effect` itself the workspace allows through `peerDependencyRules`.
+    const workspace = readFileSync(join(here, '../../pnpm-workspace.yaml'), 'utf8')
+    const overrides = /^overrides:\n((?: {2}.+\n)+)/m.exec(workspace)?.[1] ?? ''
+    expect([...effectPackages].sort()).toEqual(
+      ['effect', ...[...overrides.matchAll(/^  '([^']+)':/gm)].map(match => match[1])].sort(),
+    )
   })
 
   it("names every adapter in setup's guide, with the libraries that make it one", () => {

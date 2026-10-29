@@ -77,10 +77,11 @@ on every Remote call kind.
 - Remote's calls verify a session and never renew it: a session with an
   `idleTimeout` ends that long after its last renewal. Renew through Yielded
   (`renewSession`) while the reader is active.
-- An application needs Foldkit's exact `effect: 4.0.0` peer allowed
-  (`pnpm.peerDependencyRules.allowedVersions: { "foldkit>effect": "4.0.4" }`),
-  since Yielded needs 4.0.3 or later. npm refuses the pair outright: add
-  `legacy-peer-deps=true` to `.npmrc` and install `effect@^4.0.4`.
+- Yielded needs `effect` 4.0.3 or later, and Foldkit names 4.0.0 exactly: pin
+  every Effect package to one later release, as `npx --legacy-peer-deps
+  foldkit-plus setup` prints (npm `overrides`, pnpm `overrides` with
+  `peerDependencyRules`), and install `@yielded/auth@0.1.0-beta.43`, the
+  release `foldkit-auth` names, not the `latest` tag.
 
 - `x-foldkit-subject` (`SUBJECT_HEADER` from `foldkit-auth`, browser-safe):
   give `serveFetch` `headers: AuthServer.answered(config)` (the resolver's

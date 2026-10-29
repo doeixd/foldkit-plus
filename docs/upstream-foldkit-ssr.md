@@ -244,6 +244,35 @@ call, and the issue can point at 0.164.0's changeset for the motivation.
 `SSR.hydrate`, `SSR.entry`, and `generateStaticSite`, defaulting to the
 compiled id, and drop `FOLDKIT_BUILD_ID` from the examples' setup.
 
+## Proposal 5: let an application choose its Effect 4
+
+Not an SSR change, but every application on these packages meets it
+(#200, #205). Foldkit 0.169 and its tooling name one Effect release exactly:
+
+| Package | Names exactly |
+| --- | --- |
+| `foldkit` | peers `effect` and `@effect/platform-browser` 4.0.0 |
+| `@foldkit/ui` | peers `effect` 4.0.0 |
+| `@foldkit/devtools` | peers `effect` and `@effect/platform-browser` 4.0.0 |
+| `@foldkit/vite-plugin` | peers `effect` 4.0.0; depends on `@effect/platform-node` and `@effect/platform-node-shared` 4.0.0 |
+
+Every `@effect/*` package peers on an `effect` at least its own version
+(`@effect/sql-sqlite-node` 4.0.5 on `^4.0.5`, 4.1.0 on `^4.1.0`), so an
+application that adds any of them at a later release, or a library that needs
+one (`@yielded/auth` asks for `^4.0.3`), cannot also satisfy Foldkit's peers.
+npm refuses the install (`ERESOLVE`); pnpm, Yarn and Bun warn. Our workaround
+pins every Effect package to the release this repository tests: `overrides`
+and `peerDependencyRules` in `pnpm-workspace.yaml` here, and the fields
+`npx foldkit-plus setup` prints for an application (npm `overrides`, with
+`$name` for a package the application depends on itself).
+
+**The ask:** peer on `effect: ^4.0.0` and `@effect/platform-browser: ^4.0.0`,
+and depend on `@effect/platform-node` and `@effect/platform-node-shared` at
+`^4.0.0` (or make them peers), in all four packages. That needs Foldkit's CI
+to pass against the newest 4.x as well as the floor. When it ships, `setup`
+drops the pins: `pinsOf` in `packages/plus/src/setup.ts` and the fields in
+the root README.
+
 ## What we are not asking for
 
 These were on this repository's list and are dropped or held after this
@@ -276,6 +305,7 @@ check:
 3. Proposal 2 as an issue, then a pull request on the agreed shape.
 4. Proposal 3 as a question, after `foldkit-ssr` is published and in use.
 5. Proposal 4 as an issue, any time: it needs nothing from the others.
+6. Proposal 5 as an issue, any time: it needs nothing from the others.
 
 Each upstream change is followed here by removing the workaround it replaces,
 with the SSR plan and README updated in the same commit.

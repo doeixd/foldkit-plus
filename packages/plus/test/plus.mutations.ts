@@ -75,12 +75,6 @@ export default [
     tests: ['packages/plus/test/setup.test.ts'],
   },
   edit(
-    'the auth adapter says nothing of the Effect it needs',
-    '../src/setup.ts',
-    "    effect: '4.0.4',",
-    '',
-  ),
-  edit(
     'an ssg or ssr scaffold is told to take an example',
     '../src/setup.ts',
     '--rendering <ssg|ssr> --package-manager',
@@ -131,6 +125,48 @@ export default [
     ],
     tests: ['packages/plus/test/cli.test.ts'],
   },
+  edit(
+    'npm overrides a package the project depends on by version, which npm refuses',
+    '../src/setup.ts',
+    "manager === 'npm' && direct.has(name)",
+    'false',
+  ),
+  edit(
+    'an Effect package the project names stays where it was',
+    '../src/setup.ts',
+    "const moved = new Set(['effect', '@effect/platform-browser', ...listed])",
+    "const moved = new Set(['effect', '@effect/platform-browser'])",
+  ),
+  edit(
+    'pnpm is not let past Foldkit’s exact peers',
+    '../src/setup.ts',
+    'peerDependencyRules: {',
+    'peerDependencyRule: {',
+  ),
+  edit(
+    'the install leaves ranges to float',
+    '../src/setup.ts',
+    '    true,\n  )',
+    '    false,\n  )',
+  ),
+  edit(
+    'a range is left to the shell',
+    '../src/setup.ts',
+    'spec => (/^[\\w@/.-]+$/.test(spec) ? spec : `"${spec}"`)',
+    'spec => spec',
+  ),
+  edit(
+    'an adapter library is named bare',
+    '../scripts/entries.ts',
+    '.map(([peer, range]) => `${peer}@${range}`)',
+    '.map(([peer]) => peer)',
+  ),
+  edit(
+    'setup installs the Effect Foldkit names, not the one tested',
+    '../scripts/entries.ts',
+    '({ foldkit: foldkit.version, effect: effect.version })',
+    "({ foldkit: foldkit.version, effect: '4.0.0' })",
+  ),
   edit(
     "a project is not given the skill's AGENTS.md block",
     '../src/setup.ts',

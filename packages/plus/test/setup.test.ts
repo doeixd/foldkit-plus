@@ -5,10 +5,10 @@
 import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
 
-import { SCAFFOLDER, addCommand, setupGuide, type Project } from '../src/setup.js'
+import { SCAFFOLDER, addCommand, setupGuide, type Manager, type Project } from '../src/setup.js'
 
-const versions = { plus: '0.1.0', effect: '4.0.0', foldkit: '0.165.0' }
-const guide = (project: Option.Option<Project>, manager: 'pnpm' | 'npm' = 'pnpm') =>
+const versions = { plus: '0.1.0', effect: '4.0.5', foldkit: '0.165.0' }
+const guide = (project: Option.Option<Project>, manager: Manager = 'pnpm') =>
   setupGuide({ project, manager, versions })
 const project = (deps: Readonly<Record<string, string>>, gitattributes = true) =>
   Option.some({ name: 'todo', versions: deps, gitattributes })
@@ -48,7 +48,7 @@ describe('setupGuide', () => {
 
   it('names a library at the wrong version, a Foldkit minor apart included', () => {
     const text = guide(project({ effect: '^3.17.0', foldkit: '^0.163.0' }))
-    expect(text).toContain('`effect` is ^3.17.0, and Foldkit Plus needs 4.0.0')
+    expect(text).toContain('`effect` is ^3.17.0, and Foldkit Plus needs 4.0.5')
     expect(text).toContain('`foldkit` is ^0.163.0, and Foldkit Plus needs 0.165.0')
   })
 
@@ -70,9 +70,15 @@ describe('setupGuide', () => {
 
   it("installs with the project's package manager, adapters one by one", () => {
     expect(guide(Option.none(), 'pnpm')).toContain(
-      'pnpm add effect@4.0.0 foldkit@0.165.0 @effect/platform-browser@4.0.0 foldkit-plus',
+      'pnpm add --save-exact effect@4.0.5 foldkit@0.165.0 @effect/platform-browser@4.0.5 foldkit-plus',
     )
-    expect(guide(Option.none(), 'npm')).toContain('npm install foldkit-react react react-dom')
+    expect(guide(Option.none(), 'npm')).toContain(
+      'npm install foldkit-react "react@^19.0.0" "react-dom@^19.0.0"',
+    )
+    // A bare name would install the `latest` tag, an older Yielded beta.
+    expect(guide(Option.none(), 'pnpm')).toContain(
+      'pnpm add foldkit-auth @yielded/auth@0.1.0-beta.43',
+    )
   })
 
   it('points at the agent skill', () => {
@@ -90,32 +96,68 @@ describe('setupGuide', () => {
 
 describe('addCommand', () => {
   it.each([
-    ['npm', 'npm install a b'],
-    ['pnpm', 'pnpm add a b'],
-    ['yarn', 'yarn add a b'],
-    ['bun', 'bun add a b'],
-  ] as const)('%s', (manager, command) => {
+    ['npm', 'npm install a b', 'npm install --save-exact a b'],
+    ['pnpm', 'pnpm add a b', 'pnpm add --save-exact a b'],
+    ['yarn', 'yarn add a b', 'yarn add --exact a b'],
+    ['bun', 'bun add a b', 'bun add --exact a b'],
+  ] as const)('%s', (manager, command, exact) => {
     expect(addCommand(manager, ['a', 'b'])).toBe(command)
+    expect(addCommand(manager, ['a', 'b'], true)).toBe(exact)
+  })
+
+  it('quotes a range a shell would read', () => {
+    expect(addCommand('npm', ['a@1.0.0-rc.5', 'b@^2.0.0', 'c@>=5 <7'])).toBe(
+      'npm install a@1.0.0-rc.5 "b@^2.0.0" "c@>=5 <7"',
+    )
   })
 })
 
-describe('an adapter that needs a later Effect than Foldkit allows', () => {
-  const authLine = (manager: 'pnpm' | 'npm') =>
-    guide(project({ effect: '4.0.0', foldkit: '0.165.0' }), manager)
-      .split('\n')
-      .find(line => line.includes('foldkit-auth @yielded/auth'))
-  it.each([
-    ['npm', 'add `legacy-peer-deps=true` to `.npmrc`, then install `effect@^4.0.4`'],
-    ['pnpm', '"peerDependencyRules": { "allowedVersions": { "foldkit>effect": "4.0.4" } }'],
-  ] as const)('tells %s how to let it in', (manager, fix) => {
-    expect(authLine(manager)).toContain('It needs Effect 4.0.4 or later')
-    expect(authLine(manager)).toContain(fix)
-    expect(authLine(manager)).toContain('Foldkit pins `effect` 4.0.0 exactly')
+/** The fields step 2 has the project merge into its `package.json`. */
+const pins = (text: string) => JSON.parse(/```json\n([\s\S]*?)\n```/.exec(text)?.[1] ?? 'null')
+
+describe('one Effect for every Effect package', () => {
+  const effect = {
+    effect: '4.0.5',
+    '@effect/platform-browser': '4.0.5',
+    '@effect/platform-node': '4.0.5',
+    '@effect/platform-node-shared': '4.0.5',
+    '@effect/sql-sqlite-node': '4.0.5',
+  }
+
+  it('has npm override what the project installs as `$name`, the rest at the release', () => {
+    // An ssr scaffold names `@effect/platform-node` itself.
+    const ssr = project({ effect: '4.0.0', '@effect/platform-node': '4.0.0' })
+    const text = guide(ssr, 'npm')
+    expect(pins(text)).toEqual({
+      overrides: {
+        ...effect,
+        effect: '$effect',
+        '@effect/platform-browser': '$@effect/platform-browser',
+        '@effect/platform-node': '$@effect/platform-node',
+      },
+    })
+    // Each `$name` names a version the install line moves to the release.
+    expect(text).toContain(
+      'npm install --save-exact effect@4.0.5 foldkit@0.165.0 @effect/platform-browser@4.0.5 @effect/platform-node@4.0.5 foldkit-plus',
+    )
   })
-  it('says nothing of Effect beside an adapter that needs no later one', () => {
-    const shiki = guide(project({}), 'npm')
-      .split('\n')
-      .find(line => line.includes('foldkit-richtext-code-shiki shiki'))
-    expect(shiki).not.toContain('Effect')
+
+  it.each([
+    [
+      'pnpm',
+      {
+        pnpm: {
+          overrides: effect,
+          peerDependencyRules: {
+            allowedVersions: { effect: '4.0.5', '@effect/platform-browser': '4.0.5' },
+          },
+        },
+      },
+    ],
+    ['yarn', { resolutions: effect }],
+    ['bun', { overrides: effect }],
+  ] as const)('gives %s the release itself', (manager, fields) => {
+    const text = guide(project({ '@effect/platform-node': '4.0.0' }), manager)
+    expect(pins(text)).toEqual(fields)
   })
 })

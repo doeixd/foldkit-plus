@@ -22,7 +22,7 @@ Every package keeps that rule:
 - the URL and storage mirror a slice of the Model, never own it;
 - views are extended from outside without forking them.
 
-Targets Foldkit `0.169.x` and Effect 4 stable (`effect@4.0.0`); see the peer
+Targets Foldkit `0.169.x` and Effect 4, tested on `effect@4.0.5`; see the peer
 list under the rules below. APIs are `0.x` and may break between minors.
 
 ## Pick the package by who owns the data
@@ -148,16 +148,17 @@ App.model.remote, … })`, `Mirror.url(App, …)`, and `SurfaceView.define(TodoL
   placements and integration wirings (`Data.wiring(…)`, `….wiring('UrlChanged')`,
   contract-only `….wiring()`); routing, startup Commands, Subscriptions, and the
   Module derive from the list. See `bundle.md` and the integration's page.
-- **Install** `foldkit-plus` for every package at once (`pnpm add effect@4.0.0
-  foldkit@0.169.0 foldkit-plus`, then import `foldkit-plus/<package>`, as in
+- **Install** `foldkit-plus` for every package at once (`pnpm add --save-exact
+  effect@4.0.5 foldkit@0.169.0 foldkit-plus`, after pinning every Effect
+  package to 4.0.5, since Foldkit names 4.0.0 exactly; then import `foldkit-plus/<package>`, as in
   `foldkit-plus/remote-server`), or each package on its own with its peers; both name
   the same modules. With `foldkit-plus`, write every import that way, subpaths too:
   the snippets here and the theme page name the packages themselves
   (`foldkit-mixins/app` is `foldkit-plus/mixins/app`, `foldkit-entity` is
   `foldkit-plus/entity`), which resolve only where a package is installed on its own. Adapters that need a library of their own (`foldkit-react`, the
   Drizzle packages, `foldkit-mixins-ui`, `-richtext-code-shiki`, `-agent-native`) are
-  added with it. `npx foldkit-plus setup` prints all of this for the project it runs
-  in, and a `.gitattributes` that keeps LF where none applies. `foldkit-durable` needs Node >= 22.
+  added with it. `npx --legacy-peer-deps foldkit-plus setup` prints all of this, the
+  pins included, for the project it runs in, and a `.gitattributes` that keeps LF where none applies. `foldkit-durable` needs Node >= 22.
 - **A new application** starts with the user, not with code: the brief, the look
   (a theme from foldkit-plus.pages.dev/create), the domain
   in rounds, recorded in `docs/domain/` and mapped to these packages (the user,

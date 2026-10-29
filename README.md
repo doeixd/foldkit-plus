@@ -466,17 +466,37 @@ reading order.
 Tell your coding agent to run:
 
 ```bash
-npx foldkit-plus setup
+npx --legacy-peer-deps foldkit-plus setup
 ```
 
 It reads your project and prints what to install with your package manager, the
 `effect` or `foldkit` version that needs changing, a `.gitattributes` that keeps
 LF line endings when the project has none, the agent skill, and which package
 does which job. By hand, `foldkit-plus` brings every package at once,
-each under a subpath named for it (`foldkit-plus/remote-server`):
+each under a subpath named for it (`foldkit-plus/remote-server`). Foldkit names
+Effect `4.0.0` exactly and these packages are tested on `4.0.5`, so pin every
+Effect package to it first, as this repository's `pnpm-workspace.yaml` does
+(`setup` prints the fields for npm, Yarn and Bun too):
+
+```json
+{
+  "pnpm": {
+    "overrides": {
+      "effect": "4.0.5",
+      "@effect/platform-browser": "4.0.5",
+      "@effect/platform-node": "4.0.5",
+      "@effect/platform-node-shared": "4.0.5",
+      "@effect/sql-sqlite-node": "4.0.5"
+    },
+    "peerDependencyRules": {
+      "allowedVersions": { "effect": "4.0.5", "@effect/platform-browser": "4.0.5" }
+    }
+  }
+}
+```
 
 ```bash
-pnpm add effect@4.0.0 foldkit@0.169.0 @effect/platform-browser@4.0.0 foldkit-plus
+pnpm add --save-exact effect@4.0.5 foldkit@0.169.0 @effect/platform-browser@4.0.5 foldkit-plus
 ```
 
 Or install the pieces for the boundary you are adding; the packages are designed

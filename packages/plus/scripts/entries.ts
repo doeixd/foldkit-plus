@@ -24,7 +24,7 @@ export interface Included {
   readonly dir: string
   /** Needs a library beyond Effect, Foldkit and this workspace: an optional peer. */
   readonly adapter: boolean
-  /** The libraries that make it an adapter. */
+  /** The libraries that make it an adapter, each at the range it peers on (`shiki@^4.4.3`). */
   readonly libraries: ReadonlyArray<string>
   readonly entries: ReadonlyArray<Entry>
 }
@@ -55,13 +55,15 @@ export const included = (root: string): ReadonlyArray<Included> =>
     .map(dir => ({ dir, manifest: manifestOf(join(root, 'packages', dir, 'package.json')) }))
     .filter(({ manifest }) => manifest.private !== true)
     .map(({ dir, manifest }) => {
-      const libraries = Object.keys(manifest.peerDependencies ?? {}).filter(
-        peer =>
-          peer !== 'effect' &&
-          peer !== 'foldkit' &&
-          !peer.startsWith('foldkit-') &&
-          manifest.peerDependenciesMeta?.[peer]?.optional !== true,
-      )
+      const libraries = Object.entries(manifest.peerDependencies ?? {})
+        .filter(
+          ([peer]) =>
+            peer !== 'effect' &&
+            peer !== 'foldkit' &&
+            !peer.startsWith('foldkit-') &&
+            manifest.peerDependenciesMeta?.[peer]?.optional !== true,
+        )
+        .map(([peer, range]) => `${peer}@${range}`)
       const entries = Object.entries(manifest.exports ?? {}).flatMap(([subpath, target]) => {
         const source = isRecord(target) ? target['foldkit-plus:source'] : undefined
         // A declaration file (`foldkit-media/client`'s ambient `?image` type) is no module to re-export.
@@ -155,18 +157,14 @@ export const generatedFields = (
 }
 
 /**
- * What `npx foldkit-plus setup` installs, from the manifest of the Foldkit
- * tested here: that Foldkit, and the Effect it asks for. Foldkit names one
- * exactly, and npm refuses any other.
+ * What `npx foldkit-plus setup` installs, from the manifests of the Foldkit and
+ * the Effect tested here. Foldkit names an older Effect exactly, which setup's
+ * guide pins past.
  */
-export const setupOf = (foldkit: {
-  readonly version: string
-  readonly peerDependencies: Readonly<Record<string, string>>
-}) => {
-  const effect = foldkit.peerDependencies['effect']
-  if (effect === undefined) throw new Error('Foldkit names no Effect peer')
-  return { foldkit: foldkit.version, effect }
-}
+export const setupOf = (
+  foldkit: { readonly version: string },
+  effect: { readonly version: string },
+) => ({ foldkit: foldkit.version, effect: effect.version })
 
 /** The projects `foldkit-plus`'s `tsconfig.json` references: one per package it re-exports. */
 export const references = (packages: ReadonlyArray<Included>) =>

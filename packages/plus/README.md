@@ -4,10 +4,14 @@ Every Foldkit Plus package in one install, and a setup command for your coding
 agent.
 
 ```bash
-npx foldkit-plus setup
+npx --legacy-peer-deps foldkit-plus setup
 ```
 
-Tell your agent to run that in your project. It prints, for that project, how to
+Tell your agent to run that in your project. The CLI carries everything it
+runs on, so `--legacy-peer-deps` only stops npx installing the package's peers
+beside it, which it never reads: npx adds a newer `foldkit-plus` to the tree
+an older one left in its cache, and their peers' Foldkit versions clash
+(`ERESOLVE`) where none is needed. It prints, for that project, how to
 install Effect, Foldkit and Foldkit Plus with the package manager the project
 uses, how to add the agent skill, and which package does which job. It reads
 your `package.json` first and says when `effect` or `foldkit` is missing or at a
@@ -158,9 +162,14 @@ uses both subpaths.
 
 ## Versions
 
-`effect` and `foldkit` are peers: this release targets Effect 4 (`^4.0.0`,
-tested on 4.0.4) and Foldkit `0.168`, and `setup` installs the Effect that
-Foldkit names (`4.0.0`). Each release of `foldkit-plus` pins the release of every
+`effect` and `foldkit` are peers: this release targets Effect 4 (`^4.0.0`) and
+Foldkit `0.169`, and `setup` installs the Foldkit and the Effect this
+repository tests (`package.json`'s `setup` field). Foldkit and its Vite plugin
+name one Effect release exactly (`4.0.0`), older than that, so `setup` first
+has the project pin every Effect package to the tested one: npm `overrides`,
+pnpm `overrides` with `peerDependencyRules`, Yarn `resolutions`. That also
+holds `foldkit-durable`'s `@effect/sql-sqlite-node`, whose every release peers
+on an `effect` at least its own version. Each release of `foldkit-plus` pins the release of every
 package it brings, so the set is one tested combination; the
 [release matrix](https://github.com/doeixd/foldkit-plus/blob/main/docs/releases.md)
 lists them.
