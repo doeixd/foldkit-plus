@@ -72,6 +72,14 @@ const app = Layers.standard.layer('app')
 
 // --- the page ------------------------------------------------------------------
 
+/** Where the app sits in the document: at the top, centred, on the muted surface. */
+export const BodyStyle: StyleValue = Layers.standard.in(
+  'app',
+  Style.global(
+    `:where(body){margin:0;min-height:100vh;display:grid;place-items:start center;padding:4rem 1rem;background:${t.surface.muted}}`,
+  ),
+)
+
 export const PageSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container }),
 })

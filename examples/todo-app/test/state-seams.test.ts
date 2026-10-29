@@ -46,7 +46,7 @@ describe('state seams', () => {
     try {
       // DraftChanged is local-only: the contract refuses to durably journal it.
       await expect(
-        Effect.runPromise(replica.submit(Message.DraftChanged({ value: 'x' }) as never)),
+        Effect.runPromise(replica.submit(Message.DraftChanged({ value: 'x' }))),
       ).rejects.toThrow()
     } finally {
       await Effect.runPromise(replica.close)

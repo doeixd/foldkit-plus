@@ -135,3 +135,19 @@ test('on a touch phone a todo’s delete button shows, is a finger’s size, and
   expect(errors).toEqual([])
   await context.close()
 })
+
+test('the app sits centred at the top of the page, on a surface of its own', async () => {
+  const { page, errors } = await open('dave')
+  const app = page.locator('.app')
+  const box = (await app.boundingBox())!
+  const width = await page.evaluate(() => document.documentElement.clientWidth)
+  expect(Math.abs(box.x + box.width / 2 - width / 2)).toBeLessThanOrEqual(1)
+  expect(box.y).toBeGreaterThanOrEqual(48)
+  const [body, card] = await Promise.all([
+    page.evaluate(() => getComputedStyle(document.body).backgroundColor),
+    app.evaluate(element => getComputedStyle(element).backgroundColor),
+  ])
+  expect(body).not.toBe(card)
+  expect(errors).toEqual([])
+  await page.close()
+})

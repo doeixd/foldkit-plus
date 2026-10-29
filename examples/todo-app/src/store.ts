@@ -54,8 +54,9 @@ export const makeStore = (initial: Model = initialModel): Store => {
         return () => modelListeners.delete(listener)
       },
       observe: listener => {
-        messageListeners.add(listener as (message: Message) => void)
-        return () => messageListeners.delete(listener as (message: Message) => void)
+        const heard = (message: Message) => listener(message)
+        messageListeners.add(heard)
+        return () => messageListeners.delete(heard)
       },
     },
   }

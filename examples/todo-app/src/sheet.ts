@@ -17,6 +17,7 @@ import { Theme } from 'foldkit-mixins/theme'
 import { GuideStyle } from 'foldkit-example-site/guide'
 import {
   AddButtonStyle,
+  BodyStyle,
   ClearButtonStyle,
   ComposerStyle,
   FilterStyle,
@@ -35,6 +36,7 @@ export const stylesheet = Style.stylesheet(
   L.in('reset', Defaults.reset),
   L.in('theme', Theme.root(theme)),
   L.in('defaults', Defaults.body),
+  BodyStyle,
   PageStyle,
   HeaderStyle,
   ComposerStyle,
