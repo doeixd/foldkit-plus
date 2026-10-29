@@ -160,7 +160,9 @@ export const Todo = TodoFields.pipe(
   `Condition.residual(condition, values, input, operators)` decides it as far
   as one row can, keeping the row guards that read another row (what a
   writer's `requires` then judges); `Condition.decided` reads `Always`/`Never`
-  off it, and `Condition.reachedFrom` names what those guards read of the row.
+  off it, and `Condition.reachedFrom(condition, { entity, id })` names what
+  those guards read of the row written (a path from the viewer's, where it is
+  theirs).
   `Policy.readMembers(Todo, principal, members)` gives each ruled member's
   condition and its refusal (`Omit` or `Redact`);
   `Policy.writable(Todo, principal, 'Update' | 'Create' | 'Delete' | Archive.key)`

@@ -50,6 +50,36 @@ export default [
     'Exists: () => [],',
   ),
   edit(
+    "a path from the viewer reads nothing of the viewer's own row",
+    condition,
+    '? [via[0]?.key ?? field.key]',
+    '? []',
+  ),
+  edit(
+    'a path from the viewer to a field of their row reads nothing of it',
+    condition,
+    '? [via[0]?.key ?? field.key]',
+    '? via.slice(0, 1).map(relation => relation.key)',
+  ),
+  edit(
+    "every row of the viewer's Entity is taken for theirs",
+    condition,
+    'Option.exists(viewerIdOf(start, context), id => id === written.id)',
+    'Option.exists(viewerIdOf(start, context), () => true)',
+  ),
+  edit(
+    "a row of another Entity is taken for the viewer's",
+    condition,
+    'return start.name === written.entity &&',
+    'return true &&',
+  ),
+  edit(
+    'what the rule reads of the row by a path is not read before the write',
+    server,
+    '...Condition.reachedFrom(rules.row.condition, { entity: entity.name, id: context.id }),',
+    '',
+  ),
+  edit(
     'one row decides a rule that reads another, as false',
     condition,
     '          reachesOther(row.guard)',

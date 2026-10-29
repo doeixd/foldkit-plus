@@ -711,6 +711,8 @@ export const GuardServer = {
             ...Object.keys(context.links),
             ...versionFields(context.expect),
             ...Write.boundReads(context),
+            // What its rule reads of the row by a path is compared with the row it leaves.
+            ...Condition.reachedFrom(rules.row.condition, { entity: entity.name, id: context.id }),
           ],
         ),
         principal: context.principal,
@@ -790,6 +792,7 @@ export const GuardServer = {
               policy.inputOf(principal),
               policy.operators,
             ),
+            { entity: entity.name, id: context.id },
           )
           if (read.some(key => !sameStored(before[key], after[key]))) {
             return yield* Effect.fail(refused(rules.row.deny))

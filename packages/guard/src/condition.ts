@@ -10,7 +10,9 @@ import {
   Judge,
   Query,
   evaluateEach,
+  viewerIdOf,
   type AnyEntity,
+  type EntityRef,
   type ExprContext,
   type HeldRow,
   type HeldRows,
@@ -146,28 +148,37 @@ export const Condition = {
     }),
 
   /**
-   * The members of its own row that a condition's guards reading another row
-   * start from: each one's fields, and the relation each path leaves by. A
-   * write that changes one would need the guard judged over the row it
-   * leaves, which a statement over the stored row does not do.
+   * The members of `written`, the row a write changes, that a condition's
+   * guards reading another row start from: each one's fields, the relation
+   * each path leaves by, and, where `written` is the viewer's own row, what a
+   * path from the viewer leaves it by. A write that changes one would need the
+   * guard judged over the row it leaves, which a statement over the stored row
+   * does not do.
    */
-  reachedFrom: (condition: Condition): ReadonlyArray<string> => {
+  reachedFrom: (condition: Condition, written: EntityRef): ReadonlyArray<string> => {
     const read = (each: Condition): ReadonlyArray<string> =>
       Match.valueTags(each, {
         Always: () => [],
         Never: () => [],
-        Row: ({ guard }) => {
+        Row: ({ guard, context }) => {
           if (!reachesOther(guard)) return []
           const dependencies = Query.dependencies(guard.query)
           return [
             ...dependencies.predicate.map(field => field.key),
             // An exists reached through a path leaves by its first relation as surely
-            // as a path does; one over the row itself reads only its id.
+            // as a path does; one over the row itself reads only its id. A path from the
+            // viewer leaves the row written the same way when that row is the viewer's.
             ...dependencies.reaches.flatMap(reach =>
               Match.valueTags(reach, {
                 Path: ({ via }) => [via[0]!.key],
                 Exists: ({ via }) => via.slice(0, 1).map(relation => relation.key),
-                ViewerPath: () => [],
+                ViewerPath: ({ viewer, via, field }) => {
+                  const start = viewer.target()
+                  return start.name === written.entity &&
+                    Option.exists(viewerIdOf(start, context), id => id === written.id)
+                    ? [via[0]?.key ?? field.key]
+                    : []
+                },
               }),
             ),
           ]

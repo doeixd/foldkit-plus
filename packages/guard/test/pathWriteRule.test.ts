@@ -22,6 +22,7 @@ import { RemoteServer } from 'foldkit-remote-server'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { GuardDrizzle } from '../src/drizzle.js'
 import { Guards } from '../src/index.js'
+import { Condition } from '../src/condition.js'
 import { GuardServer } from '../src/server.js'
 
 const Fields = {
@@ -387,5 +388,203 @@ describe('a write rule over a path ending in an exists', () => {
     expect(client.prepare("select team_id from docs where id = 'd1'").get()).toEqual({
       team_id: 'red',
     })
+  })
+})
+
+// A path from the viewer leaves the viewer's own row by its first relation. When
+// the row written is the viewer's, a write moving that relation changes what the
+// rule reads, and the statement, judging the stored row, would not see it.
+describe.each(['SQLite', 'Postgres'])('a write rule over a path from the viewer, on %s', name => {
+  const Base = {
+    Team: Entity.define('Team', Schema.Struct({ id: Schema.String, orgId: Schema.String })),
+    Member: Entity.define(
+      'Member',
+      Schema.Struct({ id: Schema.String, name: Schema.String, role: Schema.String }),
+    ),
+  }
+  const Linked = Entity.relate(Base, {
+    Member: { team: Relation.one(Base.Team, { optional: true }) },
+  })
+  const M = Guards.declare(
+    'Members',
+    Schema.Struct({ id: Schema.String }),
+    guard => ({
+      leadInAcme: guard.row(Linked.Member, () =>
+        Expr.and(
+          Expr.eq(
+            Expr.path(
+              Expr.viewer(Linked.Member),
+              Expr.path(Linked.Member.relations.team, Linked.Team.fields.orgId),
+            ),
+            'acme',
+          ),
+          Expr.eq(Expr.path(Expr.viewer(Linked.Member), Linked.Member.fields.role), 'lead'),
+        ),
+      ),
+    }),
+    { key: user => user.id, unguarded: 'allow', viewer: Linked.Member },
+  )
+  // Only a lead whose team is in acme changes a member, themselves included.
+  const Member = Linked.Member.pipe(Guards.attach(M, { row: { Update: [M.leadInAcme] } }))
+  const MemberPolicy = M.implement({})
+  const Transfer = Mutation.write(
+    'Transfer',
+    Write.update(
+      Entity.input(Member, Schema.Struct({ id: Schema.String, teamId: Schema.String }), {
+        teamId: Relation.input(Member.relations.team),
+      }),
+      { id: 'id' },
+    ),
+  )
+  const Rename = Mutation.write(
+    'Rename',
+    Write.update(Entity.input(Member, Schema.Struct({ id: Schema.String, name: Schema.String })), {
+      id: 'id',
+    }),
+  )
+  const SetRole = Mutation.write(
+    'SetRole',
+    Write.update(Entity.input(Member, Schema.Struct({ id: Schema.String, role: Schema.String })), {
+      id: 'id',
+    }),
+  )
+  const Db =
+    name === 'SQLite'
+      ? (() => {
+          const teams = sqliteTable('teams', {
+            id: text('id').primaryKey(),
+            orgId: text('org_id').notNull(),
+          })
+          const members = sqliteTable('members', {
+            id: text('id').primaryKey(),
+            name: text('name').notNull(),
+            role: text('role').notNull(),
+            teamId: text('team_id'),
+          })
+          return bind(
+            { Team: Linked.Team, Member },
+            {
+              Team: { table: teams },
+              Member: {
+                table: members,
+                visible: GuardDrizzle.visible(MemberPolicy, [Member]).Member,
+                relations: { team: { field: members.teamId } },
+              },
+            },
+          )
+        })()
+      : (() => {
+          const teams = pgTable('teams', {
+            id: pgText('id').primaryKey(),
+            orgId: pgText('org_id').notNull(),
+          })
+          const members = pgTable('members', {
+            id: pgText('id').primaryKey(),
+            name: pgText('name').notNull(),
+            role: pgText('role').notNull(),
+            teamId: pgText('team_id'),
+          })
+          return bind(
+            { Team: Linked.Team, Member },
+            {
+              Team: { table: teams },
+              Member: {
+                table: members,
+                visible: GuardDrizzle.visible(MemberPolicy, [Member]).Member,
+                relations: { team: { field: members.teamId } },
+              },
+            },
+          )
+        })()
+  const guarded = GuardServer.writer(Member, MemberPolicy, writer(Db.Member))
+  const server = RemoteServer.make<Option.Option<{ readonly id: string }>, DrizzleDatabase>({
+    entities: [source(Db.Member)],
+    mutations: [
+      RemoteServer.write(Transfer, guarded),
+      RemoteServer.write(Rename, guarded),
+      RemoteServer.write(SetRole, guarded),
+    ],
+    viewer: MemberPolicy.viewer,
+  })
+  const statements = [
+    'create table teams (id text primary key, org_id text not null)',
+    'create table members (id text primary key, name text not null, role text not null, team_id text)',
+    "insert into teams values ('t1', 'acme'), ('t2', 'globex')",
+    "insert into members values ('ada', 'Ada', 'lead', 't1'), ('bo', 'Bo', 'member', 't1')",
+  ]
+  let database: {
+    readonly layer: Layer.Layer<DrizzleDatabase>
+    readonly stored: (id: string) => Promise<unknown>
+    readonly close: () => Promise<void>
+  }
+  beforeAll(async () => {
+    if (name === 'SQLite') {
+      const client = new DatabaseSync(':memory:')
+      for (const statement of statements) client.exec(statement)
+      database = {
+        layer: databaseLayer(drizzle({ client })),
+        stored: async id => ({
+          ...client.prepare('select role, team_id from members where id = ?').get(id),
+        }),
+        close: async () => client.close(),
+      }
+    } else {
+      const client = new PGlite()
+      const db = drizzlePg({ client })
+      for (const statement of statements) await db.execute(sql.raw(statement))
+      database = {
+        layer: databaseLayer(db),
+        stored: async id =>
+          (await client.query('select role, team_id from members where id = $1', [id])).rows[0],
+        close: () => client.close(),
+      }
+    }
+  }, 60_000)
+  afterAll(() => database.close())
+  const mutate = (viewer: string, mutation: string, input: unknown) =>
+    Effect.runPromise(
+      Effect.result(
+        RemoteServer.handlers(server, as(viewer)).FoldkitRemoteMutate({
+          requestId: 'r',
+          mutation,
+          input,
+        }),
+      ).pipe(Effect.provide(database.layer)),
+    )
+  const outcome = (result: Result.Result<unknown, { readonly _tag: string }>) =>
+    Result.match(result, { onSuccess: () => 'applied', onFailure: error => error._tag })
+
+  it("names what the rule reads of the viewer's own row, and nothing of another's", () => {
+    const { condition } = Effect.runSync(MemberPolicy.writable(Member, as('ada'), 'Update'))
+    expect(
+      [
+        { entity: 'Member', id: 'ada' },
+        { entity: 'Member', id: 'bo' },
+        // Another Entity's row of the same id is not the viewer.
+        { entity: 'Team', id: 'ada' },
+      ].map(written => Condition.reachedFrom(condition, written)),
+    ).toEqual([['team', 'role'], [], []])
+  })
+
+  it('lets a lead change themselves where the change keeps what the rule reads', async () => {
+    expect(outcome(await mutate('ada', 'Rename', { id: 'ada', name: 'Ada L.' }))).toBe('applied')
+    expect(outcome(await mutate('ada', 'SetRole', { id: 'ada', role: 'lead' }))).toBe('applied')
+    expect(outcome(await mutate('ada', 'Transfer', { id: 'ada', teamId: 't1' }))).toBe('applied')
+  })
+
+  it('refuses a lead moving the link their rule leaves their own row by', async () => {
+    expect(outcome(await mutate('ada', 'Transfer', { id: 'ada', teamId: 't2' }))).toBe('Forbidden')
+    expect(await database.stored('ada')).toEqual({ role: 'lead', team_id: 't1' })
+  })
+
+  it('refuses a lead changing the field of their own row their rule reads', async () => {
+    expect(outcome(await mutate('ada', 'SetRole', { id: 'ada', role: 'member' }))).toBe('Forbidden')
+    expect(await database.stored('ada')).toEqual({ role: 'lead', team_id: 't1' })
+  })
+
+  it('lets them change another member, whose row the rule does not read', async () => {
+    expect(outcome(await mutate('ada', 'Transfer', { id: 'bo', teamId: 't2' }))).toBe('applied')
+    expect(outcome(await mutate('ada', 'SetRole', { id: 'bo', role: 'lead' }))).toBe('applied')
+    expect(await database.stored('bo')).toEqual({ role: 'lead', team_id: 't2' })
   })
 })

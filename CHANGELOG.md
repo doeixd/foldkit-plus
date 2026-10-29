@@ -125,7 +125,10 @@ carries `drawn`.
   `Forbidden`, so the rule reads the other row as the write lands, on SQLite
   and Postgres. A write that would change what such a rule reads of its own
   row is refused, whether the path ends in a field or an exists (a member of
-  one team cannot move a note into a team they have no seat on); the server's
+  one team cannot move a note into a team they have no seat on), and a path
+  from the viewer where the row written is the viewer's own (a member cannot
+  move their own team out of the organisation their rule reads; #294);
+  `Condition.reachedFrom` takes the row written for it. The server's
   `may` leaves such an interaction out; `GuardServer.writer` throws for such
   rules over a writer without `requires`. `Create`, members, relations, named
   interactions and `always` still refuse such a rule at `Guards.attach`.

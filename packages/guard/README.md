@@ -563,7 +563,9 @@ remote-drizzle's `writer` holds the row to, refusing with `Forbidden` (and the
 - Such a rule is judged over the row as stored, so a write that would change
   what it reads of its own row (its fields, the relation its path leaves by)
   is refused: a member of one team cannot move a note into a team they hold
-  no seat on.
+  no seat on. Where the row written is the viewer's own, a path from the
+  viewer leaves it too: a member whose rule reads their team's organisation
+  cannot move their own team.
 - `may` leaves such an interaction unanswered, since one row cannot decide it.
 - `GuardServer.writer` over a writer without `requires` throws where it is
   made, rather than letting the rule go unchecked.
