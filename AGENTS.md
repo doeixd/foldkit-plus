@@ -939,6 +939,16 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
 - **`isMaxLength` counts UTF-16 units; SQL's `length()` counts code points.** A
   CHECK translated from it is looser for an emoji. Use `isMaxCodePoints` for a
   rule the database should hold too.
+- **Pending placement reads no app Model.** It runs over `RemoteModel` alone
+  (memoized reads), so a list body over `Expr.viewer` was judged with no
+  context and a card you made never joined `Mine` until the answer; only
+  `Law.check` saw it. What a pending layer is judged with travels on the
+  layer (`EntityLayer.viewer`), as the operation's context does.
+- **Folding two dev checks into one option changes what each sees.**
+  `verifyPredictions` turns on placement checking, which marks each placed
+  list stale to fetch its page, and a stale list plans no row reads, so the
+  `Gap` check stopped seeing gaps in it. Plan gaps over the lists as they
+  would be unchecked (`unverified`).
 - **What a body reads is its `fields` and its `reaches`.** `Query.dependencies`
   leaves what a path, an exists or a path from the viewer reads out of
   `fields`, and `impactOn` judged a change by `predicate` alone, so a list

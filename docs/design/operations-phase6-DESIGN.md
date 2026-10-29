@@ -1,6 +1,6 @@
 # The law (operations phase 6, #257)
 
-Status: design (2026-10-28). Phase 6 of [operations-PLAN.md](./operations-PLAN.md).
+Status: built (2026-10-29). Phase 6 of [operations-PLAN.md](./operations-PLAN.md).
 It builds on phase 5's client rules ([phase 5](./operations-phase5-DESIGN.md)).
 
 ## The problem
@@ -107,19 +107,42 @@ the change a write makes, which `derivedOfWrite` predicts. The law is what
 was missing, and the conformance cases cover every count and exists Chirp
 and the test domain declare.
 
+## What the law found
+
+- **A pending create was never placed in a list over the viewer** (`Mine`):
+  pending placement reads no app Model and judged with no context. Each layer
+  now keeps its operation's viewer (`EntityLayer.viewer`).
+- **A held list over a path kept rows it no longer held** (the hardening
+  review, then §3): `impactOn` judged a change by the body's own predicate
+  fields, not by what its paths, exists and viewer paths reach in other rows.
+- **A hand-written `optimistic` patch guessed a value** the server set
+  otherwise (`mutationAnswer.test.ts`'s `body: ''`), which `Value` now names.
+- Every other write in the test domain, Chirp and the reference app agrees,
+  `may`, counts, exists, times and list order included.
+
 ## Deferred, to phase 7
 
 - **Write rules over paths**, judged in SQL in the write's statement.
 - **Refusing on a false `may`.** `may` is foreseen for the written row; a
   write's own guard rules are the server's, and refusing on a held `may`
-  needs the write's surface named on the client.
+  needs the write's surface named on the client. Until then a write the
+  guards refuse is shown and then taken back, and `Law.check` reports it.
+- **An invariant over a moved field** (an increment) is undecided on the
+  client, so such a write is sent and refused by the server.
+- **`Value` in development compares only what an answer carries**; `Law.check`
+  reads every predicted part back.
 
 ## Tests
 
-- `packages/remote-drizzle/test/law.test.ts`: a test domain on SQLite,
-  PGlite and the locale Postgres job; `examples/chirp/test/law.test.ts` and
-  `examples/reference/test/law.test.ts`; a mutation spec breaking each
-  interpreter (a count by two, `now` moved, an order inverted, an invariant
-  ignored) that the suites must kill.
-- `packages/remote/test/verifyPredictions.test.ts`, replacing
-  `verifyAnswers` and `verifyPlacement`.
+- `packages/remote-drizzle/test/law.test.ts` (12 mutations): a test domain
+  (counts, exists, viewer link, viewer path, `now` on create and write, an
+  increment, an invariant, four lists, one over a path) on SQLite, PGlite and
+  the locale job; local refusals, and the CHECKs agreeing with the client's
+  judgement. `examples/chirp/test/law.test.ts` (3) and
+  `examples/reference/test/law.test.ts` (3) over every write each declares.
+- `packages/remote/test/verifyPredictions.test.ts` (5), `verifyAnswers` and
+  `verifyPlacement` (re-anchored): the three parts of `PredictionMismatch`.
+- `packages/remote/test/localRefusal.test.ts` (5),
+  `pathMatching.test.ts` (4), `reachImpact.test.ts` (8).
+- `heldValue.test.ts`: a layer keeping its viewer, a write refused where it
+  was made; 2000 seeds of 30 steps in a scratch run.
