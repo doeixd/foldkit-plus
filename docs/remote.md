@@ -52,19 +52,22 @@ flowchart LR
 ```
 
 The client half is a Foldkit Submodel. The application embeds `Remote.Model`
-in its Model, spreads `Remote.messages` into its Message union, and binds the
+in its Model, folds Remote's Messages under one variant of its Message union
+(`Remote.fold`) or spreads `Remote.messages` into it, and binds the
 domain with `Remote.make({ model: App.model.remote, entities, … })`. The bound
 `Data` is the application API: a Surface reads through `Data.get`,
 `Data.live`, and `Data.query`; `Data.subscriptions` fetches, subscribes, and
 retains for the active Surfaces; `update` starts mutations with `Data.mutate`,
 loads more with `Data.more`, and reduces Remote's Messages with
-`Data.reduce`. Each compiles to a kernel function of the same name, documented
-as the package's [Advanced](../packages/remote/README.md#advanced-the-kernel)
-section.
+`Data.reduce`. Each compiles to a kernel function (`Data.get` to
+`Remote.select`, `Data.subscriptions` to `Remote.observe`, `Remote.live` and
+`Remote.retain`), documented as the package's
+[Advanced](../packages/remote/README.md#advanced-the-kernel) section.
 
-The server half compiles Sources into the `RemoteRpc` handlers. Transport is
-Effect RPC, so HTTP, WebSocket, worker, or in-process is an Effect layer choice;
-Remote does not define a transport.
+The server half compiles Sources into the `RemoteRpc` handlers. The client is
+a `RemoteClient` Layer: Effect RPC, JSON over `POST` (`Remote.http`), a
+`MessagePort`, or an in-process server. Which one is a deployment choice; what
+a read or a write means does not change with it.
 
 ## What is normalized
 
@@ -89,7 +92,7 @@ ProjectsByOwner(u7)   Project:p9  Project:p7  Project:p4  [gap]  Project:p1
   fields and list membership are what the server told this session.
   `Data.forget`, called from `update` on a login, a logout or a switch of
   organization, drops all of it and restarts every active read and stream.
-- **Local execution is not a second authority.** `Remote.matching` and
+- **Local execution is not a second authority.** `matching` and
   `Data.filtered` derive conclusions from the facts held (`p1` matches this
   query) and never promote them into knowledge of the whole dataset (this
   query is `[p1]`) unless a connection's terminal boundaries prove it. A new
@@ -121,7 +124,11 @@ activation is a fact of the Model:
 
 ```ts
 Data.subscriptions({
-  page: Surface.at(ProjectPage, model => ({ projectId: model.route.projectId })),
+  page: Surface.at(ProjectPage, model =>
+    model.route._tag === 'project'
+      ? Option.some({ projectId: model.route.projectId })
+      : Option.none(),
+  ),
 })
 ```
 
@@ -157,7 +164,8 @@ plan that follows fetches it. A Projection never reads the clock, so a Model
 reads the same twice and a recorded one replays.
 
 To revalidate on demand — a refresh button, a regained focus — `update` returns
-`Data.refresh(model, projection)` (or a Surface without params). It performs no
+`Data.refresh(model, actives)`: the active record the wiring takes, one entry
+of it, a projection, or a Surface without params. It performs no
 I/O: it marks the selected fields the store holds stale, so they read
 `Refreshing` over their old value, invalidates the loaded connections, and bumps
 the refresh generation. The read entries already observing that projection plan
@@ -190,7 +198,11 @@ read is fetching it and `Initial` when none is: the read entry emits
 mark. That distinction is the one worth rendering differently, because nothing
 fetches a projection no active Surface observes; it reads `Initial` forever, and
 a spinner there hides the wiring mistake rather than showing progress. There is
-no hidden suspense; the states are explicit.
+no hidden suspense; the states are explicit. `Data.why(model, projection, {
+surfaces })` says why a read shows what it shows, as typed reasons read from the
+Model (not observed, a list or fields missing or in flight, a failure nothing
+retries, a pending write, a row a write moved into or out of a list), and
+`Data.timeline` gives each change of a read's state across a recorded history.
 
 ## Mutations and live data
 
@@ -218,6 +230,22 @@ Message settles it. That Message carries the normalized entity patches and
 cannot apply the same change twice. `Remote.mutateInto` is the one-step
 imperative form for SSR and tests.
 
+A failure is kept until the application answers it (`Data.failedWrites`,
+`Data.retry`, `Data.dismiss`). A request nothing answered (it could not be
+sent, or what came back was no Remote answer, such as a gateway's 502 page)
+fails `Unreachable` (`RemoteUnreachable`), apart from a refusal, because the
+server may or may not have run it. A write sent `durable` is stored first, in
+`Data.outbox`'s `KeyValueStore`, and sent in order by one tab; after a reload,
+or a send that came back `Unreachable`, it is sent again under the same
+operation id, which a ledgered writer answers from its record. A refusal
+settles it as `Failed`, as any write.
+
+Before it shows or sends a declared write, `Data.mutate` refuses what the
+client can already tell the server would: a write a held Guard `may` says no
+to, and one that breaks an invariant of its Entity. That is a UI shortcut, not
+enforcement: a `may` that says yes decides nothing, since the server checks
+every write by its rules for the request's principal.
+
 Optimistic changes belong to the mutation: `MutationStarted` carries its entity
 patches and connection changes (`ConnectionChange.prepend`/`append`/`remove`), and
 success or failure releases them together by request id. Patches are ordered
@@ -227,19 +255,27 @@ changes are overlays outside the server-known region; a result's confirmed
 `connections` take the place of the request's own, so a temporary edge becomes
 the real one in place.
 
+A list is read live with `live: true` on `Data.query`. A live source that
+watches lists (`foldkit-remote-drizzle`'s `pollLive`) runs each list's window
+again as the subscriber and sends the rows that join, change or leave it;
+the server admits at most 32 lists per stream, their `first` counted toward
+`maxIdsPerEntity`.
+
 On the server, `RemoteServer.liveHub` turns "these fields of this entity
 changed" into the right patch for each subscriber: it re-reads the changed
 fields a subscriber selects through the entity's own source, under that
 subscriber's principal, so authorization and computed fields take the normal
 path and a subscriber selecting none of the fields costs nothing.
 
-Live data is an Effect streaming RPC. Each stream has a monotonic cursor:
-duplicates are ignored, and an event **ahead** of the cursor is a gap — it is not
-applied, and the stream is recorded so the host can resync rather than silently
-miss facts. Entity events update the store; connection events change membership
-and ordering. A deleted entity is a tombstone that every connection listing it
-skips, a live removal hides a known edge until a fresh page brings it back, and
-a merged page prunes the settled overlays it supersedes.
+Live data is a stream (Effect RPC streaming, a `text/event-stream` through
+`Remote.httpWithLive`, or a port). Each stream has a monotonic cursor:
+duplicates are ignored, and an event **ahead** of the cursor is a gap — it is
+not applied. A gap or a broken transport restarts the stream after a backoff and
+refetches what it covers, since no server replays what was missed. Entity events
+update the store; connection events change membership and ordering. A deleted
+entity is a tombstone that every connection listing it skips, a live removal
+hides a known edge until a fresh page brings it back, and a merged page prunes
+the settled overlays it supersedes.
 
 ## One owner per datum
 
@@ -250,7 +286,8 @@ the owners; it does not erase the boundary.
 | --- | --- |
 | Current route, selected item, transient errors | the local Model, plain `update` |
 | Server-derived, disposable cache | `foldkit-remote` |
-| Client-owned replicated state, offline writes, convergence | `foldkit-sync` |
+| A write the server decides, which must be sent even after a reload or offline | `foldkit-remote`, sent `durable` through its outbox |
+| Client-owned replicated state, offline edits that must converge | `foldkit-sync` |
 | Local state the URL shows or a store remembers (a filter, a page, a draft) | the local Model, mirrored by `foldkit-mirror` |
 
 Reaching for the wrong owner is the usual source of double-fetch bugs: a
@@ -268,15 +305,23 @@ one in Effect's `KeyValueStore`, and the `Hydrated` Message merges one into the 
 and may be bounded by `maxBytes`. The cache is server-derived and
 **disposable**: a snapshot that is another version, another scope, oversized,
 or malformed is removed and the planner refetches. This is the opposite of
-Sync's preserve-and-recover policy, because Remote holds no unsent user edits;
-there is nothing to lose.
+Sync's preserve-and-recover policy, because the cache holds no unsent user
+edits; there is nothing to lose.
+
+The outbox is the exception, and is kept apart from the snapshot: it holds
+durable writes the server has not answered, stored under its own key per
+principal. Removing it is data loss, not cache eviction; a stored write this
+version cannot read is kept and reported (`OutboxUnreadable`) until
+`Data.dismiss` removes it.
 
 ## When not to use Remote
 
 - **Local-only state.** Use the Model and `update`; there is no server truth to
   cache.
-- **Offline writes and convergence.** Use [`foldkit-sync`](./replication.md); it
-  owns client-authored operations and orders them through a durable log. When
+- **Offline edits that must converge.** Use [`foldkit-sync`](./replication.md);
+  it owns client-authored operations and orders them through a durable log. A
+  write the server decides once, which only has to arrive, is Remote's durable
+  outbox. When
   the rows edited are too many to replicate, Remote still reads them and the
   edits are laid over them: [Editing server data through a
   journal](./editing-server-data.md).
@@ -304,9 +349,11 @@ there is nothing to lose.
   subscriber's own request, because one worker request cannot wake another's
   stream. The Pages list writes through Remote mutations (`foldkit-entity`,
   `foldkit-form`, `foldkit-crud`) and paints them before the POST returns.
-- The transport is Effect RPC and nothing else; a wire change is a protocol
-  version bump (`REMOTE_PROTOCOL_VERSION`), and a request is bounded in fields
-  per entity, relation depth, and ids per entity.
+- The wire is `RemoteRpc`'s schemas, whatever carries them; a wire change is a
+  protocol version bump (`REMOTE_PROTOCOL_VERSION`). A request is bounded in
+  fields per entity, relation depth, and ids per entity, a live stream in
+  lists, and a `many` relation read whole by the Source
+  (`maxCollection` in `foldkit-remote-drizzle`, 100 by default).
 - Coalescing is per `RemoteClient` layer, and retention keeps what the active
   Surfaces reach (`Data.subscriptions`) or `Remote.retain` lists.
 - The live hub subscribes the requirements' own entities, not nested relation
