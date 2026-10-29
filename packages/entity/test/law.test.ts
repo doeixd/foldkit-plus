@@ -192,6 +192,32 @@ describe('Testing laws', () => {
     ])
   })
 
+  it('takes two refusals of a monotonic pair as agreeing, and no case (#295)', () => {
+    // Increasing in its first argument, and refused wherever the second is 7: both
+    // calls of such a pair refuse, which says nothing of the order.
+    const shift = Expr.operator('acme.shift', {
+      input: [Schema.Int, Schema.Int],
+      output: Schema.Int,
+      laws: [Law.monotonic('increasing', 0)],
+    })
+    const sevenless = (a: number, b: number) => {
+      if (b === 7) throw new Error('no shift by seven')
+      return a + b
+    }
+    const verdict = Conformance.laws(shift, Operators.memory(Operators.implement(shift, sevenless)))
+    // 21 ordered pairs of the seven integer samples, by the six of the other's seven not refused.
+    expect(verdict._tag === 'Holds' && verdict.evidence.map(record => record.cases)).toEqual([126])
+    const refusing = Operators.memory(
+      Operators.implement(shift, () => {
+        throw new Error('no')
+      }),
+    )
+    expect(Conformance.laws(shift, refusing)).toMatchObject({
+      _tag: 'Unanswered',
+      law: { kind: 'monotonic' },
+    })
+  })
+
   it('tests a law only over its domain', () => {
     const square = (domain: Option.Option<Schema.Top>) => {
       const law = Law.monotonic('increasing', 0)

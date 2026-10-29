@@ -939,6 +939,11 @@ carries `drawn`.
   one, and eight built 43 million. A seeded partial shuffle over the tuples'
   indices now builds only those chosen; a seed chooses other tuples than it
   did, still the same ones on every run.
+- **`Law.monotonic` takes two refusals as agreeing** (#295). A pair whose
+  calls both refused failed the law, where every other law counts them as
+  agreeing and no case, so an operator refusing some arguments was a
+  `Counterexample` though every answered pair was in order, and one refusing
+  every call was a `Counterexample` rather than `Unanswered`.
 
 ## 0.35.0
 

@@ -161,6 +161,12 @@ export default [
   edit('every case runs, however many', tuples, 'if (size <= limit) return', 'if (true) return'),
   edit('the seed chooses nothing', tuples, 'const next = random(seed)', 'const next = random(0)'),
   edit(
+    'two refusals of a monotonic pair break the law',
+    helper,
+    '                same(left, right) ||\n',
+    '',
+  ),
+  edit(
     'a defined operator runs without its expansion',
     helper,
     'if (Option.isSome(descriptor.definedAs)) {',

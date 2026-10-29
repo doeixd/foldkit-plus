@@ -326,10 +326,12 @@ const lawPlans = (op: AnyOperator, limit: number, seed: number): ReadonlyArray<L
               collation,
               left: run(call(...at(low))),
               right: run(call(...at(high))),
+              // Two refusals agree, as under every other law, and are no case.
               holds: (left: Outcome, right: Outcome) =>
-                left._tag === 'Value' &&
-                right._tag === 'Value' &&
-                sign * order(left.value, right.value) <= 0,
+                same(left, right) ||
+                (left._tag === 'Value' &&
+                  right._tag === 'Value' &&
+                  sign * order(left.value, right.value) <= 0),
             }
           })
         },
