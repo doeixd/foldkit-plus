@@ -150,7 +150,7 @@ export const BoardView = SurfaceView.define(Board, BoardSlots, (model, slots, h)
   }
 
   const row = (todo: Todo) => {
-    const editing = model.editingId === todo.id
+    const editing = Option.exists(model.editingId, id => id === todo.id)
     const input: ItemInput = { todo, editing, editDraft: model.editDraft }
     const item = SlotView.buildersFor(ItemSlots, itemMixins, { input, h })
     return h.li(item.root.attrs([h.Key(todo.id)]), [
@@ -224,7 +224,10 @@ export const FooterView = SurfaceView.define(Footer, FooterSlots, (model, slots,
   const tally = counts(model)
   return h.footer(slots.root.attrs(), [
     h.p(slots.status.attrs(), [
-      model.lastError ?? `${tally.total} ${tally.total === 1 ? 'todo' : 'todos'}`,
+      Option.getOrElse(
+        model.lastError,
+        () => `${tally.total} ${tally.total === 1 ? 'todo' : 'todos'}`,
+      ),
     ]),
     UiButton.view(
       {

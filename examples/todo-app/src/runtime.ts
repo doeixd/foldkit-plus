@@ -13,7 +13,7 @@
  * (`url.init`) and on every navigation (`url.onUrlChange`); the store is read
  * once at start and its Message dispatched.
  */
-import { Effect, Option } from 'effect'
+import { Effect, Match, Option } from 'effect'
 import { modifyFields } from 'foldkit/struct'
 import { KeyValueStore } from 'effect/persistence'
 import type { Mounted, Replica } from 'foldkit-sync'
@@ -41,9 +41,12 @@ export const mountApp = (
     onPersistenceFailure: (model, error) =>
       modifyFields(model, {
         lastError: () =>
-          error._tag === 'ReplayError'
-            ? `Refused: ${error.message}`
-            : 'Could not save this change; it was reverted.',
+          Option.some(
+            Match.value(error).pipe(
+              Match.tag('ReplayError', ({ message }) => `Refused: ${message}`),
+              Match.orElse(() => 'Could not save this change; it was reverted.'),
+            ),
+          ),
       }),
   })
   // Store → Model, once: the draft is restored while it is still empty.

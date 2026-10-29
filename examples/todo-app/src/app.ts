@@ -20,7 +20,7 @@
  * - **Local Messages** change per-device UI state (draft, filter, editing) and
  *   never leave the tab.
  */
-import { Clock, Effect, Schema } from 'effect'
+import { Clock, Effect, Option, Schema } from 'effect'
 import { modifyFields } from 'foldkit/struct'
 import { Url } from 'foldkit/url'
 import { Mirror } from 'foldkit-mirror'
@@ -66,9 +66,9 @@ export const Model = Schema.Struct({
   ...Shared.fields,
   draft: Schema.String,
   filter: Filter,
-  editingId: Schema.NullOr(Schema.String),
+  editingId: Schema.OptionFromNullOr(Schema.String),
   editDraft: Schema.String,
-  lastError: Schema.NullOr(Schema.String),
+  lastError: Schema.OptionFromNullOr(Schema.String),
 })
 export type Model = typeof Model.Type
 
@@ -124,9 +124,9 @@ export const initialModel: Model = {
   todos: [],
   draft: '',
   filter: 'all',
-  editingId: null,
+  editingId: Option.none(),
   editDraft: '',
-  lastError: null,
+  lastError: Option.none(),
 }
 
 type Return = Update.Return<Model, Message>
@@ -174,10 +174,10 @@ export const makeUpdate =
               commands: [mintTodo(title.trim(), requestId === undefined ? {} : { requestId })],
             },
       EditingCommitted: () => {
-        const id = model.editingId
+        if (Option.isNone(model.editingId)) return { model }
+        const id = model.editingId.value
         const title = model.editDraft.trim()
-        if (id === null) return { model }
-        const stopped = modifyFields(model, { editingId: () => null, editDraft: () => '' })
+        const stopped = modifyFields(model, { editingId: () => Option.none(), editDraft: () => '' })
         if (title === '' || model.todos.every(todo => todo.id !== id)) return { model: stopped }
         return {
           model: stopped,
@@ -231,13 +231,13 @@ export const makeUpdate =
       FilterSelected: ({ filter }) => ({ model: modifyFields(model, { filter: () => filter }) }),
       EditingStarted: ({ id }) => ({
         model: modifyFields(model, {
-          editingId: () => id,
+          editingId: () => Option.some(id),
           editDraft: () => model.todos.find(todo => todo.id === id)?.title ?? '',
         }),
       }),
       EditDraftChanged: ({ value }) => ({ model: modifyFields(model, { editDraft: () => value }) }),
       EditingStopped: () => ({
-        model: modifyFields(model, { editingId: () => null, editDraft: () => '' }),
+        model: modifyFields(model, { editingId: () => Option.none(), editDraft: () => '' }),
       }),
     })
 

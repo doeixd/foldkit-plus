@@ -4,7 +4,7 @@
  * the SlotView styles and decorates it, and the resolved attributes are printed
  * so the demo reads as an end-to-end trace.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import {
   A11y,
@@ -22,7 +22,7 @@ import { Projection, Surface } from 'foldkit-surface'
 
 const Model = Schema.Struct({
   project: Schema.Struct({ name: Schema.String, archived: Schema.Boolean }),
-  selection: Schema.NullOr(Schema.String),
+  selection: Schema.Option(Schema.String),
   internalNotes: Schema.String,
 })
 
@@ -34,7 +34,7 @@ const Message = defineMessageUnion({
 
 type ProjectedModel = {
   readonly project: { readonly name: string; readonly archived: boolean }
-  readonly selection: string | null
+  readonly selection: Option.Option<string>
 }
 type CardMessage = typeof Message.ArchiveProject.Type | typeof Message.SelectProject.Type
 type AppMessage = typeof Message.Type
@@ -134,7 +134,7 @@ export const runDemo = (): ReadonlyArray<string> => {
 
   SurfaceView.render(ProjectCardView, ProjectCard, undefined, {
     project: { name: 'Apollo', archived: true },
-    selection: 'p1',
+    selection: Option.some('p1'),
     internalNotes: 'hidden',
   })
 

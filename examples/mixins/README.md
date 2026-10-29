@@ -34,7 +34,7 @@ slots: root(Container), title(Container), status(Container), archive(Interactive
 mixins: ProjectCardStyle, ArchiveBehavior
 a11y: ok
 a11y missing: a11y:missing-slot
-projected: {"project":{"name":"Apollo","archived":true},"selection":"p1"}
+projected: {"project":{"name":"Apollo","archived":true},"selection":{"_id":"Option","_tag":"Some","value":"p1"}}
 root classes: card style-yow16s
 root style: {"display":"grid","gap":"0.5rem"}
 status classes: archived

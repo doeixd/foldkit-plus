@@ -96,7 +96,7 @@ type Projected = {
     readonly owner: { readonly name: string }
   }>
   readonly notes: ReadonlyArray<{ readonly id: string; readonly body: string }>
-  readonly selectedNoteId: string | null
+  readonly selectedNoteId: Option.Option<string>
 }
 
 const BoardStyle = Style.forSlots(BoardSlots)({

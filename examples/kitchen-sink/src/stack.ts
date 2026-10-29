@@ -14,7 +14,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import { Effect, Layer, Option, Schema } from 'effect'
+import { Effect, Layer, Match, Option, Schema } from 'effect'
 import { modifyFields } from 'foldkit/struct'
 import { Bundle } from 'foldkit-bundle'
 import { defineMessageUnion } from 'foldkit/message'
@@ -183,8 +183,8 @@ const Model = Schema.Struct({
   remote: Remote.Model,
   projectId: Schema.String,
   notes: Schema.Array(Note),
-  selectedNoteId: Schema.NullOr(Schema.String),
-  lastError: Schema.NullOr(Schema.String),
+  // `null` on the wire: the agent's context carries it.
+  selectedNoteId: Schema.OptionFromNullOr(Schema.String),
 })
 export type Model = typeof Model.Type
 
@@ -211,30 +211,21 @@ const ownUpdate = (model: Model, message: Message): Update.Return<Model, Message
 const reduceNotes = (
   model: Model,
   message: Exclude<Message, { readonly _tag: RemoteMessageTag }>,
-): Model => {
-  switch (message._tag) {
-    case 'Ping':
-      return model
-    case 'RequestedCreateNote':
-      return modifyFields(model, {
+): Model =>
+  Match.valueTags(message, {
+    Ping: () => model,
+    RequestedCreateNote: ({ id, body }) =>
+      modifyFields(model, {
         notes: () =>
-          model.notes.some(note => note.id === message.id)
-            ? model.notes
-            : [...model.notes, { id: message.id, body: message.body }],
-      })
-    case 'RequestedRenameNote':
-      return modifyFields(model, {
-        notes: () =>
-          model.notes.map(note =>
-            note.id === message.id ? { ...note, body: message.body } : note,
-          ),
-      })
-    case 'SelectedNote':
-      return modifyFields(model, { selectedNoteId: () => message.id })
-    case 'SelectedProject':
-      return modifyFields(model, { projectId: () => message.id })
-  }
-}
+          model.notes.some(note => note.id === id) ? model.notes : [...model.notes, { id, body }],
+      }),
+    RequestedRenameNote: ({ id, body }) =>
+      modifyFields(model, {
+        notes: () => model.notes.map(note => (note.id === id ? { ...note, body } : note)),
+      }),
+    SelectedNote: ({ id }) => modifyFields(model, { selectedNoteId: () => Option.some(id) }),
+    SelectedProject: ({ id }) => modifyFields(model, { projectId: () => id }),
+  })
 
 export const App = Surface.application({
   Model,
@@ -243,8 +234,7 @@ export const App = Surface.application({
     remote: Remote.initial,
     projectId: 'p1',
     notes: [],
-    selectedNoteId: null,
-    lastError: null,
+    selectedNoteId: Option.none(),
   },
   // The assembly below; invoked only after this module finishes loading.
   update: (model, message) => update(model, message),

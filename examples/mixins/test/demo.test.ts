@@ -15,7 +15,7 @@ describe('foldkit-mixins example', () => {
     expect(lines).toContain('a11y: ok')
     expect(lines).toContain('a11y missing: a11y:missing-slot')
     expect(lines).toContain(
-      'projected: {"project":{"name":"Apollo","archived":true},"selection":"p1"}',
+      'projected: {"project":{"name":"Apollo","archived":true},"selection":{"_id":"Option","_tag":"Some","value":"p1"}}',
     )
     expect(matching(/^root classes: card style-[a-z0-9]+$/)).toBeDefined()
     expect(lines).toContain('root style: {"display":"grid","gap":"0.5rem"}')
