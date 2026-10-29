@@ -8,31 +8,34 @@ the row version that statement will change, and the client shows it before the
 answer comes. Nothing reads the row in one statement and writes it in another,
 so nothing another request does in between is written over.
 
-This guide covers preconditions, increments, invariants over a row and over a change, a guard that holds
-where the write commits, operation ids, a write ledger, a revision the database
-moves, and the client's prediction of a sum. The runnable version is
-[`examples/writes`](../examples/writes/README.md).
+This guide covers preconditions, increments, computed assignments, invariants
+over a row and over a change, a guard that holds where the write commits,
+operation ids, a write ledger, durable writes, a revision the database moves,
+and what the client shows and refuses before the answer. The runnable version
+is [`examples/writes`](../examples/writes/README.md).
 
 ## Who owns what
 
 | Part | Package | Owns | Does not |
 | --- | --- | --- | --- |
-| The declaration | `foldkit-entity` (`Write`) | what changes, `when` it makes sense, what it `increment`s | any I/O; it is a value |
+| The declaration | `foldkit-entity` (`Write`) | what changes, `when` it makes sense, what it `increment`s or `compute`s | any I/O; it is a value |
 | The invariants | `foldkit-entity` (`Entity.invariant`) | what every stored row, and every update over the row before, must hold, whoever writes it | who may write; whether this write applies now |
 | The rules | `foldkit-guard` | who may write which row and member, decided over the row being written | the statement; it hands the writer what to check |
 | The writer | `foldkit-remote-drizzle` (`writer`) | the one `update … where` that checks and writes; the ledger, when given one | who may write |
-| The client | `foldkit-remote` (`Data.mutate`) | the operation id; what shows until the answer | authority: a prediction decides nothing |
+| The client | `foldkit-remote` (`Data.mutate`) | the operation id; what shows until the answer; refusing at once a write it can already tell is invalid or forbidden; for a durable write, the outbox that sends it | authority: a prediction or a local refusal decides nothing on the server |
 
 The table row is the one authoritative fact. The ledger is not a second copy of
 it: it records only which operations already landed, so a retry is not applied
 again. The client's prediction is a display, recomputed from the store each time
 it is read, and dropped when the answer arrives.
 
-A declared write writes one row by id. A write that spans rows, or computes
-anything beyond adding an amount, is a handler (`RemoteServer.mutation`, guarded
-by `GuardServer.mutation`), which checks the interaction but not what its code
-writes. A client-authored operation that must survive offline belongs to Sync,
-not here; see [Editing server data through a journal](./editing-server-data.md).
+A declared write writes one row by id. A write that spans rows is a handler
+(`RemoteServer.mutation`, guarded by `GuardServer.mutation`), which checks the
+interaction but not what its code writes. A declared write that must survive a
+reload or a lost connection can be durable (below); the server still decides
+it once, and a refusal is final. Edits that must merge with other devices'
+offline edits belong to Sync; see [Editing server data through a
+journal](./editing-server-data.md).
 
 ## The mental model
 
@@ -43,12 +46,13 @@ the guard reads the row at revision r, and decides its rules over it
                     |
                     v
 update … set name = ?, stock = stock + ?, revision = revision + 1
-       where id = ? and revision = r and <when>
+       where id = ? and revision = r and <when> and <invariants>
                     |
      a row changed -+- none changed
           |                  |
    the row as written    classified: gone, moved on (Conflict),
-                         or does not hold `when` (Unmet)
+                         does not hold `when` (Unmet), or would break
+                         an invariant (Invalid)
 ```
 
 On the client, what a pending write shows is the store plus the pending writes,
@@ -72,6 +76,7 @@ const Product = Entity.define(
   'Product',
   Schema.Struct({
     id: Schema.String,
+    name: Schema.String,
     status: Schema.Literals(['draft', 'published', 'archived']),
     stock: Schema.Number,
     revision: Schema.Number,
@@ -96,6 +101,7 @@ import { RemoteServer } from 'foldkit-remote-server'
 
 const products = sqliteTable('products', {
   id: text('id').primaryKey(),
+  name: text('name').notNull(),
   status: text('status').notNull(),
   stock: integer('stock').notNull(),
   revision: integer('revision').notNull(),
@@ -149,7 +155,16 @@ it; the guarded writer refuses a binding without one.
 Every update and delete then lands only at that revision. If the row moved after
 the check, it is decided again over the row as it now is, up to three times, and
 then fails with "changed while it was written". Nothing is written over a version
-no rule saw. `GuardServer.validate` warns of a guarded writer with no revision.
+no rule saw. `GuardServer.validate` reports each write through a guarded writer
+with no revision that a change can come between (`UnpinnedWrites`).
+
+A rule that reads another row ("the viewer holds a seat on the note's team")
+cannot be decided over the row alone. For an update or a delete, the guard
+hands it to the writer as `requires`, and the writer adds it to the same
+`where`, so it is judged against the other row as the statement runs; a row
+that fails it is `Forbidden`. A write that would change what such a rule reads
+of its own row is refused. See [Guard's "Rules that read another
+row"](../packages/guard/README.md#rules-that-read-another-row).
 
 The guard speaks before the writer, in this order, so a refusal discloses
 nothing the caller may not read:
@@ -209,6 +224,48 @@ const Sell = Mutation.write(
 )
 ```
 
+### What it computes: a computed assignment
+
+`compute` sets a field from the row before the write and the input, in the
+same statement (`name = <expression over name and ?>`). The expression is data
+over operators, so the writer compiles it to SQL and the client predicts it
+with the same operators:
+
+```ts
+const suffixed = Expr.operator('acme.suffixed', {
+  input: [Schema.String, Schema.String],
+  output: Schema.String,
+})
+
+const Rebrand = Mutation.write(
+  'Rebrand',
+  Write.update(
+    Entity.input(
+      Product,
+      Schema.Struct({ id: Schema.String, revision: Schema.Number, suffix: Schema.String }),
+      { suffix: Entity.unmapped },
+    ),
+    {
+      id: 'id',
+      expect: 'revision',
+      compute: { name: ({ row, input }) => suffixed(row.name, input.suffix) },
+    },
+  ),
+)
+```
+
+- It reads the row **before** the write, never another assignment's result,
+  and is refused where it is declared when it reads another Entity, writes a
+  field another key sets, or comes to a kind its field does not store.
+- The operator needs an implementation on each side that runs it: the
+  binding's SQL table and memory table on the server, and `Remote.make({
+  operators })` on the client (see [An operator the application
+  implements](../packages/remote-drizzle/README.md#an-operator-the-application-implements)). A binding that cannot
+  run it is refused where the write is served.
+- It is held to a retry as an increment is: with `expect` as here, or, with
+  none, only under a ledger where the writer `commutes` the operator or a
+  guard with a revision pins the row it read.
+
 ### What every row holds: an invariant
 
 A precondition says whether this write applies now; an invariant says what
@@ -246,6 +303,12 @@ const Stock = StockFields.pipe(
   enforced, but its refusal names no invariant and no path.
 - **Repair is possible.** A row already invalid is judged by the row a write
   leaves, so a write that fixes it lands.
+- **Refused before it is sent, where the client can tell.** `Data.mutate`
+  judges the invariants over the row the write would leave, as the store holds
+  it. Where one is definitely broken it shows and sends nothing, and its
+  Command answers `MutationFailed` with the `Refusal.invalid` the server would
+  send; where the store cannot decide (a field it has not read), it refuses
+  nothing and the server judges.
 - **The same declaration, everywhere it can be judged.** `Entity.judge(entity,
   { after })` is the reference; `Entity.check(entity)` is a Schema check; a form over
   an input that sets every field one reads judges it on submit and shows the
@@ -310,20 +373,39 @@ Model, so it restarts on reload, and two clients' first requests share it.
 `Data.mutate` therefore also sends an **operation** id, minted where the request
 is first sent (`crypto.randomUUID()`, or 128 random bits from
 `getRandomValues` on a page served over plain HTTP). A failed request keeps it,
-and a retry with the same `requestId` sends it again. With `Data` the
-application's `Remote.make({ model, entities: [Product], mutations: [Sell] })`:
+and a retry sends it again. With `Data` the application's `Remote.make({ model,
+entities: [Product], mutations: [Sell] })`:
 
 ```ts
 const started = Data.mutate(model, Sell, { id: 'p1', quantity: -2 })
-// …the request failed; the same request id resends the same operation:
-const retried = Data.mutate(failedModel, Sell, { id: 'p1', quantity: -2 }, {
-  requestId: started.requestId,
-})
+// …the request failed: send it again as itself, same input and operation.
+const again = Data.retry(failedModel, started.requestId) // none unless it failed
 ```
 
-The server treats it as untrusted input: at most 128 characters of
-`A–Z a–z 0–9 : . _ -`, refused otherwise. A reloaded client has no record of the
-operation, so the same request id is a new one there.
+`Data.retry` is `Data.mutate` with the failed write's own request id, input and
+`now`. The server treats the operation id as untrusted input: at most 128
+characters of `A–Z a–z 0–9 : . _ -`, refused otherwise.
+
+A write whose request did not go, or whose answer was no Remote answer (not
+JSON, or a gateway's 502), fails with `Unreachable`: the server may or may not
+have run it. Sending it again is safe exactly as far as the table below says.
+
+### A write that outlives the page: durable
+
+A page that reloads forgets its Model, and with it the operation ids of writes
+still in flight. A durable write keeps them:
+`Data.mutate(model, Sell, input, { durable: true })` stores the write in
+Remote's outbox (`Data.outbox`) before it is sent, sends stored writes one at a
+time and in order, and sends one again after an `Unreachable` and after a
+reload, with the same operation id and the same `now`. Setup and status are in
+[Remote's outbox section](../packages/remote/README.md#a-write-that-outlives-the-page-dataoutbox).
+
+What the server must give it is the third row of the table above: a durable
+write may arrive twice, so it needs a writer with a ledger (below), or a
+handler that records by `operation`. A write sent long after it was made lies
+past the server's `clockSkew`, so the server writes its own time instead
+(reported as `ClockSkewed`). The outbox keeps each principal's queue apart, so
+no write is sent as anyone but who made it.
 
 ### A write ledger
 
@@ -415,6 +497,45 @@ row may be stale; the server decides, and its answer replaces the prediction.
 each incremented field, the revision), and `Write.writes(write)` what it may
 change.
 
+Two refusals are made at once, before anything is sent, because the store can
+already tell: an invariant definitely broken by the row the write would leave
+(`Invalid`, above), and a write a held `may` says no to (`Forbidden`, with the
+rule's `explain` as `reason`; see [Guard's "What the client may
+do"](../packages/guard/README.md#what-the-client-may-do)). Each spares a round
+trip and decides nothing for the server, which judges every write that reaches
+it.
+
+### Checking the prediction against the server
+
+The client and the server must agree: what a pending write shows should be
+what the server then holds, and a write the client refuses should be one the
+server refuses alike. `Law.check` (`foldkit-remote/testing`) runs one declared
+write both ways, over a Model holding what the server sends the principal and
+with the same `now`, and compares every part the client predicted: each field,
+whether the row is there, each held list's order, and a refusal by its
+`refusal`. Here `server` is the `RemoteServer.make` that serves `Sell` over a
+real database (remote-drizzle's law suite runs SQLite and Postgres),
+`principal` whom it answers as, and `model` the application's Model before the
+client holds anything:
+
+```ts
+import { Law } from 'foldkit-remote/testing'
+
+const report = Law.check(Data, {
+  model,
+  holds: [{ entity: Product, ids: ['p1'] }],
+  mutation: Sell,
+  input: { id: 'p1', quantity: -2 },
+  now: 0,
+}).pipe(Effect.provide(Remote.clientLayer(RemoteServer.handlers(server, principal))))
+```
+
+What the client left unknown is not compared, and a check that compared
+nothing fails, since two sides that both said nothing prove nothing. In
+development, `Remote.make({ verifyPredictions: true })` compares each answer
+with what its pending write showed, and reports a disagreement as a
+`PredictionMismatch` diagnostic.
+
 ## Failure and recovery
 
 | Outcome | Meaning | What the client does |
@@ -425,6 +546,7 @@ change.
 | `Unmet` | the row does not hold the write's `when` | show why; the state changed |
 | `Invalid` | the row the write would leave breaks an invariant, over a row or over the change | show its `message` beside its `path`; change the input |
 | "changed while it was written" | the row kept moving through three decisions | retry later |
+| `Unreachable` | no answer came back; the write may or may not have landed | `Data.retry` (a durable write is sent again on its own); safe as far as the retry table says |
 | "needs a database with transactions" | a ledger over a database with neither a transaction nor D1's batch | give the writer a Drizzle database |
 
 ### What each database guarantees
@@ -449,8 +571,8 @@ second copy.
   handlers.
 - An invariant reads one row. Uniqueness, foreign keys and limits across rows
   need the database to coordinate them; a predicate cannot say them.
-- Only an increment is computed. Copying one field into another, and other
-  arithmetic, wait for a use case.
+- A computed assignment reads its own row before the write and the input,
+  never another row or another assignment's result.
 - A rule that reads facts outside the database (a remote permission service)
   cannot be made atomic with the write; only what the statement can read is.
 - Without the trigger, the pin trusts every writer to move the revision.
