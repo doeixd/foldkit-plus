@@ -93,10 +93,16 @@ describe('Form.make controls', () => {
       ['tagIds', 'RelationMany'],
       ['notify', 'Toggle'],
     ])
-    const byKey = Object.fromEntries(CreatePost.controls.map(entry => [entry.key, entry]))
-    expect(byKey.status?.control).toEqual(Input.select(['draft', 'live']))
-    expect(byKey.authorId?.control.data).toMatchObject({ target: Blog.Author })
-    expect(byKey.tagIds?.control.data).toMatchObject({ target: Blog.Tag })
+    const byKey = CreatePost.controlsByKey
+    expect(byKey.status.control).toEqual(Input.select(['draft', 'live']))
+    expect(byKey.authorId.control.data).toMatchObject({ target: Blog.Author })
+    expect(byKey.tagIds.control.data).toMatchObject({ target: Blog.Tag })
+  })
+
+  it('holds each control under its own key, as the same entry `controls` lists', () => {
+    const byKey = CreatePost.controlsByKey
+    expect(Object.keys(byKey)).toEqual(CreatePost.controls.map(entry => entry.key))
+    for (const entry of CreatePost.controls) expect(byKey[entry.key]).toBe(entry)
   })
 
   it('keeps a title given before a check, which carries annotations of its own', () => {
@@ -136,7 +142,7 @@ describe('Form.make controls', () => {
   })
 
   it('labels from the schema annotation, then Form.label, then the key', () => {
-    const byKey = Object.fromEntries(CreatePost.controls.map(entry => [entry.key, entry]))
+    const byKey = CreatePost.controlsByKey
     expect(byKey.title).toMatchObject({ label: 'Title', description: 'Shown in the feed' })
     expect(byKey.authorId).toMatchObject({ label: 'Author', description: 'Who wrote it' })
     expect(byKey.notify).toMatchObject({ label: 'notify', description: undefined })

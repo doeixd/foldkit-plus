@@ -100,6 +100,8 @@ const RenameForm = Page.children.rename
   either, and the page that owns the list answers the second.
 - `Rename.controls` lists the keys in the input's order, each with its
   `control`, `label`, `description`, `required`, and the Entity `member`.
+  `Rename.controlsByKey` holds the same entries by key, for a view that places
+  each field itself: `Rename.controlsByKey.title.label`.
 - `Rename.field(model.rename, key)` reads one key's state as `Field<Draft>`, for
   a view that walks `controls`; `model.rename.fields.title` is the same value
   typed to its key.

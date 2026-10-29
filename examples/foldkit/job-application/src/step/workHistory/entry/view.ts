@@ -6,7 +6,7 @@ import { RemoveButtonStyle, StepPart } from '../../../style.js'
 import { DatePicker, Field } from '../../../view/index.js'
 import { Message, type Model, type Position, PositionForm } from './entry.js'
 
-const controls = Field.controlsOf(PositionForm.controls)
+const controls = PositionForm.controlsByKey
 
 const changed =
   (key: keyof Position) =>

@@ -30,6 +30,7 @@ const { Model, Message } = Page
 const RenameForm = Page.children.rename
 
 expectTypeOf(Rename.controls[0]!.key).toEqualTypeOf<'id' | 'title'>()
+expectTypeOf(Rename.controlsByKey.title.label).toEqualTypeOf<string>()
 Rename.Message.Changed({ key: 'title', value: 'Hello' })
 // @ts-expect-error "slug" is not a key of the form
 Rename.Message.Changed({ key: 'slug', value: 'Hello' })

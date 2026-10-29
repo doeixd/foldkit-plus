@@ -1766,6 +1766,17 @@ const Core = {
       return false
     }
 
+    const controls = everyKey.map((key): FormControl<AnyKey> => {
+      const { control, label, description, required, member } =
+        (plans as Readonly<Record<string, FormControl>>)[key] ??
+        (nestedPlans as Readonly<Record<string, FormControl>>)[key]!
+      return { key, control, label, description, required, member }
+    })
+    // `Object.fromEntries` forgets the keys, which are exactly the input's.
+    const controlsByKey = Object.fromEntries(controls.map(entry => [entry.key, entry])) as {
+      readonly [K in AnyKey]: FormControl<K>
+    }
+
     return {
       /** The name, input and options the form was made from: what a pipe step makes the next form from. */
       name,
@@ -1799,12 +1810,12 @@ const Core = {
       /** The Model the form starts from and resets to: every key empty and not validated. */
       initial,
       /** The keys in the input's order, each with its control, label, and member. */
-      controls: everyKey.map((key): FormControl<AnyKey> => {
-        const { control, label, description, required, member } =
-          (plans as Readonly<Record<string, FormControl>>)[key] ??
-          (nestedPlans as Readonly<Record<string, FormControl>>)[key]!
-        return { key, control, label, description, required, member }
-      }),
+      controls,
+      /**
+       * The same controls by key, for a view that places each field itself:
+       * `form.controlsByKey.email.label`.
+       */
+      controlsByKey,
       /**
        * One key's state as a view shows it, with its draft as any `Draft`: its
        * own validation, made `Invalid` by the marks on it (`FormModel.marks`).

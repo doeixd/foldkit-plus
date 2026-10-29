@@ -8,7 +8,7 @@ import { ProficiencyStyle, RemoveButtonStyle, StepPart } from '../../../style.js
 import { Field } from '../../../view/index.js'
 import { Message, type Model, ProficiencyRadioGroup, SkillForm } from './entry.js'
 
-const controls = Field.controlsOf(SkillForm.controls)
+const controls = SkillForm.controlsByKey
 
 export const EntryView = SlotView.forMessages<Message>()
   .define(StepPart.slots, (model: Model, slots, h) => {

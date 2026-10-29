@@ -16,7 +16,7 @@ const graduationYears = (today: CalendarDate): ReadonlyArray<string> =>
     String(today.year + GRADUATION_YEAR_FORWARD_OFFSET - index),
   )
 
-const controls = Field.controlsOf(DegreeForm.controls)
+const controls = DegreeForm.controlsByKey
 
 const changed =
   (key: keyof Degree) =>

@@ -10,6 +10,11 @@ const Search = Schema.Struct({ text: Schema.String, page: Schema.NumberFromStrin
 const SearchForm = Form.make('Search', Form.input(Search))
 
 expectTypeOf<(typeof SearchForm.controls)[number]['key']>().toEqualTypeOf<'text' | 'page'>()
+// By key, each control is typed by its own key, and only the form's keys are there.
+expectTypeOf(SearchForm.controlsByKey.page.key).toEqualTypeOf<'page'>()
+expectTypeOf(SearchForm.controlsByKey.text.label).toEqualTypeOf<string>()
+// @ts-expect-error a key the schema does not have
+void SearchForm.controlsByKey.query
 expectTypeOf(SearchForm.value(SearchForm.initial)).toEqualTypeOf<
   Option.Option<{ readonly text: string; readonly page: number }>
 >()

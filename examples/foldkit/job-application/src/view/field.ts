@@ -1,9 +1,7 @@
 import * as UiCheckbox from '@foldkit/ui/checkbox'
 import * as UiTextarea from '@foldkit/ui/textarea'
-import { Array } from 'effect'
 import { FieldValidation } from 'foldkit'
 import type { Html, HtmlBuilder } from 'foldkit/html'
-import type { FormControl } from 'foldkit-form'
 import { SlotView, type SlotBuilders } from 'foldkit-mixins'
 import { Checkbox, Input, Textarea } from 'foldkit-mixins-ui'
 
@@ -12,18 +10,6 @@ import { CheckboxStyle, FieldPart, InputStyle, TextareaStyle } from '../style.js
 type FieldState = FieldValidation.Field<string>
 
 type Slots<Message> = SlotBuilders<typeof FieldPart.slots, Message>
-
-/**
- * A form's controls by key, read once, so a view that lays its fields out by
- * hand still takes each label from the form.
- */
-export const controlsOf = <Key extends string>(
-  controls: ReadonlyArray<FormControl<Key>>,
-): { readonly [K in Key]: FormControl<K> } =>
-  // `Object.fromEntries` forgets the keys, which are exactly `Key`.
-  Object.fromEntries(Array.map(controls, control => [control.key, control])) as {
-    readonly [K in Key]: FormControl<K>
-  }
 
 const statusMark = <Message>(field: FieldState, slots: Slots<Message>, h: HtmlBuilder<Message>) =>
   FieldValidation.match(field, {

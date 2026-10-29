@@ -87,7 +87,8 @@ const RenameForm = Page.at(Slot, {
   (`Text`, `Multiline`, `Hidden`, `Number`, `Toggle`, `Select` with `options` (string or number
   literals; the value is the option itself), `Choices` with `options` (any number
   of them), `RelationOne` / `RelationMany` with `target`), `label`, `description`,
-  `required`, and the Entity `member`. Read a key's state with
+  `required`, and the Entity `member`; `Rename.controlsByKey.title` is one by
+  key, for a view that places each field itself. Read a key's state with
   `Rename.field(model.rename, key)` and `foldkit/fieldValidation` (`match`,
   `isInvalid`); cross-key failures are in `model.rename.errors`.
 - **Choose a control:** `Form.make(name, input, { inputs: { body: Input.multiline() } })`

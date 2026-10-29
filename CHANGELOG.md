@@ -42,6 +42,9 @@ carries `drawn`.
 
 ### Added
 
+- **`Form.controlsByKey`**: a form's controls by key, each typed by its own
+  key, for a view that places each field itself
+  (`form.controlsByKey.email.label`). Reading `controls` by key took a cast.
 - **Write rules and query bodies read other rows: three-valued `Expr`, paths
   and exists** (#242). `Expr.path` follows `one` relations (at most four) and
   `Expr.exists` names a pointing edge; remote-drizzle compiles them to

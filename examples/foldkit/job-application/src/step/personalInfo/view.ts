@@ -13,7 +13,7 @@ import {
   PronounsListbox,
 } from './personalInfo.js'
 
-const controls = Field.controlsOf(PersonalInfoForm.controls)
+const controls = PersonalInfoForm.controlsByKey
 
 const changed =
   (key: keyof Applicant) =>
