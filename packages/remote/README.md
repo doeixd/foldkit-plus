@@ -414,10 +414,15 @@ const overPort = port(() => {
 It is a `Layer<RemoteClient>` like the others; a port that cannot be set up is
 a defect, not a failed read.
 
-The stock client is accepted as it is. When its transport fails, the call
-fails with its own Remote error (`RemoteReadError`, `RemoteQueryError`,
-`RemoteMutationError`, `RemoteLiveError`), which the UI shows and retries like
-any other failure.
+The stock client is accepted as it is. When its transport fails, a read, a
+query or a live stream fails with its own Remote error (`RemoteReadError`,
+`RemoteQueryError`, `RemoteLiveError`), which the UI shows and retries like any
+other failure. A mutation fails with `RemoteUnreachable` (`_tag:
+'Unreachable'`): nothing answered, so the server may or may not have run it.
+`Remote.json`, `Remote.http` and `Remote.httpWithLive` say the same of a
+request they could not send or an answer that was not JSON: each is a
+`RemoteJsonClient`, a `RemoteRpcClient` whose transport error is
+`RemoteUnreachable`. A mutation the server failed is a `RemoteMutationError`.
 
 Either is a Layer the runtime provides to `subscriptions` and Commands. The
 transport itself is not owned by Remote. See

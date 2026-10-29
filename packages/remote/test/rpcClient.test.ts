@@ -59,7 +59,8 @@ describe('Remote.clientLayer with the stock RpcClient', () => {
     expect(failures.map(failure => failure?._tag)).toEqual([
       'RemoteReadError',
       'RemoteQueryError',
-      'RemoteMutationError',
+      // A write that may not have reached the server is told apart from one it refused.
+      'Unreachable',
       'RemoteLiveError',
     ])
     expect(failures.every(failure => (failure?.message ?? '').length > 0)).toBe(true)

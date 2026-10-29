@@ -6,13 +6,14 @@
  * running in the page. There is no live stream over it.
  */
 import { Effect, Option, Schema, Stream } from 'effect'
-import type { RemoteRpcClient } from './client.js'
+import type { RemoteJsonClient } from './client.js'
 import {
   RemoteForbidden,
   RemoteMutationError,
   RemoteQueryError,
   RemoteReadError,
   RemoteUnauthenticated,
+  RemoteUnreachable,
 } from './wire.js'
 
 /** A request: which of Remote's calls, and its payload as the RPC protocol encodes it. */
@@ -46,15 +47,17 @@ const decodeAnswer = Schema.decodeUnknownEffect(RemoteJsonAnswer)
  */
 export type RemoteJsonSend = (request: string) => Promise<unknown>
 
-const call = <A, E>(
+const call = <A, E, U>(
   send: RemoteJsonSend,
   operation: RemoteJsonRequest['operation'],
   payload: unknown,
   fail: (answer: ErrorAnswer) => E,
-): Effect.Effect<A, E> =>
+  /** What nothing coming back is: the request was not sent, or its answer not read. */
+  unreached: (message: string) => U,
+): Effect.Effect<A, E | U> =>
   Effect.tryPromise({
     try: () => send(JSON.stringify({ operation, payload })),
-    catch: error => fail({ error: error instanceof Error ? error.message : String(error) }),
+    catch: error => unreached(error instanceof Error ? error.message : String(error)),
   }).pipe(
     Effect.flatMap(answer =>
       decodeAnswer(answer).pipe(
@@ -88,13 +91,14 @@ const failure =
         })
 
 /** Remote's client over `send`, for `Remote.clientLayer`. */
-export const json = (send: RemoteJsonSend): RemoteRpcClient => ({
+export const json = (send: RemoteJsonSend): RemoteJsonClient => ({
   FoldkitRemoteRead: payload =>
     call(
       send,
       'read',
       payload,
       failure(({ error }) => new RemoteReadError({ message: error })),
+      message => new RemoteReadError({ message }),
     ),
   FoldkitRemoteQuery: payload =>
     call(
@@ -102,6 +106,7 @@ export const json = (send: RemoteJsonSend): RemoteRpcClient => ({
       'query',
       payload,
       failure(({ error }) => new RemoteQueryError({ message: error })),
+      message => new RemoteQueryError({ message }),
     ),
   FoldkitRemoteMutate: payload =>
     call(
@@ -116,6 +121,9 @@ export const json = (send: RemoteJsonSend): RemoteRpcClient => ({
               ...(forbidden.reason === undefined ? {} : { reason: forbidden.reason }),
             }),
       ),
+      // A mutation that may not have reached the server is told apart, so a
+      // durable one is sent again rather than settled.
+      message => new RemoteUnreachable({ message }),
     ),
   FoldkitRemoteLive: () => Stream.empty,
 })
@@ -164,7 +172,7 @@ export const http = (
     readonly headers?: (() => Readonly<Record<string, string>>) | undefined
     readonly fetch?: typeof fetch | undefined
   } = {},
-): RemoteRpcClient =>
+): RemoteJsonClient =>
   json(async request => {
     const via = options.fetch ?? fetch
     const response = await via(url, {

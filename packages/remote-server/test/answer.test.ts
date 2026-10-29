@@ -148,6 +148,20 @@ describe('Remote.json', () => {
       'offline',
     )
   })
+
+  it('tells a write nothing answered from one the server failed', async () => {
+    const write = { requestId: 'r1', mutation: 'Rename', input: {} }
+    const lost = Remote.json(() => Promise.reject(new Error('offline')))
+    expect(await Effect.runPromise(Effect.flip(lost.FoldkitRemoteMutate(write)))).toMatchObject({
+      _tag: 'Unreachable',
+      message: 'offline',
+    })
+    const failed = Remote.json(() => Promise.resolve({ error: 'not today' }))
+    expect(await Effect.runPromise(Effect.flip(failed.FoldkitRemoteMutate(write)))).toMatchObject({
+      _tag: 'RemoteMutationError',
+      message: 'not today',
+    })
+  })
 })
 
 describe('Remote.http', () => {
@@ -195,6 +209,17 @@ describe('Remote.http', () => {
         Effect.flip(Remote.http(`http://127.0.0.1:${port}/remote`).FoldkitRemoteRead(readA)),
       )
       expect(failed.message).toBe('502 Bad Gateway')
+      // A gateway's page is no answer: a write behind it may not have arrived.
+      const write = await Effect.runPromise(
+        Effect.flip(
+          Remote.http(`http://127.0.0.1:${port}/remote`).FoldkitRemoteMutate({
+            requestId: 'r1',
+            mutation: 'Rename',
+            input: {},
+          }),
+        ),
+      )
+      expect(write).toMatchObject({ _tag: 'Unreachable', message: '502 Bad Gateway' })
     } finally {
       await new Promise<void>(resolve => node.close(() => resolve()))
     }

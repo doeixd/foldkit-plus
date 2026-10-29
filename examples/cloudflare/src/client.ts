@@ -5,11 +5,11 @@
  * decide what each answer proves.
  */
 import { Effect, Stream } from 'effect'
-import { REMOTE_PROTOCOL_VERSION, Remote, type RemoteRpcClient } from 'foldkit-remote'
+import { REMOTE_PROTOCOL_VERSION, Remote, type RemoteJsonClient } from 'foldkit-remote'
 import type { CloudflareStack } from './stack.js'
 
 /** Remote over HTTP with live, posting through `via`. */
-export const remoteClient = (url: string, actor: string, via: typeof fetch): RemoteRpcClient =>
+export const remoteClient = (url: string, actor: string, via: typeof fetch): RemoteJsonClient =>
   Remote.httpWithLive(url, {
     fetch: via,
     headers: () => ({ 'x-actor': actor }),
@@ -19,7 +19,7 @@ export const remoteClient = (url: string, actor: string, via: typeof fetch): Rem
 export const pause = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms))
 
 /** One entity read: the fields asked for, or the request's failure. */
-export const readTodo = (client: RemoteRpcClient, id: string, fields: ReadonlyArray<string>) =>
+export const readTodo = (client: RemoteJsonClient, id: string, fields: ReadonlyArray<string>) =>
   Effect.runPromise(
     client.FoldkitRemoteRead({
       version: REMOTE_PROTOCOL_VERSION,
@@ -29,7 +29,7 @@ export const readTodo = (client: RemoteRpcClient, id: string, fields: ReadonlyAr
 
 /** The `AllTodos` connection's edges for a window. */
 export const queryTodos = (
-  client: RemoteRpcClient,
+  client: RemoteJsonClient,
   window: { readonly first?: number; readonly after?: string },
 ) =>
   Effect.runPromise(client.FoldkitRemoteQuery({ query: 'AllTodos', input: {}, window })).then(
@@ -41,7 +41,7 @@ export const queryTodos = (
  * change lands, and collect it while the stream is open.
  */
 const liveEvents = (
-  client: RemoteRpcClient,
+  client: RemoteJsonClient,
   requirements: ReadonlyArray<{ entity: string; id: string; fields: ReadonlyArray<string> }>,
 ) =>
   client.FoldkitRemoteLive({
@@ -55,7 +55,7 @@ const liveEvents = (
 
 /** The first live change of some requirements. Start it before the change lands. */
 export const firstChange = (
-  client: RemoteRpcClient,
+  client: RemoteJsonClient,
   requirements: ReadonlyArray<{ entity: string; id: string; fields: ReadonlyArray<string> }>,
 ) => liveEvents(client, requirements).pipe(Stream.take(1), Stream.runCollect)
 
@@ -74,7 +74,7 @@ const aboutId = (
  * `firstChange` stays the one-event form the existing tests collect.
  */
 export const takeChanges = (
-  client: RemoteRpcClient,
+  client: RemoteJsonClient,
   requirements: ReadonlyArray<{ entity: string; id: string; fields: ReadonlyArray<string> }>,
   count: number,
   id?: string,

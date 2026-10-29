@@ -171,6 +171,7 @@ import {
   RemoteReadError,
   RemoteRpc,
   RemoteUnauthenticated,
+  RemoteUnreachable,
 } from './wire.js'
 import type { CoalesceOptions } from './coalesce.js'
 import {
@@ -2819,7 +2820,7 @@ export const Remote = {
   httpWithLive: httpWithLiveClient,
 
   clientLayer: <R = never>(
-    client: RemoteRpcClient<R, RpcClientError.RpcClientError>,
+    client: RemoteRpcClient<R, RpcClientError.RpcClientError | RemoteUnreachable>,
     options: CoalesceOptions = {},
   ): Layer.Layer<RemoteClient, never, R> =>
     coalescedLayer(
@@ -2832,22 +2833,23 @@ export const Remote = {
           return {
             read: batch =>
               client.FoldkitRemoteRead(batch).pipe(
-                Effect.catchTag('RpcClientError', error =>
+                Effect.catchTag(['RpcClientError', 'Unreachable'], error =>
                   Effect.fail(new RemoteReadError({ message: error.message })),
                 ),
                 Effect.provideContext(context),
               ),
             query: request =>
               client.FoldkitRemoteQuery(request).pipe(
-                Effect.catchTag('RpcClientError', error =>
+                Effect.catchTag(['RpcClientError', 'Unreachable'], error =>
                   Effect.fail(new RemoteQueryError({ message: error.message })),
                 ),
                 Effect.provideContext(context),
               ),
             mutate: request =>
               client.FoldkitRemoteMutate(request).pipe(
+                // The transport failed: the request may not have reached the server.
                 Effect.catchTag('RpcClientError', error =>
-                  Effect.fail(new RemoteMutationError({ message: error.message })),
+                  Effect.fail(new RemoteUnreachable({ message: error.message })),
                 ),
                 Effect.provideContext(context),
               ),
@@ -2855,7 +2857,7 @@ export const Remote = {
               client
                 .FoldkitRemoteLive({ version: REMOTE_PROTOCOL_VERSION, requirements, after })
                 .pipe(
-                  Stream.catchTag('RpcClientError', error =>
+                  Stream.catchTag(['RpcClientError', 'Unreachable'], error =>
                     Stream.fail(new RemoteLiveError({ message: error.message })),
                   ),
                   Stream.map(liveEventOf),

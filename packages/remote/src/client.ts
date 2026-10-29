@@ -25,6 +25,7 @@ import {
   RemoteProtocolError,
   RemoteQueryError,
   RemoteReadError,
+  RemoteUnreachable,
   type LiveChange,
   type LiveRequirement,
 } from './wire.js'
@@ -52,7 +53,7 @@ export class RemoteClient extends Context.Service<
       request: Schema.Schema.Type<typeof MutationRequest>,
     ) => Effect.Effect<
       Schema.Schema.Type<typeof MutationResult>,
-      RemoteMutationError | RemoteForbidden | RemoteUnauthenticated
+      RemoteMutationError | RemoteForbidden | RemoteUnauthenticated | RemoteUnreachable
     >
     readonly live: (request: {
       readonly requirements: ReadonlyArray<Requirement>
@@ -108,6 +109,12 @@ export interface RemoteRpcClient<R = never, TransportError = never> {
     R
   >
 }
+
+/**
+ * A client over a JSON transport (`Remote.json`, `Remote.http`): a mutation
+ * nothing answered fails `RemoteUnreachable`, its only error of its own.
+ */
+export type RemoteJsonClient = RemoteRpcClient<never, RemoteUnreachable>
 
 /** Reconstructs the client's `ConnectionChange` from the wire's flattened edge. */
 export const connectionChangeOf = (

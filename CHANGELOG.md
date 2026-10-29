@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`RemoteUnreachable`: a write nothing answered** (operations phase 7).
+  **Breaking:** a mutation whose request could not be sent, or whose answer
+  was not JSON (a gateway's 502 page), fails with `_tag: 'Unreachable'`
+  rather than `RemoteMutationError`, through `Remote.json`, `Remote.http` and
+  `Remote.clientLayer`'s RPC transport. The server may or may not have run
+  it; a mutation's own error answer is still `RemoteMutationError`. The JSON
+  clients are typed `RemoteJsonClient` (`RemoteRpcClient<never,
+  RemoteUnreachable>`), which `Remote.clientLayer` accepts.
 - **A list over a path is judged by the client** (operations phase 6).
   `matching`, `belongsEncoded` and so placement judge a body over a path or a
   path from the viewer with `Judge` over the whole store: a row whose path the

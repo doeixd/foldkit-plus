@@ -25,6 +25,7 @@ import type {
   RemoteQueryError,
   RemoteReadError,
   RemoteUnauthenticated,
+  RemoteUnreachable,
 } from './wire.js'
 
 type Tag = RemoteData<unknown>['_tag']
@@ -92,7 +93,11 @@ export const Respond = {
   mutation: (
     mutation: MutationDescriptor<string, any, any>,
     options: {
-      readonly fail?: RemoteMutationError | RemoteForbidden | RemoteUnauthenticated
+      readonly fail?:
+        | RemoteMutationError
+        | RemoteForbidden
+        | RemoteUnauthenticated
+        | RemoteUnreachable
     } = {},
   ): Respond =>
     new Release(

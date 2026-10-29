@@ -3,7 +3,7 @@
  * to one endpoint, each saying which chair it is asked from, over HTTP
  * (`pnpm dev`) or to the server in the build that prerenders the site.
  */
-import { Remote, type RemoteJsonAnswer, type RemoteRpcClient } from 'foldkit-remote'
+import { Remote, type RemoteJsonAnswer, type RemoteJsonClient } from 'foldkit-remote'
 
 /** Who the page is, in this example: a name in the address. A real one signs in. */
 export const chairs = ['wren', 'edda', 'visitor'] as const
@@ -24,9 +24,9 @@ export type Answer = {
 export type Send = (chair: Chair, request: string) => Promise<Answer>
 
 /** Remote's client over `send`, every request asked from `chair`. */
-export const remoteClient = (send: Send, chair: Chair): RemoteRpcClient =>
+export const remoteClient = (send: Send, chair: Chair): RemoteJsonClient =>
   Remote.json(request => send(chair, request).then(answered => answered.body))
 
 /** Remote's client over HTTP to `url`, every request saying which chair asks. */
-export const httpClient = (url: string, chair: Chair): RemoteRpcClient =>
+export const httpClient = (url: string, chair: Chair): RemoteJsonClient =>
   Remote.http(url, { headers: () => ({ 'x-chair': chair }) })

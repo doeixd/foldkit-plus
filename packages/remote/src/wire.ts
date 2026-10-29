@@ -28,6 +28,16 @@ export class RemoteMutationError extends Schema.TaggedError<RemoteMutationError>
 ) {}
 
 /**
+ * No answer came back: the request could not be sent, or what came back was
+ * not an answer. The server may or may not have run it, so it is safe to send
+ * again only as the same operation, which a ledgered writer answers from its
+ * record. The outbox sends a durable write again after it (#247).
+ */
+export class RemoteUnreachable extends Schema.TaggedError<RemoteUnreachable>()('Unreachable', {
+  message: Schema.String,
+}) {}
+
+/**
  * The server refused who is asking: they may not do this, and asking again
  * as the same principal is refused again. `reason` is the application's own
  * words for the person who asked; without it the refusal says nothing of why.

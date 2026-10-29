@@ -541,7 +541,9 @@ or middleware) fails every call kind, reads and live streams included, with
 `_tag: 'Unauthenticated'` and `reason` when given: the session is gone; read it
 with `RemoteData.denied(error)` (`Option<Denied>`: `Unauthenticated` or `Forbidden`, read with `Denied.match`; not a mutation's `refusal`). Remote
 treats it as any failure (a live stream restarts with backoff, refused each
-time); the application signs in again and `forget`s.
+time); the application signs in again and `forget`s. A mutation nothing answered (the
+request not sent, or an answer that is not JSON) fails with `_tag:
+'Unreachable'` (`RemoteUnreachable`): the server may or may not have run it.
 
 **Outcomes in the Model.** `Data.mutation(model, requestId)` is `Pending`,
 `Applied`, `Failed` (with its `error`), or `Unknown`, for the id `Data.mutate`

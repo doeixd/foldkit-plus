@@ -15,6 +15,7 @@ import {
   Remote,
   RemoteRpc,
   RemoteUnauthenticated,
+  type RemoteJsonClient,
   type RemoteRpcClient,
 } from 'foldkit-remote'
 import { RpcSchema } from 'effect/rpc'
@@ -55,21 +56,21 @@ const served = serveFetch({
   layer: () => Layer.empty,
 })
 
-const clientFor = (session: string, answer: typeof served = served): RemoteRpcClient =>
+const clientFor = (session: string, answer: typeof served = served): RemoteJsonClient =>
   Remote.http('http://worker.test/remote', {
     headers: () => ({ 'x-session': session }),
     fetch: (input, init) => answer(new Request(input, init), {}),
   })
 
 const calls = {
-  read: (client: RemoteRpcClient) =>
+  read: (client: RemoteJsonClient) =>
     client.FoldkitRemoteRead({
       version: REMOTE_PROTOCOL_VERSION,
       requests: [{ entity: 'Item', id: 'a', fields: ['name'] }],
     }),
-  query: (client: RemoteRpcClient) =>
+  query: (client: RemoteJsonClient) =>
     client.FoldkitRemoteQuery({ query: 'Items', input: {}, window: {} }),
-  mutate: (client: RemoteRpcClient) =>
+  mutate: (client: RemoteJsonClient) =>
     client.FoldkitRemoteMutate({ requestId: 'r1', mutation: 'Rename', input: { id: 'a' } }),
 }
 

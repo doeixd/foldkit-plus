@@ -10,7 +10,7 @@
  * mutations, for `Remote.clientLayer`.
  */
 import { Effect, Predicate, Schema, Stream } from 'effect'
-import type { RemoteRpcClient } from './client.js'
+import type { RemoteJsonClient, RemoteRpcClient } from './client.js'
 import { http } from './json.js'
 import {
   LiveChange,
@@ -172,7 +172,7 @@ export const liveFetch =
  * Remote's client over HTTP with live: reads, queries, and mutations as
  * `http` sends them, live as `liveFetch` streams it, for `clientLayer`.
  */
-export const httpWithLive = (url: string, options: LiveFetchOptions = {}): RemoteRpcClient => ({
+export const httpWithLive = (url: string, options: LiveFetchOptions = {}): RemoteJsonClient => ({
   ...http(url, options),
   FoldkitRemoteLive: liveFetch(url, options),
 })
