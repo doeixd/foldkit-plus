@@ -702,6 +702,10 @@ carries `drawn`.
 
 ### Fixed
 
+- **`Crud.options` requires every chosen row** (#309). Its `active` keyed
+  each chosen row `${key}:${id}`, and keys and ids may hold colons, so key
+  `a:b` holding `c` and key `a` holding `b:c` made one entry and one row went
+  unread. Rows are keyed by key and id as JSON.
 - **A picker keeps the choices a failed refresh left** (#310). A list whose
   refresh failed still shows its previous rows, but `choices()` and
   `choiceOf` read only `Ready` and `Refreshing`, so a network error emptied

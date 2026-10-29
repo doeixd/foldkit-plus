@@ -721,7 +721,10 @@ export const Crud = {
             ? Option.none()
             : Option.some(
                 Projection.struct(
-                  Object.fromEntries(rows.map(([key, list, id]) => [`${key}:${id}`, list.row(id)])),
+                  // Keyed by key and id as JSON: both may hold a colon, so `${key}:${id}` collides.
+                  Object.fromEntries(
+                    rows.map(([key, list, id]) => [JSON.stringify([key, id]), list.row(id)]),
+                  ),
                 ),
               )
         },

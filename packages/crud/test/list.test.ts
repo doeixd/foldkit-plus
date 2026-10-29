@@ -222,6 +222,22 @@ describe('Crud.list', () => {
     )
   })
 
+  it('requires every chosen row, whatever colons its key and id hold (#309)', () => {
+    const Pair = Form.make(
+      'Pair',
+      Entity.input(Blog.Post, Schema.Struct({ 'a:b': Schema.String, a: Schema.String }), {
+        'a:b': Relation.input(Blog.Post.relations.author),
+        a: Relation.input(Blog.Post.relations.author),
+      }),
+    )
+    // `a:b` holding `c` and `a` holding `b:c` once both read as "a:b:c".
+    const form = Pair.fill(Pair.initial, { 'a:b': 'c', a: 'b:c' }).model
+    const options = Crud.options(Pair, [AuthorList], { chosen: () => form })
+    const required = Option.getOrThrow(options.active.projectionOf(initial))
+    const ids = Data.plan(initial, required).map(request => request.id)
+    expect([...ids].sort()).toEqual(['b:c', 'c'])
+  })
+
   it('keeps the rows a failed refresh left among a picker’s choices (#310)', async () => {
     const EditPost = Form.make(
       'EditPost',
