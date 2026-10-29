@@ -221,8 +221,10 @@ describe('A write with a precondition, on Postgres', () => {
     revision: pgInteger('revision').notNull(),
   })
   const PgDb = bind({ Project }, { Project: { table: pgProjects } })
-  const pglite = new PGlite()
-  beforeAll(() => pglite.waitReady, 60_000)
+  let pglite: PGlite
+  beforeAll(async () => {
+    pglite = await PGlite.create()
+  }, 60_000)
   afterAll(() => pglite.close())
   const pgHandlers = RemoteServer.handlers(
     RemoteServer.make({

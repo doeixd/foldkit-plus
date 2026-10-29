@@ -167,10 +167,10 @@ describe('A write that expects a revision, on Postgres', () => {
     revision: pgInteger('revision').notNull(),
   })
   const PgDb = bind({ Project }, { Project: { table: pgProjects } })
-  const pglite = new PGlite()
-  // Postgres compiled to WebAssembly takes seconds to start on a busy machine:
-  // charged here, not to the first test's five.
-  beforeAll(() => pglite.waitReady, 60_000)
+  let pglite: PGlite
+  beforeAll(async () => {
+    pglite = await PGlite.create()
+  }, 60_000)
   const PgCreate = Mutation.write(
     'CreateProject',
     Write.insert(
@@ -194,12 +194,12 @@ describe('A write that expects a revision, on Postgres', () => {
     ],
   })
   const pgHandlers = RemoteServer.handlers(pgServer, undefined)
-  const pgLayer = databaseLayer(drizzlePg({ client: pglite }))
+  const pgLayer = () => databaseLayer(drizzlePg({ client: pglite }))
   const run = (input: unknown) =>
     Effect.runPromise(
       pgHandlers
         .FoldkitRemoteMutate({ requestId: `pg${++requests}`, mutation: 'RenameProject', input })
-        .pipe(Effect.result, Effect.provide(pgLayer)),
+        .pipe(Effect.result, Effect.provide(pgLayer())),
     )
   afterAll(() => pglite.close())
 
@@ -225,7 +225,7 @@ describe('A write that expects a revision, on Postgres', () => {
             mutation: 'CreateProject',
             input: { id: 'p8', name, status: 'active', revision: 1 },
           })
-          .pipe(Effect.result, Effect.provide(pgLayer)),
+          .pipe(Effect.result, Effect.provide(pgLayer())),
       )
     expect(await create('Pioneer')).toMatchObject({ _tag: 'Success' })
     // With no ledger, the same create again is not told from another's.

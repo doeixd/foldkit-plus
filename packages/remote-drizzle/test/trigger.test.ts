@@ -105,8 +105,10 @@ describe('revisionTrigger', () => {
       version: pgInteger('row_version').notNull(),
     })
     const PgDb = bind({ Note }, { Note: { table: pgNotes } })
-    const pglite = new PGlite()
-    beforeAll(() => pglite.waitReady, 60_000)
+    let pglite: PGlite
+    beforeAll(async () => {
+      pglite = await PGlite.create()
+    }, 60_000)
     afterAll(() => pglite.close())
 
     it('moves the revision of a raw update, and once only for one that moves it', async () => {

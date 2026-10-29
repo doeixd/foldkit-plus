@@ -1602,6 +1602,20 @@ of its own named a form field "fits the Catalog". Read words with
   landed yet, nothing was animating, the settle resolved at once, and CI read
   0 about one full run in two. Wait for evidence of the step first (the count
   above zero), then settle, then assert the exact value.
+- **A real-clock test's budget must outlast every press in it.** The Timer's
+  pause test ran a 1-second countdown and pressed Start, then Pause: two
+  `userEvent.click` round trips on a loaded runner took longer than the
+  second, the pause was stamped past the end, and the timer read `done`.
+  Give the clock far more time than the presses need (a minute), and assert
+  the end in a test that waits for it. `setCPUThrottlingRate` 20 reproduced it.
+- **`new PGlite()` blocks the thread for seconds, whenever it gets there.**
+  Its constructor returns at once and starts Postgres in the background;
+  initdb then runs synchronously in WebAssembly (1.7s here, more on CI),
+  landing inside whichever test is running. Built while a describe was
+  collected, it timed out a two-millisecond SQLite test above it in
+  `ledger.test.ts`. Construct it in the `beforeAll` that awaits it
+  (`pglite = await PGlite.create()`), or at the top level beside a top-level
+  `beforeAll`.
 - **A MutationObserver callback sees the element as it is now, not as each
   record left it.** The Menu's leave test read the panel's attributes in the
   callback, so a batch that added `data-closed` beside `data-leave` and then

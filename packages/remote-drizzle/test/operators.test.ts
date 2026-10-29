@@ -347,8 +347,9 @@ describe('A primitive operator run by the database', () => {
   })
 
   describe('on Postgres', () => {
-    const pglite = new PGlite()
+    let pglite: PGlite
     beforeAll(async () => {
+      pglite = await PGlite.create()
       await pglite.exec(
         'create table items (id text primary key, code text not null, rank integer not null)',
       )

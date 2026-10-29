@@ -209,9 +209,11 @@ describe('a Read rule over a path from the viewer, on SQLite', () => {
 })
 
 describe('a Read rule over a path from the viewer, on Postgres', () => {
-  const pglite = new PGlite()
-  const db = drizzlePg({ client: pglite })
+  let pglite: PGlite
+  let db: ReturnType<typeof drizzlePg>
   beforeAll(async () => {
+    pglite = await PGlite.create()
+    db = drizzlePg({ client: pglite })
     for (const statement of [...create, ...seed]) await db.execute(sql.raw(statement))
   }, 60_000)
   afterAll(() => pglite.close())

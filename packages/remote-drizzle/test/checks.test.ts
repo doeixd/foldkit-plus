@@ -26,7 +26,7 @@ import {
 } from 'drizzle-orm/sqlite-core'
 import { Schema } from 'effect'
 import { Entity, Expr } from 'foldkit-entity'
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { bind, checkConstraints, entityChecks } from '../src/index.js'
 
 const Rule = Entity.define(
@@ -314,7 +314,10 @@ describe.each([
   )
 })
 
-const pglite = new PGlite()
+let pglite: PGlite
+beforeAll(async () => {
+  pglite = await PGlite.create()
+}, 60_000)
 afterAll(() => pglite.close())
 
 it('Postgres holds no NUL in text, so its law has none to judge', async () => {

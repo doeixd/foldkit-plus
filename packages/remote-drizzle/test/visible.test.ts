@@ -231,9 +231,9 @@ describe('a relation page’s cursor, on Postgres', () => {
     Comment: { table: comments },
     Tag: { table: tags },
   })
-  const pglite = new PGlite()
+  let pglite: PGlite
   beforeAll(async () => {
-    await pglite.waitReady
+    pglite = await PGlite.create()
     await pglite.exec(`
       create table users (id text primary key, name text not null);
       create table posts (id text primary key, title text not null, author_id text not null, published_at text);

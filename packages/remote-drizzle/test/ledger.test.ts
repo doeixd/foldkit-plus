@@ -466,8 +466,12 @@ describe('A writer with a ledger, on Postgres', () => {
     table => [pgPrimaryKey({ columns: [table.scope, table.operation, table.target] })],
   )
   const PgDb = bind({ Item }, { Item: { table: pgItems } })
-  const pglite = new PGlite()
-  beforeAll(() => pglite.waitReady, 60_000)
+  // Started here, not as the describe is collected: its start holds the thread
+  // for seconds, and would land inside whichever SQLite test above was running.
+  let pglite: PGlite
+  beforeAll(async () => {
+    pglite = await PGlite.create()
+  }, 60_000)
   afterAll(() => pglite.close())
   // Registered when a test runs, so a registration that throws fails that test, not the file.
   const server = () => {

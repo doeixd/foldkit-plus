@@ -168,9 +168,10 @@ const pgBinding = entity('Subject', pgRows)
 
 describe('foldkit-remote-drizzle conforms to the query semantics on Postgres', () => {
   // One database for every case: they only read.
-  const pglite = new PGlite()
+  let pglite: PGlite
   // Postgres compiled to WebAssembly takes seconds to start on a busy machine.
   beforeAll(async () => {
+    pglite = await PGlite.create()
     await pglite.exec(create)
     for (const row of rows)
       await pglite.query('insert into conformance_rows values ($1, $2, $3, $4, $5)', [
@@ -200,9 +201,10 @@ describe('foldkit-remote-drizzle conforms to the query semantics on Postgres', (
 // The suite's rows hold no accented text, and its accented cases read no field,
 // so the compiler decides them without SQL: this is the one that folds a row.
 describe('foldkit-remote-drizzle folds a stored row as the evaluator does, on Postgres', () => {
-  const pglite = new PGlite()
+  let pglite: PGlite
   // Postgres compiled to WebAssembly takes seconds to start on a busy machine.
   beforeAll(async () => {
+    pglite = await PGlite.create()
     await pglite.exec(create)
     await pglite.query('insert into conformance_rows values ($1, $2, $3, $4, $5)', [
       'f',
@@ -446,9 +448,13 @@ const seedRelational = async (run: (statement: SQL) => Promise<unknown>) => {
 }
 
 describe('paths and exists compile to what the suite expects, on Postgres', () => {
-  const pglite = new PGlite()
-  const db = drizzlePg({ client: pglite })
-  beforeAll(() => seedRelational(statement => db.execute(statement)), 60_000)
+  let pglite: PGlite
+  let db: ReturnType<typeof drizzlePg>
+  beforeAll(async () => {
+    pglite = await PGlite.create()
+    db = drizzlePg({ client: pglite })
+    await seedRelational(statement => db.execute(statement))
+  }, 60_000)
   afterAll(() => pglite.close())
 
   it.each(relational)('$name', async ({ c, i }) => {
