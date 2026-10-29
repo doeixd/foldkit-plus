@@ -1145,10 +1145,10 @@ export const evaluateEach = (
 }
 
 /**
- * Whether a constant or an input the body reads is one no two backends agree
- * on (text holding a NUL, NaN), or a list holding one: every row would refuse.
+ * Whether a constant of `read`, or a value of `input` that `inputs` name, is
+ * one no two backends agree on (text holding a NUL, NaN), or a list holding
+ * one: every row would refuse.
  */
-/** Whether `read` holds a literal, or `inputs` name a value of `input`, no backend agrees on. */
 const givenUnportable = (
   read: ReadonlyArray<AnyExpr | Predicate>,
   inputs: ReadonlyArray<string>,
