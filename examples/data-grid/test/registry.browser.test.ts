@@ -27,7 +27,13 @@ test('100,000 products scroll to the last one, drawing a window, the UPC pinned'
   const container = document.createElement('div')
   container.id = 'root'
   document.body.append(container)
-  Runtime.run(Runtime.makeApplication({ Model, init: () => init(), update, view, container }))
+  // Foldkit's development warning for a slow render logs the Model, and
+  // Vitest formats a console call's arguments in the page: with 100,000
+  // products, about 200ms a warning. On a loaded machine every render is
+  // over budget, so the warnings took the test past its timeout.
+  Runtime.run(
+    Runtime.makeApplication({ Model, init: () => init(), update, view, container, slow: false }),
+  )
   const grid = () => document.getElementById('products')!
   const cell = (row: string, column: string) =>
     document.getElementById(GridFocus.cellId('products', { row, column }))
