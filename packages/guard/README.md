@@ -653,6 +653,13 @@ taken to hold and taken not to. `may` is foreseen only when every part of it
 is, so a new post's Edit shows at once where its author's rule allows it, and
 nothing is shown where an admin's body would decide.
 
+A held `may` also refuses a write where it is made (`Derived.make`'s
+`forbids`): `Data.mutate` of an update whose row's `may.row.Update` is `false`,
+or whose written member or relinked relation reads `false`, or of a delete
+whose `Delete` does, is refused at once with `Forbidden` and the `explain` as
+`reason`, as the server would refuse it. Each is judged over the row before the
+write, which is where the server's writer judges it first.
+
 ```ts
 import { May } from 'foldkit-guard'
 

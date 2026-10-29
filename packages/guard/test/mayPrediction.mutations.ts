@@ -21,8 +21,8 @@ export default [
   edit(
     '`may` says nothing of how a client foresees it',
     may,
-    'Derived.make(MaySchema, { predict })',
-    'Derived.make(MaySchema)',
+    'Derived.make(MaySchema, { predict, forbids })',
+    'Derived.make(MaySchema, { forbids })',
   ),
   edit(
     'a half-known answer is foreseen',

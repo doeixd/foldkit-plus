@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **A write the held `may` says no to is refused where it is made**
+  (operations phase 7). `Derived.make(schema, { forbids })` lets a supplied
+  member say which write its value refuses (`WriteSurface`: `kind`,
+  `members`, `relations`); `Guards.may` declares it. `Data.mutate` asks each
+  such member the store holds for the written row, before it judges the
+  invariants, and refuses at once with `Forbidden` (and the `explain` as
+  `reason`), showing and sending nothing. `Law.check` compares a local refusal
+  with the server's by `refusal`, and by `_tag` where none is declared.
+  **Breaking:** `Derivation.Supplied` holds `forbids` beside `predict`.
 - **The durable outbox** (#247, #260's reload gap, operations phase 7).
   `Data.mutate(model, M, input, { durable: true })` queues a write rather than
   sending it, and `Data.outbox({ key, scope, retry })`, assembled beside

@@ -117,7 +117,12 @@ Object.keys(Blog.Post.members) // id, title, published, commentCount, author, ed
   `Derived.make(schema, { predict })` also says how a client foresees it for a
   row it writes: `predict({ entity, row, rows, context })` reads the row the
   write leaves as the holder has it (`HeldRow`) and returns the value, encoded,
-  or none where it cannot know; Guard's `may` is one.
+  or none where it cannot know; Guard's `may` is one. `forbids(value,
+  surface)` says which write to a row the value refuses: `surface` is a
+  `WriteSurface` (`kind` `Update` or `Delete`, the `members` it writes, the
+  `relations` it points as `Link` or `Unlink`), and the answer is
+  `Option<{ reason }>`, only for a definite refusal. A client holding the value
+  refuses that write where it is made; Guard's `may` declares this too.
 - `Derived.count(relation)` says what it is: how many rows point at this one
   through `relation`, a `one` relation of the counted Entity. It names another
   Entity's relation, so it is added after `Entity.relate`:

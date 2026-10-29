@@ -107,6 +107,12 @@ describe("the law over Chirp's writes", () => {
       compares: ['Post:p4.body', timeline.identity, mine.identity],
     },
     {
+      what: "an edit of someone else's chirp: refused where it is made, as the server refuses it",
+      mutation: EditPost,
+      input: { id: 'p1', body: 'Not yours to edit.' },
+      compares: ['EditPost'],
+    },
+    {
       what: 'a like: the post counting it, and found as yours',
       mutation: LikePost,
       input: { id: likeOf('p2', 'you'), postId: 'p2' },

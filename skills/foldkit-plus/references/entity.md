@@ -73,7 +73,9 @@ still has no relations.
 `Derived.make` says only a member's schema: the server supplies it.
 `Derived.make(schema, { predict })` adds how a client foresees it for a row it
 writes, over the row the write leaves (`HeldRow`), none where it cannot know
-(Guard's `may` declares one). A count
+(Guard's `may` declares one); `{ forbids }` says which write its held value
+refuses (`(value, { kind, members, relations }) => Option<{ reason }>`), so a
+client refuses it where it is made. A count
 says what it counts, the rows whose `one` relation points here, so it is added
 after `Entity.relate`:
 

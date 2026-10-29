@@ -6,7 +6,7 @@
  * greyed-out button, never the check: the write is checked again when made.
  */
 import { Effect, Match, Option, Record, Schema } from 'effect'
-import { Derived, Entity, type AnyEntity, type Predict } from 'foldkit-entity'
+import { Derived, Entity, type AnyEntity, type Forbids, type Predict } from 'foldkit-entity'
 import { attached, type InteractionKey } from './attach.js'
 import { Condition, deciding, type MemberRead, type RowRule } from './condition.js'
 
@@ -177,13 +177,42 @@ const predict: Predict = ({ entity, row, rows, context }) => {
   return sameMay(held, answerAssuming(false)) ? Option.some(held) : Option.none()
 }
 
+/** Whether `answer` names `key`, and says no to it. */
+const refuses = (answer: Readonly<Record<string, boolean>>, key: string): boolean =>
+  Object.hasOwn(answer, key) && answer[key] === false
+
+/**
+ * The write a held `may` refuses, as the server would: the row's `Update` or
+ * `Delete`, a written member's own `Update`, a relation's `Link` or `Unlink`,
+ * each judged over the row as read, where the answer says `false`. What it
+ * does not name refuses nothing, and neither does a value that is no answer.
+ */
+const forbids: Forbids = (value, surface) => {
+  if (!isMay(value)) return Option.none()
+  // Only a row interaction's refusal carries the `explain` the server would give.
+  if (refuses(value.row, surface.kind)) {
+    return Option.some({
+      reason: Option.fromUndefinedOr(
+        Object.hasOwn(value.reasons, surface.kind) ? value.reasons[surface.kind] : undefined,
+      ),
+    })
+  }
+  const member = surface.members.some(key => refuses(value.members, key))
+  const relation = surface.relations.some(
+    ({ relation, interaction }) =>
+      Object.hasOwn(value.relations, relation) && !value.relations[relation]![interaction],
+  )
+  return member || relation ? Option.some({ reason: Option.none() }) : Option.none()
+}
+
 export const May = {
   /**
    * Adds the `may` member to an Entity, after its guards are attached:
    * `TodoFields.pipe(Guards.attach(G, { … }), Guards.may)`. Select it as any
-   * member (`may: true`); `GuardServer.filter` answers it.
+   * member (`may: true`); `GuardServer.filter` answers it. A client holding it
+   * refuses, where it is made, a write it says no to (`Forbidden`).
    */
-  member: Entity.derived({ may: Derived.make(MaySchema, { predict }) }),
+  member: Entity.derived({ may: Derived.make(MaySchema, { predict, forbids }) }),
 
   /**
    * Whether the row's rule for `interaction` let the principal, when it was

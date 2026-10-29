@@ -536,6 +536,10 @@ A declared write whose row the client can tell breaks an invariant (judged over
 the store's row with the write's values over it) is refused by `Data.mutate`
 itself: nothing shown or sent, and `MutationFailed` with that same
 `Refusal.invalid`; an invariant over a field the client lacks refuses nothing.
+Before that, a held supplied member with `forbids` (Guard's `may`: `Update`,
+`Delete`, a written member's or a relinked relation's rule reading `false`)
+refuses it the same way with `_tag: 'Forbidden'` and the `explain` as
+`reason`; a `may` not held refuses nothing.
 `RemoteServer.forbid(reason?)` refuses who is asking, for any mutation: a 403
 over JSON, and `Data.mutation` is `Failed` with `error._tag === 'Forbidden'` and
 `error.reason` when given. `Remote.http` reads a 403 that is not Remote's

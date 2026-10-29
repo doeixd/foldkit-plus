@@ -14,7 +14,7 @@ export default [
   edit(
     'nothing is refused where it is made',
     index,
-    'mutation.write === undefined || options.optimistic !== undefined',
+    'write === undefined || options.optimistic !== undefined',
     'true',
   ),
   edit(

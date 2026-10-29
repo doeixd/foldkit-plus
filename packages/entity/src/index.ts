@@ -92,8 +92,12 @@ type OneRelation = EntityRelation<string, string, AnyEntity, 'one', boolean>
  * and a server compiles both from the relations' storage.
  */
 export type Derivation = Data.TaggedEnum<{
-  /** `predict`: how a client foresees it for a row it writes; none, it waits for the server. */
-  Supplied: { readonly predict: Option.Option<Predict> }
+  /**
+   * `predict`: how a client foresees it for a row it writes; none, it waits
+   * for the server. `forbids`: which write to the row its value refuses, so a
+   * client holding it refuses that write where it is made.
+   */
+  Supplied: { readonly predict: Option.Option<Predict>; readonly forbids: Option.Option<Forbids> }
   Count: { readonly relation: OneRelation }
   Exists: { readonly relation: OneRelation; readonly viewer: OneRelation }
 }>
@@ -115,6 +119,32 @@ export interface Predicting {
  * none where the holder cannot know it, so nothing is shown before the answer.
  */
 export type Predict = (predicting: Predicting) => Option.Option<unknown>
+
+/**
+ * What a write does to a row it finds, as a supplied member's `forbids` is
+ * asked: an update's members and the relations it points, or a delete.
+ */
+export interface WriteSurface {
+  readonly kind: 'Update' | 'Delete'
+  /** The members it sets, moves or computes, relations not among them. */
+  readonly members: ReadonlyArray<string>
+  /** Each relation it points: at a row (`Link`), or at none (`Unlink`). */
+  readonly relations: ReadonlyArray<{
+    readonly relation: string
+    readonly interaction: 'Link' | 'Unlink'
+  }>
+}
+
+/**
+ * Whether a supplied member's value, **encoded** as the store holds it,
+ * refuses `surface`, with the reader's words for why when there are any; none
+ * where it does not say so for certain. Only a definite refusal: a client
+ * refuses the write unseen, and its server would refuse it too.
+ */
+export type Forbids = (
+  value: unknown,
+  surface: WriteSurface,
+) => Option.Option<{ readonly reason: Option.Option<string> }>
 
 /** What `Derived.make`, `Derived.count` or `Derived.exists` returns, before an Entity owns it. */
 export interface DerivedSpec<S extends Schema.Constraint, D extends Derivation = Derivation> {
@@ -1207,13 +1237,21 @@ export const Derived = {
    * A member only an interpreter can compute, of type `schema`: it supplies the
    * value. `predict` says how a client foresees it for a row it writes (Guard's
    * `may`); without it the row reads as missing the member until the answer.
+   * `forbids` says which write to the row its value refuses (Guard's `may`
+   * again), so a client holding it refuses that write where it is made.
    */
   make: <S extends Schema.Constraint>(
     schema: S,
-    options: { readonly predict?: Predict | undefined } = {},
+    options: {
+      readonly predict?: Predict | undefined
+      readonly forbids?: Forbids | undefined
+    } = {},
   ): DerivedSpec<S, Extract<Derivation, { readonly _tag: 'Supplied' }>> => ({
     schema,
-    derives: Derivation.Supplied({ predict: Option.fromUndefinedOr(options.predict) }),
+    derives: Derivation.Supplied({
+      predict: Option.fromUndefinedOr(options.predict),
+      forbids: Option.fromUndefinedOr(options.forbids),
+    }),
   }),
 
   /**

@@ -122,6 +122,7 @@ import {
   mutationStatus,
   predictionOfWrite,
   brokenByWrite,
+  forbiddenByWrite,
   DerivedBy,
   type MutationDescriptor,
   type MutationStatus,
@@ -198,6 +199,7 @@ import {
   REMOTE_PROTOCOL_VERSION,
   WindowSchema,
   RemoteLiveError,
+  RemoteForbidden,
   RemoteLiveRefused,
   RemoteMutationError,
   RemoteProtocolError,
@@ -4365,31 +4367,50 @@ const bindDomain = <
               viewer,
               now: Option.fromUndefinedOr(options.now),
             })
-      // A row the client can tell breaks an invariant is refused here, as the
-      // server would refuse it, and nothing is sent or shown.
+      // A write the client can tell the server refuses is refused here, as the
+      // server would refuse it, and nothing is sent or shown: one its held `may`
+      // forbids, then, as the server decides in that order, one whose row
+      // breaks an invariant.
+      const write = mutation.write
       const refused =
-        mutation.write === undefined || options.optimistic !== undefined
+        write === undefined || options.optimistic !== undefined
           ? Option.none()
-          : Option.map(
-              brokenByWrite(
-                mutation.write,
-                input,
-                options.keys,
-                { viewer, now: Option.fromUndefinedOr(options.now) },
-                visible,
-                bound.operators,
+          : Option.orElse(
+              Option.map(
+                forbiddenByWrite(write, input, options.keys, visible),
+                ({ reason }): RemoteError =>
+                  remoteError(
+                    new RemoteForbidden({
+                      message: Option.getOrElse(reason, () => 'Forbidden'),
+                      ...Option.match(reason, {
+                        onNone: () => ({}),
+                        onSome: said => ({ reason: said }),
+                      }),
+                    }),
+                  ),
               ),
-              (held): RemoteError =>
-                remoteError({
-                  _tag: 'RemoteMutationError',
-                  message: held.message,
-                  refusal: Schema.encodeUnknownSync(mutation.Refusal)({
-                    _tag: 'Invalid',
-                    rule: Option.some(held.id),
-                    message: held.message,
-                    path: held.path,
-                  }),
-                }),
+              () =>
+                Option.map(
+                  brokenByWrite(
+                    write,
+                    input,
+                    options.keys,
+                    { viewer, now: Option.fromUndefinedOr(options.now) },
+                    visible,
+                    bound.operators,
+                  ),
+                  (held): RemoteError =>
+                    remoteError({
+                      _tag: 'RemoteMutationError',
+                      message: held.message,
+                      refusal: Schema.encodeUnknownSync(mutation.Refusal)({
+                        _tag: 'Invalid',
+                        rule: Option.some(held.id),
+                        message: held.message,
+                        path: held.path,
+                      }),
+                    }),
+                ),
             )
       const optimistic = Option.isSome(refused)
         ? undefined

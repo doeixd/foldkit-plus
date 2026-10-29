@@ -285,7 +285,7 @@ so a refusal discloses nothing to someone who may not write:
 
 | Refusal | When | What to do |
 | --- | --- | --- |
-| `Forbidden` (a `RemoteError`, not a `refusal`) | the row is hidden from the caller, or a guard rule does not hold | show it; asking again is refused again |
+| `Forbidden` (a `RemoteError`, not a `refusal`) | the row is hidden from the caller, or a guard rule does not hold; refused where it is made when the held `may` says no | show it; asking again is refused again |
 | `Conflict` | the row moved past the revision the write `expect`s | read it again; let the author decide |
 | `Unmet` | the row does not hold the write's `when` (only for a write with one) | show why; the state changed |
 | `Invalid` | the row it would leave breaks an Entity invariant | show `message` beside each field `path` names |

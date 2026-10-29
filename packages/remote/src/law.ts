@@ -170,9 +170,10 @@ const check = <AppModel>(
           now: config.now,
         }),
       )
+      // A declared refusal by its value; one of who asks (`Forbidden`) by its tag.
       compare(
         config.mutation.name,
-        answer.error.refusal,
+        answer.error.refusal ?? answer.error._tag,
         Result.match(served, {
           onFailure: error => remoteError(error).refusal ?? error._tag,
           onSuccess: () => 'applied',

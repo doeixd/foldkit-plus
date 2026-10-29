@@ -78,7 +78,7 @@ export default [
   edit(
     'the client refuses no write itself',
     '../../remote/src/index.ts',
-    'mutation.write === undefined || options.optimistic !== undefined',
+    'write === undefined || options.optimistic !== undefined',
     'true',
   ),
   edit(

@@ -1731,6 +1731,17 @@ with an error of `_tag: 'Forbidden'`, and `reason` when the server gave one,
 for the person who asked. Asking again as the same person is refused again,
 so show it rather than retry.
 
+**A write the held `may` says no to is refused where it is made, too.** A
+supplied member may say which write its value forbids (`Derived.make(schema, {
+forbids })`); Guard's `may` does: the row's `Update` or `Delete`, a written
+member's own rule, or a relation's `Link` or `Unlink`, where it reads `false`
+for the row as the store holds it. `Data.mutate` asks each such member it holds
+before it judges the invariants, as the server refuses who asks first, and
+answers `MutationFailed` with `_tag: 'Forbidden'` and the `explain`'s words as
+`reason`, showing and sending nothing. A `may` not held, or one that does not
+name the part, refuses nothing; a held `may` is the server's answer as of its
+read, so `Data.refresh` asks again.
+
 Optimistic entity patches are **layers over the base store**, not inverse
 patches. If multiple mutations overlap, the visible cache is recomputed as base
 plus the still-pending layers, so settling one does not require trying to undo

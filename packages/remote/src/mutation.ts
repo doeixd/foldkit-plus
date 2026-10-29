@@ -18,7 +18,9 @@ import {
   Held,
   type AnyEntity,
   type EntityDerived,
+  type Forbids,
   type HeldRow,
+  type WriteSurface,
   type ExprContext,
   type Invariant,
   type MemoryOperators,
@@ -799,6 +801,70 @@ export const brokenByWrite = (
     operators,
   )
   return judged._tag === 'Invalid' ? Option.fromUndefinedOr(judged.failures[0]) : Option.none()
+}
+
+/** Each supplied member of `entity` that says which write its value refuses, by key. */
+const forbidding = new WeakMap<AnyEntity, ReadonlyArray<readonly [string, Forbids]>>()
+const forbiddersOf = (entity: AnyEntity): ReadonlyArray<readonly [string, Forbids]> => {
+  const known = forbidding.get(entity)
+  if (known !== undefined) return known
+  const derived: Readonly<Record<string, EntityDerived<string, string, Schema.Constraint>>> =
+    entity.derived
+  const found = Object.entries(derived).flatMap(([key, member]) =>
+    Derivation.$match(member.derives, {
+      Supplied: ({ forbids }) =>
+        Option.match(forbids, { onNone: () => [], onSome: run => [[key, run] as const] }),
+      Count: () => [],
+      Exists: () => [],
+    }),
+  )
+  forbidding.set(entity, found)
+  return found
+}
+
+/**
+ * Why a declared write is refused by what the client holds of its row: a
+ * supplied member (Guard's `may`) whose value, as the store shows it, forbids
+ * what the write does to the row. None where nothing held says so: an
+ * insert, a row not held, or a member not held or not refusing.
+ */
+export const forbiddenByWrite = (
+  write: AnyWrite,
+  input: unknown,
+  keys: ReadonlyArray<string> | undefined,
+  store: EntityStore,
+): Option.Option<{ readonly reason: Option.Option<string> }> => {
+  const entity = write.input.entity
+  const forbidders = forbiddersOf(entity)
+  if (forbidders.length === 0) return Option.none()
+  const bound = DomainWrite.bind(write, input as never, keys)
+  const held = store[entityKey(entity.name, bound.id)]
+  if (held === undefined) return Option.none()
+  // An insert finds no row, so nothing held of one can refuse it.
+  const surface = Match.valueTags(write, {
+    Insert: (): Option.Option<WriteSurface> => Option.none(),
+    Delete: () => Option.some<WriteSurface>({ kind: 'Delete', members: [], relations: [] }),
+    Update: () =>
+      Option.some<WriteSurface>({
+        kind: 'Update',
+        members: [
+          ...Object.keys(bound.values),
+          ...Object.keys(bound.increments),
+          ...Object.keys(bound.assignments),
+        ],
+        relations: Object.entries(bound.links).map(([relation, link]) => ({
+          relation,
+          interaction: Option.isSome(link) ? 'Link' : 'Unlink',
+        })),
+      }),
+  })
+  return Option.flatMap(surface, asked =>
+    Option.firstSomeOf(
+      forbidders.map(([key, forbids]) =>
+        held.present.has(key) ? forbids(held.values[key], asked) : Option.none(),
+      ),
+    ),
+  )
 }
 
 export const Mutation = {
