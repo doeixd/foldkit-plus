@@ -760,6 +760,13 @@ carries `drawn`.
 
 ### Fixed
 
+- **remote-drizzle's `bind` finds a member by its own name** (prototype-key
+  sweep). It looked each field, relation and Entity up in the storage given
+  by `record[key]`, so a field named `constructor` found `Object` and failed
+  with a `TypeError`, and a missing one went unnamed. It reads own keys now,
+  and refuses a member named `__proto__` where it is bound: Drizzle builds
+  each row it reads by assignment, which would make the value the row's
+  prototype.
 - **Surface keeps Model fields and record keys named like `Object.prototype`
   members.** A Model field named `__proto__` got no `ModelRef` (it was
   assigned to the reference tree, setting its prototype); `Projection.pick`

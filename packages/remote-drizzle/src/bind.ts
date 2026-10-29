@@ -25,6 +25,14 @@ import type {
 } from './binding.js'
 import type { OrderTerm } from './cursor.js'
 
+/**
+ * The value `record` holds under `key` itself, never one it inherits: names
+ * here are an application's member names, and `constructor` would otherwise
+ * find `Object`'s.
+ */
+const own = <A>(record: Readonly<Record<string, A>>, key: string): A | undefined =>
+  Object.hasOwn(record, key) ? record[key] : undefined
+
 /** A `one` relation: the foreign key is a column of the owner's table. */
 export interface OneStorage {
   readonly field: AnyColumn
@@ -345,15 +353,23 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
   for (const [key, entity] of Object.entries(entities)) {
     const name = entity.name
     const descriptor = Entity.from(entity as never)
-    const config = tables[key] ?? fail(`entity "${name}" has no table`)
+    const config = own(tables, key) ?? fail(`entity "${name}" has no table`)
     const tableColumns = getTableColumns(config.table)
     const overrides = config.fields ?? {}
     // Field names arrive from the client, so the lookup maps have no prototype.
     const columns = Object.create(null) as Record<string, AnyColumn>
+    for (const field of [
+      ...Object.keys(entity.fields),
+      ...Object.keys(entity.relations),
+      ...Object.keys(entity.derived),
+    ])
+      // Drizzle builds each row it reads by assignment, which `__proto__` makes the prototype.
+      if (field === '__proto__')
+        fail(`entity "${name}" names a member "__proto__", which a Drizzle row cannot hold`)
     for (const field of Object.keys(entity.fields))
       columns[field] =
-        overrides[field] ??
-        tableColumns[field] ??
+        own(overrides, field) ??
+        own(tableColumns, field) ??
         fail(`field "${field}" on entity "${name}" has no column; name one under "fields"`)
     for (const [field, member] of Object.entries(
       entity.fields as Readonly<Record<string, Domain.EntityMember>>,
@@ -367,7 +383,8 @@ export const bind = <const Es extends Domain.Entities, const S extends Storage<E
     const given = config.relations ?? {}
     for (const [field, relation] of Object.entries(members)) {
       if (relation._tag !== 'Relation') continue
-      const stored = given[field] ?? fail(`relation "${field}" on entity "${name}" has no storage`)
+      const stored =
+        own(given, field) ?? fail(`relation "${field}" on entity "${name}" has no storage`)
       const targetKey = keyOf(relation.target(), name, field)
       const many = {
         ...(stored.orderBy === undefined ? {} : { orderBy: stored.orderBy }),
