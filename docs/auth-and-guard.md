@@ -17,8 +17,8 @@ request ─> foldkit-auth: cookie ─> session ─> principal ─> foldkit-guard
 | Is there a session on this request, and may this request use it? | `foldkit-auth` (`AuthServer.resolver`) | server, per request | a 401 (`Unauthenticated`): the request is refused before anything is read |
 | Who is that session in the application's terms (`User`, its role)? | the application's `principal` function, given to the resolver | server, per request | a 401, if it refuses the session |
 | Which rows, members and relations may this `User` read? | `foldkit-guard` (Read rules) | server: a SQL condition or an evaluator | the rows are absent; nothing says they exist |
-| May this `User` make this write? | `foldkit-guard` (Write rules, `GuardServer.writer`, `mutation`) | server, before the write; what it returns is read back through the Read rules | a 403 (`Forbidden`) |
-| What may the page *show* as allowed? | the server's `may` answer (`Me`, a row's `may`) | answered on the server, read on the client | a button not drawn; no rule runs on the client |
+| May this `User` make this write? | `foldkit-guard` (Write rules, `GuardServer.writer`, `mutation`) | server, before the write, or in its statement for a rule over another row; what it returns is read back through the Read rules | a 403 (`Forbidden`) |
+| What may the page *show* as allowed? | the server's `may` answer (`Me`, a row's `may`) | answered on the server, read on the client | a button not drawn; a hint only, which the server never reads |
 | Credentials, sign-in, sign-out, the cookie | Yielded Auth itself | its own routes | its own errors (`PasswordRejected`, …) |
 
 Two things follow from the table:
@@ -71,7 +71,9 @@ its body is given only on the server. `isAuthor` is data, an `Expr`, which
 the server compiles to SQL.
 
 On the server, the two packages are wired into one endpoint (from
-`examples/auth/src/server.ts`, reduced):
+`examples/auth/src/server.ts`, reduced). `AppAuth` is Yielded's `Auth`
+service and `AppAuthLive` its Layer, `http` the options given Yielded's
+`Http.make`, `Users` your user store, and `server` your `RemoteServer.make`:
 
 ```ts
 import { Option } from 'effect'
@@ -99,7 +101,9 @@ export const remote = serveFetch({
 
 `serveFetch` asks auth once per request, then answers the request's reads and
 writes through the server's Sources, each of which reads that principal
-through the guard set's rules. The two never call each other.
+through the guard set's rules. The two never call each other. Every answer is
+one principal's, so `serveFetch` marks each `cache-control: no-store` unless
+your `headers` say otherwise.
 
 ## What the client sees
 
@@ -119,6 +123,15 @@ server says you may not press is not drawn; a 401 means sign in again
 (`Remote.forget` after a change of principal), a 403 means the server
 refused this one write.
 
+`may` is a UI hint, and enforcement is on the server only. A `may` that says
+yes, because it is stale after a change of role, foreseen by the client for a
+row it just wrote, or edited in the page, changes nothing the server decides:
+the server never reads a `may` from a request, and checks every write when it
+is made. A held `may` that says no refuses the write in the page at once
+(`Forbidden`), which only spares the round trip. The guard README lists [what
+`may` tells a reader, and what it does
+not](../packages/guard/README.md#what-may-tells-a-reader-and-what-it-does-not).
+
 ## Failures, end to end
 
 | What happens | Auth | Guard | The client sees |
@@ -128,7 +141,7 @@ refused this one write.
 | A session that ended (signed out, expired, revoked) | 401, `Your session ended.` | never asked | `denied`: `Unauthenticated` |
 | Another tab switched account | 401, `SUBJECT_CHANGED` (with `believing`) | never asked | forget and read again |
 | Signed in, reading a row a Read rule refuses | the user | the row is filtered out | the row is absent, as if it did not exist |
-| Signed in, a write a Write rule refuses | the user | 403 before the write runs | `denied`: `Forbidden` |
+| Signed in, a write a Write rule refuses | the user | 403; the write does not land | `denied`: `Forbidden` |
 | A server Source that skips its Read rules | — | `GuardServer.validate` throws at startup | the server does not start |
 
 ## Using one without the other
@@ -150,8 +163,10 @@ refused this one write.
   stale membership is a hole.
 - **Every host, the same resolver.** Remote's `serveFetch`, a Sync document's
   socket (`documentHost` with `requests: 'browser'`, since a browser's
-  WebSocket sends no CSRF header), and SSR's posted forms each resolve the
-  principal the same way, and guard decides each the same way.
+  WebSocket sends no CSRF header), SSR's posted forms, and a page render's
+  reads (`pageReader` with `requests: 'navigation'`, since a navigation
+  carries no CSRF header either, behind a reader that cannot write) each
+  resolve the principal the same way, and guard decides each the same way.
 - **Validate at startup.** Call `GuardServer.validate(Policy, …)` where the
   server is built, so a Source that forgot its rules fails loudly.
 
