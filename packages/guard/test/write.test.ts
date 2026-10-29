@@ -13,7 +13,7 @@ import { bind, databaseLayer, source, writer, type DrizzleDatabase } from 'foldk
 import { RemoteServer, type EntityWriter, type MutationSource } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
 import { GuardDrizzle } from '../src/drizzle.js'
-import { Guards, Interaction } from '../src/index.js'
+import { Guards, Interaction, type Policy as GuardPolicy } from '../src/index.js'
 import { GuardServer } from '../src/server.js'
 
 const User = Schema.Struct({
@@ -546,6 +546,32 @@ describe('GuardServer.validate over writes', () => {
     expect(serving(RemoteServer.write(CopyClaim, guarded))).toThrow(
       "write CopyClaim computes Todo's claimedBy from its claimedBy, which has a Read rule",
     )
+  })
+
+  it("refuses a write with no rule, which unguarded: 'allow' lets anyone make, until it says so", () => {
+    const serving = (policy: GuardPolicy<User>, note: typeof Note) => () =>
+      GuardServer.validate(policy, {
+        entities: [note],
+        domain: Data,
+        server: RemoteServer.make({
+          entities: [],
+          mutations: [
+            RemoteServer.write(CreateNote, GuardServer.writer(note, policy, writer(Db.Note))),
+          ],
+          viewer: asker,
+        }),
+      })
+    expect(serving(Policy, Note)).toThrow(
+      "write CreateNote creates Note, which has no Create rule, so unguarded: 'allow' lets anyone",
+    )
+    const Open = Note.pipe(Guards.attach(G, { row: { Create: [Guards.anyone] } }))
+    expect(serving(Policy, Open)).not.toThrow()
+    // Under 'deny' the same write refuses everyone: nothing is left open.
+    const Shut = Guards.declare('Shut', User, () => ({}), {
+      key: user => user.id,
+      unguarded: 'deny',
+    })
+    expect(serving(Shut.implement({}), NoteFields.pipe(Guards.attach(Shut, {})))).not.toThrow()
   })
 
   it('refuses one through a bare writer, or a writer guarded by another Policy or Entity', () => {

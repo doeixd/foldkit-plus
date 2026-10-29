@@ -6,6 +6,39 @@ const file = '../src/server.ts'
 const tests = ['packages/guard/test/write.test.ts']
 
 export default [
+  // #284: a served write left to unguarded: 'allow'.
+  {
+    name: "a served write with no rule passes validate under 'allow'",
+    edits: [
+      {
+        file,
+        find: "attachment.unguarded === 'allow' &&",
+        replace: 'false &&',
+      },
+    ],
+    tests,
+  },
+  {
+    name: "a served write is refused under 'deny' too",
+    edits: [{ file, find: "attachment.unguarded === 'allow' &&", replace: '' }],
+    tests,
+  },
+  {
+    name: 'a served write with a rule of anyone is refused too',
+    edits: [
+      {
+        file,
+        find: "Option.isNone(surfaceOf(attachment, { _tag: 'Row', interaction }))",
+        replace: 'true',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a served create is judged by its Update rule',
+    edits: [{ file, find: "Insert: () => 'Create',", replace: "Insert: () => 'Update'," }],
+    tests,
+  },
   {
     name: 'an update is not checked over the row as it is',
     edits: [

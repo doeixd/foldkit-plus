@@ -437,6 +437,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **Breaking: `GuardServer.validate` refuses a served write no rule
+  governs under `unguarded: 'allow'`** (#284). A declared write (through
+  `GuardServer.writer`) whose interaction (`Create` for an insert, `Update`,
+  `Delete`) has no rule of its own fell to the set's `'allow'`, so a
+  forgotten rule let anyone write. Startup now names it; give the interaction
+  a rule, or `[Guards.anyone]` to say anyone may. Under `'deny'` nothing
+  changes: such a write refuses everyone.
+
 - **Breaking: `SSR.hydrate` reports a page from another build** (#210). A
   page whose stamped build id is not the client's was contained by Foldkit's
   refusal alone; it is now reported as `PageContained` with the new reason
@@ -1039,6 +1047,12 @@ version changed; `pnpm` skips versions already in the registry.
   adapter peers on: a bare `@yielded/auth` installed an older beta on pnpm.
   `pnpm pack:check` now follows every npm step `setup` prints, from the
   packed tarballs, in an ssr scaffold made with the command it prints.
+- **`setup` gives a pnpm workspace member's pins to the workspace root**
+  (#280). pnpm reads `overrides` and `peerDependencyRules` only there, and
+  warned that the ones `setup` had put in the member's `package.json` would
+  not take effect. `setup` now names the root's `pnpm-workspace.yaml`, or its
+  `package.json` where a `pnpm` field is already there, and `pnpm
+  pack:check` runs its pnpm steps in a standalone project and in a member.
 - **`foldkit-mixins/foundations` builds from the root Vite resolved.** A build
   compiled the sheet module from the current directory, so one started from
   elsewhere (a test, a workspace script) failed with "Failed to load url

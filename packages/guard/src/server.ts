@@ -45,6 +45,7 @@ import {
   attachedRules,
   readRowsRuled,
   readRuled,
+  surfaceOf,
   type Attachment,
   type Deny,
   type InteractionKey,
@@ -1186,6 +1187,20 @@ export const GuardServer = {
               return [`write ${mutation} writes ${name} without its write rules`]
             }
             const { write, writer } = source.writes
+            const interaction = Match.valueTags(write, {
+              Insert: () => 'Create',
+              Update: () => 'Update',
+              Delete: () => 'Delete',
+            })
+            // Left without a rule under 'allow', a served write is anyone's: that is
+            // written down as `Guards.anyone`, never left to a forgotten rule.
+            const open =
+              attachment.unguarded === 'allow' &&
+              Option.isNone(surfaceOf(attachment, { _tag: 'Row', interaction }))
+                ? [
+                    `write ${mutation} ${interaction === 'Create' ? 'creates' : `${interaction.toLowerCase()}s`} ${name}, which has no ${interaction} rule, so unguarded: 'allow' lets anyone; give it one, or [Guards.anyone] to say anyone may`,
+                  ]
+                : []
             // Unmet or written, Conflict or not, answers for a member its writer may not read.
             const when = Option.match(write.when, {
               onNone: () => [],
@@ -1200,6 +1215,7 @@ export const GuardServer = {
             const expected = write.expect?.field.key
             const pin = typeof writer === 'object' && writer !== null ? pins.get(writer) : undefined
             return [
+              ...open,
               ...when.map(
                 member =>
                   `write ${mutation}'s precondition reads ${name}'s ${member}, which has a Read rule`,

@@ -52,7 +52,12 @@ const G = Guards.declare(
 )
 const Todo = Fields.pipe(
   Guards.attach(G, {
-    row: { Read: [G.isOwner, G.isViewer], Update: [G.isOwner], Delete: [G.isOwner] },
+    row: {
+      Read: [G.isOwner, G.isViewer],
+      Create: [Guards.anyone],
+      Update: [G.isOwner],
+      Delete: [G.isOwner],
+    },
   }),
 )
 const Policy = G.implement({
