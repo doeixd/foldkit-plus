@@ -65,14 +65,20 @@ toward the cap.
 
 ## What is tested
 
-- `packages/remote-server/test/liveLimits.test.ts`: over the cap is refused
-  with `RemoteLiveRefused` for a `pollLive`-shaped live Source and for the
-  hub alike, before either is asked; at the cap both subscribe; a polling
-  Source under the handler never reads more ids than the cap; the refusal
-  reaches a fetch client as `RemoteLiveRefused` through `serveFetch`.
+- `packages/remote-server/test/liveLimits.test.ts`: over the cap (ids, or
+  pages of a relation) is refused with `RemoteLiveRefused` for a
+  `RemoteServer.live` Source and for the hub alike, before either is asked;
+  at the cap both subscribe; the refusal reaches a fetch client as
+  `RemoteLiveRefused` through `serveFetch`.
+- `packages/remote-drizzle/test/pollLimits.test.ts`: `pollLive` under the
+  handler is refused before a row is read, and at the cap never reads more
+  ids a tick than it.
 - `packages/remote/test/liveRecovery.test.ts`: a refused stream reads
-  `Refused`, records one `LiveRefused` diagnostic, and does not restart.
-- Mutations: `liveLimits.mutations.ts`.
+  `Refused`, records one `LiveRefused` diagnostic, and does not restart; a
+  refusal after a break ends the reconnecting; a stream opened again and
+  admitted reads `Live`.
+- Mutations: `remote-server/test/liveLimits.mutations.ts` and the refusal
+  cases in `remote/test/liveRecovery.mutations.ts`.
 
 ## Not done
 
