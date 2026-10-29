@@ -296,7 +296,8 @@ so a refusal discloses nothing to someone who may not write:
 | `Invalid` | the row it would leave breaks an Entity invariant; refused where it is made when the client holds what the invariant reads | show `message` beside each field `path` names |
 
 An `Invalid` over a member hidden from the caller names no rule and no path.
-`Refusal.isInvalidBy(refusal, invariant)` asks which invariant refused it. A
+`Refusal.isInvalidBy(refusal, invariant)` asks which invariant refused it, by
+its Entity and its id, since an id is unique only within an Entity. A
 refusal made where the write is made is the one the server would send, so the
 application handles both alike (see [Refused where it is made](../packages/remote/README.md#refused-where-it-is-made)).
 A `CHECK` constraint from `checkConstraints` or `entityChecks` is a backstop for writes past the

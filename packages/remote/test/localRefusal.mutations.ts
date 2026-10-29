@@ -36,4 +36,10 @@ export default [
     '                : false\n                  ? Effect.succeed({',
   ),
   edit('the refusal names no rule', index, 'rule: Option.some(held.id),', 'rule: Option.none(),'),
+  edit(
+    'the refusal names no Entity',
+    index,
+    'entity: Option.some(held.entity),',
+    'entity: Option.none(),',
+  ),
 ]

@@ -1663,13 +1663,15 @@ hold what a [declared write](#declared-writes-what-the-client-predicts)'s
 `when` asks of it. A `Mutation.write` is refused as unmet only when its write
 has a `when`, and its `Refusal` type says so: without one it stays `Conflict`,
 so a match over it needs no `Unmet` arm. `Refusal.invalid` says the row it
-would leave breaks an invariant of its Entity (`Entity.invariant`): its `rule`
-and `path`, which a form shows the `message` beside, or none and empty when the
-invariant reads something the caller may not see. Every `Mutation.write` may be
+would leave breaks an invariant of its Entity (`Entity.invariant`): its
+`entity` and `rule` (an id is unique only within its Entity, so the two name
+it) and its `path`, which a form shows the `message` beside, or none and empty
+when the invariant reads something the caller may not see. Every `Mutation.write` may be
 refused so, since the server's Entity may hold invariants the client's does not
 show. `Refusal.isInvalidBy(refusal, invariant)` asks whether it names one
-invariant, given as `Entity.invariant` returned it (export it beside the
-Entity), so its id is never spelled again; an unnamed refusal matches none. The
+invariant, by its Entity and its id, given as `Entity.invariant` returned it
+(export it beside the Entity), so its id is never spelled again; an unnamed
+refusal matches none, and so does another Entity's invariant of the same id. The
 server sends the refusal encoded by this schema and `Data.refusal` decodes it
 by the same one; it is none while the mutation is pending or applied, or when
 it failed for another reason.

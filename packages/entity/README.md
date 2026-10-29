@@ -1065,9 +1065,12 @@ reads before too   -> transition invariant: every update, the only write with a 
 `Entity.readsBefore(invariant)` says which one is, for each of
 `Entity.invariants(entity)`.
 
-`Entity.invariant` returns the step that attaches it, carrying its `id`. Hoist
-it to export it, naming the Entity's type (what it reads is checked against
-it), and match a refusal against it rather than spelling the id again:
+`Entity.invariant` returns the step that attaches it, carrying its `id` and,
+once attached, its Entity's name as `entity`: an id is unique only within an
+Entity, so a refusal names both. A declaration attaches to one Entity; reading
+`entity` before it is attached throws. Hoist it to export it, naming the
+Entity's type (what it reads is checked against it), and match a refusal
+against it rather than spelling the id again:
 
 ```ts
 export const reservedWithinQuantity = Entity.invariant<typeof InventoryFields>(

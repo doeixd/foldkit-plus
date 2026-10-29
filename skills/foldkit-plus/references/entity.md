@@ -322,7 +322,8 @@ const Restock = Write.update(
   `Entity.check(entity)` the state invariants as a Schema check; a form judges them on submit; the Drizzle
   writer judges them in the statement that writes, and refuses a breaking write as `Refusal.invalid`.
 - **Not a rule.** No guard alternative excuses an invariant, and a valid row grants no one anything.
-- **A handle, not a string.** `Entity.invariant` returns the pipe step, carrying its `id`. Export it and
+- **A handle, not a string.** `Entity.invariant` returns the pipe step, carrying its `id` and, once attached,
+  its Entity's name (one declaration per Entity; reading `entity` before it is attached throws). Export it and
   match a refusal with `Refusal.isInvalidBy(refusal, reservedWithinStock)` (`foldkit-remote`) rather than
   spelling the id again. Hoisted, it needs the Entity's type (`Entity.invariant<typeof ProductFields>`);
   inline in `.pipe(…)` it infers it.

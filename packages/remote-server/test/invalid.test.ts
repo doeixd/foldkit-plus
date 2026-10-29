@@ -67,6 +67,7 @@ describe('An invalid row', () => {
     )
     const encoded = {
       _tag: 'Invalid',
+      entity: 'Stock',
       rule: 'reservedWithinQuantity',
       message: 'Reserved stock cannot exceed the quantity',
       path: ['reserved'],
@@ -77,13 +78,60 @@ describe('An invalid row', () => {
     })
     // As the client's `Data.refusal` reads it, by the mutation's own codec.
     const refusal = Schema.decodeUnknownSync(SetQuantity.Refusal)(encoded)
-    expect(refusal).toEqual({ ...encoded, rule: Option.some('reservedWithinQuantity') })
+    expect(refusal).toEqual({
+      ...encoded,
+      entity: Option.some('Stock'),
+      rule: Option.some('reservedWithinQuantity'),
+    })
     expect(Refusal.isInvalid(refusal)).toBe(true)
     // Matched by its declaration, or by the invariant the Entity holds, never by another's.
     expect(Refusal.isInvalidBy(refusal, reservedWithinQuantity)).toBe(true)
     expect(Refusal.isInvalidBy(refusal, Entity.invariants(Stock)[0]!)).toBe(true)
     expect(Refusal.isInvalidBy(refusal, quantityNotNegative)).toBe(false)
     expect(Refusal.isInvalidBy({ _tag: 'Conflict' }, reservedWithinQuantity)).toBe(false)
+  })
+
+  // Ids are unique only within an Entity, so a refusal names its Entity too (#325).
+  it("is not matched by another Entity's invariant of the same id", async () => {
+    const BinFields = Entity.define(
+      'Bin',
+      Schema.Struct({ id: Schema.String, quantity: Schema.Number, reserved: Schema.Number }),
+    )
+    const sameId = Entity.invariant<typeof BinFields>(
+      'reservedWithinQuantity',
+      ({ after }) => Expr.lte(after.reserved, after.quantity),
+      { message: 'Reserved cannot exceed the quantity' },
+    )
+    const Bin = BinFields.pipe(sameId)
+    const failed = await send(
+      refusing(
+        RemoteServer.invalid('Reserved stock cannot exceed the quantity', Option.some(sameId.id)),
+      ),
+    )
+    if (failed._tag !== 'Failure' || failed.failure._tag !== 'RemoteMutationError') {
+      throw new Error('expected a refusal')
+    }
+    const refusal = Schema.decodeUnknownSync(SetQuantity.Refusal)(failed.failure.refusal)
+    expect(Refusal.isInvalidBy(refusal, reservedWithinQuantity)).toBe(true)
+    expect(Refusal.isInvalidBy(refusal, sameId)).toBe(false)
+    expect(Refusal.isInvalidBy(refusal, Entity.invariants(Bin)[0]!)).toBe(false)
+  })
+
+  it('is matched by no declaration before it is attached', () => {
+    const loose = Entity.invariant<typeof StockFields>(
+      'loose',
+      ({ after }) => Expr.gte(after.reserved, 0),
+      { message: 'Reserved cannot be negative' },
+    )
+    expect(() => loose.entity).toThrow('names no Entity until it is attached')
+    const Other = Entity.define(
+      'Other',
+      Schema.Struct({ id: Schema.String, quantity: Schema.Number, reserved: Schema.Number }),
+    )
+    StockFields.pipe(loose)
+    expect(loose.entity).toBe('Stock')
+    // @ts-expect-error a declaration is typed to its own Entity
+    expect(() => loose(Other)).toThrow('is declared on Stock already')
   })
 
   it('names nothing when the writer may not say which invariant', async () => {
@@ -93,8 +141,10 @@ describe('An invalid row', () => {
         refusal: { _tag: 'Invalid', rule: null, message: 'The row would be invalid', path: [] },
       },
     })
+    // Of the right Entity, so only the missing rule can keep it from matching.
     const unnamed = Schema.decodeUnknownSync(SetQuantity.Refusal)({
       _tag: 'Invalid',
+      entity: 'Stock',
       rule: null,
       message: 'The row would be invalid',
       path: [],

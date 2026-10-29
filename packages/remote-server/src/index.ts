@@ -2275,6 +2275,8 @@ export const RemoteServer = {
                 mutation,
                 {
                   _tag: 'Invalid',
+                  // A writer judges the row it writes, so the invariant is that row's Entity's.
+                  entity: Option.some(write.input.entity.name),
                   rule: refused.rule,
                   message: refused.message,
                   path: refused.path,

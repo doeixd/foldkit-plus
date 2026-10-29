@@ -837,6 +837,16 @@ carries `drawn`.
   Effect's `Clock`, read when the answer lands, so a test of how written rows
   age drives `TestClock`; the `now` option is the write's time sent to the
   server.
+- **An `Invalid` refusal names its Entity, and `Refusal.isInvalidBy` matches
+  by Entity and id** (#325). Invariant ids are unique only within an Entity,
+  and `isInvalidBy` compared the id alone, so one Entity's `valid` refusal
+  matched another Entity's `valid`. `Refusal.invalid` now carries `entity`
+  (none from an older server, which then matches nothing); `RemoteServer.write`
+  and a refusal made where the write is made set it; `Invariant` and the
+  declaration `Entity.invariant` returns carry their Entity's name.
+  **Breaking:** `isInvalidBy` takes `{ entity, id }`, and a declaration
+  attaches to one Entity: attaching it to a second throws, and reading its
+  `entity` before it is attached throws.
 - **`Crud.options` reads each listed choice once** (#308). It checked every
   chosen id against a picker's whole list, so a many-picker holding N of N
   loaded choices did quadratic work on each derivation. It groups the held

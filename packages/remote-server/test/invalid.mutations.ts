@@ -15,8 +15,8 @@ export default [
   edit(
     'any invalid refusal matches every invariant',
     '../../remote/src/mutation.ts',
-    'Schema.is(invalid)(refusal) && Option.contains(refusal.rule, invariant.id)',
-    'Schema.is(invalid)(refusal)',
+    '    Option.contains(refusal.rule, invariant.id),',
+    '    true,',
   ),
   edit(
     'an unnamed refusal matches every invariant',
@@ -27,8 +27,8 @@ export default [
   edit(
     'a declared invariant carries no id',
     '../../entity/src/invariant.ts',
-    '{ id },',
-    "{ id: '' },",
+    'id: { value: id, enumerable: true },',
+    "id: { value: '', enumerable: true },",
   ),
   edit(
     'a writer that judges no invariant is taken',

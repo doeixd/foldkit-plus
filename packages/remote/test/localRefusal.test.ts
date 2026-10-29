@@ -102,6 +102,7 @@ describe('a write the client can tell breaks an invariant', () => {
     expect(refusal).toEqual(
       Option.some({
         _tag: 'Invalid',
+        entity: Option.some('Item'),
         rule: Option.some('withinCap'),
         message: 'The count stays within the cap',
         path: ['count'],

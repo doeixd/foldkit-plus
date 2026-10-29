@@ -36,6 +36,8 @@ type AnyField = EntityField<string, string, Schema.Constraint>
 export interface Invariant {
   /** Stable, unique within its Entity: what a refusal names, and forms and logs key on. */
   readonly id: string
+  /** The Entity it is declared on: ids are unique only within one, so a refusal names both. */
+  readonly entity: string
   readonly predicate: Predicate
   /** What someone the rules let write is told when a write would break it. */
   readonly message: string
@@ -95,12 +97,16 @@ export const readsBefore = (held: Invariant): boolean => held.before.length > 0
 
 /**
  * An invariant as declared: the step that attaches it to its Entity, carrying
- * its id, so a refusal is matched against the declaration rather than a
- * string spelled again (`Refusal.isInvalidBy(refusal, reservedWithinQuantity)`).
+ * its id and, once attached, that Entity's name, so a refusal is matched
+ * against the declaration rather than a string spelled again
+ * (`Refusal.isInvalidBy(refusal, reservedWithinQuantity)`). An id is unique
+ * only within an Entity, so the name is part of what a refusal names; reading
+ * it before the declaration is attached throws.
  */
 export interface DeclaredInvariant<E extends AnyEntity> {
   (entity: E): E
   readonly id: string
+  readonly entity: string
 }
 
 const fail = (entity: AnyEntity, message: string): never => {
@@ -117,60 +123,76 @@ export const invariant = <E extends AnyEntity>(
     readonly message: string
     readonly path?: ReadonlyArray<keyof E['fields'] & string>
   },
-): DeclaredInvariant<E> =>
-  Object.assign(
-    (entity: E): E => {
-      if (id.length === 0) fail(entity, 'an invariant needs an id')
-      if (invariantsOf(entity).some(held => held.id === id))
-        fail(entity, `"${id}" is declared twice`)
-      const fields = entity.fields as Readonly<Record<string, E['fields'][string]>>
-      const after = Object.fromEntries(
-        Object.entries(fields).map(([key, field]) => [key, Expr.next(field)]),
-      ) as unknown as AfterRow<E>
-      const before = Object.fromEntries(
-        Object.entries(fields).map(([key, field]) => [key, Expr.field(field)]),
-      ) as unknown as BeforeRow<E>
-      const predicate = build({ before, after }) as Predicate
-      // `where` refuses a predicate over another Entity, which the type allows when it is unmarked.
-      const body = Query.from(entity).pipe(Query.where(predicate))
-      const dependencies = Query.dependencies(body)
-      if (dependencies.inputs.length > 0) {
-        fail(
-          entity,
-          `"${id}" reads the input ${dependencies.inputs.join(', ')}; it judges stored rows`,
-        )
-      }
-      const beforeReads = dependencies.predicate.map(field => field.key)
-      const afterReads = dependencies.next.map(field => field.key)
-      // Reading the row before alone, it says which rows a write may start from: a write's `when`.
-      // Judged as an invariant, a create would skip it and a repair would be refused by it.
-      if (afterReads.length === 0) {
-        fail(
-          entity,
-          `"${id}" reads no field of \`after\`; what a write may start from is its \`when\``,
-        )
-      }
-      const path = options.path ?? [...new Set([...afterReads, ...beforeReads])]
-      for (const key of path) {
-        if (!Object.hasOwn(fields, key)) fail(entity, `"${id}"'s path names "${key}", not a field`)
-      }
-      return entity.pipe(
-        Entity.annotate(
-          Invariants.of(
-            Object.freeze({
-              id,
-              predicate,
-              message: options.message,
-              path: Object.freeze([...path]),
-              before: Object.freeze(beforeReads),
-              after: Object.freeze(afterReads),
-            }),
-          ),
+): DeclaredInvariant<E> => {
+  let attached: string | undefined
+  const declared = (entity: E): E => {
+    if (id.length === 0) fail(entity, 'an invariant needs an id')
+    if (attached !== undefined && attached !== entity.name)
+      fail(entity, `"${id}" is declared on ${attached} already: declare it again for this Entity`)
+    if (invariantsOf(entity).some(held => held.id === id)) fail(entity, `"${id}" is declared twice`)
+    const fields = entity.fields as Readonly<Record<string, E['fields'][string]>>
+    const after = Object.fromEntries(
+      Object.entries(fields).map(([key, field]) => [key, Expr.next(field)]),
+    ) as unknown as AfterRow<E>
+    const before = Object.fromEntries(
+      Object.entries(fields).map(([key, field]) => [key, Expr.field(field)]),
+    ) as unknown as BeforeRow<E>
+    const predicate = build({ before, after }) as Predicate
+    // `where` refuses a predicate over another Entity, which the type allows when it is unmarked.
+    const body = Query.from(entity).pipe(Query.where(predicate))
+    const dependencies = Query.dependencies(body)
+    if (dependencies.inputs.length > 0) {
+      fail(
+        entity,
+        `"${id}" reads the input ${dependencies.inputs.join(', ')}; it judges stored rows`,
+      )
+    }
+    const beforeReads = dependencies.predicate.map(field => field.key)
+    const afterReads = dependencies.next.map(field => field.key)
+    // Reading the row before alone, it says which rows a write may start from: a write's `when`.
+    // Judged as an invariant, a create would skip it and a repair would be refused by it.
+    if (afterReads.length === 0) {
+      fail(
+        entity,
+        `"${id}" reads no field of \`after\`; what a write may start from is its \`when\``,
+      )
+    }
+    const path = options.path ?? [...new Set([...afterReads, ...beforeReads])]
+    for (const key of path) {
+      if (!Object.hasOwn(fields, key)) fail(entity, `"${id}"'s path names "${key}", not a field`)
+    }
+    attached = entity.name
+    return entity.pipe(
+      Entity.annotate(
+        Invariants.of(
+          Object.freeze({
+            id,
+            entity: entity.name,
+            predicate,
+            message: options.message,
+            path: Object.freeze([...path]),
+            before: Object.freeze(beforeReads),
+            after: Object.freeze(afterReads),
+          }),
         ),
-      ) as E
+      ),
+    ) as E
+  }
+  return Object.defineProperties(declared, {
+    id: { value: id, enumerable: true },
+    entity: {
+      enumerable: true,
+      get: () => {
+        if (attached === undefined) {
+          throw new Error(
+            `[foldkit-entity] Entity.invariant "${id}" names no Entity until it is attached to one`,
+          )
+        }
+        return attached
+      },
     },
-    { id },
-  )
+  }) as DeclaredInvariant<E>
+}
 
 export const invariantsOf = (entity: AnyEntity): ReadonlyArray<Invariant> =>
   Invariants.get(entity.metadata)

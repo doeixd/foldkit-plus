@@ -4523,6 +4523,7 @@ const bindDomain = <
                       message: held.message,
                       refusal: Schema.encodeUnknownSync(mutation.Refusal)({
                         _tag: 'Invalid',
+                        entity: Option.some(held.entity),
                         rule: Option.some(held.id),
                         message: held.message,
                         path: held.path,

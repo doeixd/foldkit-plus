@@ -344,10 +344,12 @@ const conflict = Schema.TaggedStruct('Conflict', {})
 const unmet = Schema.TaggedStruct('Unmet', {})
 /**
  * The row the write would leave breaks one of its Entity's invariants: which
- * one, what to tell the author, and the fields to show it beside. None and
- * empty when the invariant reads a member hidden from whoever asked.
+ * one (its Entity and its id, since an id is unique only within one), what to
+ * tell the author, and the fields to show it beside. None and empty when the
+ * invariant reads a member hidden from whoever asked.
  */
 const invalid = Schema.TaggedStruct('Invalid', {
+  entity: Schema.OptionFromOptionalNullOr(Schema.String),
   rule: Schema.OptionFromNullOr(Schema.String),
   message: Schema.String,
   path: Schema.Array(Schema.String),
@@ -376,12 +378,15 @@ export const Refusal = {
   /** Whether a refusal, of whatever mutation, is `Refusal.invalid`. */
   isInvalid: Schema.is(invalid),
   /**
-   * Whether a refusal is `Refusal.invalid` naming this invariant: the one
-   * `Entity.invariant` returned, or one `Entity.invariants` reads. An invariant
-   * over a member hidden from the asker names none, so it matches nothing.
+   * Whether a refusal is `Refusal.invalid` naming this invariant, by its
+   * Entity and its id: the declaration `Entity.invariant` returned, once
+   * attached, or one `Entity.invariants` reads. An invariant over a member
+   * hidden from the asker names none, so it matches nothing.
    */
-  isInvalidBy: (refusal: unknown, invariant: Pick<Invariant, 'id'>): boolean =>
-    Schema.is(invalid)(refusal) && Option.contains(refusal.rule, invariant.id),
+  isInvalidBy: (refusal: unknown, invariant: Pick<Invariant, 'entity' | 'id'>): boolean =>
+    Schema.is(invalid)(refusal) &&
+    Option.contains(refusal.entity, invariant.entity) &&
+    Option.contains(refusal.rule, invariant.id),
 }
 
 /**
