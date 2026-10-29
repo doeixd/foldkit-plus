@@ -2026,7 +2026,7 @@ export type Ordering = OrderTerm | ChosenOrder
  * What an order term orders by, refusing a link: a client holds a link as a
  * ref, not the id it orders by, so it could not place a row there.
  */
-const orderOperand = (expr: unknown, step: 'asc' | 'desc'): AnyExpr => {
+const orderOperand = (expr: unknown, step: 'asc' | 'desc' | 'chosen'): AnyExpr => {
   if (tagOf(expr) === 'Relation') {
     throw new Error(
       `[foldkit-entity] Order.${step}: a list orders by its own fields, not by where a relation points`,
@@ -2055,13 +2055,13 @@ export const Order = {
    * Query.orderBy(Order.chosen(input.sort, { title: Post.fields.title }))
    * ```
    */
-  chosen: <By extends string, const Choices extends { readonly [K in By]: Operand<any> }>(
+  chosen: <By extends string, const Choices extends { readonly [K in By]: OwnOperand<any> }>(
     sort: InputExpr<ChosenSort<By>>,
     choices: Choices,
   ): ChosenOrder & Reads<ReadsOf<Choices[keyof Choices]>> => {
     const fields: Record<string, FieldExpr<unknown> | CallExpr<unknown>> = Object.create(null)
-    for (const [name, choice] of Object.entries<Operand<any>>(choices)) {
-      const expr = toExpr(choice as never, 'chosen')
+    for (const [name, choice] of Object.entries<OwnOperand<any>>(choices)) {
+      const expr = orderOperand(choice, 'chosen')
       if (expr._tag !== 'Field' && expr._tag !== 'Call') {
         throw new Error(`[foldkit-entity] Order.chosen: "${name}" is neither a field nor a call`)
       }

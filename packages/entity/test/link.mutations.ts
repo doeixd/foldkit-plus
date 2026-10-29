@@ -19,6 +19,11 @@ export default [
   ),
   edit('a list orders by a link', "if (tagOf(expr) === 'Relation') {", 'if (false) {'),
   edit(
+    'a chosen order takes a link',
+    "const expr = orderOperand(choice, 'chosen')",
+    "const expr = toExpr(choice as never, 'chosen')",
+  ),
+  edit(
     "a link is read under the target's key",
     'key: relation.key,\n',
     'key: relation.target().name,\n',

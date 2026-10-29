@@ -1057,6 +1057,12 @@ carries `drawn`.
   every alternative of an `Order.chosen`, so a NaN in an input only an
   unchosen alternative reads failed the run instead of setting the one bad
   row aside in `refused`.
+- **`Order.chosen` refuses a one-relation, as `Order.asc` does** (#293). An
+  alternative such as `{ author: Post.relations.author }` was accepted and
+  ordered by the foreign key, an order no client could place a row in
+  (`Query.placement` read `NotPlaceable`). **Breaking:** its `choices` are
+  now typed as fields and calls, so such an alternative is a type error, and
+  it throws where it is written.
 
 ## 0.35.0
 

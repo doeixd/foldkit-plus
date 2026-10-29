@@ -95,6 +95,20 @@ describe('a link as an operand', () => {
     )
   })
 
+  it('is no alternative of a chosen order either (#293)', () => {
+    const sort = Expr.input(
+      'sort',
+      Schema.Struct({
+        by: Schema.Literals(['body', 'author']),
+        direction: Schema.Literals(['asc', 'desc']),
+      }),
+    )
+    expect(() =>
+      // @ts-expect-error a link orders nothing
+      Order.chosen(sort, { body: Post.fields.body, author: Post.relations.author }),
+    ).toThrow('Order.chosen: a list orders by its own fields, not by where a relation points')
+  })
+
   it('is owned by its Entity, so a query over another refuses it', () => {
     expect(() =>
       // @ts-expect-error the link is a Like's
