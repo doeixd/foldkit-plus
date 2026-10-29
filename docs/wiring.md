@@ -15,7 +15,7 @@ READMEs and skill references.
 ## What it is
 
 The interface, declared in `foldkit-surface` and repeated structurally in
-`foldkit-bundle` (so the bundle core does not depend on Surface):
+`foldkit-bundle` (so the bundle core does not depend on Surface), abridged:
 
 ```ts
 interface Wiring<Model, Message, R = never, Claims extends string = string> {
@@ -40,7 +40,9 @@ The producers, one per integration:
 
 | Integration | Call | Brings |
 | --- | --- | --- |
-| Remote | `Data.wiring(active, options?)` | `route` into `Data.reduce`, entries per active Surface, contract, `RemoteClient` |
+| Remote | `Data.wiring(active, options?)` | `route` into `Data.reduce`, entries per active Surface, contract, `RemoteClient`; `shared` names the Remote Messages the application's update hears too |
+| Remote cache across a reload | `Data.persistence({ key, … })` | restores the stored cache and writes it back, `restore` for the first frame, a `KeyValueStore` |
+| Remote durable writes | `Data.outbox({ key, … })` | stores durable writes and sends them, `restore` for the first frame, a `KeyValueStore` |
 | URL mirror | `Filters.wiring(tag)` | routes the app's URL Message, `onUrl`, subscriptions, contract |
 | Key-value mirror | `Prefs.wiring()` | routes its own `MirrorRestored`, `restore` as `init`, subscriptions, contract |
 | Sync | `TodoSync.wiring()` | contract only |
@@ -88,7 +90,8 @@ and `url` came from the assembly wherever an item needs them (a placement
 with resources, a wiring with startup Commands, a wiring that reads the URL).
 Two items claiming one Message tag fail `assemble` at startup naming both
 (unless every claimant declares the tag `shared`: each folds it in turn, like
-per-name `MirrorRestored` and the URL Message).
+per-name `MirrorRestored` and the URL Message). Every Remote domain claims the
+same tags, so one assembly holds at most one `Data.wiring`.
 
 Where the update already routes every placement, `assembly.runtime({
 initial, update, … })` builds the config instead of checking it: `initial`
@@ -156,8 +159,9 @@ call that should have built it.
 
 ## How the assembly uses a wiring
 
-- **Routing takes the first claimant in list order.** `route` returns an
-  `Option`: `Some` when the Message is this wiring's, `None` otherwise. A
+- **A claimed tag goes to its one claimant; a shared tag to every wiring
+  sharing it, in list order, then to the application's update.** `route`
+  returns an `Option`: `Some` when the Message is this wiring's, `None` otherwise. A
   key-value mirror returns `None` for another mirror's `MirrorRestored`; that
   is what lets the tag be `shared`. A placement folds a Message when its
   wrapper unwraps it, and ignores the rest the same way.
@@ -252,7 +256,7 @@ Agent) contribute nothing but their contract: Sync owns the runtime through
 | Two items handle one tag (not `shared`) | `assemble` throws, naming both |
 | Two items use one Managed Resource tag | `assemble`/`resources` throws |
 | Config built by hand instead of derived | `complete` type error at the property |
-| A wiring deleted from the list | Silent; caught by behavior (transcript, dispatch tests) |
+| A wiring deleted from the list | A type error in an exhaustive `own` when the wiring claims literal tags of its own; otherwise silent, caught by behavior (transcript, dispatch tests) |
 | A `route` that returns `None` for its own values | Silent drop; the parity tests each package carries exist for this |
 
 Recovery is re-derivation: the assembly output is disposable — rebuild it from

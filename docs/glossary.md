@@ -47,9 +47,15 @@ each of those.
 | Term | What it is |
 | --- | --- |
 | **Entity** | A named record type with an `id`, declared once with `Entity.define`, and read by Remote, the Drizzle binding and forms. [The package](../packages/entity/README.md) |
-| **Relation** | A field that refers to another Entity (`Relation.one`, `Relation.many`), stored as a ref key such as `'User:u1'`, never a copy. |
+| **Relation** | A member that points at another Entity (`Relation.one`, `Relation.many`, declared together with `Entity.relate`). Remote's store holds it as a ref key such as `'User:u1'`, a table as a foreign key; never a copy. |
+| **Derived member** | A readable value that is not a field: supplied by an interpreter (`Derived.make`), a count of the rows pointing here (`Derived.count`), or the row the reader has pointing here (`Derived.exists`). |
 | **Selection** | Exactly which fields of an Entity, and through which relations, a consumer needs; it decodes to that shape. `Entity.select`. |
-| **Query body** | What a query means, as a value: `Query.define(name, Input, ({ input }) => …)` with `Expr` predicates and an order. Compiled to SQL on a server, run over rows by `evaluate`. |
+| **`Expr`** | A statement about one row, as a value: comparisons, `and`/`or`/`not`, paths through `one` relations, an exists, an input placeholder, who asks (`Expr.viewer`) and when (`Expr.now`). Three-valued, as SQL is. [Expr](../packages/entity/README.md#saying-something-about-a-row-expr) |
+| **Query body** | What a list means, as a value: `Query.from(Entity)` with `Expr` predicates and an order; `foldkit-remote`'s `Query.define(name, Input, ({ input }) => …)` names one. Compiled to SQL on a server, judged over held rows on the client. |
+| **Collation** | How text compares and orders (`Collation.binary`, `asciiFold`, `locale`), declared on a field or a term; text with none is not compared, since databases disagree. |
+| **`Judge`** | The reference meaning of a body over rows a holder has (`Held.rows`): a verdict, `Known` (as SQL answers) or `Unknown` with why, never a guess. |
+| **Operator** | A word an application adds to `Expr` (`Expr.operator`): defined by an expression, or primitive and implemented per interpreter, held to its laws by `Conformance`. [Operators](./operators.md) |
+| **Context set** | A member the write's context fills, never the input: `Entity.sets({ author: Expr.viewer(User) }, { on: 'create' })`. |
 | **Declared write** | A change to one row by id, as data (`Write.update`, `insert`, `delete`): what it sets, adds, and must find. Served with no handler. [Declared writes](./declared-writes.md) |
 | **Precondition** | A declared write's `when`: what the row must hold for the write to land, checked in the statement; refused as `Unmet`. |
 | **Invariant** | What every stored row of an Entity must hold (`Entity.invariant`), judged over the row a write leaves and refused as `Invalid`; one that reads the row before too is a transition invariant, judged on updates (a shipped order stays shipped). Not a rule, so it grants and excuses no one. [Declared writes](./declared-writes.md#what-every-row-holds-an-invariant) |
@@ -68,7 +74,8 @@ each of those.
 | **Segment** | A run of adjacent edges. The gap between two segments is rows nobody has fetched. |
 | **Boundary** | What is known past a segment's end: `Terminal` (nothing more), `Cursor` (where to page from), or `Unknown`. |
 | **Optimistic layer** | A mutation's patches shown over the cache while it is in flight, removed when it settles. An increment's amount (`adds`) is added to the value under it each time it is read. |
-| **Operation id** | A mutation's identity to a server, unique across clients (`crypto.randomUUID()`), resent by a retry with the same `requestId`; unlike the request id, a per-Model counter. |
+| **Operation id** | A mutation's identity to a server, unique across clients (`crypto.randomUUID()`), resent by a retry with the same `requestId`. The request id is a per-Model counter, except a durable write's, which the outbox names. |
+| **Outbox** | Durable writes stored before they are sent, sent in order by one tab, kept across a reload (`Data.mutate(…, { durable: true })`, `Data.outbox`). [The outbox](../packages/remote/README.md#a-write-that-outlives-the-page-dataoutbox) |
 | **Write ledger** | `foldkit-remote-drizzle`'s record of the updates a writer landed, by operation and row, so a retry is not applied twice. [Declared writes](./declared-writes.md#a-write-ledger) |
 | **Overlay** | Operations shown over the cache with no request behind them, until lifted: a preview. |
 | **Retention** | Keeping only what active Surfaces reach; the rest is collected when they change. |
@@ -77,6 +84,7 @@ each of those.
 
 | Term | What it is |
 | --- | --- |
+| **`may`** | `foldkit-guard`'s derived member saying what the reader may do with a row, for the UI to draw; a hint, since the server checks every write by its rules. [What the client may do](../packages/guard/README.md#what-the-client-may-do) |
 | **Mirror** | A Model slice represented in the URL or a key-value store. The Model stays the owner. [`foldkit-mirror`](../packages/mirror/README.md) |
 | **Epoch** | The identity of a document's history on the server (`journal.epoch(key)`). A replica that comes back with another holds a cursor into history the server lacks, and rebuilds. [Replicated state](./replication.md) |
 | **Replica** | `foldkit-sync`'s client side: your Messages as durable operations, pending ones replayed over the committed state. [Replicated state](./replication.md) |

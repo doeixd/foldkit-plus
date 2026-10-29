@@ -159,7 +159,7 @@ the Model as it is then:
 
 | Instead of | Send | And `update` |
 | --- | --- | --- |
-| the sort order a click leads to (`Sorted({ sort })`) | the column clicked (`Sorted({ column })`) | toggles the Model's sort: `Sort.toggle(model.sort, column)` |
+| the sort order a click leads to (`Sorted({ sort })`) | the column clicked (`Sorted({ column })`) | toggles the Model's sort: `PostSort.toggle(model.sort, column)`, a `Sort.make` value's |
 | an edit started on the key typed (`EditStarted({ draft: key })`) | the key (`EditTyped({ text })`) | starts the edit, or adds to the one open on that cell |
 | the place a dragged column lands, worked out as the pointer moved | the pointer's offset, and the release (`ColumnDragEnded`) | works out the drop from the columns as they are at release |
 | the menu item under the keyboard, as drawn | its index (`MenuChosen({ index })`) | reads the item from the menu as it stands |

@@ -17,6 +17,8 @@ has the details; this page links to them.
 | A read failed: the network, the server, a decode | `foldkit-remote` | `Failed`, with the value it showed kept as `previous` | `Data.refresh(model, actives, { failed: true })` |
 | A field the server will not answer | `foldkit-remote-server` decides; Remote records it | `Failed` with an `Unavailable` error | select without it |
 | A write failed or was refused | `foldkit-remote` (client), the server (refusal) | the optimistic change goes; `Data.failedWrites` lists it, with a typed `refusal` | `Data.retry`, `Data.dismiss`, or show the refusal |
+| A write nothing answered (offline, a gateway's error page) | `foldkit-remote` | a failed write with `_tag: 'Unreachable'`; a durable one waits and is sent again | `Data.retry`, as the same write |
+| A write the client can tell is refused (an invariant it breaks, a `may` that says no) | `foldkit-remote`, judging the Entity's declarations | nothing shows and nothing is sent; `Data.failedWrites` lists it with the refusal the server would send | show the refusal |
 | Who is asking was refused | `foldkit-auth`, `foldkit-remote-server` | `Failed`, or a failed write, that `RemoteData.denied` reads as `Unauthenticated` or `Forbidden` | sign in again, or say no |
 | A draft does not validate | `foldkit-form` | an error beside the field; after a submit, the fields to fix | nothing: the person edits |
 | The server refuses one key of a form | the server, mapped by `foldkit-crud` | the key reads invalid with the server's words | nothing: the person edits |
@@ -51,7 +53,8 @@ Three rules follow from it.
   `Data.refresh`, and a failed write for `Data.retry`. A persistent error
   asked again on every unrelated change would hammer the server and hide the
   failure. Only the transports retry by themselves (a live stream, a Sync
-  exchange), since asking again changes nothing the reader sees.
+  exchange, the durable outbox sending a write nothing answered), since
+  asking again changes nothing the reader sees.
 - **A diagnostic never changes behaviour.** A read, a write and a placement
   behave the same whether one is reported or not. The channel says why; it
   decides nothing.
@@ -160,14 +163,15 @@ send:
 | `_tag` | Meaning | Asking again |
 | --- | --- | --- |
 | `RemoteReadError`, `RemoteQueryError` | the request failed: the network, or the server's Source (its message) | may work |
-| `RemoteMutationError` | a mutation failed: the network, the server's Source (its message), or the mutation's declared refusal (`refusal`, which `Data.refusal` decodes) | may work; a refusal will not, with the same input |
+| `RemoteMutationError` | a mutation failed: the server's Source (its message), or the mutation's declared refusal (`refusal`, which `Data.refusal` decodes) | may work; a refusal will not, with the same input |
+| `Unreachable` | a mutation nothing answered: it could not be sent, or what came back was no answer (a gateway's 502 page); the server may or may not have run it | as the same write (`Data.retry`), which a ledgered writer answers from its record; a durable write is sent again on its own |
 | `RemoteLiveError` | a live stream broke; `Data.liveStatus` carries it while the stream restarts itself | not needed |
 | `RemoteProtocolError` | client and server speak different protocol versions | never: deploy one version |
 | `DecodeError` | what the server sent does not decode against the Selection | never: the shapes disagree |
 | `Unavailable` | the server settled a selected field without a value | never: select without it |
 | `Overlaid` | a read of a row only overlays show lacks a field nothing will fetch | never: overlay what it reads |
 | `Unauthenticated` | who is asking could not be told: no session, or one that ended | after signing in |
-| `Forbidden` | a write refused for who is asking | never, as the same person |
+| `Forbidden` | who is asking may not do this; a write the held `may` says no to is refused so where it is made | never, as the same person |
 
 A failure reaches every read that needs it: a list fails when a field of one
 of its rows failed, a project when its owner's read did. One that showed a
@@ -289,11 +293,13 @@ so a refusal discloses nothing to someone who may not write:
 | `Forbidden` (a `RemoteError`, not a `refusal`) | the row is hidden from the caller, or a guard rule does not hold; refused where it is made when the held `may` says no | show it; asking again is refused again |
 | `Conflict` | the row moved past the revision the write `expect`s | read it again; let the author decide |
 | `Unmet` | the row does not hold the write's `when` (only for a write with one) | show why; the state changed |
-| `Invalid` | the row it would leave breaks an Entity invariant | show `message` beside each field `path` names |
+| `Invalid` | the row it would leave breaks an Entity invariant; refused where it is made when the client holds what the invariant reads | show `message` beside each field `path` names |
 
 An `Invalid` over a member hidden from the caller names no rule and no path.
 `Refusal.isInvalidBy(refusal, invariant)` asks which invariant refused it. A
-`CHECK` constraint from `checkConstraints` is a backstop for writes past the
+refusal made where the write is made is the one the server would send, so the
+application handles both alike (see [Refused where it is made](../packages/remote/README.md#refused-where-it-is-made)).
+A `CHECK` constraint from `checkConstraints` or `entityChecks` is a backstop for writes past the
 server: one tripped by a handler's statement fails it as `Database write
 failed`, and the driver's error goes only to the `StatementFailed`
 diagnostic. See [Declared writes](declared-writes.md#failure-and-recovery).
@@ -462,7 +468,7 @@ package's variants:
 | Package | `_tag`s |
 | --- | --- |
 | `foldkit-remote` | `WriteUnheard`, `LiveRefused`, `OutboxUnreadable`, `OutboxUnsaved`; `PredictionMismatch` under `verifyPredictions` |
-| `foldkit-remote-server` | `ServerDefect`, `AnswerUnread`, `PublishFailed` |
+| `foldkit-remote-server` | `ServerDefect`, `AnswerUnread`, `PublishFailed`, `ClockSkewed` |
 | `foldkit-remote-drizzle` | `StatementFailed`, `ServerOnlyRules` |
 | `foldkit-guard` | `ComputeRefused`, `UnpinnedWrites` |
 | `foldkit-sync` | `ExchangeFailed`, `HistoryRebuilt`, `HostDefect`, `ListenerFailed` |
@@ -511,6 +517,12 @@ sees.
   })
   expect(Trace.regressions(trace, { project: Data.get(ProjectName, 'p1') })).toEqual([])
   ```
+
+- **A refusal made on the client** is held to the server's by `Law.check`
+  (`foldkit-remote/testing`): it runs one declared write through `Data.mutate`
+  and through the server, and compares what the client predicted, a refusal
+  included, with what the server then holds. See
+  [Testing that a prediction is the truth](../packages/remote/README.md#testing-that-a-prediction-is-the-truth-law).
 
 - **Diagnostics** are asserted with `Diagnostics.collect()`: provide its
   `report` to the Effect under test (here `program`), then assert on
