@@ -79,7 +79,7 @@ const page = (
       const sent: Array<RemoteMessage> = []
       const fiber = yield* Stream.runForEach(
         entry.dependenciesToStream(entry.modelToDependencies(loaded)),
-        message => Effect.sync(() => sent.push(message as RemoteMessage)),
+        message => Effect.sync(() => sent.push(message)),
       ).pipe(Effect.forkChild)
       for (let i = 0; i < 100; i++) yield* Effect.yieldNow
       for (const write of writes) {
