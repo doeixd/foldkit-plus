@@ -5,7 +5,7 @@
  * applies them. A subpath, so the shared declaration the browser imports never
  * brings the server along.
  */
-import { Effect, Match, Option, Schema, SchemaAST } from 'effect'
+import { Effect, Match, Option, Schema, SchemaAST, identity } from 'effect'
 import {
   Entity,
   Expr,
@@ -629,18 +629,19 @@ export const GuardServer = {
         },
       })
     /**
-     * The answer the writer's ledger holds for this operation, or else `write`:
-     * a retry of a write that landed is answered as it landed, not decided
-     * again over a row that may have moved since.
+     * The answer the writer's ledger holds for this operation, as `answered`
+     * makes it, or else `write`: a retry of a write that landed is answered as
+     * it landed, not decided again over a row, or a time, that has moved since.
      */
-    const answeredOr = <E, RA>(
+    const answeredOr = <A, E, RA>(
       context: {
         readonly id: string
         readonly operation: Option.Option<string>
         readonly request: string
         readonly principal: Option.Option<User>
       },
-      write: () => Effect.Effect<Option.Option<Readonly<Record<string, unknown>>>, E, RA>,
+      answered: (answer: Readonly<Record<string, unknown>>) => A,
+      write: () => Effect.Effect<A, E, RA>,
     ) => {
       const recorded = writer.recorded
       if (recorded === undefined || Option.isNone(context.operation)) return write()
@@ -651,7 +652,7 @@ export const GuardServer = {
           id: context.id,
           principal: context.principal,
         }),
-        Option.match({ onSome: answer => Effect.succeed(Option.some(answer)), onNone: write }),
+        Option.match({ onSome: answer => Effect.succeed(answered(answer)), onNone: write }),
       )
     }
     // What an answer shows: the row as the writer may see it, members ruled.
@@ -863,7 +864,7 @@ export const GuardServer = {
       update: context =>
         Effect.mapError(
           Effect.andThen(admitUpdate(context), () =>
-            answeredOr(context, () =>
+            answeredOr(context, Option.some, () =>
               pinned(context.id, context.expect, Option.isNone, () =>
                 Effect.gen(function* () {
                   const rules = yield* updateRules(context)
@@ -886,32 +887,34 @@ export const GuardServer = {
           told,
         ),
       insert: context =>
-        Effect.gen(function* () {
-          const { principal, values, links } = context
-          const row = yield* policy.writable(entity, principal, 'Create')
-          const members = yield* policy.writeMembers(
-            entity,
-            principal,
-            Object.keys(values),
-            'Create',
-          )
-          const relations = linking(yield* linkRules(principal, links), Option.none())
-          const proposed = {
-            ...values,
-            id: context.id,
-            ...Object.fromEntries(
-              Object.entries(links).map(([relation, link]) => [relation, linkKey(link)]),
-            ),
-          }
-          const rules = [row, ...members, ...relations]
-          const ruled = rules.flatMap(({ condition }) => Condition.members(condition))
-          const unset = new Set(ruled.filter(field => !Object.hasOwn(proposed, field)))
-          yield* require(rules.map(rule => ({
-            ...rule,
-            condition: Condition.unsetting(rule.condition, unset),
-          })), proposed, principal)
-          return yield* Effect.mapError(writer.insert(context), told)
-        }),
+        answeredOr(context, identity, () =>
+          Effect.gen(function* () {
+            const { principal, values, links } = context
+            const row = yield* policy.writable(entity, principal, 'Create')
+            const members = yield* policy.writeMembers(
+              entity,
+              principal,
+              Object.keys(values),
+              'Create',
+            )
+            const relations = linking(yield* linkRules(principal, links), Option.none())
+            const proposed = {
+              ...values,
+              id: context.id,
+              ...Object.fromEntries(
+                Object.entries(links).map(([relation, link]) => [relation, linkKey(link)]),
+              ),
+            }
+            const rules = [row, ...members, ...relations]
+            const ruled = rules.flatMap(({ condition }) => Condition.members(condition))
+            const unset = new Set(ruled.filter(field => !Object.hasOwn(proposed, field)))
+            yield* require(rules.map(rule => ({
+              ...rule,
+              condition: Condition.unsetting(rule.condition, unset),
+            })), proposed, principal)
+            return yield* Effect.mapError(writer.insert(context), told)
+          }),
+        ),
       delete: context =>
         Effect.andThen(discloses(context.expect, context.when), () =>
           pinned(

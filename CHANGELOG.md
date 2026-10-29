@@ -680,6 +680,11 @@ carries `drawn`.
     a ledger a create sent again is refused. **Breaking:**
     `EntityWriter.insert` takes `operation`. Chirp's Post and Like writers keep
     a ledger, so `Data.retry` of a create is answered with its row.
+  - `GuardServer.writer` answers a retried insert from its writer's ledger
+    before any rule, as it already did an update (#297). It judged the create
+    rules again over what the retry carried (a later `Expr.now`, a principal
+    whose guards had changed since), so an insert that had landed could be
+    answered `Forbidden`.
   - An update's member `Update` rules and relation `Link` rules hold over the
     row before and over the row after with that one change undone (every
     other new value and link applied, that member's old value kept, or that

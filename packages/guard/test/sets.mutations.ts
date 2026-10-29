@@ -32,6 +32,18 @@ export default [
     tests,
   },
   {
+    name: 'the guard judges a retried insert again before asking its ledger',
+    edits: [
+      {
+        file: guard,
+        find: '        answeredOr(context, identity, () =>',
+        replace:
+          '        ((_context: unknown, _answered: unknown, write: () => any) => write())(context, identity, () =>',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'the guard judges an update without what the context sets',
     edits: [
       {

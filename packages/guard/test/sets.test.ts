@@ -51,6 +51,7 @@ const G = Guards.declare(
   User,
   guard => ({
     isLiker: guard.row(LikeFields, p => Expr.eq(LikeFields.fields.accountId, p.id)),
+    early: guard.row(LikeFields, () => Expr.lt(LikeFields.fields.createdAt, 1500)),
   }),
   { key: user => user.id, unguarded: 'allow' },
 )
@@ -69,10 +70,6 @@ const Like = Ruled.pipe(
   Entity.sets({ accountId: Expr.viewer(UserRow), createdAt: Expr.now }, { on: 'create' }),
 )
 const Policy = G.implement({})
-const Db = bind(
-  { Like },
-  { Like: { table: likes, visible: GuardDrizzle.visible(Policy, [Like]).Like } },
-)
 
 const LikePost = Mutation.write(
   'LikePost',
@@ -80,25 +77,34 @@ const LikePost = Mutation.write(
     id: 'id',
   }),
 )
-const likeWriter = GuardServer.writer(
-  Like,
-  Policy,
-  writer<Option.Option<User>>(Db.Like, {
-    ledger: {
-      table: ledger,
-      scope: principal => Option.match(principal, { onNone: () => '', onSome: user => user.id }),
-    },
-  }),
-)
+const guardedWriter = (entity: typeof Like) =>
+  GuardServer.writer(
+    entity,
+    Policy,
+    writer<Option.Option<User>>(
+      bind(
+        { Like: entity },
+        { Like: { table: likes, visible: GuardDrizzle.visible(Policy, [entity]).Like } },
+      ).Like,
+      {
+        ledger: {
+          table: ledger,
+          scope: principal =>
+            Option.match(principal, { onNone: () => '', onSome: user => user.id }),
+        },
+      },
+    ),
+  )
+const likeWriter = guardedWriter(Like)
 // Made per test, not where the file loads: registration is what the first test checks.
-const serve = () =>
+const serve = (likes = likeWriter) =>
   RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
     entities: [],
-    mutations: [RemoteServer.write(LikePost, likeWriter)],
+    mutations: [RemoteServer.write(LikePost, likes)],
     viewer: principal => Option.map(principal, user => ({ entity: 'User', id: user.id })),
   })
 
-const open = () => {
+const open = (server = serve()) => {
   const sqlite = new DatabaseSync(':memory:')
   sqlite.exec(
     `create table likes (id text primary key, account_id text not null, post_id text not null, created_at integer not null);
@@ -108,16 +114,15 @@ const open = () => {
     );`,
   )
   const layer = databaseLayer(drizzle({ client: sqlite }))
-  const server = serve()
   let clock = 1000
-  const like = (who: string, requestId: string, input: unknown) =>
+  const like = (who: string, requestId: string, input: unknown, at = ++clock) =>
     Effect.runPromise(
       RemoteServer.handlers(server, Option.some({ id: who }))
         // One operation: the same like again is its retry, by request or not.
         .FoldkitRemoteMutate({ requestId, operation: 'o1', mutation: 'LikePost', input })
         .pipe(
           Effect.provide(layer),
-          Effect.provideService(Clock.Clock, clockAt(++clock)),
+          Effect.provideService(Clock.Clock, clockAt(at)),
           Effect.result,
         ),
     )
@@ -185,6 +190,22 @@ describe('fields the server sets on a create', () => {
       _tag: 'Success',
     })
     expect(rows()).toEqual([expect.objectContaining({ account_id: 'ada', created_at: 1001 })])
+  })
+
+  it('answers a retry of an insert that landed before its rules, which the new time breaks', async () => {
+    const Early = Ruled.pipe(
+      Guards.attach(G, { row: { Read: [G.isLiker], Create: [Guards.all(G.isLiker, G.early)] } }),
+      Entity.sets({ accountId: Expr.viewer(UserRow), createdAt: Expr.now }, { on: 'create' }),
+    )
+    const { like, rows } = open(serve(guardedWriter(Early)))
+    const first = await like('ada', 'r1', { id: 'ada:p1', postId: 'p1' }, 1001)
+    expect(first).toMatchObject({ _tag: 'Success' })
+    expect(await like('ada', 'r2', { id: 'ada:p1', postId: 'p1' }, 2000)).toEqual(first)
+    // A new create at that time is still refused: only the landed operation is answered.
+    expect(await like('ada', 'r3', { id: 'ada:p2', postId: 'p2' }, 2000)).toMatchObject({
+      failure: { _tag: 'Forbidden' },
+    })
+    expect(rows()).toEqual([expect.objectContaining({ id: 'ada:p1', created_at: 1001 })])
   })
 })
 
