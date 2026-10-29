@@ -753,6 +753,15 @@ carries `drawn`.
 
 ### Fixed
 
+- **`revisionTrigger` names each table's trigger apart** (#328). It named
+  one `<table>_<column>_moves`, which `a_b`'s `c` and `a`'s `b_c` share: on
+  SQLite the second migration's `create trigger if not exists` installed
+  nothing, and on Postgres it replaced the first table's function with one
+  reading a column that table lacks. A name where the table or the column
+  holds `_` now ends with the table name's length (`a_b_c_moves_3`), and a
+  Postgres name past 63 bytes is refused. A table whose names hold `_` gets a
+  trigger under its new name when the migration runs again; the old one moves
+  the revision to the same value and may be dropped.
 - **A cursor from before keyed cursors pages after its row though its id
   begins `k:`** (#322). remote-drizzle read every cursor starting `k:` as
   key values, so an id such as `k:customer` was refused, and one such as

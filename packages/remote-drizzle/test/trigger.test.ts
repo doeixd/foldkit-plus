@@ -151,3 +151,118 @@ describe('revisionTrigger', () => {
     })
   })
 })
+
+// A trigger's name and a Postgres function's are one per database (schema), and a
+// table's name and its column's joined by `_` can come out alike (#328).
+describe('revisionTrigger over two tables whose names join alike', () => {
+  const Row = Entity.define('Row', Schema.Struct({ id: Schema.String, revision: Schema.Number }))
+  const sqliteBound = {
+    left: bind(
+      { Row },
+      {
+        Row: {
+          table: sqliteTable('a_b', {
+            id: text('id').primaryKey(),
+            revision: integer('c').notNull(),
+          }),
+        },
+      },
+    ).Row,
+    right: bind(
+      { Row },
+      {
+        Row: {
+          table: sqliteTable('a', {
+            id: text('id').primaryKey(),
+            revision: integer('b_c').notNull(),
+          }),
+        },
+      },
+    ).Row,
+  }
+  const pgBound = {
+    left: bind(
+      { Row },
+      {
+        Row: {
+          table: pgTable('a_b', {
+            id: pgText('id').primaryKey(),
+            revision: pgInteger('c').notNull(),
+          }),
+        },
+      },
+    ).Row,
+    right: bind(
+      { Row },
+      {
+        Row: {
+          table: pgTable('a', {
+            id: pgText('id').primaryKey(),
+            revision: pgInteger('b_c').notNull(),
+          }),
+        },
+      },
+    ).Row,
+  }
+  const tables = [
+    'create table a_b (id text primary key, c integer not null)',
+    'create table a (id text primary key, b_c integer not null)',
+    "insert into a_b values ('r', 1)",
+    "insert into a values ('r', 1)",
+  ]
+  const touch = ["update a_b set id = id where id = 'r'", "update a set id = id where id = 'r'"]
+
+  it('moves each table’s revision, on SQLite', () => {
+    const sqlite = new DatabaseSync(':memory:')
+    for (const statement of tables) sqlite.exec(statement)
+    sqlite.exec(revisionTrigger(sqliteBound.left, 'revision'))
+    sqlite.exec(revisionTrigger(sqliteBound.right, 'revision'))
+    for (const statement of touch) sqlite.exec(statement)
+    expect([
+      sqlite.prepare('select c from a_b').get(),
+      sqlite.prepare('select b_c from a').get(),
+    ]).toEqual([{ c: 2 }, { b_c: 2 }])
+    sqlite.close()
+  })
+
+  it('refuses a Postgres name past 63 bytes, which Postgres would cut and might join', () => {
+    const long = bind(
+      { Row },
+      {
+        Row: {
+          table: pgTable('a'.repeat(50), {
+            id: pgText('id').primaryKey(),
+            revision: pgInteger('revision').notNull(),
+          }),
+        },
+      },
+    ).Row
+    expect(() => revisionTrigger(long, 'revision')).toThrow("is longer than Postgres's 63 bytes")
+    // SQLite has no such limit.
+    const longLite = bind(
+      { Row },
+      {
+        Row: {
+          table: sqliteTable('a'.repeat(50), {
+            id: text('id').primaryKey(),
+            revision: integer('revision').notNull(),
+          }),
+        },
+      },
+    ).Row
+    expect(revisionTrigger(longLite, 'revision')).toContain(`"${'a'.repeat(50)}_revision_moves"`)
+  })
+
+  it('moves each table’s revision, on Postgres', async () => {
+    const pglite = await PGlite.create()
+    for (const statement of tables) await pglite.exec(statement)
+    await pglite.exec(revisionTrigger(pgBound.left, 'revision'))
+    await pglite.exec(revisionTrigger(pgBound.right, 'revision'))
+    for (const statement of touch) await pglite.exec(statement)
+    expect([
+      (await pglite.query('select c from a_b')).rows,
+      (await pglite.query('select b_c from a')).rows,
+    ]).toEqual([[{ c: 2 }], [{ b_c: 2 }]])
+    await pglite.close()
+  }, 60_000)
+})

@@ -1061,7 +1061,19 @@ export const revisionTrigger = (binding: AnyEntityBinding, revision: string): st
     )
   }
   const moved = quoted(column.name)
-  const trigger = `${getTableName(binding.table)}_${column.name}_moves`
+  const tableName = getTableName(binding.table)
+  // One name per database (a Postgres function's, per schema): `a_b` and `c` would join
+  // as `a` and `b_c` do, so a name holding `_` says where the table's name ends.
+  const trigger =
+    tableName.includes('_') || column.name.includes('_')
+      ? `${tableName}_${column.name}_moves_${tableName.length}`
+      : `${tableName}_${column.name}_moves`
+  // Postgres cuts a longer name to 63 bytes, and two cut alike would be one again.
+  if (!is(binding.table, SQLiteTable) && new TextEncoder().encode(trigger).length > 63) {
+    throw new Error(
+      `[foldkit-remote-drizzle] revisionTrigger: ${binding.name}'s trigger "${trigger}" is longer than Postgres's 63 bytes`,
+    )
+  }
   // Run again, it keeps (SQLite) or replaces (Postgres) what it made, rather than failing.
   if (is(binding.table, SQLiteTable)) {
     const table = quoted(getTableName(binding.table))

@@ -31,6 +31,16 @@ export default [
   edit('SQLite cannot be run again', 'create trigger if not exists', 'create trigger'),
   edit('Postgres cannot be run again', 'create or replace trigger', 'create trigger'),
   edit(
+    'two tables whose names join alike share one trigger name (#328)',
+    "tableName.includes('_') || column.name.includes('_')",
+    'false',
+  ),
+  edit(
+    'a Postgres trigger name past 63 bytes is taken (#328)',
+    '!is(binding.table, SQLiteTable) && new TextEncoder().encode(trigger).length > 63',
+    'false',
+  ),
+  edit(
     'a Postgres table is named outside its schema',
     'schema === undefined ? quoted(name) :',
     'true ? quoted(name) :',

@@ -1193,7 +1193,10 @@ too (a handler's, raw SQL), so a guarded writer pinned to it sees every change.
 An update that sets the revision itself, by one or to any value, is left as it
 set it. Run it with the migration that makes the table (SQLite and Postgres);
 running it again replaces it, and a Postgres table in a `pgSchema` is named by
-its schema. The revision column must be `not null`: the trigger compares it with
+its schema. Its trigger (and a Postgres function) is named once per database, as
+`<table>_<column>_moves`, followed by the table name's length where either name
+holds `_`, so `a_b`'s `c` and `a`'s `b_c` get two; a Postgres name past 63
+bytes is refused, since Postgres would cut it. The revision column must be `not null`: the trigger compares it with
 `=`, which a null never satisfies, so a null revision is never moved. Not for a table Sync writes: `applyEdits` keeps one revision for two
 changes in one operation, which the trigger would move past its sequence.
 
