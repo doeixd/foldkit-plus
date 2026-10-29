@@ -1063,6 +1063,11 @@ carries `drawn`.
   (`Query.placement` read `NotPlaceable`). **Breaking:** its `choices` are
   now typed as fields and calls, so such an alternative is a type error, and
   it throws where it is written.
+- **`Law.monotonic` takes two equal infinities as in order** (#320). It
+  ordered two results by their difference, which for `Infinity` and
+  `Infinity` is NaN, so an operator answering the same infinity for two
+  arguments was a `Counterexample`. Equal outcomes now agree, as under every
+  other law (the change for #295); NaN beside a number is still out of order.
 
 ## 0.35.0
 

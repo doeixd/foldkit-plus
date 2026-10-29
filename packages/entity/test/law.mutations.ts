@@ -167,6 +167,12 @@ export default [
     '',
   ),
   edit(
+    'equal values of a monotonic pair are ordered by their difference',
+    helper,
+    'same(left, right) ||',
+    "(left._tag === 'Refused' && right._tag === 'Refused') ||",
+  ),
+  edit(
     'outcomes are recorded in a plain object',
     helper,
     'const outcomes: Record<string, Outcome> = Object.create(null)',

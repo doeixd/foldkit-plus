@@ -218,6 +218,21 @@ describe('Testing laws', () => {
     })
   })
 
+  it('takes equal infinities as in order, and NaN beside a number as not (#320)', () => {
+    const verdict = (answer: (n: number) => number) => {
+      const op = Expr.operator('acme.far', {
+        input: [Schema.Int],
+        output: Schema.Number,
+        laws: [Law.monotonic('increasing', 0)],
+      })
+      return Conformance.laws(op, Operators.memory(Operators.implement(op, answer)))._tag
+    }
+    expect(verdict(() => Infinity)).toBe('Holds')
+    expect(verdict(() => -Infinity)).toBe('Holds')
+    expect(verdict(n => (n < 1 ? -Infinity : Infinity))).toBe('Holds')
+    expect(verdict(n => (n < 1 ? Number.NaN : n))).toBe('Counterexample')
+  })
+
   it('tests a law only over its domain', () => {
     const square = (domain: Option.Option<Schema.Top>) => {
       const law = Law.monotonic('increasing', 0)

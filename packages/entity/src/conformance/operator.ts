@@ -326,7 +326,8 @@ const lawPlans = (op: AnyOperator, limit: number, seed: number): ReadonlyArray<L
               collation,
               left: run(call(...at(low))),
               right: run(call(...at(high))),
-              // Two refusals agree, as under every other law, and are no case.
+              // Equal outcomes agree, as under every other law: two refusals (no case),
+              // and two equal infinities, whose difference `order` reads is NaN.
               holds: (left: Outcome, right: Outcome) =>
                 same(left, right) ||
                 (left._tag === 'Value' &&
