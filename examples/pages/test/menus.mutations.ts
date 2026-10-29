@@ -22,7 +22,7 @@ export default [
     edits: [
       {
         file,
-        find: '              slashDismissed: () => result.model.slashDismissed,\n',
+        find: '          slashDismissed: () => result.model.slashDismissed,\n',
         replace: '',
       },
     ],

@@ -4,12 +4,12 @@
  * Run with `pnpm demo`.
  */
 import { strict as assert } from 'node:assert'
-import { Effect } from 'effect'
+import { Effect, Option } from 'effect'
 import * as RichText from 'foldkit-richtext'
 import { Message as EditorMessage } from 'foldkit-richtext-dom/editor'
 import { print } from 'foldkit-richtext-markdown'
 import { ReplicaId, Sync, type Replica, type Storage } from 'foldkit-sync'
-import { initialModel, Message, update, type Model, type Shared } from './app.js'
+import { initialModel, Message, pageInEditor, update, type Model, type Shared } from './app.js'
 import { PagesSync } from './contract.js'
 import { openJournal } from './journal.js'
 
@@ -71,7 +71,7 @@ const pressed = (message: EditorMessage) => Message.GotEditor({ message })
 
 /** Puts the caret after the `offset`th character of the open page's `block`th block. */
 const caret = (who: Person, block: number, offset: number): Promise<void> => {
-  const body = who.model.pages.find(page => page.id === who.model.open)!.body
+  const body = Option.getOrThrow(pageInEditor(who.model)).body
   const run = RichText.blockAtPath(Replicated.project(body), [block])!.children[0]!.id
   const at = { node: run, offset, affinity: 'after' as const }
   return dispatch(
@@ -81,7 +81,7 @@ const caret = (who: Person, block: number, offset: number): Promise<void> => {
 }
 
 const markdownOf = (who: Person): string => {
-  const page = who.model.pages.find(candidate => candidate.id === who.model.open)!
+  const page = Option.getOrThrow(pageInEditor(who.model))
   return print(Replicated.project(page.body)).markdown
 }
 
@@ -99,7 +99,7 @@ await synchronize(alice)
 
 // Bob opens it, and both edit without seeing each other.
 await synchronize(bob)
-await dispatch(bob, Message.OpenedPage({ id: alice.model.open! }))
+await dispatch(bob, Message.OpenedPage({ id: Option.getOrThrow(alice.model.open) }))
 await caret(bob, 1, 15)
 await dispatch(bob, pressed(EditorMessage.Entered()))
 await dispatch(bob, typed('Write the announcement'))
@@ -116,7 +116,10 @@ await dispatch(
 )
 await caret(alice, 1, 4)
 await dispatch(alice, typed(' and test'))
-await dispatch(alice, Message.RenamedPage({ id: alice.model.open!, title: 'Launch plan (v2)' }))
+await dispatch(
+  alice,
+  Message.RenamedPage({ id: Option.getOrThrow(alice.model.open), title: 'Launch plan (v2)' }),
+)
 
 console.log('Before they exchange:\n')
 console.log(`alice:\n${markdownOf(alice)}`)

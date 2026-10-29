@@ -31,7 +31,7 @@ import {
   hostId,
   Menu,
   Message,
-  pageOf,
+  pageInEditor,
   savedOf,
   type Model,
   type Page as PageState,
@@ -93,26 +93,26 @@ const peerAvatar = (peer: Peer, slots: Slots, h: H): Html =>
 
 export const PagesView = SlotView.forMessages<Message>()
   .define(Page.slots, (model: Model, slots, h): Html => {
-    const open = pageOf(model, model.open)
     return h.div(slots.shell.attrs(), [
       sidebar(model, slots, h),
       h.main(
         slots.main.attrs(),
-        open === undefined
-          ? [
-              h.div(slots.empty.attrs(), [
-                h.p(slots.emptyTitle.attrs(), ['No page open']),
-                h.p(slots.hint.attrs(), ['Choose one from the list, or start a new one.']),
-                h.button(
-                  slots.primary.attrs([
-                    h.Type('button'),
-                    h.OnClick(Message.AddedPage({ title: 'Untitled' })),
-                  ]),
-                  ['New page'],
-                ),
-              ]),
-            ]
-          : openPage(model, open, slots, h),
+        Option.match(pageInEditor(model), {
+          onNone: () => [
+            h.div(slots.empty.attrs(), [
+              h.p(slots.emptyTitle.attrs(), ['No page open']),
+              h.p(slots.hint.attrs(), ['Choose one from the list, or start a new one.']),
+              h.button(
+                slots.primary.attrs([
+                  h.Type('button'),
+                  h.OnClick(Message.AddedPage({ title: 'Untitled' })),
+                ]),
+                ['New page'],
+              ),
+            ]),
+          ],
+          onSome: open => openPage(model, open, slots, h),
+        }),
       ),
       DemoGuide({ demo: pagesDemo }, h),
     ])
@@ -149,7 +149,7 @@ const sidebar = (model: Model, slots: Slots, h: H): Html => {
                 h.button(
                   slots.pageLink.attrs([
                     h.Type('button'),
-                    ...(page.id === model.open ? [h.AriaCurrent('page')] : []),
+                    ...(Option.contains(model.open, page.id) ? [h.AriaCurrent('page')] : []),
                     h.OnClick(Message.OpenedPage({ id: page.id })),
                   ]),
                   [
@@ -682,9 +682,11 @@ const blockHandle = (
 }
 
 export const view = (model: Model, h: H): Document => {
-  const open = pageOf(model, model.open)
   return {
-    title: open === undefined ? 'Pages' : `${titleOf(open)} · Pages`,
+    title: Option.match(pageInEditor(model), {
+      onNone: () => 'Pages',
+      onSome: open => `${titleOf(open)} · Pages`,
+    }),
     body: PagesView(model, h),
   }
 }

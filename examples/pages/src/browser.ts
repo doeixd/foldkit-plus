@@ -1,6 +1,6 @@
 import { Context, Effect, Layer, Option, Schema, Scope, Stream } from 'effect'
 import { Style } from 'foldkit-mixins'
-import { ReplicaId, Sync, Transport } from 'foldkit-sync'
+import { ReplicaId, Sync, Transport, TransportSocket } from 'foldkit-sync'
 import { Message, PeerPresence } from './app.js'
 import { mountPages, PagesSync } from './contract.js'
 import { sandboxSocket } from './sandbox/connection.js'
@@ -48,21 +48,19 @@ const mounted = mountPages(session, replica, {
 // retries on a backoff while the server is down; the socket reconnects on its own. The
 // edits wait in the replica's outbox meanwhile, across reloads too. The transport is built
 // once, so presence can share its connection.
-const transport = Context.get(
-  await Effect.runPromise(
-    Layer.buildWithScope(
-      // The sandbox build (`--mode sandbox`) runs the journal in the browser, one for
-      // every tab; `pnpm dev` reaches the Node server over a WebSocket.
-      import.meta.env.MODE === 'sandbox'
-        ? Sync.transport.socket({ makeSocket: sandboxSocket(tab) })
-        : Sync.transport.socket({
-            url: `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/sync?tab=${encodeURIComponent(tab)}`,
-          }),
-      scope,
-    ),
+const built = await Effect.runPromise(
+  Layer.buildWithScope(
+    // The sandbox build (`--mode sandbox`) runs the journal in the browser, one for
+    // every tab; `pnpm dev` reaches the Node server over a WebSocket.
+    import.meta.env.MODE === 'sandbox'
+      ? Sync.transport.socket({ makeSocket: sandboxSocket(tab) })
+      : Sync.transport.socket({
+          url: `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/sync?tab=${encodeURIComponent(tab)}`,
+        }),
+    scope,
   ),
-  Transport,
 )
+const transport = Context.get(built, Transport)
 Effect.runFork(replica.start.pipe(Effect.provideService(Transport, transport)))
 // Its status counts an edit only once storage has it, so "saved" never runs ahead of the disk.
 Effect.runFork(
@@ -77,9 +75,7 @@ Effect.runFork(
 
 // Presence, on the same connection: where this tab's caret is, and where the others' are.
 // It is ephemeral, so nothing of it is journaled; a tab that goes quiet drops out.
-const socket = transport.socket
-// Both transports the page builds, the server's and the sandbox's, are sockets.
-if (socket === undefined) throw new Error('presence needs a transport with a socket')
+const socket = Context.get(built, TransportSocket)
 const presence = await Effect.runPromise(
   Effect.gen(function* () {
     const channel = yield* Sync.presence.socketChannel<PeerPresence>(socket)
@@ -97,7 +93,11 @@ const name = `Guest ${tab.slice(-4)}`
 let announced: string | undefined
 const announce = (): void => {
   const model = mounted.model()
-  const value: PeerPresence = { name, page: model.open, selection: model.selection }
+  const value: PeerPresence = {
+    name,
+    page: Option.getOrNull(model.open),
+    selection: model.selection,
+  }
   const key = JSON.stringify(value)
   if (key === announced) return
   announced = key

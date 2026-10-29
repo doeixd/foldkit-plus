@@ -13,6 +13,7 @@ import {
   initialModel,
   Menu,
   Message,
+  pageInEditor,
   pageOf,
   savedOf,
   update,
@@ -113,7 +114,7 @@ describe('two people on one page', () => {
 
     alice.dispatch(Message.AddedPage({ title: 'Plan' }))
     await vi.waitFor(() => expect(host()).not.toBeNull())
-    const page = alice.model().open!
+    const page = Option.getOrThrow(alice.model().open)
     const empty = RichText.blockAtPath(Replicated.project(alice.model().pages[0]!.body), [0])!
       .children[0]!.id
     alice.dispatch(
@@ -137,7 +138,7 @@ describe('two people on one page', () => {
       {
         ...initialModel('bob'),
         pages: bobShared.pages,
-        open: page,
+        open: Option.some(page),
         selection: Replicated.anchor(bobBody, caretAt(bobRun, 5)),
       },
       Message.GotEditor({ message: EditorMessage.Typed({ text: ' world' }) }),
@@ -194,7 +195,7 @@ describe('two people on one page', () => {
     const replica = await open('bob')
     replicas.push(replica)
     let model = await bobEdits(replica, initialModel('bob'), Message.AddedPage({ title: 'P' }))
-    const page = model.open!
+    const page = Option.getOrThrow(model.open)
     const body = () => Effect.runSync(replica.shared).pages[0]!.body
     const empty = Replicated.project(body()).children[0]!.children[0]!.id
     model = await bobEdits(
@@ -263,7 +264,7 @@ describe('two people on one page', () => {
       { type: 'Insert', text: 'Hi!' },
     ])
     await synchronize(aliceReplica, 'alice')
-    expect(textOf(journal.snapshot(), tab.model().open!)).toEqual(['Hi!'])
+    expect(textOf(journal.snapshot(), Option.getOrThrow(tab.model().open))).toEqual(['Hi!'])
   })
 
   it('undoes only this tab’s typing, keeping what someone else typed meanwhile', async () => {
@@ -271,7 +272,7 @@ describe('two people on one page', () => {
     const bobReplica = await open('bob')
     replicas.push(aliceReplica, bobReplica)
     const tab = await aliceOnPage(aliceReplica)
-    const page = tab.model().open!
+    const page = Option.getOrThrow(tab.model().open)
     const body = () => document.getElementById('page-body')?.textContent
     for (const text of ['H', 'i'])
       tab.dispatch(Message.GotEditor({ message: EditorMessage.Typed({ text }) }))
@@ -287,7 +288,7 @@ describe('two people on one page', () => {
       {
         ...initialModel('bob'),
         pages: bobShared.pages,
-        open: page,
+        open: Option.some(page),
         selection: Replicated.anchor(bobBody, caretAt(bobRun, 2)),
       },
       Message.GotEditor({ message: EditorMessage.Typed({ text: ' there' }) }),
@@ -313,11 +314,11 @@ describe('two people on one page', () => {
     const aliceReplica = await open('alice')
     replicas.push(aliceReplica)
     const tab = await aliceOnPage(aliceReplica)
-    const first = tab.model().open!
+    const first = Option.getOrThrow(tab.model().open)
     tab.dispatch(Message.GotEditor({ message: EditorMessage.Typed({ text: 'one' }) }))
     tab.dispatch(Message.AddedPage({ title: 'Second' }))
-    await vi.waitFor(() => expect(tab.model().open).not.toBe(first))
-    const empty = Replicated.project(pageOf(tab.model(), tab.model().open)!.body).children[0]!
+    await vi.waitFor(() => expect(tab.model().open).not.toEqual(Option.some(first)))
+    const empty = Replicated.project(Option.getOrThrow(pageInEditor(tab.model())).body).children[0]!
       .children[0]!.id
     tab.dispatch(
       Message.GotEditor({ message: EditorMessage.Selected({ selection: caretAt(empty, 0) }) }),
@@ -368,8 +369,8 @@ describe('two people on one page', () => {
     const tab = await aliceOnPage(aliceReplica)
     tab.dispatch(Message.GotEditor({ message: EditorMessage.Typed({ text: 'Hello' }) }))
     await vi.waitFor(() => expect(document.getElementById('page-body')?.textContent).toBe('Hello'))
-    const page = tab.model().open!
-    const body = pageOf(tab.model(), page)!.body
+    const page = Option.getOrThrow(tab.model().open)
+    const body = Option.getOrThrow(pageOf(tab.model(), page)).body
     const run = Replicated.project(body).children[0]!.children[0]!.id
     // Bob's caret is after 'He', as his presence reports it.
     tab.dispatch(
@@ -382,7 +383,8 @@ describe('two people on one page', () => {
     const caret = () => document.querySelector('#page-body [data-decoration="peer"]')?.textContent
     await vi.waitFor(() => expect(caret()).toBe('e'))
     // Alice types before it; Bob's caret stays after the same 'e'.
-    const start = Replicated.project(pageOf(tab.model(), page)!.body).children[0]!.children[0]!.id
+    const start = Replicated.project(Option.getOrThrow(pageOf(tab.model(), page)).body).children[0]!
+      .children[0]!.id
     tab.dispatch(
       Message.GotEditor({ message: EditorMessage.Selected({ selection: caretAt(start, 0) }) }),
     )
@@ -390,7 +392,7 @@ describe('two people on one page', () => {
     await vi.waitFor(() => expect(document.getElementById('page-body')?.textContent).toBe('>Hello'))
     expect(caret()).toBe('e')
     // A peer on another page draws nothing here, though its anchors would resolve here.
-    const now = pageOf(tab.model(), page)!.body
+    const now = Option.getOrThrow(pageOf(tab.model(), page)).body
     tab.dispatch(
       Message.GotPeers({
         peers: [
@@ -444,7 +446,7 @@ describe('two people on one page', () => {
     const bobReplica = await open('bob')
     replicas.push(aliceReplica, bobReplica)
     const tab = await aliceOnPage(aliceReplica)
-    const page = tab.model().open!
+    const page = Option.getOrThrow(tab.model().open)
     await synchronize(aliceReplica, 'alice')
     await synchronize(bobReplica, 'bob')
     await bobEdits(
@@ -454,7 +456,7 @@ describe('two people on one page', () => {
     )
     await synchronize(bobReplica, 'bob')
     await synchronize(aliceReplica, 'alice')
-    await vi.waitFor(() => expect(tab.model().open).toBeNull())
+    await vi.waitFor(() => expect(tab.model().open).toEqual(Option.none()))
     await vi.waitFor(() => expect(document.getElementById('page-body')).toBeNull())
   })
 
@@ -463,7 +465,7 @@ describe('two people on one page', () => {
     const bobReplica = await open('bob')
     replicas.push(aliceReplica, bobReplica)
     const tab = await aliceOnPage(aliceReplica)
-    const page = tab.model().open!
+    const page = Option.getOrThrow(tab.model().open)
     await synchronize(aliceReplica, 'alice')
     await synchronize(bobReplica, 'bob')
     // Alice types while Bob deletes the page; Bob's delete reaches the server first.
@@ -542,7 +544,7 @@ describe('two people on one page', () => {
     }
     return {
       ...initialModel('alice'),
-      open: 'mine',
+      open: Option.some('mine'),
       selection: { type: 'Range', anchor: at, focus: at },
       storedMarks: ['Bold'],
       menuIndex: 2,
@@ -554,7 +556,7 @@ describe('two people on one page', () => {
       menu: Option.some(Menu.Block({ node: RichText.NodeId.make('x') })),
       hovered: Option.some(RichText.NodeId.make('x')),
       linkDraft: 'https://example.com',
-      undoGroup: 'typing',
+      undoGroup: Option.some('typing'),
     }
   }
   const nothingCarried = {
@@ -565,12 +567,12 @@ describe('two people on one page', () => {
     menu: Option.none(),
     hovered: Option.none(),
     linkDraft: '',
-    undoGroup: null,
+    undoGroup: Option.none(),
   }
 
   it('starts a page it opens without what the editor carried for the last', () => {
     expect(update(carried(), Message.OpenedPage({ id: 'other' })).model).toMatchObject({
-      open: 'other',
+      open: Option.some('other'),
       ...nothingCarried,
     })
   })
@@ -590,7 +592,10 @@ describe('two people on one page', () => {
       'a restore of a page not in the trash',
       model => Message.RestoredPage({ id: model.pages[0]!.id }),
     ],
-    ['opening the page already open', model => Message.OpenedPage({ id: model.open! })],
+    [
+      'opening the page already open',
+      model => Message.OpenedPage({ id: Option.getOrThrow(model.open) }),
+    ],
     ['the same peers again', model => Message.GotPeers({ peers: model.peers })],
     ['closing a menu when none is open', () => Message.ClosedMenu()],
     [
@@ -602,24 +607,27 @@ describe('two people on one page', () => {
       initialModel('alice'),
       Message.CreatedPage({ id: 'p', title: 'P', key: 'p:seed' }),
     )
-    const model = { ...created.model, open: 'p' }
+    const model = { ...created.model, open: Option.some('p') }
     expect(update(model, message(model)).model).toBe(model)
   })
 
   it('closes the page it trashes, and trashes it through the log', () => {
     const result = update(carried(), Message.TrashedPage({ id: 'mine' }))
-    expect(result.model).toMatchObject({ open: null, ...nothingCarried })
+    expect(result.model).toMatchObject({ open: Option.none(), ...nothingCarried })
     expect(result.commands?.map(command => command.name)).toEqual(['foldkit-sync/fact'])
     // Another page trashed leaves the open one alone.
-    expect(update(carried(), Message.TrashedPage({ id: 'other' })).model.open).toBe('mine')
+    expect(update(carried(), Message.TrashedPage({ id: 'other' })).model.open).toEqual(
+      Option.some('mine'),
+    )
   })
 
   it('ends a run of typing when the caret is put elsewhere, so undo takes back what followed', async () => {
     const replica = await open('bob')
     replicas.push(replica)
     let model = await bobEdits(replica, initialModel('bob'), Message.AddedPage({ title: 'P' }))
-    const page = model.open!
-    const run = () => Replicated.project(pageOf(model, page)!.body).children[0]!.children[0]!.id
+    const page = Option.getOrThrow(model.open)
+    const run = () =>
+      Replicated.project(Option.getOrThrow(pageOf(model, page)).body).children[0]!.children[0]!.id
     const editor = async (message: EditorMessage) => {
       model = await bobEdits(replica, model, Message.GotEditor({ message }))
     }
@@ -646,7 +654,9 @@ describe('two people on one page', () => {
     const unsubscribe = journal.subscribe(() => (heard += 1))
     journal.collect()
     await Effect.runPromise(
-      replica.submit(Message.EditedPage({ id: model.open!, ops: [{ type: 'Collect' }] })),
+      replica.submit(
+        Message.EditedPage({ id: Option.getOrThrow(model.open), ops: [{ type: 'Collect' }] }),
+      ),
     )
     const [sent] = Effect.runSync(replica.pending)
     await synchronize(replica, 'tab-bob')
@@ -687,7 +697,7 @@ const pageWith = (text: string): Model => {
 
 /** The open page as the editor shows it. */
 const shown = (model: Model): RichText.Document =>
-  Replicated.project(pageOf(model, model.open)!.body)
+  Replicated.project(Option.getOrThrow(pageInEditor(model)).body)
 
 const kinds = (model: Model): ReadonlyArray<string> =>
   shown(model).children.map(block => (block.type === 'Node' ? block.kind : block.type))

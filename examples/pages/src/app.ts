@@ -1,4 +1,4 @@
-import { Effect, Equal, Option, Schema } from 'effect'
+import { Effect, Equal, Match, Option, Schema } from 'effect'
 import * as Command from 'foldkit/command'
 import * as Dom from 'foldkit/dom'
 import { defineMessageUnion } from 'foldkit/message'
@@ -87,7 +87,7 @@ export type Menu = typeof Menu.Type
 export const Model = Schema.Struct({
   ...Shared.fields,
   /** The page in the editor. */
-  open: Schema.NullOr(Schema.String),
+  open: Schema.Option(Schema.String),
   /**
    * What names this tab's edits: unique per load, so `session:n` never repeats, and
    * `minted` is the `n` of the next one. Kept here because only an intent's own
@@ -114,7 +114,7 @@ export const Model = Schema.Struct({
   undo: Schema.Array(UndoStep),
   redo: Schema.Array(UndoStep),
   /** What the last step was, so a run of typing is one step. */
-  undoGroup: Schema.NullOr(Schema.String),
+  undoGroup: Schema.Option(Schema.String),
   /** The other people presence reports, local to the tab and never shared. */
   peers: Schema.Array(Peer),
   /** The replica's status, for the line that says whether edits reached the server. */
@@ -183,7 +183,7 @@ const blank = RichText.decodeDocument({
 
 export const initialModel = (session: string): Model => ({
   pages: [],
-  open: null,
+  open: Option.none(),
   session,
   minted: 0,
   selection: null,
@@ -195,7 +195,7 @@ export const initialModel = (session: string): Model => ({
   linkDraft: '',
   undo: [],
   redo: [],
-  undoGroup: null,
+  undoGroup: Option.none(),
   peers: [],
   exchange: { pending: 0, error: Option.none() },
 })
@@ -204,7 +204,7 @@ export const initialModel = (session: string): Model => ({
  * A page opened, or none: what the editor and its menus carried for the last one means nothing
  * on another, so it starts afresh.
  */
-const afresh = (model: Model, open: string | null): Model =>
+const afresh = (model: Model, open: Option.Option<string>): Model =>
   modifyFields(model, {
     open: () => open,
     selection: () => null,
@@ -214,7 +214,7 @@ const afresh = (model: Model, open: string | null): Model =>
     menu: () => Option.none(),
     hovered: () => Option.none(),
     linkDraft: () => '',
-    undoGroup: () => null,
+    undoGroup: () => Option.none(),
   })
 
 /** The open menu closed; the Model itself when none is. */
@@ -266,8 +266,12 @@ const samePlace = (
 }
 
 /** The page with this id, unless it is in the trash. */
-export const pageOf = (model: Model, id: string | null): Page | undefined =>
-  id === null ? undefined : model.pages.find(page => page.id === id && page.trashed !== true)
+export const pageOf = (model: Model, id: string): Option.Option<Page> =>
+  Option.fromUndefinedOr(model.pages.find(page => page.id === id && page.trashed !== true))
+
+/** The page in the editor, unless none is open or it went to the trash. */
+export const pageInEditor = (model: Model): Option.Option<Page> =>
+  Option.flatMap(model.open, id => pageOf(model, id))
 
 /**
  * Whether this tab's edits reached the server. No pending edit means the server has every
@@ -403,7 +407,7 @@ const commit = (
   edit: Pick<Extract<RichText.TransactionResult, { readonly ok: true }>, 'transactions' | 'state'>,
   keyed: RichText.Document,
   commands: Update.Commands<Message>,
-  group: string | null,
+  group: Option.Option<string>,
 ): Return => {
   // Only this tab's session mints under its prefix, so only this tab extends those inserts.
   const translated = Replicated.translate(page.body, edit, `${model.session}:${model.minted}`, {
@@ -417,7 +421,7 @@ const commit = (
       model: {
         ...model,
         selection: translated.selection,
-        undoGroup: moved ? null : model.undoGroup,
+        undoGroup: moved ? Option.none() : model.undoGroup,
       },
       commands,
     }
@@ -425,7 +429,7 @@ const commit = (
   const inverse = Replicated.invert(page.body, translated.ops)
   const last = model.undo[model.undo.length - 1]
   // Opening a page starts a new group, so a run of typing is always on one page.
-  const joins = last !== undefined && group !== null && group === model.undoGroup
+  const joins = last !== undefined && Option.isSome(group) && Equal.equals(group, model.undoGroup)
   const undo = joins
     ? [...model.undo.slice(0, -1), { page: page.id, ops: prepend(inverse, last.ops) }]
     : [...model.undo, { page: page.id, ops: inverse }].slice(-UNDO_DEPTH)
@@ -462,12 +466,43 @@ const replay = (model: Model, page: Page, direction: 'undo' | 'redo'): Return =>
       ...model,
       [direction]: from.filter((_, index) => index !== at),
       [other]: [...model[other], back].slice(-UNDO_DEPTH),
-      undoGroup: null,
+      undoGroup: Option.none(),
     },
     page,
     step.ops,
     Replicated.project(page.body),
     [],
+  )
+}
+
+/** An editor Message on the open page that is not its undo or redo. */
+const edited = (model: Model, page: Page, incoming: EditorMessage): Return => {
+  const view = editorViewOf(model, page)
+  const result = Editor.update(view, incoming, { hostId })
+  const interaction =
+    result.model.storedMarks === model.storedMarks &&
+    result.model.menuIndex === model.menuIndex &&
+    result.model.slashDismissed === model.slashDismissed
+      ? model
+      : modifyFields(model, {
+          storedMarks: () => result.model.storedMarks,
+          menuIndex: () => result.model.menuIndex,
+          slashDismissed: () => result.model.slashDismissed,
+        })
+  const commands = (result.commands ?? []).map(toApp)
+  return Match.value(result.outMessage).pipe(
+    Match.withReturnType<Return>(),
+    Match.when({ _tag: 'Edited' }, out =>
+      commit(
+        interaction,
+        page,
+        out,
+        out.state.document,
+        commands,
+        typing.has(incoming._tag) ? Option.some('typing') : Option.none(),
+      ),
+    ),
+    Match.orElse(() => ({ model: interaction, commands })),
   )
 }
 
@@ -486,7 +521,7 @@ const editing = (model: Model, messages: ReadonlyArray<EditorMessage>): Return =
 
 /** The open page's block with this identity, as the editor shows it. */
 const blockOf = (model: Model, node: RichText.NodeId): RichText.Block | undefined => {
-  const page = pageOf(model, model.open)
+  const page = Option.getOrUndefined(pageInEditor(model))
   return page === undefined
     ? undefined
     : RichText.locateBlock(Replicated.project(page.body), node)?.block
@@ -558,64 +593,56 @@ export const update = (model: Model, message: Message): Return =>
     AddedPage: ({ title }) => {
       const id = `${model.session}:${model.minted}`
       return {
-        model: { ...afresh(model, id), minted: model.minted + 1 },
+        model: modifyFields(afresh(model, Option.some(id)), { minted: () => model.minted + 1 }),
         commands: [Sync.fact(Message.CreatedPage({ id, title, key: `${id}:seed` }))],
       }
     },
     // Closes the page here if it is open, then trashes it everywhere.
     TrashedPage: ({ id }) => ({
-      model: model.open === id ? afresh(model, null) : model,
+      model: Option.contains(model.open, id) ? afresh(model, Option.none()) : model,
       commands: [Sync.fact(Message.DeletedPage({ id }))],
     }),
     OpenedPage: ({ id }) => {
-      if (id === model.open) return { model }
-      const page = pageOf(model, id)
-      const next = afresh(model, id)
-      return { model: next, commands: page === undefined ? [] : [carets(next, id, page.body)] }
+      if (Option.contains(model.open, id)) return { model }
+      const next = afresh(model, Option.some(id))
+      return {
+        model: next,
+        commands: Option.match(pageOf(model, id), {
+          onNone: () => [],
+          onSome: page => [carets(next, id, page.body)],
+        }),
+      }
     },
     GotPeers: ({ peers }) => {
       // Presence refreshes every few seconds with nothing new; that is not a render.
       if (JSON.stringify(peers) === JSON.stringify(model.peers)) return { model }
-      const next = { ...model, peers }
-      const page = pageOf(next, next.open)
-      return { model: next, commands: page === undefined ? [] : [carets(next, page.id, page.body)] }
+      const next = modifyFields(model, { peers: () => peers })
+      return {
+        model: next,
+        commands: Option.match(pageInEditor(next), {
+          onNone: () => [],
+          onSome: page => [carets(next, page.id, page.body)],
+        }),
+      }
     },
     ExchangeChanged: ({ pending, error }) =>
       // The status is re-sent after every exchange, mostly unchanged; that is not a render.
       pending === model.exchange.pending && Equal.equals(error, model.exchange.error)
         ? { model }
         : { model: modifyFields(model, { exchange: () => ({ pending, error }) }) },
-    GotEditor: ({ message: incoming }) => {
-      const page = pageOf(model, model.open)
-      if (page === undefined) return { model }
-      // The editor's own undo restores a snapshot of this tab's document, which others'
-      // edits have moved on from; this one applies the ops that take this tab's edit back.
-      if (incoming._tag === 'Undone') return replay(model, page, 'undo')
-      if (incoming._tag === 'Redone') return replay(model, page, 'redo')
-      const view = editorViewOf(model, page)
-      const result = Editor.update(view, incoming, { hostId })
-      const interaction =
-        result.model.storedMarks === model.storedMarks &&
-        result.model.menuIndex === model.menuIndex &&
-        result.model.slashDismissed === model.slashDismissed
-          ? model
-          : modifyFields(model, {
-              storedMarks: () => result.model.storedMarks,
-              menuIndex: () => result.model.menuIndex,
-              slashDismissed: () => result.model.slashDismissed,
-            })
-      const commands = (result.commands ?? []).map(toApp)
-      const out = result.outMessage
-      if (out?._tag !== 'Edited') return { model: interaction, commands }
-      return commit(
-        interaction,
-        page,
-        out,
-        out.state.document,
-        commands,
-        typing.has(incoming._tag) ? 'typing' : null,
-      )
-    },
+    GotEditor: ({ message: incoming }) =>
+      Option.match(pageInEditor(model), {
+        onNone: () => ({ model }),
+        onSome: page =>
+          Match.value(incoming).pipe(
+            Match.withReturnType<Return>(),
+            // The editor's own undo restores a snapshot of this tab's document, which others'
+            // edits have moved on from; this one applies the ops that take this tab's edit back.
+            Match.tag('Undone', () => replay(model, page, 'undo')),
+            Match.tag('Redone', () => replay(model, page, 'redo')),
+            Match.orElse(() => edited(model, page, incoming)),
+          ),
+      }),
     SlashMoved: ({ index }) =>
       index === model.menuIndex
         ? { model }
@@ -631,12 +658,15 @@ export const update = (model: Model, message: Message): Return =>
         Style: () => ({ model: shown }),
         Insert: () => ({ model: shown }),
         Link: () => {
-          const page = pageOf(model, model.open)
-          const view = page === undefined ? undefined : editorViewOf(model, page)
-          const href =
-            view === undefined ? undefined : RichText.linkAt(view.document, view.selection)?.href
+          const href = Option.match(pageInEditor(model), {
+            onNone: () => '',
+            onSome: page => {
+              const view = editorViewOf(model, page)
+              return RichText.linkAt(view.document, view.selection)?.href ?? ''
+            },
+          })
           return {
-            model: modifyFields(shown, { linkDraft: () => href ?? '' }),
+            model: modifyFields(shown, { linkDraft: () => href }),
             commands: [FocusField({ selector: '[data-link="address"]' })],
           }
         },
@@ -654,19 +684,23 @@ export const update = (model: Model, message: Message): Return =>
         : editing(menuClosed(model), [EditorMessage.InsertedBlock({ block, to: { after: node } })])
     },
     LinkDrafted: ({ href }) => ({ model: modifyFields(model, { linkDraft: () => href }) }),
-    LinkSubmitted: () => {
-      const page = pageOf(model, model.open)
-      if (page === undefined) return { model }
-      const view = editorViewOf(model, page)
-      return Option.match(linkEdit(view.document, view.selection, model.linkDraft), {
-        onNone: () => ({ model }),
-        onSome: message => update(model, Message.LinkEdited({ message })),
-      })
-    },
+    LinkSubmitted: () =>
+      Option.match(
+        Option.flatMap(pageInEditor(model), page => {
+          const view = editorViewOf(model, page)
+          return linkEdit(view.document, view.selection, model.linkDraft)
+        }),
+        {
+          onNone: () => ({ model }),
+          onSome: message => update(model, Message.LinkEdited({ message })),
+        },
+      ),
     LinkEdited: ({ message }) => {
       const result = update(menuClosed(model), Message.GotEditor({ message }))
-      const page = pageOf(result.model, result.model.open)
-      const selection = page === undefined ? null : editorViewOf(result.model, page).selection
+      const selection = Option.match(pageInEditor(result.model), {
+        onNone: () => null,
+        onSome: page => editorViewOf(result.model, page).selection,
+      })
       return selection === null
         ? result
         : {
@@ -683,9 +717,9 @@ export const update = (model: Model, message: Message): Return =>
  * mounted afresh; a page deleted elsewhere closes.
  */
 export const reinstalled = (next: Model, previous: Model): Return => {
-  const before = pageOf(previous, previous.open)
-  const after = pageOf(next, next.open)
-  if (after === undefined) return { model: afresh(next, null) }
+  const before = Option.getOrUndefined(pageInEditor(previous))
+  const after = Option.getOrUndefined(pageInEditor(next))
+  if (after === undefined) return { model: afresh(next, Option.none()) }
   if (before === undefined || before.body === after.body) return { model: next }
   return {
     model: next,
