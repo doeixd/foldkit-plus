@@ -72,11 +72,11 @@ const amount = <Message>(
 export const renderers = <Message>(): Renderers<Message> => ({
   [Kinds.Date.kind]: native('date'),
   // A date-time input cannot hold a draft with an offset (the later of a repeated
-  // hour): it would show nothing, so such a draft is shown as text. The input
+  // hour) or of year 0: it would show nothing, so such a draft is shown as text. The input
   // steps by a millisecond, the finest a draft holds: its default minute would
   // offer no seconds, and refuse a value that has them.
   [Kinds.DateTime.kind]: context =>
-    context.draft === '' || Option.isSome(readWall(String(context.draft)))
+    context.draft === '' || Option.exists(readWall(String(context.draft)), wall => wall.year > 0)
       ? native<Message>('datetime-local')(context)
       : native<Message>('text')(context),
   [Kinds.Email.kind]: native('email', context =>

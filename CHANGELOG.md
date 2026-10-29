@@ -728,6 +728,11 @@ carries `drawn`.
 
 ### Fixed
 
+- **`FieldRecipes.dateTime` keeps an instant in year 0** (#321). The zone's
+  clocks were read without their era, and `Intl` writes ISO year 0 as 1 BC,
+  so `0000-12-31T12:00:00.000Z` was shown, and submitted, as year 1. The era
+  is read, the draft is `0000-12-31T12:00`, and `html` draws it as text,
+  since a date-time input takes no year before 1.
 - **`FieldRecipes.dateTime` shows a stored instant only as a draft that
   submits it unchanged** (#313, #314, #315). Its `format` read an instant
   with `Date.parse` and wrote the zone's reading, which three kinds of

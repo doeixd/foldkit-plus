@@ -224,6 +224,25 @@ describe('an instant filled and submitted unchanged', () => {
   })
 })
 
+// Across a year's end, a leap day, and year 0, which the clocks' formatter calls 1 BC (#321).
+describe('an instant at a boundary, filled and submitted unchanged', () => {
+  it.each([
+    ['UTC', '0000-12-31T12:00:00.000Z', '0000-12-31T12:00'],
+    ['UTC', '0000-01-01T00:00:00.000Z', '0000-01-01T00:00'],
+    ['UTC', '0001-01-01T00:00:00.000Z', '0001-01-01T00:00'],
+    ['America/New_York', '0001-01-01T03:00:00.000Z', '0000-12-31T22:03:58'],
+    ['America/New_York', '2000-01-01T04:59:59.999Z', '1999-12-31T23:59:59.999'],
+    ['Pacific/Kiritimati', '2026-12-31T10:00:00.000Z', '2027-01-01T00:00'],
+    ['Pacific/Kiritimati', '2024-02-28T10:30:00.000Z', '2024-02-29T00:30'],
+    ['Europe/London', '2024-02-29T23:30:00.000Z', '2024-02-29T23:30'],
+    ['UTC', '9999-12-31T23:59:59.999Z', '9999-12-31T23:59:59.999'],
+  ])('in %s keeps %s, shown as %s', (zone, instant, draft) => {
+    const form = formOf({ stored: 'instant', zone })
+    expect(shown(form, instant)).toBe(draft)
+    expect(submitted(form, shown(form, instant))).toBe(instant)
+  })
+})
+
 describe('a date and a time in a list', () => {
   const spaced = (text: string) => text.replace(/\s/g, ' ')
   it('reads an instant in the zone and a local text as written', () => {

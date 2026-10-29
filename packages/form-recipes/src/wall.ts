@@ -88,6 +88,8 @@ const formatterOf = (zone: string): Intl.DateTimeFormat => {
   const made = new Intl.DateTimeFormat('en-US', {
     timeZone: zone,
     hourCycle: 'h23',
+    // The era too: the formatter writes ISO year 0 as year 1 BC.
+    era: 'short',
     year: 'numeric',
     month: 'numeric',
     day: 'numeric',
@@ -118,7 +120,7 @@ export const wallOf = (instant: number, zone: string): Wall => {
       .map(part => [part.type, part.value]),
   )
   return {
-    year: Number(parts['year']),
+    year: parts['era'] === 'BC' ? 1 - Number(parts['year']) : Number(parts['year']),
     month: Number(parts['month']),
     day: Number(parts['day']),
     hour: Number(parts['hour']),

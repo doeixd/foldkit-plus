@@ -62,6 +62,8 @@ describe('the recipes’ plain renderers', () => {
       ).map(input => [Inert.value(input, 'type'), Inert.value(input, 'value')])
     expect(drawn('2026-11-01T05:30:00.000Z')).toEqual([['datetime-local', '2026-11-01T01:30']])
     expect(drawn('2026-11-01T06:30:00.000Z')).toEqual([['text', '2026-11-01T01:30-05:00']])
+    // Nor can it hold year 0 (#321).
+    expect(drawn('0000-12-31T12:00:00.000Z')).toEqual([['text', '0000-12-31T07:03:58']])
   })
 
   it('serve each input with its name, type and value', async () => {

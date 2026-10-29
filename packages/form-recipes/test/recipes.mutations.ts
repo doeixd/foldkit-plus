@@ -143,11 +143,27 @@ export default [
     tests: dateTime,
   },
   {
+    name: 'the clocks’ era is ignored, so year 0 reads as year 1',
+    edits: [
+      {
+        file: wall,
+        find: "year: parts['era'] === 'BC' ? 1 - Number(parts['year']) : Number(parts['year']),",
+        replace: "year: Number(parts['year']),",
+      },
+    ],
+    tests: dateTime,
+  },
+  {
+    name: 'a draft of year 0 is drawn in a date-time input',
+    edits: [{ file: html, find: 'wall => wall.year > 0', replace: '() => true' }],
+    tests: ['packages/form-recipes/test/html.test.ts'],
+  },
+  {
     name: 'a draft with an offset is drawn in a date-time input',
     edits: [
       {
         file: html,
-        find: "context.draft === '' || Option.isSome(readWall(String(context.draft)))",
+        find: "context.draft === '' || Option.exists(readWall(String(context.draft)), wall => wall.year > 0)",
         replace: 'true',
       },
     ],

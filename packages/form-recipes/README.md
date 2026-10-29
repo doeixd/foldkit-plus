@@ -97,7 +97,8 @@ its offset, `2026-11-01T01:30-05:00`, which `html` draws as text, since a
 date-time input cannot hold it; the reading alone would submit the earlier. A
 fill throws for an instant finer than a millisecond, or one naming no real date
 and time (`2026-02-30T10:00:00Z`, which `Date.parse` moves into March), since
-showing either would change it.
+showing either would change it. An instant in year 0 is kept, and drawn as text
+too: a date-time input takes no year before 1.
 
 The zone is a parameter, never the runtime's, so a server and a browser fill the
 same text. To follow the person's own zone, pass it:
