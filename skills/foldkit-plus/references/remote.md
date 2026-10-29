@@ -607,7 +607,10 @@ writes. `Data.outboxStatus(model)` is `{ waiting, failed, items }`, each item's
 `state` `Waiting { attempt, error }`, `Failed { error }` or `Unreadable {
 reason }` (a stored write this version's Mutations cannot read: kept, never
 sent, `OutboxUnreadable`, dismissable). A store that cannot be written reports
-`OutboxUnsaved` and still sends. A durable Mutation needs a ledgered writer,
+`OutboxUnsaved` and still sends. A page sends only the queue it read for the
+current `key` and `scope` (one per principal): after a change of principal it
+sends nothing of the last one's, and never writes over another scope's waiting
+writes (`OutboxUnsaved`). A durable Mutation needs a ledgered writer,
 so a second send is answered from its record. Past `clockSkew`, the server
 writes its own time. `Trace.run(Data, { …, outbox })` runs the outbox as one
 tab, so a traced durable write is sent.

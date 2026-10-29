@@ -179,6 +179,7 @@ import {
   operationOf,
   outboxStatus,
   readEntries,
+  othersWaiting,
   readStored,
   sendLock,
   storedFromText,
@@ -427,7 +428,11 @@ export interface OutboxOptions<AppModel> {
    * person's waiting writes are never sent as another's.
    */
   readonly key: (model: AppModel) => string
-  /** Who the queue is for; one stored under another scope reads as empty. */
+  /**
+   * Who the queue is for, the principal. One stored under another scope reads
+   * as empty and is never written over; a page whose scope changes sends
+   * nothing it read for the old one, and reads the new one's.
+   */
   readonly scope: (model: AppModel) => string
   /** The wait between sends nothing answered: 1 second doubling to 30, unless given. */
   readonly retry?: RetryOptions | undefined
@@ -4818,11 +4823,13 @@ const bindDomain = <
         )
       const readOf = (
         key: string,
+        scope: string,
         stored: StoredOutbox,
         extra: { readonly session?: string; readonly unsaved?: string } = {},
       ): RemoteMessage => ({
         _tag: 'OutboxRead',
         key,
+        scope,
         entries: readEntries(stored, inputOf),
         done: stored.done,
         ...extra,
@@ -4840,6 +4847,15 @@ const bindDomain = <
         withLock(
           storeLock(key),
           Effect.gen(function* () {
+            // Another scope's waiting writes are never written over: a key that
+            // is not one per principal fails the save, and says why.
+            if (yield* othersWaiting(key, scope)) {
+              return yield* Effect.fail(
+                new Error(
+                  `the store under ${key} holds another scope's waiting writes; give each principal a key of its own`,
+                ),
+              )
+            }
             const merged = mergeStored(yield* readStored(key, scope), change)
             const kv = yield* KeyValueStore.KeyValueStore
             yield* kv.set(key, storedText(merged, scope))
@@ -4852,6 +4868,7 @@ const bindDomain = <
           Effect.map(stored =>
             readOf(
               key,
+              scope,
               stored,
               Option.match(session, {
                 onNone: () => ({}),
@@ -4863,6 +4880,7 @@ const bindDomain = <
             Effect.succeed(
               readOf(
                 key,
+                scope,
                 { entries: [], done: [] },
                 {
                   ...Option.match(session, {
@@ -4875,6 +4893,9 @@ const bindDomain = <
             ),
           ),
         )
+      /** Whether the page's queue is the one stored under `key` for `scope`. */
+      const holding = (outbox: RemoteModel['outbox'], key: string, scope: string) =>
+        Option.contains(outbox.key, key) && Option.contains(outbox.scope, scope)
       const minted = (has: boolean) =>
         has
           ? Effect.succeed(Option.none<string>())
@@ -4913,10 +4934,11 @@ const bindDomain = <
         modelToDependencies: model => {
           const { outbox } = store.get(model)
           const key = options.key(model)
+          const scope = options.scope(model)
           return {
             key,
-            scope: options.scope(model),
-            restored: Option.contains(outbox.key, key),
+            scope,
+            restored: holding(outbox, key, scope),
             session: Option.isSome(outbox.session),
           }
         },
@@ -4948,10 +4970,8 @@ const bindDomain = <
           return {
             key,
             scope,
-            // Saved only under the key it was read from: never over a queue not yet read.
-            text: Option.contains(outbox.key, key)
-              ? Option.some(textOf(outbox, scope))
-              : Option.none(),
+            // Saved only under the key and scope it was read for: never over a queue not yet read.
+            text: holding(outbox, key, scope) ? Option.some(textOf(outbox, scope)) : Option.none(),
           }
         },
         dependenciesToStream: ({ key, scope, text }) =>
@@ -4962,11 +4982,11 @@ const bindDomain = <
               return Stream.fromEffect(
                 writeStored(key, scope, mine).pipe(
                   Effect.tap(() => announce(key, Option.none())),
-                  Effect.map(merged => readOf(key, merged)),
+                  Effect.map(merged => readOf(key, scope, merged)),
                   // A store that cannot be written does not hold the writes back:
                   // they are sent, and a reload before the answer loses them.
                   Effect.catch(error =>
-                    Effect.succeed(readOf(key, mine, { unsaved: error.message })),
+                    Effect.succeed(readOf(key, scope, mine, { unsaved: error.message })),
                   ),
                 ),
               )
@@ -4999,7 +5019,7 @@ const bindDomain = <
               // Another tab may have settled it while this one waited for the lock.
               const there = yield* Effect.option(readStored(key, scope))
               if (Option.isSome(there) && settledIn(there.value, operation)) {
-                yield* emit(readOf(key, there.value))
+                yield* emit(readOf(key, scope, there.value))
                 return
               }
               const mutation = registeredMutation(write.mutation)
@@ -5079,10 +5099,12 @@ const bindDomain = <
         modelToDependencies: model => {
           const { outbox } = store.get(model)
           const key = options.key(model)
+          const scope = options.scope(model)
           return {
             key,
-            scope: options.scope(model),
-            head: Option.contains(outbox.key, key) ? headTextOf(outbox) : Option.none(),
+            scope,
+            // Another scope's queue is never sent: it was made as someone else.
+            head: holding(outbox, key, scope) ? headTextOf(outbox) : Option.none(),
           }
         },
         dependenciesToStream: ({ key, scope, head }) =>
@@ -5112,10 +5134,11 @@ const bindDomain = <
         }),
         modelToDependencies: model => {
           const key = options.key(model)
+          const scope = options.scope(model)
           return {
             key,
-            scope: options.scope(model),
-            restored: Option.contains(store.get(model).outbox.key, key),
+            scope,
+            restored: holding(store.get(model).outbox, key, scope),
           }
         },
         dependenciesToStream: ({ key, scope, restored: read }) =>

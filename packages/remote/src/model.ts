@@ -418,6 +418,7 @@ export type RemoteMessage =
   | {
       readonly _tag: 'OutboxRead'
       readonly key: string
+      readonly scope: string
       readonly session?: string | undefined
       readonly entries: ReadonlyArray<ReadEntry>
       readonly done: ReadonlyArray<string>
@@ -576,6 +577,7 @@ export const remoteMessageCases = {
   MutationQueued: { requestId: Schema.String },
   OutboxRead: {
     key: Schema.String,
+    scope: Schema.String,
     session: Schema.optional(Schema.String),
     entries: Schema.Array(Schema.Unknown),
     done: Schema.Array(Schema.String),
@@ -1274,7 +1276,9 @@ const readOutbox = (
   model: RemoteModel,
   message: Extract<RemoteMessage, { readonly _tag: 'OutboxRead' }>,
 ): RemoteModel => {
-  const switching = Option.isSome(model.outbox.key) && model.outbox.key.value !== message.key
+  const switching =
+    (Option.isSome(model.outbox.key) && model.outbox.key.value !== message.key) ||
+    (Option.isSome(model.outbox.scope) && model.outbox.scope.value !== message.scope)
   const start: RemoteModel = switching
     ? {
         ...model.outbox.queue.reduce(releasedFrom, model),
@@ -1329,13 +1333,20 @@ const readOutbox = (
     recorded.length === 0 &&
     done === before.done &&
     Option.contains(before.key, message.key) &&
+    Option.contains(before.scope, message.scope) &&
     Option.isSome(before.session) === Option.isSome(session) &&
     queue.length === before.queue.length &&
     queue.every((queued, index) => queued === before.queue[index])
   if (unchanged) return model
   return {
     ...next,
-    outbox: { session, key: Option.some(message.key), queue, done },
+    outbox: {
+      session,
+      key: Option.some(message.key),
+      scope: Option.some(message.scope),
+      queue,
+      done,
+    },
     diagnostics: withDiagnostics(next.diagnostics, recorded),
   }
 }

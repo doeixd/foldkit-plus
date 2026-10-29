@@ -143,26 +143,26 @@ const step = (tab: Tab, entry: Entry, model: Model): Promise<ReadonlyArray<Remot
 }
 
 /** The page with its restore run, as a runtime's flags would. */
-const restored = (tab: Tab, model: Model = page()) =>
+const restored = (tab: Tab, model: Model = page(), wiring = outbox) =>
   Effect.runPromise(
-    outbox.restore(model).pipe(Effect.provideService(KeyValueStore.KeyValueStore, tab.kv)),
+    wiring.restore(model).pipe(Effect.provideService(KeyValueStore.KeyValueStore, tab.kv)),
   )
 
 /**
  * Runs the restore, save and send entries as the runtime does, each when its
  * dependencies change, until none does.
  */
-const settle = async (tab: Tab, start: Model): Promise<Model> => {
+const settle = async (tab: Tab, start: Model, running = entries): Promise<Model> => {
   let model = start
   const ran = new Map<string, string>()
   for (let pass = 0; pass < 30; pass++) {
     let changed = false
     for (const name of ['outbox.restore', 'outbox.save', 'outbox.send'] as const) {
-      const dependencies = JSON.stringify(entries[name]!.modelToDependencies(model))
+      const dependencies = JSON.stringify(running[name]!.modelToDependencies(model))
       if (ran.get(name) === dependencies) continue
       ran.set(name, dependencies)
       changed = true
-      model = (await step(tab, entries[name]!, model)).reduce(Data.reduce, model)
+      model = (await step(tab, running[name]!, model)).reduce(Data.reduce, model)
     }
     if (!changed) return model
   }
@@ -475,6 +475,7 @@ describe('the store between tabs', () => {
     const heard = Data.reduce(saved, {
       _tag: 'OutboxRead',
       key: 'outbox:ada',
+      scope: 'ada',
       entries: [],
       done: [started.requestId],
     })
@@ -525,6 +526,52 @@ describe('the store between tabs', () => {
     expect(Data.outboxStatus(forgotten).items).toEqual([])
     expect(forgotten.remote.outbox.session).toEqual(started.model.remote.outbox.session)
     expect(forgotten.remote.outbox.key).toEqual(Option.none())
+  })
+})
+
+/**
+ * #284: a write is made as someone, and is never sent as anyone else. Here
+ * the key is one for every principal, so only the scope tells whose it is.
+ */
+describe('a change of principal in the same page', () => {
+  const shared = Data.outbox({
+    key: () => 'outbox:shared',
+    scope: model => model.actor,
+    retry: { base: '1 millis', max: '2 millis' },
+  })
+  const running = shared.subscriptions!
+  const waiting = (kv: KeyValueStore.KeyValueStore) =>
+    JSON.parse(Effect.runSync(kv.get('outbox:shared'))!) as {
+      readonly scope: string
+      readonly entries: ReadonlyArray<{ readonly operation: string }>
+    }
+
+  /** Ada's write, stored and not yet sent, in a page that then becomes Grace's. */
+  const adaWaiting = async (tab: Tab) => {
+    const started = setCount(await restored(tab, page('ada'), shared), 'i1', 2)
+    const saved = (await step(tab, running['outbox.save']!, started.model)).reduce(
+      Data.reduce,
+      started.model,
+    )
+    return { saved, operation: started.requestId }
+  }
+
+  it.each([
+    ['as it is', (model: Model) => ({ ...model, actor: 'grace' })],
+    ['forgotten', (model: Model) => Data.forget({ ...model, actor: 'grace' })],
+  ])('sends none of the old queue %s, and keeps it in the store for its own', async (_, become) => {
+    const tab = { kv: memory(), ...server() }
+    const { saved, operation } = await adaWaiting(tab)
+    const grace = await settle(tab, become(saved), running)
+    expect(tab.sent).toEqual([])
+    expect(Data.outboxStatus(grace).items).toEqual([])
+    expect(waiting(tab.kv)).toMatchObject({ scope: 'ada', entries: [{ operation }] })
+    // Writing Grace's queue over it would lose Ada's write: the save says so instead.
+    expect(Data.inspect(grace).diagnostics).toMatchObject([{ _tag: 'OutboxUnsaved' }])
+    // Ada back, on a page of her own, sends it as herself.
+    const back = { kv: tab.kv, ...server() }
+    await settle(back, await restored(back, page('ada'), shared), running)
+    expect(back.sent.map(write => write.operation)).toEqual([operation])
   })
 })
 

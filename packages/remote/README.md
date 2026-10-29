@@ -2017,7 +2017,11 @@ reload       → outbox.restore: the queue back, layers shown → sent again, sa
   `Data.dismiss`. A store that cannot be written reports `OutboxUnsaved`, and
   the writes are sent anyway.
 - **A change of principal** is `Data.forget` and another `key`, as for
-  persistence: one person's waiting writes are never sent as another's.
+  persistence: one person's waiting writes are never sent as another's. The
+  page holds the queue it read for one `key` and `scope`; when either moves,
+  it sends none of it and reads the new one's. A store holding another
+  scope's waiting writes is not written over, so a `key` shared by
+  principals reports `OutboxUnsaved` rather than losing them.
 
 ### Remote mutation vs Sync operation
 

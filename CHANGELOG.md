@@ -665,6 +665,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **The durable outbox never sends one principal's write as another's**
+  (#284; unreleased). The page held its queue by store `key` alone, so with a
+  `key` shared by principals a change of `scope` in the same page sent the
+  last principal's waiting writes as the new one, and after `Data.forget` the
+  new principal's empty queue was written over them. The queue is now held
+  for its `key` and `scope`: either moving sends none of it and reads the new
+  one's, and a store holding another scope's waiting writes is not written
+  over (`OutboxUnsaved`). `OutboxRead` carries the `scope`.
+
 - **A durable write is sent again when what came back is no Remote answer**
   (#282). `Remote.json` failed a mutation answered with JSON that is not
   `{ result }` or `{ error }` (a gateway's `{}`) as `RemoteMutationError`, so

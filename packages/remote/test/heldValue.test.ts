@@ -611,6 +611,7 @@ const messages = {
     'the store read back, holding a rename another tab queued': () => ({
       _tag: 'OutboxRead',
       key: 'outbox',
+      scope: 'ada',
       session: 'session',
       entries: [storedRename('other-rename', 'Elsewhere', 'Waiting')],
       done: [],
@@ -618,24 +619,28 @@ const messages = {
     'the store read back, a rename refused in another tab': () => ({
       _tag: 'OutboxRead',
       key: 'outbox',
+      scope: 'ada',
       entries: [storedRename('other-refused', 'Refused', 'Failed')],
       done: [],
     }),
     'the store read back, the durable rename settled in another tab': () => ({
       _tag: 'OutboxRead',
       key: 'outbox',
+      scope: 'ada',
       entries: [],
       done: ['session-rename', 'other-rename'],
     }),
     'the store read back, a write this version cannot read': () => ({
       _tag: 'OutboxRead',
       key: 'outbox',
+      scope: 'ada',
       entries: [{ _tag: 'Unreadable', operation: 'old', revision: 0, raw: {}, reason: 'retired' }],
       done: [],
     }),
     'the store read under another key': () => ({
       _tag: 'OutboxRead',
       key: 'outbox:grace',
+      scope: 'grace',
       entries: [],
       done: [],
     }),

@@ -170,6 +170,25 @@ export const readStored = (
     })
   })
 
+/**
+ * Whether the record under `key` holds writes waiting for another scope than
+ * `scope`: a key that is not one per principal. Writing over it would lose
+ * them, so it is not written.
+ */
+export const othersWaiting = (
+  key: string,
+  scope: string,
+): Effect.Effect<boolean, KeyValueStore.KeyValueStoreError, KeyValueStore.KeyValueStore> =>
+  Effect.gen(function* () {
+    const text = yield* (yield* KeyValueStore.KeyValueStore).get(key)
+    return Option.exists(
+      Option.flatMap(Option.fromUndefinedOr(text), stored =>
+        Schema.decodeUnknownOption(Schema.fromJsonString(StoredOutboxSchema))(stored),
+      ),
+      record => record.scope !== scope && record.entries.length > 0,
+    )
+  })
+
 export const storedText = (outbox: StoredOutbox, scope: string): string =>
   JSON.stringify({ version: OUTBOX_VERSION, scope, entries: outbox.entries, done: outbox.done })
 
@@ -223,6 +242,11 @@ export interface OutboxState {
   readonly session: Option.Option<string>
   /** The store key the queue was read from; it is saved there and nowhere else. */
   readonly key: Option.Option<string>
+  /**
+   * Whose queue it is, as it was read: a page whose scope moves on sends none
+   * of it, and reads the new scope's instead.
+   */
+  readonly scope: Option.Option<string>
   /** Every tab's queued writes, in the order they are sent. */
   readonly queue: ReadonlyArray<Queued>
   /** Operations settled lately, here or in another tab. */
@@ -232,6 +256,7 @@ export interface OutboxState {
 export const emptyOutbox: OutboxState = {
   session: Option.none(),
   key: Option.none(),
+  scope: Option.none(),
   queue: [],
   done: [],
 }

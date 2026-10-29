@@ -212,7 +212,11 @@ it does not ask the server to.
 
 `key` and `scope` are `Data.persistence`'s: one key per principal, so one
 person's queued writes are never sent as another's. A record under another
-scope or version reads as empty, as a snapshot does. `Data.forget` empties the
+scope or version reads as empty, as a snapshot does. The page holds the queue
+for the key and the scope it was read under (#284): when either changes, as
+when the principal does, nothing read for the old one is sent, and the new
+one's is read. A record holding another scope's waiting writes is never
+written over; the save fails as `OutboxUnsaved` (a key shared by principals). `Data.forget` empties the
 Model's queue and its key (the writes stay in their own store), so the next
 principal's key is restored; the session is kept.
 

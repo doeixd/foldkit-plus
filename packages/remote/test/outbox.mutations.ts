@@ -13,6 +13,25 @@ const model = '../src/model.ts'
 const outbox = '../src/outbox.ts'
 
 export default [
+  // #284: a write made as one principal is never sent as another.
+  edit(
+    'a queue of another scope is sent',
+    index,
+    'Option.contains(outbox.key, key) && Option.contains(outbox.scope, scope)',
+    'Option.contains(outbox.key, key)',
+  ),
+  edit(
+    "another scope's waiting writes are written over",
+    outbox,
+    'record => record.scope !== scope && record.entries.length > 0,',
+    '() => false,',
+  ),
+  edit(
+    'a read of another scope keeps the queue',
+    model,
+    '(Option.isSome(model.outbox.scope) && model.outbox.scope.value !== message.scope)',
+    'false',
+  ),
   edit(
     'a durable write is sent by its Command, not queued',
     index,
@@ -47,8 +66,8 @@ export default [
   edit(
     'a store that cannot be written holds the writes back',
     index,
-    'Effect.succeed(readOf(key, mine, { unsaved: error.message })),',
-    'Effect.succeed(readOf(key, { entries: [], done: [] }, { unsaved: error.message })),',
+    'Effect.succeed(readOf(key, scope, mine, { unsaved: error.message })),',
+    'Effect.succeed(readOf(key, scope, { entries: [], done: [] }, { unsaved: error.message })),',
   ),
   edit(
     'an input that no longer decodes is sent anyway',
