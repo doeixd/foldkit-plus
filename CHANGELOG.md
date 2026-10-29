@@ -753,6 +753,13 @@ carries `drawn`.
 
 ### Fixed
 
+- **A cursor from before keyed cursors pages after its row though its id
+  begins `k:`** (#322). remote-drizzle read every cursor starting `k:` as
+  key values, so an id such as `k:customer` was refused, and one such as
+  `k:[1,"a"]` paged from the place those values name. A cursor that reads as
+  keyed is now first looked up as an id; and a page whose keys JSON cannot
+  carry ends on `idCursor` (`k:{"id":…}`), not on the bare id. `readCursor`
+  reads that form as an `Id`.
 - **An operator input of numeric literals is typed on Postgres** (#323).
   remote-drizzle cast an operator's parameter by its input schema only when
   that was `Schema.Number`, so one declared `Schema.Literal(1)` or

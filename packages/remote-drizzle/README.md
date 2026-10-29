@@ -832,7 +832,10 @@ is refused unless it holds exactly one key value (text, a number, a boolean,
 null, or a tagged date, bigint, or `Infinity`, `-Infinity` or `NaN`, which JSON
 would write as null) for each term of the order it pages. A cursor
 from before keys is a row id, still read by re-reading that row's keys; one
-whose row is gone fails rather than restarting at page one.
+whose row is gone fails rather than restarting at page one. Such an id may
+itself begin `k:`, so a cursor that reads as keyed is first looked up as an
+id, and a row holding it is the row it names. A page whose keys JSON cannot
+carry ends on a cursor naming its row's id (`k:{"id":...}`), never a bare id.
 
 A key cursor carries those values to the client as they are stored. Ordering
 already tells a reader how rows compare by a field; the cursor tells them the

@@ -283,6 +283,13 @@ const decodeKey = (value: unknown): Option.Option<unknown> => {
 export const keyCursor = (values: ReadonlyArray<unknown>): Option.Option<string> =>
   Option.map(Option.all(values.map(encodeKey)), keys => KEYED + JSON.stringify(keys))
 
+/**
+ * A cursor naming the row a page ended on by its id, for an order whose key
+ * values JSON cannot carry: keyed as `keyCursor`'s are, so an id beginning as
+ * a keyed cursor does (`k:…`) is never read as key values.
+ */
+export const idCursor = (id: string): string => KEYED + JSON.stringify({ id })
+
 /** What a cursor says: where its page ended, an id from before keys, or nothing this server minted. */
 export type CursorRead = Data.TaggedEnum<{
   Keys: { readonly values: ReadonlyArray<unknown> }
@@ -294,7 +301,10 @@ export const CursorRead = Data.taggedEnum<CursorRead>()
 /**
  * What a cursor says: the key values a keyed one holds, checked against the
  * order it pages (a client sends it, so nothing is trusted that is not one of
- * these values), or the id of a cursor from before keys.
+ * these values), the id an `idCursor` names, or the id of a cursor from before
+ * keys. A cursor from before keys is a bare id, which may itself begin `k:`:
+ * one that does is read here as keyed (or refused), so a source asks first
+ * whether a row has the whole cursor as its id.
  */
 export const readCursor = (cursor: string, terms: number): CursorRead => {
   if (!cursor.startsWith(KEYED)) return CursorRead.Id({ id: cursor })
@@ -304,6 +314,15 @@ export const readCursor = (cursor: string, terms: number): CursorRead => {
   } catch {
     return CursorRead.Invalid()
   }
+  if (
+    typeof parsed === 'object' &&
+    parsed !== null &&
+    !Array.isArray(parsed) &&
+    Object.keys(parsed).length === 1 &&
+    'id' in parsed &&
+    typeof parsed.id === 'string'
+  )
+    return CursorRead.Id({ id: parsed.id })
   if (!Array.isArray(parsed) || parsed.length !== terms) return CursorRead.Invalid()
   return Option.match(Option.all(parsed.map(decodeKey)), {
     onNone: () => CursorRead.Invalid(),

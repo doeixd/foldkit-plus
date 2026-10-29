@@ -82,6 +82,7 @@ import {
 } from './compile.js'
 import {
   cursorSelection,
+  idCursor,
   keyCursor,
   keysOf,
   keysetWhere,
@@ -955,42 +956,41 @@ export const query = <P = unknown, Input = unknown>(
         let where = baseWhere
 
         if (shape.cursor !== undefined) {
-          // A keyed cursor says where its page ended. One from before keys is
-          // an id, whose row is read for its keys as it is now.
-          const values: ReadonlyArray<unknown> = yield* CursorRead.$match(
-            readCursor(shape.cursor, orderBy.length),
-            {
-              Keys: ({ values }) => Effect.succeed(values),
-              Id: ({ id: cursorId }) =>
-                Effect.gen(function* () {
-                  const cursorRows = yield* selectRows(
-                    database,
-                    binding.table,
-                    cursorSelection(orderBy),
-                    {
-                      where:
-                        baseWhere === undefined
-                          ? eq(id, cursorId)
-                          : and(baseWhere, eq(id, cursorId)),
-                      limit: 1,
-                    },
-                  )
-                  const cursorRow = cursorRows[0]
-                  if (cursorRow === undefined) {
-                    return yield* new RemoteServerError({
-                      message: 'The query cursor no longer resolves to a row',
-                    })
-                  }
-                  return keysOf(orderBy, cursorRow)
-                }),
-              Invalid: () =>
-                Effect.fail(
-                  new RemoteServerError({
-                    message: 'The query cursor is not one this server minted for this order',
-                  }),
-                ),
-            },
-          )
+          const cursor = shape.cursor
+          /** The order's keys at the row `cursorId` names, as it is now; none when it is not there. */
+          const keysAt = (cursorId: string) =>
+            Effect.map(
+              selectRows(database, binding.table, cursorSelection(orderBy), {
+                where:
+                  baseWhere === undefined ? eq(id, cursorId) : and(baseWhere, eq(id, cursorId)),
+                limit: 1,
+              }),
+              rows => Option.map(Option.fromUndefinedOr(rows[0]), row => keysOf(orderBy, row)),
+            )
+          const gone = new RemoteServerError({
+            message: 'The query cursor no longer resolves to a row',
+          })
+          // A keyed cursor says where its page ended. One from before keys is an id,
+          // whose row is read for its keys as it is now; such an id may begin as a
+          // keyed cursor does, so a row holding the whole cursor as its id is that row.
+          const read = readCursor(cursor, orderBy.length)
+          const legacy = CursorRead.$is('Id')(read) ? Option.none() : yield* keysAt(cursor)
+          const values: ReadonlyArray<unknown> = Option.isSome(legacy)
+            ? legacy.value
+            : yield* CursorRead.$match(read, {
+                Keys: ({ values }) => Effect.succeed(values),
+                Id: ({ id: cursorId }) =>
+                  Effect.flatMap(
+                    keysAt(cursorId),
+                    Option.match({ onNone: () => Effect.fail(gone), onSome: Effect.succeed }),
+                  ),
+                Invalid: () =>
+                  Effect.fail(
+                    new RemoteServerError({
+                      message: 'The query cursor is not one this server minted for this order',
+                    }),
+                  ),
+              })
           const predicate = keysetWhere(orderBy, values, shape.traversal)
           where =
             where === undefined
@@ -1016,7 +1016,8 @@ export const query = <P = unknown, Input = unknown>(
           traversal: shape.traversal,
           cursor: shape.cursor,
           idOf: row => String(row.id),
-          cursorOf: row => Option.getOrElse(keyCursor(keysOf(orderBy, row)), () => String(row.id)),
+          cursorOf: row =>
+            Option.getOrElse(keyCursor(keysOf(orderBy, row)), () => idCursor(String(row.id))),
         })
       }),
   }
