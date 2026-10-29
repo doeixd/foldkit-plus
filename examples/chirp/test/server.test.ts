@@ -4,7 +4,7 @@
  * posting, and editing, each asked as one person. The guards decide who may
  * write a post; the body's rule refuses one too long.
  */
-import { Effect, Schema } from 'effect'
+import { Effect, Option, Schema } from 'effect'
 import { Entity } from 'foldkit-entity'
 import { May } from 'foldkit-guard'
 import { REMOTE_PROTOCOL_VERSION, Selection, relationOf, type MutationResult } from 'foldkit-remote'
@@ -12,7 +12,7 @@ import { RemoteServer } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
 import { Post } from '../src/guard.js'
 import { TimelinePost, UserCard, likeOf } from '../src/operations.js'
-import { openServer, principalOf } from '../src/server/server.js'
+import { openServer, principalOf, server as served } from '../src/server/server.js'
 import type { Person } from '../src/server/seed.js'
 import { memorySqlite } from '../src/server/sqlite-node.js'
 
@@ -25,8 +25,12 @@ type Mutation = 'PostChirp' | 'EditPost' | 'LikePost' | 'Unlike'
 /** A fresh seeded server, and Remote's handlers as `person` on it. */
 const sandbox = () => {
   const { server, database } = openServer(memorySqlite())
-  const as = (person: Person) => {
-    const handlers = RemoteServer.handlers(server, principalOf(person))
+  /** Remote's handlers as `person`, or as a visitor who signed in as no one. */
+  const as = (person: Person | 'visitor') => {
+    const handlers = RemoteServer.handlers(
+      server,
+      person === 'visitor' ? Option.none() : principalOf(person),
+    )
     return {
       timeline: () =>
         Effect.runPromise(
@@ -349,5 +353,88 @@ describe('a person’s post count', () => {
     const card = answer.read?.result.entities.find(row => row.entity === 'User' && row.id === 'you')
     expect(card?.values).toMatchObject({ postCount: 2 })
     expect(answer.entities.map(patch => `${patch.entity}:${patch.id}`)).toEqual(['Post:n1'])
+  })
+})
+
+/**
+ * `may` is a hint for which buttons a page draws (#284): the server decides
+ * every write, whatever the page holds or sends. Each write it serves, sent as
+ * no button would send it (another's row, a visitor, a `may` forged in the
+ * input), is refused, and nothing changes.
+ */
+describe('a write no button would send', () => {
+  /** A `may` saying yes to everything, as a page that edited its cache would hold it. */
+  const forged = { row: { Update: true, Delete: true }, reasons: {}, members: {}, relations: {} }
+  const refusals: ReadonlyArray<{
+    readonly what: string
+    readonly as: Person | 'visitor'
+    readonly mutation: Mutation
+    readonly input: object
+  }> = [
+    {
+      what: 'a visitor posts',
+      as: 'visitor',
+      mutation: 'PostChirp',
+      input: { id: 'n1', body: 'Hi', may: forged },
+    },
+    {
+      what: 'you edit Ada’s chirp, claiming it',
+      as: 'you',
+      mutation: 'EditPost',
+      input: { id: 'p1', body: 'Mine now', author: 'User:you', may: forged },
+    },
+    {
+      what: 'a visitor edits your chirp',
+      as: 'visitor',
+      mutation: 'EditPost',
+      input: { id: 'p4', body: 'Edited', may: forged },
+    },
+    {
+      what: 'Grace likes as Ada',
+      as: 'grace',
+      mutation: 'LikePost',
+      input: { id: likeOf('p4', 'ada'), postId: 'p4', user: 'User:ada' },
+    },
+    {
+      what: 'a visitor likes',
+      as: 'visitor',
+      mutation: 'LikePost',
+      input: { id: likeOf('p4', 'you'), postId: 'p4' },
+    },
+    {
+      what: 'Ada takes back your like',
+      as: 'ada',
+      mutation: 'Unlike',
+      input: { id: likeOf('p1', 'you') },
+    },
+    {
+      what: 'a visitor takes back your like',
+      as: 'visitor',
+      mutation: 'Unlike',
+      input: { id: likeOf('p1', 'you') },
+    },
+  ]
+
+  /** Everything a write could change, as you read it. */
+  const state = async (you: Asker) => {
+    const ids = await you.timeline()
+    const posts = await Promise.all(ids.map(id => you.read(id, ['body', 'author', 'likeCount'])))
+    return { ids, posts }
+  }
+
+  it('covers every write the server serves', () => {
+    expect([...new Set(refusals.map(refusal => refusal.mutation))].sort()).toEqual(
+      [...served.mutations.keys()].sort(),
+    )
+  })
+
+  it.each(refusals)('refuses it when $what', async ({ as: person, mutation, input }) => {
+    const as = sandbox()
+    const before = await state(as('you'))
+    expect(await as(person).mutate(mutation, input)).toMatchObject({
+      _tag: 'Failure',
+      failure: { _tag: 'Forbidden' },
+    })
+    expect(await state(as('you'))).toEqual(before)
   })
 })

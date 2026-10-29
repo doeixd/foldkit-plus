@@ -6,7 +6,41 @@ const server = ['examples/chirp/test/server.test.ts']
 const client = ['examples/chirp/test/like.test.ts', 'examples/chirp/test/post.test.ts']
 const why = ['examples/chirp/test/why.test.ts']
 
+/**
+ * #284: a served write landing past its guarded writer. The startup check
+ * would refuse it, so the mutation skips that too, leaving only the tests.
+ */
+const pastGuards = (name: string, find: string, replace: string, survives?: string) => ({
+  name,
+  edits: [
+    { file: '../src/server/server.ts', find, replace },
+    {
+      file: '../src/server/server.ts',
+      find: 'GuardServer.validate(Policy, {',
+      replace: 'void (Policy, {',
+    },
+  ],
+  tests: server,
+  ...(survives === undefined ? {} : { survives }),
+})
+
 export default [
+  pastGuards(
+    'a chirp is posted past its guards',
+    'RemoteServer.write(PostChirp, guarded)',
+    'RemoteServer.write(PostChirp, writer(Db.Post, ledgered))',
+    'Entity.sets stamps the author, so a signed-in post is always its own, and RemoteServer.write refuses a visitor, whose author it cannot fill, before any rule',
+  ),
+  pastGuards(
+    'a chirp is edited past its guards',
+    'RemoteServer.write(EditPost, guarded)',
+    'RemoteServer.write(EditPost, writer(Db.Post, ledgered))',
+  ),
+  pastGuards(
+    'a like is taken back past its guards',
+    'RemoteServer.write(Unlike, likeWrites)',
+    'RemoteServer.write(Unlike, ownLikes(writer(Db.Like, ledgered)))',
+  ),
   {
     name: 'the timeline lists the oldest first',
     edits: [
