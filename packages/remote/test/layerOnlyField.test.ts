@@ -9,7 +9,14 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Entity as DomainEntity, Relation } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
-import { Mutation, Remote, emptyStore, writeEntities, type RemoteMessage } from '../src/index.js'
+import {
+  Mutation,
+  Remote,
+  emptyStore,
+  tombstone,
+  writeEntities,
+  type RemoteMessage,
+} from '../src/index.js'
 
 const UserBase = DomainEntity.define(
   'User',
@@ -108,6 +115,52 @@ describe('A field only a pending layer holds', () => {
     const deleting = Data.overlay(pending, 'gone', [Remote.tombstone(Post, 'p1')])
     expect(post.read(deleting)._tag).toBe('NotFound')
     expect(Data.plan(deleting, post)).toEqual([])
+  })
+
+  describe('on a row only a pending request holds', () => {
+    const fresh = Data.get(
+      DomainEntity.select(Post, {
+        id: true,
+        body: true,
+        author: DomainEntity.select(Blog.User, { name: true }),
+      }),
+      'p2',
+    )
+    /** p2 made by a pending request, over `entities`: its body is not predicted. */
+    const creating = (entities: Model['remote']['entities']): Model =>
+      Data.mutate(
+        { remote: { ...Remote.initial, entities } },
+        EditPost,
+        { id: 'p2', body: '' },
+        {
+          requestId: 'create',
+          optimistic: [Remote.patch(Post, 'p2', { id: 'p2', author: 'User:u3' })],
+        },
+      ).model
+    const answered = (model: Model): Model =>
+      Data.reduce(model, {
+        _tag: 'MutationSucceeded',
+        requestId: 'create',
+        entities: [{ entity: 'Post', id: 'p2', values: { id: 'p2', author: 'User:u3' } }],
+        connections: [],
+        deleted: [],
+        now: 2,
+      })
+
+    // The server has nothing of p2 until the request lands. Were it asked, the
+    // plan would read the same before and after the answer, and the read
+    // entry, which restarts only when the plan changes, would never ask again.
+    it.each([
+      ['never read', emptyStore],
+      ['read as absent', tombstone(emptyStore, 'Post:p2')],
+    ])('asks nothing of it until it is answered, when it was %s', (_, entities) => {
+      const model = creating(entities)
+      expect(Data.plan(model, fresh)).toEqual([{ entity: 'User', id: 'u3', fields: ['name'] }])
+      expect(Data.plan(answered(model), fresh)).toEqual([
+        { entity: 'Post', id: 'p2', fields: ['body'] },
+        { entity: 'User', id: 'u3', fields: ['name'] },
+      ])
+    })
   })
 
   it('follows a relation the layer points elsewhere', () => {

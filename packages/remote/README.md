@@ -1457,7 +1457,10 @@ Data.mutate(model, DeletePost, { id }, { optimistic: [Remote.tombstone(Post, id)
 A pending patch shows a field before the server has sent it, but does not stand
 in for it: a read still fetches a field of a row the server holds that only a
 layer shows, so a failure that takes the layer away leaves the server's value,
-not `Initial`. A row only a request holds (a temporary id) is not fetched.
+not `Initial`. A row only a request holds (one the store has never read, or
+read as absent: a pending create) is not fetched while the request is pending,
+since the server has nothing of it yet; once the answer lands, the fields it
+did not carry (a guard's `may`) are.
 
 Optimistic entity patches are **layers over the base store**, not inverse
 patches. If multiple mutations overlap, the visible cache is recomputed as base

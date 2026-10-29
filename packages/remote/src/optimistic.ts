@@ -245,8 +245,8 @@ const pendingDeletes = (optimistic: OptimisticState): ReadonlySet<EntityKey> =>
  * server holds is planned by what the server holds of it, so a field only a
  * layer shows is still fetched. Its values stay the visible ones, so a
  * relation a layer points elsewhere is followed where it points. A row only a
- * request holds (a temporary id) and a row a layer deletes are planned as
- * shown: the server has nothing to send for either.
+ * request holds and a row a layer deletes are planned as shown; the first is
+ * then left out of the read (`heldOnlyByRequests`).
  */
 export const plannedStore = (
   base: EntityStore,
@@ -264,6 +264,30 @@ export const plannedStore = (
       next[key] = { ...under, values: shown.values }
     }
   return next ?? visible
+}
+
+/**
+ * The rows only a pending request holds: a layer shows each over a row the
+ * server holds nothing of (never read, or read as absent). A read of one is
+ * not sent. The server has nothing for it until the request lands, so it would
+ * answer "absent", which leaves the plan as it was. Once the answer lands
+ * the plan would also be unchanged, so the read entry would never restart and
+ * a field the answer omits (a guard's `may`) would never be fetched. Left out
+ * now, the row's missing fields enter the plan when its answer lands, and that
+ * change starts the read.
+ */
+export const heldOnlyByRequests = (
+  base: EntityStore,
+  optimistic: OptimisticState,
+): ReadonlySet<EntityKey> => {
+  const held = new Set<EntityKey>()
+  for (const layer of optimistic.layers)
+    for (const patch of layer.patches) {
+      const key = entityKey(patch.entity, patch.id)
+      const under = base[key]
+      if (under === undefined || under.tombstone) held.add(key)
+    }
+  return held
 }
 
 /**

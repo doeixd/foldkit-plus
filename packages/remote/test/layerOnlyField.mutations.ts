@@ -54,4 +54,37 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a row only a pending request holds is asked of the server',
+    edits: [
+      {
+        file: '../src/index.ts',
+        find: '!held.has(entityKey(requirement.entity, requirement.id))',
+        replace: 'true',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a row read as absent under a pending request is asked of the server',
+    edits: [
+      {
+        file: optimistic,
+        find: 'if (under === undefined || under.tombstone) held.add(key)',
+        replace: 'if (under === undefined) held.add(key)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a row the server holds under a pending request is not asked of it',
+    edits: [
+      {
+        file: optimistic,
+        find: 'if (under === undefined || under.tombstone) held.add(key)',
+        replace: 'held.add(key)',
+      },
+    ],
+    tests,
+  },
 ]

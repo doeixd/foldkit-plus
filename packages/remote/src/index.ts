@@ -135,6 +135,7 @@ import {
   connectionIdentity,
   emptyOptimistic,
   goneIn,
+  heldOnlyByRequests,
   plannedStore,
   resolvedPatches,
   visibleItems,
@@ -1810,9 +1811,13 @@ const planAsked = (
   }
   const visible = visibleStoreOf(remote.entities, remote.optimistic, operators)
   const read = [...asked.requirements, ...items]
+  const held = heldOnlyByRequests(remote.entities, remote.optimistic)
   const planned = plan(plannedStoreOf(remote.entities, remote.optimistic, visible), read, options)
+  const sent = planned.filter(
+    requirement => !held.has(entityKey(requirement.entity, requirement.id)),
+  )
   return {
-    requirements: options.force === true ? planned : withoutFailedFields(remote, planned),
+    requirements: options.force === true ? sent : withoutFailedFields(remote, sent),
     queries,
     expires:
       options.freshness === undefined

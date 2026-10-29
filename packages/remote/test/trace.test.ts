@@ -205,9 +205,9 @@ describe('Trace.run', () => {
     ).toEqual([
       ['Opened', ['Ping']],
       ['Created', []],
-      ['ReadStarted', []],
     ])
-    expect(trace.pending).toEqual(['mutation Create', 'read Project:p2'])
+    // p2 is read once its create is answered: the server has nothing of it before.
+    expect(trace.pending).toEqual(['mutation Create'])
   })
 
   it('stands its clock at `now`, for the answers it asks for and the Commands it runs', async () => {

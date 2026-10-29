@@ -4,21 +4,28 @@
  * Node's SQLite, read through `pageReader` as a member or a visitor. A note
  * added shows in the notebook and in its author's count before the server
  * answers, and leaves both if the server refuses it; a reader is sent to the
- * page they may see; a sign-in goes on only to a path of this site.
+ * page they may see; a sign-in goes on only to a path of this site; a note
+ * opened while it is being added learns, once it is answered, that its author
+ * may delete it.
  */
 import { drizzle } from 'drizzle-orm/node-sqlite'
-import { Effect, Option } from 'effect'
+import { Effect, Layer, Option } from 'effect'
 import { fromString } from 'foldkit/url'
+import { Resource } from 'foldkit-plus/bundle'
+import { Remote } from 'foldkit-plus/remote'
 import { databaseLayer } from 'foldkit-plus/remote-drizzle'
+import { RemoteServer } from 'foldkit-plus/remote-server'
 import { pageReader } from 'foldkit-plus/remote-server/fetch'
 import { Surface } from 'foldkit-plus/surface'
 import { readFileSync } from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
 import { beforeAll, describe, expect, it } from 'vitest'
 import {
+  AppClient,
   AppRoute,
   Data,
   Message,
+  NotePage,
   NotebookPage,
   accessOf,
   actives,
@@ -146,5 +153,43 @@ describe('a sign-in', () => {
     expect(next('https://evil.example/')).toBe('/')
     expect(next('/\\evil.example')).toBe('/')
     expect(next('javascript:alert(1)')).toBe('/')
+  })
+})
+
+describe('a note opened while it is being added', () => {
+  /** Ada's browser: the server's own handlers, which write, and an auth client no add loads. */
+  const browser = Layer.mergeAll(
+    Remote.clientLayer(RemoteServer.handlers(server, Option.some({ id: 'ada' }))).pipe(
+      Layer.provide(databaseLayer(drizzle({ client: sqlite }))),
+    ),
+    Resource.lazy(AppClient, () => Promise.reject(new Error('an add signs no one in'))),
+  )
+
+  // The e2e opens a note before its add is answered, then presses Delete. The
+  // read entry restarts only when its plan changes: had it asked the server
+  // for the note's `may` while only the add held it, the answer would have
+  // left that plan as it was, and Delete would never have been drawn.
+  it('reads whether its author may delete it once the add is answered', async () => {
+    const { model, commands } = update(
+      ada,
+      Message.NamedNote({ id: 'a2', title: 'Second light', body: '', now: Date.now() }),
+    )
+    const add = commands?.[0]
+    if (add === undefined) throw new Error('the add sent no write')
+    const opened = { ...model, route: AppRoute.NotePage({ id: 'a2' }) }
+    const note = NotePage.projection({ id: 'a2' })
+    expect(Data.plan(opened, note)).toEqual([])
+
+    const answer = await Effect.runPromise(add.effect.pipe(Effect.provide(browser)))
+    const answered = update(opened, answer).model
+    expect(Data.plan(answered, note)).toEqual([{ entity: 'Note', id: 'a2', fields: ['may'] }])
+
+    const read = await Effect.runPromise(
+      Data.satisfy(answered, actives).pipe(Effect.provide(browser)),
+    )
+    expect(Surface.read(NotePage, read, { id: 'a2' }).note).toMatchObject({
+      _tag: 'Ready',
+      value: { may: { row: { Update: true, Delete: true } } },
+    })
   })
 })
