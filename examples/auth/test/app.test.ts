@@ -5,7 +5,7 @@
  * drops it too, and tells no one. The Model starts as ada's, read through the
  * real server's handlers.
  */
-import { Effect, Option, Redacted } from 'effect'
+import { Effect, Option, Redacted, Schema } from 'effect'
 import { fromString } from 'foldkit/url'
 import { SUBJECT_CHANGED } from 'foldkit-auth'
 import { ME } from 'foldkit-guard'
@@ -174,11 +174,17 @@ describe('a change of principal', () => {
     ].reduce((model, message) => update(model, message).model, initial)
     const [signIn] = commandsOf(update(typed, Message.SubmittedSignIn()))
     expect(signIn?.name).toBe('SignIn')
-    const { email, password } = signIn!.args as { email: string; password: Redacted.Redacted }
+    const { email, password } = Schema.decodeUnknownSync(SignInArgs)(signIn?.args)
     expect([email, Redacted.value(password)]).toEqual(['ada@example.invalid', 'ada password'])
     // What a span or DevTools records of the args shows no password.
     expect(JSON.stringify(signIn!.args)).not.toContain('ada password')
   })
+})
+
+/** What the SignIn Command carries: the password redacted, as Yielded takes it. */
+const SignInArgs = Schema.Struct({
+  email: Schema.String,
+  password: Schema.declare(Redacted.isRedacted),
 })
 
 const urlOf = (path: string) => Option.getOrThrow(fromString(`http://127.0.0.1:5176${path}`))
