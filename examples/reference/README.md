@@ -111,7 +111,13 @@ one batch, and two copies sent at once land once.
 **Auth** (`authApi.ts`, `auth.ts`). Yielded's password strategy over
 `@yielded/auth-persistence-drizzle/D1`. Sign-up writes the `accounts` row in
 the batch that binds the email, so no account exists half made. The Worker
-builds Yielded's services once per isolate.
+builds Yielded's services once per isolate. Every scripted call's `Origin`
+is checked against one configured origin, the `ORIGIN` var, not the host the
+request arrived at, so a second host reaching the same Worker (`workers.dev`
+beside a domain) is refused. A deploy sets `ORIGIN` in `[vars]`; the local
+stack gives the Worker its own (`vars: origin => ({ ORIGIN: origin })` in
+`stack.ts`), and a Worker without one answers everything but its assets with a 500
+naming it.
 
 **The page** (`main.ts`, `view.ts`, `forms.ts`). Each screen declares what
 it reads with a Surface; Site makes the notebook (and the note pages below

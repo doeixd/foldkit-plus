@@ -20,6 +20,7 @@ import {
 import { databaseLayer } from 'foldkit-plus/remote-drizzle'
 import { RemoteServer } from 'foldkit-plus/remote-server'
 import { Surface } from 'foldkit-plus/surface'
+import { Stack } from 'foldkit-plus/testing/workers'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   Data,
@@ -32,7 +33,8 @@ import {
 } from '../src/main.js'
 import { AddNote, DeleteNote, EditNote, NOTES_WATCH } from '../src/operations.js'
 import { server } from '../src/server.js'
-import { buildPage, startStack, type ReferenceStack } from '../src/stack.js'
+import { buildPage, startStack, worker, type ReferenceStack } from '../src/stack.js'
+import type { WorkerEnv } from '../src/worker.js'
 
 let stack: ReferenceStack
 
@@ -177,6 +179,39 @@ describe('pages', () => {
     const response = await page('/sign-in', cookie)
     expect(response.status).toBe(303)
     expect(response.headers.get('location')).toBe('/')
+  }, 60_000)
+})
+
+describe('the origin', () => {
+  /** A sign-in as Frances, sent straight to the Worker at `at`, naming `at` as its origin. */
+  const signInAt = (at: string) =>
+    stack.dispatch(`${at}/auth/signIn`, {
+      method: 'POST',
+      headers: { origin: at, 'x-effect-auth-csrf': '1', 'content-type': 'application/json' },
+      body: JSON.stringify({
+        payload: {
+          email: 'frances@example.invalid',
+          password: 'Frances keeps a careful notebook',
+        },
+      }),
+    })
+
+  // A second host reaching the same Worker, as a `workers.dev` one beside a domain does.
+  it('refuses a sign-in under another host, though it names that host as its origin', async () => {
+    await member('Frances')
+    expect((await signInAt(stack.origin)).status).toBe(200)
+    expect((await signInAt('http://elsewhere.example')).status).toBe(403)
+  }, 60_000)
+
+  it('answers only that ORIGIN is unset when a deploy forgot it', async () => {
+    const unset = await Stack.start<WorkerEnv>({ ...worker, console: 'quiet' })
+    try {
+      const response = await fetch(`${unset.origin}/`)
+      expect(response.status).toBe(500)
+      expect(await response.text()).toBe('Set ORIGIN to where this Worker is served.')
+    } finally {
+      await unset.stop()
+    }
   }, 60_000)
 })
 

@@ -15,7 +15,8 @@ const here = (file: string) => fileURLToPath(new URL(file, import.meta.url))
 
 export type ReferenceStack = Stack<WorkerEnv>
 
-const worker = {
+/** The Worker's configuration and source, as the stack and the deploy bundle it. */
+export const worker = {
   wrangler: here('../wrangler.toml'),
   entry: here('./worker.ts'),
   plugins: [mutation()],
@@ -31,7 +32,9 @@ export const buildPage = async (): Promise<void> => {
   })
 }
 
-export const startStack = (): Promise<ReferenceStack> => Stack.start<WorkerEnv>(worker)
+/** The Worker, told the origin it answers at as `ORIGIN`, as a deploy is told where it serves. */
+export const startStack = (): Promise<ReferenceStack> =>
+  Stack.start<WorkerEnv>({ ...worker, vars: origin => ({ ORIGIN: origin }) })
 
 /** Writes the bundle `wrangler deploy` uploads, where `main` says. */
 export const writeDeployBundle = () => Stack.writeBundle(worker)

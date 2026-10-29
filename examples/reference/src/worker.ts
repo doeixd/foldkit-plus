@@ -10,9 +10,9 @@
  *
  * Auth's services are built once per isolate: a D1 binding is not I/O a
  * request owns, and built per request Yielded's first-use setup races
- * itself. The origin each request is checked against is its own: the URL a
- * Worker is given is the route Cloudflare matched, for a host this account
- * serves.
+ * itself. Every request is checked against one configured origin
+ * (`ORIGIN`), not the host it arrived at: a Worker reachable at a second
+ * host (`workers.dev` beside a domain) trusts only the one it is told.
  */
 import type { D1Database } from '@cloudflare/workers-types'
 import * as D1Client from '@effect/sql-d1/D1Client'
@@ -43,6 +43,11 @@ export interface Assets {
 export interface WorkerEnv {
   readonly DB: D1Database
   readonly ASSETS: Assets
+  /**
+   * Where the application is served; a scripted call's `Origin` must name it.
+   * A deploy sets it in `[vars]`; the local stack gives its own.
+   */
+  readonly ORIGIN?: string
 }
 
 /** Remembers what `make` built for a key; a build that failed is forgotten, so the next asks again. */
@@ -85,7 +90,7 @@ const principalOf = (db: D1Database) => (session: { readonly subjectId: string }
     ),
   )
 
-/** Everything that answers for one origin: Yielded's routes, Remote, and a page's reader. */
+/** Everything that answers for the origin: Yielded's routes, Remote, and a page's reader. */
 type AuthServices =
   Awaited<ReturnType<typeof authServices>> extends Context.Context<infer S> ? S : never
 
@@ -157,7 +162,9 @@ export default {
   fetch: async (request: Request, env: WorkerEnv): Promise<Response> => {
     const url = new URL(request.url)
     if (url.pathname.startsWith('/assets/')) return env.ASSETS.fetch(request)
-    const host = await hostOf(env, url.origin)
+    if (env.ORIGIN === undefined)
+      return new Response('Set ORIGIN to where this Worker is served.', { status: 500 })
+    const host = await hostOf(env, env.ORIGIN)
     if (url.pathname.startsWith('/auth/')) return host.auth(request)
     if (url.pathname === '/remote') return host.remote(request, env)
     return answerPage(request, env, host)

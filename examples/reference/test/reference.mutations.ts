@@ -195,6 +195,28 @@ export default [
     tests: worker,
   },
   {
+    name: 'each request is checked against the host it arrived at',
+    edits: [
+      {
+        file: '../src/worker.ts',
+        find: 'const host = await hostOf(env, env.ORIGIN)',
+        replace: 'const host = await hostOf(env, url.origin)',
+      },
+    ],
+    tests: worker,
+  },
+  {
+    name: 'a Worker with no ORIGIN answers as if it had one',
+    edits: [
+      {
+        file: '../src/worker.ts',
+        find: "    if (env.ORIGIN === undefined)\n      return new Response('Set ORIGIN to where this Worker is served.', { status: 500 })\n",
+        replace: '',
+      },
+    ],
+    tests: worker,
+  },
+  {
     name: 'the ledger has no index on its time',
     edits: [
       { file: '../src/server.ts', find: "index('write_ledger_at').on(table.at),", replace: '' },

@@ -8,6 +8,9 @@ no_bundle = true
 compatibility_date = "2026-07-30"
 compatibility_flags = ["nodejs_compat"]
 
+# A deploy names where it serves, which every scripted call's `Origin` must
+# match (`ORIGIN`), in `[vars]`. The local stack gives the Worker its own.
+
 # The page's build. Every request reaches the Worker first: it serves
 # `/assets/` from here, and renders every page into `index.html` itself.
 [assets]
