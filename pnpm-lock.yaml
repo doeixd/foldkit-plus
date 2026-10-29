@@ -2064,25 +2064,13 @@ importers:
       foldkit-entity:
         specifier: workspace:*
         version: link:../../packages/entity
-      foldkit-remote:
-        specifier: workspace:*
-        version: link:../../packages/remote
       foldkit-remote-server:
         specifier: workspace:*
         version: link:../../packages/remote-server
-      foldkit-surface:
-        specifier: workspace:*
-        version: link:../../packages/surface
     devDependencies:
-      '@effect/platform-browser':
-        specifier: ^4.0.5
-        version: 4.0.5(effect@4.0.5)
       effect:
         specifier: ^4.0.5
         version: 4.0.5
-      foldkit:
-        specifier: 0.169.0
-        version: 0.169.0(@effect/platform-browser@4.0.5(effect@4.0.5))(effect@4.0.5)
       typescript:
         specifier: 7.0.2
         version: 7.0.2

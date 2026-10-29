@@ -13,7 +13,7 @@
  * reproducing it as a non-goal. What is worth having is the answer to one
  * question: does a body mean the same thing to an engine nobody here designed?
  */
-import { and, eq, inArray, isNull, not, type Collection } from '@tanstack/db'
+import { eq, inArray, isNull, not, type Collection } from '@tanstack/db'
 import { Option } from 'effect'
 import { absurd } from 'effect/Function'
 import { Expr, Query as Relational, isPredicate } from 'foldkit-entity'
@@ -185,6 +185,3 @@ export const run = (
   }
   return built
 }
-
-/** Conjunction, kept for the shape the engine expects when one is needed. */
-export const conjoin = and
