@@ -222,6 +222,37 @@ describe('Crud.list', () => {
     )
   })
 
+  it('keeps the rows a failed refresh left among a picker’s choices (#310)', async () => {
+    const EditPost = Form.make(
+      'EditPost',
+      Entity.input(Blog.Post, Schema.Struct({ authorId: Schema.String }), {
+        authorId: Relation.input(Blog.Post.relations.author),
+      }),
+    )
+    const loaded = await load({ ...initial, search: 'a' })
+    const failed = Data.reduce(loaded, {
+      _tag: 'QueryFailed',
+      connection: Option.getOrThrow(AuthorList.connection(loaded)).identity,
+      error: { _tag: 'RemoteReadError', message: 'offline' },
+    })
+    // The failure stays visible on the page, and the list still has its rows.
+    expect(AuthorList.page(failed)._tag).toBe('Failed')
+    expect(AuthorList.choices(failed).map(choice => choice.label)).toEqual(['Ada', 'Alan'])
+
+    // A chosen row whose own read failed keeps the name it was read with.
+    const form = EditPost.fill(EditPost.initial, { authorId: 'a3' }).model
+    const options = Crud.options(EditPost, [AuthorList], { chosen: () => form })
+    const required = Option.getOrThrow(options.active.projectionOf(failed))
+    const read = await run(Data.prefetch(failed, required))
+    const lost = Data.reduce(read, {
+      _tag: 'ReadFailed',
+      requests: [{ entity: 'Author', id: 'a3', fields: ['id', 'name'] }],
+      error: { _tag: 'RemoteReadError', message: 'offline' },
+    })
+    expect(AuthorList.row('a3').read(lost)._tag).toBe('Failed')
+    expect(options(lost).authorId?.map(choice => choice.label)).toEqual(['Grace', 'Ada', 'Alan'])
+  })
+
   it('offers a picker more while its list has more rows, and shows them when asked', async () => {
     const EditPost = Form.make(
       'EditPost',

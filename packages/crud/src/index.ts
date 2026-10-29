@@ -204,6 +204,17 @@ export interface Choice {
  */
 export type ListColumn<Key extends string = string> = DisplayColumn<Key>
 
+/** What a read holds: its value, or the last one read when a refresh failed. */
+const heldValue = <A>(read: RemoteData<A>): Option.Option<A> =>
+  RemoteData.match(read, {
+    Initial: () => Option.none(),
+    Loading: () => Option.none(),
+    Ready: Option.some,
+    Refreshing: Option.some,
+    Failed: (_, previous) => previous,
+    NotFound: () => Option.none(),
+  })
+
 const columnLabel = (key: string, member: EntityMember): string =>
   Option.getOrElse(
     member._tag === 'Relation' ? Option.none() : Words.of(member.schema as Schema.Top).title,
@@ -554,29 +565,28 @@ export const Crud = {
           offersChoices: choice !== undefined,
 
           /**
-           * The loaded rows as a picker's choices, read through `choice`. Listing a
+           * The loaded rows as a picker's choices, read through `choice`; after a
+           * failed refresh, the rows last read, as the list still shows them. Listing a
            * relation's target is this query, which the application chose and the
            * server authorizes; nothing is read because a relation exists.
            */
           choices: (root: Root): ReadonlyArray<Choice> => {
             if (choice === undefined)
               throw new Error(`Crud list "${name}": give it a "choice" to use its rows in a picker`)
-            const read = page(root)
-            return read._tag === 'Ready' || read._tag === 'Refreshing'
-              ? read.value.items.map(row => ({
-                  value: choice.value(row),
-                  label: choice.label(row),
-                }))
-              : []
+            return Option.match(heldValue(page(root)), {
+              onNone: () => [],
+              onSome: ({ items }) =>
+                items.map(row => ({ value: choice.value(row), label: choice.label(row) })),
+            })
           },
 
-          /** That row as a choice, once it is read. */
+          /** That row as a choice, once it is read, or as last read when a refresh failed. */
           choiceOf: (root: Root, id: string): Choice | undefined => {
             if (choice === undefined) return undefined
-            const read = data.get(selection, id).read(root)
-            return read._tag === 'Ready' || read._tag === 'Refreshing'
-              ? { value: choice.value(read.value), label: choice.label(read.value) }
-              : undefined
+            return Option.match(heldValue(data.get(selection, id).read(root)), {
+              onNone: () => undefined,
+              onSome: row => ({ value: choice.value(row), label: choice.label(row) }),
+            })
           },
         }
       },
@@ -956,16 +966,7 @@ export const Crud = {
         /** The value loaded, or the last one known good when a refresh failed. */
         const known = (root: Root): Option.Option<any> => {
           const read = loaded(root)
-          return read === undefined
-            ? Option.none()
-            : RemoteData.match(read, {
-                Initial: () => Option.none(),
-                Loading: () => Option.none(),
-                Ready: Option.some,
-                Refreshing: Option.some,
-                Failed: (_, previous) => previous,
-                NotFound: () => Option.none(),
-              })
+          return read === undefined ? Option.none() : heldValue(read)
         }
 
         const filledOf = (root: Root): Root => {

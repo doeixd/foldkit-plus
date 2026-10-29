@@ -702,6 +702,11 @@ carries `drawn`.
 
 ### Fixed
 
+- **A picker keeps the choices a failed refresh left** (#310). A list whose
+  refresh failed still shows its previous rows, but `choices()` and
+  `choiceOf` read only `Ready` and `Refreshing`, so a network error emptied
+  every picker fed from it. Both now read a `Failed` read's previous value;
+  the failure stays in `page()`.
 - **`Cms.Display.Moment` keeps one formatter per locale** (#306). It made an
   `Intl.DateTimeFormat` (or `RelativeTimeFormat`) for every value, so a list
   redraw made one per row; it now makes each once per locale.

@@ -545,7 +545,8 @@ Entity, so one author list serves `authorId` and `editorId` alike. A picker
 whose target no list is over, or whose list has no `choice`, throws when
 `Crud.options` is called, not when the form is drawn. `AuthorList.choices(model)`
 is one list's choices on its own. Both are empty until the page is loaded, and
-hold only the rows loaded so far.
+hold only the rows loaded so far. A refresh that fails keeps the rows it had
+among the choices, as the list still shows them; the failure is in `page`.
 
 #### When a picker searches
 
