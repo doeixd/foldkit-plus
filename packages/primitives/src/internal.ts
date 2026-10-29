@@ -1,3 +1,5 @@
+import { Equal, Option } from 'effect'
+
 /** Whether two id lists hold the same ids in the same order. */
 export const sameIds = (a: ReadonlyArray<string>, b: ReadonlyArray<string>): boolean =>
   a.length === b.length && a.every((id, index) => id === b[index])
@@ -27,14 +29,19 @@ export const clearQuery = <Model extends { readonly query: string }>(
 
 /**
  * `next`, or `model` itself when both hold the same fields with the same
- * values. Foldkit renders only when the root Model changes identity, so an
- * equal copy renders the whole page for nothing.
+ * values, an `Option` by what it holds. Foldkit renders only when the root
+ * Model changes identity, so an equal copy renders the whole page for nothing.
  */
+// A fresh `Option.some(x)` is a new object each time, though it holds the same `x`.
+const same = (left: unknown, right: unknown): boolean =>
+  Object.is(left, right) ||
+  (Option.isOption(left) && Option.isOption(right) && Equal.equals(left, right))
+
 export const unlessSame = <Model extends object>(model: Model, next: NoInfer<Model>): Model => {
   const keys = Object.keys(next) as Array<keyof Model>
   if (keys.length !== Object.keys(model).length) return next
   for (const key of keys) {
-    if (!Object.hasOwn(model, key) || !Object.is(next[key], model[key])) return next
+    if (!Object.hasOwn(model, key) || !same(next[key], model[key])) return next
   }
   return model
 }

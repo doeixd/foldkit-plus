@@ -48,7 +48,7 @@ type Message = typeof Message.Type
 const Page = Bundle.parent({ Model, Message })
 const args = { names: ['camera', 'microphone'] }
 const placed = Page.at(Shell, { args })
-const fresh: Model = { site: { states: {}, lastError: null } }
+const fresh: Model = { site: { states: {}, lastError: Option.none() } }
 
 afterEach(() => {
   api = new FakePermissions({ camera: 'prompt', microphone: 'granted' })
@@ -59,14 +59,14 @@ const fold = (model: Model, message: Parameters<typeof Shell.wrapper.make>[0]) =
 
 describe('Permissions transitions', () => {
   it('starts empty and folds Snapshot, Changed, Cleared, Failed', () => {
-    expect(placed.init(fresh).model.site).toEqual({ states: {}, lastError: null })
+    expect(placed.init(fresh).model.site).toEqual({ states: {}, lastError: Option.none() })
     const snapped = fold(fresh, PermissionsMessage.Snapshot({ states: { camera: 'prompt' } }))
-    expect(snapped).toEqual({ states: { camera: 'prompt' }, lastError: null })
+    expect(snapped).toEqual({ states: { camera: 'prompt' }, lastError: Option.none() })
     const changed = fold(
       { site: snapped },
       PermissionsMessage.Changed({ name: 'camera', state: 'granted' }),
     )
-    expect(changed).toEqual({ states: { camera: 'granted' }, lastError: null })
+    expect(changed).toEqual({ states: { camera: 'granted' }, lastError: Option.none() })
     // Changed merges: sibling keys survive.
     const two = fold(
       fresh,
@@ -74,14 +74,14 @@ describe('Permissions transitions', () => {
     )
     expect(
       fold({ site: two }, PermissionsMessage.Changed({ name: 'camera', state: 'granted' })),
-    ).toEqual({ states: { camera: 'granted', microphone: 'denied' }, lastError: null })
+    ).toEqual({ states: { camera: 'granted', microphone: 'denied' }, lastError: Option.none() })
     expect(fold({ site: changed }, PermissionsMessage.Cleared())).toEqual({
       states: {},
-      lastError: null,
+      lastError: Option.none(),
     })
     expect(fold(fresh, PermissionsMessage.Failed({ message: 'boom' }))).toEqual({
       states: {},
-      lastError: 'boom',
+      lastError: Option.some('boom'),
     })
   })
 })
@@ -108,7 +108,7 @@ describe('Permissions acquire and stream', () => {
     expect(values).toEqual([PermissionsMessage.Changed({ name: 'camera', state: 'granted' })])
     await Effect.runPromise(entry.release(acquired))
     expect(status.onchange).toBe(null)
-    expect(fold(fresh, entry.onReleased())).toEqual({ states: {}, lastError: null })
+    expect(fold(fresh, entry.onReleased())).toEqual({ states: {}, lastError: Option.none() })
   })
 
   it('fails acquire on an unknown permission name', async () => {

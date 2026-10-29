@@ -40,7 +40,7 @@ const placed = Page.at(Doc, { args: { url: 'https://example.com/feed' } })
 const fold = (model: Model, message: Parameters<typeof Doc.wrapper.make>[0]) =>
   Option.getOrThrow(placed.update(model, Doc.wrapper.make(message))).model.feed
 const fresh: Model = {
-  feed: { url: 'https://example.com/feed', status: 'closed', lastError: null },
+  feed: { url: 'https://example.com/feed', status: 'closed', lastError: Option.none() },
 }
 
 describe('SSE transitions', () => {
@@ -49,13 +49,13 @@ describe('SSE transitions', () => {
     const connecting = fold(fresh, SseMessage.Connecting())
     expect(connecting.status).toBe('connecting')
     const open = fold({ feed: connecting }, SseMessage.Opened())
-    expect(open).toEqual({ ...fresh.feed, status: 'open', lastError: null })
+    expect(open).toEqual({ ...fresh.feed, status: 'open', lastError: Option.none() })
     expect(fold({ feed: open }, SseMessage.Received({ data: 'hi' }))).toEqual(open)
     // A failure records the error but keeps retrying: the browser reconnects.
     expect(fold({ feed: open }, SseMessage.Failed({ message: 'boom' }))).toEqual({
       ...fresh.feed,
       status: 'connecting',
-      lastError: 'boom',
+      lastError: Option.some('boom'),
     })
     expect(fold({ feed: open }, SseMessage.Closed())).toEqual({
       ...fresh.feed,
@@ -99,38 +99,40 @@ describe('SSE acquire and stream', () => {
 
 describe('SseView', () => {
   const url = 'https://example.com/feed'
-  const source = (status: SseModel['status'], lastError: string | null): SseModel => ({
+  const source = (status: SseModel['status'], lastError: Option.Option<string>): SseModel => ({
     url,
     status,
     lastError,
   })
 
   it('reads live only from an open stream with no error outstanding', () => {
-    expect(isLive(source('open', null))).toBe(true)
-    expect(isLive(source('open', 'event stream error for https://example.com/feed'))).toBe(false)
-    expect(isLive(source('connecting', null))).toBe(false)
-    expect(isLive(source('closed', null))).toBe(false)
+    expect(isLive(source('open', Option.none()))).toBe(true)
+    expect(
+      isLive(source('open', Option.some('event stream error for https://example.com/feed'))),
+    ).toBe(false)
+    expect(isLive(source('connecting', Option.none()))).toBe(false)
+    expect(isLive(source('closed', Option.none()))).toBe(false)
   })
 
   it('derives what the reader sees from the stream and whether it is wanted', () => {
-    const seen = (status: SseModel['status'], lastError: string | null, wanted: boolean) =>
+    const seen = (status: SseModel['status'], lastError: Option.Option<string>, wanted: boolean) =>
       SseView.match(viewOfSse(source(status, lastError), wanted), {
         Disconnected: () => 'disconnected',
         Connecting: () => 'connecting',
         Connected: () => 'connected',
         Error: ({ error }) => `error: ${error}`,
       })
-    expect(seen('closed', null, false)).toBe('disconnected')
-    expect(seen('closed', null, true)).toBe('connecting')
-    expect(seen('connecting', null, false)).toBe('connecting')
-    expect(seen('open', null, false)).toBe('connected')
-    expect(seen('connecting', 'event stream error for https://example.com/feed', false)).toBe(
-      'error: event stream error for https://example.com/feed',
-    )
+    expect(seen('closed', Option.none(), false)).toBe('disconnected')
+    expect(seen('closed', Option.none(), true)).toBe('connecting')
+    expect(seen('connecting', Option.none(), false)).toBe('connecting')
+    expect(seen('open', Option.none(), false)).toBe('connected')
+    expect(
+      seen('connecting', Option.some('event stream error for https://example.com/feed'), false),
+    ).toBe('error: event stream error for https://example.com/feed')
     // A retry still waiting for its stream reads as connecting.
-    expect(seen('connecting', 'event stream error for https://example.com/feed', true)).toBe(
-      'connecting',
-    )
+    expect(
+      seen('connecting', Option.some('event stream error for https://example.com/feed'), true),
+    ).toBe('connecting')
   })
 })
 

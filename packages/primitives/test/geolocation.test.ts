@@ -58,7 +58,9 @@ const placed = Page.at(Here)
 
 const fold = (model: Model, message: Parameters<typeof Here.wrapper.make>[0]) =>
   Option.getOrThrow(placed.update(model, Here.wrapper.make(message))).model.here
-const fresh: Model = { here: { status: 'unknown', coords: null, lastError: null } }
+const fresh: Model = {
+  here: { status: 'unknown', coords: Option.none(), lastError: Option.none() },
+}
 
 describe('Geolocation transitions', () => {
   it('starts unknown, takes a fix, and separates denial from failure', () => {
@@ -69,17 +71,17 @@ describe('Geolocation transitions', () => {
     )
     expect(ready).toEqual({
       status: 'ready',
-      coords: { latitude: 1, longitude: 2, accuracy: 3 },
-      lastError: null,
+      coords: Option.some({ latitude: 1, longitude: 2, accuracy: 3 }),
+      lastError: Option.none(),
     })
     expect(fold(fresh, GeolocationMessage.Denied())).toEqual({
       status: 'denied',
-      coords: null,
-      lastError: null,
+      coords: Option.none(),
+      lastError: Option.none(),
     })
     expect(fold({ here: ready }, GeolocationMessage.Failed({ message: 'timeout' }))).toEqual({
       ...ready,
-      lastError: 'timeout',
+      lastError: Option.some('timeout'),
     })
   })
 })
@@ -118,7 +120,11 @@ describe('Geolocation stream', () => {
   it('is empty without a geolocation API', async () => {
     const entry = Geolocation.subscriptions!().watch!
     const stream = entry.dependenciesToStream(
-      entry.modelToDependencies({ status: 'unknown', coords: null, lastError: null }),
+      entry.modelToDependencies({
+        status: 'unknown',
+        coords: Option.none(),
+        lastError: Option.none(),
+      }),
       () => ({}),
     )
     expect(await Effect.runPromise(Stream.runCollect(stream))).toEqual([])

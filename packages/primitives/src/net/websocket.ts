@@ -21,7 +21,7 @@ export interface SocketHandle {
 export const WebSocketModel = Schema.Struct({
   url: Schema.String,
   status: Schema.Literals(['closed', 'connecting', 'open']),
-  lastError: Schema.NullOr(Schema.String),
+  lastError: Schema.OptionFromNullOr(Schema.String),
   /** Whether this connection attempt ever reached open; reset on Connecting. */
   opened: Schema.Boolean,
 })
@@ -67,7 +67,7 @@ export type SocketView = typeof SocketView.Type
  * and received frames.
  */
 export const isOpen = (model: WebSocketModel): boolean =>
-  model.status === 'open' && model.lastError === null
+  model.status === 'open' && Option.isNone(model.lastError)
 
 /**
  * The view of a socket, and whether its page still wants it. An error stands
@@ -75,15 +75,16 @@ export const isOpen = (model: WebSocketModel): boolean =>
  * socket reads as connecting, so it answers at once. An error on an open
  * socket always reads as an error.
  */
-export const viewOf = (model: WebSocketModel, wanted: boolean): SocketView => {
-  if (model.lastError !== null)
-    return model.status === 'open' || !wanted
-      ? SocketView.Error({ error: model.lastError })
-      : SocketView.Connecting()
-  if (model.status === 'open') return SocketView.Connected()
-  if (model.status === 'connecting' || wanted) return SocketView.Connecting()
-  return SocketView.Disconnected()
-}
+export const viewOf = (model: WebSocketModel, wanted: boolean): SocketView =>
+  Option.match(model.lastError, {
+    onSome: error =>
+      model.status === 'open' || !wanted ? SocketView.Error({ error }) : SocketView.Connecting(),
+    onNone: () => {
+      if (model.status === 'open') return SocketView.Connected()
+      if (model.status === 'connecting' || wanted) return SocketView.Connecting()
+      return SocketView.Disconnected()
+    },
+  })
 
 /** The live connection, for `send` and the incoming stream. One assembly holds one. */
 export const Socket = ManagedResource.tag<Acquired>()('websocket')
@@ -167,7 +168,7 @@ export const websocket = <const Name extends string>(config: {
       ),
     }),
     init: (args): Update.Return<WebSocketModel, WebSocketMessage, SocketService> => ({
-      model: { url: args.url, status: 'closed', lastError: null, opened: false },
+      model: { url: args.url, status: 'closed', lastError: Option.none(), opened: false },
     }),
     update: (
       model,
@@ -178,12 +179,17 @@ export const websocket = <const Name extends string>(config: {
           model: unlessSame(model, {
             ...model,
             status: 'connecting',
-            lastError: null,
+            lastError: Option.none(),
             opened: false,
           }),
         }),
         Opened: () => ({
-          model: unlessSame(model, { ...model, status: 'open', lastError: null, opened: true }),
+          model: unlessSame(model, {
+            ...model,
+            status: 'open',
+            lastError: Option.none(),
+            opened: true,
+          }),
         }),
         Received: () => ({ model }),
         // The close that follows an error, and the release after it, find it closed.
@@ -194,19 +200,20 @@ export const websocket = <const Name extends string>(config: {
           model: unlessSame(model, {
             ...model,
             status: 'closed',
-            lastError:
+            lastError: Option.some(
               model.status === 'open' ? 'Connection error' : 'Failed to connect to WebSocket',
+            ),
           }),
         }),
         SendFailed: () => ({
-          model: unlessSame(model, { ...model, lastError: 'Socket unavailable' }),
+          model: unlessSame(model, { ...model, lastError: Option.some('Socket unavailable') }),
         }),
         Sent: () => ({ model }),
         TimedOut: () => ({
           model: unlessSame(model, {
             ...model,
             status: 'closed',
-            lastError: 'Connection timeout',
+            lastError: Option.some('Connection timeout'),
           }),
         }),
       }),

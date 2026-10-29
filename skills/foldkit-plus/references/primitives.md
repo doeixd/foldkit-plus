@@ -73,7 +73,8 @@ it; their first tick comes one interval after `Started`).
 `keyboardEvents({ preventDefault: press => boolean })` cancels a press's default
 inside the listener, and composes with `matchHotkey`. `websocket` takes
 `{ url, connectTimeoutMs? }`; `Sent { data }` carries what was sent, and
-`TimedOut` reports an attempt that ran out of time. `History.goTo(model, step)`
+`TimedOut` reports an attempt that ran out of time. The connection and device
+bundles' `lastError` (and Geolocation's `coords`) are `Option`s, `null` in JSON. `History.goTo(model, step)`
 and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
 
 ## Common tasks

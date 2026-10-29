@@ -31,7 +31,8 @@ its Entity; `MutationSource.run` is given `read`, `now` and `viewer`;
 `GuardServer.writer` loses `presets`; `Operation` has four more members;
 `invariantChecks` is `checkConstraints`; SSR, agent-mcp and guard report
 diagnostics instead of writing to `console`; leaving a form field no longer
-validates it, and `Message.Refused` takes `value`; the shipped theme's
+validates it, and `Message.Refused` takes `value`;
+the net and device primitives' `lastError` and `coords` are `Option`s; the shipped theme's
 defaults changed. Under Security: `GuardServer.validate` refuses a served
 write no rule governs under `'allow'`, `EntityWriter.insert` takes
 `operation`, `LiveHub.subscribe` takes no `maxIdsPerEntity`, and a collection
@@ -479,6 +480,14 @@ carries `drawn`.
   `projectionOf(model)` gave a `Projection` of `unknown`, so code reading
   it cast; it now gives the read itself, and an editor's reads a
   `RemoteData` of the members its form writes.
+- **Breaking: the net and device primitives hold what is absent as an
+  `Option`.** `lastError` in `websocket`, `sse`, `Geolocation`,
+  `mediaDevices`, `mediaStream` and `permissions`, and Geolocation's
+  `coords`, were `null` when absent; they are `Option`s, stored as `null` in
+  JSON (`Schema.OptionFromNullOr`). Read them with `Option.match`, or
+  `Option.getOrElse(model.chat.lastError, () => '')` where a view wrote
+  `?? ''`. A failure repeated with the same text still leaves the Model as
+  it was.
 - **Breaking: `Data.why` returns a `ReadWhy`** (#248). It lists, in
   `because`, every fact the Model holds about what a read reads, as typed
   references (`Why`, a tagged union with an exhaustive `match`): its list or a

@@ -1,4 +1,4 @@
-import { DateTime } from 'effect'
+import { DateTime, Option } from 'effect'
 import { modifyFields } from 'foldkit/struct'
 import { Inert } from 'foldkit-mixins/testing'
 import { describe, expect, test } from 'vitest'
@@ -12,7 +12,7 @@ const zoned = DateTime.makeZonedUnsafe(0, { timeZone: 'UTC' })
 /** The view's inputs the way the socket and the page's wanting leave them. */
 const socket = (
   status: 'closed' | 'connecting' | 'open',
-  lastError: string | null,
+  lastError: Option.Option<string>,
   opened: boolean,
   wantConnection: boolean,
 ) => ({
@@ -22,11 +22,11 @@ const socket = (
 
 const models: ReadonlyArray<readonly [string, Model]> = [
   ['disconnected', idleModel],
-  ['connecting', modifyFields(idleModel, socket('connecting', null, false, true))],
+  ['connecting', modifyFields(idleModel, socket('connecting', Option.none(), false, true))],
   [
     'connected with messages',
     modifyFields(idleModel, {
-      ...socket('open', null, true, true),
+      ...socket('open', Option.none(), true, true),
       messageInput: () => 'draft',
       messages: () => [
         { text: 'Hello there', zoned, isSent: true },
@@ -34,7 +34,10 @@ const models: ReadonlyArray<readonly [string, Model]> = [
       ],
     }),
   ],
-  ['failed', modifyFields(idleModel, socket('closed', 'Connection error', true, false))],
+  [
+    'failed',
+    modifyFields(idleModel, socket('closed', Option.some('Connection error'), true, false)),
+  ],
 ]
 
 describe('the chat view', () => {

@@ -19,7 +19,7 @@ export interface SourceHandle {
 export const SseModel = Schema.Struct({
   url: Schema.String,
   status: Schema.Literals(['closed', 'connecting', 'open']),
-  lastError: Schema.NullOr(Schema.String),
+  lastError: Schema.OptionFromNullOr(Schema.String),
 })
 export type SseModel = typeof SseModel.Type
 
@@ -52,22 +52,23 @@ export type SseView = typeof SseView.Type
  * reconnects a dropped stream itself; a `Failed` only records the error.
  */
 export const isLive = (model: SseModel): boolean =>
-  model.status === 'open' && model.lastError === null
+  model.status === 'open' && Option.isNone(model.lastError)
 
 /**
  * The view of a stream, and whether its page still wants it. An error stands
  * until the page stops wanting the stream; a retry still waiting for its
  * stream reads as connecting, so it answers at once.
  */
-export const viewOfSse = (model: SseModel, wanted: boolean): SseView => {
-  if (model.lastError !== null)
-    return model.status === 'open' || !wanted
-      ? SseView.Error({ error: model.lastError })
-      : SseView.Connecting()
-  if (model.status === 'open') return SseView.Connected()
-  if (model.status === 'connecting' || wanted) return SseView.Connecting()
-  return SseView.Disconnected()
-}
+export const viewOfSse = (model: SseModel, wanted: boolean): SseView =>
+  Option.match(model.lastError, {
+    onSome: error =>
+      model.status === 'open' || !wanted ? SseView.Error({ error }) : SseView.Connecting(),
+    onNone: () => {
+      if (model.status === 'open') return SseView.Connected()
+      if (model.status === 'connecting' || wanted) return SseView.Connecting()
+      return SseView.Disconnected()
+    },
+  })
 
 /** The registry value behind the source tag: the live source and its incoming queue. */
 export interface AcquiredSource {
@@ -124,7 +125,7 @@ export const sse = <const Name extends string>(config: {
     Message: SseMessage,
     args: Schema.Struct({ url: Schema.String }),
     init: (args): Update.Return<SseModel, SseMessage, SourceService> => ({
-      model: { url: args.url, status: 'closed', lastError: null },
+      model: { url: args.url, status: 'closed', lastError: Option.none() },
     }),
     update: (
       model,
@@ -133,13 +134,17 @@ export const sse = <const Name extends string>(config: {
       SseMessage.match(message, {
         Connecting: () => ({ model: unlessSame(model, { ...model, status: 'connecting' }) }),
         Opened: () => ({
-          model: unlessSame(model, { ...model, status: 'open', lastError: null }),
+          model: unlessSame(model, { ...model, status: 'open', lastError: Option.none() }),
         }),
         Received: () => ({ model }),
         Closed: () => ({ model: unlessSame(model, { ...model, status: 'closed' }) }),
         // EventSource retries on its own, erroring the same way on every attempt.
         Failed: ({ message }) => ({
-          model: unlessSame(model, { ...model, status: 'connecting', lastError: message }),
+          model: unlessSame(model, {
+            ...model,
+            status: 'connecting',
+            lastError: Option.some(message),
+          }),
         }),
       }),
     resources: () =>

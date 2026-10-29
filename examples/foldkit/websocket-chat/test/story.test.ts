@@ -1,4 +1,4 @@
-import { DateTime } from 'effect'
+import { DateTime, Option } from 'effect'
 import { Command, given, message, model, story } from 'foldkit/story'
 import { modifyFields } from 'foldkit/struct'
 import { WebSocketMessage } from 'foldkit-primitives/net'
@@ -19,7 +19,12 @@ const idleModel: Model = init().model
 
 const connectedModel: Model = modifyFields(idleModel, {
   wantConnection: () => true,
-  chatSocket: chat => ({ ...chat, status: 'open' as const, lastError: null, opened: true }),
+  chatSocket: chat => ({
+    ...chat,
+    status: 'open' as const,
+    lastError: Option.none(),
+    opened: true,
+  }),
 })
 
 const seen = (model: Model): string =>

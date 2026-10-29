@@ -1,4 +1,4 @@
-import { Effect, Queue, Schema, Stream } from 'effect'
+import { Effect, Option, Queue, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
@@ -14,8 +14,8 @@ export type Coordinates = typeof Coordinates.Type
 
 export const GeolocationModel = Schema.Struct({
   status: Schema.Literals(['unknown', 'ready', 'denied']),
-  coords: Schema.NullOr(Coordinates),
-  lastError: Schema.NullOr(Schema.String),
+  coords: Schema.OptionFromNullOr(Coordinates),
+  lastError: Schema.OptionFromNullOr(Schema.String),
 })
 export type GeolocationModel = typeof GeolocationModel.Type
 
@@ -99,7 +99,7 @@ export const Geolocation = Bundle.make<
 >('Geolocation', {
   Model: GeolocationModel,
   Message: GeolocationMessage,
-  init: () => ({ model: { status: 'unknown', coords: null, lastError: null } }),
+  init: () => ({ model: { status: 'unknown', coords: Option.none(), lastError: Option.none() } }),
   update: (model, message) =>
     GeolocationMessage.match<
       Update.ReturnWithOutMessage<GeolocationModel, GeolocationMessage, never>
@@ -107,20 +107,25 @@ export const Geolocation = Bundle.make<
       // A watch repeats a fix that has not moved.
       Located: ({ latitude, longitude, accuracy }) =>
         model.status === 'ready' &&
-        model.coords !== null &&
-        model.coords.latitude === latitude &&
-        model.coords.longitude === longitude &&
-        model.coords.accuracy === accuracy
+        Option.exists(
+          model.coords,
+          coords =>
+            coords.latitude === latitude &&
+            coords.longitude === longitude &&
+            coords.accuracy === accuracy,
+        )
           ? { model }
           : {
               model: {
                 ...model,
                 status: 'ready' as const,
-                coords: { latitude, longitude, accuracy },
+                coords: Option.some({ latitude, longitude, accuracy }),
               },
             },
       Denied: () => ({ model: unlessSame(model, { ...model, status: 'denied' }) }),
-      Failed: ({ message }) => ({ model: unlessSame(model, { ...model, lastError: message }) }),
+      Failed: ({ message }) => ({
+        model: unlessSame(model, { ...model, lastError: Option.some(message) }),
+      }),
     }),
   subscriptions: (): Subscription.Subscriptions<GeolocationModel, GeolocationMessage> =>
     Subscription.make<GeolocationModel, GeolocationMessage>()(() => ({

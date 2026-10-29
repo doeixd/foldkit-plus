@@ -1,4 +1,4 @@
-import { Effect, Schema, Stream } from 'effect'
+import { Effect, Option, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
@@ -16,7 +16,7 @@ export type MediaDevice = typeof MediaDevice.Type
 export const MediaDevicesModel = Schema.Struct({
   status: Schema.Literals(['unknown', 'ready', 'denied']),
   devices: Schema.Array(MediaDevice),
-  lastError: Schema.NullOr(Schema.String),
+  lastError: Schema.OptionFromNullOr(Schema.String),
 })
 export type MediaDevicesModel = typeof MediaDevicesModel.Type
 
@@ -135,7 +135,7 @@ export const mediaDevices = <const Name extends string>(config: {
     Model: MediaDevicesModel,
     Message: MediaDevicesMessage,
     init: () => ({
-      model: { status: 'unknown', devices: [], lastError: null },
+      model: { status: 'unknown', devices: [], lastError: Option.none() },
       commands: [scan()],
     }),
     update: (model, message) =>
@@ -150,7 +150,9 @@ export const mediaDevices = <const Name extends string>(config: {
             ? { model }
             : { model: { ...model, status: 'ready' as const, devices } },
         Denied: () => ({ model: unlessSame(model, { ...model, status: 'denied' }) }),
-        Failed: ({ message }) => ({ model: unlessSame(model, { ...model, lastError: message }) }),
+        Failed: ({ message }) => ({
+          model: unlessSame(model, { ...model, lastError: Option.some(message) }),
+        }),
       }),
     subscriptions: (): Subscription.Subscriptions<MediaDevicesModel, MediaDevicesMessage> =>
       Subscription.make<MediaDevicesModel, MediaDevicesMessage>()(() => ({

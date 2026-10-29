@@ -4,7 +4,7 @@
  * the server, a dropped server reads back as closed, and sending while
  * closed reports SendFailed instead of throwing.
  */
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Runtime from 'foldkit/runtime'
@@ -30,7 +30,7 @@ const view = (model: Model, h: HtmlBuilder<Message>) =>
     [],
     [
       h.div([h.Id('status')], [model.chat.status]),
-      h.div([h.Id('error')], [model.chat.lastError ?? '']),
+      h.div([h.Id('error')], [Option.getOrElse(model.chat.lastError, () => '')]),
       h.button([h.Id('send'), h.OnClick(Message.SendClicked())], ['send']),
     ],
   )
@@ -80,7 +80,7 @@ describe('WebSocket on the runtime', () => {
             container,
             init: () =>
               assembly.initial({
-                chat: { url, status: 'closed', lastError: null },
+                chat: { url, status: 'closed', lastError: Option.none() },
               }),
             update,
             view,

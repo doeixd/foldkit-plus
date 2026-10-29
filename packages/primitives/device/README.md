@@ -39,7 +39,8 @@ const config = placements.complete({
 The status starts `unknown` with no coordinates. Subscribing starts
 `watchPosition`; `Located` stores a fix and marks it `ready`. `Denied` is its
 own status (permission code 1), which a view can act on; any other error is
-`Failed`, which keeps the last fix and notes `lastError`. Unsubscribing clears
+`Failed`, which keeps the last fix and notes `lastError`. `coords` and every
+bundle's `lastError` here are `Option`s, stored as `null` in JSON. Unsubscribing clears
 the watch. Without a geolocation API the stream is empty.
 
 ## Cameras and microphones

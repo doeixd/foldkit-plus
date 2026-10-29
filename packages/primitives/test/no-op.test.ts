@@ -1,3 +1,4 @@
+import { Option } from 'effect'
 /**
  * A Message that changes nothing returns the Model itself. Foldkit renders only
  * when the root Model changes identity, so an equal copy re-renders the page.
@@ -106,12 +107,22 @@ const Camera = mediaStream({ name: 'Camera' })
 const Devices = mediaDevices({ name: 'Devices' })
 const Permissions = permissions({ name: 'Permissions' })
 const url = { url: 'ws://x' }
-const open = { url: 'ws://x', status: 'open' as const, lastError: null, opened: true }
-const closed = { url: 'ws://x', status: 'closed' as const, lastError: 'gone', opened: false }
-const retrying = { url: 'ws://x', status: 'connecting' as const, lastError: 'gone', opened: false }
+const open = { url: 'ws://x', status: 'open' as const, lastError: Option.none(), opened: true }
+const closed = {
+  url: 'ws://x',
+  status: 'closed' as const,
+  lastError: Option.some('gone'),
+  opened: false,
+}
+const retrying = {
+  url: 'ws://x',
+  status: 'connecting' as const,
+  lastError: Option.some('gone'),
+  opened: false,
+}
 const camera = { audio: true, video: true }
 const microphone = { deviceId: 'm', groupId: 'g', kind: 'audioinput' as const, label: 'Mic' }
-const granted = { states: { camera: 'granted' as const }, lastError: null }
+const granted = { states: { camera: 'granted' as const }, lastError: Option.none() }
 const names = { names: ['camera'] }
 
 describe('a Message that changes nothing keeps the Model', () => {
@@ -363,7 +374,7 @@ describe('a Message that changes nothing keeps the Model', () => {
     ],
     [
       'WebSocket SendFailed with its sentence already held',
-      keeps({ ...closed, lastError: 'Socket unavailable' }, m =>
+      keeps({ ...closed, lastError: Option.some('Socket unavailable') }, m =>
         Socket.update(m, WebSocketMessage.SendFailed({ message: 'gone' }), url),
       ),
     ],
@@ -373,19 +384,19 @@ describe('a Message that changes nothing keeps the Model', () => {
     ],
     [
       'MediaStream Ended after Stopped',
-      keeps({ status: 'idle' as const, lastError: null }, m =>
+      keeps({ status: 'idle' as const, lastError: Option.none() }, m =>
         Camera.update(m, MediaStreamMessage.Ended(), camera),
       ),
     ],
     [
       'MediaStream Started while live',
-      keeps({ status: 'live' as const, lastError: null }, m =>
+      keeps({ status: 'live' as const, lastError: Option.none() }, m =>
         Camera.update(m, MediaStreamMessage.Started(), camera),
       ),
     ],
     [
       'MediaDevices Refreshed with the same list',
-      keeps({ status: 'ready' as const, devices: [microphone], lastError: null }, m =>
+      keeps({ status: 'ready' as const, devices: [microphone], lastError: Option.none() }, m =>
         Devices.update(
           m,
           MediaDevicesMessage.Refreshed({ devices: [{ ...microphone }] }),
@@ -415,7 +426,7 @@ describe('a Message that changes nothing keeps the Model', () => {
     ],
     [
       'Permissions Cleared when empty',
-      keeps({ states: {}, lastError: null }, m =>
+      keeps({ states: {}, lastError: Option.none() }, m =>
         Permissions.update(m, PermissionsMessage.Cleared(), names),
       ),
     ],
@@ -424,8 +435,8 @@ describe('a Message that changes nothing keeps the Model', () => {
       keeps(
         {
           status: 'ready' as const,
-          coords: { latitude: 1, longitude: 2, accuracy: 3 },
-          lastError: null,
+          coords: Option.some({ latitude: 1, longitude: 2, accuracy: 3 }),
+          lastError: Option.none(),
         },
         m =>
           Geolocation.update(
@@ -464,7 +475,7 @@ describe('a Message that changes something still does', () => {
   it('Permissions Snapshot that drops a state', () => {
     const two = {
       states: { camera: 'granted' as const, microphone: 'denied' as const },
-      lastError: null,
+      lastError: Option.none(),
     }
     const next = Permissions.update(
       two,
@@ -483,7 +494,7 @@ describe('socket subscriptions', () => {
     const connecting = {
       url: 'ws://x',
       status: 'connecting' as const,
-      lastError: null,
+      lastError: Option.none(),
       opened: false,
     }
     expect(entry.modelToDependencies(open)).toEqual(entry.modelToDependencies(connecting))

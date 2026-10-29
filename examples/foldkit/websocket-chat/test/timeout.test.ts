@@ -49,7 +49,7 @@ describe('the connection timeout', () => {
   const connecting = at(true, {
     url: 'wss://ws.postman-echo.com/raw',
     status: 'connecting',
-    lastError: null,
+    lastError: Option.none(),
     opened: false,
   })
 
@@ -61,11 +61,19 @@ describe('the connection timeout', () => {
   })
 
   test.each([
-    ['disconnected', at(false, { url: 'x', status: 'closed', lastError: null, opened: false })],
-    ['connected', at(true, { url: 'x', status: 'open', lastError: null, opened: true })],
+    [
+      'disconnected',
+      at(false, { url: 'x', status: 'closed', lastError: Option.none(), opened: false }),
+    ],
+    ['connected', at(true, { url: 'x', status: 'open', lastError: Option.none(), opened: true })],
     [
       'failed',
-      at(false, { url: 'x', status: 'closed', lastError: 'Connection error', opened: false }),
+      at(false, {
+        url: 'x',
+        status: 'closed',
+        lastError: Option.some('Connection error'),
+        opened: false,
+      }),
     ],
   ])('never fires while %s', async (_, model) => {
     expect(await emittedWithin(model, 60_000)).toEqual([])

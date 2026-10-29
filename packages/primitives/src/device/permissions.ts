@@ -11,7 +11,7 @@ export type PermissionState = typeof PermissionState.Type
 
 export const PermissionsModel = Schema.Struct({
   states: Schema.Record(Schema.String, PermissionState),
-  lastError: Schema.NullOr(Schema.String),
+  lastError: Schema.OptionFromNullOr(Schema.String),
 })
 export type PermissionsModel = typeof PermissionsModel.Type
 
@@ -102,7 +102,7 @@ export const permissions = <const Name extends string>(config: {
     Model: PermissionsModel,
     Message: PermissionsMessage,
     args: Schema.Struct({ names: Schema.Array(Schema.String) }),
-    init: () => ({ model: { states: {}, lastError: null } }),
+    init: () => ({ model: { states: {}, lastError: Option.none() } }),
     update: (model, message) =>
       PermissionsMessage.match<
         Update.ReturnWithOutMessage<PermissionsModel, PermissionsMessage, never>
@@ -117,7 +117,9 @@ export const permissions = <const Name extends string>(config: {
             : { model: { ...model, states: { ...model.states, [name]: state } } },
         Cleared: () =>
           Object.keys(model.states).length === 0 ? { model } : { model: { ...model, states: {} } },
-        Failed: ({ message }) => ({ model: unlessSame(model, { ...model, lastError: message }) }),
+        Failed: ({ message }) => ({
+          model: unlessSame(model, { ...model, lastError: Option.some(message) }),
+        }),
       }),
     resources: args => {
       const names = Option.some([...new Set(args.names)])

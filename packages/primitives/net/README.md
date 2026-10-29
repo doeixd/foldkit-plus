@@ -76,7 +76,8 @@ as the browser does.
 
 The Model words its own errors for a reader (`Failed to connect to WebSocket`,
 `Connection error`, `Connection timeout`, `Socket unavailable`), chosen by
-whether the socket had `opened`. A view reads `SocketView` through
+whether the socket had `opened`, and holds the last in `lastError`, an
+`Option` (`null` in JSON, as `Schema.OptionFromNullOr` stores it). A view reads `SocketView` through
 `viewOf(model, wanted)`, one of `Disconnected`, `Connecting`, `Connected`, or
 `Error { error }`, instead of keeping a connection state machine of its own;
 `isOpen(model)` gates sends. [`examples/foldkit/websocket-chat`](../../../examples/foldkit/websocket-chat)

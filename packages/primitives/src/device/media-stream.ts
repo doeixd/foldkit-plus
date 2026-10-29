@@ -7,7 +7,7 @@ import { unlessSame } from '../internal.js'
 
 export const MediaStreamModel = Schema.Struct({
   status: Schema.Literals(['idle', 'requesting', 'live', 'denied']),
-  lastError: Schema.NullOr(Schema.String),
+  lastError: Schema.OptionFromNullOr(Schema.String),
 })
 export type MediaStreamModel = typeof MediaStreamModel.Type
 
@@ -92,7 +92,7 @@ export const mediaStream = <const Name extends string>(config: {
     Model: MediaStreamModel,
     Message: MediaStreamMessage,
     args: Schema.Struct({ audio: Schema.Boolean, video: Schema.Boolean }),
-    init: () => ({ model: { status: 'idle' as const, lastError: null } }),
+    init: () => ({ model: { status: 'idle' as const, lastError: Option.none() } }),
     update: (model, message) =>
       MediaStreamMessage.match<
         Update.ReturnWithOutMessage<MediaStreamModel, MediaStreamMessage, never>
@@ -104,12 +104,14 @@ export const mediaStream = <const Name extends string>(config: {
             ? { model }
             : { model: { ...model, status: 'requesting' as const } },
         Stopped: () => ({ model: unlessSame(model, { ...model, status: 'idle' }) }),
-        Live: () => ({ model: unlessSame(model, { ...model, status: 'live', lastError: null }) }),
+        Live: () => ({
+          model: unlessSame(model, { ...model, status: 'live', lastError: Option.none() }),
+        }),
         // Stopping releases the stream, whose release reports it ended.
         Ended: () => ({ model: unlessSame(model, { ...model, status: 'idle' }) }),
         Denied: () => ({ model: unlessSame(model, { ...model, status: 'denied' }) }),
         Failed: ({ message }) => ({
-          model: unlessSame(model, { ...model, status: 'idle', lastError: message }),
+          model: unlessSame(model, { ...model, status: 'idle', lastError: Option.some(message) }),
         }),
       }),
     resources: args =>

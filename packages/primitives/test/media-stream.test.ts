@@ -47,7 +47,7 @@ type Message = typeof Message.Type
 const Page = Bundle.parent({ Model, Message })
 const args = { audio: false, video: true }
 const placed = Page.at(Shell, { args })
-const fresh: Model = { camera: { status: 'idle', lastError: null } }
+const fresh: Model = { camera: { status: 'idle', lastError: Option.none() } }
 
 afterEach(() => {
   stream = new FakeStream()
@@ -59,22 +59,34 @@ const fold = (model: Model, message: Parameters<typeof Shell.wrapper.make>[0]) =
 
 describe('MediaStream transitions', () => {
   it('requests on Started and releases on Stopped and Ended', () => {
-    expect(placed.init(fresh).model.camera).toEqual({ status: 'idle', lastError: null })
+    expect(placed.init(fresh).model.camera).toEqual({ status: 'idle', lastError: Option.none() })
     expect(fold(fresh, MediaStreamMessage.Started())).toEqual({
       status: 'requesting',
-      lastError: null,
+      lastError: Option.none(),
     })
-    expect(fold(fresh, MediaStreamMessage.Live())).toEqual({ status: 'live', lastError: null })
-    const live: Model = { camera: { status: 'live', lastError: null } }
-    expect(fold(live, MediaStreamMessage.Stopped())).toEqual({ status: 'idle', lastError: null })
-    expect(fold(live, MediaStreamMessage.Ended())).toEqual({ status: 'idle', lastError: null })
+    expect(fold(fresh, MediaStreamMessage.Live())).toEqual({
+      status: 'live',
+      lastError: Option.none(),
+    })
+    const live: Model = { camera: { status: 'live', lastError: Option.none() } }
+    expect(fold(live, MediaStreamMessage.Stopped())).toEqual({
+      status: 'idle',
+      lastError: Option.none(),
+    })
+    expect(fold(live, MediaStreamMessage.Ended())).toEqual({
+      status: 'idle',
+      lastError: Option.none(),
+    })
   })
 
   it('denial parks; other failures park idle with the error noted', () => {
-    expect(fold(fresh, MediaStreamMessage.Denied())).toEqual({ status: 'denied', lastError: null })
+    expect(fold(fresh, MediaStreamMessage.Denied())).toEqual({
+      status: 'denied',
+      lastError: Option.none(),
+    })
     expect(fold(fresh, MediaStreamMessage.Failed({ message: 'boom' }))).toEqual({
       status: 'idle',
-      lastError: 'boom',
+      lastError: Option.some('boom'),
     })
   })
 })

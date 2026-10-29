@@ -59,7 +59,7 @@ const Message = defineMessageUnion({ ...Shell.cases })
 type Message = typeof Message.Type
 const Page = Bundle.parent({ Model, Message })
 const placed = Page.at(Shell)
-const fresh: Model = { cameras: { status: 'unknown', devices: [], lastError: null } }
+const fresh: Model = { cameras: { status: 'unknown', devices: [], lastError: Option.none() } }
 
 const fold = (model: Model, message: Parameters<typeof Shell.wrapper.make>[0]) =>
   Option.getOrThrow(placed.update(model, Shell.wrapper.make(message)))
@@ -72,14 +72,18 @@ afterEach(() => {
 describe('MediaDevices transitions', () => {
   it('scans on init and refreshes through the fake', async () => {
     const started = placed.init(fresh)
-    expect(started.model.cameras).toEqual({ status: 'unknown', devices: [], lastError: null })
+    expect(started.model.cameras).toEqual({
+      status: 'unknown',
+      devices: [],
+      lastError: Option.none(),
+    })
     expect(started.commands).toHaveLength(1)
     const fact = await Effect.runPromise(started.commands![0]!.effect)
     expect(fact).toEqual(Shell.wrapper.make(MediaDevicesMessage.Refreshed({ devices: [mic] })))
     expect(fold(fresh, MediaDevicesMessage.Refreshed({ devices: [mic] })).model.cameras).toEqual({
       status: 'ready',
       devices: [mic],
-      lastError: null,
+      lastError: Option.none(),
     })
   })
 
@@ -96,11 +100,13 @@ describe('MediaDevices transitions', () => {
     )
     expect(denied).toEqual(Shell.wrapper.make(MediaDevicesMessage.Denied()))
     // Denial keeps a populated list: actionable UI over stale data.
-    const populated: Model = { cameras: { status: 'ready', devices: [mic], lastError: null } }
+    const populated: Model = {
+      cameras: { status: 'ready', devices: [mic], lastError: Option.none() },
+    }
     expect(fold(populated, MediaDevicesMessage.Denied()).model.cameras).toEqual({
       status: 'denied',
       devices: [mic],
-      lastError: null,
+      lastError: Option.none(),
     })
 
     fake = new FakeDevices(mic, new Error('boom'))
@@ -108,10 +114,10 @@ describe('MediaDevices transitions', () => {
       fold(fresh, MediaDevicesMessage.Scan()).commands![0]!.effect,
     )
     expect(failed).toEqual(Shell.wrapper.make(MediaDevicesMessage.Failed({ message: 'boom' })))
-    const ready: Model = { cameras: { status: 'ready', devices: [mic], lastError: null } }
+    const ready: Model = { cameras: { status: 'ready', devices: [mic], lastError: Option.none() } }
     expect(fold(ready, MediaDevicesMessage.Failed({ message: 'boom' })).model.cameras).toEqual({
       ...ready.cameras,
-      lastError: 'boom',
+      lastError: Option.some('boom'),
     })
   })
 
@@ -131,7 +137,7 @@ describe('MediaDevices stream', () => {
   const streamFor = () => {
     const entry = Cameras.subscriptions!().changes!
     return entry.dependenciesToStream(
-      entry.modelToDependencies({ status: 'unknown', devices: [], lastError: null }),
+      entry.modelToDependencies({ status: 'unknown', devices: [], lastError: Option.none() }),
       () => ({}),
     )
   }
@@ -156,7 +162,7 @@ describe('MediaDevices stream', () => {
     const Bare = mediaDevices({ name: 'Bare' })
     const entry = Bare.subscriptions!().changes!
     const stream = entry.dependenciesToStream(
-      entry.modelToDependencies({ status: 'unknown', devices: [], lastError: null }),
+      entry.modelToDependencies({ status: 'unknown', devices: [], lastError: Option.none() }),
       () => ({}),
     )
     expect(await Effect.runPromise(Stream.runCollect(stream))).toEqual([])

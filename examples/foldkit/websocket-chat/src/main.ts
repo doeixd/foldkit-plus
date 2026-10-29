@@ -1,4 +1,4 @@
-import { Array, DateTime, Effect, Match, Schema, String } from 'effect'
+import { Array, DateTime, Effect, Match, Option, Schema, String } from 'effect'
 import { Command, type Runtime, Update } from 'foldkit'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
@@ -103,16 +103,16 @@ const reactToSocket = (message: WebSocketMessage): UpdateStep =>
         isOpen(model.chatSocket)
           ? { model, commands: [TimestampReceivedMessage({ text: data })] }
           : { model },
-    Closed: () => model => {
-      const socket = model.chatSocket
-      // A close before the socket opened leaves the timeout to report it.
-      if (socket.lastError === null && !socket.opened) return { model }
-      if (socket.lastError !== null) return stopWanting(model)
-      // A clean close after open: drop what was said.
-      return {
-        model: modifyFields(model, { wantConnection: () => false, messages: () => [] }),
-      }
-    },
+    Closed: () => model =>
+      Option.match(model.chatSocket.lastError, {
+        onSome: () => stopWanting(model),
+        // A close before the socket opened leaves the timeout to report it; a
+        // clean close after open drops what was said.
+        onNone: () =>
+          model.chatSocket.opened
+            ? { model: modifyFields(model, { wantConnection: () => false, messages: () => [] }) }
+            : { model },
+      }),
     Failed: () => stopWanting,
     SendFailed: () => stopWanting,
     Sent:
