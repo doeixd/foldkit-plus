@@ -364,7 +364,8 @@ const canonicalJson = (value: unknown): string | undefined => {
     if (input !== null && typeof input === 'object') {
       const proto = Object.getPrototypeOf(input)
       if (proto === Object.prototype || proto === null) {
-        const out: Record<string, unknown> = {}
+        // No prototype, so a `__proto__` key (which `JSON.parse` makes) is written as a key.
+        const out: Record<string, unknown> = Object.create(null)
         for (const key of Object.keys(input).sort()) {
           out[key] = build((input as Record<string, unknown>)[key])
         }

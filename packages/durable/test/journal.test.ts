@@ -692,6 +692,41 @@ describe('a durable journal', () => {
     }
   })
 
+  it.each(['__proto__', 'constructor', 'toString'])(
+    'keeps a payload key named %s, so a reuse differing only there conflicts',
+    key =>
+      Effect.runPromise(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const journal = yield* makeJournal<Record<string, unknown>, Snapshot, Principal>({
+              file: ':memory:',
+              operation: {
+                encode: value => value,
+                decode: value => value as Record<string, unknown>,
+              },
+              snapshot,
+              empty: () => ({ ids: [] }),
+              reduce: state => state,
+              opId: () => opId('a:1'),
+              actorId: value => actorId(value.actorId),
+            })
+            // As the wire delivers it: `JSON.parse` makes `__proto__` a key of its own.
+            const sent = (value: string) => JSON.parse(`{"${key}":{"v":"${value}"},"a":1}`)
+            const first = appendCommitted(yield* journal.append(todos, sent('x'), principal))
+            expect(Object.hasOwn(first.operation, key)).toBe(true)
+            expect(first.operation[key]).toEqual({ v: 'x' })
+            const [stored] = yield* journal.read(todos, cursor(0))
+            expect(Object.hasOwn(stored!.operation, key)).toBe(true)
+            const reuse = yield* Effect.result(journal.append(todos, sent('y'), principal))
+            expect(reuse).toMatchObject({
+              _tag: 'Failure',
+              failure: { _tag: 'IdentityConflictError' },
+            })
+          }),
+        ),
+      ),
+  )
+
   it('upgrades a database written before version tracking, keeping its data', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'foldkit-migrate-'))
     const path = join(directory, 'journal.sqlite')

@@ -675,6 +675,13 @@ carries `drawn`.
 
 ### Security
 
+- **The durable journal keeps an operation's `__proto__` key** (published
+  since foldkit-durable 0.3.0). It stored an operation as canonical JSON
+  built on a plain object, where a key named `__proto__` sets the prototype
+  instead of adding a key, so that key was dropped from what was stored and
+  read back, and from the bytes that tell a retry from a conflicting reuse of
+  its id. The canonical form now has no prototype, so every key the encoded
+  operation holds is stored and compared.
 - **`serveFetch` answers every request `cache-control: no-store`** (#284).
   Each answer is read as one principal, its `may` and `Me` included, and none
   said so: a cache configured to keep POST answers could have served one
