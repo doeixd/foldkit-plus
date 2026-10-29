@@ -466,7 +466,10 @@ through the whole path; what this package does with each part of a write:
   or postdate a row; nothing else of a write's context comes from the client.
   A hand-written mutation reads the same time as `now` in its context. A
   retried insert, which only a writer's ledger recognises, keeps its first
-  time.
+  time. A retried update is a new write to a server without a ledger, and
+  stores the time of the attempt that ran: the same sent `now` while it lies
+  within `clockSkew`, else the server's clock at that attempt (#291). A ledger
+  answers the retry from its record, so the first time stays.
 - **`expect`**: the writer is told the revision the row was read at; no row
   at it is refused as `Refusal.conflict`.
 - **`when`**: the writer is handed the precondition and the input encoded,

@@ -754,6 +754,11 @@ carries `drawn`.
   **Breaking** for a `RemoteClient.live` transport whose first event is not
   `after + 1` (`classifyLive(emptyLiveState, 42)` is now a gap): it must count
   from `after`, as `RemoteServer`'s hub and remote-drizzle's `pollLive` do.
+- **What a retried update stores as its time is stated** (#291). Without a
+  writer's ledger a retry is a new write: an update sent again stores that
+  attempt's time, the same `now` while it lies within `clockSkew`, else the
+  server's clock then. A ledger keeps the first time. The remote-server
+  README says so, and `docs/design/ops-4-captured-now-DESIGN.md` records why.
 - **`Crud.options` reads each listed choice once** (#308). It checked every
   chosen id against a picker's whole list, so a many-picker holding N of N
   loaded choices did quadratic work on each derivation. It groups the held

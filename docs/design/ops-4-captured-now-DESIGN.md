@@ -139,6 +139,49 @@ sent: it is the server's principal.
   and Subscription the trace runs reads it, and so does every answer it asks
   a client for. Before, the clock always stood at 0.
 
+## A retry without a ledger (#291)
+
+Decided 2026-10-29. `writeTime` runs on every attempt, so a retried update
+that falls back to the server's clock (no `now`, or one past `clockSkew`)
+writes a new time, and replaces the one the attempt that landed stored. #291
+asks to keep the time of the attempt that landed. The rule:
+
+> Without a ledger, a retry is a new write, and the time it stores is that
+> attempt's: the sent `now` while it lies within `clockSkew`, otherwise the
+> server's clock at that attempt. Keeping the first landing's time on any
+> retry is what a writer's ledger does.
+
+- **Only a record knows a retry.** The operation id names a write across
+  attempts, but an unledgered server keeps nothing under it, so it cannot
+  tell a retry from a second write. The guess an unledgered writer makes for
+  a conditioned write (the row already holds what this write sets) cannot
+  decide the time: skipping the clock fields and then not writing makes a
+  real second edit with equal values keep the first `editedAt`, and an
+  unconditioned update reads no row before it writes, so the guess would add
+  a read to every update.
+- **The captured `now` already keeps it where it can.** The time the reader
+  acted is decided once (`Remote.now`), predicted, sent, and sent again by
+  `Data.retry` and the outbox. A lost answer retried within `clockSkew`, the
+  common case, stores the same time. Past the bound the server's own clock is
+  the rule phase 7 §9 states, since an outbox cannot tell an honest wait from
+  a forged one.
+- **Capturing a time for a write that passed none was rejected.** A sending
+  Command could read the clock when `now` is absent, but that makes the
+  client's clock the time of every write, including those an application
+  leaves to the server on purpose, and the reading reaches the ledger only
+  through another Message: (b) above, rejected for the same reasons.
+- **The prediction does not change.** The client predicts from `now` or
+  predicts no time, and `Law.check` compares one attempt, so it is unchanged.
+- **What "the retry comparison skips" covers.** The server section says the
+  clock fields reach the writer as `stamped`, which a retry comparison skips.
+  A retried insert does not write a taken id again, so its row keeps its
+  time. But #291 reports that an unledgered retry of an update pinned to a
+  revision compares its new time with the stored one and conflicts with
+  itself. That comparison is `foldkit-remote-drizzle`'s (`holdsWritten`); by
+  the rule above it should leave out the fields the write sets on its own
+  clock, since a retry's time is not evidence the write differs. It is left
+  to that package.
+
 ## Deferred
 
 - **Persisting the stored operation** across a reload: phase 7 (#247). The
