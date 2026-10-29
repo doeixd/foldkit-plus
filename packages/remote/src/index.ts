@@ -4114,8 +4114,9 @@ const bindDomain = <
       // A row missing a field is left out until it arrives, and the page reads
       // `Refreshing` meanwhile: a list showing rows keeps showing them while a
       // joined or re-read row is fetched. `undefined` when no row can be shown
-      // and none was deleted: a list that lost its rows to a delete is a known
-      // list without them, not one waiting for its first rows (#263).
+      // and no row the window would show was deleted: a list that lost its rows
+      // to a delete is a known list without them, not one waiting for its first
+      // rows (#263).
       const readPage = (
         remote: RemoteModel,
         connection: Connection,
@@ -4148,12 +4149,18 @@ const bindDomain = <
               refreshing ||= assembled.refreshing
               rows.push(decoded.success)
             }
-            if (missing && rows.length === 0) {
-              const gone = goneIn(remote.entities, remote.optimistic)
-              const deleted = items(connection).some(edge =>
-                gone(entityKey(edge.ref.entity, edge.ref.id)),
+            if (
+              missing &&
+              rows.length === 0 &&
+              !deletedInWindow(
+                items(connection),
+                new Set(shownEdges(remote, ref.identity, connection).map(edge => edge.key)),
+                ref.window,
+                sizeOf(remote),
+                goneIn(remote.entities, remote.optimistic),
               )
-              if (!deleted) return undefined
+            ) {
+              return undefined
             }
             const page = {
               items: rows,
@@ -5253,6 +5260,28 @@ const cutToWindow = (
   return window.first === undefined
     ? { edges: edges.slice(edges.length - size), cutBefore: true, cutAfter: false }
     : { edges: edges.slice(0, size), cutBefore: false, cutAfter: true }
+}
+
+/**
+ * Whether a row a window of `size` would show was deleted: one of `edges`
+ * gone before the window, read from its end, fills with rows still `shown`.
+ * A delete past the window is another window's (#287).
+ */
+const deletedInWindow = (
+  edges: ReadonlyArray<Edge>,
+  shown: ReadonlySet<string>,
+  window: QueryWindow,
+  size: number | undefined,
+  gone: (key: string) => boolean,
+): boolean => {
+  const ordered = window.first === undefined ? [...edges].reverse() : edges
+  let filled = 0
+  for (const edge of ordered) {
+    if (size !== undefined && filled >= size) return false
+    if (gone(entityKey(edge.ref.entity, edge.ref.id))) return true
+    if (shown.has(edge.key)) filled++
+  }
+  return false
 }
 
 const pickWindow = (window: QueryWindowOptions): QueryWindow => ({

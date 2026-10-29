@@ -724,6 +724,12 @@ carries `drawn`.
   changes from the `after` the client sent, and the client, which keeps one
   cursor per stream, dropped the second source's as repeats.
   `RemoteServer.handlers` now numbers the merged stream as one sequence.
+- **A smaller window of a shared list loads while its rows do** (#287). A
+  window with no row to show yet read `Refreshing` with no rows when any row
+  of its query's connection was deleted, though the window would not show it:
+  `first: 1` of a list whose third row was deleted read empty while its first
+  row loaded. A window now judges a delete by the rows it would show, and
+  reads `Loading` otherwise.
 - **`Crud.options` reads each listed choice once** (#308). It checked every
   chosen id against a picker's whole list, so a many-picker holding N of N
   loaded choices did quadratic work on each derivation. It groups the held

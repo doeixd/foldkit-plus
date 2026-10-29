@@ -37,13 +37,13 @@ export default [
   ),
   partial(
     'a list with no row read shows an empty page',
-    'if (missing && rows.length === 0) {',
-    'if (false) {',
+    '              missing &&\n              rows.length === 0 &&',
+    '              false &&',
   ),
   partial(
     'a list whose shown rows were deleted reads as never shown',
-    'if (!deleted) return undefined',
-    'return undefined',
+    '              !deletedInWindow(',
+    '              !!deletedInWindow(',
   ),
   partial('a list missing a row reads Ready', 'return refreshing || missing', 'return refreshing'),
   partial(
