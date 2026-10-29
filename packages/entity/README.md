@@ -1,15 +1,21 @@
 # foldkit-entity
 
-A domain entity declared once as a typed value: its intrinsic fields, its
-relations to other entities, and the derived values consumers may read. Other
-packages interpret that declaration; this one only describes.
+A domain declared once as typed values: each entity's intrinsic fields, its
+relations to other entities, and the derived values consumers may read; and,
+over that, a small language for saying which rows (`Expr`, `Query`), what a
+write does to one (`Write`), and what every stored row must hold
+(invariants). Other packages interpret these declarations; this one only
+describes, and gives the reference meaning of the language over rows already
+in hand.
 
-> **Status:** declaration and selection. `foldkit-remote`
-> [registers Entities and reads Selections as they are](../remote/README.md#entities-declared-with-foldkit-entity).
-> `foldkit-remote-drizzle` binds a related set to tables with
-> [`bind`](../remote-drizzle/README.md#binding-a-foldkit-entity-domain), and
-> [`foldkit-form`](../form/README.md) builds a form from `Entity.input`, and
-> [`foldkit-crud`](../crud/README.md) joins one to a Remote operation.
+> **Who reads it.** `foldkit-remote`
+> [registers Entities and reads Selections and query bodies](../remote/README.md#entities-declared-with-foldkit-entity),
+> and judges the rows it holds by them. `foldkit-remote-drizzle` binds a related
+> set to tables with
+> [`bind`](../remote-drizzle/README.md#binding-a-foldkit-entity-domain) and
+> compiles bodies, writes and invariants to SQL. [`foldkit-form`](../form/README.md)
+> builds a form from `Entity.input`, [`foldkit-crud`](../crud/README.md) joins
+> one to a Remote operation, and `foldkit-guard` writes its rules as `Expr`.
 
 For the whole path in one runnable trace, domain to client to SQL, see
 [`examples/entity`](../../examples/entity).
@@ -17,15 +23,23 @@ For the whole path in one runnable trace, domain to client to SQL, see
 ## What it owns
 
 `foldkit-entity` owns **domain structure**: which members an entity has, what
-kind each is, and which entity a relation points to.
+kind each is, and which entity a relation points to. It also owns the
+**meaning** of the declarations made over it: what a query body, a declared
+write and an invariant say, as values every interpreter reads the same way.
 
 It does not own:
 
-- **Validation.** `entity.schema` is an ordinary Effect `Schema.Struct` and
-  stays the only validity rule.
+- **Validity of one value.** `entity.schema` is an ordinary Effect
+  `Schema.Struct` and stays the rule for a value. An invariant adds only what a
+  Schema cannot judge: a rule across fields, or between a row before and after
+  a write.
 - **Storage or fetching.** A relation says "one Author", not "a foreign key" or
-  "a join table". How a derived value is computed is the interpreter's business.
-- **Operations.** An Entity implies no create, update, or delete.
+  "a join table". A query body fetches nothing; `foldkit-remote-drizzle`
+  compiles it, and `foldkit-remote` judges the rows it holds by it.
+- **Operations.** An Entity implies no create, update, or delete. A `Write`
+  is declared by an operation, and an Entity having a field grants no one the
+  right to set it.
+- **Who may.** Authorization is `foldkit-guard`'s, written in the same `Expr`.
 - **Application state.** Nothing here touches a Model or dispatches a Message.
 
 ## Mental model
@@ -34,16 +48,27 @@ It does not own:
 Entity
  ├── fields      intrinsic values: the properties of entity.schema
  ├── relations   navigation edges: one / many of another Entity (Entity.relate)
- ├── derived     readable values an interpreter supplies
- └── members     all three under one namespace; keys never collide
+ ├── derived     readable values an interpreter supplies, counts or finds
+ ├── members     all three under one namespace; keys never collide
+ ├── sets        members the write's context fills (who asks, when)
+ └── invariants  what every stored row must hold (kept in its metadata)
+
+over it, as data:
+ Selection   which members a consumer reads            Entity.select
+ Query       which rows, in which order                Query.from · Expr
+ Write       what one operation does to one row        Write.update / insert / delete
 
 interpreter ──(foldkit-metadata)──► Entity / member        attaches what it needs
-interpreter ◄── reads fields, relations, derived, metadata
+interpreter ◄── reads all of the above, and runs it (SQL, the client's store)
 ```
 
 Each pipe step, and `Entity.relate`, returns a new frozen descriptor with the
 **same identity**. Two descriptors are the same entity when `Entity.same(a, b)`,
 not when `a === b`.
+
+Everything here is checked where it is declared: a type error where the types
+can see it, and a throw for what they cannot. An interpreter that cannot run
+something refuses it by name rather than skipping it.
 
 ## Install
 
@@ -107,22 +132,15 @@ Blog.Post.relations.editor.optional // true
 Blog.Post.derived.commentCount.schema // Schema.Number
 Blog.Post.relations.comments.target() // Blog.Comment
 Blog.Post.relations.comments.target().relations.post.target() // Blog.Post, fully typed
-Object.keys(Blog.Post.members) // id, title, published, commentCount, author, editor, comments
+Object.keys(Blog.Post.members) // id, title, published, author, editor, comments, commentCount
 ```
 
 - `Entity.define` generates one `Field` per schema property and creates the
   identity. Calling it twice with the same name makes two different entities.
 - `Derived.make` states a readable value's schema and nothing about how it is
   produced. `Entity.derived` is a pipe step because it concerns one entity.
-  `Derived.make(schema, { predict })` also says how a client foresees it for a
-  row it writes: `predict({ entity, row, rows, context })` reads the row the
-  write leaves as the holder has it (`HeldRow`) and returns the value, encoded,
-  or none where it cannot know; Guard's `may` is one. `forbids(value,
-  surface)` says which write to a row the value refuses: `surface` is a
-  `WriteSurface` (`kind` `Update` or `Delete`, the `members` it writes, the
-  `relations` it points as `Link` or `Unlink`), and the answer is
-  `Option<{ reason }>`, only for a definite refusal. A client holding the value
-  refuses that write where it is made; Guard's `may` declares this too.
+  It may also say what a client can foresee of it
+  ([below](#what-a-client-foresees-of-a-supplied-member)).
 - `Derived.count(relation)` says what it is: how many rows point at this one
   through `relation`, a `one` relation of the counted Entity. It names another
   Entity's relation, so it is added after `Entity.relate`:
@@ -152,8 +170,8 @@ Object.keys(Blog.Post.members) // id, title, published, commentCount, author, ed
   ```
 
   Its value is that row's id, or none (`Option<string>`), so the reader can
-  take it back by deleting the row. It depends on who reads it. Each derived member's `derives` says which kind it is
-  (`Supplied`, `Count`, `Exists`).
+  take it back by deleting the row. It depends on who reads it. Each derived
+  member's `derives` says which kind it is (`Supplied`, `Count`, `Exists`).
 - `Entity.relate` takes the entities and every relation between them, and
   returns the same entities with `relations` filled in. Use the returned ones
   (`Blog.Post`); the `Post` you passed in still has no relations.
@@ -275,312 +293,6 @@ An unknown member, a nested Selection on a field, a page of a `one` relation,
 and a Selection of the wrong
 Entity are type errors, and `Entity.select` throws for untyped callers.
 
-## Reading an operation's input
-
-> Experimental: the smallest mapping that several operation shapes and
-> [`foldkit-form`](../form/README.md) needed.
-
-An Entity does not decide what may be written; an operation does (a Remote
-mutation, an RPC, a form). `Entity.input` takes that operation's input schema
-and says what each key means in terms of the Entity, so a consumer can find the
-field's metadata for a label, or the relation's target for a picker.
-
-```ts
-const CreatePostInput = Schema.Struct({
-  title: Schema.String,
-  authorId: Schema.String,
-  notify: Schema.Boolean,
-})
-
-const CreatePost = Entity.input(Blog.Post, CreatePostInput, {
-  authorId: Relation.input(Blog.Post.relations.author),
-  notify: Entity.unmapped,
-})
-
-CreatePost.members.title // Blog.Post.fields.title: it names a field, so it maps itself
-CreatePost.members.authorId.relation.target() // Blog.Author: what a picker chooses from
-CreatePost.members.notify // Entity.unmapped: about the operation, not the Post
-```
-
-- A key that names a field, with a value that fits it, maps itself. Only the
-  present value has to fit: a key may be optional (a partial update), admit
-  `null` (clearing it), or hold an `Option` (an id absent for something new),
-  which is the input schema's rule to make.
-  A declared write (`Write.update`, `Write.insert`) writes what an `Option`
-  holds and nothing for one holding nothing or a key left out; its id may not
-  be absent, since it names the row it writes.
-- Every other key needs an entry: a Field under another name, a relation's ids
-  with `Relation.input(relation)`, or `Entity.unmapped`. Nothing is inferred
-  from a name like `authorId`.
-- An entry may name the member by its key: `{ headline: 'title', authorId: 'author' }`
-  is the `title` Field and `Relation.input` of `author`. It is the same reading,
-  checked the same way; a name that is no field or relation is a type error.
-- `Entity.fields(Post, 'id', 'title')` is those fields' schemas, to spread into
-  the input's struct, so the input keeps the field's rules without repeating
-  `Post.fields.title.schema` per key.
-- `Relation.input` expects one id for a `one`, `id | null` for an optional
-  `one`, and an array of ids for a `many`.
-- A derived member cannot be written, and a member of another Entity cannot be
-  mapped. Both are type errors and throw.
-
-### An input that holds the target itself
-
-A post created together with a new author carries the author, not an id.
-`Relation.nested` maps the key to the relation and to an input of its target:
-
-```ts
-const NewAuthor = Entity.input(Blog.Author, Schema.Struct({ name: Schema.String }))
-
-const CreatePost = Entity.input(
-  Blog.Post,
-  Schema.Struct({ title: Schema.String, author: NewAuthor.schema }),
-  { author: Relation.nested(Blog.Post.relations.author, NewAuthor) },
-)
-```
-
-A `one` holds the nested input's value, a `many` a list of them; the nested
-input must be of the relation's target, and both are checked by type and at
-runtime. `Entity.selectFor` then loads what the nested input writes of the
-target, and `Entity.valuesFor` turns the loaded target back into nested values.
-What a nested write *does* (insert, update, replace the list) is the
-operation's handler to decide.
-
-### Showing what is there
-
-An edit screen has to load the current values and turn them into input values.
-Both follow from the reading, so neither is written by hand:
-
-```ts
-const PostForEdit = Entity.selectFor(CreatePost)
-// a Selection of `title` and `author`, the members the input writes; `author` as a ref
-
-Entity.valuesFor(CreatePost, { title: 'Hello', author: { entity: 'Author', id: 'a1' } })
-// { title: 'Hello', authorId: 'a1' }
-```
-
-`selectFor` selects every member the input writes, by the member's key, with
-each relation as refs. `valuesFor` reads such a value back under the input's
-keys: a field as it is, a relation as the id or ids of what it holds. A relation
-read without its ids (a nested Selection that left `id` out) fills nothing. An
-unmapped key appears in neither, since the Entity knows nothing about it.
-
-The schema is an ordinary `Schema.Struct`, so declare it once and give the same
-value to the operation, for example `Mutation.make('CreatePost', { Input:
-CreatePostInput, … })` in `foldkit-remote`.
-
-### Declaring what an input writes
-
-An input says what each key *is*; a `Write` says what an operation *does* with
-them: `Write.update` one row, named by a key, setting every other key mapped to
-a field; `Write.insert` a row under an id the client chose; or `Write.delete`
-one, which sets nothing.
-
-```ts
-const EditPost = Entity.input(Blog.Post, EditPostInput)
-const Edit = Write.update(EditPost, { id: 'id' })
-
-Write.writes(Edit) // the fields any invocation may change
-Write.bind(Edit, { id: 'p1', title: 'Compilers' })
-// { entity: 'Post', id: 'p1', values: { title: 'Compilers' } }, as the store holds it
-```
-
-It is declared data, like a query body: nothing is written by building one, and
-an Entity having a field grants no one the right to set it. `bind` encodes each
-value through its field's schema, so the patch is in the store's shape, and
-takes the keys to write when an author changed only some. `expect` names a key
-holding the revision the row was read at, for an interpreter to write only a row
-still at it. An unmapped key is not written. A key mapped to a `one` relation
-points the row elsewhere: `bind` gives it as a ref in `links` (none for an
-optional relation set to nothing), and each interpreter carries it its own way,
-a ref key in a store, a foreign key in a table. A `many` relation or a nested
-key is refused where the write is declared.
-
-Some values no client should choose: who wrote a row, and when. The Entity
-says so once, with `Entity.sets`, after `Entity.relate` when it names a
-relation. A value is a term of the write's context, `Expr.viewer` or
-`Expr.now`, and `on` says which writes set it:
-
-```ts
-const AuthoredPost = Blog.Post.pipe(Entity.sets({ author: Expr.viewer(Author) }, { on: 'create' }))
-```
-
-`Expr.viewer(Author)` is whoever asks: a `one` relation to an Author pointed
-at them, or a field stored as text holding their id. `Expr.now` is the time,
-for a field stored as a number. A path from the viewer is what their row, or
-a row reached from it, holds: `Expr.path(Expr.viewer(Member),
-Expr.path(Member.relations.team, Team.fields.orgId))` sets a note's `orgId` to
-its writer's team's, for a field that holds what the path's end holds. A
-server reads it through its own sources as the asker may see them; a client
-reads it from the rows it holds, and predicts nothing where it lacks one. A
-query body or a guard rule compares with one as with any value
-(`Expr.eq(Note.fields.orgId, orgOfViewer)`): SQL reads it in subqueries under
-each reached table's `visible` rule, and `Judge` from the rows its holder has
-(`rows`), unknown where it lacks the viewer's row. `on: 'create'` sets the member on every
-insert; `on: 'write'` on every insert and every update (an `editedAt`). A
-delete sets nothing. Every write of the Entity follows from this one
-declaration (`write.context`, worked out by `Write.contextValues(write, {
-viewer, now }, read)`, `read` giving one member of one row at a time for a path), and a write whose input sets, links, moves or computes such a
-member is refused where it is declared. Each interpreter fills them from what
-it has: a server from its principal and its clock, a client as a prediction. A
-value that comes to null where the member holds none (a visitor) is named
-`unfilled`: a server refuses the write, a client predicts nothing for it.
-Nothing else about what a write does is declared anywhere: what it moves is
-read from the Entities' derived members and the queries' bodies.
-
-An update or a delete may also say when it makes sense: `when` is what the row
-must hold for it to land, written as a query body is: `() =>
-Expr.eq(Post.fields.title, 'Draft')`, or with the input, `({ input }) =>
-Expr.eq(Post.fields.title, input.from)`. It reads the row as it is before the write and the input,
-never who is asking (that is a guard's), and only its own Entity: a field of
-another is a type error, and refused where the write is declared. It is held as
-a query body (`write.when`), so an interpreter checks it in the statement that
-writes, and a row it does not hold of is refused as unmet. A write declared with
-one is a `ConditionedWrite`, which is how `Mutation.write` knows it may be
-refused so.
-
-An update may move a number field by an amount the input holds, rather than set
-it: `increment: { stock: 'quantity' }` adds the input's `quantity` (an unmapped
-key, a number; negative takes away) to the stored `stock`, in the statement that
-writes, so no concurrent change is lost. A retry must not add twice, so either it
-expects a revision (a retry of a write that landed is then a conflict), or its
-writer keeps a ledger, which answers the retry from its record and lets two
-concurrent increments both land. `RemoteServer.write` refuses one with neither,
-and one of a real number with no revision even under a ledger: floating-point
-addition does not associate, so two concurrent sums could land as two results.
-The field must be stored as a number, and may not be the id, the revision, or
-set by another key. `Write.bind` gives the amounts apart from the values (`increments`), so a
-client can add them to the value it holds as it reads it (Remote does), never
-fixing a sum over a row that may since have moved. `Write.reads(write)` is what a write
-reads from its row: what its `when` reads, each field it increments, what its
-assignments read, and the revision. How a declaration, its guard, its writer and
-the client fit together is the [declared writes guide](../../docs/declared-writes.md).
-
-An update may also compute a field from the row before it and the input:
-`compute: { label: ({ row, input }) => concat(input.prefix, row.name) }`, with an
-operator such as the `concat` [below](#operators-each-interpreter-implements). It
-reads neither the row after the write nor another Entity, so assignments never
-depend on each other, and is refused where it is declared for a field another
-key writes or a value of a kind the field does not store. A defined operator in
-it is expanded there, so `Write.bind` carries it as data (`assignments`, each a
-`Computation`: fields by key, values encoded, operators by name), which a writer
-compiles into the statement and a client predicts by its own table. A
-computation does not repeat without effect, so a retry of one is held to it as
-an increment's is; without a revision it lands only under a ledger, and there
-only where the writer pins the row it read (a guarded writer with a `revision`)
-or by an operator whose commutativity and associativity are tested over every
-value for each implementation the writer runs (`Conformance.laws` in memory,
-`Conformance.lawsBy` in SQL).
-
-`Write.apply(row, bound, { operators })` is the row a bound write leaves over
-the row before it: values set, amounts added (a null stays null, as in SQL),
-assignments computed. It is the one computation of that row: a guard judges
-it, a writer explains a miss by it, a client predicts it. `unknown` names each
-field it could not work out (one the row lacks, or an operator the table lacks),
-which keeps what the row holds.
-
-## What every row and change must hold: invariants
-
-A Schema judges a value, and a write's `when` the row before it. Neither judges
-the row a write leaves: with `quantity = 10, reserved = 5`, an update setting
-`quantity = 3` decodes, and leaves a row that holds more reserved than there is.
-An **invariant** is what every stored row must hold, read over the row after a
-write (`after`):
-
-```ts
-import { Schema } from 'effect'
-import { Entity, Expr } from 'foldkit-entity'
-
-const InventoryFields = Entity.define(
-  'Inventory',
-  Schema.Struct({ id: Schema.String, quantity: Schema.Number, reserved: Schema.Number }),
-)
-const Inventory = InventoryFields.pipe(
-  Entity.invariant(
-    'reservedWithinQuantity',
-    ({ after }) => Expr.lte(after.reserved, after.quantity),
-    { message: 'Reserved stock cannot exceed the quantity', path: ['reserved'] },
-  ),
-)
-
-Entity.judge(Inventory, { after: { id: 'i1', quantity: 3, reserved: 5 } })
-// { _tag: 'Invalid', failures: [{ id: 'reservedWithinQuantity', … }] }
-```
-
-One that reads the row before too (`before`) relates the two, each of which may
-be valid on its own: an order that shipped stays shipped.
-
-```ts
-const OrderFields = Entity.define(
-  'Order',
-  Schema.Struct({ id: Schema.String, status: Schema.Literals(['placed', 'shipped']) }),
-)
-const Order = OrderFields.pipe(
-  Entity.invariant(
-    'shippedStaysShipped',
-    ({ before, after }) =>
-      Expr.or(Expr.not(Expr.eq(before.status, 'shipped')), Expr.eq(after.status, 'shipped')),
-    { message: 'A shipped order stays shipped', path: ['status'] },
-  ),
-)
-
-const shipped = { id: 'o1', status: 'shipped' }
-Entity.judge(Order, { before: shipped, after: { ...shipped, status: 'placed' } })
-// { _tag: 'Invalid', failures: [{ id: 'shippedStaysShipped', … }] }
-```
-
-What an invariant reads decides when it is judged; nothing else is declared:
-
-```text
-reads after only   -> state invariant:      every create and update; a CHECK constraint
-reads before too   -> transition invariant: every update, the only write with a row before
-```
-
-`Entity.readsBefore(invariant)` says which one is.
-
-`Entity.invariant` returns the step that attaches it, carrying its `id`. Hoist
-it to export it, naming the Entity's type (what it reads is checked against
-it), and match a refusal against it rather than spelling the id again:
-
-```ts
-export const reservedWithinQuantity = Entity.invariant<typeof InventoryFields>(
-  'reservedWithinQuantity',
-  ({ after }) => Expr.lte(after.reserved, after.quantity),
-  { message: 'Reserved stock cannot exceed the quantity', path: ['reserved'] },
-)
-export const Inventory = InventoryFields.pipe(reservedWithinQuantity)
-
-// Where a write's refusal is read (foldkit-remote):
-Refusal.isInvalidBy(refusal, reservedWithinQuantity)
-```
-
-- `before` is each field as the row before holds it (`Expr.field`), and `after`
-  each as the row after holds it (`Expr.next`), both typed as the field. Each
-  is an expression already, so it goes on either side as it is; `Expr.field`
-  wraps an Entity's own field, and refuses one of these:
-
-  | Write | Not |
-  | --- | --- |
-  | `Expr.gte(after.quantity, before.quantity)` | `Expr.gte(after.quantity, Expr.field(before.quantity))` |
-- It is declared once, on the Entity's metadata, and attaching more adds to it;
-  the Entity stays the same (`Entity.same`). Its interpreters read it from there.
-- It reads stored rows only: one over another Entity, or reading an input, is
-  refused where it is declared, as is an id declared twice or a `path` naming no
-  field. So is one reading nothing of `after`: which rows a write may start from
-  is its `when`. Who may write is a guard's; whether a write applies now is its `when`'s.
-- `Entity.judge(entity, { after, before? })` judges rows as the store holds them
-  (encoded) and is pure. Without `before` (a create) it skips transition
-  invariants. A row holds one only when it is true: a null fails it, as SQL's
-  unknown drops a row from a `WHERE`. A row without a field it reads is
-  `Undecided`, never `Valid`.
-- `Entity.check(entity)` is the state invariants as a Schema check over the row
-  type (`entity.schema.check(Entity.check(entity))`): it encodes the value, and
-  reports each failure at its `path` with its `message`.
-
-Text compares only under a declared collation, here too: a date stored as text
-needs `{ collation: Collation.binary }` on its comparison. An interpreter that
-judges stored rows alone refuses `after`'s nodes as the operation `next`;
-`Expr.substituteNext` reads the ones a write sets as their values.
-
 ## Attaching metadata
 
 An interpreter declares a [`foldkit-metadata`](../metadata/README.md) key and
@@ -686,11 +398,10 @@ Every node is frozen as it is built, so a query is the value it was when
 
 A node can be shared (`Expr.eq(n, n)`), and the analysis visits each one once.
 An interpreter does not: `evaluate` reads a predicate as a tree on every row,
-and the SQL compiler writes a shared operand out wherever it appears. So
-`Query.where` refuses predicates that expand past `maxQueryNodes` (1,000)
-nodes, counting a shared node on each path that reaches it.
-A node may be shared, `Expr.eq(n, n)`, and every walk over one visits each
-node once, so a deeply shared predicate costs its size, not its paths.
+and the SQL compiler writes a shared operand out wherever it appears. So a
+query whose predicates and order terms expand past `maxQueryNodes` (1,000)
+nodes, counting a shared node on each path that reaches it, is refused where
+it is built.
 
 ### Asking a question that depends on an input, without branching on it
 
@@ -699,6 +410,15 @@ on what it was given. It does not need to: a question that looks like a branch
 is usually a comparison waiting to be written.
 
 ```ts
+const Entry = Entity.define(
+  'Entry',
+  Schema.Struct({ id: Schema.String, label: Schema.String, archivedAt: Schema.NullOr(Schema.String) }),
+)
+const input = {
+  archived: Expr.input('archived', Schema.Boolean),
+  search: Expr.input('search', Schema.String),
+}
+
 // A list that shows archived entries or unarchived ones, as the reader asks:
 Expr.eq(Expr.isNotNull(Entry.fields.archivedAt), input.archived)
 
@@ -748,11 +468,20 @@ Neither is a field or an input: each interpreter reads them from the context
 it is given.
 
 ```ts
+const User = Entity.define('User', Schema.Struct({ id: Schema.String }))
+const Note = Entity.define('Note', Schema.Struct({ id: Schema.String, ownerId: Schema.String }))
+
 const Mine = Query.from(Note).pipe(
   Query.where(Expr.eq(Note.fields.ownerId, Expr.viewer(User))),
 )
-evaluate(Mine, {}, rows, { context: { viewer: Option.some(ada), now: Option.none() } })
+const ada = { entity: 'User', id: 'ada' }
+evaluate(Mine, {}, [{ id: 'n1', ownerId: 'ada' }, { id: 'n2', ownerId: 'bo' }], {
+  context: { viewer: Option.some(ada), now: Option.none() },
+})
+// [{ id: 'n1', ownerId: 'ada' }]
 ```
+
+The viewer is a ref (`EntityRef`), so a viewer of another Entity reads null.
 
 A server gives them from `RemoteServer.make({ viewer })` and its clock; a
 client from `Remote.make({ viewer })`, with no reading of the time a server
@@ -788,7 +517,7 @@ typed plainly as `Predicate`, or two Entities that share a name.
 **Two `where`s conjoin and two `orderBy`s append.** Neither replaces what came
 before, so piping a fragment can only ever narrow a query, never silently undo
 part of it. An earlier ordering term stays the more significant one, which is
-what makes a later `Query.orderBy(Order.asc(id))` a tie-breaker. Neither ever replaces what a fragment added.
+what makes a later `Query.orderBy(Order.asc(id))` a tie-breaker.
 
 **A sort the reader picks is part of the body too.** `Order.chosen` maps each
 name the input's sort can hold to a field, so the server and the client read one
@@ -806,7 +535,8 @@ const sorted = (sort: InputExpr<typeof PostSort.Type>) =>
 ```
 
 Every name the sort can hold needs a field, or it does not compile. A `null`
-sort chooses none, and the terms after it decide. `Query.orderFor(query, input)`
+sort chooses none, and the terms after it decide. `foldkit-crud`'s
+`Sort.make(['title', 'id']).Schema` is such a sort. `Query.orderFor(query, input)`
 is the fixed terms for one input, which is what every interpreter sorts by.
 
 **Every order is total.** `orderFor` ends it on the Entity's id, ascending,
@@ -839,21 +569,35 @@ as the server does: every term over a number or a boolean (a row may lack it), o
 portable collation, or a call whose primitive operators the client's table runs. A body with no
 order, text with none declared, a locale, or an operator the table lacks is `NotPlaceable`, with
 the reason.
-`foldkit-crud`'s `Sort.make(['title', 'id']).Schema` is such a sort.
 
 The list of predicates **is** the conjunction: a query wanting three
 conditions writes three `where`s. `Expr.and` is for a conjunction inside
 something else, and `Expr.or` and `Expr.not` are the other two connectives:
 
 ```ts
+const Product = Entity.define(
+  'Product',
+  Schema.Struct({
+    id: Schema.String,
+    description: Schema.String,
+    upc: Schema.String,
+    status: Schema.String,
+    cents: Schema.Number,
+  }),
+)
+const filters = {
+  search: Expr.input('search', Schema.String),
+  status: Expr.input('status', Schema.NullOr(Schema.String)),
+}
+
 // A search over two fields: a product whose description or UPC holds the text.
 Expr.or(
-  Expr.contains(Product.fields.description, input.search),
-  Expr.contains(Product.fields.upc, input.search),
+  Expr.contains(Product.fields.description, filters.search),
+  Expr.contains(Product.fields.upc, filters.search),
 )
 
-// A filter that applies only when its input is given (`input.status` may be null).
-Expr.whenGiven(input.status, status => Expr.eq(Product.fields.status, status))
+// A filter that applies only when its input is given (`filters.status` may be null).
+Expr.whenGiven(filters.status, status => Expr.eq(Product.fields.status, status))
 ```
 
 They mean what SQL's do, three-valued: a comparison of a null is unknown, a row
@@ -872,10 +616,13 @@ nothing, when its input is null, and to the predicate alone when it is given.
 
 ```ts
 Expr.lt(Product.fields.cents, 1000)
+
 // A range of dates, stored as ISO strings, which order by time under binary:
+const Shipment = Entity.define('Shipment', Schema.Struct({ id: Schema.String, shippedAt: Schema.String }))
+const range = { from: Expr.input('from', Schema.String), until: Expr.input('until', Schema.String) }
 Expr.and(
-  Expr.gte(Shipment.fields.shippedAt, input.from, { collation: Collation.binary }),
-  Expr.lt(Shipment.fields.shippedAt, input.until, { collation: Collation.binary }),
+  Expr.gte(Shipment.fields.shippedAt, range.from, { collation: Collation.binary }),
+  Expr.lt(Shipment.fields.shippedAt, range.until, { collation: Collation.binary }),
 )
 ```
 
@@ -888,11 +635,6 @@ field: anything else is refused where the comparison is written. A value is
 compared in its encoded form, which is why a date stored as an ISO string is
 text here. A null on either side is unknown, as in SQL. There is no `between`;
 it is the `and` above.
-
-A query reads one Entity, so a predicate or ordering term naming a different
-one is refused where it is piped: an interpreter would otherwise be asked for a
-column of a table it was never told to read. Entities are compared by identity,
-so two declared with the same name are two Entities here as everywhere else.
 
 ### Reading across relations: `Expr.path` and `Expr.exists`
 
@@ -988,7 +730,7 @@ An `Expr` is only portable if the thing running it says what it runs.
 an interpreter does not have:
 
 ```ts
-const missing = Query.unsupported(body, ['eq', 'isNull', 'isNotNull'])
+const missing = Query.unsupported(ByHandle, ['eq', 'isNull', 'isNotNull'])
 if (missing.length > 0) throw new Error(`cannot run ${missing.join(', ')}`)
 ```
 
@@ -998,7 +740,376 @@ matters is that it refuses rather than skipping the operation — an interpreter
 that quietly drops a `contains` it cannot compile answers a different question
 in full confidence, and every test it does support still passes.
 
-### Naming a question: operators
+### Reading one back
+
+`Query.show(query)` renders a body as text, one clause per line. A list of
+published posts by slug, newest first, reads:
+
+```text
+FROM Post
+WHERE Post.slug = $slug
+  AND Post.published = true
+ORDER BY Post.updatedAt DESC
+```
+
+For a person — an explanation, a diagnostic, a test asserting on a whole
+predicate at once — and never for an interpreter. It is close enough to SQL to
+read at a glance and unlike it everywhere that matters: an input is `$slug`
+rather than a bound parameter, `contains` is named rather than rendered as
+somebody's `like`, and no dialect's escaping or collation is implied. What
+actually ran is whatever that backend compiled, which is not this.
+`Expr.show(node)` does the same for one expression.
+
+A `Query` says which rows. It does not say which fields — that is a Selection —
+and it does not say how many, whether absence is an error, or whether to watch
+for changes: those belong to the consumer doing the reading, not to the
+relation.
+
+Only the operations a real query in this repository needs exist. The set grows
+from queries, not from what a database could express.
+
+## Reading an operation's input
+
+> Experimental: the smallest mapping that several operation shapes and
+> [`foldkit-form`](../form/README.md) needed.
+
+An Entity does not decide what may be written; an operation does (a Remote
+mutation, an RPC, a form). `Entity.input` takes that operation's input schema
+and says what each key means in terms of the Entity, so a consumer can find the
+field's metadata for a label, or the relation's target for a picker.
+
+```ts
+const CreatePostInput = Schema.Struct({
+  title: Schema.String,
+  authorId: Schema.String,
+  notify: Schema.Boolean,
+})
+
+const CreatePost = Entity.input(Blog.Post, CreatePostInput, {
+  authorId: Relation.input(Blog.Post.relations.author),
+  notify: Entity.unmapped,
+})
+
+CreatePost.members.title // Blog.Post.fields.title: it names a field, so it maps itself
+CreatePost.members.authorId.relation.target() // Blog.Author: what a picker chooses from
+CreatePost.members.notify // Entity.unmapped: about the operation, not the Post
+```
+
+- A key that names a field, with a value that fits it, maps itself. Only the
+  present value has to fit: a key may be optional (a partial update), admit
+  `null` (clearing it), or hold an `Option` (an id absent for something new),
+  which is the input schema's rule to make.
+  A declared write (`Write.update`, `Write.insert`) writes what an `Option`
+  holds and nothing for one holding nothing or a key left out; its id may not
+  be absent, since it names the row it writes.
+- Every other key needs an entry: a Field under another name, a relation's ids
+  with `Relation.input(relation)`, or `Entity.unmapped`. Nothing is inferred
+  from a name like `authorId`.
+- An entry may name the member by its key: `{ headline: 'title', authorId: 'author' }`
+  is the `title` Field and `Relation.input` of `author`. It is the same reading,
+  checked the same way; a name that is no field or relation is a type error.
+- `Entity.fields(Post, 'id', 'title')` is those fields' schemas, to spread into
+  the input's struct, so the input keeps the field's rules without repeating
+  `Post.fields.title.schema` per key.
+- `Relation.input` expects one id for a `one`, `id | null` for an optional
+  `one`, and an array of ids for a `many`.
+- A derived member cannot be written, and a member of another Entity cannot be
+  mapped. Both are type errors and throw.
+
+### An input that holds the target itself
+
+A post created together with a new author carries the author, not an id.
+`Relation.nested` maps the key to the relation and to an input of its target:
+
+```ts
+const NewAuthor = Entity.input(Blog.Author, Schema.Struct({ name: Schema.String }))
+
+const CreatePost = Entity.input(
+  Blog.Post,
+  Schema.Struct({ title: Schema.String, author: NewAuthor.schema }),
+  { author: Relation.nested(Blog.Post.relations.author, NewAuthor) },
+)
+```
+
+A `one` holds the nested input's value, a `many` a list of them; the nested
+input must be of the relation's target, and both are checked by type and at
+runtime. `Entity.selectFor` then loads what the nested input writes of the
+target, and `Entity.valuesFor` turns the loaded target back into nested values.
+What a nested write *does* (insert, update, replace the list) is the
+operation's handler to decide.
+
+### Showing what is there
+
+An edit screen has to load the current values and turn them into input values.
+Both follow from the reading, so neither is written by hand:
+
+```ts
+const PostForEdit = Entity.selectFor(CreatePost)
+// a Selection of `title` and `author`, the members the input writes; `author` as a ref
+
+Entity.valuesFor(CreatePost, { title: 'Hello', author: { entity: 'Author', id: 'a1' } })
+// { title: 'Hello', authorId: 'a1' }
+```
+
+`selectFor` selects every member the input writes, by the member's key, with
+each relation as refs. `valuesFor` reads such a value back under the input's
+keys: a field as it is, a relation as the id or ids of what it holds. A relation
+read without its ids (a nested Selection that left `id` out) fills nothing. An
+unmapped key appears in neither, since the Entity knows nothing about it.
+
+The schema is an ordinary `Schema.Struct`, so declare it once and give the same
+value to the operation, for example `Mutation.make('CreatePost', { Input:
+CreatePostInput, … })` in `foldkit-remote`.
+
+## Declaring what an input writes
+
+An input says what each key *is*; a `Write` says what an operation *does* with
+them: `Write.update` one row, named by a key, setting every other key mapped to
+a field; `Write.insert` a row under an id the client chose; or `Write.delete`
+one, which sets nothing.
+
+```ts
+import { Write } from 'foldkit-entity'
+
+const EditPostInput = Schema.Struct({ id: Schema.String, title: Schema.String })
+const EditPost = Entity.input(Blog.Post, EditPostInput)
+const Edit = Write.update(EditPost, { id: 'id' })
+
+Write.writes(Edit) // the fields and `one` relations any invocation may change
+Write.bind(Edit, { id: 'p1', title: 'Compilers' })
+// { entity: 'Post', id: 'p1', values: { title: 'Compilers' }, links: {}, increments: {}, assignments: {} }
+```
+
+It is declared data, like a query body: nothing is written by building one, and
+an Entity having a field grants no one the right to set it. `bind` encodes each
+value through its field's schema, so the patch is in the store's shape, and
+takes the keys to write when an author changed only some. `expect` names a key
+holding the revision the row was read at, for an interpreter to write only a row
+still at it. An unmapped key is not written. A key mapped to a `one` relation
+points the row elsewhere: `bind` gives it as a ref in `links` (none for an
+optional relation set to nothing), and each interpreter carries it its own way,
+a ref key in a store, a foreign key in a table. A `many` relation or a nested
+key is refused where the write is declared.
+
+### Values no client chooses: `Entity.sets`
+
+Some values no client should choose: who wrote a row, and when. The Entity
+says so once, with `Entity.sets`, after `Entity.relate` when it names a
+relation. A value is a term of the write's context, `Expr.viewer` or
+`Expr.now`, and `on` says which writes set it:
+
+```ts
+const AuthoredPost = Blog.Post.pipe(Entity.sets({ author: Expr.viewer(Author) }, { on: 'create' }))
+```
+
+`Expr.viewer(Author)` is whoever asks: a `one` relation to an Author pointed
+at them, or a field stored as text holding their id. `Expr.now` is the time,
+for a field stored as a number. A path from the viewer is what their row, or
+a row reached from it, holds: `Expr.path(Expr.viewer(Member),
+Expr.path(Member.relations.team, Team.fields.orgId))` sets a note's `orgId` to
+its writer's team's, for a field that holds what the path's end holds. A
+server reads it through its own sources as the asker may see them; a client
+reads it from the rows it holds, and predicts nothing where it lacks one. A
+query body or a guard rule compares with one as with any value
+(`Expr.eq(Note.fields.orgId, orgOfViewer)`): SQL reads it in subqueries under
+each reached table's `visible` rule, and `Judge` from the rows its holder has
+(`rows`), unknown where it lacks the viewer's row.
+
+`on: 'create'` sets the member on every insert; `on: 'write'` on every insert
+and every update (an `editedAt`). A delete sets nothing. Every write of the
+Entity follows from this one declaration (`write.context`), and a write whose
+input sets, links, moves or computes such a member is refused where it is
+declared. `Write.contextValues(write, { viewer, now }, read)` works out what
+they come to, `read` giving one member of one row at a time for a path. Each interpreter fills them from what
+it has: a server from its principal and its clock, a client as a prediction. A
+value that comes to null where the member holds none (a visitor) is named
+`unfilled`: a server refuses the write, a client predicts nothing for it.
+Nothing else about what a write does is declared anywhere: what it moves is
+read from the Entities' derived members and the queries' bodies.
+
+### When a write applies: `when`
+
+An update or a delete may also say when it makes sense: `when` is what the row
+must hold for it to land, written as a query body is: `() =>
+Expr.eq(Post.fields.title, 'Draft')`, or with the input, `({ input }) =>
+Expr.eq(Post.fields.title, input.from)`. It reads the row as it is before the write and the input,
+never who is asking (that is a guard's), and only its own Entity: a field of
+another is a type error, and refused where the write is declared. It is held as
+a query body (`write.when`), so an interpreter checks it in the statement that
+writes, and a row it does not hold of is refused as unmet. A write declared with
+one is a `ConditionedWrite`, which is how `Mutation.write` knows it may be
+refused so.
+
+### Moving a number: `increment`
+
+An update may move a number field by an amount the input holds, rather than set
+it: `increment: { stock: 'quantity' }` adds the input's `quantity` (an unmapped
+key, a number; negative takes away) to the stored `stock`, in the statement that
+writes, so no concurrent change is lost. A retry must not add twice, so either it
+expects a revision (a retry of a write that landed is then a conflict), or its
+writer keeps a ledger, which answers the retry from its record and lets two
+concurrent increments both land. `RemoteServer.write` refuses one with neither,
+and one of a real number with no revision even under a ledger: floating-point
+addition does not associate, so two concurrent sums could land as two results.
+The field must be stored as a number, and may not be the id, the revision, or
+set by another key. `Write.bind` gives the amounts apart from the values (`increments`), so a
+client can add them to the value it holds as it reads it (Remote does), never
+fixing a sum over a row that may since have moved. `Write.reads(write)` is what a write
+reads from its row: what its `when` reads, each field it increments, what its
+assignments read, and the revision. How a declaration, its guard, its writer and
+the client fit together is the [declared writes guide](../../docs/declared-writes.md).
+
+### Computing a field: `compute`
+
+An update may also compute a field from the row before it and the input:
+`compute: { label: ({ row, input }) => concat(input.prefix, row.name) }`, with an
+operator such as the `concat` [below](#operators-each-interpreter-implements). It
+reads neither the row after the write nor another Entity, so assignments never
+depend on each other, and is refused where it is declared for a field another
+key writes or a value of a kind the field does not store. A defined operator in
+it is expanded there, so `Write.bind` carries it as data (`assignments`, each a
+`Computation`: fields by key, values encoded, operators by name), which a writer
+compiles into the statement and a client predicts by its own table. A
+computation does not repeat without effect, so a retry of one is held to it as
+an increment's is; without a revision it lands only under a ledger, and there
+only where the writer pins the row it read (a guarded writer with a `revision`)
+or by an operator whose commutativity and associativity are tested over every
+value for each implementation the writer runs (`Conformance.laws` in memory,
+`Conformance.lawsBy` in SQL).
+
+### The row a write leaves: `Write.apply`
+
+`Write.apply(row, bound, { operators })` is the row a bound write leaves over
+the row before it: values set, amounts added (a null stays null, as in SQL),
+assignments computed. It is the one computation of that row: a guard judges
+it, a writer explains a miss by it, a client predicts it. `unknown` names each
+field it could not work out (one the row lacks, or an operator the table lacks),
+which keeps what the row holds.
+
+### What a client foresees of a supplied member
+
+A count or an exists says what it is, so a client predicts it for a row it
+writes. A `Derived.make` member says nothing, so a client waits for the server,
+unless it says how to foresee it:
+
+- `Derived.make(schema, { predict })`: `predict({ entity, row, rows, context })`
+  reads the row the write leaves as the holder has it (a `HeldRow`, with the
+  holder's other `rows` and the write's `context`) and returns the value,
+  encoded, or none where it cannot know.
+- `Derived.make(schema, { forbids })`: `forbids(value, surface)` says which
+  write to a row the value refuses. `surface` is a `WriteSurface` (`kind`
+  `Update` or `Delete`, the `members` it writes, the `relations` it points as
+  `Link` or `Unlink`), and the answer is `Option<{ reason }>`, only for a
+  definite refusal. A client holding the value refuses that write where it is
+  made, showing and sending nothing.
+
+`foldkit-guard`'s `may` declares both.
+
+## What every row and change must hold: invariants
+
+A Schema judges a value, and a write's `when` the row before it. Neither judges
+the row a write leaves: with `quantity = 10, reserved = 5`, an update setting
+`quantity = 3` decodes, and leaves a row that holds more reserved than there is.
+An **invariant** is what every stored row must hold, read over the row after a
+write (`after`):
+
+```ts
+import { Schema } from 'effect'
+import { Entity, Expr } from 'foldkit-entity'
+
+const InventoryFields = Entity.define(
+  'Inventory',
+  Schema.Struct({ id: Schema.String, quantity: Schema.Number, reserved: Schema.Number }),
+)
+const Inventory = InventoryFields.pipe(
+  Entity.invariant(
+    'reservedWithinQuantity',
+    ({ after }) => Expr.lte(after.reserved, after.quantity),
+    { message: 'Reserved stock cannot exceed the quantity', path: ['reserved'] },
+  ),
+)
+
+Entity.judge(Inventory, { after: { id: 'i1', quantity: 3, reserved: 5 } })
+// { _tag: 'Invalid', failures: [{ id: 'reservedWithinQuantity', … }] }
+```
+
+One that reads the row before too (`before`) relates the two, each of which may
+be valid on its own: an order that shipped stays shipped.
+
+```ts
+const OrderFields = Entity.define(
+  'Order',
+  Schema.Struct({ id: Schema.String, status: Schema.Literals(['placed', 'shipped']) }),
+)
+const Order = OrderFields.pipe(
+  Entity.invariant(
+    'shippedStaysShipped',
+    ({ before, after }) =>
+      Expr.or(Expr.not(Expr.eq(before.status, 'shipped')), Expr.eq(after.status, 'shipped')),
+    { message: 'A shipped order stays shipped', path: ['status'] },
+  ),
+)
+
+const shipped = { id: 'o1', status: 'shipped' }
+Entity.judge(Order, { before: shipped, after: { ...shipped, status: 'placed' } })
+// { _tag: 'Invalid', failures: [{ id: 'shippedStaysShipped', … }] }
+```
+
+What an invariant reads decides when it is judged; nothing else is declared:
+
+```text
+reads after only   -> state invariant:      every create and update; a CHECK constraint
+reads before too   -> transition invariant: every update, the only write with a row before
+```
+
+`Entity.readsBefore(invariant)` says which one is, for each of
+`Entity.invariants(entity)`.
+
+`Entity.invariant` returns the step that attaches it, carrying its `id`. Hoist
+it to export it, naming the Entity's type (what it reads is checked against
+it), and match a refusal against it rather than spelling the id again:
+
+```ts
+export const reservedWithinQuantity = Entity.invariant<typeof InventoryFields>(
+  'reservedWithinQuantity',
+  ({ after }) => Expr.lte(after.reserved, after.quantity),
+  { message: 'Reserved stock cannot exceed the quantity', path: ['reserved'] },
+)
+export const Inventory = InventoryFields.pipe(reservedWithinQuantity)
+
+// Where a write's refusal is read (foldkit-remote):
+Refusal.isInvalidBy(refusal, reservedWithinQuantity)
+```
+
+- `before` is each field as the row before holds it (`Expr.field`), and `after`
+  each as the row after holds it (`Expr.next`), both typed as the field. Each
+  is an expression already, so it goes on either side as it is; `Expr.field`
+  wraps an Entity's own field, and refuses one of these:
+
+  | Write | Not |
+  | --- | --- |
+  | `Expr.gte(after.quantity, before.quantity)` | `Expr.gte(after.quantity, Expr.field(before.quantity))` |
+- It is declared once, on the Entity's metadata, and attaching more adds to it;
+  the Entity stays the same (`Entity.same`). Its interpreters read it from there.
+- It reads stored rows only: one over another Entity, or reading an input, is
+  refused where it is declared, as is an id declared twice or a `path` naming no
+  field. So is one reading nothing of `after`: which rows a write may start from
+  is its `when`. Who may write is a guard's; whether a write applies now is its `when`'s.
+- `Entity.judge(entity, { after, before? })` judges rows as the store holds them
+  (encoded) and is pure. Without `before` (a create) it skips transition
+  invariants. A row holds one only when it is true: a null fails it, as SQL's
+  unknown drops a row from a `WHERE`. A row without a field it reads is
+  `Undecided`, never `Valid`.
+- `Entity.check(entity)` is the state invariants as a Schema check over the row
+  type (`entity.schema.check(Entity.check(entity))`): it encodes the value, and
+  reports each failure at its `path` with its `message`.
+
+Text compares only under a declared collation, here too: a date stored as text
+needs `{ collation: Collation.binary }` on its comparison. An interpreter that
+judges stored rows alone refuses `after`'s nodes as the operation `next`;
+`Expr.substituteNext` reads the ones a write sets as their values.
+
+## Naming a question: operators
 
 What operators make possible, end to end (a rule named once, search and order
 the kernel lacks, writes that compute, one meaning checked across
@@ -1244,34 +1355,6 @@ holding `acme.slug` does not answer a body calling `acme.slug@2`, and the
 refusal names both (`acme.slug@2 (this table has acme.slug)`), so a client and a
 server on different deploys see which side is behind.
 
-### Reading one back
-
-`Query.show(query)` renders a body as text, one clause per line:
-
-```ts
-Query.show(body)
-// FROM Post
-// WHERE Post.slug = $slug
-//   AND Post.published = true
-// ORDER BY Post.updatedAt DESC
-```
-
-For a person — an explanation, a diagnostic, a test asserting on a whole
-predicate at once — and never for an interpreter. It is close enough to SQL to
-read at a glance and unlike it everywhere that matters: an input is `$slug`
-rather than a bound parameter, `contains` is named rather than rendered as
-somebody's `like`, and no dialect's escaping or collation is implied. What
-actually ran is whatever that backend compiled, which is not this.
-`Expr.show(node)` does the same for one expression.
-
-A `Query` says which rows. It does not say which fields — that is a Selection —
-and it does not say how many, whether absence is an error, or whether to watch
-for changes: those belong to the consumer doing the reading, not to the
-relation.
-
-Only the operations a real query in this repository needs exist. The set grows
-from queries, not from what a database could express.
-
 ## API
 
 | Call | Meaning |
@@ -1282,6 +1365,7 @@ from queries, not from what a database could express.
 | `Entity.page(selection, { first, after } or { last, before })` | In a Selection, a `many` relation read as a page: `items`, `hasNext`, `hasPrevious`. |
 | `Entity.fields(entity, ...keys)` | The schemas of those fields, by key, to spread into an input's struct. |
 | `Write.update(input, { id, expect?, when?, increment? })` | A declared update of one row: every key the input maps to a field, but the id and the expected revision; `when`, what the row must hold for it to land; `increment`, the number fields it moves by an input amount. |
+| `Write.insert(input, { id })` / `Write.delete(input, { id, expect?, when? })` | A declared insert under an id the client chose; a declared delete of one row, which sets nothing. |
 | `Write.reads(write)` | The fields a write reads from its row: its `when`'s, each it increments, its assignments', the revision. |
 | `Write.update(input, { …, compute })` / `Computation` | A field computed from the row before the write and the input, carried as data. |
 | `Write.apply(row, bound, { operators })` / `Write.boundReads(bound)` | The row a bound write leaves, and what of the row before it that needs. |
@@ -1290,9 +1374,12 @@ from queries, not from what a database could express.
 | `Relation.nested(relation, input)` | In an input mapping: the key holds the target itself, written through `input`. |
 | `Entity.selectFor(input)` | The Selection of the members an input writes: what an edit screen loads. |
 | `Entity.valuesFor(input, value)` | The input values that reproduce a loaded value: fields as they are, refs as ids. |
-| `Entity.derived({ key: Derived.make(schema) })` | Pipe step adding readable, externally supplied members. |
+| `Entity.derived({ key: Derived.make(schema, { predict?, forbids? }) })` | Pipe step adding readable, externally supplied members; `predict` and `forbids` say what a client foresees of one. |
 | `Derived.count(Other.relations.pointer)` | A derived member counting the rows whose `one` relation points at this one. |
 | `Derived.exists(Other.relations.pointer, { viewer: Other.relations.by })` | The id of a row pointing at this one and at whoever reads it, or none. |
+| `Entity.invariant(id, ({ before, after }) => predicate, { message, path })` | Pipe step: what every stored row must hold, judged over the row a write leaves. |
+| `Entity.judge(entity, { after, before? })` / `Entity.check(entity)` | Judge rows against the invariants (`Valid`, `Invalid`, `Undecided`); the state invariants as a Schema check. |
+| `Entity.invariants(entity)` / `Entity.readsBefore(invariant)` | The invariants an Entity holds; whether one reads the row before (a transition invariant). |
 | `Entity.annotate(metadata)` | Pipe step attaching metadata to the Entity. |
 | `Entity.annotateMembers({ key: metadata })` | Pipe step attaching metadata to members by key. |
 | `Entity.same(a, b)` | Whether two descriptors are versions of one Entity. |

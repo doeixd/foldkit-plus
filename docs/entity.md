@@ -14,6 +14,10 @@ declaration and adds only what it alone knows.
 | --- | --- |
 | A Post has a title, one Author, many Comments, a comment count | `foldkit-entity` |
 | Whether a title is valid | the Effect `Schema` of that field |
+| What every stored Post must hold, across fields or across a write | `foldkit-entity` (`Entity.invariant`) |
+| Which Posts a list holds, in which order | a query body (`Query`, `Expr`), declared by the application |
+| What an edit does to the row (sets, adds, must find) | a declared write (`Write`), declared by the operation |
+| Who may read or write a Post | `foldkit-guard`, in the same `Expr` |
 | Relations arrive as refs; the store follows them | `foldkit-remote` |
 | `author` is the `author_id` column; `title` is stored as `headline` | `foldkit-remote-drizzle` (`bind`) |
 | What editing a post may change | the operation's input struct, not the Entity |
@@ -30,12 +34,14 @@ form and a mutation. A relation existing is not a licence to read a table.
 ```text
                         domain module
      Entity.define · Entity.relate · Entity.select · input structs
+     Query bodies · Write declarations · invariants
               (imports neither Remote nor Drizzle)
                  |                              |
                  v                              v
    client                                   server
-   Remote.make({ entities })                bind(entities, { tables })
+   Remote.make({ entities })                bind(entities, storage)
    Data.get(Selection, id)                  source(binding) · query(...)
+   Data.query(Query, input, { select })     RemoteServer.write(...)
    Form.make(Entity.input(...))             RemoteServer.mutation(...)
    Crud.editor · Crud.list
 ```
@@ -47,6 +53,10 @@ Three rules keep the copies from coming back:
   constants that are each typed in terms of the other.
 - **A Selection carries its schema and fetches nothing.** Remote compiles it into
   the requirement graph it plans from; a test can decode against it directly.
+- **A query body, a write and an invariant mean one thing everywhere.** The
+  server compiles them to SQL, and the client judges the rows it holds by the
+  same declaration (`Judge`), so what it shows before an answer is what the
+  server will say, or nothing.
 - **An operation's input is read against the Entity, not derived from it.**
   `Entity.input` says what each key of the struct means (`authorId` is the
   `author` relation). From that reading follow the form's controls, what an edit
