@@ -28,58 +28,58 @@
   "exports": {
     ".": {
       "foldkit-plus:source": "./src/index.ts",
-      "types": "./dist/index.d.mts",
-      "import": "./dist/index.mjs"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     },
     "./dom": {
       "foldkit-plus:source": "./src/dom/index.ts",
-      "types": "./dist/dom/index.d.mts",
-      "import": "./dist/dom/index.mjs"
+      "types": "./dist/dom/index.d.ts",
+      "import": "./dist/dom/index.js"
     },
     "./device": {
       "foldkit-plus:source": "./src/device/index.ts",
-      "types": "./dist/device/index.d.mts",
-      "import": "./dist/device/index.mjs"
+      "types": "./dist/device/index.d.ts",
+      "import": "./dist/device/index.js"
     },
     "./events": {
       "foldkit-plus:source": "./src/events/index.ts",
-      "types": "./dist/events/index.d.mts",
-      "import": "./dist/events/index.mjs"
+      "types": "./dist/events/index.d.ts",
+      "import": "./dist/events/index.js"
     },
     "./interaction": {
       "foldkit-plus:source": "./src/interaction/index.ts",
-      "types": "./dist/interaction/index.d.mts",
-      "import": "./dist/interaction/index.mjs"
+      "types": "./dist/interaction/index.d.ts",
+      "import": "./dist/interaction/index.js"
     },
     "./media": {
       "foldkit-plus:source": "./src/media/index.ts",
-      "types": "./dist/media/index.d.mts",
-      "import": "./dist/media/index.mjs"
+      "types": "./dist/media/index.d.ts",
+      "import": "./dist/media/index.js"
     },
     "./motion": {
       "foldkit-plus:source": "./src/motion/index.ts",
-      "types": "./dist/motion/index.d.mts",
-      "import": "./dist/motion/index.mjs"
+      "types": "./dist/motion/index.d.ts",
+      "import": "./dist/motion/index.js"
     },
     "./net": {
       "foldkit-plus:source": "./src/net/index.ts",
-      "types": "./dist/net/index.d.mts",
-      "import": "./dist/net/index.mjs"
+      "types": "./dist/net/index.d.ts",
+      "import": "./dist/net/index.js"
     },
     "./observers": {
       "foldkit-plus:source": "./src/observers/index.ts",
-      "types": "./dist/observers/index.d.mts",
-      "import": "./dist/observers/index.mjs"
+      "types": "./dist/observers/index.d.ts",
+      "import": "./dist/observers/index.js"
     },
     "./state": {
       "foldkit-plus:source": "./src/state/index.ts",
-      "types": "./dist/state/index.d.mts",
-      "import": "./dist/state/index.mjs"
+      "types": "./dist/state/index.d.ts",
+      "import": "./dist/state/index.js"
     },
     "./time": {
       "foldkit-plus:source": "./src/time/index.ts",
-      "types": "./dist/time/index.d.mts",
-      "import": "./dist/time/index.mjs"
+      "types": "./dist/time/index.d.ts",
+      "import": "./dist/time/index.js"
     },
     "./package.json": "./package.json"
   },

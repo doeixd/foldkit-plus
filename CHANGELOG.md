@@ -612,6 +612,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A page keeps only the modules it reads of a published package** (#215).
+  `foldkit-mixins`, `-bundle`, `-media`, `-primitives`, `-entity`, `-crud`,
+  `-form` and `-ssr` were each linked into a few files, so `sideEffects:
+  false` had nothing to drop and `export * as` namespaces became objects
+  keeping every member: a page reading `Collation.binary` kept 73 kB of
+  `foldkit-entity` against 1.9 kB from source. Each is now published one file
+  per source module, `.js` and `.d.ts` (the export map's paths changed, its
+  subpaths did not). Chirp's client entry, built against the published
+  packages, fell from 1,043 kB to 1,009 kB minified (286 to 281 kB gzipped);
+  `scripts/test/publishedBuild.test.ts` holds each package to what its
+  source costs.
 - **A write's answer reads back what its own prediction moved** (#265). A
   count predicted on a row no active Surface reads (a note deleted on its own
   page lowering its author's `noteCount`, which only the notebook reads) went

@@ -43,8 +43,8 @@ test('the entries a page imports reach no node: module', async () => {
     dts: false,
     logLevel: 'silent',
   })
-  for (const entry of ['index.mjs', 'browser/index.mjs', 'icons/index.mjs', 'unpic/index.mjs'])
+  for (const entry of ['index.js', 'browser/index.js', 'icons/index.js', 'unpic/index.js'])
     expect(nodeModulesFrom(entry), entry).toEqual([])
   // The walk finds them where they are: the Vite plugin runs in Node.
-  expect(nodeModulesFrom('vite/index.mjs')).toContain('node:module')
+  expect(nodeModulesFrom('vite/index.js')).toContain('node:module')
 }, 120_000)

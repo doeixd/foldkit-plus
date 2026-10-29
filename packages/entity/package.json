@@ -28,13 +28,13 @@
   "exports": {
     ".": {
       "foldkit-plus:source": "./src/index.ts",
-      "types": "./dist/index.d.mts",
-      "import": "./dist/index.mjs"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     },
     "./conformance": {
       "foldkit-plus:source": "./src/conformance/index.ts",
-      "types": "./dist/conformance/index.d.mts",
-      "import": "./dist/conformance/index.mjs"
+      "types": "./dist/conformance/index.d.ts",
+      "import": "./dist/conformance/index.js"
     }
   },
   "files": [

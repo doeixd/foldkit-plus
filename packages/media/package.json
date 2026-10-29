@@ -27,43 +27,43 @@
   "exports": {
     ".": {
       "foldkit-plus:source": "./src/index.ts",
-      "types": "./dist/index.d.mts",
-      "import": "./dist/index.mjs"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     },
     "./browser": {
       "foldkit-plus:source": "./src/browser/index.ts",
-      "types": "./dist/browser/index.d.mts",
-      "import": "./dist/browser/index.mjs"
+      "types": "./dist/browser/index.d.ts",
+      "import": "./dist/browser/index.js"
     },
     "./icons": {
       "foldkit-plus:source": "./src/icons/index.ts",
-      "types": "./dist/icons/index.d.mts",
-      "import": "./dist/icons/index.mjs"
+      "types": "./dist/icons/index.d.ts",
+      "import": "./dist/icons/index.js"
     },
     "./server": {
       "foldkit-plus:source": "./src/server/index.ts",
-      "types": "./dist/server/index.d.mts",
-      "import": "./dist/server/index.mjs"
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js"
     },
     "./cloudflare": {
       "foldkit-plus:source": "./src/cloudflare/index.ts",
-      "types": "./dist/cloudflare/index.d.mts",
-      "import": "./dist/cloudflare/index.mjs"
+      "types": "./dist/cloudflare/index.d.ts",
+      "import": "./dist/cloudflare/index.js"
     },
     "./sharp": {
       "foldkit-plus:source": "./src/sharp/index.ts",
-      "types": "./dist/sharp/index.d.mts",
-      "import": "./dist/sharp/index.mjs"
+      "types": "./dist/sharp/index.d.ts",
+      "import": "./dist/sharp/index.js"
     },
     "./unpic": {
       "foldkit-plus:source": "./src/unpic/index.ts",
-      "types": "./dist/unpic/index.d.mts",
-      "import": "./dist/unpic/index.mjs"
+      "types": "./dist/unpic/index.d.ts",
+      "import": "./dist/unpic/index.js"
     },
     "./vite": {
       "foldkit-plus:source": "./src/vite/index.ts",
-      "types": "./dist/vite/index.d.mts",
-      "import": "./dist/vite/index.mjs"
+      "types": "./dist/vite/index.d.ts",
+      "import": "./dist/vite/index.js"
     },
     "./client": {
       "foldkit-plus:source": "./client.d.ts",

@@ -32,7 +32,7 @@ const problems = []
 for (const dir of readdirSync(packagesDir)) {
   const dist = join(packagesDir, dir, 'dist')
   if (!existsSync(dist)) continue
-  for (const file of walk(dist).filter(path => path.endsWith('.d.mts'))) {
+  for (const file of walk(dist).filter(path => /\.d\.m?ts$/.test(path))) {
     const text = readFileSync(file, 'utf8')
     for (const [, name, subpath = ''] of text.matchAll(
       /(?:from |import\()["'](foldkit-[a-z-]+)(\/[^"']+)?["']/g,

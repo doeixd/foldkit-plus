@@ -1,22 +1,17 @@
 import { defineConfig } from 'tsdown'
 
+// One file per source module, relative imports left as written: a page then
+// keeps only the modules it reads, as from source (#215). Linked into one file,
+// `sideEffects: false` had nothing to drop and `export * as` became an object
+// keeping every member. `scripts/test/publishedBuild.test.ts` holds it.
 export default defineConfig({
-  entry: [
-    'src/index.ts',
-    'src/device/index.ts',
-    'src/dom/index.ts',
-    'src/events/index.ts',
-    'src/interaction/index.ts',
-    'src/media/index.ts',
-    'src/motion/index.ts',
-    'src/net/index.ts',
-    'src/observers/index.ts',
-    'src/state/index.ts',
-    'src/time/index.ts',
-  ],
+  entry: ['src/**/*.ts'],
+  fixedExtension: false,
   format: ['esm'],
   dts: true,
   clean: true,
   target: 'es2022',
-  deps: { neverBundle: ['effect', /^foldkit(\/.*)?$/, 'foldkit-bundle', 'foldkit-mixins'] },
+  deps: {
+    neverBundle: [/^\.\.?\//, 'effect', /^foldkit(\/.*)?$/, 'foldkit-bundle', 'foldkit-mixins'],
+  },
 })

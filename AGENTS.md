@@ -687,6 +687,13 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   false` cannot help, and the examples never showed it because they resolve
   source. Keep namespaces ESM (one entry per file, relative imports external,
   `mixins-ui/tsdown.config.ts`), and measure a package's `dist`, not its source.
+- **A linked package keeps what its modules run, read or not.** Without one
+  namespace, `foldkit-entity`'s one linked file kept its top-level
+  `Schema.Struct(...)` calls in every page: `Collation.binary` alone kept 73 kB
+  of the build, 1.9 kB of the source, since `sideEffects: false` drops files and
+  there was one. Make each source file an entry (#215), and add the package to
+  `scripts/test/publishedBuild.test.ts`, which compares a page against the
+  build and against the source.
 - **A Mount runs outside the application's `resources`.** Only Commands and
   Subscriptions get them, so a service given there (a diagnostics reporter)
   never reaches a Mount; `MountFailed` goes to the default log.

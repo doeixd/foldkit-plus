@@ -105,6 +105,8 @@ killed.
 
 - Other packages built by one linked `tsdown` entry with `export * as` over a
   barrel may carry the same cost. `foldkit-mixins` measured close to its source
-  here (53,693 B against 49,895 B rendered), so it was left alone.
+  here (53,693 B against 49,895 B rendered), so it was left alone. A page
+  reading less of it showed the cost, and #215 changed it and seven others
+  (`215-published-builds-DESIGN.md`).
 - #215's other findings (Foldkit's devtools in production, Yielded's
   `HttpClient` on every page) belong to Foldkit and Yielded Auth.

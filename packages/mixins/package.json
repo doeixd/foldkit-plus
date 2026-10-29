@@ -29,53 +29,53 @@
   "exports": {
     ".": {
       "foldkit-plus:source": "./src/index.ts",
-      "types": "./dist/index.d.mts",
-      "import": "./dist/index.mjs"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     },
     "./layers": {
       "foldkit-plus:source": "./src/layers.ts",
-      "types": "./dist/layers.d.mts",
-      "import": "./dist/layers.mjs"
+      "types": "./dist/layers.d.ts",
+      "import": "./dist/layers.js"
     },
     "./theme": {
       "foldkit-plus:source": "./src/theme.ts",
-      "types": "./dist/theme.d.mts",
-      "import": "./dist/theme.mjs"
+      "types": "./dist/theme.d.ts",
+      "import": "./dist/theme.js"
     },
     "./layout": {
       "foldkit-plus:source": "./src/layout.ts",
-      "types": "./dist/layout.d.mts",
-      "import": "./dist/layout.mjs"
+      "types": "./dist/layout.d.ts",
+      "import": "./dist/layout.js"
     },
     "./defaults": {
       "foldkit-plus:source": "./src/defaults.ts",
-      "types": "./dist/defaults.d.mts",
-      "import": "./dist/defaults.mjs"
+      "types": "./dist/defaults.d.ts",
+      "import": "./dist/defaults.js"
     },
     "./prose": {
       "foldkit-plus:source": "./src/prose.ts",
-      "types": "./dist/prose.d.mts",
-      "import": "./dist/prose.mjs"
+      "types": "./dist/prose.d.ts",
+      "import": "./dist/prose.js"
     },
     "./app": {
       "foldkit-plus:source": "./src/app.ts",
-      "types": "./dist/app.d.mts",
-      "import": "./dist/app.mjs"
+      "types": "./dist/app.d.ts",
+      "import": "./dist/app.js"
     },
     "./utilities": {
       "foldkit-plus:source": "./src/utilities.ts",
-      "types": "./dist/utilities.d.mts",
-      "import": "./dist/utilities.mjs"
+      "types": "./dist/utilities.d.ts",
+      "import": "./dist/utilities.js"
     },
     "./testing": {
       "foldkit-plus:source": "./src/testing.ts",
-      "types": "./dist/testing.d.mts",
-      "import": "./dist/testing.mjs"
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.js"
     },
     "./foundations": {
       "foldkit-plus:source": "./src/foundations.ts",
-      "types": "./dist/foundations.d.mts",
-      "import": "./dist/foundations.mjs"
+      "types": "./dist/foundations.d.ts",
+      "import": "./dist/foundations.js"
     },
     "./package.json": "./package.json"
   },
