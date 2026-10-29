@@ -1,6 +1,6 @@
 # The durable outbox (operations phase 7, #247, #260)
 
-Status: design (2026-10-29). Phase 7 of [operations-PLAN.md](./operations-PLAN.md).
+Status: built (2026-10-29). Phase 7 of [operations-PLAN.md](./operations-PLAN.md).
 It builds on phase 4's captured `now` ([ops-4](./ops-4-captured-now-DESIGN.md)),
 the failed-write ledger (#260) and the law of phase 6
 ([phase 6](./operations-phase6-DESIGN.md)), whose remainder it also takes.
@@ -123,6 +123,12 @@ nothing else until it settles:
 
 `Data.mutate`'s Command for a durable write sends nothing: it answers
 `MutationQueued`, a no-op. The outbox is the write's only sender.
+
+The sender announces the outcome to the other tabs **before** it writes the
+store: a tab that read the store first would find the write `done` with no
+answer and refetch what it showed (§7), where the answer itself settles it.
+The Web Locks are a context reference (`OutboxLocks`), the browser's by
+default; `Trace` sets none, since a trace is one tab.
 
 ### 5. Retry with backoff on transport failures only
 
@@ -284,10 +290,20 @@ no row changed, the row there at that revision → the rules refused: Forbidden
 - **Or'd with what memory decided.** A surface admits when any of its rules
   holds; a rule that does not reach decided `true` admits without SQL, and the
   reaching rules are sent only when the rest are `false`.
-- **A writer that cannot judge them refuses at definition.** `requires` is a
-  capability of `foldkit-remote-drizzle`'s writer (`judges: 'sql'`).
+- **A writer that cannot judge them refuses at definition.** `EntityWriter`
+  gains `requires: true` and, on `update` and `delete`, a `requires`
+  (`WriteRequirement`: a `RowRequirement` of bodies, all or any, and the
+  `explain`'s words). `foldkit-remote-drizzle`'s writer has it.
   `GuardServer.writer` over another writer, for an Entity with a reaching
   write rule, throws when it is made, naming the rule.
+- **Over the stored row only.** The statement sees the row before the write.
+  The guard judges a rule over the row the write leaves too, so a write that
+  changes what a reaching rule reads of its own row (its fields, the relation
+  a path leaves by) is refused; one that does not leaves the rule's answer as
+  it was, since the other rows are the same in one statement.
+- **On a miss**, the writer reads the row back and, before `Conflict`, `Unmet`
+  or `Invalid`, refuses it as `Forbidden` where the row is there and fails the
+  requirement: who may write is refused first, as the guard refuses.
 - **`may` does not answer such an interaction** on the server: one row cannot
   decide it, and a `may` that guessed `false` would now refuse writes locally
   (§11). The interaction is left out of `may.row`, which refuses nothing.
@@ -295,6 +311,63 @@ no row changed, the row there at that revision → the rules refused: Forbidden
   row for the statement to judge; it needs `insert … select … where` over the
   values, a compiler target of its own), on a member, a relation, a named
   interaction (a hand-written handler has no statement), or `always`.
+
+## Deferred
+
+- **A reaching rule on `Create`.** An insert has no stored row for a
+  statement to judge; it needs `insert … select … where <rule>` over the
+  values, a compiler target whose columns are parameters.
+- **A write that moves what a reaching rule reads** (a card moved to another
+  team) is refused rather than judged over the row it leaves.
+- **The server's `may` for a reaching interaction** is left out rather than
+  answered in SQL per row, so a client foresees it (over the store, phase 5)
+  where the server says nothing, and `Law.check` would report the difference
+  for such a domain. No domain here has one.
+- **A list or count kept by a durable write's answer in another tab** that
+  missed the announcement is refetched whole (§7), not patched.
+- **Restoring a stored `optimistic` layer by predicting it again** over the
+  current store, rather than showing the stored one (see below).
+
+## Tests
+
+- `packages/remote/test/outbox.test.ts` (20), over the outbox's own
+  Subscription entries and a store the test keeps: queued not sent; sent only
+  once stored; the operation id and `now` sent; a reload (the page goes with
+  the send unanswered) shows it and sends it as itself; a send nothing
+  answered sent again with those after it waiting; a refusal settled, listed,
+  retried as itself and dismissed from the store; a refusal the sender could
+  not write written by the page; unreadable entries (an unknown Mutation, an
+  input that no longer decodes, a shape) kept, reported once, skipped; the
+  merge; another tab's write shown; one settled elsewhere released and asked
+  for again; a sender finding it settled sends nothing; another scope empty;
+  `forget`; a store that cannot be written still sends.
+- `packages/remote/test/outboxReload.test.ts`: two Foldkit runtimes in turn
+  over one store, the first offline, the second sending the write as itself.
+- `packages/remote/test/outboxTabs.browser.test.ts`: two runtimes in one
+  Chromium page (shared `localStorage`, Web Locks, `BroadcastChannel`): a write
+  queued in one shows in both, is sent once, and settles in both.
+- `examples/chirp/e2e/sandbox.e2e.ts`: a chirp posted at `?offline` waits,
+  survives a reload, and is sent once a page can reach the server; Ada then
+  reads it. It goes red with `durable` taken out of Chirp's post.
+- `packages/remote-server/test/answer.test.ts`, `packages/remote/test/rpcClient.test.ts`:
+  `Unreachable` told apart from a refusal.
+- `packages/remote/test/localForbidden.test.ts` (8),
+  `packages/guard/test/mayForbids.test.ts` (11), and Chirp's law over an edit
+  of someone else's chirp.
+- `packages/guard/test/pathWriteRule.test.ts` (11, SQLite and PGlite): an
+  update and a delete held to a viewer-path rule in their statement, a change
+  of team in force at once, a move refused, `may` left out, a writer without
+  `requires` refused.
+- `heldValue.test.ts`: generators for `MutationQueued`, `OutboxRead` (another
+  tab's write, a refusal, a write settled elsewhere, an unreadable entry,
+  another key) and `OutboxDelayed`, and a durable `MutationStarted`; 2000
+  seeds of 30 steps in a scratch run.
+- Mutation specs, all killed: `outbox.mutations.ts` (23),
+  `unreachable.mutations.ts` (2), `localForbidden.mutations.ts` (10),
+  `pathWriteRule.mutations.ts` (8), Chirp's (one new); and the specs this
+  phase re-anchored (`failedWrites`, `localRefusal`, `mutationAnswer`,
+  `mayPrediction`, `law` (remote-drizzle), `compute`, `write`, `server`,
+  `viewerRule`, `precondition`).
 
 ## Considered and not done
 

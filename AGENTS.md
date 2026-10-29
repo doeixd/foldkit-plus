@@ -1071,6 +1071,18 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   too, and keeps a held row that a relink took out of a path's filter. A
   check over what a body reads walks `reaches` as well.
 
+- **Tell the other tabs the answer before the store says it is done.** The
+  outbox's sender first wrote `done` to the store and announced it; the
+  sender's own save of that change pinged first, so the other tab read the
+  write as settled with no answer and fell back to refetching (its row read
+  `Refreshing`), in the two-tab browser test only. Announce the outcome, then
+  write the store. A `BroadcastChannel` made per post reaches every other
+  instance in the page, the poster's own tab's listener included.
+- **jsdom's `navigator` has no `locks`.** Vitest's jsdom environment replaces
+  Node's `navigator`, so a Web Lock is silently not taken there; a claim that
+  only one tab sends is a browser test (`outboxTabs.browser.test.ts`), where
+  two runtimes in one page share the locks, `localStorage` and channels.
+
 **Effect 4, not 3**
 
 The workspace runs `effect@^4.0.5`, one copy of each Effect package;
@@ -2072,6 +2084,17 @@ of its own named a form field "fits the Catalog". Read words with
   untracked files, so a new module rode an `--amend` into the wrong commit.
   Put `-m` before `--`, add new files first, and check `git show --stat HEAD`
   for strays.
+- **A long heredoc through the Bash tool can fail to parse.** Two Python
+  edit scripts of about 150 lines, quoted `<<'EOF'`, failed with "unexpected
+  EOF while looking for matching `''" before running; shorter ones passed.
+  Write such a script with the Write tool and run the file.
+- **`pnpm mutate --only` takes one name.** Given several, it ran the first
+  and reported "1 of 1". Run the spec whole, or one `--only` per run.
+- **Jev's skill-sync check reads an ownership change.** A guard handing the
+  rules it cannot judge to its writer stayed `fix_now` on
+  `foldkit_skill_sync` with every reference updated, until `SKILL.md`'s
+  ownership column named the new seam. When the check persists, ask whether
+  the change moved who owns a decision, and say so in that table.
 
 ## Repository
 
