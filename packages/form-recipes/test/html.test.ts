@@ -90,10 +90,12 @@ describe('the recipes’ plain renderers', () => {
       input.getAttribute('name'),
       input.getAttribute('type'),
       input.getAttribute('value'),
+      input.getAttribute('step'),
     ])
+    // The moment's input steps by a millisecond, or seconds are refused (#302).
     expect(posted).toEqual([
-      ['day', 'date', '2026-07-01'],
-      ['at', 'datetime-local', '2026-07-01T09:30'],
+      ['day', 'date', '2026-07-01', null],
+      ['at', 'datetime-local', '2026-07-01T09:30', '0.001'],
     ])
   })
 })

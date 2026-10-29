@@ -735,6 +735,10 @@ carries `drawn`.
 
 ### Fixed
 
+- **`FieldRecipes.dateTime`'s input edits seconds and milliseconds** (#302).
+  `html` drew `datetime-local` with the browser's default step of a minute,
+  which offered no seconds and failed native validation for a value that
+  had them, though the recipe reads them. The input steps by a millisecond.
 - **`FieldRecipes.dateTime` keeps an instant in year 0** (#321). The zone's
   clocks were read without their era, and `Intl` writes ISO year 0 as 1 BC,
   so `0000-12-31T12:00:00.000Z` was shown, and submitted, as year 1. The era

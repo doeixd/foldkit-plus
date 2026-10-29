@@ -154,6 +154,14 @@ export default [
     tests: dateTime,
   },
   {
+    name: 'the date-time input steps by a minute',
+    edits: [{ file: html, find: "({ h }) => [h.Step('0.001')]", replace: '() => []' }],
+    tests: [
+      'packages/form-recipes/test/html.test.ts',
+      'packages/form-recipes/test/dateTime.browser.test.ts',
+    ],
+  },
+  {
     name: 'a draft of year 0 is drawn in a date-time input',
     edits: [{ file: html, find: 'wall => wall.year > 0', replace: '() => true' }],
     tests: ['packages/form-recipes/test/html.test.ts'],
