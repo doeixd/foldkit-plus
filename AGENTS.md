@@ -556,6 +556,14 @@ win.** The stylesheet writes each rule's declarations alphabetically
 `borderLeftWidth` landed after it and took the border away. In one rule,
 write either the shorthand or the longhands, never both.
 
+**A shorthand in a state rule resets the longhands a base rule set.** The
+solid Button clipped its fill to the padding box at rest, but its hover and
+held rules wrote `background`, which reset `background-clip` to `border-box`,
+so the press never stood 1px in; its test read the clip only at rest, and
+went red on CI only when a stray pointer hovered the button. Where a base
+sets a longhand, its states write longhands too (`backgroundColor`), and a
+test reads the longhand in every state.
+
 ## Traps already hit here
 
 Every item below cost real time here. Check for them by name, and **add to this
