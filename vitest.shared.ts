@@ -4,25 +4,10 @@
  * `foldkit-plus:source` export condition, so a test never runs against a
  * stale build.
  */
-import { fileURLToPath } from 'node:url'
-import { defaultClientConditions, defaultServerConditions } from 'vite'
+import { defaultClientConditions } from 'vite'
 import { defineConfig } from 'vitest/config'
 import { mutation } from './scripts/mutation-plugin.mjs'
-
-const source = 'foldkit-plus:source'
-
-const alias = {
-  // Vite's client environment (the jsdom tests) refuses to bundle a Node
-  // builtin, so a static `node:sqlite` import resolves to this shim under
-  // Vitest. Node and tsx still resolve the real builtin.
-  'node:sqlite': fileURLToPath(new URL('./test-support/sqlite.ts', import.meta.url)),
-}
-
-// Vitest's own default for Node and jsdom, with the source condition first. It
-// drops `module`: a package's `module` build may use extensionless imports Node
-// cannot load (`@opentelemetry/api` does). Vite's client defaults would add
-// `browser`, which resolves `ws` to its browser stub.
-const inNode = [source, ...defaultServerConditions.filter(condition => condition !== 'module')]
+import { alias, inNode } from './scripts/test-resolve.mjs'
 
 /** For tests in Node or jsdom. */
 export const shared = defineConfig({
@@ -38,5 +23,5 @@ export const shared = defineConfig({
  */
 export const inBrowser = defineConfig({
   plugins: [mutation()],
-  resolve: { conditions: [source, ...defaultClientConditions], alias },
+  resolve: { conditions: ['foldkit-plus:source', ...defaultClientConditions], alias },
 })

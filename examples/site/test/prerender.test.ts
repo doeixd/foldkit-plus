@@ -5,12 +5,12 @@
  * sidebar, its API pages, and every link on every page leading somewhere that
  * exists.
  */
-import { Effect } from 'effect'
 import { schemeScript } from 'foldkit-mixins/theme'
 import { STATIC_ATTRIBUTE } from 'foldkit-ssr/client'
-import { generateStaticSite } from 'foldkit-ssr/vite'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync } from 'node:fs'
+import { availableParallelism, freemem } from 'node:os'
 import { join } from 'node:path'
+import { Worker } from 'node:worker_threads'
 import { beforeAll, describe, expect, test } from 'vitest'
 
 import { allSubsites, subsites } from '../src/catalog.js'
@@ -18,21 +18,9 @@ import { GITHUB } from '../src/content/guides.js'
 import { demos, onGitHub } from '../src/demos.js'
 import { showcases } from '../src/gallery/showcases.js'
 import { codeOf, defaults } from '../src/gallery/theme.js'
-import { site } from '../src/site.js'
+import type { Links, Share } from './prerendered.js'
 
 const repository = join(import.meta.dirname, '../../..')
-const template = readFileSync(join(import.meta.dirname, '../index.html'), 'utf8')
-
-/**
- * What the link check needs of a page: the ids it carries and where it links,
- * and every `aria-labelledby` naming an id the page lacks, which leaves its
- * element without a name.
- */
-interface Links {
-  readonly ids: ReadonlySet<string>
-  readonly hrefs: ReadonlyArray<string>
-  readonly unnamed: ReadonlyArray<string>
-}
 
 /**
  * The pages the tests read whole. Of every other page only its links are kept:
@@ -67,38 +55,49 @@ const READ = [
 const hrefs = (root: ParentNode, selector = 'a') =>
   Array.from(root.querySelectorAll(selector), a => a.getAttribute('href') ?? '')
 
+let paths: ReadonlyArray<string>
 let links: ReadonlyMap<string, Links>
 let read: ReadonlyMap<string, Document>
 let sitemap = ''
 
+/** One share of the pages, rendered in a thread of its own (`prerender.worker.mjs`). */
+const render = (index: number, count: number): Promise<Share> =>
+  new Promise((resolve, reject) => {
+    const worker = new Worker(join(import.meta.dirname, 'prerender.worker.mjs'), {
+      workerData: { index, count, read: READ },
+    })
+    worker.once('message', resolve)
+    worker.once('error', reject)
+    worker.once('exit', code => reject(new Error(`share ${index} of ${count} exited with ${code}`)))
+  })
+
 beforeAll(async () => {
-  const built = await Effect.runPromise(
-    generateStaticSite({ ...site, buildId: 'test-build', template }),
+  // Rendering every page took over eight minutes in one thread. Each share builds the library
+  // again (about a minute, most of it reading the packages' types), so a share per core would
+  // spend more memory than it saves time; each one holds about 1.5 GiB at its peak.
+  const count = Math.max(
+    1,
+    Math.min(4, availableParallelism(), Math.floor(freemem() / (2 * 2 ** 30))),
   )
-  sitemap = built.sitemap ?? ''
+  const shares = await Promise.all(
+    Array.from({ length: count }, (_, index) => render(index, count)),
+  )
+  paths = shares[0]!.paths
+  // Each share reads the site for itself, and one that read another (a guide edited meanwhile)
+  // was dealt other pages: some page would go unread.
+  const same = (other: ReadonlyArray<string>) =>
+    other.length === paths.length && other.every((path, at) => path === paths[at])
+  if (!shares.every(share => same(share.paths)))
+    throw new Error('the shares read different sites: was a page added or removed meanwhile?')
+  links = new Map(shares.flatMap(share => share.links))
+  // Each share's sitemap lists its own pages.
+  sitemap = shares.map(share => share.sitemap).join('\n')
   const parser = new DOMParser()
-  const kept = new Map<string, Document>()
-  links = new Map(
-    built.pages.map(page => {
-      const document = parser.parseFromString(page.html, 'text/html')
-      if (READ.includes(page.path)) kept.set(page.path, document)
-      const ids = new Set(Array.from(document.querySelectorAll('[id]'), element => element.id))
-      // A closed dialog is out of the accessibility tree, and draws its title only once open.
-      const named = Array.from(document.querySelectorAll('[aria-labelledby]')).filter(
-        element => element.closest('dialog:not([open])') === null,
-      )
-      const unnamed = named.flatMap(element =>
-        (element.getAttribute('aria-labelledby') ?? '')
-          .split(/\s+/)
-          .filter(id => !ids.has(id))
-          .map(id => `${element.tagName.toLowerCase()} -> #${id}`),
-      )
-      return [page.path, { ids, hrefs: hrefs(document), unnamed }] as const
-    }),
+  read = new Map(
+    shares.flatMap(share =>
+      share.read.map(([path, html]) => [path, parser.parseFromString(html, 'text/html')] as const),
+    ),
   )
-  read = kept
-  // Every page of the site, built once for every test below: alone it takes a few minutes, but
-  // beside the rest of the suite (the release job's run) it took 640s and failed a 600s budget.
 }, 1_500_000)
 
 const page = (path: string): Document => {
@@ -118,6 +117,11 @@ describe('the generated site', () => {
       expect(links.has(path), path).toBe(true)
     expect(sitemap).toContain('<loc>https://foldkit-plus.pages.dev/remote</loc>')
     expect(page('/404.html').querySelector('h1')?.textContent).toContain('Not found')
+  })
+
+  test('the link check reads every page the build writes', () => {
+    expect(links.size).toBe(paths.length)
+    expect(new Set(links.keys())).toEqual(new Set(paths))
   })
 
   test("applies the reader's scheme in the head, before any style", () => {
