@@ -153,7 +153,7 @@ interface View {
  * SQL binds a missing value, and no other row can be reached from it.
  */
 const flat = (row: Row): View => ({
-  field: key => row[key],
+  field: key => (Object.hasOwn(row, key) ? row[key] : undefined),
   follow: relation => new Unheld(`${relation.owner.name}.${relation.key} leads to another row`),
   pointing: relation => ({
     rows: [],

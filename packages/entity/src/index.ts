@@ -676,6 +676,11 @@ const isEntity = (value: unknown): value is AnyEntity =>
 
 const kindName = { Field: 'field', Relation: 'relation', Derived: 'derived member' } as const
 
+// A record read by a key that is a name a caller chose: an own property only,
+// since `constructor` or `toString` would otherwise read `Object.prototype`.
+const own = <A>(record: Readonly<Record<string, A>>, key: string): A | undefined =>
+  Object.hasOwn(record, key) ? record[key] : undefined
+
 const kindOf = (entity: AnyEntity, key: string): string | undefined => {
   const member = (entity.members as Readonly<Record<string, EntityMember>>)[key]
   return member && kindName[member._tag]
@@ -788,7 +793,7 @@ export const Entity = {
   ): Selection<E['name'], Spec, SelectionSchema<E, Spec>, IdOf<E>> => {
     const members: Readonly<Record<string, EntityMember>> = entity.members
     const fields = mapValues<unknown, Schema.Constraint>(spec, (selected, key) => {
-      const member = members[key]
+      const member = own(members, key)
       if (member === undefined)
         throw new Error(`Entity "${entity.name}": cannot select "${key}", it is not a member`)
       if (member._tag !== 'Relation') {
@@ -997,7 +1002,7 @@ export const Entity = {
           throw new Error(`Entity "${entity.name}": cannot annotate "${key}", it is not a member`)
       const annotate = (members: Readonly<Record<string, EntityMember>>) =>
         mapValues(members, (member, key) => {
-          const extra = given[key]
+          const extra = own(given, key)
           return extra === undefined
             ? member
             : Object.freeze({ ...member, metadata: Metadata.combine([member.metadata, extra]) })
@@ -1030,7 +1035,7 @@ export const Entity = {
   ): EntityInput<E, Fields, InputMembers<E, Fields, Mapping>> => {
     const written: Readonly<Record<string, InputMember | string | undefined>> = mapping[0] ?? {}
     for (const key of Object.keys(written))
-      if (!(key in schema.fields))
+      if (!Object.hasOwn(schema.fields, key))
         throw new Error(`Entity "${entity.name}": "${key}" is mapped but is not a key of the input`)
     // A member named by its key: a Field as it is, a relation as its ids.
     const named = (key: string, name: string): InputMember => {
@@ -1055,8 +1060,8 @@ export const Entity = {
     const fields: Readonly<Record<string, InputMember | undefined>> = entity.fields
     const members = mapValues(schema.fields, (_, key) => {
       const member =
-        given[key] ??
-        fields[key] ??
+        own(given, key) ??
+        own(fields, key) ??
         fail(entity, `input key "${key}" names no field; map it to a member or Entity.unmapped`)
       const owned =
         member._tag === 'Field'
@@ -1100,11 +1105,12 @@ export const Entity = {
       keys.map(key => [
         key,
         (
-          (
+          own(
             entity.fields as Readonly<
-              Record<string, EntityField<string, string, Schema.Constraint> | undefined>
-            >
-          )[key] ?? fail(entity, `"${key}" is not a field`)
+              Record<string, EntityField<string, string, Schema.Constraint>>
+            >,
+            key,
+          ) ?? fail(entity, `"${key}" is not a field`)
         ).schema,
       ]),
     ) as never,

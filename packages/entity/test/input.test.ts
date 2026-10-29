@@ -1,6 +1,6 @@
 import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Entity, Relation, type AnyEntity } from '../src/index.js'
+import { Collation, Entity, Expr, Query, Relation, evaluate, type AnyEntity } from '../src/index.js'
 import { Blog } from './blogFixture.js'
 
 const { Post, Author } = Blog
@@ -258,5 +258,77 @@ describe('Entity.fields', () => {
     expect(() =>
       (Entity.fields as (entity: AnyEntity, key: string) => unknown)(Post, 'author'),
     ).toThrow('"author" is not a field')
+  })
+})
+
+// Names `Object.prototype` holds: a lookup that is not of own keys reads them (#311).
+describe('a key named as a prototype member', () => {
+  const inherited = ['constructor', 'toString', 'hasOwnProperty', '__proto__'] as const
+
+  it.each(inherited)('maps an input key %s to the field it names', key => {
+    const schema = Schema.Struct({ [key]: Schema.String })
+    const entity = Entity.define('Odd', schema)
+    const input = inputUntyped(entity, schema) as { members: Record<string, unknown> }
+    expect(Object.hasOwn(input.members, key)).toBe(true)
+    expect(input.members[key]).toBe((entity.fields as Record<string, unknown>)[key])
+  })
+
+  it.each(inherited.filter(key => key !== '__proto__'))(
+    'refuses an input key %s that names no field and has no mapping',
+    key => {
+      expect(() => inputUntyped(Post, Schema.Struct({ [key]: Schema.String }))).toThrow(
+        `input key "${key}" names no field`,
+      )
+    },
+  )
+
+  it.each(inherited.filter(key => key !== '__proto__'))(
+    'refuses a mapping of %s, which is no key of the input',
+    key => {
+      expect(() =>
+        inputUntyped(Post, Schema.Struct({ id: Schema.String }), { [key]: Entity.unmapped }),
+      ).toThrow(`"${key}" is mapped but is not a key of the input`)
+    },
+  )
+
+  it.each(inherited.filter(key => key !== '__proto__'))(
+    'refuses %s as a name of a member, or as a field to spread',
+    key => {
+      expect(() => inputUntyped(Post, Schema.Struct({ x: Schema.String }), { x: key })).toThrow(
+        `is mapped to "${key}", which names no field or relation`,
+      )
+      expect(() =>
+        (Entity.fields as (entity: AnyEntity, key: string) => unknown)(Post, key),
+      ).toThrow(`"${key}" is not a field`)
+    },
+  )
+})
+
+describe('a member or field named as a prototype member, elsewhere', () => {
+  it('refuses to select constructor from an Entity that has no such member', () => {
+    expect(() =>
+      (Entity.select as (entity: AnyEntity, spec: unknown) => unknown)(Post, { constructor: true }),
+    ).toThrow('cannot select "constructor", it is not a member')
+  })
+
+  it('leaves a field named constructor alone when annotating another member', () => {
+    const Odd = Entity.define(
+      'Odd',
+      Schema.Struct({ id: Schema.String, constructor: Schema.String }),
+    )
+    const Binary = Odd.pipe(Entity.annotateMembers({ constructor: Collation.of(Collation.binary) }))
+    // TypeScript checks the literal's inherited `constructor`, a Function, against the optional key.
+    // @ts-expect-error
+    const annotated = Binary.pipe(Entity.annotateMembers({ id: Collation.of(Collation.binary) }))
+    expect(annotated.fields.constructor.metadata).toBe(Binary.fields.constructor.metadata)
+  })
+
+  it('reads a field named constructor that a row lacks as null', () => {
+    const Odd = Entity.define(
+      'Odd',
+      Schema.Struct({ id: Schema.String, constructor: Schema.NullOr(Schema.String) }),
+    )
+    const unset = Query.from(Odd).pipe(Query.where(Expr.isNull(Odd.fields.constructor)))
+    expect(evaluate(unset, {}, [{ id: 'a' }, { id: 'b', constructor: 'x' }])).toEqual([{ id: 'a' }])
   })
 })

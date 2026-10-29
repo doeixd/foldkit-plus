@@ -904,6 +904,14 @@ carries `drawn`.
     `src/main.ts`, since the scaffold's lint refuses a root Message from
     `app.ts` (#220), and to import every package as `foldkit-plus/<package>`
     (#217).
+- **`Entity.input` (and `Form.input`) read a key named as an
+  `Object.prototype` member** (#311). An input key `constructor` or
+  `toString` read the inherited value from the mapping and failed with
+  "maps to a Field, …"; one that named no field was refused with that
+  message too, and a mapping of such a name passed as a key of the input.
+  `Entity.input`, `Entity.fields`, `Entity.select` and `Entity.annotateMembers`
+  now read own keys only, and an evaluated row lacking a field so named reads
+  it as null rather than as `Object.prototype`'s function.
 
 ## 0.35.0
 
