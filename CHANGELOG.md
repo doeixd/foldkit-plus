@@ -9,6 +9,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **A local Workers stack shows the Worker's console, and can tell the Worker
+  its origin** (#269). `Stack.start` prints each line the Worker writes to its
+  console as it arrives, by level and prefixed `[worker]` (an `Error` logged
+  carries its stack), unless `console: 'quiet'`; `stack.logs()` takes the
+  lines (`WorkerLog`) written since the last call, printed or not. `vars` may
+  be a function of the origin the stack answers at (`origin => ({ ORIGIN:
+  origin })`), given to the Worker before its first request.
 - **Write rules over paths, judged in the write's statement** (operations
   phase 7). A row's `Update` and `Delete` guard rules may read another row (a
   path, an exists, a path from the viewer). `GuardServer.writer` judges what

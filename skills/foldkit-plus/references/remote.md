@@ -764,10 +764,13 @@ expect(errors()).toEqual([]) // console.error, uncaught exceptions and error dia
 
 When `neverShows` fails, a `Trace` test finds the Message. The Worker those
 tests run against comes from `foldkit-plus/testing/workers`: `Stack.start({
-wrangler, entry, vars?, secrets?, plugins? })` reads `wrangler.toml` through
-Wrangler's test harness (fresh, migrated D1 per stack; `env()` re-read after a
-swap), and `Stack.writeBundle` writes the deploy bundle the same way
-(`wrangler` and `esbuild` are optional peers).
+wrangler, entry, vars?, secrets?, plugins?, console? })` reads `wrangler.toml`
+through Wrangler's test harness (fresh, migrated D1 per stack; `env()` re-read
+after a swap). `vars` may be a function of the stack's origin (`origin => ({
+ORIGIN: origin })`); the Worker's console is printed by level as it arrives
+unless `console: 'quiet'`, and `logs()` takes the lines since the last call.
+`Stack.writeBundle` writes the deploy bundle the same way (`wrangler` and
+`esbuild` are optional peers).
 
 ## Server: `foldkit-remote-server`
 

@@ -869,9 +869,12 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   `@yielded/auth/WorkerdServices` imports a `.wasm` and `node:crypto`, so Node
   cannot load it: keep what a test reads from Node in a module apart, and
   bundle it with `loader: { '.wasm': 'copy' }` and `nodejs_compat`.
-- **A Worker's `console.error` never reaches `Stack.start`'s output** (#269).
-  An SSR 500 said only "The page could not be rendered". To see the cause,
-  run the same `renderPage` in Node against the stack's `/remote`.
+- **A Worker's `console.error` never reached `Stack.start`'s output** (#269).
+  An SSR 500 said only "The page could not be rendered"; Wrangler's harness
+  runs workerd with `logLevel: 'none'` and only keeps the lines (`getLogs`).
+  The stack now drains them: each is printed by level as `[worker] …`, with
+  an `Error`'s stack, and `stack.logs()` takes them for a test. They arrive
+  beside the response, not on it: poll `logs()` after a request.
 - **On D1 the ledger is a `batch`, not a transaction.** D1 refuses `BEGIN`, so
   the ledger reads the record first and writes the row and its record in one
   batch, recording only where the write changed a row (`changes() > 0`). Node

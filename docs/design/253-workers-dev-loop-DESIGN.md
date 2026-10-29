@@ -179,7 +179,7 @@ While watching:
   outlives the runtime, as `wrangler dev`'s proxy Worker is. The harness gives
   none.
 - **Printing the Worker's logs under `pnpm dev`.** The harness captures them
-  (`getLogs`) and offers no subscription.
+  (`getLogs`) and offers no subscription. Done by #269: the stack drains them.
 - **Watching `wrangler.toml` itself.** Restart `pnpm dev` after editing it.
 - **Assets with `run_worker_first`.** The example has no assets binding. The
   harness reads `[assets]`, but a stack that sets one has not been run.

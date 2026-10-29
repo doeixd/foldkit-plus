@@ -12,7 +12,7 @@ import { access, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { peer } from '../src/testing/peer.js'
 import { Stack } from '../src/testing/workers.js'
 import type { WatchListener } from '../src/testing/workers.js'
@@ -35,13 +35,26 @@ database_id = "00000000-0000-0000-0000-000000000000"
 migrations_dir = "migrations"
 `
 
-/** A Worker that answers `version`, and its vars and secrets at `/env`. */
+/**
+ * A Worker that answers `version`, its vars and secrets at `/env`, and
+ * writes to its console at each level at `/log`.
+ */
 const source = (version: string) => `
 export default {
-  fetch: (request, env) =>
-    new URL(request.url).pathname === '/env'
-      ? Response.json({ GREETING: env.GREETING, TOKEN: env.TOKEN })
-      : new Response('${version}'),
+  fetch: (request, env) => {
+    const path = new URL(request.url).pathname
+    if (path === '/log') {
+      console.debug('a debug')
+      console.info('an info')
+      console.log('a log')
+      console.warn('a warning')
+      console.error('render failed:', new Error('boom'))
+      return new Response('logged')
+    }
+    return path === '/env'
+      ? Response.json({ GREETING: env.GREETING, TOKEN: env.TOKEN, ORIGIN: env.ORIGIN })
+      : new Response('${version}')
+  },
 }
 `
 
@@ -160,6 +173,119 @@ const listener = (outcomes: Array<string> = []): WatchListener => ({
   onSwap: () => outcomes.push('swapped'),
   onBuildError: message => outcomes.push(`build error: ${message}`),
   onStopped: message => outcomes.push(`stopped: ${message}`),
+})
+
+describe("the Worker's console", () => {
+  const levels = ['debug', 'info', 'log', 'warn', 'error'] as const
+  const silenced = (level: (typeof levels)[number]) =>
+    vi.spyOn(console, level).mockImplementation(() => {})
+  /** Node's console, each method recording what it is given instead of printing. */
+  const spied = () => ({
+    debug: silenced('debug'),
+    info: silenced('info'),
+    log: silenced('log'),
+    warn: silenced('warn'),
+    error: silenced('error'),
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('prints each line by its level, an error with its stack, and keeps each for logs() once', async () => {
+    const printed = spied()
+    const stack = await Stack.start(await project())
+    try {
+      expect(await (await fetch(`${stack.origin}/log`)).text()).toBe('logged')
+      const taken: Array<{ level: string; message: string }> = []
+      await expect
+        .poll(() => {
+          taken.push(...stack.logs().map(({ level, message }) => ({ level, message })))
+          return taken.length
+        })
+        .toBe(5)
+      expect(taken.slice(0, 4)).toEqual([
+        { level: 'debug', message: 'a debug' },
+        { level: 'info', message: 'an info' },
+        { level: 'log', message: 'a log' },
+        { level: 'warn', message: 'a warning' },
+      ])
+      expect(taken[4]).toEqual({
+        level: 'error',
+        message: expect.stringMatching(/^render failed: Error: boom\n\s+at .*worker\.js/),
+      })
+      expect(stack.logs()).toEqual([])
+      for (const [level, line] of [
+        ['debug', '[worker] a debug'],
+        ['info', '[worker] an info'],
+        ['log', '[worker] a log'],
+        ['warn', '[worker] a warning'],
+        ['error', `[worker] ${taken[4]!.message}`],
+      ] as const)
+        expect(printed[level].mock.calls).toEqual([[line]])
+    } finally {
+      await stack.stop()
+    }
+  }, 60_000)
+
+  it('prints nothing when quiet, and still keeps each line', async () => {
+    const printed = spied()
+    const stack = await Stack.start({ ...(await project()), console: 'quiet' })
+    try {
+      await fetch(`${stack.origin}/log`)
+      const taken: Array<unknown> = []
+      await expect
+        .poll(() => {
+          taken.push(...stack.logs())
+          return taken.length
+        })
+        .toBe(5)
+      for (const level of levels) expect(printed[level]).not.toHaveBeenCalled()
+    } finally {
+      await stack.stop()
+    }
+  }, 60_000)
+
+  it('prints what the Worker wrote just before the stack stopped', async () => {
+    const printed = spied()
+    const stack = await Stack.start(await project())
+    await fetch(`${stack.origin}/log`)
+    await stack.stop()
+    expect(printed.log.mock.calls).toEqual([['[worker] a log']])
+    expect(stack.logs()).toHaveLength(5)
+  }, 60_000)
+
+  it('prints what a Worker that does not start wrote', async () => {
+    const printed = spied()
+    const worker = await project()
+    await writeFile(
+      worker.entry,
+      `console.error('no start:', new Error('at load'))
+throw new Error('at load')
+${source('one')}`,
+    )
+    await expect(Stack.start(worker)).rejects.toThrow()
+    expect(printed.error.mock.calls.flat().join('\n')).toMatch(
+      /\[worker\] no start: Error: at load/,
+    )
+  }, 60_000)
+})
+
+describe('vars of the origin', () => {
+  it('reach the Worker as the origin it answers at, from the first request', async () => {
+    const stack = await Stack.start({
+      ...(await project()),
+      vars: origin => ({ ORIGIN: origin, GREETING: 'hello' }),
+    })
+    try {
+      expect(await (await fetch(`${stack.origin}/env`)).json()).toEqual({
+        ORIGIN: stack.origin,
+        GREETING: 'hello',
+      })
+    } finally {
+      await stack.stop()
+    }
+  }, 60_000)
 })
 
 describe('stopping', () => {

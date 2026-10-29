@@ -39,8 +39,46 @@ export default [
     'await worker.applyD1Migrations(database.binding)',
     'void database',
   ),
-  edit('the secrets given are dropped', 'secrets: options.secrets,', ''),
-  edit('the vars given are dropped', 'vars: options.vars,', ''),
+  edit('the secrets given are dropped', 'secrets: options.secrets }', '}'),
+  edit(
+    'the vars given are dropped',
+    "harnessOptions(typeof vars === 'function' ? undefined : vars)",
+    'harnessOptions(undefined)',
+  ),
+  edit(
+    'vars of the origin are never given',
+    "if (typeof vars === 'function') await harness.update(harnessOptions(vars(url.origin)))",
+    '',
+  ),
+  edit('vars are given the URL, not its origin', 'vars(url.origin)', 'vars(url.href)'),
+  edit("the Worker's console is read and never cleared", '    harness.clearLogs()\n', ''),
+  edit(
+    'logs() leaves what it returned to be returned again',
+    'return kept.splice(0)',
+    'return [...kept]',
+  ),
+  edit(
+    'a quiet stack prints anyway',
+    "if (options.console !== 'quiet') fresh.forEach(print)",
+    'fresh.forEach(print)',
+  ),
+  edit(
+    'nothing is printed',
+    "if (options.console !== 'quiet') fresh.forEach(print)",
+    'if (false) fresh.forEach(print)',
+  ),
+  edit('an error is printed as a log', "['error', line => console.error(line)],", ''),
+  edit('a warning is printed as a log', "['warn', line => console.warn(line)],", ''),
+  edit(
+    'a line is printed without saying it is the Worker',
+    '`[worker] ${log.message}`',
+    'log.message',
+  ),
+  edit(
+    'what the Worker wrote since the last tick is lost when the stack stops',
+    '        drain()\n        await rm(',
+    '        await rm(',
+  ),
   edit('a change is reported but not swapped in', 'await harness.update(same => same)', ''),
   edit(
     'an entry emptied as it is saved is swapped in, and stops the stack',
@@ -103,8 +141,8 @@ export default [
     edits: [
       {
         file,
-        find: '      try {\n        await harness.close()\n      } finally {\n        await rm(',
-        replace: '      {\n        await harness.close()\n      }\n      {\n        await rm(',
+        find: '      try {\n        await harness.close()\n      } finally {\n',
+        replace: '      {\n        await harness.close()\n      }\n      {\n',
       },
     ],
     tests: ['packages/plus/test/workers.close.test.ts'],

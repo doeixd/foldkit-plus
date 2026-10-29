@@ -32,12 +32,31 @@ export interface StackOptions {
   readonly wrangler: string
   /** The source esbuild bundles into what `main` names. */
   readonly entry: string
-  /** Local values for vars the deployed Worker is given elsewhere. */
-  readonly vars?: Readonly<Record<string, string>>
+  /**
+   * Local values for vars the deployed Worker is given elsewhere. As a
+   * function, of the origin the stack answers at: the Worker has them from
+   * its first request (`origin => ({ ORIGIN: origin })`).
+   */
+  readonly vars?: Vars | ((origin: string) => Vars)
   /** Local values for secrets, over any in `.dev.vars`. */
   readonly secrets?: Readonly<Record<string, string>>
   /** esbuild plugins for the bundle, the deploy's and the stack's alike. */
   readonly plugins?: ReadonlyArray<Plugin>
+  /**
+   * Whether each line the Worker writes to its console is printed here, by
+   * its level, as it arrives (`'print'`, the default). `logs()` keeps them either way.
+   */
+  readonly console?: 'print' | 'quiet'
+}
+
+type Vars = Readonly<Record<string, string>>
+
+/** A line the Worker wrote to its console. An `Error` logged carries its stack in `message`. */
+export interface WorkerLog {
+  /** As workerd names it: `debug`, `info`, `log`, `warn` or `error`. */
+  readonly level: string
+  readonly message: string
+  readonly timestamp: number
 }
 
 /** What a watched stack reports after each change to the bundle's sources. */
@@ -67,6 +86,12 @@ export interface Stack<Env> {
   readonly env: () => Promise<Env>
   /** A request straight to the Worker; an upgrade answers with its socket. */
   readonly dispatch: WorkerHandle['fetch']
+  /**
+   * Takes what the Worker wrote to its console since the last call, oldest
+   * first. The lines come from workerd beside the response, not on it, so a
+   * line written for a request may arrive after it: poll.
+   */
+  readonly logs: () => ReadonlyArray<WorkerLog>
   /**
    * Rebuilds on every change to a file the bundle read, and swaps the new
    * Worker in at the same origin. D1, R2 and Durable Object storage stay.
@@ -154,6 +179,17 @@ const writeOutputs = async (files: OutputFiles) => {
 
 const identityOf = (files: OutputFiles) => files.map(file => `${file.path}:${file.hash}`).join()
 
+/** Node's console method for each level workerd writes; any other prints as a log. */
+const printers = new Map<string, (line: string) => void>([
+  ['debug', line => console.debug(line)],
+  ['info', line => console.info(line)],
+  ['warn', line => console.warn(line)],
+  ['error', line => console.error(line)],
+])
+
+const print = (log: WorkerLog) =>
+  (printers.get(log.level) ?? (line => console.log(line)))(`[worker] ${log.message}`)
+
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
 /** Writes the bundle where `main` says, for `wrangler deploy`. */
@@ -179,16 +215,25 @@ const start = async <Env>(options: StackOptions): Promise<Stack<Env>> => {
   // In memory: a source that does not build fails here, before anything exists to clean up.
   const first = (await build(bundle)).outputFiles
 
-  const harness: TestHarness = createTestHarness({
+  const harnessOptions = (vars: Vars | undefined) => ({
     root: dirname(options.wrangler),
-    workers: [
-      {
-        config: { ...raw, main: outfile },
-        vars: options.vars,
-        secrets: options.secrets,
-      },
-    ],
+    workers: [{ config: { ...raw, main: outfile }, vars, secrets: options.secrets }],
   })
+  const vars = options.vars
+  const harness: TestHarness = createTestHarness(
+    harnessOptions(typeof vars === 'function' ? undefined : vars),
+  )
+  // The harness keeps workerd's console and offers no handler, so it is drained:
+  // read and cleared in one synchronous step, nothing is read twice or missed.
+  const kept: Array<WorkerLog> = []
+  const drain = () => {
+    const fresh = harness.getLogs()
+    harness.clearLogs()
+    if (options.console !== 'quiet') fresh.forEach(print)
+    kept.push(...fresh)
+  }
+  const draining = setInterval(drain, 100)
+  draining.unref()
   let watching = Option.none<Promise<BuildContext>>()
   let stopping = Option.none<Promise<void>>()
   const dispose = async (watcher: Promise<BuildContext>) => {
@@ -199,6 +244,7 @@ const start = async <Env>(options: StackOptions): Promise<Stack<Env>> => {
   // Each step runs however the one before it ended: a step skipped leaves
   // workerd running, or the bundle's directory behind.
   const stopOnce = async () => {
+    clearInterval(draining)
     try {
       const watcher = watching
       watching = Option.none()
@@ -208,6 +254,8 @@ const start = async <Env>(options: StackOptions): Promise<Stack<Env>> => {
       try {
         await harness.close()
       } finally {
+        // What the Worker wrote since the last drain, up to its end, is printed and kept.
+        drain()
         await rm(directory, { recursive: true, force: true })
       }
     }
@@ -222,6 +270,8 @@ const start = async <Env>(options: StackOptions): Promise<Stack<Env>> => {
   try {
     await writeOutputs(first)
     const { url } = await harness.listen()
+    // A reload at the same origin, as a swap is, before any request of the caller's.
+    if (typeof vars === 'function') await harness.update(harnessOptions(vars(url.origin)))
     const worker = harness.getWorker()
     for (const database of config.d1_databases ?? [])
       await worker.applyD1Migrations(database.binding)
@@ -286,7 +336,11 @@ const start = async <Env>(options: StackOptions): Promise<Stack<Env>> => {
     }
 
     const env = () => harness.getWorker<Env>().getEnv()
-    return { origin: url.origin, env, dispatch: worker.fetch, watch, stop }
+    const logs = () => {
+      drain()
+      return kept.splice(0)
+    }
+    return { origin: url.origin, env, dispatch: worker.fetch, logs, watch, stop }
   } catch (error) {
     // The start's failure is the one to report; a failure cleaning up after it would hide it.
     await stop().catch(() => undefined)

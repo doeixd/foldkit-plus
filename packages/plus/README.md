@@ -120,11 +120,18 @@ import { Stack } from 'foldkit-plus/testing/workers'
 const stack = await Stack.start<Env>({
   wrangler: 'wrangler.toml', // bindings, compatibility date and flags, D1 migrations
   entry: 'src/worker.ts', // bundled into what `main` names; `no_bundle = true`
-  vars: { AUTH_ORIGIN: 'http://127.0.0.1:5177' },
+  vars: origin => ({ ORIGIN: origin }), // or a plain record; a function is given the stack's origin
 })
 await fetch(stack.origin)
+stack.logs() // what the Worker wrote to its console since the last call; also printed as it arrives
 await stack.stop()
 ```
+
+The Worker's console is printed here as it arrives, each line with Node's
+console method of its level and prefixed `[worker]`, so a 500 shows the error
+behind it with its stack; `console: 'quiet'` keeps the lines for `logs()`
+alone. The lines travel beside the response, not on it, so a test reading
+what one request wrote polls (`expect.poll(() => stack.logs())`).
 
 ```ts
 import { Behaviors } from 'foldkit-plus/testing/playwright'
