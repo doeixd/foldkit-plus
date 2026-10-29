@@ -41,12 +41,12 @@ export default [
     edits: [
       {
         file: '../src/cursor.ts',
-        find: `          : postgresText.has(column.columnType)
+        find: `          : collates
             ? Option.some({
-                key: sql\`lower(\${column} collate "C")\`,`,
+                key: sql\`lower(\${text} collate "C")\`,`,
         replace: `          : true
             ? Option.some({
-                key: sql\`lower(\${column} collate "C")\`,`,
+                key: sql\`lower(\${text} collate "C")\`,`,
       },
     ],
     tests: ['packages/remote-drizzle/test/cursor.test.ts'],

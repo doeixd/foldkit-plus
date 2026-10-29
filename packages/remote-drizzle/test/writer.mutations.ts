@@ -132,7 +132,7 @@ export default [
     edits: [
       {
         file: drizzle,
-        find: 'Object.entries(values).every(([key, value]) => sameStored(row[key], value)) &&',
+        find: '    Object.entries(values).every(\n      ([key, value]) => clocked.has(key) || sameStored(row[key], value),\n    ) &&\n',
         replace: '',
       },
     ],

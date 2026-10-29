@@ -66,8 +66,8 @@ export default [
     edits: [
       {
         file,
-        find: '{ where: and(eq(targetId, cursorId(shape.cursor)), targetVisible), limit: 1 },',
-        replace: '{ where: eq(targetId, cursorId(shape.cursor)), limit: 1 },',
+        find: 'where: and(eq(targetId, cursorId(shape.cursor)), policyWhere),',
+        replace: 'where: eq(targetId, cursorId(shape.cursor)),',
       },
     ],
     tests,

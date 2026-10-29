@@ -12,8 +12,8 @@ export default [
     edits: [
       {
         file: '../src/cursor.ts',
-        find: 'Option.some({ key: sql`${column} collate "C"`, value: plain })',
-        replace: 'Option.some({ key: sql`${column}`, value: plain })',
+        find: 'Option.some({ key: sql`${text} collate "C"`, value: plain })',
+        replace: 'Option.some({ key: sql`${text}`, value: plain })',
       },
     ],
     tests: [
@@ -40,8 +40,8 @@ export default [
     edits: [
       {
         file: '../src/cursor.ts',
-        find: 'key: sql`lower(${column} collate "C")`',
-        replace: 'key: sql`lower(${column})`',
+        find: 'key: sql`lower(${text} collate "C")`',
+        replace: 'key: sql`lower(${text})`',
       },
     ],
     tests: [
