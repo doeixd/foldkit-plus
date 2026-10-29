@@ -723,6 +723,12 @@ carries `drawn`.
 
 ### Fixed
 
+- **A locked Bundle-backed key cannot be edited through its Bundle's view**
+  (#312). `FormView`'s `locked` put `disabled` on the field's `div`, which
+  disables nothing inside it, so an image control's button and file input
+  still took a press and a file. The Bundle's view is now drawn inside a
+  disabled fieldset (`display: contents`), which disables every button and
+  input in it. It is still a hint: the server checks the write.
 - **`FieldRecipes.money` reads a minus written after the amount, where the
   locale writes it there** (#316). West Frisian (`fy`) writes `US$ 1.234,56-`,
   which its own field refused, so a filled negative amount could not be

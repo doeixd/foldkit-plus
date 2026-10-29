@@ -49,4 +49,16 @@ export default [
     edits: [{ file, find: '? posted(draft).map(value =>', replace: '? [].map((value: string) =>' }],
     tests,
   },
+  {
+    // #312: in a real browser, as `disabled` on a div is no lock at all.
+    name: 'a locked Bundle’s view takes presses',
+    edits: [
+      {
+        file,
+        find: "          ? h.fieldset([h.Disabled(true), h.Style({ display: 'contents' })], [drawn])",
+        replace: '          ? drawn',
+      },
+    ],
+    tests: ['packages/mixins-form/test/lockedBundle.browser.test.ts'],
+  },
 ]

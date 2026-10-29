@@ -112,8 +112,9 @@ export interface FormViewInputs<Key extends string = string> {
   /**
    * Keys shown but not editable, drawn `disabled`: one the person may not set,
    * such as a member `foldkit-guard`'s `May.canSet` says no to. A hint, not a
-   * check: the server checks the write. A key edited by a Bundle draws as its
-   * Bundle does, and a key in a nested row is not locked by this.
+   * check: the server checks the write. A key edited by a Bundle with no
+   * renderer has its Bundle's view drawn in a disabled fieldset, which disables
+   * the buttons and inputs it draws; a key in a nested row is not locked by this.
    */
   readonly locked?: ReadonlyArray<Key> | undefined
   /**
@@ -434,8 +435,23 @@ const bundleRenderer =
       throw new Error(
         `FormView: the "${control.kind}" control ("${input.control.key}") has no view; pass a renderer under "renderers"`,
       )
+    const drawn = h.submodel(
+      bundle.viewInputs === undefined
+        ? { slotId: input.id, model: bundle.model, view, toParentMessage: bundle.send }
+        : // A Bundle's view takes the inputs its application gives it in `controls`,
+          // whose type the form cannot know. A view given inputs is called with them.
+          ({
+            slotId: input.id,
+            model: bundle.model,
+            view,
+            toParentMessage: bundle.send,
+            viewInputs: bundle.viewInputs,
+          } as Parameters<typeof h.submodel>[0]),
+    )
     // The label's `for` names this div, which labels nothing: as a group named by
     // the label, the controls the Bundle draws inside are announced under it.
+    // `disabled` on the div disables nothing inside it; a disabled fieldset
+    // disables every button and input the Bundle draws, and draws no box of its own.
     return h.div(
       slots.control.attrs([
         ...state.filter(attribute => attribute._tag !== 'Name'),
@@ -443,19 +459,9 @@ const bundleRenderer =
         h.AriaLabelledBy(`${input.id}-label`),
       ]),
       [
-        h.submodel(
-          bundle.viewInputs === undefined
-            ? { slotId: input.id, model: bundle.model, view, toParentMessage: bundle.send }
-            : // A Bundle's view takes the inputs its application gives it in `controls`,
-              // whose type the form cannot know. A view given inputs is called with them.
-              ({
-                slotId: input.id,
-                model: bundle.model,
-                view,
-                toParentMessage: bundle.send,
-                viewInputs: bundle.viewInputs,
-              } as Parameters<typeof h.submodel>[0]),
-        ),
+        input.locked === true
+          ? h.fieldset([h.Disabled(true), h.Style({ display: 'contents' })], [drawn])
+          : drawn,
       ],
     )
   }
