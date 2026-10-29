@@ -23,7 +23,10 @@ version changed; `pnpm` skips versions already in the registry.
   `BroadcastChannel`. `Data.outboxStatus(model)` lists what waits, failed, or
   cannot be read after a deploy (`OutboxUnreadable`, kept and skipped); a
   store that cannot be written reports `OutboxUnsaved`. New Messages:
-  `MutationQueued`, `OutboxRead`, `OutboxDelayed`.
+  `MutationQueued`, `OutboxRead`, `OutboxDelayed`. `Trace.run` takes the
+  `outbox`, so a traced durable write is stored and sent. Chirp posts
+  durably: `?offline` makes its sandbox refuse writes, a chirp then waits
+  ("1 chirp waiting to send"), survives a reload, and is sent once online.
 - **`RemoteUnreachable`: a write nothing answered** (operations phase 7).
   **Breaking:** a mutation whose request could not be sent, or whose answer
   was not JSON (a gateway's 502 page), fails with `_tag: 'Unreachable'`

@@ -18,6 +18,7 @@ import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import { arrowLeft, bird, feather, heart, house, pencil, user } from 'virtual:foldkit-icons/lucide'
 import {
   ComposeForm,
+  Data as Chirps,
   EditorForm,
   Home,
   Message,
@@ -172,6 +173,18 @@ const strip = (model: Model, slots: Slots, h: H): Html =>
     ...switcher(model, slots, h),
   ])
 
+/** The chirps posted and not yet answered, said while there are any. */
+const waiting = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => {
+  const { waiting: count } = Chirps.outboxStatus(model)
+  return count === 0
+    ? []
+    : [
+        h.p(slots.quiet.attrs([h.Role('status')]), [
+          `${count} ${count === 1 ? 'chirp' : 'chirps'} waiting to send`,
+        ]),
+      ]
+}
+
 const home = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
   header(slots, h, 'Home', false),
   strip(model, slots, h),
@@ -179,6 +192,7 @@ const home = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [
     Avatar.view({ name: NAMES[model.me], style: AvatarStyle }, h),
     ComposeForm.view(model, h, { words: { submit: 'Chirp' } }),
   ]),
+  ...waiting(model, slots, h),
   ...answered(Surface.read(Home, model).timeline, slots, h, page =>
     feed(page.items, model, slots, h),
   ),

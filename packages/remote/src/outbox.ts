@@ -9,7 +9,7 @@
  * by every tab on the same key, and written as a merge so no tab's write
  * overwrites another's.
  */
-import { Data, Duration, Effect, Option, Random, Schema } from 'effect'
+import { Context, Data, Duration, Effect, Option, Random, Schema } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
 import type { Computation } from 'foldkit-entity'
 import type { OptimisticOperation } from './optimistic.js'
@@ -369,16 +369,35 @@ export const outboxStatus = (outbox: OutboxState): OutboxStatus => {
 }
 
 /**
- * Holds the Web Lock `name` while `effect` runs, where the browser has Web
- * Locks; elsewhere runs it as it is (one tab, or a server).
+ * Where the outbox takes its Web Locks: the browser's, where it has them. A
+ * trace, which is one tab, takes none.
+ */
+export const OutboxLocks = Context.Reference<Option.Option<LockManager>>(
+  'foldkit-remote/OutboxLocks',
+  { defaultValue: () => Option.fromUndefinedOr(globalThis.navigator?.locks) },
+)
+
+/**
+ * Holds the Web Lock `name` while `effect` runs, where there are Web Locks;
+ * elsewhere runs it as it is (one tab, or a server).
  */
 export const withLock = <A, E, R>(
   name: string,
   effect: Effect.Effect<A, E, R>,
-): Effect.Effect<A, E, R> => {
-  const locks = globalThis.navigator?.locks
-  if (locks === undefined) return effect
-  return Effect.acquireUseRelease(
+): Effect.Effect<A, E, R> =>
+  Effect.flatMap(Effect.service(OutboxLocks), held =>
+    Option.match(held, {
+      onNone: () => effect,
+      onSome: locks => heldWhile(locks, name, effect),
+    }),
+  )
+
+const heldWhile = <A, E, R>(
+  locks: LockManager,
+  name: string,
+  effect: Effect.Effect<A, E, R>,
+): Effect.Effect<A, E, R> =>
+  Effect.acquireUseRelease(
     Effect.callback<() => void>((resume, signal) => {
       locks
         .request(name, { signal }, () => {
@@ -395,7 +414,6 @@ export const withLock = <A, E, R>(
     () => effect,
     release => Effect.sync(release),
   )
-}
 
 /** The `BroadcastChannel` the tabs on one key speak on; none where there is none. */
 export const channelFor = (key: string): Option.Option<BroadcastChannel> =>

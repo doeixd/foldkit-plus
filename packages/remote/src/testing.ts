@@ -9,13 +9,15 @@
  * between is recorded, so nothing falls between samples.
  */
 import { Cause, Clock, Duration, Effect, Exit, type Fiber, Option, Schema, Stream } from 'effect'
+import { KeyValueStore } from 'effect/persistence'
 import type { Equivalence } from 'effect'
 import type * as Update from 'foldkit/update'
 import type { ActiveSurface, Projection, SurfaceSource } from 'foldkit-surface'
 import { RemoteClient } from './client.js'
-import type { EntityLike, RemoteDomain, SubscriptionsOptions } from './index.js'
+import type { EntityLike, OutboxWiring, RemoteDomain, SubscriptionsOptions } from './index.js'
 import type { RemoteMessage } from './model.js'
 import type { MutationDescriptor } from './mutation.js'
+import { OutboxLocks } from './outbox.js'
 import { IDENTITY_SEPARATOR, stableStringify, type QueryRef } from './query.js'
 import { RemoteData } from './remoteData.js'
 import type {
@@ -172,6 +174,13 @@ export interface TraceConfig<AppModel, Message> {
   readonly now?: number
   /** What answers each request once a step lets it go on: a fake, or a server's in-process client. */
   readonly client: Client
+  /**
+   * The application's `Data.outbox`, when it makes durable writes: the trace
+   * starts from its `restore` over an empty store of its own, and runs its
+   * Subscriptions as one tab does (without Web Locks, and with no other tab
+   * to hear), so a durable write is stored and sent by it.
+   */
+  readonly outbox?: OutboxWiring<AppModel>
   readonly steps: ReadonlyArray<NoInfer<Message> | Respond>
 }
 
@@ -183,7 +192,7 @@ interface Entry<AppModel, Message> {
   readonly dependenciesToStream: (
     dependencies: unknown,
     read: () => unknown,
-  ) => Stream.Stream<Message, never, RemoteClient>
+  ) => Stream.Stream<Message, never, RemoteClient | KeyValueStore.KeyValueStore>
 }
 
 /** A Command as the trace runs it: one of Remote's needs `RemoteClient` alone. */
@@ -251,7 +260,20 @@ const run = async <AppModel, Message>(
   const entries: Array<TraceEntry<AppModel, Message>> = []
   const defects: Array<Cause.Cause<unknown>> = []
   const fibers = new Set<Fiber.Fiber<unknown, unknown>>()
-  let model = config.start
+  // One tab's own store: an outbox restores from it and writes to it.
+  const store = Effect.runSync(
+    Effect.gen(function* () {
+      return yield* KeyValueStore.KeyValueStore
+    }).pipe(Effect.provide(KeyValueStore.layerMemory)),
+  )
+  let model =
+    config.outbox === undefined
+      ? config.start
+      : Effect.runSync(
+          config.outbox
+            .restore(config.start)
+            .pipe(Effect.provideService(KeyValueStore.KeyValueStore, store)),
+        )
   let step = 0
 
   const hold = <A, E>(
@@ -296,10 +318,12 @@ const run = async <AppModel, Message>(
     live: () => Stream.never,
   }
 
-  const fork = (effect: Effect.Effect<void, never, RemoteClient>) => {
+  const fork = (effect: Effect.Effect<void, never, RemoteClient | KeyValueStore.KeyValueStore>) => {
     const fiber = Effect.runFork(
       effect.pipe(
         Effect.provideService(RemoteClient, client),
+        Effect.provideService(KeyValueStore.KeyValueStore, store),
+        Effect.provideService(OutboxLocks, Option.none()),
         Effect.provideService(Clock.Clock, clock),
       ),
       { scheduler },
@@ -326,9 +350,11 @@ const run = async <AppModel, Message>(
   const send = (message: Message) => Effect.sync(() => void queue.push(message))
 
   // The entries send Remote's Messages, which `update`'s type makes the application's own.
-  const subscriptions = Object.entries(
-    Data.subscriptions(config.active, { ...config.options, now: () => at }),
-  ) as unknown as ReadonlyArray<[string, Entry<AppModel, Message>]>
+  const subscriptions = [
+    ...Object.entries(Data.subscriptions(config.active, { ...config.options, now: () => at })),
+    // A trace is one tab: there is no other to hear over the channel.
+    ...Object.entries(config.outbox?.subscriptions ?? {}).filter(([key]) => key !== 'outbox.watch'),
+  ] as unknown as ReadonlyArray<[string, Entry<AppModel, Message>]>
   const running = new Map<
     string,
     { readonly dependencies: unknown; readonly fiber: Fiber.Fiber<unknown, unknown> }

@@ -581,7 +581,8 @@ reason }` (a stored write this version's Mutations cannot read: kept, never
 sent, `OutboxUnreadable`, dismissable). A store that cannot be written reports
 `OutboxUnsaved` and still sends. A durable Mutation needs a ledgered writer,
 so a second send is answered from its record. Past `clockSkew`, the server
-writes its own time.
+writes its own time. `Trace.run(Data, { …, outbox })` runs the outbox as one
+tab, so a traced durable write is sent.
 
 **Diagnostics.** `remote.diagnostics` (`Data.inspect(model).diagnostics`) holds,
 typed and oldest first (the newest 256), what Remote met and kept going past:

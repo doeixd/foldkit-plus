@@ -16,6 +16,7 @@ browser, so nothing you post leaves it.
 | Who may write a post: its author, or an admin | the domain declares it; the server decides | `guard.ts`, `server/server.ts` (`foldkit-guard`) |
 | The posts and the likes | the server's database | `server/server.ts` (`foldkit-remote-server`, `foldkit-remote-drizzle`) |
 | The posts the page shows, cached in the Model | Remote, inside the Model | `app.ts` (`foldkit-remote`) |
+| A chirp posted and not yet answered | Remote's outbox, in the Model and copied to `localStorage` | `app.ts` (`Data.outbox`), `client.ts` |
 | The draft in the compose box and the editor | the forms, inside the Model | `compose.ts`, `editor.ts` (`foldkit-form`, `foldkit-crud`) |
 | Which page you are on, its address and title | the site's tree; the route is in the Model | `site.ts` (`foldkit-site`) |
 | How it looks | one theme, the slots, the shipped recipes | `style.ts`, `view.ts` (`foldkit-mixins`, `foldkit-mixins-ui`) |
@@ -45,7 +46,9 @@ pnpm --filter foldkit-example-chirp dev
 ```
 
 Open the address it prints. Add `?as=ada` to be Ada, the admin, or
-`?as=grace`, `?as=linus`; `?reset` starts the sandbox again from the seed.
+`?as=grace`, `?as=linus`; `?reset` starts the sandbox again from the seed;
+`?offline` makes the sandbox refuse every write as a dropped connection
+would, to watch a chirp wait in the outbox.
 `pnpm --filter foldkit-example-chirp build:sandbox` builds the published demo
 into `dist/`.
 
@@ -133,6 +136,11 @@ icons are Lucide's, imported by name through `foldkit-media/vite`
 
 - **A write the server refuses** (editing someone else's post, a body too
   long) changes nothing it stores. The editor says why and keeps your draft.
+- **A chirp posted while nothing answers** (`?offline`) waits: it shows at
+  the top, the page says "1 chirp waiting to send", and a reload reads it back
+  from the outbox and shows it again. A page that can reach the server sends
+  it, with the id and the time it was written at, and the server keeps it
+  once (`Data.mutate(…, { durable: true })`, `Data.outbox`).
 - **A like** shows at once and is settled by the server's answer. If the
   server refuses it, the count and the heart go back. A second press before
   the answer takes back the like the first made: `update` reads `liked` from

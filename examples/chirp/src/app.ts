@@ -152,9 +152,13 @@ const post = (model: Model, value: typeof NewPost.Type): Return => {
   }
 }
 
-/** The chirp written at the time you posted: shown at it, and sent with it for the server to keep. */
+/**
+ * The chirp written at the time you posted: shown at it, and sent with it for
+ * the server to keep. Durable: the outbox stores it before sending it, so a
+ * reload, or a moment offline, does not lose it.
+ */
 const sent = (model: Model, value: typeof NewPost.Type, now: number): Return => {
-  const started = Data.mutate(model, PostChirp, value, { now })
+  const started = Data.mutate(model, PostChirp, value, { now, durable: true })
   return { model: started.model, commands: [started.command] }
 }
 // #endregion
@@ -223,7 +227,16 @@ const Routing = Site.routing<Model, Message, AppRoute>({
   completed: Message.CompletedNavigation,
 })
 
-const placements = Page.assemble(ComposeForm, EditorForm, Data.wiring(actives), Routing)
+/**
+ * The chirps you post and have not seen answered, kept in this browser per
+ * person: a reload restores them, shows them, and sends them.
+ */
+export const outbox = Data.outbox({
+  key: model => `chirp-outbox:${model.me}`,
+  scope: model => model.me,
+})
+
+const placements = Page.assemble(ComposeForm, EditorForm, Data.wiring(actives), outbox, Routing)
 
 export const update = PostEditor.after(placements.update(reduce))
 
@@ -233,12 +246,13 @@ export const initial: Model = placements.initial({
   me: 'you',
 }).model
 
-/** The page as `me` opens it at `url`. */
-export const init =
-  (me: Person) =>
-  (url: Url): Return => ({
-    model: modifyFields(initial, { route: () => routeOf(url), me: () => me }),
-    commands: [MintId()],
-  })
+/** The page as `me` opens it, before its outbox is read back. */
+export const opening = (me: Person): Model => modifyFields(initial, { me: () => me })
+
+/** The page at `url`, from `opening` with its outbox read back (the runtime's flags). */
+export const init = (model: Model, url: Url): Return => ({
+  model: modifyFields(model, { route: () => routeOf(url) }),
+  commands: [MintId()],
+})
 
 export const subscriptions = placements.subscriptions()

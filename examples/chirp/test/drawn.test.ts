@@ -7,7 +7,8 @@
 import { Option } from 'effect'
 import { May } from 'foldkit-guard'
 import { describe, expect, it } from 'vitest'
-import { Data, Message, initial, update, type Model } from '../src/app.js'
+import { Data, Message, update, type Model } from '../src/app.js'
+import { opened } from './opened.js'
 import { Timeline, TimelinePost } from '../src/operations.js'
 
 const timeline = Data.query(Timeline, {}, { select: TimelinePost, first: 25 })
@@ -62,7 +63,7 @@ const held: Model = [
     },
     now: 5_000,
   },
-].reduce((model: Model, message) => Data.reduce(model, message), initial)
+].reduce((model: Model, message) => Data.reduce(model, message), opened)
 
 const posted = update(
   held,

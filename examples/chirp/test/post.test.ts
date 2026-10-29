@@ -13,7 +13,8 @@ import { Remote, type RemoteClient } from 'foldkit-remote'
 import { Respond, Trace } from 'foldkit-remote/testing'
 import { RemoteServer } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
-import { ComposeForm, Data, Message, initial, update, type Model } from '../src/app.js'
+import { ComposeForm, Data, Message, outbox, update, type Model } from '../src/app.js'
+import { opened } from './opened.js'
 import { Compose } from '../src/compose.js'
 import { Chirper } from '../src/domain.js'
 import { Post } from '../src/guard.js'
@@ -62,7 +63,7 @@ const held: Model = [
     },
     now: 5_000,
   },
-].reduce((model: Model, message) => Data.reduce(model, message), initial)
+].reduce((model: Model, message) => Data.reduce(model, message), opened)
 
 /** The chirp as it arrives once the clock is read: you posted at 6000. */
 const posted = (model: Model): Model =>
@@ -92,6 +93,10 @@ describe('a chirp posted', () => {
 
   it('counts in your post count', () => {
     expect(Data.get(Card, 'you').read(posted(held))).toMatchObject({ value: { postCount: 2 } })
+  })
+
+  it('waits in the outbox, so a reload before the answer keeps it', () => {
+    expect(Data.outboxStatus(posted(held))).toMatchObject({ waiting: 1, failed: 0 })
   })
 })
 
@@ -127,6 +132,7 @@ describe('a chirp posted, as the server keeps it', () => {
       update,
       active: {},
       client: sandbox(),
+      outbox,
       now: at,
       steps: [
         Message.GotComposeMessage({ message: Compose.Message.Submitted() }),

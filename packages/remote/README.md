@@ -2441,6 +2441,10 @@ expect(Trace.tags(trace, list)).toEqual(['Ready', 'Refreshing', 'Ready'])
   script its events as `LiveReceived` Messages. Only Remote's Commands run,
   and `entry.skipped` names the others. It drives a domain whose Messages are
   in your union, not a `Remote.fold`.
+- **Durable writes need the outbox.** Pass `outbox` (your `Data.outbox`
+  wiring) and the trace starts from its `restore`, over an empty store of its
+  own, and runs its Subscriptions as one tab: a durable write is stored and
+  sent by it, and `Respond.mutation` answers that send.
 
 ## Testing that a prediction is the truth: `Law`
 

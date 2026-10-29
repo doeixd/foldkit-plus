@@ -91,3 +91,37 @@ test('posting, editing what you may, and liking, kept by the server in the brows
   expect(errors).toEqual([])
   await context.close()
 })
+
+test('a chirp posted offline waits, survives a reload, and is sent once back online', async () => {
+  const context = await browser.newContext()
+  const errors: Array<string> = []
+  const you = await context.newPage()
+  you.on('pageerror', error => errors.push(String(error)))
+  const waiting = () => you.getByRole('status').filter({ hasText: 'waiting to send' })
+
+  // Offline: the sandbox refuses every write as a dropped connection would.
+  await open(you, '?reset&offline')
+  await you.getByLabel("What's happening?").fill('Written in a tunnel.')
+  await you.getByRole('button', { name: 'Chirp', exact: true }).click()
+  await expect
+    .poll(() => you.getByRole('article').first().textContent())
+    .toContain('Written in a tunnel.')
+  await expect.poll(() => waiting().textContent()).toBe('1 chirp waiting to send')
+
+  // A reload, still offline: the chirp is read back from the outbox, shown, and waits.
+  await you.reload()
+  await post(you, 'The engine weaves').waitFor()
+  await expect.poll(() => post(you, 'Written in a tunnel.').count()).toBe(1)
+  await expect.poll(() => waiting().textContent()).toBe('1 chirp waiting to send')
+
+  // Online again: the page sends what waits, and the server keeps it.
+  await open(you, '')
+  await expect.poll(() => waiting().count()).toBe(0)
+  const ada = await context.newPage()
+  ada.on('pageerror', error => errors.push(String(error)))
+  await open(ada, '?as=ada')
+  await expect.poll(() => post(ada, 'Written in a tunnel.').count()).toBe(1)
+
+  expect(errors).toEqual([])
+  await context.close()
+})

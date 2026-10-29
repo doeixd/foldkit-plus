@@ -132,8 +132,8 @@ export default [
     edits: [
       {
         file: outbox,
-        find: '  const locks = globalThis.navigator?.locks',
-        replace: '  const locks = undefined',
+        find: 'onSome: locks => heldWhile(locks, name, effect),',
+        replace: 'onSome: () => effect,',
       },
     ],
     tests: ['packages/remote/test/outboxTabs.browser.test.ts'],
@@ -159,5 +159,16 @@ export default [
       },
     ],
     tests: ['packages/remote/test/outboxTabs.browser.test.ts'],
+  },
+  {
+    name: 'a trace runs no outbox, so a durable write is never sent',
+    edits: [
+      {
+        file: '../src/testing.ts',
+        find: '...Object.entries(config.outbox?.subscriptions ?? {})',
+        replace: '...Object.entries({})',
+      },
+    ],
+    tests: ['examples/chirp/test/post.test.ts'],
   },
 ]

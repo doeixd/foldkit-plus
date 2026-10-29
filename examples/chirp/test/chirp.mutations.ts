@@ -200,8 +200,8 @@ export default [
     edits: [
       {
         file: '../src/app.ts',
-        find: 'Data.mutate(model, PostChirp, value, { now })',
-        replace: 'Data.mutate(model, PostChirp, value)',
+        find: 'Data.mutate(model, PostChirp, value, { now, durable: true })',
+        replace: 'Data.mutate(model, PostChirp, value, { durable: true })',
       },
     ],
     tests: client,
@@ -249,5 +249,16 @@ export default [
       },
     ],
     tests: server,
+  },
+  {
+    name: 'a chirp is sent at once, not kept in the outbox',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: '{ now, durable: true }',
+        replace: '{ now }',
+      },
+    ],
+    tests: client,
   },
 ]
