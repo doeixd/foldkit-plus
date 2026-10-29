@@ -10,6 +10,22 @@ const operators = '../src/operators.ts'
 
 export default [
   {
+    name: 'NaN given to an operator is bound (#296)',
+    edits: [{ file: compile, find: 'if (isNaNValue(value)) {', replace: 'if (false) {' }],
+    tests,
+  },
+  {
+    name: 'a computed value of NaN is bound (#296)',
+    edits: [
+      {
+        file: compile,
+        find: 'if (isNaNValue(value)) throw new QueryCompileError(`${query} computes from NaN',
+        replace: 'if (false) throw new QueryCompileError(`${query} computes from NaN',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'SQLite casts its parameters too',
     edits: [
       {

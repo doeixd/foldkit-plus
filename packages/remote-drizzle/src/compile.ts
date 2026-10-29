@@ -334,6 +334,9 @@ const argumentSql = (
       `query "${query}" gives an operator text holding a NUL character, which SQL text cannot hold portably`,
     )
   }
+  if (isNaNValue(value)) {
+    throw new QueryCompileError(`query "${query}" gives an operator NaN, ${nanReason}`)
+  }
   return parameterSql(value, Option.some(schema), target)
 }
 
@@ -363,6 +366,7 @@ const computedSql = (
           `${query} computes from text holding a NUL character, which SQL text cannot hold portably`,
         )
       }
+      if (isNaNValue(value)) throw new QueryCompileError(`${query} computes from NaN, ${nanReason}`)
       return parameterSql(value, schema, target)
     },
     Call: ({ operator, args, collation }) => {
@@ -500,15 +504,18 @@ const unrun = (operator: OperatorDescriptor, query: string): QueryCompileError =
 const holdsNul = (value: unknown): boolean =>
   typeof value === 'string' && value.includes(String.fromCharCode(0))
 
+const isNaNValue = (value: unknown): boolean => typeof value === 'number' && Number.isNaN(value)
+
+const nanReason = 'which SQLite stores as null and Postgres orders after every number'
+
 /**
- * NaN as a parameter: SQLite binds it as null and Postgres orders it after
- * every number, so `evaluate` refuses it and so does this.
+ * NaN as a parameter, compared or given to an operator: SQLite binds it as
+ * null and Postgres orders it after every number, so `evaluate` refuses it and
+ * so does this.
  */
 const refuseNaN = (query: string, values: ReadonlyArray<unknown>): void => {
-  if (values.some(value => typeof value === 'number' && Number.isNaN(value))) {
-    throw new QueryCompileError(
-      `query "${query}" compares NaN, which SQLite stores as null and Postgres orders after every number`,
-    )
+  if (values.some(isNaNValue)) {
+    throw new QueryCompileError(`query "${query}" compares NaN, ${nanReason}`)
   }
 }
 

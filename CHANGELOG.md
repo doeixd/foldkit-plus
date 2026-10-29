@@ -919,7 +919,8 @@ carries `drawn`.
     an integer column at registration; SQLite stored the fraction, Postgres
     rounded it, and `Write.apply` predicted the fraction.
 - **NaN is refused wherever values compare or order** (#242), in memory and
-  in SQL, as NUL is: one NaN key left the whole in-memory sort unsorted, and
+  in SQL, as NUL is, an operator's argument and a computed assignment's value
+  included (#296): one NaN key left the whole in-memory sort unsorted, and
   Postgres and SQLite disagree on it. `evaluate` evaluates its whole `where`
   list, so a refusal no longer depends on predicate order. **Breaking:**
   `Expr.givesNul` is `Expr.givesUnportable`, and also flags NaN.

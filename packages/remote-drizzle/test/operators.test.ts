@@ -12,6 +12,7 @@ import { integer, SQLiteDialect, sqliteTable, text } from 'drizzle-orm/sqlite-co
 import { Effect, Schema } from 'effect'
 import {
   Collation,
+  Computation,
   Entity,
   Expr,
   Operators,
@@ -22,7 +23,7 @@ import {
 import { Mutation, Query } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { compilePredicates } from '../src/compile.js'
+import { compilePredicates, computationSql } from '../src/compile.js'
 import { DrizzleOperators, bind, databaseLayer, entity, query, writer } from '../src/index.js'
 
 const Item = Entity.define(
@@ -187,6 +188,32 @@ describe('A primitive operator in SQL', () => {
         'Nul',
       ),
     ).toThrow('gives an operator text holding a NUL character')
+  })
+
+  // `evaluate` refuses NaN once a call over it is compared; SQLite binds it as null (#296).
+  it.each([
+    ['SQLite', onSqlite],
+    ['Postgres', onPostgres],
+  ])('refuses NaN given to an operator, on %s', (_, binding) => {
+    expect(() =>
+      compilePredicates(
+        [Expr.gt(sum(Item.fields.rank, Expr.input('n', Schema.Number)), 0)],
+        binding,
+        { n: Number.NaN },
+        'Ranked',
+      ),
+    ).toThrow('query "Ranked" gives an operator NaN')
+    expect(() =>
+      computationSql(
+        Computation.Call({
+          operator: 'acme.sum',
+          args: [Computation.Field({ key: 'rank' }), Computation.Value({ value: Number.NaN })],
+          collation: null,
+        }),
+        binding,
+        `Item's "rank"`,
+      ),
+    ).toThrow(`Item's "rank" computes from NaN`)
   })
 
   it('is refused by name where the binding lacks it, compiling or registering', () => {
