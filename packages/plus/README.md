@@ -3,54 +3,6 @@
 Every Foldkit Plus package in one install, and a setup command for your coding
 agent.
 
-```bash
-npx --legacy-peer-deps foldkit-plus setup
-```
-
-Tell your agent to run that in your project. The CLI carries everything it
-runs on, so `--legacy-peer-deps` only stops npx installing the package's peers
-beside it, which it never reads: npx adds a newer `foldkit-plus` to the tree
-an older one left in its cache, and their peers' Foldkit versions clash
-(`ERESOLVE`) where none is needed. It prints, for that project, how to
-install Effect, Foldkit and Foldkit Plus with the package manager the project
-uses, how to add the agent skill, and which package does which job. It reads
-your `package.json` first and says when `effect` or `foldkit` is missing or at a
-version this release does not support. When no `.gitattributes` applies to the
-project, it gives one that keeps text files LF (`* text=auto eol=lf`), so a
-Windows checkout does not warn of every file; one the project has is left as it
-is. It writes nothing; the agent runs what it says.
-
-For a new application, run it in an empty folder. With no `package.json` it
-sends the agent to the skill's
-[greenfield guide](https://github.com/doeixd/foldkit-plus/blob/main/skills/foldkit-plus/references/greenfield.md):
-ask about the goals, the look (a theme designed at
-[/create](https://foldkit-plus.pages.dev/create)) and the domain first, record
-the answers in the project,
-map them to these packages with you, plan the architecture, performance, SEO,
-testing, CI and deployment, and build once you agree. It prints the
-`create-foldkit-app` command, at the release that installs this release's
-Foldkit, for when it is time to scaffold.
-
-## Docs for the versions you have
-
-```bash
-npx foldkit-plus docs Data.preload        # a symbol: its declaration and its sections
-npx foldkit-plus docs "optimistic delete" # words: the three best sections
-npx foldkit-plus docs --list remote       # one topic's headings, with line numbers
-```
-
-`docs` answers from what is installed in the project it runs in, so it
-describes the versions the application has, not `main`. It reads the README
-of each Foldkit Plus package that an import from the project would load (one
-the project names from its own folder; the rest from beside `foldkit-plus`),
-the `foldkit-plus` skill if it is installed in a dot-folder's `skills/` (the
-project's, its repository's, or the home folder's), and for a symbol the
-package's `.d.mts`. Each section comes with its file and line, so the rest is
-one read away. Nothing is indexed ahead of time and nothing is fetched. `--json` prints the same for a
-program. A query that matches nothing, a project with no Foldkit Plus package,
-or one whose `package.json` names a package that is not installed exits 1 and
-says which.
-
 ## What it is
 
 [Foldkit Plus](https://foldkit-plus.pages.dev) is a family of packages that
@@ -67,7 +19,45 @@ foldkit-mixins/theme        ->  foldkit-plus/mixins/theme
 ```
 
 A subpath is the package itself, re-exported: `foldkit-plus/remote`'s `Remote`
-is `foldkit-remote`'s, so the two can be mixed in one application.
+is `foldkit-remote`'s, so the two can be mixed in one application. This package
+owns no state and adds no runtime API of its own: what each package owns is in
+its own guide. What it adds is the `setup` and `docs` commands, and two subpaths
+for testing a running application.
+
+## Setup
+
+```bash
+npx --legacy-peer-deps foldkit-plus setup
+```
+
+Tell your agent to run that in your project. It writes nothing: it prints, for
+that project, what the agent should run, in order:
+
+1. **Check the project.** It reads your `package.json` and says when `effect`
+   or `foldkit` is missing or at a version this release does not support. When
+   no `.gitattributes` applies to the project, it gives one that keeps text
+   files LF (`* text=auto eol=lf`), so a Windows checkout does not warn of
+   every file; one the project has is left as it is.
+2. **Install** Effect, Foldkit and Foldkit Plus with the package manager the
+   project uses, after the version pins described under [Versions](#versions),
+   and the command that adds each [adapter](#what-it-does-not-install-adapters).
+3. **Add the agent skill**, and paste its `AGENTS.md` block into the project.
+4. **Import**: which package does which job.
+
+`--legacy-peer-deps` only stops npx installing the package's peers beside it,
+which the CLI never reads (it carries everything it runs on): npx adds a newer
+`foldkit-plus` to the tree an older one left in its cache, and their peers'
+Foldkit versions clash (`ERESOLVE`) where none is needed.
+
+For a new application, run it in an empty folder. With no `package.json` it
+sends the agent to the skill's
+[greenfield guide](https://github.com/doeixd/foldkit-plus/blob/main/skills/foldkit-plus/references/greenfield.md):
+ask about the goals, the look (a theme designed at
+[/create](https://foldkit-plus.pages.dev/create)) and the domain first, record
+the answers in the project, map them to these packages with you, plan the
+architecture, performance, SEO, testing, CI and deployment, and build once you
+agree. It prints the `create-foldkit-app` command, at the release that installs
+this release's Foldkit, for when it is time to scaffold.
 
 ## Import
 
@@ -98,14 +88,36 @@ once you add it with its library:
 | `foldkit-react-codegen` | `typescript` | Views compiled to React TSX |
 | `foldkit-remote-drizzle` | `drizzle-orm` | Remote reads answered with Drizzle |
 | `foldkit-cms-drizzle` | `drizzle-orm` | The CMS's server on Drizzle |
+| `foldkit-auth` | `@yielded/auth` | Sign-in and sessions with Yielded Auth |
 | `foldkit-mixins-ui` | `@foldkit/ui` | `@foldkit/ui` components styled through slots |
 | `foldkit-richtext-code-shiki` | `shiki` | Code blocks highlighted with Shiki |
 | `foldkit-agent-native` | `@agent-native/core` | Agents through Agent Native |
 
-`npx foldkit-plus setup` lists them with the command that adds each.
+`setup` lists them with the command that adds each, at the library version the
+adapter peers on.
 
 `foldkit-media` is installed, but two of its subpaths need a library that is not:
 `foldkit-plus/media/sharp` needs `sharp`, and `foldkit-plus/media/unpic` needs `unpic`.
+
+## Docs for the versions you have
+
+```bash
+npx foldkit-plus docs Data.preload        # a symbol: its declaration and its sections
+npx foldkit-plus docs "optimistic delete" # words: the three best sections
+npx foldkit-plus docs --list remote       # one topic's headings, with line numbers
+```
+
+`docs` answers from what is installed in the project it runs in, so it
+describes the versions the application has, not `main`. It reads the README
+of each Foldkit Plus package that an import from the project would load (one
+the project names from its own folder; the rest from beside `foldkit-plus`),
+the `foldkit-plus` skill if it is installed in a dot-folder's `skills/` (the
+project's, its repository's, or the home folder's), and for a symbol the
+package's `.d.mts`. Each section comes with its file and line, so the rest is
+one read away. Nothing is indexed ahead of time and nothing is fetched.
+`--json` prints the same for a program. A query that matches nothing, a
+project with no Foldkit Plus package, or one whose `package.json` names a
+package that is not installed exits 1 and says which.
 
 ## Testing a running application
 
@@ -166,13 +178,20 @@ uses both subpaths.
 Foldkit `0.169`, and `setup` installs the Foldkit and the Effect this
 repository tests (`package.json`'s `setup` field). Foldkit and its Vite plugin
 name one Effect release exactly (`4.0.0`), older than that, so `setup` first
-has the project pin every Effect package to the tested one: npm `overrides`,
-pnpm `overrides` with `peerDependencyRules` (at the workspace root, the only
-place pnpm reads them: its `pnpm-workspace.yaml`, or its `package.json` where
-that already holds a `pnpm` field), Yarn `resolutions`. That also
-holds `foldkit-durable`'s `@effect/sql-sqlite-node`, whose every release peers
-on an `effect` at least its own version. Each release of `foldkit-plus` pins the release of every
-package it brings, so the set is one tested combination; the
+has the project pin every Effect package to the tested one:
+
+- npm: `overrides`, and the project's own Effect dependencies set to the same
+  release, since npm overrides a direct dependency only where the project
+  names that version;
+- pnpm: `overrides` with `peerDependencyRules`, at the workspace root, the only
+  place pnpm reads them (its `pnpm-workspace.yaml`, or its `package.json` where
+  that already holds a `pnpm` field);
+- Yarn: `resolutions`; Bun: `overrides`.
+
+That also holds `foldkit-durable`'s `@effect/sql-sqlite-node`, whose every
+release peers on an `effect` at least its own version. Each release of
+`foldkit-plus` pins the release of every package it brings, so the set is one
+tested combination; the
 [release matrix](https://github.com/doeixd/foldkit-plus/blob/main/docs/releases.md)
 lists them.
 
