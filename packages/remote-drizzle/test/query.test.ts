@@ -175,6 +175,14 @@ describe('RemoteDrizzle.query', () => {
     )
   })
 
+  it('names the entity it lists, and refuses a table of another', () => {
+    expect(source.entity).toBe('Project')
+    const Tasks = Query.make('Tasks', { Input: {}, Result: Query.connection({ name: 'Task' }) })
+    expect(() =>
+      query(Tasks, { entity: ProjectBinding, orderBy: [{ key: projects.id, direction: 'asc' }] }),
+    ).toThrow(`query "Tasks" lists "Task", but is bound to Project's table`)
+  })
+
   it('fails a window that combines after and before', async () => {
     const { database } = fakeDatabase([])
 

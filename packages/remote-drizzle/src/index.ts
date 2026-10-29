@@ -48,7 +48,7 @@ import {
   type Invariant,
   type WriteAssignment,
 } from 'foldkit-entity'
-import type { NormalizedPatch, QueryDescriptor } from 'foldkit-remote'
+import type { ConnectionSpec, NormalizedPatch, QueryDescriptor } from 'foldkit-remote'
 import { Diagnostics, Entity } from 'foldkit-remote'
 import {
   RemoteServer,
@@ -777,7 +777,7 @@ export const source = <P = unknown>(
  * before the page query, so the wire cursor stays a string.
  */
 export const query = <P = unknown, Input = unknown>(
-  descriptor: QueryDescriptor<string, Input, unknown>,
+  descriptor: QueryDescriptor<string, Input, ConnectionSpec>,
   options: {
     readonly entity: AnyEntityBinding
     /**
@@ -829,8 +829,16 @@ export const query = <P = unknown, Input = unknown>(
       `[foldkit-remote-drizzle] query "${descriptor.name}" declares its order in its body, so an orderBy here would order it otherwise than the client reads it`,
     )
   }
+  // A live list's rows are read as the entity its query lists: a table of
+  // another would answer ids that name no row of it.
+  if (descriptor.Result.entity !== options.entity.name) {
+    throw new Error(
+      `[foldkit-remote-drizzle] query "${descriptor.name}" lists "${descriptor.Result.entity}", but is bound to ${options.entity.name}'s table`,
+    )
+  }
   return {
     query: descriptor.name,
+    entity: options.entity.name,
     Input: descriptor.Input,
     ...(options.entity.visible === undefined ? {} : { visible: options.entity.visible }),
     run: ({ input, window, principal, viewer }) =>

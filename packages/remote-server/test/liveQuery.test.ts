@@ -152,6 +152,11 @@ describe('a list read live, through the handler', () => {
       'Unknown query "Gone"',
     ],
     ['no select', { ...pageRequest('red'), select: undefined }, 'read live with no select'],
+    [
+      'a select of another entity than it lists',
+      { ...pageRequest('red'), select: { entity: 'Tag', fields: ['id'] } },
+      'Query "All" lists "Item", but is read live selecting "Tag"',
+    ],
     ['no first', { ...pageRequest('red'), window: {} }, 'read live with no first'],
     [
       'an input its query does not decode',

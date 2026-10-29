@@ -832,7 +832,8 @@ from mutations via `RemoteServer.prepend/append/remove`. `handlers` options:
 subscription once, before any live Source (`pollLive`, `RemoteServer.live`) or the
 hub sees it: over `maxIdsPerEntity` ids of one Entity (a live list's `first` counted
 with them), more than four pages of one relation, or a live list of an unregistered
-query, an input that does not decode, or no `select` or `first`, it fails with
+query, an input that does not decode, no `select` or `first`, or a `select` of
+another Entity than the query lists (a `QuerySource`'s `entity`), it fails with
 `RemoteLiveRefused` and nothing is read. `foldkit-remote-drizzle`'s `pollLive(source,
 { every, changes })` diffs every list it is handed, and takes no list of its own (its
 old `lists`, with a `watchId` naming no row, is gone); the hub watches none.

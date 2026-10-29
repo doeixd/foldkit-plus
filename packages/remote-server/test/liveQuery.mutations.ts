@@ -240,4 +240,38 @@ export default [
     ],
     tests: pollTests,
   },
+  {
+    name: 'a select of another entity than its query lists is admitted',
+    edits: [
+      { file: server, find: 'if (select.entity !== source.entity) {', replace: 'if (false) {' },
+    ],
+    tests: serverTests,
+  },
+  {
+    name: 'RemoteServer.query names no entity',
+    edits: [{ file: server, find: 'entity: query.Result.entity,', replace: "entity: ''," }],
+    tests: serverTests,
+  },
+  {
+    name: 'a Drizzle query names no entity',
+    edits: [
+      {
+        file: '../../remote-drizzle/src/index.ts',
+        find: 'entity: options.entity.name,',
+        replace: "entity: '',",
+      },
+    ],
+    tests: ['packages/remote-drizzle/test/query.test.ts'],
+  },
+  {
+    name: 'a Drizzle query takes a table of another entity',
+    edits: [
+      {
+        file: '../../remote-drizzle/src/index.ts',
+        find: 'if (descriptor.Result.entity !== options.entity.name) {',
+        replace: 'if (false) {',
+      },
+    ],
+    tests: ['packages/remote-drizzle/test/query.test.ts'],
+  },
 ]

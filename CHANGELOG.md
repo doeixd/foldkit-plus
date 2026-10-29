@@ -14,7 +14,8 @@ version changed; `pnpm` skips versions already in the registry.
   Surface reads it, with no row of its own to subscribe to. The live entry
   sends each list as its read sends it (`LiveRequirement.queries`); the
   handler admits it (a registered query, an input that decodes, a `select`
-  and a `first` counted toward `maxIdsPerEntity`, at most 32 lists, else
+  of the Entity the query lists, and a `first` counted toward
+  `maxIdsPerEntity`, at most 32 lists, else
   `RemoteLiveRefused`) and hands the live source of its Entity a `LiveQuery`
   (`identity`, `select`, and `edges`, the query run as the subscriber with the
   page's window). `pollLive` diffs each one, invalidating it once as the
@@ -419,6 +420,12 @@ version changed; `pnpm` skips versions already in the registry.
   `LiveSource.subscribe` (now a method) takes `queries`, `RemoteClient.live`
   sends them, and `REMOTE_PROTOCOL_VERSION` is 5, so a server that would
   ignore a live list refuses the client instead.
+- **Breaking: a `QuerySource` names the Entity it lists** (`entity`).
+  `RemoteServer.query` reads it from the descriptor, whose `Result` must be a
+  connection, and remote-drizzle's `query` from its binding, refusing a
+  binding of another Entity than the descriptor lists. The live handler
+  refuses a list whose `select` is of another Entity, which would have read
+  the list's ids as rows of that one.
 - **`Law.check` holds the client to the server once the answer lands too**
   (#265). Each predicted part is compared with the Model as it showed the
   write and with the Model after the answer is reduced into it, and agrees

@@ -61,6 +61,7 @@ import {
   stableStringify,
   type Boundary,
   type ConnectionChangeSchema,
+  type ConnectionSpec,
   type ConnectionIdentity,
   type LiveChange,
   type MutationDescriptor,
@@ -606,6 +607,8 @@ export interface QueryPage {
 
 export interface QuerySource<P, R = never> {
   readonly query: string
+  /** The entity whose rows it lists: a list read live selects rows of no other. */
+  readonly entity: string
   readonly Input: Schema.Codec<unknown>
   readonly run: (context: {
     readonly input: unknown
@@ -859,8 +862,9 @@ interface AdmittedQuery<P, R> {
  * Admits each live list as a read of it is admitted, and refuses what a list
  * read again every tick may not be: a query the server does not register, an
  * input it does not decode, no `select` (a row is diffed by what it is drawn
- * with), no `first`, or a `first` that, with the ids of its entity the
- * subscription names, passes `maxIds`.
+ * with) or one of another entity than the query lists, no `first`, or a
+ * `first` that, with the ids of its entity the subscription names, passes
+ * `maxIds`.
  */
 const admitQueries = <P, R>(
   server: ServerDefinition<P, R>,
@@ -878,6 +882,13 @@ const admitQueries = <P, R>(
       const { select } = request
       if (select === undefined) {
         return yield* refused(`Query "${request.query}" is read live with no select`)
+      }
+      // Its rows are diffed as rows of the entity the select names, so a select
+      // of another would read the list's ids as that entity's.
+      if (select.entity !== source.entity) {
+        return yield* refused(
+          `Query "${request.query}" lists "${source.entity}", but is read live selecting "${select.entity}"`,
+        )
       }
       const { first } = request.window
       if (first === undefined) {
@@ -2405,7 +2416,7 @@ export const RemoteServer = {
   },
 
   query: <P = unknown, R = never, Input = unknown>(
-    query: QueryDescriptor<string, Input, unknown>,
+    query: QueryDescriptor<string, Input, ConnectionSpec>,
     run: (context: {
       readonly input: Input
       readonly window: QueryWindow
@@ -2416,6 +2427,7 @@ export const RemoteServer = {
     }) => Effect.Effect<QueryPage, RemoteServerError, R>,
   ): QuerySource<P, R> => ({
     query: query.name,
+    entity: query.Result.entity,
     Input: query.Input,
     run: context =>
       run({

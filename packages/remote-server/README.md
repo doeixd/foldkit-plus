@@ -619,7 +619,9 @@ the connection events), `select` (what the read draws of each row), and
 `edges`, the registered query run as the subscriber with the page's window.
 The handler refuses, with `RemoteLiveRefused` and before any live Source is
 asked, a list of a query it does not register, an input that does not
-decode, one with no `select` or no `first`, and one whose `first`, added to
+decode, one with no `select` or no `first`, one whose `select` is of another
+Entity than its query lists (a `QuerySource` names that Entity: `RemoteServer.query`
+reads it from the descriptor's connection), and one whose `first`, added to
 the ids of its Entity the subscription names, passes `maxIdsPerEntity`. A
 subscription watches at most 32 lists (`MAX_LIVE_QUERIES`), refused at decode.
 
