@@ -7,6 +7,7 @@
  */
 import { Data, Effect, Match, Option, Record as Rec, Schema } from 'effect'
 import {
+  Entity as DomainEntity,
   Write as DomainWrite,
   type AnyWrite,
   type BoundWrite,
@@ -17,8 +18,10 @@ import {
   Held,
   type AnyEntity,
   type EntityDerived,
+  type HeldRow,
   type ExprContext,
   type Invariant,
+  type MemoryOperators,
   type Predict,
   type Write,
 } from 'foldkit-entity'
@@ -744,6 +747,58 @@ export const predictionOfWrite = (
       by,
     ),
   ]
+}
+
+/** The held fields of `row`, plain and encoded, as an invariant is judged over them. */
+const plainRow = (entity: AnyEntity, row: HeldRow): Record<string, unknown> => {
+  const plain: Record<string, unknown> = {}
+  for (const key of Object.keys(entity.fields))
+    Held.match(row.field(key), {
+      onHeld: value => {
+        plain[key] = value
+      },
+      onUnheld: () => undefined,
+    })
+  return plain
+}
+
+/**
+ * The invariant a declared write's row would break, as the client holds it:
+ * the store's row with the write's values over it, a field the write moves
+ * (an increment, a computed value) not held, and for an update the row
+ * before. Only a definite failure counts: an invariant over a field the
+ * client lacks is undecided, and refuses nothing. A delete leaves no row.
+ */
+export const brokenByWrite = (
+  write: AnyWrite,
+  input: unknown,
+  keys: ReadonlyArray<string> | undefined,
+  context: ExprContext,
+  store: EntityStore,
+  operators: MemoryOperators,
+): Option.Option<Invariant> => {
+  const entity = write.input.entity
+  const patch = optimisticOfWrite(write, input, keys, context, store).find(
+    (each): each is PendingPatch => !('_tag' in each),
+  )
+  if (patch === undefined) return Option.none()
+  const holder = holderOf(store)
+  const after = plainRow(
+    entity,
+    holder.written(entity, patch.id, patch.values, [
+      ...Object.keys(patch.adds ?? {}),
+      ...Object.keys(patch.computes ?? {}),
+    ]),
+  )
+  const before = Option.getOrUndefined(
+    Option.map(holder.rows.row(entity, patch.id), row => plainRow(entity, row)),
+  )
+  const judged = DomainEntity.judge(
+    entity,
+    write._tag === 'Insert' || before === undefined ? { after } : { after, before },
+    operators,
+  )
+  return judged._tag === 'Invalid' ? Option.fromUndefinedOr(judged.failures[0]) : Option.none()
 }
 
 export const Mutation = {

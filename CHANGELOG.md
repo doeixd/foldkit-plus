@@ -9,6 +9,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **A write the client can tell is invalid is refused where it is made**
+  (operations phase 6). `Data.mutate` judges a declared write's invariants
+  over the row it would leave, as the store holds it; where one is definitely
+  broken it shows and sends nothing, and its Command answers `MutationFailed`
+  with the `Refusal.invalid` the server would send. Undecided refuses nothing.
+  `Law.check` sends such a write to the server too, which must refuse it
+  alike, and remote-drizzle's law suite checks that a row its CHECKs refuse is
+  one the client judges invalid.
 - **`PredictionMismatch`, the law in development** (#257, operations phase
   6). **Breaking:** `Remote.make({ verifyPredictions })` replaces
   `verifyPlacement` and `verifyAnswers`, and one diagnostic,

@@ -4,9 +4,9 @@
  * server then holds (operations-phase6-DESIGN §1). Where the client's answer
  * is not unknown, it must equal the server's.
  */
-import { Effect, Option, Schema } from 'effect'
+import { Effect, Option, Result, Schema } from 'effect'
 import type { AnyEntity } from 'foldkit-entity'
-import { RemoteClient } from './client.js'
+import { RemoteClient, remoteError } from './client.js'
 import type { RemoteDomain } from './index.js'
 import type { MutationDescriptor } from './mutation.js'
 import { stableStringify, type QueryRef } from './query.js'
@@ -141,7 +141,16 @@ const check = <AppModel>(
       predicted.set(entityKey(deleted.entity, deleted.id), new Set())
 
     // 3. The server writes, as the client's own Command sends it.
-    const answer: RemoteMessage = yield* started.command.effect
+    let sent = false
+    const answer: RemoteMessage = yield* started.command.effect.pipe(
+      Effect.provideService(RemoteClient, {
+        ...client,
+        mutate: request => {
+          sent = true
+          return client.mutate(request)
+        },
+      }),
+    )
 
     const agreed: Array<string> = []
     const disagreed: Array<LawPart> = []
@@ -151,9 +160,30 @@ const check = <AppModel>(
       else disagreed.push({ part, client: clientSays, server: serverSays })
     }
 
+    if (answer._tag === 'MutationFailed' && !sent) {
+      // The client refused it itself: the server is asked, and must refuse it alike.
+      const served = yield* Effect.result(
+        client.mutate({
+          requestId: started.requestId,
+          mutation: config.mutation.name,
+          input: Schema.encodeUnknownSync(config.mutation.Input)(config.input),
+          now: config.now,
+        }),
+      )
+      compare(
+        config.mutation.name,
+        answer.error.refusal,
+        Result.match(served, {
+          onFailure: error => remoteError(error).refusal ?? error._tag,
+          onSuccess: () => 'applied',
+        }),
+      )
+      return { agreed, disagreed, unknown }
+    }
     if (answer._tag === 'MutationFailed') {
       // The client showed the write as made, where it showed anything; the server refused it.
-      if (predicted.size > 0) compare(config.mutation.name, 'applied', answer.error)
+      if (predicted.size > 0)
+        compare(config.mutation.name, 'applied', answer.error.refusal ?? answer.error)
       return disagreed.length === 0
         ? nothingCompared(config.mutation.name)
         : { agreed, disagreed, unknown }

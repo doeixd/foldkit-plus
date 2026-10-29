@@ -19,8 +19,8 @@ export default [
   edit(
     'the page dates a note a moment late',
     '../../../packages/remote/src/index.ts',
-    '                  now: Option.fromUndefinedOr(options.now),',
-    '                  now: Option.map(Option.fromUndefinedOr(options.now), at => at + 1),',
+    '              now: Option.fromUndefinedOr(options.now),',
+    '              now: Option.map(Option.fromUndefinedOr(options.now), at => at + 1),',
   ),
   edit(
     'the page places a new note by the order reversed',

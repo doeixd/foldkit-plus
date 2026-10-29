@@ -529,6 +529,10 @@ or any codec); a `Mutation.write` whose write has a `when` may also be refused
 as `Refusal.unmet`, and only then does its `Refusal` type include it; every `Mutation.write` may be refused as
 `Refusal.invalid` (`{ rule: Option<string>, message, path }`), when the row it would leave breaks an invariant, and `Refusal.isInvalidBy(refusal, invariant)` matches it against the value `Entity.invariant` returned; a Source fails with `RemoteServer.refuse(mutation, value)`, and
 `Data.refusal(model, requestId, mutation)` reads it decoded, as an `Option`.
+A declared write whose row the client can tell breaks an invariant (judged over
+the store's row with the write's values over it) is refused by `Data.mutate`
+itself: nothing shown or sent, and `MutationFailed` with that same
+`Refusal.invalid`; an invariant over a field the client lacks refuses nothing.
 `RemoteServer.forbid(reason?)` refuses who is asking, for any mutation: a 403
 over JSON, and `Data.mutation` is `Failed` with `error._tag === 'Forbidden'` and
 `error.reason` when given. `Remote.http` reads a 403 that is not Remote's

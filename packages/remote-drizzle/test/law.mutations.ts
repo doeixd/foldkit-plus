@@ -30,8 +30,8 @@ export default [
   edit(
     'the client predicts a moment late',
     '../../remote/src/index.ts',
-    '                  now: Option.fromUndefinedOr(options.now),',
-    '                  now: Option.map(Option.fromUndefinedOr(options.now), at => at + 1),',
+    '              now: Option.fromUndefinedOr(options.now),',
+    '              now: Option.map(Option.fromUndefinedOr(options.now), at => at + 1),',
   ),
   edit(
     'the client reads a path from the viewer through the wrong member',
@@ -54,7 +54,7 @@ export default [
   edit(
     'a refused write the client showed nothing of is a disagreement',
     '../../remote/src/law.ts',
-    'if (predicted.size > 0) compare(',
+    'if (predicted.size > 0)\n        compare(',
     'compare(',
   ),
   edit(
@@ -68,6 +68,18 @@ export default [
     '../../remote/src/law.ts',
     'for (const ref of predicted.size === 0 ? [] : lists) {',
     'for (const ref of lists) {',
+  ),
+  edit(
+    'a write the client refused is not asked of the server',
+    '../../remote/src/law.ts',
+    "if (answer._tag === 'MutationFailed' && !sent) {",
+    'if (false) {',
+  ),
+  edit(
+    'the client refuses no write itself',
+    '../../remote/src/index.ts',
+    'mutation.write === undefined || options.optimistic !== undefined',
+    'true',
   ),
   edit(
     'the server takes an increment away',

@@ -413,6 +413,18 @@ const cases: ReadonlyArray<LawCase> = [
     input: { id: 'v2' },
     compares: ['Vote:v2', 'Card:c1.voteCount', 'Card:c1.voted'],
   },
+  {
+    what: 'an edit the client refuses itself, as the server refuses it',
+    mutation: EditCard,
+    input: { id: 'c1', title: 'alpha', rank: -1 },
+    compares: ['EditCard'],
+  },
+  {
+    what: 'a new card the client refuses itself, as the server refuses it',
+    mutation: AddCard,
+    input: { id: 'c9', title: 'delta', rank: -3, votes: 0 },
+    compares: ['AddCard'],
+  },
 ]
 
 /** One case, as u1. */
@@ -436,8 +448,14 @@ const checked = (Db: Bound, layer: Layer.Layer<DrizzleDatabase>, c: LawCase) =>
 /** A seeded database, and how to let it go. */
 interface Fresh {
   readonly layer: Layer.Layer<DrizzleDatabase>
+  /** Runs one statement past the server, as a write that skips it would. */
+  readonly run: (statement: string) => Promise<unknown>
   readonly close: () => Promise<void>
 }
+
+/** A card row as the table holds it, with `rank`. */
+const cardRow = (rank: number) =>
+  `insert into law_cards values ('c8', 'raw', ${rank}, 0, 'acme', 'u1', 1, 1)`
 
 /** The law over one database, each case on a fresh copy of the seed. */
 const suite = (Db: Bound, fresh: () => Promise<Fresh>) =>
@@ -452,14 +470,50 @@ const suite = (Db: Bound, fresh: () => Promise<Fresh>) =>
     }
   })
 
+/**
+ * The CHECKs are the server's last word on the same invariants
+ * (operations-phase6-DESIGN §4): a row they refuse is one the client judges
+ * invalid, and one they take it does not.
+ */
+const checksAgree = (fresh: () => Promise<Fresh>) =>
+  it.each([
+    { rank: -1, valid: false },
+    { rank: 4, valid: true },
+  ])(
+    'a row of rank $rank, written past the server, is refused by the CHECKs only if the client judges it invalid',
+    async ({ rank, valid }) => {
+      const { run, close } = await fresh()
+      try {
+        const stored = await run(cardRow(rank)).then(
+          () => true,
+          () => false,
+        )
+        const judged = Entity.judge(Card, {
+          after: { id: 'c8', title: 'raw', rank, votes: 0, org: 'acme', createdAt: 1, editedAt: 1 },
+        })
+        expect({ stored, judged: judged._tag }).toEqual({
+          stored: valid,
+          judged: valid ? 'Valid' : 'Invalid',
+        })
+      } finally {
+        await close()
+      }
+    },
+  )
+
 const freshSqlite = async (): Promise<Fresh> => {
   const sqlite = new DatabaseSync(':memory:')
   for (const statement of statements(sqliteDb)) sqlite.exec(statement)
-  return { layer: databaseLayer(drizzle({ client: sqlite })), close: async () => sqlite.close() }
+  return {
+    layer: databaseLayer(drizzle({ client: sqlite })),
+    run: async statement => sqlite.exec(statement),
+    close: async () => sqlite.close(),
+  }
 }
 
 describe('the law, on SQLite', () => {
   suite(sqliteDb, freshSqlite)
+  checksAgree(freshSqlite)
 
   it.each([
     ['answered', Ping],
@@ -485,12 +539,18 @@ const seedPg = async (run: (statement: SQL) => Promise<unknown>) => {
 }
 
 describe('the law, on Postgres', () => {
-  suite(pgDb, async () => {
+  const freshPg = async (): Promise<Fresh> => {
     const pglite = new PGlite()
     const db = drizzlePg({ client: pglite })
     await seedPg(statement => db.execute(statement))
-    return { layer: databaseLayer(db), close: () => pglite.close() }
-  })
+    return {
+      layer: databaseLayer(db),
+      run: statement => db.execute(sql.raw(statement)),
+      close: () => pglite.close(),
+    }
+  }
+  suite(pgDb, freshPg)
+  checksAgree(freshPg)
 }, 60_000)
 
 /** A Postgres that collates by a locale, when `FOLDKIT_LOCALE_PG` names one (see `conformance.test.ts`). */
@@ -507,9 +567,15 @@ if (localePg !== undefined)
       await drop()
       await db.$client.end()
     })
-    suite(pgDb, async () => {
+    const freshLocale = async (): Promise<Fresh> => {
       await drop()
       await seedPg(statement => db.execute(statement))
-      return { layer: databaseLayer(db), close: async () => undefined }
-    })
+      return {
+        layer: databaseLayer(db),
+        run: statement => db.execute(sql.raw(statement)),
+        close: async () => undefined,
+      }
+    }
+    suite(pgDb, freshLocale)
+    checksAgree(freshLocale)
   })

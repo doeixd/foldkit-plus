@@ -1700,6 +1700,16 @@ refusal matches none. The server sends the refusal encoded by this schema and
 `Data.refusal` decodes it by the same one; it is none while the mutation is
 pending or applied, or when it failed for another reason.
 
+**A write the client can tell is invalid is refused where it is made.**
+`Data.mutate` judges a declared write's Entity invariants over the row it
+would leave, as the client holds it: the store's row with the write's values
+over it, a field it moves (an increment, a computed value) not held. Where one
+is definitely broken, it shows nothing and sends nothing; its Command answers
+`MutationFailed` at once with the very `Refusal.invalid` the server would send,
+so `Data.refusal`, `Data.failedWrites` and your `update` handle it as a
+server's. An invariant over a field the client lacks is undecided and refuses
+nothing: the server judges it. Passing `optimistic` yourself skips the check.
+
 A server may also refuse who is asking, whatever the mutation
 (`RemoteServer.forbid`). Then `Data.mutation(model, requestId)` is `Failed`
 with an error of `_tag: 'Forbidden'`, and `reason` when the server gave one,
@@ -2388,6 +2398,9 @@ expect(report.agreed).toEqual(expect.arrayContaining(['Card:c9.createdAt', ByRan
 - **Pin the server's clock to `now`** (a `Clock` service, or `TestClock`), or a
   `now` outside the server's `clockSkew` is replaced by its own, and every time
   the write sets disagrees.
+- **A refusal is a part too.** A write the client refused itself (a broken
+  invariant) is still sent to the server, which must refuse it alike; one the
+  server refuses after the client showed it is a disagreement.
 - **It fails when it compared nothing**, as for a mutation the client foresees
   nothing of: two sides that both said nothing agree, and that is no evidence.
   Name the parts you expect compared, as above, so a prediction that silently

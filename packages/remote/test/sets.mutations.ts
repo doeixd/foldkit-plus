@@ -70,8 +70,8 @@ export default [
     edits: [
       {
         file: '../src/index.ts',
-        find: '                  now: Option.fromUndefinedOr(options.now),',
-        replace: '                  now: Option.none(),',
+        find: '              now: Option.fromUndefinedOr(options.now),',
+        replace: '              now: Option.none(),',
       },
     ],
     tests: [...tests, 'examples/chirp/test/post.test.ts'],

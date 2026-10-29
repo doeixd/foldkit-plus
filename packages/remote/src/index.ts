@@ -109,6 +109,7 @@ import {
   forgetFailure,
   mutationStatus,
   predictionOfWrite,
+  brokenByWrite,
   DerivedBy,
   type MutationDescriptor,
   type MutationStatus,
@@ -4227,18 +4228,47 @@ const bindDomain = <
       const known = Option.fromUndefinedOr(remote.mutations.operations.get(requestId))
       // A declared write shows what it writes until the server answers; one given wins.
       const viewer = viewerOf(model)
-      const optimistic =
-        typeof options.optimistic === 'function'
+      const visible = visibleStoreOf(remote.entities, remote.optimistic, bound.operators)
+      const predicted =
+        mutation.write === undefined
+          ? undefined
+          : predictionOfWrite(mutation.write, input, options.keys, {
+              derived: definition.registry.derived,
+              store: visible,
+              viewer,
+              now: Option.fromUndefinedOr(options.now),
+            })
+      // A row the client can tell breaks an invariant is refused here, as the
+      // server would refuse it, and nothing is sent or shown.
+      const refused =
+        mutation.write === undefined || options.optimistic !== undefined
+          ? Option.none()
+          : Option.map(
+              brokenByWrite(
+                mutation.write,
+                input,
+                options.keys,
+                { viewer, now: Option.fromUndefinedOr(options.now) },
+                visible,
+                bound.operators,
+              ),
+              (held): RemoteError =>
+                remoteError({
+                  _tag: 'RemoteMutationError',
+                  message: held.message,
+                  refusal: Schema.encodeUnknownSync(mutation.Refusal)({
+                    _tag: 'Invalid',
+                    rule: Option.some(held.id),
+                    message: held.message,
+                    path: held.path,
+                  }),
+                }),
+            )
+      const optimistic = Option.isSome(refused)
+        ? undefined
+        : typeof options.optimistic === 'function'
           ? options.optimistic({ requestId, tempId })
-          : (options.optimistic ??
-            (mutation.write === undefined
-              ? undefined
-              : predictionOfWrite(mutation.write, input, options.keys, {
-                  derived: definition.registry.derived,
-                  store: visibleStoreOf(remote.entities, remote.optimistic, bound.operators),
-                  viewer,
-                  now: Option.fromUndefinedOr(options.now),
-                })))
+          : (options.optimistic ?? predicted)
       const started = updateRemote(remote, {
         _tag: 'MutationStarted',
         requestId,
@@ -4269,34 +4299,41 @@ const bindDomain = <
           // Minted where the Command runs, so `update` stays pure; a retry finds it in the Model.
           effect: Effect.flatMap(
             Effect.sync(() => Option.getOrElse(known, mintOperation)),
-            operation =>
-              mutateRemote(mutation, input, requestId, {
-                keys: options.keys,
-                operation,
-                shown,
-                now: options.now,
-              }).pipe(
-                Effect.matchEffect({
-                  onFailure: error =>
-                    Effect.succeed<RemoteMessage>({
-                      _tag: 'MutationFailed',
-                      requestId,
-                      error: remoteError(error),
-                      operation,
+            (operation): Effect.Effect<RemoteMessage, never, RemoteClient> =>
+              Option.isSome(refused)
+                ? Effect.succeed({
+                    _tag: 'MutationFailed',
+                    requestId,
+                    error: refused.value,
+                    operation,
+                  })
+                : mutateRemote(mutation, input, requestId, {
+                    keys: options.keys,
+                    operation,
+                    shown,
+                    now: options.now,
+                  }).pipe(
+                    Effect.matchEffect({
+                      onFailure: error =>
+                        Effect.succeed<RemoteMessage>({
+                          _tag: 'MutationFailed',
+                          requestId,
+                          error: remoteError(error),
+                          operation,
+                        }),
+                      // Dated when it lands, by the clock a test pins.
+                      onSuccess: outcome =>
+                        Effect.map(Clock.currentTimeMillis, (at): RemoteMessage => ({
+                          _tag: 'MutationSucceeded',
+                          requestId,
+                          entities: outcome.entities,
+                          connections: outcome.connections,
+                          deleted: outcome.deleted,
+                          ...(outcome.read === undefined ? {} : { read: outcome.read }),
+                          now: at,
+                        })),
                     }),
-                  // Dated when it lands, by the clock a test pins.
-                  onSuccess: outcome =>
-                    Effect.map(Clock.currentTimeMillis, (at): RemoteMessage => ({
-                      _tag: 'MutationSucceeded',
-                      requestId,
-                      entities: outcome.entities,
-                      connections: outcome.connections,
-                      deleted: outcome.deleted,
-                      ...(outcome.read === undefined ? {} : { read: outcome.read }),
-                      now: at,
-                    })),
-                }),
-              ),
+                  ),
           ),
         },
       }
