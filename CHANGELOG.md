@@ -454,6 +454,12 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A held solid or primary Button stands 1px in.** Their fills were
+  written with the `background` shorthand, which resets `background-clip` to
+  `border-box`, so hovered and held the fill ran under the cleared border to
+  the edge. They are `backgroundColor` now; an override of a Button's fill
+  in the `app` layer still wins.
+
 - **`GuardServer.validate` refuses a body reaching a hidden member through
   another row (security).** It refused a query body that filters or orders by
   a member with a Read rule, but only one of the row it lists: a path
