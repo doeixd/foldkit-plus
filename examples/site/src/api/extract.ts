@@ -794,6 +794,34 @@ const formatted = async <A extends { readonly signature: string }>(entry: A): Pr
   signature: await format(entry.signature),
 })
 
+const memo = <A>(read: (path: string) => A): ((path: string) => A) => {
+  const known = new Map<string, A>()
+  return path => {
+    if (known.has(path)) return known.get(path)!
+    const value = read(path)
+    known.set(path, value)
+    return value
+  }
+}
+
+/**
+ * A compiler host that asks the disk once per path. Writing a type that names
+ * another package's symbol has the checker look for its import specifier,
+ * which reads the same `package.json`s and stats the same folders again for
+ * every type it writes.
+ */
+const cachingHost = (options: ts.CompilerOptions): ts.CompilerHost => {
+  const host = ts.createCompilerHost(options, true)
+  const { directoryExists, realpath } = host
+  return {
+    ...host,
+    fileExists: memo(path => host.fileExists(path)),
+    readFile: memo(path => host.readFile(path)),
+    ...(directoryExists === undefined ? {} : { directoryExists: memo(directoryExists) }),
+    ...(realpath === undefined ? {} : { realpath: memo(realpath) }),
+  }
+}
+
 /** Every package's API, from one Program over all their entry points. */
 export const extract = async (
   root: string,
@@ -803,6 +831,7 @@ export const extract = async (
   const program = ts.createProgram(
     packages.flatMap(source => source.entries.map(entry => entry.file)),
     options,
+    cachingHost(options),
   )
   const checker = program.getTypeChecker()
   const { exportOf } = reader(root, checker)
