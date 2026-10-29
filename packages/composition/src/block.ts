@@ -9,6 +9,7 @@
 import { Option, Pipeable, type Result, Schema } from 'effect'
 import { Metadata } from 'foldkit-metadata'
 import type { Content } from './content.js'
+import { put } from './record.js'
 import type { Region } from './region.js'
 
 export interface Block<
@@ -268,7 +269,7 @@ const offeredAppearance = (
     const axis = axisOf(block, name)
     if (axis === undefined) continue
     if (typeof choice === 'string') {
-      if (axis.values.includes(choice)) offered[name] = choice
+      if (axis.values.includes(choice)) put(offered, name, choice)
       continue
     }
     if (!isRecord(choice) || axis.breakpoints === undefined) continue
@@ -281,7 +282,7 @@ const offeredAppearance = (
           axis.values.includes(entry[1]),
       ),
     )
-    if (Object.keys(kept).length > 0) offered[name] = kept
+    if (Object.keys(kept).length > 0) put(offered, name, kept)
   }
   return offered
 }

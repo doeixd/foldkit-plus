@@ -20,6 +20,7 @@ import { Catalog } from '../catalog.js'
 import { messageOf } from '../action.js'
 import { holds } from '../condition.js'
 import { NodeId, nodeAt, type Document, type Node } from '../document.js'
+import { own } from '../record.js'
 import { statefulNodes } from '../stateful.js'
 
 /** How a Document is drawn: as a visitor sees it, or on an editor's canvas. */
@@ -237,7 +238,7 @@ const drawNode = (
   let at = 0
   const regions = Object.fromEntries(
     Object.keys(block.regions).map(name => {
-      const count = (node.regions[name] ?? []).length
+      const count = (own(node.regions, name) ?? []).length
       const drawn = children.slice(at, at + count)
       at += count
       if (mode === 'view' || count > 0) return [name, drawn]
@@ -414,7 +415,7 @@ const render = <Blocks extends AnyBlock, Message, Into = Message>(
     // The structure is walked every time, so a node reached twice is still caught;
     // only each node's own drawing is memoized, on what it reads.
     const children = Object.keys(block.regions).flatMap(name =>
-      (node.regions[name] ?? []).map(draw),
+      (own(node.regions, name) ?? []).map(draw),
     )
     const args: DrawArgs = [
       loose,

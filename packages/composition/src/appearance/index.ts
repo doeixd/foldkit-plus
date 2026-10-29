@@ -18,6 +18,7 @@ import { Style, SlotView } from 'foldkit-mixins'
 import type { Declarations, MixinFor, NamedStyle, StyleOptions, StylePieces } from 'foldkit-mixins'
 import type { HtmlBuilder } from 'foldkit/html'
 import { Block, type AnyBlock, type AppearanceAxes, type AppearanceChoice } from '../block.js'
+import { own } from '../record.js'
 
 /** The slot recipe shape a look reads: what `Style.recipeFor(Slots)` returns has it. */
 interface RecipeLike<Slots> {
@@ -150,7 +151,8 @@ const make = <Slots>(
       if (style !== undefined) picked.push(style)
     }
     for (const axis of Object.keys(axes)) {
-      const choice = appearance[axis] ?? def?.defaults?.[axis]
+      // An axis is a name the look declares, which a stored node may leave out.
+      const choice = own(appearance, axis) ?? def?.defaults?.[axis]
       if (typeof choice === 'string') {
         if (!byValue.has(key(axis, choice))) continue
         chosen[axis] = choice

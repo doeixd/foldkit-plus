@@ -63,4 +63,60 @@ export default [
     ],
     tests: ['packages/composition/test/remote.test.ts'],
   },
+  // Names a Block declares, against a stored node that leaves them out.
+  {
+    name: 'a Region’s children are counted through the prototype',
+    edits: [
+      {
+        file: '../src/foldkit/index.ts',
+        find: 'const count = (own(node.regions, name) ?? []).length',
+        replace: 'const count = (node.regions[name] ?? []).length',
+      },
+    ],
+    tests: ['packages/composition/test/declaredNames.test.ts'],
+  },
+  {
+    name: 'a Region’s children are drawn through the prototype',
+    edits: [
+      {
+        file: '../src/foldkit/index.ts',
+        find: '(own(node.regions, name) ?? []).map(draw)',
+        replace: '(node.regions[name] ?? []).map(draw)',
+      },
+    ],
+    tests: ['packages/composition/test/declaredNames.test.ts'],
+  },
+  {
+    name: 'a look reads a node’s choice through the prototype',
+    edits: [
+      {
+        file: '../src/appearance/index.ts',
+        find: 'own(appearance, axis) ?? def?.defaults?.[axis]',
+        replace: 'appearance[axis] ?? def?.defaults?.[axis]',
+      },
+    ],
+    tests: ['packages/composition/test/declaredNames.test.ts'],
+  },
+  {
+    name: 'an offered choice is assigned',
+    edits: [
+      {
+        file: '../src/block.ts',
+        find: 'put(offered, name, choice)',
+        replace: '(offered[name] = choice)',
+      },
+    ],
+    tests: ['packages/composition/test/declaredNames.test.ts'],
+  },
+  {
+    name: 'an offered responsive choice is assigned',
+    edits: [
+      {
+        file: '../src/block.ts',
+        find: 'put(offered, name, kept)',
+        replace: '(offered[name] = kept)',
+      },
+    ],
+    tests: ['packages/composition/test/declaredNames.test.ts'],
+  },
 ]

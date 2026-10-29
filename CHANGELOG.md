@@ -760,6 +760,13 @@ carries `drawn`.
 
 ### Fixed
 
+- **A Region or appearance axis named like an `Object.prototype` member draws
+  as declared.** The Renderer read a node's Region by a plain index, so a
+  Block declaring a Region `constructor` or `toString` that a stored node
+  left out drew `Object`'s member as its children and threw; a look read a
+  node's choice the same way, so such an axis never fell back to its
+  default; and `Block.offeredAppearance` dropped a choice on an axis named
+  `__proto__`. Each now reads and writes only own keys.
 - **remote-drizzle's `bind` finds a member by its own name** (prototype-key
   sweep). It looked each field, relation and Entity up in the storage given
   by `record[key]`, so a field named `constructor` found `Object` and failed
