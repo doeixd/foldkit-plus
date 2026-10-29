@@ -26,13 +26,7 @@ import { holderOf } from './held.js'
 import type { OptimisticOperation } from './optimistic.js'
 import { refParts } from './relation.js'
 import type { RemoteError } from './remoteData.js'
-import {
-  emptyStore,
-  entityKey,
-  tombstone,
-  writeEntities,
-  type EntityStore,
-} from './store.js'
+import { emptyStore, entityKey, tombstone, writeEntities, type EntityStore } from './store.js'
 
 export interface NormalizedPatch {
   readonly entity: string
