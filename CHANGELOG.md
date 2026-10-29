@@ -9,6 +9,21 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **The durable outbox** (#247, #260's reload gap, operations phase 7).
+  `Data.mutate(model, M, input, { durable: true })` queues a write rather than
+  sending it, and `Data.outbox({ key, scope, retry })`, assembled beside
+  `Data.wiring`, stores the queue in a `KeyValueStore` and sends it: stored
+  before sent, oldest first, one at a time, by one tab (a Web Lock), with the
+  same operation id (the request id) and `now` again after a reload, and
+  again after a send nothing answered (`Unreachable`, with a backoff and on
+  `online`). A refusal settles as for any write; `Data.retry` queues it
+  again and `Data.dismiss` removes it from the store. `outbox.restore(model)`,
+  resolved as the runtime's `flags`, shows what a reload left and mints the
+  page's session. Tabs share the store and hear each other over a
+  `BroadcastChannel`. `Data.outboxStatus(model)` lists what waits, failed, or
+  cannot be read after a deploy (`OutboxUnreadable`, kept and skipped); a
+  store that cannot be written reports `OutboxUnsaved`. New Messages:
+  `MutationQueued`, `OutboxRead`, `OutboxDelayed`.
 - **`RemoteUnreachable`: a write nothing answered** (operations phase 7).
   **Breaking:** a mutation whose request could not be sent, or whose answer
   was not JSON (a gateway's 502 page), fails with `_tag: 'Unreachable'`

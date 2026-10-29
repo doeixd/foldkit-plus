@@ -5,7 +5,18 @@
  * live classification, optimistic layers) performs no I/O. The `Remote.*`
  * helpers that read or mutate go through the `RemoteClient` Effect service.
  */
-import { Clock, Duration, Effect, Layer, Option, Record, Result, Schema, Stream } from 'effect'
+import {
+  Clock,
+  Duration,
+  Effect,
+  Layer,
+  Option,
+  Queue,
+  Record,
+  Result,
+  Schema,
+  Stream,
+} from 'effect'
 import { KeyValueStore } from 'effect/persistence'
 import {
   Derivation,
@@ -89,6 +100,7 @@ import {
   windowGrowthKey,
   isQueryLoading,
   isRemoteMessage,
+  dismissQueued,
   forgetRemote,
   refreshIsInFlight,
   refreshedAt,
@@ -155,6 +167,28 @@ import {
   type EntityStore,
 } from './store.js'
 import { RemotePersistence, type Snapshot } from './persistence.js'
+import {
+  backoff,
+  channelFor,
+  headOf,
+  mergeStored,
+  onlineAgain,
+  operationOf,
+  outboxStatus,
+  readEntries,
+  readStored,
+  sendLock,
+  storedFromText,
+  storedOf,
+  storedText,
+  storeLock,
+  StoredWrite,
+  settledIn,
+  withLock,
+  type OutboxStatus,
+  type RetryOptions,
+  type StoredOutbox,
+} from './outbox.js'
 import { targetsOf } from './relation.js'
 import {
   QueryRequest,
@@ -201,6 +235,8 @@ export type { RemoteResumePart } from './resume.js'
 export {
   PredictionPart,
   type LiveRefused,
+  type OutboxUnreadable,
+  type OutboxUnsaved,
   type PredictionMismatch,
   type RemoteDiagnostic,
   type WriteUnheard,
@@ -220,6 +256,7 @@ export * from './model.js'
 export * from './mutation.js'
 export * from './optimistic.js'
 export * from './persistence.js'
+export { OutboxItemState, type OutboxItem, type OutboxStatus, type RetryOptions } from './outbox.js'
 export * from './plan.js'
 export * from './policy.js'
 export * from './query.js'
@@ -379,9 +416,45 @@ export interface PersistenceWiring<AppModel> extends Wiring<
   readonly restore: (model: AppModel) => Effect.Effect<AppModel, never, KeyValueStore.KeyValueStore>
 }
 
+/** How `Data.outbox` keeps durable writes across a reload. */
+export interface OutboxOptions<AppModel> {
+  /**
+   * Where the queue is stored, from the Model: one key per principal, so one
+   * person's waiting writes are never sent as another's.
+   */
+  readonly key: (model: AppModel) => string
+  /** Who the queue is for; one stored under another scope reads as empty. */
+  readonly scope: (model: AppModel) => string
+  /** The wait between sends nothing answered: 1 second doubling to 30, unless given. */
+  readonly retry?: RetryOptions | undefined
+}
+
+/** `Data.outbox`'s wiring, and the restore its runtime's `init` starts from. */
+export interface OutboxWiring<AppModel> extends Wiring<
+  AppModel,
+  RemoteMessage,
+  KeyValueStore.KeyValueStore | RemoteClient
+> {
+  /**
+   * The Model with the stored queue under its `key` read back, as the wiring
+   * would read it, and this page's session minted. Resolve it as the runtime's
+   * `flags` and start `init` from it: a durable write needs the session, and
+   * the first frame then shows the waiting writes.
+   */
+  readonly restore: (model: AppModel) => Effect.Effect<AppModel, never, KeyValueStore.KeyValueStore>
+}
+
 export interface DomainMutateOptions {
-  /** Overrides the generated id, for a retry, a durable bridge, or a test. */
+  /** Overrides the generated id, for a retry, a durable bridge, or a test. Not with `durable`. */
   readonly requestId?: string | undefined
+  /**
+   * Queues the write in `Data.outbox` rather than sending it: stored first,
+   * sent in order by one tab, sent again after a reload with the same
+   * operation id and `now`, and after a failure that nothing answered. Its
+   * Command answers `MutationQueued`; the outbox's Subscriptions send it. Needs
+   * the outbox's `restore` to have run, and an input its Mutation encodes.
+   */
+  readonly durable?: boolean | undefined
   /**
    * What the request changes before the server answers, released when it
    * settles. A function receives the generated ids, so a created entity can
@@ -859,10 +932,21 @@ export interface RemoteDomain<
    * Sends a failed write again as itself: the same input, request id and
    * operation id (so a server that applied it answers from its record), with
    * its optimistic operations shown again. None unless `failedWrites` lists it.
+   * A durable one is queued again, and the outbox sends it.
    */
   retry(model: AppModel, requestId: string): Option.Option<MutationStarted<AppModel>>
-  /** Forgets a failed write, so `failedWrites` no longer lists it. Anything else returns the same Model. */
+  /**
+   * Forgets a failed write, so `failedWrites` no longer lists it; a durable one,
+   * or one the outbox cannot read, goes from its store and every tab. Anything
+   * else (a write still waiting, too) returns the same Model.
+   */
   dismiss(model: AppModel, requestId: string): AppModel
+  /**
+   * The durable writes not yet settled, every tab's, in the order the outbox
+   * sends them: how many wait, how many the server refused, and each one's
+   * state, for a "3 changes waiting" line.
+   */
+  outboxStatus(model: AppModel): OutboxStatus
   /**
    * Whether what `active` reads live is arriving: `Reconnecting` from the
    * moment its stream breaks until it resubscribes, which its live entry does
@@ -897,6 +981,15 @@ export interface RemoteDomain<
    * principal should `forget` in `update`, and name another `key`.
    */
   persistence(options: PersistenceOptions<AppModel>): PersistenceWiring<AppModel>
+  /**
+   * Keeps durable writes (`mutate`'s `durable`) across a reload and sends
+   * them, as a wiring beside `wiring`: the queue is written to `key` before a
+   * write is sent, sent oldest first by one tab (a Web Lock), sent again after
+   * a failure that nothing answered with a backoff, and read back by every
+   * tab. Start `init` from its `restore`. A change of principal should
+   * `forget` in `update`, and name another `key`.
+   */
+  outbox(options: OutboxOptions<AppModel>): OutboxWiring<AppModel>
   /** `Remote.inspect` of the bound slice. */
   inspect(model: AppModel): RemoteInspection
 }
@@ -3651,6 +3744,36 @@ const bindDomain = <
     ])
   }
   const assertOwned = (entry: ActiveEntry<AppModel>) => assertOwnedBy(bound.contract, entry)
+  /** What the reader is shown of each entity in `model`, for a write's answer to carry (#245). */
+  const shownAt = (model: AppModel): ReadonlyArray<RelationRequirement> =>
+    shownOf(
+      askedUnion(
+        [...readers.values()].flatMap(resolvedAt =>
+          resolvedAt(model).map(({ projection }) => projection),
+        ),
+      ),
+    )
+  /**
+   * A durable write's request id, which is its operation id: this page's
+   * session and the next in its sequence, unique across tabs and loads. Only
+   * a retry names one, and only one the outbox holds.
+   */
+  const durableId = (remote: RemoteModel, mutation: string, given: string | undefined): string => {
+    if (given !== undefined) {
+      if (remote.outbox.queue.some(queued => operationOf(queued) === given)) return given
+      throw new Error(
+        `[foldkit-remote] Data.mutate(${mutation}, { durable: true, requestId: "${given}" }): a durable write is named by the outbox; pass no requestId`,
+      )
+    }
+    return Option.match(remote.outbox.session, {
+      onNone: () => {
+        throw new Error(
+          `[foldkit-remote] Data.mutate(${mutation}, { durable: true }) before the outbox's restore has run: start init from Data.outbox(…).restore(model), as the runtime's flags, so a durable write has an id no other tab or page load uses`,
+        )
+      },
+      onSome: session => `${session}-${remote.mutations.sequence + 1}`,
+    })
+  }
   /** The descriptor a recorded write names; only a hand-built `MutationStarted` names another. */
   const registeredMutation = (name: string): MutationDescriptor<any, any, any> => {
     const descriptor = definition.registry.mutations.get(name)
@@ -4223,8 +4346,10 @@ const bindDomain = <
     mutate: (model, mutation, input, options = {}) => {
       assertRegistered(bound, 'Mutation', definition.registry.mutations, mutation.name)
       const remote = store.get(model)
-      const requestId =
-        options.requestId ?? `${bound.contract.name}-${remote.mutations.sequence + 1}`
+      const durable = options.durable === true
+      const requestId = durable
+        ? durableId(remote, mutation.name, options.requestId)
+        : (options.requestId ?? `${bound.contract.name}-${remote.mutations.sequence + 1}`)
       const tempId = `${requestId}.tmp`
       // A retry of a failed request sends the operation id it was first sent with.
       const known = Option.fromUndefinedOr(remote.mutations.operations.get(requestId))
@@ -4271,6 +4396,8 @@ const bindDomain = <
         : typeof options.optimistic === 'function'
           ? options.optimistic({ requestId, tempId })
           : (options.optimistic ?? predicted)
+      // A write refused where it is made is settled at once, durable or not.
+      const queued = durable && Option.isNone(refused)
       const started = updateRemote(remote, {
         _tag: 'MutationStarted',
         requestId,
@@ -4281,16 +4408,18 @@ const bindDomain = <
           input,
           ...(options.keys === undefined ? {} : { keys: options.keys }),
           ...(options.now === undefined ? {} : { now: options.now }),
+          ...(queued
+            ? {
+                // Encoded here, so an input its Mutation cannot encode throws at the call.
+                durable: {
+                  input: Schema.encodeUnknownSync(mutation.Input)(input),
+                  shown: shownAt(model),
+                },
+              }
+            : {}),
         },
       })
       const startedModel = store.set(model, started as Store)
-      const shown = shownOf(
-        askedUnion(
-          [...readers.values()].flatMap(resolvedAt =>
-            resolvedAt(startedModel).map(({ projection }) => projection),
-          ),
-        ),
-      )
       return {
         model: startedModel,
         requestId,
@@ -4302,40 +4431,43 @@ const bindDomain = <
           effect: Effect.flatMap(
             Effect.sync(() => Option.getOrElse(known, mintOperation)),
             (operation): Effect.Effect<RemoteMessage, never, RemoteClient> =>
-              Option.isSome(refused)
-                ? Effect.succeed({
-                    _tag: 'MutationFailed',
-                    requestId,
-                    error: refused.value,
-                    operation,
-                  })
-                : mutateRemote(mutation, input, requestId, {
-                    keys: options.keys,
-                    operation,
-                    shown,
-                    now: options.now,
-                  }).pipe(
-                    Effect.matchEffect({
-                      onFailure: error =>
-                        Effect.succeed<RemoteMessage>({
-                          _tag: 'MutationFailed',
-                          requestId,
-                          error: remoteError(error),
-                          operation,
-                        }),
-                      // Dated when it lands, by the clock a test pins.
-                      onSuccess: outcome =>
-                        Effect.map(Clock.currentTimeMillis, (at): RemoteMessage => ({
-                          _tag: 'MutationSucceeded',
-                          requestId,
-                          entities: outcome.entities,
-                          connections: outcome.connections,
-                          deleted: outcome.deleted,
-                          ...(outcome.read === undefined ? {} : { read: outcome.read }),
-                          now: at,
-                        })),
-                    }),
-                  ),
+              queued
+                ? // The outbox sends it, once its store holds it.
+                  Effect.succeed({ _tag: 'MutationQueued', requestId })
+                : Option.isSome(refused)
+                  ? Effect.succeed({
+                      _tag: 'MutationFailed',
+                      requestId,
+                      error: refused.value,
+                      operation,
+                    })
+                  : mutateRemote(mutation, input, requestId, {
+                      keys: options.keys,
+                      operation,
+                      shown: shownAt(startedModel),
+                      now: options.now,
+                    }).pipe(
+                      Effect.matchEffect({
+                        onFailure: error =>
+                          Effect.succeed<RemoteMessage>({
+                            _tag: 'MutationFailed',
+                            requestId,
+                            error: remoteError(error),
+                            operation,
+                          }),
+                        // Dated when it lands, by the clock a test pins.
+                        onSuccess: outcome =>
+                          Effect.map(Clock.currentTimeMillis, (at): RemoteMessage => ({
+                            _tag: 'MutationSucceeded',
+                            requestId,
+                            entities: outcome.entities,
+                            connections: outcome.connections,
+                            deleted: outcome.deleted,
+                            ...(outcome.read === undefined ? {} : { read: outcome.read }),
+                            now: at,
+                          })),
+                      }),
+                    ),
           ),
         },
       }
@@ -4371,7 +4503,7 @@ const bindDomain = <
       return listed as never
     },
     retry: (model, requestId) => {
-      const { mutations } = store.get(model)
+      const { mutations, outbox } = store.get(model)
       const write = mutations.writes.get(requestId)
       if (write === undefined || mutationStatus(mutations, requestId)._tag !== 'Failed')
         return Option.none()
@@ -4382,11 +4514,14 @@ const bindDomain = <
           keys: write.keys,
           // The same time, so the server stores what the retry shows again.
           now: Option.getOrUndefined(write.now),
+          durable: outbox.queue.some(queued => operationOf(queued) === requestId),
         }),
       )
     },
     dismiss: (model, requestId) => {
       const remote = store.get(model)
+      const dismissed = dismissQueued(remote, requestId)
+      if (dismissed !== remote) return store.set(model, dismissed as Store)
       if (mutationStatus(remote.mutations, requestId)._tag !== 'Failed') return model
       return store.set(model, {
         ...remote,
@@ -4412,6 +4547,7 @@ const bindDomain = <
             : { _tag: 'Live' },
       })
     },
+    outboxStatus: model => outboxStatus(store.get(model).outbox),
     reduce,
     inspect: model => inspectRemote(store.get(model)),
     persistence: options => {
@@ -4545,6 +4681,361 @@ const bindDomain = <
           ),
       }
     },
+    outbox: options => {
+      /** How this version reads a stored input of `mutation`; none for one it does not register. */
+      const inputOf = (mutation: string) =>
+        Option.map(
+          Option.fromUndefinedOr(definition.registry.mutations.get(mutation)),
+          descriptor => (input: unknown) =>
+            Option.map(Schema.decodeUnknownOption(descriptor.Input)(input), decoded => ({
+              decoded,
+            })),
+        )
+      const readOf = (
+        key: string,
+        stored: StoredOutbox,
+        extra: { readonly session?: string; readonly unsaved?: string } = {},
+      ): RemoteMessage => ({
+        _tag: 'OutboxRead',
+        key,
+        entries: readEntries(stored, inputOf),
+        done: stored.done,
+        ...extra,
+      })
+      /** Tells the other tabs on `key` the store changed, with the answer that changed it. */
+      const announce = (key: string, outcome: Option.Option<RemoteMessage>) =>
+        Effect.sync(() =>
+          Option.map(channelFor(key), channel => {
+            channel.postMessage({ outcome: Option.getOrUndefined(outcome) })
+            channel.close()
+          }),
+        )
+      /** The store with `change` merged in, under its lock, so two tabs never write it at once. */
+      const writeStored = (key: string, scope: string, change: StoredOutbox) =>
+        withLock(
+          storeLock(key),
+          Effect.gen(function* () {
+            const merged = mergeStored(yield* readStored(key, scope), change)
+            const kv = yield* KeyValueStore.KeyValueStore
+            yield* kv.set(key, storedText(merged, scope))
+            return merged
+          }),
+        )
+      /** What the store holds, as a page reads it; this page's own queue, and why, where it cannot be read. */
+      const restored = (key: string, scope: string, session: Option.Option<string>) =>
+        readStored(key, scope).pipe(
+          Effect.map(stored =>
+            readOf(
+              key,
+              stored,
+              Option.match(session, {
+                onNone: () => ({}),
+                onSome: minted => ({ session: minted }),
+              }),
+            ),
+          ),
+          Effect.catch(error =>
+            Effect.succeed(
+              readOf(
+                key,
+                { entries: [], done: [] },
+                {
+                  ...Option.match(session, {
+                    onNone: () => ({}),
+                    onSome: minted => ({ session: minted }),
+                  }),
+                  unsaved: error.message,
+                },
+              ),
+            ),
+          ),
+        )
+      const minted = (has: boolean) =>
+        has
+          ? Effect.succeed(Option.none<string>())
+          : Effect.sync(() => Option.some(mintOperation()))
+
+      // The queue's text changes only with the queue and the scope, so it is kept by them.
+      let lastText: {
+        readonly outbox: RemoteModel['outbox'] | undefined
+        readonly scope: string
+        readonly text: string
+      } = { outbox: undefined, scope: '', text: '' }
+      const textOf = (outbox: RemoteModel['outbox'], scope: string): string => {
+        if (lastText.outbox !== outbox || lastText.scope !== scope) {
+          lastText = { outbox, scope, text: storedText(storedOf(outbox), scope) }
+        }
+        return lastText.text
+      }
+
+      const restoreEntry: EntryWithoutKeepAlive<
+        AppModel,
+        RemoteMessage,
+        {
+          readonly key: string
+          readonly scope: string
+          readonly restored: boolean
+          readonly session: boolean
+        },
+        KeyValueStore.KeyValueStore
+      > = {
+        dependenciesSchema: Schema.Struct({
+          key: Schema.String,
+          scope: Schema.String,
+          restored: Schema.Boolean,
+          session: Schema.Boolean,
+        }),
+        modelToDependencies: model => {
+          const { outbox } = store.get(model)
+          const key = options.key(model)
+          return {
+            key,
+            scope: options.scope(model),
+            restored: Option.contains(outbox.key, key),
+            session: Option.isSome(outbox.session),
+          }
+        },
+        dependenciesToStream: ({ key, scope, restored: done, session }) =>
+          done
+            ? Stream.empty
+            : Stream.fromEffect(
+                Effect.flatMap(minted(session), mint => restored(key, scope, mint)),
+              ),
+      }
+
+      // Written whenever the queue changes, merged with what other tabs wrote,
+      // and read back: what the store holds is what may be sent.
+      const save: EntryWithoutKeepAlive<
+        AppModel,
+        RemoteMessage,
+        { readonly key: string; readonly scope: string; readonly text: Option.Option<string> },
+        KeyValueStore.KeyValueStore
+      > = {
+        dependenciesSchema: Schema.Struct({
+          key: Schema.String,
+          scope: Schema.String,
+          text: Schema.OptionFromNullOr(Schema.String),
+        }),
+        modelToDependencies: model => {
+          const { outbox } = store.get(model)
+          const key = options.key(model)
+          const scope = options.scope(model)
+          return {
+            key,
+            scope,
+            // Saved only under the key it was read from: never over a queue not yet read.
+            text: Option.contains(outbox.key, key)
+              ? Option.some(textOf(outbox, scope))
+              : Option.none(),
+          }
+        },
+        dependenciesToStream: ({ key, scope, text }) =>
+          Option.match(text, {
+            onNone: () => Stream.empty,
+            onSome: written => {
+              const mine = storedFromText(written)
+              return Stream.fromEffect(
+                writeStored(key, scope, mine).pipe(
+                  Effect.tap(() => announce(key, Option.none())),
+                  Effect.map(merged => readOf(key, merged)),
+                  // A store that cannot be written does not hold the writes back:
+                  // they are sent, and a reload before the answer loses them.
+                  Effect.catch(error =>
+                    Effect.succeed(readOf(key, mine, { unsaved: error.message })),
+                  ),
+                ),
+              )
+            },
+          }),
+      }
+
+      /** Sends `write`, as the one tab on `key` that sends, until the server answers it. */
+      const sent = (key: string, scope: string, write: StoredWrite) =>
+        Stream.callback<RemoteMessage, never, KeyValueStore.KeyValueStore | RemoteClient>(queue => {
+          const emit = (message: RemoteMessage) => Queue.offer(queue, message)
+          /**
+           * The outcome told this tab and the others first, so each settles
+           * with the server's answer, then written to the store before the
+           * lock goes, so the next sender reads it.
+           */
+          const settle = (message: RemoteMessage, change: StoredOutbox) =>
+            emit(message).pipe(
+              Effect.andThen(announce(key, Option.some(message))),
+              Effect.andThen(writeStored(key, scope, change)),
+              Effect.andThen(announce(key, Option.none())),
+              // Unwritten, the store still says waiting: the next sender sends it
+              // again, and the operation id has the server answer from its record.
+              Effect.ignore,
+            )
+          const operation = write.operation
+          return withLock(
+            sendLock(key),
+            Effect.gen(function* () {
+              // Another tab may have settled it while this one waited for the lock.
+              const there = yield* Effect.option(readStored(key, scope))
+              if (Option.isSome(there) && settledIn(there.value, operation)) {
+                yield* emit(readOf(key, there.value))
+                return
+              }
+              const mutation = registeredMutation(write.mutation)
+              const input = Schema.decodeUnknownSync(mutation.Input)(write.input)
+              for (let attempt = 1; ; attempt++) {
+                const result = yield* Effect.result(
+                  mutateRemote(mutation, input, operation, {
+                    keys: write.keys,
+                    operation,
+                    shown: write.shown,
+                    now: write.now,
+                  }),
+                )
+                if (Result.isSuccess(result)) {
+                  const outcome = result.success
+                  const at = yield* Clock.currentTimeMillis
+                  return yield* settle(
+                    {
+                      _tag: 'MutationSucceeded',
+                      requestId: operation,
+                      entities: outcome.entities,
+                      connections: outcome.connections,
+                      deleted: outcome.deleted,
+                      ...(outcome.read === undefined ? {} : { read: outcome.read }),
+                      now: at,
+                    },
+                    { entries: [], done: [operation] },
+                  )
+                }
+                const error = remoteError(result.failure)
+                // Nothing answered: kept waiting, and sent again after a wait.
+                if (result.failure._tag === 'Unreachable') {
+                  yield* emit({ _tag: 'OutboxDelayed', requestId: operation, attempt, error })
+                  yield* Effect.race(
+                    Effect.flatMap(backoff(attempt, options.retry), Effect.sleep),
+                    onlineAgain,
+                  )
+                  continue
+                }
+                return yield* settle(
+                  { _tag: 'MutationFailed', requestId: operation, error, operation },
+                  {
+                    entries: [
+                      { ...write, revision: write.revision + 1, state: { _tag: 'Failed', error } },
+                    ],
+                    done: [],
+                  },
+                )
+              }
+            }),
+          ).pipe(Effect.ensuring(Queue.end(queue)))
+        })
+
+      // The head's text changes only with the head, so a send is not restarted
+      // by anything else the Model does while it waits for its answer.
+      let lastHead: {
+        readonly outbox: RemoteModel['outbox'] | undefined
+        readonly head: Option.Option<string>
+      } = { outbox: undefined, head: Option.none() }
+      const headTextOf = (outbox: RemoteModel['outbox']): Option.Option<string> => {
+        if (lastHead.outbox !== outbox) {
+          lastHead = { outbox, head: Option.map(headOf(outbox), write => JSON.stringify(write)) }
+        }
+        return lastHead.head
+      }
+      const send: EntryWithoutKeepAlive<
+        AppModel,
+        RemoteMessage,
+        { readonly key: string; readonly scope: string; readonly head: Option.Option<string> },
+        KeyValueStore.KeyValueStore | RemoteClient
+      > = {
+        dependenciesSchema: Schema.Struct({
+          key: Schema.String,
+          scope: Schema.String,
+          head: Schema.OptionFromNullOr(Schema.String),
+        }),
+        modelToDependencies: model => {
+          const { outbox } = store.get(model)
+          const key = options.key(model)
+          return {
+            key,
+            scope: options.scope(model),
+            head: Option.contains(outbox.key, key) ? headTextOf(outbox) : Option.none(),
+          }
+        },
+        dependenciesToStream: ({ key, scope, head }) =>
+          Option.match(head, {
+            onNone: () => Stream.empty,
+            onSome: text =>
+              sent(key, scope, Schema.decodeUnknownSync(StoredWrite)(JSON.parse(text))),
+          }),
+      }
+
+      /** What another tab announced: the answer it heard first, then the store as it now is. */
+      const heard = (key: string, scope: string, data: unknown) =>
+        Effect.map(restored(key, scope, Option.none()), (read): ReadonlyArray<RemoteMessage> => [
+          ...Option.toArray(outcomeOf(data)),
+          read,
+        ])
+      const watch: EntryWithoutKeepAlive<
+        AppModel,
+        RemoteMessage,
+        { readonly key: string; readonly scope: string; readonly restored: boolean },
+        KeyValueStore.KeyValueStore
+      > = {
+        dependenciesSchema: Schema.Struct({
+          key: Schema.String,
+          scope: Schema.String,
+          restored: Schema.Boolean,
+        }),
+        modelToDependencies: model => {
+          const key = options.key(model)
+          return {
+            key,
+            scope: options.scope(model),
+            restored: Option.contains(store.get(model).outbox.key, key),
+          }
+        },
+        dependenciesToStream: ({ key, scope, restored: read }) =>
+          read
+            ? Stream.callback<unknown>(queue =>
+                Effect.acquireRelease(
+                  Effect.sync(() =>
+                    Option.map(channelFor(key), channel => {
+                      channel.onmessage = (event: MessageEvent<unknown>) => {
+                        Queue.offerUnsafe(queue, event.data)
+                      }
+                      return channel
+                    }),
+                  ),
+                  channel => Effect.sync(() => Option.map(channel, open => open.close())),
+                ),
+              ).pipe(
+                Stream.mapEffect(data => heard(key, scope, data)),
+                Stream.flatMap(messages => Stream.fromIterable(messages)),
+              )
+            : Stream.empty,
+      }
+
+      return {
+        key: `outbox:${bound.contract.name}`,
+        handles: [],
+        subscriptions: Subscription.make<
+          AppModel,
+          RemoteMessage,
+          KeyValueStore.KeyValueStore | RemoteClient
+        >()(() => ({
+          'outbox.restore': restoreEntry,
+          'outbox.save': save,
+          'outbox.send': send,
+          'outbox.watch': watch,
+        })),
+        restore: model =>
+          Effect.map(
+            Effect.flatMap(minted(Option.isSome(store.get(model).outbox.session)), mint =>
+              restored(options.key(model), options.scope(model), mint),
+            ),
+            message => reduce(model, message),
+          ),
+      }
+    },
     wiring: (active, options = {}) => ({
       key: `remote:${bound.contract.name}`,
       shared: options.shared ?? [],
@@ -4569,6 +5060,16 @@ const bindDomain = <
   }
   return domain
 }
+
+/** The outbox's own answers, as another tab announced them: a settled write, and nothing else. */
+const announcedOutcome = Schema.Struct({ outcome: Schema.optional(remoteMessageSchema) })
+const outcomeOf = (data: unknown): Option.Option<RemoteMessage> =>
+  Option.filter(
+    Option.flatMap(Schema.decodeUnknownOption(announcedOutcome)(data), ({ outcome }) =>
+      Option.fromUndefinedOr(outcome),
+    ),
+    outcome => outcome._tag === 'MutationSucceeded' || outcome._tag === 'MutationFailed',
+  )
 
 /** The window keys of a `QueryOptions`, and only those, without the undefined ones. */
 /**

@@ -22,8 +22,10 @@ Remote fetches only the fields the Model lacks, stores each entity once, and
 hands the view one of six states rather than an `undefined`. Every result is a
 Message through one reducer, so a screen replays from a recorded Model.
 
-Remote is for facts the **server owns**. An edit the client authors, which
-must survive being offline, belongs to [`foldkit-sync`](../sync).
+Remote is for facts the **server owns**. A write that must reach the server
+even if the page goes first is a durable write, which Remote's outbox sends
+later. An edit the client authors, which must converge with other devices'
+edits while offline, belongs to [`foldkit-sync`](../sync).
 
 ## If you know TanStack Query, TanStack DB or fate
 
@@ -111,6 +113,7 @@ One owner per datum:
 | --- | --- |
 | Route, selected item, local form state, transient UI errors | the application Model and `update` |
 | Server-derived facts that can be refetched | `foldkit-remote` |
+| A write the server decides, which must be sent even after a reload | `foldkit-remote`, `durable` (its outbox) |
 | Client-authored state that must survive offline and converge | `foldkit-sync` |
 | Local state represented in the URL or another store | the Model, observed by `foldkit-mirror` |
 
@@ -119,6 +122,7 @@ Remote                              Sync
   server owns the fact                client owns the edit
   cache is disposable                 intent must survive offline/restart
   refetch is recovery                 replay + reconciliation is recovery
+  outbox: send it later               converge
 ```
 
 A Surface may project all of these owners at once. Observation does not transfer
@@ -1874,14 +1878,82 @@ Sync draws the same line over its replica, with the same words and a different
 mechanism: see [what a reader sees while a change is in
 flight](../../docs/state-model.md#what-a-reader-sees-while-a-change-is-in-flight).
 
+### A write that outlives the page: `Data.outbox`
+
+A like pressed on a train, a post written in a tunnel: the write must reach the
+server, but nothing needs to converge, since the server decides it once. Make
+it durable, and assemble the outbox beside `Data.wiring`:
+
+```ts
+const outbox = Data.outbox({
+  key: model => `outbox:${model.userId}`,
+  scope: model => model.userId,
+})
+const placements = Page.assemble(Data.wiring(actives), outbox)
+
+// update: queued, not sent; its layer shows at once
+const sent = Data.mutate(model, PostChirp, post, { now, durable: true })
+return { model: sent.model, commands: [sent.command] }
+
+// the view
+const { waiting } = Data.outboxStatus(model) // "3 changes waiting"
+```
+
+`outbox.restore(model)` is `persistence.restore`'s twin: resolve it as the
+runtime's `flags` and start `init` from it. It reads back what a reload left and
+mints the page's session, which names its writes; `Data.mutate` with `durable`
+before it has run throws.
+
+```text
+Data.mutate(…, { durable }) → queued in the Model, layer shown   (its Command answers MutationQueued)
+outbox.save  → the queue written to the store, merged with other tabs' → OutboxRead (stored)
+outbox.send  → the oldest stored write sent, one at a time, by one tab  → MutationSucceeded | MutationFailed
+reload       → outbox.restore: the queue back, layers shown → sent again, same operation id, same now
+```
+
+- **Stored before sent.** A write is sent only once the store holds it, so a
+  reload while it is on its way finds it and sends it again. Its request id is
+  its operation id, so the writer's ledger answers the second send from its
+  record: a durable Mutation needs a ledgered writer (`RemoteServer.write`, or
+  remote-drizzle's `writer`), or a handler that answers by operation id.
+- **In order, one at a time.** A post and the like of it, made offline, reach
+  the server in that order. A refused write, or one this version cannot read,
+  does not hold back the rest.
+- **Sent again only when nothing answered.** A send that fails with
+  `Unreachable` (the request did not go, or its answer was no answer) keeps the
+  write waiting and sends it again after 1 second doubling to 30 (`retry: {
+  base, max }`), and as soon as the browser is `online`; each attempt is
+  `OutboxDelayed`. A refusal, `Forbidden` or a server error settles it as
+  `Failed`, as for any write: `Data.failedWrites`, `Data.retry` (queued again)
+  and `Data.dismiss` (gone from the store too) work on it unchanged. A write
+  still waiting cannot be dismissed: it may be on its way.
+- **One tab sends; every tab shows.** The store is shared by every tab on the
+  key. A Web Lock picks the one that sends, which reads the store again first
+  so a write another tab settled is not sent twice; a `BroadcastChannel` tells
+  the others, which show each other's waiting writes and settle them with the
+  sender's answer. Without Web Locks each tab sends what it holds.
+- **`now` is the reader's, still.** A stored write is sent with the time it was
+  made at. Past the server's `clockSkew`, the server writes its own time and
+  reports `ClockSkewed`, and the answer moves the row there: the bound that
+  stops a client backdating rows cannot tell an honest wait from a forged one.
+- **After a deploy.** A stored write naming a Mutation this version lacks, or
+  whose input no longer decodes, is kept as `Unreadable` in `outboxStatus`,
+  never sent, reported once as `OutboxUnreadable`, and removed by
+  `Data.dismiss`. A store that cannot be written reports `OutboxUnsaved`, and
+  the writes are sent anyway.
+- **A change of principal** is `Data.forget` and another `key`, as for
+  persistence: one person's waiting writes are never sent as another's.
+
 ### Remote mutation vs Sync operation
 
-A Remote mutation requests the server now; its result updates a disposable
-cache, and there is no durable outbox. If losing an unsent edit would be data
-loss, it belongs to [`foldkit-sync`](../sync), not here (see [which state
-belongs here](#which-state-belongs-here)). For the same reason, an optimistic
-overlay is only a temporary view of server-owned data: do not persist one and
-treat it as a queue of edits.
+A durable Remote write is still Remote's: the server decides it once, a
+refusal is final, and the client never reads its own effects before the server
+has answered. If edits must merge with other devices' edits made offline, or
+the application must build on its own unsent edits as if they were committed,
+that is [`foldkit-sync`](../sync)'s journal (see [which state belongs
+here](#which-state-belongs-here)). An optimistic overlay stays a temporary view
+of server-owned data: the outbox stores the operation, never the overlay as a
+queue of edits.
 
 ## Live data
 
@@ -2629,6 +2701,7 @@ Remote owns:
 - the `Remote.Model` Submodel and its reducer;
 - query connections and pagination boundaries;
 - optimistic mutation overlays and idempotent settlement bookkeeping;
+- the outbox of durable writes: stored, sent in order by one tab, sent again;
 - live cursors, duplicate suppression, and gap detection;
 - retention/garbage collection of disposable cache data;
 - deterministic, scoped cache snapshots;
@@ -2639,7 +2712,7 @@ Remote does **not** own:
 
 - your source database or authoritative server records;
 - local UI/application state outside `Remote.Model`;
-- durable offline client intent or replica convergence;
+- client-authored state that converges across devices, or replica convergence;
 - HTTP/WebSocket deployment details;
 - authentication; server-side authorization belongs at the Source boundary;
 - a background scheduler or general-purpose database/query engine.

@@ -414,6 +414,20 @@ declare const editing: typeof TicketModel.Type
       },
     })
   void update
+
+  // A write that outlives the page: queued in the outbox, which sends it.
+  const outbox = Data.outbox({ key: () => 'outbox:me', scope: () => 'me' })
+  const durably = (model: PostModel, post: typeof NewPost.Type, now: number) => {
+    const sent = Data.mutate(model, PostChirp, post, { now, durable: true })
+    return { model: sent.model, commands: [sent.command] }
+  }
+  const waiting = (model: PostModel): string => {
+    const { waiting } = Data.outboxStatus(model)
+    return waiting === 0 ? '' : `${waiting} changes waiting`
+  }
+  expectTypeOf(outbox.restore).returns.toExtend<Effect.Effect<PostModel, never, unknown>>()
+  void durably
+  void waiting
 }
 
 // Diagnostics: another reporter in the runtime's resources.

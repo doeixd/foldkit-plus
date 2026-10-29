@@ -83,8 +83,37 @@ export interface LiveRefused extends Diagnostic {
   readonly error: RemoteError
 }
 
+/**
+ * A durable write the outbox read back and cannot send: stored by a version
+ * of the application that registered a Mutation this one lacks, or whose
+ * input this one's `Input` no longer decodes. It is kept, shown no layer and
+ * never sent, and the writes after it are sent.
+ */
+export interface OutboxUnreadable extends Diagnostic {
+  readonly _tag: 'OutboxUnreadable'
+  /** Its operation id, which `Data.dismiss` takes. */
+  readonly requestId: string
+  readonly reason: string
+}
+
+/**
+ * The outbox could not write its store (it is full, or the browser refuses
+ * storage): its writes are still sent, but a reload before they are answered
+ * loses them.
+ */
+export interface OutboxUnsaved extends Diagnostic {
+  readonly _tag: 'OutboxUnsaved'
+  readonly key: string
+  readonly reason: string
+}
+
 /** Every diagnostic Remote's client records. */
-export type RemoteDiagnostic = LiveRefused | PredictionMismatch | WriteUnheard
+export type RemoteDiagnostic =
+  | LiveRefused
+  | OutboxUnreadable
+  | OutboxUnsaved
+  | PredictionMismatch
+  | WriteUnheard
 
 const named = (mutation: Option.Option<string>, requestId: string): string =>
   Option.match(mutation, {
@@ -124,6 +153,24 @@ export const liveRefused = (facts: Pick<LiveRefused, 'stream' | 'error'>): LiveR
   source,
   level: 'warning',
   message: `The server refused a live stream (${facts.error.message}), so what it asks is not live and is not asked again until it changes. Watch fewer rows at once, or raise the server's maxIdsPerEntity.`,
+  ...facts,
+})
+
+export const outboxUnreadable = (
+  facts: Pick<OutboxUnreadable, 'requestId' | 'reason'>,
+): OutboxUnreadable => ({
+  _tag: 'OutboxUnreadable',
+  source,
+  level: 'warning',
+  message: `A stored write (${facts.requestId}) cannot be sent: ${facts.reason}. It was made by an earlier version of the application; it is kept until Data.dismiss, and the writes after it are sent.`,
+  ...facts,
+})
+
+export const outboxUnsaved = (facts: Pick<OutboxUnsaved, 'key' | 'reason'>): OutboxUnsaved => ({
+  _tag: 'OutboxUnsaved',
+  source,
+  level: 'warning',
+  message: `The outbox could not write ${facts.key} (${facts.reason}). Its writes are sent, but a reload before they are answered loses them.`,
   ...facts,
 })
 

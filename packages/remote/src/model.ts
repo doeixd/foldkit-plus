@@ -6,6 +6,8 @@
 import { Option, Schema } from 'effect'
 import {
   liveRefused,
+  outboxUnreadable,
+  outboxUnsaved,
   PredictionPart,
   predictionMismatch,
   withDiagnostics,
@@ -42,12 +44,24 @@ import {
   beginMutation,
   emptyMutationState,
   failMutation,
+  forgetFailure,
   type MutationState,
   type NormalizedPatch,
 } from './mutation.js'
 import {
+  emptyOutbox,
+  operationOf,
+  Queued,
+  revisionOf,
+  withDone,
+  type OutboxState,
+  type ReadEntry,
+  type StoredWrite,
+} from './outbox.js'
+import {
   askAgain,
   entityKey,
+  entry as storeEntry,
   emptyStore,
   isTombstone,
   readField,
@@ -96,6 +110,12 @@ export interface RemoteModel {
   readonly live: Readonly<Record<string, LiveState>>
   /** Mutation pending/applied/failed ledger. */
   readonly mutations: MutationState
+  /**
+   * The durable writes (`Data.mutate`'s `durable`) not yet settled, every
+   * tab's, in the order the outbox sends them, and what its store holds.
+   * Each is in `mutations` too, as any write is.
+   */
+  readonly outbox: OutboxState
   /**
    * Streams that broke, by an error or by an event ahead of their cursor, and
    * have not resubscribed since: changes after the break are missed until the
@@ -244,6 +264,9 @@ export const forgetRemote = (model: RemoteModel): RemoteModel => {
       sequence: model.mutations.sequence,
       applied: new Set([...model.mutations.applied, ...model.mutations.pending]),
     },
+    // The writes stay in their own key's store, for that principal's return.
+    // The session is this page's, and keeps naming its operations.
+    outbox: { ...emptyOutbox, session: model.outbox.session },
   }
 }
 
@@ -254,6 +277,7 @@ export const initialRemoteModel: RemoteModel = {
   optimistic: emptyOptimistic,
   live: {},
   mutations: emptyMutationState,
+  outbox: emptyOutbox,
   gaps: new Set(),
   streams: {},
   loading: new Set(),
@@ -277,6 +301,7 @@ export const remoteModelSchema = (): Schema.Codec<RemoteModel, unknown> =>
     optimistic: runtimeSchema,
     live: Schema.Record(Schema.String, runtimeSchema),
     mutations: runtimeSchema,
+    outbox: runtimeSchema,
     gaps: runtimeSchema,
     streams: Schema.Record(Schema.String, runtimeSchema),
     loading: runtimeSchema,
@@ -368,8 +393,42 @@ export type RemoteMessage =
             readonly keys?: ReadonlyArray<string> | undefined
             /** When the reader acted: what the request sends, and a retry sends again. */
             readonly now?: number | undefined
+            /**
+             * Queued in the outbox rather than sent: the input encoded, and
+             * what the reader was shown, as the store keeps them. The request
+             * id is the operation id.
+             */
+            readonly durable?:
+              | {
+                  readonly input: unknown
+                  readonly shown: ReadonlyArray<RelationRequirement>
+                }
+              | undefined
           }
         | undefined
+    }
+  /** What `Data.mutate`'s Command answers for a durable write, which the outbox sends: nothing. */
+  | { readonly _tag: 'MutationQueued'; readonly requestId: string }
+  /**
+   * What the outbox's store under `key` holds, read entry by entry: written
+   * there by this page or another tab. `session` is given by a restore, for
+   * a page that has none; `unsaved` says why the store could not be written,
+   * when it could not, and the entries are then this page's own.
+   */
+  | {
+      readonly _tag: 'OutboxRead'
+      readonly key: string
+      readonly session?: string | undefined
+      readonly entries: ReadonlyArray<ReadEntry>
+      readonly done: ReadonlyArray<string>
+      readonly unsaved?: string | undefined
+    }
+  /** A durable write was sent and nothing answered; it is sent again after a wait. */
+  | {
+      readonly _tag: 'OutboxDelayed'
+      readonly requestId: string
+      readonly attempt: number
+      readonly error: RemoteError
     }
   | {
       readonly _tag: 'MutationSucceeded'
@@ -508,9 +567,21 @@ export const remoteMessageCases = {
         input: Schema.Unknown,
         keys: Schema.optional(Schema.Array(Schema.String)),
         now: Schema.optional(Schema.Number),
+        durable: Schema.optional(
+          Schema.Struct({ input: Schema.Unknown, shown: Schema.Array(RelationRequest) }),
+        ),
       }),
     ),
   },
+  MutationQueued: { requestId: Schema.String },
+  OutboxRead: {
+    key: Schema.String,
+    session: Schema.optional(Schema.String),
+    entries: Schema.Array(Schema.Unknown),
+    done: Schema.Array(Schema.String),
+    unsaved: Schema.optional(Schema.String),
+  },
+  OutboxDelayed: { requestId: Schema.String, attempt: Schema.Number, error: remoteErrorSchema },
   MutationSucceeded: {
     requestId: Schema.String,
     entities: Schema.Array(NormalizedEntity),
@@ -1013,6 +1084,277 @@ const checkedPlacement = (
   }
 }
 
+type MutationStartedMessage = Extract<RemoteMessage, { readonly _tag: 'MutationStarted' }>
+
+/** The queue with `queued` in place of the entry of its operation, or after the rest. */
+const placedIn = (queue: ReadonlyArray<Queued>, queued: Queued): ReadonlyArray<Queued> => {
+  const operation = operationOf(queued)
+  return queue.some(each => operationOf(each) === operation)
+    ? queue.map(each => (operationOf(each) === operation ? queued : each))
+    : [...queue, queued]
+}
+
+/** A durable write queued to wait its turn: new, or a failed one retried, its revision moved on. */
+const queuedWrite = (
+  outbox: OutboxState,
+  operation: string,
+  write: NonNullable<MutationStartedMessage['write']>,
+  message: MutationStartedMessage,
+): OutboxState => {
+  const prior = outbox.queue.find(queued => operationOf(queued) === operation)
+  const stored: StoredWrite = {
+    operation,
+    mutation: write.mutation,
+    input: write.durable?.input,
+    ...(write.keys === undefined ? {} : { keys: write.keys }),
+    ...(write.now === undefined ? {} : { now: write.now }),
+    optimistic: message.optimistic ?? [],
+    ...(message.viewer === undefined ? {} : { viewer: message.viewer }),
+    shown: write.durable?.shown ?? [],
+    revision: prior === undefined ? 0 : revisionOf(prior) + 1,
+    state: { _tag: 'Waiting' },
+  }
+  return {
+    ...outbox,
+    queue: placedIn(
+      outbox.queue,
+      Queued.Readable({ write: stored, stored: false, attempt: 0, delayed: Option.none() }),
+    ),
+  }
+}
+
+/** The outbox with the readable write of `operation` changed by `change`; itself when it has none. */
+const withQueued = (
+  outbox: OutboxState,
+  operation: string,
+  change: (queued: Extract<Queued, { readonly _tag: 'Readable' }>) => Queued,
+): OutboxState => {
+  const at = outbox.queue.findIndex(queued => operationOf(queued) === operation)
+  const queued = outbox.queue[at]
+  if (queued?._tag !== 'Readable') return outbox
+  return {
+    ...outbox,
+    queue: outbox.queue.map((each, index) => (index === at ? change(queued) : each)),
+  }
+}
+
+/** The outbox with `operation` settled: out of the queue, and remembered as done. */
+const withoutQueued = (outbox: OutboxState, operation: string): OutboxState =>
+  outbox.queue.some(queued => operationOf(queued) === operation)
+    ? {
+        ...outbox,
+        queue: outbox.queue.filter(queued => operationOf(queued) !== operation),
+        done: withDone(outbox.done, [operation]),
+      }
+    : outbox
+
+const storedAs = (queued: Queued, stored: boolean): Queued =>
+  queued.stored === stored ? queued : { ...queued, stored }
+
+/** A stored entry as the queue holds it: in the store, as read. */
+const queuedOf = (entry: ReadEntry): Queued =>
+  entry._tag === 'Readable'
+    ? Queued.Readable({ write: entry.write, stored: true, attempt: 0, delayed: Option.none() })
+    : Queued.Unreadable({
+        operation: entry.operation,
+        revision: entry.revision,
+        raw: entry.raw,
+        reason: entry.reason,
+        stored: true,
+      })
+
+const entryOperation = (entry: ReadEntry): string =>
+  entry._tag === 'Readable' ? entry.write.operation : entry.operation
+
+const entryRevision = (entry: ReadEntry): number =>
+  entry._tag === 'Readable' ? entry.write.revision : entry.revision
+
+/** Whether the queued write waits its turn: in the ledger in flight, its layer shown. */
+const isWaiting = (queued: Queued): boolean =>
+  queued._tag === 'Readable' && queued.write.state._tag === 'Waiting'
+
+/** The ledger and layers without a queued write: nothing of it shown or listed. */
+const releasedFrom = (model: RemoteModel, queued: Queued): RemoteModel => {
+  const operation = operationOf(queued)
+  if (!model.mutations.pending.has(operation)) {
+    return { ...model, mutations: forgetFailure(model.mutations, operation) }
+  }
+  const pending = new Set(model.mutations.pending)
+  pending.delete(operation)
+  const writes = new Map(model.mutations.writes)
+  writes.delete(operation)
+  // No answer of it is awaited here, so nothing is held back for one.
+  const order = new Map(model.mutations.order)
+  order.delete(operation)
+  return {
+    ...model,
+    mutations: { ...model.mutations, pending, writes, order },
+    optimistic: settleFailure(model.optimistic, operation),
+  }
+}
+
+/**
+ * The ledger and layers with a stored entry adopted in place of what the
+ * page held of it (`prior`): a write waiting is begun, its layer shown; one
+ * failed is failed, its layer gone; one this version cannot read is not in
+ * the ledger at all.
+ */
+const adopted = (model: RemoteModel, prior: Queued | undefined, entry: ReadEntry): RemoteModel => {
+  const released = prior === undefined ? model : releasedFrom(model, prior)
+  if (entry._tag === 'Unreadable') return released
+  const { write } = entry
+  const begun = {
+    ...released,
+    mutations: beginMutation(released.mutations, write.operation, {
+      mutation: write.mutation,
+      input: entry.input,
+      keys: write.keys,
+      now: Option.fromUndefinedOr(write.now),
+      optimistic: write.optimistic,
+    }),
+  }
+  return write.state._tag === 'Waiting'
+    ? {
+        ...begun,
+        optimistic: beginOptimistic(
+          begun.optimistic,
+          write.operation,
+          write.optimistic,
+          Option.fromUndefinedOr(write.viewer),
+        ),
+      }
+    : {
+        ...begun,
+        mutations: failMutation(
+          begun.mutations,
+          write.operation,
+          write.state.error,
+          write.operation,
+        ),
+      }
+}
+
+/**
+ * Writes another tab settled, whose answers this page did not see: their
+ * layers go, every row they showed is asked for again and every list is
+ * refetched, since what the server made of them is not known here.
+ */
+const settledElsewhere = (model: RemoteModel, settled: ReadonlyArray<Queued>): RemoteModel => {
+  const released = settled.reduce(releasedFrom, model)
+  const rows = new Map<string, { readonly entity: string; readonly id: string }>()
+  for (const queued of settled) {
+    if (queued._tag !== 'Readable' || queued.write.state._tag !== 'Waiting') continue
+    for (const operation of queued.write.optimistic) {
+      if ('entity' in operation) rows.set(entityKey(operation.entity, operation.id), operation)
+    }
+  }
+  if (!settled.some(isWaiting)) return released
+  const requests = [...rows.entries()].flatMap(([key, row]) =>
+    Option.match(storeEntry(released.entities, key), {
+      onNone: () => [],
+      onSome: held =>
+        held.present.size === 0
+          ? []
+          : [{ entity: row.entity, id: row.id, fields: [...held.present] }],
+    }),
+  )
+  const asked =
+    requests.length === 0 ? released : reduceRemote(released, { _tag: 'RefreshStarted', requests })
+  return invalidateConnections(asked, Object.keys(asked.connections))
+}
+
+/**
+ * What the store holds, met by what the page holds: an entry the store has a
+ * newer revision of is adopted, one it has as the page does is marked
+ * stored, one it lacks is written again, and one it settled goes. A read
+ * under another key replaces the page's queue (its writes stay in their own
+ * store). The Model itself when nothing changed.
+ */
+const readOutbox = (
+  model: RemoteModel,
+  message: Extract<RemoteMessage, { readonly _tag: 'OutboxRead' }>,
+): RemoteModel => {
+  const switching = Option.isSome(model.outbox.key) && model.outbox.key.value !== message.key
+  const start: RemoteModel = switching
+    ? {
+        ...model.outbox.queue.reduce(releasedFrom, model),
+        outbox: { ...model.outbox, queue: [], done: [] },
+      }
+    : model
+  const before = start.outbox
+  const done = withDone(before.done, message.done)
+  const gone = new Set(done)
+  const held = new Map(before.queue.map(queued => [operationOf(queued), queued]))
+  const read = new Set<string>()
+  const queue: Queued[] = []
+  const recorded: RemoteDiagnostic[] = []
+  let next = start
+  for (const entry of message.entries) {
+    const operation = entryOperation(entry)
+    if (gone.has(operation) || read.has(operation)) continue
+    read.add(operation)
+    const prior = held.get(operation)
+    const revision = entryRevision(entry)
+    // The page's copy is newer: the store has not caught up, and is written again.
+    if (prior !== undefined && revisionOf(prior) > revision) queue.push(prior)
+    else if (prior !== undefined && revisionOf(prior) === revision) {
+      queue.push(storedAs(prior, true))
+    } else {
+      next = adopted(next, prior, entry)
+      if (entry._tag === 'Unreadable' && prior === undefined) {
+        recorded.push(outboxUnreadable({ requestId: operation, reason: entry.reason }))
+      }
+      queue.push(queuedOf(entry))
+    }
+  }
+  const settled: Queued[] = []
+  for (const queued of before.queue) {
+    const operation = operationOf(queued)
+    if (read.has(operation)) continue
+    if (gone.has(operation)) settled.push(queued)
+    else queue.push(storedAs(queued, false))
+  }
+  next = settledElsewhere(next, settled)
+  // Said once a page: every save after fails alike until storage frees up.
+  const said = next.diagnostics.some(
+    diagnostic => diagnostic._tag === 'OutboxUnsaved' && diagnostic.key === message.key,
+  )
+  if (message.unsaved !== undefined && !said) {
+    recorded.push(outboxUnsaved({ key: message.key, reason: message.unsaved }))
+  }
+  const session = Option.orElse(before.session, () => Option.fromUndefinedOr(message.session))
+  const unchanged =
+    !switching &&
+    next === start &&
+    recorded.length === 0 &&
+    done === before.done &&
+    Option.contains(before.key, message.key) &&
+    Option.isSome(before.session) === Option.isSome(session) &&
+    queue.length === before.queue.length &&
+    queue.every((queued, index) => queued === before.queue[index])
+  if (unchanged) return model
+  return {
+    ...next,
+    outbox: { session, key: Option.some(message.key), queue, done },
+    diagnostics: withDiagnostics(next.diagnostics, recorded),
+  }
+}
+
+/**
+ * The Remote Model with a failed or unreadable durable write settled by the
+ * reader (`Data.dismiss`): out of the queue and the ledger, and done, so every
+ * tab drops it. A waiting one, or one not queued, is the Model itself.
+ */
+export const dismissQueued = (model: RemoteModel, requestId: string): RemoteModel => {
+  const queued = model.outbox.queue.find(each => operationOf(each) === requestId)
+  if (queued === undefined || isWaiting(queued)) return model
+  return {
+    ...model,
+    mutations: forgetFailure(model.mutations, requestId),
+    outbox: withoutQueued(model.outbox, requestId),
+  }
+}
+
 const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel => {
   switch (message._tag) {
     case 'Preloaded':
@@ -1168,6 +1510,10 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
     case 'MutationStarted':
       return {
         ...model,
+        outbox:
+          message.write?.durable === undefined
+            ? model.outbox
+            : queuedWrite(model.outbox, message.requestId, message.write, message),
         mutations: beginMutation(
           model.mutations,
           message.requestId,
@@ -1211,6 +1557,7 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
             ? settled.store
             : writeRead(settled.store, read.requests, read.result, message.now),
         mutations: settled.state,
+        outbox: withoutQueued(model.outbox, message.requestId),
         optimistic: settled.optimistic,
         failures: withoutFieldFailures(model.failures, [
           ...(read === undefined
@@ -1223,6 +1570,21 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
         ]),
       }
     }
+    case 'MutationQueued':
+      return model
+    case 'OutboxDelayed':
+      return {
+        ...model,
+        outbox: withQueued(model.outbox, message.requestId, queued =>
+          Queued.Readable({
+            ...queued,
+            attempt: message.attempt,
+            delayed: Option.some(message.error),
+          }),
+        ),
+      }
+    case 'OutboxRead':
+      return readOutbox(model, message)
     case 'OverlayShown':
       return {
         ...model,
@@ -1244,6 +1606,21 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
     case 'MutationFailed':
       return {
         ...model,
+        // Only a write in flight fails: a repeated failure moves nothing on.
+        outbox: !model.mutations.pending.has(message.requestId)
+          ? model.outbox
+          : withQueued(model.outbox, message.requestId, queued =>
+              Queued.Readable({
+                write: {
+                  ...queued.write,
+                  revision: queued.write.revision + 1,
+                  state: { _tag: 'Failed', error: message.error },
+                },
+                stored: false,
+                attempt: 0,
+                delayed: Option.none(),
+              }),
+            ),
         mutations: failMutation(
           model.mutations,
           message.requestId,

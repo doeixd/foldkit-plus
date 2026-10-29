@@ -36,7 +36,9 @@ export default [
   },
   {
     name: 'Data.mutate sends nothing shown',
-    edits: [{ file: index, find: '                shown,\n', replace: '' }],
+    edits: [
+      { file: index, find: '                      shown: shownAt(startedModel),\n', replace: '' },
+    ],
     tests,
   },
   {
@@ -60,7 +62,7 @@ export default [
     edits: [
       {
         file: index,
-        find: '...(outcome.read === undefined ? {} : { read: outcome.read }),',
+        find: '                            ...(outcome.read === undefined ? {} : { read: outcome.read }),',
         replace: '',
       },
     ],

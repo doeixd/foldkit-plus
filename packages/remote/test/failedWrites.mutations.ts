@@ -118,7 +118,13 @@ export default [
   },
   {
     name: 'a retry sends no keys',
-    edits: [{ file: '../src/index.ts', find: '          keys: write.keys,\n', replace: '' }],
+    edits: [
+      {
+        file: '../src/index.ts',
+        find: '          keys: write.keys,\n          // The same time',
+        replace: '          // The same time',
+      },
+    ],
     tests,
   },
   {

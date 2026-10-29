@@ -268,6 +268,22 @@ const live = (model: Model, stream: string) =>
 /** One Message for the Model as it is now. */
 type Generate = (model: Model) => RemoteMessage
 
+/** A durable rename of p1 as the outbox stores it, waiting or refused. */
+const storedRename = (operation: string, name: string, state: 'Waiting' | 'Failed') => ({
+  _tag: 'Readable' as const,
+  input: { id: 'p1', name },
+  write: {
+    operation,
+    mutation: 'Rename',
+    input: { id: 'p1', name },
+    optimistic: [{ entity: 'Project', id: 'p1', values: { name } }],
+    shown: [],
+    revision: 0,
+    state:
+      state === 'Waiting' ? { _tag: 'Waiting' as const } : { _tag: 'Failed' as const, error: down },
+  },
+})
+
 /** Every Message variant's generators, by name. */
 const messages = {
   ReadReceived: {
@@ -346,6 +362,16 @@ const messages = {
       _tag: 'MutationStarted',
       requestId: 'rename',
       optimistic: [{ entity: 'Project', id: 'p1', values: { name: 'Renamed' } }],
+    }),
+    "p1's name edited, durably": () => ({
+      _tag: 'MutationStarted',
+      requestId: 'session-rename',
+      optimistic: [{ entity: 'Project', id: 'p1', values: { name: 'Kept' } }],
+      write: {
+        mutation: 'Rename',
+        input: { id: 'p1', name: 'Kept' },
+        durable: { input: { id: 'p1', name: 'Kept' }, shown: [] },
+      },
     }),
     'a project created into the list': () => ({
       _tag: 'MutationStarted',
@@ -577,6 +603,50 @@ const messages = {
   },
   CompletedReportDiagnostics: {
     'diagnostics reported': () => ({ _tag: 'CompletedReportDiagnostics' }),
+  },
+  MutationQueued: {
+    'a durable write queued': () => ({ _tag: 'MutationQueued', requestId: 'session-rename' }),
+  },
+  OutboxRead: {
+    'the store read back, holding a rename another tab queued': () => ({
+      _tag: 'OutboxRead',
+      key: 'outbox',
+      session: 'session',
+      entries: [storedRename('other-rename', 'Elsewhere', 'Waiting')],
+      done: [],
+    }),
+    'the store read back, a rename refused in another tab': () => ({
+      _tag: 'OutboxRead',
+      key: 'outbox',
+      entries: [storedRename('other-refused', 'Refused', 'Failed')],
+      done: [],
+    }),
+    'the store read back, the durable rename settled in another tab': () => ({
+      _tag: 'OutboxRead',
+      key: 'outbox',
+      entries: [],
+      done: ['session-rename', 'other-rename'],
+    }),
+    'the store read back, a write this version cannot read': () => ({
+      _tag: 'OutboxRead',
+      key: 'outbox',
+      entries: [{ _tag: 'Unreadable', operation: 'old', revision: 0, raw: {}, reason: 'retired' }],
+      done: [],
+    }),
+    'the store read under another key': () => ({
+      _tag: 'OutboxRead',
+      key: 'outbox:grace',
+      entries: [],
+      done: [],
+    }),
+  },
+  OutboxDelayed: {
+    'the durable rename sent, and nothing answered': () => ({
+      _tag: 'OutboxDelayed',
+      requestId: 'session-rename',
+      attempt: 1,
+      error: { _tag: 'Unreachable', message: 'offline' },
+    }),
   },
 } satisfies Record<RemoteMessageTag, Readonly<Record<string, Generate>>>
 

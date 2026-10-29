@@ -229,7 +229,8 @@ const dismissed = (model: Model, requestId: string): Model => Data.dismiss(model
   mutation, oldest first, with `input` and `refusal` typed by it; without the
   mutation, every failed write. A write is listed until it is retried,
   dismissed, or `Data.forget` changes the principal. Nothing drops one on a
-  timer, and the list is never persisted: a reload forgets it.
+  timer, and the list is persisted only for a durable write (below): a reload
+  forgets the rest.
 - **`refusal`** is `Some` only when the server refused the write as the
   mutation declares. A network failure or a server error is `None`, with the
   `error` saying what happened.
@@ -245,8 +246,36 @@ receives already lists the write. A wiring that does not share it reports a
 `WriteUnheard` diagnostic for each failed write: the change went, and nothing
 in the application was told.
 
-A mutation is not a durable queue. A write the reader must not lose offline
-belongs to `foldkit-sync`; see [Remote mutation vs Sync operation](../packages/remote/README.md#remote-mutation-vs-sync-operation).
+### A write that must outlive the page
+
+`Data.mutate(model, M, input, { durable: true })` queues the write in the
+outbox (`Data.outbox`) instead of sending it: stored first, sent in order by
+one tab, and kept across a reload. What changes for its failures:
+
+| Failure | Ordinary write | Durable write |
+| --- | --- | --- |
+| Nothing answered (`_tag: 'Unreachable'`: offline, a gateway's error page) | `Failed`; retry by hand | stays `Waiting` and is sent again with a backoff, and when the browser is back online |
+| The server refused it | `Failed`, listed by `failedWrites` | the same, and kept in the store until retried or dismissed |
+| The page reloaded before the answer | lost | sent again with the same operation id and `now` |
+
+`Data.outboxStatus(model)` says what waits (`{ waiting, failed, items }`), for
+a "3 changes waiting" line. A write the server applied but whose answer never
+came is answered again from the writer's record, by its operation id: a
+durable Mutation needs a ledgered writer (`RemoteServer.write`, or
+remote-drizzle's `writer` with a ledger).
+
+Two diagnostics are the outbox's:
+
+- **`OutboxUnreadable`**: a stored write this version cannot read (its
+  Mutation is gone, or its input no longer decodes). It is kept, never sent,
+  shown in `outboxStatus` as `Unreadable`, and the writes after it are sent.
+  `Data.dismiss` removes it.
+- **`OutboxUnsaved`**: the store could not be written (full, or refused). The
+  writes are still sent, but a reload before their answers loses them.
+
+A durable write is still Remote's: one write, sent once, the server's
+answer final. Edits that must merge with other devices' edits while offline
+belong to `foldkit-sync`; see [Remote mutation vs Sync operation](../packages/remote/README.md#remote-mutation-vs-sync-operation).
 
 ### What a declared write refuses
 
@@ -431,7 +460,7 @@ package's variants:
 
 | Package | `_tag`s |
 | --- | --- |
-| `foldkit-remote` | `WriteUnheard`, `LiveRefused`; `PredictionMismatch` under `verifyPredictions` |
+| `foldkit-remote` | `WriteUnheard`, `LiveRefused`, `OutboxUnreadable`, `OutboxUnsaved`; `PredictionMismatch` under `verifyPredictions` |
 | `foldkit-remote-server` | `ServerDefect`, `AnswerUnread`, `PublishFailed` |
 | `foldkit-remote-drizzle` | `StatementFailed`, `ServerOnlyRules` |
 | `foldkit-guard` | `ComputeRefused`, `UnpinnedWrites` |

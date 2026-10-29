@@ -14,12 +14,15 @@ Messages reduced by one pure reducer. There is no hidden cache next to the app.
 | --- | --- |
 | Route, selection, form drafts, transient UI errors | app Model + `update` |
 | Server-owned facts that can be refetched | `foldkit-remote` |
+| A write the server decides, which must be sent even after a reload or offline | `foldkit-remote`: `Data.mutate(…, { durable: true })` + `Data.outbox` |
 | Client-authored edits that must survive offline/restart and converge | `foldkit-sync` (+ `foldkit-durable`) |
 | Local state reflected in the URL or a preference store | app Model, observed by `foldkit-mirror` |
 
-Remote recovery is "discard and refetch". If losing an unsent edit is data loss,
-it is not Remote. A Remote mutation is an immediate server request, **not** an
-offline outbox. Also not for local-only state or single-endpoint request caching.
+Remote recovery is "discard and refetch". A Remote mutation is an immediate
+server request unless made `durable`, when the outbox stores it and sends it
+later (Remote = send it later; Sync = converge). If edits must merge with other
+devices' or build on their own unsent effects, it is not Remote. Also not for
+local-only state or single-endpoint request caching.
 
 Packages:
 - `foldkit-remote` (client): entities, normalized store, `Remote.Model` + reducer, queries, optimistic overlays, live cursors, `RemoteClient`.
@@ -558,6 +561,27 @@ Nothing drops one on a timer. To act on a failure in `update`, wire
 `Data.wiring(actives, { shared: ['MutationFailed'] })`: the own update then
 receives `MutationFailed` after Remote reduced it, and its match must answer it;
 without that, each failure is a `WriteUnheard` diagnostic.
+
+**Durable writes: the outbox.** `Data.mutate(model, M, input, { durable: true,
+now })` queues the write instead of sending it: its layer shows, its request id
+is its operation id (`<session>-<n>`), and its Command answers `MutationQueued`.
+Assemble `Data.outbox({ key, scope, retry? })` beside `Data.wiring` (it needs a
+`KeyValueStore` and `RemoteClient`), and start `init` from
+`outbox.restore(model)` as the runtime's `flags`, which mints the session (a
+durable `mutate` before it throws) and shows what a reload left. The outbox
+stores a write before sending it, sends the oldest one at a time under a Web
+Lock (one tab sends), sends again with the same operation id and `now` after a
+reload or an `Unreachable` failure (backoff 1 s doubling to 30 s, and on
+`online`; `OutboxDelayed` per attempt), and settles a refusal as `Failed`
+(`failedWrites`, `retry` queues again, `dismiss` removes it from the store).
+Other tabs read the store over a `BroadcastChannel` and show each other's
+writes. `Data.outboxStatus(model)` is `{ waiting, failed, items }`, each item's
+`state` `Waiting { attempt, error }`, `Failed { error }` or `Unreadable {
+reason }` (a stored write this version's Mutations cannot read: kept, never
+sent, `OutboxUnreadable`, dismissable). A store that cannot be written reports
+`OutboxUnsaved` and still sends. A durable Mutation needs a ledgered writer,
+so a second send is answered from its record. Past `clockSkew`, the server
+writes its own time.
 
 **Diagnostics.** `remote.diagnostics` (`Data.inspect(model).diagnostics`) holds,
 typed and oldest first (the newest 256), what Remote met and kept going past:

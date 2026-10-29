@@ -32,8 +32,8 @@ export default [
   edit(
     'a refused write is sent',
     index,
-    '              Option.isSome(refused)\n                ? Effect.succeed({',
-    '              false\n                ? Effect.succeed({',
+    '                : Option.isSome(refused)\n                  ? Effect.succeed({',
+    '                : false\n                  ? Effect.succeed({',
   ),
   edit('the refusal names no rule', index, 'rule: Option.some(held.id),', 'rule: Option.none(),'),
 ]
