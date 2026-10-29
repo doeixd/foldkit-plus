@@ -296,16 +296,16 @@ export interface Builders<User> {
   ) => RowSpec<E>
 }
 
-const placeholdersOf = <User>(fields: Schema.Struct.Fields): Placeholders<User> => {
-  const inputs: Record<string, InputExpr<unknown>> = {}
-  for (const key of Object.keys(fields)) {
-    inputs[key] = Expr.input(
-      `principal.${key}`,
-      fields[key] as unknown as Schema.Codec<unknown, unknown>,
-    )
-  }
-  return Object.freeze(inputs) as Placeholders<User>
-}
+const placeholdersOf = <User>(fields: Schema.Struct.Fields): Placeholders<User> =>
+  // Built as entries, so a field named `__proto__` is a key of its own, not the prototype.
+  Object.freeze(
+    Object.fromEntries(
+      Object.entries(fields).map(([key, schema]): [string, InputExpr<unknown>] => [
+        key,
+        Expr.input(`principal.${key}`, schema as unknown as Schema.Codec<unknown, unknown>),
+      ]),
+    ),
+  ) as Placeholders<User>
 
 export { Condition, type MemberRead, type RowRule } from './condition.js'
 export { May, MaySchema, type MayAnswer } from './may.js'

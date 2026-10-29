@@ -7,6 +7,23 @@ const tests = ['packages/guard/test/declare.test.ts']
 
 export default [
   {
+    // Object.assign sets each key, as `inputs[key] = …` did: `__proto__` becomes the prototype.
+    name: 'a principal field named __proto__ is no placeholder of its own',
+    edits: [
+      {
+        file,
+        find: '    Object.fromEntries(\n      Object.entries(fields).map(',
+        replace: '    Object.assign({}, Object.fromEntries(\n      Object.entries(fields).map(',
+      },
+      {
+        file,
+        find: '      ]),\n    ),\n  ) as Placeholders<User>',
+        replace: '      ])),\n    ),\n  ) as Placeholders<User>',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a guard of another set is decided anyway',
     edits: [{ file, find: 'if (guard.set !== name) {', replace: 'if (false) {' }],
     tests,

@@ -87,6 +87,33 @@ describe('a row guard', () => {
       'principal.projectIds': ['p1', 'p2'],
     })
   })
+
+  // `inputs[key] = …` would make a field named `__proto__` the placeholders' prototype.
+  it('is given a placeholder of its own for each principal field, whatever its name', () => {
+    const Named = Schema.Struct({
+      id: Schema.String,
+      ['__proto__']: Schema.String,
+      constructor: Schema.String,
+    })
+    const Item = Entity.define('Item', Schema.Struct({ id: Schema.String, team: Schema.String }))
+    const seen: Array<ReadonlyArray<readonly [string, Parameters<typeof Expr.show>[0]]>> = []
+    Guards.declare(
+      'Named',
+      Named,
+      guard => ({
+        inTeam: guard.row(Item, p => {
+          seen.push(Object.entries(p))
+          return Expr.eq(Item.fields.team, p['__proto__'])
+        }),
+      }),
+      { key: user => user.id, unguarded: 'deny' },
+    )
+    expect(seen[0]!.map(([key, value]) => [key, Expr.show(value)])).toEqual([
+      ['id', '$principal.id'],
+      ['__proto__', '$principal.__proto__'],
+      ['constructor', '$principal.constructor'],
+    ])
+  })
 })
 
 describe('a principal’s key', () => {

@@ -760,6 +760,9 @@ carries `drawn`.
 
 ### Fixed
 
+- **A guard's principal placeholders hold a field named `__proto__` as their
+  own** (prototype-key sweep). `guard.row`'s placeholders were built by
+  assignment, so such a field became their prototype rather than a key.
 - **A row only a pending request holds is read once the request is
   answered.** Remote asked the server for a field a pending create's
   prediction lacked (the reference notebook's `may`); the server had no such
