@@ -156,6 +156,28 @@ describe('A call of a defined operator', () => {
     expect(call).toThrow(message)
   })
 
+  it('takes a predicate where its input admits a boolean beside null or another kind (#324)', () => {
+    const negate = Expr.operator('acme.negate', {
+      input: [Schema.NullOr(Schema.Boolean)],
+      output: Schema.Boolean,
+    })
+    const either = Expr.operator('acme.either', {
+      input: [Schema.Union([Schema.Boolean, Schema.Number])],
+      output: Schema.Boolean,
+    })
+    const ranked = Expr.gt(fields.rank, 0)
+    expect(negate(ranked).args).toEqual([ranked])
+    expect(either(ranked).args).toEqual([ranked])
+    const onlyTrue = Expr.operator('acme.onlyTrue', {
+      input: [Schema.Literal(true)],
+      output: Schema.Boolean,
+    })
+    // @ts-expect-error a predicate may be false, which the input does not admit
+    expect(() => onlyTrue(ranked)).toThrow(
+      'argument 1 is a predicate, but the operator does not take a boolean',
+    )
+  })
+
   it('refuses a boolean output whose body is a scalar', () => {
     const wrong = Expr.operator('acme.wrong', {
       input: [Schema.Number],

@@ -1097,6 +1097,11 @@ carries `drawn`.
   `Infinity` is NaN, so an operator answering the same infinity for two
   arguments was a `Counterexample`. Equal outcomes now agree, as under every
   other law (the change for #295); NaN beside a number is still out of order.
+- **An operator whose input is `Schema.NullOr(Schema.Boolean)` takes a
+  predicate** (#324), as its type said: the call refused one unless the input
+  was a bare `Schema.Boolean`. A predicate is now taken wherever the input
+  stores both booleans, null or another kind beside them or not, which is
+  what `ArgumentOf` types.
 
 ## 0.35.0
 

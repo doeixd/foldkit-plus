@@ -1019,7 +1019,10 @@ const argumentFor = (
     throw new Error(`[foldkit-entity] ${id}: argument ${position + 1} ${what}`)
   }
   if (isPredicate(arg)) {
-    if (!storedAsBoolean(schema)) fail('is a predicate, but the operator does not take a boolean')
+    // As `ArgumentOf` types it: wherever both booleans are stored, null beside them or not.
+    const stored = Schema.is(Schema.toEncoded(schema))
+    if (!stored(true) || !stored(false))
+      fail('is a predicate, but the operator does not take a boolean')
     return arg
   }
   if (arg._tag === 'Literal') {

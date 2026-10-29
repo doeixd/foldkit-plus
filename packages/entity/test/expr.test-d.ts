@@ -295,6 +295,19 @@ isX(Post.fields.published)
 // @ts-expect-error it takes one argument
 isX(Post.fields.title, 'more')
 
+// A predicate is an argument wherever the input admits both booleans, null beside them or not (#324).
+const negate = Expr.operator('acme.negate', {
+  input: [Schema.NullOr(Schema.Boolean)],
+  output: Schema.Boolean,
+})
+negate(Expr.eq(Post.fields.published, true))
+const nullRank = Expr.operator('acme.nullRank', {
+  input: [Schema.NullOr(Schema.Number)],
+  output: Schema.Boolean,
+})
+// @ts-expect-error a predicate is no number
+nullRank(Expr.eq(Post.fields.published, true))
+
 const sameTitle = Expr.operator('acme.sameTitle', {
   input: [Schema.String],
   output: Schema.String,

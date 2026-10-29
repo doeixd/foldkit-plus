@@ -38,8 +38,20 @@ export default [
   edit(
     'a predicate is taken where no boolean is',
     expr,
-    "if (!storedAsBoolean(schema)) fail('is a predicate",
-    "if (false) fail('is a predicate",
+    'if (!stored(true) || !stored(false))',
+    'if (false)',
+  ),
+  edit(
+    'a predicate needs a bare boolean input',
+    expr,
+    'if (!stored(true) || !stored(false))',
+    'if (!storedAsBoolean(schema))',
+  ),
+  edit(
+    'a predicate is taken where true alone is',
+    expr,
+    'if (!stored(true) || !stored(false))',
+    'if (!stored(true))',
   ),
   edit(
     'a value the input does not admit is taken',
