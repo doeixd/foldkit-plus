@@ -66,7 +66,7 @@ them; `Data.refresh` does), `Unavailable`, `Undecodable`, `OverlayOnly`,
 `Deleted`, `LiveReconnecting`/`LiveRefused`, `Pending`, and `Joined`/`Left`
 with `terms` (`WhyTerm`: each `where` predicate `True`/`False`/`Null`/`Unknown`).
 `by` is a `ShownBy` (`Write`, `Overlay`, `Live`). The deciding reason is first;
-`message` says it. `ReadDiagnosis` and its `reason` are gone.
+`message` says it.
 
 ```ts
 const why = Data.why(model, list, { surfaces: active })
@@ -79,7 +79,7 @@ const steps = Data.timeline(start, history, { list }, { surfaces: active })
 ## Minimal client
 
 ```ts
-import { Option, Schema } from 'effect'
+import { Match, Option, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
@@ -145,7 +145,10 @@ const drawn = (data: RemoteData<{ readonly name: string }>) =>
   RemoteData.render(data, {
     loading: () => 'skeleton', notFound: () => 'gone',
     failed: e => `error: ${e.message}`,
-    data: (p, freshness) => (freshness._tag === 'Fresh' ? p.name : `${p.name}…`),
+    data: (p, freshness) =>
+      Match.valueTags(freshness, {
+        Fresh: () => p.name, Refreshing: () => `${p.name}…`, Stale: () => `${p.name} (offline)`,
+      }),
   })
 
 const subscriptions = Subscription.make<Model, Message, RemoteClient>()(() =>
@@ -155,39 +158,17 @@ const subscriptions = Subscription.make<Model, Message, RemoteClient>()(() =>
   }),
 )
 
-declare const rpcClient: RemoteRpcClient
+declare const rpcClient: RemoteRpcClient // what RpcClient.make(RemoteRpc) builds
 const clientLayer = Remote.clientLayer(rpcClient) // provide RemoteClient to the runtime
-// rpcClient: what RpcClient.make(RemoteRpc) builds, as it is; a transport failure
-// (RpcClientError) becomes the call's Remote error, not a defect
-// No Effect RPC on the server: Remote.clientLayer(Remote.http('/remote', { headers }))
-// posts JSON; RemoteServer.answer(handlers, body) answers it. Remote.json(send) for a
-// worker or a server in the page. Neither carries live data.
-// Over a MessagePort (a sandbox's worker): port(open) from 'foldkit-remote/port',
-// servePort(handlers, port) from 'foldkit-remote-server/port'; Effect's RPC worker
-// protocol, so live data, typed errors and interruption cross it.
-// Over fetch (a Worker's fetch): serveFetch({ server, resolvePrincipal, layer,
-// liveHeartbeat }) from 'foldkit-remote-server/fetch' answers the POSTs
-// Remote.http sends, and a live open with a text/event-stream of changes
-// (Remote.httpWithLive). resolvePrincipal is an Effect per request that may
-// need what layer(env) provides; failing with RemoteServer.unauthenticated(reason?)
-// answers 401 { error, unauthenticated: { reason? } }. revalidate: { every, key? }
-// asks again while a live stream is open: a refusal ends it as Unauthenticated. Every stream heartbeats, so an idle one survives. A
-// worker cannot wake another request's stream, so a LiveHub fed from a second
-// request reaches nobody there: poll the durable store (D1) from inside the
-// subscriber's own request instead.
-// A page render's reads in the same Worker: pageReader({ ...remote, resolvePrincipal:
-// resolvePage })(request, env) from 'foldkit-remote-server/fetch' is the request's
-// Layer<RemoteClient, RemoteUnauthenticated> over serveFetch's own server, layer and
-// limits, with no HTTP. Provide it to the pre-read (Data.satisfy(…)); it only reads.
-// A page GET carries no CSRF header: with foldkit-auth, requests: 'navigation'.
-// Plain JSON (Remote.json) carries no live data.
 
-// One list instead of the four hand-wiring steps above.
+// One list instead of the hand-wiring above, for a Message union that spreads
+// Remote's Messages rather than wrapping them.
+const Flat = defineMessageUnion({ ...Remote.messages })
 // The active record: what each Surface reads, with params from the Model.
 const actives = {
   page: Surface.at(ProjectPage, m => Option.map(m.projectId, projectId => ({ projectId }))),
 }
-const Page = Bundle.parent({ Model, Message })
+const Page = Bundle.parent({ Model, Message: Flat })
 const wiring = Page.assemble(Data.wiring(actives))
 const wiredUpdate = wiring.update(model => ({ model }))
 ```
@@ -198,6 +179,34 @@ Every entity/query/mutation used through `Data` must be registered in
 list for this integration: routing, Subscriptions, and the contract derive from
 it, and `RemoteClient` joins the assembly's services. One assembly holds at
 most one Remote domain.
+
+**Transports.** `RemoteClient` is a Layer; pick the one that reaches your server.
+A transport failure becomes the call's Remote error, not a defect.
+
+- Effect RPC: `Remote.clientLayer(rpcClient)` as above; on the server
+  `RemoteRpc.toLayer(handlers)`.
+- JSON over HTTP: `Remote.clientLayer(Remote.http('/remote', { headers }))`,
+  answered by `RemoteServer.answer(handlers, body)`; `Remote.json(send)` for a
+  worker or a server in the page. Neither carries live data.
+- A MessagePort (a sandbox's worker): `port(open)` from `foldkit-remote/port`,
+  `servePort(handlers, port)` from `foldkit-remote-server/port`. Live data,
+  typed errors and interruption cross it.
+- A Worker's fetch: `serveFetch({ server, resolvePrincipal, layer })` from
+  `foldkit-remote-server/fetch` answers what `Remote.http` posts, and a live
+  open with a `text/event-stream` (`Remote.httpWithLive`), heartbeating every
+  `liveHeartbeat` (15 s). `resolvePrincipal` is an Effect per request over
+  what `layer(env)` provides; failing with `RemoteServer.unauthenticated(reason?)`
+  answers 401. `revalidate: { every, key? }` asks again while a live stream is
+  open and ends it on a refusal. Every answer is one principal's, so it says
+  `cache-control: no-store` unless `headers` gives its own. A Worker request
+  cannot wake another's stream, so a `LiveHub` fed from a second request
+  reaches nobody: poll the durable store (D1) inside the subscriber's request
+  (`pollLive`, below).
+- A page render's reads in the same Worker: `pageReader({ ...remote,
+  resolvePrincipal })(request, env)` is the request's `Layer<RemoteClient,
+  RemoteUnauthenticated>` over `serveFetch`'s server and limits, with no HTTP.
+  Provide it to the pre-read (`Data.satisfy`); it only reads. A page GET
+  carries no CSRF header: with `foldkit-auth`, use `requests: 'navigation'`.
 
 ## Common tasks
 
@@ -235,7 +244,8 @@ const projects = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: Projec
 // A mutation's answer dates what it writes too: `MutationSucceeded.now`, from `Data.mutate`'s
 // `now` option (default Date.now).
 
-// In update (Message cases ClickedRename {id,name}, ClickedMore {}, ClickedRefresh {}, ClickedTryAgain {}):
+// Cases of update's switch on Message (ClickedRename {id,name}, ClickedMore, ClickedRefresh,
+// ClickedTryAgain, SignedOut), with Data registering ProjectsByOwner and RenameProject:
 case 'ClickedRename': {
   const { model: started, command } = Data.mutate(model, RenameProject,
     { id: message.id, name: message.name },
@@ -312,20 +322,18 @@ case 'SignedOut': {
   `where` and the binding's `visible`, so a body never widens what a principal may
   see; an `orderBy` given there replaces the body's, since a connection pages on
   one order.
-- `foldkit-remote-server`: `evaluate(body, input, rows)` runs a query body over
-  rows in memory — pure, the reference the compiled interpreters are checked
-  against (differential tests run the same body through it and through real
-  SQLite). It follows **SQL, not JavaScript**: `null = null` is unknown and
-  matches nothing. It throws rather than guess when ordering by a column that is
-  null in some row (SQLite sorts nulls first, Postgres last) or comparing values
-  it has no order for.
-- `foldkit-remote-server` exports the **conformance suite** (`cases`, `rows`,
-  `Subject`): what each operator means, as cases to run a new interpreter
-  against. Both shipped interpreters run it — in memory, and compiled to SQL
-  against a real SQLite. Cases are chosen to make interpreters disagree (case,
-  nulls, `%`/`_` as literal text, empty search), because a fixture that cannot
-  tell them apart tests nothing.
-- `placeIn(remote.entities, connection, body, encodedInput, key)` says where a row falls in
+- `evaluate(body, input, rows, { operators?, context? })` (from `foldkit-entity`,
+  re-exported by `foldkit-remote-server`) runs a query body over rows in memory —
+  pure, the reference the compiled interpreters are checked against. It follows
+  **SQL, not JavaScript**: `null = null` is unknown and matches nothing. It
+  throws rather than guess when ordering by a column that is null in some row
+  (SQLite sorts nulls first, Postgres last) or comparing values it has no order
+  for. The **conformance suite** (`cases`, `rows`, `Subject`, from
+  `foldkit-entity/conformance`) is what each operator means, as cases to run a
+  new interpreter against; both shipped interpreters run it. Its cases are
+  chosen to make interpreters disagree (case, nulls, `%`/`_` as literal text,
+  empty search).
+- `placeIn(remote.entities, connection, body, encodedInput, key, operators)` says where a row falls in
   a loaded list by the body's order: `Before { segment, edge }`, `End { segment }`,
   `Outside` (past a `Cursor` or in a gap), or `Unknown { reason }`. A list whose body is
   placeable (`Query.placement`) also reads its body's fields for it.
@@ -386,7 +394,7 @@ Prefetch (SSR, route/hover, tests) and persistence:
 
 ```ts
 import { Effect } from 'effect'
-import { RemotePersistence, emptyStore } from 'foldkit-remote'
+import { Remote, RemotePersistence } from 'foldkit-remote'
 
 const ssr = Effect.gen(function* () {
   // Performs I/O explicitly; returns the Model with results reduced in.
@@ -399,13 +407,16 @@ const ssr = Effect.gen(function* () {
     scope: 'user-1',
   }) // string
   // client side:
-  const restored = RemotePersistence.hydrate(text, { scope: 'user-1' }) ?? emptySnapshot
-  return Data.reduce(App.initial, {
-    _tag: 'Hydrated',
-    entities: restored.entities,
-    connections: restored.connections,
-    merge: 'preserve-existing', // or 'replace'
-  })
+  const restored =
+    RemotePersistence.hydrate(text, { scope: 'user-1' }) ?? RemotePersistence.emptySnapshot
+  return Data.reduce(
+    App.initial,
+    Remote.Message.Hydrated({
+      entities: restored.entities,
+      connections: restored.connections,
+      merge: 'preserve-existing', // or 'replace'
+    }),
+  )
 }).pipe(Effect.provide(clientLayer))
 ```
 
@@ -437,10 +448,11 @@ emptied cache is saved over it.
 `restore({ key, scope, maxBytes })` use Effect's `KeyValueStore`. Wrong
 version/scope, oversized, or malformed snapshots yield `undefined` from
 `hydrate` (`restore` yields `RemotePersistence.emptySnapshot` and removes the key). An oversized
-`save` removes the key instead of writing.
+`dehydrate` returns `undefined`, and an oversized `save` removes the key instead of writing.
 
 **A connection can be declared to survive a reload**:
-`snapshotOf(model, { connections: [ref.identity] })`. Nothing survives that is
+`snapshotOf(model.remote, { connections: [ref.identity] })` (or
+`Data.persistence({ …, connections })`). Nothing survives that is
 not named — the default is the disposable, server-derived cache Remote always
 had. A declared one keeps its **edges only**: the snapshot has nowhere to put a
 cursor, because a cursor names server state that may be gone. It comes back with
@@ -512,7 +524,9 @@ and a read or a live `EntityPatched` places a held row in the pages; neither
 brings a row into a list or fetches. A row an insert overlay or a live
 `ConnectionInsert` shows is drawn where the body's order puts it, in a list
 the client can place; `Data.visibleItems(remote, connection)` gives the edges
-as reads draw them (`Remote.visibleItems` is gone). A `Query.make` list (no body) is
+as reads draw them. A body that reads through a path (or a path from the viewer) is
+judged over every row the path reaches, and judged again when one of those changes;
+a row whose path reaches what the store lacks cannot be told. A `Query.make` list (no body) is
 invalidated by any change to its Entity, and a list whose body declares no
 order (the server's `orderBy` decides it) by any change to a row it holds. `Data.refresh` remains for effects the answer does not name.
 
@@ -555,7 +569,7 @@ or any codec); a `Mutation.write` whose write has a `when` may also be refused
 as `Refusal.unmet`, and only then does its `Refusal` type include it; every `Mutation.write` may be refused as
 `Refusal.invalid` (`{ rule: Option<string>, message, path }`), when the row it would leave breaks an invariant, and `Refusal.isInvalidBy(refusal, invariant)` matches it against the value `Entity.invariant` returned; a Source fails with `RemoteServer.refuse(mutation, value)`, and
 `Data.refusal(model, requestId, mutation)` reads it decoded, as an `Option`.
-A declared write whose row the client can tell breaks an invariant (judged over
+A declared write (given no `optimistic` of its own) whose row the client can tell breaks an invariant (judged over
 the store's row with the write's values over it) is refused by `Data.mutate`
 itself: nothing shown or sent, and `MutationFailed` with that same
 `Refusal.invalid`; an invariant over a field the client lacks refuses nothing.
@@ -617,8 +631,8 @@ tab, so a traced durable write is sent.
 
 **Diagnostics.** `remote.diagnostics` (`Data.inspect(model).diagnostics`) holds,
 typed and oldest first (the newest 256), what Remote met and kept going past:
-`PredictionMismatch`, `WriteUnheard`, `LiveRefused`, each with `source`, `level`
-and `message`. The reducer only records; the wiring's route and `Remote.fold`
+`PredictionMismatch`, `WriteUnheard`, `LiveRefused`, `OutboxUnreadable` and
+`OutboxUnsaved`, each with `source`, `level` and `message`. The reducer only records; the wiring's route and `Remote.fold`
 report each new one through the `Diagnostics.Reporter` in the Effect context
 (`foldkit-surface`'s, re-exported by `foldkit-remote`), by default Effect's log
 (an `error` diagnostic with `console.error`, a `warning` with `console.log`),
@@ -643,10 +657,6 @@ Debugging: `Data.plan(model, projection)` shows what is missing;
 the reads in flight (`entity\0id\0field` marks) beside `mutations.pending` for
 the writes — both read from the Model, never from the fibers doing the work.
 
-The conformance fixtures (`Subject`, `cases`, `rows`) are imported from
-`foldkit-entity/conformance` directly; `foldkit-remote-server` no longer
-re-exports them.
-
 `Data.filtered(model, over, by, input)` filters a **loaded list** by a query
 body without asking the server, returning `Matched<Value>` — `items` decoded
 through the list's own Selection, plus `complete`. It filters a list rather than
@@ -665,11 +675,9 @@ is these rows) unless the connection is terminal at both ends (`complete`).
 `matching` and `belongsEncoded` (both exported by `foldkit-remote`) are the two entry points, and the
 asymmetry is deliberate: `matching` takes the input **decoded** (an application
 writes it that way), `belongsEncoded` takes it **encoded** (its caller holds a
-connection identity, which carries the encoded input). A decoded `belongs` and
-an exported `matchingEncoded` were written first and removed — nothing called
-them.
+connection identity, which carries the encoded input).
 
-`matching(store, descriptor, input, { among?, operators? })` runs a query body, its primitive operators by `operators` (the kernel's when not given; `Remote.make`'s on a domain's own paths), over
+`matching(store, descriptor, input, { among?, operators?, context? })` runs a query body, its primitive operators by `operators` (the kernel's when not given; `Remote.make`'s on a domain's own paths) and its `Expr.viewer`/`Expr.now` by `context`, over
 the rows the store already holds, returning `{ matched, skipped }` — keys that
 satisfy it in the body's order, and keys held but missing a field the body reads
 or holding a value no interpreter answers for, such as text with a NUL (neither a
@@ -711,6 +719,11 @@ field. The live entry restarts a broken stream itself: after Sync's backoff
 (50 ms doubling to 5 s, ±20% jitter; `retryBase`/`maxRetryDelay` in the
 subscriptions options) it resubscribes from its cursor and refetches what the
 stream covers, since no server replays missed events.
+A list read with `live: true` (`Data.query(Q, input, { select, first, live:
+true })`) rides the same live entry while a Surface reads it: the stream sends
+the list as the read does (at most 32 lists a stream), and the server's live
+source sends the rows that join, change or leave its window, so no made-up row
+is needed to watch a list. On a Worker that source is `pollLive` (below).
 `Data.liveStatus(model, active)` is `Idle | Live | Reconnecting { attempt, error } |
 Refused { error }` for a view. `Refused` is the server's `RemoteLiveRefused` (a
 subscription naming more ids of one Entity than `maxIdsPerEntity`): it is not
@@ -829,7 +842,8 @@ RemoteServer.validate(Remote.define({ entities: [User, Project], mutations: [Ren
 declare const principal: Principal // authentication happens outside this package
 const handlers = RemoteServer.handlers(Server, principal) // once per authenticated principal
 const inProcess = Remote.clientLayer(handlers)            // tests/SSR/worker
-// Over JSON: RemoteServer.answer(handlers, parsedBody) -> { status: 200 | 400 | 500, body }.
+// Over JSON: RemoteServer.answer(handlers, parsedBody) -> { status, body }:
+// 200, 400, 401 (unauthenticated), 403 (forbid), 422 (a declared refusal) or 500.
 // The body is { operation: 'read' | 'query' | 'mutate', payload }; test a server over HTTP
 // with the real client, Remote.http(`${origin}/remote`, { headers, fetch }).
 // It decodes the request by the protocol's schemas first; a defect answers 'Internal error',
@@ -841,19 +855,21 @@ const inProcess = Remote.clientLayer(handlers)            // tests/SSR/worker
 // mutations: store => [...] write through store.write. No live.
 // authorize: { Project: (principal: Principal, fields) => ... } plus principal: the layer's.
 // filter: { Project: (principal, fields) => Effect<{ fields, apply }> } decides per record;
-// readable: principal => Effect<(entity, row) => boolean> hides rows from reads, queries and refs.
+// readable: (principal, row) => Effect<(entity, values) => boolean> hides rows from reads,
+// queries and refs (`row(entity, id)` looks another stored row up).
 // entities: [MeSource] serves an entity no row backs (not in the rows' domain) beside the rows.
 // No principal: no layer, only .server, answered per request through serveFetch or handlers.
-// across a process boundary: RemoteRpc.toLayer(handlers) + your Effect RPC transport
 ```
 
 Also: `RemoteServer.query(Q, ({ input, window, principal }) => ...)` returning
 `{ edges, start, end }` with `Boundary` values;
 `RemoteServer.live(Entity, { subscribe: ({ requirements, queries, after, principal }) => … })`
 gets the lists of its Entity read live as `LiveQuery`s (`identity`, `select`, and `edges`, the
-registered query already run as the subscriber with the page's window);
+registered query already run as the subscriber with the page's window); such a Source sends
+what a read would by reading through `RemoteServer.readAs(entitySource, context)`, and
+`RemoteServer.allowedFields(entitySource, principal, fields)` says which fields that is;
 `const hub = yield* RemoteServer.liveHub(entitySources)` then `handlers(Server, principal, { live: hub })`
-and every mutation's answered patches and deletions are then published to the hub by the handlers (a Source's `shared: ['name']`, fields every principal reads alike, lets a declared write's value of one go out with no re-read per principal); call `yield* hub.changed(Project.ref(id), ['name'])` / `yield* hub.deleted(ref)` only for writes that are not mutations (each re-reads per subscriber: a row the read no longer finds is sent as deleted, one still there as a patch) — and only from a process that can wake the subscriber's fiber: a worker request cannot wake another's stream, so on a Worker poll the store from inside the subscription instead. Connection changes
+and every mutation's answered patches and deletions are then published to the hub by the handlers (a Source's `shared: ['name']`, fields every principal reads alike, lets a declared write's value of one go out with no re-read per principal); call `yield* hub.changed(Project.ref(id), ['name'])` / `yield* hub.deleted(ref)` only for writes that are not mutations (each re-reads per subscriber: a row the read no longer finds is sent as deleted, one still there as a patch) — and only from a process that can wake the subscriber's fiber (not another Worker request). Connection changes
 from mutations via `RemoteServer.prepend/append/remove`. `handlers` options:
 `maxIdsPerEntity` (default 1000), `maxDepth` (default 8). The handler admits a live
 subscription once, before any live Source (`pollLive`, `RemoteServer.live`) or the
@@ -865,8 +881,8 @@ another Entity than the query lists (a `QuerySource`'s `entity`), it fails with
 { every, changes })` diffs every list it is handed, running its window again each tick
 that may have moved it (with a row log, a tick that logged a row of its Entity), so a row
 joins by the query's filter and window; a row that leaves but is still readable is only
-removed from the list, never deleted. It takes no list of its own (its
-old `lists`, with a `watchId` naming no row, is gone); the hub watches none.
+removed from the list, never deleted. It is handed the lists by the
+subscription and takes none of its own; the hub watches none.
 
 On the client, a live row inserted into a connection is decided in this order:
 if the query has a body and the row is held with fresh values for every field
@@ -879,8 +895,8 @@ refetches it and a read of it is `Refreshing`.
 
 ## Drizzle: `foldkit-remote-drizzle`
 
-`foldkit-remote-drizzle` pins `drizzle-orm` `1.0.0-rc.5` as a dependency; the
-app's `drizzle-orm` must be the same version.
+`foldkit-remote-drizzle` peers on `drizzle-orm` `1.0.0-rc.5` exactly: install
+that version beside it, so the app and the adapter share one copy.
 
 ```ts
 import { eq } from 'drizzle-orm'
@@ -955,11 +971,15 @@ const Blog = Entity.relate(
   { Post: { author: Relation.one(User), fans: Relation.many(User) }, User: {} },
 )
 
+// users, posts (id, title, author_id) and postFans (post_id, user_id) are Drizzle tables.
 const Db = bind(Blog, {
   User: { table: users },
   Post: {
     table: posts,
-    relations: { author: { field: posts.authorId }, fans: { foreignKey: users.id } },
+    relations: {
+      author: { field: posts.authorId },
+      fans: { through: postFans, localColumn: postFans.postId, foreignColumn: postFans.userId },
+    },
     derived: { fanCount: { relation: 'fans' } },
   },
 })
@@ -970,7 +990,13 @@ source(Db.Post) // an ordinary binding
 A collection relation read whole (`fans: true`, no window) holds at most
 `maxCollection` rows of one parent (`source(Db.Post, { maxCollection: 500 })`,
 default 100); a read finding more is refused, naming the relation, never cut
-short. A collection that can grow without limit is read with `Entity.page`.
+short. The statement asks each parent for one row past the bound (a window,
+for its page), so with an index on the child's parent column followed by the
+relation's order (by default the child's id; for a through table, its two
+columns in that order) a parent with a million children costs what one with
+101 does, on a read and on every `pollLive` tick; without that index the
+database reads and sorts every child of the parent. A collection that can grow
+without limit is read with `Entity.page`.
 
 Storage: field = same-named column or `fields: { name: column }`; `one` =
 `{ field }`, or for an optional `one` read from the target's table
@@ -993,7 +1019,7 @@ unchecked.
 the table is read: by id (`NotFound`), as a relation's children (list, count,
 page), as a `one` ref's target (reads `null`), and through a query. `authorize`
 is for fields; `visible` is for rows. Rules declared once for every seam, rows,
-members, writes and the client's `may`, are `foldkit-guard`'s (see guard.md):
+members, writes and the client's `may`, are `foldkit-guard`'s (see [guard.md](guard.md)):
 `GuardDrizzle.visible` compiles them into `visible`, `GuardServer.filter` into a
 Source's `filter`.
 
@@ -1085,7 +1111,6 @@ handler's write and raw SQL are held to the invariants and move the revision too
   applied, recorded in `remote.gaps`). It restarts the stream; only the
   restart clears it, not a later in-order event.
 - Coalescing is per `RemoteClient` layer; separate layers do not share batches.
-- `RemotePersistence.dehydrate` with `maxBytes` returns `undefined` when too big.
 - Wire limits: 256 fields per entity request, relation depth 8; protocol version
   mismatch fails with `RemoteProtocolError`.
 - `RemoteServer.handlers` takes an already-authenticated principal; it never reads
@@ -1095,7 +1120,7 @@ handler's write and raw SQL are held to the invariants and move the revision too
   shares a re-read between subscribers whose principals have one key (default: the
   same value). Query/mutation authorization belongs inside those Sources, or, for
   rules declared on the domain, in `foldkit-guard/server` (`GuardServer.writer`,
-  `GuardServer.mutation`, `GuardServer.validate` at startup); see guard.md.
+  `GuardServer.mutation`, `GuardServer.validate` at startup); see [guard.md](guard.md).
 
 ## See also
 
