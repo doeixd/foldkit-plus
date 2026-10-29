@@ -27,6 +27,7 @@ import {
   type AnyEntity,
   type EntityInput,
   type InputMember,
+  type InputMembers,
   type MemoryOperators,
   type NestedInput,
   type SchemaWords,
@@ -795,7 +796,13 @@ const Core = {
    * a login): `Entity.input` over an Entity defined from the same schema, so
    * every key maps itself. `Form.make('Waitlist', Form.input(JoinWaitlist))`.
    */
-  input: <Fields extends Schema.Struct.Fields>(schema: Schema.Struct<Fields>) => {
+  input: <Fields extends Schema.Struct.Fields>(
+    schema: Schema.Struct<Fields>,
+  ): EntityInput<
+    Entity<'FormInput', Fields>,
+    Fields,
+    InputMembers<Entity<'FormInput', Fields>, Fields, {}>
+  > => {
     const entity = Entity.define('FormInput', schema)
     // Every key names a field of the Entity, so there is no mapping; the
     // generic `Fields` keeps TypeScript from seeing that the mapping is optional.

@@ -592,7 +592,8 @@ type InputMapping<E extends AnyEntity, Fields extends Schema.Struct.Fields, Mapp
     : `"${K & string}" is not a key of the input`
 }
 
-type InputMembers<E extends AnyEntity, Fields extends Schema.Struct.Fields, Mapping> = {
+/** The member each key of an input writes, as `Entity.input` reads it from a mapping. */
+export type InputMembers<E extends AnyEntity, Fields extends Schema.Struct.Fields, Mapping> = {
   readonly [K in keyof Fields]: K extends keyof Mapping
     ? Named<E, Mapping[K]>
     : K extends keyof E['fields']
