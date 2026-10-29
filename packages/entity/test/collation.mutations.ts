@@ -103,7 +103,7 @@ export default [
     edits: [
       {
         file: cursor,
-        find: '? Option.some({ key: sql`${column} collate "C"`, value: plain })',
+        find: '? Option.some({ key: sql`${text} collate "C"`, value: plain })',
         replace: '? Option.none()',
       },
     ],
@@ -114,8 +114,8 @@ export default [
     edits: [
       {
         file: cursor,
-        find: ': postgresText.has(column.columnType)\n            ? Option.some({ key: sql`${column} collate "C"`',
-        replace: ': true\n            ? Option.some({ key: sql`${column} collate "C"`',
+        find: ': collates\n            ? Option.some({ key: sql`${text} collate "C"`',
+        replace: ': true\n            ? Option.some({ key: sql`${text} collate "C"`',
       },
     ],
     tests,
