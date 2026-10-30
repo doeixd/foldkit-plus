@@ -23,7 +23,9 @@ from its own Wrangler config, and the shipped theme is new. A security review
 (#284 and others) bounds live subscriptions and collection reads, stops
 caches keeping an answer, and closes several write-rule gaps.
 
-Breaking, under Changed: `Remote.patch` takes a ref for a relation;
+Breaking, under Changed: an Entity has one set of members, which
+`Entity.relate`, `derived` and `sets` add to and every descriptor reads (#332);
+`Remote.patch` takes a ref for a relation;
 `Bundle.make`, `fromParts` and `lazy` take new generic parameters;
 a declared insert of a taken id is refused `Taken`, and its `Refusal` is
 `Taken | Invalid`;
@@ -516,6 +518,23 @@ carries `drawn`.
   `AUTH_ORIGIN` set.
 
 ### Changed
+
+- **An Entity has one set of members (#332).** `Entity.relate`,
+  `Entity.derived` and `Entity.sets` used to return a new descriptor, and each
+  descriptor saw only the steps before it: `Like.relations.post.target()`
+  lacked a `likeCount` piped on after `relate`, and a guard or query built
+  from the Entity declared before `relate` had no relations. Now they add to
+  the Entity itself and return the descriptor given, and every descriptor
+  reads every member. `annotate`, `annotateMembers` and `invariant` still
+  return a new descriptor with metadata of its own. A member added on one
+  chain is a member for every other, so two chains from one descriptor that
+  add the same key are refused (adding the very spec again, as `Guards.may`
+  on a second view, is the member it added); a test that varies an Entity's
+  members declares a fresh one. `Held.fromRefs` reads the body's links from
+  its Entity's relations rather than guessing them, and `RemoteServer.write`
+  names a row its written row points at only where the link can change one of
+  its derived members (a count or exists over that relation, or a supplied
+  member), so a like names its post and not its user.
 
 - **A replica's id is its store's (#336).** `openReplica(replicaId, storage)`
   is `openReplica(storage, { replicaId? })`. Without an id it reads the one

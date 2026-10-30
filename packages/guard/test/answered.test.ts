@@ -7,7 +7,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { drizzle } from 'drizzle-orm/node-sqlite'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Effect, Option, Schema } from 'effect'
-import { Entity, Expr, Relation, Write } from 'foldkit-entity'
+import { Derived, Entity, Expr, Relation, Write } from 'foldkit-entity'
 import { Mutation } from 'foldkit-remote'
 import { bind, databaseLayer, source, writer, type DrizzleDatabase } from 'foldkit-remote-drizzle'
 import { RemoteServer } from 'foldkit-remote-server'
@@ -41,6 +41,8 @@ const Related = Entity.relate(
   },
   { Note: { project: Relation.one(ProjectFields) } },
 )
+// A project counts its notes, so a note's write names its project for the answer to read.
+Related.Project.pipe(Entity.derived({ noteCount: Derived.count(Related.Note.relations.project) }))
 
 const G = Guards.declare(
   'Notes',

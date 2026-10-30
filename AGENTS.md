@@ -975,10 +975,10 @@ Foldkit's own behaviour that we work around is listed in
   `pnpm dev` showed a blank page for a week: every test mounts its own
   container. Only an e2e test runs the real entry.
 
-- **A member added after `Entity.relate` is missing from relation targets**
-  (#332). `Like.relations.post.target()` returns the related Post without a
-  `likeCount` piped on afterwards, so the server names every row the write
-  points at instead of finding the count.
+- **A member is the Entity's, not its descriptor's** (#332). `relate`,
+  `derived` and `sets` add to every descriptor of the Entity, so test fixtures
+  that pipe different members onto one shared Entity collide ("already a
+  derived member"); give each such test a domain of its own.
 - **A Surface's ModelRef reserves field names** (#331). A Model field named
   `Schema`, `optic`, `dependency`, `key`, `read`, `get`, `set`, `at`, `index`
   or `select`, at any depth, throws once any Surface reads the Model; the
@@ -1041,12 +1041,6 @@ Foldkit's own behaviour that we work around is listed in
 - **`Optic.at` cannot insert.** It is a prism, not a lens: `replace` is a no-op on
   an absent key, so writing a new key (or clearing one) needs a container-aware
   setter, not `optic.replace`. Silent no-op otherwise.
-- **A guard's or a query's Entity may be the one declared before
-  `Entity.relate`** (#332). `guard.row(LikeFields, …)` and `Query.from(PostFields)`
-  hold an Entity with no relations, though a rule over `Like.relations.user`
-  reads one, so a converter that looked for links in `query.entity.relations`
-  found none and compared `'User:ada'` with `'ada'`. `Held.fromRefs` finds a
-  link as a key the body reads that is no field of its Entity.
 - **Untrusted field names are prototype keys.** `field in values` walks the
   prototype chain; filter with `Object.hasOwn` and accumulate with no prototype.
   The Drizzle adapter's relation/computed/column maps are `Object.create(null)`,

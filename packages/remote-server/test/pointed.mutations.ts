@@ -10,6 +10,47 @@ const tests = [
 
 export default [
   {
+    name: 'every row a link reaches is named',
+    edits: [
+      { file, find: 'return changes ? [relation.key] : []', replace: 'return [relation.key]' },
+    ],
+    tests,
+  },
+  {
+    name: 'a count changes with any link',
+    edits: [
+      { file, find: 'Count: ({ relation: read }) => isThis(read),', replace: 'Count: () => true,' },
+    ],
+    tests,
+  },
+  {
+    name: 'an exists changes with any link',
+    edits: [
+      {
+        file,
+        find: 'Exists: ({ relation: read }) => isThis(read),',
+        replace: 'Exists: () => true,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a supplied member changes with no link',
+    edits: [{ file, find: 'Supplied: () => true,', replace: 'Supplied: () => false,' }],
+    tests,
+  },
+  {
+    name: 'a relation of another Entity with the same key is this one',
+    edits: [
+      {
+        file,
+        find: 'read.owner.token === relation.owner.token && read.key === relation.key',
+        replace: 'read.key === relation.key',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a delete that deleted nothing names where its row pointed',
     edits: [
       {

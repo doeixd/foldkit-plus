@@ -20,6 +20,7 @@ import {
   Stream,
 } from 'effect'
 import {
+  Derivation,
   Entity,
   Held,
   Operators,
@@ -2180,15 +2181,29 @@ export const RemoteServer = {
       write.input.schema as unknown as Schema.Codec<unknown, Readonly<Record<string, unknown>>>,
     )
     // A row's derived members can change only with the rows pointing at it, so a
-    // write that wrote names every row its row points at, before and after: the
-    // answer reads what the client shows of each (a post's like count, after a like).
-    // The links are read as the asker may see the row (`writer.read`), so a write
-    // names no row its writer could not have reached by reading; only a writer
-    // with no read rule to apply has its links read as stored.
+    // write that wrote names each row its row points at, before and after, whose
+    // derived members the link can change: the answer reads what the client shows
+    // of each (a post's like count, after a like). A count or an exists changes
+    // with the relation it reads; a supplied member, which may read anything, with
+    // every one. The links are read as the asker may see the row (`writer.read`),
+    // so a write names no row its writer could not have reached by reading; only a
+    // writer with no read rule to apply has its links read as stored.
     const relations: Readonly<Record<string, EntityMember>> = write.input.entity.relations
-    const pointers = Object.values(relations).flatMap(relation =>
-      relation._tag === 'Relation' && relation.cardinality === 'one' ? [relation.key] : [],
-    )
+    const pointers = Object.values(relations).flatMap(relation => {
+      if (relation._tag !== 'Relation' || relation.cardinality !== 'one') return []
+      const isThis = (read: EntityMember) =>
+        read.owner.token === relation.owner.token && read.key === relation.key
+      const changes = Object.values(relation.target().derived).some(
+        member =>
+          member._tag === 'Derived' &&
+          Derivation.$match(member.derives, {
+            Supplied: () => true,
+            Count: ({ relation: read }) => isThis(read),
+            Exists: ({ relation: read }) => isThis(read),
+          }),
+      )
+      return changes ? [relation.key] : []
+    })
     const seenLinks = (
       id: string,
       principal: P,

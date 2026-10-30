@@ -562,12 +562,17 @@ mutation is answered without it: the write has
 landed, and the client fetches what it lacks as it would have. A deleted row is
 not read.
 
-A declared write (`RemoteServer.write`) also reads every row its row points at
+A declared write (`RemoteServer.write`) also reads each row its row points at
 through a `one` relation, before and after the write, through the writer's
-`linked`: inserting a `Like` reads what the page shows of its post, the new
-`likeCount` included ([#233](https://github.com/doeixd/foldkit-plus/issues/233)).
-A row's derived members change only with the rows pointing at it, so no app
-names them. These rows are read, never sent as patches of their own: one the
+`linked`, where that link can change one of the row's derived members: a
+`Derived.count` or `Derived.exists` over that relation, or any supplied member
+(`Derived.make`), which may read anything. Inserting a `Like` reads what the
+page shows of its post, the new `likeCount` included
+([#233](https://github.com/doeixd/foldkit-plus/issues/233)), and not its user,
+whose members no like changes. A member declared after `Entity.relate` counts:
+the Entity has one set of members, whichever descriptor declared them
+([#332](https://github.com/doeixd/foldkit-plus/issues/332)). A row's derived
+members change only with the rows pointing at it, so no app names them. These rows are read, never sent as patches of their own: one the
 asker may not see is not answered at all. Live subscribers hear the outcome's
 own patches, not the read, which is one asker's view.
 

@@ -37,8 +37,8 @@ export default [
   edit(
     'a write names no row it points at',
     '../../remote-server/src/index.ts',
-    "relation._tag === 'Relation' && relation.cardinality === 'one' ? [relation.key] : [],",
-    '[],',
+    'return changes ? [relation.key] : []',
+    'return []',
   ),
   edit(
     'an update names only where its row points after',
