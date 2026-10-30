@@ -264,7 +264,8 @@ one tab, and kept across a reload. What changes for its failures:
 | The page reloaded before the answer | lost | sent again with the same operation id and `now` |
 
 `Data.outboxStatus(model)` says what waits (`{ waiting, failed, items }`), for
-a "3 changes waiting" line. A write the server applied but whose answer never
+a "3 changes waiting" line, drawn once an item is `Waiting` with `attempt`
+above zero (`waiting` also counts writes on their way). A write the server applied but whose answer never
 came is answered again from the writer's record, by its operation id: a
 durable Mutation needs a ledgered writer (`RemoteServer.write`, or
 remote-drizzle's `writer` with a ledger).

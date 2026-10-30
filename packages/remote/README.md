@@ -2001,6 +2001,11 @@ return { model: sent.model, commands: [sent.command] }
 const { waiting } = Data.outboxStatus(model) // "3 changes waiting"
 ```
 
+`waiting` counts a write on its way too, so a line drawn whenever it is above
+zero shows for a frame or two on every write, pushing the page below it down
+and back. Draw it once a send went unanswered: an item whose `state` is
+`Waiting` with `attempt` above zero.
+
 `outbox.restore(model)` is `persistence.restore`'s twin: resolve it as the
 runtime's `flags` and start `init` from it. It reads back what a reload left and
 mints the page's session, which names its writes; `Data.mutate` with `durable`
