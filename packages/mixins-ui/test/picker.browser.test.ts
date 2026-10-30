@@ -34,6 +34,21 @@ afterEach(async () => {
 
 const focusedId = () => document.activeElement?.id
 
+/** How light `color` paints over `under`, 0 to 255. */
+const lightness = (color: string, under: string): number => {
+  const canvas = document.createElement('canvas')
+  canvas.width = 1
+  canvas.height = 1
+  const context = canvas.getContext('2d')
+  if (context === null) throw new Error('the browser has no 2D context')
+  context.fillStyle = under
+  context.fillRect(0, 0, 1, 1)
+  context.fillStyle = color
+  context.fillRect(0, 0, 1, 1)
+  const [r = 0, g = 0, b = 0] = context.getImageData(0, 0, 1, 1).data
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
 describe('on a desktop', () => {
   test('the trigger shows and the opener does not', async () => {
     await page.viewport(1280, 800)
@@ -88,6 +103,15 @@ describe('on a phone', () => {
     expect(box.left).toBeCloseTo(0, 0)
     expect(box.width).toBeCloseTo(window.innerWidth, 0)
     expect(box.bottom).toBeCloseTo(window.innerHeight, 0)
+    // An option's quieter line reads on the sheet's surface, not in an inverted popup's ink.
+    const description = sheetOptions()[1]!.querySelector(':scope > span > span > span + span')!
+    const surface = getComputedStyle(sheet).backgroundColor
+    expect(description.textContent).toBe('Cheapest first')
+    expect(
+      Math.abs(
+        lightness(getComputedStyle(description).color, surface) - lightness(surface, surface),
+      ),
+    ).toBeGreaterThan(80)
     const ids = sheetOptions().map(option => option.id)
     // The chosen option first, and only it in the tab order.
     await vi.waitFor(() => expect(focusedId()).toBe(ids[1]))

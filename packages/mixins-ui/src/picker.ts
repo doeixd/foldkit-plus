@@ -183,7 +183,6 @@ export interface PickerView<Value extends string, Outer> {
 
 /** Where a key moves focus from the option at `index` of `count`, if it is one that moves it. */
 const stepped = (key: string, index: number, count: number): Option.Option<number> => {
-  if (count === 0) return Option.none()
   if (key === 'Home') return Option.some(0)
   if (key === 'End') return Option.some(count - 1)
   if (key === 'ArrowDown') return Option.some(Math.min(count - 1, index + 1))

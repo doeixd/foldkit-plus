@@ -11,7 +11,7 @@
 import { Style } from 'foldkit-mixins'
 import { ladder, Theme } from 'foldkit-mixins/theme'
 import { PickerSlots } from '../picker.js'
-import { component, focusRing, ref, steps, variant } from './design.js'
+import { component, focusRing, pressedHover, ref, steps, unfilledHover, variant } from './design.js'
 import { trigger, triggerLooks } from './listbox.js'
 import { item, unlit } from './popup.js'
 
@@ -36,6 +36,12 @@ export const Picker = Style.recipeFor(PickerSlots)({
         display: 'grid',
         gap: ref.space['3xs'],
         paddingBlock: ref.space.xs,
+        // The rows are the popup's, on the Sheet's surface rather than a popup's
+        // panel, which a theme may invert: they take that surface's ink and hover.
+        '--fk-popup-ink': ref.text.default,
+        '--fk-popup-highlight': unfilledHover,
+        '--fk-popup-press': pressedHover,
+        '--fk-popup-highlight-ink': ref.text.default,
       }),
     ),
     option: component(
