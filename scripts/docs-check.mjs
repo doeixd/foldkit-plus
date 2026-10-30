@@ -112,8 +112,6 @@ const pending = new Set([
   'packages/ssr/README.md',
   'packages/surface/README.md',
   'packages/sync/README.md',
-  'skills/foldkit-plus/references/remote.md',
-  'skills/foldkit-plus/references/sync.md',
 ])
 
 const root = fileURLToPath(new URL('..', import.meta.url))

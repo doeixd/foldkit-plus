@@ -243,7 +243,7 @@ refused operation itself, to read what it changed.
 
 ```ts
 import { Effect } from 'effect'
-import { ActorId, DocumentId, Journal, OpId } from 'foldkit-durable'
+import { ActorId, DocumentId as JournalDocumentId, Journal, OpId } from 'foldkit-durable' // its own brand, not Sync's
 
 const server = Effect.gen(function* () {
   const journal = yield* Journal.make({
@@ -252,8 +252,9 @@ const server = Effect.gen(function* () {
     opId: operation => OpId.make(operation.opId),                    // re-brand Sync ids
     actorId: (principal: Principal) => ActorId.make(principal.actorId),
   })
-  const { snapshot, cursor } = yield* journal.load(DocumentId.make('board'))
-  return { snapshot, later: yield* journal.read(DocumentId.make('board'), cursor) }
+  const board = JournalDocumentId.make('board')
+  const { snapshot, cursor } = yield* journal.load(board)
+  return { snapshot, later: yield* journal.read(board, cursor) }
 }).pipe(Effect.scoped)                // the SQLite connection closes with the scope
 ```
 

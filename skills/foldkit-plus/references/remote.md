@@ -70,7 +70,34 @@ with `terms` (`WhyTerm`: each `where` predicate `True`/`False`/`Null`/`Unknown`)
 `by` is a `ShownBy` (`Write`, `Overlay`, `Live`). The deciding reason is first;
 `message` says it.
 
+<!-- docs-check
+import { Option } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Entity, Order } from 'foldkit-entity'
+import { Query, Remote } from 'foldkit-remote'
+import { Surface } from 'foldkit-surface'
+const Project = Entity.define('Project', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const All = Query.define('All', {}, () =>
+  Query.from(Project).pipe(Query.orderBy(Order.asc(Project.fields.id))),
+)
+const Model = Schema.Struct({ remote: Remote.Model })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({ ...Remote.messages })
+type Message = typeof Message.Type
+const App = Surface.application({ Model, Message })
+const Data = Remote.make({ model: App.model.remote, entities: [Project], queries: [All] })
+const list = Data.query(All, {}, { select: Entity.select(Project, { name: true }), first: 10 })
+const Projects = App.surface('Projects', { model: () => ({ list }) })
+const active = { projects: Surface.at(Projects, undefined) }
+declare const model: Model
+declare const start: Model
+declare const history: ReadonlyArray<{ readonly message: Message; readonly model: Model }>
+-->
+
 ```ts
+import { Schema } from 'effect'
+import { ReadWhy, Why } from 'foldkit-remote'
+
 const why = Data.why(model, list, { surfaces: active })
 const waiting = why.because.filter(Why.guards.Fields) // row, via, fields, held, inFlight
 const json = Schema.encodeSync(ReadWhy)(why) // for a log or a devtools client
@@ -80,7 +107,7 @@ const steps = Data.timeline(start, history, { list }, { surfaces: active })
 
 ## Minimal client
 
-```ts
+```ts standalone
 import { Option, Schema } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { defineMessageUnion } from 'foldkit/message'
@@ -390,7 +417,7 @@ parent's requirements join its instances', and a still-reading instance is
 named `Child[key]`:
 
 ```ts
-const page = await Effect.runPromise(
+const prefetched = await Effect.runPromise(
   Data.satisfy(App.initial, {
     page: Surface.at(ProjectPage, () => Option.some({ projectId: 'p1' })),
   }).pipe(Effect.provide(clientLayer)),
@@ -409,7 +436,7 @@ Prefetch (SSR, route/hover, tests) and persistence:
 
 ```ts
 import { Effect, Option } from 'effect'
-import { Remote, RemotePersistence } from 'foldkit-remote'
+import { Remote, RemotePersistence, RemotePolicy } from 'foldkit-remote'
 
 const ssr = Effect.gen(function* () {
   // Performs I/O explicitly; returns the Model with results reduced in.
@@ -441,10 +468,15 @@ To keep the cache across reloads, assemble `Data.persistence` beside
 `Data.wiring`. It restores under a key and saves on every change, and needs a
 `KeyValueStore` (for example `BrowserKeyValueStore.layerLocalStorage`):
 
+<!-- docs-check
+declare const actorOf: (model: Model) => string
+-->
+
 ```ts
+// actorOf(model): who is signed in, as the application's Model says
 const persistence = Data.persistence({
-  key: model => `remote-cache:${model.actor}`,
-  scope: model => model.actor,
+  key: model => `remote-cache:${actorOf(model)}`,
+  scope: actorOf,
   // optional: `connections: [ref.identity]`, or `snapshot: remote => ...`
 })
 ```
@@ -492,20 +524,11 @@ four ways, and a field's own name may not contain `@`. `Entity.make` + `Entity.r
 still works alongside.
 
 ```ts
-import { Schema } from 'effect'
-import { Entity, Relation } from 'foldkit-entity'
-import { Remote } from 'foldkit-remote'
-
-const User = Entity.define('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
-const Project = Entity.define('Project', Schema.Struct({ id: Schema.String, name: Schema.String }))
-const Work = Entity.relate({ User, Project }, { Project: { owner: Relation.one(User) } })
-
-const ProjectCard = Entity.select(Work.Project, {
+// User and Project as the minimal client relates them, and its Data.
+const ProjectCard = Entity.select(Project, {
   name: true,
-  owner: Entity.select(Work.User, { name: true }),
+  owner: Entity.select(User, { name: true }),
 })
-
-const Data = Remote.make({ model: App.model.remote, entities: [Work.User, Work.Project] })
 const card = Data.get(ProjectCard, 'p1') // Projection<Model, RemoteData<{ name; owner: { name } }>>
 ```
 
@@ -765,7 +788,7 @@ is a `RemoteClient` Layer, not a value in the Model.
 runs the app's `update` and the domain's real Subscriptions, holds every request,
 and records every Model:
 
-```ts
+```ts sketch
 import { Respond, Trace } from 'foldkit-remote/testing'
 
 const trace = await Trace.run(Data, {
@@ -793,7 +816,7 @@ principal and `now`, and compares every part the client predicted (fields,
 whether a row is there, list order) with what the server then holds, while
 pending and again once the answer has landed (each disagreement's `when`):
 
-```ts
+```ts sketch
 const report = await Effect.runPromise(
   Law.check(Data, { model, holds: [{ entity: Card, ids: ['c1'] }], lists: [ByRank.ref({})],
     mutation: AddCard, input, now }).pipe(
@@ -810,6 +833,12 @@ compared; a check that compared nothing throws.
 **The same properties in a real browser.** `foldkit-plus/testing/playwright`
 checks the drawn page over the real network, where SSR, persistence and the
 Worker take part (`playwright` is an optional peer, for its types):
+
+<!-- docs-check
+import type { Page } from 'playwright'
+import { expect } from 'vitest'
+declare const page: Page
+-->
 
 ```ts
 import { Behaviors } from 'foldkit-plus/testing/playwright'
@@ -840,6 +869,14 @@ running Worker keeps its storage. `Stack.writeBundle` writes the deploy
 bundle the same way (`wrangler` and `esbuild` are optional peers).
 
 ## Server: `foldkit-remote-server`
+
+<!-- docs-check
+import { Mutation } from 'foldkit-remote'
+const RenameProject = Mutation.make('RenameProject', {
+  Input: { id: Schema.String, name: Schema.String },
+  Output: { id: Schema.String },
+})
+-->
 
 ```ts
 import { RemoteServer } from 'foldkit-remote-server'
@@ -922,7 +959,7 @@ refetches it and a read of it is `Refreshing`.
 `foldkit-remote-drizzle` peers on `drizzle-orm` `1.0.0-rc.5` exactly: install
 that version beside it, so the app and the adapter share one copy.
 
-```ts
+```ts standalone
 import { eq } from 'drizzle-orm'
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Layer, Schema } from 'effect'
@@ -983,17 +1020,29 @@ result and says only how each member is stored; target and cardinality come
 from the Entity. Each result is an ordinary binding for `source` / `query`, and
 two may point at each other, which `entity(…, { relations })` cannot express.
 
+<!-- docs-check
+import { primaryKey } from 'drizzle-orm/sqlite-core'
+const posts = sqliteTable('posts', {
+  id: text('id').primaryKey(), title: text('title').notNull(), authorId: text('author_id').notNull(),
+})
+const postFans = sqliteTable(
+  'post_fans',
+  { postId: text('post_id').notNull(), userId: text('user_id').notNull() },
+  table => [primaryKey({ columns: [table.postId, table.userId] })],
+)
+-->
+
 ```ts
 import { Derived, Entity, Relation } from 'foldkit-entity'
 import { bind, source } from 'foldkit-remote-drizzle'
 
-const User = Entity.define('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
-const Post = Entity.define('Post', Schema.Struct({ id: Schema.String, title: Schema.String })).pipe(
+const UserFields = Entity.define('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const PostFields = Entity.define('Post', Schema.Struct({ id: Schema.String, title: Schema.String })).pipe(
   Entity.derived({ fanCount: Derived.make(Schema.Number) }),
 )
 const Blog = Entity.relate(
-  { User, Post },
-  { Post: { author: Relation.one(User), fans: Relation.many(User) }, User: {} },
+  { User: UserFields, Post: PostFields },
+  { Post: { author: Relation.one(UserFields), fans: Relation.many(UserFields) }, User: {} },
 )
 
 // users, posts (id, title, author_id) and postFans (post_id, user_id) are Drizzle tables.
