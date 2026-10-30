@@ -5,7 +5,7 @@ to npm. Versions are read from each `packages/*/package.json`.
 
 ## Package matrix
 
-The tree declares the versions the next tag publishes (`v0.35.0` is the last). The version column is the tree's
+The tree declares the versions the next tag publishes (`v0.36.0` is the last). The version column is the tree's
 declaration; `npm view <name> version` says what the registry serves.
 
 | Package | Version | Status | Role |
