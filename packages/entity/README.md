@@ -1469,6 +1469,7 @@ server on different deploys see which side is behind.
 | --- | --- |
 | `Entity.define(name, struct)` | A new Entity with a Field per property. |
 | `Entity.defineVariants(name, { Case: fields, … })` | Experimental. An Entity whose row is one of its cases: `variants` is their tagged union, `fields` the stored row (`_tag`, shared fields, the rest nullable), with an invariant per case. |
+| `Entity.selectionSchema(entity, schemas)` | The schema a Selection of those members reads, given each one's schema: a Struct, or a variant Entity's union when `_tag` is among them. What an interpreter reading members its own way (Remote's refs) builds a Selection's value with. |
 | `Entity.variantsOf(entity)` | An Entity's variants for an interpreter (the union, each case's fields, the codec from a stored row to its case), or none. |
 | `Entity.relate(entities, { Owner: { key: Relation.one(Target) } })` | The entities with their relations declared; targets resolve to the returned entities. |
 | `Entity.select(entity, { key: true or Selection })` | A Selection: what was selected (`members`) and the `schema` of the result; a tagged union of cases for a variant Entity whose `_tag` is selected. |

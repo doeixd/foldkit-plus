@@ -542,6 +542,15 @@ const idSchemaOf = (entity: AnyEntity): Schema.Top => {
  * selected relation and derived member; without it, the stored row's Struct,
  * refused when it selects a field only some cases have.
  */
+const selectionSchema = (
+  entity: AnyEntity,
+  selected: Readonly<Record<string, Schema.Constraint>>,
+): Schema.Top =>
+  Option.match(variantsOf(entity.identity), {
+    onNone: () => Schema.Struct(selected),
+    onSome: variants => variantSelection(entity, variants, selected),
+  })
+
 const variantSelection = (
   entity: AnyEntity,
   variants: EntityVariants,
@@ -1121,10 +1130,7 @@ export const Entity = {
       [SelectionTypeId]: SelectionTypeId,
       entity,
       members: spec,
-      schema: Option.match(variantsOf(entity.identity), {
-        onNone: () => Schema.Struct(fields),
-        onSome: variants => variantSelection(entity, variants, fields),
-      }),
+      schema: selectionSchema(entity, fields),
     }) as never
   },
 
@@ -1492,6 +1498,15 @@ export const Entity = {
     })
     return Object.fromEntries(entries) as Partial<Schema.Struct.Type<Fields>>
   },
+
+  /**
+   * The schema a Selection of `entity` reads, given each selected member's
+   * schema by key: a Struct, or, for a variant Entity whose `_tag` is among
+   * them, its tagged union (each case keeps the selected fields it has, as it
+   * holds them). An interpreter that reads members its own way (Remote reads a
+   * relation as a ref) builds a Selection's value with it.
+   */
+  selectionSchema,
 
   is: isEntity,
 

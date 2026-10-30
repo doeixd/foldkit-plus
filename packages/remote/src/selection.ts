@@ -165,8 +165,17 @@ export const Selection = {
               )
             : Selection.from(selected),
       )
-    const made = Selection.make(Entity.from(selection.entity as never), spec as never)
-    fromEntitySelections.set(selection, made as Selection<unknown>)
+    const remote = Selection.make(Entity.from(selection.entity as never), spec as never)
+    // Each member as Remote reads it, assembled as the Entity Selection is: a
+    // variant Entity's with `_tag` is the union of its cases.
+    const made: Selection<unknown> = {
+      ...(remote as Selection<unknown>),
+      schema: Domain.Entity.selectionSchema(
+        selection.entity,
+        (remote.schema as unknown as Schema.Struct<Schema.Struct.Fields>).fields,
+      ) as Schema.Codec<unknown, unknown, never, never>,
+    }
+    fromEntitySelections.set(selection, made)
     return made as never
   },
 

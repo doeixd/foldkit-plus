@@ -10,6 +10,8 @@ import {
   primitiveRefusals,
   refusals,
   rows,
+  variantCases,
+  variantRows,
 } from 'foldkit-entity/conformance'
 import { QueryEvaluateError, evaluate } from '../src/index.js'
 
@@ -22,6 +24,12 @@ describe('foldkit-remote-server conforms to the query semantics', () => {
       expect(got).toEqual(expected)
     },
   )
+})
+
+describe('foldkit-remote-server conforms to the query semantics of variants', () => {
+  it.each(variantCases.map(c => ({ ...c, name: c.what })))('$name', ({ body, input, expected }) => {
+    expect(evaluate(body, input, variantRows).map(row => row.id)).toEqual(expected)
+  })
 })
 
 describe('foldkit-remote-server refuses what no two interpreters agree on', () => {

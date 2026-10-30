@@ -535,7 +535,8 @@ compiles to `Selection.connection`. A page of a whole list is read under an alia
 (`comments@first=10` in a requirement's `fields`, `windows`, and `relations`), so the
 list and a page of it can be read at once; `RemoteServer` resolves it, so upgrade
 both packages together. The server refuses a request that pages one relation more than
-four ways, and a field's own name may not contain `@`. `Entity.make` + `Entity.ref`
+four ways, and a field's own name may not contain `@`. A variant Entity's Selection
+with `_tag` reads each stored row as its case (its union). `Entity.make` + `Entity.ref`
 still works alongside.
 
 ```ts

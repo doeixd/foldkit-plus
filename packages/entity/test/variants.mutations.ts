@@ -89,8 +89,8 @@ export default [
   ),
   index(
     'a variant Selection is a Struct',
-    '        onSome: variants => variantSelection(entity, variants, fields),\n',
-    '        onSome: () => Schema.Struct(fields),\n',
+    '    onSome: variants => variantSelection(entity, variants, selected),\n',
+    '    onSome: () => Schema.Struct(selected),\n',
   ),
   index(
     'a Selection with _tag is the stored row',

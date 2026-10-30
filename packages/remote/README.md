@@ -823,6 +823,10 @@ const card = Data.get(ProjectCard, 'p1') // Projection<Model, RemoteData<{ name;
 - `Entity.from(entity)` and `Selection.from(selection)` are the compile steps,
   for when you need the descriptor itself: `patch` and `ref` in a mutation
   handler.
+- A variant Entity (`Entity.defineVariants`) is stored as its stored row,
+  every field of every case. A Selection that selects `_tag` reads each row as
+  its case, the value its union schema describes, so a view branches with the
+  Selection's `schema.match`; one without `_tag` reads the stored row.
 - `Entity.page(selection, window)` in an Entity Selection is Remote's
   `Selection.connection`: the window travels with the read, and the server
   answers with a page of refs. A page of a whole list is read under a name of

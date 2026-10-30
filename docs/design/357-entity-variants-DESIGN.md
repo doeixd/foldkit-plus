@@ -1,8 +1,8 @@
 # Variants of an Entity (#357)
 
-Status: phases 1 and 2 built (2026-10-30): the core and Selections in
-`foldkit-entity`, and `variantCases` with the CHECKs on SQLite and Postgres.
-Phases 3 to 5 are planned below.
+Status: phases 1 to 3 built (2026-10-30): the core and Selections in
+`foldkit-entity`, `variantCases` with the CHECKs on SQLite and Postgres and in
+memory, and Remote's reads. Phases 4 and 5 are planned below.
 
 ## The problem
 
@@ -168,17 +168,21 @@ does a write's prediction where it judges invariants. `Law.check` is about
 operators and is untouched. A `Derived.make`'s `predict` reads the stored
 row; it can decode it with `variantsOf(…).stored` when it wants the case.
 
-## Remote's store (phase 3)
+## Remote's store (phase 3, built)
 
 The store holds rows normalized per field, keyed `entity:id`
-(`remote/src/store.ts` 16-44), and a read assembles the selected fields into
-an object decoded by a flat Struct Remote rebuilds from `selection.members`
-(`remote/src/selection.ts` 190-236, decoded at `index.ts` 1399-1416). With a
-variant Entity it works today and yields the stored shape. Phase 3 decodes a
-read through the Selection's union (phase 2) instead of the rebuilt Struct,
-so `Data.get(Quote, id)` holds the case. A pending write over the stored row
-needs nothing: an optimistic row is judged by the invariants. Needs
-`packages/remote`.
+(`remote/src/store.ts`), and a read assembles the selected fields into an
+object decoded by the Remote Selection's schema. `Selection.from` used to
+rebuild a flat Struct from the members, each as Remote reads it (a relation as
+a ref), so a variant Selection read `{ _tag: 'Unconfirmed', price: null }`
+where its type said the case has no `price`. It now builds the schema with
+`Entity.selectionSchema(entity, schemas)`, the function `Entity.select` uses,
+handed Remote's member schemas: one rule for both, and a variant Selection
+with `_tag` reads each row as its case. A pending write over the stored row
+needs nothing: an optimistic row is judged by the invariants.
+
+`variantCases` runs in `remote-server/test/conformance.test.ts`, the
+in-memory interpreter, beside the Drizzle compiler's run.
 
 ## Form and Crud (phase 4)
 
@@ -229,8 +233,8 @@ for `VariantEntity` and fall through to the old one. No member is reserved:
    and refusal of a case field without it; `variantCases` and the CHECKs
    `derive` writes, on SQLite and Postgres
    (`remote-drizzle/test/variants.test.ts`), with no change to the adapter.
-3. **Remote's store** reads a variant Selection as its union
-   (`packages/remote`).
+3. **Remote's store** (built) reads a variant Selection as its union, and the
+   in-memory interpreter runs `variantCases`.
 4. **Form and Crud**: a form over the union with a case picker; Crud's editor
    and list through it.
 5. **Guards**: a documented, tested per-case rule; port the domains example's

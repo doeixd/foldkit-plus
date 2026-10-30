@@ -20,11 +20,12 @@ version changed; `pnpm` skips versions already in the registry.
   case, over the row or through a `one` relation, handing out the case's fields
   never null. `Entity.variantsOf` gives an interpreter the union, the cases and
   the codec from a stored row to its case; `foldkit-entity/conformance` adds
-  `Variant`, `variantRows` and `variantCases`. A Selection selecting `_tag` is
-  a tagged union of the cases, each holding the selected fields it has; without
-  `_tag`, a field only some cases have is refused. Remote's store, forms and
-  guards read the stored row until the later phases of
-  `docs/design/357-entity-variants-DESIGN.md`.
+  `Variant`, `variantRows` and `variantCases`, which the in-memory interpreter
+  and the Drizzle compiler run. A Selection selecting `_tag` is a tagged union
+  of the cases, each holding the selected fields it has; without `_tag`, a
+  field only some cases have is refused. `Entity.selectionSchema` builds that
+  schema from member schemas, and Remote reads such a Selection's rows as their
+  cases.
 
 - **`rh.KeepTyped()`** (`foldkit-ssr`, #356): a field marked with it keeps
   what is typed into it before the page's script runs. `SSR.hydrate` reads
