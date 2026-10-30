@@ -6,7 +6,7 @@
  * standard order, so it overrides the shipped Button recipe and the `Layout`
  * pieces by layer order rather than by specificity.
  */
-import { Capability, Style, type Piece } from 'foldkit-mixins'
+import { Capability, Event, Style, type Piece } from 'foldkit-mixins'
 import { AppStyle } from 'foldkit-mixins/app'
 import { Layout } from 'foldkit-mixins/layout'
 import { Utilities as U } from 'foldkit-mixins/utilities'
@@ -46,6 +46,16 @@ export const PageStyle = slots(
     controls: L.in('layouts', Layout.cluster({ gap: t.space.md, justify: 'center' })),
     provenance: smallPrint,
     note: [smallPrint, U.textCenter, { maxWidth: '28rem' }],
+    noteField: L.in('layouts', Layout.stack({ gap: t.space.xs })),
+    noteLabel: [U.text('sm'), U.font('semibold'), U.color('text.default')],
+    noteInput: Style.slot({ capability: Capability.TextInput, events: [Event.Input] }, [
+      { border: `${t.border.thin} solid ${t.outline.default}` },
+      U.p('sm'),
+      U.color('text.default'),
+      U.bg('surface.base'),
+      { minWidth: '16rem', font: 'inherit' },
+    ]),
+    noteEcho: smallPrint,
     // Upstream's `hidden`: drawn for the parse check, never shown.
     equivalence: U.hidden,
     equivalenceSelect: Style.slot({ capability: Capability.Focusable }),

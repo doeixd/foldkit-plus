@@ -6,7 +6,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { modifyFields } from 'foldkit/struct'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import { Button } from 'foldkit-mixins-ui'
-import { SSR } from 'foldkit-ssr/client'
+import { Resume, SSR } from 'foldkit-ssr/client'
 import { Projection, Surface } from 'foldkit-surface'
 
 import { COUNT_COOKIE } from './cookie.js'
@@ -18,6 +18,7 @@ export const Model = Schema.Struct({
   count: Schema.Number,
   renderedAt: Schema.String,
   renderedOn: Schema.Literals(['Server', 'Client']),
+  note: Schema.String,
 })
 export type Model = typeof Model.Type
 
@@ -36,6 +37,7 @@ export const Message = defineMessageUnion({
   ClickedDecrement: {},
   ClickedIncrement: {},
   CompletedPersistCount: {},
+  ChangedNote: { value: Schema.String },
 })
 
 export type Message = typeof Message.Type
@@ -59,6 +61,7 @@ export const update = (model: Model, message: Message) =>
       }
     },
     CompletedPersistCount: () => ({ model }),
+    ChangedNote: ({ value }) => ({ model: modifyFields(model, { note: () => value }) }),
   })
 
 // COMMAND
@@ -84,26 +87,45 @@ export const init: Runtime.ApplicationInit<Model, Message, Flags> = flags => ({
     count: flags.initialCount,
     renderedAt: flags.renderedAt,
     renderedOn: flags.renderedOn,
+    note: '',
   },
 })
 
 // SSR
 
-const App = Surface.application({ Model, Message })
+const App = Surface.application({
+  Model,
+  Message,
+  initial: { count: 0, renderedAt: '', renderedOn: 'Client', note: '' },
+  update,
+})
+
+/**
+ * The note field, the one part of the page whose Message the server's markup
+ * names: the Messages a page may replay before its runtime starts are the ones
+ * an active Surface lists.
+ */
+const NoteField = App.surface('NoteField', {
+  model: ({ model }) => ({ note: model.note }),
+  messages: [Message.ChangedNote],
+})
 
 /**
  * What crosses from the server to the browser: the Model `init` reached, every
- * field of it, since the page shows all three. The Flags stay on the server and
+ * field of it, since the page shows all four. The Flags stay on the server and
  * the browser never runs `init`. Nothing is left to start from the baseline, so
  * it is replaced whole and only has to be a Model.
  */
-export const plan = SSR.plan(
-  { initial: { count: 0, renderedAt: '', renderedOn: 'Client' } satisfies Model },
-  {
-    id: 'ssr',
-    state: Projection.pick(App.model.count, App.model.renderedAt, App.model.renderedOn),
-  },
-)
+export const plan = SSR.plan(App, {
+  id: 'ssr',
+  state: Projection.pick(
+    App.model.count,
+    App.model.renderedAt,
+    App.model.renderedOn,
+    App.model.note,
+  ),
+  surfaces: [Surface.at(NoteField, undefined)],
+})
 
 // VIEW
 
@@ -136,6 +158,28 @@ const parseEquivalenceView = (slots: Slots, h: HtmlBuilder<Message>): Html =>
     ),
   ])
 
+/**
+ * A field typed into before the script arrives keeps its text: `KeepTyped`
+ * has the browser replay it as `ChangedNote` when the runtime starts, with the
+ * caret where it was. Its `OnInput` names the Message's member, so the server
+ * can write that Message into the page.
+ */
+const noteView = (model: Model, slots: Slots, h: HtmlBuilder<Message>): Html => {
+  const rh = Resume.builder(h)
+  return h.div(slots.noteField.attrs(), [
+    h.label(slots.noteLabel.attrs([h.For('note')]), ['Note']),
+    rh.input(
+      slots.noteInput.attrs([
+        rh.Id('note'),
+        rh.Value(model.note),
+        rh.OnInput(Message.ChangedNote),
+        rh.KeepTyped(),
+      ]),
+    ),
+    h.p(slots.noteEcho.attrs([h.Id('note-echo')]), [`${model.note.length} characters`]),
+  ])
+}
+
 export const Page = SlotView.forMessages<Message>()
   .define(PageStyle.slots, (model: Model, slots, h) =>
     h.div(slots.page.attrs(), [
@@ -152,6 +196,7 @@ export const Page = SlotView.forMessages<Message>()
         'The count persists in a cookie. Reload the page and the server ' +
           'renders your latest count into the HTML before any JavaScript runs.',
       ]),
+      noteView(model, slots, h),
       parseEquivalenceView(slots, h),
     ]),
   )

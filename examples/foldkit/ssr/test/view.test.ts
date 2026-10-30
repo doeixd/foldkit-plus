@@ -8,6 +8,7 @@ const tree = Inert.draw(Page, {
   count: 3,
   renderedAt: '2026-07-26T00:00:00.000Z',
   renderedOn: 'Server',
+  note: '',
 })
 
 describe('the page', () => {

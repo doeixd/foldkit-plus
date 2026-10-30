@@ -59,8 +59,14 @@ describe('a page request', () => {
         count: 5,
         renderedAt: provenance.replace('Rendered on the Server at ', ''),
         renderedOn: 'Server',
+        note: '',
       },
       route: '/',
+      // The note field's Message, which the browser replays for what was typed before it booted.
+      bindings: [
+        { attribute: 'OnInput', message: { _tag: 'ChangedNote', value: '' }, hole: ['value'] },
+      ],
+      events: ['input'],
     })
     expect(page.querySelector('[data-foldkit-flags]')).toBeNull()
   })

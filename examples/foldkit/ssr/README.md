@@ -22,7 +22,7 @@ browser   envelope ─▶ Model ─▶ SSR.hydrate adopts the HTML ─▶ click 
 
 The Flags stay on the server: the browser never runs `init`, and starts from
 the Model the page carries. Here that is every field, since the page shows all
-three (the count, and when and where it was rendered). `SSR.render` renders the
+four (the count, when and where it was rendered, and the note). `SSR.render` renders the
 view from the server's Model and from the browser's, and refuses a page where
 the two differ, so a field the view reads but the plan leaves out is a `500`
 on the server, never a page the browser silently redraws.
@@ -55,11 +55,23 @@ FOLDKIT_BUILD_ID=$(git rev-parse --short HEAD) pnpm --filter foldkit-example-fol
 | Taking the page over without rerunning `init` | `foldkit-ssr` (`SSR.hydrate`) | `src/entry.ts` |
 | The build id both sides compare | the deployment, compiled into both bundles | `FOLDKIT_BUILD_ID`, read as `import.meta.env.FOLDKIT_BUILD_ID` in `src/entry.server.ts` and `src/entry.ts` |
 | Static files, the request target, host-refused methods | the host, on Effect's HTTP server and `@effect/platform-node` as upstream's (`HttpStaticServer`; Foldkit's `resolveRequestUrl`, `resolvesToIndexHtml`, `isHostSettledMethod`) | `src/host.ts`, run by `src/serve.ts` |
+| Keeping what is typed into the note before the script runs | `foldkit-ssr` (`Resume.builder`'s `KeepTyped`, replayed by `SSR.hydrate`) | `noteView` and `NoteField` in `src/main.ts` |
 | The accessible buttons | `@foldkit/ui` Button, styled through `foldkit-mixins-ui` | `src/main.ts`, `src/style.ts` |
 | Appearance, and the CSS in each page's first paint | `foldkit-mixins` (`AppStyle`; `Style.usedIn` for the page's classes; `Style.install`, which keeps the copy a served page carries) | `src/style.ts`, `styles` in `src/renderPage.ts`, `src/entry.ts` |
 
-`foldkit-surface` appears only to name the Model's fields for the plan
-(`Surface.application(...).model`); no Surface is declared.
+### Typing before the script arrives
+
+The note field is editable as soon as the page is parsed. What is typed into
+it before the script runs is kept: `rh.KeepTyped()` marks it, and when the
+script runs `SSR.hydrate` replays its value as `ChangedNote` and puts the
+caret back where it was: the field never loses a character, and the count
+below it catches up as soon as the runtime starts. Its `OnInput` names the Message's member
+(`rh.OnInput(Message.ChangedNote)`), so the server can write the Message into
+the page, and the plan lists it on a Surface (`NoteField`), since a page
+replays only Messages an active Surface lists.
+
+`foldkit-surface` names the Model's fields for the plan
+(`Surface.application(...).model`) and declares that one Surface.
 
 ### What is not used, and why
 
@@ -67,11 +79,10 @@ FOLDKIT_BUILD_ID=$(git rev-parse --short HEAD) pnpm --filter foldkit-example-fol
   a served page carries its styles in its root (`styles`) and no `meta`: the
   script installs the stylesheet on boot, while `meta` stays a static path
   (`SSR.generate`).
-- **Resumable pages** (`Resume.builder`, `start: 'on-interaction'`). The two
-  buttons could answer before the runtime boots, but only after a Surface
-  listed their Messages, and the cookie write still waits for the runtime. The
-  page is small and boots on load, as upstream's does; deferring the boot would
-  add a Surface that nothing else uses, to save a boot nobody waits for.
+- **A deferred boot** (`start: 'on-interaction'`). The two buttons could
+  answer before the runtime boots once `NoteField`'s Surface listed their
+  Messages too, but the cookie write still waits for the runtime. The page is
+  small and boots on load, as upstream's does.
 - **`SSR.static`.** The one static paragraph is short; a static region saves
   nothing here.
 - **Remote, Sync, Mirror, Agent, Bundle.** Nothing is fetched, synced or
@@ -80,6 +91,8 @@ FOLDKIT_BUILD_ID=$(git rev-parse --short HEAD) pnpm --filter foldkit-example-fol
 
 ## Differences from upstream
 
+- **A note field** the upstream counter does not have, to show typing kept
+  through hydration.
 - **The page carries the Model, not the Flags**, and the browser does not rerun
   `init`. What it shows is the same.
 - **`POST`, `PUT`, `DELETE` and `PATCH` are answered `405`** (`SSR.entry`
@@ -125,3 +138,7 @@ From the repository root: `npx vitest run examples/foldkit/ssr`.
   every token the drawn styles read defined in the stylesheet.
 - `e2e/dev.e2e.ts` (`pnpm e2e`): the dev server with no build id set, and
   Chromium taking the page over and counting, with no error logged.
+- `e2e/typed.e2e.ts` (`pnpm e2e`): the page's script held back by route
+  interception while Chromium types into the note and moves the caret; once
+  released, the field and the Model hold every character, the caret is where
+  it was, and typing goes on there.
