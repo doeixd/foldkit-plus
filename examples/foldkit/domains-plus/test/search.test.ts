@@ -4,7 +4,8 @@
  * `settledLabel` once the text rests.
  */
 import { Option } from 'effect'
-import { expect as expectScene, given, role, scene, text } from 'foldkit/scene'
+import { Mount, expect as expectScene, given, role, scene, text } from 'foldkit/scene'
+import { WindowList } from 'foldkit-mixins-ui'
 import { fromString } from 'foldkit/url'
 import { describe, expect, test } from 'vitest'
 import { Message, init, update, type Model } from '../src/client/app.js'
@@ -102,11 +103,21 @@ describe('the address', () => {
   })
 })
 
+/**
+ * All Results' list reports where the window lies over it. `WindowList`
+ * composes its two Mounts into one, which a Scene matches by name (#369).
+ */
+const placeResultsList = Mount.resolve(
+  { name: 'Mixins[root](WindowViewport,MeasureRows)' },
+  Message.GotResultsListMessage({ message: WindowList.Message.Placed({ top: 0, height: 900 }) }),
+)
+
 describe('the page while typing', () => {
   test('draws pending cards and rows for the typed name', () => {
     scene(
       { update, view },
       given(after(empty, typed('acme'))),
+      placeResultsList,
       expectScene(role('heading', { name: 'Top Results' })).toExist(),
       expectScene(text('Checking availability and prices…')).toExist(),
       expectScene(role('searchbox', { name: 'Search domains' })).toHaveValue('acme'),

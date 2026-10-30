@@ -1,6 +1,6 @@
 # Reimplementing foldkit-domains with Foldkit Plus
 
-> **Status:** Being built (2026-10-30): phases 0 to 2 are built; §8 records what
+> **Status:** Being built (2026-10-30): phases 0 to 3 are built; §8 records what
 > each phase built and where it departs from this plan. Written against
 > upstream [foldkit/foldkit-domains](https://github.com/foldkit/foldkit-domains)
 > at `c3041350`, copied unchanged to
@@ -455,4 +455,35 @@ Departures and findings:
   ([#368](https://github.com/doeixd/foldkit-plus/issues/368)).
 - **The order requests are made in moved, as §3.2 expected:** phase 3 reads
   the visible rows beside the top four.
+
+**Phase 3, built.** All Results drawn by `foldkit-mixins-ui`'s `WindowList` in
+the page's own scroll (`#domain-results`, six names a row, keyed by the row's
+first name as upstream's `groupDomainListings`), the `VisibleResults` Surface
+reading the names of the rows `WindowList.windowOf` draws (two rows of
+overscan, as upstream), the count of names checked, and the heights of a
+label's rows dropped (`WindowList.keep`) when another label settles. Tests:
+`test/results.test.ts` (the first read is the top four and the eleven rows
+the assumed 1000 px window draws; a scroll reads exactly the rows it brings
+into view; a scroll within the same rows asks nothing; the count counts
+every name read; heights dropped) with `test/results.mutations.ts` (4 of 4
+killed), and the e2e scrolls to the end and finds every drawn row priced and
+the middle of the list never asked for. Findings:
+
+- **Gap 5 is closed by Remote as it is.** A Surface whose `model` is a record
+  of one `Data.get` per name plans one batched read of what is missing, and a
+  window moving within the same rows plans nothing. No `Data.getAll` is
+  needed. The first page of a search makes two requests, the top four and
+  then the rows in view, since the window's place is known a frame later;
+  upstream made the same two (4, then 56).
+- **Row keys are derived once per label** (`results.ts`): `windowOf` caches
+  a list's offsets by the identity of its keys, and a scroll redraws every
+  frame.
+- **A Scene of the page resolves `WindowList`'s Mount by the resolver's
+  composed name** ([#369](https://github.com/doeixd/foldkit-plus/issues/369)).
+- **The row group carries upstream's `data-virtual-list-item-key` and
+  `-index`**, on the `ul` inside each `WindowList` row, since the row itself
+  is the component's; upstream's specs find rows by them.
+- **The pending preview stays** (`.results-preview`, upstream's 36 rows)
+  until the list draws its first row: the early-input script of phase 6
+  writes into it before the bundle runs.
 

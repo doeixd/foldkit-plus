@@ -98,8 +98,17 @@ test('the Top Results fill with prices read from /remote', async () => {
   await expect.poll(() => page.locator('.domain-card .price').count(), { timeout: 60_000 }).toBe(2)
   expect(await page.locator('.domain-card .unavailable').count()).toBe(2)
   expect(await page.locator('.domain-card .price').allTextContents()).toEqual(['$9.99', '$34.99'])
-  await expect.poll(() => page.locator('.result-count').textContent()).toContain('4 of 556')
-  expect(reads).toHaveLength(1)
+  await expect
+    .poll(() => page.locator('.result-count').textContent())
+    .toMatch(/\d+ of 556 domains checked/)
+  // The first read is the four top names, as upstream's first request.
+  const first: { payload: { requests: Array<{ id: string }> } } = JSON.parse(reads[0] ?? '{}')
+  expect(first.payload.requests.map(({ id }) => id).sort()).toEqual([
+    'vercel.app',
+    'vercel.com',
+    'vercel.dev',
+    'vercel.io',
+  ])
   expect(problems).toEqual([])
   await page.close()
 })
@@ -126,6 +135,40 @@ test('a search typed over aborts the read still in flight for the last one', asy
   expect(aborted[0]).toContain('"acme.com"')
   await expect.poll(() => page.locator('.domain-card .price').count(), { timeout: 30_000 }).toBe(4)
   expect(await page.locator('.domain-card h3').first().textContent()).toBe('acmex.com')
+  expect(problems).toEqual([])
+  await page.close()
+})
+
+test('All Results reads the rows scrolled into view, and only those', async () => {
+  const { page, problems } = await opened()
+  const asked: Array<string> = []
+  page.on('request', request => {
+    if (new URL(request.url()).pathname !== '/remote') return
+    const body: { payload: { requests: Array<{ id: string }> } } = JSON.parse(
+      request.postData() ?? '{}',
+    )
+    asked.push(...body.payload.requests.map(({ id }) => id))
+  })
+  await page.goto(`${origin}/?q=acme`)
+  const rows = page.locator('#domain-results .domain-row')
+  await expect
+    .poll(() => page.locator('#domain-results .domain-row .price').count(), { timeout: 60_000 })
+    .toBeGreaterThan(0)
+  expect(asked).not.toContain('acme.zone')
+  await page.evaluate(() =>
+    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }),
+  )
+  await expect.poll(() => rows.last().textContent(), { timeout: 30_000 }).toContain('acme.zone')
+  // Every row drawn at the end is priced, and the middle of the list was never read.
+  await expect
+    .poll(
+      async () =>
+        (await rows.count()) === (await page.locator('#domain-results .domain-row .price').count()),
+      { timeout: 30_000 },
+    )
+    .toBe(true)
+  expect(asked).toContain('acme.zone')
+  expect(asked).not.toContain('acme.lighting')
   expect(problems).toEqual([])
   await page.close()
 })

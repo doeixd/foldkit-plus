@@ -11,6 +11,7 @@ import { RemoteData } from 'foldkit-remote'
 import { Domain, queryToMaybeDomainLabel } from '../shared/domain'
 import { Quote } from '../shared/entity'
 import { Data, type Model, readNames } from './app.js'
+import { resultsOf } from './results.js'
 
 export const INVALID_LABEL =
   'Enter a domain name using letters, numbers, and hyphens (up to 63 characters).'
@@ -64,9 +65,10 @@ const isInFlight = (data: Read): boolean =>
     NotFound: () => false,
   })
 
-/** The read of each name the page reads now, in upstream's order. */
-export const reads = (model: Model): ReadonlyArray<Read> =>
-  Array.map(readNames(model), name => Data.get(Quote, name).read(model))
+const readOf =
+  (model: Model) =>
+  (name: string): Read =>
+    Data.get(Quote, name).read(model)
 
 export const searchViewState = (model: Model): SearchViewState => {
   if (String.isEmpty(model.query)) return SearchViewState.Idle()
@@ -74,10 +76,12 @@ export const searchViewState = (model: Model): SearchViewState => {
   if (Option.isNone(label)) return SearchViewState.Failed({ error: INVALID_LABEL })
   // The debounce has not settled the label typed: nothing of it is read yet.
   if (!Option.contains(model.settledLabel, label.value)) return SearchViewState.Loading()
-  const read = reads(model)
-  const domains = Array.flatMap(read, shown)
-  const loading = Array.some(read, isInFlight)
-  const failed = Array.some(read, hasFailed)
+  // Every name of the label read so far counts as checked, scrolled past or
+  // not; whether more is coming is the reads the page makes now.
+  const domains = Array.flatMap(resultsOf(label.value).names, name => shown(readOf(model)(name)))
+  const reading = Array.map(readNames(model), readOf(model))
+  const loading = Array.some(reading, isInFlight)
+  const failed = Array.some(reading, hasFailed)
   if (domains.length === 0)
     return failed && !loading
       ? SearchViewState.Failed({ error: READ_FAILED })

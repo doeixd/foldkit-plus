@@ -11,10 +11,11 @@ import type * as Update from 'foldkit/update'
 import { Url, toString as urlToString } from 'foldkit/url'
 import { Bundle } from 'foldkit-bundle'
 import { Mirror } from 'foldkit-mirror'
+import { WindowList } from 'foldkit-mixins-ui'
 import { Remote, RemotePolicy, type RemoteClient } from 'foldkit-remote'
 import { SSR } from 'foldkit-ssr/client'
 import { Projection, Surface } from 'foldkit-surface'
-import { DomainLabel, domainCandidates, queryToMaybeDomainLabel } from '../shared/domain'
+import { DomainLabel, queryToMaybeDomainLabel } from '../shared/domain'
 import { Domain, Quote } from '../shared/entity'
 import {
   DismissSearchKeyboard,
@@ -24,6 +25,8 @@ import {
 } from './command.js'
 import { TOP_RESULT_COUNT } from './domain'
 import { Message, Own, Search, SearchInput } from './message.js'
+import { resultsOf } from './results.js'
+import { initResultsList } from './resultsList.js'
 import { AppRoute, routeOf } from './site.js'
 
 export { Message }
@@ -45,6 +48,8 @@ export const Model = Schema.Struct({
   searchLayout: SearchLayout,
   /** The prices read so far, by name: Remote's store. */
   remote: Remote.Model,
+  /** All Results' window over the page: which rows are drawn, and their heights. */
+  resultsList: WindowList.Model,
 })
 export type Model = typeof Model.Type
 
@@ -113,6 +118,13 @@ const own = (model: Model, message: Own): Return =>
             routed.query,
           )
     },
+    GotResultsListMessage: ({ message }) => {
+      const next = WindowList.update(model.resultsList, message).model
+      return {
+        model:
+          next === model.resultsList ? model : modifyFields(model, { resultsList: () => next }),
+      }
+    },
     CompletedNavigateInternal: () => ({ model }),
     CompletedLoadExternal: () => ({ model }),
     CompletedFocusSearchInput: () => ({ model }),
@@ -129,6 +141,7 @@ const SETTLE_MS = 150
 const empty: Model = {
   search: SearchInput.init({ delayMs: SETTLE_MS }).model,
   remote: Remote.initial,
+  resultsList: initResultsList(),
   route: AppRoute.Search(),
   query: '',
   settledLabel: Option.none(),
@@ -153,10 +166,6 @@ export const Data = Remote.make({
   verifyPredictions: import.meta.env.DEV === true,
 })
 
-/** The names a label is offered under, in upstream's order. */
-export const namesOf = (label: string): ReadonlyArray<string> =>
-  Array.map(domainCandidates(label), ({ name }) => name)
-
 /** A read of each of `names`, keyed by the name. */
 const readsOf = (names: ReadonlyArray<string>) =>
   Object.fromEntries(Array.map(names, name => [name, Data.get(Quote, name)]))
@@ -164,20 +173,40 @@ const readsOf = (names: ReadonlyArray<string>) =>
 /** The four Top Results: read first, as upstream's first request. */
 export const TopResults = App.surface('TopResults', {
   params: { label: Schema.String },
-  model: ({ params }) => readsOf(Array.take(namesOf(params.label), TOP_RESULT_COUNT)),
+  model: ({ params }) => readsOf(Array.take(resultsOf(params.label).names, TOP_RESULT_COUNT)),
 })
 
-/** The names the page reads now: the Top Results of the settled label. */
+/** The rows of All Results in view of the window, and two more at each end. */
+export const VisibleResults = App.surface('VisibleResults', {
+  params: { names: Schema.Array(Schema.String) },
+  model: ({ params }) => readsOf(params.names),
+})
+
+/** The names in the rows the list draws, for the label the reads use. */
+export const visibleNames = (model: Model, label: string): ReadonlyArray<string> => {
+  const { groups, keys } = resultsOf(label)
+  const { start, end } = WindowList.windowOf(model.resultsList, keys)
+  return Array.flatMap(groups.slice(start, end), group => group.listings.map(({ name }) => name))
+}
+
+/** The names the page reads now: the Top Results and the rows in view, of the settled label. */
 export const readNames = (model: Model): ReadonlyArray<string> =>
   Option.match(model.settledLabel, {
     onNone: () => [],
-    onSome: label => Array.take(namesOf(label), TOP_RESULT_COUNT),
+    onSome: label =>
+      Array.dedupe([
+        ...Array.take(resultsOf(label).names, TOP_RESULT_COUNT),
+        ...visibleNames(model, label),
+      ]),
   })
 
 /** Every read the page makes, each while the settled label is a name. */
 export const actives = {
   top: Surface.at(TopResults, (model: Model) =>
     Option.map(model.settledLabel, label => ({ label })),
+  ),
+  visible: Surface.at(VisibleResults, (model: Model) =>
+    Option.map(model.settledLabel, label => ({ names: visibleNames(model, label) })),
   ),
 }
 
@@ -195,9 +224,17 @@ const Settled = Page.at(Search, {
   // The debounce drops the timer of a text typed over, so what rests is the box's.
   onOut:
     ({ value }) =>
-    (model: Model): Return => ({
-      model: modifyFields(model, { settledLabel: () => queryToMaybeDomainLabel(value) }),
-    }),
+    (model: Model): Return => {
+      const label = queryToMaybeDomainLabel(value)
+      // Rows of another label are never drawn again: their heights go with them.
+      const keys = Option.match(label, { onNone: () => [], onSome: label => resultsOf(label).keys })
+      return {
+        model: modifyFields(model, {
+          settledLabel: () => label,
+          resultsList: list => WindowList.keep(list, keys),
+        }),
+      }
+    },
 })
 
 const placements = Page.assemble(
@@ -216,6 +253,7 @@ const start = (route: AppRoute, query: string): Return =>
     settledLabel: queryToMaybeDomainLabel(query),
     searchLayout: String.isNonEmpty(query) ? 'Search' : 'Landing',
     remote: Remote.initial,
+    resultsList: initResultsList(),
   })
 
 /** The page at `url`, as the server renders it; the browser resumes from it. */
@@ -238,7 +276,7 @@ export const plan = SSR.plan(
       App.model.searchLayout,
     ),
     // Prices are read again in the browser, as upstream's are: none is inlined.
-    local: [App.model.search, App.model.remote],
+    local: [App.model.search, App.model.remote, App.model.resultsList],
   },
 )
 

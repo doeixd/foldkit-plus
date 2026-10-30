@@ -8,12 +8,14 @@ import { Array, Option, String, pipe } from 'effect'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import { Icon, type IconData } from 'foldkit-media'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
+import { WindowList } from 'foldkit-mixins-ui'
 import { Domain, domainTlds, queryToMaybeDomainLabel, type DomainName } from '../shared/domain'
 import { Message, type Model } from './app.js'
 import { SEARCH_INPUT_ID } from './command.js'
 import {
   DomainListing,
   TOP_RESULT_COUNT,
+  domainToReadyListing,
   filterAndSortDomainListings,
   formatRegistrationPrice,
   formatRenewalPrice,
@@ -27,7 +29,9 @@ import {
   SearchViewState,
   searchViewState,
 } from './searchViewState.js'
-import { Page } from './style.js'
+import { resultsOf } from './results.js'
+import type { DomainListingGroup } from './resultsList.js'
+import { Page, ResultsListStyle } from './style.js'
 
 type H = HtmlBuilder<Message>
 type Slots = SlotBuilders<typeof Page.slots, Message>
@@ -211,6 +215,44 @@ const searchError = (error: string, retry: boolean, slots: Slots, h: H): Html =>
     ...(retry ? [retryButton(slots, h)] : []),
   ])
 
+const groupKey = (group: DomainListingGroup): string => group.id
+
+/**
+ * Every name of the typed label in rows of six, drawn by `WindowList` while
+ * in view of the window. A row draws its names from what has been read.
+ */
+const allResults = (model: Model, domains: ReadonlyArray<Domain>, slots: Slots, h: H): Html =>
+  Option.match(queryToMaybeDomainLabel(model.query), {
+    onNone: () => h.empty,
+    onSome: label => {
+      const byName = new Map(Array.map(domains, domain => [domain.name, domain] as const))
+      const listingOf = (pending: DomainListing): DomainListing =>
+        Option.match(Option.fromNullishOr(byName.get(pending.name)), {
+          onNone: () => pending,
+          onSome: domainToReadyListing,
+        })
+      return WindowList.view(
+        {
+          model: model.resultsList,
+          items: resultsOf(label).groups,
+          itemToKey: groupKey,
+          itemToView: (group, index) =>
+            h.ul(
+              slots.rowGroup.attrs([
+                h.DataAttribute('virtual-list-item-key', group.id),
+                h.DataAttribute('virtual-list-item-index', `${index}`),
+              ]),
+              Array.map(group.listings, pending => row(listingOf(pending), slots, h)),
+            ),
+          onMessage: message => Message.GotResultsListMessage({ message }),
+          label: 'All domain results',
+          style: ResultsListStyle,
+        },
+        h,
+      )
+    },
+  })
+
 /** What the count line says: how many names are checked, until all are. */
 const resultCountText = (search: SearchViewState, results: ReadonlyArray<DomainListing>) =>
   SearchViewState.match(search, {
@@ -253,6 +295,7 @@ const searchResults = (model: Model, search: SearchViewState, slots: Slots, h: H
         ),
         h.div(slots.resultsHeading.attrs(), [h.h2(slots.sectionTitle.attrs(), ['All Results'])]),
         h.div(slots.allResults.attrs(), [
+          allResults(model, domains, slots, h),
           h.ul(
             slots.preview.attrs([h.AriaHidden(true)]),
             Array.map(Array.take(results, PREVIEW_RESULT_COUNT), listing =>

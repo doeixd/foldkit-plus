@@ -7,6 +7,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { UrlRequest } from 'foldkit/navigation'
 import { Url } from 'foldkit/url'
 import { Bundle } from 'foldkit-bundle'
+import { WindowList } from 'foldkit-mixins-ui'
 import { debounce } from 'foldkit-primitives/time'
 import { Remote } from 'foldkit-remote'
 
@@ -25,6 +26,7 @@ const own = {
   PressedEscape: {},
   ClickedClearSearch: {},
   ClickedRetrySearch: {},
+  GotResultsListMessage: { message: WindowList.Message },
   ClickedLink: { request: UrlRequest },
   ChangedUrl: { url: Url },
   CompletedNavigateInternal: {},

@@ -13,6 +13,7 @@
 import geistLatinUrl from '@fontsource-variable/geist/files/geist-latin-wght-normal.woff2?url'
 import { Style, type Piece } from 'foldkit-mixins'
 import { AppStyle } from 'foldkit-mixins/app'
+import { WindowListSlots } from 'foldkit-mixins-ui'
 import { Theme } from 'foldkit-mixins/theme'
 
 export { geistLatinUrl }
@@ -566,7 +567,11 @@ export const Page = slots({
       pointerEvents: 'none',
       overflow: 'hidden',
       background: d.panel,
+      position: 'absolute',
+      inset: '0',
     },
+    // The pending rows stand in for All Results only until its first rows are drawn.
+    Style.nest('*:has(> [role="list"] [data-virtual-list-item-key]) > &', { display: 'none' }),
     Style.container('(max-width: 944px)', { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }),
     Style.container('(max-width: 668px)', { gridTemplateColumns: 'minmax(0, 1fr)' }),
   ],
@@ -693,3 +698,20 @@ export const Page = slots({
     focusRing,
   ],
 })
+
+/** All Results' list: in the page's flow, scrolled by the page. */
+export const ResultsListStyle = forSlots(WindowListSlots)(
+  {
+    root: [
+      Style.class('results-viewport'),
+      {
+        margin: '0',
+        listStyle: 'none',
+        padding: '0',
+        scrollMarginTop: 'calc(var(--header-height) + 1rem)',
+      },
+      Style.pseudo(':focus-visible', { outline: `2px solid ${d.text}`, outlineOffset: '-2px' }),
+    ],
+  },
+  { name: 'ResultsListStyle' },
+)

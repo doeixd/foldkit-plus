@@ -41,6 +41,10 @@ const searched = (value: string, generation: number): ReadonlyArray<Message> => 
   }),
 ]
 
+/** The held reads asking for each of `names` answered with a failure. */
+const failed = (...names: ReadonlyArray<string>) =>
+  names.map(name => Respond.read(Domain, name, { fail: new RemoteReadError({ message: 'down' }) }))
+
 const last = (trace: Trace<Model, Message>): Model => trace.entries.at(-1)?.model ?? trace.start
 
 const run = (steps: ReadonlyArray<Message | Respond>) =>
@@ -54,12 +58,14 @@ const run = (steps: ReadonlyArray<Message | Respond>) =>
   })
 
 describe('the Top Results', () => {
-  test('land their prices from one read of the four names', async () => {
+  test('land their prices from the first read, of the four names first', async () => {
     const trace = await run([...searched('vercel', 1), Respond.all])
     const search = searchViewState(last(trace))
     expect(search._tag).toBe('Ready')
     expect(
-      search._tag === 'Ready' ? search.domains.map(domain => [domain.name, domain._tag]) : [],
+      search._tag === 'Ready'
+        ? search.domains.slice(0, 4).map(domain => [domain.name, domain._tag])
+        : [],
     ).toEqual([
       ['vercel.com', 'Unconfirmed'],
       ['vercel.dev', 'Unconfirmed'],
@@ -69,16 +75,13 @@ describe('the Top Results', () => {
     expect(trace.pending).toEqual([])
   })
 
-  test('a failed read with nothing to show is the search failing, and Try again reads it again', async () => {
-    const failed = await run([
-      ...searched('acme', 1),
-      Respond.read(Domain, 'acme.com', { fail: new RemoteReadError({ message: 'down' }) }),
-    ])
-    expect(searchViewState(last(failed))).toEqual({ _tag: 'Failed', error: READ_FAILED })
+  test('reads that failed with nothing to show are the search failing, and Try again reads them again', async () => {
+    const failing = await run([...searched('acme', 1), ...failed('acme.com', 'acme.xyz')])
+    expect(searchViewState(last(failing))).toEqual({ _tag: 'Failed', error: READ_FAILED })
 
     const retried = await run([
       ...searched('acme', 1),
-      Respond.read(Domain, 'acme.com', { fail: new RemoteReadError({ message: 'down' }) }),
+      ...failed('acme.com', 'acme.xyz'),
       Message.ClickedRetrySearch(),
       Respond.all,
     ])
