@@ -215,14 +215,18 @@ export interface TabStorageOptions {
 const claim = (locks: NonNullable<TabStorageOptions['locks']>, name: string) =>
   Effect.acquireRelease(
     Effect.callback<Option.Option<() => void>>(resume => {
-      void locks.request(name, { ifAvailable: true }, lock => {
-        if (lock === null) {
-          resume(Effect.succeed(Option.none()))
-          return undefined
-        }
-        // The lock is held until this promise settles, which the scope's close does.
-        return new Promise<void>(release => resume(Effect.succeed(Option.some(release))))
-      })
+      locks
+        .request(name, { ifAvailable: true }, lock => {
+          if (lock === null) {
+            resume(Effect.succeed(Option.none()))
+            return undefined
+          }
+          // The lock is held until this promise settles, which the scope's close does.
+          return new Promise<void>(release => resume(Effect.succeed(Option.some(release))))
+        })
+        // A page that may not use locks (an opaque origin) is refused before any
+        // callback: it keeps its key as a page without locks does.
+        .catch(() => resume(Effect.succeed(Option.some(() => {}))))
     }),
     held => Effect.sync(() => Option.map(held, release => release())),
   ).pipe(Effect.map(Option.isSome))

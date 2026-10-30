@@ -72,6 +72,17 @@ export default [
     tests,
   },
   {
+    name: 'a page refused its locks never reuses its key',
+    edits: [
+      {
+        file: '../src/indexedDb.ts',
+        find: '.catch(() => resume(Effect.succeed(Option.some(() => {}))))',
+        replace: '.catch(() => resume(Effect.succeed(Option.none())))',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a minted key is not kept for the next load',
     edits: [{ file: '../src/indexedDb.ts', find: '    session.setItem(name, key)\n', replace: '' }],
     tests,

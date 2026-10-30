@@ -119,6 +119,19 @@ describe('Sync.tabStorage', () => {
     expect(names[1]).toBe(`todos/${duplicate.getItem('todos')}`)
   })
 
+  it('keeps its key where the page may not take a lock', async () => {
+    const sessionStorage = tabSession()
+    const { names, factory } = openedDatabases()
+    const locks = {
+      request: () => Promise.reject(new DOMException('opaque origin', 'SecurityError')),
+    }
+
+    await openTab('todos', { sessionStorage, locks, indexedDB: factory })
+    await openTab('todos', { sessionStorage, locks, indexedDB: factory })
+
+    expect(names[1]).toBe(names[0])
+  })
+
   it('keeps one key per name', async () => {
     const sessionStorage = tabSession()
     const { names, factory } = openedDatabases()
