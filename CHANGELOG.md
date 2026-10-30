@@ -760,6 +760,15 @@ carries `drawn`.
 
 ### Fixed
 
+- **Remote keeps fields named `__proto__`, `constructor` and `toString`.**
+  Records keyed by a field were written by assignment, which turns
+  `__proto__` into the prototype, and read by index, which finds
+  `Object.prototype`'s functions: a read failed or dropped such a field, a
+  window was recorded or compared that was never asked, a field was planned
+  again, merged requirements lost a relation, a capture dropped the value,
+  and a pending write foresaw no derived count, find, supplied member or
+  invariant over it. These records are now read by own key and written by
+  definition (`record.ts`).
 - **`RemoteServer.memory` serves a list named `constructor`, `toString` or
   `__proto__` whole.** Read beside a list asked with a window, such a list
   took `Object.prototype`'s member as its own window and came back as a

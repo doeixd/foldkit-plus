@@ -24,8 +24,8 @@ export default [
   edit(
     'the client finds no row for an exists',
     '../../remote/src/mutation.ts',
-    'at(to, owner).values[field] = bound.id',
-    'at(to, owner).values[field] = null',
+    'put(at(to, owner).values, field, bound.id)',
+    'put(at(to, owner).values, field, null)',
   ),
   edit(
     'the client predicts a moment late',

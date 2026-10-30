@@ -87,6 +87,7 @@ import {
   SettledFields,
   type RemoteLiveRefused,
 } from './wire.js'
+import { put } from './record.js'
 import { remoteErrorSchema, type RemoteError } from './remoteData.js'
 import type { LivePolicy } from './query.js'
 
@@ -2050,7 +2051,7 @@ export const writeRead = (
       byEntity.set(key, entry)
     }
     for (const [field, window] of Object.entries(windows ?? {})) {
-      entry.windows[field] = windowKey(window)
+      put(entry.windows, field, windowKey(window))
       const direction =
         window.after !== undefined ? 'after' : window.before !== undefined ? 'before' : undefined
       if (direction !== undefined) entry.merge.set(field, direction)

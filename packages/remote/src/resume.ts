@@ -18,6 +18,7 @@ import type { Metadata, ModelRef } from 'foldkit-surface'
 import type { Boundary, Connection, Segment } from './connection.js'
 import type { LiveState } from './live.js'
 import type { RemoteModel } from './model.js'
+import { own, put } from './record.js'
 import { targetsOf } from './relation.js'
 import { RemoteConnections, RemoteRequirements, type RelationRequirement } from './requirement.js'
 import { entityKey, readField, type EntityEntry } from './store.js'
@@ -152,10 +153,10 @@ export const captureRemote = (
       // browser would otherwise ask for it once more.
       if (stored.unavailable.has(field)) entry.unavailable.add(field)
       if (!stored.present.has(field)) continue
-      entry.values[field] = stored.values[field]
+      put(entry.values, field, stored.values[field])
       entry.present.add(field)
       if (stored.stale.has(field)) entry.stale.add(field)
-      const window = stored.windows[field]
+      const window = own(stored.windows, field)
       if (window !== undefined) entry.windows[field] = window
       const nested = requirement.relations?.[field]
       if (nested === undefined) continue

@@ -14,6 +14,7 @@ import {
   type RefPage,
 } from './entity.js'
 import type { QueryWindow } from './query.js'
+import { own, put } from './record.js'
 import { aliasedField, isRefPage, relationAlias, relationShape, targetsOf } from './relation.js'
 import {
   entityKey,
@@ -150,7 +151,9 @@ export const Selection = {
         >
       >,
     ))
-      spec[key] =
+      put(
+        spec,
+        key,
         selected === true
           ? true
           : Domain.SelectionPageTypeId in selected
@@ -160,7 +163,8 @@ export const Selection = {
                 selected.window,
                 Selection.from(selected.selection) as never,
               )
-            : Selection.from(selected)
+            : Selection.from(selected),
+      )
     const made = Selection.make(Entity.from(selection.entity as never), spec as never)
     fromEntitySelections.set(selection, made as Selection<unknown>)
     return made as never
@@ -186,7 +190,7 @@ export const Selection = {
     for (const key of Object.keys(selection)) {
       const choice = (selection as Record<string, unknown>)[key]
       if (choice === true) {
-        picked[key] = entity.fields[key] as AnySchema
+        put(picked, key, entity.fields[key] as AnySchema)
         names.push(key)
         continue
       }
@@ -210,21 +214,21 @@ export const Selection = {
         // a field that is always a page has nothing to be beside.
         const name = shape.kind === 'many' ? relationAlias(key, nested.window) : key
         names.push(name)
-        connections[name] = nested.window
-        picked[key] = nullable(nested.schema as AnySchema)
-        if (nested.fields.length > 0) relations[name] = relationOf(nested)
+        put(connections, name, nested.window)
+        put(picked, key, nullable(nested.schema as AnySchema))
+        if (nested.fields.length > 0) put(relations, name, relationOf(nested))
         continue
       }
       names.push(key)
       const item = nested.schema as AnySchema
-      picked[key] = nullable(
+      const read =
         shape.kind === 'many'
           ? (Schema.Array(item) as unknown as AnySchema)
           : shape.kind === 'page'
             ? pageSchema(item)
-            : item,
-      )
-      relations[key] = relationOf(nested)
+            : item
+      put(picked, key, nullable(read))
+      put(relations, key, relationOf(nested))
     }
     return {
       entity: entity.name,
@@ -305,14 +309,14 @@ export const assemble = (
     if (Option.isNone(value)) return undefined
     refreshing ||= isFieldStale(store, key, field)
     // A page read under an alias is the value of the field the alias reads.
-    const relation = requirement.relations?.[field]
+    const relation = own(requirement.relations, field)
     if (relation === undefined) {
-      values[aliasedField(field)] = value.value
+      put(values, aliasedField(field), value.value)
       continue
     }
     const nested = assembleRelation(store, value.value, relation)
     if (nested === undefined) return undefined
-    values[aliasedField(field)] = nested.values
+    put(values, aliasedField(field), nested.values)
     refreshing ||= nested.refreshing
   }
   return { values, refreshing }

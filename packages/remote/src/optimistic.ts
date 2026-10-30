@@ -21,6 +21,7 @@ import {
   type PendingDelete,
   type PendingPatch,
 } from './mutation.js'
+import { put } from './record.js'
 import { isPatch } from './shown.js'
 import {
   entityKey,
@@ -339,7 +340,7 @@ export const resolvedPatches = (
       const predicted = predicting(() => Write.apply(row, moved, { operators }))
       for (const field of [...Object.keys(moved.increments), ...Object.keys(moved.assignments)]) {
         if (predicted !== undefined && !predicted.unknown.includes(field)) {
-          values[field] = predicted.row[field]
+          put(values, field, predicted.row[field])
           unknown.delete(field)
         } else {
           unknown.add(field)

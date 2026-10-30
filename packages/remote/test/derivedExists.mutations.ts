@@ -73,7 +73,7 @@ export default [
   edit(
     'nothing is found',
     '../src/mutation.ts',
-    'at(to, owner).values[field] = bound.id',
+    'put(at(to, owner).values, field, bound.id)',
     'void to',
   ),
 ]

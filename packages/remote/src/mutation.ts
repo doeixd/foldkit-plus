@@ -29,6 +29,7 @@ import {
 } from 'foldkit-entity'
 import { holderOf } from './held.js'
 import type { OptimisticOperation } from './optimistic.js'
+import { own, put } from './record.js'
 import { refParts } from './relation.js'
 import type { RemoteError } from './remoteData.js'
 import { emptyStore, entityKey, tombstone, writeEntities, type EntityStore } from './store.js'
@@ -617,7 +618,7 @@ export const derivedOfWrite = (
     if (typeof ref !== 'string') return
     if (!Option.exists(holding(ref, field), value => typeof value === 'number')) return
     const move = at(ref, owner)
-    move.adds[field] = (move.adds[field] ?? 0) + by
+    put(move.adds, field, (own(move.adds, field) ?? 0) + by)
   }
   for (const member of derived)
     DerivedBy.$match(member, {
@@ -636,12 +637,12 @@ export const derivedOfWrite = (
         for (const ref of found.get(exists) ?? []) {
           // A delete points it nowhere, so it leaves every row it was found on.
           if (Option.exists(pointed, to => to !== ref) || Option.contains(viewing, false))
-            at(ref, owner).values[field] = null
+            put(at(ref, owner).values, field, null)
         }
         if (!Option.contains(viewing, true) || Option.isNone(pointed)) return
         const to = pointed.value
         if (typeof to === 'string' && Option.contains(holding(to, field), null))
-          at(to, owner).values[field] = bound.id
+          put(at(to, owner).values, field, bound.id)
       },
     })
   return [...moves].flatMap(([ref, { owner, values, adds }]) => {
@@ -674,7 +675,7 @@ const freshDerived = (
   for (const members of derived.values())
     for (const member of members)
       if (member.owner === entity)
-        values[member.field] = DerivedBy.$match(member, { Count: () => 0, Exists: () => null })
+        put(values, member.field, DerivedBy.$match(member, { Count: () => 0, Exists: () => null }))
   if (Object.keys(values).length === 0) return []
   const { id } = DomainWrite.bind(write, input as never)
   return [{ entity, id, values }]
@@ -721,7 +722,7 @@ const suppliedOfWrite = (
   const values: Record<string, unknown> = {}
   for (const [key, predict] of predictors) {
     Option.map(predict({ entity, row, rows: holder.rows, context: by }), value => {
-      values[key] = value
+      put(values, key, value)
     })
   }
   return Object.keys(values).length === 0 ? [] : [{ entity: entity.name, id: own.id, values }]
@@ -778,7 +779,7 @@ const plainRow = (entity: AnyEntity, row: HeldRow): Record<string, unknown> => {
   for (const key of Object.keys(entity.fields))
     Held.match(row.field(key), {
       onHeld: value => {
-        plain[key] = value
+        put(plain, key, value)
       },
       onUnheld: () => undefined,
     })

@@ -5,6 +5,7 @@
  */
 import { Metadata } from 'foldkit-surface'
 import type { QueryWindow } from './query.js'
+import { own, put } from './record.js'
 
 /**
  * The slice required of an entity. `windows` carries a pagination window per
@@ -102,8 +103,8 @@ function mergeRelations(
   if (next === undefined) return current
   const merged: Record<string, RelationRequirement> = { ...current }
   for (const [field, relation] of Object.entries(next)) {
-    const existing = merged[field]
-    merged[field] = existing === undefined ? relation : mergeRelation(existing, relation)
+    const existing = own(merged, field)
+    put(merged, field, existing === undefined ? relation : mergeRelation(existing, relation))
   }
   return merged
 }

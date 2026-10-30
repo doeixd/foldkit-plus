@@ -8,6 +8,7 @@
  */
 import { Option } from 'effect'
 import { sameData } from './data.js'
+import { own, put } from './record.js'
 import { RELATION_ALIAS } from './relation.js'
 
 export type EntityKey = string
@@ -74,8 +75,8 @@ const written = (
     stale.delete(field)
     unavailable.delete(field)
     // A write without a window clears any remembered one: the value changed.
-    const requested = windows?.[field]
-    if (requested !== undefined && requested !== '') nextWindows[field] = requested
+    const requested = own(windows, field)
+    if (requested !== undefined && requested !== '') put(nextWindows, field, requested)
     else delete nextWindows[field]
     // The whole list changed, so a page of it read under an alias may have too.
     if (!field.includes(RELATION_ALIAS))
@@ -320,8 +321,8 @@ export const missingFields = (
     if (value === undefined) return true
     if (!value.present.has(field)) return !value.unavailable.has(field)
     if (value.stale.has(field)) return true
-    const requested = windows?.[field]
-    const stored = value.windows[field]
+    const requested = own(windows, field)
+    const stored = own(value.windows, field)
     return requested !== undefined && stored !== undefined && stored !== '' && stored !== requested
   })
 }
