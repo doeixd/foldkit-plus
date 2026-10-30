@@ -490,6 +490,7 @@ export class ResumeUnsafe extends Schema.TaggedError<ResumeUnsafe>()('ResumeUnsa
     'UndeclaredSurfaces',
     'BindingInStaticRegion',
     'VoidRootWithStyles',
+    'UnkeepableField',
   ]),
   message: Schema.String,
 }) {}
@@ -673,6 +674,7 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
     const browserBindings: Array<Binding> = []
     const inStatic: Array<{ region: string; element: string; event: string }> = []
     const unnamed: Array<UnnamedHandler> = []
+    const unkeepable: Array<string> = []
     const fallback = fallbackEncoder(plan)
     const capturing = withContext(
       { ...config, init: (...args: ReadonlyArray<unknown>) => (served = config.init(...args)) },
@@ -687,6 +689,7 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
         region: undefined,
         inStatic,
         unnamed,
+        unkeepable,
       },
     )
     const full = yield* renderToString(capturing as never, options as never)
@@ -703,6 +706,12 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
       return yield* new ResumeUnsafe({
         reason: 'BindingInStaticRegion',
         message: `a static region is the server's alone, and these would never run: ${found.join(', ')}. What a Message changes belongs in a Surface`,
+      })
+    }
+    if (unkeepable.length > 0) {
+      return yield* new ResumeUnsafe({
+        reason: 'UnkeepableField',
+        message: `the page cannot keep what is typed into these fields before it boots:\n- ${unkeepable.join('\n- ')}`,
       })
     }
     const started = served!
@@ -1492,6 +1501,7 @@ export {
   ResumeRefused,
   BINDING_ATTRIBUTE,
   FALLBACK_FIELD,
+  KEEP_ATTRIBUTE,
   SLOT_ATTRIBUTE,
   UNTIL_LIMIT_MS,
   metaMarkup,

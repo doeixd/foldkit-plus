@@ -215,6 +215,15 @@ served page stays in view while the fresh one draws hidden, and is swapped once 
   A helper that takes the builder is typed `ResumableBuilder<Message>`
   (`import type { ResumableBuilder } from 'foldkit-ssr'`); it is the only
   builder type the package exports.
+- `rh.KeepTyped()` on a field keeps what is typed into it before the script
+  runs, on any `start`: `rh.input([rh.Value(model.draft),
+  rh.OnInput(Message.ChangedDraft), rh.KeepTyped()])`. `SSR.hydrate` reads the
+  field, replays a changed value as its `OnInput` (else `OnChange`) Message
+  ahead of anything else, and puts back the value and caret its first render
+  reset. No inline script, so no CSP nonce. Only an `input` that takes text, a
+  `textarea` or a `select` with a hole-form binding: anything else is
+  `UnkeepableField` on the server. An IME composition in progress at boot
+  ends.
 - `SSR.generate` returns pages as a tuple of `paths`: `const [home, about]`.
   `SSR.sitemap(pages, { origin })` (each `{ path, modified? }`) and
   `SSR.robots({ origin, sitemap?, disallow? })` write the two files a static

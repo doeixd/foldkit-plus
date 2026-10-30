@@ -651,9 +651,10 @@ const view = (model: Model, h: HtmlBuilder<Message>) => {
 }
 ```
 
-`rh` differs from `h` in one place: `OnInput`, `OnChange`, `OnKeyDown` and
+`rh` differs from `h` in two places: `OnInput`, `OnChange`, `OnKeyDown` and
 `OnKeyUp` also take a Message's own constructor, and the event fills the field
-it leaves open. The types check it where it is written: the member must be one
+it leaves open; and `KeepTyped` marks a field whose early typing is kept
+([below](#typing-before-the-script-arrives)). The types check it where it is written: the member must be one
 of the view's Messages, and leave exactly one string field, or exactly `key`
 and `modifiers`. A closure still works. It is not data, so the page cannot
 answer that event itself and boots on it instead, letting the live page answer.
@@ -744,6 +745,48 @@ view. The browser loads it before it boots and answers from the markers
 meanwhile, whatever `start` says. A binding inside a placement dispatches the
 parent's Message, as Foldkit's own handlers do, so the plan's Surface lists the
 wrapper variant, `Message.GotUploadMessage`.
+
+### Typing before the script arrives
+
+A served page is editable as soon as it is parsed, but its script comes
+later, and hydration re-asserts each field's value to the Model's: what was
+typed in between would vanish. A field marked `rh.KeepTyped()` keeps it,
+whatever the plan's `start`:
+
+```ts
+rh.input([rh.Value(model.draft), rh.OnInput(Message.ChangedDraft), rh.KeepTyped()])
+```
+
+```text
+parse ──▶ typing (the field holds it) ──▶ script: SSR.hydrate reads the marked fields
+      ──▶ each changed one becomes its OnInput Message, first in the queue
+      ──▶ first render adopts the served page ──▶ value and caret put back ──▶ update
+```
+
+There is no inline script: the field itself holds what was typed, and an
+`OnInput` Message carries the whole value, so the value when the script runs
+says all the keystrokes would. A page with a Content Security Policy needs no
+nonce for it. When the script runs, `SSR.hydrate` reads each marked field
+whose value differs from what the server rendered and turns it into the
+field's `OnInput` Message (else its `OnChange`), with the hole filled. These
+go ahead of anything the page answers afterwards, once each, in document
+order, so a page that waits to boot replays the early typing first. The first
+render starts from the resumed Model, so it adopts every node and resets the
+field; the field's value and selection are put back as it commits, and the
+Message then finds the field already holding its value and writes nothing.
+The caret stays where it was, and focus never moves. A field inside a lazy
+bundle is replayed once the bundle's code has loaded.
+
+Only a field the page can replay may be marked: an `input` that takes text, a
+`textarea` or a `select`, with `OnInput` or `OnChange` given a Message member.
+Anything else is refused on the server (`UnkeepableField`), naming the
+element. What is not kept: an unmarked field (re-asserted to the served value,
+as before); a key press or click before the script (the browser's own, so a
+form submitted then posts, which `fallback: 'server'` answers); a page that is
+contained, declined or stale; and an IME composition in progress at boot,
+which the first render's reset ends, though its text is kept. A value the
+browser restored into the field on a reload or a history visit is kept like
+typing, since it is what the field shows.
 
 ## Forms that work without scripts
 
@@ -897,6 +940,7 @@ of:
 | `UnencodableBinding`       | The plan has no Message Schema, or a binding's Message does not encode through it | Make the plan from the application; build the Message with its constructor |
 | `EagerStartRequired`       | A deferred plan would start a Subscription or Managed Resource late           | Declare it in `deferrable`, or start `'now'`                         |
 | `VoidRootWithStyles`       | `styles` were given for a view whose root is void and holds nothing           | Put the styles in the template's head with `SSR.generate`, or return an element root |
+| `UnkeepableField`          | `KeepTyped` on an element that holds no typed value, or with no `OnInput`/`OnChange` given a Message member | Mark only a text `input`, `textarea` or `select`, and give its binding the Message's member |
 | `UngeneratablePath`        | `SSR.generate` was given a path no file can be served at                      | Leave out the query and fragment; keep paths to distinct files      |
 
 In the browser, `SSR.hydrate` checks in Foldkit's order: the build id first,
@@ -982,6 +1026,11 @@ In a test, `Diagnostics.collect()` gives a reporter and the array it fills.
   it returns, which Foldkit does today without promising it: until that
   frame commits (`Render.afterCommit`), the page keeps answering from its
   markers and sends the live page what only it can answer.
+- **A kept field is written twice at boot.** Hydration re-asserts the served
+  value, and the page writes the typed one back with its selection, in the
+  same task, so nothing paints between. The write ends an IME composition
+  in progress; leaving a changed control alone is
+  [proposal 6](../../docs/upstream-foldkit-ssr.md#proposal-6-leave-a-control-the-person-changed-alone-at-hydration).
 - **Development is not production.** Under Vite's dev server, Foldkit's model
   preservation restores the previous Model after a reload and skips adoption.
 - **A closure handler makes its event wait for boot.** `SSR.render`'s result
@@ -1012,7 +1061,8 @@ In a test, `Diagnostics.collect()` gives a reporter and the array it fills.
 - **Attribute names**, for tools and tests: `RESUME_ATTRIBUTE` (the envelope
   on the stamped root), `STATIC_ATTRIBUTE`, `BINDING_ATTRIBUTE` (a prefix,
   followed by the event), `SLOT_ATTRIBUTE` (a placement's root while the server
-  renders) and `FALLBACK_FIELD` (the posted Message).
+  renders), `KEEP_ATTRIBUTE` (a kept field, naming the binding that replays
+  it) and `FALLBACK_FIELD` (the posted Message).
 
 ## The application in these examples
 

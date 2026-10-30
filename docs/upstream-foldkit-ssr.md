@@ -295,6 +295,54 @@ Foldkit's release to a project that names `@foldkit/devtools` without it.
 then skips its peers, and in an empty npm cache it fails to load
 (`Cannot find package 'redis'`, a peer of `@effect/platform-node`).
 
+## Proposal 6: leave a control the person changed alone at hydration
+
+**Ask.** An opt-in on `Runtime.hydrate` (and the adoption it shares with
+`hydrate` from `foldkit/runtime`) naming elements whose current control state
+the first patch leaves as it is: for example `preserveControlState?:
+(element: Element) => boolean`. For such an element, adoption would seed the
+clone's `value` (or `checked`, `selected`) from the element instead of
+marking it stale, so the first patch writes nothing there.
+
+**Why Foldkit would want it.** Re-asserting a controlled value over what the
+person typed is deliberate and tested ("re-asserts controlled input values
+over user edits"), and right by default: the Model is the source of truth.
+But every server-rendered Foldkit page is editable before its script runs,
+and on a slow connection a search box loses its first keystrokes at
+hydration. Upstream's `foldkit-domains` keeps them with an inline script and
+a handoff Command, and [foldkit#1784](https://github.com/foldkit/foldkit/issues/1784)
+(open, P2) asks for framework support. With the opt-in, an application can
+send the typed value as an ordinary Message right after hydrating and the
+field is never written, so the caret and an IME composition survive.
+
+**Why we need it.** `rh.KeepTyped()` (#356) reads each marked field when the
+script runs and replays it as the field's Message. The first patch still
+writes the served value, so `foldkit-ssr` saves the field's value and
+selection, lets the patch run, and writes them back in the same task
+(`packages/ssr/src/keep.ts`). Nothing paints between, and the caret is put
+back, but the write ends an IME composition in progress. Folding the
+Messages into the starting Model instead would avoid the write only when the
+typed value changes nothing else: where it does (a clear button drawn beside
+the field), adoption clears the parent's children and rebuilds the field.
+Checked against Foldkit 0.170.0 (`hydrate.js`, `isControlledCurrentState`
+and `seedReflectedProperties`).
+
+**The change.**
+
+- `hydrate.ts`: take the predicate through `seedAdoptedState`; for a matching
+  element, seed each controlled property from the element's current state.
+- A test that a matching input keeps its typed value, selection and a
+  composition through hydration, and that a non-matching one is still
+  re-asserted, as today.
+
+**Route.** A comment on foldkit#1784, which asks for the whole contract
+(which controls take part, final values or replayed events, a bootstrap
+script): this is the smallest piece of it, and the rest is what `KeepTyped`
+already does above Foldkit, with no script.
+
+**Afterwards, here.** `KeepTyped` passes the marked fields as the predicate
+and drops `hold` and `restore`; the README's limit on IME composition goes.
+
 ## What we are not asking for
 
 These were on this repository's list and are dropped or held after this
@@ -328,6 +376,7 @@ check:
 4. Proposal 3 as a question, after `foldkit-ssr` is published and in use.
 5. Proposal 4 as an issue, any time: it needs nothing from the others.
 6. Proposal 5 as an issue, any time: it needs nothing from the others.
+7. Proposal 6 as an issue, any time: it needs nothing from the others.
 
 Each upstream change is followed here by removing the workaround it replaces,
 with the SSR plan and README updated in the same commit.

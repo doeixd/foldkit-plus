@@ -17,8 +17,9 @@ import {
   reportingTo,
   type SsrDiagnostic,
 } from './diagnostics.js'
+import { hold, keptFields, restore, typedMessages, type Held, type KeptField } from './keep.js'
 import { listen, type DecodedBinding } from './listen.js'
-import { builder, view } from './resumable.js'
+import { KEEP_ATTRIBUTE, builder, view } from './resumable.js'
 import {
   FOLDKIT_APP_ATTRIBUTE,
   STATIC_ATTRIBUTE,
@@ -204,7 +205,8 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
       { buildId: options.buildId },
     )
   const pending = (config.lazy ?? []).filter(bundle => !bundle.isLoaded())
-  if (plan.start === 'now' && pending.length === 0) {
+  const eager = plan.start === 'now' && pending.length === 0
+  if (eager && root.querySelector(`[${KEEP_ATTRIBUTE}]`) === null) {
     boot()
     return
   }
@@ -214,7 +216,20 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     contain()
     return
   }
-  deferBoot(root, decoded.success, plan.start, { boot, answered }, pending, report)
+  const kept = keptFields(root, decoded.success.bindings)
+  if (Result.isFailure(kept)) {
+    report(pageContained('Invalid', kept.failure))
+    contain()
+    return
+  }
+  // What was typed before this script ran, first in the queue: everything the
+  // page answers from here on happened after it.
+  answered.push(...typedMessages(kept.success))
+  if (eager && answered.length === 0) {
+    boot()
+    return
+  }
+  deferBoot(root, decoded.success, plan.start, { boot, answered }, pending, report, kept.success)
 }
 
 /** The longest a served page stays in view while a fresh application waits for `until`. */
@@ -279,6 +294,8 @@ const HANDOVER: unknown = Object.freeze({ _tag: 'foldkit-ssr/Handover' })
  * `hydrate` returns, which Foldkit does today, or else when a handover
  * Subscription entry starts, after `Render.afterCommit`. When lazy bundles
  * must load first, the boot waits for them and the page keeps answering.
+ * Each kept field the person changed is put back, value and selection, as
+ * the first render commits, since that render re-asserts the served value.
  */
 const deferBoot = (
   root: HTMLElement,
@@ -293,12 +310,15 @@ const deferBoot = (
   },
   pending: ReadonlyArray<Loadable>,
   report: (diagnostic: SsrDiagnostic) => void,
+  kept: ReadonlyArray<KeptField>,
 ): void => {
   // Events only the live page can answer, met before it listened.
   const unanswered: Array<{ readonly event: Event; readonly element: Element }> = []
   // `waiting` for an interaction or idle, `loading` bodies, `starting` the
   // runtime until its first render commits, then `live`.
   let phase: 'waiting' | 'loading' | 'starting' | 'live' = 'waiting'
+  // The kept fields as the person left them, which the first render resets.
+  let held: ReadonlyArray<Held> = []
   const stop = listen(root, {
     bindings: decoded.bindings,
     ...(decoded.events === undefined ? {} : { events: decoded.events }),
@@ -329,6 +349,8 @@ const deferBoot = (
   const handOver = () => {
     if (phase === 'live') return
     phase = 'live'
+    // Before the queue runs, so its Messages find the fields holding their values.
+    restore(held)
     stop()
     for (const { event, element } of unanswered.splice(0)) {
       const Ctor = event.constructor as new (type: string, init: Event) => Event
@@ -337,6 +359,7 @@ const deferBoot = (
   }
   const commit = () => {
     phase = 'starting'
+    held = hold(kept)
     runtime.boot({
       'foldkit-ssr.handover': {
         dependenciesSchema: Schema.Null,
@@ -399,6 +422,7 @@ export {
 export {
   BINDING_ATTRIBUTE,
   FALLBACK_FIELD,
+  KEEP_ATTRIBUTE,
   SLOT_ATTRIBUTE,
   type ResumableBuilder,
 } from './resumable.js'

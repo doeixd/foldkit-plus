@@ -174,20 +174,11 @@ const modifiersOf = (event: KeyboardEvent): KeyboardModifiers => ({
   metaKey: event.metaKey,
 })
 
-/** The Message a binding dispatches for this event: its own, with the hole filled. */
-const messageFor = (binding: DecodedBinding, event: Event): unknown => {
-  if (binding.hole === undefined) return binding.message
-  const fill = (template: Readonly<Record<string, unknown>>): unknown => {
-    if (binding.event === 'input' || binding.event === 'change') {
-      const [field] = binding.hole ?? []
-      return { ...template, [field ?? 'value']: inputValue(event.target) }
-    }
-    if (event instanceof KeyboardEvent) {
-      return { ...template, key: event.key, modifiers: modifiersOf(event) }
-    }
-    return template
-  }
-  // The hole's fields sit inside each placement wrapper's `message`.
+/** A binding's Message with its hole filled by `fill`, inside each placement wrapper's `message`. */
+const filled = (
+  binding: DecodedBinding,
+  fill: (template: Readonly<Record<string, unknown>>) => unknown,
+): unknown => {
   const inside = (template: Readonly<Record<string, unknown>>, depth: number): unknown =>
     depth === 0
       ? fill(template)
@@ -196,6 +187,26 @@ const messageFor = (binding: DecodedBinding, event: Event): unknown => {
           message: inside(template.message as Readonly<Record<string, unknown>>, depth - 1),
         }
   return inside(binding.message as Readonly<Record<string, unknown>>, binding.depth ?? 0)
+}
+
+/** The Message an `OnInput` or `OnChange` hole binding dispatches for a field holding `value`. */
+export const typedMessage = (binding: DecodedBinding, value: string): unknown =>
+  filled(binding, template => {
+    const [field] = binding.hole ?? []
+    return { ...template, [field ?? 'value']: value }
+  })
+
+/** The Message a binding dispatches for this event: its own, with the hole filled. */
+const messageFor = (binding: DecodedBinding, event: Event): unknown => {
+  if (binding.hole === undefined) return binding.message
+  if (binding.event === 'input' || binding.event === 'change') {
+    return typedMessage(binding, inputValue(event.target))
+  }
+  return filled(binding, template =>
+    event instanceof KeyboardEvent
+      ? { ...template, key: event.key, modifiers: modifiersOf(event) }
+      : template,
+  )
 }
 
 /** What `OnClick` declares beside its Message. */

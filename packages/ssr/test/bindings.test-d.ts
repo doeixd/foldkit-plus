@@ -22,6 +22,11 @@ export const view = (h: HtmlBuilder<Message>) => {
       rh.OnKeyUp(Message.Pressed),
       // A closure still works, and is simply not resumable.
       rh.OnInput(value => Message.ChangedSearch({ value })),
+      // An attribute of the view's Messages, like any other.
+      rh.KeepTyped(),
+
+      // @ts-expect-error: KeepTyped takes nothing; the field's own binding names its Message
+      rh.KeepTyped(Message.ChangedSearch),
 
       // @ts-expect-error: leaves both id and title for the event to fill
       rh.OnInput(Message.Renamed),
@@ -95,3 +100,8 @@ export const helpers = (h: HtmlBuilder<Message>): number => {
   )
   return [inView, inSurface, tooWide].length
 }
+
+/** `KeepTyped` belongs to the resumable builder: Foldkit's own `h` has none. */
+export const plain = (h: HtmlBuilder<Message>) =>
+  // @ts-expect-error: KeepTyped is not one of Foldkit's attributes
+  h.input([h.KeepTyped()])

@@ -131,6 +131,27 @@ export const FALLBACK_FIELD = 'foldkit-plus-message'
 /** The posted field that says how many placement wrappers the form's fields sit under. */
 export const FALLBACK_DEPTH_FIELD = 'foldkit-plus-depth'
 
+/**
+ * The attribute on a field whose typing before boot is kept (`KeepTyped`),
+ * naming the binding whose Message replays it.
+ */
+export const KEEP_ATTRIBUTE = 'data-foldkit-plus-keep'
+
+/**
+ * The `input` types whose value is not something typed, so `KeepTyped` has
+ * nothing to keep on them.
+ */
+const UNTYPED_INPUTS: ReadonlySet<string> = new Set([
+  'checkbox',
+  'radio',
+  'file',
+  'hidden',
+  'button',
+  'submit',
+  'reset',
+  'image',
+])
+
 /** The attribute on a placement's root naming its slot, while the server renders. */
 export const SLOT_ATTRIBUTE = 'data-foldkit-plus-slot'
 
@@ -175,22 +196,28 @@ type KeyHoleCheck<M, Fixed> = [keyof Rest<M, Fixed>] extends ['key' | 'modifiers
     : Invalid<'the member must leave exactly key and modifiers for the event to fill'>
   : Invalid<'the member must leave exactly key and modifiers for the event to fill'>
 
+/**
+ * Foldkit's attribute of one tag, as its own builder returns it, so an
+ * element that refuses some attributes (a `textarea`, `InnerHTML`) takes it.
+ */
+type Tagged<Message, Tag extends string> = Extract<Attribute<Message>, { readonly _tag: Tag }>
+
 /** `OnInput` and `OnChange`: a closure, or a member whose one string field the event fills. */
-export interface TextHole<Message> {
-  (toMessage: (value: string) => Message): Attribute<Message>
+export interface TextHole<Message, Tag extends string> {
+  (toMessage: (value: string) => Message): Tagged<Message, Tag>
   <M extends AnyMemberSchema, const Fixed extends Fixable<M> = {}>(
     member: M & ProducesMessage<M, Message> & TextHoleCheck<M, Fixed>,
     fixed?: Fixed,
-  ): Attribute<Message>
+  ): Tagged<Message, Tag>
 }
 
 /** `OnKeyDown` and `OnKeyUp`: a closure, or a member whose `key` and `modifiers` the event fills. */
-export interface KeyHole<Message> {
-  (toMessage: (key: string, modifiers: KeyboardModifiers) => Message): Attribute<Message>
+export interface KeyHole<Message, Tag extends string> {
+  (toMessage: (key: string, modifiers: KeyboardModifiers) => Message): Tagged<Message, Tag>
   <M extends AnyMemberSchema, const Fixed extends Fixable<M> = {}>(
     member: M & ProducesMessage<M, Message> & KeyHoleCheck<M, Fixed>,
     fixed?: Fixed,
-  ): Attribute<Message>
+  ): Tagged<Message, Tag>
 }
 
 /**
@@ -219,10 +246,17 @@ export type ResumableBuilder<Message> = Omit<
   HtmlBuilder<Message>,
   'OnInput' | 'OnChange' | 'OnKeyDown' | 'OnKeyUp'
 > & {
-  readonly OnInput: TextHole<Message>
-  readonly OnChange: TextHole<Message>
-  readonly OnKeyDown: KeyHole<Message>
-  readonly OnKeyUp: KeyHole<Message>
+  readonly OnInput: TextHole<Message, 'OnInput'>
+  readonly OnChange: TextHole<Message, 'OnChange'>
+  readonly OnKeyDown: KeyHole<Message, 'OnKeyDown'>
+  readonly OnKeyUp: KeyHole<Message, 'OnKeyUp'>
+  /**
+   * Keeps what is typed into this field before the runtime starts: the
+   * browser replays it as the field's `OnInput` Message (else its
+   * `OnChange`), given in the hole form, and keeps the caret. The field must
+   * be an `input` that takes text, a `textarea` or a `select`.
+   */
+  readonly KeepTyped: () => Tagged<Message, 'Attribute'>
 }
 
 type AnyMember = ((value: Record<string, unknown>) => unknown) & {
@@ -266,6 +300,9 @@ const isAttribute = (item: Item): item is Attribute<unknown> => '_tag' in item
 
 const builders = new WeakMap<object, unknown>()
 
+/** Each attribute `KeepTyped` made: a request to the element it is given, never written as it is. */
+const keeps = new WeakSet<object>()
+
 /** A hole form's placeholder Message, or `undefined` when its field's checks refuse one. */
 const placeholder = (make: () => unknown): unknown => {
   try {
@@ -288,7 +325,9 @@ export const builder = <Builder extends AnyBuilder>(
   const attribute = source.Attribute as (name: string, value: string) => unknown
 
   /** The attributes with a marker for each binding, while the server renders. */
-  const mark = (tag: string, attributes: ReadonlyArray<Item>): ReadonlyArray<unknown> => {
+  const mark = (tag: string, given: ReadonlyArray<Item>): ReadonlyArray<unknown> => {
+    const kept = given.some(item => keeps.has(item))
+    const attributes = kept ? given.filter(item => !keeps.has(item)) : given
     const now = current()
     if (now?.mode !== 'collect' && now?.mode !== 'replay') return attributes
     const id = attributes.find(
@@ -299,6 +338,8 @@ export const builder = <Builder extends AnyBuilder>(
     // Foldkit chains every handler of an event, in the order the attributes
     // come, so a marker lists every binding of its event in that order.
     const tokens = new Map<string, Array<string>>()
+    // The ordinal of the element's hole-form `OnInput` and `OnChange`, which `KeepTyped` replays.
+    const typed = new Map<string, number>()
     for (const item of attributes) {
       if (!isAttribute(item)) continue
       const event = item._tag === 'OnCustomEvent' ? item.name : EVENT_OF[item._tag]
@@ -338,15 +379,41 @@ export const builder = <Builder extends AnyBuilder>(
         }
         list.push(UNNAMED_HANDLER)
       } else {
+        if (binding.hole !== undefined && !typed.has(binding.attribute)) {
+          typed.set(binding.attribute, now.bindings.length)
+        }
         list.push(String(now.bindings.length))
         now.bindings.push(binding)
       }
     }
-    if (tokens.size === 0) return attributes
     const markers = [...tokens].map(([event, list]) =>
       attribute(`${BINDING_ATTRIBUTE}${event}`, list.join(' ')),
     )
-    return [...attributes, ...markers]
+    if (kept) {
+      const ordinal = typed.get('OnInput') ?? typed.get('OnChange')
+      const type = attributes.find(
+        (item): item is Extract<Attribute<unknown>, { readonly _tag: 'Type' }> =>
+          isAttribute(item) && item._tag === 'Type',
+      )?.value
+      const field =
+        tag === 'textarea' ||
+        tag === 'select' ||
+        (tag === 'input' && (type === undefined || !UNTYPED_INPUTS.has(type.toLowerCase())))
+      if (!field) {
+        if (now.mode === 'collect') {
+          now.unkeepable.push(
+            `KeepTyped on ${type === undefined ? element : `${element} of type ${type}`}, which holds no typed value: keep an input that takes text, a textarea or a select`,
+          )
+        }
+      } else if (ordinal === undefined) {
+        if (now.mode === 'collect') {
+          now.unkeepable.push(
+            `KeepTyped on ${element}, which has no OnInput or OnChange given a Message member, so nothing names the Message its typing replays as`,
+          )
+        }
+      } else markers.push(attribute(KEEP_ATTRIBUTE, String(ordinal)))
+    }
+    return markers.length === 0 ? attributes : [...attributes, ...markers]
   }
 
   /**
@@ -492,6 +559,11 @@ export const builder = <Builder extends AnyBuilder>(
         return element(mark(name, posted.attributes), posted.children, ...rest.slice(1))
       }
     } else wrapped[name] = value
+  }
+  wrapped.KeepTyped = () => {
+    const made = attribute(KEEP_ATTRIBUTE, '') as object
+    keeps.add(made)
+    return made
   }
   builders.set(h, wrapped)
   return wrapped as unknown as ResumableBuilder<MessageOf<Builder>>

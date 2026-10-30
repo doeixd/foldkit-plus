@@ -60,8 +60,14 @@ export const body: Bundle.Body<ClickerModel, ClickerMessage, void, never, never,
           ],
           [rh.input([rh.Id('keys'), rh.OnKeyDown(ClickerMessage.Keyed)])],
         ),
-        // A hole, filled from the event inside the placement's wrapper.
-        rh.input([rh.Id('text'), rh.Value(model.text), rh.OnInput(ClickerMessage.Typed)]),
+        // A hole, filled from the event inside the placement's wrapper, whose
+        // typing before the script runs is kept.
+        rh.input([
+          rh.Id('text'),
+          rh.Value(model.text),
+          rh.OnInput(ClickerMessage.Typed),
+          rh.KeepTyped(),
+        ]),
         rh.p([rh.Id('echo')], [model.text]),
         // Inside the placement: with a fallback, it posts the parent's Message.
         rh.form(

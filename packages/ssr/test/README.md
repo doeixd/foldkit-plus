@@ -133,6 +133,19 @@ application.
   markers name, a `*`-only one included; `Resume.listen` given that list hears
   those events with no marker to find them by, and a deferred page does too;
   and each malformed shape of the bindings list is refused.
+- **#356, typing before the script runs** (`keepTyped*.test.ts`,
+  `keepFields.test.ts`, [the design](../../../docs/design/356-prehydration-input-DESIGN.md)):
+  a kept field typed into before `hydrate` ends with its text in the Model,
+  replayed once and in document order, the same element still focused with
+  its caret where it was, while a field that does not opt in is re-asserted
+  and an unchanged one sends nothing. A page that waits to boot replays the
+  early typing ahead of what it answered; a field in a lazy bundle is
+  replayed once its bodies load. The server refuses `KeepTyped` on a
+  closure, a field with no binding, a checkbox and a `div`, and takes a text
+  field with `OnChange`; the browser refuses a marker that is empty, padded,
+  past the bindings, names a key binding or sits on no field, and reads a
+  `select`'s default as the parser does. `examples/foldkit/ssr/e2e/typed.e2e.ts`
+  holds the page's script back in Chromium and checks the same end to end.
 - **Found by porting Foldkit's examples:** a browser bundle of
   `foldkit-ssr/client` reads no module of `foldkit/experimental/server`, while
   the same bundle of `foldkit-ssr` does, and its root attribute is the one

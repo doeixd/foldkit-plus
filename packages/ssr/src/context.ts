@@ -65,6 +65,8 @@ export type RenderContext =
       }>
       /** Each element and event marked `*`: a handler the page cannot name. */
       readonly unnamed: Array<UnnamedHandler>
+      /** Why each `KeepTyped` field met cannot be replayed, one line each. */
+      readonly unkeepable: Array<string>
     }
   | {
       readonly mode: 'replay'

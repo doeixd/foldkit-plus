@@ -1,6 +1,6 @@
 # Keeping what is typed before the runtime starts (#356)
 
-Status: decided (2026-10-30).
+Status: built (2026-10-30).
 
 ## The problem
 
@@ -117,11 +117,14 @@ The write-then-restore in step 3 exists because hydration always re-asserts a
 controlled value. A hydration option that leaves a control's current state
 alone, or reports which controls the person changed, would remove the write
 and keep an IME composition intact. Recorded as proposal 6 in
-[`upstream-foldkit-ssr.md`](../upstream-foldkit-ssr.md).
+[`upstream-foldkit-ssr.md`](../upstream-foldkit-ssr.md), as a comment for
+[foldkit#1784](https://github.com/foldkit/foldkit/issues/1784), which asks
+Foldkit for pre-hydration input as a whole.
 
 ## Tests
 
-- jsdom (`packages/ssr/test/keepTyped*.test.ts`): a kept field typed before
+- jsdom (`packages/ssr/test/keepTyped*.test.ts`, `keepFields.test.ts`, with
+  `keepTyped.mutations.ts`): a kept field typed before
   hydration ends with the value in the Model and the field, the same element,
   the selection where it was, and `update` given the Message once; an unmarked
   field is re-asserted to the served value; an unchanged field sends nothing;
