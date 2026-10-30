@@ -44,6 +44,9 @@ One folder is not a port. [`domains`](./domains) is upstream's
 copied unchanged (on Foldkit's Blocks preview, with its own Tailwind CSS) so
 that a Foldkit Plus reimplementation can be checked against it; its README
 says what changed to run it here.
+[`domains-plus`](./domains-plus) is that reimplementation, on Foldkit 0.170
+and Foldkit Plus, built phase by phase from
+[the plan](../../docs/design/foldkit-domains-PLAN.md).
 
 ## Run one
 

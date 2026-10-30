@@ -61,6 +61,10 @@ as you type, progressive sample prices over Effect RPC, a virtualized list,
 filters, a cart, SSR on a Worker), copied unchanged as the reference a Foldkit
 Plus reimplementation is compared against. It runs on Foldkit's Blocks preview
 canary, not the workspace's Foldkit.
+[`foldkit/domains-plus`](./foldkit/domains-plus/README.md) is that
+reimplementation, built phase by phase: the same page on Foldkit 0.170, with
+`foldkit-ssr`, `foldkit-site`, `foldkit-remote`, `foldkit-mirror` and the
+`foldkit-mixins` theme taking over what each owns.
 
 ## Recommended reading order
 

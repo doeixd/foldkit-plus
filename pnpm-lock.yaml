@@ -280,6 +280,9 @@ importers:
       foldkit:
         specifier: 0.170.0
         version: 0.170.0(@effect/platform-browser@4.1.0(effect@4.1.0))(effect@4.1.0)
+      foldkit-plus:
+        specifier: workspace:*
+        version: link:../../packages/plus
       playwright:
         specifier: ^1.64.1
         version: 1.64.1
@@ -897,6 +900,73 @@ importers:
       wrangler:
         specifier: 4.152.0
         version: 4.152.0(@cloudflare/workers-types@5.20261022.1)(@types/node@22.20.5)
+
+  examples/foldkit/domains-plus:
+    dependencies:
+      '@foldkit/ui':
+        specifier: 0.170.0
+        version: 0.170.0(effect@4.1.0)(foldkit@0.170.0(@effect/platform-browser@4.1.0(effect@4.1.0))(effect@4.1.0))
+      '@fontsource-variable/geist':
+        specifier: ^5.3.0
+        version: 5.3.0
+      effect:
+        specifier: ^4.1.0
+        version: 4.1.0
+      foldkit:
+        specifier: 0.170.0
+        version: 0.170.0(@effect/platform-browser@4.1.0(effect@4.1.0))(effect@4.1.0)
+      foldkit-bundle:
+        specifier: workspace:*
+        version: link:../../../packages/bundle
+      foldkit-entity:
+        specifier: workspace:*
+        version: link:../../../packages/entity
+      foldkit-media:
+        specifier: workspace:*
+        version: link:../../../packages/media
+      foldkit-mirror:
+        specifier: workspace:*
+        version: link:../../../packages/mirror
+      foldkit-mixins:
+        specifier: workspace:*
+        version: link:../../../packages/mixins
+      foldkit-mixins-ui:
+        specifier: workspace:*
+        version: link:../../../packages/mixins-ui
+      foldkit-primitives:
+        specifier: workspace:*
+        version: link:../../../packages/primitives
+      foldkit-remote:
+        specifier: workspace:*
+        version: link:../../../packages/remote
+      foldkit-remote-server:
+        specifier: workspace:*
+        version: link:../../../packages/remote-server
+      foldkit-site:
+        specifier: workspace:*
+        version: link:../../../packages/site
+      foldkit-ssr:
+        specifier: workspace:*
+        version: link:../../../packages/ssr
+      foldkit-surface:
+        specifier: workspace:*
+        version: link:../../../packages/surface
+      parse5:
+        specifier: ^8.0.1
+        version: 8.0.1
+    devDependencies:
+      '@foldkit/vite-plugin':
+        specifier: 0.29.0
+        version: 0.29.0(effect@4.1.0)(foldkit@0.170.0(@effect/platform-browser@4.1.0(effect@4.1.0))(effect@4.1.0))(redis@6.2.1(@opentelemetry/api@1.9.1))(vite@8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+      playwright:
+        specifier: ^1.64.1
+        version: 1.64.1
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+      vite:
+        specifier: 8.3.5
+        version: 8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
 
   examples/foldkit/form:
     dependencies:

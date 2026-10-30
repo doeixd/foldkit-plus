@@ -1,0 +1,12 @@
+{
+  "out": "src/client/iconData.ts",
+  "icons": {
+    "search": "lucide:search",
+    "close": "lucide:x",
+    "cart": "lucide:shopping-cart",
+    "check": "lucide:check",
+    "filter": "lucide:list-filter",
+    "chevronDown": "lucide:chevron-down",
+    "arrowUpRight": "lucide:arrow-up-right"
+  }
+}

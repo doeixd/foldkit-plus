@@ -61,7 +61,7 @@ const setOf = prefix => {
   return sets.get(prefix)
 }
 
-const specs = ['packages', 'examples']
+const specs = ['packages', 'examples', 'examples/foldkit']
   .flatMap(folder => readdirSync(join(root, folder)).map(name => join(root, folder, name)))
   .filter(dir => statSync(dir).isDirectory() && existsSync(join(dir, 'icons.json')))
 

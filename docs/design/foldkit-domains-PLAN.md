@@ -1,6 +1,7 @@
 # Reimplementing foldkit-domains with Foldkit Plus
 
-> **Status:** Proposed (2026-10-30). Nothing here is built. Written against
+> **Status:** Being built (2026-10-30): phases 0 and 1 are built; §8 records what
+> each phase built and where it departs from this plan. Written against
 > upstream [foldkit/foldkit-domains](https://github.com/foldkit/foldkit-domains)
 > at `c3041350`, copied unchanged to
 > [`examples/foldkit/domains`](../../examples/foldkit/domains/README.md), and this
@@ -358,3 +359,63 @@ without it, and the root checks green. The upstream copy stays untouched.
     `foldkit-remote-server` has no body-size option; the Worker entry has to
     bound the stream itself. The bound also has to grow: a read of the whole
     catalog is about 7 KB of names.
+
+## 8. Build log
+
+What each phase built, in
+[`examples/foldkit/domains-plus`](../../examples/foldkit/domains-plus/README.md),
+and where it departs from the plan above.
+
+**Phase 0, built.** Package, tsconfig, Vite config, the copied
+`shared/domain.ts`, `tld.ts`, `demoDomains.ts`, `domain.fixture.ts` and
+`client/domain/*`, `Surface.application`, the Site tree (one node; NotFound
+is `Site.parse`'s fallback), the theme and Slots, the landing page and the
+404. Tests: `test/landing.test.ts` (Scenes of the landing page and the 404,
+`/missing` parsing to NotFound, a sort table over the copied
+`filterAndSortDomains`) and `e2e/dev.e2e.ts` (the dev server serves `/`
+styled and resumes it; `/missing` answers 404). Departures:
+
+- **`foldkit-ssr` from phase 0, not phase 6.** The dev server answers `/remote`
+  (phase 2) through the same server entry that renders pages, so the entry is
+  `SSR.entry` from the start, with Foldkit's Vite plugin in its `ssr.build`
+  mode (`clientEntry`, `prerender: true`) as upstream uses it. Phase 6 keeps
+  the early-input work (`bootstrap.ts`, `rh.KeepTyped()`) and DevTools.
+- **The 404 status** is set on `SSR.entry`'s result, which has no status of
+  its own ([#364](https://github.com/doeixd/foldkit-plus/issues/364)).
+- **The page's styles ride in the document's head** (the document renderer's
+  `head`), not in the rendered root through `SSR.entry`'s `styles`: hydration
+  drops the root's `<style>`, and a page with no second render (the landing
+  page) stayed unstyled ([#365](https://github.com/doeixd/foldkit-plus/issues/365)).
+- **Icons through `pnpm icons`** (`icons.json` writes `src/client/iconData.ts`),
+  not `foldkit-media`'s Vite plugin: the unit tests draw the view, and the
+  root Vitest project has no icons plugin for Node. `scripts/icons.mjs` now
+  reads `examples/foldkit/*` too.
+- **The title** comes from `Site.titleOf` for the empty search and from the
+  Model's `query` otherwise, since the search text is not part of the route.
+
+**Phase 1, built.** `query` (what the box holds), `Mirror.url` keeping it in
+`?q=` (replaced, so typing makes no history), the `debounce` bundle moving
+`settledLabel` 150 ms after the last keystroke, Enter reading at once,
+Escape and the clear button emptying both at once, the search layout, the
+pending Top Results cards and the first 36 pending rows, and the invalid-label
+error. Tests: `test/search.test.ts` (keystrokes, the debounce's settle, the
+mirror's own write returning the same Model, back and forward,
+the page while typing) with `test/search.mutations.ts` (4 of 4 killed),
+and the e2e types, reloads, follows the brand link and goes back.
+Departures:
+
+- **No `Site.routing`.** It claims `ChangedUrl` and the application's own
+  `update` never sees it, but the port must: a `?q=` that arrives by back,
+  forward or a link (the debounce has not seen it) goes through the debounce
+  as a keystroke, while the mirror's own write coming back (the debounce
+  holds that text) changes nothing. The page handles `ClickedLink` with
+  `pushUrl`/`load` Commands and `ChangedUrl` itself, after the mirror's
+  wiring has read `?q=`.
+- **A guard deleted by mutation.** The debounce's `onOut` first read the
+  settled text only when it still equalled `query`; the mutation survived,
+  since the debounce already drops a timer whose text was typed over.
+- **The mirror's defaults** come from a hand-built empty Model passed as
+  `Mirror.url`'s `initial` (with the debounce's slice from its own `init`):
+  `Surface.application` takes an `initial` only beside `update`, and the
+  update is assembled from the mirror's wiring.
+
