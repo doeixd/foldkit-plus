@@ -615,6 +615,7 @@ rows })`), unknown where it lacks one. No list orders by one. `Entity.sets`
 
 ## See also
 
+- https://github.com/doeixd/foldkit-plus/tree/main/examples/chirp (a whole app's domain in `src/domain.ts`: Users, Posts and Likes, derived counts, the checks its tables compile)
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/entity/README.md
 - https://github.com/doeixd/foldkit-plus/blob/main/docs/operators.md (operators end to end)
 - https://github.com/doeixd/foldkit-plus/tree/main/examples/entity

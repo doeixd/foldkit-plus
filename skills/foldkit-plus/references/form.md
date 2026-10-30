@@ -392,6 +392,7 @@ PostForm.rows(PostForm.initial, 'comments') // [{ id, model }], each a Model of 
 
 ## See also
 
+- https://github.com/doeixd/foldkit-plus/tree/main/examples/chirp (the compose box in `src/compose.ts`, the editor in `src/editor.ts`)
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/form/README.md
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/mixins-form/README.md
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/form-recipes/README.md

@@ -14,16 +14,14 @@ application to agents, servers, other devices, the URL, and design systems
 **without adding a second place to keep state**. The application stays one state
 machine: a Schema-typed **Model**, a **Message** union, and one pure **`update`**.
 
-Every package keeps that rule:
-
-- an agent can only send Messages `update` already handles;
-- server data lives in the Model and is reduced by `update`;
-- replicas replay the same Messages through the same `update`;
-- the URL and storage mirror a slice of the Model, never own it;
-- views are extended from outside without forking them.
+Every package keeps that rule: an agent sends only Messages `update` handles;
+server data and replicas' edits are reduced by `update`; the URL and storage
+mirror a slice of the Model, never own it; views are extended from outside.
 
 Targets Foldkit `0.169.x` and Effect 4, tested on `effect@4.0.5`. APIs are
-`0.x` and may break between minors.
+`0.x` and may break between minors. Two whole apps show the packages together:
+[`examples/chirp`](https://github.com/doeixd/foldkit-plus/tree/main/examples/chirp), a Twitter clone with one file per package, and
+[`examples/reference`](https://github.com/doeixd/foldkit-plus/tree/main/examples/reference), the recommended stack on one Worker over D1.
 
 ## Pick the package by who owns the data
 
@@ -54,16 +52,15 @@ Targets Foldkit `0.169.x` and Effect 4, tested on `effect@4.0.5`. APIs are
 | Every package above in one install, each under a subpath, and a project-specific setup guide | nothing: it re-exports the packages | `foldkit-plus` | this file |
 | The route, a selection, a transient error | the local Model (topology in `foldkit-site`) | none: plain Foldkit | — |
 
-Remote and Sync both keep writes across a reload, for different owners:
-Remote's `durable` outbox holds a write until the server judges it, and the
-server's answer is the truth; Sync's log holds edits the client authored, which
-every replica replays in the order the log decides.
+Remote and Sync both keep writes across a reload: Remote's `durable` outbox
+holds a write until the server judges it, and the answer is the truth; Sync's
+log holds client-authored edits every replica replays in the log's order.
 
-Read only the reference for the package at hand. To find one symbol or topic,
-`npx foldkit-plus docs Data.preload` (or `"optimistic delete"`) prints the best
-sections of the installed READMEs and this skill, with the symbol's declaration
-and file; `docs --list remote` prints an outline. An application's `AGENTS.md`
-takes the rules and traps in [agents-md.md](references/agents-md.md).
+Read only the reference for the package at hand; its first line names the
+versions it was checked against. For one symbol or topic in the installed
+release, `npx foldkit-plus docs Data.preload` (or `"optimistic delete"`) prints
+the best README sections with the declaration; `docs --list remote`, an outline.
+An application's `AGENTS.md` takes the block in [agents-md.md](references/agents-md.md).
 
 ## How they connect
 
@@ -74,9 +71,7 @@ Foldkit app (Model · Message · update)
        ├─ foldkit-remote ─ foldkit-remote-server ─ foldkit-remote-drizzle
        ├─ foldkit-sync ─ foldkit-durable (server journal)
        │    └─ foldkit-sync/remote: edits to server rows (foldkit-sync/entity) drawn as foldkit-remote overlays
-       ├─ foldkit-mirror
-       ├─ foldkit-site
-       └─ foldkit-mixins-surface
+       └─ foldkit-mirror · foldkit-site · foldkit-mixins-surface
 foldkit-mixins, foldkit-bundle (standalone) ─ their -surface packages join Surface; -ui, -form, -crud draw the others
 foldkit-entity (standalone) ─ the domain, read by remote, remote-drizzle, form, crud and cms
 foldkit-guard ─ rules over foldkit-entity, enforced by its subpaths in remote-server, -drizzle, sync and agent
@@ -87,9 +82,7 @@ foldkit-crud, foldkit-cms (+ -drizzle) ─ join form, remote and entity: editors
 `foldkit-surface` is the shared seam: most packages consume a Projection (what
 to read) and a Message subset (what may happen).
 
-## The one-screen example
-
-Surface is where almost every integration starts:
+## The one-screen example: Surface, where almost every integration starts
 
 ```ts
 import { Schema } from 'effect'
@@ -125,40 +118,32 @@ const TodoList = App.surface('TodoList', {
 })
 ```
 
-From here: `Sync.forApplication(App)`, `Agent.forApplication(App)`,
-`Remote.make({ model: App.model.<field>, … })`, `Mirror.url(App, …)`, and
-`SurfaceView.define(TodoList, …)` to draw it.
+From here: `Sync.forApplication(App)`, `Agent.forApplication(App)`, `Remote.make({ model:
+App.model.<field>, … })`, `Mirror.url(App, …)`, and `SurfaceView.define(TodoList, …)`.
 
 ## Rules that apply to every package
 
-- **One owner per datum.** Do not store the same fact in the Model and in a
-  package-side cache, a URL store, or a second reducer. Pick the owner from the
-  table above.
+- **One owner per datum.** Never keep a fact in the Model and in a package-side
+  cache, a URL store, or a second reducer. Pick the owner from the table.
 - **Rendering performs no I/O.** Fetching, syncing, and mirroring run in
   Commands and Subscriptions derived from the Model.
-- **Join integrations through one wiring list.** `Page.assemble` takes bundle
-  placements and integration wirings (`Data.wiring(…)`, `….wiring('UrlChanged')`,
-  contract-only `….wiring()`); routing, startup Commands, Subscriptions, and the
-  Module derive from the list. See `bundle.md` and the integration's page.
+- **Join integrations through one wiring list.** `Page.assemble` takes placements
+  and wirings (`Data.wiring(…)`, `….wiring('UrlChanged')`, `….wiring()`); routing,
+  startup Commands, Subscriptions and the Module derive from it (`bundle.md`).
 - **Install** with `npx --legacy-peer-deps foldkit-plus setup`, which prints the
-  steps for the project it runs in: pins for every Effect package at 4.0.5
-  (Foldkit names 4.0.0 exactly), `pnpm add --save-exact effect@4.0.5
-  foldkit@0.169.0 foldkit-plus` or its manager's form, and a `.gitattributes`
-  that keeps LF where none applies. With `foldkit-plus`, import every package
-  through its subpath (`foldkit-plus/remote-server`, `foldkit-plus/mixins/app`);
-  the snippets here name the packages themselves, which resolve only where each
-  is installed on its own. Adapters needing a library of their own
+  steps for its project: Effect pins at 4.0.5 (Foldkit names 4.0.0 exactly),
+  the `add` command, a `.gitattributes`. With `foldkit-plus`, import each
+  package through its subpath (`foldkit-plus/remote-server`); the snippets
+  name each package itself, as installed alone. Adapters with a library of their own
   (`foldkit-auth`, `foldkit-react`, the Drizzle packages, `foldkit-mixins-ui`,
-  `-richtext-code-shiki`, `-agent-native`) are added beside it.
-  `foldkit-durable` needs Node >= 22.
-- **A new application** starts with the user, not with code: the brief, the
-  look, the domain in rounds the user closes, then a plan they agree to. Follow
-  [greenfield.md](references/greenfield.md).
+  `-richtext-code-shiki`, `-agent-native`) go beside it. `foldkit-durable`
+  needs Node >= 22.
+- **A new application** starts with the user, not code: brief, look, domain
+  rounds, then an agreed plan. Follow [greenfield.md](references/greenfield.md).
 
 ## More
 
 - Repository and guides: https://github.com/doeixd/foldkit-plus
 - Examples, each with a pinned transcript: https://github.com/doeixd/foldkit-plus/tree/main/examples
-- The recommended stack end to end (one Worker over D1: Yielded Auth, Remote, server-rendered pages): https://github.com/doeixd/foldkit-plus/tree/main/examples/reference
 - How failures work across the packages (who owns each, what the reader sees, `Diagnostics`): https://github.com/doeixd/foldkit-plus/blob/main/docs/errors.md
 - Versions and publish matrix: https://github.com/doeixd/foldkit-plus/blob/main/docs/releases.md

@@ -1137,6 +1137,7 @@ handler's write and raw SQL are held to the invariants and move the revision too
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/remote-server/README.md
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/remote-drizzle/README.md
 - https://github.com/doeixd/foldkit-plus/blob/main/docs/remote.md
+- https://github.com/doeixd/foldkit-plus/tree/main/examples/chirp (a whole app: declared writes and the outbox in `src/app.ts`, the server in `src/server/server.ts`)
 - https://github.com/doeixd/foldkit-plus/tree/main/examples/remote (asserted client trace)
 - https://github.com/doeixd/foldkit-plus/tree/main/examples/kitchen-sink (real server + Drizzle + liveHub)
 - https://github.com/doeixd/foldkit-plus/tree/main/examples/cloudflare (one worker: Remote over D1, Sync through a DO, polling live inside the subscriber's request; the Pages site subscribes to that stream — Entity, Form, Crud, optimistic Remote mutations)

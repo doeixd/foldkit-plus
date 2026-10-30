@@ -293,4 +293,8 @@ supplied: true } }`). Select `may: true` and read it with
   until it is answered; an explained refusal is the agent error's message);
   `Agent.forApplication(App).withPrincipal(G.Principal)`.
 
+Worked app: [examples/chirp](https://github.com/doeixd/foldkit-plus/tree/main/examples/chirp)'s
+`src/guard.ts` (a post is written by its author or an admin), enforced in
+`src/server/server.ts`.
+
 See the [README](https://github.com/doeixd/foldkit-plus/blob/main/packages/guard/README.md).

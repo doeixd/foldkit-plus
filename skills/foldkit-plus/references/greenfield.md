@@ -15,6 +15,15 @@ so a later session (or another agent) picks up where this one stopped.
   ask      design     create        ask, record     read, propose  agree     on "go"
 ```
 
+Two whole applications show where the phases lead; read them before phase 5.
+[`examples/chirp`](https://github.com/doeixd/foldkit-plus/tree/main/examples/chirp)
+is a small Twitter clone with one file per package: the domain in
+`src/domain.ts`, the guards in `src/guard.ts`, the server in
+`src/server/server.ts`, Remote and the outbox in `src/app.ts`, the forms in
+`src/compose.ts` and `src/editor.ts`, the routes in `src/site.ts`, the look
+in `src/style.ts`. [`examples/reference`](https://github.com/doeixd/foldkit-plus/tree/main/examples/reference)
+is the recommended stack on one Worker over D1 (phase 6).
+
 ## 1. The brief
 
 Ask, in one message, and wait for the answers:
@@ -340,6 +349,93 @@ src/style.ts    the theme from phase 2
 ```
 
 On the Wrangler path, `wrangler.toml` takes the place of `alchemy.run.ts`.
+
+### The Worker: bundle, migrations, local stack, deploy
+
+How `examples/reference` and `examples/cloudflare` build and run their
+Worker; follow it on the Wrangler path. One `wrangler.toml` is read by the
+tests, `pnpm dev` and the deploy alike, so the local Worker cannot drift from
+the deployed one:
+
+```toml
+name = "my-app"
+main = "dist/worker.js"   # written by the bundle step below
+no_bundle = true          # Wrangler uploads that bundle as is
+compatibility_date = "2026-07-30"
+compatibility_flags = ["nodejs_compat"]   # Yielded's password hashing
+
+[assets]                  # the page's `vite build`, served by the Worker
+directory = "dist/client"
+binding = "ASSETS"
+run_worker_first = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "my-app"
+database_id = "00000000-0000-0000-0000-000000000000"   # from `wrangler d1 create`
+migrations_dir = "migrations"
+```
+
+- **Bundle.** `Stack` from `foldkit-plus/testing/workers` (with `wrangler`
+  and `esbuild` installed as dev dependencies) bundles the entry with esbuild
+  as ESM for the browser platform, keeps `cloudflare:workers` and `node:*`
+  external for `nodejs_compat`, and copies each imported `.wasm` (Yielded's
+  Argon2) beside the script, where `no_bundle` Wrangler loads it as a compiled
+  module. The tests and the deploy use one bundle:
+
+  ```ts
+  // src/stack.ts
+  import { Stack } from 'foldkit-plus/testing/workers'
+  import { fileURLToPath } from 'node:url'
+
+  interface WorkerEnv {
+    readonly ORIGIN: string
+  }
+
+  const here = (file: string) => fileURLToPath(new URL(file, import.meta.url))
+  const worker = { wrangler: here('../wrangler.toml'), entry: here('./worker.ts') }
+
+  /** The Worker on a local workerd, told the origin it answers at. */
+  export const startStack = () =>
+    Stack.start<WorkerEnv>({ ...worker, vars: origin => ({ ORIGIN: origin }) })
+
+  /** Writes `dist/worker.js`, where `main` says, for `wrangler deploy`. */
+  export const writeDeployBundle = () => Stack.writeBundle(worker)
+  ```
+
+  The scripts: `"build": "vite build && tsx src/bundle.ts"` (a file that
+  awaits `writeDeployBundle()`) and `"dev": "tsx src/dev.ts"` (starts the
+  stack and `stack.watch(…)`s it).
+- **Migrations.** Numbered SQL files in `migrations/`, written from the code
+  rather than by hand: the tables' `checkConstraints`, a `revisionTrigger`
+  where a guarded writer pins a revision, `rowChangeLog` for `pollLive`, the
+  writer's ledger table, and Yielded's tables from its storage schema. A test
+  holds each file to what the code returns (`examples/reference`'s
+  `test/migrations.test.ts`), so a changed rule fails there, not in a deployed
+  database. `Stack.start` applies them to a fresh D1 on every start.
+- **The compatibility date** is one date for every run, since all read
+  `wrangler.toml`. Without one, Miniflare runs an old runtime (it lacked
+  `URL.canParse`, which the auth resolver needs). `Stack.start` refuses a date
+  newer than the installed workerd knows: move `wrangler` and `miniflare`
+  together to raise it.
+- **The local stack.** `Stack.start` runs the Worker on a real workerd over
+  real HTTP with its bindings; `stack.env()` reads them again after each swap,
+  since a reload retires the old handles ("poisoned stub"). Test a D1 write
+  there, not on Node's SQLite: D1 has no transactions, so the ledger writes in
+  a batch only workerd runs.
+- **Deploy**, from the app's folder, one Wrangler command at a time (they
+  share one login), after confirming the account and the Worker's name:
+
+  ```sh
+  pnpm build
+  wrangler d1 create my-app        # put its database_id in wrangler.toml
+  wrangler d1 migrations apply my-app --remote
+  wrangler secret put UPLOAD_TOKEN     # each secret the Worker reads, if any
+  wrangler deploy
+  ```
+
+  Set `ORIGIN` (where the deploy serves) in `[vars]` first: the reference
+  Worker answers every scripted call against that origin.
 
 If the user picks another host or auth, drop the pieces it replaces and record
 the choice in `plan.md`: what changes is the server entry, the deployment and
