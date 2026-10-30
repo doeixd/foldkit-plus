@@ -197,3 +197,31 @@ jobs:
       # what a release actually publishes. It builds the packages alone, as a
       # release does; `demo` builds the examples.
       - run: pnpm pack:check
+
+  # The scaffolds `pack` does not make, each in a job of its own, since a
+  # scaffold's install takes a minute: setup's printed scaffold command, its
+  # install step, then the scaffold's own typecheck and lint, from the tarballs.
+  scaffold:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { rendering: spa, manager: npm }
+          - { rendering: ssg, manager: npm }
+          - { rendering: ssr, manager: pnpm }
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm build:packages && pnpm -r --filter "./packages/*" exec pnpm pack
+
+      - run: node scripts/published-setup.mjs --rendering ${{ matrix.rendering }} --manager ${{ matrix.manager }}

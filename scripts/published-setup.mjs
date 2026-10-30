@@ -6,18 +6,26 @@
  * 1. The CLI from its tarball, alone, beneath an ancestor `node_modules/effect`
  *    that throws when loaded: npx with `--legacy-peer-deps` installs no peer,
  *    and Node would walk up to it.
- * 2. In an empty folder the guide prints the scaffold command: run it for ssr
- *    with npm, as printed.
+ * 2. In an empty folder the guide prints the scaffold commands: run the one for
+ *    the rendering mode, with the package manager, as printed.
  * 3. In the scaffold, every npm step the guide prints: the `package.json`
  *    fields, the install line, then each adapter's line. Each must exit 0 with
  *    no ERESOLVE, even as a warning, and leave one `effect` and one `foldkit`,
  *    with nothing of Effect's, Foldkit's or ours that `npm ls` calls invalid.
+ *    With pnpm, the pins and the install line, as in 5.
+ * 4. The scaffold's own `typecheck` and `lint` scripts, over what it drew and
+ *    a module importing every entry point of `foldkit-plus`, so our types meet
+ *    the scaffold's compiler options and its Effect.
+ * 5. With no options, pnpm's pins and install lines also run in a standalone
+ *    project and a workspace member, over a stand-in manifest.
  *
  * A step names our packages bare; this runs it with each one's tarball, and
  * points every other reference to one of ours at its tarball with `overrides`,
- * so an unpublished version resolves.
+ * so an unpublished version resolves. The adapters' lines and the stand-ins
+ * run only for the default, an ssr scaffold with npm; the `pack` CI job runs
+ * that, and a matrix job each other pair.
  *
- *   node scripts/published-setup.mjs [tarball-dir]
+ *   node scripts/published-setup.mjs [--rendering spa|ssg|ssr] [--manager npm|pnpm] [tarball-dir]
  */
 import { spawnSync } from 'node:child_process'
 import {
@@ -37,9 +45,21 @@ import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 
+const args = process.argv.slice(2)
+const option = (name, values) => {
+  const at = args.indexOf(name)
+  if (at === -1) return values[0]
+  const [value] = args.splice(at, 2).slice(1)
+  if (!values.includes(value)) throw new Error(`${name} takes ${values.join(', ')}`)
+  return value
+}
+const rendering = option('--rendering', ['ssr', 'spa', 'ssg'])
+const manager = option('--manager', ['npm', 'pnpm'])
+const full = rendering === 'ssr' && manager === 'npm'
+
 /** Each of our packages' name, to its tarball. */
 const tarballs = new Map()
-const given = process.argv[2]
+const given = args[0]
 if (given === undefined) {
   for (const dir of readdirSync(join(root, 'packages'))) {
     const manifest = join(root, 'packages', dir, 'package.json')
@@ -116,123 +136,133 @@ const setup = (cwd, agent = env.npm_config_user_agent) => {
   return result.stdout
 }
 
+const pnpmAgent = `pnpm/10.32.1 npm/? node/${process.version}`
+const agent = manager === 'pnpm' ? pnpmAgent : env.npm_config_user_agent
+
 // 2. The scaffold.
 const empty = join(home, 'new')
 mkdirSync(empty)
-const scaffold = setup(empty)
+const printed = new RegExp(
+  `^npx create-foldkit-app@\\S+ .*--rendering ${rendering === 'spa' ? 'spa' : '<ssg\\|ssr>'} .*--package-manager ${manager}$`,
+)
+const scaffold = setup(empty, agent)
   .split('\n')
-  .find(line =>
-    /^npx create-foldkit-app@\S+ .*--rendering <ssg\|ssr> --package-manager npm$/.test(line),
-  )
-if (scaffold === undefined) fail('the guide prints no ssr scaffold command for npm')
-const created = run(scaffold.replace('<name>', 'app').replace('<ssg|ssr>', 'ssr'), empty)
+  .find(line => printed.test(line))
+if (scaffold === undefined) fail(`the guide prints no ${rendering} scaffold command for ${manager}`)
+const created = run(scaffold.replace('<name>', 'app').replace('<ssg|ssr>', rendering), empty)
 if (created.status !== 0) fail(`${scaffold} failed:\n${created.output}`)
 const app = join(empty, 'app')
 
-// 3. The guide's npm steps.
-const guide = setup(app)
-const install = guide.split('\n## 3.')[0].split('\n## 2. Install\n')[1]
-if (install === undefined) fail('the guide has no install step')
-const fields = /```json\n([\s\S]*?)\n```/.exec(install)
-const commands = [
-  ...install.matchAll(/^(npm install [^`\n]+)$/gm),
-  ...install.matchAll(/`(npm install foldkit-[^`]+)`/g),
-].map(match => match[1])
-if (commands.length < 2) fail(`the install step names too few npm commands:\n${install}`)
-
-const manifestPath = join(app, 'package.json')
-const readManifest = () => JSON.parse(readFileSync(manifestPath, 'utf8'))
-// Merged a field at a time, as told: the block's `dependencies` join the
-// project's rather than replace them.
-if (fields !== null) {
-  const manifest = readManifest()
-  for (const [field, value] of Object.entries(JSON.parse(fields[1])))
-    manifest[field] = { ...manifest[field], ...value }
-  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2))
-}
-const ownOverrides = readManifest().overrides ?? {}
-
-const direct = new Set()
-for (const command of commands) {
-  const words = command.split(' ')
-  for (const word of words) if (tarballs.has(word)) direct.add(word)
-  // npm refuses an override of a direct dependency, so ours that are, or
-  // become so here, are installed by tarball instead.
-  const manifest = readManifest()
-  manifest.overrides = {
-    ...ownOverrides,
-    ...Object.fromEntries(
-      [...tarballs]
-        .filter(([name]) => !direct.has(name))
-        .map(([name, file]) => [name, `file:${file}`]),
-    ),
-  }
-  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2))
-  const local = words
-    .map(word => (tarballs.has(word) ? `"file:${tarballs.get(word)}"` : word))
-    .join(' ')
-  const installed = run(local, app)
-  if (installed.status !== 0 || installed.output.includes('ERESOLVE'))
-    fail(`${command} failed (exit ${installed.status}):\n${installed.output}`)
-  // Only what Effect, Foldkit and ours meet counts: a library an adapter brings
-  // may leave an unrelated optional peer of its own unmet (i18next's TypeScript).
-  const listed = JSON.parse(run('npm ls --all --json', app).stdout)
-  const problems = (listed.problems ?? []).filter(problem =>
-    /^\w+: (?:effect|@effect\/[^@\s]+|foldkit[^@\s]*|@foldkit\/[^@\s]+)@/.test(problem),
+/** 4. The scaffold's own checks, over what it drew and every entry point of ours it now holds. */
+const checkScaffold = () => {
+  const plus = JSON.parse(
+    readFileSync(join(app, 'node_modules', 'foldkit-plus', 'package.json'), 'utf8'),
   )
-  if (problems.length > 0) fail(`npm ls refuses the tree after ${command}:\n${problems.join('\n')}`)
-  const versions = new Map()
-  const walk = node => {
-    for (const [name, child] of Object.entries(node.dependencies ?? {})) {
-      if (name === 'effect' || name === 'foldkit')
-        versions.set(name, new Set([...(versions.get(name) ?? []), child.version]))
-      walk(child)
-    }
-  }
-  walk(listed)
-  for (const [name, found] of versions)
-    if (found.size !== 1) fail(`after ${command} the tree holds ${name} ${[...found].join(', ')}`)
-  console.log(`published-setup: ${command}`)
-}
-
-console.log(`published-setup: npm runs every step setup prints, for an ssr scaffold`)
-
-// 4. pnpm, which reads `overrides` and `peerDependencyRules` only at a
-// workspace's root (#280): a standalone project, and a workspace member.
-const pnpmCase = (name, workspace) => {
-  const top = join(home, name)
-  const project = join(top, 'app')
-  mkdirSync(project, { recursive: true })
-  if (workspace) {
-    writeFileSync(join(top, 'package.json'), JSON.stringify({ name: 'top', private: true }))
-    writeFileSync(join(top, 'pnpm-workspace.yaml'), 'packages:\n  - app\n')
-  }
-  // The Effect packages an ssr scaffold names, at the release Foldkit names.
+  const entries = Object.keys(plus.exports).map(subpath =>
+    subpath === '.' ? 'foldkit-plus' : `foldkit-plus${subpath.slice(1)}`,
+  )
   writeFileSync(
-    join(project, 'package.json'),
-    JSON.stringify({
-      name: 'app',
-      private: true,
-      dependencies: {
-        effect: '4.0.0',
-        '@effect/platform-browser': '4.0.0',
-        '@effect/platform-node': '4.0.0',
-        foldkit: '0.169.0',
-      },
-    }),
+    join(app, 'src', 'foldkitPlus.ts'),
+    entries
+      .map(
+        (entry, i) =>
+          `import type * as M${i} from '${entry}'\nexport type Entry${i} = typeof M${i}\n`,
+      )
+      .join(''),
   )
-  const text = setup(project, `pnpm/10.32.1 npm/? node/${process.version}`)
-  const step = text.split('\n## 3.')[0].split('\n## 2. Install\n')[1] ?? ''
+  for (const script of ['typecheck', 'lint']) {
+    const checked = run(`${manager} run ${script}`, app)
+    if (checked.status !== 0)
+      fail(`${manager} run ${script} fails in the scaffold:\n${checked.output}`)
+    console.log(`published-setup: ${manager} run ${script}, over ${entries.length} entry points`)
+  }
+}
+
+// 3. The guide's npm steps.
+const npmSteps = () => {
+  const guide = setup(app)
+  const install = guide.split('\n## 3.')[0].split('\n## 2. Install\n')[1]
+  if (install === undefined) fail('the guide has no install step')
+  const fields = /```json\n([\s\S]*?)\n```/.exec(install)
+  const commands = [
+    ...install.matchAll(/^(npm install [^`\n]+)$/gm),
+    ...(full ? install.matchAll(/`(npm install foldkit-[^`]+)`/g) : []),
+  ].map(match => match[1])
+  if (commands.length < (full ? 2 : 1))
+    fail(`the install step names too few npm commands:\n${install}`)
+
+  const manifestPath = join(app, 'package.json')
+  const readManifest = () => JSON.parse(readFileSync(manifestPath, 'utf8'))
+  // Merged a field at a time, as told: the block's `dependencies` join the
+  // project's rather than replace them.
+  if (fields !== null) {
+    const manifest = readManifest()
+    for (const [field, value] of Object.entries(JSON.parse(fields[1])))
+      manifest[field] = { ...manifest[field], ...value }
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2))
+  }
+  const ownOverrides = readManifest().overrides ?? {}
+
+  const direct = new Set()
+  for (const command of commands) {
+    const words = command.split(' ')
+    for (const word of words) if (tarballs.has(word)) direct.add(word)
+    // npm refuses an override of a direct dependency, so ours that are, or
+    // become so here, are installed by tarball instead.
+    const manifest = readManifest()
+    manifest.overrides = {
+      ...ownOverrides,
+      ...Object.fromEntries(
+        [...tarballs]
+          .filter(([name]) => !direct.has(name))
+          .map(([name, file]) => [name, `file:${file}`]),
+      ),
+    }
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2))
+    const local = words
+      .map(word => (tarballs.has(word) ? `"file:${tarballs.get(word)}"` : word))
+      .join(' ')
+    const installed = run(local, app)
+    if (installed.status !== 0 || installed.output.includes('ERESOLVE'))
+      fail(`${command} failed (exit ${installed.status}):\n${installed.output}`)
+    // Only what Effect, Foldkit and ours meet counts: a library an adapter brings
+    // may leave an unrelated optional peer of its own unmet (i18next's TypeScript).
+    const listed = JSON.parse(run('npm ls --all --json', app).stdout)
+    const problems = (listed.problems ?? []).filter(problem =>
+      /^\w+: (?:effect|@effect\/[^@\s]+|foldkit[^@\s]*|@foldkit\/[^@\s]+)@/.test(problem),
+    )
+    if (problems.length > 0)
+      fail(`npm ls refuses the tree after ${command}:\n${problems.join('\n')}`)
+    const versions = new Map()
+    const walk = node => {
+      for (const [name, child] of Object.entries(node.dependencies ?? {})) {
+        if (name === 'effect' || name === 'foldkit')
+          versions.set(name, new Set([...(versions.get(name) ?? []), child.version]))
+        walk(child)
+      }
+    }
+    walk(listed)
+    for (const [name, found] of versions)
+      if (found.size !== 1) fail(`after ${command} the tree holds ${name} ${[...found].join(', ')}`)
+    console.log(`published-setup: ${command}`)
+  }
+  console.log(`published-setup: npm runs every step setup prints, for an ${rendering} scaffold`)
+}
+
+// pnpm reads `overrides` and `peerDependencyRules` only at a workspace's root
+// (#280), which is `top`: the project itself, unless a workspace holds it.
+const pnpmSteps = (name, project, top, adapters) => {
+  const step = setup(project, pnpmAgent).split('\n## 3.')[0].split('\n## 2. Install\n')[1] ?? ''
   const into = /first merge this into `([^`]+)`/.exec(step)?.[1]
   const block = /```(json|yaml)\n([\s\S]*?)\n```/.exec(step)
   if (into === undefined || block === null) fail(`${name}: the guide gives pnpm no pins:\n${step}`)
   const target = join(project, into)
-  const wanted = workspace ? join(top, 'pnpm-workspace.yaml') : join(project, 'package.json')
-  if (target !== wanted) fail(`${name}: the guide pins in ${target}, where pnpm reads ${wanted}`)
+  const read = [join(top, 'package.json'), join(top, 'pnpm-workspace.yaml')]
+  if (!read.includes(target)) fail(`${name}: the guide pins in ${target}, not at the root ${top}`)
 
   const commands = [
     /^(pnpm add [^`\n]+)$/m.exec(step)?.[1],
-    /`(pnpm add foldkit-auth [^`]+)`/.exec(step)?.[1],
+    ...(adapters ? [/`(pnpm add foldkit-auth [^`]+)`/.exec(step)?.[1]] : []),
   ]
   if (commands.includes(undefined)) fail(`${name}: the guide names no pnpm install line`)
   const direct = new Set(commands.flatMap(command => command.split(' ')))
@@ -263,13 +293,12 @@ const pnpmCase = (name, workspace) => {
       .split('\n')
       .filter(line => /unmet peer (?:effect|@effect\/|foldkit|@foldkit\/)/.test(line))
     if (unmet.length > 0) fail(`${name}: ${command} left peers unmet:\n${unmet.join('\n')}`)
-    const store = readdirSync(join(workspace ? top : project, 'node_modules', '.pnpm'))
+    // The lockfile, not `node_modules/.pnpm`, which keeps what the scaffold's
+    // own install resolved (effect 4.0.0) after the pins moved past it.
+    const lock = readFileSync(join(top, 'pnpm-lock.yaml'), 'utf8')
     for (const each of ['effect', 'foldkit']) {
       const versions = new Set(
-        store
-          .map(entry => /^(.+?)@([^_]+)/.exec(entry))
-          .filter(found => found?.[1] === each)
-          .map(found => found[2]),
+        [...lock.matchAll(new RegExp(`^  '?${each}@(\\d[^(:'\\s]*)`, 'gm'))].map(found => found[1]),
       )
       if (versions.size !== 1)
         fail(`${name}: after ${command} pnpm holds ${each} ${[...versions].join(', ')}`)
@@ -277,8 +306,40 @@ const pnpmCase = (name, workspace) => {
     console.log(`published-setup: ${name}: ${command}`)
   }
 }
-pnpmCase('pnpm-standalone', false)
-pnpmCase('pnpm-workspace', true)
+
+if (manager === 'npm') npmSteps()
+else pnpmSteps('pnpm-scaffold', app, app, false)
+checkScaffold()
+
+// 5. pnpm's steps over a stand-in: a standalone project, and a workspace member.
+const pnpmCase = (name, workspace) => {
+  const top = join(home, name)
+  const project = join(top, 'app')
+  mkdirSync(project, { recursive: true })
+  if (workspace) {
+    writeFileSync(join(top, 'package.json'), JSON.stringify({ name: 'top', private: true }))
+    writeFileSync(join(top, 'pnpm-workspace.yaml'), 'packages:\n  - app\n')
+  }
+  // The Effect packages an ssr scaffold names, at the release Foldkit names.
+  writeFileSync(
+    join(project, 'package.json'),
+    JSON.stringify({
+      name: 'app',
+      private: true,
+      dependencies: {
+        effect: '4.0.0',
+        '@effect/platform-browser': '4.0.0',
+        '@effect/platform-node': '4.0.0',
+        foldkit: '0.169.0',
+      },
+    }),
+  )
+  pnpmSteps(name, project, workspace ? top : project, true)
+}
+if (full) {
+  pnpmCase('pnpm-standalone', false)
+  pnpmCase('pnpm-workspace', true)
+  console.log('published-setup: pnpm runs them too, in a standalone project and a workspace member')
+}
 
 rmSync(work, { recursive: true, force: true })
-console.log('published-setup: pnpm runs them too, in a standalone project and a workspace member')
