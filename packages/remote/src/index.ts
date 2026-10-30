@@ -4132,8 +4132,8 @@ const bindDomain = <
                 ? root
                 : { ...root, ages: true },
             ),
-            { connections: [...keptConnections] },
-          ),
+          }
+        },
         dependenciesToStream: (current: RetentionRoots) =>
           Stream.fromEffect(
             Effect.succeed<RemoteMessage>({ _tag: 'RetentionChanged', roots: current }).pipe(
