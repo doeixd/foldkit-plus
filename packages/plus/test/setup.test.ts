@@ -112,7 +112,7 @@ describe('setupGuide', () => {
     )
     // A bare name would install the `latest` tag, an older Yielded beta.
     expect(guide(Option.none(), 'pnpm')).toContain(
-      'pnpm add foldkit-auth @yielded/auth@0.1.0-beta.43',
+      'pnpm add foldkit-auth @yielded/auth@0.1.0-beta.47',
     )
   })
 

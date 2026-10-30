@@ -18,7 +18,7 @@ Every package keeps that rule: an agent sends only Messages `update` handles;
 server data and replicas' edits are reduced by `update`; the URL and storage
 mirror a slice of the Model, never own it; views are extended from outside.
 
-Targets Foldkit `0.169.x` and Effect 4, tested on `effect@4.0.5`. APIs are
+Targets Foldkit `0.170.x` and Effect 4.1, tested on `effect@4.1.0`. APIs are
 `0.x` and may break between minors. Two whole apps show the packages together:
 [`examples/chirp`](https://github.com/doeixd/foldkit-plus/tree/main/examples/chirp), a Twitter clone with one file per package, and
 [`examples/reference`](https://github.com/doeixd/foldkit-plus/tree/main/examples/reference), the recommended stack on one Worker over D1.
@@ -131,7 +131,7 @@ App.model.<field>, … })`, `Mirror.url(App, …)`, and `SurfaceView.define(Todo
   and wirings (`Data.wiring(…)`, `….wiring('UrlChanged')`, `….wiring()`); routing,
   startup Commands, Subscriptions and the Module derive from it (`bundle.md`).
 - **Install** with `npx --legacy-peer-deps foldkit-plus setup`, which prints the
-  steps for its project: Effect pins at 4.0.5 (Foldkit names 4.0.0 exactly),
+  steps for its project: Effect pins at 4.1.0 (Foldkit takes `~4.1.0`),
   the `add` command, a `.gitattributes`. With `foldkit-plus`, import each
   package through its subpath (`foldkit-plus/remote-server`); the snippets
   name each package itself, as installed alone. Adapters with a library of their own

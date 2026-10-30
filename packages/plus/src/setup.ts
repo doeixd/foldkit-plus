@@ -45,11 +45,11 @@ const REPOSITORY = 'https://github.com/doeixd/foldkit-plus'
 
 /**
  * The `create-foldkit-app` release whose templates pin the Foldkit this
- * release needs (0.40.0 installs `foldkit`, `@foldkit/ui` and `@foldkit/devtools`
- * 0.169.0, `@foldkit/vite-plugin` 0.28.0 and `effect` 4.0.0). A release that
+ * release needs (0.41.0 installs `foldkit`, `@foldkit/ui` and `@foldkit/devtools`
+ * 0.170.0, `@foldkit/vite-plugin` 0.29.0 and `effect` 4.1.0). A release that
  * moves the `foldkit` peer moves this with it.
  */
-export const SCAFFOLDER = 'create-foldkit-app@0.40.0'
+export const SCAFFOLDER = 'create-foldkit-app@0.41.0'
 
 const GREENFIELD = `${REPOSITORY}/blob/main/skills/foldkit-plus/references/greenfield.md`
 const AGENTS_BLOCK = `${REPOSITORY}/blob/main/skills/foldkit-plus/references/agents-md.md`
@@ -181,7 +181,7 @@ export const adapters: ReadonlyArray<{
   },
   {
     name: 'foldkit-auth',
-    libraries: ['@yielded/auth@0.1.0-beta.43'],
+    libraries: ['@yielded/auth@0.1.0-beta.47'],
     when: 'sign-in and sessions with Yielded Auth',
   },
   {
@@ -191,7 +191,7 @@ export const adapters: ReadonlyArray<{
   },
   {
     name: 'foldkit-mixins-ui',
-    libraries: ['@foldkit/ui@^0.169.0'],
+    libraries: ['@foldkit/ui@^0.170.0'],
     when: 'styling `@foldkit/ui` components through slots',
   },
   {
@@ -219,7 +219,7 @@ export const adapters: ReadonlyArray<{
 /**
  * The Effect packages an application meets that something names at a version
  * of its own: Foldkit's peers and its Vite plugin's dependencies name one
- * release exactly, and each `@effect/*` package peers on an `effect` at least
+ * minor (`~4.1.0`), and each `@effect/*` package peers on an `effect` at least
  * its own version. Setup holds all of them at the Effect this release is
  * tested on, as `pnpm-workspace.yaml` does here (`test/generated.test.ts`
  * keeps the two lists together).
@@ -382,7 +382,7 @@ export const setupGuide = ({ project, manager, versions }: SetupInput): string =
       '',
       `- ${GREENFIELD} (in the skill of step 3, \`references/greenfield.md\`)`,
       '',
-      `When its first step has a name and a rendering mode, it scaffolds with the command for that mode; \`--example\` is for spa alone, and an ssg or ssr scaffold refuses it${manager === 'npm' ? ". An ssg scaffold names `@foldkit/devtools` but not `@foldkit/ui`, its peer, so npm takes the newest `@foldkit/ui`, which needs a newer Effect than the scaffold's, and refuses the install: `--force` lets it install with a warning, and step 2 replaces that `@foldkit/ui` with the one at the scaffold's Foldkit release (`--legacy-peer-deps` would also drop peers the scaffolder itself needs)" : ''}:`,
+      `When its first step has a name and a rendering mode, it scaffolds with the command for that mode; \`--example\` is for spa alone, and an ssg or ssr scaffold refuses it${manager === 'npm' ? ". An ssg scaffold names `@foldkit/devtools` but not `@foldkit/ui`, its peer, so npm takes the newest `@foldkit/ui`, and refuses the install once that one needs a newer Effect than the scaffold's: `--force` lets it install with a warning, and step 2 replaces that `@foldkit/ui` with the one at the scaffold's Foldkit release (`--legacy-peer-deps` would also drop peers the scaffolder itself needs)" : ''}:`,
       '',
       '```bash',
       `npx ${SCAFFOLDER} --name <name> --rendering spa --example counter --package-manager ${manager}`,

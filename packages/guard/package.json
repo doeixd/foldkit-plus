@@ -70,7 +70,7 @@
   },
   "peerDependencies": {
     "drizzle-orm": "1.0.0-rc.5",
-    "effect": "^4.0.0",
+    "effect": "^4.1.0",
     "foldkit-media": "workspace:^",
     "foldkit-remote": "workspace:^",
     "foldkit-remote-drizzle": "workspace:^",
@@ -100,8 +100,8 @@
   "devDependencies": {
     "@electric-sql/pglite": "0.5.11",
     "drizzle-orm": "1.0.0-rc.5",
-    "effect": "^4.0.5",
-    "foldkit": "0.169.0",
+    "effect": "^4.1.0",
+    "foldkit": "0.170.0",
     "foldkit-agent": "workspace:*",
     "foldkit-media": "workspace:*",
     "foldkit-remote": "workspace:*",

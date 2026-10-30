@@ -109,7 +109,7 @@ export const transformerImages = (images: ImagesBinding): Layer.Layer<Transforme
 /**
  * An R2 bucket as an Effect `KeyValueStore`, for anything that keeps bytes by
  * key: `variantsKeyValueStore`, `originalsKeyValueStore`, or the
- * application's own. `clear` and `size` list the whole bucket.
+ * application's own. `keys`, `clear` and `size` list the whole bucket.
  */
 export const keyValueStoreR2 = (bucket: R2Bucket): Layer.Layer<KeyValueStore.KeyValueStore> =>
   Layer.succeed(KeyValueStore.KeyValueStore, r2Store(bucket))
@@ -127,7 +127,7 @@ const r2Store = (bucket: R2Bucket): KeyValueStore.KeyValueStore => {
         }),
     })
   // Every key in the bucket, a page of listing at a time.
-  const keys = async () => {
+  const allKeys = async () => {
     const found: Array<string> = []
     let cursor: string | undefined
     do {
@@ -147,11 +147,12 @@ const r2Store = (bucket: R2Bucket): KeyValueStore.KeyValueStore => {
     set: (key, value) => attempt('set', key, async () => void (await bucket.put(key, value))),
     remove: key => attempt('remove', key, () => bucket.delete(key)),
     clear: attempt('clear', undefined, async () => {
-      const all = await keys()
+      const all = await allKeys()
       // R2 deletes at most 1,000 keys a call.
       for (let at = 0; at < all.length; at += 1000) await bucket.delete(all.slice(at, at + 1000))
     }),
-    size: attempt('size', undefined, async () => (await keys()).length),
+    size: attempt('size', undefined, async () => (await allKeys()).length),
+    keys: attempt('keys', undefined, allKeys),
   })
 }
 

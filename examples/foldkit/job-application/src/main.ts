@@ -1,6 +1,7 @@
 import { BrowserCrypto } from '@effect/platform-browser'
 import { Menu, Tabs } from '@foldkit/ui'
-import { Crypto, Effect, Schema } from 'effect'
+import { Effect, Schema } from 'effect'
+import { SecureRandom } from 'effect/crypto'
 import { Calendar, Runtime } from 'foldkit'
 
 import { Message } from './message.js'
@@ -28,17 +29,17 @@ export type Flags = typeof Flags.Type
 
 export const flags: Effect.Effect<Flags> = Effect.gen(function* () {
   const today = yield* Calendar.today.local
-  const crypto = yield* Crypto.Crypto
-  const initialWorkHistoryEntryId = yield* Effect.orDie(crypto.randomUUIDv4())
-  const initialEducationEntryId = yield* Effect.orDie(crypto.randomUUIDv4())
-  const initialSkillsEntryId = yield* Effect.orDie(crypto.randomUUIDv4())
+  const secureRandom = yield* SecureRandom.SecureRandom
+  const initialWorkHistoryEntryId = yield* secureRandom.uuidV4()
+  const initialEducationEntryId = yield* secureRandom.uuidV4()
+  const initialSkillsEntryId = yield* secureRandom.uuidV4()
   return {
     today,
     initialWorkHistoryEntryId,
     initialEducationEntryId,
     initialSkillsEntryId,
   }
-}).pipe(Effect.provide(BrowserCrypto.layer))
+}).pipe(Effect.provide(BrowserCrypto.layerSecureRandom))
 
 // INIT
 

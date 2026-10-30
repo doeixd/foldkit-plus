@@ -148,6 +148,7 @@ describe('MirrorStore.kv', () => {
         Effect.fail(new KeyValueStore.KeyValueStoreError({ message: 'locked', method: 'remove' })),
       clear: Effect.void,
       size: Effect.succeed(1),
+      keys: Effect.succeed(['todo/prefs']),
     })
     const collected = Diagnostics.collect()
     const message = await Effect.runPromise(

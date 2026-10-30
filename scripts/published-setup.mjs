@@ -280,6 +280,27 @@ const pnpmSteps = (name, project, top, adapters) => {
     }
     writeFileSync(target, JSON.stringify({ ...manifest, pnpm }, null, 2))
   }
+  // pnpm's overrides do not reach a peer it installs itself, so a package of
+  // ours that another peers on would come from the registry, at an unreleased
+  // version's number, with that release's peers. Named here, the peer is the
+  // tarball, as it will be once released.
+  const peered = new Set(
+    readdirSync(join(root, 'packages'))
+      .map(dir => join(root, 'packages', dir, 'package.json'))
+      .filter(manifest => existsSync(manifest))
+      .flatMap(manifest =>
+        Object.keys(JSON.parse(readFileSync(manifest, 'utf8')).peerDependencies ?? {}),
+      ),
+  )
+  const own = join(project, 'package.json')
+  const manifest = JSON.parse(readFileSync(own, 'utf8'))
+  manifest.dependencies = {
+    ...manifest.dependencies,
+    ...Object.fromEntries(
+      ours.filter(([each]) => peered.has(each)).map(([each, file]) => [each, `file:${file}`]),
+    ),
+  }
+  writeFileSync(own, JSON.stringify(manifest, null, 2))
 
   for (const command of commands) {
     const local = command
@@ -294,7 +315,7 @@ const pnpmSteps = (name, project, top, adapters) => {
       .filter(line => /unmet peer (?:effect|@effect\/|foldkit|@foldkit\/)/.test(line))
     if (unmet.length > 0) fail(`${name}: ${command} left peers unmet:\n${unmet.join('\n')}`)
     // The lockfile, not `node_modules/.pnpm`, which keeps what the scaffold's
-    // own install resolved (effect 4.0.0) after the pins moved past it.
+    // own install resolved after the pins moved past it.
     const lock = readFileSync(join(top, 'pnpm-lock.yaml'), 'utf8')
     for (const each of ['effect', 'foldkit']) {
       const versions = new Set(
@@ -327,10 +348,10 @@ const pnpmCase = (name, workspace) => {
       name: 'app',
       private: true,
       dependencies: {
-        effect: '4.0.0',
-        '@effect/platform-browser': '4.0.0',
-        '@effect/platform-node': '4.0.0',
-        foldkit: '0.169.0',
+        effect: '4.1.0',
+        '@effect/platform-browser': '4.1.0',
+        '@effect/platform-node': '4.1.0',
+        foldkit: '0.170.0',
       },
     }),
   )

@@ -8,9 +8,11 @@
  * or a client that believes it is someone else, is a 401.
  */
 import { AuthContract, Auth, Http, Password, Sessions } from '@yielded/auth'
+import * as PasswordScrypt from '@yielded/auth/PasswordScrypt'
 import * as Testing from '@yielded/auth-persistence/Testing'
 import { NodeHttpServer } from '@effect/platform-node'
 import { Context, Effect, Exit, Layer, Option, Redacted, Schema, Scope } from 'effect'
+import { Digest, Kdf, SecureRandom } from 'effect/crypto'
 import { HttpRouter } from 'effect/http'
 import { Entity } from 'foldkit-entity'
 import { REMOTE_PROTOCOL_VERSION, RemoteUnauthenticated } from 'foldkit-remote'
@@ -55,6 +57,14 @@ const server = RemoteServer.make<Option.Option<{ readonly id: string }>>({
 })
 
 /** Who may sign in, and the store sessions live in: one, built once, shared below. */
+// Yielded's `Testing.services` hashes with Argon2id, which Node has only from 24.7.
+const hashing = Password.PasswordHashing.layer(Password.defaultScryptPasswordHashingConfig).pipe(
+  Layer.provide(
+    Layer.mergeAll(PasswordScrypt.layer, Password.KdfAdmission.layer(), Kdf.layerWebCrypto),
+  ),
+  Layer.provideMerge(Layer.merge(SecureRandom.layerWebCrypto, Digest.layerWebCrypto)),
+)
+
 const dependencies = Layer.mergeAll(
   Layer.succeed(App.strategies.password.SessionClaims, {
     resolve: () => Effect.succeed({ displayName: 'Ada' }),
@@ -75,7 +85,7 @@ const dependencies = Layer.mergeAll(
       maximumAgeMillis: 60_000,
     }),
   }),
-).pipe(Layer.provideMerge(Testing.services({ seed: 'foldkit-auth' })), Layer.orDie)
+).pipe(Layer.provideMerge(hashing), Layer.orDie)
 
 let services: Context.Context<Layer.Success<typeof dependencies>>
 let scope: Scope.Closeable

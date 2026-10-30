@@ -115,7 +115,7 @@ new account: answer that refusal with `Remote.forget`, and call
 
 ## Sign-up
 
-Creating an account is Yielded's password strategy (`@yielded/auth@0.1.0-beta.43`),
+Creating an account is Yielded's password strategy (`@yielded/auth@0.1.0-beta.47`),
 not `foldkit-auth`'s. The README's
 [Signing up](https://github.com/doeixd/foldkit-plus/blob/main/packages/auth/README.md#signing-up)
 has the compiled wiring; what it takes:
@@ -145,7 +145,7 @@ has the compiled wiring; what it takes:
 - On Workers with D1, persist through `@yielded/auth-persistence-drizzle/D1`
   (D1 batches; the core `AuthPersistence` commits in a transaction `@effect/sql-d1` refuses), write
   Yielded's managed tables as your own migration, and bundle
-  `WorkerdServices`' Argon2 `.wasm` with `nodejs_compat`
+  `@yielded/auth-platform-workerd`'s Argon2 `.wasm` with `nodejs_compat`
   ([examples/cloudflare](https://github.com/doeixd/foldkit-plus/tree/main/examples/cloudflare)'s
   `src/auth.ts`, `src/authRoutes.ts`, `migrations/0005_auth.sql`).
 - On Workers with D1, build auth once per isolate (a `ManagedRuntime`, its
@@ -156,11 +156,15 @@ has the compiled wiring; what it takes:
 - Remote's calls verify a session and never renew it: a session with an
   `idleTimeout` ends that long after its last renewal. Renew through Yielded
   (`renewSession`) while the reader is active.
-- Yielded needs `effect` 4.0.3 or later, and Foldkit names 4.0.0 exactly: pin
-  every Effect package to one later release, as `npx --legacy-peer-deps
-  foldkit-plus setup` prints (npm `overrides`, pnpm `overrides` with
-  `peerDependencyRules` at the workspace root), and install `@yielded/auth@0.1.0-beta.43`, the
-  release `foldkit-auth` names, not the `latest` tag.
+- Yielded needs `effect` 4.1, the minor Foldkit 0.170 takes: pin every Effect
+  package to one release, as `npx --legacy-peer-deps foldkit-plus setup` prints
+  (npm `overrides`, pnpm `overrides` with `peerDependencyRules` at the
+  workspace root), and install `@yielded/auth@0.1.0-beta.47`, the release
+  `foldkit-auth` names, not the `latest` tag.
+- On Node, Yielded hashes passwords with Argon2id from `node:crypto`, which
+  Node has only from 24.7; on Node 22 give `Password.PasswordHashing.layer`
+  `Password.defaultScryptPasswordHashingConfig` and `PasswordScrypt.layer`
+  (`examples/auth`'s `src/server.ts`).
 - Yielded counts password attempts (10 per email and per account, then one
   every 6s, successes included) in memory unless given an Effect
   `RateLimiterStore`: on Workers that is per isolate, and a test that signs

@@ -53,13 +53,13 @@
     "foldkit-surface": "workspace:*"
   },
   "peerDependencies": {
-    "effect": "^4.0.0",
-    "foldkit": "^0.169.0"
+    "effect": "^4.1.0",
+    "foldkit": "^0.170.0"
   },
   "devDependencies": {
-    "@effect/platform-browser": "^4.0.5",
-    "effect": "^4.0.5",
-    "foldkit": "0.169.0",
+    "@effect/platform-browser": "^4.1.0",
+    "effect": "^4.1.0",
+    "foldkit": "0.170.0",
     "foldkit-form-recipes": "workspace:*",
     "foldkit-mixins-crud": "workspace:*",
     "foldkit-mixins-form": "workspace:*",

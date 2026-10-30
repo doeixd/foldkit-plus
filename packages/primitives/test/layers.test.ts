@@ -90,6 +90,33 @@ describe('HideOutside', () => {
       document.body.innerHTML = ''
     }
   })
+
+  // Effect 4.1 starts a Mount's setup at once, so an overlay gone before the
+  // frame `Dom.inertOthers` waits for is interrupted mid-acquire. The acquire
+  // finishes, and its release then restores what it marked.
+  it('restores everything when unmounted before its first frame', async () => {
+    document.body.innerHTML = `<main id="page"><p id="text">t</p></main><div id="overlay"><button>ok</button></div>`
+    const overlay = document.getElementById('overlay')!
+    const page = document.getElementById('page')!
+    try {
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const fiber = yield* Effect.forkChild(
+            Stream.runDrain(HideOutside().f(overlay, Mount.liveViewStateChanges)),
+            { startImmediately: true },
+          )
+          expect(overlay.getAttribute('data-foldkit-plus-hide-outside')).toMatch(/^hide-outside-/)
+          yield* Fiber.interrupt(fiber)
+          yield* settle
+          expect(page.hasAttribute('inert')).toBe(false)
+          expect(page.getAttribute('aria-hidden')).toBeNull()
+          expect(overlay.hasAttribute('data-foldkit-plus-hide-outside')).toBe(false)
+        }),
+      )
+    } finally {
+      document.body.innerHTML = ''
+    }
+  })
 })
 
 describe('Layers behaviors', () => {

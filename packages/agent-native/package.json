@@ -43,15 +43,15 @@
   },
   "peerDependencies": {
     "@agent-native/core": "0.214.0",
-    "effect": "^4.0.0",
-    "foldkit": "^0.169.0",
+    "effect": "^4.1.0",
+    "foldkit": "^0.170.0",
     "foldkit-agent": "workspace:^"
   },
   "devDependencies": {
     "@agent-native/core": "0.214.0",
-    "@effect/platform-browser": "^4.0.5",
-    "effect": "^4.0.5",
-    "foldkit": "0.169.0",
+    "@effect/platform-browser": "^4.1.0",
+    "effect": "^4.1.0",
+    "foldkit": "0.170.0",
     "foldkit-agent": "workspace:*",
     "tsdown": "^0.23.1",
     "typescript": "7.0.2"

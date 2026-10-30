@@ -17,7 +17,7 @@
 import type { D1Database } from '@cloudflare/workers-types'
 import * as D1Client from '@effect/sql-d1/D1Client'
 import { Http } from '@yielded/auth'
-import * as WorkerdServices from '@yielded/auth/WorkerdServices'
+import * as WorkerdServices from '@yielded/auth-platform-workerd'
 import { drizzle } from 'drizzle-orm/d1'
 import { Duration, Effect, Layer, ManagedRuntime, Option, type Context } from 'effect'
 import { HttpRouter, HttpServer } from 'effect/http'

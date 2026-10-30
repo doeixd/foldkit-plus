@@ -27,10 +27,10 @@
     "foldkit-surface": "workspace:*"
   },
   "devDependencies": {
-    "@effect/platform-browser": "^4.0.5",
-    "@foldkit/ui": "0.169.0",
-    "effect": "^4.0.5",
-    "foldkit": "0.169.0",
+    "@effect/platform-browser": "^4.1.0",
+    "@foldkit/ui": "0.170.0",
+    "effect": "^4.1.0",
+    "foldkit": "0.170.0",
     "typescript": "7.0.2"
   }
 }

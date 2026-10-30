@@ -177,6 +177,9 @@ it('rests once nothing changes, though writing its properties changes the contai
   const { container, read, fiber } = mount()
   try {
     await vi.waitFor(() => expect(read('display')).toBe('block'))
+    // The first measure runs as the Mount starts; the container's and the
+    // target's first size observations follow, a frame each.
+    for (const _ of [1, 2]) await new Promise(resolve => requestAnimationFrame(resolve))
     const measure = vi.spyOn(container, 'getBoundingClientRect')
     for (const _ of [1, 2, 3, 4, 5]) await new Promise(resolve => requestAnimationFrame(resolve))
     expect(measure).not.toHaveBeenCalled()

@@ -167,6 +167,7 @@ describe('factsOf', () => {
       remove: key => down('remove', key),
       clear: Effect.void,
       size: Effect.succeed(0),
+      keys: Effect.succeed([]),
     })
     const from = collected.reported.length
     const exit = await run('https://cdn.example.com/a.jpg', {

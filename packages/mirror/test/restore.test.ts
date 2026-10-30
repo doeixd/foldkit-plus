@@ -72,6 +72,7 @@ const slowStore = (held: Map<string, string>, fails = false) => {
     remove: key => Effect.sync(() => void held.delete(key)),
     clear: Effect.sync(() => held.clear()),
     size: Effect.sync(() => held.size),
+    keys: Effect.sync(() => [...held.keys()]),
   })
   return { layer: Layer.succeed(KeyValueStore.KeyValueStore, store), answer }
 }

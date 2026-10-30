@@ -184,6 +184,7 @@ describe('Data.persistence', () => {
       remove: () => Effect.void,
       clear: Effect.void,
       size: Effect.succeed(0),
+      keys: Effect.succeed([]),
     })
     expect(await step(unreadable, restore, fresh('ada'))).toEqual([])
     const model = fresh('ada')

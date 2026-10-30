@@ -247,47 +247,49 @@ compiled id, and drop `FOLDKIT_BUILD_ID` from the examples' setup.
 ## Proposal 5: let an application choose its Effect 4
 
 Not an SSR change, but every application on these packages meets it
-(#200, #205). Foldkit 0.169 and its tooling name one Effect release exactly:
+(#200, #205). Foldkit 0.169 and its tooling named one Effect release exactly
+(`4.0.0`). Foldkit 0.170 partly answered this: its packages now take one
+Effect minor, patch releases included.
 
-| Package | Names exactly |
+| Package | 0.170 asks for |
 | --- | --- |
-| `foldkit` | peers `effect` and `@effect/platform-browser` 4.0.0 |
-| `@foldkit/ui` | peers `effect` 4.0.0 |
-| `@foldkit/devtools` | peers `effect` and `@effect/platform-browser` 4.0.0 |
-| `@foldkit/vite-plugin` | peers `effect` 4.0.0; depends on `@effect/platform-node` and `@effect/platform-node-shared` 4.0.0 |
+| `foldkit` | peers `effect` and `@effect/platform-browser` `~4.1.0` |
+| `@foldkit/ui` | peers `effect` `~4.1.0` |
+| `@foldkit/devtools` | peers `effect` and `@effect/platform-browser` `~4.1.0` |
+| `@foldkit/vite-plugin` | peers `effect` `~4.1.0`; depends on `@effect/platform-node` and `@effect/platform-node-shared` `~4.1.0` |
 
 Every `@effect/*` package peers on an `effect` at least its own version
-(`@effect/sql-sqlite-node` 4.0.5 on `^4.0.5`, 4.1.0 on `^4.1.0`), so an
-application that adds any of them at a later release, or a library that needs
-one (`@yielded/auth` asks for `^4.0.3`), cannot also satisfy Foldkit's peers.
-npm refuses the install (`ERESOLVE`); pnpm, Yarn and Bun warn. Our workaround
-pins every Effect package to the release this repository tests: `overrides`
-and `peerDependencyRules` in `pnpm-workspace.yaml` here, and the fields
-`npx foldkit-plus setup` prints for an application (npm `overrides`, with
-the application's own Effect dependencies set to the same release).
+(`@effect/sql-sqlite-node` 4.1.0 on `^4.1.0`), so an application that adds
+one at the next minor, or a library that needs it, cannot also satisfy
+Foldkit's peers until Foldkit's next release. npm refuses the install
+(`ERESOLVE`); pnpm, Yarn and Bun warn. Our workaround still pins every Effect
+package to the release this repository tests: `overrides` in
+`pnpm-workspace.yaml` here, and the fields `npx foldkit-plus setup` prints for
+an application (npm `overrides`, with the application's own Effect
+dependencies set to the same release).
 
-**The ask:** peer on `effect: ^4.0.0` and `@effect/platform-browser: ^4.0.0`,
-and depend on `@effect/platform-node` and `@effect/platform-node-shared` at
-`^4.0.0` (or make them peers), in all four packages. That needs Foldkit's CI
-to pass against the newest 4.x as well as the floor. When it ships, `setup`
-drops the pins: `pinsOf` in `packages/plus/src/setup.ts` and the fields in
-the root README.
+**What is left of the ask:** `^4.1.0` instead of `~4.1.0`, so a later minor
+installs beside Foldkit. Upstream declined that for 0.170: an Effect minor
+can change APIs (4.1 removed `effect/Crypto`), so each one is reviewed
+before Foldkit accepts it. Until that changes, `setup` keeps the pins:
+`pinsOf` in `packages/plus/src/setup.ts` and the fields in the root README.
 
-**The ssg scaffold leaves a peer floating.** `create-foldkit-app` 0.40.0 pins
-every package it names from its release manifest, but its ssg template names
-no `@foldkit/ui`, which `@foldkit/devtools` 0.169.0 peers on at `>=0.167.0`.
-npm installs a missing peer at its newest release, and since Foldkit 0.170
-that is `@foldkit/ui` 0.170.0, which peers `effect: ~4.1.0`; so
-`--rendering ssg --package-manager npm` fails its own install with `ERESOLVE`
-against the scaffold's `effect` 4.0.0 (#229's `scaffold` CI job, from
-2026-10-30). The spa and ssr templates name `@foldkit/ui` at the release, so
+**The ssg scaffold leaves a peer floating.** `create-foldkit-app` pins every
+package it names from its release manifest, but its ssg template names no
+`@foldkit/ui`, which `@foldkit/devtools` peers on at `>=0.167.0` (0.169.0 and
+0.170.0 alike). npm installs a missing peer at its newest release, and once
+Foldkit 0.170 shipped that was `@foldkit/ui` 0.170.0, which peers `effect:
+~4.1.0`; so 0.40.0's `--rendering ssg --package-manager npm` failed its own
+install with `ERESOLVE` against its `effect` 4.0.0 (#229's `scaffold` CI job,
+from 2026-10-30). The spa and ssr templates name `@foldkit/ui` at the release, so
 they install. The ask: name `@foldkit/ui` in the ssg template too, or have
-`@foldkit/devtools` peer on its own release (`~0.169.0`) rather than every
+`@foldkit/devtools` peer on its own release (`~0.170.0`) rather than every
 later one. `create-foldkit-app` 0.41.0 (Foldkit 0.170) still leaves it
-floating, so the next Effect minor breaks it again. Our workaround, in
+floating: its install passes today only because the newest `@foldkit/ui` is
+0.170.0, and the next Effect minor breaks it again. Our workaround, in
 `setup`: npm's ssg scaffold command is `npx --force create-foldkit-app…`,
 since npx hands its config to the install the scaffold runs, which then
-takes `@foldkit/ui` 0.170.0 with a warning; step 2 adds `@foldkit/ui` at
+takes the newest `@foldkit/ui` with a warning; step 2 adds `@foldkit/ui` at
 Foldkit's release to a project that names `@foldkit/devtools` without it.
 `--legacy-peer-deps` is no substitute: npx's own install of the scaffolder
 then skips its peers, and in an empty npm cache it fails to load

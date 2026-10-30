@@ -62,7 +62,7 @@ describe('foldkit-plus, against the workspace', () => {
   })
 
   it("pins in setup's guide the Effect packages the workspace pins", () => {
-    // `effect` itself the workspace allows through `peerDependencyRules`.
+    // `effect` itself every package names directly.
     const workspace = readFileSync(join(here, '../../pnpm-workspace.yaml'), 'utf8')
     const overrides = /^overrides:\n((?: {2}.+\n)+)/m.exec(workspace)?.[1] ?? ''
     expect([...effectPackages].sort()).toEqual(

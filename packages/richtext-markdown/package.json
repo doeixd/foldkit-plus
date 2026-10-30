@@ -50,11 +50,11 @@
     "micromark-util-decode-string": "^2.0.1"
   },
   "peerDependencies": {
-    "effect": "^4.0.0"
+    "effect": "^4.1.0"
   },
   "devDependencies": {
     "@types/mdast": "^4.0.4",
-    "effect": "^4.0.5",
+    "effect": "^4.1.0",
     "tsdown": "^0.23.1",
     "typescript": "7.0.2"
   }

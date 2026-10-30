@@ -289,18 +289,17 @@ export const mount = <
   const install = (model: Model): Model => {
     const snapshot = Effect.runSync(replica.snapshot)
     installedFrom = snapshot.shared
-    editedSinceInstall = false
-    const shared = unconfirmedEdits(edits, snapshot.nextLocalSequence).reduce<Shared>(
-      (value, message) => {
-        try {
-          return sync.replay(value, message)
-        } catch {
-          // The replica refuses it too; its FAILED re-installs without it.
-          return value
-        }
-      },
-      snapshot.shared,
-    )
+    const unconfirmed = unconfirmedEdits(edits, snapshot.nextLocalSequence)
+    // Edits replayed on top leave the Model's copy apart from `installedFrom`.
+    editedSinceInstall = unconfirmed.length > 0
+    const shared = unconfirmed.reduce<Shared>((value, message) => {
+      try {
+        return sync.replay(value, message)
+      } catch {
+        // The replica refuses it too; its FAILED re-installs without it.
+        return value
+      }
+    }, snapshot.shared)
     return sync.projection.set(model, shared)
   }
 

@@ -195,11 +195,12 @@ uses both subpaths.
 
 ## Versions
 
-`effect` and `foldkit` are peers: this release targets Effect 4 (`^4.0.0`) and
-Foldkit `0.169`, and `setup` installs the Foldkit and the Effect this
+`effect` and `foldkit` are peers: this release targets Effect 4.1 (`^4.1.0`)
+and Foldkit `0.170`, and `setup` installs the Foldkit and the Effect this
 repository tests (`package.json`'s `setup` field). Foldkit and its Vite plugin
-name one Effect release exactly (`4.0.0`), older than that, so `setup` first
-has the project pin every Effect package to the tested one:
+take one Effect minor (`~4.1.0`), and each `@effect/*` release peers on an
+`effect` at least its own, so `setup` first has the project pin every Effect
+package to the tested one, which keeps one copy of each:
 
 - npm: `overrides`, and the project's own Effect dependencies set to the same
   release, since npm overrides a direct dependency only where the project

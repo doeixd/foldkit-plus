@@ -51,18 +51,18 @@
     "typecheck": "tsc -b"
   },
   "peerDependencies": {
-    "effect": "^4.0.0",
-    "foldkit": "^0.169.0"
+    "effect": "^4.1.0",
+    "foldkit": "^0.170.0"
   },
   "dependencies": {
     "foldkit-surface": "workspace:*"
   },
   "devDependencies": {
-    "@effect/platform-browser": "^4.0.5",
+    "@effect/platform-browser": "^4.1.0",
     "@types/jsdom": "30.0.0",
-    "effect": "^4.0.5",
+    "effect": "^4.1.0",
     "esbuild": "0.28.2",
-    "foldkit": "0.169.0",
+    "foldkit": "0.170.0",
     "foldkit-bundle": "workspace:*",
     "foldkit-entity": "workspace:*",
     "foldkit-mirror": "workspace:*",

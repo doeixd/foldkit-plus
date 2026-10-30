@@ -52,13 +52,13 @@
   },
   "peerDependencies": {
     "drizzle-orm": "1.0.0-rc.5",
-    "effect": "^4.0.0"
+    "effect": "^4.1.0"
   },
   "devDependencies": {
     "drizzle-orm": "1.0.0-rc.5",
-    "@effect/platform-browser": "^4.0.5",
-    "effect": "^4.0.5",
-    "foldkit": "0.169.0",
+    "@effect/platform-browser": "^4.1.0",
+    "effect": "^4.1.0",
+    "foldkit": "0.170.0",
     "foldkit-bundle": "workspace:*",
     "foldkit-form": "workspace:*",
     "foldkit-surface": "workspace:*",

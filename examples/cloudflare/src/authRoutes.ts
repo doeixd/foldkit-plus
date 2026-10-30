@@ -7,7 +7,7 @@
 import * as D1Client from '@effect/sql-d1/D1Client'
 import type { D1Database } from '@cloudflare/workers-types'
 import { Http } from '@yielded/auth'
-import * as WorkerdServices from '@yielded/auth/WorkerdServices'
+import * as WorkerdServices from '@yielded/auth-platform-workerd'
 import { Cause, Effect, Exit, Layer, ManagedRuntime, Option } from 'effect'
 import { HttpRouter, HttpServer } from 'effect/http'
 import { AuthServer } from 'foldkit-auth/server'

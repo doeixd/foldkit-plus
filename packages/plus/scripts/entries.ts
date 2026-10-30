@@ -136,7 +136,7 @@ export const generatedFields = (
     },
     dependencies: Object.fromEntries(core.map(each => [each.name, 'workspace:*'])),
     peerDependencies: {
-      effect: '^4.0.0',
+      effect: '^4.1.0',
       foldkit: `^${foldkit}`,
       ...Object.fromEntries(adapters.map(each => [each.name, 'workspace:^'])),
       ...TESTING_PEERS,

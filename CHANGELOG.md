@@ -23,7 +23,8 @@ from its own Wrangler config, and the shipped theme is new. A security review
 (#284 and others) bounds live subscriptions and collection reads, stops
 caches keeping an answer, and closes several write-rule gaps.
 
-Breaking, under Changed: a ref's own members are read through
+Breaking, under Changed: every package needs Foldkit 0.170 and Effect 4.1
+(#337); a ref's own members are read through
 `ModelRef.focus(ref)`, so a Model field may have any name, and a Remote
 domain's `store` is a `Focus`; the Carousel's Model holds `index` (was
 `slide`) and the Sheet's `at` (was `point`); an Entity has one set of members, which
@@ -521,6 +522,25 @@ carries `drawn`.
   `AUTH_ORIGIN` set.
 
 ### Changed
+
+- **Foldkit 0.170 and Effect 4.1 (#337).** Every package that peers on Effect
+  asks for `effect@^4.1.0` (was `^4.0.0`, and `foldkit-auth` `^4.0.4`) and, where it
+  peers on Foldkit, `foldkit@^0.170.0`; `foldkit-mixins-ui` and
+  `foldkit-form-recipes` on `@foldkit/ui@^0.170.0`. Foldkit 0.170 peers on
+  `effect@~4.1.0`, and 4.1 removed `effect/Crypto`, so an application moves
+  Foldkit and every Effect package together. `foldkit-auth` peers on
+  `@yielded/auth@0.1.0-beta.47`, Yielded's release for Effect 4.1: on Workers
+  its crypto and password hashing come from `@yielded/auth-platform-workerd`'s
+  `layer` (was `@yielded/auth/WorkerdServices`), and on Node its Argon2id
+  hashing needs Node 24.7, so `examples/auth` hashes with scrypt.
+  `foldkit-media`'s R2 `KeyValueStore` gives the `keys` Effect 4.1 asks of
+  every store. `npx foldkit-plus setup` installs Foldkit 0.170.0 and Effect
+  4.1.0 and scaffolds with `create-foldkit-app@0.41.0`. Foldkit's Node
+  adapter, Vite plugin and DevTools MCP need Node 22.19 or newer. Under Effect
+  4.1's timing (`Stream.callback` starts its setup at once), `Sync.mount`'s
+  first replica status could follow a dispatch: the install it caused replayed that
+  edit, but a later rejection of it re-installed nothing, so the Model kept
+  showing it. An install that replays edits now counts them.
 
 - **A Model field may have any name (#331).** A ref's string keys are now
   the Model's fields and nothing else; its own members (`get`, `set`,

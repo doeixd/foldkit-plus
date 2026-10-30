@@ -600,7 +600,7 @@ needs it, and adding it early would fix semantics nothing has asked for.
 
 ## Why the API looks like this
 
-**Why `bind` and a host, rather than a runtime option.** Foldkit `0.169.0`
+**Why `bind` and a host, rather than a runtime option.** Foldkit `0.170.0`
 accepts no `agent` option on `makeApplication`, and its runtime handle exposes
 neither the current Model nor a dispatch function. `Agent.host` wraps the config
 instead, before any starter sees it, so one seam serves `run`, `hydrate`,
@@ -617,7 +617,7 @@ cannot infer `Model` from an `available` callback alone, so `available: model =>
 it when there is no application. `Agent.make` is still there when the Model does
 not matter.
 
-**Effect 4, not 3.** Foldkit `0.169.0` peer-depends on `effect@4.0.0`, so
+**Effect 4, not 3.** Foldkit `0.170.0` peer-depends on `effect@~4.1.0`, so
 snippets written against Effect 3 need translating: `Schema.OptionFromSelf` is
 `Schema.Option` here.
 

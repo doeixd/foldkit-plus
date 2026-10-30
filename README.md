@@ -473,30 +473,30 @@ It reads your project and prints what to install with your package manager, the
 `effect` or `foldkit` version that needs changing, a `.gitattributes` that keeps
 LF line endings when the project has none, the agent skill, and which package
 does which job. By hand, `foldkit-plus` brings every package at once,
-each under a subpath named for it (`foldkit-plus/remote-server`). Foldkit names
-Effect `4.0.0` exactly and these packages are tested on `4.0.5`, so pin every
-Effect package to it first, as this repository's `pnpm-workspace.yaml` does
-(`setup` prints the fields for npm, Yarn and Bun too):
+each under a subpath named for it (`foldkit-plus/remote-server`). Foldkit takes
+Effect `~4.1.0` and these packages are tested on `4.1.0`, so pin every Effect
+package to it first, to keep one copy of each, as this repository's
+`pnpm-workspace.yaml` does (`setup` prints the fields for npm, Yarn and Bun too):
 
 ```json
 {
   "pnpm": {
     "overrides": {
-      "effect": "4.0.5",
-      "@effect/platform-browser": "4.0.5",
-      "@effect/platform-node": "4.0.5",
-      "@effect/platform-node-shared": "4.0.5",
-      "@effect/sql-sqlite-node": "4.0.5"
+      "effect": "4.1.0",
+      "@effect/platform-browser": "4.1.0",
+      "@effect/platform-node": "4.1.0",
+      "@effect/platform-node-shared": "4.1.0",
+      "@effect/sql-sqlite-node": "4.1.0"
     },
     "peerDependencyRules": {
-      "allowedVersions": { "effect": "4.0.5", "@effect/platform-browser": "4.0.5" }
+      "allowedVersions": { "effect": "4.1.0", "@effect/platform-browser": "4.1.0" }
     }
   }
 }
 ```
 
 ```bash
-pnpm add --save-exact effect@4.0.5 foldkit@0.169.0 @effect/platform-browser@4.0.5 foldkit-plus
+pnpm add --save-exact effect@4.1.0 foldkit@0.170.0 @effect/platform-browser@4.1.0 foldkit-plus
 ```
 
 Or install the pieces for the boundary you are adding; the packages are designed
@@ -559,10 +559,10 @@ Other agent adapters are `foldkit-agent-mcp`, `foldkit-agent-a2a`, and
 components.
 
 `foldkit` and `effect` are peer dependencies. These packages ask for
-`effect@^4.0.0` and are tested on 4.0.5; Foldkit `0.169.0` itself asks for
-exactly `effect@4.0.0` and `@effect/platform-browser@4.0.0`, which is why the
-overrides above let its exact peers accept 4.0.5, so the application holds one
-copy of Effect. `foldkit-durable`'s Node entry
+`effect@^4.1.0` and are tested on 4.1.0; Foldkit `0.170.0` itself asks for
+`effect@~4.1.0` and `@effect/platform-browser@~4.1.0`. Each `@effect/*` release
+peers on an `effect` at least its own version, so the overrides above hold the
+application at one copy of Effect. `foldkit-durable`'s Node entry
 requires Node 22 for `node:sqlite`; `foldkit-durable/core` runs on any SQLite
 client, a browser's included. `drizzle-orm` is a peer of the Drizzle
 packages, so the application's copy is the one they use. The [release matrix](./docs/releases.md)

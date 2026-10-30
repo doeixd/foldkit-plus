@@ -9,8 +9,8 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
-    "effect": "^4.0.5",
-    "foldkit": "0.169.0",
+    "effect": "^4.1.0",
+    "foldkit": "0.170.0",
     "foldkit-agent": "workspace:*",
     "foldkit-durable": "workspace:*",
     "foldkit-sync": "workspace:*",
@@ -18,7 +18,7 @@
     "ws": "^8.22.0"
   },
   "devDependencies": {
-    "@effect/platform-browser": "^4.0.5",
+    "@effect/platform-browser": "^4.1.0",
     "@types/jsdom": "30.0.0",
     "@types/ws": "^8.18.2",
     "fake-indexeddb": "6.2.6",

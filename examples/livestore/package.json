@@ -12,7 +12,7 @@
     "foldkit-remote-server": "workspace:*"
   },
   "devDependencies": {
-    "effect": "^4.0.5",
+    "effect": "^4.1.0",
     "typescript": "7.0.2"
   }
 }

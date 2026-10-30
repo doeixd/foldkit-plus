@@ -8,17 +8,13 @@ packages:
 # @agent-native/core >=22.22.0, so the floor is the latest 22.x.
 useNodeVersion: 22.23.4
 
-# foldkit pins Effect exactly (a peer of effect@4.0.0, and its Vite plugin a
-# dependency on @effect/platform-node@4.0.0); any 4.x satisfies them here, and one
-# copy of each Effect package keeps their services and types shared.
+# One copy of each Effect package keeps their services and types shared.
+# Foldkit's peers and its Vite plugin's dependencies take `~4.1.0`; these hold
+# the platform and SQLite packages at the Effect the workspace runs, as
+# `foldkit-plus setup` does in an application (`effectPackages` in
+# `packages/plus/src/setup.ts`).
 overrides:
-  '@effect/platform-browser': ^4.0.5
-  '@effect/platform-node': ^4.0.5
-  '@effect/platform-node-shared': ^4.0.5
-  '@effect/sql-sqlite-node': ^4.0.5
-
-peerDependencyRules:
-  allowedVersions:
-    effect: '4'
-    '@effect/platform-browser': '4'
-    '@effect/platform-node': '4'
+  '@effect/platform-browser': ^4.1.0
+  '@effect/platform-node': ^4.1.0
+  '@effect/platform-node-shared': ^4.1.0
+  '@effect/sql-sqlite-node': ^4.1.0

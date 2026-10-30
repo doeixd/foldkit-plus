@@ -6,8 +6,10 @@
  */
 import { NodeHttpServer } from '@effect/platform-node'
 import { Auth, Http, Password, Sessions } from '@yielded/auth'
+import * as PasswordScrypt from '@yielded/auth/PasswordScrypt'
 import * as Testing from '@yielded/auth-persistence/Testing'
 import { Effect, Exit, Layer, ManagedRuntime, Option, Redacted, Scope } from 'effect'
+import { Digest, Kdf, SecureRandom } from 'effect/crypto'
 import { HttpRouter } from 'effect/http'
 import { AuthServer } from 'foldkit-auth/server'
 import { GuardServer } from 'foldkit-guard/server'
@@ -75,6 +77,18 @@ const App = Auth.make(AuthApi, {
 })
 
 /**
+ * Password hashing with scrypt from `node:crypto`. Yielded's `Testing.services`
+ * hashes with Argon2id, which Node has only from 24.7; a Worker takes
+ * `@yielded/auth-platform-workerd` instead.
+ */
+const hashing = Password.PasswordHashing.layer(Password.defaultScryptPasswordHashingConfig).pipe(
+  Layer.provide(
+    Layer.mergeAll(PasswordScrypt.layer, Password.KdfAdmission.layer(), Kdf.layerWebCrypto),
+  ),
+  Layer.provideMerge(Layer.merge(SecureRandom.layerWebCrypto, Digest.layerWebCrypto)),
+)
+
+/**
  * Yielded's in-memory store, seeded with the two accounts. `Testing` is
  * Yielded's test support: it keeps sessions in this process and loses them
  * on restart. A deployment uses `@yielded/auth-persistence`'s SQL store.
@@ -100,7 +114,7 @@ const store = Layer.mergeAll(
       maximumAgeMillis: 60_000,
     }),
   }),
-).pipe(Layer.provideMerge(Testing.services()), Layer.orDie)
+).pipe(Layer.provideMerge(hashing), Layer.orDie)
 
 /** The principal of a verified session: looked up per request, never taken from its claims. */
 const principalOf = (session: { readonly subjectId: string }) =>

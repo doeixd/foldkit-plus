@@ -98,9 +98,9 @@ in its manifest, and `pnpm publish` skips it.
 ## Dependency expectations
 
 Every package except `foldkit-metadata` and `foldkit-react-codegen`
-peer-depends on `effect@^4.0.0`; `foldkit-auth` on `effect@^4.0.4`, the
-floor its peer `@yielded/auth@0.1.0-beta.43` (exact) sets. Every package also
-peer-depends on `foldkit@^0.169.0` except the fourteen that never draw or run
+peer-depends on `effect@^4.1.0`, the Effect Foldkit 0.170 takes (`~4.1.0`);
+`foldkit-auth` also on `@yielded/auth@0.1.0-beta.47` (exact), whose own floor
+is the same. Every package also peer-depends on `foldkit@^0.170.0` except the fourteen that never draw or run
 a Foldkit runtime: `foldkit-entity`, `foldkit-metadata` and `foldkit-media`
 (whose `Icon.draw` takes any builder of its shape), the server and storage
 packages (`foldkit-remote-server`, `foldkit-remote-drizzle`,
@@ -185,7 +185,7 @@ Optional peers, needed only by the subpath or feature that names them:
 - `foldkit-richtext-dom` → `foldkit-form` (its `/input` subpath);
 - `foldkit-mixins-form` → `foldkit-mixins-ui` (its `/ui` and `/recipes` subpaths);
 - `foldkit-form-recipes` → `foldkit-media`, `foldkit-mixins`,
-  `foldkit-mixins-form`, `foldkit-mixins-ui` and `@foldkit/ui@^0.169.0` (its
+  `foldkit-mixins-form`, `foldkit-mixins-ui` and `@foldkit/ui@^0.170.0` (its
   `/ui` and `/image` subpaths);
 - `foldkit-media` → `sharp@>=0.34.0` and `unpic@^4.0.0` (its `/sharp` and
   `/unpic` subpaths);
@@ -200,6 +200,6 @@ Libraries outside the workspace: `foldkit-remote-drizzle` and
 application's Drizzle is the one their tables type-check against;
 `foldkit-react` on `react@^19.0.0` and `react-dom@^19.0.0`;
 `foldkit-agent-native` on `@agent-native/core@0.214.0`; `foldkit-mixins-ui`
-on `@foldkit/ui@^0.169.0`; `foldkit-richtext-code-shiki` on `shiki@^4.4.3`.
-`foldkit-durable` depends on `@effect/sql-sqlite-node@^4.0.5`; its Node entry
+on `@foldkit/ui@^0.170.0`; `foldkit-richtext-code-shiki` on `shiki@^4.4.3`.
+`foldkit-durable` depends on `@effect/sql-sqlite-node@^4.1.0`; its Node entry
 requires Node 22 for `node:sqlite`, which its `engines.node` (`>=22`) states.

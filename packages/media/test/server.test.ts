@@ -301,6 +301,7 @@ describe('serveFetch', () => {
         ),
       clear: Effect.void,
       size: Effect.succeed(0),
+      keys: Effect.succeed([]),
     })
     const fetch = serveFetch<object>({
       images: {

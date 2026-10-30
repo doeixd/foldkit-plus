@@ -58,8 +58,8 @@
     "foldkit-mixins": "workspace:*"
   },
   "peerDependencies": {
-    "effect": "^4.0.0",
-    "foldkit": "^0.169.0",
+    "effect": "^4.1.0",
+    "foldkit": "^0.170.0",
     "foldkit-mixins-ui": "workspace:*"
   },
   "peerDependenciesMeta": {
@@ -68,9 +68,9 @@
     }
   },
   "devDependencies": {
-    "@effect/platform-browser": "^4.0.5",
-    "effect": "^4.0.5",
-    "foldkit": "0.169.0",
+    "@effect/platform-browser": "^4.1.0",
+    "effect": "^4.1.0",
+    "foldkit": "0.170.0",
     "foldkit-entity": "workspace:*",
     "foldkit-mixins-ui": "workspace:*",
     "jsdom": "30.1.3",

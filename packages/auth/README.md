@@ -83,23 +83,24 @@ pnpm add effect @yielded/auth foldkit-remote foldkit-remote-server foldkit-auth
 ```
 
 `@yielded/auth` is a peer, pinned exactly while Yielded is in beta: install
-`@yielded/auth@0.1.0-beta.43`, since its `latest` tag is an older beta. Yielded
-needs `effect` 4.0.3 or later, while `foldkit` declares exactly `4.0.0`, so
-until Foldkit widens its peer an application pins every Effect package to one
-later release in its `package.json`. With pnpm:
+`@yielded/auth@0.1.0-beta.47`, since its `latest` tag is an older beta. Yielded
+needs `effect` 4.1, the minor `foldkit` 0.170 takes, and each `@effect/*`
+release peers on an `effect` at least its own, so an application pins every
+Effect package to one release in its `package.json` to keep one copy of each.
+With pnpm:
 
 ```json
 {
   "pnpm": {
     "overrides": {
-      "effect": "4.0.5",
-      "@effect/platform-browser": "4.0.5",
-      "@effect/platform-node": "4.0.5",
-      "@effect/platform-node-shared": "4.0.5",
-      "@effect/sql-sqlite-node": "4.0.5"
+      "effect": "4.1.0",
+      "@effect/platform-browser": "4.1.0",
+      "@effect/platform-node": "4.1.0",
+      "@effect/platform-node-shared": "4.1.0",
+      "@effect/sql-sqlite-node": "4.1.0"
     },
     "peerDependencyRules": {
-      "allowedVersions": { "effect": "4.0.5", "@effect/platform-browser": "4.0.5" }
+      "allowedVersions": { "effect": "4.1.0", "@effect/platform-browser": "4.1.0" }
     }
   }
 }
@@ -362,11 +363,12 @@ Three things it shows that the sections above do not:
   unique keys it reads when it first runs, and creates nothing. Write each
   managed table as Drizzle declares it; the example's test derives the
   statements from `storage.schema` and compares.
-- **`WorkerdServices` needs `nodejs_compat` and a Wasm module.** Its password
-  hashing imports `node:crypto` and an Argon2 `.wasm` file; a bundle that is not
-  Wrangler's keeps the `.wasm` beside the script as a compiled module. Node
+- **`@yielded/auth-platform-workerd` needs `nodejs_compat` and a Wasm module.**
+  Its `layer` gives Yielded its crypto and password hashing on Workers; the
+  hashing imports `node:crypto` and an Argon2 `.wasm` file, and a bundle that is
+  not Wrangler's keeps the `.wasm` beside the script as a compiled module. Node
   cannot load it, so keep the auth definition (tables included) in a module
-  that does not import `WorkerdServices`, for tests to read.
+  that does not import it, for tests to read.
 
 Beyond those, a few settings a server on one machine never needs:
 
@@ -400,7 +402,7 @@ Beyond those, a few settings a server on one machine never needs:
 `foldkit-auth` reads sessions; it creates no accounts. Sign-up is Yielded's
 password strategy, and the application's own account row is written in the
 same commit, by a hook the application supplies. Wiring it to
-`@yielded/auth@0.1.0-beta.43` takes four pieces.
+`@yielded/auth@0.1.0-beta.47` takes four pieces.
 
 **The contract names the action.** `AuthContract` has a helper for password
 sign-in but none for registration, so `register` is declared with the schemas
@@ -536,7 +538,7 @@ export const PasswordOnly = Layer.mergeAll(
 Provide `PasswordOnly` to `AppAuth.layer`, and `Provisioning` to
 `Persistence.layer`, alongside what sign-in already needs: the persistence
 layer and its `Config`, `SessionClaims`, and the platform's crypto and
-hashing (`WorkerdServices.layer` on Workers). Yielded's `Testing` store
+hashing (`@yielded/auth-platform-workerd`'s `layer` on Workers). Yielded's `Testing` store
 refuses password management when it is built, so a sign-up test needs SQL
 persistence, such as SQLite in memory.
 

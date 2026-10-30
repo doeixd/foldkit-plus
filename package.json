@@ -14,7 +14,7 @@
   "type": "module",
   "packageManager": "pnpm@10.32.1",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.19.0"
   },
   "scripts": {
     "build": "node scripts/declarations.mjs && pnpm -r build",
@@ -45,8 +45,8 @@
   },
   "devDependencies": {
     "@effect/language-service": "^0.87.5",
-    "@effect/platform-browser": "^4.0.5",
-    "@effect/sql-pg": "^4.0.5",
+    "@effect/platform-browser": "^4.1.0",
+    "@effect/sql-pg": "^4.1.0",
     "@iconify-json/heroicons": "^1.2.3",
     "@iconify-json/hugeicons": "^1.2.35",
     "@iconify-json/lucide": "^1.2.147",
@@ -55,8 +55,8 @@
     "@types/node": "^22.20.5",
     "@vitest/browser-playwright": "5.0.5",
     "drizzle-orm": "1.0.0-rc.5",
-    "effect": "^4.0.5",
-    "foldkit": "0.169.0",
+    "effect": "^4.1.0",
+    "foldkit": "0.170.0",
     "oxfmt": "0.74.0",
     "playwright": "^1.64.1",
     "tsdown": "^0.23.1",

@@ -921,9 +921,11 @@ Foldkit's own behaviour that we work around is listed in
 - **Yielded's core `AuthPersistence` cannot commit on D1.** It signs in and up
   inside a transaction, and `@effect/sql-d1` refuses transactions; use
   `@yielded/auth-persistence-drizzle/D1`, which commits in D1 batches. Its
-  `@yielded/auth/WorkerdServices` imports a `.wasm` and `node:crypto`, so Node
+  `@yielded/auth-platform-workerd` imports a `.wasm` and `node:crypto`, so Node
   cannot load it: keep what a test reads from Node in a module apart, and
-  bundle it with `loader: { '.wasm': 'copy' }` and `nodejs_compat`.
+  bundle it with `loader: { '.wasm': 'copy' }` and `nodejs_compat`. On Node,
+  Yielded's Argon2id needs `node:crypto`'s `argon2` (Node 24.7); the tests
+  hash with scrypt (`PasswordScrypt.layer`) instead of `Testing.services`.
 - **A Worker's `console.error` never reached `Stack.start`'s output** (#269).
   An SSR 500 said only "The page could not be rendered"; Wrangler's harness
   runs workerd with `logLevel: 'none'` and only keeps the lines (`getLogs`).
@@ -1156,11 +1158,21 @@ Foldkit's own behaviour that we work around is listed in
 
 **Effect 4, not 3**
 
-The workspace runs `effect@^4.0.5`, one copy of each Effect package;
-foldkit's exact peer (`effect@4.0.0`) is relaxed in `pnpm-workspace.yaml`, and
-published packages peer on `^4.0.0` (`foldkit-auth`, which peers Yielded Auth,
-on `^4.0.4`). Within 4.0.x, `Crypto.randomUUIDv4` became a function: `yield*
-crypto.randomUUIDv4()`. Since 4.0.0 there is no
+The workspace runs `effect@^4.1.0`, one copy of each Effect package
+(`pnpm-workspace.yaml` holds the platform and SQLite packages there), and
+published packages peer on `^4.1.0`; Foldkit 0.170 peers on `~4.1.0`. 4.1
+replaced `effect/Crypto` with `effect/crypto`: a UUID is `yield*
+SecureRandom.SecureRandom` then `secureRandom.uuidV4()`, which cannot fail,
+provided by `BrowserCrypto.layerSecureRandom`; and every `KeyValueStore.make`
+must give `keys`. 4.1 also starts a `Stream.callback`'s setup when the stream
+starts, before its first pull: a Mount's acquire runs even when the element
+leaves in the same tick, and an asynchronous acquire then finishes before its
+release runs, unless `Effect.acquireRelease` is given `{ interruptible: true }`
+(then an interrupted acquire registers no release). The new timing moved two
+things here: `Sync.mount`'s first replica status arrived after a dispatch, so
+an install that replays edits must count them as edits since install, and
+Measure's first write landed before its first size observations, so a test
+waiting for it saw the Mount still busy. Since 4.0.0 there is no
 `effect/unstable/*`: import `effect/http`, `effect/persistence`, `effect/rpc`,
 `effect/sql` (and `effect/http-api` for the old `httpapi`). Since 4.0.0
 `Array`, `Chunk`, `Effect` and `Record` `partition` and `Option.partitionMap`
@@ -1911,6 +1923,12 @@ of its own named a form field "fits the Catalog". Read words with
 - **Run the CI sequence before committing, not after.** `format:check`,
   `typecheck`, `test`, `demo`. A commit shipped that would have failed
   `format:check` because only the last three were run.
+- **A caret peer accepts an Effect minor that removed what the package imports.**
+  `@yielded/auth@0.1.0-beta.43` peers on `effect@^4.0.3`, so it installed
+  beside 4.1.0 without a warning, though it imports `effect/Crypto`, which 4.1
+  removed; only `tsc` saw it, as an `any` requirement in every auth Layer. On
+  an Effect minor, check each dependency that imports `effect` for the
+  release that moved with it (Yielded's beta.47).
 - **A dependency's new peer set re-resolves its optional peers to the newest.**
   Moving the `@effect/sql-*` packages to 4.0.4 changed drizzle-orm's peer set,
   and pnpm resolved its optional `@cloudflare/workers-types` peer again: to

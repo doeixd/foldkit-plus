@@ -1,5 +1,6 @@
 import { BrowserCrypto } from '@effect/platform-browser'
-import { Crypto, Effect, Schema } from 'effect'
+import { Effect, Schema } from 'effect'
+import { SecureRandom } from 'effect/crypto'
 import { Command, Dom } from 'foldkit'
 
 import { ADD_CARD_INPUT_ID } from './constant.js'
@@ -10,10 +11,10 @@ export const GenerateCardId = Command.define('GenerateCardId', {
   messages: [Message.CompletedGenerateCardId],
   execute: ({ columnId, title }) =>
     Effect.gen(function* () {
-      const crypto = yield* Crypto.Crypto
-      const cardId = yield* Effect.orDie(crypto.randomUUIDv4())
+      const secureRandom = yield* SecureRandom.SecureRandom
+      const cardId = yield* secureRandom.uuidV4()
       return Message.CompletedGenerateCardId({ cardId, columnId, title })
-    }).pipe(Effect.provide(BrowserCrypto.layer)),
+    }).pipe(Effect.provide(BrowserCrypto.layerSecureRandom)),
 })
 
 export const FocusAddCardInput = Command.define('FocusAddCardInput', {
