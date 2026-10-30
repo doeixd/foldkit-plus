@@ -232,7 +232,7 @@ Read current state before deciding whether to retry an effectful operation.
 
 ### Variant configuration
 
-```ts
+```ts sketch
 RequestedDeleteTodo: {
   name: 'delete_todo',              // optional; defaults to requested_delete_todo
   description: 'Delete a todo',     // required
@@ -416,7 +416,7 @@ human action.
 Dispatching a Message and completing an operation are not always the same event.
 A capability can say which Messages finish its work:
 
-```ts
+```ts sketch
 RequestedDeleteTodo: {
   description: 'Delete a todo',
   completion: {
@@ -434,7 +434,7 @@ validated dispatch remains the boundary and the field is absent.
 
 This needs a host that can see Messages, not only receive them:
 
-```ts
+```ts sketch
 host: {
   model: currentModel,
   dispatch: sendToRuntime,
@@ -463,7 +463,7 @@ two calls apart (two todos titled "Milk"), pass `invocation.id` into the Message
 from `toMessage`, carry it onto the fact the Command produces, and correlate on
 it:
 
-```ts
+```ts sketch
 toMessage: ({ title }, { invocation }) => ({ title, requestId: invocation.id }),
 completion: {
   success: Message.SubmittedTodo,
@@ -477,7 +477,7 @@ A Message names one implementation path. When what matters is the outcome --
 the project now has the requested name, whether a Command result, a live update,
 a Sync exchange, or another device put it there -- complete on state instead:
 
-```ts
+```ts sketch
 RequestedRenameProject: {
   description: 'Rename a project',
   completion: Agent.when({
@@ -568,7 +568,7 @@ capabilities and already-cancelled invocations never read the Model.
 
 This matters because a contextual capability can read the Model twice:
 
-```ts
+```ts sketch
 RequestedDeleteTodo: {
   name: 'delete_selected_todo',
   description: 'Delete the currently selected todo',

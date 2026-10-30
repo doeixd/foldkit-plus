@@ -59,7 +59,7 @@ const Prefs = Mirror.kv(App, { key: 'todo/prefs', scope: userId, fields: [App.mo
 Wired into `update`, the URL hook the runtime already has, and one
 Subscription entry per mirror:
 
-```ts
+```ts sketch
 const update = (model, message) => {
   if (Mirror.reduces(message)) return { model: Prefs.reduce(model, message) }
   if (message._tag === 'UrlChanged') return { model: Filters.reduce(model, message.url) }

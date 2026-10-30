@@ -337,7 +337,7 @@ operation is complete
 A completion contract teaches the runtime which later Message means the
 operation actually finished:
 
-```ts
+```ts sketch
 completion: {
   success: Message.SubmittedTodo,
   correlate: (request, result) =>
@@ -358,7 +358,7 @@ A completion Message names one implementation path. Sometimes what matters is
 the outcome, whoever produced it: a Command result, a live update, a Sync
 exchange, another device. A state contract completes when a condition holds:
 
-```ts
+```ts sketch
 RequestedDeleteTodo: {
   description: 'Delete a todo',
   completion: Agent.when({
@@ -421,7 +421,7 @@ says so, `AgentCancelledError` carries `dispatched: false`, and the audit record
 
 A capability can depend on the current Model:
 
-```ts
+```ts sketch
 ClearedCompleted: {
   name: 'clear_completed',
   description: 'Delete every completed todo',

@@ -215,7 +215,7 @@ A transport failure becomes the call's Remote error, not a defect.
 
 Register queries and mutations: `Remote.make({ model, entities, queries: [ProjectsByOwner], mutations: [RenameProject] })`.
 
-```ts
+```ts sketch
 import { Mutation, Query, RemotePolicy } from 'foldkit-remote'
 
 const ProjectsByOwner = Query.make('ProjectsByOwner', { Input: { ownerId: Schema.String }, Result: Project })

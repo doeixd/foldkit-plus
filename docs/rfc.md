@@ -165,7 +165,7 @@ The integration rule should be:
 
 A small Foldkit app should still need nothing beyond:
 
-```ts
+```ts sketch
 Model
 Message
 init
@@ -353,7 +353,7 @@ or create their own wrapper. A canonical application identity removes that repet
 
 Do not make:
 
-```ts
+```ts sketch
 Application.define(...)
 ```
 
@@ -492,7 +492,7 @@ Instead, an interpreter should construct a branded / opaque declaration that Pro
 
 Conceptually:
 
-```ts
+```ts sketch
 const RemoteRequirements = Metadata.key<Requirement>('remote', {
   merge: Requirement.merge,
   summarize: requirement => ...,
@@ -860,7 +860,7 @@ resource finalization
 
 Examples:
 
-```ts
+```ts sketch
 agentRuntime.messages.dispatch(...).pipe(
   Effect.retry(policy),
 )
@@ -948,7 +948,7 @@ All API names in this section are illustrative.
 
 An agent that renames a project must know the specific Message that means success:
 
-```ts
+```ts sketch
 completion: {
   success: Message.RenamedProject,
   correlate: (request, result) =>
@@ -1044,7 +1044,7 @@ const ProjectPage = Projection.all({
 
 A refresh path may restate the same data graph:
 
-```ts
+```ts sketch
 [
   LoadProject({ projectId }),
   LoadOwner({ ownerId }),
@@ -1221,7 +1221,7 @@ Do not extract a universal optimistic-state abstraction merely because the diagr
 
 Without a clear rule, every package may eventually invent:
 
-```ts
+```ts sketch
 {
   timeout: 5000,
   signal,
@@ -1231,7 +1231,7 @@ Without a clear rule, every package may eventually invent:
 
 With the proposal, package operations compose as Effects:
 
-```ts
+```ts sketch
 agentRuntime.messages.dispatch(...).pipe(
   Effect.retry(policy),
 )
@@ -1514,7 +1514,7 @@ This preserves Foldkit's existing nondeterminism boundary.
 
 Event completion remains valuable:
 
-```ts
+```ts sketch
 completion: {
   success: Message.SubmittedTodo,
   failure: Message.FailedTodo,
@@ -2354,7 +2354,7 @@ This RFC is as much about refusing abstractions as adopting them.
 
 Do not upstream these merely because they look unified:
 
-```ts
+```ts sketch
 Foldkit.refresh(projection)
 Foldkit.latest(projection)
 Observation.make(...)
@@ -2745,19 +2745,19 @@ It is **making architecture more explicit than users actually need**.
 
 Foldkit gets power from the fact that a view can simply be:
 
-```ts
+```ts sketch
 (model, h) => ...
 ```
 
 and update can simply be:
 
-```ts
+```ts sketch
 (model, message) => ...
 ```
 
 If every feature starts requiring:
 
-```ts
+```ts sketch
 Projection.define(...)
 MessageSet.define(...)
 Surface.define(...)

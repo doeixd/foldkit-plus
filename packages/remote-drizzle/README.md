@@ -342,7 +342,7 @@ for that field yourself, as `foldkit-cms-drizzle` does for an entry's state.
 A `one` may also be read from the other side, where the foreign key is a column
 of the target's table, as a member's profile points at its member:
 
-```ts
+```ts sketch
 Member: { table: members, relations: { profile: { foreignKey: profiles.memberId } } },
 ```
 
@@ -634,7 +634,7 @@ not grow with the number of parents.
 
 The result carries:
 
-```ts
+```ts sketch
 {
   refs,
   hasNext,

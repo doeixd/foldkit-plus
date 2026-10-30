@@ -52,6 +52,10 @@ jobs:
       # Forced, so a warm `.tsbuild` cannot hide a project-graph change.
       - run: pnpm typecheck:force
 
+      # The docs' TypeScript blocks, against what the step above just built,
+      # so it takes seconds rather than a job of its own.
+      - run: pnpm docs:check
+
   # Sharded: alone it took over ten minutes, the slowest job by four.
   test:
     runs-on: ubuntu-latest

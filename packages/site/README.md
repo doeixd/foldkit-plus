@@ -212,7 +212,7 @@ to the browser (the route, a resumed read), as any plan's `meta` must.
 `Site.view(site, route, model, h)` draws the route: the deepest node's view,
 wrapped by every ancestor's layout root-first. Declare them on nodes:
 
-```ts
+```ts sketch
 const Section = Site.route(sectionRouter, AppRoute.Section, {
   layout: {
     render: (child, model, h) => h.div([], [sidebar(model, h), child]),

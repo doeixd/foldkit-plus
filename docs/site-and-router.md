@@ -70,7 +70,7 @@ left, once you have built the transition yourself.
 The routing example, before it moved onto `foldkit-site`, shows what that
 leaves to the application. Its `update` answered both Messages by hand:
 
-```ts
+```ts sketch
 ClickedLink: ({ request }) =>
   UrlRequest.match<UpdateReturn>(request, {
     Internal: ({ url }) => ({ model, commands: [NavigateInternal({ url: urlToString(url) })] }),
@@ -110,7 +110,7 @@ A Site is a tree of nodes. A node is one of your existing routers, the route
 case it builds, and what you say about that place. Everything the tables above
 held is said there, once:
 
-```ts
+```ts sketch
 const PeopleNode = Site.route(peopleRouter, AppRoute.People, {
   title: () => 'People | Routing',
   section: 'People',

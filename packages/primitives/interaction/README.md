@@ -498,7 +498,7 @@ timers, observers, or reposition loops.
 once and stays inert without layout. `KeepInView` in `foldkit-primitives/dom`
 scrolls newly marked content into view: that one moves the page to the panel.
 
-```ts
+```ts sketch
 Behavior.attach(Placing.keepWithin(WidgetSlots)({ panel: 'popup' })),
 ```
 

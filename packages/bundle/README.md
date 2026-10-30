@@ -797,7 +797,7 @@ The [auth example](../../examples/auth) loads Yielded's client this way, and
 Bundles are pipeable. Each combinator returns a new bundle and leaves the
 original unchanged, and its callbacks are typed from the bundle:
 
-```ts
+```ts sketch
 const LoggedCounter = Counter.pipe(
   Bundle.rename('LoggedCounter'),
   Bundle.mapUpdate(update => (model, message, args) => {

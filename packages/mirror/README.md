@@ -187,7 +187,7 @@ const Filters = Mirror.url(App, {
 
 With the default values, the URL stays clean. If the Model becomes:
 
-```ts
+```ts sketch
 {
   filter: 'active',
   page: 2,
@@ -519,7 +519,7 @@ Changing only the filter yields:
 
 A key that should remain explicit can opt in:
 
-```ts
+```ts sketch
 keys: {
   page: { keep: true },
 }
@@ -541,7 +541,7 @@ other   -> JSON
 
 Override a field when a friendlier representation is useful:
 
-```ts
+```ts sketch
 keys: {
   tags: {
     codec: TagsAsCommaSeparatedText,
@@ -677,7 +677,7 @@ behavior.
 A key-value mirror stores one versioned JSON document under its configured key.
 It may also be scoped to a user or tenant:
 
-```ts
+```ts sketch
 Mirror.kv(App, {
   key: 'todo/prefs',
   scope: principal.userId,

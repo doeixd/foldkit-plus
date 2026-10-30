@@ -212,7 +212,7 @@ Bundles with OutMessages, and children that are not Bundles, stay on
 wrapped by every ancestor's layout root-first. Ancestors contribute layouts
 only — never their views:
 
-```ts
+```ts sketch
 const Section = Site.route(sectionRouter, AppRoute.Section, {
   layout: {
     render: (child, model, h) => h.div([], [sidebar(model, h), child]),

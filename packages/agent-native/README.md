@@ -155,7 +155,7 @@ refuses it at call time.
 Application refusals are returned as application output, not thrown as adapter
 crashes:
 
-```ts
+```ts sketch
 { ok: false, message: '…' }
 ```
 

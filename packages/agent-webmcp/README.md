@@ -129,7 +129,7 @@ boundary.
 Availability is Model-dependent, so the advertised WebMCP tool set may change as
 the application changes:
 
-```ts
+```ts sketch
 RequestedDeleteTodo: {
   name: 'delete_todo',
   description: 'Delete the selected todo',

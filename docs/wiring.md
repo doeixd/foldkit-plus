@@ -17,7 +17,7 @@ READMEs and skill references.
 The interface, declared in `foldkit-surface` and repeated structurally in
 `foldkit-bundle` (so the bundle core does not depend on Surface), abridged:
 
-```ts
+```ts sketch
 interface Wiring<Model, Message, R = never, Claims extends string = string> {
   readonly key: string                                            // remote:Board
   readonly handles: ReadonlyArray<Claims>                         // Message tags route folds

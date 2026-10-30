@@ -318,7 +318,7 @@ const Server = RemoteServer.make({
 
 A Query returns:
 
-```ts
+```ts sketch
 {
   edges,
   start,

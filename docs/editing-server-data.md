@@ -82,7 +82,7 @@ export const ProductEdits = EditableEntity.make(Product, { members: ['cents'] })
 In the application, the durable Message, its fold, and the edits shown through
 Remote:
 
-```ts
+```ts sketch
 const Base = Bundle.compose({
   remote: Remote.Model,
   edits: Schema.Array(ProductEdits.Edit),
@@ -105,7 +105,7 @@ afterUpdate: model => ({ model: Shown.reconcile(model, model.edits, replica.repl
 
 In the Sync contract, the stamp the journal writes at commit:
 
-```ts
+```ts sketch
 stamp: {
   EditedProducts: ({ changes }, commit) =>
     Message.EditedProducts({ changes, ...ProductEdits.stamped(commit) }),
@@ -114,7 +114,7 @@ stamp: {
 
 On the server, the table:
 
-```ts
+```ts sketch
 const { settle, absorb } = editsJournal({
   documentId: RegistrySync.documentId,
   journal,

@@ -168,7 +168,7 @@ The result carries `completion: { status: 'completed' | 'failed', message }`.
 
 To complete on **state** instead, use `Agent.when`. The Model form needs `host.subscribe`:
 
-```ts
+```ts sketch
 RenamedList: {
   description: 'Rename the list',
   completion: Agent.when({

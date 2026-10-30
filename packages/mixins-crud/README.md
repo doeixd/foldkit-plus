@@ -120,7 +120,7 @@ rows (a refresh that failed), they stay on screen below it, because they are
 still the best answer there is. Remote does not retry a failed read on its own,
 so give `onRetry` a Message and the view adds a button that sends it:
 
-```ts
+```ts sketch
 PostTable({ page: Posts.page(model), onRetry: Message.RetriedPosts() }, h)
 
 // in update
@@ -136,7 +136,7 @@ focus. The view cannot move focus itself: focus caused by a Message belongs to
 that Message. Return a `Dom.focus` Command from the retry's branch, which runs
 after the next render, and focus lands on the list instead of the page:
 
-```ts
+```ts sketch
 case 'RetriedPosts':
   return { model: Posts.refresh(model), commands: [FocusPosts()] }
 

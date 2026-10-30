@@ -203,7 +203,7 @@ This allows two levels of portability.
 The simplest useful model is that all application semantics are shared while
 each platform owns presentation:
 
-~~~ts
+~~~ts sketch
 const Todo = App.surface(...)
 
 const WebTodo = Web.view(Todo, ...)
@@ -219,7 +219,7 @@ Even if Foldkit stopped here, the amount of shared code could be substantial.
 
 A stronger later model is:
 
-~~~ts
+~~~ts sketch
 const TodoView = Portable.view(Todo, ...)
 ~~~
 
@@ -244,7 +244,7 @@ would leak Web assumptions into every target.
 
 Instead, a portable UI layer should describe intent:
 
-~~~ts
+~~~ts sketch
 ui.Stack(...)
 ui.Text(...)
 ui.Button(...)
@@ -347,7 +347,7 @@ be generalized into a typed description of what a renderer/runtime provides.
 
 Conceptually:
 
-~~~ts
+~~~ts sketch
 Platform.define({
   name: "web",
 

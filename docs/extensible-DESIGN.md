@@ -146,7 +146,7 @@ const extend =
 
 The difficult part isn't runtime behavior—runtime is basically merging constructors/schemas. The important part is preserving the **rich union API and type inference**:
 
-```ts
+```ts sketch
 Message.Type
 Message.match(...)
 Message.guards

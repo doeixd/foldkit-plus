@@ -982,7 +982,7 @@ of it.
 To revalidate what a screen already declares — a refresh button, a focus
 regained — hand `Data.refresh` the active record the wiring takes:
 
-```ts
+```ts sketch
 case 'ClickedRefresh':
   return { model: Data.refresh(model, actives) }
 ```
@@ -1012,7 +1012,7 @@ nothing observes, use `Data.prefetch` with `RemotePolicy.networkOnly`.
 again": what loaded keeps its value, and a list keeps its later pages, which a
 whole refresh would replace with one page.
 
-```ts
+```ts sketch
 case 'ClickedTryAgain':
   return { model: Data.refresh(model, actives, { failed: true }) }
 ```
@@ -1025,7 +1025,7 @@ settled as unavailable, the rows of a list. Log in, log out, switch
 organization, and none of it is trustworthy. `Data.forget` is the one
 boundary:
 
-```ts
+```ts sketch
 case 'SignedOut': {
   return { model: Data.forget({ ...model, session: Option.none() }) }
 }
@@ -1392,7 +1392,7 @@ const RenameProject = Mutation.make('RenameProject', {
 
 A mutation starts from ordinary application `update`:
 
-```ts
+```ts sketch
 case 'ClickedRename': {
   const { id, name } = message
 
@@ -1600,7 +1600,7 @@ Remote keeps the failure in the ledger, with the mutation and the input it was
 started with, until the application answers it. The application reads it from
 the Model; it keeps no list of its own:
 
-```ts
+```ts sketch
 // The view: a notice for each post that did not send, with its text to give back.
 Data.failedWrites(model, CreatePost) // ReadonlyArray<{ requestId, mutation, input, error, refusal }>
 
@@ -1711,7 +1711,7 @@ row's counts read 0 and its exists none.
 Command, and carried in the Message that starts the write. `Remote.now(toMessage)`
 is that Command; it reads Effect's `Clock`, so a test pins it:
 
-```ts
+```ts sketch
 // the action asks for the time…
 Posted: ({ post }) => ({ model, commands: [Remote.now(now => Message.Clocked({ post, now }))] }),
 // …and the Message it yields starts the write with it
@@ -1741,7 +1741,7 @@ A viewer-relative member is predicted for the viewer `Remote.make` is told of.
 With a `Like` pointing at a `Post` and a `User` (`examples/chirp` declares the
 whole domain, its writes and its server):
 
-```ts
+```ts sketch
 const Post = Social.Post.pipe(
   Entity.derived({
     liked: Derived.exists(Social.Like.relations.post, { viewer: Social.Like.relations.user }),
@@ -1860,7 +1860,7 @@ and records each as a `PredictionMismatch` [diagnostic](#diagnostics), its
   does not hold. It is then missing: an active Surface that reads it fetches it
   again, and the row reads `Loading` meanwhile.
 
-```ts
+```ts sketch
 // requestId: the one Data.mutate returned; mutation: its name
 { _tag: 'PredictionMismatch', part: { _tag: 'Value', requestId, mutation, entity: 'Post', id: 'p9', field: 'likeCount', shown: 3, answered: 4 }, … }
 { _tag: 'PredictionMismatch', part: { _tag: 'Gap', requestId, mutation, entity: 'Post', id: 'p9', fields: ['editedAt', 'author'] }, … }
@@ -2448,7 +2448,7 @@ wire yourself, each `POST` body is one of these, `version` being
 Remote exposes its decisions as data rather than requiring DevTools to reach
 into private state:
 
-```ts
+```ts sketch
 Data.inspect(model)            // serializable cache/domain summary
 Data.plan(model, projection)   // the entity plan a read would execute
 Data.meta(model, projection)   // when what is shown was received, stale/loading
