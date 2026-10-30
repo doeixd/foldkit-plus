@@ -143,13 +143,13 @@ const agent = manager === 'pnpm' ? pnpmAgent : env.npm_config_user_agent
 const empty = join(home, 'new')
 mkdirSync(empty)
 const printed = new RegExp(
-  `^npx create-foldkit-app@\\S+ .*--rendering ${rendering === 'spa' ? 'spa' : '<ssg\\|ssr>'} .*--package-manager ${manager}$`,
+  `^npx (?:--force )?create-foldkit-app@\\S+ .*--rendering ${rendering} .*--package-manager ${manager}$`,
 )
 const scaffold = setup(empty, agent)
   .split('\n')
   .find(line => printed.test(line))
 if (scaffold === undefined) fail(`the guide prints no ${rendering} scaffold command for ${manager}`)
-const created = run(scaffold.replace('<name>', 'app').replace('<ssg|ssr>', rendering), empty)
+const created = run(scaffold.replace('<name>', 'app'), empty)
 if (created.status !== 0) fail(`${scaffold} failed:\n${created.output}`)
 const app = join(empty, 'app')
 

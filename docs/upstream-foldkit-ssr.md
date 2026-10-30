@@ -273,6 +273,26 @@ to pass against the newest 4.x as well as the floor. When it ships, `setup`
 drops the pins: `pinsOf` in `packages/plus/src/setup.ts` and the fields in
 the root README.
 
+**The ssg scaffold leaves a peer floating.** `create-foldkit-app` 0.40.0 pins
+every package it names from its release manifest, but its ssg template names
+no `@foldkit/ui`, which `@foldkit/devtools` 0.169.0 peers on at `>=0.167.0`.
+npm installs a missing peer at its newest release, and since Foldkit 0.170
+that is `@foldkit/ui` 0.170.0, which peers `effect: ~4.1.0`; so
+`--rendering ssg --package-manager npm` fails its own install with `ERESOLVE`
+against the scaffold's `effect` 4.0.0 (#229's `scaffold` CI job, from
+2026-10-30). The spa and ssr templates name `@foldkit/ui` at the release, so
+they install. The ask: name `@foldkit/ui` in the ssg template too, or have
+`@foldkit/devtools` peer on its own release (`~0.169.0`) rather than every
+later one. `create-foldkit-app` 0.41.0 (Foldkit 0.170) still leaves it
+floating, so the next Effect minor breaks it again. Our workaround, in
+`setup`: npm's ssg scaffold command is `npx --force create-foldkit-app…`,
+since npx hands its config to the install the scaffold runs, which then
+takes `@foldkit/ui` 0.170.0 with a warning; step 2 adds `@foldkit/ui` at
+Foldkit's release to a project that names `@foldkit/devtools` without it.
+`--legacy-peer-deps` is no substitute: npx's own install of the scaffolder
+then skips its peers, and in an empty npm cache it fails to load
+(`Cannot find package 'redis'`, a peer of `@effect/platform-node`).
+
 ## What we are not asking for
 
 These were on this repository's list and are dropped or held after this

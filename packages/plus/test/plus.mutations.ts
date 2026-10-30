@@ -75,10 +75,40 @@ export default [
     tests: ['packages/plus/test/setup.test.ts'],
   },
   edit(
-    'an ssg or ssr scaffold is told to take an example',
+    'an ssr scaffold is told to take an example',
     '../src/setup.ts',
-    '--rendering <ssg|ssr> --package-manager',
-    '--rendering <ssg|ssr> --example counter --package-manager',
+    '--rendering ssr --package-manager',
+    '--rendering ssr --example counter --package-manager',
+  ),
+  edit(
+    'an ssg scaffold with npm meets its devtools peer',
+    '../src/setup.ts',
+    "`npx ${manager === 'npm' ? '--force ' : ''}${SCAFFOLDER}",
+    '`npx ${SCAFFOLDER}',
+  ),
+  edit(
+    'every manager is told to pass npm its flag',
+    '../src/setup.ts',
+    "`npx ${manager === 'npm' ? '--force ' : ''}${SCAFFOLDER}",
+    '`npx --force ${SCAFFOLDER}',
+  ),
+  edit(
+    "the devtools' `@foldkit/ui` peer is left to the manager",
+    '../src/setup.ts',
+    "found.versions['@foldkit/ui'] === undefined,",
+    'false,',
+  ),
+  edit(
+    'a project with no devtools is given `@foldkit/ui`',
+    '../src/setup.ts',
+    "found.versions['@foldkit/devtools'] !== undefined &&",
+    '',
+  ),
+  edit(
+    'a project that names `@foldkit/ui` is given it again',
+    '../src/setup.ts',
+    "found.versions['@foldkit/ui'] === undefined,",
+    'true,',
   ),
   edit(
     'a `.gitattributes` the project has is written over',

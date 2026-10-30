@@ -355,6 +355,14 @@ export const setupGuide = ({ project, manager, versions }: SetupInput): string =
       onSome: found => found.pnpmSettings,
     }),
   )
+  // Foldkit's devtools peer on `@foldkit/ui` at any release, and a manager left
+  // to pick one takes the newest, which may peer on a newer Effect (#229).
+  const uiPeer = Option.exists(
+    project,
+    found =>
+      found.versions['@foldkit/devtools'] !== undefined &&
+      found.versions['@foldkit/ui'] === undefined,
+  )
   // npm's block already names the Effect packages the project depends on.
   const install = addCommand(
     manager,
@@ -363,6 +371,7 @@ export const setupGuide = ({ project, manager, versions }: SetupInput): string =
         ? []
         : effectPackages.filter(name => moved.has(name)).map(name => `${name}@${versions.effect}`)),
       `foldkit@${versions.foldkit}`,
+      ...(uiPeer ? [`@foldkit/ui@${versions.foldkit}`] : []),
       'foldkit-plus',
     ],
     true,
@@ -373,11 +382,12 @@ export const setupGuide = ({ project, manager, versions }: SetupInput): string =
       '',
       `- ${GREENFIELD} (in the skill of step 3, \`references/greenfield.md\`)`,
       '',
-      'When its first step has a name and a rendering mode, it scaffolds with the command for that mode; `--example` is for spa alone, and an ssg or ssr scaffold refuses it:',
+      `When its first step has a name and a rendering mode, it scaffolds with the command for that mode; \`--example\` is for spa alone, and an ssg or ssr scaffold refuses it${manager === 'npm' ? ". An ssg scaffold names `@foldkit/devtools` but not `@foldkit/ui`, its peer, so npm takes the newest `@foldkit/ui`, which needs a newer Effect than the scaffold's, and refuses the install: `--force` lets it install with a warning, and step 2 replaces that `@foldkit/ui` with the one at the scaffold's Foldkit release (`--legacy-peer-deps` would also drop peers the scaffolder itself needs)" : ''}:`,
       '',
       '```bash',
       `npx ${SCAFFOLDER} --name <name> --rendering spa --example counter --package-manager ${manager}`,
-      `npx ${SCAFFOLDER} --name <name> --rendering <ssg|ssr> --package-manager ${manager}`,
+      `npx ${manager === 'npm' ? '--force ' : ''}${SCAFFOLDER} --name <name> --rendering ssg --package-manager ${manager}`,
+      `npx ${SCAFFOLDER} --name <name> --rendering ssr --package-manager ${manager}`,
       '```',
       '',
       'Then run `npx --legacy-peer-deps foldkit-plus setup` again in the new folder and continue from step 2.',
@@ -387,6 +397,11 @@ export const setupGuide = ({ project, manager, versions }: SetupInput): string =
       '',
       finding(found, 'effect', versions.effect),
       finding(found, 'foldkit', versions.foldkit),
+      ...(uiPeer
+        ? [
+            `- \`@foldkit/devtools\` peers on \`@foldkit/ui\`, which the project does not name: step 2 adds \`@foldkit/ui@${versions.foldkit}\`, since a manager left to choose takes the newest, which may need a newer Effect.`,
+          ]
+        : []),
       // Never overwritten: line endings are the project's to choose once chosen.
       ...(found.gitattributes
         ? ['- `.gitattributes` is there: leave it as it is.']

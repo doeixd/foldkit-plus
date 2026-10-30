@@ -35,8 +35,32 @@ describe('setupGuide', () => {
       `npx ${SCAFFOLDER} --name <name> --rendering spa --example counter --package-manager npm`,
     )
     expect(text).toContain(
-      `npx ${SCAFFOLDER} --name <name> --rendering <ssg|ssr> --package-manager npm\n`,
+      `npx ${SCAFFOLDER} --name <name> --rendering ssr --package-manager npm\n`,
     )
+  })
+
+  // An ssg scaffold names `@foldkit/devtools` without `@foldkit/ui`, its peer,
+  // and npm refuses the newest `@foldkit/ui`'s newer Effect.
+  it('scaffolds ssg with npm past its devtools peer, and with another manager as is', () => {
+    expect(guide(Option.none(), 'npm')).toContain(
+      `npx --force ${SCAFFOLDER} --name <name> --rendering ssg --package-manager npm\n`,
+    )
+    expect(guide(Option.none(), 'pnpm')).toContain(
+      `npx ${SCAFFOLDER} --name <name> --rendering ssg --package-manager pnpm\n`,
+    )
+  })
+
+  it("adds `@foldkit/ui` at Foldkit's release where the devtools peer on it unnamed", () => {
+    const ssg = guide(project({ effect: '4.0.0', '@foldkit/devtools': '0.165.0' }), 'npm')
+    expect(ssg).toContain(
+      'npm install --save-exact foldkit@0.165.0 @foldkit/ui@0.165.0 foldkit-plus',
+    )
+    expect(ssg).toContain('step 2 adds `@foldkit/ui@0.165.0`')
+    const named = { effect: '4.0.0', '@foldkit/devtools': '0.165.0', '@foldkit/ui': '0.165.0' }
+    expect(guide(project(named), 'npm')).toContain(
+      'npm install --save-exact foldkit@0.165.0 foldkit-plus',
+    )
+    expect(guide(project({ effect: '4.0.0' }), 'npm')).not.toContain('@foldkit/ui@0.165.0')
   })
 
   it('names the docs command beside the skill', () => {

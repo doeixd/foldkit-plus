@@ -871,6 +871,15 @@ carries `drawn`.
 
 ### Fixed
 
+- **`npx foldkit-plus setup` scaffolds an ssg application with npm again
+  (#229, #337).** `create-foldkit-app` 0.40.0's ssg template names
+  `@foldkit/devtools` 0.169.0 but not `@foldkit/ui`, which the devtools peer
+  on at `>=0.167.0`, so npm installed the newest, 0.170.0, which peers on
+  Effect 4.1, and the scaffold's own install failed with `ERESOLVE`. The spa
+  and ssr templates name `@foldkit/ui` themselves. For npm, setup now prints
+  the ssg scaffold as `npx --force create-foldkit-app…`. Step 2 adds
+  `@foldkit/ui` at Foldkit's release to any project that names
+  `@foldkit/devtools` without it, and with every package manager.
 - **Sync's commit notices no longer stop unannounced (#237).**
   `journalChanges`, and `serveJournal` through it, notified from a fiber
   that a listener's throw (a `send` on a socket that had just closed) or a

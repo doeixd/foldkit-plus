@@ -79,7 +79,8 @@ a non-interactive command. Run it with the brief's answers:
 ```bash
 # spa:
 npx create-foldkit-app@<version setup names> --name <name> --rendering spa --example counter --package-manager <manager>
-# ssg or ssr, which take no --example (the scaffold refuses one):
+# ssg or ssr, which take no --example (the scaffold refuses one); with npm,
+# setup gives ssg `npx --force`, which its devtools' floating peer needs:
 npx create-foldkit-app@<version setup names> --name <name> --rendering <ssg|ssr> --package-manager <manager>
 cd <name>
 npx --legacy-peer-deps foldkit-plus setup
