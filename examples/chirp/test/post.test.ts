@@ -100,6 +100,23 @@ describe('a chirp posted', () => {
   })
 })
 
+describe('a chirp of yours deleted before the answer', () => {
+  const deleted = update(posted(held), Message.ClickedDelete({ id: 'n1' })).model
+
+  it('leaves the timeline and your post count at once', () => {
+    const read = timeline.read(deleted)
+    expect(read._tag === 'Ready' ? read.value.items.map(post => post.body) : read._tag).toEqual([
+      'Newer',
+      'Older',
+    ])
+    expect(Data.get(Card, 'you').read(deleted)).toMatchObject({ value: { postCount: 1 } })
+  })
+
+  it('waits in the outbox beside the post, so a reload keeps both', () => {
+    expect(Data.outboxStatus(deleted)).toMatchObject({ waiting: 2, failed: 0 })
+  })
+})
+
 describe('a chirp posted, as the server keeps it', () => {
   /** When you post, by the trace's clock; the server's runs two seconds ahead. */
   const at = 1_800_000_000_000

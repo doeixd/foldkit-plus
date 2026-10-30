@@ -2,7 +2,8 @@
  * The demo end to end: the Vite dev server, so the server runs in a
  * SharedWorker on SQLite compiled to WebAssembly, and Chromium as two people.
  * A chirp posted shows at once and survives a reload; Edit shows only where
- * the server says the reader may, and saves in place; a like is kept.
+ * the server says the reader may, and saves in place; a like is kept; a
+ * chirp its author deletes is gone, after a reload too.
  */
 import { fileURLToPath } from 'node:url'
 import { type Browser, chromium, type Page } from 'playwright'
@@ -38,7 +39,7 @@ const open = async (page: Page, query: string) => {
   await post(page, 'The engine weaves').waitFor({ timeout: 120_000 })
 }
 
-test('posting, editing what you may, and liking, kept by the server in the browser', async () => {
+test('posting, editing what you may, liking and deleting, kept by the server in the browser', async () => {
   // One context: the tabs of one browser, which share its SharedWorker.
   const context = await browser.newContext()
   const errors: Array<string> = []
@@ -87,6 +88,23 @@ test('posting, editing what you may, and liking, kept by the server in the brows
   await expect
     .poll(() => ada.getByRole('button', { name: 'Edit' }).count())
     .toBe(await ada.getByRole('article').count())
+  // She edits it, and may not take it down: that is its author's alone.
+  expect(
+    await post(ada, 'Shipping Chirp today. Edited.')
+      .getByRole('button', { name: 'Delete' })
+      .count(),
+  ).toBe(0)
+
+  // Deleted by its author: gone at once, from the server too, so a reload and
+  // Ada's tab find it gone.
+  await post(you, 'Shipping Chirp today. Edited.').getByRole('button', { name: 'Delete' }).click()
+  await expect.poll(() => post(you, 'Shipping Chirp today. Edited.').count()).toBe(0)
+  await you.reload()
+  await post(you, 'The engine weaves').waitFor()
+  expect(await post(you, 'Shipping Chirp today. Edited.').count()).toBe(0)
+  await ada.reload()
+  await post(ada, 'The engine weaves').waitFor()
+  expect(await post(ada, 'Shipping Chirp today. Edited.').count()).toBe(0)
 
   expect(errors).toEqual([])
   await context.close()

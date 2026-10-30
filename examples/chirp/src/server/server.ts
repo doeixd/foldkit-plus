@@ -22,7 +22,16 @@ import {
 import { RemoteServer, type EntityWriter } from 'foldkit-remote-server'
 import { Chirper } from '../domain.js'
 import { G, Like, Post, type User } from '../guard.js'
-import { ByAuthor, EditPost, LikePost, PostChirp, Timeline, Unlike, likeOf } from '../operations.js'
+import {
+  ByAuthor,
+  DeletePost,
+  EditPost,
+  LikePost,
+  PostChirp,
+  Timeline,
+  Unlike,
+  likeOf,
+} from '../operations.js'
 import { SEED } from './seed.js'
 
 /** A SQLite database the server runs on, and whether it is new, so needs its tables. */
@@ -113,7 +122,7 @@ const SCHEMA = `
   );
   create table likes (
     id text primary key,
-    post_id text not null references posts(id),
+    post_id text not null references posts(id) on delete cascade,
     user_id text not null references users(id),
     unique (post_id, user_id)
   );
@@ -177,6 +186,7 @@ export const server = RemoteServer.make<Option.Option<User>, DrizzleDatabase>({
   mutations: [
     RemoteServer.write(PostChirp, guarded),
     RemoteServer.write(EditPost, guarded),
+    RemoteServer.write(DeletePost, guarded),
     RemoteServer.write(LikePost, likeWrites),
     RemoteServer.write(Unlike, likeWrites),
   ],
@@ -193,6 +203,10 @@ GuardServer.validate(Policy, {
 
 /** The server over `sqlite`: its tables made and seeded when the database is new. */
 export const openServer = (sqlite: Sqlite) => {
+  // A chirp's likes go with it: SQLite holds a table to its references (and
+  // cascades) only where the connection asks, which Node's does by default
+  // and sql.js's does not.
+  sqlite.exec('pragma foreign_keys = on')
   if (sqlite.fresh) {
     sqlite.exec(SCHEMA)
     sqlite.exec(SEED)

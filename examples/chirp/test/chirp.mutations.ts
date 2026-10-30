@@ -6,6 +6,8 @@ const server = ['examples/chirp/test/server.test.ts']
 const client = ['examples/chirp/test/like.test.ts', 'examples/chirp/test/post.test.ts']
 const why = ['examples/chirp/test/why.test.ts']
 const stale = ['examples/chirp/test/stale.test.ts']
+const page = ['examples/chirp/test/page.browser.test.ts']
+const wasm = ['examples/chirp/test/wasm.browser.test.ts']
 
 /**
  * #284: a served write landing past its guarded writer. The startup check
@@ -26,6 +28,66 @@ const pastGuards = (name: string, find: string, replace: string, survives?: stri
 })
 
 export default [
+  pastGuards(
+    'a chirp is deleted past its guards',
+    'RemoteServer.write(DeletePost, guarded)',
+    'RemoteServer.write(DeletePost, writer(Db.Post, ledgered))',
+  ),
+  {
+    name: 'the admin may delete any chirp, as she may edit one',
+    edits: [
+      {
+        file: '../src/guard.ts',
+        find: 'Delete: [G.isAuthor],',
+        replace: 'Delete: [G.isAuthor, G.isAdmin],',
+      },
+    ],
+    tests: [...server, ...page],
+  },
+  {
+    name: "a chirp's likes stay behind it",
+    edits: [
+      {
+        file: '../src/server/server.ts',
+        find: 'references posts(id) on delete cascade,',
+        replace: 'references posts(id),',
+      },
+    ],
+    tests: [...server, ...wasm],
+  },
+  {
+    name: 'sql.js holds no table to its references',
+    edits: [
+      {
+        file: '../src/server/server.ts',
+        find: "sqlite.exec('pragma foreign_keys = on')",
+        replace: 'void 0',
+      },
+    ],
+    tests: [...server, ...wasm],
+  },
+  {
+    name: 'a delete is sent at once, not kept in the outbox',
+    edits: [
+      {
+        file: '../src/app.ts',
+        find: 'Data.mutate(model, DeletePost, { id }, { durable: true })',
+        replace: 'Data.mutate(model, DeletePost, { id })',
+      },
+    ],
+    tests: client,
+  },
+  {
+    name: 'Delete shows on every chirp',
+    edits: [
+      {
+        file: '../src/view.ts',
+        find: "May.can(post.may, 'Delete')",
+        replace: 'true',
+      },
+    ],
+    tests: page,
+  },
   pastGuards(
     'a chirp is posted past its guards',
     'RemoteServer.write(PostChirp, guarded)',
@@ -56,21 +118,25 @@ export default [
   {
     name: 'anyone may write any post',
     edits: [
+      { file: '../src/guard.ts', find: 'Create: [G.isAuthor, G.isAdmin],', replace: '' },
+      { file: '../src/guard.ts', find: 'Update: [G.isAuthor, G.isAdmin],', replace: '' },
+      { file: '../src/guard.ts', find: 'Delete: [G.isAuthor],', replace: '' },
+      // The startup check refuses a write with no rule; skip it, so only the tests judge.
       {
-        file: '../src/guard.ts',
-        find: 'Guards.attach(G, { row: { Write: [G.isAuthor, G.isAdmin] } })',
-        replace: 'Guards.attach(G, { row: {} })',
+        file: '../src/server/server.ts',
+        find: 'GuardServer.validate(Policy, {',
+        replace: 'void (Policy, {',
       },
     ],
     tests: server,
   },
   {
-    name: 'an admin may write only their own posts',
+    name: 'an admin may edit only their own posts',
     edits: [
       {
         file: '../src/guard.ts',
-        find: 'Write: [G.isAuthor, G.isAdmin]',
-        replace: 'Write: [G.isAuthor]',
+        find: 'Update: [G.isAuthor, G.isAdmin],',
+        replace: 'Update: [G.isAuthor],',
       },
     ],
     tests: server,
@@ -149,6 +215,12 @@ export default [
         file: '../src/guard.ts',
         find: 'Guards.attach(G, { row: { Write: [G.isLiker] } })',
         replace: 'Guards.attach(G, { row: {} })',
+      },
+      // The startup check refuses a write with no rule; skip it, so only the tests judge.
+      {
+        file: '../src/server/server.ts',
+        find: 'GuardServer.validate(Policy, {',
+        replace: 'void (Policy, {',
       },
     ],
     tests: server,

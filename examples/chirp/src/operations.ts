@@ -1,4 +1,4 @@
-/** What the client reads and asks of the server: what a post shows, two lists, four writes. */
+/** What the client reads and asks of the server: what a post shows, two lists, five writes. */
 import { Schema } from 'effect'
 import { Entity, Expr, Order, Write, type Selected } from 'foldkit-entity'
 import { Mutation, Query } from 'foldkit-remote'
@@ -82,4 +82,14 @@ export const Unlike = Mutation.write(
 export const EditPost = Mutation.write(
   'EditPost',
   Write.update(Entity.input(Post, EditInput), { id: 'id' }),
+)
+
+/**
+ * A chirp taken down, by its author alone (`guard.ts`). The page drops it
+ * from every list and its author's count at once; the server deletes its
+ * likes with it (`on delete cascade`).
+ */
+export const DeletePost = Mutation.write(
+  'DeletePost',
+  Write.delete(Entity.input(Post, Schema.Struct({ id: Schema.String })), { id: 'id' }),
 )

@@ -82,24 +82,27 @@ a row guard comparing the post's `author` link with the asker
 (`Expr.eq(Chirp.Post.relations.author, Expr.viewer(UserFields))`, the set
 naming `viewer: UserFields`), `isLiker`, the like's `user`, and `isAdmin`,
 whose body only the server has (`G.implement` in `server/server.ts`).
-`Guards.attach` says a post is written by its author or an admin and a like by
-its liker, and `Guards.may` has the server tell the page, per post, whether
-you may edit it: the page shows Edit there. A chirp you just posted is drawn
+`Guards.attach` says a post is created and edited by its author or an admin,
+deleted by its author alone, and a like written by its liker, and
+`Guards.may` has the server tell the page, per post, whether you may edit or
+delete it: the page shows Edit and Delete there. A chirp you just posted is drawn
 before the answer with its Edit: the page reads the same rules, and its author
 is you whatever the server says of admins. That is a hint; the server's writer
 checks the rule on every write.
 
 **The server** (`server/server.ts`). The Entities are bound to SQLite tables
 through Drizzle (`bind`); the timeline and a person's posts are queries
-(`operations.ts`) the server compiles to SQL. Posting and editing are declared
-writes: the guarded writer lands them, after `RemoteServer.write` has set
+(`operations.ts`) the server compiles to SQL. Posting, editing and deleting
+(`DeletePost`) are declared writes: the guarded writer lands them, after `RemoteServer.write` has set
 a new chirp's author and time, so the browser sends neither. A like is a
 declared write too (`LikePost` inserts a Like pointing at whoever asks;
 `Unlike` deletes one by the id `liked` holds, and `isLiker` refuses it to
 anyone else). A chirp's and a like's id is the browser's, so a create sent
 again finds its id taken: both writers keep a ledger (`write_ledger`), which
 answers the same operation from the same person (as `Data.retry` sends it)
-with its row, and refuses any other create of that id. `RemoteServer.make` is told who asks (`viewer`), once: `Expr.viewer`
+with its row, and refuses any other create of that id. A deleted chirp's likes
+go with it: `likes.post_id` cascades, and the server turns SQLite's foreign
+keys on, which sql.js leaves off. `RemoteServer.make` is told who asks (`viewer`), once: `Expr.viewer`
 names the asker, and the Post's Source answers each person's own `liked`. Every answer carries what the page shows of the rows
 it names or points at: the page sends what its Surfaces read with each write,
 and the server reads those fields after the write, so a new chirp lands with
@@ -116,7 +119,9 @@ your post count, and placed in each loaded list its query admits. `update`
 reads no clock, so a post asks for the time first (`Remote.now`), and the
 Message it yields starts the write with it; the server keeps that time, so
 the answer moves nothing. The timeline draws it when the answer brings `may`, which only
-the server can say.
+the server can say. A delete is predicted too: the chirp leaves every loaded
+list and its author's count at once, and like a post it is durable, so the
+outbox keeps it until the server answers.
 
 **The forms** (`compose.ts`, `editor.ts`). The compose box is
 `Form.make` over the post's input, with the id hidden and the body a

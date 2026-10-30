@@ -1,6 +1,6 @@
 // @vitest-environment node
 /**
- * The law over Chirp's four writes (operations-phase6-DESIGN §1): each run
+ * The law over Chirp's five writes (operations-phase6-DESIGN §1): each run
  * through the page's own `Data.mutate` and through the server, as the same
  * person at the same time, the page holding every row. What the page shows
  * while a write is pending must be what the server then stores, its guards'
@@ -16,6 +16,7 @@ import { Chirper } from '../src/domain.js'
 import { Like, Post } from '../src/guard.js'
 import {
   ByAuthor,
+  DeletePost,
   EditPost,
   LikePost,
   PostChirp,
@@ -111,6 +112,18 @@ describe("the law over Chirp's writes", () => {
       mutation: EditPost,
       input: { id: 'p1', body: 'Not yours to edit.' },
       compares: ['EditPost'],
+    },
+    {
+      what: 'your chirp taken down: gone, from both lists and from your count',
+      mutation: DeletePost,
+      input: { id: 'p4' },
+      compares: ['Post:p4', 'User:you.postCount', timeline.identity, mine.identity],
+    },
+    {
+      what: "someone else's chirp taken down: refused where it is made, as the server refuses it",
+      mutation: DeletePost,
+      input: { id: 'p1' },
+      compares: ['DeletePost'],
     },
     {
       what: 'a like: the post counting it, and found as yours',

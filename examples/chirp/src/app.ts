@@ -21,6 +21,7 @@ import { Editing, Editor } from './editor.js'
 import { Like, Post } from './guard.js'
 import {
   ByAuthor,
+  DeletePost,
   EditPost,
   LikePost,
   PostChirp,
@@ -57,6 +58,7 @@ export const Model = Schema.Struct({
 })
 const own = {
   ClickedLike: { postId: Schema.String },
+  ClickedDelete: { id: Schema.String },
   ClockedPost: { post: NewPost, now: Schema.Number },
   ...steps,
 }
@@ -70,6 +72,7 @@ const Own = defineMessageUnion(own)
 const reduce = (model: Model, message: typeof Own.Type): Return =>
   Own.match(message, {
     ClickedLike: ({ postId }) => like(model, postId),
+    ClickedDelete: ({ id }) => taken(model, id),
     ClockedPost: ({ post, now }) => sent(model, post, now),
     // #endregion
     MintedId: ({ id }) => ComposeForm.helpers.fill({ id })(model),
@@ -105,7 +108,7 @@ export const Data = Remote.make({
   model: App.model.remote,
   entities: [Chirper, Post, Like],
   queries: [Timeline, ByAuthor],
-  mutations: [PostChirp, EditPost, LikePost, Unlike],
+  mutations: [PostChirp, EditPost, DeletePost, LikePost, Unlike],
   // Who reads: whom a like, a chirp's author, and `liked` are predicted for.
   viewer: model => Option.some(Remote.ref(Chirper, model.me)),
 })
@@ -162,6 +165,15 @@ const sent = (model: Model, value: typeof NewPost.Type, now: number): Return => 
   return { model: started.model, commands: [started.command] }
 }
 // #endregion
+
+/**
+ * A chirp of yours taken down: gone from every list, and from your count, at
+ * once. Durable, as a post is: the outbox keeps it until the server answers.
+ */
+const taken = (model: Model, id: string): Return => {
+  const started = Data.mutate(model, DeletePost, { id }, { durable: true })
+  return { model: started.model, commands: [started.command] }
+}
 
 const Liked = Entity.select(Post, { liked: true })
 

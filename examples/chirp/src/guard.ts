@@ -26,11 +26,18 @@ export const G = Guards.declare(
 // #endregion
 
 // #region guard-attach
+// An admin may edit any chirp; only its author may take one down.
 export const Post = LikedPost.pipe(
-  Guards.attach(G, { row: { Write: [G.isAuthor, G.isAdmin] } }),
+  Guards.attach(G, {
+    row: {
+      Create: [G.isAuthor, G.isAdmin],
+      Update: [G.isAuthor, G.isAdmin],
+      Delete: [G.isAuthor],
+    },
+  }),
   // What the reader may do with each row: the server's answer, and for a chirp
   // you just posted the page's own reading of the rules. A hint for which posts
-  // show Edit, never the check.
+  // show Edit and Delete, never the check.
   Guards.may,
 )
 // #endregion

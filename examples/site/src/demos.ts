@@ -165,8 +165,12 @@ export const chirpDemo: Demo = {
       text: 'Edit shows only on your own posts. Change one and save it in place.',
     },
     {
+      title: 'Delete',
+      text: 'Delete one of your own chirps: it leaves the timeline and your count at once, and a reload finds it gone.',
+    },
+    {
       title: 'Admin',
-      text: 'Sign in as Ada, the admin: Edit shows on every post, because the server says she may.',
+      text: 'Sign in as Ada, the admin: Edit shows on every post, because the server says she may, but Delete only on her own.',
     },
     {
       title: 'Like',

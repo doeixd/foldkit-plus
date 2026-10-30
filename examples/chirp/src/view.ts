@@ -15,7 +15,16 @@ import { RemoteData as Data } from 'foldkit-remote'
 import { Site } from 'foldkit-site'
 import { Surface } from 'foldkit-surface'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
-import { arrowLeft, bird, feather, heart, house, pencil, user } from 'virtual:foldkit-icons/lucide'
+import {
+  arrowLeft,
+  bird,
+  feather,
+  heart,
+  house,
+  pencil,
+  trash2,
+  user,
+} from 'virtual:foldkit-icons/lucide'
 import {
   ComposeForm,
   Data as Chirps,
@@ -78,6 +87,17 @@ const chirp = (post: Row, slots: Slots, h: H): ReadonlyArray<Html> => [
           h.button(
             slots.edit.attrs([h.Type('button'), h.OnClick(Message.ClickedEdit({ id: post.id }))]),
             [h.span(slots.round.attrs(), [icon(pencil, h)]), h.span([], ['Edit'])],
+          ),
+        ]
+      : []),
+    ...(May.can(post.may, 'Delete')
+      ? [
+          h.button(
+            slots.remove.attrs([
+              h.Type('button'),
+              h.OnClick(Message.ClickedDelete({ id: post.id })),
+            ]),
+            [h.span(slots.round.attrs(), [icon(trash2, h)]), h.span([], ['Delete'])],
           ),
         ]
       : []),

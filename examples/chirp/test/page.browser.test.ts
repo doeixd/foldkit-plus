@@ -1,8 +1,9 @@
 /// <reference types="@vitest/browser-playwright" />
 /**
- * The page in a real browser, over the sandbox's own server: what only
- * layout shows. The compose box's Chirp button holds its word in the middle,
- * and a profile's portrait is cut out of the banner in the avatar's own shape.
+ * The page in a real browser, over the sandbox's own server. The compose
+ * box's Chirp button holds its word in the middle, a profile's portrait is cut
+ * out of the banner in the avatar's own shape, and Delete shows on the
+ * reader's own chirps alone.
  */
 import { Effect, Layer, Option } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
@@ -14,6 +15,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { page } from 'vitest/browser'
 import { init, Model, opening, outbox, subscriptions, update, type Message } from '../src/app.js'
 import { sandboxRemote } from '../src/server/connection.js'
+import type { Person } from '../src/server/seed.js'
 import { profileHref } from '../src/site.js'
 import { stylesheet } from '../src/style.js'
 import { view } from '../src/view.js'
@@ -27,14 +29,14 @@ afterEach(() => {
   document.body.replaceChildren()
 })
 
-/** The page as `you` at `path`, on a sandbox started again from the seed. */
-const mount = async (path: string) => {
+/** The page as `person` at `path`, on a sandbox started again from the seed. */
+const mount = async (path: string, person: Person = 'you') => {
   Style.install(stylesheet)
   const container = document.createElement('div')
   container.id = 'chirp-test'
   document.body.append(container)
   const restored = await Effect.runPromise(
-    outbox.restore(opening('you')).pipe(Effect.provide(KeyValueStore.layerMemory)),
+    outbox.restore(opening(person)).pipe(Effect.provide(KeyValueStore.layerMemory)),
   )
   const handle = Runtime.embed(
     Runtime.makeElement({
@@ -44,7 +46,7 @@ const mount = async (path: string) => {
       update,
       view: (model: Model, h: HtmlBuilder<Message>): Html => view(model, h).body,
       subscriptions,
-      resources: Layer.merge(sandboxRemote('you', true, false), KeyValueStore.layerMemory),
+      resources: Layer.merge(sandboxRemote(person, true, false), KeyValueStore.layerMemory),
     }),
   )
   dispose = () => handle.dispose()
@@ -124,4 +126,44 @@ it("cuts a profile's portrait out of the banner in the avatar's shape", async ()
   })
   expect(painting.length).toBeGreaterThan(0)
   for (const element of painting) expect(getComputedStyle(element).borderRadius).toBe(corner)
+})
+
+/** The posts on the page, by what each says, and the buttons under each. */
+const posts = () =>
+  [...document.querySelectorAll('article')].map(article => ({
+    body: article.querySelector('p')?.textContent ?? '',
+    buttons: [...article.querySelectorAll('button')].map(button => button.textContent),
+  }))
+const deletable = () =>
+  posts()
+    .filter(post => post.buttons.some(text => text?.endsWith('Delete')))
+    .map(post => post.body)
+
+it.each([
+  { person: 'you' as const, own: ['Hello, Chirp! My first post.'] },
+  // The admin edits every chirp, and takes down only her own.
+  {
+    person: 'ada' as const,
+    own: [
+      'The engine weaves algebraic patterns as the loom weaves flowers.',
+      'Rename a user once and every post shows it: the author is a reference, not a copy.',
+    ],
+  },
+])('shows Delete on $person’s own chirps alone', async ({ person, own }) => {
+  await mount('/', person)
+  await vi.waitUntil(() => posts().length === 6, answered)
+  expect(deletable().sort()).toEqual([...own].sort())
+})
+
+it('takes a chirp of yours away at once when Delete is pressed', async () => {
+  await mount('/')
+  await vi.waitUntil(() => deletable().length === 1, answered)
+  const mine = [...document.querySelectorAll('article')].find(article =>
+    article.textContent?.includes('My first post'),
+  )!
+  ;[...mine.querySelectorAll('button')]
+    .find(button => button.textContent?.endsWith('Delete'))!
+    .click()
+  await vi.waitUntil(() => posts().length === 5)
+  expect(posts().map(post => post.body)).not.toContain('Hello, Chirp! My first post.')
 })

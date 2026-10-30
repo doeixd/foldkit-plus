@@ -271,6 +271,7 @@ export const ChirpPage = slots(
       }),
     ),
     edit: action(t.accent.default),
+    remove: action(t.error.default),
     round: [
       {
         display: 'inline-flex',

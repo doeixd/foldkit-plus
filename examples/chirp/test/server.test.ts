@@ -20,7 +20,7 @@ import { memorySqlite } from '../src/server/sqlite-node.js'
 const shown = relationOf(Selection.from(TimelinePost))
 
 type Asker = ReturnType<ReturnType<typeof sandbox>>
-type Mutation = 'PostChirp' | 'EditPost' | 'LikePost' | 'Unlike'
+type Mutation = 'PostChirp' | 'EditPost' | 'DeletePost' | 'LikePost' | 'Unlike'
 
 /** A fresh seeded server, and Remote's handlers as `person` on it. */
 const sandbox = () => {
@@ -206,6 +206,20 @@ describe('editing', () => {
   })
 })
 
+describe('deleting', () => {
+  it('lets an author take down their own post, its likes with it, and counts one fewer', async () => {
+    const grace = sandbox()('grace')
+    // Grace's own post, which Ada and Linus like.
+    expect((await grace.mutate('DeletePost', { id: 'p2' }))._tag).toBe('Success')
+    expect(await grace.timeline()).not.toContain('p2')
+    expect(await grace.read('p2', ['body'])).toBeUndefined()
+    expect(await grace.readCard('grace')).toMatchObject({ postCount: 1 })
+    // Its likes went with it: a new post under its id counts none of them.
+    expect((await grace.mutate('PostChirp', { id: 'p2', body: 'Again' }))._tag).toBe('Success')
+    expect(await grace.read('p2', ['likeCount'])).toEqual({ likeCount: 0 })
+  })
+})
+
 const decodeMay = Schema.decodeUnknownSync(Entity.select(Post, { may: true }).schema)
 
 describe('what each reader may do', () => {
@@ -225,6 +239,16 @@ describe('what each reader may do', () => {
     const may = async (id: string) => May.can(decodeMay(await ada.read(id, ['may'])).may, 'Update')
     expect(await may('p2')).toBe(true)
     expect(await may('p4')).toBe(true)
+  })
+
+  it('tells each reader they may take down their own posts alone, the admin too', async () => {
+    const as = sandbox()
+    const may = async (person: Person, id: string) =>
+      May.can(decodeMay(await as(person).read(id, ['may'])).may, 'Delete')
+    expect(await may('you', 'p4')).toBe(true)
+    expect(await may('you', 'p1')).toBe(false)
+    expect(await may('ada', 'p1')).toBe(true)
+    expect(await may('ada', 'p2')).toBe(false)
   })
 })
 
@@ -388,6 +412,24 @@ describe('a write no button would send', () => {
       as: 'visitor',
       mutation: 'EditPost',
       input: { id: 'p4', body: 'Edited', may: forged },
+    },
+    {
+      what: 'you take down Ada’s chirp',
+      as: 'you',
+      mutation: 'DeletePost',
+      input: { id: 'p1', may: forged },
+    },
+    {
+      what: 'Ada, the admin, takes down your chirp',
+      as: 'ada',
+      mutation: 'DeletePost',
+      input: { id: 'p4', may: forged },
+    },
+    {
+      what: 'a visitor takes down your chirp',
+      as: 'visitor',
+      mutation: 'DeletePost',
+      input: { id: 'p4' },
     },
     {
       what: 'Grace likes as Ada',
