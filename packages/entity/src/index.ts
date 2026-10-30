@@ -439,6 +439,28 @@ type PageSchema<S extends Schema.Constraint> = Schema.Struct<{
   readonly hasPrevious: Schema.Boolean
 }>
 
+/** A variant Entity's cases, by tag, as the field sets of its union (`_tag` among them); never for one shape. */
+type CaseFieldSets<E> = E extends {
+  readonly variants: {
+    readonly cases: infer C extends Readonly<
+      Record<string, { readonly fields: Schema.Struct.Fields }>
+    >
+  }
+}
+  ? { readonly [T in keyof C & string]: C[T]['fields'] }
+  : never
+
+/** Whether `K` is a field only some cases have, selected without `_tag` to say which case a row is. */
+type CaseOnlyWithoutTag<E extends AnyEntity, K, Spec> = [CaseFieldSets<E>] extends [never]
+  ? false
+  : '_tag' extends keyof Spec
+    ? false
+    : K extends keyof E['fields']
+      ? K extends keyof CaseFieldSets<E>[keyof CaseFieldSets<E>]
+        ? false
+        : true
+      : false
+
 type SelectionSpec<E extends AnyEntity, Spec> = {
   readonly [K in keyof Spec]: K extends keyof E['relations']
     ? E['relations'][K] extends EntityRelation<any, any, infer Target, infer C, any>
@@ -449,7 +471,9 @@ type SelectionSpec<E extends AnyEntity, Spec> = {
           | (C extends 'many' ? SelectionPage<Target['name'], any> : never)
       : never
     : K extends keyof E['members']
-      ? true
+      ? CaseOnlyWithoutTag<E, K, Spec> extends true
+        ? `"${K & string}" is a field of some cases of ${E['name']}; select _tag with it`
+        : true
       : `"${K & string}" is not a member of ${E['name']}`
 }
 
@@ -473,9 +497,35 @@ type SelectedSchema<Member, Selected> = Member extends
         >
     : never
 
-type SelectionSchema<E extends AnyEntity, Spec> = Schema.Struct<{
+type FlatSelectionSchema<E extends AnyEntity, Spec> = Schema.Struct<{
   readonly [K in keyof Spec & keyof E['members']]: SelectedSchema<E['members'][K], Spec[K]>
 }>
+
+/** What one case holds of a Selection: the selected fields it has, as it holds them, and every other member. */
+type CaseSelectionFields<E extends AnyEntity, Spec, Fields> = {
+  readonly [
+    K in Exclude<keyof Spec & keyof E['members'], '_tag'> as K extends keyof E['fields']
+      ? K extends keyof Fields
+        ? K
+        : never
+      : K
+  ]: K extends keyof Fields ? Fields[K] : SelectedSchema<E['members'][K], Spec[K]>
+}
+
+/**
+ * A Selection's schema: a Struct, or, for a variant Entity whose `_tag` is
+ * selected, a tagged union with a case per variant.
+ */
+type SelectionSchema<E extends AnyEntity, Spec> = [CaseFieldSets<E>] extends [never]
+  ? FlatSelectionSchema<E, Spec>
+  : '_tag' extends keyof Spec
+    ? Schema.TaggedUnion<{
+        readonly [T in keyof CaseFieldSets<E> & string]: Schema.TaggedStruct<
+          T,
+          CaseSelectionFields<E, Spec, CaseFieldSets<E>[T]>
+        >
+      }>
+    : FlatSelectionSchema<E, Spec>
 
 /** The `id` field's schema when it is text, so a ref's id keeps its brand and its checks; else text. */
 const idSchemaOf = (entity: AnyEntity): Schema.Top => {
@@ -484,6 +534,44 @@ const idSchemaOf = (entity: AnyEntity): Schema.Top => {
   if (id === undefined || id._tag !== 'Field') return Schema.String
   const type = Schema.toType(id.schema as Schema.Top)
   return SchemaShape.isText(type.ast) ? type : Schema.String
+}
+
+/**
+ * A variant Entity's Selection: with `_tag`, a tagged union whose cases hold
+ * the selected fields they have, each as the case holds it, and every
+ * selected relation and derived member; without it, the stored row's Struct,
+ * refused when it selects a field only some cases have.
+ */
+const variantSelection = (
+  entity: AnyEntity,
+  variants: EntityVariants,
+  selected: Readonly<Record<string, Schema.Constraint>>,
+): Schema.Top => {
+  const caseOnly = (key: string) =>
+    Object.hasOwn(entity.fields, key) &&
+    key !== '_tag' &&
+    variants.tags.some(tag => !Object.hasOwn(variants.cases[tag]!, key))
+  if (!Object.hasOwn(selected, '_tag')) {
+    const untold = Object.keys(selected).filter(caseOnly)
+    if (untold.length > 0)
+      fail(
+        entity,
+        `${untold.join(', ')} ${untold.length === 1 ? 'is a field' : 'are fields'} of some cases; select _tag with ${untold.length === 1 ? 'it' : 'them'}`,
+      )
+    return Schema.Struct(selected)
+  }
+  const cases: Record<string, Schema.Struct.Fields> = {}
+  for (const tag of variants.tags) {
+    const own = variants.cases[tag]!
+    const fields: Record<string, Schema.Constraint> = {}
+    for (const [key, schema] of Object.entries(selected)) {
+      if (key === '_tag') continue
+      if (!Object.hasOwn(entity.fields, key)) put(fields, key, schema)
+      else if (Object.hasOwn(own, key)) put(fields, key, own[key]!)
+    }
+    put(cases, tag, fields)
+  }
+  return Schema.TaggedUnion(cases)
 }
 
 const isSelectionPage = (value: unknown): value is SelectionPage<string, Schema.Constraint> =>
@@ -1033,7 +1121,10 @@ export const Entity = {
       [SelectionTypeId]: SelectionTypeId,
       entity,
       members: spec,
-      schema: Schema.Struct(fields),
+      schema: Option.match(variantsOf(entity.identity), {
+        onNone: () => Schema.Struct(fields),
+        onSome: variants => variantSelection(entity, variants, fields),
+      }),
     }) as never
   },
 

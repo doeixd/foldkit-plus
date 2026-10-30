@@ -252,6 +252,56 @@ describe('Expr.is', () => {
   })
 })
 
+describe('a Selection', () => {
+  const related = () => {
+    const Domain = domains()
+    const Order = Entity.define('Order', Schema.Struct({ id: Schema.String }))
+    return Entity.relate({ Domain, Order }, { Domain: { orders: Relation.many(Order) } })
+  }
+
+  it('with _tag is a tagged union whose cases hold the fields they have', () => {
+    const { Domain } = related()
+    const Quote = Entity.select(Domain, { _tag: true, name: true, price: true, orders: true })
+    const decode = Schema.decodeUnknownSync(Quote.schema)
+    expect(decode({ ...rows[0], orders: [] })).toEqual({
+      _tag: 'Available',
+      name: 'a.dev',
+      price: 5,
+      orders: [],
+    })
+    // A stored row of another case holds null there, which its case does not read.
+    expect(decode({ ...rows[2], orders: [{ entity: 'Order', id: 'o' }] })).toEqual({
+      _tag: 'Unconfirmed',
+      name: 'c.dev',
+      orders: [{ entity: 'Order', id: 'o' }],
+    })
+    expect(() => decode({ ...rows[0], price: null, orders: [] })).toThrow()
+    const price = Quote.schema.match(decode({ ...rows[0], orders: [] }), {
+      Available: ({ price }) => price,
+      Unconfirmed: () => 0,
+    })
+    expect(price).toBe(5)
+  })
+
+  it('without _tag is the stored row, and refuses a field only some cases have', () => {
+    const Domain = domains()
+    const Names = Entity.select(Domain, { id: true, name: true })
+    expect(Object.keys(Schema.decodeUnknownSync(Names.schema)(rows[2]))).toEqual(['id', 'name'])
+    expect(() => Entity.select(Domain, { name: true, price: true } as never)).toThrow(
+      'price is a field of some cases; select _tag with it',
+    )
+  })
+
+  it('of a plain Entity is a Struct, whatever it selects', () => {
+    const Plain = Entity.define('Plain', Schema.Struct({ id: Schema.String, _tag: Schema.String }))
+    expect(
+      Schema.decodeUnknownSync(Entity.select(Plain, { _tag: true }).schema)({ _tag: 'x' }),
+    ).toEqual({
+      _tag: 'x',
+    })
+  })
+})
+
 describe('the conformance set', () => {
   it.each(variantCases.map(c => [c.what, c] as const))('%s', (_, { body, input, expected }) => {
     expect(evaluate(body, input, variantRows).map(row => row.id)).toEqual(expected)

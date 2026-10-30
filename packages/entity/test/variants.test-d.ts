@@ -12,6 +12,7 @@ import {
   Relation,
   type PathExpr,
   type Predicate,
+  type Selected,
 } from '../src/index.js'
 
 const Price = Schema.Finite
@@ -107,3 +108,22 @@ Entity.defineVariants('Clash', { A: { price: Schema.Finite }, B: { price: Schema
 
 const asked: Predicate = Expr.is(Domain, 'Unconfirmed')
 void asked
+
+// A Selection with _tag is a union; each case holds the fields it has, never null.
+const Quote = Entity.select(Shop.Domain, { _tag: true, name: true, price: true })
+expectTypeOf<Selected<typeof Quote>>().toEqualTypeOf<
+  | { readonly _tag: 'Available'; readonly name: string; readonly price: number }
+  | { readonly _tag: 'Unconfirmed'; readonly name: string }
+>()
+declare const quote: Selected<typeof Quote>
+expectTypeOf(
+  Quote.schema.match(quote, { Available: ({ price }) => price, Unconfirmed: () => 0 }),
+).toEqualTypeOf<number>()
+// Without _tag, the stored row: shared fields only.
+const Names = Entity.select(Domain, { id: true, name: true })
+expectTypeOf<Selected<typeof Names>>().toEqualTypeOf<{
+  readonly id: string
+  readonly name: string
+}>()
+// @ts-expect-error price is a field of some cases; select _tag with it
+Entity.select(Domain, { name: true, price: true })

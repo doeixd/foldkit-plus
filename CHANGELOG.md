@@ -20,7 +20,9 @@ version changed; `pnpm` skips versions already in the registry.
   case, over the row or through a `one` relation, handing out the case's fields
   never null. `Entity.variantsOf` gives an interpreter the union, the cases and
   the codec from a stored row to its case; `foldkit-entity/conformance` adds
-  `Variant`, `variantRows` and `variantCases`. Selections, Remote, forms and
+  `Variant`, `variantRows` and `variantCases`. A Selection selecting `_tag` is
+  a tagged union of the cases, each holding the selected fields it has; without
+  `_tag`, a field only some cases have is refused. Remote's store, forms and
   guards read the stored row until the later phases of
   `docs/design/357-entity-variants-DESIGN.md`.
 

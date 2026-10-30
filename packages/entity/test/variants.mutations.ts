@@ -87,4 +87,29 @@ export default [
     '  if (!variants.tags.includes(tag)) {\n',
     '  if (false) {\n',
   ),
+  index(
+    'a variant Selection is a Struct',
+    '        onSome: variants => variantSelection(entity, variants, fields),\n',
+    '        onSome: () => Schema.Struct(fields),\n',
+  ),
+  index(
+    'a Selection with _tag is the stored row',
+    "  if (!Object.hasOwn(selected, '_tag')) {\n",
+    '  if (true) {\n',
+  ),
+  index(
+    'a case field is selected without _tag',
+    '    if (untold.length > 0)\n',
+    '    if (false)\n',
+  ),
+  index(
+    'a case holds every selected field, as stored',
+    '      else if (Object.hasOwn(own, key)) put(fields, key, own[key]!)\n',
+    '      else put(fields, key, schema)\n',
+  ),
+  index(
+    'a case drops the selected relations',
+    '      if (!Object.hasOwn(entity.fields, key)) put(fields, key, schema)\n',
+    '      if (false) put(fields, key, schema)\n',
+  ),
 ]

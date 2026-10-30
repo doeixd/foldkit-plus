@@ -652,8 +652,10 @@ const priceOf = (row: typeof Domain.variants.Type) =>
 
 `Expr.is` also takes a `one` relation to a variant Entity, reading the case
 of the row it reaches. `Entity.variantsOf(entity)` is the union, the cases and
-the codec from a stored row to its case, or none. Selections, Remote, forms
-and guards read the stored row for now.
+the codec from a stored row to its case, or none. A Selection selecting
+`_tag` is a tagged union of the cases (`Quote.schema.match`); without `_tag`,
+selecting a field only some cases have is refused. Remote's store, forms and
+guards read the stored row for now.
 
 ## Gotchas
 

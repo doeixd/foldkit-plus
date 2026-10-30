@@ -1,8 +1,8 @@
 # Variants of an Entity (#357)
 
-Status: phase 1 built (2026-10-30), the core in `foldkit-entity`, with the
-SQL half of phase 2 (`variantCases` and the CHECKs on SQLite and Postgres).
-The rest of phase 2 and phases 3 to 5 are planned below.
+Status: phases 1 and 2 built (2026-10-30): the core and Selections in
+`foldkit-entity`, and `variantCases` with the CHECKs on SQLite and Postgres.
+Phases 3 to 5 are planned below.
 
 ## The problem
 
@@ -143,16 +143,21 @@ and `isNull` over it would then answer for other cases' nulls.
 
 Several cases at once are `Expr.in(Domain.fields._tag, ['A', 'B'])`.
 
-## Selections (phase 2)
+## Selections (phase 2, built)
 
-Today `Entity.select(Domain, { _tag: true, price: true })` is the stored row's
-shape (price nullable), and that is what phase 1 leaves. Phase 2: a Selection
-of a variant Entity that selects `_tag` has a union schema, each case holding
-the selected shared members, the selected members of its own, and every
-selected relation and derived member; selecting a case field without `_tag`
-is refused, at the type and at definition. The codec is the stored-row codec
-restricted to the selected keys (`variantsOf(entity).stored` built over a
-subset). `Selected<typeof Quote>` is then a union to `match` on.
+A Selection of a variant Entity that selects `_tag` has a tagged union for
+its schema (`Schema.TaggedUnion`, so `Quote.schema.match`): each case holds
+the selected fields it has, typed as the case holds them (never null), and
+every selected relation and derived member. Without `_tag` it is the stored
+row's Struct, and selecting a field only some cases have is refused, at the
+type (`SelectionSpec`) and in `Entity.select`, since nothing would say which
+case a row is. `Selected<typeof Quote>` is the union.
+
+A case's Struct reads a stored row as it is: the other cases' columns are keys
+it does not declare, which decoding passes over, and a null in one of its own
+is refused. It does not refuse a value in another case's column; the
+`variant_<Case>` CHECK keeps such a row out of storage, and
+`variantsOf(entity).stored` refuses it where a whole row is decoded.
 
 ## Predictions and laws
 
@@ -220,8 +225,8 @@ for `VariantEntity` and fall through to the old one. No member is reserved:
    `variant_<Case>` invariants, `Expr.is` over the Entity and through a `one`
    relation, a conformance set (`variantCases`) run by the reference
    evaluator, README and skill reference.
-2. **Selections and SQL**: a union Selection when `_tag` is selected, and
-   refusal of a case field without it. Built: `variantCases` and the CHECKs
+2. **Selections and SQL** (built): a union Selection when `_tag` is selected,
+   and refusal of a case field without it; `variantCases` and the CHECKs
    `derive` writes, on SQLite and Postgres
    (`remote-drizzle/test/variants.test.ts`), with no change to the adapter.
 3. **Remote's store** reads a variant Selection as its union

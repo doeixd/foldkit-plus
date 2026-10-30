@@ -784,8 +784,8 @@ from queries, not from what a database could express.
 
 ## Rows of several shapes: variants
 
-> Experimental (#357): the core. Selections, Remote, forms and guards read
-> the stored row for now.
+> Experimental (#357): the Entity, its Selections and `Expr`. Remote's
+> store, forms and guards read the stored row for now.
 
 A domain search answers `Available`, with a price and a term, or
 `Unconfirmed`, with neither. `Entity.defineVariants` declares that as one
@@ -848,6 +848,22 @@ an Unconfirmed: `Expr.not` of it keeps every Unconfirmed, where
 case of the row the relation reaches, each field as a path (`Expr.is(
 Cart.relations.domain, 'Available', …)`). Several cases at once are
 `Expr.in(Domain.fields._tag, ['Available', 'Unconfirmed'])`.
+
+A Selection that selects `_tag` reads the row as its case: its schema is a
+tagged union whose cases hold the selected fields they have, typed as the
+case holds them, and every selected relation and derived member.
+
+```ts
+const Quote = Entity.select(Domain, { _tag: true, name: true, price: true })
+type Quote = Selected<typeof Quote>
+// { _tag: 'Available', name: string, price: number } | { _tag: 'Unconfirmed', name: string }
+const shown = (quote: Quote) =>
+  Quote.schema.match(quote, { Available: ({ price }) => `$${price}`, Unconfirmed: () => 'taken?' })
+```
+
+Without `_tag` a Selection is the stored row's Struct, and a field only some
+cases have is refused there, at the type and where it is written: nothing
+would say which case a row is.
 
 ## Reading an operation's input
 
@@ -1455,7 +1471,7 @@ server on different deploys see which side is behind.
 | `Entity.defineVariants(name, { Case: fields, … })` | Experimental. An Entity whose row is one of its cases: `variants` is their tagged union, `fields` the stored row (`_tag`, shared fields, the rest nullable), with an invariant per case. |
 | `Entity.variantsOf(entity)` | An Entity's variants for an interpreter (the union, each case's fields, the codec from a stored row to its case), or none. |
 | `Entity.relate(entities, { Owner: { key: Relation.one(Target) } })` | The entities with their relations declared; targets resolve to the returned entities. |
-| `Entity.select(entity, { key: true or Selection })` | A Selection: what was selected (`members`) and the `schema` of the result. |
+| `Entity.select(entity, { key: true or Selection })` | A Selection: what was selected (`members`) and the `schema` of the result; a tagged union of cases for a variant Entity whose `_tag` is selected. |
 | `Entity.page(selection, { first, after } or { last, before })` | In a Selection, a `many` relation read as a page: `items`, `hasNext`, `hasPrevious`. |
 | `Entity.fields(entity, ...keys)` | The schemas of those fields, by key, to spread into an input's struct. |
 | `Write.update(input, { id, expect?, when?, increment? })` | A declared update of one row: every key the input maps to a field, but the id and the expected revision; `when`, what the row must hold for it to land; `increment`, the number fields it moves by an input amount. |
