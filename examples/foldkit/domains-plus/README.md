@@ -74,7 +74,6 @@ Where it behaves differently, on purpose or because of a gap in Foldkit Plus:
   brings into view, not the next 60-name page.
 - Nothing is prerendered: the Worker renders every page, since a static `/`
   served for `/?q=` is refused ([#373](https://github.com/doeixd/foldkit-plus/issues/373)).
-- The page's styles ride in the document's head ([#365](https://github.com/doeixd/foldkit-plus/issues/365)).
 
 ## Parity
 

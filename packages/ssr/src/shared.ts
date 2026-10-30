@@ -36,6 +36,13 @@ export const RESUME_ATTRIBUTE = 'data-foldkit-plus-resume'
 /** The envelope format this package writes and reads. */
 export const PROTOCOL = 1
 
+/**
+ * The comment a render's `styles` follow in the stamped root. Hydration
+ * removes children the view does not draw, so `SSR.hydrate` moves what
+ * follows it into the head before adopting the page.
+ */
+export const STYLES_MARKER = 'foldkit-plus-styles'
+
 const LINE_SEPARATOR = String.fromCharCode(0x2028)
 const PARAGRAPH_SEPARATOR = String.fromCharCode(0x2029)
 

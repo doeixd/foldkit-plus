@@ -29,3 +29,33 @@ prerender it.
 
 Rejected: a status in the plan. A plan describes what crosses to the browser,
 and a status never does.
+
+## A served page's styles (#365)
+
+| Fact | Owner |
+| --- | --- |
+| The CSS of the first paint | the host, through `styles` |
+| Where it lives once the page is live | the document's head |
+| Which rules the page already carries | `foldkit-mixins`' injection, counted from the page's sheets |
+
+`styles` rode as the stamped root's last child. The view never draws it, so
+hydration removed it on its first patch, after the injection had counted it
+present and queued nothing; a page that never rendered again (domains-plus's
+landing page) kept its classes without their rules.
+
+The server now writes a comment, `<!--foldkit-plus-styles-->`, before the
+styles, and `SSR.hydrate` moves every element after it into the head and
+removes the rest, before any branch: a page that resumes, is contained, or is
+drawn afresh keeps them alike. The injection then counts sheets that stay.
+The marker, not the tag, says what to move: a view may draw a `<style>` of
+its own, which must stay where it is.
+
+Rejected: the injection watching for a counted sheet's removal
+(`foldkit-mixins`). It would repair the page a frame late, after an unstyled
+paint, and only by keeping a MutationObserver for the page's life; moving the
+sheets first means nothing is ever removed. Nothing in `foldkit-mixins`
+changed.
+
+Foldkit's development warning that the server DOM did not match stays after
+this, so the styles were not its cause:
+[#375](https://github.com/doeixd/foldkit-plus/issues/375).

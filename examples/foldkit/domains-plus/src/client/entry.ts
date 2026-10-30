@@ -11,8 +11,9 @@ import { view } from './view.js'
 // plugin's own injection, so the overlay is imported here.
 import 'virtual:foldkit-devtools-overlay'
 
-// The theme and the served classes are in the page's head
-// (`server/entry.ts`); classes drawn later are added as they appear.
+// The theme and the served classes come in the page's root
+// (`server/entry.ts`), which `SSR.hydrate` moves into the head; classes drawn
+// later are added as they appear.
 const container = document.querySelector<HTMLElement>(`[${FOLDKIT_APP_ATTRIBUTE}]`)
 if (container === null)
   throw new Error('the page was not rendered by the server: start it with `pnpm dev`')

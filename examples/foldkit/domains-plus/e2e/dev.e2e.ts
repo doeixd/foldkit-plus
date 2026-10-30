@@ -45,10 +45,14 @@ test('the landing page is served styled and taken over', async () => {
   expect(response?.status()).toBe(200)
   const search = page.getByRole('searchbox', { name: 'Search domains' })
   await search.waitFor({ timeout: 120_000 })
-  // Styled by the head's sheet before any script: the page is black.
-  expect(
-    await page.locator('#domains-app').evaluate(node => getComputedStyle(node).backgroundColor),
-  ).toBe('rgb(0, 0, 0)')
+  const background = () =>
+    page.locator('#domains-app').evaluate(node => getComputedStyle(node).backgroundColor)
+  // Styled by the sheets the server put in the root, before any script: the page is black.
+  expect(await background()).toBe('rgb(0, 0, 0)')
+  // Still black once the runtime has adopted the page, which draws nothing
+  // after its first render; hydration once removed the root's sheets (#365).
+  await page.locator('#domains-app:not([data-foldkit-plus-resume])').waitFor({ timeout: 60_000 })
+  expect(await background()).toBe('rgb(0, 0, 0)')
   expect(problems).toEqual([])
   await page.close()
 })

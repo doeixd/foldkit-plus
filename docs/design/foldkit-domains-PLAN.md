@@ -383,10 +383,11 @@ styled and resumes it; `/missing` answers 404). Departures:
 - **The 404 status** was set on `SSR.entry`'s result, which had no status of
   its own ([#364](https://github.com/doeixd/foldkit-plus/issues/364)); it is
   now the entry's `status`, from the Model's route.
-- **The page's styles ride in the document's head** (the document renderer's
+- **The page's styles rode in the document's head** (the document renderer's
   `head`), not in the rendered root through `SSR.entry`'s `styles`: hydration
-  drops the root's `<style>`, and a page with no second render (the landing
+  dropped the root's `<style>`, and a page with no second render (the landing
   page) stayed unstyled ([#365](https://github.com/doeixd/foldkit-plus/issues/365)).
+  `SSR.hydrate` now moves them into the head, and they are `SSR.entry`'s `styles`.
 - **Icons through `pnpm icons`** (`icons.json` writes `src/client/iconData.ts`),
   not `foldkit-media`'s Vite plugin: the unit tests draw the view, and the
   root Vitest project has no icons plugin for Node. `scripts/icons.mjs` now

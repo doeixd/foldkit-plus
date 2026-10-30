@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 /**
  * `styles` for the first paint where no template head can take it: the markup
- * rides as the rendered root's last child, hydration adopts the nodes around
- * it and drops it on its first patch, and a void root is refused rather than
- * served unstyled.
+ * rides as the rendered root's last children, `SSR.hydrate` moves it into the
+ * head before adopting the nodes around it, so a page that never renders again
+ * keeps its rules (#365), and a void root is refused rather than served
+ * unstyled.
  */
 import { Effect } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
@@ -27,7 +28,7 @@ const rendered = (options: { readonly styles?: () => string } = {}) =>
   Effect.runPromise(SSR.render(config, plan, { buildId: 'b', ...options }))
 
 describe('styles in the rendered root', () => {
-  it('styles the first paint, then hydrates from the served nodes', async () => {
+  it('styles the first paint, then keeps the styles in the head as it hydrates', async () => {
     const served = SSR.page(template, await rendered({ styles }))
     load(served)
     const root = document.querySelector('[data-foldkit-app]')
@@ -40,9 +41,26 @@ describe('styles in the rendered root', () => {
 
     expect(calls.init).toBe(1)
     expect(document.getElementById('count')).toBe(button)
-    expect(document.querySelector('style[data-first-paint]')).toBeNull()
+    // Moved, not copied: the one sheet, in the head, and nothing of it left in the root.
+    expect(document.querySelectorAll('style[data-first-paint]')).toHaveLength(1)
+    expect(style?.parentNode).toBe(document.head)
+    expect(root?.childNodes).toHaveLength(1)
     button?.click()
     await vi.waitFor(() => expect(button?.textContent).toBe('42'))
+    expect(style?.isConnected).toBe(true)
+  })
+
+  it('keeps the styles of a page that is contained, and leaves no marker', async () => {
+    load(SSR.page(template, await rendered({ styles })))
+    const root = document.querySelector('[data-foldkit-app]')
+    const style = document.querySelector('style[data-first-paint]')
+
+    SSR.hydrate(config, plan, { buildId: 'another build' })
+    await settle()
+
+    expect(style?.parentNode).toBe(document.head)
+    expect(document.body.inert).toBe(true)
+    expect(Array.from(root?.childNodes ?? [], node => node.nodeType)).toEqual([Node.TEXT_NODE])
   })
 
   it('leaves the page alone for styles that add nothing', async () => {

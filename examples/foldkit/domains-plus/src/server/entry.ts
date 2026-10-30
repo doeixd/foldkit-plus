@@ -21,25 +21,19 @@ import { stylesheet } from '../client/style.js'
 import { view } from '../client/view.js'
 import { serveRemote } from './remote.js'
 
-/**
- * The document around a rendered page. Its head carries the theme and the
- * classes the page draws, so the first paint is styled before any script
- * runs, and the browser's Styles find them there and add none twice. They
- * are in the head rather than in the rendered root (`SSR.entry`'s `styles`),
- * since hydration drops the root's and a page with no render after its
- * first would never add them back (#365).
- */
+/** The document around a rendered page: the head every page carries. */
 export const renderDocument: DocumentRenderer = (application, assets) =>
-  renderShell(application, assets, {
-    head: `${documentHead}
-<style>${stylesheet}</style><style>${Style.usedIn(application.html)}</style>`,
-  })
+  renderShell(application, assets, { head: documentHead })
 
 const pages = SSR.entry(
   { Model, init, update, view, subscriptions, routing, container: null },
   plan,
   {
     buildId: import.meta.env.FOLDKIT_BUILD_ID,
+    // The theme and the classes the page draws, so the first paint is styled
+    // before any script runs; the browser moves them into the head, and its
+    // Styles find them there and add none twice.
+    styles: rendered => `<style>${stylesheet}</style><style>${Style.usedIn(rendered.html)}</style>`,
     status: model => AppRoute.match(model.route, { Search: () => 200, NotFound: () => 404 }),
   },
 )

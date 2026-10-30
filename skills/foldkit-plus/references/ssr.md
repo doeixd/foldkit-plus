@@ -96,7 +96,8 @@ served page stays in view while the fresh one draws hidden, and is swapped once 
   `SSR.render`, `SSR.handle`)
   `` styles: rendered => `<style>${stylesheet}</style><style>${Style.usedIn(rendered.html)}</style>` ``:
   the theme's stylesheet and the CSS of each class the page draws, in the
-  rendered root. The browser's Styles find them and add none twice. See
+  rendered root; `SSR.hydrate` moves them into the head before adopting, and
+  the browser's Styles find them there and add none twice. See
   `examples/foldkit/ssr/src/renderPage.ts`.
 - **Render from Remote data by preparing it first.** `SSR.render` and
   `SSR.generate` render the Model `init` returns; nothing is fetched during a
@@ -237,9 +238,9 @@ served page stays in view while the fresh one draws hidden, and is swapped once 
   `` rendered => `<style>${Style.usedIn(rendered.html)}</style>` `` ships a
   generated page's CSS in its first paint. `SSR.render`, `SSR.entry` and
   `SSR.handle` take the same function as `styles`, carried as the rendered
-  root's last child for a served page, which has no template head to write
-  to; hydration drops it on its first patch, and styles for a void root are
-  refused with `VoidRootWithStyles`.
+  root's last children for a served page, which has no template head to
+  write to; `SSR.hydrate` moves them into the head (hydration would remove
+  them), and styles for a void root are refused with `VoidRootWithStyles`.
 - `SSR.entry(config, plan, { buildId, flags?, headers?, status?, diagnostics? })` returns the
   `{ renderPage }` a Foldkit server entry exports for `handleRequest` (or the
   `foldkit` Vite plugin's dev server). `GET` and `HEAD` render, `POST` is

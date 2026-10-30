@@ -47,3 +47,22 @@ test('the served page is taken over and counts', async () => {
   expect(problems).toEqual([])
   await page.close()
 })
+
+test('the sheets the server sent stay in the head once the page is taken over (#365)', async () => {
+  const page = await browser.newPage()
+  await page.goto(vite.resolvedUrls!.local[0]!)
+  await page.locator('#count').waitFor({ timeout: 120_000 })
+  // The first patch takes the envelope off the root.
+  await page.waitForFunction(() => document.querySelector('[data-foldkit-plus-resume]') === null)
+  // `renderPage.ts` sends the page's classes (`Style.usedIn`) as a sheet in the
+  // root, which hydration would have removed; the template's own head sheet
+  // holds the theme alone, and the injected one is marked.
+  const served = await page.evaluate(() =>
+    Array.from(document.head.querySelectorAll('style:not([data-foldkit-styles])'), sheet =>
+      /\.style-[0-9a-z]+/.test(sheet.textContent ?? ''),
+    ).filter(Boolean),
+  )
+  expect(served).toHaveLength(1)
+  expect(await page.locator('body style').count()).toBe(0)
+  await page.close()
+})

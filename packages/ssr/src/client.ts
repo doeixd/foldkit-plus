@@ -23,6 +23,7 @@ import { KEEP_ATTRIBUTE, builder, view } from './resumable.js'
 import {
   FOLDKIT_APP_ATTRIBUTE,
   STATIC_ATTRIBUTE,
+  STYLES_MARKER,
   bindings,
   bindingsAndEvents,
   metaEntry,
@@ -123,6 +124,7 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     }
   }
   const root = document.querySelector<HTMLElement>(`[${FOLDKIT_APP_ATTRIBUTE}]`)
+  if (root !== null) keepStyles(root)
   // A page that is declined or stale never adopts. `render` draws afresh at
   // the root's place, replacing it; anything else contains the served page.
   // With no served page the application renders afresh regardless.
@@ -230,6 +232,24 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     return
   }
   deferBoot(root, decoded.success, plan.start, { boot, answered }, pending, report, kept.success)
+}
+
+/**
+ * Moves what a render's `styles` put in the root into the head, before
+ * anything adopts the page: the view does not draw it, so hydration would
+ * remove it, and a page that never renders again would lose the rules its
+ * classes need. Whatever adopts the page next finds them in the head.
+ */
+const keepStyles = (root: Element): void => {
+  const marker = Array.from(root.childNodes).find(
+    node => node.nodeType === Node.COMMENT_NODE && node.nodeValue === STYLES_MARKER,
+  )
+  if (marker === undefined) return
+  for (let next = marker.nextSibling; next !== null; next = marker.nextSibling) {
+    if (next instanceof Element) document.head.append(next)
+    else next.remove()
+  }
+  marker.remove()
 }
 
 /** The longest a served page stays in view while a fresh application waits for `until`. */

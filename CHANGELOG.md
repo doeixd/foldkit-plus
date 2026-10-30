@@ -226,6 +226,15 @@ version changed; `pnpm` skips versions already in the registry.
   invalid. Setup now pins the newest patch of its tested Effect minor that
   the project's `package-lock.json` already holds.
 
+- **A served page keeps the styles it was sent** (`foldkit-ssr`, #365). The
+  `styles` of `SSR.render`, `SSR.entry` and `SSR.handle` ride in the rendered
+  root, which the view does not draw, so hydration removed them on its first
+  patch, after `foldkit-mixins`' Styles had counted them present: a page that
+  never rendered again kept its classes without their rules. The server now
+  writes a marker before them, and `SSR.hydrate` moves them into the head
+  before anything adopts the page, resumed or contained.
+  `examples/foldkit/domains-plus` sends its sheets through `styles` again.
+
 - **A list fetched only to check its placement reads as it would without the
   check** (`foldkit-remote`, #350). `verifyPredictions` made each list a
   write placed rows in stale, to fetch the page it compares with, so in

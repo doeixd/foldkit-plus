@@ -55,6 +55,7 @@ import {
   serving,
   startingFrom,
   staticRegion,
+  STYLES_MARKER,
   tagOf,
   type Loadable,
   type PlanSurface,
@@ -191,10 +192,11 @@ const isInRootTag = (html: string, at: number): boolean => {
 }
 
 /**
- * The rendered markup with `extra` as the root's last child, so the first
- * paint is styled before any script runs where no template head can take it.
- * A void root holds no children: styles for one are refused, naming the tag,
- * rather than served where no browser could keep them.
+ * The rendered markup with `extra` as the root's last children, after the
+ * styles marker, so the first paint is styled before any script runs where no
+ * template head can take it; `SSR.hydrate` moves them into the head. A void
+ * root holds no children: styles for one are refused, naming the tag, rather
+ * than served where no browser could keep them.
  */
 const withInRoot = (html: string, extra: string): Result.Result<string, ResumeUnsafe> => {
   const tag = /^<([A-Za-z][A-Za-z0-9-]*)/.exec(html)?.[1]
@@ -207,7 +209,7 @@ const withInRoot = (html: string, extra: string): Result.Result<string, ResumeUn
       }),
     )
   }
-  return Result.succeed(`${html.slice(0, at)}${extra}${html.slice(at)}`)
+  return Result.succeed(`${html.slice(0, at)}<!--${STYLES_MARKER}-->${extra}${html.slice(at)}`)
 }
 
 /**
@@ -645,9 +647,9 @@ const render = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     readonly flags?: unknown
     /**
      * Markup for the first paint, given what was rendered, carried as the
-     * root's last child: keep it to `<style>`, which the browser drops on
-     * hydration. Anything a head owns (`meta`, links) stays with `SSR.page`
-     * and `SSR.generate`.
+     * root's last children: `<style>` (or a stylesheet `<link>`), which
+     * `SSR.hydrate` moves into the head before adopting the page. Anything
+     * else a head owns (`meta`) stays with `SSR.page` and `SSR.generate`.
      */
     readonly styles?: Head | undefined
   },
@@ -1134,9 +1136,10 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
      */
     readonly origins?: ReadonlyArray<string> | undefined
     /**
-     * Markup for the first paint, carried as the rendered root's last child.
-     * The host owns the template in dynamic serving, so this is where
-     * per-page styles go; anything a head owns stays with `SSR.generate`.
+     * Markup for the first paint, carried as the rendered root's last
+     * children, which `SSR.hydrate` moves into the head. The host owns the
+     * template in dynamic serving, so this is where per-page styles go;
+     * anything else a head owns stays with `SSR.generate`.
      */
     readonly styles?: Head | undefined
     /**
