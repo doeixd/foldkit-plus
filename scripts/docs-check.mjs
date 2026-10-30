@@ -18,7 +18,8 @@
  * not compile yet: its type errors are not failures, but once it compiles it
  * must leave the list, so the list only shrinks.
  *
- * The modules are written to `node_modules/.docs-check`, which references
+ * The modules are written to `node_modules/.docs-check/<pid>` (a run of its
+ * own, so two sessions' runs do not delete each other's), which references
  * every package, so `tsc -b` reads what `pnpm typecheck` built.
  *
  *   node scripts/docs-check.mjs              check every document
@@ -92,7 +93,6 @@ const pending = new Set([
   'packages/mixins-richtext/README.md',
   'packages/mixins-ui/README.md',
   'packages/mixins/README.md',
-  'packages/plus/README.md',
   'packages/primitives/README.md',
   'packages/primitives/dom/README.md',
   'packages/primitives/events/README.md',
@@ -112,12 +112,9 @@ const pending = new Set([
   'packages/ssr/README.md',
   'packages/surface/README.md',
   'packages/sync/README.md',
-  'skills/foldkit-plus/references/agent.md',
   'skills/foldkit-plus/references/alchemy.md',
   'skills/foldkit-plus/references/auth.md',
-  'skills/foldkit-plus/references/bundle.md',
   'skills/foldkit-plus/references/cms.md',
-  'skills/foldkit-plus/references/composition.md',
   'skills/foldkit-plus/references/crud.md',
   'skills/foldkit-plus/references/entity.md',
   'skills/foldkit-plus/references/form.md',
@@ -126,16 +123,14 @@ const pending = new Set([
   'skills/foldkit-plus/references/mixins.md',
   'skills/foldkit-plus/references/react.md',
   'skills/foldkit-plus/references/remote.md',
-  'skills/foldkit-plus/references/richtext.md',
   'skills/foldkit-plus/references/site.md',
   'skills/foldkit-plus/references/ssr.md',
-  'skills/foldkit-plus/references/surface.md',
   'skills/foldkit-plus/references/sync.md',
 ])
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const posix = path => path.split(sep).join('/')
-const check = join(root, 'node_modules', '.docs-check')
+const check = join(root, 'node_modules', '.docs-check', String(process.pid))
 
 const tracked = spawnSync('git', ['ls-files', '-z', '--', '*.md'], { cwd: root, encoding: 'utf8' })
   .stdout.split('\0')
@@ -348,6 +343,7 @@ const tsc = spawnSync(
   { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 },
 )
 const seconds = ((Date.now() - started) / 1000).toFixed(1)
+rmSync(check, { recursive: true, force: true })
 
 // Each diagnostic, read back to the Markdown line it is about.
 const byFile = new Map(modules.map(module => [module.file, module]))

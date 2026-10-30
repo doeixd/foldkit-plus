@@ -130,6 +130,10 @@ subpath that needs one it cannot find says which.
 | `foldkit-plus/testing/workers` | `wrangler`, `esbuild` | `Stack.start`: the Worker on a local workerd, configured by its own `wrangler.toml`, with fresh migrated D1 per stack; `Stack.writeBundle`: the same bundle where `main` says, for `wrangler deploy` |
 | `foldkit-plus/testing/playwright` | `playwright` (types) | `Behaviors`: a write shows while it is held at the network and after its answer (`optimistic`), a text never shows during some steps, even for one frame (`neverShows`), and the page's errors (`consoleErrors`) |
 
+<!-- docs-check
+interface Env { readonly ORIGIN: string }
+-->
+
 ```ts
 import { Stack } from 'foldkit-plus/testing/workers'
 
@@ -148,6 +152,12 @@ console method of its level and prefixed `[worker]`, so a 500 shows the error
 behind it with its stack; `console: 'quiet'` keeps the lines for `logs()`
 alone. The lines travel beside the response, not on it, so a test reading
 what one request wrote polls (`expect.poll(() => stack.logs())`).
+
+<!-- docs-check
+import type { Page } from 'playwright'
+import { expect } from 'vitest'
+declare const page: Page
+-->
 
 ```ts
 import { Behaviors } from 'foldkit-plus/testing/playwright'

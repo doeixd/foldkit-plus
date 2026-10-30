@@ -425,6 +425,13 @@ a kind holds (`textContent` or `blockContent`), and `validate` reports a
 declaration the document contradicts. Marks are definitions with a boundary policy
 and, when they carry data, a prop schema:
 
+<!-- docs-check
+declare const nodes: ReadonlyArray<RichText.NodeDefinition>
+declare const state: RichText.EditorState
+declare const command: RichText.Command
+declare const ids: RichText.CommandIds
+-->
+
 ```ts
 import { Schema } from 'effect'
 import * as RichText from 'foldkit-richtext'

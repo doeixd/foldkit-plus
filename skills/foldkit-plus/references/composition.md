@@ -183,10 +183,10 @@ Mixins.
 
 ```ts
 import { Appearance } from 'foldkit-composition/appearance'
-import { Layers, Style } from 'foldkit-mixins'
+import { Capability, Layers, Slot, Slots, Style } from 'foldkit-mixins'
 import { Theme } from 'foldkit-mixins/theme'
 
-// HeroSlots: the Block's own Slots.define({ root: … })
+const HeroSlots = Slots.define({ root: Slot.make({ capability: Capability.Container }) })
 const HeroLook = Appearance.make(HeroSlots, {
   recipe: Style.recipeFor(HeroSlots)({
     base: { root: Style.class('hero') },
@@ -224,6 +224,14 @@ const sheet = Style.stylesheet(...HeroLook.styles)
 
 The page editor's state, as a Bundle, designed as one form key's control
 (`Input.bundle`): the Document is the key's value.
+
+<!-- docs-check
+import { Renderer } from 'foldkit-composition/foldkit'
+const SiteRenderer = Renderer.make(Site, {
+  Heading: ({ props, h }) => h.h2([], [props.text]),
+  Section: ({ regions, h }) => h.section([], [...regions.body]),
+})
+-->
 
 ```ts
 import { Schema } from 'effect'
@@ -298,7 +306,7 @@ import { BuilderView } from 'foldkit-mixins-builder'
 const PageEditing = BuilderView.define(PageBuilder) // a SlotView over BuilderSlots
 const Drawn = PageBuilder.bundle.pipe(Bundle.withView(BuilderView.submodel(PageEditing)))
 // or, as a form key:
-const PageForm = Form.make('PageForm', PageInput, {
+const DrawnPageForm = Form.make('PageForm', PageInput, {
   inputs: { document: PageBuilder.inputWith(BuilderView.submodel(PageEditing)) },
 })
 ```

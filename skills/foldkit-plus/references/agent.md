@@ -217,6 +217,12 @@ then `h.form([...Form.form(h), â€¦])` and `h.input([...Form.field('title', h), â
 (text), dispatched as the capability ahead of the app's `OnSubmit`, and answered with `respondWith`;
 where `AgentWebMcp.declarativeTools()` holds, the capability is not registered imperatively too.
 
+<!-- docs-check
+import type { Unauthenticated } from 'foldkit-agent-mcp'
+declare const verify: (authorization: string | undefined) => Effect.Effect<Principal, Unauthenticated>
+declare const bindAgentFor: (principal: Principal) => typeof ownedRuntime
+-->
+
 ```ts
 import { AgentMcp } from 'foldkit-agent-mcp'
 import * as HttpEffect from 'effect/http/HttpEffect'
@@ -242,6 +248,11 @@ const served = AgentA2a.handler({ agent: agentRuntime }) // served.handle(jsonRp
 - The card is static. Capabilities are tagged `conditional` (they have `available`) or `authorized`, and both are re-checked at call time.
 - A request refused before dispatch gives `rejected`. An accepted call whose failure Message arrives or that times out gives `failed`. `AgentCancelledError` gives `canceled`, and an unexpected defect gives `failed`.
 - Streaming, push notifications, multi-turn flows, and file parts are not supported.
+
+<!-- docs-check
+import type { ActionRunContext } from 'foldkit-agent-native'
+declare const principalFor: (context: ActionRunContext) => Principal
+-->
 
 ```ts
 import { AgentNative } from 'foldkit-agent-native'

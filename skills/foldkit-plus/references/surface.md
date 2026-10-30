@@ -138,6 +138,10 @@ fields in common.
 **Message subsets.** Sync uses them to mark Messages durable, and Agent uses them
 to choose which Messages to expose.
 
+<!-- docs-check
+declare const message: typeof Message.Type
+-->
+
 ```ts
 import { MessageSet } from 'foldkit-surface'
 
@@ -152,16 +156,16 @@ AllChanges.includes(message)      // type guard; also .tags, .schema, .construct
 ```ts
 import { Action } from 'foldkit-surface'
 
-const AddToCart = Action.define({
-  name: 'addToCart',
-  description: 'Add a product to the cart',
-  input: Schema.Struct({ productId: Schema.String }),
-  toMessage: input => Message.AddedToCart(input),
+const CreateTodo = Action.define({
+  name: 'createTodo',
+  description: 'Add a todo',
+  input: Schema.Struct({ id: Schema.String, title: Schema.String }),
+  toMessage: input => Message.CreatedTodo(input),
 })
-Action.run(AddToCart, { productId: 'p1' }) // Result<Message, SchemaError>: input decoded first
+Action.run(CreateTodo, { id: 't2', title: 'Buy milk' }) // Result<Message, SchemaError>: input decoded first
 ```
 
-`Agent.action(AddToCart)` exposes it; a composition Catalog lists it for Blocks.
+`Agent.action(CreateTodo)` exposes it; a composition Catalog lists it for Blocks.
 
 **Checking all of an app's contracts** (in a test or a build step):
 
@@ -187,6 +191,12 @@ generically, or a failure a package swallowed is a typed `Diagnostic`
 `StoreMalformed`, ...), reported through the `Diagnostics.Reporter` service.
 The default writes Effect's log, with an `error` on `console.error` (stderr on
 a server) and a `warning` on `console.log`.
+
+<!-- docs-check
+import type { Diagnostic } from 'foldkit-surface'
+declare const send: (diagnostic: Diagnostic) => Effect.Effect<void>
+declare const program: Effect.Effect<void>
+-->
 
 ```ts
 import { Effect, Layer } from 'effect'

@@ -94,6 +94,21 @@ Spread the resulting config into `Runtime.makeApplication` or `Runtime.makeEleme
 initial state depends on what only the parent knows at startup (the route,
 the user, the workspace):
 
+<!-- docs-check
+const SearchModel = Schema.Struct({ searchText: Schema.String })
+const Search = Bundle.make('Search', {
+  Model: SearchModel,
+  Message: defineMessageUnion({ Typed: { text: Schema.String } }),
+  args: Schema.Struct({ searchText: Schema.String }),
+  init: ({ searchText }) => ({ model: { searchText } }),
+  update: (_model, message) => ({ model: { searchText: message.text } }),
+})
+const SearchPage = Bundle.parent({
+  Model: Schema.Struct({ savedQuery: Schema.String, search: SearchModel }),
+  Message: defineMessageUnion({ ...Bundle.declare(Search, 'search').cases }),
+})
+-->
+
 ```ts
 const SearchPlaced = SearchPage.at(Bundle.declare(Search, 'search'), {
   args: parent => ({
