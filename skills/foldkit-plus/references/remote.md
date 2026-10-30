@@ -213,8 +213,11 @@ most one Remote domain.
 **Transports.** `RemoteClient` is a Layer; pick the one that reaches your server.
 A transport failure becomes the call's Remote error, not a defect.
 
-- Effect RPC: `Remote.clientLayer(rpcClient)` as above; on the server
-  `RemoteRpc.toLayer(handlers)`.
+- Effect RPC: `Remote.clientLayer(rpcClient)` as above, with
+  `Remote.rpcProtocolHttp(url)` as the protocol (Effect's
+  `RpcClient.layerProtocolHttp` loses a 413's status, so a write refused for
+  its size would be resent for good); on the server
+  `RemoteRpc.toLayer(handlers)`, `bodyLimit(maxBytes)` in front.
 - JSON over HTTP: `Remote.clientLayer(Remote.http('/remote', { headers }))`,
   answered by `RemoteServer.answer(handlers, body)`; `Remote.json(send)` for a
   worker or a server in the page (`send(request, signal)`: stop on abort).

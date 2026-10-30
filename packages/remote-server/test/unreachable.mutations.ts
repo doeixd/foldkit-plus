@@ -19,9 +19,9 @@ export default [
     name: 'an RPC call the transport lost reads as refused',
     edits: [
       {
-        file: '../../remote/src/index.ts',
-        find: 'Effect.fail(new RemoteUnreachable({ message: error.message }))',
-        replace: 'Effect.fail(new RemoteReadError({ message: error.message }))',
+        file: '../../remote/src/rpc.ts',
+        find: ': new RemoteUnreachable({ message: error.message }),',
+        replace: ': refused(error.message),',
       },
     ],
     tests: ['packages/remote/test/rpcClient.test.ts'],

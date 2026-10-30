@@ -147,7 +147,10 @@ serveFetch({ server, resolvePrincipal, layer, maxBodyBytes: 64 * 1024 })
 - The client: `Remote.http` reads a 413 as a refusal, whatever its body (a
   gateway's limit says the same): a read or a query fails with its own error,
   a mutation `RemoteMutationError`, never `RemoteUnreachable`, so a durable
-  write is not resent forever.
+  write is not resent forever. Over Effect RPC the 413's status is lost by
+  `RpcClient.layerProtocolHttp`, which reads the body as RPC frames;
+  `Remote.rpcProtocolHttp` keeps it, and `clientLayer` reads it the same way
+  (#360).
 
 ## Tests
 

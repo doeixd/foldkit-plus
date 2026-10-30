@@ -1124,6 +1124,11 @@ const RpcRoutes = RpcServer.layer(RemoteRpc).pipe(
 )
 ```
 
+The client reads that 413 as the call's own error only over
+`Remote.rpcProtocolHttp(url)` in place of `RpcClient.layerProtocolHttp({ url
+})`, which reads the refusal as RPC frames and loses its status: a durable
+write would then read as unreachable and be sent again for good.
+
 ## Over fetch (Workers)
 
 `serveFetch` from `foldkit-remote-server/fetch` is that route as a value: a

@@ -144,7 +144,7 @@ const clientLayer = Remote.clientLayer(rpcClient)
 const httpClientLayer = Layer.unwrap(
   Effect.map(RpcClient.make(RemoteRpc), rpcClient => Remote.clientLayer(rpcClient)),
 ).pipe(
-  Layer.provide(RpcClient.layerProtocolHttp({ url: '/rpc' })),
+  Layer.provide(Remote.rpcProtocolHttp('/rpc')),
   Layer.provide([RpcSerialization.layerJson, FetchHttpClient.layer]),
 )
 expectTypeOf(httpClientLayer).toEqualTypeOf<Layer.Layer<RemoteClient>>()

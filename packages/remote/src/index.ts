@@ -207,6 +207,7 @@ import {
   RemoteLiveError,
   RemoteForbidden,
   RemoteLiveRefused,
+  RemoteMutationError,
   RemoteProtocolError,
   RemoteQueryError,
   RemoteReadError,
@@ -238,6 +239,7 @@ import { patchedFields, shownOf } from './shown.js'
 
 import { http as httpClient, json as jsonClient } from './json.js'
 import { httpWithLive as httpWithLiveClient } from './sse.js'
+import { rpcFailure, rpcProtocolHttp } from './rpc.js'
 export * from './client.js'
 export type { RemoteResumePart } from './resume.js'
 export {
@@ -1474,10 +1476,6 @@ const wallClock = (): number => Date.now()
 
 /** The default `toMessage`: the application reduces `RemoteMessage` itself. */
 const identityMessage = (message: RemoteMessage): RemoteMessage => message
-
-/** An RPC call whose transport failed: no answer came, so a write may have reached the server. */
-const unanswered = (error: RpcClientError.RpcClientError) =>
-  Effect.fail(new RemoteUnreachable({ message: error.message }))
 
 export interface RetainOptions {
   /** The query connections the application shows, by `QueryRef` or identity. */
@@ -3126,13 +3124,24 @@ export const Remote = {
   httpWithLive: httpWithLiveClient,
 
   /**
+   * Effect RPC's client protocol over HTTP to `url`, for `RpcClient.make(RemoteRpc)`
+   * under `clientLayer`: `RpcClient.layerProtocolHttp({ url })`, except that a
+   * response under a status other than 2xx fails the call with its status, so
+   * a request the server refused for its size (`bodyLimit`'s 413) is not read
+   * as unreachable and resent for good.
+   */
+  rpcProtocolHttp,
+
+  /**
    * Adapts an Effect RPC client for `RemoteRpc` to `RemoteClient`, so an
    * application provides the transport's RPC layer instead of writing the
    * `LiveChange`-to-`LiveEvent` mapping by hand. The client `RpcClient.make`
    * builds is accepted as it is: when its transport fails (`RpcClientError`),
    * a read, a query or a mutation fails `RemoteUnreachable` and a live stream
    * `RemoteLiveError`, which the application shows and retries like any
-   * failure; a durable mutation is sent again.
+   * failure; a durable mutation is sent again. A failure carrying an HTTP 413
+   * (`rpcProtocolHttp` keeps the status) is the call's own error instead,
+   * refused for its size, and a durable mutation so refused is settled.
    */
   clientLayer: <R = never>(
     client: RemoteRpcClient<R, RpcClientError.RpcClientError | RemoteUnreachable>,
@@ -3147,26 +3156,29 @@ export const Remote = {
           const context = yield* Effect.context<R>()
           return {
             read: batch =>
-              client
-                .FoldkitRemoteRead(batch)
-                .pipe(
-                  Effect.catchTag('RpcClientError', unanswered),
-                  Effect.provideContext(context),
+              client.FoldkitRemoteRead(batch).pipe(
+                Effect.catchTag(
+                  'RpcClientError',
+                  rpcFailure(message => new RemoteReadError({ message })),
                 ),
+                Effect.provideContext(context),
+              ),
             query: request =>
-              client
-                .FoldkitRemoteQuery(request)
-                .pipe(
-                  Effect.catchTag('RpcClientError', unanswered),
-                  Effect.provideContext(context),
+              client.FoldkitRemoteQuery(request).pipe(
+                Effect.catchTag(
+                  'RpcClientError',
+                  rpcFailure(message => new RemoteQueryError({ message })),
                 ),
+                Effect.provideContext(context),
+              ),
             mutate: request =>
-              client
-                .FoldkitRemoteMutate(request)
-                .pipe(
-                  Effect.catchTag('RpcClientError', unanswered),
-                  Effect.provideContext(context),
+              client.FoldkitRemoteMutate(request).pipe(
+                Effect.catchTag(
+                  'RpcClientError',
+                  rpcFailure(message => new RemoteMutationError({ message })),
                 ),
+                Effect.provideContext(context),
+              ),
             live: ({ requirements, queries, after }) =>
               client
                 .FoldkitRemoteLive({

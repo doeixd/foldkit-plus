@@ -163,7 +163,7 @@ send:
 | `_tag` | Meaning | Asking again |
 | --- | --- | --- |
 | `RemoteReadError`, `RemoteQueryError` | the server failed the request: its Source (its message), or a request larger than it takes | may work; a request too large will not |
-| `RemoteMutationError` | a mutation failed: the server's Source (its message), or the mutation's declared refusal (`refusal`, which `Data.refusal` decodes) | may work; a refusal will not, with the same input |
+| `RemoteMutationError` | a mutation failed: the server's Source (its message), the mutation's declared refusal (`refusal`, which `Data.refusal` decodes), or a request larger than the server takes (a 413) | may work; a refusal or a request too large will not, with the same input |
 | `Unreachable` | a read, a query or a mutation nothing answered: it could not be sent, what came back was no answer (a gateway's 502 page), or none came within the deadline; a mutation may or may not have run | may work; a write as the same write (`Data.retry`), which a ledgered writer answers from its record; a durable write is sent again on its own |
 | `RemoteLiveError` | a live stream broke; `Data.liveStatus` carries it while the stream restarts itself | not needed |
 | `RemoteProtocolError` | client and server speak different protocol versions | never: deploy one version |
@@ -499,8 +499,10 @@ nothing.
 **Development and production report the same** unless the application
 chooses `Diagnostics.quiet`; no package switches a diagnostic off in
 production. What development adds is checks you opt into:
-`Remote.make({ verifyPredictions: true })`, which costs a comparison per
-answer and a fetch per placed list. `GuardServer.validate`
+`Remote.make({ verifyPredictions: import.meta.env?.DEV === true })`, which
+costs a comparison per answer and a fetch per placed list, and reports each
+`PredictionMismatch` at error level; `Trace.run` requires it and fails a
+test on any mismatch. `GuardServer.validate`
 throws at startup for a guard a server does not apply, and reports
 `UnpinnedWrites` for a write a change can come between.
 

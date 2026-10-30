@@ -357,10 +357,16 @@ import { RemoteRpc } from 'foldkit-remote'
 const clientLayer = Layer.unwrap(
   Effect.map(RpcClient.make(RemoteRpc), rpcClient => Remote.clientLayer(rpcClient)),
 ).pipe(
-  Layer.provide(RpcClient.layerProtocolHttp({ url: '/rpc' })),
+  Layer.provide(Remote.rpcProtocolHttp('/rpc')),
   Layer.provide([RpcSerialization.layerJson, FetchHttpClient.layer]),
 )
 ```
+
+`Remote.rpcProtocolHttp(url)` is Effect's `RpcClient.layerProtocolHttp({ url
+})`, except that a response whose status is not 2xx fails the call with its
+status. Effect's own reads such a body as RPC frames and loses the status, so
+a request the server refused for its size (`bodyLimit`'s 413) would read as
+unreachable, and a durable write would be sent again for good.
 
 Or, with no Effect RPC on the server, plain JSON over HTTP: each call a `POST`
 of `{ operation, payload }`, answered `{ result }` or `{ error }`.
@@ -2476,6 +2482,10 @@ fails with `RemoteUnreachable` (`_tag: 'Unreachable'`), and a live stream with
 `RemoteLiveError`; the UI shows and retries each like any other failure. For a
 mutation it means the server may or may not have run it.
 `RemoteData.isUnreachable(error)` asks that of a failure without comparing tags.
+Over `Remote.rpcProtocolHttp`, a 413 is the call's own error instead
+(`RemoteReadError`, `RemoteQueryError`, `RemoteMutationError`): the server
+refused the request for its size, and a durable write so refused is settled
+`Failed`.
 `Remote.json`, `Remote.http` and `Remote.httpWithLive` say the same of a
 request they could not send, and of a response that is no Remote answer: a
 body that is not JSON, JSON that is not `{ result }` or `{ error }` (a

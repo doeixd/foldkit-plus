@@ -183,6 +183,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A request refused for its size over Effect RPC is not resent for good**
+  (`foldkit-remote`, #360). Effect's `RpcClient.layerProtocolHttp` reads a
+  413 from `bodyLimit` (or a gateway) as RPC frames and loses its status, so
+  `Remote.clientLayer` failed a mutation refused for its size with
+  `RemoteUnreachable` and the outbox sent a durable one again forever.
+  `Remote.rpcProtocolHttp(url)` is that protocol with a response's status
+  kept, and `Remote.clientLayer` reads a 413 as the call's own error
+  (`RemoteMutationError`, `RemoteReadError`, `RemoteQueryError`), which the
+  outbox settles `Failed`. Use it in place of `layerProtocolHttp` for
+  `RemoteRpc`.
+
 - **A list a pending write changes keeps its rows** (`foldkit-remote`).
   Retention kept the list for the write but collected its rows when no
   Surface read it, so it read `Initial` once the write failed and the overlay
