@@ -100,6 +100,8 @@ export const Data = Remote.make({
   entities: [Page, Post, ...Object.values(Cms.Entities)],
   queries: [Cms.Entries, Cms.bySlug(Pages), RecentPosts, PostById],
   mutations: [...Cms.operations],
+  // Off in a build; `tsx` has no `import.meta.env`.
+  verifyPredictions: import.meta.env?.DEV === true,
 })
 
 export const PageEditor = Editor.at({ data: Data, model: App.model.editor })

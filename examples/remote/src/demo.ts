@@ -75,6 +75,8 @@ const Data = Remote.make({
   entities: [Project],
   mutations: [RenameProject],
   queries: [ProjectsByOwner],
+  // A script run by tsx and Vitest, never built for a reader: always verified.
+  verifyPredictions: true,
 })
 
 // Params are plain fields and the model an object of Projections; `App.surface`

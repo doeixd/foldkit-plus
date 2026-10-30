@@ -239,6 +239,8 @@ export const Data = Remote.make({
   entities: [User, Project],
   mutations: [RenameProject, CreateProject],
   queries: [ProjectsByOwner],
+  // Run by tsx and tested by Vitest, never built for a reader: always verified.
+  verifyPredictions: true,
 })
 
 /**

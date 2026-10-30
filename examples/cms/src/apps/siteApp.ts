@@ -75,6 +75,8 @@ export const Data = Remote.make({
     PublishedPages,
   ],
   mutations: [],
+  // Off in a build; `tsx` has no `import.meta.env`.
+  verifyPredictions: import.meta.env?.DEV === true,
 })
 
 const PageRead = Entity.select(Page, { title: true, slug: true, document: true })

@@ -117,7 +117,12 @@ export const initial: Model = {
 }
 
 const App = Surface.application({ Model, Message })
-export const Data = Remote.make({ model: App.model.remote, ...served })
+export const Data = Remote.make({
+  model: App.model.remote,
+  ...served,
+  // Off in a build; `tsx` has no `import.meta.env`.
+  verifyPredictions: import.meta.env?.DEV === true,
+})
 
 const MeRow = Entity.select(Me, { signedIn: true, key: true, may: true })
 const NoteRow = Entity.select(Note, { title: true, authorId: true })

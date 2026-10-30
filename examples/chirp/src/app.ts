@@ -111,6 +111,8 @@ export const Data = Remote.make({
   mutations: [PostChirp, EditPost, DeletePost, LikePost, Unlike],
   // Who reads: whom a like, a chirp's author, and `liked` are predicted for.
   viewer: model => Option.some(Remote.ref(Chirper, model.me)),
+  // Off in a build; `tsx` has no `import.meta.env`.
+  verifyPredictions: import.meta.env?.DEV === true,
 })
 // #endregion
 

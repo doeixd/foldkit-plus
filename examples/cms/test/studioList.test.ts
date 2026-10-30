@@ -6,7 +6,7 @@
  */
 import { Option } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { connectionsOf } from 'foldkit-remote'
+import { connectionsOf, readsStale } from 'foldkit-remote'
 import { Inert } from 'foldkit-mixins/testing'
 import { initial, Message, update, Worklist, type Model } from '../src/apps/app.js'
 import { Studio } from '../src/views/view.js'
@@ -42,7 +42,7 @@ describe('the posts list', () => {
 })
 
 describe('an entry saved for the first time', () => {
-  it('joins the worklist where its creation puts it, with no request', () => {
+  it('joins the worklist where its creation puts it, not read as stale', () => {
     const identity = worklistIdentity(initial)
     const entry = (id: string, label: string, createdAt: string) => ({
       entity: 'CmsEntry',
@@ -76,7 +76,9 @@ describe('an entry saved for the first time', () => {
     expect(loaded.remote.connections[identity]?.stale).toBe(false)
 
     // No code in the application touches the list; the answer places the
-    // entry by the body's order, newest first, and nothing is asked again.
+    // entry by the body's order, newest first. Nothing is asked again but, under
+    // `verifyPredictions` (on in tests), the page that order is checked
+    // against, which the list does not show as a refresh.
     const saved = step(
       loaded,
       Message.MutationSucceeded({
@@ -86,7 +88,7 @@ describe('an entry saved for the first time', () => {
       }),
     )
     const pages = saved.remote.connections[identity]
-    expect(pages?.stale).toBe(false)
+    expect(readsStale(saved.remote, identity)).toBe(false)
     expect(pages?.segments.flatMap(segment => segment.edges.map(edge => edge.ref.id))).toEqual([
       'e9',
       'e1',

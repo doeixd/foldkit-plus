@@ -105,6 +105,8 @@ const Data = Remote.make({
   entities: [Article, ...Object.values(Cms.Entities)],
   queries: [Cms.Entries, Cms.bySlug(Articles)],
   mutations: [...Cms.operations],
+  // Off in a build; `tsx` has no `import.meta.env`.
+  verifyPredictions: import.meta.env?.DEV === true,
 })
 const ArticleEditor = Editor.at({ data: Data, model: App.model.editor })
 const ArticleView = Entity.select(Article, { title: true, body: true })

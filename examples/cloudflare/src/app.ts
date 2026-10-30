@@ -85,6 +85,8 @@ export const Data = Remote.make({
   entities: [Todo],
   queries: [AllTodos],
   mutations: [CreateTodo, RenameTodo, ToggleTodo, DeleteTodo],
+  // Off in a build; `tsx` has no `import.meta.env`.
+  verifyPredictions: import.meta.env?.DEV === true,
 })
 
 const Listed = Crud.list('Todos', {

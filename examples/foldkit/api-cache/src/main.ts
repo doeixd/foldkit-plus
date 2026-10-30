@@ -71,6 +71,8 @@ export const Data = Remote.make({
   model: App.model.remote,
   entities: [Post, Stats],
   queries: [PostsQuery],
+  // Off in a build; `tsx` has no `import.meta.env`.
+  verifyPredictions: import.meta.env?.DEV === true,
 })
 
 const foldData = Remote.fold(Data, message => Message.GotRemoteMessage({ message }))

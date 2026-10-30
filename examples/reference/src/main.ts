@@ -123,6 +123,17 @@ export const Data = Remote.make({
   ...served,
   // Who reads: a new note's author, and whose count it moves.
   viewer: model => Option.map(viewerOf(model), id => Remote.ref(Member, id)),
+  verifyPredictions: {
+    // Off in a build; `tsx` has no `import.meta.env`.
+    on: import.meta.env?.DEV === true,
+    expected: {
+      mutations: {
+        AddNote: {
+          Gap: "the answer leaves out the new note's may, which is read again after it (#370)",
+        },
+      },
+    },
+  },
 })
 
 const MeRow = Entity.select(Me, { signedIn: true, key: true })

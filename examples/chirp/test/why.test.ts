@@ -6,6 +6,7 @@
  * and its answer, and that no read on the page went back to `Loading`.
  */
 import { Effect, Option, Stream } from 'effect'
+import { TestClock } from 'effect/testing'
 import { Entity } from 'foldkit-entity'
 import { Remote, ShownBy, Why, type RemoteClient, type RemoteMessage } from 'foldkit-remote'
 import { Respond, Trace } from 'foldkit-remote/testing'
@@ -81,13 +82,23 @@ describe('why your profile shows a chirp the server has not listed', () => {
 })
 
 describe('the timeline of a post', () => {
+  /**
+   * When you post, by the trace's clock and the server's alike: a client
+   * clock far from the server's has its time refused and the server's
+   * stored, which `verifyPredictions` reads as the answer disagreeing.
+   */
+  const at = 1_800_000_000_000
+
   /** Remote's client over the sandbox's server as you. */
   const sandbox = (): RemoteClient['Service'] => {
     const { server, database } = openServer(memorySqlite())
     const handlers = RemoteServer.handlers(server, principalOf('you'))
     const json = Remote.json(request =>
       Effect.runPromise(
-        RemoteServer.answer(handlers, JSON.parse(request)).pipe(Effect.provide(database)),
+        Effect.andThen(
+          TestClock.setTime(at),
+          RemoteServer.answer(handlers, JSON.parse(request)),
+        ).pipe(Effect.provide(database), Effect.provide(TestClock.layer())),
       ).then(answered => answered.body),
     )
     return {
@@ -107,6 +118,7 @@ describe('the timeline of a post', () => {
       active: { mine: Data.active('Mine', () => Option.some(mine)) },
       client: sandbox(),
       outbox,
+      now: at,
       steps: [
         Message.GotComposeMessage({ message: Compose.Message.Submitted() }),
         Respond.mutation(PostChirp),
