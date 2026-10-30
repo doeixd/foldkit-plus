@@ -82,7 +82,7 @@ its path.
 
 A placement's state is part of the parent Model, so its fields are already in
 the application's ref tree. Observing one needs no bundle API:
-`App.model.search.query`, `App.model.search.select(projection)`.
+`App.model.search.query`, `ModelRef.focus(App.model.search).select(projection)`.
 
 For an application with `search` and `filter` placements, the following
 integration fragment gives each mirror its own keys. Import `Mirror` from

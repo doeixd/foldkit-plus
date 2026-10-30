@@ -321,12 +321,13 @@ one wiring, so `update` stops hand-writing those two branches:
 
 ```ts
 import { modifyFields } from 'foldkit/struct'
+import { ModelRef } from 'foldkit-surface'
 
 const Routing = Site.routing<Model, Message, AppRoute>({
   site: AppSite,
   owner: App.owner,
   route: {
-    dependency: App.model.route.dependency,
+    dependency: ModelRef.focus(App.model.route).dependency,
     get: (model) => model.route,
     set: (model, route) => modifyFields(model, { route: () => route }),
   },

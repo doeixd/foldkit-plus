@@ -55,11 +55,8 @@ export const Model = Schema.Struct({
   side: Side,
   /** How much of the panel shows at each point it rests at, ascending, each above 0 and at most 1. */
   points: Schema.Array(Schema.Number),
-  /**
-   * The point it rests at, an index into `points`. Not `at`, a name a
-   * Surface's ModelRef reserves, so the Model can stand in any application's.
-   */
-  point: Schema.Number,
+  /** The point it rests at, an index into `points`. */
+  at: Schema.Number,
   /** The point it opens at. */
   opensAt: Schema.Number,
   /** Whether a drag may take it away; Escape and the backdrop are the Dialog's. */
@@ -152,7 +149,7 @@ export const init = (config: InitConfig): Model => {
     dialog: UiDialog.init({ id: config.id, isAnimated: config.isAnimated ?? true }),
     side: config.side ?? 'bottom',
     points,
-    point: opensAt,
+    at: opensAt,
     opensAt,
     dismissible: config.dismissible ?? true,
     ...swipeOf(`Sheet ${config.id}`, config.swipe),
@@ -166,19 +163,19 @@ export type Return = ReturnWithOutMessage<Model, Message, UiDialog.OutMessage>
 const dialogStep = (
   model: Model,
   next: ReturnWithOutMessage<UiDialog.Model, UiDialog.Message, UiDialog.OutMessage>,
-  fields: { readonly point?: number } = {},
+  fields: { readonly at?: number } = {},
 ): Return => {
   // A drag ends with the Dialog opening or closing, and outlives the rest of its Messages:
   // grabbed as the panel slid in, it met the animation's end, which dropped it.
-  const ends = next.model.isOpen !== model.dialog.isOpen || fields.point !== undefined
+  const ends = next.model.isOpen !== model.dialog.isOpen || fields.at !== undefined
   return {
     model:
-      next.model === model.dialog && fields.point === undefined
+      next.model === model.dialog && fields.at === undefined
         ? model
         : modifyFields(model, {
             dialog: () => next.model,
             drag: drag => (ends ? Option.none() : drag),
-            point: point => fields.point ?? point,
+            at: at => fields.at ?? at,
           }),
     commands: Command.mapMessages(next.commands, message => Message.GotDialog({ message })),
     ...(next.outMessage === undefined ? {} : { outMessage: next.outMessage }),
@@ -187,7 +184,7 @@ const dialogStep = (
 
 /** Opens the Sheet at its `opensAt` point. */
 export const open = (model: Model): Return =>
-  dialogStep(model, UiDialog.open(model.dialog), { point: model.opensAt })
+  dialogStep(model, UiDialog.open(model.dialog), { at: model.opensAt })
 
 /** Closes the Sheet; a no-op when it is closed. */
 export const close = (model: Model): Return => dialogStep(model, UiDialog.close(model.dialog))
@@ -254,15 +251,15 @@ export const update = (model: Model, message: Message): Return =>
           const resting = modifyFields(model, { drag: () => Option.none() })
           if (!completed) return { model: resting }
           if (Math.abs(delta) < PRESS_SLOP && Math.abs(velocity) <= model.flickSpeed) {
-            const next = (model.point + 1) % model.points.length
+            const next = (model.at + 1) % model.points.length
             return {
-              model: next === model.point ? resting : modifyFields(resting, { point: () => next }),
+              model: next === model.at ? resting : modifyFields(resting, { at: () => next }),
             }
           }
-          return Option.match(settle({ ...model, at: model.point, size, delta, velocity }), {
+          return Option.match(settle({ ...model, size, delta, velocity }), {
             onNone: () => close(resting),
             onSome: at => ({
-              model: at === model.point ? resting : modifyFields(resting, { point: () => at }),
+              model: at === model.at ? resting : modifyFields(resting, { at: () => at }),
             }),
           })
         },
@@ -286,7 +283,7 @@ const toward: Record<Side, { readonly axis: 'x' | 'y'; readonly sign: 1 | -1 }> 
  * the sheet gives a little and resists.
  */
 export const dragged = (model: Model, drag: { readonly size: number; readonly delta: number }) => {
-  const shown = hiddenAt(model.points, model.point, drag.size) + drag.delta
+  const shown = hiddenAt(model.points, model.at, drag.size) + drag.delta
   return shown >= 0 ? shown : -Math.max(0, 8 * (Math.log(1 - shown) - 2))
 }
 
@@ -365,12 +362,12 @@ export const view = <Outer>(options: SheetView<Outer>, h: HtmlBuilder<Outer>): H
               panel: [
                 h.DataAttribute('sheet', model.side),
                 ...(options.scalesPage === true ? [h.DataAttribute('scales-page', '')] : []),
-                h.Style({ '--fk-sheet-snap': String(model.points[model.point] ?? 1) }),
+                h.Style({ '--fk-sheet-snap': String(model.points[model.at] ?? 1) }),
                 // A sheet resting partway takes its full extent, so a point is
                 // a share of that and not of a panel only as tall as its content.
                 ...(model.points.some(point => point < 1) ? [h.DataAttribute('snaps', '')] : []),
                 // Below its highest point a swipe up raises it, so its content holds still.
-                ...(model.point < model.points.length - 1 ? [h.DataAttribute('lowered', '')] : []),
+                ...(model.at < model.points.length - 1 ? [h.DataAttribute('lowered', '')] : []),
                 ...(model.swipeFrom === 'panel' ? [h.OnMount(swipe(true))] : []),
                 ...place,
               ],

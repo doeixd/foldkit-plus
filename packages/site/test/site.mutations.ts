@@ -474,7 +474,7 @@ export default [
     edits: [
       {
         file,
-        find: '  return [node.tag, { ...gated, activation: { path: place.dependency, tag: node.tag } }]',
+        find: '  return [node.tag, { ...gated, activation: { path: focus.dependency, tag: node.tag } }]',
         replace: '  return [node.tag, gated]',
       },
     ],

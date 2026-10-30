@@ -12,7 +12,7 @@ import { Url, fromString } from 'foldkit/url'
 import type { Url as UrlValue } from 'foldkit/url'
 import { Entity as DomainEntity, Expr, Order } from 'foldkit-entity'
 import { Query, Remote, RemoteClient } from 'foldkit-remote'
-import { Surface } from 'foldkit-surface'
+import { ModelRef, Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Site } from '../src/index.js'
 
@@ -78,7 +78,7 @@ const urlOf = (path: string): UrlValue =>
   Option.getOrThrowWith(fromString(`https://example.test${path}`), () => new Error(path))
 
 const field = {
-  dependency: App.model.route.dependency,
+  dependency: ModelRef.focus(App.model.route).dependency,
   get: (model: Model) => model.route,
   set: (model: Model, route: AppRoute) => modifyFields(model, { route: () => route }),
 }

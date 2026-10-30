@@ -2723,7 +2723,9 @@ place in an application Model. It exposes the Remote `Model`, `initial`,
 `RemoteServer.validate`.
 
 `Remote.at(definition, modelRef)` binds that domain to a `ModelRef`;
-`Remote.make` combines definition and binding in one step.
+`Remote.make` combines definition and binding in one step. Either one's
+`store` is the ref's `Focus` (`ModelRef.focus(modelRef)`): its `get`, `set`
+and `dependency`, which `foldkit-sync` and the law checks read.
 
 `Entity.make(name, schema)` is Remote's own entity descriptor, and what a
 `foldkit-entity` Entity is compiled to (`Entity.from`). Remote accepts either

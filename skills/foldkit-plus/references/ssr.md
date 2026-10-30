@@ -70,7 +70,7 @@ const Editor = SSR.plan(App, {
   id: 'editor',
   state: Projection.pick(App.model.draft, App.model.count), // what the browser owns
   // baseline defaults to App.initial; boot: model => Commands to run on load
-  local: [App.model.menuOpen], // may start from the baseline
+  local: [App.model.menuOpen], // refs that may start from the baseline
   surfaces: [Surface.at(EditorToolbar, undefined)], // checked against state + local
 })
 

@@ -24,7 +24,7 @@ import {
   type RemoteError,
   type RemoteMessage,
 } from 'foldkit-remote'
-import type { ActiveSurface, ModelRef, Projection } from 'foldkit-surface'
+import { ModelRef, type ActiveSurface, type Projection } from 'foldkit-surface'
 import type { Command } from 'foldkit/command'
 import type * as FieldValidation from 'foldkit/fieldValidation'
 import * as ManagedResource from 'foldkit/managedResource'
@@ -568,7 +568,8 @@ export const makeEditor =
         readonly model: ModelRef<Root, Model>
       }) => {
         type Step = Update.Step<Root, RemoteMessage, RemoteClient>
-        const { data, model: slice } = where
+        const { data } = where
+        const slice = ModelRef.focus(where.model)
 
         const entryOf = (root: Root) => {
           const { mode, entry, saveId } = slice.get(root)

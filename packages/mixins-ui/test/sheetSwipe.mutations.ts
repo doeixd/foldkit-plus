@@ -65,7 +65,7 @@ export default [
     edits: [
       {
         file: sheet,
-        find: "...(model.point < model.points.length - 1 ? [h.DataAttribute('lowered', '')] : []),",
+        find: "...(model.at < model.points.length - 1 ? [h.DataAttribute('lowered', '')] : []),",
         replace: '',
       },
     ],

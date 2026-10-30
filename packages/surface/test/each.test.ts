@@ -1,6 +1,6 @@
-import { Option, Schema } from 'effect'
+import { Optic, Option, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Projection, Surface } from '../src/index.js'
+import { ModelRef, Projection, Surface } from '../src/index.js'
 import { App, Message } from './todoFixture.js'
 const Board = App.surface('Board', {
   model: ({ model }) => Projection.struct({ todos: model.todos }),
@@ -121,10 +121,14 @@ describe('Surface.when as a source', () => {
     messages: [],
   })
   // A tagged value beside the Model standing in for a route.
-  const lampPlace = {
-    dependency: ['mode'],
-    get: (root: unknown) => (root as { readonly mode?: unknown }).mode,
-  }
+  const lampPlace = ModelRef.fromOptic(
+    Schema.Unknown,
+    Optic.makeLens<unknown, unknown>(
+      root => (root as { readonly mode?: unknown }).mode,
+      (mode, root) => ({ ...(root as object), mode }),
+    ),
+    ['mode'],
+  )
   const LampOn = Surface.when(Lamp, lampPlace, Message.CreatedTodo, () => undefined)
   const lit = (mode: unknown) => ({ ...root, mode })
 

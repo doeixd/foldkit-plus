@@ -24,7 +24,7 @@ import {
 import { modifyFields } from 'foldkit/struct'
 import { Scene } from 'foldkit/test'
 import { Url, fromString } from 'foldkit/url'
-import { Surface } from 'foldkit-surface'
+import { ModelRef, Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Site } from '../src/index.js'
 
@@ -130,7 +130,7 @@ const Routing = Site.routing<Model, Message, AppRoute>({
   site: AppSite,
   owner: App.owner,
   route: {
-    dependency: App.model.route.dependency,
+    dependency: ModelRef.focus(App.model.route).dependency,
     get: model => model.route,
     set: (model, route) => modifyFields(model, { route: () => route }),
   },

@@ -26,7 +26,7 @@ import { BroadcastMessage, broadcastMessages, postBroadcast } from 'foldkit-prim
 import { Remote, RemoteData, type RemoteClient, type RemoteError } from 'foldkit-remote'
 import { Access, Site } from 'foldkit-site'
 import { SSR } from 'foldkit-ssr/client'
-import { Projection, Surface } from 'foldkit-surface'
+import { ModelRef, Projection, Surface } from 'foldkit-surface'
 import type { AuthApi } from './authApi.js'
 import { Me, Note, Notes, served } from './domain.js'
 
@@ -331,7 +331,7 @@ const Routing = Site.routing<Model, Message, AppRoute>({
   site: AppSite,
   owner: App.owner,
   route: {
-    dependency: App.model.route.dependency,
+    dependency: ModelRef.focus(App.model.route).dependency,
     get: model => model.route,
     set: (model, route) => modifyFields(model, { route: () => route }),
   },

@@ -15,6 +15,7 @@ import {
   type Wrapper,
 } from 'foldkit-bundle'
 import {
+  ModelRef,
   Module,
   type AppScope,
   type Contract,
@@ -44,12 +45,13 @@ const link = <Root, Value, const Tag extends string, ChildMessage>(
   wrapper: Wrapper<Tag, ChildMessage>,
   options: { readonly when?: (parent: Root) => boolean } = {},
 ) => {
+  const focus = ModelRef.focus(ref)
   const made = Link.make<Root, Tag, Value, ChildMessage>({
-    read: root => Option.some(ref.get(root)),
-    write: ref.set,
+    read: root => Option.some(focus.get(root)),
+    write: focus.set,
     wrapper,
-    path: ref.dependency,
-    owner: ref.owner,
+    path: focus.dependency,
+    owner: focus.owner,
     ...options,
   })
   return made

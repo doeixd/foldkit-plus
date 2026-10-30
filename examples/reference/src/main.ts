@@ -21,7 +21,7 @@ import { pointedLinks } from 'foldkit-plus/primitives/dom'
 import { Remote, RemoteData, type RemoteClient } from 'foldkit-plus/remote'
 import { Access, Site } from 'foldkit-plus/site'
 import { SSR } from 'foldkit-plus/ssr/client'
-import { Projection, Surface } from 'foldkit-plus/surface'
+import { ModelRef, Projection, Surface } from 'foldkit-plus/surface'
 import type { AuthApi } from './authApi.js'
 import { Adding, Editing, Editor } from './forms.js'
 import { Me, Member } from './guard.js'
@@ -249,7 +249,7 @@ const Routing = Site.routing<Model, Message, AppRoute, Services>({
   site: AppSite,
   owner: App.owner,
   route: {
-    dependency: App.model.route.dependency,
+    dependency: ModelRef.focus(App.model.route).dependency,
     get: model => model.route,
     set: (model, route) => modifyFields(model, { route: () => route }),
   },

@@ -979,11 +979,6 @@ Foldkit's own behaviour that we work around is listed in
   `derived` and `sets` add to every descriptor of the Entity, so test fixtures
   that pipe different members onto one shared Entity collide ("already a
   derived member"); give each such test a domain of its own.
-- **A Surface's ModelRef reserves field names** (#331). A Model field named
-  `Schema`, `optic`, `dependency`, `key`, `read`, `get`, `set`, `at`, `index`
-  or `select`, at any depth, throws once any Surface reads the Model; the
-  Carousel's `index` and the Sheet's `at` broke the site. Until it is fixed,
-  name a component's Model fields outside that set (`slide`, `point`).
 - **`scrollBy` stops at every `scroll-snap-stop: always`.** A carousel drawn
   at its third slide landed on its second: the scroll halted at the first
   snap on the way. Scroll to a position (`scrollTo`, `scrollIntoView`) to

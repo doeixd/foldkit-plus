@@ -37,7 +37,7 @@ const drawn = (index: number, more: Drawn = {}) => {
   const html = Carousel.view(
     {
       label: 'Trip photos',
-      model: { ...Carousel.init({ id: 'trip', slide: index }), ...more.model },
+      model: { ...Carousel.init({ id: 'trip', index: index }), ...more.model },
       slides: shown,
       onMessage: got => {
         sent.push(got)
@@ -232,33 +232,33 @@ describe('Carousel.update', () => {
 
   it('a choice moves the slide and scrolls to it', () => {
     const result = update(at(), Carousel.Message.Chose({ index: 2 }))
-    expect(result.model.slide).toBe(2)
+    expect(result.model.index).toBe(2)
     expect(tags(result)).toEqual(['Carousel.ShowSlide'])
   })
 
   it('choosing the slide shown scrolls back to it and changes nothing else', () => {
-    const model = at({ slide: 1 })
+    const model = at({ index: 1 })
     const result = update(model, Carousel.Message.Chose({ index: 1 }))
     expect(result.model).toBe(model)
     expect(tags(result)).toEqual(['Carousel.ShowSlide'])
   })
 
   it('a choice past the end is the end', () => {
-    expect(update(at(), Carousel.Message.Chose({ index: 7 })).model.slide).toBe(2)
+    expect(update(at(), Carousel.Message.Chose({ index: 7 })).model.index).toBe(2)
     expect(
       Carousel.update({ count: 3, perView: 2 })(at(), Carousel.Message.Chose({ index: 2 })).model
-        .slide,
+        .index,
     ).toBe(1)
   })
 
   it('a swipe that settles on another slide moves the index without scrolling again', () => {
     const result = update(at(), Carousel.Message.Settled({ index: 1 }))
-    expect(result.model.slide).toBe(1)
+    expect(result.model.index).toBe(1)
     expect(tags(result)).toEqual([])
   })
 
   it('settling where it already was changes nothing', () => {
-    const model = at({ slide: 1 })
+    const model = at({ index: 1 })
     expect(update(model, Carousel.Message.Settled({ index: 1 })).model).toBe(model)
   })
 
@@ -271,9 +271,9 @@ describe('Carousel.update', () => {
   })
 
   it('a wait that ends moves on, scrolls and begins the next', () => {
-    const counting = at({ rotation: 'Rotating', counting: true, turn: 4, slide: 1 })
+    const counting = at({ rotation: 'Rotating', counting: true, turn: 4, index: 1 })
     const result = update(counting, Carousel.Message.Elapsed({ turn: 4 }))
-    expect(result.model.slide).toBe(2)
+    expect(result.model.index).toBe(2)
     expect(result.model.turn).toBe(5)
     expect(tags(result)).toEqual(['Carousel.ShowSlide', 'Carousel.Wait'])
   })
@@ -286,13 +286,13 @@ describe('Carousel.update', () => {
   })
 
   it('rotating past the last goes to the first when it loops, and stops when it does not', () => {
-    const last = at({ rotation: 'Rotating', counting: true, turn: 1, slide: 2 })
+    const last = at({ rotation: 'Rotating', counting: true, turn: 1, index: 2 })
     expect(
       Carousel.update({ count: 3, loop: true })(last, Carousel.Message.Elapsed({ turn: 1 })).model
-        .slide,
+        .index,
     ).toBe(0)
     const ended = update(last, Carousel.Message.Elapsed({ turn: 1 })).model
-    expect(ended.slide).toBe(2)
+    expect(ended.index).toBe(2)
     expect(ended.rotation).toBe('Stopped')
   })
 

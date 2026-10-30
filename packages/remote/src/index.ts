@@ -41,7 +41,8 @@ import {
   type ActiveSurface,
   type Contract,
   type Invalid,
-  type ModelRef,
+  ModelRef,
+  type Focus,
   type Projection,
   type Surface,
   type SurfaceSource,
@@ -373,7 +374,8 @@ declare const boundRemoteNames: unique symbol
 
 export interface BoundRemote<AppModel, Store extends RemoteModel, Names extends string = string> {
   readonly definition: RemoteDescriptor
-  readonly store: ModelRef<AppModel, Store>
+  /** The focus of the store's place in the application Model. */
+  readonly store: Focus<AppModel, Store>
   /** For `Module`: owns the store's Model path. */
   readonly contract: Contract
   /**
@@ -1607,24 +1609,27 @@ const bindRemote = <
   Mutations extends readonly MutationDescriptor<any, any, any>[],
 >(
   definition: RemoteDescriptor<Entities, Queries, Mutations>,
-  store: ModelRef<AppModel, Store>,
+  ref: ModelRef<AppModel, Store>,
   operators: MemoryOperators,
-): BoundRemote<AppModel, Store, EntityName<Entities[number]>> => ({
-  definition,
-  store,
-  operators,
-  contract: {
-    kind: 'remote',
-    name: store.dependency.join('.') || 'remote',
-    // A generated field reference knows its application and its path; a raw
-    // optic (`ModelRef.fromOptic`) knows neither, so it claims nothing.
-    owner: (store as { readonly owner?: object }).owner,
-    owns: store.dependency.length === 0 ? [] : [store.dependency],
-    observes: store.dependency.length === 0 ? [] : [store.dependency],
-    messages: [],
-    metadata: [],
-  },
-})
+): BoundRemote<AppModel, Store, EntityName<Entities[number]>> => {
+  const store = ModelRef.focus(ref)
+  return {
+    definition,
+    store,
+    operators,
+    contract: {
+      kind: 'remote',
+      name: store.dependency.join('.') || 'remote',
+      // A generated field reference knows its application and its path; a raw
+      // optic (`ModelRef.fromOptic`) knows neither, so it claims nothing.
+      owner: (store as { readonly owner?: object }).owner,
+      owns: store.dependency.length === 0 ? [] : [store.dependency],
+      observes: store.dependency.length === 0 ? [] : [store.dependency],
+      messages: [],
+      metadata: [],
+    },
+  }
+}
 
 /** The runtime half of `Registered`: a descriptor the domain never declared is an error naming both. */
 const assertRegistered = (
@@ -3318,7 +3323,7 @@ const bindDomain = <
   Mutations extends readonly MutationDescriptor<any, any, any>[],
 >(
   definition: RemoteDescriptor<Entities, Queries, Mutations>,
-  store: ModelRef<AppModel, Store>,
+  ref: ModelRef<AppModel, Store>,
   options: {
     readonly verifyPredictions?: boolean | undefined
     readonly operators?: MemoryOperators | undefined
@@ -3328,7 +3333,8 @@ const bindDomain = <
   } = {},
 ): RemoteDomain<AppModel, Store, Entities, Queries, Mutations> => {
   const operators = options.operators ?? Operators.kernel
-  const bound = bindRemote(definition, store, operators)
+  const bound = bindRemote(definition, ref, operators)
+  const store = bound.store
   const viewerOf = options.viewer ?? (() => Option.none())
   // What a body's `Expr.viewer` reads here. The client has no reading of the
   // time a server judges a list at, so a body over `Expr.now` is the server's.

@@ -43,6 +43,7 @@ import * as Update from 'foldkit/update'
 import * as Url from 'foldkit/url'
 import type { Url as UrlValue } from 'foldkit/url'
 import {
+  ModelRef,
   Surface,
   type ActiveSurface,
   type Contract,
@@ -131,7 +132,7 @@ export type NodeMeta<Route, Model = any> = (page: {
  *
  * ```ts
  * route: {
- *   dependency: App.model.route.dependency,
+ *   dependency: ModelRef.focus(App.model.route).dependency,
  *   get: (model) => model.route,
  *   set: (model, route) => modifyFields(model, { route: () => route }),
  * },
@@ -438,13 +439,14 @@ const sourceOf = <Root>(
     throw new Error(`Site: "${surface.name}" belongs to another application than the site`)
   if (viewer === undefined)
     return [node.tag, Surface.when(surface, place, node.case, route => params(route, undefined))]
+  const focus = ModelRef.focus(place)
   const gated = Surface.at(surface, (model: Root) => {
-    const route = place.get(model)
+    const route = focus.get(model)
     return Predicate.isTagged(route, node.tag)
       ? Option.map(viewer(model), who => params(route, who))
       : Option.none()
   })
-  return [node.tag, { ...gated, activation: { path: place.dependency, tag: node.tag } }]
+  return [node.tag, { ...gated, activation: { path: focus.dependency, tag: node.tag } }]
 }
 
 /** The fields a `Meta` gives, so one left `undefined` does not erase an ancestor's. */
@@ -1013,7 +1015,7 @@ export const Site = {
    *   site: AppSite,
    *   owner: App.owner,
    *   route: {
-   *     dependency: App.model.route.dependency,
+   *     dependency: ModelRef.focus(App.model.route).dependency,
    *     get: (model) => model.route,
    *     set: (model, route) => modifyFields(model, { route: () => route }),
    *   },

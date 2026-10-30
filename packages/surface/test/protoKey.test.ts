@@ -2,7 +2,7 @@
 import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { describe, expect, it } from 'vitest'
-import { Projection, Surface } from '../src/index.js'
+import { ModelRef, Projection, Surface } from '../src/index.js'
 
 const names = ['__proto__', 'constructor', 'toString'] as const
 
@@ -22,7 +22,7 @@ const App = Surface.application({ Model, Message: defineMessageUnion({ Ping: {} 
 describe('fields named like Object.prototype members', () => {
   it.each(names)('%s has a reference of its own', name => {
     expect(Object.hasOwn(App.model, name)).toBe(true)
-    expect(App.model[name].get(model)).toBe(model[name])
+    expect(ModelRef.focus(App.model[name]).get(model)).toBe(model[name])
   })
 
   it('Projection.pick reads and writes each', () => {
@@ -80,6 +80,8 @@ describe('fields named like Object.prototype members', () => {
 
 describe('record keys named like Object.prototype members', () => {
   it.each(names)('a record without %s reads it as absent', name => {
-    expect(Option.isNone(App.model.items.at(name).get(model))).toBe(true)
+    expect(Option.isNone(ModelRef.focus(ModelRef.focus(App.model.items).at(name)).get(model))).toBe(
+      true,
+    )
   })
 })

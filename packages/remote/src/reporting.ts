@@ -6,7 +6,7 @@
 import { Effect, Option } from 'effect'
 import type { Command } from 'foldkit/command'
 import type * as Update from 'foldkit/update'
-import { Diagnostics, type ModelRef } from 'foldkit-surface'
+import { Diagnostics, type Focus } from 'foldkit-surface'
 import { withDiagnostics, writeUnheard, type RemoteDiagnostic } from './diagnostics.js'
 import type { RemoteMessage, RemoteModel } from './model.js'
 
@@ -44,7 +44,7 @@ export const reduceReporting = <
   Store extends RemoteModel,
   Message extends { readonly _tag: string },
 >(
-  store: ModelRef<AppModel, Store>,
+  store: Focus<AppModel, Store>,
   reduce: (model: AppModel, message: Message) => AppModel,
   model: AppModel,
   message: Message,

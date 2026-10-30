@@ -26,20 +26,38 @@ export { Diagnostics, type Diagnostic, type ReportDiagnostic } from './diagnosti
 // ModelRef and the typed Model tree (Phase 0 cases 1)
 // ===========================================================================
 
-export interface ModelRef<Root, Value, Encoded = unknown> {
+/**
+ * The key a ref keeps its own members under; read them with `ModelRef.focus`.
+ * A ref's string keys are the Model's fields, whatever their names (#331),
+ * and no Schema field reaches a symbol. `Symbol.for`, so two copies of this
+ * package read each other's refs.
+ */
+export const RefTypeId: unique symbol = Symbol.for('foldkit-surface/ModelRef')
+
+/** What a ref points at and how to read and write it: `ModelRef.focus(ref)`. */
+export interface Focus<Root, Value, Encoded = unknown> {
   /** A pure codec: Foldkit Model fields carry no decoding or encoding services. */
   readonly Schema: Schema.Codec<Value, Encoded, never, never>
   readonly optic: Optic.Optional<Root, Value>
+  /** The Model path the ref points at. */
   readonly dependency: readonly string[]
   readonly get: (root: Root) => Value
   readonly set: (root: Root, value: Value) => Root
   /**
    * Focused structural replacement: `set` of `fn` applied to `get`. This
-   * delegates through the ref's own `set`, so container-aware setters
-   * (`.at`/`.index` insertion and removal) keep working — never `optic`
+   * delegates through the focus's own `set`, so container-aware setters
+   * (`at`/`index` insertion and removal) keep working — never `optic`
    * calls directly. Infrastructure seam, not an application transition.
    */
   readonly modify: (root: Root, fn: (value: Value) => Value) => Root
+}
+
+/**
+ * A reference to a place in the Model. Its string keys are the fields below
+ * it; its own members are its `Focus`, read with `ModelRef.focus`.
+ */
+export interface ModelRef<Root, Value, Encoded = unknown> {
+  readonly [RefTypeId]: Focus<Root, Value, Encoded>
 }
 
 /**
@@ -53,97 +71,124 @@ export interface FieldRef<
   Key extends string = string,
   Encoded = unknown,
 > extends ModelRef<Root, Value, Encoded> {
-  readonly key: Key
-  /** The application definition this field was generated from. */
-  readonly owner: object
+  readonly [RefTypeId]: Focus<Root, Value, Encoded> & {
+    readonly key: Key
+    /** The application definition this field was generated from. */
+    readonly owner: object
+  }
 }
 
-/**
- * Low-level escape hatch for a focus with no Model path of its own. Prefer the
- * `App.model` tree; use this for an optic that is not part of the Model.
- */
+const makeFocus = <Root, Value>(
+  Schema: Schema.Codec<Value, unknown, never, never>,
+  optic: Optic.Optional<Root, Value>,
+  dependency: readonly string[],
+  get: (root: Root) => Value,
+  set: (root: Root, value: Value) => Root,
+): Focus<Root, Value> => ({
+  Schema,
+  optic,
+  dependency,
+  get,
+  set,
+  modify: (root, fn) => set(root, fn(get(root))),
+})
+
 export const ModelRef = {
+  /**
+   * Low-level escape hatch for a focus with no Model path of its own. Prefer
+   * the `App.model` tree; use this for an optic that is not part of the Model.
+   */
   fromOptic: <Root, Value>(
     Schema: Schema.Schema<Value>,
     optic: Optic.Optional<Root, Value>,
     dependency: readonly string[] = [],
-  ): ModelRef<Root, Value> => {
-    const get: (root: Root) => Value = root => Result.getOrThrow(optic.getResult(root))
-    const set = (root: Root, value: Value): Root => optic.replace(value, root)
-    return {
-      Schema: Schema as unknown as ModelRef<Root, Value>['Schema'],
+  ): ModelRef<Root, Value> => ({
+    [RefTypeId]: makeFocus(
+      Schema as unknown as Schema.Codec<Value, unknown, never, never>,
       optic,
       dependency,
-      get,
-      set,
-      modify: (root, fn) => set(root, fn(get(root))),
-    }
-  },
+      root => Result.getOrThrow(optic.getResult(root)),
+      (root, value) => optic.replace(value, root),
+    ),
+  }),
+  /**
+   * A ref's own members: where it points, how to read and write it, and, as
+   * its value allows, `at` (a record), `index` (an array) and `select`. They
+   * are kept apart from the ref's string keys, which are the Model's fields.
+   */
+  focus: <R extends { readonly [RefTypeId]: object }>(ref: R): R[typeof RefTypeId] =>
+    ref[RefTypeId],
+  /** Whether a value is a ref, as opposed to a Projection or a plain object. */
+  is: (value: unknown): value is ModelRef<unknown, unknown> =>
+    typeof value === 'object' && value !== null && RefTypeId in value,
 }
 
 export type RefTree<Root, F extends Schema.Struct.Fields> = {
   readonly [K in keyof F & string]: RefNode<Root, F[K], K>
 }
 
+/** A ref whose focus can `select` a Projection of its value. */
+export interface Selects<Root, Value> {
+  readonly [RefTypeId]: {
+    readonly select: <P>(projection: Projection<Value, P>) => Projection<Root, P>
+  }
+}
+
+/** A ref to an optional value, whose focus selects inside the Option. */
+export interface SelectsSome<Root, Inner> {
+  readonly [RefTypeId]: {
+    readonly select: <P>(projection: Projection<Inner, P>) => Projection<Root, Option.Option<P>>
+  }
+}
+
+/** A ref to an array, whose focus reaches an item: `ModelRef.focus(ref).index(0)`. */
+export interface Indexes<Root, Item> {
+  readonly [RefTypeId]: {
+    readonly index: (index: number) => OptionalRef<Root, Option.Option<Item>>
+  }
+}
+
+/** A ref to a record, whose focus reaches an entry: `ModelRef.focus(ref).at(key)`. */
+export interface Entries<Root, Key extends string, Value> {
+  readonly [RefTypeId]: {
+    readonly at: (key: Key) => OptionalRef<Root, Option.Option<Value>>
+  }
+}
+
 // Tuple-wrapped so the conditional is *non-distributive*: without it,
-// `Value = Option<V>` distributes over `None | Some<V>` and `.at()` would return
-// a union of two unrelated `ModelRef`s.
-type Selectable<Root, Value, Key extends string, Encoded = unknown> = [Value] extends [
-  Option.Option<infer Inner>,
-]
-  ? FieldRef<Root, Value, Key, Encoded> & {
-      readonly select: <P>(projection: Projection<Inner, P>) => Projection<Root, Option.Option<P>>
-    }
-  : FieldRef<Root, Value, Key, Encoded> & {
-      readonly select: <P>(projection: Projection<Value, P>) => Projection<Root, P>
-    }
+// `Value = Option<V>` distributes over `None | Some<V>` and `select` would
+// return a union of two unrelated projections.
+type Select<Root, Value> = [Value] extends [Option.Option<infer Inner>]
+  ? SelectsSome<Root, Inner>
+  : Selects<Root, Value>
+
+type Selectable<Root, Value, Key extends string, Encoded = unknown> = FieldRef<
+  Root,
+  Value,
+  Key,
+  Encoded
+> &
+  Select<Root, Value>
 
 /**
- * A dynamic focus from `.at`/`.index`. Deliberately not a `FieldRef`: its key is
- * a record key or index, not a Model field, so a static `Projection.pick` cannot
- * infer a field name from it.
+ * A dynamic focus from `at`/`index`. Deliberately not a `FieldRef`: its key is
+ * a record key or index, not a Model field, so a static `Projection.pick`
+ * cannot infer a field name from it.
  */
-type OptionalRef<Root, Value> = [Value] extends [Option.Option<infer Inner>]
-  ? ModelRef<Root, Value> & {
-      readonly select: <P>(projection: Projection<Inner, P>) => Projection<Root, Option.Option<P>>
-    }
-  : ModelRef<Root, Value> & {
-      readonly select: <P>(projection: Projection<Value, P>) => Projection<Root, P>
-    }
+export type OptionalRef<Root, Value> = ModelRef<Root, Value> & Select<Root, Value>
 
 type RefNode<Root, S, Key extends string> =
   S extends Schema.Codec<infer A, infer Encoded, any, any>
     ? S extends Schema.Struct<infer F>
       ? Selectable<Root, A, Key, Encoded> & RefTree<Root, F>
       : A extends ReadonlyArray<infer E>
-        ? Selectable<Root, A, Key, Encoded> & {
-            readonly index: (index: number) => OptionalRef<Root, Option.Option<E>>
-          }
+        ? Selectable<Root, A, Key, Encoded> & Indexes<Root, E>
         : A extends Readonly<Record<infer K extends string, infer V>>
-          ? Selectable<Root, A, Key, Encoded> & {
-              readonly at: (key: K) => OptionalRef<Root, Option.Option<V>>
-            }
+          ? Selectable<Root, A, Key, Encoded> & Entries<Root, K, V>
           : Selectable<Root, A, Key, Encoded>
     : never
 
 type AnySchema = Schema.Codec<unknown, unknown>
-
-/**
- * Names that belong to the ModelRef surface. A Struct field with one of these
- * names would silently shadow a method, so building the tree rejects it.
- */
-const RESERVED_REF_NAMES = new Set([
-  'Schema',
-  'optic',
-  'dependency',
-  'key',
-  'read',
-  'get',
-  'set',
-  'at',
-  'index',
-  'select',
-])
 
 // A key may be a stored id (`at(id)`), so only the container's own keys count.
 function propertyReader(root: unknown, key: string): unknown {
@@ -189,23 +234,16 @@ function makeTree(
   // `Optic.at` cannot *insert* or *remove* an absent key (`replace` is a no-op
   // when the prism fails), so optional foci get container-aware setters below.
   const setFocus = set ?? ((root: unknown, value: unknown): unknown => optic.replace(value, root))
-  const node: Record<string, unknown> = {
-    Schema: schema,
-    optic,
-    dependency: path,
+  const focus: Record<string, unknown> = {
+    ...makeFocus(schema as never, optic, path, get, setFocus),
     key: path[path.length - 1] ?? '',
     owner,
-    get,
-    set: setFocus,
-    modify: (root: unknown, fn: (value: unknown) => unknown) => setFocus(root, fn(get(root))),
   }
+  const node: Record<PropertyKey, unknown> = { [RefTypeId]: focus }
 
   const fields = (schema as { readonly fields?: Schema.Struct.Fields }).fields
   if (fields !== undefined) {
     for (const key of Object.keys(fields)) {
-      if (RESERVED_REF_NAMES.has(key)) {
-        throw new Error(`Model field "${key}" is reserved by ModelRef`)
-      }
       // Defined, not assigned: assigning `__proto__` would set the prototype.
       Object.defineProperty(node, key, {
         value: makeTree(
@@ -224,7 +262,7 @@ function makeTree(
     }
   }
 
-  node.at = (key: string) =>
+  focus.at = (key: string) =>
     makeTree(
       schema,
       [...path, key],
@@ -242,7 +280,7 @@ function makeTree(
       },
       owner,
     )
-  node.index = (index: number) =>
+  focus.index = (index: number) =>
     makeTree(
       schema,
       [...path, String(index)],
@@ -262,7 +300,7 @@ function makeTree(
       },
       owner,
     )
-  node.select = (projection: Projection<unknown, unknown>) => {
+  focus.select = (projection: Projection<unknown, unknown>) => {
     const dependencies = mergeDependencies([path, ...projection.dependencies])
     return optional
       ? makeProjection(
@@ -426,15 +464,16 @@ export const Projection = {
 
     for (const key of Object.keys(entries)) {
       const entry = entries[key] as Projection<unknown, unknown> | ModelRef<unknown, unknown>
-      if ('dependencies' in entry) {
+      if (ModelRef.is(entry)) {
+        const focus = entry[RefTypeId]
+        picked[key] = focus.Schema
+        dependencies.push(focus.dependency)
+        readers.push([key, focus.get])
+      } else {
         picked[key] = entry.Model
         dependencies.push(...entry.dependencies)
         metadata.push(entry.metadata)
         readers.push([key, entry.read])
-      } else {
-        picked[key] = entry.Schema
-        dependencies.push(entry.dependency)
-        readers.push([key, entry.get])
       }
     }
 
@@ -507,12 +546,12 @@ export const Projection = {
   pick: <const Refs extends readonly FieldRef<any, any, string>[]>(
     ...refs: Refs & (IsUnion<RefRoots<Refs>[number]> extends true ? never : unknown)
   ): WritableProjection<RefRoots<Refs>[number], PickFields<Refs>> => {
-    const selected = [...refs]
+    const selected = refs.map(ref => ref[RefTypeId])
     // Two applications can have structurally identical Models, so the root type
     // check cannot separate them; the owner token can.
     const owner = selected[0]?.owner
-    for (const ref of selected) {
-      if (ref.owner !== owner) {
+    for (const focus of selected) {
+      if (focus.owner !== owner) {
         throw new Error('Projection.pick: references from different applications')
       }
     }
@@ -523,33 +562,33 @@ export const Projection = {
     // No prototype: a field named `constructor` must not read as already picked.
     const fields: Record<string, AnySchema> = Object.create(null)
     const paths: Record<string, string> = Object.create(null)
-    for (const ref of [...selected]) {
-      const path = ref.dependency.join('.')
-      const existing = paths[ref.key]
+    for (const focus of [...selected]) {
+      const path = focus.dependency.join('.')
+      const existing = paths[focus.key]
       if (existing !== undefined) {
         if (existing === path) {
-          selected.splice(selected.indexOf(ref), 1)
+          selected.splice(selected.indexOf(focus), 1)
           continue
         }
         throw new Error(
-          `Projection.pick: "${existing}" and "${path}" would both be read as "${ref.key}". Pick them in separate projections.`,
+          `Projection.pick: "${existing}" and "${path}" would both be read as "${focus.key}". Pick them in separate projections.`,
         )
       }
-      paths[ref.key] = path
-      fields[ref.key] = ref.Schema
+      paths[focus.key] = path
+      fields[focus.key] = focus.Schema
     }
     return {
       schema: objectSchema(fields) as never,
-      dependencies: mergeDependencies(selected.map(ref => ref.dependency)),
+      dependencies: mergeDependencies(selected.map(focus => focus.dependency)),
       get: model => {
         const out: Record<string, unknown> = Object.create(null)
-        for (const ref of selected) out[ref.key] = ref.get(model as never)
+        for (const focus of selected) out[focus.key] = focus.get(model as never)
         return out as never
       },
       set: (model, shared) => {
         let next = model
-        for (const ref of selected)
-          next = ref.set(next as never, (shared as Record<string, unknown>)[ref.key] as never)
+        for (const focus of selected)
+          next = focus.set(next as never, (shared as Record<string, unknown>)[focus.key] as never)
         return next
       },
     }
@@ -684,20 +723,22 @@ export interface Surface<Root, Model, Message, Params> {
  * What `Surface.when` needs of a place in the Model: where it is, and how to
  * read it.
  *
- * The read half of a `ModelRef`, and deliberately not the whole thing.
+ * A ref whose focus can be read, and deliberately not a whole `ModelRef`.
  * Activation **observes** — it never installs a value — so asking for a
  * writable reference would claim an authority it does not use. It also makes
  * the common case work: a field holding a tagged union is a *union of*
  * `FieldRef`s, one per case, which no single `ModelRef<Root, Value>` accepts.
  */
 export interface ModelPlace<Root> {
-  /** Where the value lives, as `ModelRef.dependency` gives it. */
-  readonly dependency: readonly string[]
-  readonly get: (root: Root) => unknown
+  readonly [RefTypeId]: {
+    /** Where the value lives, as `ModelRef.focus(place).dependency` gives it. */
+    readonly dependency: readonly string[]
+    readonly get: (root: Root) => unknown
+  }
 }
 
 export interface Activation {
-  /** The Model path the tagged value lives at, as `ModelRef.dependency` gives it. */
+  /** The Model path the tagged value lives at, as a focus's `dependency` gives it. */
   readonly path: readonly string[]
   /** The tag the Surface is active under; a Site node reading the viewer waits for one too. */
   readonly tag: string
@@ -844,7 +885,7 @@ type RefRoots<Refs extends readonly unknown[]> = {
 
 /** The struct fields a reference selection produces, keyed by each ref's field. */
 type PickFields<Refs extends readonly FieldRef<any, any, string>[]> = {
-  readonly [R in Refs[number] as R['key']]: R['Schema']
+  readonly [R in Refs[number] as R[typeof RefTypeId]['key']]: R[typeof RefTypeId]['Schema']
 }
 
 type ProjectionModel<P> = P extends WritableProjection<infer M, any> ? M : never
@@ -1301,8 +1342,9 @@ export const Surface = {
         `Surface.when: expected a tagged constructor for "${surface.name}", which is what names the case that activates it`,
       )
     }
+    const focus = place[RefTypeId]
     const paramsOf = (model: Root): Option.Option<Params> => {
-      const value = place.get(model)
+      const value = focus.get(model)
       return Predicate.isTagged(value, tag)
         ? Option.some(params(value as Schema.Schema.Type<Case>))
         : Option.none()
@@ -1311,7 +1353,7 @@ export const Surface = {
       name: surface.name,
       owner: surface.owner,
       messages: messageTags(surface),
-      activation: { path: place.dependency, tag },
+      activation: { path: focus.dependency, tag },
       projectionOf: model => Option.map(paramsOf(model), surface.projection),
       instancesOf: model => {
         const value = paramsOf(model)

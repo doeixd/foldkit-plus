@@ -24,6 +24,7 @@ import {
   Projection,
   type Contract,
   type FieldRef,
+  RefTypeId,
   type Wiring,
   type WritableProjection,
 } from 'foldkit-surface'
@@ -330,7 +331,9 @@ export type SliceFields<S extends Slice> =
   S extends WritableProjection<any, infer Fields>
     ? Fields
     : S extends readonly FieldRef<any, any, string>[]
-      ? { readonly [R in S[number] as R['key']]: R['Schema'] }
+      ? {
+          readonly [R in S[number] as R[typeof RefTypeId]['key']]: R[typeof RefTypeId]['Schema']
+        }
       : never
 
 /** The Model a slice is of. */

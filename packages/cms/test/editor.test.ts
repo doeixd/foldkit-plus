@@ -3,13 +3,14 @@
  * editor is driven end to end against a real server in `foldkit-cms-drizzle`;
  * this is the part that needs a failure arranged, so the domain is a stub.
  */
-import { Effect, Option, Schema, Stream } from 'effect'
+import { Effect, Optic, Option, Schema, Stream } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Entity } from 'foldkit-entity'
 import { Form, Input } from 'foldkit-form'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
 import { Mutation, type MutationStatus } from 'foldkit-remote'
+import { ModelRef } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { FieldRecipes } from 'foldkit-form-recipes'
 import { Cms } from '../src/index.js'
@@ -93,11 +94,15 @@ const world = (refused: Option.Option<unknown>, { stateLoading = false } = {}) =
       projectionOf,
     }),
   }
-  const slice = {
-    get: (root: Root) => root.editor,
-    set: (root: Root, editor: Root['editor']) => ({ ...root, editor }),
-  }
-  const placed = Editor.at<Root>({ data: data as never, model: slice as never })
+  const slice = ModelRef.fromOptic(
+    Editor.bundle.Model,
+    Optic.makeLens<Root, Root['editor']>(
+      root => root.editor,
+      (editor, root) => ({ ...root, editor }),
+    ),
+    ['editor'],
+  )
+  const placed = Editor.at<Root>({ data: data as never, model: slice })
   // Opened, and shown what is published: the order an author meets it in.
   const opened = placed.sync({
     editor: { ...Editor.bundle.init(undefined).model, mode: 'edit' as const, entry: 'e1' },
@@ -477,11 +482,15 @@ describe('a saved draft', () => {
         projectionOf,
       }),
     }
-    const slice = {
-      get: (root: SavingRoot) => root.editor,
-      set: (root: SavingRoot, editor: SavingRoot['editor']) => ({ ...root, editor }),
-    }
-    const placed = Saving.at<SavingRoot>({ data: data as never, model: slice as never })
+    const slice = ModelRef.fromOptic(
+      Saving.bundle.Model,
+      Optic.makeLens<SavingRoot, SavingRoot['editor']>(
+        root => root.editor,
+        (editor, root) => ({ ...root, editor }),
+      ),
+      ['editor'],
+    )
+    const placed = Saving.at<SavingRoot>({ data: data as never, model: slice })
     const opened = {
       ...Saving.bundle.init(undefined).model,
       mode: 'new' as const,

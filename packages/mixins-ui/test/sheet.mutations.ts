@@ -160,8 +160,8 @@ export default [
     edits: [
       {
         file: '../src/sheet.ts',
-        find: 'const next = (model.point + 1) % model.points.length',
-        replace: 'const next = model.point',
+        find: 'const next = (model.at + 1) % model.points.length',
+        replace: 'const next = model.at',
       },
     ],
     tests: [unit, browser],
@@ -182,7 +182,7 @@ export default [
     edits: [
       {
         file: '../src/sheet.ts',
-        find: 'dialogStep(model, UiDialog.open(model.dialog), { point: model.opensAt })',
+        find: 'dialogStep(model, UiDialog.open(model.dialog), { at: model.opensAt })',
         replace: 'dialogStep(model, UiDialog.open(model.dialog))',
       },
     ],

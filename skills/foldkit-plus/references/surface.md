@@ -40,7 +40,7 @@ Model is simpler.
 ## Mental model
 
 ```text
-Schema field -> ModelRef/FieldRef (optic + codec + path + app owner + get/set)
+Schema field -> ModelRef/FieldRef (fields as keys; ModelRef.focus: optic + codec + path + owner + get/set)
              -> Projection (Model codec, read, dependencies, metadata)
              -> Surface (name, params, projection(params), allowed Messages)
 ```
@@ -63,7 +63,7 @@ Schema field -> ModelRef/FieldRef (optic + codec + path + app owner + get/set)
 ```ts
 import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Projection, Surface } from 'foldkit-surface'
+import { ModelRef, Projection, Surface } from 'foldkit-surface'
 
 const Todo = Schema.Struct({ id: Schema.String, title: Schema.String, done: Schema.Boolean })
 const Model = Schema.Struct({
@@ -103,13 +103,16 @@ To attach a renderer, use `Surface.view(TodoList, render)` or
 ## Common tasks
 
 **A Surface with params, made active by the Model.** Give `params` as the fields
-of a `Schema.Struct`, or as a schema. `.at(key)` and `.index(i)` return refs
-whose value is an `Option`.
+of a `Schema.Struct`, or as a schema. A ref's string keys are only the Model's
+fields (any name works, `index` and `at` included); its own members are its
+focus, `ModelRef.focus(ref)`: `get`, `set`, `dependency`, `Schema`, and `at(key)`
+on a record or `index(i)` on an array, which return refs whose value is an
+`Option`.
 
 ```ts
 const TodoDetail = App.surface('TodoDetail', {
   params: { id: Schema.String },
-  model: ({ model, params }) => ({ todo: model.todosById.at(params.id) }),
+  model: ({ model, params }) => ({ todo: ModelRef.focus(model.todosById).at(params.id) }),
   messages: [Message.ToggledTodo],
 })
 Surface.read(TodoDetail, model, { id: 't1' })   // { todo: Option<Todo> }
@@ -123,8 +126,8 @@ Active.projectionOf(model)   // Option<Projection> (Remote's Data.subscriptions 
 
 ```ts
 const TodoTitle = Projection.of(Todo)({ id: true, title: true })        // subset of a Struct schema
-const Titles = App.model.todos.select(Projection.array(TodoTitle))     // ref.select(projection)
-const Selected = App.model.todosById.at('t1').select(TodoTitle)        // Projection<Model, Option<...>>
+const Titles = ModelRef.focus(App.model.todos).select(Projection.array(TodoTitle))
+const Selected = ModelRef.focus(ModelRef.focus(App.model.todosById).at('t1')).select(TodoTitle) // Option
 const Board = Projection.struct({ titles: Titles, selectedTodoId: App.model.selectedTodoId })
 const Count = Projection.fromReader(Schema.Number, (m: Model) => m.todos.length, {
   dependencies: [['todos']],   // escape hatch; without this option there are no dependencies
@@ -247,8 +250,8 @@ rejects copies and hand-built values.
   with the activation **readable**: it records the Model path and the tag, so a
   route-to-Surface manifest, a prefetch analysis or `Data.explain`'s heading can
   be built without running a callback. Not router-specific — a route is one kind
-  of tagged Model state. It takes the *read half* of a ref (`dependency` +
-  `get`), because activation observes and because a union field is a union of
+  of tagged Model state. It takes the *read half* of a ref (a focus with
+  `dependency` + `get`), because activation observes and because a union field is a union of
   `FieldRef`s that no single `ModelRef` accepts. `Surface.at` stays for
   activation that is a genuine computation.
 - Both give an `ActiveSurface` with `projectionOf(model)`, `owner` and
@@ -264,11 +267,6 @@ rejects copies and hand-built values.
 
 ## Gotchas
 
-- **Reserved field names.** `Surface.application` throws
-  `Model field "..." is reserved by ModelRef` when a Model Struct field is named
-  `Schema`, `optic`, `dependency`, `key`, `read`, `get`, `set`, `at`, `index`,
-  or `select`. The check also covers nested Structs
-  ([#331](https://github.com/doeixd/foldkit-plus/issues/331)): name such fields otherwise (`slide`, `point`).
 - **Params.** A Surface declared without `params` has Params type `void`. Call it
   as `Surface.read(s, model)`, `Surface.contract(s)`, `s.projection()`, or
   `Surface.rootView(s, undefined, ...)`. A Surface with params builds its

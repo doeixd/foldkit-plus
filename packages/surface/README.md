@@ -40,7 +40,7 @@ pnpm add foldkit-surface
 ```ts
 import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Projection, Surface } from 'foldkit-surface'
+import { ModelRef, Projection, Surface } from 'foldkit-surface'
 
 const Todo = Schema.Struct({ id: Schema.String, title: Schema.String, done: Schema.Boolean })
 const Model = Schema.Struct({
@@ -83,22 +83,26 @@ in a real application.
 ## Field references
 
 `Surface.application` generates a reference tree from the Model Schema, one node
-per field. Each `FieldRef` carries its optic, codec, `get`, and `set`, plus the
-field name as a literal type, so a selection can infer its own output keys
-without a parallel field registry.
+per field. A ref's string keys are the fields below it, and nothing else, so a
+Model field may have any name (`index`, `at`, `get`, `select`). The ref's own
+members are its *focus*, kept under a symbol and read with `ModelRef.focus`:
+its optic, codec, path, `get`, `set`, and the field name as a literal type, so a
+selection can infer its own output keys without a parallel field registry.
 
 ```ts
-App.model.todos                 // FieldRef<Model, Todo[], 'todos'>
-App.model.selectedTodoId        // FieldRef<Model, Option<string>, 'selectedTodoId'>
-App.model.todosById.at('t1')    // OptionalRef<Model, Option<Todo>> (dynamic key)
-App.model.todos.index(0)        // OptionalRef<Model, Option<Todo>> (dynamic index)
+App.model.todos                                // FieldRef<Model, Todo[], 'todos'>
+App.model.selectedTodoId                       // FieldRef<Model, Option<string>, 'selectedTodoId'>
+ModelRef.focus(App.model.todos).dependency     // ['todos']
+ModelRef.focus(App.model.todosById).at('t1')   // OptionalRef<Model, Option<Todo>> (dynamic key)
+ModelRef.focus(App.model.todos).index(0)       // OptionalRef<Model, Option<Todo>> (dynamic index)
 ```
 
 A Model field that is itself a `Schema.Struct` recurses, so each of its fields is
-a `FieldRef` too. Array and record access is `.index(i)` / `.at(key)`, which
-returns an `OptionalRef` — a `ModelRef` with an `Option` value. Those are dynamic
-selections, so `Projection.pick` (which needs a static field name) rejects them;
-they are useful inside a `Projection`.
+a `FieldRef` too. A focus reaches into an array with `index(i)` and into a record
+with `at(key)`, each only where the value is one; both return an `OptionalRef` —
+a `ModelRef` with an `Option` value. Those are dynamic selections, so
+`Projection.pick` (which needs a static field name) rejects them; they are
+useful inside a `Projection`.
 
 `App.fields` is the same tree under a second name, kept only so older code
 compiles. It is deprecated; use `App.model`.
@@ -253,7 +257,7 @@ const TodoDetail = App.surface('TodoDetail', {
 // A parameterized Surface may read `params`; dynamic lookups are OptionalRefs.
 const ById = App.surface('ById', {
   params: { id: Schema.String },
-  model: ({ model, params }) => ({ todo: model.todosById.at(params.id) }),
+  model: ({ model, params }) => ({ todo: ModelRef.focus(model.todosById).at(params.id) }),
 })
 
 Surface.read(TodoDetail, root)                     // project purely
@@ -409,10 +413,10 @@ application with a `filter` field and an already-decoded `restoredFilter`:
 modifyFields(model, { filter: () => 'active' })
 
 // structural addressing
-App.model.filter.get(model)
+ModelRef.focus(App.model.filter).get(model)
 
 // infrastructure installation
-App.model.filter.set(model, restoredFilter)
+ModelRef.focus(App.model.filter).set(model, restoredFilter)
 ```
 
 ### Surface builds on Optics rather than replacing them

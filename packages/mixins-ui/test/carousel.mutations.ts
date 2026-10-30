@@ -61,7 +61,7 @@ export default [
     edits: [
       {
         file: '../src/carousel.ts',
-        find: 'return at === model.slide ? counted(model) : shown(model, at, false)',
+        find: 'return at === model.index ? counted(model) : shown(model, at, false)',
         replace: 'return counted(model)',
       },
     ],
@@ -129,7 +129,7 @@ export default [
     edits: [
       {
         file: '../src/carousel.ts',
-        find: 'if (model.slide >= last && !loop) {',
+        find: 'if (model.index >= last && !loop) {',
         replace: 'if (false) {',
       },
     ],

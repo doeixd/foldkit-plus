@@ -36,7 +36,7 @@ import {
   type RemoteError,
   type RemoteMessage,
 } from 'foldkit-remote'
-import { Projection, type ActiveSurface, type ModelRef } from 'foldkit-surface'
+import { ModelRef, Projection, type ActiveSurface } from 'foldkit-surface'
 import { define as defineCommand, type Command } from 'foldkit/command'
 import * as Dom from 'foldkit/dom'
 import { defineMessageUnion } from 'foldkit/message'
@@ -403,7 +403,8 @@ export const Crud = {
         readonly data: DomainLike<Root>
         readonly model: ModelRef<Root, RemoverModel>
       }) => {
-        const { data, model: slice } = where
+        const { data } = where
+        const slice = ModelRef.focus(where.model)
         const outcome = (root: Root): MutationStatus => {
           const { requestId } = slice.get(root)
           return requestId === null ? { _tag: 'Unknown' } : data.mutation(root, requestId)
@@ -914,7 +915,8 @@ export const Crud = {
         readonly data: DomainLike<Root>
         readonly model: ModelRef<Root, Model>
       }) => {
-        const { data, model: slice } = where
+        const { data } = where
+        const slice = ModelRef.focus(where.model)
         const loaded = (root: Root): RemoteData<any> | undefined => {
           const { mode, target } = slice.get(root)
           return mode === 'edit' && target !== null

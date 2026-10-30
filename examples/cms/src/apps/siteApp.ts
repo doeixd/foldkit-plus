@@ -23,7 +23,7 @@ import { Entity } from 'foldkit-entity'
 import { Remote, RemoteData, type Page as RemotePage, type RemoteClient } from 'foldkit-remote'
 import { Site } from 'foldkit-site'
 import type { Meta } from 'foldkit-ssr/client'
-import { Surface } from 'foldkit-surface'
+import { ModelRef, Surface } from 'foldkit-surface'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Navigation from 'foldkit/navigation'
 import { modifyFields } from 'foldkit/struct'
@@ -262,7 +262,7 @@ const Routing = Site.routing<Model, Message, Route, RemoteClient>({
   site: SiteMap,
   owner: App.owner,
   route: {
-    dependency: App.model.route.dependency,
+    dependency: ModelRef.focus(App.model.route).dependency,
     get: model => model.route,
     set: (model, route) => modifyFields(model, { route: () => route }),
   },

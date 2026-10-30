@@ -5,7 +5,7 @@
  */
 import { Option, Result, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Action, Projection, Surface } from '../src/index.js'
+import { ModelRef, Action, Projection, Surface } from '../src/index.js'
 
 const Todo = Schema.Struct({ id: Schema.String, title: Schema.String, done: Schema.Boolean })
 const Model = Schema.Struct({
@@ -52,7 +52,7 @@ const TodoDetail = App.surface('TodoDetail', {
 })
 const ById = App.surface('ById', {
   params: { id: Schema.String },
-  model: ({ model, params }) => ({ todo: model.todosById.at(params.id) }),
+  model: ({ model, params }) => ({ todo: ModelRef.focus(model.todosById).at(params.id) }),
 })
 declare const root: typeof Model.Type
 Surface.read(TodoDetail, root)
@@ -62,7 +62,8 @@ Surface.at(ById, model => Option.map(model.selectedTodoId, id => ({ id })))
 // The explicit form
 const Explicit = Surface.make(App, 'TodoDetailExplicit', {
   Params: Schema.Struct({ id: Schema.String }),
-  model: ({ model, params }) => Projection.struct({ todo: model.todosById.at(params.id) }),
+  model: ({ model, params }) =>
+    Projection.struct({ todo: ModelRef.focus(model.todosById).at(params.id) }),
   messages: [Message.ToggledTodo],
 })
 void Explicit

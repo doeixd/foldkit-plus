@@ -21,35 +21,47 @@ const example = {
 
 describe('Surface runtime', () => {
   it('reads a nested ModelRef', () => {
-    expect(App.model.session.user.name.get(example)).toBe('ada')
+    expect(ModelRef.focus(App.model.session.user.name).get(example)).toBe('ada')
   })
 
   it('reads an array field and an indexed focus as Option', () => {
-    expect(App.model.todos.get(example)).toEqual(example.todos)
-    const first = App.model.todos.index(0).get(example)
+    expect(ModelRef.focus(App.model.todos).get(example)).toEqual(example.todos)
+    const first = ModelRef.focus(ModelRef.focus(App.model.todos).index(0)).get(example)
     expect(Option.isSome(first)).toBe(true)
     expect(Option.getOrNull(first)).toEqual({ id: 't1', title: 'write the spike' })
-    expect(Option.isNone(App.model.todos.index(9).get(example))).toBe(true)
+    expect(
+      Option.isNone(ModelRef.focus(ModelRef.focus(App.model.todos).index(9)).get(example)),
+    ).toBe(true)
   })
 
   it('sets a plain ModelRef focus without mutating the original', () => {
-    const next = App.model.session.user.name.set(example, 'grace')
+    const next = ModelRef.focus(App.model.session.user.name).set(example, 'grace')
     expect(next).toEqual({ ...example, session: { user: { name: 'grace' } } })
     expect(example.session.user.name).toBe('ada')
   })
 
   it('sets and clears an optional focus', () => {
-    const projectRef = App.model.projects.at('p1')
-    const withProject = projectRef.set(example, Option.some({ id: 'p1', name: 'Apollo' }))
-    expect(projectRef.get(withProject)).toEqual(Option.some({ id: 'p1', name: 'Apollo' }))
-    const clearedProject = projectRef.set(withProject, Option.none())
-    expect(projectRef.get(clearedProject)).toEqual(Option.none())
+    const projectRef = ModelRef.focus(App.model.projects).at('p1')
+    const withProject = ModelRef.focus(projectRef).set(
+      example,
+      Option.some({ id: 'p1', name: 'Apollo' }),
+    )
+    expect(ModelRef.focus(projectRef).get(withProject)).toEqual(
+      Option.some({ id: 'p1', name: 'Apollo' }),
+    )
+    const clearedProject = ModelRef.focus(projectRef).set(withProject, Option.none())
+    expect(ModelRef.focus(projectRef).get(clearedProject)).toEqual(Option.none())
 
-    const todoRef = App.model.todos.index(0)
-    const replaced = todoRef.set(example, Option.some({ id: 't1', title: 'renamed' }))
-    expect(todoRef.get(replaced)).toEqual(Option.some({ id: 't1', title: 'renamed' }))
-    const removed = todoRef.set(example, Option.none())
-    expect(todoRef.get(removed)).toEqual(Option.none())
+    const todoRef = ModelRef.focus(App.model.todos).index(0)
+    const replaced = ModelRef.focus(todoRef).set(
+      example,
+      Option.some({ id: 't1', title: 'renamed' }),
+    )
+    expect(ModelRef.focus(todoRef).get(replaced)).toEqual(
+      Option.some({ id: 't1', title: 'renamed' }),
+    )
+    const removed = ModelRef.focus(todoRef).set(example, Option.none())
+    expect(ModelRef.focus(todoRef).get(removed)).toEqual(Option.none())
     expect(removed.todos).toEqual([])
   })
 
@@ -57,9 +69,9 @@ describe('Surface runtime', () => {
     const ref = ModelRef.fromOptic(Schema.String, Optic.id<{ name: string }>().key('name'), [
       'name',
     ])
-    expect(ref.get({ name: 'ada' })).toBe('ada')
-    expect(ref.set({ name: 'ada' }, 'grace')).toEqual({ name: 'grace' })
-    expect(ref.dependency).toEqual(['name'])
+    expect(ModelRef.focus(ref).get({ name: 'ada' })).toBe('ada')
+    expect(ModelRef.focus(ref).set({ name: 'ada' }, 'grace')).toEqual({ name: 'grace' })
+    expect(ModelRef.focus(ref).dependency).toEqual(['name'])
   })
 
   it('reads a Projection.of selection', () => {
@@ -120,7 +132,7 @@ describe('Surface runtime', () => {
     const projectSchema = Schema.Struct({ id: Schema.String, name: Schema.String })
     const nameOnly = Projection.of(projectSchema)({ name: true })
 
-    const selected = App.model.projects.at('p1').select(nameOnly)
+    const selected = ModelRef.focus(ModelRef.focus(App.model.projects).at('p1')).select(nameOnly)
     expect(selected.dependencies).toEqual([['projects', 'p1']])
 
     const withProject = { ...example, projects: { p1: { id: 'p1', name: 'Apollo' } } }
@@ -136,10 +148,5 @@ describe('Surface runtime', () => {
     expect(empty.read({ id: 'u1', name: 'ada' })).toEqual({})
     expect(decode(empty.Model, {})).toEqual({})
     expect(() => decode(empty.Model, { id: 'u1' })).toThrow()
-  })
-
-  it('rejects a Model field whose name collides with a ModelRef member', () => {
-    const Bad = Schema.Struct({ at: Schema.String })
-    expect(() => Surface.application({ Model: Bad, Message })).toThrow('reserved by ModelRef')
   })
 })

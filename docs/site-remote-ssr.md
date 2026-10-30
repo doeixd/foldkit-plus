@@ -194,11 +194,13 @@ them, so the server writes it into the page and the browser keeps it in step.
 ### The wiring: one `update`, three owners
 
 ```ts
+import { ModelRef } from 'foldkit-surface'
+
 const Routing = Site.routing<Model, Message, AppRoute, RemoteClient>({
   site: AppSite,
   owner: App.owner,
   route: {
-    dependency: App.model.route.dependency,
+    dependency: ModelRef.focus(App.model.route).dependency,
     get: model => model.route,
     set: (model, route) => modifyFields(model, { route: () => route }),
   },

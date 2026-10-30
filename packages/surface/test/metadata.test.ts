@@ -1,13 +1,15 @@
 import { Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
-import { Metadata, MetadataTypeId, Module, Projection, Surface } from '../src/index.js'
+import { ModelRef, Metadata, MetadataTypeId, Module, Projection, Surface } from '../src/index.js'
 import { Flags, flag } from './flagsLikeFixture.js'
 import { EntityNeeds, entity, type EntityNeed } from './remoteLikeFixture.js'
 import { App, Model } from './todoFixture.js'
 
 describe('Projection metadata', () => {
   it('survives struct, of, array, option, select, and a Surface', () => {
-    const selected = App.model.todos.select(Projection.array(entity('Todo', 't1', ['title'])))
+    const selected = ModelRef.focus(App.model.todos).select(
+      Projection.array(entity('Todo', 't1', ['title'])),
+    )
     const of = Projection.of(Model)({ todos: true, selectedTodoId: flag('beta') })
     const surface = Surface.make(App, 'Page', {
       model: () => Projection.struct({ selected, of }),

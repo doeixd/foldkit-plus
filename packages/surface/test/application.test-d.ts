@@ -3,7 +3,7 @@
  */
 import { Effect, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Projection, Surface } from '../src/index.js'
+import { ModelRef, Projection, Surface } from '../src/index.js'
 
 const Model = Schema.Struct({ count: Schema.Number })
 const Message = defineMessageUnion({ Incremented: {} })
@@ -20,7 +20,7 @@ const _value: number = Projection.pick(App.model.count).get({ count: 1 }).count
 
 // References only: an agent-only application needs no `initial` or `update`.
 const RefsOnly = Surface.application({ Model, Message })
-const _refsOnlyKey: 'count' = RefsOnly.model.count.key
+const _refsOnlyKey: 'count' = ModelRef.focus(RefsOnly.model.count).key
 
 // An update whose Commands need a resource is accepted.
 declare const serviceEffect: Effect.Effect<Schema.Schema.Type<typeof Message>, never, 'Service'>

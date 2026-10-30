@@ -43,8 +43,11 @@ const App = Surface.application({ Model, Message })
 const _name: ModelRef<ModelValue, string> = App.model.session.user.name
 
 const fromOpticRef = ModelRef.fromOptic(Schema.String, Optic.id<{ name: string }>().key('name'))
-const _fromOpticName: string = fromOpticRef.get({ name: 'ada' })
-const _fromOpticNext: { readonly name: string } = fromOpticRef.set({ name: 'ada' }, 'grace')
+const _fromOpticName: string = ModelRef.focus(fromOpticRef).get({ name: 'ada' })
+const _fromOpticNext: { readonly name: string } = ModelRef.focus(fromOpticRef).set(
+  { name: 'ada' },
+  'grace',
+)
 
 const _todos: ModelRef<
   ModelValue,
@@ -54,19 +57,19 @@ const _todos: ModelRef<
 const _project: ModelRef<
   ModelValue,
   Option.Option<Schema.Schema.Type<typeof ProjectSchema>>
-> = App.model.projects.at('p1')
+> = ModelRef.focus(App.model.projects).at('p1')
 const _todo: ModelRef<
   ModelValue,
   Option.Option<{ readonly id: string; readonly title: string }>
-> = App.model.todos.index(0)
+> = ModelRef.focus(App.model.todos).index(0)
 
 // modify transforms through the ref and returns the root.
-const _modified: ModelValue = App.model.session.user.name.modify(
+const _modified: ModelValue = ModelRef.focus(App.model.session.user.name).modify(
   { session: { user: { name: 'ada' } }, todos: [], projects: {} } as ModelValue,
   name => name.toUpperCase(),
 )
 
-const _badModify = App.model.session.user.name.modify(
+const _badModify = ModelRef.focus(App.model.session.user.name).modify(
   { session: { user: { name: 'ada' } }, todos: [], projects: {} } as ModelValue,
   // @ts-expect-error modify's function must return the focused value's type
   () => 42,
@@ -139,7 +142,9 @@ const _maybeUser: Projection<
   Option.Option<{ readonly id: string; readonly name: string }>
 > = maybeUser
 
-const selectedProject = App.model.projects.at('p1').select(ProjectSummary)
+const selectedProject = ModelRef.focus(ModelRef.focus(App.model.projects).at('p1')).select(
+  ProjectSummary,
+)
 const _selectedProject: Projection<
   ModelValue,
   Option.Option<{
@@ -155,7 +160,7 @@ const Keyed = Schema.Struct({
   byLetter: Schema.Record(Schema.Literal('a'), Schema.Struct({ name: Schema.String })),
 })
 const KeyedApp = Surface.application({ Model: Keyed, Message })
-const _byLetter = KeyedApp.model.byLetter.at('a')
+const _byLetter = ModelRef.focus(KeyedApp.model.byLetter).at('a')
 // @ts-expect-error only the record's literal key `'a'` is valid
 KeyedApp.model.byLetter.at('b')
 
@@ -164,7 +169,9 @@ const ByProject = Schema.Struct({
   byProject: Schema.Record(ProjectId2, Schema.Struct({ name: Schema.String })),
 })
 const ByProjectApp = Surface.application({ Model: ByProject, Message })
-const _byProject = ByProjectApp.model.byProject.at(Schema.decodeSync(ProjectId2)('p1'))
+const _byProject = ModelRef.focus(ByProjectApp.model.byProject).at(
+  Schema.decodeSync(ProjectId2)('p1'),
+)
 // @ts-expect-error a plain string is not a branded ProjectId2
 ByProjectApp.model.byProject.at('p1')
 

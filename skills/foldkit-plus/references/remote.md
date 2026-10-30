@@ -1114,6 +1114,9 @@ handler's write and raw SQL are held to the invariants and move the revision too
 
 ## Gotchas
 
+- A domain's `store` is its ref's `Focus`, not the ref: read it as
+  `Data.store.get(model)`, and pass the ref itself (`App.model.remote`) where
+  a ref is asked for.
 - A Projection used by no active Surface stays `Initial` forever; do not render
   `Initial` as a spinner. Check `Data.plan` and your `Surface.at` wiring.
 - Give `update` an explicit `Update.Return<...>` / `{ model: Model }` return type;

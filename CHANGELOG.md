@@ -23,7 +23,10 @@ from its own Wrangler config, and the shipped theme is new. A security review
 (#284 and others) bounds live subscriptions and collection reads, stops
 caches keeping an answer, and closes several write-rule gaps.
 
-Breaking, under Changed: an Entity has one set of members, which
+Breaking, under Changed: a ref's own members are read through
+`ModelRef.focus(ref)`, so a Model field may have any name, and a Remote
+domain's `store` is a `Focus`; the Carousel's Model holds `index` and the
+Sheet's `at` again; an Entity has one set of members, which
 `Entity.relate`, `derived` and `sets` add to and every descriptor reads (#332);
 `Remote.patch` takes a ref for a relation;
 `Bundle.make`, `fromParts` and `lazy` take new generic parameters;
@@ -518,6 +521,24 @@ carries `drawn`.
   `AUTH_ORIGIN` set.
 
 ### Changed
+
+- **A Model field may have any name (#331).** A ref's string keys are now
+  the Model's fields and nothing else; its own members (`get`, `set`,
+  `modify`, `dependency`, `Schema`, `optic`, `key`, `owner`, and `at`,
+  `index` or `select` where the value allows) are its focus, read with
+  `ModelRef.focus(ref)`. A field named `index`, `at`, `get` or `select`, at
+  any depth, threw `Model field "index" is reserved by ModelRef` once a
+  Surface read the Model, so a component's Model could break every
+  application that folded it in; a field named `modify` or `owner` silently
+  replaced the member, and `Projection.struct` read a ref to a Struct with a
+  `dependencies` field as a Projection. `App.model.todos.at(id)` is
+  `ModelRef.focus(App.model.todos).at(id)`, and `ref.get(model)` is
+  `ModelRef.focus(ref).get(model)`. `Surface.when`, `Site.sources` and
+  `SSR.plan`'s `local` still take the ref. A Remote domain's `store` (and
+  `Remote.at(…).store`) is the store's `Focus`, not a ref. The Carousel's
+  Model and `init` take `index` again, and the Sheet's Model holds `at`: the
+  names they had before `slide` and `point`, which existed only to get past
+  the reserved names.
 
 - **An Entity has one set of members (#332).** `Entity.relate`,
   `Entity.derived` and `Entity.sets` used to return a new descriptor, and each

@@ -7,7 +7,14 @@ import { Effect, Option, Result, Schema, Stream, type Layer } from 'effect'
 import type { Runtime } from 'foldkit'
 import { inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
 import type { Ports } from 'foldkit/port'
-import type { ActiveSurface, Metadata, SurfaceSource, WritableProjection } from 'foldkit-surface'
+import {
+  ModelRef,
+  type ActiveSurface,
+  type Metadata,
+  type ModelPlace,
+  type SurfaceSource,
+  type WritableProjection,
+} from 'foldkit-surface'
 import { current, type Region } from './context.js'
 import { staticRegionMissing } from './diagnostics.js'
 import { decodeBindings, readBindings, type DecodedBinding } from './listen.js'
@@ -190,7 +197,7 @@ export interface ResumePlan<Model, Fields extends Schema.Struct.Fields, Commands
   readonly state: WritableProjection<Model, Fields>
   readonly baseline: Model
   readonly boot?: ((model: Model) => Commands) | undefined
-  /** Model paths allowed to start from the baseline, as `ModelRef.dependency` gives them. */
+  /** Model paths allowed to start from the baseline, as each place's focus gives them. */
   readonly local: ReadonlyArray<ReadonlyArray<string>>
   /** The Surfaces the browser may activate, which the plan must cover. */
   readonly surfaces: ReadonlyArray<PlanSurface<Model>>
@@ -299,7 +306,7 @@ export const plan = <Model, Fields extends Schema.Struct.Fields, Commands = unkn
     readonly state: WritableProjection<Model, Fields>
     readonly baseline?: Model | undefined
     readonly boot?: ((model: Model) => Commands) | undefined
-    readonly local?: ReadonlyArray<{ readonly dependency: ReadonlyArray<string> }> | undefined
+    readonly local?: ReadonlyArray<ModelPlace<NoInfer<Model>>> | undefined
     readonly surfaces?: ReadonlyArray<PlanSurface<Model>> | undefined
     readonly parts?: ReadonlyArray<ResumePart<Model>> | undefined
     readonly start?: Start | undefined
@@ -337,7 +344,7 @@ export const plan = <Model, Fields extends Schema.Struct.Fields, Commands = unkn
     state: config.state,
     baseline: config.baseline ?? application.initial,
     ...(config.boot === undefined ? {} : { boot: config.boot }),
-    local: (config.local ?? []).map(place => place.dependency),
+    local: (config.local ?? []).map(place => ModelRef.focus(place).dependency),
     surfaces,
     parts,
     ...(application.Message === undefined ? {} : { Message: application.Message }),

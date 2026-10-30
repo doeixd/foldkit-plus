@@ -60,9 +60,9 @@ export default [
     edits: [
       {
         file: '../src/index.ts',
-        find: '    const paths: Record<string, string> = Object.create(null)\n    for (const ref of [...selected]) {',
+        find: '    const paths: Record<string, string> = Object.create(null)\n    for (const focus of [...selected]) {',
         replace:
-          '    const paths: Record<string, string> = {}\n    for (const ref of [...selected]) {',
+          '    const paths: Record<string, string> = {}\n    for (const focus of [...selected]) {',
       },
     ],
     tests,
@@ -72,9 +72,9 @@ export default [
     edits: [
       {
         file: '../src/index.ts',
-        find: '    const fields: Record<string, AnySchema> = Object.create(null)\n    const paths: Record<string, string> = Object.create(null)\n    for (const ref of [...selected]) {',
+        find: '    const fields: Record<string, AnySchema> = Object.create(null)\n    const paths: Record<string, string> = Object.create(null)\n    for (const focus of [...selected]) {',
         replace:
-          '    const fields: Record<string, AnySchema> = {}\n    const paths: Record<string, string> = Object.create(null)\n    for (const ref of [...selected]) {',
+          '    const fields: Record<string, AnySchema> = {}\n    const paths: Record<string, string> = Object.create(null)\n    for (const focus of [...selected]) {',
       },
     ],
     tests,
@@ -84,9 +84,9 @@ export default [
     edits: [
       {
         file: '../src/index.ts',
-        find: '        const out: Record<string, unknown> = Object.create(null)\n        for (const ref of selected)',
+        find: '        const out: Record<string, unknown> = Object.create(null)\n        for (const focus of selected)',
         replace:
-          '        const out: Record<string, unknown> = {}\n        for (const ref of selected)',
+          '        const out: Record<string, unknown> = {}\n        for (const focus of selected)',
       },
     ],
     tests,

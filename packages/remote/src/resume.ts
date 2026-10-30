@@ -14,7 +14,7 @@
  * retention start from their initial values in the browser.
  */
 import { Result, Schema } from 'effect'
-import type { Metadata, ModelRef } from 'foldkit-surface'
+import type { Focus, Metadata } from 'foldkit-surface'
 import type { Boundary, Connection, Segment } from './connection.js'
 import type { LiveState } from './live.js'
 import type { RemoteModel } from './model.js'
@@ -287,7 +287,7 @@ const decodeCapture = Schema.decodeUnknownResult(RemoteCapture)
  * else of it. `id` tells two domains in one application apart.
  */
 export const resumePart = <AppModel, Store extends RemoteModel>(
-  domain: { readonly store: ModelRef<AppModel, Store> },
+  domain: { readonly store: Focus<AppModel, Store> },
   options: { readonly id?: string | undefined } = {},
 ): RemoteResumePart<AppModel> => ({
   id: options.id ?? 'remote',

@@ -890,12 +890,10 @@ describe('an unregistered descriptor is an error naming it and the domain', () =
     )
     expect(Object.keys(OtherData.subscriptions({ foreign: Foreign }))).toContain('foreign.read')
     // A domain bound to a raw optic claims no application, so it takes any Surface.
-    const Unowned = Remote.at(
-      Remote.define({ entities: [Project] }),
-      ModelRef.fromOptic(Remote.Model, Optic.id<Model>().key('remote'), ['remote']),
-    )
+    const unowned = ModelRef.fromOptic(Remote.Model, Optic.id<Model>().key('remote'), ['remote'])
+    const Unowned = Remote.at(Remote.define({ entities: [Project] }), unowned)
     expect(Unowned.contract.owner).toBeUndefined()
-    const unownedData = Remote.make({ model: Unowned.store, entities: [Project] })
+    const unownedData = Remote.make({ model: unowned, entities: [Project] })
     expect(Object.keys(unownedData.subscriptions({ foreign: Foreign }))).toContain('foreign.read')
     // A read of its own names no application either, so it is refused, not made up.
     expect(() => unownedData.active('Detail', () => Option.none())).toThrow(
