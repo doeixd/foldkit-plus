@@ -77,13 +77,12 @@ describe.each(['label', '__proto__', 'constructor', 'toString'])(
         { Team: TeamFields, Member: MemberFields, Note: NoteFields },
         { Member: { team: Relation.one(TeamFields) } },
       )
+      const named = Object.entries(Team.fields).find(([key]) => key === name)?.[1]
+      if (named === undefined) throw new Error(`Team has no field ${name}`)
       const Note = Unset.pipe(
         Entity.sets(
           {
-            mark: Expr.path(
-              Expr.viewer(Member),
-              Expr.path(Member.relations.team, Team.fields[name]!),
-            ),
+            mark: Expr.path(Expr.viewer(Member), Expr.path(Member.relations.team, named)),
           },
           { on: 'create' },
         ),
