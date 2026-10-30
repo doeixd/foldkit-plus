@@ -28,6 +28,7 @@ import {
   type WritableProjection,
 } from 'foldkit-surface'
 import { storeMalformed, storeUnread, storeUnwritten } from './diagnostics.js'
+import { own, put, table } from './record.js'
 
 export type {
   MirrorDiagnostic,
@@ -90,7 +91,7 @@ const readParams = (query: string, owned: ReadonlyArray<string>): Encoded => {
   const out: Record<string, string> = {}
   for (const key of owned) {
     const value = params.get(key)
-    if (value !== null) out[key] = value
+    if (value !== null) put(out, key, value)
   }
   return out
 }
@@ -210,7 +211,7 @@ const memoryStore = (initial?: Encoded): MemoryStore => {
         writes.push(write)
         const next: Record<string, string> = { ...(held ?? {}) }
         for (const key of write.remove) delete next[key]
-        Object.assign(next, write.set)
+        for (const [key, value] of Object.entries(write.set)) put(next, key, value)
         held = next
       }),
     current: () => held,
@@ -662,12 +663,12 @@ const make = <S extends Slice, R, Name extends string>(
   const initialSlice = fields.get(initial) as Readonly<Record<string, unknown>>
   const location = config.location ?? 'search'
 
-  const keyOf: Record<string, string> = {}
-  const fieldOf: Record<string, string> = {}
+  const keyOf = table<string>()
+  const fieldOf = table<string>()
   const codecs: Record<string, KeyCodec> = {}
-  const history: Record<string, 'push' | 'replace'> = {}
+  const history = table<'push' | 'replace'>()
   const keep = new Set<string>()
-  const initialText: Record<string, string> = {}
+  const initialText = table<string>()
   for (const field of names) {
     const option = options[field]
     const key = option?.key ?? field
@@ -724,7 +725,7 @@ const make = <S extends Slice, R, Name extends string>(
     for (const field of names) {
       const text = encodeField(field, slice[field])
       if (!keep.has(field) && text === initialText[field]) continue
-      out[keyOf[field]!] = text
+      put(out, keyOf[field]!, text)
     }
     return out
   }
@@ -736,11 +737,11 @@ const make = <S extends Slice, R, Name extends string>(
     const issues: DecodeIssue[] = []
     for (const field of names) {
       const key = keyOf[field]!
-      const text = keys[key]
+      const text = own(keys, key)
       if (text === undefined) continue
       const decoded = codecs[field]!.decode(text)
       if (Result.isFailure(decoded)) issues.push({ key, message: decoded.failure })
-      else value[field] = decoded.success
+      else put(value, field, decoded.success)
     }
     return { value: value as Partial<Value>, issues }
   }
@@ -769,7 +770,7 @@ const make = <S extends Slice, R, Name extends string>(
     const out: Record<string, unknown> = {}
     for (const field of names) {
       if (textOf(field) !== initialText[field] || !Object.hasOwn(decoded, field)) continue
-      if (encodeField(field, decoded[field]) !== initialText[field]) out[field] = decoded[field]
+      if (encodeField(field, decoded[field]) !== initialText[field]) put(out, field, decoded[field])
     }
     return out
   }
@@ -785,7 +786,7 @@ const make = <S extends Slice, R, Name extends string>(
   const href = (model: AppModel, patch?: Partial<Value>, base?: string): string => {
     const slice = { ...(fields.get(model) as Readonly<Record<string, unknown>>), ...patch }
     const set = encodeSlice(slice)
-    const remove = owned.filter(key => !(key in set))
+    const remove = owned.filter(key => !Object.hasOwn(set, key))
     return applyToHref(base ?? currentHref() ?? '/', { set, remove }, location)
   }
 
@@ -832,7 +833,7 @@ const make = <S extends Slice, R, Name extends string>(
         Effect.gen(function* () {
           const at = yield* key
           const session = sessions.get(at) ?? sessionOf(at, (yield* store.read) ?? {})
-          const text = (field: string) => encoded[keyOf[field]!] ?? initialText[field]!
+          const text = (field: string) => own(encoded, keyOf[field]!) ?? initialText[field]!
           yield* Effect.callback<void>(resume => {
             const check = () => {
               const absorbed = Option.match(session.pending, {
@@ -866,8 +867,12 @@ const make = <S extends Slice, R, Name extends string>(
   const sync = (encoded: Encoded): Effect.Effect<void, never, R> =>
     Effect.gen(function* () {
       const current = (yield* store.read) ?? {}
-      const remove = owned.filter(key => !(key in encoded) && key in current)
-      const changed = owned.filter(key => key in encoded && current[key] !== encoded[key])
+      const remove = owned.filter(
+        key => !Object.hasOwn(encoded, key) && Object.hasOwn(current, key),
+      )
+      const changed = owned.filter(
+        key => Object.hasOwn(encoded, key) && current[key] !== encoded[key],
+      )
       if (remove.length === 0 && changed.length === 0) return
       const intent = changed.some(key => history[fieldOf[key]!] === 'push') ? 'push' : 'replace'
       yield* store.write({ set: encoded, remove, intent })

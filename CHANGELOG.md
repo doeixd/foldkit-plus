@@ -760,6 +760,14 @@ carries `drawn`.
 
 ### Fixed
 
+- **A mirror keeps fields and store keys named like `Object.prototype`
+  members.** A key named `constructor` or `toString` (by `keys` or a field's
+  own name) read as already taken, so the mirror refused to be declared; a
+  `__proto__` key or field was dropped from what it encoded, decoded,
+  restored, read from the URL and wrote to the memory store; the write that
+  waits for a restore read a key at its default as `Object`'s, and wrote
+  over a key the store held; and a write removed keys an empty store did not
+  hold. Each is now an own key.
 - **`resolve` gives a slot named `constructor`, `toString` or
   `__proto__` that the base leaves out no attributes**. It read the base
   bundle through the prototype and threw "not iterable" on `Object`'s

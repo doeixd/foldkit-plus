@@ -151,6 +151,137 @@ describe('encode and decode', () => {
   })
 })
 
+describe('keys named like Object.prototype members', () => {
+  const odd = (store = MirrorStore.memory()) =>
+    Mirror.make(App, store, {
+      name: 'odd',
+      fields: Filters,
+      keys: { filter: { key: '__proto__' }, page: { key: 'constructor' }, q: { key: 'toString' } },
+    })
+  const changed: Model = { ...initial, filter: 'active', page: 3, q: 'apollo' }
+
+  it('encodes, decodes and links each as a key of its own', () => {
+    const m = odd()
+    expect(Object.entries(m.encode(changed))).toEqual([
+      ['__proto__', 'active'],
+      ['constructor', '3'],
+      ['toString', 'apollo'],
+    ])
+    expect(m.decode({})).toEqual({ value: {}, issues: [] })
+    const held = JSON.parse('{"__proto__":"done","constructor":"2","toString":"x"}')
+    expect(m.decode(held).value).toEqual({ filter: 'done', page: 2, q: 'x' })
+    expect(Object.hasOwn(m.decode(held).value, 'filter')).toBe(true)
+    expect(m.href(initial, undefined, '/p?constructor=2&toString=x')).toBe('/p')
+  })
+
+  const OddModel = Schema.Struct({
+    ['__proto__']: Schema.String,
+    constructor: Schema.String,
+    toString: Schema.String,
+  })
+  const oddInitial: typeof OddModel.Type = JSON.parse(
+    '{"__proto__":"","constructor":"","toString":""}',
+  )
+  const OddApp = Surface.application({
+    Model: OddModel,
+    Message,
+    initial: oddInitial,
+    update: model => ({ model }),
+  })
+  const oddFields = (store = MirrorStore.memory()) =>
+    Mirror.make(OddApp, store, {
+      name: 'odd-fields',
+      fields: [OddApp.model['__proto__'], OddApp.model.constructor, OddApp.model.toString],
+    })
+  const held: typeof OddModel.Type = JSON.parse(
+    '{"__proto__":"p","constructor":"c","toString":"t"}',
+  )
+  it('mirrors Model fields so named, each under its own name', () => {
+    const m = oddFields()
+    expect(Object.entries(m.keys)).toEqual([
+      ['__proto__', '__proto__'],
+      ['constructor', 'constructor'],
+      ['toString', 'toString'],
+    ])
+    expect(Object.entries(m.encode(held))).toEqual(Object.entries(held))
+    expect(m.encode(oddInitial)).toEqual({})
+    expect(Object.entries(m.fromKeys(oddInitial, held))).toEqual(Object.entries(held))
+    expect(Object.entries(m.restoreKeys(oddInitial, held))).toEqual(Object.entries(held))
+  })
+
+  it('writes Model fields so named, and removes each at its default', async () => {
+    const store = MirrorStore.memory()
+    const entry = oddFields(store).subscriptions['odd-fields.mirror']!
+    const write = (model: typeof OddModel.Type) =>
+      Effect.runPromise(
+        Stream.runDrain(entry.dependenciesToStream(entry.modelToDependencies(model))),
+      )
+    const proto: typeof OddModel.Type = JSON.parse(
+      '{"__proto__":"p","constructor":"","toString":""}',
+    )
+    await write(proto)
+    await write(oddInitial)
+    await write(held)
+    await write(oddInitial)
+    expect(store.writes).toEqual([
+      { set: JSON.parse('{"__proto__":"p"}'), remove: [], intent: 'push' },
+      { set: {}, remove: ['__proto__'], intent: 'replace' },
+      { set: held, remove: [], intent: 'push' },
+      { set: {}, remove: ['__proto__', 'constructor', 'toString'], intent: 'replace' },
+    ])
+  })
+
+  it('reads each from the URL, and writes each to the store', async () => {
+    const url = Mirror.url(App, {
+      name: 'odd-url',
+      fields: Filters,
+      keys: { filter: { key: '__proto__' }, page: { key: 'constructor' }, q: { key: 'toString' } },
+    })
+    expect(url.reduce(initial, '/p?__proto__=done&toString=x')).toEqual({
+      ...initial,
+      filter: 'done',
+      q: 'x',
+    })
+    const store = MirrorStore.memory()
+    const entry = odd(store).subscriptions['odd.mirror']!
+    const write = (model: Model) =>
+      Effect.runPromise(
+        Stream.runDrain(entry.dependenciesToStream(entry.modelToDependencies(model))),
+      )
+    // An empty store holds none of the keys, so there is nothing to remove.
+    await write(initial)
+    expect(store.writes).toEqual([])
+    await write(changed)
+    expect(store.writes).toEqual([
+      {
+        set: JSON.parse('{"__proto__":"active","constructor":"3","toString":"apollo"}'),
+        remove: [],
+        intent: 'push',
+      },
+    ])
+    expect(Object.entries(store.current()!)).toEqual([
+      ['__proto__', 'active'],
+      ['constructor', '3'],
+      ['toString', 'apollo'],
+    ])
+    await write(initial)
+    expect(store.writes[1]).toEqual({
+      set: {},
+      remove: ['__proto__', 'constructor', 'toString'],
+      intent: 'replace',
+    })
+  })
+
+  it('waits for the Model to take in a stored key so named before writing over it', async () => {
+    const store = MirrorStore.memory({ constructor: '3' })
+    const entry = odd(store).subscriptions['odd.mirror']!
+    const write = Stream.runDrain(entry.dependenciesToStream(entry.modelToDependencies(initial)))
+    // A write that waits is still waiting; one that did not removed the stored key.
+    await Effect.runPromise(Effect.result(Effect.timeout(write, '50 millis')))
+    expect(store.writes).toEqual([])
+  })
+})
+
 describe('a read-back that changes nothing', () => {
   // Foldkit renders only when the Model changes identity: the URL a mirror
   // just wrote, read back, must not render the page again.
