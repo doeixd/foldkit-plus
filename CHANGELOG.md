@@ -98,6 +98,17 @@ version changed; `pnpm` skips versions already in the registry.
   `RpcServer` route of `RemoteRpc`. `Remote.http` reads any 413 as the call's
   own error, so a mutation refused for its size is not resent.
 
+- **`Picker`** (`foldkit-mixins-ui`, #358): a select that is a dropdown on a
+  desktop and a bottom sheet on a phone, with one Model and one set of
+  Messages whatever the width. A choice in the Listbox or in the Sheet
+  reaches the application as the same `Picker.OutMessage.Chose`, and the
+  application keeps the value, as with the Listbox. Both halves are drawn and
+  `Recipes.Picker` shows one, below the theme's `sheetBelow` breakpoint
+  (`sm`, `md` or `lg`) the opener and its Sheet, so nothing reads the width
+  and a server render is right at every width. The Sheet's options are a
+  listbox: the chosen one takes the first focus, the arrows, Home and End
+  move it, and Enter or a tap chooses. Slots `root`, `dropdown`, `opener`,
+  `list`, `option`; options and the trigger are drawn in the Listbox's slots.
 
 ### Changed
 

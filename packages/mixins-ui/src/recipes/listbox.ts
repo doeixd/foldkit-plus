@@ -96,29 +96,41 @@ export const checkAt = {
   none: { itemCheck: variant(Style.self({ display: 'none' })) },
 } as const
 
+/** The select's trigger: a field-like button showing the choice, which `Picker`'s opener shares. */
+export const trigger = component(
+  Style.self({
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    inlineSize: '100%',
+    ...onLadder,
+    border: `${ref.border.thin} solid ${ref.outline.default}`,
+    borderRadius: controlCorner,
+    background: ref.surface.base,
+    boxShadow: ref.shadow.field,
+    color: ref.text.default,
+    font: 'inherit',
+    cursor: 'pointer',
+    ...transition('border-color, background-color'),
+  }),
+  Style.pseudo(':hover:not(:focus, :disabled)', { borderColor: ref.outline.overt }),
+  focusRing,
+  disabled,
+)
+
+/** The trigger's looks other than `outline`, a selection of a `trigger` axis. */
+export const triggerLooks = {
+  filled: variant(Style.self({ background: ref.surface.field, borderColor: 'transparent' })),
+  ghost: variant(
+    Style.self({ background: 'transparent', borderColor: 'transparent' }),
+    hover({ background: unfilledHover, borderColor: 'transparent' }),
+  ),
+} as const
+
 export const Listbox = Style.recipeFor(ListboxSlots)({
   base: {
     wrapper: component(Style.self({ position: 'relative', display: 'inline-block' })),
-    button: component(
-      Style.self({
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        inlineSize: '100%',
-        ...onLadder,
-        border: `${ref.border.thin} solid ${ref.outline.default}`,
-        borderRadius: controlCorner,
-        background: ref.surface.base,
-        boxShadow: ref.shadow.field,
-        color: ref.text.default,
-        font: 'inherit',
-        cursor: 'pointer',
-        ...transition('border-color, background-color'),
-      }),
-      Style.pseudo(':hover:not(:focus, :disabled)', { borderColor: ref.outline.overt }),
-      focusRing,
-      disabled,
-    ),
+    button: trigger,
     backdrop,
     items: panel,
     scroll,
@@ -171,15 +183,8 @@ export const Listbox = Style.recipeFor(ListboxSlots)({
     },
     trigger: {
       outline: {},
-      filled: {
-        button: variant(Style.self({ background: ref.surface.field, borderColor: 'transparent' })),
-      },
-      ghost: {
-        button: variant(
-          Style.self({ background: 'transparent', borderColor: 'transparent' }),
-          hover({ background: unfilledHover, borderColor: 'transparent' }),
-        ),
-      },
+      filled: { button: triggerLooks.filled },
+      ghost: { button: triggerLooks.ghost },
     },
     check: checkAt,
     width: {
