@@ -26,7 +26,8 @@ export const patchedFields = (patch: PendingPatch): ReadonlyArray<string> => [
  * reaches it. Every field the write's own patches show is added: the
  * prediction is released when the answer lands, so a field it moved that no
  * Surface reads now (a count on a page left behind) would otherwise read the
- * value from before the write (#265).
+ * value from before the write (#265). `foreseen` adds the members the
+ * written row foresees, foreseen or not (`foreseenOfWrite`, #370).
  */
 export const shownOf = (
   asked: {
@@ -34,6 +35,7 @@ export const shownOf = (
     readonly connections: ReadonlyArray<ConnectionRequirement>
   },
   predicted: ReadonlyArray<OptimisticOperation>,
+  foreseen: ReadonlyArray<RelationRequirement>,
 ): ReadonlyArray<RelationRequirement> => {
   const byEntity = new Map<string, RelationRequirement>()
   const add = (slice: RelationRequirement): void => {
@@ -46,5 +48,6 @@ export const shownOf = (
   for (const connection of asked.connections) add(connection.select)
   for (const patch of predicted.filter(isPatch))
     add({ entity: patch.entity, fields: [...patchedFields(patch)] })
+  for (const slice of foreseen) add(slice)
   return [...byEntity.values()]
 }

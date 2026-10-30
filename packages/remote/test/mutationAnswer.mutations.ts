@@ -39,7 +39,7 @@ export default [
     edits: [
       {
         file: index,
-        find: '                      shown: shownAt(startedModel, optimistic ?? []),\n',
+        find: '                      shown: shownAt(startedModel, optimistic ?? [], mutation.write),\n',
         replace: '',
       },
     ],

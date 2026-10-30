@@ -1,11 +1,13 @@
 /**
  * A mutation's answer carries what the client shows (#245): `Data.mutate`
  * says what its reads show of each entity, and the read the answer carries
- * back lands in the same reduction that releases the layer.
+ * back lands in the same reduction that releases the layer. A write also
+ * asks for what its row foresees, which a page opened on the row while it is
+ * pending reads (#370).
  */
-import { Effect, Layer, Schema, Stream } from 'effect'
+import { Effect, Layer, Option, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Entity as DomainEntity, Expr, Order, Relation } from 'foldkit-entity'
+import { Derived, Entity as DomainEntity, Expr, Order, Relation, Write } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { shownOf } from '../src/shown.js'
@@ -120,6 +122,7 @@ describe('shownOf', () => {
           ],
         },
         [],
+        [],
       ),
     ).toEqual([
       {
@@ -132,7 +135,7 @@ describe('shownOf', () => {
     ])
   })
 
-  it('adds every field the write’s own patches show, and nothing for a delete or a list change', () => {
+  it('adds every field the write’s own patches show and its row foresees, and nothing for a delete or a list change', () => {
     expect(
       shownOf(
         { requirements: [{ entity: 'Post', id: 'p1', fields: ['title'] }], connections: [] },
@@ -152,9 +155,10 @@ describe('shownOf', () => {
             edge: { key: 'k', ref: { entity: 'Card', id: 'c1' } },
           },
         ],
+        [{ entity: 'Post', fields: ['may'] }],
       ),
     ).toEqual([
-      { entity: 'Post', fields: ['title', 'body'] },
+      { entity: 'Post', fields: ['title', 'body', 'may'] },
       { entity: 'User', fields: ['postCount'] },
       { entity: 'Tag', fields: ['label'] },
     ])
@@ -336,5 +340,60 @@ describe('MutationSucceeded with a read', () => {
     })
     expect(Object.keys(failed.remote.failures.fields)).toEqual(['Post:p3\u0000likes'])
     expect(Data.reduce(failed, answer(5)).remote.failures.fields).toEqual({})
+  })
+})
+
+describe('a write whose row foresees a member', () => {
+  /** `pinned`: the server's to answer; the client foresees none of it, so the row waits. */
+  const Card = DomainEntity.define(
+    'Card',
+    Schema.Struct({ id: Schema.String, title: Schema.String }),
+  ).pipe(
+    DomainEntity.derived({
+      pinned: Derived.make(Schema.Boolean, { predict: () => Option.none() }),
+    }),
+  )
+  const CardInput = DomainEntity.input(
+    Card,
+    Schema.Struct({ id: Schema.String, title: Schema.String }),
+  )
+  const CardId = DomainEntity.input(Card, Schema.Struct({ id: Schema.String }))
+  const AddCard = Mutation.write('AddCard', Write.insert(CardInput, { id: 'id' }))
+  const RenameCard = Mutation.write('RenameCard', Write.update(CardInput, { id: 'id' }))
+  const DropCard = Mutation.write('DropCard', Write.delete(CardId, { id: 'id' }))
+  const Data = Remote.make({
+    model: App.model.remote,
+    entities: [Card],
+    mutations: [AddCard, RenameCard, DropCard],
+  })
+  const shownBy = async (
+    started: ReturnType<typeof Data.mutate>,
+  ): Promise<(typeof MutationRequest.Type)['shown']> => {
+    const requests: Array<typeof MutationRequest.Type> = []
+    const client = Layer.succeed(RemoteClient, {
+      read: () => Effect.die('unused'),
+      query: () => Effect.die('unused'),
+      mutate: request => {
+        requests.push(request)
+        return Effect.succeed({ output: {}, entities: [] })
+      },
+      live: () => Stream.empty,
+    })
+    await Effect.runPromise(started.command.effect.pipe(Effect.provide(client)))
+    return requests[0]?.shown
+  }
+  const card = { id: 'c1', title: 'Plan' }
+
+  it.each([
+    ['a create', Data.mutate({ remote: Remote.initial }, AddCard, card), ['id', 'title', 'pinned']],
+    ['an edit', Data.mutate({ remote: Remote.initial }, RenameCard, card), ['title', 'pinned']],
+  ])('asks, for %s, what its row foresees, though nothing reads it', async (_, started, fields) => {
+    expect(await shownBy(started)).toEqual([{ entity: 'Card', fields }])
+  })
+
+  it('asks nothing of a row a delete leaves none of', async () => {
+    expect(await shownBy(Data.mutate({ remote: Remote.initial }, DropCard, { id: 'c1' }))).toBe(
+      undefined,
+    )
   })
 })

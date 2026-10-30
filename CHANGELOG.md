@@ -219,6 +219,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A write's answer carries what its row foresees** (`foldkit-remote`,
+  #370). `Data.mutate` of a declared create or edit asks, in `shown`, for
+  every supplied member its Entity foresees (`Derived.make`'s `predict`,
+  Guard's `may`), foreseen this time or not, and the server reads it back
+  with the answer. A note opened on its own page before its add was
+  answered read its `may` again after the answer, so Edit and Delete waited
+  on a second read, and `verifyPredictions` reported a `Gap`, which
+  `examples/reference` no longer declares expected.
+
 - **`foldkit-plus setup` installs one valid Effect after an Effect patch
   release** (`foldkit-plus`). Since Effect 4.1.1, an npm scaffold locks
   `@effect/platform-node` 4.1.1 under `@foldkit/vite-plugin`, and npm keeps

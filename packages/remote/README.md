@@ -1874,7 +1874,11 @@ with the request, what every active Surface reads of each entity (each
 included), and every field the layer itself shows. The second matters when
 a write moves a count no Surface reads now: a note deleted on its own page
 lowers its author's `noteCount`, which only the notebook page reads, and
-without it the answer would leave the count as it was before the write. The
+without it the answer would leave the count as it was before the write. It
+also sends, for a created or edited row, every supplied member its Entity
+foresees (`Derived.make`'s `predict`, Guard's `may`), foreseen this time or
+not: a page opened on a new note before its add is answered reads its `may`,
+though no Surface did when the add was sent. The
 server reads, of each row its answer names, the fields it
 shows that the answer left out, after the write and as any read is, and sends
 that read with the answer (`foldkit-remote-server`'s

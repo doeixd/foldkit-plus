@@ -334,7 +334,9 @@ case 'SignedOut': {
   refused, by the type and when the patch is made.
 - An answer carries what the page shows of each row it names: `Data.mutate`
   sends what the active Surfaces read of each entity and every field its own
-  layer shows (`shown`: a count moved on a page left behind), and the server
+  layer shows (`shown`: a count moved on a page left behind), and, for a
+  created or edited row, every supplied member its Entity foresees (`may`,
+  for a page opened on the row while it is pending), and the server
   reads those fields after the write, as any read, beside the answer (`read`),
   written in the reduction that releases the layer. No option: a declared
   insert lands with the derived counts, `may` and relations the list reads. A

@@ -532,7 +532,8 @@ from one that changes nothing; `foldkit-remote-drizzle`'s `writer` has both.
 
 A Source answers the rows it changed; the client says what it shows of them.
 `Data.mutate` sends, with each request, what its active Surfaces read of each
-entity and every field its optimistic layer shows (`shown`). After the Source runs, the handler reads, of each row the
+entity, every field its optimistic layer shows, and the supplied members a
+created or edited row foresees (`may`) (`shown`). After the Source runs, the handler reads, of each row the
 outcome names (a patch, or a list insert), the shown fields the patch left out
 and every shown relation, and answers that read beside the patch (`read`):
 

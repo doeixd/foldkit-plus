@@ -165,11 +165,11 @@ describe('a note opened while it is being added', () => {
     Resource.lazy(AppClient, () => Promise.reject(new Error('an add signs no one in'))),
   )
 
-  // The e2e opens a note before its add is answered, then presses Delete. The
-  // read entry restarts only when its plan changes: had it asked the server
-  // for the note's `may` while only the add held it, the answer would have
-  // left that plan as it was, and Delete would never have been drawn.
-  it('reads whether its author may delete it once the add is answered', async () => {
+  // The e2e opens a note before its add is answered, then presses Delete.
+  // Nothing read the note's `may` when the add was sent, but the add's answer
+  // carries it, as the Note foresees it (#370): the page has it with no
+  // further read, and never draws the note Loading in between.
+  it("learns whether its author may delete it from the add's answer", async () => {
     const { model, commands } = update(
       ada,
       Message.NamedNote({ id: 'a2', title: 'Second light', body: '', now: Date.now() }),
@@ -181,12 +181,8 @@ describe('a note opened while it is being added', () => {
     expect(Data.plan(opened, note)).toEqual([])
 
     const answer = await Effect.runPromise(add.effect.pipe(Effect.provide(browser)))
-    const answered = update(opened, answer).model
-    expect(Data.plan(answered, note)).toEqual([{ entity: 'Note', id: 'a2', fields: ['may'] }])
-
-    const read = await Effect.runPromise(
-      Data.satisfy(answered, actives).pipe(Effect.provide(browser)),
-    )
+    const read = update(opened, answer).model
+    expect(Data.plan(read, note)).toEqual([])
     expect(Surface.read(NotePage, read, { id: 'a2' }).note).toMatchObject({
       _tag: 'Ready',
       value: { may: { row: { Update: true, Delete: true } } },

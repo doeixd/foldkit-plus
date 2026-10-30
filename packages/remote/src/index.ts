@@ -126,6 +126,7 @@ import {
   forgetFailure,
   mutationStatus,
   predictionOfWrite,
+  foreseenOfWrite,
   brokenByWrite,
   forbiddenByWrite,
   DerivedBy,
@@ -4016,11 +4017,13 @@ const bindDomain = <
   const assertOwned = (entry: ActiveEntry<AppModel>) => assertOwnedBy(bound.contract, entry)
   /**
    * What the reader is shown of each entity in `model`, and what the write
-   * itself shows (`predicted`), for its answer to carry (#245, #265).
+   * itself shows (`predicted`) or foresees on its row (`write`), for its
+   * answer to carry (#245, #265, #370).
    */
   const shownAt = (
     model: AppModel,
     predicted: ReadonlyArray<OptimisticOperation>,
+    write: Domain.AnyWrite | undefined,
   ): ReadonlyArray<RelationRequirement> =>
     shownOf(
       askedUnion(
@@ -4029,6 +4032,7 @@ const bindDomain = <
         ),
       ),
       predicted,
+      write === undefined ? [] : foreseenOfWrite(write),
     )
   /**
    * A durable write's request id, which is its operation id: this page's
@@ -4782,7 +4786,7 @@ const bindDomain = <
                 // Encoded here, so an input its Mutation cannot encode throws at the call.
                 durable: {
                   input: Schema.encodeUnknownSync(mutation.Input)(input),
-                  shown: shownAt(model, optimistic ?? []),
+                  shown: shownAt(model, optimistic ?? [], mutation.write),
                 },
               }
             : {}),
@@ -4813,7 +4817,7 @@ const bindDomain = <
                   : mutateRemote(mutation, input, requestId, {
                       keys: options.keys,
                       operation,
-                      shown: shownAt(startedModel, optimistic ?? []),
+                      shown: shownAt(startedModel, optimistic ?? [], mutation.write),
                       now: options.now,
                       timeout: options.timeout,
                     }).pipe(

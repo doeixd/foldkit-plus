@@ -32,6 +32,7 @@ import { holderOf } from './held.js'
 import type { OptimisticOperation } from './optimistic.js'
 import { own, put } from './record.js'
 import { refParts } from './relation.js'
+import type { RelationRequirement } from './requirement.js'
 import type { RemoteError } from './remoteData.js'
 import { emptyStore, entityKey, tombstone, writeEntities, type EntityStore } from './store.js'
 
@@ -754,6 +755,23 @@ const suppliedOfWrite = (
     })
   }
   return Object.keys(values).length === 0 ? [] : [{ entity: entity.name, id: own.id, values }]
+}
+
+/**
+ * The supplied members a write's row foresees (`Derived.make`'s `predict`,
+ * Guard's `may`), for its answer to carry whatever this write foresaw: one
+ * foreseen as none leaves the row waiting for the answer, and a page opened
+ * on the row meanwhile reads it, though no Surface did when it was sent
+ * (#370). A delete leaves no row.
+ */
+export const foreseenOfWrite = (write: AnyWrite): ReadonlyArray<RelationRequirement> => {
+  const foreseen = (): ReadonlyArray<RelationRequirement> => {
+    const keys = predictorsOf(write.input.entity).map(([key]) => key)
+    return keys.length === 0 ? [] : [{ entity: write.input.entity.name, fields: keys }]
+  }
+  return Match.value(write).pipe(
+    Match.tagsExhaustive({ Insert: foreseen, Update: foreseen, Delete: () => [] }),
+  )
 }
 
 /**

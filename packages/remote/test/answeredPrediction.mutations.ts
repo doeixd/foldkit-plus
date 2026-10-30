@@ -1,11 +1,13 @@
 /**
  * A write's answer reads back what its own prediction showed, and the law
- * holds the client to the server once the answer lands (#265), broken in
- * turn: `pnpm mutate packages/remote/test/answeredPrediction.mutations.ts`.
+ * holds the client to the server once the answer lands (#265), and a write
+ * asks for what its row foresees (#370), broken in turn:
+ * `pnpm mutate packages/remote/test/answeredPrediction.mutations.ts`.
  */
 const shown = '../src/shown.ts'
 const index = '../src/index.ts'
 const law = '../src/law.ts'
+const mutation = '../src/mutation.ts'
 const laws = [
   'packages/remote-drizzle/test/law.test.ts',
   'examples/reference/test/law.test.ts',
@@ -18,7 +20,43 @@ const shownTests = [
   ...laws,
 ]
 
+const foreseenTests = [
+  'packages/remote/test/mutationAnswer.test.ts',
+  'examples/reference/test/notebook.test.ts',
+]
+
 export default [
+  {
+    name: 'a write does not ask for what its row foresees',
+    edits: [{ file: shown, find: '  for (const slice of foreseen) add(slice)\n', replace: '' }],
+    tests: foreseenTests,
+  },
+  {
+    name: 'a write is sent without its row’s foreseen members',
+    edits: [
+      {
+        file: index,
+        find: 'write === undefined ? [] : foreseenOfWrite(write),',
+        replace: '[],',
+      },
+    ],
+    tests: foreseenTests,
+  },
+  {
+    name: 'a create asks for nothing its row foresees',
+    edits: [{ file: mutation, find: 'Insert: foreseen,', replace: 'Insert: () => [],' }],
+    tests: foreseenTests,
+  },
+  {
+    name: 'an edit asks for nothing its row foresees',
+    edits: [{ file: mutation, find: 'Update: foreseen,', replace: 'Update: () => [],' }],
+    tests: foreseenTests,
+  },
+  {
+    name: 'a delete asks for what the row it removes foresees',
+    edits: [{ file: mutation, find: 'Delete: () => [] }', replace: 'Delete: foreseen }' }],
+    tests: foreseenTests,
+  },
   {
     name: 'a write sends only what the active Surfaces read, not what it shows itself',
     edits: [
@@ -50,8 +88,8 @@ export default [
     edits: [
       {
         file: index,
-        find: 'shown: shownAt(model, optimistic ?? []),',
-        replace: 'shown: shownAt(model, []),',
+        find: 'shown: shownAt(model, optimistic ?? [], mutation.write),',
+        replace: 'shown: shownAt(model, [], mutation.write),',
       },
     ],
     tests: ['packages/remote/test/outbox.test.ts'],
@@ -61,8 +99,8 @@ export default [
     edits: [
       {
         file: index,
-        find: 'shown: shownAt(startedModel, optimistic ?? []),',
-        replace: 'shown: shownAt(startedModel, []),',
+        find: 'shown: shownAt(startedModel, optimistic ?? [], mutation.write),',
+        replace: 'shown: shownAt(startedModel, [], mutation.write),',
       },
     ],
     tests: shownTests,
