@@ -903,6 +903,9 @@ importers:
 
   examples/foldkit/domains-plus:
     dependencies:
+      '@foldkit/devtools':
+        specifier: 0.170.0
+        version: 0.170.0(@effect/platform-browser@4.1.0(effect@4.1.0))(@foldkit/ui@0.170.0(effect@4.1.0)(foldkit@0.170.0(@effect/platform-browser@4.1.0(effect@4.1.0))(effect@4.1.0)))(effect@4.1.0)(foldkit@0.170.0(@effect/platform-browser@4.1.0(effect@4.1.0))(effect@4.1.0))
       '@foldkit/ui':
         specifier: 0.170.0
         version: 0.170.0(effect@4.1.0)(foldkit@0.170.0(@effect/platform-browser@4.1.0(effect@4.1.0))(effect@4.1.0))
@@ -967,6 +970,9 @@ importers:
       vite:
         specifier: 8.3.5
         version: 8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1)
+      wrangler:
+        specifier: 4.152.0
+        version: 4.152.0(@cloudflare/workers-types@5.20261022.1)(@types/node@22.20.5)
 
   examples/foldkit/form:
     dependencies:
@@ -5044,6 +5050,15 @@ packages:
       '@foldkit/ui': 0.169.0-canary.90746b32d2ca
       effect: 4.0.0 || 4.0.6
       foldkit: 0.169.0-canary.90746b32d2ca
+
+  '@foldkit/devtools@0.170.0':
+    resolution: {integrity: sha512-gsmOn0gfOw+J6P8N6GGZ8w+puc+Q49AgPZLC18YZIGLp1b7F3HpQZpsn+IO6XRME5B01qmprFADFCJwpbTQNUw==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      '@effect/platform-browser': ^4.1.0
+      '@foldkit/ui': '>=0.167.0'
+      effect: ~4.1.0
+      foldkit: '>=0.167.0'
 
   '@foldkit/ui@0.169.0-canary.90746b32d2ca':
     resolution: {integrity: sha512-xACX8q/Oh/+Ch1i9g2oGXuOu0y4x0okPeNbU9YyCoFiRasWwS5LF2coJW49PH4ThiLCQIZdJ9x/BQ2062ZWiCA==}
@@ -10127,6 +10142,14 @@ snapshots:
       clsx: 2.1.1
       effect: 4.1.0
       foldkit: 0.169.0-canary.90746b32d2ca(@effect/platform-browser@4.1.0(effect@4.1.0))(effect@4.1.0)
+
+  '@foldkit/devtools@0.170.0(@effect/platform-browser@4.1.0(effect@4.1.0))(@foldkit/ui@0.170.0(effect@4.1.0)(foldkit@0.170.0(@effect/platform-browser@4.1.0(effect@4.1.0))(effect@4.1.0)))(effect@4.1.0)(foldkit@0.170.0(@effect/platform-browser@4.1.0(effect@4.1.0))(effect@4.1.0))':
+    dependencies:
+      '@effect/platform-browser': 4.1.0(effect@4.1.0)
+      '@foldkit/ui': 0.170.0(effect@4.1.0)(foldkit@0.170.0(@effect/platform-browser@4.1.0(effect@4.1.0))(effect@4.1.0))
+      clsx: 2.1.1
+      effect: 4.1.0
+      foldkit: 0.170.0(@effect/platform-browser@4.1.0(effect@4.1.0))(effect@4.1.0)
 
   '@foldkit/ui@0.169.0-canary.90746b32d2ca(patch_hash=136cc15062780d9e9616b61870f201dee998cf596d22c02e1b107fd37a64336f)(effect@4.1.0)(foldkit@0.169.0-canary.90746b32d2ca(@effect/platform-browser@4.1.0(effect@4.1.0))(effect@4.1.0))':
     dependencies:

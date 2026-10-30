@@ -21,9 +21,6 @@ import { stylesheet } from '../client/style.js'
 import { view } from '../client/view.js'
 import { serveRemote } from './remote.js'
 
-/** The paths the build renders ahead of any request: the empty search page. */
-export const prerenderPaths: ReadonlyArray<string> = ['/']
-
 /**
  * The document around a rendered page. Its head carries the theme and the
  * classes the page draws, so the first paint is styled before any script

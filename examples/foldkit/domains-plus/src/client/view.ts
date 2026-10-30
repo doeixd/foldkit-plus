@@ -9,6 +9,7 @@ import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import { Icon, type IconData } from 'foldkit-media'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import { WindowList } from 'foldkit-mixins-ui'
+import { Resume } from 'foldkit-ssr/client'
 import {
   type AvailableDomain,
   Domain,
@@ -80,11 +81,12 @@ const header = (model: Model, slots: Slots, h: H): Html =>
     cartAnnouncement(model, slots, h),
   ])
 
-const searchForm = (model: Model, slots: Slots, h: H): Html =>
-  h.form(slots.search.attrs([h.Role('search'), h.OnSubmit(Message.SubmittedSearch())]), [
+const searchForm = (model: Model, slots: Slots, h: H): Html => {
+  const rh = Resume.builder(h)
+  return h.form(slots.search.attrs([h.Role('search'), h.OnSubmit(Message.SubmittedSearch())]), [
     h.span(slots.searchIcon.attrs(), [icon(icons.search, h, '16px')]),
-    h.input(
-      slots.searchInput.attrs([
+    rh.input([
+      ...slots.searchInput.attrs([
         h.Id(SEARCH_INPUT_ID),
         h.Type('search'),
         h.Name('q'),
@@ -97,12 +99,16 @@ const searchForm = (model: Model, slots: Slots, h: H): Html =>
         h.Attribute('autocapitalize', 'none'),
         h.Attribute('enterkeyhint', 'search'),
         h.Spellcheck(false),
-        h.OnInput(value => Message.UpdatedSearch({ value })),
         h.OnKeyDownPreventDefault(key =>
           key === 'Escape' ? Option.some(Message.PressedEscape()) : Option.none(),
         ),
       ]),
-    ),
+      // Named, so the server's page says which Message typing sends, and kept:
+      // what is typed before the bundle runs is replayed as that Message. The
+      // element is `rh`'s, which is how the server marks it.
+      rh.OnInput(Message.UpdatedSearch),
+      rh.KeepTyped(),
+    ]),
     h.button(
       slots.clearSearch.attrs([
         h.Type('button'),
@@ -116,6 +122,7 @@ const searchForm = (model: Model, slots: Slots, h: H): Html =>
       ],
     ),
   ])
+}
 
 const hero = (model: Model, slots: Slots, h: H): Html =>
   h.section(slots.hero.attrs([h.AriaLabel('Find your domain')]), [

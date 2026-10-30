@@ -1,6 +1,6 @@
 # Reimplementing foldkit-domains with Foldkit Plus
 
-> **Status:** Being built (2026-10-30): phases 0 to 5 are built; §8 records what
+> **Status:** Being built (2026-10-30): phases 0 to 6 are built; §8 records what
 > each phase built and where it departs from this plan. Written against
 > upstream [foldkit/foldkit-domains](https://github.com/foldkit/foldkit-domains)
 > at `c3041350`, copied unchanged to
@@ -534,4 +534,29 @@ opens the cart, removes one and closes it with Escape, reading
 - **Foldkit's Scene could not click inside the page** (`click` threw reading
   an ancestor's `sel`), so the Scene draws the Model after the Message the
   button sends; the e2e presses the real buttons.
+
+**Phase 6, built.** The search box is drawn by `Resume.builder(h)` with
+`rh.OnInput(Message.UpdatedSearch)` and `rh.KeepTyped()`, covered by a
+`SearchBox` Surface in the plan; `@foldkit/devtools` 0.170's overlay ships in
+the build as upstream's does; `wrangler.jsonc` and `pnpm preview` run the
+built Worker (`dist/server/fetch.js`) in local workerd, which answers pages
+(404 for an unknown path) and `/remote`. Tests: the e2e holds the client
+bundle, types `typed-before-hydration`, selects 3–8, releases it, and finds
+the same input with the text and caret kept, the address and the Top
+Results following once the runtime boots. Departures:
+
+- **No early-input script.** `KeepTyped` keeps and replays the typing, so no
+  inline script and no handoff Command are needed; but nothing answers the
+  typing before boot (no `?q=`, no pending names), which upstream's script
+  does. Gap 7 stays open as [#372](https://github.com/doeixd/foldkit-plus/issues/372);
+  upstream's spec for it is listed, not ported. `searchLayout` stays in the
+  Model, now set only by `update`.
+- **`rh` must build the element.** An `h.input` given `rh.OnInput` and
+  `rh.KeepTyped()` rendered an unbound marker, and the browser contained
+  the page ([#371](https://github.com/doeixd/foldkit-plus/issues/371)).
+- **Nothing is prerendered.** The plugin's prerender renders `/` through
+  `SSR.entry`, which records the query, and the static host serves that file
+  for `/?q=…`, where it was refused
+  ([#373](https://github.com/doeixd/foldkit-plus/issues/373)); the Worker
+  renders every page.
 

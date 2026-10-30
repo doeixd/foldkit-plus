@@ -223,3 +223,43 @@ test('the cart takes domains once, and focus moves as upstream moves it', async 
   expect(problems).toEqual([])
   await page.close()
 })
+
+test('typing before the bundle runs is kept, with its caret, in the same input', async () => {
+  const { page, problems } = await opened()
+  let release = (): void => undefined
+  const bundle = new Promise<void>(resolve => {
+    release = resolve
+  })
+  await page.route('**/src/client/entry.ts', async route => {
+    await bundle
+    await route.continue()
+  })
+  await page.goto(`${origin}/`, { waitUntil: 'commit' })
+  const input = page.getByRole('searchbox', { name: 'Search domains' })
+  await input.waitFor({ timeout: 60_000 })
+  const served = await input.elementHandle()
+  await input.fill('typed-before-hydration')
+  await input.evaluate(element => {
+    if (element instanceof HTMLInputElement) element.setSelectionRange(3, 8)
+  })
+  // The server's page has no script yet: nothing has answered the typing.
+  expect(new URL(page.url()).search).toBe('')
+  release()
+  await expect
+    .poll(() => new URL(page.url()).search, { timeout: 60_000 })
+    .toBe('?q=typed-before-hydration')
+  expect(await input.inputValue()).toBe('typed-before-hydration')
+  expect(
+    await input.evaluate(element =>
+      element instanceof HTMLInputElement ? [element.selectionStart, element.selectionEnd] : [],
+    ),
+  ).toEqual([3, 8])
+  expect(
+    await served?.evaluate(element => element === document.getElementById('domain-search')),
+  ).toBe(true)
+  await expect
+    .poll(() => page.locator('.domain-card h3').first().textContent())
+    .toBe('typed-before-hydration.com')
+  expect(problems).toEqual([])
+  await page.close()
+})

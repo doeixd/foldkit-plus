@@ -465,6 +465,12 @@ export const init = (url: Url): Return => start(routeOf(url), QueryInUrl.reduce(
 
 export const subscriptions = placements.subscriptions()
 
+/** The search box: what it shows, and the Message typing into it sends. */
+export const SearchBox = App.surface('SearchBox', {
+  model: ({ model }) => ({ query: model.query }),
+  messages: [Message.UpdatedSearch],
+})
+
 /**
  * What crosses from the server's render to the browser, which starts from it
  * instead of running `init`. The debounce starts empty in the browser.
@@ -481,6 +487,7 @@ export const plan = SSR.plan(
     ),
     // Prices are read again in the browser, as upstream's are: none is inlined.
     local: [App.model.search, App.model.remote, App.model.resultsList],
+    surfaces: [Surface.at(SearchBox, undefined)],
   },
 )
 
