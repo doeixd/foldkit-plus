@@ -5,7 +5,7 @@
  */
 import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
-import { Derived, Entity, Expr, Operators, Relation, Write } from 'foldkit-entity'
+import { Derived, Entity, Expr, Operators, Relation, Write, type DerivedSpec } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import {
@@ -20,10 +20,6 @@ import {
 
 const names = ['__proto__', 'constructor', 'toString'] as const
 const one = <A>(name: string, value: A): Record<string, A> => Object.fromEntries([[name, value]])
-// The typed API sees member names as literals, and these are chosen per case at run time:
-// a member so named is declared to the types as `odd`.
-const named = <A>(name: string, value: A): { readonly odd: A } =>
-  one(name, value) as unknown as { readonly odd: A }
 
 const Id = Schema.String
 const UserFields = Entity.define('User', Schema.Struct({ id: Id }))
@@ -39,15 +35,28 @@ const Model = Schema.Struct({ remote: Remote.Model })
 type Model = typeof Model.Type
 const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
 
-const fixture = (name: string, member: 'count' | 'exists') => {
+type Name = (typeof names)[number]
+
+// Each name written out, so the types see it: a bare `__proto__:` in a literal
+// would set the prototype, so that one is computed.
+const withDerived = <const D extends DerivedSpec<Schema.Constraint>>(name: Name, spec: D) => {
+  switch (name) {
+    case '__proto__':
+      return Entity.derived({ ['__proto__']: spec })
+    case 'constructor':
+      return Entity.derived({ constructor: spec })
+    case 'toString':
+      return Entity.derived({ toString: spec })
+  }
+}
+
+const fixture = (name: Name, member: 'count' | 'exists') => {
   const Post = Social.Post.pipe(
-    Entity.derived(
-      named(
-        name,
-        member === 'count'
-          ? Derived.count(Like.relations.post)
-          : Derived.exists(Like.relations.post, { viewer: Like.relations.user }),
-      ),
+    withDerived(
+      name,
+      member === 'count'
+        ? Derived.count(Like.relations.post)
+        : Derived.exists(Like.relations.post, { viewer: Like.relations.user }),
     ),
   )
   const CreatePost = Mutation.write(
@@ -130,9 +139,7 @@ describe.each(names)('a derived member named %s', name => {
 describe.each(names)('a supplied member named %s', name => {
   it('is foreseen over a new row', () => {
     const Item = Entity.define('Item', Schema.Struct({ id: Id, label: Schema.String })).pipe(
-      Entity.derived(
-        named(name, Derived.make(Schema.String, { predict: () => Option.some('seen') })),
-      ),
+      withDerived(name, Derived.make(Schema.String, { predict: () => Option.some('seen') })),
     )
     const create = Write.insert(
       Entity.input(Item, Schema.Struct({ id: Id, label: Schema.String })),
@@ -148,15 +155,27 @@ describe.each(names)('a supplied member named %s', name => {
   })
 })
 
+const positive = { message: 'must be positive' }
+const positiveItem = (name: Name) => {
+  switch (name) {
+    case '__proto__':
+      return Entity.define('Item', Schema.Struct({ id: Id, ['__proto__']: Schema.Number })).pipe(
+        Entity.invariant('positive', ({ after }) => Expr.gt(after['__proto__'], 0), positive),
+      )
+    case 'constructor':
+      return Entity.define('Item', Schema.Struct({ id: Id, constructor: Schema.Number })).pipe(
+        Entity.invariant('positive', ({ after }) => Expr.gt(after.constructor, 0), positive),
+      )
+    case 'toString':
+      return Entity.define('Item', Schema.Struct({ id: Id, toString: Schema.Number })).pipe(
+        Entity.invariant('positive', ({ after }) => Expr.gt(after.toString, 0), positive),
+      )
+  }
+}
+
 describe.each(names)('an invariant over a field named %s', name => {
   it('refuses a write that breaks it', () => {
-    const Item = Entity.define('Item', Schema.Struct({ id: Id, ...one(name, Schema.Number) })).pipe(
-      Entity.invariant(
-        'positive',
-        ({ after }) => Expr.gt(Object.getOwnPropertyDescriptor(after, name)?.value, 0) as never,
-        { message: 'must be positive' },
-      ),
-    )
+    const Item = positiveItem(name)
     const create = Write.insert(
       Entity.input(Item, Schema.Struct({ id: Id, ...one(name, Schema.Number) })),
       { id: 'id' },

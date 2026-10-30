@@ -152,6 +152,33 @@ describe.each(names)('a page relation named %s', name => {
   })
 })
 
+describe.each(names)('a page relation named %s, held', name => {
+  it('is captured with the window it was read with', () => {
+    const Odd = Entity.make(
+      'Odd',
+      Schema.Struct({ id: Schema.String, ...one(name, Entity.refPage(User)) }),
+    )
+    const Data = Remote.make({ model: App.model.remote, entities: [User, Odd] })
+    const asked = Data.get(
+      Odd.select(
+        one(name, Selection.connection(User, { first: 5 }, Selection.make(User, { name: true }))),
+      ),
+      'o1',
+    )
+    const entities = Remote.writeRead(
+      emptyStore,
+      [{ entity: 'Odd', id: 'o1', fields: [name], windows: one(name, { first: 5 }) }],
+      {
+        settled: [],
+        entities: [{ entity: 'Odd', id: 'o1', values: one(name, page([], false, false)) }],
+      },
+    )
+    const captured = captureRemote({ ...Remote.initial, entities }, [asked]).entities['Odd:o1']
+
+    expect(Object.entries(captured?.windows ?? {})).toEqual([[name, windowKey({ first: 5 })]])
+  })
+})
+
 describe.each(names)('a relation named %s', name => {
   it('is kept when requirements merge', () => {
     const owner = { entity: 'User', fields: ['name'] }
@@ -170,6 +197,7 @@ describe.each(names)('a foldkit-entity field named %s', name => {
       'Odd',
       Schema.Struct({ id: Schema.String, ...one(name, Schema.String) }),
     )
+    expect(Object.keys(Entity.from(Odd).fields)).toEqual(['id', name])
     const Data = Remote.make({ model: App.model.remote, entities: [Odd] })
     const read = Data.get(DomainEntity.select(Odd, one(name, true) as never), 'o1')
 

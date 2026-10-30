@@ -308,4 +308,31 @@ export default [
     ],
     tests: derived,
   },
+  {
+    name: 'a captured window is assigned',
+    edits: [
+      {
+        file: '../src/resume.ts',
+        find: 'put(entry.windows, field, window)',
+        replace: '(entry.windows[field] = window)',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'Entity.from assigns each member',
+    edits: [
+      {
+        file: '../src/entity.ts',
+        find: `      put(
+        fields,
+        key,
+        member._tag === 'Relation' ? relationField(member) : (member.schema as AnySchema),
+      )`,
+        replace: `      fields[key] =
+        member._tag === 'Relation' ? relationField(member) : (member.schema as AnySchema)`,
+      },
+    ],
+    tests,
+  },
 ]

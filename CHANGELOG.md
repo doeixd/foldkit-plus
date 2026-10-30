@@ -776,6 +776,12 @@ carries `drawn`.
 
 ### Fixed
 
+- **Remote keeps a field named `__proto__` in `Entity.from` and in a captured
+  resume.** `Entity.from` assigned each member of a `foldkit-entity` Entity
+  to a plain object, so a field named `__proto__` was missing from the
+  descriptor's fields and schema; and `captureRemote` assigned each held
+  window the same way, so a page relation of that name was captured without
+  the window it was read with. Both now define the key.
 - **A write's path through the viewer reads a withheld field named like an
   `Object.prototype` member as withheld.** `RemoteServer.write` read the
   last field of an `Entity.sets` path by plain index, so a field named

@@ -157,7 +157,7 @@ export const captureRemote = (
       entry.present.add(field)
       if (stored.stale.has(field)) entry.stale.add(field)
       const window = own(stored.windows, field)
-      if (window !== undefined) entry.windows[field] = window
+      if (window !== undefined) put(entry.windows, field, window)
       const nested = requirement.relations?.[field]
       if (nested === undefined) continue
       const value = readField(store, key, field)
