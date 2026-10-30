@@ -829,6 +829,20 @@ regression carries `why`, a `ReadWhy` (its `because[0]` says what the read
 waits on); `trace.timeline({ list })` is `Data.timeline` over the trace, every
 change of tag and not only regressions.
 
+**A disagreement fails the test (#350).** `Trace.run` refuses a domain that
+does not verify its predictions, and throws after its steps on any
+`PredictionMismatch` a Model recorded, or on a regression of a read named in
+`reads` (`regresses: { list: 'why' }` allows one on purpose), naming the
+Message and `Data.why`. Declare the domain with
+`verifyPredictions: import.meta.env?.DEV === true` (Vite dev and Vitest on, a
+build off; no package reads a build mode); a part the server answers
+otherwise on purpose goes in `verifyPredictions: { on, expected: { mutations:
+{ PostChirp: { Value: 'why' } }, queries: { Feed: { Placement: 'why' } } } }`,
+names checked against the domain. `Trace.record(Data, update, { reads })`
+wraps a running app's `update` (a browser test's `Runtime.embed`); call
+`check()` after the steps. A mismatch is reported at error level, so it
+reaches `console.error` and `Behaviors.consoleErrors`.
+
 **Testing that a prediction is the truth.** `Law.check` (`foldkit-remote/testing`)
 runs one write through `Data.mutate` and through the server, with the same
 principal and `now`, and compares every part the client predicted (fields,

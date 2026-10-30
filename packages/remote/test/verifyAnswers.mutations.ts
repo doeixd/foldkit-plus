@@ -13,7 +13,7 @@ export default [
     edits: [
       {
         file: index,
-        find: 'answer === undefined || options.verifyPredictions !== true',
+        find: 'answer === undefined || !verify.on',
         replace: 'answer === undefined',
       },
     ],

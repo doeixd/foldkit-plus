@@ -119,6 +119,21 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **A prediction the server disagrees with fails the test** (`foldkit-remote`,
+  #350; breaking). `PredictionMismatch` is reported at `level: 'error'`, so
+  the default reporter writes it to `console.error`. `verifyPredictions`
+  also takes `{ on, expected }`: `on` is the application's mode
+  (`import.meta.env?.DEV === true`: Vite's dev server and Vitest on, a build
+  off), and `expected` names the parts the server answers otherwise on
+  purpose, each with a reason, by the domain's own mutations (`Value`, `Gap`)
+  and queries (`Placement`); an expected part records nothing, another name
+  is a type error, a blank reason is refused. `Data.verifiesPredictions` says
+  which. `Trace.run` refuses a domain that does not verify, and throws after
+  its steps on any `PredictionMismatch` and on a regression of a read named
+  in its new `reads` (`regresses` allows one, with why), naming the Message
+  and `Data.why`. `Trace.record(Data, update, { reads })` checks a running
+  application the same way, for a browser test.
+
 - **`Behaviors.optimistic` asserts the prediction holds still**
   (`foldkit-plus/testing/playwright`, #349). From the moment `shows` shows
   until the write settles, each element it resolves to must stay the same

@@ -56,6 +56,20 @@ const Data = Remote.make({
   entities: [Project],
   queries: [Open],
   mutations: [Create],
+  // The fake server answers a create with its own name and fewer fields, and
+  // orders nothing, to show what a trace sees then.
+  verifyPredictions: {
+    on: true,
+    expected: {
+      mutations: {
+        Create: {
+          Value: 'the fake server names a row by the time it was made',
+          Gap: 'the fake server answers some fields of a create alone',
+        },
+      },
+      queries: { Open: { Placement: 'the fake server lists rows in no order' } },
+    },
+  },
 })
 
 const card = Entity.select(Project, { name: true })
@@ -337,7 +351,11 @@ describe('Trace.regressions', () => {
 
   it('finds none where the server says the row is gone', async () => {
     // A domain of its own: the readers a trace names stay with its domain.
-    const Reads = Remote.make({ model: App.model.remote, entities: [Project] })
+    const Reads = Remote.make({
+      model: App.model.remote,
+      entities: [Project],
+      verifyPredictions: true,
+    })
     const project = Reads.get(card, 'p1')
     const trace = await Trace.run(Reads, {
       start: closed,

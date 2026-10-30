@@ -91,7 +91,7 @@ describe('verifyPredictions, its Value', () => {
     expect(model.remote.diagnostics[0]).toMatchObject({
       _tag: 'PredictionMismatch',
       source: 'foldkit-remote',
-      level: 'warning',
+      level: 'error',
       message:
         'EditPost (request r1) showed Post:p1.title as "Two" while it was pending, and the server answered "Deux": the client\'s prediction and the server\'s write disagree.',
       part: { mutation: Option.some('EditPost') },

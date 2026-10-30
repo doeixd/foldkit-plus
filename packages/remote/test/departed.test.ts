@@ -44,6 +44,7 @@ const Data = Remote.make({
   model: App.model.remote,
   entities: [Project],
   queries: [ProjectsByOwner],
+  verifyPredictions: true,
 })
 
 const listOf = (ownerId: string) =>

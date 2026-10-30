@@ -17,8 +17,8 @@ export default [
     edits: [
       {
         file: index,
-        find: 'if (options.verifyPredictions !== true) return invalidateConnections(withPlaced, invalidated)',
-        replace: '',
+        find: '        verify.on &&\n        !verify.expects(',
+        replace: '        !verify.expects(',
       },
     ],
     tests,

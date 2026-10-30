@@ -145,7 +145,7 @@ describe('verifyPredictions', () => {
     expect(checked.remote.diagnostics[0]).toMatchObject({
       _tag: 'PredictionMismatch',
       source: 'foldkit-remote',
-      level: 'warning',
+      level: 'error',
       message: `The client placed rows in ${list} as [Project:p2, Project:p1], and the server's first page lists [Project:p1, Project:p2]: the client's order and the server's disagree.`,
     })
   })

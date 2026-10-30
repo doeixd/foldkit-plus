@@ -136,7 +136,7 @@ describe('verifyPredictions, its Gap', () => {
       {
         _tag: 'PredictionMismatch',
         source: 'foldkit-remote',
-        level: 'warning',
+        level: 'error',
         message:
           'CreatePost (request r1) answered Post:p2 without editedAt, which the client showed while it was pending. They are read again, so the row reads Loading meanwhile: answer with them, or select fewer.',
         part: PredictionPart.Gap({

@@ -126,7 +126,9 @@ const shownAs = (value: unknown): string => JSON.stringify(value) ?? String(valu
 export const predictionMismatch = (part: PredictionPart): PredictionMismatch => ({
   _tag: 'PredictionMismatch',
   source,
-  level: 'warning',
+  // A disagreement is a defect of the prediction or of the server, not advice:
+  // it reaches `console.error`, where a test and a browser look.
+  level: 'error',
   message: PredictionPart.$match(part, {
     Value: facts =>
       `${named(facts.mutation, facts.requestId)} showed ${facts.entity}:${facts.id}.${facts.field} as ${shownAs(facts.shown)} while it was pending, and the server answered ${shownAs(facts.answered)}: the client's prediction and the server's write disagree.`,
@@ -137,6 +139,76 @@ export const predictionMismatch = (part: PredictionPart): PredictionMismatch => 
   }),
   part,
 })
+
+/**
+ * The parts of a prediction the server is meant to answer otherwise, each
+ * with the reason, by the domain's own mutation and query names: a mutation's
+ * `Value` (the server writes another value than the client shows, such as a
+ * time it stamps) or `Gap` (its answer leaves out fields the client showed),
+ * and a query's `Placement` (the server orders the list by what the client
+ * cannot judge). An expected part records no `PredictionMismatch`.
+ */
+export interface ExpectedDisagreements<
+  MutationName extends string = string,
+  QueryName extends string = string,
+> {
+  readonly mutations?: {
+    readonly [Name in MutationName]?: { readonly Value?: string; readonly Gap?: string }
+  }
+  readonly queries?: { readonly [Name in QueryName]?: { readonly Placement: string } }
+}
+
+/**
+ * `verifyPredictions` with what the server is meant to answer otherwise.
+ * `on` is the application's mode, which no package reads for itself: pass
+ * `import.meta.env?.DEV === true` where the domain is declared, so Vite's
+ * dev server and Vitest verify and a production build does not.
+ */
+export interface VerifyPredictions<
+  MutationName extends string = string,
+  QueryName extends string = string,
+> {
+  readonly on: boolean
+  readonly expected?: ExpectedDisagreements<MutationName, QueryName>
+}
+
+/**
+ * Whether predictions are verified, and which parts are expected to
+ * disagree, refused where the domain is made when an expected part names
+ * a mutation or a query the domain lacks, or gives no reason.
+ */
+export const verification = (
+  verify: boolean | VerifyPredictions | undefined,
+  registered: { readonly mutations: ReadonlySet<string>; readonly queries: ReadonlySet<string> },
+): {
+  readonly on: boolean
+  readonly expects: (part: PredictionPart['_tag'], name: Option.Option<string>) => boolean
+} => {
+  if (verify === undefined || typeof verify === 'boolean')
+    return { on: verify === true, expects: () => false }
+  const expected = new Map<string, string>()
+  const declare = (kind: 'mutations' | 'queries', parts: object | undefined) => {
+    for (const [name, reasons] of Object.entries(parts ?? {})) {
+      if (!registered[kind].has(name))
+        throw new Error(
+          `[foldkit-remote] verifyPredictions.expected.${kind} names "${name}", which this domain does not register.`,
+        )
+      for (const [part, reason] of Object.entries(reasons as Record<string, unknown>)) {
+        if (typeof reason !== 'string' || reason.trim() === '')
+          throw new Error(
+            `[foldkit-remote] verifyPredictions.expected.${kind}.${name}.${part} gives no reason: say why the server answers otherwise.`,
+          )
+        expected.set(`${part} ${name}`, reason)
+      }
+    }
+  }
+  declare('mutations', verify.expected?.mutations)
+  declare('queries', verify.expected?.queries)
+  return {
+    on: verify.on,
+    expects: (part, name) => Option.exists(name, each => expected.has(`${part} ${each}`)),
+  }
+}
 
 export const writeUnheard = (
   facts: Pick<WriteUnheard, 'requestId' | 'mutation' | 'error'>,

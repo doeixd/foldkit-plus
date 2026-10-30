@@ -231,8 +231,10 @@ import { answerGaps } from './answerGaps.js'
 import {
   PredictionPart,
   predictionMismatch,
+  verification,
   withDiagnostics,
   type PredictionMismatch,
+  type VerifyPredictions,
 } from './diagnostics.js'
 import { reduceReporting } from './reporting.js'
 import { patchedFields, shownOf } from './shown.js'
@@ -244,11 +246,13 @@ export * from './client.js'
 export type { RemoteResumePart } from './resume.js'
 export {
   PredictionPart,
+  type ExpectedDisagreements,
   type LiveRefused,
   type OutboxUnreadable,
   type OutboxUnsaved,
   type PredictionMismatch,
   type RemoteDiagnostic,
+  type VerifyPredictions,
   type WriteUnheard,
 } from './diagnostics.js'
 // The channel Remote reports into, for a server or a test that uses Remote alone.
@@ -1047,6 +1051,8 @@ export interface RemoteDomain<
   outbox(options: OutboxOptions<AppModel>): OutboxWiring<AppModel>
   /** `Remote.inspect` of the bound slice. */
   inspect(model: AppModel): RemoteInspection
+  /** Whether the domain verifies its predictions (`verifyPredictions`), which a trace requires. */
+  readonly verifiesPredictions: boolean
 }
 
 /** What `Remote.fold(Data, …).mutate` starts: `Data.mutate`'s result with its Command lifted. */
@@ -2722,14 +2728,21 @@ export const Remote = {
      * `PredictionMismatch` in `diagnostics` for each part that disagrees:
      * `Value`, a field a pending write showed that the answer holds otherwise;
      * `Placement`, a list placed in an order the server's first page does not
-     * keep (each placed list is fetched too, for its page; a pending edit is
-     * not checked, since the server does not have it yet); `Gap`, a row whose
-     * answer left out fields the client showed while it was pending and the
-     * store does not otherwise hold, so they are read again and the row reads
-     * `Loading` meanwhile. Everything else behaves as without it. For
-     * development and tests.
+     * keep (each placed list is fetched too, for its page, and reads
+     * `Refreshing` until it lands; a pending edit is not checked, since the
+     * server does not have it yet); `Gap`, a row whose answer left out fields
+     * the client showed while it was pending and the store does not otherwise
+     * hold, so they are read again and the row reads `Loading` meanwhile. It
+     * changes nothing else. Each is reported at error level. Off unless given: no package reads a build
+     * mode, so pass `import.meta.env?.DEV === true` here, which Vite's dev
+     * server and Vitest set and a production build does not. The object
+     * form names what the server is meant to answer otherwise, by mutation
+     * and query, each with a reason, and records nothing for it.
      */
-    readonly verifyPredictions?: boolean | undefined
+    readonly verifyPredictions?:
+      | boolean
+      | VerifyPredictions<MutationName<Mutations[number]>, QueryName<Queries[number]>>
+      | undefined
     /**
      * How the client runs a body's primitive operators when it judges rows it
      * holds (`Operators`): the kernel's when not given. A body calling one this
@@ -3450,7 +3463,7 @@ const bindDomain = <
   definition: RemoteDescriptor<Entities, Queries, Mutations>,
   ref: ModelRef<AppModel, Store>,
   options: {
-    readonly verifyPredictions?: boolean | undefined
+    readonly verifyPredictions?: boolean | VerifyPredictions | undefined
     readonly operators?: MemoryOperators | undefined
     readonly viewer?:
       | ((model: AppModel) => Option.Option<{ readonly entity: string; readonly id: string }>)
@@ -3461,6 +3474,10 @@ const bindDomain = <
   const operators = options.operators ?? Operators.kernel
   const budget = checkedBudget(options.budget)
   const bound = bindRemote(definition, ref, operators)
+  const verify = verification(options.verifyPredictions, {
+    mutations: new Set(definition.registry.mutations.keys()),
+    queries: new Set(definition.registry.queries.keys()),
+  })
   const store = bound.store
   const viewerOf = options.viewer ?? (() => Option.none())
   // What a body's `Expr.viewer` reads here. The client has no reading of the
@@ -3557,9 +3574,7 @@ const bindDomain = <
             contextOf(model),
           )
     const checked =
-      answer === undefined || options.verifyPredictions !== true
-        ? next
-        : withAnswerChecked(model, remote, next, answer)
+      answer === undefined || !verify.on ? next : withAnswerChecked(model, remote, next, answer)
     return checked === remote ? model : store.set(model, checked as Store)
   }
 
@@ -3596,7 +3611,7 @@ const bindDomain = <
         visibleStoreOf(after.entities, after.optimistic, operators),
         planAsked(unverified(after), askedUnion(projections), {}, operators).requirements,
       ),
-    ]
+    ].filter(found => !verify.expects(found.part._tag, mutation))
     return found.length === 0
       ? after
       : { ...after, diagnostics: withDiagnostics(after.diagnostics, found) }
@@ -3952,10 +3967,18 @@ const bindDomain = <
     placed: Readonly<Record<string, Connection>>,
     invalidated: ReadonlyArray<string>,
   ): RemoteModel => {
-    const identities = Object.keys(placed)
-    if (identities.length === 0) return invalidateConnections(remote, invalidated)
+    if (Object.keys(placed).length === 0) return invalidateConnections(remote, invalidated)
     const withPlaced = { ...remote, connections: { ...remote.connections, ...placed } }
-    if (options.verifyPredictions !== true) return invalidateConnections(withPlaced, invalidated)
+    // A list whose order the server is meant to answer otherwise is not checked.
+    const identities = Object.keys(placed).filter(
+      identity =>
+        verify.on &&
+        !verify.expects(
+          'Placement',
+          Option.some(identity.slice(0, identity.indexOf(IDENTITY_SEPARATOR))),
+        ),
+    )
+    if (identities.length === 0) return invalidateConnections(withPlaced, invalidated)
     const firstPage = (connection: Connection | undefined) =>
       (connection?.segments[0]?.edges ?? []).map(edge => edge.key)
     const orders = Object.fromEntries(
@@ -4881,6 +4904,7 @@ const bindDomain = <
     outboxStatus: model => outboxStatus(store.get(model).outbox),
     reduce,
     inspect: model => inspectRemote(store.get(model)),
+    verifiesPredictions: verify.on,
     persistence: options => {
       const connections = (options.connections ?? []).map(connectionIdentity)
       const snapshotOf =

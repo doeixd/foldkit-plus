@@ -30,7 +30,12 @@ type Model = typeof Model.Type
 const Message = defineMessageUnion({ ...Remote.messages })
 type Message = typeof Message.Type
 const App = Surface.application({ Model, Message })
-const Data = Remote.make({ model: App.model.remote, entities: [Project], queries: [All] })
+const Data = Remote.make({
+  model: App.model.remote,
+  entities: [Project],
+  queries: [All],
+  verifyPredictions: true,
+})
 
 const list = Data.query(All, {}, { select: Entity.select(Project, { name: true }), first: 25 })
 const active = { list: Data.active('list', () => Option.some(list)) }

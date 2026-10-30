@@ -41,7 +41,12 @@ const Message = defineMessageUnion({ ...Remote.messages, ...own })
 type Message = typeof Message.Type
 const Own = defineMessageUnion(own)
 const App = Surface.application({ Model, Message })
-const Data = Remote.make({ model: App.model.remote, entities: [User, Post], queries: [ByAuthor] })
+const Data = Remote.make({
+  model: App.model.remote,
+  entities: [User, Post],
+  queries: [ByAuthor],
+  verifyPredictions: true,
+})
 
 const card = Entity.select(User, { name: true })
 const line = Entity.select(Post, { text: true })

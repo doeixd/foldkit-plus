@@ -15,6 +15,7 @@ import type * as Update from 'foldkit/update'
 import type { ActiveSurface, Projection, SurfaceSource } from 'foldkit-surface'
 import { RemoteClient } from './client.js'
 import type { EntityLike, OutboxWiring, RemoteDomain, SubscriptionsOptions } from './index.js'
+import type { PredictionMismatch, RemoteDiagnostic } from './diagnostics.js'
 import type { RemoteMessage } from './model.js'
 import type { MutationDescriptor } from './mutation.js'
 import { OutboxLocks } from './outbox.js'
@@ -159,7 +160,11 @@ export interface Regression<Message> {
   readonly why: ReadWhy
 }
 
-export interface TraceConfig<AppModel, Message> {
+export interface TraceConfig<
+  AppModel,
+  Message,
+  Reads extends NamedReads<AppModel> = Readonly<Record<never, never>>,
+> {
   /** The Model the trace starts from; its Subscriptions start at it. */
   readonly start: AppModel
   /**
@@ -193,6 +198,30 @@ export interface TraceConfig<AppModel, Message> {
    */
   readonly outbox?: OutboxWiring<AppModel>
   readonly steps: ReadonlyArray<NoInfer<Message> | Respond>
+  /**
+   * The reads whose timeline must not regress: a read that showed a value
+   * and stopped with no reason a reader can see fails the run (#350).
+   */
+  readonly reads?: Reads
+  /** A read of `reads` that regresses on purpose, with the reason. */
+  readonly regresses?: { readonly [Name in keyof NoInfer<Reads>]?: string }
+}
+
+/** Reads by name, as `Data.timeline` takes them. */
+type NamedReads<AppModel> = Readonly<Record<string, Projection<AppModel, RemoteData<unknown>>>>
+
+/** A `PredictionMismatch` the reducer recorded, and the Message it recorded it for. */
+export interface Mismatch<Message> {
+  /** The history entry it was recorded at, from 0. */
+  readonly index: number
+  readonly message: Message
+  readonly mismatch: PredictionMismatch
+}
+
+/** What a run or a recording met that the domain did not declare it expects (#350). */
+export interface Disagreements<Message> {
+  readonly mismatches: ReadonlyArray<Mismatch<Message>>
+  readonly regressions: ReadonlyArray<ReadStep<Message>>
 }
 
 /** Subscription entries as the trace drives them: Foldkit's shape, with or without keep-alive. */
@@ -259,10 +288,72 @@ const stopped = (at: number): Clock.Clock => {
   }
 }
 
-const run = async <AppModel, Message>(
+/**
+ * Each `PredictionMismatch` the Models of `history` recorded, after `start`,
+ * and each regression of `reads` that `regresses` does not name.
+ */
+const disagreementsOf = <AppModel, Message>(
   Data: RemoteDomain<AppModel, any, any, any, any>,
-  config: TraceConfig<AppModel, Message>,
+  start: AppModel,
+  history: ReadonlyArray<{ readonly message: Message; readonly model: AppModel }>,
+  reads: NamedReads<AppModel>,
+  regresses: Readonly<Record<string, string | undefined>>,
+  surfaces: TraceConfig<AppModel, Message>['active'] | undefined,
+): Disagreements<Message> => {
+  const diagnosticsOf = (model: AppModel): ReadonlyArray<RemoteDiagnostic> =>
+    Data.store.get(model).diagnostics
+  // The reducer appends what it records, and `forget` clears it all: compare by identity.
+  let known = new Set(diagnosticsOf(start))
+  const mismatches = history.flatMap(({ message, model }, index) => {
+    const recorded = diagnosticsOf(model)
+    const found = recorded.flatMap(diagnostic =>
+      diagnostic._tag === 'PredictionMismatch' && !known.has(diagnostic) ? [diagnostic] : [],
+    )
+    known = new Set(recorded)
+    return found.map(mismatch => ({ index, message, mismatch }))
+  })
+  const regressions = Data.timeline(start, history, reads, { surfaces }).filter(
+    step => step.regression && regresses[step.read] === undefined,
+  )
+  return { mismatches, regressions }
+}
+
+/** The Message's tag, for a failure's words. */
+const tagOf = (message: unknown): string =>
+  typeof message === 'object' && message !== null && '_tag' in message
+    ? String(message._tag)
+    : String(message)
+
+/** Throws, naming each disagreement, its Message and what the Model says of it. */
+const failOn = <Message>(where: string, found: Disagreements<Message>): void => {
+  const lines = [
+    ...found.mismatches.map(
+      ({ index, message, mismatch }) =>
+        `after ${tagOf(message)} (entry ${index}): ${mismatch.message}`,
+    ),
+    ...found.regressions.map(
+      ({ read, index, message, from, to, why }) =>
+        `after ${tagOf(message)} (entry ${index}): ${read} went ${from} to ${to}: ${why.message}`,
+    ),
+  ]
+  if (lines.length > 0)
+    throw new Error(
+      `${where}: the client's prediction and what it showed disagree, ${lines.length} time(s). ` +
+        'Fix the prediction or the server; a disagreement on purpose is declared on the domain ' +
+        `(verifyPredictions.expected) or the read (regresses).\n  ${lines.join('\n  ')}`,
+    )
+}
+
+const run = async <AppModel, Message, Reads extends NamedReads<AppModel> = Record<never, never>>(
+  Data: RemoteDomain<AppModel, any, any, any, any>,
+  config: TraceConfig<AppModel, Message, Reads>,
 ): Promise<Trace<AppModel, Message>> => {
+  if (!Data.verifiesPredictions)
+    throw new Error(
+      'Trace.run: this domain does not verify its predictions, so a trace over it cannot see ' +
+        'the server disagree with one. Declare it with ' +
+        '`Remote.make({ verifyPredictions: import.meta.env?.DEV === true })`, which Vitest turns on.',
+    )
   const { scheduler, flush } = makeScheduler()
   const at = config.now ?? 0
   const clock = stopped(at)
@@ -477,6 +568,17 @@ const run = async <AppModel, Message>(
         drain()
       }
     }
+    failOn(
+      'Trace.run',
+      disagreementsOf(
+        Data,
+        config.start,
+        entries,
+        config.reads ?? {},
+        config.regresses ?? {},
+        config.active,
+      ),
+    )
     return {
       start: config.start,
       entries,
@@ -490,6 +592,69 @@ const run = async <AppModel, Message>(
   }
 }
 
+/** What `Trace.record` keeps of an application running on Foldkit's runtime. */
+export interface Recording<AppModel, Message, Return> {
+  /** The application's `update`, keeping each Message and the Model it left: give it to the runtime. */
+  readonly update: (model: AppModel, message: Message) => Return
+  /** Throws as `Trace.run` does, for what the recording has met so far. */
+  readonly check: () => void
+}
+
+/**
+ * Records a running application's `update` (a browser test's `Runtime.embed`)
+ * and checks it as `Trace.run` checks its steps: every `PredictionMismatch`
+ * the reducer recorded, and every regression of `reads` that `regresses`
+ * does not name, fail `check`, which a test calls once its steps are done.
+ */
+const record = <
+  AppModel,
+  Message,
+  Return extends { readonly model: AppModel },
+  Reads extends NamedReads<AppModel> = Record<never, never>,
+>(
+  Data: RemoteDomain<AppModel, any, any, any, any>,
+  update: (model: AppModel, message: Message) => Return,
+  options: {
+    readonly reads?: Reads
+    readonly regresses?: { readonly [Name in keyof NoInfer<Reads>]?: string }
+    /** The active record, for `Data.why` in a regression's words. */
+    readonly active?: TraceConfig<AppModel, Message>['active']
+  } = {},
+): Recording<AppModel, Message, Return> => {
+  if (!Data.verifiesPredictions)
+    throw new Error(
+      'Trace.record: this domain does not verify its predictions, so a recording of it cannot ' +
+        'see the server disagree with one. Declare it with ' +
+        '`Remote.make({ verifyPredictions: import.meta.env?.DEV === true })`, which Vitest turns on.',
+    )
+  let start = Option.none<AppModel>()
+  const history: Array<{ readonly message: Message; readonly model: AppModel }> = []
+  return {
+    update: (model, message) => {
+      if (Option.isNone(start)) start = Option.some(model)
+      const result = update(model, message)
+      history.push({ message, model: result.model })
+      return result
+    },
+    check: () =>
+      Option.match(start, {
+        onNone: () => undefined,
+        onSome: from =>
+          failOn(
+            'Trace.record',
+            disagreementsOf(
+              Data,
+              from,
+              history,
+              options.reads ?? {},
+              options.regresses ?? {},
+              options.active,
+            ),
+          ),
+      }),
+  }
+}
+
 /** The Models of a trace, the start first. */
 const models = <AppModel>(trace: Trace<AppModel, unknown>): ReadonlyArray<AppModel> => [
   trace.start,
@@ -498,6 +663,7 @@ const models = <AppModel>(trace: Trace<AppModel, unknown>): ReadonlyArray<AppMod
 
 export const Trace = {
   run,
+  record,
   /**
    * What the read showed across the trace, the start first: each change of
    * tag, so a one-Message blink reads `['Ready', 'Loading', 'Ready']`.

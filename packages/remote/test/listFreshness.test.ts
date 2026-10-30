@@ -49,7 +49,12 @@ const App = Surface.application({ Model, Message })
  * whether each ages them, so calls under other policies would leak between tests.
  */
 const domain = () =>
-  Remote.make({ model: App.model.remote, entities: [Project], queries: [ByOwner] })
+  Remote.make({
+    model: App.model.remote,
+    entities: [Project],
+    queries: [ByOwner],
+    verifyPredictions: true,
+  })
 const Data = domain()
 
 const projects = Data.query(ByOwner, { ownerId: 'u1' }, { select: Summary, first: 25 })

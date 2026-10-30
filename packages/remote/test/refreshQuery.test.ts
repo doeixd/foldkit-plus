@@ -36,7 +36,12 @@ type Model = typeof Model.Type
 const Message = defineMessageUnion({ ...Remote.messages, Refreshed: {} })
 type Message = typeof Message.Type
 const App = Surface.application({ Model, Message })
-const Data = Remote.make({ model: App.model.remote, entities: [Post], queries: [ByAuthor] })
+const Data = Remote.make({
+  model: App.model.remote,
+  entities: [Post],
+  queries: [ByAuthor],
+  verifyPredictions: true,
+})
 
 const line = Entity.select(Post, { text: true })
 const postsOf = (author: string, first = 2) =>

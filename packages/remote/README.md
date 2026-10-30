@@ -1923,11 +1923,57 @@ to or computed (a declared write's own included), plus those the active
 Surfaces (every `Data.subscriptions` call) read of a row the request patched
 or put in a list. A field the store still holds (an older value, or another
 pending request's) is not reported, nor is a row the answer deleted, or a
-temporary id it replaced. A repeated answer is not checked again. It changes
-nothing but `diagnostics`, so turn it on in development and tests, and assert
-in a test that `Data.inspect(model).diagnostics` is empty. With [the answer's read](#what-an-answer-carries),
+temporary id it replaced. A repeated answer is not checked again. With [the answer's read](#what-an-answer-carries),
 a gap is a row the answer did not name: name it in the answer's `entities`
 (`Remote.patch(Post, id, {})` asks the server for all it shows of it).
+
+**On in development and tests, off in a build.** It changes nothing but
+`diagnostics` and fetches each placed list once more, and no package reads a
+build mode, so the application says it where it declares the domain:
+
+<!-- docs-check
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Entity, Expr, Order } from 'foldkit-entity'
+import { Mutation, Query, Remote } from 'foldkit-remote'
+import { Surface } from 'foldkit-surface'
+const Post = Entity.define('Post', Schema.Struct({ id: Schema.String, body: Schema.String, createdAt: Schema.Number }))
+const Feed = Query.define('Feed', {}, () => Query.from(Post).pipe(Query.orderBy(Order.desc(Post.fields.createdAt))))
+const PostChirp = Mutation.make('PostChirp', { Input: { body: Schema.String }, Output: {} })
+const App = Surface.application({
+  Model: Schema.Struct({ remote: Remote.Model }),
+  Message: defineMessageUnion({ ...Remote.messages }),
+})
+void Expr
+-->
+
+```ts
+const Data = Remote.make({
+  model: App.model.remote,
+  entities: [Post],
+  queries: [Feed],
+  mutations: [PostChirp],
+  verifyPredictions: {
+    // Vite's dev server and Vitest set DEV; a production build does not, and tsx has no import.meta.env.
+    on: import.meta.env?.DEV === true,
+    // What the server is meant to answer otherwise, each with why: recorded as nothing.
+    expected: {
+      mutations: { PostChirp: { Value: 'the server stamps createdAt with its own clock' } },
+      queries: { Feed: { Placement: 'the server ranks the feed' } },
+    },
+  },
+})
+```
+
+`verifyPredictions: import.meta.env?.DEV === true` is the plain form. A
+`PredictionMismatch` is reported at error level, so the default reporter
+writes it to `console.error`, which a browser test and
+`Behaviors.consoleErrors` see. `expected` names the domain's own mutations
+(`Value`, `Gap`) and queries (`Placement`): another name is a type error, a
+blank reason is refused where the domain is made, and the silencing is in the
+declaration, where a review reads it. A test does not assert on
+`diagnostics` by hand: [`Trace.run`](#testing-what-a-reader-sees-trace) fails
+on any mismatch.
 
 ### Showing a change nobody has made
 
@@ -2711,6 +2757,16 @@ expect(Trace.tags(trace, list)).toEqual(['Ready', 'Refreshing', 'Ready'])
   what is held. A request abandoned by a restart is no longer held. A
   Subscription or Command that dies throws. An `update` that does not take
   Remote's Messages is a type error.
+- **A disagreement fails the run.** `Trace.run` requires a domain that
+  [verifies its predictions](#checking-an-answer-against-what-was-shown)
+  (Vitest sets `DEV`), and throws once its steps have run if any Model
+  recorded a `PredictionMismatch` the domain does not declare `expected`.
+  Name reads in `reads` and a regression of one fails it too, unless
+  `regresses: { list: 'why' }` says it is on purpose. The error names the
+  Message, and the mismatch's words or the read's `Data.why`.
+- **`Trace.record(Data, update, { reads })`** checks a running application
+  the same way: give its `update` to `Runtime.embed` in a browser test, and
+  call `check()` once the steps are done.
 - **What it leaves out.** Its clock stands still, at `now` (0 unless given):
   every Command it runs and every answer it asks for reads that time
   (`Remote.now`, an answer's date), and a retention `grace`, an age-out and a
