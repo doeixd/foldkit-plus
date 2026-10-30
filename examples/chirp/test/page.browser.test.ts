@@ -68,7 +68,7 @@ const mount = async (
             ...client,
             mutate: request => Effect.andThen(answering, client.mutate(request)),
           })),
-        ).pipe(Layer.provide(sandboxRemote(person, true, false))),
+        ).pipe(Layer.provide(sandboxRemote(person, { fresh: true, offline: false, latency: 0 }))),
         KeyValueStore.layerMemory,
       ),
     }),

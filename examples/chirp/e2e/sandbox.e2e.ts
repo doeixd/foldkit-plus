@@ -1,14 +1,17 @@
 /**
  * The demo end to end: the Vite dev server, so the server runs in a
  * SharedWorker on SQLite compiled to WebAssembly, and Chromium as two people.
- * A chirp posted shows at once and survives a reload; Edit shows only where
- * the server says the reader may, and saves in place; a like is kept; a
- * chirp its author deletes is gone, after a reload too.
+ * A chirp posted shows at once, holds still until the server answers it, and
+ * survives a reload; Edit shows only where the server says the reader may,
+ * and saves in place; a like is kept; a chirp its author deletes is gone,
+ * after a reload too.
  */
+import { Behaviors } from 'foldkit-plus/testing/playwright'
 import { fileURLToPath } from 'node:url'
 import { type Browser, chromium, type Page } from 'playwright'
 import { createServer, type ViteDevServer } from 'vite'
 import { afterAll, beforeAll, expect, test } from 'vitest'
+import { mutation } from '../../../scripts/mutation-plugin.mjs'
 
 let vite: ViteDevServer
 let browser: Browser
@@ -20,6 +23,8 @@ beforeAll(async () => {
     configFile: fileURLToPath(new URL('../vite.config.ts', import.meta.url)),
     logLevel: 'error',
     server: { port: 0 },
+    // `pnpm mutate`'s edits reach the page this server builds.
+    plugins: [mutation()],
   })
   await vite.listen()
   url = vite.resolvedUrls!.local[0]!
@@ -107,6 +112,34 @@ test('posting, editing what you may, liking and deleting, kept by the server in 
   expect(await post(ada, 'Shipping Chirp today. Edited.').count()).toBe(0)
 
   expect(errors).toEqual([])
+  await context.close()
+})
+
+test('a chirp posted holds still where it is drawn until the server answers it', async () => {
+  const context = await browser.newContext()
+  const you = await context.newPage()
+  const errors = Behaviors.consoleErrors(you)
+  // Each write waits before it is sent, as over a slow network, so the chirp
+  // is drawn well before its answer lands.
+  await open(you, '?reset&latency=1500')
+  // A write answered is recorded as done in the outbox the page keeps.
+  const answered = () =>
+    you.evaluate(
+      () =>
+        (
+          JSON.parse(localStorage.getItem('chirp-outbox:you') ?? '{"done":[]}') as {
+            readonly done: ReadonlyArray<string>
+          }
+        ).done.length,
+    )
+  const before = await answered()
+  await you.getByLabel("What's happening?").fill('Steady as she goes.')
+  await Behaviors.optimistic(you, {
+    act: () => you.getByRole('button', { name: 'Chirp', exact: true }).click(),
+    shows: post(you, 'Steady as she goes.'),
+    writes: { answered: () => expect.poll(answered, { timeout: 20_000 }).toBeGreaterThan(before) },
+  })
+  expect(errors()).toEqual([])
   await context.close()
 })
 

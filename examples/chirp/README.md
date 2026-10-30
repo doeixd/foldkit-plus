@@ -48,7 +48,9 @@ pnpm --filter foldkit-example-chirp dev
 Open the address it prints. Add `?as=ada` to be Ada, the admin, or
 `?as=grace`, `?as=linus`; `?reset` starts the sandbox again from the seed;
 `?offline` makes the sandbox refuse every write as a dropped connection
-would, to watch a chirp wait in the outbox.
+would, to watch a chirp wait in the outbox; `?latency=1500` holds each write
+that long before sending it, as a slow network would, to watch a chirp drawn
+before its answer (the end-to-end test checks that it holds still meanwhile).
 `pnpm --filter foldkit-example-chirp build:sandbox` builds the published demo
 into `dist/`.
 

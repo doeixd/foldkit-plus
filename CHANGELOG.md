@@ -119,6 +119,18 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`Behaviors.optimistic` asserts the prediction holds still**
+  (`foldkit-plus/testing/playwright`, #349). From the moment `shows` shows
+  until the write settles, each element it resolves to must stay the same
+  node, in the same place in its parent, within 1px of where it was drawn,
+  and visible; one drawn again, pushed by a line said only while the write is
+  pending (Chirp's post), or hidden for a frame fails with what moved and
+  when. Settled waits for evidence: no Remote request of the page in flight,
+  then three quiet frames. An error the page logs meanwhile fails it too.
+  `stays` watches a `Locator` instead, or `'shown'` keeps only the old check;
+  `writes: { answered }` covers writes that reach the server past the
+  network, which `examples/chirp`'s end-to-end test (`?latency=1500`) uses.
+
 - **`guard.row` refuses a predicate over another Entity where it is
   written** (`foldkit-guard`, #363). A rule reads its own Entity's fields,
   its relations' paths, `Expr.is` of it, the viewer and paths from it, and

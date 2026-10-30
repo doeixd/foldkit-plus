@@ -128,7 +128,7 @@ subpath that needs one it cannot find says which.
 | Subpath | Needs | For |
 | --- | --- | --- |
 | `foldkit-plus/testing/workers` | `wrangler`, `esbuild` | `Stack.start`: the Worker on a local workerd, configured by its own `wrangler.toml`, with fresh migrated D1 per stack; `Stack.writeBundle`: the same bundle where `main` says, for `wrangler deploy` |
-| `foldkit-plus/testing/playwright` | `playwright` (types) | `Behaviors`: a write shows while it is held at the network and after its answer (`optimistic`), a text never shows during some steps, even for one frame (`neverShows`), and the page's errors (`consoleErrors`) |
+| `foldkit-plus/testing/playwright` | `playwright` (types) | `Behaviors`: a write shows while it is held at the network, holds still until its answer is drawn, and shows after (`optimistic`), a text never shows during some steps, even for one frame (`neverShows`), and the page's errors (`consoleErrors`) |
 
 <!-- docs-check
 interface Env { readonly ORIGIN: string }
@@ -185,7 +185,20 @@ await Behaviors.neverShows(page, {
 expect(errors()).toEqual([])
 ```
 
-These check the drawn page over the real network. `consoleErrors` lists
+These check the drawn page over the real network. `optimistic` holds every
+Remote mutation at the network and requires `shows` within `within` of the
+action; from then until the write settles, each element `shows` resolves to
+must stay the same node, in the same place in its parent, within 1px of where
+it was drawn, and visible. A prediction that is drawn again, pushed down by a
+line said only while the write is pending, or hidden for a frame fails with
+what moved and when. Settled is evidence: no Remote request of the page in
+flight (an answer can ask for more), then three quiet frames. `stays` names
+what must hold still instead (a `Locator`: the list around a row its answer
+deliberately draws again), or `'shown'` for only "shows after". Writes that
+reach the server another way (a port to a SharedWorker) pass `writes: {
+answered }`, and the page holds them itself; `examples/chirp`'s end-to-end
+test opens its sandbox with `?latency=1500` and reads its outbox. An error the
+page logs while a write settles fails it too. `consoleErrors` lists
 `console.error` and uncaught exceptions, which includes every `error`
 diagnostic the default `Diagnostics` reporter logs. To find which Message makes
 a read blink, `foldkit-plus/remote/testing`'s `Trace` runs `update` and Remote's

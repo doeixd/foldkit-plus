@@ -8,29 +8,35 @@ import { port } from 'foldkit-remote/port'
 import { ChirpHost, RemoteOpening } from './opening.js'
 import type { Person } from './seed.js'
 
-/**
- * Remote's client as `person`. With `fresh`, the first conversation asks the
- * host to start the sandbox again; `port` opens another if one is lost, and
- * that one asks for no reset. `offline`, every write fails as one nothing
- * answered would, so the outbox keeps it.
- */
-export const sandboxRemote = (
-  person: Person,
-  fresh: boolean,
-  offline: boolean,
-): Layer.Layer<RemoteClient> => {
-  const remote = connected(person, fresh)
-  return offline
-    ? Layer.effect(
-        RemoteClient,
-        Effect.map(Effect.service(RemoteClient), client => ({
-          ...client,
-          mutate: () =>
-            Effect.fail(new RemoteUnreachable({ message: 'The sandbox is offline (?offline).' })),
-        })),
-      ).pipe(Layer.provide(remote))
-    : remote
+/** How the page reaches the sandbox, as its address asks. */
+export interface SandboxOptions {
+  /** The first conversation asks the host to start the sandbox again (`?reset`). */
+  readonly fresh: boolean
+  /** Every write fails as one nothing answered would, so the outbox keeps it (`?offline`). */
+  readonly offline: boolean
+  /**
+   * How long each write waits before it is sent, in milliseconds
+   * (`?latency=1500`): what a slow network shows, and what lets a test see a
+   * write drawn before its answer.
+   */
+  readonly latency: number
 }
+
+/**
+ * Remote's client as `person`. `port` opens another conversation if one is
+ * lost, and that one asks for no reset.
+ */
+export const sandboxRemote = (person: Person, options: SandboxOptions): Layer.Layer<RemoteClient> =>
+  Layer.effect(
+    RemoteClient,
+    Effect.map(Effect.service(RemoteClient), client => ({
+      ...client,
+      mutate: request =>
+        options.offline
+          ? Effect.fail(new RemoteUnreachable({ message: 'The sandbox is offline (?offline).' }))
+          : Effect.andThen(Effect.sleep(options.latency), client.mutate(request)),
+    })),
+  ).pipe(Layer.provide(connected(person, options.fresh)))
 
 const connected = (person: Person, fresh: boolean): Layer.Layer<RemoteClient> => {
   const host = ChirpHost.connect({

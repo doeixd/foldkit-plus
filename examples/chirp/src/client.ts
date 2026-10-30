@@ -38,6 +38,9 @@ const startsAfresh = (): boolean => {
  */
 const offline = params.has('offline')
 
+/** How long each write waits before it is sent (`?latency=1500`, in milliseconds): none unless asked. */
+const latency = Math.max(0, Number(params.get('latency') ?? 0) || 0)
+
 const container = document.getElementById('app')
 if (container === null) throw new Error('#app is missing from index.html')
 
@@ -51,7 +54,7 @@ Runtime.run(
     subscriptions,
     container,
     resources: Layer.merge(
-      sandboxRemote(person, startsAfresh(), offline),
+      sandboxRemote(person, { fresh: startsAfresh(), offline, latency }),
       KeyValueStore.layerStorage(() => localStorage),
     ),
     routing: {

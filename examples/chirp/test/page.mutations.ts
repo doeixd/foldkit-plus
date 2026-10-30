@@ -1,5 +1,11 @@
 /**
  * The page's layout, broken in turn: `pnpm mutate examples/chirp/test/page.mutations.ts`.
+ *
+ * The last one also fails `e2e/sandbox.e2e.ts`'s "holds still" through
+ * `Behaviors.optimistic`, which `pnpm mutate` cannot run (the root config
+ * collects no e2e file): run `pnpm e2e examples/chirp -t "holds still"` with
+ * `FOLDKIT_MUTATION` and `FOLDKIT_MUTATION_MARKER` set to that edit, as the
+ * runner would, and the post reads "moved 27px up".
  */
 const tests = ['examples/chirp/test/page.browser.test.ts']
 const edit = (name: string, find: string, replace: string) => ({
