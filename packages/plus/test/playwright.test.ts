@@ -165,6 +165,19 @@ describe('optimistic', () => {
     await page.close()
   })
 
+  it('stops watching the page when a check fails before reading the watch', async () => {
+    await open('?write=local')
+    await expect(Behaviors.optimistic(page, { act: add, shows: row(), ...timing })).rejects.toThrow(
+      /sent no Remote mutation/,
+    )
+    expect(
+      await page.evaluate(() =>
+        Object.keys(window).filter(key => key.startsWith('__foldkitStill')),
+      ),
+    ).toEqual([])
+    await page.close()
+  })
+
   it('refuses what stays when it matches nothing', async () => {
     await open('?write=optimistic')
     await expect(

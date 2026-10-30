@@ -167,6 +167,7 @@ const watchStill = (elements: ReadonlyArray<Element>, { key }: StillWatch): numb
   }
   sample()
   Reflect.set(window, key, () => {
+    Reflect.deleteProperty(window, key)
     observer.disconnect()
     cancelAnimationFrame(frame)
     return watched.map(each => ({
@@ -199,6 +200,11 @@ const stopStill = (now: ReadonlyArray<Element>, { key }: StillWatch): ReadonlyAr
       ...(replaced ? [`${each.name} was replaced by a new element`] : []),
     ]
   })
+}
+
+const stopIfWatching = ({ key }: StillWatch) => {
+  const stop: unknown = Reflect.get(window, key)
+  if (typeof stop === 'function') stop()
 }
 
 /**
@@ -304,6 +310,8 @@ const optimistic = async (page: Page, options: OptimisticOptions): Promise<void>
         `optimistic: the page logged an error while the write settled:\n  ${errors.join('\n  ')}`,
       )
   } finally {
+    // A check that failed before reading the watch leaves it sampling every frame.
+    if (!page.isClosed()) await page.evaluate(stopIfWatching, watch)
     page.off('request', sent)
     page.off('requestfinished', done)
     page.off('requestfailed', done)

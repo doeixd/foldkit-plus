@@ -108,4 +108,9 @@ export default [
     "  page.on('pageerror', thrown)\n",
     '',
   ),
+  edit(
+    'a watch left by a failed check keeps sampling',
+    'if (!page.isClosed()) await page.evaluate(stopIfWatching, watch)',
+    '',
+  ),
 ]
