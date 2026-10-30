@@ -315,7 +315,12 @@ case 'SignedOut': {
   needs a **`foldkit-entity`** Entity (`Entity.define`), since that is what has
   addressable `fields`; this package's `Entity.make` has none to point at.
   `Query.make` stays for queries whose meaning lives on the server, and such a
-  descriptor has no `body`. The body is built **once**: `input.x` is a
+  descriptor has no `body`; its list is refetched after any change to its
+  Entity, so declare a body for any list the client should place a write in
+  (a body can follow relations, so a follow feed is one). A filter a body
+  cannot state goes in remote-drizzle's `where`, conjoined with the body; the
+  body must then admit no row the client makes or moves that the `where`
+  refuses, or that row shows in the list until it is read again. The body is built **once**: `input.x` is a
   placeholder, so never `input.x ? a : b`. `Input` must be fields or a plain
   `Schema.Struct` — a codec exposing no keys throws at declaration rather than
   handing the body an empty object.

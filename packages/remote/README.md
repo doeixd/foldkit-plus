@@ -1110,6 +1110,23 @@ can compile that body rather than be told the same thing again in its own
 dialect; one that would rather answer the query its own way still can, and a
 descriptor from `Query.make` has no body at all.
 
+**Which to declare.** A list the client should keep right after a write needs
+a body: the body is what lets the client place a new or changed row in the
+pages it holds instead of fetching the list again. A `Query.make` list is
+invalidated by any change to its Entity, so it is fetched again after every
+write that touches one. A body can follow relations
+(`Expr.path`, `Expr.exists`, a path from `Expr.viewer`), so a feed of the
+people you follow is a body too. Keep `Query.make` for a list whose meaning
+only the server can state, such as a search ranking.
+
+When part of a filter is something a body cannot say, put what it can say in
+the body and the rest in the server's own `where`
+(`foldkit-remote-drizzle`'s `query(descriptor, { entity, where })`), which is
+conjoined with the body. The client judges rows by the body alone, so write
+the body to admit no row the client makes or moves that the server's `where`
+refuses: such a row is placed in the list and stays there until the list is
+read again.
+
 The body is built **once**, when the query is declared. Inside it `input.ownerId`
 is a placeholder for the value the query will be given, not the value — there is
 nothing there yet to branch on. A condition that depends on what was passed is a
