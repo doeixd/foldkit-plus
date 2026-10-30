@@ -59,3 +59,24 @@ changed.
 Foldkit's development warning that the server DOM did not match stays after
 this, so the styles were not its cause:
 [#375](https://github.com/doeixd/foldkit-plus/issues/375).
+
+## `KeepTyped` on an element `h` builds (#371)
+
+The resumable builder marks bindings in its own element functions (`rh.input`),
+from the attributes it is given. `rh.KeepTyped()` handed to `h.input` reached
+an element nothing marked: the server served `data-foldkit-plus-keep=""` with
+no binding marker, and every browser contained the page.
+
+Making the hole forms mark whatever element they land on is not possible: an
+attribute cannot see its siblings, and the marker names the ordinal of the
+element's own `OnInput` binding. So the server refuses the page instead, as it
+refuses `KeepTyped` on any field it cannot replay (`UnkeepableField`). During
+the first server render `KeepTyped` writes `?` as its value; `rh`'s elements
+take the attribute out and write the ordinal, so a `?` left in the markup is
+on an element `h` built, and the refusal names it from the markup
+(`input#search`). Foldkit escapes `<` in text and attribute values, so the
+last `<` before the marker opens that element.
+
+A hole form (`rh.OnInput(Member)`) on an element `h` builds is not refused:
+it is a plain closure to the page, unmarked, so the page boots on that event
+as on any other `h` handler.

@@ -222,7 +222,8 @@ served page stays in view while the fresh one draws hidden, and is swapped once 
   field, replays a changed value as its `OnInput` (else `OnChange`) Message
   ahead of anything else, and puts back the value and caret its first render
   reset. No inline script, so no CSP nonce. Only an `input` that takes text, a
-  `textarea` or a `select` with a hole-form binding: anything else is
+  `textarea` or a `select` that `rh` builds (`rh.input`, not `h.input`: only
+  `rh`'s elements are marked) with a hole-form binding: anything else is
   `UnkeepableField` on the server. An IME composition in progress at boot
   ends.
 - `SSR.generate` returns pages as a tuple of `paths`: `const [home, about]`.

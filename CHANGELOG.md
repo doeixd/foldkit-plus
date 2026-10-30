@@ -39,8 +39,10 @@ version changed; `pnpm` skips versions already in the registry.
   every character, its caret and its focus. No inline script, so a page's
   Content Security Policy needs no nonce. Works on any `start`, and inside a
   lazy bundle once its code loads. A text `input`, `textarea` or `select`
-  with a hole-form `OnInput`/`OnChange` only; anything else is refused on the
-  server (`ResumeUnsafe`, `UnkeepableField`). `KEEP_ATTRIBUTE` names the
+  that `rh` builds, with a hole-form `OnInput`/`OnChange`, only; anything else
+  is refused on the server (`ResumeUnsafe`, `UnkeepableField`), naming the
+  element, `KeepTyped` on an element `h.input` built included (#371), which
+  the browser contained. `KEEP_ATTRIBUTE` names the
   marker. Used in `examples/foldkit/ssr`'s note field.
 
 - **A page's status from its Model** (`foldkit-ssr`, #364): `SSR.entry`'s

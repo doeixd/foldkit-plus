@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest'
 import { Resume, SSR, type ResumableBuilder } from 'foldkit-ssr'
 import { config, Message, plan, type Model } from './keepTypedFixture.js'
 
-const rendering = (field: (rh: ResumableBuilder<Message>) => unknown) =>
+const rendering = (field: (rh: ResumableBuilder<Message>, h: HtmlBuilder<Message>) => unknown) =>
   Effect.runPromise(
     Effect.flip(
       SSR.render(
@@ -16,7 +16,7 @@ const rendering = (field: (rh: ResumableBuilder<Message>) => unknown) =>
           ...config,
           view: (_model: Model, h: HtmlBuilder<Message>) => {
             const rh = Resume.builder(h)
-            return { title: 'Search', body: rh.main([], [field(rh) as never]) }
+            return { title: 'Search', body: rh.main([], [field(rh, h) as never]) }
           },
         },
         plan(),
@@ -58,6 +58,19 @@ describe('KeepTyped is refused', () => {
       field: (rh: ResumableBuilder<Message>) =>
         rh.div([rh.Id('q'), rh.OnInput(Message.ChangedQuery), rh.KeepTyped()], []),
       names: 'div#q, which holds no typed value',
+    },
+    // #371: nothing marks a field `h` builds, so every browser would refuse the page.
+    {
+      on: 'a field h builds, beside a hole-form OnInput',
+      field: (rh: ResumableBuilder<Message>, h: HtmlBuilder<Message>) =>
+        h.input([h.Id('q'), rh.OnInput(Message.ChangedQuery), rh.KeepTyped()]),
+      names: 'input#q, which Resume.builder did not build',
+    },
+    {
+      on: 'a field h builds, alone',
+      field: (rh: ResumableBuilder<Message>, h: HtmlBuilder<Message>) =>
+        h.textarea([h.Id('q'), rh.KeepTyped()]),
+      names: 'textarea#q, which Resume.builder did not build',
     },
   ])('on $on', async ({ field, names }) => {
     const error = await rendering(field)

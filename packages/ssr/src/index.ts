@@ -36,7 +36,7 @@ import type {
 import { withContext, type Binding, type Region, type UnnamedHandler } from './context.js'
 import { handlerUnnamed, pageFailed, reportingTo } from './diagnostics.js'
 import { type EncodedBinding } from './listen.js'
-import { FALLBACK_DEPTH_FIELD, FALLBACK_FIELD } from './resumable.js'
+import { FALLBACK_DEPTH_FIELD, FALLBACK_FIELD, KEEP_ATTRIBUTE, UNPLACED_KEEP } from './resumable.js'
 import { requestContext } from './requestContext.js'
 import { SSR as Client } from './client.js'
 import {
@@ -512,6 +512,27 @@ const unlistedBindings = <Model, Fields extends Schema.Struct.Fields>(
     )
 }
 
+/**
+ * A line for each `KeepTyped` the render drew on an element the resumable
+ * builder did not build, whose marker still holds its server-render value:
+ * nothing marks which binding replays such a field, so every browser would
+ * refuse the page. Foldkit escapes `<` in text and attribute values, so the
+ * last `<` before the marker opens its element.
+ */
+const unplacedKeeps = (html: string): ReadonlyArray<string> => {
+  const marker = `${KEEP_ATTRIBUTE}="${UNPLACED_KEEP}"`
+  const found: Array<string> = []
+  for (let at = html.indexOf(marker); at !== -1; at = html.indexOf(marker, at + 1)) {
+    const open = html.lastIndexOf('<', at)
+    const tag = /^<([A-Za-z][A-Za-z0-9._-]*)/.exec(html.slice(open))?.[1] ?? 'an element'
+    const id = /\sid="([^"]*)"/.exec(html.slice(open, html.indexOf('>', at)))?.[1]
+    found.push(
+      `KeepTyped on ${id === undefined ? tag : `${tag}#${id}`}, which Resume.builder did not build, so nothing marks the binding its typing replays as: build the element with the resumable builder (rh.input), not h`,
+    )
+  }
+  return found
+}
+
 /** Loads every lazy bundle's bodies, so the view renders whole. */
 const loadLazy = (config: { readonly lazy?: ReadonlyArray<Loadable> | undefined }) =>
   Effect.promise(() => Promise.all((config.lazy ?? []).map(bundle => bundle.load())))
@@ -701,6 +722,7 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
       },
     )
     const full = yield* renderToString(capturing as never, options as never)
+    unkeepable.push(...unplacedKeeps(full.html))
     if (duplicates.size > 0) {
       return yield* new ResumeUnsafe({
         reason: 'DuplicateStaticRegion',

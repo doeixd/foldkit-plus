@@ -555,7 +555,8 @@ Results following once the runtime boots. Departures:
   Model, now set only by `update`.
 - **`rh` must build the element.** An `h.input` given `rh.OnInput` and
   `rh.KeepTyped()` rendered an unbound marker, and the browser contained
-  the page ([#371](https://github.com/doeixd/foldkit-plus/issues/371)).
+  the page ([#371](https://github.com/doeixd/foldkit-plus/issues/371)); the
+  server now refuses it (`UnkeepableField`), naming the element.
 - **Nothing is prerendered.** The plugin's prerender renders `/` through
   `SSR.entry`, which records the query, and the static host serves that file
   for `/?q=…`, where it was refused

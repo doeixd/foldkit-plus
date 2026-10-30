@@ -799,7 +799,10 @@ The caret stays where it was, and focus never moves. A field inside a lazy
 bundle is replayed once the bundle's code has loaded.
 
 Only a field the page can replay may be marked: an `input` that takes text, a
-`textarea` or a `select`, with `OnInput` or `OnChange` given a Message member.
+`textarea` or a `select`, built by `rh` (`rh.input`, not `h.input`), with
+`OnInput` or `OnChange` given a Message member. The resumable builder marks
+the bindings of the elements it builds; on an element `h` builds, the hole
+forms are plain closures to the page and nothing names the Message to replay.
 Anything else is refused on the server (`UnkeepableField`), naming the
 element. What is not kept: an unmarked field (re-asserted to the served value,
 as before); a key press or click before the script (the browser's own, so a
@@ -961,7 +964,7 @@ of:
 | `UnencodableBinding`       | The plan has no Message Schema, or a binding's Message does not encode through it | Make the plan from the application; build the Message with its constructor |
 | `EagerStartRequired`       | A deferred plan would start a Subscription or Managed Resource late           | Declare it in `deferrable`, or start `'now'`                         |
 | `VoidRootWithStyles`       | `styles` were given for a view whose root is void and holds nothing           | Put the styles in the template's head with `SSR.generate`, or return an element root |
-| `UnkeepableField`          | `KeepTyped` on an element that holds no typed value, or with no `OnInput`/`OnChange` given a Message member | Mark only a text `input`, `textarea` or `select`, and give its binding the Message's member |
+| `UnkeepableField`          | `KeepTyped` on an element that holds no typed value, one `h` built rather than `rh`, or with no `OnInput`/`OnChange` given a Message member | Mark only a text `input`, `textarea` or `select` that `rh` builds, and give its binding the Message's member |
 | `UngeneratablePath`        | `SSR.generate` was given a path no file can be served at                      | Leave out the query and fragment; keep paths to distinct files      |
 
 In the browser, `SSR.hydrate` checks in Foldkit's order: the build id first,

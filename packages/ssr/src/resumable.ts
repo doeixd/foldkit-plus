@@ -137,6 +137,9 @@ export const FALLBACK_DEPTH_FIELD = 'foldkit-plus-depth'
  */
 export const KEEP_ATTRIBUTE = 'data-foldkit-plus-keep'
 
+/** The value of a `KeepTyped` marker no resumable element took, while the server renders. */
+export const UNPLACED_KEEP = '?'
+
 /**
  * The `input` types whose value is not something typed, so `KeepTyped` has
  * nothing to keep on them.
@@ -561,8 +564,11 @@ export const builder = <Builder extends AnyBuilder>(
     } else wrapped[name] = value
   }
   wrapped.KeepTyped = () => {
-    const made = attribute(KEEP_ATTRIBUTE, '') as object
-    keeps.add(made)
+    // Written so during the server's first render: an element this builder
+    // builds takes it out, so one left in the markup is on an element `h`
+    // built, which nothing marks, and is refused there, naming the element.
+    const made = attribute(KEEP_ATTRIBUTE, current()?.mode === 'collect' ? UNPLACED_KEEP : '')
+    keeps.add(made as object)
     return made
   }
   builders.set(h, wrapped)
