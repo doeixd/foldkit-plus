@@ -28,14 +28,49 @@ const View = FormView.define(PostForm)
 
 interface Paused {
   readonly requestId: string
+  readonly request: { readonly url: string }
 }
+const probe = '/_media/upload?probe'
+const isProbe = (url: string) => new URL(url).search === '?probe'
+
+// A request held before `next` asks waits in `paused`; a `next` asking first
+// waits in `waiting` until the request arrives, however late a loaded run makes
+// it, bounded only by the test's own timeout.
 let paused: Array<Paused> = []
+let waiting: Array<(event: Paused) => void> = []
 const hold = (event: Paused) => {
-  paused.push(event)
+  if (isProbe(event.request.url)) return void answer(event.requestId, 204, '')
+  const waiter = waiting.shift()
+  if (waiter) waiter(event)
+  else paused.push(event)
 }
-const next = async (): Promise<string> => {
-  await vi.waitFor(() => expect(paused.length).toBeGreaterThan(0))
-  return paused.shift()!.requestId
+/**
+ * The URL of the next request to the route that is answered. A held request is
+ * answered only by the test, so armed before a send, it ends the wait for one
+ * that went to the dev server unheld.
+ */
+const answered = (): Promise<string> =>
+  new Promise(resolve => {
+    const observer = new PerformanceObserver(list => {
+      const entry = list
+        .getEntries()
+        .find(entry => entry.name.includes('/_media/upload') && !isProbe(entry.name))
+      if (!entry) return
+      observer.disconnect()
+      resolve(entry.name)
+    })
+    observer.observe({ type: 'resource' })
+  })
+/** The next held request's id, or a failure naming the request answered unheld. */
+const next = (ended: Promise<string>): Promise<string> => {
+  const event = paused.shift()
+  if (event) return Promise.resolve(event.requestId)
+  return Promise.race([
+    new Promise<Paused>(resolve => waiting.push(resolve)).then(event => event.requestId),
+    ended.then(url => {
+      throw new Error(`${url} was answered before it was held`)
+    }),
+  ])
 }
 const answer = (requestId: string, status: number, body: string) =>
   cdp().send('Fetch.fulfillRequest', {
@@ -47,8 +82,13 @@ const answer = (requestId: string, status: number, body: string) =>
 
 beforeEach(async () => {
   paused = []
+  waiting = []
   cdp().on('Fetch.requestPaused', hold)
   await cdp().send('Fetch.enable', { patterns: [{ urlPattern: '*/_media/upload*' }] })
+  // Chromium holds the page's requests some time after `Fetch.enable` answers,
+  // and one sent before then goes to the dev server unheld (Vitest probes its own
+  // interception for the same reason), so ask until a probe is held.
+  while ((await fetch(probe, { method: 'POST' })).status !== 204);
 })
 afterEach(async () => {
   cdp().off('Fetch.requestPaused', hold)
@@ -94,8 +134,9 @@ const press = (words: string) =>
 it('shows the send on its way, then the kept image as the key’s value', async () => {
   const handle = await mount()
   try {
+    const ended = answered()
     await choose()
-    const requestId = await next()
+    const requestId = await next(ended)
     await vi.waitFor(() => expect(status()).toBe('Sending cover.png'))
     // The progress is named by what the live region says, and the field's label
     // names the group the file input is drawn in.
@@ -124,8 +165,9 @@ it('cancels a send by aborting its request, and leaves the key empty', async () 
   })
   const handle = await mount()
   try {
+    const ended = answered()
     await choose()
-    const requestId = await next()
+    const requestId = await next(ended)
     await vi.waitFor(() => expect(status()).toMatch(/^Sending/))
     press('Cancel')
     await vi.waitFor(() => expect(states).toEqual([XMLHttpRequest.OPENED]))
@@ -143,12 +185,14 @@ it('cancels a send by aborting its request, and leaves the key empty', async () 
 it('says why a send was refused, and sends the same file again on retry', async () => {
   const handle = await mount()
   try {
+    const first = answered()
     await choose()
-    await answer(await next(), 413, '{"error":"UploadTooLarge"}')
+    await answer(await next(first), 413, '{"error":"UploadTooLarge"}')
     await vi.waitFor(() => expect(status()).toBe('cover.png is too large.'))
     expect(PostForm.partial(latest)).toEqual({})
+    const again = answered()
     press('Try again')
-    await answer(await next(), 201, JSON.stringify(facts))
+    await answer(await next(again), 201, JSON.stringify(facts))
     await vi.waitFor(() => expect(status()).toBe('An image of 640 × 480'))
   } finally {
     handle.dispose()
