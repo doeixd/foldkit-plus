@@ -6,7 +6,7 @@
  * else; `Theme.variables` writes them, every knob it leaves unset holding its
  * default or the expression it follows (`docs/theme-knobs.md`).
  */
-import { Option, Schema } from 'effect'
+import { Cause, Exit, Option, Schema } from 'effect'
 import { DiagnosticError } from '../diagnostics.js'
 import { pipeSelf, type Pipeable } from '../pipe.js'
 import { own } from '../record.js'
@@ -598,13 +598,39 @@ const theme = <S extends KnobSet>(
   },
 })
 
+/** The call a refusal names: a theme is usually built at module load, where a stack names only the module. */
+type Caller = 'Theme.make' | 'Theme.set' | 'Knobs.withValue'
+
+const unknownKnob = (caller: Caller, knob: string): DiagnosticError =>
+  new DiagnosticError({
+    source: 'theme',
+    code: 'theme:unknown-knob',
+    severity: 'error',
+    message: `${caller}: no knob "${knob}".`,
+    details: { knob },
+  })
+
+/** Throws, naming the knob and the call, when `knob` refuses `value`. */
+const checkValue = (caller: Caller, path: string, knob: Knob.Knob<unknown>, value: unknown) => {
+  const decoded = Schema.decodeUnknownExit(knob.schema)(value)
+  if (Exit.isSuccess(decoded)) return
+  throw new DiagnosticError({
+    source: 'theme',
+    code: 'theme:knob-value',
+    severity: 'error',
+    message: `${caller}: ${path} refuses its value: ${Cause.pretty(decoded.cause)}`,
+    details: { knob: path, value },
+  })
+}
+
 /** Each value checked against its knob: an unknown group or knob, or a value out of range, throws. */
-const checked = <S extends KnobSet>(knobs: S, values: Values<S>): Values<S> => {
+const checked = <S extends KnobSet>(caller: Caller, knobs: S, values: Values<S>): Values<S> => {
   for (const [group, names] of Object.entries(values)) {
-    if (!Object.hasOwn(knobs, group)) throw new Error(`Theme: no knob group "${group}".`)
+    if (!Object.hasOwn(knobs, group)) throw unknownKnob(caller, group)
     for (const [name, value] of Object.entries(names ?? {})) {
-      if (!Object.hasOwn(knobs[group]!, name)) throw new Error(`Theme: no knob "${group}.${name}".`)
-      Schema.decodeUnknownSync(knobs[group]![name]!.schema)(value)
+      const path = `${group}.${name}`
+      if (!Object.hasOwn(knobs[group]!, name)) throw unknownKnob(caller, path)
+      checkValue(caller, path, knobs[group]![name]!, value)
     }
   }
   return values
@@ -661,7 +687,7 @@ export function make(values: Values<Standard>): KnobTheme<Standard>
 export function make<S extends KnobSet>(knobs: S, values: Values<NoInfer<S>>): KnobTheme<S>
 export function make(...args: [Values<Standard>] | [KnobSet, Values<KnobSet>]): KnobTheme<KnobSet> {
   const [knobs, values] = args.length === 1 ? [standard, args[0]] : args
-  const checkedValues = checked(knobs, values)
+  const checkedValues = checked('Theme.make', knobs, values)
   validate(knobs, checkedValues)
   return theme(knobs, checkedValues, Option.none(), Option.none())
 }
@@ -671,7 +697,7 @@ export const set =
   <S extends KnobSet>(values: Values<NoInfer<S>>) =>
   (self: KnobTheme<S>): KnobTheme<S> => {
     const merged: Record<string, Record<string, unknown>> = Object.create(null)
-    for (const source of [self.values, checked(self.knobs, values)])
+    for (const source of [self.values, checked('Theme.set', self.knobs, values)])
       for (const [group, names] of Object.entries(source))
         merged[group] = { ...merged[group], ...names }
     validate(self.knobs, merged as Values<S>)
@@ -832,7 +858,7 @@ export const withValue = <S extends KnobSet, P extends PathOf<S>>(
   value: ValueOf<KnobAt<S, P>>,
 ): Values<S> => {
   const [group, name] = split(path)
-  Schema.decodeUnknownSync(at(knobs, path).schema)(value)
+  checkValue('Knobs.withValue', path, at(knobs, path), value)
   const next = { ...values, [group]: { ...values[group], [name]: value } } as Values<S>
   validate(knobs, next)
   return next

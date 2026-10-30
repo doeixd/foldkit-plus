@@ -154,6 +154,11 @@ const Model = Schema.Struct({ theme: themes.Name })
   each key typed by its group, each value by its kind, so a misspelt knob, a
   choice outside its options and a number of the wrong kind are type errors,
   and a number out of range is refused when it is made (the schema's check).
+  The refusal is a `Diagnostics.DiagnosticError` naming the call and the
+  knob, `theme:knob-value` (`Theme.make: surface.lightness refuses its value:
+  … Expected a value between 6 and 36 at ["dark"]`), or `theme:unknown-knob`
+  for a knob the set lacks. A range is not a type: TypeScript cannot compare
+  a number literal with a bound.
 - A `Theme` is `Pipeable`. `Theme.set(partial)` and `Theme.describe(meta)`
   are `(theme) => theme`.
 - `Theme.print(theme)` writes the `Theme.make({...})` source of a theme,

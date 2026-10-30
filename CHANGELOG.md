@@ -482,6 +482,13 @@ carries `drawn`.
 
 ### Changed
 
+- **A theme refusal names the call and the knob (#237).** `Theme.make`,
+  `Theme.set` and `Knobs.withValue` threw a bare `SchemaError` for a value
+  out of range (`Expected a value between 6 and 36 at ["dark"]`), naming
+  neither, and a plain `Error` for an unknown knob. Both are now
+  `Diagnostics.DiagnosticError`s: `theme:knob-value` (`Theme.make:
+  surface.lightness refuses its value: …`) and `theme:unknown-knob`, with the
+  knob path in `details`.
 - **`Data.active` and a placed Crud piece's `active` keep the read's type.**
   `projectionOf(model)` gave a `Projection` of `unknown`, so code reading
   it cast; it now gives the read itself, and an editor's reads a

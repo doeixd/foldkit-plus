@@ -209,6 +209,9 @@ Conflicts throw `Diagnostics.DiagnosticError` with stable codes such as
 DevTools and editor tooling can all speak the same diagnostic language. The style rule exists
 because a positioning Behavior that writes `top` and a Style that also sets `top` would otherwise
 fight silently, last writer winning.
+A theme refuses its values the same way: `Theme.make` with a value out of a knob's range throws
+`theme:knob-value`, naming the call and the knob (`Theme.make: surface.lightness refuses its
+value: …`), and an unknown knob `theme:unknown-knob`.
 
 Those are definition errors, thrown. One thing goes wrong only at runtime: a Mount composed
 beside others that fails. It ends alone, so the slot's other Mounts go on, and it is reported as

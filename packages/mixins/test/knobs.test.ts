@@ -6,7 +6,19 @@
 import { Option, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import { AppStyle } from '../src/app.js'
+import { Diagnostics } from '../src/index.js'
 import { Knob, Knobs, Theme, Themes } from '../src/theme.js'
+
+/** The code and message `call` throws, which must be a `DiagnosticError`. */
+const refusal = (call: () => unknown) => {
+  try {
+    call()
+  } catch (error) {
+    if (!(error instanceof Diagnostics.DiagnosticError)) throw error
+    return { code: error.diagnostic.code, message: error.message }
+  }
+  throw new Error('expected a refusal')
+}
 
 describe('Theme.make', () => {
   it('writes the values it sets, and every other knob unset', () => {
@@ -48,12 +60,34 @@ describe('Theme.make', () => {
     expect(() => Theme.make({ surface: { hoverStrength: 30 } })).toThrow()
   })
 
-  it('refuses a value outside its range, and a group or knob it does not know', () => {
-    expect(() => Theme.make({ shape: { radius: 9 } })).toThrow()
+  it('refuses a group or knob it does not know, naming it and the call', () => {
     // @ts-expect-error A group the standard knobs lack.
-    expect(() => Theme.make({ nope: {} })).toThrow('no knob group "nope"')
+    expect(refusal(() => Theme.make({ nope: {} }))).toEqual({
+      code: 'theme:unknown-knob',
+      message: 'Theme.make: no knob "nope".',
+    })
     // @ts-expect-error A knob the group lacks.
-    expect(() => Theme.make({ shape: { radiu: 1 } })).toThrow('no knob "shape.radiu"')
+    expect(refusal(() => Theme.make({ shape: { radiu: 1 } }))).toEqual({
+      code: 'theme:unknown-knob',
+      message: 'Theme.make: no knob "shape.radiu".',
+    })
+  })
+
+  // Chirp's refusal (#237) named neither the knob nor the call: a bare
+  // `SchemaError(Expected a value between 6 and 36 at ["dark"])` at module load.
+  it.each([
+    ['Theme.make', () => Theme.make({ surface: { lightness: { dark: 2 } } })],
+    ['Theme.set', () => Theme.make({}).pipe(Theme.set({ surface: { lightness: { dark: 2 } } }))],
+    [
+      'Knobs.withValue',
+      () => Knobs.withValue(Knobs.standard, {}, 'surface.lightness', { dark: 2 }),
+    ],
+  ])('%s refuses a value out of range, naming the knob, the call and the range', (caller, call) => {
+    const { code, message } = refusal(call)
+    expect(code).toBe('theme:knob-value')
+    expect(message.startsWith(`${caller}: surface.lightness refuses its value: `)).toBe(true)
+    expect(message).toContain('between 6 and 36')
+    expect(message).toContain('["dark"]')
   })
 
   it('takes a set of knobs of its own', () => {

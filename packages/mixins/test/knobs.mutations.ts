@@ -57,7 +57,7 @@ export default [
     edits: [
       {
         file: knobs,
-        find: 'if (!Object.hasOwn(knobs[group]!, name)) throw new Error(`Theme: no knob "${group}.${name}".`)',
+        find: 'if (!Object.hasOwn(knobs[group]!, name)) throw unknownKnob(caller, path)',
         replace: 'if (!Object.hasOwn(knobs[group]!, name)) continue',
       },
     ],
@@ -160,6 +160,57 @@ export default [
     name: 'the hover strength writes a variable the palette never reads',
     edits: [
       { file: knobs, find: "variable: 'state-hover',", replace: "variable: 'state-hovered'," },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'an unknown knob is named by its group alone',
+    edits: [
+      {
+        file: knobs,
+        find: 'throw unknownKnob(caller, path)',
+        replace: 'throw unknownKnob(caller, group)',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a refused value does not name its knob',
+    edits: [
+      {
+        file: knobs,
+        find: 'message: `${caller}: ${path} refuses its value: ',
+        replace: 'message: `${caller}: refuses its value: ',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'every refusal names Theme.make',
+    edits: [
+      {
+        file: knobs,
+        find: "checked('Theme.set', self.knobs, values)",
+        replace: "checked('Theme.make', self.knobs, values)",
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'withValue takes any value',
+    edits: [
+      {
+        file: knobs,
+        find: "checkValue('Knobs.withValue', path, at(knobs, path), value)",
+        replace: 'void 0',
+      },
+    ],
+    tests: unit,
+  },
+  {
+    name: 'a refused value carries the fluid range code',
+    edits: [
+      { file: knobs, find: "code: 'theme:knob-value',", replace: "code: 'theme:fluid-range'," },
     ],
     tests: unit,
   },

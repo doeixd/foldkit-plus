@@ -28,6 +28,8 @@ export type DiagnosticCode =
   | 'theme:unparseable-breakpoint'
   | 'theme:fluid-boundary'
   | 'theme:fluid-range'
+  | 'theme:unknown-knob'
+  | 'theme:knob-value'
   | 'a11y:missing-slot'
   | 'a11y:hidden-slot'
   | 'a11y:capability-mismatch'

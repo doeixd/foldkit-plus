@@ -492,6 +492,12 @@ answer and a fetch per placed list. `GuardServer.validate`
 throws at startup for a guard a server does not apply, and reports
 `UnpinnedWrites` for a write a change can come between.
 
+**A definition the application wrote wrong throws instead**, when it is
+made, naming the call and the option. `Theme.make`, `Theme.set` and
+`Knobs.withValue` throw `foldkit-mixins`' `Diagnostics.DiagnosticError` with
+`theme:knob-value` (`Theme.make: surface.lightness refuses its value: …
+Expected a value between 6 and 36 at ["dark"]`) or `theme:unknown-knob`.
+
 ## Testing failures
 
 A failure path is a path like any other: drive it, and assert what the reader
