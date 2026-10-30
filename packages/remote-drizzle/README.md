@@ -33,7 +33,7 @@ normalized patch
 
 The important design choice is that an Entity is declared **once**:
 
-```ts
+```ts sketch
 const Project = entity('Project', projects)
 ```
 
@@ -83,12 +83,13 @@ semantics instead of introducing a second data model.
 ## Install
 
 ```bash
-pnpm add foldkit-remote-drizzle drizzle-orm
+pnpm add foldkit-remote-drizzle drizzle-orm effect
 ```
 
 `effect` and `drizzle-orm` (currently `1.0.0-rc.5`) are peer dependencies, so
 the adapter reads the tables you define with your own Drizzle, not a copy of
-its own; `foldkit-remote` and `foldkit-remote-server` come with the package.
+its own; `foldkit-entity`, `foldkit-remote` and `foldkit-remote-server` come
+with the package.
 
 For the ownership and requirement-planning model first, read
 [Server-derived state](../../docs/remote.md).
@@ -163,6 +164,11 @@ illustrates the selected columns; actual execution uses bound parameters.
 
 ## Put the Source behind `RemoteServer`
 
+<!-- docs-check
+// The request's principal, as the application's server resolved it.
+declare const principal: unknown
+-->
+
 ```ts
 import { Remote } from 'foldkit-remote'
 import { RemoteServer } from 'foldkit-remote-server'
@@ -183,6 +189,11 @@ const handlers = RemoteServer.handlers(Server, principal)
 `handlers` now requires the `DrizzleDatabase` service because the Source does.
 Provide your application's database once:
 
+<!-- docs-check
+// The application's Drizzle database, such as `drizzle(client)`.
+declare const db: unknown
+-->
+
 ```ts
 import { Layer } from 'effect'
 import { databaseLayer } from 'foldkit-remote-drizzle'
@@ -200,6 +211,12 @@ application boundary and makes the Effect requirement visible in the server
 composition.
 
 ## The binding is the shared schema
+
+<!-- docs-check standalone
+import { pgTable, text } from 'drizzle-orm/pg-core'
+import { entity } from 'foldkit-remote-drizzle'
+const users = pgTable('users', { id: text('id').primaryKey(), name: text('name').notNull() })
+-->
 
 ```ts
 const User = entity('User', users)
@@ -234,6 +251,13 @@ normalization even when the client did not explicitly ask for `id`.
 Use `fields` when the Remote schema should be narrower than the table or should
 use an application-specific codec:
 
+<!-- docs-check standalone
+import { pgTable, text } from 'drizzle-orm/pg-core'
+import { entity } from 'foldkit-remote-drizzle'
+const users = pgTable('users', { id: text('id').primaryKey(), name: text('name').notNull() })
+const UserId = Schema.String.pipe(Schema.brand('UserId'))
+-->
+
 ```ts
 import { Schema } from 'effect'
 
@@ -266,7 +290,22 @@ infers, metadata other packages attach, and **a query body**. Only a
 `Query.define` cannot be written over an `entity(…)` binding — the same boundary
 `foldkit-remote`'s own `Entity.make` has, for the same reason.
 
+<!-- docs-check standalone
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
+const users = sqliteTable('users', { id: text('id').primaryKey(), name: text('name').notNull() })
+const posts = sqliteTable('posts', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  authorId: text('author_id').notNull(),
+})
+const postFans = sqliteTable('post_fans', {
+  postId: text('post_id').notNull(),
+  userId: text('user_id').notNull(),
+})
+-->
+
 ```ts
+import { Schema } from 'effect'
 import { Derived, Entity, Relation } from 'foldkit-entity'
 import { bind, source } from 'foldkit-remote-drizzle'
 
@@ -283,7 +322,10 @@ const Db = bind(Blog, {
   User: { table: users },
   Post: {
     table: posts,
-    relations: { author: { field: posts.authorId }, fans: { foreignKey: users.id } },
+    relations: {
+      author: { field: posts.authorId },
+      fans: { through: postFans, localColumn: postFans.postId, foreignColumn: postFans.userId },
+    },
     derived: { fanCount: { relation: 'fans' } },
   },
 })
@@ -312,9 +354,12 @@ which the server the source is mounted in says, once, for every source, query
 and write it serves:
 
 ```ts
+import { Option } from 'effect'
+import { RemoteServer } from 'foldkit-remote-server'
+
 RemoteServer.make({
   entities: [source(Db.Post)],
-  viewer: (principal: Option.Option<User>) =>
+  viewer: (principal: Option.Option<{ readonly id: string }>) =>
     Option.map(principal, user => ({ entity: 'User', id: user.id })),
 })
 ```
@@ -365,8 +410,11 @@ and `query`.
 The types and `bind` itself reject: a field with no column, a relation or
 derived member with no storage, a `one` stored as a `many` or the reverse, a
 count over a `one` relation, a required `one` over a nullable column
-(declare the relation `{ optional: true }`), and a `one` read from the target's
-table whose foreign key is not unique.
+(declare the relation `{ optional: true }`), a `one` read from the target's
+table whose foreign key is not unique, and a member named `__proto__` (Drizzle
+builds each row it reads by assignment, which would make the value the row's
+prototype). Every other name is looked up as the storage's own key, so a field
+named `constructor` finds its column, not `Object`.
 
 `bind` also refuses a column that plainly cannot hold its field: text under a
 number field (a Postgres `numeric` reads as text), a number under a flag, and a
@@ -382,8 +430,23 @@ that could work.
 for them is the binding's `visible`: a condition over the table's columns, or
 `undefined` for every row.
 
+<!-- docs-check standalone
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { Schema } from 'effect'
+import { Entity } from 'foldkit-entity'
+import { bind } from 'foldkit-remote-drizzle'
+const Post = Entity.define(
+  'Post',
+  Schema.Struct({ id: Schema.String, publishedAt: Schema.NullOr(Schema.String) }),
+)
+const posts = sqliteTable('posts', { id: text('id').primaryKey(), publishedAt: text('published_at') })
+declare const isAuthor: (principal: unknown) => boolean
+-->
+
 ```ts
-const Db = bind(Blog, {
+import { isNotNull } from 'drizzle-orm'
+
+const Db = bind({ Post }, {
   Post: {
     table: posts,
     // A visitor sees what is published; an author sees every row.
@@ -419,9 +482,20 @@ rule on one would leave three open. Every one applies it:
 The adapter never decides what a principal may read. It compiles only the fields
 `RemoteServer` has already allowed:
 
+<!-- docs-check standalone
+import { pgTable, text } from 'drizzle-orm/pg-core'
+import { entity, source } from 'foldkit-remote-drizzle'
+const users = pgTable('users', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  email: text('email').notNull(),
+})
+const User = entity('User', users)
+-->
+
 ```ts
 const UserSource = source(User, {
-  authorize: (principal, fields) =>
+  authorize: (principal: { readonly canReadEmail: boolean }, fields) =>
     fields.filter(field => field !== 'email' || principal.canReadEmail),
 })
 ```
@@ -463,6 +537,16 @@ normalization, but collection loading/computed fields belong to `source`.
 
 Declare a foreign key once with `one`:
 
+<!-- docs-check standalone
+import { pgTable, text } from 'drizzle-orm/pg-core'
+const users = pgTable('users', { id: text('id').primaryKey(), name: text('name').notNull() })
+const projects = pgTable('projects', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  ownerId: text('owner_id').notNull(),
+})
+-->
+
 ```ts
 import { entity, one } from 'foldkit-remote-drizzle'
 
@@ -495,7 +579,7 @@ client:      { entity: 'User', id: 'u1' }
 
 If the foreign key is nullable, declare that explicitly:
 
-```ts
+```ts sketch
 owner: one(User, {
   field: projects.ownerId,
   nullable: true,
@@ -519,6 +603,16 @@ Project:p1.owner -> User:u1
 ## Collection relations
 
 A `many` relation says that the foreign key lives on the target:
+
+<!-- docs-check standalone
+import { pgTable, text } from 'drizzle-orm/pg-core'
+const posts = pgTable('posts', { id: text('id').primaryKey(), title: text('title').notNull() })
+const comments = pgTable('comments', {
+  id: text('id').primaryKey(),
+  postId: text('post_id').notNull(),
+  visibleTo: text('visible_to').notNull(),
+})
+-->
 
 ```ts
 import { entity, many } from 'foldkit-remote-drizzle'
@@ -551,6 +645,16 @@ Collection relations may also declare:
 
 Use a through table when the relation is many-to-many:
 
+<!-- docs-check standalone
+import { pgTable, text } from 'drizzle-orm/pg-core'
+const posts = pgTable('posts', { id: text('id').primaryKey(), title: text('title').notNull() })
+const tags = pgTable('tags', { id: text('id').primaryKey(), name: text('name').notNull() })
+const postTags = pgTable('post_tags', {
+  postId: text('post_id').notNull(),
+  tagId: text('tag_id').notNull(),
+})
+-->
+
 ```ts
 import { entity, manyToMany } from 'foldkit-remote-drizzle'
 
@@ -574,12 +678,27 @@ rows, and emits target refs.
 
 A collection can add a per-principal SQL predicate:
 
+<!-- docs-check standalone
+import { pgTable, text } from 'drizzle-orm/pg-core'
+import { entity, many, source } from 'foldkit-remote-drizzle'
+const posts = pgTable('posts', { id: text('id').primaryKey(), title: text('title').notNull() })
+const comments = pgTable('comments', {
+  id: text('id').primaryKey(),
+  postId: text('post_id').notNull(),
+  visibleTo: text('visible_to').notNull(),
+})
+const Comment = entity('Comment', comments)
+const Post = entity('Post', posts, {
+  relations: { comments: many(Comment, { foreignKey: comments.postId, localKey: posts.id }) },
+})
+-->
+
 ```ts
 import { eq } from 'drizzle-orm'
 
 const PostSource = source(Post, {
   policies: {
-    comments: principal => eq(comments.visibleTo, principal.id),
+    comments: (principal: { readonly id: string }) => eq(comments.visibleTo, principal.id),
   },
 })
 ```
@@ -606,6 +725,17 @@ first: index the relation you read. A collection that can grow without limit
 is read with a window (next section); one the application knows is larger
 but bounded raises the bound:
 
+<!-- docs-check standalone
+import { pgTable, text } from 'drizzle-orm/pg-core'
+import { entity, many, source } from 'foldkit-remote-drizzle'
+const posts = pgTable('posts', { id: text('id').primaryKey(), title: text('title').notNull() })
+const comments = pgTable('comments', { id: text('id').primaryKey(), postId: text('post_id').notNull() })
+const Comment = entity('Comment', comments)
+const Post = entity('Post', posts, {
+  relations: { comments: many(Comment, { foreignKey: comments.postId, localKey: posts.id }) },
+})
+-->
+
 ```ts
 const PostSource = source(Post, { maxCollection: 500 })
 ```
@@ -627,10 +757,10 @@ const PostView = Selection.make(Post, {
 })
 ```
 
-For several parent posts, the Source ranks children **per parent** in one SQL
-statement (`row_number() over (partition by ...)`) and keeps the requested page
-plus the extra row needed to determine the boundary. The statement count does
-not grow with the number of parents.
+For several parent posts, the Source asks each parent for its own page **in one
+SQL statement**: the requested page plus the extra row needed to determine the
+boundary, with a `limit` per parent, as a collection read whole is bounded
+above. The statement count does not grow with the number of parents.
 
 The result carries:
 
@@ -652,6 +782,18 @@ the stored relation page: `after` appends and `before` prepends.
 ## Query connections
 
 Top-level Remote Queries compile to keyset pagination:
+
+<!-- docs-check standalone
+import { pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { entity } from 'foldkit-remote-drizzle'
+const projects = pgTable('projects', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  ownerId: text('owner_id').notNull(),
+  createdAt: timestamp('created_at').notNull(),
+})
+const Project = entity('Project', projects)
+-->
 
 ```ts
 import { eq } from 'drizzle-orm'
@@ -686,8 +828,19 @@ When the descriptor was declared with
 [`Query.define`](../remote#queries-and-pagination), its body already says which
 rows and in what order. Register the source and say no more:
 
+<!-- docs-check standalone
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { Schema } from 'effect'
+import { Entity } from 'foldkit-entity'
+import { bind, query } from 'foldkit-remote-drizzle'
+const Post = Entity.define('Post', Schema.Struct({ id: Schema.String, slug: Schema.String }))
+const posts = sqliteTable('posts', { id: text('id').primaryKey(), slug: text('slug').notNull() })
+const PostBinding = bind({ Post }, { Post: { table: posts } }).Post
+-->
+
 ```ts
-import { Expr, Order, Query } from 'foldkit-entity'
+import { Expr, Order } from 'foldkit-entity'
+import { Query } from 'foldkit-remote'
 
 const PostsBySlug = Query.define('PostsBySlug', { slug: Schema.String }, ({ input }) =>
   Query.from(Post).pipe(
@@ -747,11 +900,34 @@ tie-breaker such as the id.
 A body over Entities bound together with `bind` may read across their `one`
 relations, with `Expr.path` and `Expr.exists` from `foldkit-entity`:
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { Entity, Relation } from 'foldkit-entity'
+const User = Entity.define('User', Schema.Struct({ id: Schema.String }))
+const { Post, Follow } = Entity.relate(
+  {
+    User,
+    Post: Entity.define('Post', Schema.Struct({ id: Schema.String })),
+    Follow: Entity.define('Follow', Schema.Struct({ id: Schema.String, followerId: Schema.String })),
+  },
+  { User: {}, Post: { author: Relation.one(User) }, Follow: { followee: Relation.one(User) } },
+)
+-->
+
 ```ts
+import { Expr } from 'foldkit-entity'
+import { Query } from 'foldkit-remote'
+
 // Posts whose author the reader follows.
-Query.where(
-  Expr.path(Post.relations.author,
-    Expr.exists(Follow.relations.followee, Expr.eq(Follow.fields.followerId, input.me))),
+const FollowedPosts = Query.define('FollowedPosts', { me: Schema.String }, ({ input }) =>
+  Query.from(Post).pipe(
+    Query.where(
+      Expr.path(
+        Post.relations.author,
+        Expr.exists(Follow.relations.followee, Expr.eq(Follow.fields.followerId, input.me)),
+      ),
+    ),
+  ),
 )
 ```
 
@@ -771,7 +947,30 @@ and are refused one where they are registered.
 
 Put the sort in the query's body, where the client reads it too:
 
+<!-- docs-check standalone
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { Schema } from 'effect'
+import { Entity } from 'foldkit-entity'
+import { Query } from 'foldkit-remote'
+import { bind, query } from 'foldkit-remote-drizzle'
+const Post = Entity.define(
+  'Post',
+  Schema.Struct({ id: Schema.String, title: Schema.String, createdAt: Schema.String }),
+)
+const posts = sqliteTable('posts', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  createdAt: text('created_at').notNull(),
+})
+const Db = bind({ Post }, { Post: { table: posts } })
+-->
+
 ```ts
+import { Order } from 'foldkit-entity'
+import { Sort } from 'foldkit-crud'
+
+const PostSort = Sort.make(['title', 'created'])
+
 const PostsQuery = Query.define('Posts', { sort: PostSort.Schema }, ({ input }) =>
   Query.from(Post).pipe(
     Query.orderBy(Order.chosen(input.sort, { title: Post.fields.title, created: Post.fields.createdAt })),
@@ -789,8 +988,17 @@ places rows another.
 A `Query.make` descriptor has no body, so its `orderBy` may read the query's
 input, as `where` does:
 
+<!-- docs-check
+const PostsSearch = Query.make('PostsSearch', {
+  Input: Schema.Struct({ search: Schema.String, sort: Schema.Literals(['title', 'id']) }),
+  Result: Query.connection(Db.Post),
+})
+-->
+
 ```ts
-query(PostsQuery, {
+import { like } from 'drizzle-orm'
+
+query(PostsSearch, {
   entity: Db.Post,
   where: ({ search }) => (search === '' ? undefined : like(posts.title, `%${search}%`)),
   orderBy: ({ sort }) =>
@@ -854,6 +1062,14 @@ what the database runs, memory for what the server decides without it (a
 predicate over the input alone, a write's miss explained, an insert's
 invariants judged). `bind` takes both for the whole domain, each its kernel
 (`Text.startsWith`) when not given:
+
+<!-- docs-check standalone
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { Schema } from 'effect'
+import { Entity } from 'foldkit-entity'
+const Project = Entity.define('Project', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const projects = sqliteTable('projects', { id: text('id').primaryKey(), name: text('name').notNull() })
+-->
 
 ```ts
 import { sql } from 'drizzle-orm'
@@ -931,6 +1147,14 @@ and an application's `concat` that way on SQLite and Postgres.
 
 The built-in computed field is a count over a collection relation:
 
+<!-- docs-check standalone
+import { pgTable, text } from 'drizzle-orm/pg-core'
+import { entity, many } from 'foldkit-remote-drizzle'
+const posts = pgTable('posts', { id: text('id').primaryKey(), title: text('title').notNull() })
+const comments = pgTable('comments', { id: text('id').primaryKey(), postId: text('post_id').notNull() })
+const Comment = entity('Comment', comments)
+-->
+
 ```ts
 const Post = entity('Post', posts, {
   relations: {
@@ -957,7 +1181,7 @@ A mutation declared as a `Write` (`Mutation.write(name, Write.update(input,
 { id }))`) needs no handler: `writer(binding)` lands it in the binding's table,
 and `RemoteServer.write` serves it.
 
-```ts
+```ts standalone
 import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Schema } from 'effect'
 import { Entity, Write } from 'foldkit-entity'
@@ -1007,6 +1231,24 @@ increment is, and its operators are checked where the write is served. A binding
 `visible` rule reads the answer back through it: the row as its writer may now
 see it, or, when the write hid it from them, a deletion.
 
+An insert is one `insert ... on conflict do nothing returning` under the id the
+client chose. An id already taken is refused as `Refusal.taken` (a 409 over
+HTTP), with one answer whatever the row there holds, since comparing it with
+the insert would tell the asker what it holds; only a
+[ledger](#a-ledger-a-retry-is-never-applied-twice) tells a retry from another
+create of that id. A delete is one `delete` by id, guarded by the revision when
+it expects one; a row already gone is gone.
+
+**A retry is safe without a request log.** A guarded write whose answer was
+lost is sent again with the same revision, and the guard misses. The writer
+then reads the row: one revision past the expected one and holding exactly
+these values means this write landed, and the row answers; anything else is a
+conflict. A field the write stamps from its clock (`Entity.sets` with
+`Expr.now`) is left out of that comparison, since each attempt stamps it anew.
+A guarded delete that finds no row succeeds. (Two clients writing identical
+values from one revision are not told apart, which leaves the row as both
+asked.)
+
 ### Invariants: the row a write leaves
 
 An Entity's invariants (`Entity.invariant`, kept on the binding by `bind`) are
@@ -1052,13 +1294,28 @@ the table owns how they are stored. So a table's CHECK constraints are compiled
 from the Entity, never written again in SQL, while its columns stay yours and
 `bind` holds each to its field (kind, nullability). Two routes, one derivation:
 
+<!-- docs-check standalone
+import { Schema } from 'effect'
+import { Entity } from 'foldkit-entity'
+const Post = Entity.define(
+  'Post',
+  Schema.Struct({ id: Schema.String, body: Schema.String.check(Schema.isMaxCodePoints(280)) }),
+)
+// The application's SQLite connection.
+declare const sqlite: { exec(statement: string): void }
+-->
+
 ```ts
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { bind, checkConstraints, entityChecks } from 'foldkit-remote-drizzle'
+
 // drizzle-kit writes the migration: the table holds the CHECKs.
 const posts = sqliteTable(
   'posts',
   { id: text('id').primaryKey(), body: text('body').notNull() },
   t => entityChecks(Post, t),
 )
+const Db = bind({ Post }, { Post: { table: posts } })
 
 // A migration written in SQL: the same CHECKs as clauses.
 const { constraints, serverOnly } = checkConstraints(Db.Post)
@@ -1193,29 +1450,15 @@ A writer moves a revision only with the writes it lands. `revisionTrigger(bindin
 too (a handler's, raw SQL), so a guarded writer pinned to it sees every change.
 An update that sets the revision itself, by one or to any value, is left as it
 set it. Run it with the migration that makes the table (SQLite and Postgres);
-running it again replaces it, and a Postgres table in a `pgSchema` is named by
-its schema. Its trigger (and a Postgres function) is named once per database, as
-`<table>_<column>_moves`, followed by the table name's length where either name
-holds `_`, so `a_b`'s `c` and `a`'s `b_c` get two; a Postgres name past 63
-bytes is refused, since Postgres would cut it. The revision column must be `not null`: the trigger compares it with
-`=`, which a null never satisfies, so a null revision is never moved. Not for a table Sync writes: `applyEdits` keeps one revision for two
+running it again keeps the trigger on SQLite and replaces it on Postgres, and a
+Postgres table in a `pgSchema` is named by its schema. Its trigger (and a
+Postgres function) is named once per database, as `<table>_<column>_moves`,
+followed by the table name's length where either name holds `_`, so `a_b`'s `c`
+and `a`'s `b_c` get two; a Postgres name past 63 bytes is refused, since
+Postgres would cut it. The revision column must be `not null`: the trigger
+compares it with `=`, which a null never satisfies, so a null revision is never
+moved. Not for a table Sync writes: `applyEdits` keeps one revision for two
 changes in one operation, which the trigger would move past its sequence.
-
-An insert is one `insert ... on conflict do nothing returning` under the id the
-client chose. An id already taken is refused as `Refusal.taken` (a 409 over
-HTTP), with one answer whatever the row there holds, since comparing it with
-the insert would tell the asker what it holds; only a ledger tells a retry from
-another create of that id. A delete
-is one `delete` by id, guarded by the revision when it expects one; a row
-already gone is gone.
-
-**A retry is safe without a request log.** A guarded write whose answer was
-lost is sent again with the same revision, and the guard misses. The writer
-then reads the row: one revision past the expected one and holding exactly
-these values means this write landed, and the row answers; anything else is a
-conflict. A guarded delete that finds no row succeeds. (Two clients writing
-identical values from one revision are not told apart, which leaves the row
-as both asked.)
 
 ### A journal's edits
 
@@ -1243,6 +1486,30 @@ normalize rows you already chose to return, and runs each statement so a
 database error fails as a `RemoteServerError` saying only what failed, the
 driver's own (which carries the SQL and its parameters) reported as a
 `StatementFailed` [diagnostic](#diagnostics), never sent:
+
+<!-- docs-check standalone
+import type { NodeSQLiteDatabase } from 'drizzle-orm/node-sqlite'
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { Schema } from 'effect'
+import { Mutation } from 'foldkit-remote'
+import { entity, one } from 'foldkit-remote-drizzle'
+const users = sqliteTable('users', { id: text('id').primaryKey(), name: text('name').notNull() })
+const projects = sqliteTable('projects', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  ownerId: text('owner_id').notNull(),
+})
+const User = entity('User', users)
+const Project = entity('Project', projects, {
+  relations: { owner: one(User, { field: projects.ownerId }) },
+})
+const RenameProject = Mutation.make('RenameProject', {
+  Input: { id: Schema.String, name: Schema.String },
+  Output: { id: Schema.String },
+})
+// The application's Drizzle database.
+declare const db: NodeSQLiteDatabase
+-->
 
 ```ts
 import { eq } from 'drizzle-orm'
@@ -1296,6 +1563,21 @@ Return the row's values too when live subscribers should hear them, since they
 hear the patch, not that read: `returning.row(binding, id)` reads the row
 back, every column with each `one` relation as its ref:
 
+<!-- docs-check standalone
+import { eq } from 'drizzle-orm'
+import { pgTable, text } from 'drizzle-orm/pg-core'
+import { Effect, Schema } from 'effect'
+import { Mutation } from 'foldkit-remote'
+import { RemoteServer } from 'foldkit-remote-server'
+import { entity } from 'foldkit-remote-drizzle'
+const posts = pgTable('posts', { id: text('id').primaryKey(), title: text('title').notNull() })
+const Post = entity('Post', posts)
+const PublishPost = Mutation.make('PublishPost', {
+  Input: { id: Schema.String, title: Schema.String },
+  Output: {},
+})
+-->
+
 ```ts
 import { drizzleWrites, returning } from 'foldkit-remote-drizzle'
 
@@ -1324,6 +1606,19 @@ Postgres driver takes an `async` callback. D1 has no interactive transaction;
 `db.batch([...])` runs its statements as one. From
 [`examples/entity`](../../examples/entity/src/server.ts), over `node-sqlite`:
 
+<!-- docs-check standalone
+import { eq } from 'drizzle-orm'
+import type { NodeSQLiteDatabase } from 'drizzle-orm/node-sqlite'
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { Effect, Schema } from 'effect'
+import { Mutation } from 'foldkit-remote'
+import { RemoteServer } from 'foldkit-remote-server'
+const posts = sqliteTable('posts', { id: text('id').primaryKey() })
+const comments = sqliteTable('comments', { id: text('id').primaryKey(), postId: text('post_id').notNull() })
+const DeletePostMutation = Mutation.make('DeletePost', { Input: { id: Schema.String }, Output: {} })
+declare const db: NodeSQLiteDatabase
+-->
+
 ```ts
 const DeletePost = RemoteServer.mutation(DeletePostMutation, ({ input }) =>
   Effect.sync(() => {
@@ -1337,6 +1632,43 @@ const DeletePost = RemoteServer.mutation(DeletePostMutation, ({ input }) =>
 ```
 
 ## Compose the server
+
+<!-- docs-check standalone
+import { eq } from 'drizzle-orm'
+import { pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { Effect, Schema } from 'effect'
+import { Mutation, Query, Remote } from 'foldkit-remote'
+import { RemoteServer } from 'foldkit-remote-server'
+import { entity, one, query, source } from 'foldkit-remote-drizzle'
+const users = pgTable('users', { id: text('id').primaryKey(), name: text('name').notNull() })
+const projects = pgTable('projects', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  ownerId: text('owner_id').notNull(),
+  createdAt: timestamp('created_at').notNull(),
+})
+const User = entity('User', users)
+const Project = entity('Project', projects, {
+  relations: { owner: one(User, { field: projects.ownerId }) },
+})
+const ProjectsByOwner = Query.make('ProjectsByOwner', {
+  Input: Schema.Struct({ ownerId: Schema.String }),
+  Result: Query.connection(Project),
+})
+const ProjectsByOwnerSource = query(ProjectsByOwner, {
+  entity: Project,
+  orderBy: [{ key: projects.createdAt, direction: 'desc' }],
+  where: input => eq(projects.ownerId, input.ownerId),
+})
+const RenameProject = Mutation.make('RenameProject', {
+  Input: { id: Schema.String, name: Schema.String },
+  Output: { id: Schema.String },
+})
+const RenameProjectSource = RemoteServer.mutation(RenameProject, ({ input }) =>
+  Effect.succeed({ output: { id: input.id } }),
+)
+declare const principal: unknown
+-->
 
 ```ts
 const Data = Remote.define({
@@ -1362,6 +1694,10 @@ explicit in the `RemoteServer.make` environment rather than hiding a dependency.
 
 ## Database service
 
+<!-- docs-check standalone
+declare const db: unknown
+-->
+
 ```ts
 import { databaseLayer } from 'foldkit-remote-drizzle'
 
@@ -1372,9 +1708,9 @@ const DatabaseLive = databaseLayer(db)
 uses. `databaseLayer` contains the structural adaptation once, so Sources simply
 yield `DrizzleDatabase`.
 
-The package deliberately does not import `drizzle-orm/effect-postgres` while its
-Effect RC compatibility differs from this workspace. Provide the database tag
-through `databaseLayer` instead.
+The package does not import `drizzle-orm/effect-postgres` or any other driver,
+so it reads through whichever Drizzle database the application opens: provide it
+through `databaseLayer`.
 
 ## Testing a binding
 
@@ -1383,7 +1719,20 @@ database via Node's `node:sqlite` and `drizzle-orm/node-sqlite`. That is a good
 pattern for application binding tests: build a tiny schema, seed rows, provide
 the database Layer, and assert the actual normalized wire values.
 
+<!-- docs-check standalone
+import { pgTable, text } from 'drizzle-orm/pg-core'
+import { databaseLayer, entity } from 'foldkit-remote-drizzle'
+const projects = pgTable('projects', { id: text('id').primaryKey(), name: text('name').notNull() })
+const Project = entity('Project', projects)
+const ProjectSummary = Project.select({ id: true, name: true })
+declare const db: unknown
+const DatabaseLive = databaseLayer(db)
+-->
+
 ```ts
+import { Effect } from 'effect'
+import { source } from 'foldkit-remote-drizzle'
+
 const records = await Effect.runPromise(
   source(Project)
     .read({
@@ -1435,31 +1784,29 @@ provide `Diagnostics.collect().report` and assert on `reported`.
 
 ## Dialect and limits
 
-The binding accepts Drizzle's base `Table`, but the pagination semantics are
-currently designed around Postgres behavior:
+The binding accepts Drizzle's base `Table`; the compiler writes SQL for SQLite
+(D1 included) and Postgres, and the tests run it on both (`node:sqlite` and
+PGlite):
 
-- windowed nested pagination needs window functions and row-value `IN`
-  (Postgres, SQLite 3.25+, MySQL 8+);
-- computed fields are counts only;
-- there is no mutation DSL;
+- a collection read, whole or windowed, needs row-value `IN` and a correlated
+  subquery with a `limit` (Postgres, SQLite 3.15+);
+- computed and derived members are counts, and `Derived.exists`;
+- a declared write is one row's update, insert or delete; anything else is a
+  [handler](#writing-in-a-handler);
 - `reader`, the injected-executor path, does not load collections or computed
   fields;
 - nested targets remain normalized refs and are resolved by
   `foldkit-remote-server`, never embedded objects.
 
-The SQLite integration tests are a real SQL/compiler check, but they do not
-prove every Postgres-specific NULL-ordering edge case.
-
 ## Cloudflare D1
 
 The same reads run over D1, through `drizzle-orm/d1`, with no adapter
-changes: windowed collection pages (`row_number() over (partition by …)`),
-row-value membership, `LIKE … ESCAPE`, `COLLATE "C"` search, keyset queries,
-and `returning` are all statements D1 accepts. `test/d1.test.ts` proves the
-core paths against a miniflare binding, which rejects what production D1
-rejects; `databaseLayer(drizzle(env.DB))` is the only wiring. The
-nullable-column rule above applies as on SQLite: D1 sorts nulls first for
-`ASC`, so sort by columns that are not null.
+changes: collection pages (a correlated `limit` per parent), row-value
+membership, `LIKE … ESCAPE`, `COLLATE "C"` search, keyset queries with
+`NULLS FIRST`/`NULLS LAST`, and `returning` are all statements D1 accepts.
+`test/d1.test.ts` proves the core paths against a miniflare binding, which
+rejects what production D1 rejects; `databaseLayer(drizzle(env.DB))` is the
+only wiring.
 
 Declared writes run there too: a revision, a precondition, an increment and an
 invariant are one statement, as everywhere. A [ledger](#a-ledger-a-retry-is-never-applied-twice)
@@ -1503,6 +1850,28 @@ not polled). Over a guarded Entity, poll through the guarded
 Source the server mounts: `pollLive` names it as the Source it `reads`, and
 `GuardServer.validate` accepts it there and refuses it over any other.
 
+<!-- docs-check standalone
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { Schema } from 'effect'
+import { defineMessageUnion } from 'foldkit/message'
+import { Entity, Order } from 'foldkit-entity'
+import { Query, Remote } from 'foldkit-remote'
+import { bind, source } from 'foldkit-remote-drizzle'
+import { Surface } from 'foldkit-surface'
+const Todo = Entity.define('Todo', Schema.Struct({ id: Schema.String, title: Schema.String }))
+const todos = sqliteTable('todos', { id: text('id').primaryKey(), title: text('title').notNull() })
+const Db = bind({ Todo }, { Todo: { table: todos } })
+const TodoSource = source(Db.Todo)
+const AllTodos = Query.define('AllTodos', {}, () =>
+  Query.from(Todo).pipe(Query.orderBy(Order.asc(Todo.fields.title))),
+)
+const TodoRow = Entity.select(Todo, { id: true, title: true })
+const Model = Schema.Struct({ remote: Remote.Model })
+const Message = defineMessageUnion({ ...Remote.messages })
+const App = Surface.application({ Model, Message })
+const Data = Remote.make({ model: App.model.remote, entities: [Todo], queries: [AllTodos] })
+-->
+
 ```ts
 import { pollLive, rowChangeLog, rowLog } from 'foldkit-remote-drizzle'
 
@@ -1537,9 +1906,11 @@ leave. A row that leaves the window while the subscriber can still read it is
 removed from the list (`ConnectionRemove`) and keeps its row, patched with what
 changed; one gone, or no longer readable, is deleted too. A write to another
 table that moves a row in or out of a list (a path, an exists) is seen on the
-next tick the log names a row of this one, or on a full re-read. Postgres is refused: a server there can push. `examples/cloudflare`
-runs this on D1, and its `test/migrations.test.ts` keeps its migration equal
-to `rowChangeLog`.
+next tick the log names a row of this one, or on a full re-read. `rowLog`
+reads at most `batch` entries a tick (500 by default); the rest wait for the
+next. `rowChangeLog` refuses a Postgres table: a server there can push.
+`examples/cloudflare` runs this on D1, and its `test/migrations.test.ts` keeps
+its migration equal to `rowChangeLog`.
 
 ## License
 

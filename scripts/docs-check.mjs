@@ -103,7 +103,6 @@ const pending = new Set([
   'packages/primitives/time/README.md',
   'packages/react-codegen/README.md',
   'packages/react/README.md',
-  'packages/remote-drizzle/README.md',
   'packages/remote-server/README.md',
   'packages/remote/README.md',
   'packages/richtext-dom/README.md',
