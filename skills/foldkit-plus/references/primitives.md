@@ -89,6 +89,12 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
   `Received` notifies without storing — project it to keep it.
 - **Observe an element:** `h.div([h.OnMount(Resize())], [...])`; without the
   observer API the Mount emits nothing.
+- **Window a list that scrolls with the page:** `WindowViewport()` (`/state`)
+  on the list's own box reports `ViewportPlaced { top, height }`, the
+  viewport's top past the list's and its height, on every scroll, resize and
+  resize of the page; map `top` into `Virtual`'s `Scrolled`. `MeasureRow({ key })`
+  reports a row's border box, `MeasureRows({ attribute })` on the list every keyed
+  child's in one batch. `foldkit-mixins-ui`'s `WindowList` draws such a list.
 - **Roving tab stop:** place `RovingTabindex.bundle` (`{ orientation, loop, virtual }`)
   from `foldkit-primitives/interaction`; attach
   `RovingTabindex.behavior(Declared, args)(Slots)<Model, Message>({ container, item, items: model => Behaviors.Collection.of(...), direction? })`

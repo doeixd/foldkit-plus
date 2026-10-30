@@ -13,7 +13,7 @@ frame, not the contents; loading the rows stays the application's job.
 | `Locale` | bundle | `{ locale }` | `SetLocale` | `{ default }` |
 | `SelectionSet` | bundle | `{ selected }` | `Select`, `Deselect`, `Toggle`, `ReplaceAll`, `Clear` | none |
 | `Virtual` | bundle | scroll, heights, layout | `Scrolled`, `Measured`, `Prune`, `Settled` | layout args |
-| `Viewport`, `MeasureRow({ key })` | Mounts | | `ViewportScrolled`, `RowMeasured` | |
+| `Viewport`, `WindowViewport`, `MeasureRow({ key })`, `MeasureRows({ attribute })` | Mounts | | `ViewportScrolled`, `ViewportPlaced`, `RowMeasured`, `RowsMeasured` | |
 | `range(start, end, step?)` | function | | | |
 | `windowFor`, `isAtEnd`, `distanceToEnd`, `offsetFor`, `stickyHeader`, `masonry` | functions | | | |
 
@@ -116,7 +116,11 @@ silence (default 150). Every scroll marks `scrolling` until the silence settles;
 suspend loaders and parallax on it.
 
 Two Mounts feed it: `Viewport` reports the container's own scrolls and
-`MeasureRow({ key })` a row's height. Four functions read it:
+`MeasureRow({ key })` a row's height, its border box (a padded row's padding
+counts). `MeasureRows({ attribute })` on the list instead measures every child
+carrying `attribute` (its value the key) with one observer and reports a
+frame's resized rows as one `RowsMeasured` batch, so a first draw is one
+Message, not one per row. Four functions read it:
 
 - `windowFor(model, keys, viewportHeight)` answers which rows to render and
   the spacer height;
@@ -132,8 +136,13 @@ than a pass over every row. Both are compared by identity: never change a keys
 array in place. `Prune` drops heights for departed keys, since the bundle never
 sees key order. Poisoned positions and heights are ignored, never stored.
 
-For a window-scrolled list, map the scroll entry into `Scrolled`; for
-follow-bottom, hold the end while `isAtEnd` and scroll on extend; to anchor a
+For a list that scrolls with the document, put `WindowViewport` on the
+list's own box in place of `Viewport`: its `ViewportPlaced { top, height }`
+is how far the viewport's top is past the list's (negative while the list is
+below it) and the viewport's height, read again on every scroll, resize, and
+resize of the page, so content above the list counts. Map `top` into
+`Scrolled` and pass `height` as `windowFor`'s viewport height.
+`foldkit-mixins-ui`'s `WindowList` is that list, drawn. For follow-bottom, hold the end while `isAtEnd` and scroll on extend; to anchor a
 prepend, re-`Scrolled` by the totals' delta. Render each row keyed, with
 `aria-rowcount` and `posinset` from the window, so per-row placements keep
 identity.

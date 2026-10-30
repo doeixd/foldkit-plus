@@ -36,6 +36,19 @@ version changed; `pnpm` skips versions already in the registry.
   server (`ResumeUnsafe`, `UnkeepableField`). `KEEP_ATTRIBUTE` names the
   marker. Used in `examples/foldkit/ssr`'s note field.
 
+- **`WindowViewport`** (`foldkit-primitives/state`, #351): a Mount on a
+  list's own box reporting `ViewportPlaced { top, height }`, how far the
+  window's viewport is past the list's top and its height, on every scroll,
+  resize, and resize of the page. It is what a list that scrolls with the
+  document windows by: the window's `scrollY` is not the list's position
+  once anything stands above it, and the README's advice to map it into
+  `Scrolled` was wrong for such a list.
+
+- **`MeasureRows`** (`foldkit-primitives/state`, #351): one Mount on a list
+  that measures every child carrying a key attribute, border boxes, and
+  reports the rows a frame resized in one `RowsMeasured` batch, where
+  `MeasureRow` is a Mount and a Message per row.
+
 ### Changed
 
 - **A list ages under `staleWhileRevalidate`** (`foldkit-remote`, #234). A
@@ -59,6 +72,10 @@ version changed; `pnpm` skips versions already in the registry.
   `rh.OnInput`, `rh.OnChange`, `rh.OnKeyDown` and `rh.OnKeyUp` returned
   `Attribute<Message>`, which includes `InnerHTML`, so `rh.textarea` refused
   them; each now returns its own attribute, as Foldkit's builder does.
+
+- **`MeasureRow` reports a row's border box** (#351). It reported
+  `contentRect.height`, the content box, so a row padded by its style was
+  measured short by its padding and every row below it was placed too high.
 
 ## 0.36.0
 

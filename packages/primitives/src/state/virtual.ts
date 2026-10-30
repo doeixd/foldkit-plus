@@ -354,8 +354,8 @@ export type ViewportScrolled = typeof ViewportScrolled.Type
 
 /**
  * The scroll container's position, reported on its own scrolls starting
- * with the current one. Attach to the scrolling element — viewport scrolls
- * arrive through the window-level scroll entry instead.
+ * with the current one. Attach to the scrolling element; a list that
+ * scrolls with the document takes `WindowViewport` instead.
  */
 export const Viewport = Mount.defineStream('Viewport', {
   messages: [ViewportScrolled],
@@ -372,18 +372,69 @@ export const Viewport = Mount.defineStream('Viewport', {
   },
 })
 
+export const ViewportPlaced = Schema.TaggedStruct('ViewportPlaced', {
+  top: Schema.Number,
+  height: Schema.Number,
+})
+export type ViewportPlaced = typeof ViewportPlaced.Type
+
+type ObserverCtor = new (callback: ResizeObserverCallback) => ResizeObserver
+
+/**
+ * Where the window's viewport lies over a list that scrolls with the
+ * document: `top` is how far the viewport's top edge is past the element's
+ * (negative while the element is still below it), `height` the viewport's.
+ * Attach to the list's own box. It reports as it mounts, on the window's
+ * `scroll` and `resize`, and when the box or the document's root element
+ * changes size, which is how content above the list growing shows: the
+ * offset moves with no scroll. An unchanged reading is sent once.
+ */
+export const WindowViewport = Mount.defineStream('WindowViewport', {
+  messages: [ViewportPlaced],
+  execute: ({ element }) =>
+    Stream.callback<ViewportPlaced>(queue =>
+      Effect.acquireRelease(
+        Effect.sync(() => {
+          let last: ViewportPlaced | undefined
+          const report = () => {
+            const placed = ViewportPlaced.make({
+              top: -element.getBoundingClientRect().top,
+              height: window.innerHeight,
+            })
+            if (last !== undefined && last.top === placed.top && last.height === placed.height) {
+              return
+            }
+            last = placed
+            Queue.offerUnsafe(queue, placed)
+          }
+          const Observed = (globalThis as { ResizeObserver?: ObserverCtor }).ResizeObserver
+          const observer = Observed === undefined ? undefined : new Observed(report)
+          report()
+          window.addEventListener('scroll', report, { passive: true })
+          window.addEventListener('resize', report, { passive: true })
+          observer?.observe(element)
+          observer?.observe(document.documentElement)
+          return () => {
+            window.removeEventListener('scroll', report)
+            window.removeEventListener('resize', report)
+            observer?.disconnect()
+          }
+        }),
+        detach => Effect.sync(detach),
+      ),
+    ),
+})
+
 export const RowMeasured = Schema.TaggedStruct('RowMeasured', {
   key: Schema.String,
   height: Schema.Number,
 })
 export type RowMeasured = typeof RowMeasured.Type
 
-type RowObserverCtor = new (callback: ResizeObserverCallback) => ResizeObserver
-
 /**
- * One row's height, reported on every resize starting with the current
- * one. The key is the application's row identity, echoed back so the
- * parent files the height without tracking which Mount sent what.
+ * One row's height, its border box, reported on every resize starting with
+ * the current one. The key is the application's row identity, echoed back
+ * so the parent files the height without tracking which Mount sent what.
  */
 export const MeasureRow = Mount.defineStream('MeasureRow', {
   messages: [RowMeasured],
@@ -391,20 +442,84 @@ export const MeasureRow = Mount.defineStream('MeasureRow', {
   execute: ({ element, key }) =>
     Stream.callback<typeof RowMeasured.Type>(queue =>
       Effect.gen(function* () {
-        const Observed = (globalThis as { ResizeObserver?: RowObserverCtor }).ResizeObserver
+        const Observed = (globalThis as { ResizeObserver?: ObserverCtor }).ResizeObserver
         if (Observed === undefined) return
         yield* Effect.acquireRelease(
           Effect.sync(() => {
             const observer = new Observed(entries => {
-              const rect = entries[0]?.contentRect
-              if (rect !== undefined) {
-                Queue.offerUnsafe(queue, RowMeasured.make({ key, height: rect.height }))
+              // The border box: a row padded by its style is that much taller than its content.
+              const box = entries[0]?.borderBoxSize[0]
+              if (box !== undefined) {
+                Queue.offerUnsafe(queue, RowMeasured.make({ key, height: box.blockSize }))
               }
             })
             observer.observe(element)
             return observer
           }),
           observer => Effect.sync(() => observer.disconnect()),
+        )
+      }),
+    ),
+})
+
+export const RowsMeasured = Schema.TaggedStruct('RowsMeasured', {
+  rows: Schema.Array(Schema.Struct({ key: Schema.String, height: Schema.Number })),
+})
+export type RowsMeasured = typeof RowsMeasured.Type
+
+/**
+ * The heights of an element's rows, border boxes, from one observer on the
+ * list rather than a Mount per row: each child carrying `attribute` is a
+ * row, its value the row's key. A row is reported when it is drawn and on
+ * every resize after, and the rows one frame resized arrive in one batch,
+ * so a list's first draw is one Message, not one per row.
+ */
+export const MeasureRows = Mount.defineStream('MeasureRows', {
+  messages: [RowsMeasured],
+  args: { attribute: Schema.String },
+  execute: ({ element, attribute }) =>
+    Stream.callback<RowsMeasured>(queue =>
+      Effect.gen(function* () {
+        const Observed = (globalThis as { ResizeObserver?: ObserverCtor }).ResizeObserver
+        if (Observed === undefined) return
+        yield* Effect.acquireRelease(
+          Effect.sync(() => {
+            const sizes = new Observed(entries => {
+              const rows = entries.flatMap(entry => {
+                const key = entry.target.getAttribute(attribute)
+                const box = entry.borderBoxSize[0]
+                return key === null || box === undefined ? [] : [{ key, height: box.blockSize }]
+              })
+              if (rows.length > 0) Queue.offerUnsafe(queue, RowsMeasured.make({ rows }))
+            })
+            const observed = new Set<Element>()
+            // A row drawn is observed, which reports it at once; a row gone is let go.
+            const reconcile = () => {
+              const rows = new Set(
+                Array.from(element.children).filter(child => child.hasAttribute(attribute)),
+              )
+              for (const row of observed) {
+                if (!rows.has(row)) {
+                  sizes.unobserve(row)
+                  observed.delete(row)
+                }
+              }
+              for (const row of rows) {
+                if (!observed.has(row)) {
+                  sizes.observe(row)
+                  observed.add(row)
+                }
+              }
+            }
+            const children = new MutationObserver(reconcile)
+            children.observe(element, { childList: true })
+            reconcile()
+            return () => {
+              children.disconnect()
+              sizes.disconnect()
+            }
+          }),
+          detach => Effect.sync(detach),
         )
       }),
     ),
