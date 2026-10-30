@@ -25,8 +25,8 @@ caches keeping an answer, and closes several write-rule gaps.
 
 Breaking, under Changed: a ref's own members are read through
 `ModelRef.focus(ref)`, so a Model field may have any name, and a Remote
-domain's `store` is a `Focus`; the Carousel's Model holds `index` and the
-Sheet's `at` again; an Entity has one set of members, which
+domain's `store` is a `Focus`; the Carousel's Model holds `index` (was
+`slide`) and the Sheet's `at` (was `point`); an Entity has one set of members, which
 `Entity.relate`, `derived` and `sets` add to and every descriptor reads (#332);
 `Remote.patch` takes a ref for a relation;
 `Bundle.make`, `fromParts` and `lazy` take new generic parameters;
@@ -536,9 +536,9 @@ carries `drawn`.
   `ModelRef.focus(ref).get(model)`. `Surface.when`, `Site.sources` and
   `SSR.plan`'s `local` still take the ref. A Remote domain's `store` (and
   `Remote.at(…).store`) is the store's `Focus`, not a ref. The Carousel's
-  Model and `init` take `index` again, and the Sheet's Model holds `at`: the
-  names they had before `slide` and `point`, which existed only to get past
-  the reserved names.
+  Model and `init` take `index` (0.35.0's `slide`), and the Sheet's Model
+  holds `at` (0.35.0's `point`): the names they had before, which `slide` and
+  `point` replaced only to get past the reserved names.
 
 - **An Entity has one set of members (#332).** `Entity.relate`,
   `Entity.derived` and `Entity.sets` used to return a new descriptor, and each
@@ -808,7 +808,7 @@ carries `drawn`.
 ### Security
 
 - **The durable journal keeps an operation's `__proto__` key** (published
-  since foldkit-durable 0.3.0). It stored an operation as canonical JSON
+  since foldkit-durable 0.2.0, the release tagged v0.3.0). It stored an operation as canonical JSON
   built on a plain object, where a key named `__proto__` sets the prototype
   instead of adding a key, so that key was dropped from what was stored and
   read back, and from the bytes that tell a retry from a conflicting reuse of
@@ -887,8 +887,9 @@ carries `drawn`.
     one naming a row hidden from it, by the target's Read rule or the
     relation's `policies` (#290), is refused like one naming no row.
   - A writer refuses a write that sets a member stored on the column of one
-    the context sets, which in 0.35.0 could overwrite a `presets` field
-    through a relation stored on its column.
+    the context sets, which could overwrite a `presets` field through a
+    relation stored on its column in every published foldkit-guard (0.1.0 to
+    0.6.0) with foldkit-remote-drizzle 0.11.0 to 0.15.0.
 
 ### Fixed
 
