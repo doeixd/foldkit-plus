@@ -21,19 +21,29 @@ interface Paused {
 const hash = 'a'.repeat(64)
 const facts = { key: hash, width: 4, height: 2, alpha: false, hash, placeholder: null }
 
+const probe = '/_media/upload?probe'
+
 // A request held before `next` asks waits in `paused`; a `next` asking first
 // waits in `waiting` until the request arrives, however late a loaded run makes
 // it, bounded only by the test's own timeout.
 let paused: Array<Paused> = []
 let waiting: Array<(event: Paused) => void> = []
 const hold = (event: Paused) => {
+  if (new URL(event.request.url).search === '?probe') return void answer(event.requestId, 204, '')
   const waiter = waiting.shift()
   if (waiter) waiter(event)
   else paused.push(event)
 }
-const next = (): Promise<Paused> => {
+/** The next held request, or a failure naming how the upload ended without one. */
+const next = (ended: Promise<unknown>): Promise<Paused> => {
   const event = paused.shift()
-  return event ? Promise.resolve(event) : new Promise(resolve => waiting.push(resolve))
+  if (event) return Promise.resolve(event)
+  return Promise.race([
+    new Promise<Paused>(resolve => waiting.push(resolve)),
+    ended.then(end => {
+      throw new Error(`the upload ended before its request was held: ${String(end)}`)
+    }),
+  ])
 }
 const answer = (requestId: string, status: number, body: string) =>
   cdp().send('Fetch.fulfillRequest', {
@@ -50,6 +60,10 @@ beforeEach(async () => {
   await cdp().send('Fetch.enable', {
     patterns: [{ urlPattern: '*/_media/upload*', requestStage: 'Request' }],
   })
+  // Chromium holds the page's requests some time after `Fetch.enable` answers,
+  // and one sent before then goes to the dev server unheld (Vitest probes its own
+  // interception for the same reason), so ask until a probe is held.
+  while ((await fetch(probe, { method: 'POST' })).status !== 204);
 })
 afterEach(async () => {
   cdp().off('Fetch.requestPaused', hold)
@@ -64,7 +78,7 @@ const run = (file: Blob, options?: Parameters<typeof upload>[1]) =>
 test('sends the bytes typed by the file, with its headers, and ends with the facts', async () => {
   const file = image(256 * 1024)
   const done = run(file, { url: '/_media/upload?to=a', headers: { authorization: 'Bearer t' } })
-  const { requestId, request } = await next()
+  const { requestId, request } = await next(done)
   expect([request.method, new URL(request.url).search]).toEqual(['POST', '?to=a'])
   const header = (name: string) =>
     Object.entries(request.headers).find(([key]) => key.toLowerCase() === name)?.[1]
@@ -128,14 +142,14 @@ test.each([
   [201, 'not json', 'Unexpected'],
 ] as const)('a %i answering %s fails as %s', async (status, body, reason) => {
   const done = run(image(16))
-  await answer((await next()).requestId, status, body)
+  await answer((await next(done)).requestId, status, body)
   expect(await done).toEqual(Exit.fail(new UploadFailed({ reason, status })))
 })
 
 test('no answer at all fails as Network, status 0', async () => {
   const done = run(image(16))
   await cdp().send('Fetch.failRequest', {
-    requestId: (await next()).requestId,
+    requestId: (await next(done)).requestId,
     errorReason: 'ConnectionRefused',
   })
   expect(await done).toEqual(Exit.fail(new UploadFailed({ reason: 'Network', status: 0 })))
@@ -149,7 +163,7 @@ test('interrupting the stream aborts the request still in flight', async () => {
     abort.call(this)
   })
   const fiber = Effect.runFork(Stream.runCollect(upload(image(16))))
-  const { requestId } = await next()
+  const { requestId } = await next(Effect.runPromise(Fiber.await(fiber)))
   await Effect.runPromise(Fiber.interrupt(fiber))
   // Opened and sent, not done: the abort reached a request still waiting.
   expect(states).toEqual([XMLHttpRequest.OPENED])
