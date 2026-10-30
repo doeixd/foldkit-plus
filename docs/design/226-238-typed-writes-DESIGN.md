@@ -1,7 +1,8 @@
 # Typed relation values, refreshing a query, and lists the client can place (#226, #238)
 
-Status: decided (2026-10-30). The parts marked *built* below are in
-`foldkit-remote`; the others were checked against `main` and are obsolete.
+Status: built (2026-10-30). §1 is 4d855201, §2 a25d493e, and the
+documentation in §5 e7e84b60, all in `foldkit-remote`; §3 to §5's API items
+were checked against `main` and are obsolete.
 
 ## Where the issues stand
 
