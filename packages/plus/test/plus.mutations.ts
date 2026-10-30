@@ -231,4 +231,33 @@ export default [
     'Paste the block in its \\`references/agents-md.md\\` (${AGENTS_BLOCK})',
     'Paste the block',
   ),
+  edit(
+    'the pins ignore a later patch the lockfile holds',
+    '../src/setup.ts',
+    'lockedMajor === major && lockedMinor === minor && patch > (releaseOf(newest)[2] ?? -1)',
+    'false',
+  ),
+  edit(
+    'a locked patch of another minor is pinned',
+    '../src/setup.ts',
+    'lockedMajor === major && lockedMinor === minor && patch',
+    'lockedMajor === major && patch',
+  ),
+  edit(
+    'the oldest locked patch is pinned, not the newest',
+    '../src/setup.ts',
+    'patch > (releaseOf(newest)[2] ?? -1)',
+    'patch > (releaseOf(tested)[2] ?? -1)',
+  ),
+  {
+    name: 'only the root of the lockfile is read, not a nested copy',
+    edits: [
+      {
+        file: '../src/project.ts',
+        find: 'path.endsWith(`node_modules/${name}`)',
+        replace: 'path === `node_modules/${name}`',
+      },
+    ],
+    tests: ['packages/plus/test/project.test.ts'],
+  },
 ]

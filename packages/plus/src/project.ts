@@ -8,7 +8,7 @@ import { homedir } from 'node:os'
 import { dirname, join, relative, sep } from 'node:path'
 
 import { declarationsIn, type Declaration, type Doc } from './docs.js'
-import type { Manager, PnpmSettings, Project } from './setup.js'
+import { effectPackages, type Manager, type PnpmSettings, type Project } from './setup.js'
 
 const Versions = Schema.Record(Schema.String, Schema.String)
 const Manifest = Schema.Struct({
@@ -57,6 +57,38 @@ const pnpmSettingsIn = (folder: string): PnpmSettings => {
   }
 }
 
+const NpmLock = Schema.Struct({
+  packages: Schema.Record(
+    Schema.String,
+    Schema.Struct({ version: Schema.optional(Schema.String) }),
+  ),
+})
+
+/**
+ * The versions of Effect's packages in the nearest npm lockfile, keyed by
+ * install path (`node_modules/@foldkit/vite-plugin/node_modules/effect`). One
+ * npm cannot read holds none.
+ */
+const lockedEffect = (folder: string): ReadonlyArray<string> => {
+  const lock = projectFolders(folder)
+    .map(at => join(at, 'package-lock.json'))
+    .find(existsSync)
+  if (lock === undefined) return []
+  return Option.match(
+    Schema.decodeUnknownOption(Schema.fromJsonString(NpmLock))(readFileSync(lock, 'utf8')),
+    {
+      onNone: () => [],
+      onSome: ({ packages }) =>
+        Object.entries(packages).flatMap(([path, entry]) =>
+          entry.version !== undefined &&
+          effectPackages.some(name => path.endsWith(`node_modules/${name}`))
+            ? [entry.version]
+            : [],
+        ),
+    },
+  )
+}
+
 /** The project in `folder`, if it is one. */
 export const projectIn = (folder: string): Option.Option<Project> => {
   const path = join(folder, 'package.json')
@@ -71,6 +103,7 @@ export const projectIn = (folder: string): Option.Option<Project> => {
     },
     gitattributes: projectFolders(folder).some(at => existsSync(join(at, '.gitattributes'))),
     pnpmSettings: pnpmSettingsIn(folder),
+    locked: lockedEffect(folder),
   })
 }
 

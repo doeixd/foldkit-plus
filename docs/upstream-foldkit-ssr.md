@@ -295,6 +295,21 @@ Foldkit's release to a project that names `@foldkit/devtools` without it.
 then skips its peers, and in an empty npm cache it fails to load
 (`Cannot find package 'redis'`, a peer of `@effect/platform-node`).
 
+**The scaffold's own tree goes invalid at an Effect patch.** Every template
+pins `effect` at the release (`4.1.0`), while `@foldkit/vite-plugin` depends
+on `@effect/platform-node` and `-shared` at `~4.1.0`, which npm resolves to
+the newest patch. Once Effect 4.1.1 shipped, a fresh npm scaffold nested
+`@effect/platform-node` 4.1.1 under the plugin, and its peer `effect: ^4.1.1`
+is not the root's 4.1.0: `npm ls` exits with `ELSPROBLEMS` before anything
+is added (the `scaffold (spa|ssg, npm)` CI jobs from 2026-10-30). npm then
+keeps that locked copy rather than move it down to an override, so pins at
+4.1.0 left it invalid. The ask: name `effect` and `@effect/platform-browser`
+in the templates at the same `~4.1.0` the plugin takes, or have the plugin
+peer on the platform packages instead of depending on them. Our workaround,
+in `setup`: `effectRelease` pins the newest patch of the tested minor that
+the project's npm lockfile already holds (`locked`, read by `projectIn`), so
+the pins meet that copy instead of contradicting it.
+
 ## Proposal 6: leave a control the person changed alone at hydration
 
 **Ask.** An opt-in on `Runtime.hydrate` (and the adoption it shares with

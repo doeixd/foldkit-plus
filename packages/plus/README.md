@@ -223,6 +223,11 @@ package to the tested one, which keeps one copy of each:
   that already holds a `pnpm` field);
 - Yarn: `resolutions`; Bun: `overrides`.
 
+npm keeps a package its lockfile holds rather than move it down to an
+override, and a scaffold locks the newest Effect patch under
+`@foldkit/vite-plugin`. Where `package-lock.json` already holds a later patch
+of the tested minor, `setup` pins that one instead.
+
 That also holds `foldkit-durable`'s `@effect/sql-sqlite-node`, whose every
 release peers on an `effect` at least its own version. Each release of
 `foldkit-plus` pins the release of every package it brings, so the set is one

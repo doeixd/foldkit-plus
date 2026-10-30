@@ -131,8 +131,8 @@ App.model.<field>, … })`, `Mirror.url(App, …)`, and `SurfaceView.define(Todo
   and wirings (`Data.wiring(…)`, `….wiring('UrlChanged')`, `….wiring()`); routing,
   startup Commands, Subscriptions and the Module derive from it (`bundle.md`).
 - **Install** with `npx --legacy-peer-deps foldkit-plus setup`, which prints the
-  steps for its project: Effect pins at 4.1.0 (Foldkit takes `~4.1.0`),
-  the `add` command, a `.gitattributes`. With `foldkit-plus`, import each
+  steps for its project: Effect pins at 4.1.0, or a later 4.1 patch an npm
+  lockfile already holds (Foldkit takes `~4.1.0`), the `add` command, a `.gitattributes`. With `foldkit-plus`, import each
   package through its subpath (`foldkit-plus/remote-server`); the snippets
   name each package itself, as installed alone. Adapters with a library of their own
   (`foldkit-auth`, `foldkit-react`, the Drizzle packages, `foldkit-mixins-ui`,

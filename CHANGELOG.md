@@ -210,6 +210,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`foldkit-plus setup` installs one valid Effect after an Effect patch
+  release** (`foldkit-plus`). Since Effect 4.1.1, an npm scaffold locks
+  `@effect/platform-node` 4.1.1 under `@foldkit/vite-plugin`, and npm keeps
+  it rather than move it down to setup's 4.1.0 pins, so `npm ls` called it
+  invalid. Setup now pins the newest patch of its tested Effect minor that
+  the project's `package-lock.json` already holds.
+
 - **A list fetched only to check its placement reads as it would without the
   check** (`foldkit-remote`, #350). `verifyPredictions` made each list a
   write placed rows in stale, to fetch the page it compares with, so in

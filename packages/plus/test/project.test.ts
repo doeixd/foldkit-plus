@@ -29,6 +29,31 @@ test("a `.gitattributes` counts at the repository's root, and not above it", () 
   expect(gitattributesIn(app)).toEqual(Option.some(true))
 })
 
+test("npm's locked Effect versions are read from the root's lockfile, nested copies included", () => {
+  // repo/.git > repo/package-lock.json > repo/apps/web/package.json
+  const repo = join(root, 'locked')
+  const app = join(repo, 'apps', 'web')
+  const lockedIn = (folder: string) => Option.map(projectIn(folder), project => project.locked)
+  mkdirSync(join(repo, '.git'), { recursive: true })
+  mkdirSync(app, { recursive: true })
+  writeFileSync(join(app, 'package.json'), JSON.stringify({ name: 'web' }))
+  expect(lockedIn(app)).toEqual(Option.some([]))
+
+  const packages = {
+    '': { name: 'top' },
+    'node_modules/effect': { version: '4.1.0' },
+    'node_modules/@foldkit/vite-plugin': { version: '0.29.0' },
+    'node_modules/@foldkit/vite-plugin/node_modules/@effect/platform-node': { version: '4.1.1' },
+    'node_modules/effect-oxlint': { version: '0.4.0' },
+    'node_modules/@effect/tsgo': { version: '0.50.0' },
+  }
+  writeFileSync(join(repo, 'package-lock.json'), JSON.stringify({ packages }))
+  expect(lockedIn(app)).toEqual(Option.some(['4.1.0', '4.1.1']))
+
+  writeFileSync(join(repo, 'package-lock.json'), '{ not json')
+  expect(lockedIn(app)).toEqual(Option.some([]))
+})
+
 describe("where pnpm reads a project's settings", () => {
   const settingsIn = (folder: string) => Option.map(projectIn(folder), each => each.pnpmSettings)
   const workspace = (name: string, rootManifest: object) => {

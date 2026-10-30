@@ -16,6 +16,8 @@ export interface Project {
   readonly gitattributes: boolean
   /** Where pnpm reads this project's settings, which a workspace keeps at its root. */
   readonly pnpmSettings: PnpmSettings
+  /** The versions of Effect's packages (`effectPackages`) its npm lockfile holds, nested copies included. */
+  readonly locked: ReadonlyArray<string>
 }
 
 /** A file pnpm reads settings from, in `folder` relative to the project (`.`, `../..`). */
@@ -232,6 +234,26 @@ export const effectPackages: ReadonlyArray<string> = [
   '@effect/sql-sqlite-node',
 ]
 
+const releaseOf = (version: string) =>
+  /^(\d+)\.(\d+)\.(\d+)$/.exec(version)?.slice(1).map(Number) ?? []
+
+/**
+ * The Effect release setup pins: the one this release is tested on, or a later
+ * patch of the same minor that the project's lockfile already holds. npm keeps
+ * a locked package that an override contradicts rather than move it down, so
+ * pinning 4.1.0 left the 4.1.1 that `@foldkit/vite-plugin`'s `~4.1.0` had
+ * locked under it, which `npm ls` calls invalid.
+ */
+export const effectRelease = (tested: string, locked: ReadonlyArray<string>): string => {
+  const [major, minor] = releaseOf(tested)
+  return locked.reduce((newest, version) => {
+    const [lockedMajor, lockedMinor, patch = -1] = releaseOf(version)
+    return lockedMajor === major && lockedMinor === minor && patch > (releaseOf(newest)[2] ?? -1)
+      ? version
+      : newest
+  }, tested)
+}
+
 /** Where the pins go, and the block that holds them. */
 interface Pins {
   /** The file, as the step names it: `package.json`, `../../pnpm-workspace.yaml`. */
@@ -346,9 +368,13 @@ export const setupGuide = ({ project, manager, versions }: SetupInput): string =
     onSome: found => effectPackages.filter(name => found.versions[name] !== undefined),
   })
   const moved = new Set(['effect', '@effect/platform-browser', ...listed])
+  const effect = effectRelease(
+    versions.effect,
+    Option.match(project, { onNone: () => [], onSome: found => found.locked }),
+  )
   const pins = pinsOf(
     manager,
-    versions.effect,
+    effect,
     moved,
     Option.match(project, {
       onNone: () => ({ folder: '.', file: 'package.json' }),
@@ -369,7 +395,7 @@ export const setupGuide = ({ project, manager, versions }: SetupInput): string =
     [
       ...(manager === 'npm'
         ? []
-        : effectPackages.filter(name => moved.has(name)).map(name => `${name}@${versions.effect}`)),
+        : effectPackages.filter(name => moved.has(name)).map(name => `${name}@${effect}`)),
       `foldkit@${versions.foldkit}`,
       ...(uiPeer ? [`@foldkit/ui@${versions.foldkit}`] : []),
       'foldkit-plus',
@@ -395,7 +421,7 @@ export const setupGuide = ({ project, manager, versions }: SetupInput): string =
     onSome: found => [
       `This is \`${found.name}\`, installed with ${manager}.`,
       '',
-      finding(found, 'effect', versions.effect),
+      finding(found, 'effect', effect),
       finding(found, 'foldkit', versions.foldkit),
       ...(uiPeer
         ? [
@@ -432,7 +458,7 @@ export const setupGuide = ({ project, manager, versions }: SetupInput): string =
     '',
     '## 2. Install',
     '',
-    `Foldkit and its tooling name one Effect release exactly, and Foldkit Plus is tested on ${versions.effect}. To install one copy of each Effect package, at that release, first merge this into \`${pins.file}\`, keeping what it holds (${pinsWhy[manager]}${pins.file === 'package.json' ? '' : '; pnpm reads them only at the workspace root'}):`,
+    `Foldkit and its tooling take one Effect minor, and Foldkit Plus is tested on ${versions.effect}.${effect === versions.effect ? '' : ` The lockfile already holds ${effect}, a later patch of that minor, and npm keeps a locked package rather than move it down to an override, so the pins name ${effect}.`} To install one copy of each Effect package, at that release, first merge this into \`${pins.file}\`, keeping what it holds (${pinsWhy[manager]}${pins.file === 'package.json' ? '' : '; pnpm reads them only at the workspace root'}):`,
     '',
     `\`\`\`${pins.language}`,
     pins.text,

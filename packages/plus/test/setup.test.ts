@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest'
 import {
   SCAFFOLDER,
   addCommand,
+  effectRelease,
   setupGuide,
   type Manager,
   type PnpmSettings,
@@ -22,7 +23,8 @@ const project = (
   deps: Readonly<Record<string, string>>,
   gitattributes = true,
   pnpmSettings = standalone,
-) => Option.some({ name: 'todo', versions: deps, gitattributes, pnpmSettings })
+  locked: ReadonlyArray<string> = [],
+) => Option.some({ name: 'todo', versions: deps, gitattributes, pnpmSettings, locked })
 
 describe('setupGuide', () => {
   it('sends an agent with no project to the greenfield guide, and scaffolds with its manager', () => {
@@ -218,6 +220,31 @@ describe('one Effect for every Effect package', () => {
         '```',
       ].join('\n'),
     )
+  })
+
+  // npm keeps a locked package an override contradicts: a scaffold's
+  // `@foldkit/vite-plugin` locked `@effect/platform-node` 4.1.1 under it, and
+  // pins at 4.1.0 left it there, invalid.
+  it('pins a later patch of the tested minor that the lockfile already holds', () => {
+    const text = guide(
+      project({ effect: '4.0.5' }, true, standalone, ['4.0.5', '4.0.7', '4.0.6']),
+      'npm',
+    )
+    expect(pins(text)).toEqual({
+      dependencies: { effect: '4.0.7', '@effect/platform-browser': '4.0.7' },
+      overrides: Object.fromEntries(Object.keys(effect).map(name => [name, '4.0.7'])),
+    })
+    expect(text).toContain('Foldkit Plus is tested on 4.0.5. The lockfile already holds 4.0.7')
+  })
+
+  it.each([
+    ['nothing locked', [], '4.1.0'],
+    ['an earlier patch', ['4.0.9', '4.1.0'], '4.1.0'],
+    ['a later patch', ['4.1.0', '4.1.2', '4.1.1'], '4.1.2'],
+    ['another minor or major', ['4.2.0', '5.1.3', '3.1.9'], '4.1.0'],
+    ['a prerelease', ['4.1.3-beta.0'], '4.1.0'],
+  ] as const)('chooses the release with %s in the lockfile', (_, locked, release) => {
+    expect(effectRelease('4.1.0', locked)).toBe(release)
   })
 
   it("gives them to the root's `package.json` where its `pnpm` field already holds settings", () => {
