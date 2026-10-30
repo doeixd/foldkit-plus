@@ -78,6 +78,14 @@ version changed; `pnpm` skips versions already in the registry.
   large to send alone fails without being sent, a mutation with
   `RemoteMutationError`, so the outbox does not resend it.
 
+- **`WindowList`** (`foldkit-mixins-ui`, #351): a virtual list that scrolls
+  with the window. It draws the rows in view of the document's viewport
+  between spacers as tall as the rest, so a list below a header and above a
+  footer keeps the page's own scrolling: the browser's scroll restoration,
+  a `sticky` header above it, and the page's keys. `WindowList.init`,
+  `update`, `view`, `windowOf` (the rows drawn, for loading what is in view)
+  and `keep`; Slots `root`, `spacer`, `row`. `VirtualList` stays the list in
+  a box of its own.
 
 ### Changed
 
