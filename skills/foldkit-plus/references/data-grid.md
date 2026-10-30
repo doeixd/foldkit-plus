@@ -1,5 +1,7 @@
 # foldkit-data-grid and foldkit-mixins-data-grid
 
+Checked against `foldkit-data-grid` 0.3.2 and `foldkit-mixins-data-grid` 0.2.15.
+
 **Experimental** (on npm since the 0.15.0 release). Phases 0 to 8 of the DataGrid design are
 built: the pure model, focus, two-axis virtualization, the accessible view in
 `foldkit-mixins-data-grid`, column state, selection, editing as text, Remote

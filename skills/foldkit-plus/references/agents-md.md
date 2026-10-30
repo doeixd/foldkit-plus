@@ -1,5 +1,7 @@
 # A recommended AGENTS.md block
 
+Checked against `foldkit-plus` 0.17.0.
+
 An application scaffolded with `create-foldkit-app` has an `AGENTS.md` that
 points at `FOLDKIT.md` and ends in an empty **Project Notes** section, which
 the scaffold leaves to the project. The block below fills it: the working rules

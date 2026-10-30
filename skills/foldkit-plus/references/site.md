@@ -1,5 +1,7 @@
 # `foldkit-site`
 
+Checked against `foldkit-site` 0.4.4.
+
 The deployed route topology: stable route nodes in a hierarchy, typed
 targets, and per-node metadata — compiling to the Router, Surface, and Bundle
 primitives the runtime already runs. Pure data: no Model, no Effects, no

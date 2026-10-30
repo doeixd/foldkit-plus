@@ -1,5 +1,7 @@
 # foldkit-primitives
 
+Checked against `foldkit-primitives` 0.15.4.
+
 Ready-made [`foldkit-bundle`](https://github.com/doeixd/foldkit-plus/blob/main/packages/bundle)
 primitives: media queries, breakpoints, visibility, presence, timers,
 intervals, debounce, tweens, springs, pagination, undo history, locales,

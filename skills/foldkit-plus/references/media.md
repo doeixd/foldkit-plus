@@ -1,5 +1,7 @@
 # foldkit-media
 
+Checked against `foldkit-media` 0.3.1.
+
 Responsive images as URLs to write. Given an image's facts, a provider that
 knows a host's URL scheme, and how wide the image is drawn, it derives every
 attribute of the markup. It performs no I/O: the browser picks the candidate,

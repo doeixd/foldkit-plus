@@ -1,5 +1,7 @@
 # foldkit-auth
 
+Checked against `foldkit-auth` 0.1.5.
+
 A [Yielded Auth](https://github.com/yielded-dev/auth) session read from a
 request and handed to Remote's `serveFetch` (`AuthServer.resolver`), a page's
 own reads (`pageReader`) and Sync's document hosts (`documentHost`,

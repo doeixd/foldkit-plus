@@ -1,5 +1,7 @@
 # foldkit-react
 
+Checked against `foldkit-react` 0.4.1 and `foldkit-react-codegen` 0.3.0.
+
 React components inside a Foldkit view, and Foldkit programs inside a React app.
 Each side keeps its renderer and its state; only Messages and Ports cross.
 

@@ -1,5 +1,7 @@
 # foldkit-form
 
+Checked against `foldkit-form` 0.8.1, `foldkit-mixins-form` 0.10.0 and `foldkit-form-recipes` 0.1.1.
+
 A form as a Submodel: built from the input an operation accepts, holding what
 the user is typing, and handing the parent a decoded value once it is valid.
 Field state is Foldkit core's `foldkit/fieldValidation`; the form is a

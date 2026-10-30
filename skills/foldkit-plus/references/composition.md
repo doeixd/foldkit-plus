@@ -1,5 +1,7 @@
 # foldkit-composition, foldkit-builder and foldkit-mixins-builder
 
+Checked against `foldkit-composition` 0.3.12, `foldkit-builder` 0.3.14 and `foldkit-mixins-builder` 0.3.16.
+
 **Experimental (`0.3.x`).** Built: Blocks, Regions, Content, a Catalog, the
 stored Document, its validation, editing Operations, migrations, a Foldkit
 renderer, conditions, actions, appearance, the headless Builder, the CMS

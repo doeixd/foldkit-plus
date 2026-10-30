@@ -1,5 +1,7 @@
 # foldkit-surface
 
+Checked against `foldkit-surface` 0.10.2 and `foldkit-metadata` 0.1.0.
+
 ## What it is and what it owns
 
 `foldkit-surface` lets a feature declare, in one value, **which parts of a Foldkit

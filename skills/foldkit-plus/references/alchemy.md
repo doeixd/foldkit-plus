@@ -1,5 +1,7 @@
 # Deploying with Alchemy
 
+Checked against `alchemy` 2.0.0-beta.84 and `@alchemy.run/cloudflare` 2.0.0-beta.84.
+
 [Alchemy](https://alchemy.run) declares cloud resources as Effect values in
 one file, `alchemy.run.ts`, and creates, updates or deletes them to match
 (`alchemy plan`, `alchemy deploy`). It is the "A" of the CAFE stack

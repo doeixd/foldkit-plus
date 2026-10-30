@@ -1,5 +1,7 @@
 # foldkit-mirror
 
+Checked against `foldkit-mirror` 0.6.3.
+
 Keeps part of a Foldkit Model **represented** in the URL or in an Effect
 `KeyValueStore`. The Model stays authoritative, and `update` stays the only
 place where state changes. A mirror only observes the state, so it never owns it.

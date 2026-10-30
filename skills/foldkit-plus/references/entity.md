@@ -1,5 +1,7 @@
 # foldkit-entity
 
+Checked against `foldkit-entity` 0.13.0.
+
 A domain entity declared once as a typed value: intrinsic fields, relations to
 other entities, and derived members. It **describes only**. It fetches, stores,
 validates, and renders nothing, and it never touches a Model or a Message.

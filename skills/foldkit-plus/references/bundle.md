@@ -1,5 +1,7 @@
 # foldkit-bundle
 
+Checked against `foldkit-bundle` 0.8.1 and `foldkit-bundle-surface` 0.4.3.
+
 Packages a Foldkit **Submodel once** (Model, Message, init, update,
 Subscriptions, Managed Resources, view, helpers) and places it in a parent.
 Placing compiles each part to Foldkit's own lift (`foldChildStep`,

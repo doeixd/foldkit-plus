@@ -1,5 +1,7 @@
 # foldkit-sync + foldkit-durable
 
+Checked against `foldkit-sync` 0.12.4 and `foldkit-durable` 0.9.1.
+
 Local-first replication of part of a Foldkit Model. `foldkit-sync` is the client
 replica, and `foldkit-durable` is the optional SQLite server journal that owns
 the order.

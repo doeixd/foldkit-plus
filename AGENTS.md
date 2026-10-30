@@ -423,6 +423,9 @@ before changing it.
   re-shapes a public API, or changes what a package owns, updates the matching
   reference file in the same change. A new package gets a row in the `SKILL.md`
   table and a place in a reference file. Bump `metadata.version` on release.
+  Each reference's first line, `Checked against <package> <version>, …`, names
+  the versions in the tree when it was last checked against the code: set it
+  to the current `package.json` versions whenever you do that check, and only then.
 - **Examples are executable claims here too.** Every snippet must compile
   against the current code: copy it with minimal fixtures into a temporary
   `*.test-d.ts` in a project whose tsconfig maps the imported package names

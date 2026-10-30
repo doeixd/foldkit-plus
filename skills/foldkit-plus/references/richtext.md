@@ -1,5 +1,7 @@
 # RichText — semantic document foundation
 
+Checked against `foldkit-richtext` 0.5.3, `foldkit-richtext-dom` 0.6.6, `foldkit-mixins-richtext` 0.5.7, `foldkit-richtext-markdown` 0.3.4, `foldkit-richtext-code` 0.2.5 and `foldkit-richtext-code-shiki` 0.2.5.
+
 `foldkit-richtext` is published and early. The application Model
 owns the document and local selection; the package supplies pure data validation
 and text transitions. It has no DOM editor, persistence runtime, or hidden store;

@@ -1,5 +1,7 @@
 # foldkit-crud
 
+Checked against `foldkit-crud` 0.11.0 and `foldkit-mixins-crud` 0.9.0.
+
 Management screens assembled from parts the application already has. An
 **editor** joins a `foldkit-form` form, the Remote mutation its value feeds, and
 the Entity they share: it loads what the form writes, fills the form, turns a

@@ -1,5 +1,7 @@
 # Mixins: `foldkit-mixins`, `foldkit-mixins-surface`, `foldkit-mixins-ui`
 
+Checked against `foldkit-mixins` 0.20.0, `foldkit-mixins-surface` 0.6.9 and `foldkit-mixins-ui` 0.21.0.
+
 ## 1. Purpose
 
 Inside-out view composition. A view **declares once** where it may be customized (typed
