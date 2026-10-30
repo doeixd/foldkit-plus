@@ -164,6 +164,8 @@ icons are Lucide's, imported by name through `foldkit-media/vite`
 - Pages are drawn in the browser; `examples/cms` and `examples/auth` show
   server rendering.
 - The timeline is read, not followed: a chirp posted in another tab shows
-  here once the list is read again (a reload, or going back to it), though
-  both tabs share one server. A list read live (`Data.query(…, { live: true })`
-  over a live source) would follow it; `examples/reference` shows one.
+  here once the list is read again (a reload, or a minute after it was read:
+  every read is fresh for a minute, `freshness` in `src/app.ts`, so going
+  back to a page within it asks nothing), though both tabs share one server.
+  A list read live (`Data.query(…, { live: true })` over a live source) would
+  follow it; `examples/reference` shows one.

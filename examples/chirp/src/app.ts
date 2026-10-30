@@ -12,7 +12,7 @@ import type * as Update from 'foldkit/update'
 import { Url } from 'foldkit/url'
 import { Bundle } from 'foldkit-bundle'
 import { Entity, type Selected } from 'foldkit-entity'
-import { Remote, RemoteData, type RemoteClient } from 'foldkit-remote'
+import { Remote, RemoteData, RemotePolicy, type RemoteClient } from 'foldkit-remote'
 import { Site } from 'foldkit-site'
 import { Surface } from 'foldkit-surface'
 import { Composer } from './compose.js'
@@ -248,7 +248,19 @@ export const outbox = Data.outbox({
   scope: model => model.me,
 })
 
-const placements = Page.assemble(ComposeForm, EditorForm, Data.wiring(actives), outbox, Routing)
+/**
+ * Every read is fresh for a minute: a page gone back to within it is drawn
+ * from the store and asks nothing, and one on screen longer is read again.
+ */
+export const freshness = RemotePolicy.staleWhileRevalidate({ maxAge: 60_000 })
+
+const placements = Page.assemble(
+  ComposeForm,
+  EditorForm,
+  Data.wiring(actives, { policy: freshness }),
+  outbox,
+  Routing,
+)
 
 export const update = PostEditor.after(placements.update(reduce))
 
