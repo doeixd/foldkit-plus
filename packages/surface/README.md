@@ -343,10 +343,13 @@ import { Diagnostics, type Diagnostic } from 'foldkit-surface'
 
 declare const send: (diagnostic: Diagnostic) => Effect.Effect<void>
 
-// In a runtime's `resources`, or a server's layer: log as before, and send.
-const reporting = Layer.succeed(Diagnostics.Reporter, diagnostic =>
+// In a browser runtime's `resources`: log as before, and send.
+const reporting = Diagnostics.layer(diagnostic =>
   Effect.andThen(Diagnostics.log(diagnostic), send(diagnostic)),
 )
+
+// On a server, where no Mount runs, the reporter alone is enough.
+const onServer = Layer.succeed(Diagnostics.Reporter, Diagnostics.log)
 
 // In a test: provide `report`, then assert on `reported`.
 const { report, reported } = Diagnostics.collect()
@@ -354,8 +357,27 @@ const inTest = Layer.succeed(Diagnostics.Reporter, report)
 ```
 
 `Diagnostics.report(diagnostic)` reports one and never fails: a reporter that
-breaks is logged with what it was given. A reporter given in a Foldkit
-runtime's `resources` reaches its Commands and Subscriptions, not its Mounts.
+breaks is logged with what it was given.
+
+**Mounts.** Foldkit runs a Mount in the runtime's own context, not its
+`resources`, so a reporter there reaches Commands and Subscriptions but no
+Mount. A Mount reports with `Diagnostics.dispatch(element, diagnostic)`
+instead: a `DiagnosticEvent` at its element, which `Diagnostics.layer(reporter)`
+claims for `reporter` while the runtime holds its resources. Nothing claims it
+on a page without that layer, and it goes to the reporter in context, the log.
+Two limits: Foldkit builds `resources` at the first Command or Subscription
+(before `init` with Flags), so a Mount that fails earlier is logged; and with
+two runtimes in one document, the first to build its resources claims both
+runtimes' events. Only events `foldkit-surface` built are claimed, so a script
+dispatching a `foldkit-diagnostic` event cannot reach your reporter.
+
+**Production.** The default is the same in every build: this package cannot
+tell a production build from a development one in every bundler. A page that
+should not show warnings (which ask a developer to change something) chooses
+`Diagnostics.quiet`, which logs errors and drops warnings, where it knows its
+mode: `Diagnostics.layer(import.meta.env.DEV ? Diagnostics.log : Diagnostics.quiet)`.
+In development, `foldkit-mixins`' `DevOverlay` lists what was reported on the
+page.
 
 ## Advanced: how this relates to Optics and Submodels
 

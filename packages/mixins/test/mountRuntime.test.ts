@@ -1,5 +1,6 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
-import { Cause, Effect, Fiber, Option, Stream } from 'effect'
+import { Cause, Effect, Exit, Fiber, Layer, Option, Scope, Stream } from 'effect'
 import { Diagnostics as Reported } from 'foldkit-surface'
 import type { HtmlBuilder } from 'foldkit/html'
 import { Scene } from 'foldkit/test'
@@ -37,7 +38,7 @@ const composed = (
   return onMount.action
 }
 
-const element = {} as Element
+const element = document.createElement('div')
 
 describe('Mount composition at runtime', () => {
   it('merges the streams of every composed mount', async () => {
@@ -75,6 +76,31 @@ describe('Mount composition at runtime', () => {
       }),
     ])
     expect(reported[0]!.message).toContain('the Mount Failing on slot root failed')
+  })
+
+  // Foldkit runs a Mount outside the application's resources, so its
+  // reporter reaches a Mount through the document (#237).
+  it("reports a mount that fails to the application's reporter when one claims it", async () => {
+    const [application, fallback] = [Reported.collect(), Reported.collect()]
+    const scope = Effect.runSync(Scope.make())
+    Effect.runSync(Layer.buildWithScope(Reported.layer(application.report), scope))
+    const failing: MountAction<TestMessage, Error> = {
+      name: 'Failing',
+      f: () => Stream.fail(new Error('boom')),
+    }
+    const attached = document.body.appendChild(document.createElement('div'))
+    await Effect.runPromise(
+      Stream.runDrain(composed([failing, emitA]).f(attached, liveViewStateChanges)).pipe(
+        Effect.provideService(Reported.Reporter, fallback.report),
+      ),
+    )
+    await new Promise(resolve => setTimeout(resolve, 0))
+    Effect.runSync(Scope.close(scope, Exit.void))
+    attached.remove()
+    expect(fallback.reported).toEqual([])
+    expect(application.reported).toEqual([
+      expect.objectContaining({ _tag: 'MountFailed', mount: 'Failing' }),
+    ])
   })
 
   it('reports nothing when the composed mount is torn down', async () => {

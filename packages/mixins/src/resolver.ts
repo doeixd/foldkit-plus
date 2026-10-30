@@ -302,15 +302,18 @@ const composeMounts = <Message>(
       Stream.mergeAll(
         mounts.map(mount =>
           // A merge ends every stream in it when one fails, so each fails alone,
-          // reported as `MountFailed`, and the rest go on. One that ends
-          // interrupted is being torn down with its element: no fault.
+          // reported as `MountFailed`, and the rest go on: dispatched at the
+          // element, since a Mount runs outside the application's resources.
+          // One that ends interrupted is being torn down with its element.
           mount
             .f(element, viewStateChanges)
             .pipe(
               Stream.catchCause(cause =>
                 Cause.hasInterruptsOnly(cause)
                   ? Stream.empty
-                  : Stream.fromEffectDrain(Reported.report(mountFailed(mount.name, slotOf, cause))),
+                  : Stream.fromEffectDrain(
+                      Reported.dispatch(element, mountFailed(mount.name, slotOf, cause)),
+                    ),
               ),
             ),
         ),

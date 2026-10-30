@@ -68,10 +68,19 @@ resolver: base attrs + contributions -> Foldkit attributes (or DiagnosticError)
   from a mixin; all mounts compose into one `OnMount`. A composed Mount that fails ends alone
   and is reported as a `MountFailed` diagnostic (`{ mount, slot: Option, cause }`) through
   `foldkit-surface`'s `Diagnostics.Reporter`; an interrupted one is not. Foldkit runs Mounts
-  outside the runtime's `resources`, so this one always reaches the default reporter, the log.
+  outside the runtime's `resources`, so the resolver dispatches it at the Mount's element
+  (`Diagnostics.dispatch`): `Diagnostics.layer(reporter)` in the resources claims it for
+  `reporter`; without that layer it goes to the log.
+- `DevOverlay.make()` gives `{ report, mount }` for development: give
+  `Diagnostics.layer(overlay.report)` in the resources and draw `h.div([h.OnMount(overlay.mount)],
+  [])` behind the app's development flag. It lists every diagnostic (the newest 50) in a fixed
+  panel, then passes each to `next` (`Diagnostics.log`). It sends no Message, so a Scene test of
+  a page drawing it cannot resolve it.
 - Diagnostics you will hit (`Diagnostics.DiagnosticError`, `.diagnostic.code`):
   `mixins:unknown-slot`, `mixins:capability-mismatch`, `mixins:event-conflict`,
-  `mixins:attribute-conflict`, `mixins:style-property-conflict`.
+  `mixins:attribute-conflict`, `mixins:style-property-conflict`; from `Theme.make`,
+  `Theme.set` and `Knobs.withValue`, `theme:knob-value` (a value out of range, naming the call
+  and the knob) and `theme:unknown-knob`.
 
 ## 3. Minimal example (`foldkit-mixins` alone)
 

@@ -49,6 +49,21 @@ carries `drawn`.
 
 ### Added
 
+- **A Mount's diagnostics reach the application's reporter (#237, #333).**
+  Foldkit runs Mounts outside the runtime's `resources`, so a `MountFailed`
+  always went to the default log. `Diagnostics.dispatch(element, diagnostic)`
+  (`foldkit-surface`) hands a diagnostic to the document as a
+  `DiagnosticEvent`, and `Diagnostics.layer(reporter)` provides the reporter
+  and claims those events for it while the runtime holds its resources;
+  unclaimed, one goes to the reporter in context. The mixins resolver reports
+  `MountFailed` this way. Give a browser runtime's reporter with
+  `Diagnostics.layer` rather than `Layer.succeed(Diagnostics.Reporter, …)`.
+- **`Diagnostics.quiet`**: errors as `Diagnostics.log` writes them, warnings
+  dropped, for a production page; the default stays the same in every build.
+- **`DevOverlay`** (`foldkit-mixins`): `DevOverlay.make()` gives a reporter
+  (`Diagnostics.layer(overlay.report)`) and a Mount that lists every
+  diagnostic it heard, the newest 50, in a fixed panel with a Clear button,
+  passing each on to `Diagnostics.log`. Draw it in development only.
 - **`Data.refresh(model, Query.ref(input))`** (#238): one list asked again
   by its query and input, for every window reading it, with no select to
   restate. An application reached it only by reducing Remote's own

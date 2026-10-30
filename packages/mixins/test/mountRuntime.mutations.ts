@@ -22,7 +22,7 @@ export default [
     edits: [
       {
         file,
-        find: 'Reported.report(mountFailed(mount.name, slotOf, cause))',
+        find: 'Reported.dispatch(element, mountFailed(mount.name, slotOf, cause))',
         replace: 'Effect.void',
       },
       {
@@ -65,5 +65,16 @@ export default [
       },
     ],
     tests: ['packages/mixins/test/mountRuntime.test.ts'],
+  },
+  {
+    name: "a failing mount reports only to the reporter in context, which an application's never is",
+    edits: [
+      {
+        file,
+        find: 'Reported.dispatch(element, mountFailed(mount.name, slotOf, cause))',
+        replace: 'Reported.report(mountFailed(mount.name, slotOf, cause))',
+      },
+    ],
+    tests,
   },
 ]

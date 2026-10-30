@@ -1,6 +1,6 @@
 # What #237 left open
 
-Status: designed 2026-10-30. Builds on `237-diagnostics-DESIGN.md`, whose
+Status: built 2026-10-30, but for item 6, which is upstream. Builds on `237-diagnostics-DESIGN.md`, whose
 channel (`Diagnostics.report` into the `Diagnostics.Reporter` in context) is
 unchanged. Six items were open on 2026-10-29; each was checked against HEAD
 before this was written.
@@ -107,11 +107,10 @@ unknown group or knob throws a plain `Error`.
 Decision: each throws `foldkit-mixins`' `DiagnosticError` (as `theme:fluid-range`
 already does) with a new code:
 
-- `theme:knob-value`: `Theme.make: surface.lightness is out of range: Expected
-  a value between 6 and 36 at ["dark"]. surface.lightness takes a number from 6
-  to 36 (or { light, dark } of them).` The control's range is read from the
-  knob (`knob.control`), so the message states what it takes; `details`
-  holds `{ knob, value }`.
+- `theme:knob-value`: `Theme.make: surface.lightness refuses its value:
+  SchemaError: Expected a value between 6 and 36 at ["dark"]`. The schema's
+  own issue states the range, for each half of a light/dark knob (whose
+  control describes only the light half); `details` holds `{ knob, value }`.
 - `theme:unknown-knob`: `Theme.make: no knob "surface.lightnes".`
 
 The call is named (`Theme.make`, `Theme.set`, `Knobs.withValue`), since a
@@ -199,5 +198,6 @@ reports `PageContained { reason: 'NoBuildId' }` without one, as at HEAD.
   reported; unsubscribe and a closed journal reported as nothing.
 - Theme: the messages and codes of each refusal, through `make`, `set` and
   `withValue`.
+- Types: `devOverlay.test-d.ts` (mixins), a rejection for each argument.
 - Overlay: a browser test drawing it on a real runtime, a failing Mount and a
   reported diagnostic listed, Clear, and nothing drawn when empty.

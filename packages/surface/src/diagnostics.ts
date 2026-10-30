@@ -5,7 +5,7 @@
  * through the `Diagnostics.Reporter` in the Effect context, which logs by
  * default.
  */
-import { Cause, Context, Effect, Logger } from 'effect'
+import { Cause, Context, Effect, Layer, Logger, type Scope } from 'effect'
 
 /**
  * A fallback, refusal or swallowed failure, as the package that met it
@@ -52,17 +52,82 @@ const Reporter = Context.Reference<ReportDiagnostic>('foldkit-surface/Diagnostic
   defaultValue: () => log,
 })
 
-export const Diagnostics = {
-  Reporter,
-  /** Reports one diagnostic. Never fails: a reporter that breaks is logged, with what it was given. */
-  report: (diagnostic: Diagnostic): Effect.Effect<void> =>
-    Effect.flatMap(Effect.service(Reporter), report => report(diagnostic)).pipe(
-      Effect.catchCause(cause =>
-        logError(
-          `[foldkit-surface] the diagnostics reporter broke on: [${diagnostic.source}] ${diagnostic.message}\n${Cause.pretty(cause)}`,
-        ),
+/** Reports one diagnostic. Never fails: a reporter that breaks is logged, with what it was given. */
+const report = (diagnostic: Diagnostic): Effect.Effect<void> =>
+  Effect.flatMap(Effect.service(Reporter), reporter => reporter(diagnostic)).pipe(
+    Effect.catchCause(cause =>
+      logError(
+        `[foldkit-surface] the diagnostics reporter broke on: [${diagnostic.source}] ${diagnostic.message}\n${Cause.pretty(cause)}`,
       ),
     ),
+  )
+
+/** Errors as `log` writes them; warnings, which ask a developer to change something, dropped. */
+const quiet: ReportDiagnostic = diagnostic =>
+  diagnostic.level === 'error' ? log(diagnostic) : Effect.void
+
+const eventType = 'foldkit-diagnostic'
+
+/**
+ * A diagnostic handed to the document by code the application's context does
+ * not reach, for `Diagnostics.layer` to claim. Only events of this class are
+ * claimed: any script can dispatch an event named `foldkit-diagnostic`.
+ */
+class DiagnosticEvent extends Event {
+  readonly diagnostic: Diagnostic
+  constructor(diagnostic: Diagnostic) {
+    super(eventType, { bubbles: true, composed: true, cancelable: true })
+    this.diagnostic = diagnostic
+  }
+}
+
+/**
+ * Reports `diagnostic` from code the application's context does not reach (a
+ * Mount, which Foldkit runs outside `resources`): a `DiagnosticEvent` at
+ * `element`, or at its document once the element has left it, where nothing
+ * would hear it. Unclaimed, it goes to the reporter in context.
+ */
+const dispatch = (element: Element, diagnostic: Diagnostic): Effect.Effect<void> =>
+  Effect.suspend(() => {
+    const target = element.isConnected ? element : element.ownerDocument
+    return target.dispatchEvent(new DiagnosticEvent(diagnostic)) ? report(diagnostic) : Effect.void
+  })
+
+/** While its scope is open, claims each unclaimed `DiagnosticEvent` in the document for `reporter`. */
+const claim = (reporter: ReportDiagnostic): Effect.Effect<void, never, Scope.Scope> =>
+  typeof document === 'undefined'
+    ? Effect.void
+    : Effect.asVoid(
+        Effect.acquireRelease(
+          Effect.sync(() => {
+            const listener = (event: Event) => {
+              if (!(event instanceof DiagnosticEvent) || event.defaultPrevented) return
+              event.preventDefault()
+              Effect.runFork(Effect.provideService(report(event.diagnostic), Reporter, reporter))
+            }
+            document.addEventListener(eventType, listener)
+            return listener
+          }),
+          listener => Effect.sync(() => document.removeEventListener(eventType, listener)),
+        ),
+      )
+
+export const Diagnostics = {
+  Reporter,
+  report,
+  /**
+   * `reporter` as the reporter, hearing what Mounts report too: in a document,
+   * it claims each `DiagnosticEvent` while the layer is built. Give it in a
+   * runtime's resources. Foldkit builds those at the first Command or
+   * Subscription (before `init` with Flags); a Mount failing earlier goes to
+   * the default log.
+   */
+  layer: (reporter: ReportDiagnostic): Layer.Layer<never> =>
+    Layer.merge(Layer.succeed(Reporter, reporter), Layer.effectDiscard(claim(reporter))),
+  dispatch,
+  DiagnosticEvent,
+  /** For a production page: errors as `log` writes them, warnings dropped. */
+  quiet,
   /** The default reporter, to compose with another: `d => Effect.andThen(Diagnostics.log(d), send(d))`. */
   log,
   /**

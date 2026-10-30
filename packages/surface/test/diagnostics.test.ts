@@ -62,6 +62,12 @@ describe('Diagnostics', () => {
     })
   })
 
+  it('quiet logs an error as log does, and drops a warning', () => {
+    expect(logged(Effect.andThen(Diagnostics.quiet(warning), Diagnostics.quiet(error)))).toEqual([
+      { level: 'Error', text: '[foldkit-test] a probe broke' },
+    ])
+  })
+
   it('reports to the reporter in the context instead', () => {
     const collected = Diagnostics.collect()
     const lines = logged(

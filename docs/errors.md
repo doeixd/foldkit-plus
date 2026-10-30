@@ -456,7 +456,7 @@ import { Diagnostics, Remote } from 'foldkit-remote'
 const resources = Layer.mergeAll(
   Remote.clientLayer(Remote.http('/remote')),
   // Logged as by default, and sent on to the server.
-  Layer.succeed(Diagnostics.Reporter, diagnostic =>
+  Diagnostics.layer(diagnostic =>
     Effect.andThen(
       Diagnostics.log(diagnostic),
       Effect.sync(() => navigator.sendBeacon('/diagnostics', diagnostic.message)),
@@ -464,6 +464,14 @@ const resources = Layer.mergeAll(
   ),
 )
 ```
+
+In a browser, give the reporter with `Diagnostics.layer(reporter)` rather
+than `Layer.succeed`: Foldkit runs Mounts outside the runtime's `resources`,
+and the layer also claims what a Mount hands the document
+(`Diagnostics.dispatch`), such as `MountFailed`. A page that should not show
+warnings in production picks `Diagnostics.quiet` (errors only) where it
+knows its build mode; in development, `foldkit-mixins`' `DevOverlay` lists
+every diagnostic on the page.
 
 `Diagnostics` is `foldkit-surface`'s, re-exported by `foldkit-remote`. Each
 package's variants:
@@ -487,8 +495,9 @@ pure: `Data.wiring` and `Remote.fold` report what each update recorded. An
 `update` that calls `Data.reduce` by hand keeps them in the Model and reports
 nothing.
 
-**Development and production report the same.** No diagnostic is switched off
-in production. What development adds is checks you opt into:
+**Development and production report the same** unless the application
+chooses `Diagnostics.quiet`; no package switches a diagnostic off in
+production. What development adds is checks you opt into:
 `Remote.make({ verifyPredictions: true })`, which costs a comparison per
 answer and a fetch per placed list. `GuardServer.validate`
 throws at startup for a guard a server does not apply, and reports

@@ -202,10 +202,14 @@ declare const program: Effect.Effect<void>
 import { Effect, Layer } from 'effect'
 import { Diagnostics } from 'foldkit-surface'
 
-// Replace the default in a runtime's resources or a server's layer; `send` is yours.
-const reporter = Layer.succeed(Diagnostics.Reporter, diagnostic =>
+// Replace the default in a browser runtime's resources; `send` is yours. The layer
+// also claims what Mounts report, which run outside the resources.
+const reporter = Diagnostics.layer(diagnostic =>
   Effect.andThen(Diagnostics.log(diagnostic), send(diagnostic)),
 )
+
+// On a server, where no Mount runs, the reporter alone.
+const onServer = Layer.succeed(Diagnostics.Reporter, Diagnostics.log)
 
 // In a test: provide `report` to the program under test, then read `reported`.
 const collected = Diagnostics.collect()
@@ -214,6 +218,11 @@ const run = Effect.provideService(program, Diagnostics.Reporter, collected.repor
 
 Some reports happen outside any runtime's `resources` (a page `SSR.hydrate`
 refuses, a Sync document host): those take a `diagnostics` option of their own.
+A Mount reports with `Diagnostics.dispatch(element, diagnostic)`, which
+`Diagnostics.layer` claims. The default is the same in every build;
+`Diagnostics.quiet` (errors only) is the production choice an app makes where
+it knows its mode, and `foldkit-mixins`' `DevOverlay` lists diagnostics on the
+page in development.
 
 **Metadata keys, for package authors only.** App code never needs this.
 

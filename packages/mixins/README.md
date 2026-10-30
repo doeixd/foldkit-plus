@@ -218,10 +218,28 @@ beside others that fails. It ends alone, so the slot's other Mounts go on, and i
 a `MountFailed` diagnostic (`{ mount, slot, cause }`, level `error`) through `foldkit-surface`'s
 `Diagnostics` channel, which by default is Effect's log (the console). A Mount that ends
 interrupted is being torn down with its element and reports nothing. Foldkit runs a Mount in the
-runtime's own context, not its `resources`, so a reporter provided there does not reach this
-one: it goes to the log. A test runs the Mount's stream with
+runtime's own context, not its `resources`, so the resolver dispatches the diagnostic at the
+Mount's element (`Diagnostics.dispatch`), and a reporter given with `Diagnostics.layer(reporter)`
+in the resources claims it; without one it goes to the log. A test runs the Mount's stream with
 `Effect.provideService(Diagnostics.Reporter, collected.report)`, where `collected` is
 `Diagnostics.collect()` (both from `foldkit-surface`), and asserts on `collected.reported`.
+
+In development, `DevOverlay` lists on the page what the application's reporter heard, Mount
+failures included:
+
+```ts
+import { Diagnostics } from 'foldkit-surface'
+import { DevOverlay } from 'foldkit-mixins'
+
+const overlay = DevOverlay.make() // the newest 50; each passed on to Diagnostics.log
+const resources = Diagnostics.layer(overlay.report)
+// In the view, behind the application's development flag:
+// h.div([h.OnMount(overlay.mount)], [])
+```
+
+The panel is drawn in its element's shadow root, fixed in the bottom corner, with a Clear button,
+and nothing while the list is empty. It sends no Message, so draw it only in development: a
+Scene test of a page that draws it cannot resolve it.
 The resolver's thrown `Diagnostics` namespace here is a different thing: import one of the two
 under another name.
 

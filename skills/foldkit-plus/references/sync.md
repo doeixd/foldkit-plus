@@ -109,7 +109,8 @@ const program = Effect.gen(function* () {
   a backoff (0.5 s to 30 s), or at once on the next submit. It is also reported on
   `Diagnostics` (`foldkit-surface`) as `ExchangeFailed`, a reset server history as
   `HistoryRebuilt`, and a presence or socket listener of yours that threw as
-  `ListenerFailed`. A contract's
+  `ListenerFailed` (`journalChanges`' listener too, which the next commit calls
+  again). A contract's
   `durable(message)` says whether a Message is recorded. The optional
   `coalesce(last, next)` merges a submit into the last operation while
   no exchange has carried it (a burst of typing becomes one operation).
@@ -317,7 +318,7 @@ key? }` asks it again while the socket is open, closing with 4401 on a
 refusal and 1012 on a changed principal. `settle: (env, journal) =>
 Effect` runs after each exchange's appends to apply what committed elsewhere
 (`journal.recover` makes it idempotent). A failure answered 500 (or 1011, or
-a notice unsent) is reported as a `HostDefect` with its `stage` and `cause`, to
+a notice unsent, or a commit stream broken: stage `Changes`) is reported as a `HostDefect` with its `stage` and `cause`, to
 `diagnostics: (diagnostic, request) => Effect` when given, else
 `Diagnostics.Reporter`. `Sync.transport.workerSocket` wraps an
 accepted pair end anywhere else a platform hands one over. Off Cloudflare,
