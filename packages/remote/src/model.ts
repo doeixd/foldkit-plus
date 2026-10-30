@@ -225,7 +225,19 @@ const remembered = (
 export interface PlacedOrder {
   readonly order: ReadonlyArray<string>
   readonly dropped: ReadonlyArray<string>
+  /**
+   * The list is stale only so the page to check against is fetched: it reads
+   * as fresh meanwhile, as it would without the check. An invalidation clears it.
+   */
+  readonly checking: boolean
 }
+
+/**
+ * Whether a list reads as stale: as its connection says, unless it is stale
+ * only for `verifyPredictions` to fetch the page its placement is checked against.
+ */
+export const readsStale = (remote: RemoteModel, identity: string): boolean =>
+  remote.connections[identity]?.stale === true && remote.placed[identity]?.checking !== true
 
 /** How a live stream has fared, as its live entry restarts it. */
 export interface StreamHealth {
@@ -1122,6 +1134,16 @@ const sameFields = (model: RemoteModel, next: RemoteModel): boolean => {
   )
 }
 
+const withoutChecking = (
+  placed: RemoteModel['placed'],
+  connection: string,
+): RemoteModel['placed'] => {
+  const order = placed[connection]
+  return order?.checking === true
+    ? { ...placed, [connection]: { ...order, checking: false } }
+    : placed
+}
+
 /**
  * A placement compared with the server's first page of the list it placed
  * in, under `verifyPredictions`: the keys as far as both reach must agree, and
@@ -1854,6 +1876,8 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
       return {
         ...model,
         connections: setConnectionStale(model.connections, message.connection, true),
+        // Stale for a reason of its own now, not only for a placement's check.
+        placed: withoutChecking(model.placed, message.connection),
         failures: withoutConnectionFailure(model.failures, message.connection),
         loading:
           message.connection in model.failures.connections

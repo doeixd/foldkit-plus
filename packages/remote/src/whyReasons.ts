@@ -13,7 +13,7 @@ import {
 } from 'foldkit-entity'
 import type { Edge } from './connection.js'
 import { holderOf } from './held.js'
-import { fieldMark, isQueryLoading, type RemoteModel } from './model.js'
+import { fieldMark, isQueryLoading, readsStale, type RemoteModel } from './model.js'
 import type { EntityLayer } from './optimistic.js'
 import { targetsOf } from './relation.js'
 import { RemoteData, type RemoteError } from './remoteData.js'
@@ -242,7 +242,7 @@ const listReasons = (reader: WhyReader, asked: ConnectionRequirement): ReadonlyA
         : 'Missing'
     return [...reasons, Why.List({ list, held, inFlight })]
   }
-  if (connection.stale) reasons.push(Why.List({ list, held: 'Stale', inFlight }))
+  if (readsStale(remote, identity)) reasons.push(Why.List({ list, held: 'Stale', inFlight }))
   const { shown, placed, pages } = reader.edgesOf(asked)
   const walked = new Map<string, Set<RelationRequirement>>()
   for (const edge of shown) {

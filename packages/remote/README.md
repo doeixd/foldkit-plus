@@ -2760,8 +2760,9 @@ expect(Trace.tags(trace, list)).toEqual(['Ready', 'Refreshing', 'Ready'])
   Subscription or Command that dies throws. An `update` that does not take
   Remote's Messages is a type error.
 - **A disagreement fails the run.** `Trace.run` requires a domain that
-  [verifies its predictions](#checking-an-answer-against-what-was-shown)
-  (Vitest sets `DEV`), and throws once its steps have run if any Model
+  registers a mutation to
+  [verify its predictions](#checking-an-answer-against-what-was-shown)
+  (Vitest sets `DEV`; one that writes nothing predicts nothing), and throws once its steps have run if any Model
   recorded a `PredictionMismatch` the domain does not declare `expected`.
   Name reads in `reads` and a regression of one fails it too, unless
   `regresses: { list: 'why' }` says it is on purpose. The error names the

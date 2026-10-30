@@ -830,7 +830,7 @@ waits on); `trace.timeline({ list })` is `Data.timeline` over the trace, every
 change of tag and not only regressions.
 
 **A disagreement fails the test (#350).** `Trace.run` refuses a domain that
-does not verify its predictions, and throws after its steps on any
+registers a mutation and does not verify its predictions, and throws after its steps on any
 `PredictionMismatch` a Model recorded, or on a regression of a read named in
 `reads` (`regresses: { list: 'why' }` allows one on purpose), naming the
 Message and `Data.why`. Declare the domain with

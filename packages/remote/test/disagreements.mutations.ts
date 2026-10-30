@@ -41,15 +41,11 @@ export default [
     '        verify.on ||\n        !verify.expects(',
   ),
   testing(
-    'a trace runs over a domain that does not verify',
-    "  if (!Data.verifiesPredictions)\n    throw new Error(\n      'Trace.run:",
-    "  if (false)\n    throw new Error(\n      'Trace.run:",
+    'a domain that writes need not verify',
+    'if (!Data.verifiesPredictions && Data.registry.mutations.size > 0)',
+    'if (false)',
   ),
-  testing(
-    'a recording is made of a domain that does not verify',
-    "  if (!Data.verifiesPredictions)\n    throw new Error(\n      'Trace.record:",
-    "  if (false)\n    throw new Error(\n      'Trace.record:",
-  ),
+  testing('a domain that writes nothing must verify', ' && Data.registry.mutations.size > 0)', ')'),
   testing('a disagreement fails nothing', 'if (lines.length > 0)', 'if (false)'),
   testing(
     'a mismatch is counted again at every Model that still holds it',

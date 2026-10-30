@@ -113,6 +113,7 @@ import {
   remoteModelSchema,
   retentionRootsSchema,
   invalidateConnections,
+  readsStale,
   updateRemote,
   withRefreshRequested,
   writeRead,
@@ -1275,8 +1276,13 @@ const metaOf = (remote: RemoteModel, asked: Asked, operators: MemoryOperators): 
       if (isQueryLoading(remote, connection.identity)) loading = true
       continue
     }
-    if (known.stale) stale = true
-    if (isQueryLoading(remote, connection.identity)) loading = true
+    // A list fetched only for a placement's check is neither, as without the check.
+    if (readsStale(remote, connection.identity)) stale = true
+    if (
+      remote.placed[connection.identity]?.checking !== true &&
+      isQueryLoading(remote, connection.identity)
+    )
+      loading = true
     for (const edge of visibleItems(
       known,
       connection.identity,
@@ -2728,9 +2734,9 @@ export const Remote = {
      * `PredictionMismatch` in `diagnostics` for each part that disagrees:
      * `Value`, a field a pending write showed that the answer holds otherwise;
      * `Placement`, a list placed in an order the server's first page does not
-     * keep (each placed list is fetched too, for its page, and reads
-     * `Refreshing` until it lands; a pending edit is not checked, since the
-     * server does not have it yet); `Gap`, a row whose answer left out fields
+     * keep (each placed list is fetched too, for its page, and reads as it
+     * would without the check meanwhile; a pending edit is not checked, since
+     * the server does not have it yet); `Gap`, a row whose answer left out fields
      * the client showed while it was pending and the store does not otherwise
      * hold, so they are read again and the row reads `Loading` meanwhile. It
      * changes nothing else. Each is reported at error level. Off unless given: no package reads a build
@@ -3987,6 +3993,10 @@ const bindDomain = <
     if (identities.length === 0) return invalidateConnections(withPlaced, invalidated)
     const firstPage = (connection: Connection | undefined) =>
       (connection?.segments[0]?.edges ?? []).map(edge => edge.key)
+    // Each checked list is made stale so its page is fetched; one stale for
+    // that alone reads as fresh, as without the check (`readsStale`).
+    const marked = invalidateConnections(withPlaced, [...invalidated, ...identities])
+    const invalidatedAnyway = new Set(invalidated)
     const orders = Object.fromEntries(
       identities.map(identity => {
         const order = firstPage(placed[identity])
@@ -3996,14 +4006,12 @@ const bindDomain = <
           {
             order,
             dropped: firstPage(remote.connections[identity]).filter(key => !kept.has(key)),
+            checking: !invalidatedAnyway.has(identity),
           },
         ]
       }),
     )
-    return invalidateConnections({ ...withPlaced, placed: { ...remote.placed, ...orders } }, [
-      ...invalidated,
-      ...identities,
-    ])
+    return { ...marked, placed: { ...marked.placed, ...orders } }
   }
   const assertOwned = (entry: ActiveEntry<AppModel>) => assertOwnedBy(bound.contract, entry)
   /**
@@ -4340,11 +4348,11 @@ const bindDomain = <
       ): RemoteData<Page<Value>> | undefined => {
         const visible = visibleStoreOf(remote.entities, remote.optimistic, operators)
         return memoRead<RemoteData<Page<Value>> | undefined>(
-          [visible, connection, remote.optimistic.overlays],
+          [visible, connection, remote.optimistic.overlays, remote.placed],
           `${ref.identity}\u0000${relationKey}\u0000${String(sizeOf(remote))}`,
           () => {
             const rows: Value[] = []
-            let refreshing = connection.stale
+            let refreshing = readsStale(remote, ref.identity)
             let missing = false
             const { edges, cutBefore, cutAfter } = shown(remote, connection)
             for (const edge of edges) {

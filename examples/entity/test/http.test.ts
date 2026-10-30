@@ -66,13 +66,15 @@ describe('the HTTP transport the browser uses', () => {
         Refreshing: value => value.items.map(row => row.title),
       })
     expect(placed(saved)).toEqual(['Notes on the Engine', 'about HTTP'])
-    // In tests the list is fetched too (`verifyPredictions`), and SQLite's page
-    // agrees with the order placed.
-    expect(Posts.page(saved)._tag).toBe('Refreshing')
-    const verified = await run(
-      Data.prefetch(saved, Option.getOrThrow(Posts.active.projectionOf(saved))),
-    )
+    // In tests the list is fetched too (`verifyPredictions`), reading as it
+    // would without the check meanwhile, and SQLite's page agrees with the order placed.
+    const shown = Option.getOrThrow(Posts.active.projectionOf(saved))
+    expect(Posts.page(saved)._tag).toBe('Ready')
+    expect(Data.meta(saved, shown)).toMatchObject({ stale: false, loading: false })
+    expect(Remote.planQueries(Data, saved, shown).map(ref => ref.query)).toEqual(['Posts'])
+    const verified = await run(Data.prefetch(saved, shown))
     expect(Posts.page(verified)._tag).toBe('Ready')
+    expect(Remote.planQueries(Data, verified, shown)).toEqual([])
     expect(placed(verified)).toEqual(['Notes on the Engine', 'about HTTP'])
     expect(Data.inspect(verified).diagnostics).toEqual([])
   })

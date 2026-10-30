@@ -210,6 +210,19 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A list fetched only to check its placement reads as it would without the
+  check** (`foldkit-remote`, #350). `verifyPredictions` made each list a
+  write placed rows in stale, to fetch the page it compares with, so in
+  development and tests the list read `Refreshing`, `Data.why` said `Stale`,
+  and a test of what production shows (Chirp's post, the CMS worklist)
+  failed once verification was on. Such a list now reads as fresh until that
+  page lands (`readsStale`); an invalidation of its own makes it stale again.
+
+- **`Trace.run` and `Trace.record` run a domain that writes nothing
+  unverified** (`foldkit-remote`, #368). A domain registering no mutation
+  predicts nothing an answer settles, so it is no longer refused for
+  lacking `verifyPredictions`.
+
 - **A request refused over Effect RPC is not resent for good**
   (`foldkit-remote`, #360, #366). Effect's `RpcClient.layerProtocolHttp`
   reads a 413 from `bodyLimit`, or a 401 or 403 from session middleware, as

@@ -104,7 +104,36 @@ describe('verifyPredictions', () => {
     const model = repriced(Data)
     expect(order(model.remote)).toEqual(['p2', 'p1'])
     expect(model.remote.connections[list]!.stale).toBe(true)
-    expect(model.remote.placed[list]).toEqual({ order: ['Project:p2', 'Project:p1'], dropped: [] })
+    expect(model.remote.placed[list]).toEqual({
+      order: ['Project:p2', 'Project:p1'],
+      dropped: [],
+      checking: true,
+    })
+  })
+
+  describe('a list stale only for its check', () => {
+    const shown = (Data: ReturnType<typeof make>) =>
+      Data.query(ByPrice, {}, { select: DomainEntity.select(Project, { price: true }), first: 10 })
+
+    it('reads as it would without the check while its page is fetched', () => {
+      const Data = make(true)
+      const model = repriced(Data)
+      expect(shown(Data).read(model)._tag).toBe('Ready')
+      expect(shown(make(false)).read(repriced(make(false)))._tag).toBe('Ready')
+      expect(Data.why(model, shown(Data)).because.map(why => why._tag)).not.toContain('List')
+      const asked = Data.reduce(model, { _tag: 'QueryStarted', connections: [list] })
+      expect(Data.meta(asked, shown(Data))).toMatchObject({ stale: false, loading: false })
+    })
+
+    it('reads Refreshing once it is invalidated for a reason of its own', () => {
+      const Data = make(true)
+      const placed = repriced(Data)
+      // Read first: the read is kept for the same connection, which an invalidation leaves as it is.
+      expect(shown(Data).read(placed)._tag).toBe('Ready')
+      const invalidated = Data.reduce(placed, { _tag: 'ConnectionInvalidated', connection: list })
+      expect(shown(Data).read(invalidated)._tag).toBe('Refreshing')
+      expect(invalidated.remote.placed[list]?.checking).toBe(false)
+    })
   })
 
   it('records a row placing took out that the server still lists', () => {
@@ -116,7 +145,11 @@ describe('verifyPredictions', () => {
       entities: [{ entity: 'Project', id: 'p1', values: { price: 60 } }],
       now: 2,
     })
-    expect(moved.remote.placed[list]).toEqual({ order: ['Project:p2'], dropped: ['Project:p1'] })
+    expect(moved.remote.placed[list]).toEqual({
+      order: ['Project:p2'],
+      dropped: ['Project:p1'],
+      checking: true,
+    })
     const checked = served(Data, moved, ['p2', 'p1'])
     expect(mismatchesOf(checked.remote)).toEqual([
       { connection: list, placed: ['Project:p2'], served: ['Project:p2'] },
@@ -169,7 +202,11 @@ describe('verifyPredictions', () => {
     })
     expect(order(read.remote)).toEqual(['p1', 'p2'])
     expect(read.remote.connections[list]!.stale).toBe(true)
-    expect(read.remote.placed[list]).toEqual({ order: ['Project:p1', 'Project:p2'], dropped: [] })
+    expect(read.remote.placed[list]).toEqual({
+      order: ['Project:p1', 'Project:p2'],
+      dropped: [],
+      checking: true,
+    })
   })
 
   it('forgets a placement once retention drops its list, before its page came (#273)', () => {
@@ -273,7 +310,11 @@ describe('verifyPredictions over a list ordered by a call', () => {
   it('records nothing when the server orders by the same call', () => {
     const { placed, mismatches } = checked(client)
     // From 12: p2 at 13 is 1 away, p1 2 and p3 11.
-    expect(placed).toEqual({ order: ['Project:p2', 'Project:p1', 'Project:p3'], dropped: [] })
+    expect(placed).toEqual({
+      order: ['Project:p2', 'Project:p1', 'Project:p3'],
+      dropped: [],
+      checking: true,
+    })
     expect(mismatches).toEqual([])
   })
 

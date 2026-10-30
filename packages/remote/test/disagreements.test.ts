@@ -197,6 +197,21 @@ describe('Trace.run', () => {
     )
   })
 
+  it('runs over a domain that writes nothing, verified or not (#368)', async () => {
+    const Reads = Remote.make({ model: App.model.remote, entities: [Project], queries: [Open] })
+    const list = Reads.query(Open, {}, { select: Entity.select(Project, { name: true }), first: 5 })
+    const trace = await Trace.run(Reads, {
+      start,
+      update: (model: Model, message: Message) => ({
+        model: isRemoteMessage(message) ? Reads.reduce(model, message) : model,
+      }),
+      active: { list: Reads.active('list', () => Option.some(list)) },
+      client: server(),
+      steps: [Respond.all],
+    })
+    expect(Trace.tags(trace, list)).toEqual(['Initial', 'Loading', 'Ready'])
+  })
+
   it('passes a write the server answers as the client showed it', async () => {
     const trace = await traced(make(true), server())
     expect(trace.pending).toEqual([])

@@ -344,16 +344,25 @@ const failOn = <Message>(where: string, found: Disagreements<Message>): void => 
     )
 }
 
+/**
+ * Refuses a domain that writes and does not verify its predictions: a trace
+ * over it could not see the server disagree with one. A domain that registers
+ * no mutation predicts nothing an answer settles, so it needs no verifying.
+ */
+const requireVerified = (where: string, Data: RemoteDomain<any, any, any, any, any>): void => {
+  if (!Data.verifiesPredictions && Data.registry.mutations.size > 0)
+    throw new Error(
+      `${where}: this domain does not verify its predictions, so it cannot see ` +
+        'the server disagree with one. Declare it with ' +
+        '`Remote.make({ verifyPredictions: import.meta.env?.DEV === true })`, which Vitest turns on.',
+    )
+}
+
 const run = async <AppModel, Message, Reads extends NamedReads<AppModel> = Record<never, never>>(
   Data: RemoteDomain<AppModel, any, any, any, any>,
   config: TraceConfig<AppModel, Message, Reads>,
 ): Promise<Trace<AppModel, Message>> => {
-  if (!Data.verifiesPredictions)
-    throw new Error(
-      'Trace.run: this domain does not verify its predictions, so a trace over it cannot see ' +
-        'the server disagree with one. Declare it with ' +
-        '`Remote.make({ verifyPredictions: import.meta.env?.DEV === true })`, which Vitest turns on.',
-    )
+  requireVerified('Trace.run', Data)
   const { scheduler, flush } = makeScheduler()
   const at = config.now ?? 0
   const clock = stopped(at)
@@ -621,12 +630,7 @@ const record = <
     readonly active?: TraceConfig<AppModel, Message>['active']
   } = {},
 ): Recording<AppModel, Message, Return> => {
-  if (!Data.verifiesPredictions)
-    throw new Error(
-      'Trace.record: this domain does not verify its predictions, so a recording of it cannot ' +
-        'see the server disagree with one. Declare it with ' +
-        '`Remote.make({ verifyPredictions: import.meta.env?.DEV === true })`, which Vitest turns on.',
-    )
+  requireVerified('Trace.record', Data)
   let start = Option.none<AppModel>()
   const history: Array<{ readonly message: Message; readonly model: AppModel }> = []
   return {
