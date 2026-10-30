@@ -87,3 +87,45 @@ test('typing follows into the address, survives a reload, and comes back with ba
   expect(problems).toEqual([])
   await page.close()
 })
+
+test('the Top Results fill with prices read from /remote', async () => {
+  const { page, problems } = await opened()
+  const reads: Array<string> = []
+  page.on('request', request => {
+    if (new URL(request.url()).pathname === '/remote') reads.push(request.postData() ?? '')
+  })
+  await page.goto(`${origin}/?q=vercel`)
+  await expect.poll(() => page.locator('.domain-card .price').count(), { timeout: 60_000 }).toBe(2)
+  expect(await page.locator('.domain-card .unavailable').count()).toBe(2)
+  expect(await page.locator('.domain-card .price').allTextContents()).toEqual(['$9.99', '$34.99'])
+  await expect.poll(() => page.locator('.result-count').textContent()).toContain('4 of 556')
+  expect(reads).toHaveLength(1)
+  expect(problems).toEqual([])
+  await page.close()
+})
+
+test('a search typed over aborts the read still in flight for the last one', async () => {
+  const { page, problems } = await opened()
+  const aborted: Array<string> = []
+  page.on('requestfailed', request => {
+    if (new URL(request.url()).pathname === '/remote') aborted.push(request.postData() ?? '')
+  })
+  // Each read waits two seconds at the server, so the first is still in flight.
+  await page.route('**/remote', async route => {
+    await new Promise(resolve => setTimeout(resolve, 2_000))
+    await route.continue().catch(() => undefined)
+  })
+  await page.goto(`${origin}/`)
+  const search = page.getByRole('searchbox', { name: 'Search domains' })
+  await search.waitFor({ timeout: 60_000 })
+  await search.pressSequentially('acme', { delay: 30 })
+  await page.waitForTimeout(500)
+  await search.press('End')
+  await search.pressSequentially('x', { delay: 30 })
+  await expect.poll(() => aborted.length, { timeout: 10_000 }).toBe(1)
+  expect(aborted[0]).toContain('"acme.com"')
+  await expect.poll(() => page.locator('.domain-card .price').count(), { timeout: 30_000 }).toBe(4)
+  expect(await page.locator('.domain-card h3').first().textContent()).toBe('acmex.com')
+  expect(problems).toEqual([])
+  await page.close()
+})

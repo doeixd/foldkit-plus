@@ -8,12 +8,25 @@ import { Array, Option, String, pipe } from 'effect'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import { Icon, type IconData } from 'foldkit-media'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
-import { queryToMaybeDomainLabel, type DomainName } from '../shared/domain'
+import { Domain, domainTlds, queryToMaybeDomainLabel, type DomainName } from '../shared/domain'
 import { Message, type Model } from './app.js'
 import { SEARCH_INPUT_ID } from './command.js'
-import { TOP_RESULT_COUNT, queryToPendingDomainListings, type DomainListing } from './domain'
+import {
+  DomainListing,
+  TOP_RESULT_COUNT,
+  filterAndSortDomainListings,
+  formatRegistrationPrice,
+  formatRenewalPrice,
+  queryToDomainListings,
+} from './domain'
 import { icons } from './iconData.js'
 import { AppRoute, canonicalOf, searchHref, titleOf } from './site.js'
+import {
+  DomainRequest,
+  INVALID_LABEL,
+  SearchViewState,
+  searchViewState,
+} from './searchViewState.js'
 import { Page } from './style.js'
 
 type H = HtmlBuilder<Message>
@@ -21,9 +34,6 @@ type Slots = SlotBuilders<typeof Page.slots, Message>
 
 /** How many pending rows stand in for All Results before its first answer, as upstream. */
 const PREVIEW_RESULT_COUNT = 36
-
-const INVALID_LABEL =
-  'Enter a domain name using letters, numbers, and hyphens (up to 63 characters).'
 
 /** Whether the query names no domain: something typed that is no label. */
 const isInvalid = (query: string): boolean =>
@@ -137,30 +147,102 @@ const pendingAction = (slot: Slots['action'], slots: Slots, h: H): Html =>
     h.span(slots.skeletonAction.attrs(), []),
   ])
 
+/** An answered name: its price and terms, or that the demo marks it taken. */
+const readyAction = (domain: Domain, slot: Slots['action'], slots: Slots, h: H): Html =>
+  Domain.match(domain, {
+    Unconfirmed: () =>
+      h.div(slot.attrs(), [
+        h.span(
+          slots.unavailable.attrs([
+            h.Title('This sample domain is marked unavailable in the demo data.'),
+          ]),
+          ['Not available'],
+        ),
+      ]),
+    Available: available =>
+      h.div(slot.attrs(), [
+        h.span(
+          slots.price.attrs([
+            h.Title(
+              `${available.isPremium ? 'Premium domain. ' : ''}${formatRenewalPrice(available)}`,
+            ),
+          ]),
+          [formatRegistrationPrice(available)],
+        ),
+      ]),
+  })
+
+const action = (listing: DomainListing, slot: Slots['action'], slots: Slots, h: H): Html =>
+  DomainListing.match(listing, {
+    Pending: () => pendingAction(slot, slots, h),
+    Ready: ({ domain }) => readyAction(domain, slot, slots, h),
+  })
+
+/** Whether the demo marks an answered name taken, which greys its name. */
+const isUnavailable = DomainListing.match({
+  Pending: () => false,
+  Ready: ({ domain }) => Domain.guards.Unconfirmed(domain),
+})
+
+const unavailableMark = (listing: DomainListing, h: H) =>
+  isUnavailable(listing) ? [h.DataAttribute('unavailable', '')] : []
+
 const card = (listing: DomainListing, slots: Slots, h: H): Html =>
-  h.keyed('article')(listing.name, slots.card.attrs(), [
+  h.keyed('article')(listing.name, slots.card.attrs(unavailableMark(listing, h)), [
     h.h3(slots.cardName.attrs(), domainName(listing, h)),
-    pendingAction(slots.action, slots, h),
+    action(listing, slots.action, slots, h),
   ])
 
 const row = (listing: DomainListing, slots: Slots, h: H): Html =>
-  h.keyed('li')(listing.name, slots.row.attrs(), [
+  h.keyed('li')(listing.name, slots.row.attrs(unavailableMark(listing, h)), [
     h.span(slots.domainName.attrs(), domainName(listing, h)),
-    pendingAction(slots.rowAction, slots, h),
+    action(listing, slots.rowAction, slots, h),
   ])
 
-const searchError = (error: string, slots: Slots, h: H): Html =>
+const retryButton = (slots: Slots, h: H): Html =>
+  h.button(slots.button.attrs([h.Type('button'), h.OnClick(Message.ClickedRetrySearch())]), [
+    'Try again',
+  ])
+
+const searchError = (error: string, retry: boolean, slots: Slots, h: H): Html =>
   h.div(slots.searchError.attrs([h.Role('alert')]), [
     h.h2(slots.searchErrorTitle.attrs(), ['Let’s try that again']),
     h.p(slots.searchErrorText.attrs([h.Id('search-error')]), [error]),
+    ...(retry ? [retryButton(slots, h)] : []),
   ])
 
-const searchResults = (model: Model, slots: Slots, h: H): Html => {
-  const listings = queryToPendingDomainListings(model.query)
+/** What the count line says: how many names are checked, until all are. */
+const resultCountText = (search: SearchViewState, results: ReadonlyArray<DomainListing>) =>
+  SearchViewState.match(search, {
+    Idle: () => 'Checking availability and prices…',
+    Loading: () => 'Checking availability and prices…',
+    Failed: () => 'Checking availability and prices…',
+    Ready: ({ domains }) =>
+      domains.length < domainTlds.length
+        ? `${domains.length} of ${domainTlds.length} domains checked · Registration prices in USD`
+        : `${results.length} domains · Registration prices in USD`,
+  })
+
+const searchResults = (model: Model, search: SearchViewState, slots: Slots, h: H): Html => {
+  const domains = SearchViewState.match(search, {
+    Idle: () => [],
+    Loading: () => [],
+    Failed: () => [],
+    Ready: ready => ready.domains,
+  })
+  const listings = queryToDomainListings(model.query, domains)
+  const results = filterAndSortDomainListings(model.query, domains, 'All', 'All', 'Relevance')
+  const request = SearchViewState.match(search, {
+    Idle: () => DomainRequest.Idle(),
+    Loading: () => DomainRequest.Loading(),
+    Failed: () => DomainRequest.Idle(),
+    Ready: ready => ready.domainRequest,
+  })
+  const ready = SearchViewState.guards.Ready(search)
   return h.div(
     [],
     [
-      h.div(slots.resultsContent.attrs([h.AriaBusy(true)]), [
+      h.div(slots.resultsContent.attrs([h.AriaBusy(DomainRequest.guards.Loading(request))]), [
         h.div(slots.topHeading.attrs(), [
           h.h2(slots.sectionTitle.attrs(), ['Top Results']),
           h.span(slots.sampleLabel.attrs(), ['Sample data']),
@@ -173,28 +255,44 @@ const searchResults = (model: Model, slots: Slots, h: H): Html => {
         h.div(slots.allResults.attrs(), [
           h.ul(
             slots.preview.attrs([h.AriaHidden(true)]),
-            Array.map(Array.take(listings, PREVIEW_RESULT_COUNT), listing =>
-              row(listing, slots, h),
+            Array.map(Array.take(results, PREVIEW_RESULT_COUNT), listing =>
+              row(DomainListing.Pending({ name: listing.name, tld: listing.tld }), slots, h),
             ),
           ),
         ]),
       ]),
+      DomainRequest.match(request, {
+        Idle: () => h.empty,
+        Loading: () => h.empty,
+        Failed: ({ error }) =>
+          h.div(slots.banner.attrs([h.Role('alert')]), [
+            h.p(slots.bannerText.attrs(), [error]),
+            retryButton(slots, h),
+          ]),
+      }),
       h.p(
         slots.resultCount.attrs([
           h.Role('status'),
           h.AriaAtomic(true),
-          h.AriaLabel('Searching domains'),
+          ...(ready ? [] : [h.AriaLabel('Searching domains')]),
         ]),
-        ['Checking availability and prices…'],
+        [resultCountText(search, results)],
       ),
     ],
   )
 }
 
-const results = (model: Model, slots: Slots, h: H): Html =>
-  h.section(slots.results.attrs([h.AriaLabel('Domain results')]), [
-    isInvalid(model.query) ? searchError(INVALID_LABEL, slots, h) : searchResults(model, slots, h),
+const results = (model: Model, slots: Slots, h: H): Html => {
+  const search = searchViewState(model)
+  return h.section(slots.results.attrs([h.AriaLabel('Domain results')]), [
+    SearchViewState.match(search, {
+      Idle: () => searchResults(model, search, slots, h),
+      Loading: () => searchResults(model, search, slots, h),
+      Ready: () => searchResults(model, search, slots, h),
+      Failed: ({ error }) => searchError(error, error !== INVALID_LABEL, slots, h),
+    }),
   ])
+}
 
 const footer = (slots: Slots, h: H): Html =>
   h.footer(slots.footer.attrs(), [

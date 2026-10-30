@@ -1,6 +1,6 @@
 # Reimplementing foldkit-domains with Foldkit Plus
 
-> **Status:** Being built (2026-10-30): phases 0 and 1 are built; §8 records what
+> **Status:** Being built (2026-10-30): phases 0 to 2 are built; §8 records what
 > each phase built and where it departs from this plan. Written against
 > upstream [foldkit/foldkit-domains](https://github.com/foldkit/foldkit-domains)
 > at `c3041350`, copied unchanged to
@@ -418,4 +418,41 @@ Departures:
   `Mirror.url`'s `initial` (with the debounce's slice from its own `init`):
   `Surface.application` takes an `initial` only beside `update`, and the
   update is assembled from the mirror's wiring.
+
+**Phase 2, built.** `Domain` as `Entity.defineVariants` with the name as its
+id (`src/shared/entity.ts`), `Quote` read as upstream's union, the
+`TopResults` Surface reading the four top names of `settledLabel`,
+`staleWhileRevalidate` for a minute with a minute's `grace`, the server
+Source over `makeDemoDomains` served by `serveFetch` at `/remote` from the
+Worker's entry (so the dev server answers it too), `searchViewState` over
+`RemoteData`, the failed-search error with Try again (`Data.refresh(…,
+{ failed: true })`), and the sticky banner for a later failure. Tests:
+`test/prices.test.ts` (`Trace.run` over the real Subscriptions: prices land
+from one read, a failure fails the search and Try again reads it again,
+going back to a search within the minute asks nothing),
+`test/server.test.ts` (the sample results, no price on an unconfirmed name,
+nothing for a name that is no label, a read through the real HTTP client,
+the 413 and 400 bounds) and `test/prices.mutations.ts` (5 of 5 killed); the
+e2e reads `?q=vercel`'s prices with one request, and checks gap 6 below.
+Departures and findings:
+
+- **Gap 6 is closed by Remote as it is.** A read whose requirements change
+  before it answers is interrupted and its `fetch` aborted: the e2e holds
+  `/remote` for two seconds, types over a search, and sees the first request
+  fail as aborted while the next answers.
+- **Gap 4 is closed too**: `Remote.clientLayer(…, { timeout })` exists
+  (remote.md); the port has not set one yet, since upstream's 20 s deadline
+  is a phase 7 parity item.
+- **Gap 10 is half closed.** `serveFetch` takes `maxBodyBytes` (413 before
+  decoding; 32 KiB here, since a read names its ids, and the whole catalog is
+  about 12 KB) and answers an unreadable body 400. It has no 415 for a body
+  that is not JSON: upstream's spec for that is replaced, not ported.
+- **The server reads only the label.** The extension is checked by looking
+  the name up in the label's sample results; a separate check of the
+  extension was deleted as redundant.
+- **`verifyPredictions` is on in development** although nothing is
+  predicted, because `Trace.run` refuses a domain without it
+  ([#368](https://github.com/doeixd/foldkit-plus/issues/368)).
+- **The order requests are made in moved, as §3.2 expected:** phase 3 reads
+  the visible rows beside the top four.
 

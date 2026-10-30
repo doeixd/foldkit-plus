@@ -488,6 +488,39 @@ export const Page = slots({
     },
     Style.media('(prefers-reduced-motion: reduce)', { animation: 'none' }),
   ],
+  price: [
+    Style.class('price'),
+    {
+      display: 'block',
+      maxWidth: '100%',
+      width: 'var(--domain-price-width)',
+      overflowWrap: 'anywhere',
+    },
+  ],
+  unavailable: [
+    Style.class('unavailable'),
+    { gridColumn: 'span 2', fontSize: '13px', whiteSpace: 'nowrap', color: d.soft },
+    Style.media(NARROW, { fontSize: '14px', justifySelf: 'end' }),
+  ],
+  banner: [
+    {
+      position: 'sticky',
+      bottom: '16px',
+      zIndex: '10',
+      marginTop: '16px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: '16px',
+      borderRadius: '6px',
+      border: `1px solid ${d.lineFirm}`,
+      background: d.panel,
+      padding: '16px',
+      fontSize: '14px',
+      color: d.muted,
+    },
+  ],
+  bannerText: [{ margin: '0' }],
   resultsHeading: [
     Style.class('results-heading'),
     {

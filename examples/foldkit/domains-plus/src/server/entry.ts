@@ -1,10 +1,12 @@
 /**
- * The Worker's entry, and the dev server's: every path is a page rendered by
- * `foldkit-ssr`, and the page carries the Model the server reached, which the
- * browser resumes from (`client/entry.ts`).
+ * The Worker's entry, and the dev server's: `/remote` answers the prices
+ * (`remote.ts`), and every other path is a page rendered by `foldkit-ssr`,
+ * which carries the Model the server reached for the browser to resume
+ * from (`client/entry.ts`).
  */
 import { Option } from 'effect'
 import {
+  Responded,
   renderDocument as renderShell,
   type DocumentRenderer,
   type EntryResult,
@@ -17,6 +19,7 @@ import { documentHead } from '../client/documentHead.js'
 import { AppRoute, routeOf } from '../client/site.js'
 import { stylesheet } from '../client/style.js'
 import { view } from '../client/view.js'
+import { serveRemote } from './remote.js'
 
 /** The paths the build renders ahead of any request: the empty search page. */
 export const prerenderPaths: ReadonlyArray<string> = ['/']
@@ -46,9 +49,10 @@ const pages = SSR.entry(
  * page it renders 200 (#364), so the status is set on its result.
  */
 export const renderPage = async (request: Request): Promise<EntryResult> => {
+  const url = fromString(request.url)
+  if (Option.exists(url, ({ pathname }) => pathname === '/remote'))
+    return Responded(await serveRemote(request, undefined))
   const result = await pages.renderPage(request)
-  const missing = Option.exists(fromString(request.url), url =>
-    AppRoute.guards.NotFound(routeOf(url)),
-  )
+  const missing = Option.exists(url, at => AppRoute.guards.NotFound(routeOf(at)))
   return result._tag === 'Rendered' && missing ? { ...result, status: 404 } : result
 }

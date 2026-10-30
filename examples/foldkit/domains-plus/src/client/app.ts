@@ -4,23 +4,26 @@
  * keeps in `?q=`; the label the reads use is `settledLabel`, which the
  * debounce moves once the text rests.
  */
-import { Option, Schema, String } from 'effect'
+import { Array, Option, Schema, String } from 'effect'
 import { UrlRequest } from 'foldkit/navigation'
 import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
 import { Url, toString as urlToString } from 'foldkit/url'
 import { Bundle } from 'foldkit-bundle'
 import { Mirror } from 'foldkit-mirror'
+import { Remote, RemotePolicy, type RemoteClient } from 'foldkit-remote'
 import { SSR } from 'foldkit-ssr/client'
 import { Projection, Surface } from 'foldkit-surface'
-import { DomainLabel, queryToMaybeDomainLabel } from '../shared/domain'
+import { DomainLabel, domainCandidates, queryToMaybeDomainLabel } from '../shared/domain'
+import { Domain, Quote } from '../shared/entity'
 import {
   DismissSearchKeyboard,
   FocusSearchInput,
   LoadExternal,
   NavigateInternal,
 } from './command.js'
-import { Message, Search, SearchInput } from './message.js'
+import { TOP_RESULT_COUNT } from './domain'
+import { Message, Own, Search, SearchInput } from './message.js'
 import { AppRoute, routeOf } from './site.js'
 
 export { Message }
@@ -40,10 +43,12 @@ export const Model = Schema.Struct({
   /** The label the reads use: the query's, once it has rested. */
   settledLabel: Schema.OptionFromNullOr(DomainLabel),
   searchLayout: SearchLayout,
+  /** The prices read so far, by name: Remote's store. */
+  remote: Remote.Model,
 })
 export type Model = typeof Model.Type
 
-type Return = Update.Return<Model, Message>
+type Return = Update.Return<Model, Message, RemoteClient>
 
 /** A keystroke for the debounce, which settles it 150 ms after the last one. */
 const typed = (model: Model, value: string): Return =>
@@ -56,10 +61,14 @@ const layoutFor = (model: Model, query: string): SearchLayout =>
 const cleared = (model: Model): Return =>
   typed(modifyFields(model, { query: () => '', settledLabel: () => Option.none() }), '')
 
-const own = (model: Model, message: Message): Return =>
-  Message.match(message, {
-    // The placement below answers the debounce's own Messages.
-    GotSearchMessage: () => ({ model }),
+/** The page's own Messages; the debounce's and Remote's are their placements'. */
+const own = (model: Model, message: Own): Return =>
+  Own.match(message, {
+    // Only what failed is asked for again; what was read stays on the page.
+    ClickedRetrySearch: () => ({
+      model: Data.refresh(model, actives, { failed: true }),
+      commands: [FocusSearchInput()],
+    }),
     UpdatedSearch: ({ value }) =>
       typed(
         modifyFields(model, {
@@ -119,6 +128,7 @@ const SETTLE_MS = 150
  */
 const empty: Model = {
   search: SearchInput.init({ delayMs: SETTLE_MS }).model,
+  remote: Remote.initial,
   route: AppRoute.Search(),
   query: '',
   settledLabel: Option.none(),
@@ -135,7 +145,50 @@ export const QueryInUrl = Mirror.url(App, {
   initial: empty,
 })
 
-const Page = Bundle.parent({ Model, Message })
+/** The prices, a server's facts read by name and kept in the Model. */
+export const Data = Remote.make({
+  model: App.model.remote,
+  entities: [Domain],
+  // Nothing here writes, so nothing is predicted; `Trace.run` refuses a domain without it (#368).
+  verifyPredictions: import.meta.env.DEV === true,
+})
+
+/** The names a label is offered under, in upstream's order. */
+export const namesOf = (label: string): ReadonlyArray<string> =>
+  Array.map(domainCandidates(label), ({ name }) => name)
+
+/** A read of each of `names`, keyed by the name. */
+const readsOf = (names: ReadonlyArray<string>) =>
+  Object.fromEntries(Array.map(names, name => [name, Data.get(Quote, name)]))
+
+/** The four Top Results: read first, as upstream's first request. */
+export const TopResults = App.surface('TopResults', {
+  params: { label: Schema.String },
+  model: ({ params }) => readsOf(Array.take(namesOf(params.label), TOP_RESULT_COUNT)),
+})
+
+/** The names the page reads now: the Top Results of the settled label. */
+export const readNames = (model: Model): ReadonlyArray<string> =>
+  Option.match(model.settledLabel, {
+    onNone: () => [],
+    onSome: label => Array.take(namesOf(label), TOP_RESULT_COUNT),
+  })
+
+/** Every read the page makes, each while the settled label is a name. */
+export const actives = {
+  top: Surface.at(TopResults, (model: Model) =>
+    Option.map(model.settledLabel, label => ({ label })),
+  ),
+}
+
+/**
+ * A name read within the minute is drawn from the store and asks nothing,
+ * as upstream's one-minute cache: backspacing to an earlier search shows it
+ * at once. Read after that, it shows while it is read again.
+ */
+export const freshness = RemotePolicy.staleWhileRevalidate({ maxAge: 60_000 })
+
+const Page = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
 
 const Settled = Page.at(Search, {
   args: { delayMs: SETTLE_MS },
@@ -147,7 +200,11 @@ const Settled = Page.at(Search, {
     }),
 })
 
-const placements = Page.assemble(QueryInUrl.wiring('ChangedUrl'), Settled)
+const placements = Page.assemble(
+  QueryInUrl.wiring('ChangedUrl'),
+  Settled,
+  Data.wiring(actives, { policy: freshness, grace: '1 minute' }),
+)
 
 export const update = placements.update(own)
 
@@ -158,6 +215,7 @@ const start = (route: AppRoute, query: string): Return =>
     query,
     settledLabel: queryToMaybeDomainLabel(query),
     searchLayout: String.isNonEmpty(query) ? 'Search' : 'Landing',
+    remote: Remote.initial,
   })
 
 /** The page at `url`, as the server renders it; the browser resumes from it. */
@@ -179,7 +237,8 @@ export const plan = SSR.plan(
       App.model.settledLabel,
       App.model.searchLayout,
     ),
-    local: [App.model.search],
+    // Prices are read again in the browser, as upstream's are: none is inlined.
+    local: [App.model.search, App.model.remote],
   },
 )
 
