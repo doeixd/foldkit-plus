@@ -18,17 +18,15 @@ const Model = Schema.Struct({
   items: Schema.Record(Schema.String, Schema.Number),
 })
 const App = Surface.application({ Model, Message: defineMessageUnion({ Ping: {} }) })
-const refOf = (name: (typeof names)[number]) =>
-  (App.model as unknown as Record<string, typeof App.model.other>)[name]!
 
 describe('fields named like Object.prototype members', () => {
   it.each(names)('%s has a reference of its own', name => {
     expect(Object.hasOwn(App.model, name)).toBe(true)
-    expect(refOf(name).get(model)).toBe(model[name])
+    expect(App.model[name].get(model)).toBe(model[name])
   })
 
   it('Projection.pick reads and writes each', () => {
-    const Pick = Projection.pick(refOf('__proto__'), refOf('constructor'), refOf('toString'))
+    const Pick = Projection.pick(App.model['__proto__'], App.model.constructor, App.model.toString)
     expect(Object.entries(Pick.get(model))).toEqual([
       ['__proto__', 'p'],
       ['constructor', 'c'],
@@ -65,8 +63,8 @@ describe('fields named like Object.prototype members', () => {
 
   it('Projection.compose keeps each', () => {
     const Both = Projection.compose(
-      Projection.pick(refOf('__proto__'), refOf('constructor')),
-      Projection.pick(refOf('toString'), App.model.other),
+      Projection.pick(App.model['__proto__'], App.model.constructor),
+      Projection.pick(App.model.toString, App.model.other),
     )
     expect(Object.keys(Both.schema.fields)).toEqual([...names, 'other'])
     expect(Object.entries(Both.get(model))).toEqual([
@@ -75,7 +73,7 @@ describe('fields named like Object.prototype members', () => {
       ['toString', 't'],
       ['other', 'o'],
     ])
-    const Proto = Projection.pick(refOf('__proto__'))
+    const Proto = Projection.pick(App.model['__proto__'])
     expect(Object.keys(Projection.compose(Proto, Proto).schema.fields)).toEqual(['__proto__'])
   })
 })
