@@ -30,7 +30,9 @@ import {
   type MemoryOperators,
   type AnyQuery,
   type InputExpr,
+  type Invalid,
   type Predicate,
+  type ReadsOf,
 } from 'foldkit-entity'
 
 /** A guard's answer: allowed, refused, or refused with a sentence the caller may read. */
@@ -289,12 +291,29 @@ const provided = <User, R, Provided extends R>(
 export interface Builders<User> {
   /** A guard decided from the principal alone, by a body only the server has. */
   readonly principal: () => PrincipalSpec
-  /** A guard over `entity`'s rows: a predicate with the principal's fields as inputs. */
-  readonly row: <E extends AnyEntity>(
+  /**
+   * A guard over `entity`'s rows: a predicate with the principal's fields as
+   * inputs. A predicate reading another Entity's fields is refused where it
+   * is written; one typed plain `Predicate` is checked when the set is
+   * declared.
+   */
+  readonly row: <E extends AnyEntity, P extends RuleOver<P, E['name']>>(
     entity: E,
-    body: (principal: Placeholders<User>) => Predicate,
+    body: (principal: Placeholders<User>) => P,
   ) => RowSpec<E>
 }
+
+/**
+ * What a rule over the Entity `Name` may be: a predicate reading `Name`'s
+ * fields and relations, inputs and the viewer, or one whose reads are unknown
+ * to the type (a plain `Predicate`).
+ */
+type RuleOver<P, Name extends string> =
+  string extends ReadsOf<P>
+    ? Predicate
+    : [ReadsOf<P>] extends [Name]
+      ? Predicate
+      : Predicate & Invalid<`foldkit-guard: a rule over ${Name} reads ${Exclude<ReadsOf<P>, Name>}`>
 
 const placeholdersOf = <User>(fields: Schema.Struct.Fields): Placeholders<User> =>
   // Built as entries, so a field named `__proto__` is a key of its own, not the prototype.
@@ -392,7 +411,7 @@ export const Guards = {
     const specs = build({
       principal: () => Object.freeze({ _tag: 'PrincipalSpec' }),
       row: (entity, body) => {
-        const predicate = body(placeholders)
+        const predicate: Predicate = body(placeholders)
         const { operations } = Query.dependencies(Query.from(entity).pipe(Query.where(predicate)))
         // Who may is decided when asked, not at a write's time, which the rule is never given.
         if (operations.includes('now')) {

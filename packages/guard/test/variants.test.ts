@@ -58,6 +58,7 @@ describe('a rule per case of a variant Entity', () => {
         'Orders',
         Buyer,
         guard => ({
+          // @ts-expect-error a rule over Order reads Domain: refused at run time too, for an untyped caller
           misplaced: guard.row(Order, () => Expr.is(Domain, 'Unconfirmed')),
         }),
         { key: buyer => buyer.id, unguarded: 'deny' },

@@ -21,7 +21,8 @@ through `G.Principal`.
 - **Row guard**: `guard.row(Entity, p => Expr…)`. A predicate over one
   Entity's fields, with the principal's fields as inputs (`p.id` is the input
   `principal.id`). Data, so the SQL compiler and `evaluate` both run it. A
-  placeholder is not a value: branching on one is a type error.
+  placeholder is not a value: branching on one is a type error, and so is a
+  predicate that reads another Entity.
 
 A rule is decided in two steps: each principal guard by its body, once per
 request, then the row guards left over, as a condition over the row that SQL

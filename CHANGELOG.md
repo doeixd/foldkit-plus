@@ -119,6 +119,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **`guard.row` refuses a predicate over another Entity where it is
+  written** (`foldkit-guard`, #363). A rule reads its own Entity's fields,
+  its relations' paths, `Expr.is` of it, the viewer and paths from it, and
+  the principal's inputs; one reading another Entity's field, relation or
+  case is a type error naming both (`a rule over Post reads Note`), where
+  `Guards.declare` refused it only when it ran. A predicate typed plain
+  `Predicate` is still refused at runtime.
+
 - **A read or a query nothing answered fails `RemoteUnreachable`**
   (`foldkit-remote`, #361), as a mutation does, and `RemoteClient`'s `read`
   and `query` error types name it, as do `Data.prefetch`'s and

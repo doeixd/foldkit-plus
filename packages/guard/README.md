@@ -120,8 +120,11 @@ What each call does, and does not:
 
 - `Guards.declare` reads nothing and stores nothing. It builds each row
   guard's predicate once, with placeholders (`p.id` is the input
-  `principal.id`), and checks it is a rule over its own Entity. Branching on
-  a placeholder (`p.role === 'admin'`) is a type error: there is no value yet.
+  `principal.id`), and checks it is a rule over its own Entity: a predicate
+  reading another Entity's field, relation or case is a type error where it
+  is written, and refused at runtime for a predicate typed plain `Predicate`.
+  Branching on a placeholder (`p.role === 'admin'`) is a type error: there is
+  no value yet.
 - `G.implement` is the only place a body exists. A missing or extra key is a
   type error, and refused at runtime for a caller the types do not reach.
 - `Policy.decide` is an `Effect` of a `Decision`: `true`, `false`, or

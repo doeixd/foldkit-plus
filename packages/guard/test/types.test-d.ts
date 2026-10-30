@@ -2,7 +2,7 @@
  * What a guard set's types accept and refuse, one defect per negative case.
  */
 import { Context, Effect, Option, Schema } from 'effect'
-import { Entity, Expr, Relation, type InputExpr } from 'foldkit-entity'
+import { Entity, Expr, Relation, type InputExpr, type Predicate } from 'foldkit-entity'
 import { expectTypeOf } from 'vitest'
 import {
   Guards,
@@ -229,3 +229,56 @@ Guards.me(G, { interactions: { Archive: [G.isAdmin] } })
 Guards.me(G, { interactions: { [Archive.key]: [G.isOwner] } })
 // @ts-expect-error a conjunction of nothing is Guards.anyone, by name
 Guards.all()
+
+// A rule reads its own Entity: its fields, its relations' paths, `Expr.is` of
+// it, the viewer and paths from it, and the principal's inputs (#363).
+const Owned = Entity.relate(
+  {
+    Member: Entity.define('Member', Schema.Struct({ id: Schema.String, team: Schema.String })),
+    Post: Entity.define('Post', Schema.Struct({ id: Schema.String, team: Schema.String })),
+    Card: Entity.defineVariants('Card', {
+      Open: { id: Schema.String, team: Schema.String },
+      Closed: { id: Schema.String },
+    }),
+  },
+  { Post: { author: Relation.one(Note) } },
+)
+const teamOfViewer = Expr.path(Expr.viewer(Owned.Member), Owned.Member.fields.team)
+const loose: Predicate = Expr.eq(Owned.Post.fields.team, 'red')
+Guards.declare(
+  'Owned',
+  User,
+  guard => ({
+    field: guard.row(Owned.Post, p => Expr.eq(Owned.Post.fields.team, p.id)),
+    path: guard.row(Owned.Post, p =>
+      Expr.eq(Expr.path(Owned.Post.relations.author, Note.fields.authorId), p.id),
+    ),
+    is: guard.row(Owned.Card, p => Expr.is(Owned.Card, 'Open', ({ team }) => Expr.eq(team, p.id))),
+    viewer: guard.row(Owned.Post, () => Expr.eq(Owned.Post.fields.team, teamOfViewer)),
+    // Its reads unknown to the type: checked when the set is declared.
+    untyped: guard.row(Owned.Post, () => loose),
+  }),
+  { key: user => user.id, unguarded: 'allow', viewer: Owned.Member },
+)
+
+Guards.declare(
+  'Elsewhere',
+  User,
+  guard => ({
+    // @ts-expect-error a rule over Post reads Note's field
+    field: guard.row(Owned.Post, p => Expr.eq(Note.fields.authorId, p.id)),
+    path: guard.row(Note, p =>
+      // @ts-expect-error a rule over Note follows Post's relation
+      Expr.eq(Expr.path(Owned.Post.relations.author, Note.fields.authorId), p.id),
+    ),
+    // @ts-expect-error a rule over Post asks which case a Card is
+    is: guard.row(Owned.Post, () => Expr.is(Owned.Card, 'Open')),
+    and: guard.row(Owned.Post, p =>
+      // @ts-expect-error one of a conjunction's operands reads Note
+      Expr.and(Expr.eq(Owned.Post.fields.team, p.id), Expr.eq(Note.fields.authorId, p.id)),
+    ),
+    // @ts-expect-error the viewer's team compared with Note's field: the path does not hide it
+    viewer: guard.row(Owned.Post, () => Expr.eq(Note.fields.authorId, teamOfViewer)),
+  }),
+  { key: user => user.id, unguarded: 'allow', viewer: Owned.Member },
+)

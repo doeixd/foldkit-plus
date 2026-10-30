@@ -24,6 +24,18 @@ export default [
     tests,
   },
   {
+    // The types refuse such a rule too (#363); this is the check for a caller they do not reach.
+    name: 'a rule over another Entity is declared',
+    edits: [
+      {
+        file: '../../entity/src/expr.ts',
+        find: "checkOwnership('where', 'a predicate', self.entity, predicates)",
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
     name: 'a guard of another set is decided anyway',
     edits: [{ file, find: 'if (guard.set !== name) {', replace: 'if (false) {' }],
     tests,

@@ -153,6 +153,7 @@ describe('a declaration', () => {
       Guards.declare(
         'Wrong',
         User,
+        // @ts-expect-error a rule over Todo reads Note: refused at run time too, for an untyped caller
         guard => ({ isAuthor: guard.row(TodoFields, p => Expr.eq(Note.fields.authorId, p.id)) }),
         { key: user => user.id, unguarded: 'allow' },
       ),
