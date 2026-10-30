@@ -115,8 +115,26 @@ export default [
   edit(
     'a related Entity is assigned',
     index,
-    'put(related, ownerKey, make(',
-    ';((k: string, v: AnyEntity) => void (related[k] = v))(ownerKey, make(',
+    'put(related, ownerKey, entity)',
+    ';((k: string, v: AnyEntity) => void (related[k] = v))(ownerKey, entity)',
+  ),
+  edit(
+    'a relation is assigned into the Entity’s members',
+    index,
+    'put(shape.relations, key, member)',
+    'void (shape.relations[key] = member)',
+  ),
+  edit(
+    'a derived member is assigned into the Entity’s members',
+    index,
+    'put(shape.derived, key, member)',
+    'void (shape.derived[key] = member)',
+  ),
+  edit(
+    'a set is assigned into the Entity’s sets',
+    index,
+    'put(shape.sets, key, set)',
+    'void (shape.sets[key] = set)',
   ),
   edit(
     'a set is assigned',

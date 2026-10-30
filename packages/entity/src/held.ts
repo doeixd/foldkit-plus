@@ -9,7 +9,7 @@
  */
 import { Option } from 'effect'
 import { Query, type AnyQuery, type OneRelation } from './expr.js'
-import type { AnyEntity, EntityIdentity } from './index.js'
+import type { AnyEntity, EntityIdentity, EntityMember } from './index.js'
 import { own, put } from './record.js'
 
 /** A value a holder has, or why it does not have it. */
@@ -173,15 +173,19 @@ const rowsOf = (tables: ReadonlyArray<HeldTable>): HeldRows => {
 
 const linksRead = new WeakMap<AnyQuery, ReadonlyArray<string>>()
 
-/** The links a query reads on its own row: each key it reads that is no field of its Entity. */
+/**
+ * The links a query reads on its own row: each relation of its Entity it
+ * reads (a body reads only a `one` relation as a value). A relation it reads
+ * existed when it was built, so what it reads is known once.
+ */
 const linksOf = (query: AnyQuery): ReadonlyArray<string> => {
   const known = linksRead.get(query)
   if (known !== undefined) return known
-  const fields: Readonly<Record<string, unknown>> = query.entity.fields
+  const relations: Readonly<Record<string, EntityMember>> = query.entity.relations
   const links = Query.dependencies(query)
     .fields.filter(
       field =>
-        field.owner.token === query.entity.identity.token && !Object.hasOwn(fields, field.key),
+        field.owner.token === query.entity.identity.token && Object.hasOwn(relations, field.key),
     )
     .map(field => field.key)
   linksRead.set(query, links)

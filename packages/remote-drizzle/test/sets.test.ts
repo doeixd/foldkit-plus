@@ -39,16 +39,18 @@ const ledger = sqliteTable('write_ledger', {
 })
 
 const UserFields = Entity.define('User', Schema.Struct({ id: Schema.String }))
-const PostFields = Entity.define(
-  'Post',
-  Schema.Struct({
-    id: Schema.String,
-    body: Schema.String,
-    authorId: Schema.String,
-    createdAt: Schema.Number,
-    editedAt: Schema.Number,
-  }),
-)
+const postFields = () =>
+  Entity.define(
+    'Post',
+    Schema.Struct({
+      id: Schema.String,
+      body: Schema.String,
+      authorId: Schema.String,
+      createdAt: Schema.Number,
+      editedAt: Schema.Number,
+    }),
+  )
+const PostFields = postFields()
 const LikeFields = Entity.define('Like', Schema.Struct({ id: Schema.String }))
 const Social = Entity.relate(
   { User: UserFields, Post: PostFields, Like: LikeFields },
@@ -364,12 +366,12 @@ describe('what the context sets, where the server is made', () => {
   })
 
   it('counts a field the context sets as set where an insert is registered', () => {
-    const dated = Entity.invariant<typeof Social.Post>(
+    const dated = Entity.invariant<typeof PostFields>(
       'dated',
       ({ after }) => Expr.gte(after.createdAt, 0),
       { message: 'A post has a time' },
     )
-    const registered = (Dated: typeof Social.Post) =>
+    const registered = (Dated: typeof PostFields) =>
       RemoteServer.write(
         Mutation.write(
           'PostChirp',
@@ -383,11 +385,12 @@ describe('what the context sets, where the server is made', () => {
         ),
         writer(bind({ Post: Dated }, { Post: { table: posts } }).Post),
       )
-    expect(() => registered(Social.Post.pipe(dated))).toThrow(
+    // A Post of its own each time: `Social.Post` is set from the context already.
+    expect(() => registered(postFields().pipe(dated))).toThrow(
       'leaves unset a field an invariant reads (dated reads createdAt)',
     )
     expect(() =>
-      registered(Social.Post.pipe(dated, Entity.sets({ createdAt: Expr.now }, { on: 'create' }))),
+      registered(postFields().pipe(dated, Entity.sets({ createdAt: Expr.now }, { on: 'create' }))),
     ).not.toThrow()
   })
 })

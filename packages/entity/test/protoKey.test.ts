@@ -5,6 +5,7 @@
 import { Effect, Option, Schema } from 'effect'
 import { describe, expect, it } from 'vitest'
 import {
+  Derived,
   Entity,
   Expr,
   Held,
@@ -147,6 +148,14 @@ describe('a name Object.prototype holds, elsewhere', () => {
         PROTO,
       ),
     ).toBe(true)
+  })
+
+  it('keeps a derived member named __proto__ as one of its own', () => {
+    const Scored = Entity.define('Scored', Schema.Struct({ id: Schema.String })).pipe(
+      Entity.derived({ ['__proto__']: Derived.make(Schema.Number) }),
+    )
+    expect(Object.hasOwn(Scored.derived, PROTO)).toBe(true)
+    expect(Object.hasOwn(Scored.members, PROTO)).toBe(true)
   })
 
   it('reads a link a row leaves out as absent', () => {

@@ -1,6 +1,6 @@
 # One Entity per identity (#332)
 
-Status: design (2026-10-30).
+Status: built (2026-10-30).
 
 ## The problem
 
@@ -91,7 +91,9 @@ identity ──► Shape { relations, derived, sets }      one per Entity, added
   that descriptor, and its members read as copies carrying it (made once, so a
   member keeps its identity across reads).
 - A key added through one descriptor is taken for every other: adding it again
-  through another is refused as already a member, as it was through one.
+  through another is refused as already a member, as it was through one. The
+  very spec added again (the same `schema` and `derives`, as `Guards.may` on a
+  second guarded view) is the member it added, not a second one.
 - `relate` checks every relation of the call before adding any, so a refused
   call adds none.
 

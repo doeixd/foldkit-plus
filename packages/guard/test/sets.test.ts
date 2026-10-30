@@ -37,15 +37,17 @@ const ledger = sqliteTable('write_ledger', {
   request: text('request'),
 })
 
-const LikeFields = Entity.define(
-  'Like',
-  Schema.Struct({
-    id: Schema.String,
-    accountId: Schema.String,
-    postId: Schema.String,
-    createdAt: Schema.Number,
-  }),
-)
+const likeFields = () =>
+  Entity.define(
+    'Like',
+    Schema.Struct({
+      id: Schema.String,
+      accountId: Schema.String,
+      postId: Schema.String,
+      createdAt: Schema.Number,
+    }),
+  )
+const LikeFields = likeFields()
 const G = Guards.declare(
   'Likes',
   User,
@@ -57,14 +59,18 @@ const G = Guards.declare(
 )
 // The invariants read the two fields the context sets, so an insert must count them as set.
 const UserRow = Entity.define('User', Schema.Struct({ id: Schema.String }))
-const Ruled = LikeFields.pipe(
-  Entity.invariant('noSelfLike', ({ after }) => Expr.not(Expr.eq(after.accountId, after.postId)), {
-    message: 'You cannot like yourself',
-  }),
-  Entity.invariant('dated', ({ after }) => Expr.gte(after.createdAt, 0), {
-    message: 'A like has a time',
-  }),
-)
+const ruled = (fields: typeof LikeFields) =>
+  fields.pipe(
+    Entity.invariant(
+      'noSelfLike',
+      ({ after }) => Expr.not(Expr.eq(after.accountId, after.postId)),
+      { message: 'You cannot like yourself' },
+    ),
+    Entity.invariant('dated', ({ after }) => Expr.gte(after.createdAt, 0), {
+      message: 'A like has a time',
+    }),
+  )
+const Ruled = ruled(LikeFields)
 const Like = Ruled.pipe(
   Guards.attach(G, { row: { Read: [G.isLiker], Create: [G.isLiker] } }),
   Entity.sets({ accountId: Expr.viewer(UserRow), createdAt: Expr.now }, { on: 'create' }),
@@ -143,13 +149,14 @@ const clockAt = (at: number): Clock.Clock => ({
 describe('fields the server sets on a create', () => {
   it('counts the fields the context sets as set where an insert is registered', () => {
     // Without the sets, nothing would set the two fields the invariants read.
-    const Plain = bind({ Like: Ruled }, { Like: { table: likes } })
+    const Unset = ruled(likeFields())
+    const Plain = bind({ Like: Unset }, { Like: { table: likes } })
     expect(() =>
       RemoteServer.write(
         Mutation.write(
           'LikePost',
           Write.insert(
-            Entity.input(Ruled, Schema.Struct({ id: Schema.String, postId: Schema.String })),
+            Entity.input(Unset, Schema.Struct({ id: Schema.String, postId: Schema.String })),
             { id: 'id' },
           ),
         ),
@@ -196,9 +203,9 @@ describe('fields the server sets on a create', () => {
   })
 
   it('answers a retry of an insert that landed before its rules, which the new time breaks', async () => {
+    // Other rules over the same Like: what the context sets is the Entity's, declared with `Like`.
     const Early = Ruled.pipe(
       Guards.attach(G, { row: { Read: [G.isLiker], Create: [Guards.all(G.isLiker, G.early)] } }),
-      Entity.sets({ accountId: Expr.viewer(UserRow), createdAt: Expr.now }, { on: 'create' }),
     )
     const { like, rows } = open(serve(guardedWriter(Early)))
     const first = await like('ada', 'r1', { id: 'ada:p1', postId: 'p1' }, 1001)

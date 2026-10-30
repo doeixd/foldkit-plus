@@ -36,8 +36,11 @@ Entity
  └── sets        the members a write's context fills (who asks, when), never an input
 ```
 
-Every pipe step, and `Entity.relate`, returns a new frozen descriptor with the
-same identity. Compare with `Entity.same(a, b)`, never `===`.
+An Entity has one set of members: `Entity.relate`, `Entity.derived` and
+`Entity.sets` add to it, and every descriptor of it reads them, the one declared
+before `relate` and the one `target()` returns included. `Entity.annotate`,
+`annotateMembers` and `invariant` return a new descriptor carrying its own
+metadata. Compare with `Entity.same(a, b)`, never `===`.
 
 ## Minimal example
 
@@ -71,8 +74,8 @@ Blog.Post.relations.comments.target()      // Blog.Comment; follow its relations
 Blog.Post.derived.commentCount.schema      // Schema.Number
 ```
 
-Use the entities `Entity.relate` returns (`Blog.Post`). The `Post` passed in
-still has no relations.
+Use the entities `Entity.relate` returns (`Blog.Post`): they are typed with
+their relations. The `Post` passed in has them at runtime, not in its type.
 
 `Derived.make` says only a member's schema: the server supplies it.
 `Derived.make(schema, { predict })` adds how a client foresees it for a row it
@@ -634,8 +637,12 @@ rows })`), unknown where it lacks one. No list orders by one. `Entity.sets`
 - A key that is already a member, an owner or a target missing from the
   `relate` call: each is a type error and throws at definition time.
 - `Entity.define` twice with one name makes two entities.
-- `target()` returns the entity as `relate` returned it; metadata annotated
-  afterwards is not on it. Annotate before relating when a target should carry it.
+- `target()` returns the entity as `relate` returned it: members added since
+  (a later `likeCount`) are on it, typed as related (read one as `AnyEntity`),
+  but metadata annotated afterwards is not. Annotate before relating when a
+  target should carry it.
+- A member is added once per Entity. Two chains from one descriptor adding the
+  same key are refused; a test that adds members defines a domain of its own.
 - Nested selections are Selection values (`Entity.select(...)`), never inline
   objects, and never `[Selection]` for a `many` relation.
 - There is no "one-to-many" vocabulary: `Relation.one` on one side and

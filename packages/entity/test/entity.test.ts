@@ -90,13 +90,13 @@ describe('Entity', () => {
     ],
     [
       'a target outside the related set',
-      { Post: { comments: Relation.many(Comment) } },
-      'relation "comments" targets an Entity that is not being related',
+      { Post: { replies: Relation.many(Comment) } },
+      'relation "replies" targets an Entity that is not being related',
     ],
     [
       'a target that is not an Entity',
-      { Post: { author: Relation.one(Schema.String as unknown as AnyEntity) } },
-      'relation "author" targets an Entity that is not being related',
+      { Post: { editor: Relation.one(Schema.String as unknown as AnyEntity) } },
+      'relation "editor" targets an Entity that is not being related',
     ],
     [
       'an owner outside the related set',

@@ -37,20 +37,23 @@ const postTags = sqliteTable('post_tags', {
 })
 
 const Id = Schema.String
-const Domain = Entity.relate(
-  {
-    User: Entity.define('User', Schema.Struct({ id: Id, name: Schema.String })).pipe(
-      Entity.derived({ postCount: Derived.make(Schema.Number) }),
-    ),
-    Post: Entity.define(
-      'Post',
-      Schema.Struct({ id: Id, title: Schema.String, publishedAt: Schema.NullOr(Schema.String) }),
-    ),
-    Comment: Entity.define('Comment', Schema.Struct({ id: Id, body: Schema.String })),
-    Tag: Entity.define('Tag', Schema.Struct({ id: Id, name: Schema.String })),
-  },
-  {},
-)
+/** The Entities unrelated: each binding below relates a domain of its own. */
+const domain = () =>
+  Entity.relate(
+    {
+      User: Entity.define('User', Schema.Struct({ id: Id, name: Schema.String })).pipe(
+        Entity.derived({ postCount: Derived.make(Schema.Number) }),
+      ),
+      Post: Entity.define(
+        'Post',
+        Schema.Struct({ id: Id, title: Schema.String, publishedAt: Schema.NullOr(Schema.String) }),
+      ),
+      Comment: Entity.define('Comment', Schema.Struct({ id: Id, body: Schema.String })),
+      Tag: Entity.define('Tag', Schema.Struct({ id: Id, name: Schema.String })),
+    },
+    {},
+  )
+const Domain = domain()
 const Related = Entity.relate(Domain, {
   User: { posts: Relation.many(Domain.Post) },
   Comment: { post: Relation.one(Domain.Post, { optional: true }) },
@@ -218,7 +221,8 @@ describe('a relation page’s cursor, on Postgres', () => {
     authorId: pgText('author_id').notNull(),
     publishedAt: pgText('published_at'),
   })
-  const PgDb = bind(Entity.relate(Domain, { User: { posts: Relation.many(Domain.Post) } }), {
+  const PgDomain = domain()
+  const PgDb = bind(Entity.relate(PgDomain, { User: { posts: Relation.many(PgDomain.Post) } }), {
     User: {
       table: pgUsers,
       relations: { posts: { foreignKey: pgPosts.authorId } },

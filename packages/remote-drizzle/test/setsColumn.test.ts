@@ -25,14 +25,16 @@ const likes = sqliteTable('likes', {
 
 const UserFields = Entity.define('User', Schema.Struct({ id: Schema.String }))
 const PostFields = Entity.define('Post', Schema.Struct({ id: Schema.String }))
-const Social = Entity.relate(
-  {
-    User: UserFields,
-    Post: PostFields,
-    Like: Entity.define('Like', Schema.Struct({ id: Schema.String, userId: Schema.String })),
-  },
-  { Like: { post: Relation.one(PostFields), user: Relation.one(UserFields) } },
-)
+/** A Like of its own: what one case sets from the context, it sets for good. */
+const social = () =>
+  Entity.relate(
+    {
+      User: UserFields,
+      Post: PostFields,
+      Like: Entity.define('Like', Schema.Struct({ id: Schema.String, userId: Schema.String })),
+    },
+    { Like: { post: Relation.one(PostFields), user: Relation.one(UserFields) } },
+  )
 // The field and the relation are one column: `userId` is `user`'s foreign key.
 const storage = {
   User: { table: users },
@@ -42,20 +44,20 @@ const storage = {
     relations: { post: { field: likes.postId }, user: { field: likes.userId } },
   },
 }
-const LikeByField = Social.Like.pipe(
-  Entity.sets({ userId: Expr.viewer(UserFields) }, { on: 'create' }),
-)
+const byField = (like: ReturnType<typeof social>['Like']) =>
+  like.pipe(Entity.sets({ userId: Expr.viewer(UserFields) }, { on: 'create' }))
 
 describe('a context set on a column another member shares', () => {
   it('is refused where it is bound, naming both members and the column', () => {
-    expect(() =>
-      bind({ User: Social.User, Post: Social.Post, Like: LikeByField }, storage),
-    ).toThrow(
+    const Social = social()
+    const Like = byField(Social.Like)
+    expect(() => bind({ User: Social.User, Post: Social.Post, Like }, storage)).toThrow(
       `entity "Like" sets "userId" from the write's context but not "user", both stored on column "user_id": a write of "user" would overwrite it; set both or neither`,
     )
   })
 
   it('is bound when both are set', () => {
+    const Social = social()
     const Both = Social.Like.pipe(
       Entity.sets(
         { userId: Expr.viewer(UserFields), user: Expr.viewer(UserFields) },
@@ -65,8 +67,10 @@ describe('a context set on a column another member shares', () => {
     expect(() => bind({ User: Social.User, Post: Social.Post, Like: Both }, storage)).not.toThrow()
   })
 
-  // Bound without the sets, as an application binds its Entity once and sets it where it writes.
+  // Bound before its sets were declared, so the binding could not refuse them: the write is checked.
+  const Social = social()
   const Db = bind({ User: Social.User, Post: Social.Post, Like: Social.Like }, storage)
+  const LikeByField = byField(Social.Like)
   const LikeAs = Mutation.write(
     'LikeAs',
     Write.insert(

@@ -62,9 +62,22 @@ interpreter ──(foldkit-metadata)──► Entity / member        attaches wh
 interpreter ◄── reads all of the above, and runs it (SQL, the client's store)
 ```
 
-Each pipe step, and `Entity.relate`, returns a new frozen descriptor with the
-**same identity**. Two descriptors are the same entity when `Entity.same(a, b)`,
-not when `a === b`.
+An Entity has **one set of members**. `Entity.relate`, `Entity.derived` and
+`Entity.sets` add to it, and every descriptor of the Entity reads it: the one
+declared before `relate`, the one a relation's `target()` returns, the one a
+query captured. Metadata is the exception: `Entity.annotate`,
+`Entity.annotateMembers` and `Entity.invariant` return a new descriptor that
+carries its own, so one reader's view (a form's labels) stays its own. Compare
+descriptors with `Entity.same(a, b)`, not `a === b`.
+
+```text
+identity ── relations, derived, sets       one per Entity; relate / derived / sets add
+   ├── descriptor  fields, metadata         define, relate, derived, sets return it
+   └── descriptor  fields, metadata'        annotate / annotateMembers / invariant make one
+```
+
+A descriptor's *type* still shows only the steps it came through: read typed
+members from the descriptor `relate` returned, or a later one.
 
 Everything here is checked where it is declared: a type error where the types
 can see it, and a throw for what they cannot. An interpreter that cannot run
@@ -172,9 +185,10 @@ Object.keys(Blog.Post.members) // id, title, published, author, editor, comments
   Its value is that row's id, or none (`Option<string>`), so the reader can
   take it back by deleting the row. It depends on who reads it. Each derived
   member's `derives` says which kind it is (`Supplied`, `Count`, `Exists`).
-- `Entity.relate` takes the entities and every relation between them, and
-  returns the same entities with `relations` filled in. Use the returned ones
-  (`Blog.Post`); the `Post` you passed in still has no relations.
+- `Entity.relate` takes the entities and every relation between them, adds
+  the relations to them, and returns them typed with their relations. Use the
+  returned ones (`Blog.Post`) for their types; the `Post` you passed in has the
+  same relations at runtime.
 - `Relation.one` / `Relation.many` state what the owner sees. `Post.author: one`
   and `Author.posts: many` together are the familiar one-to-many; neither side
   names it.
@@ -1393,7 +1407,7 @@ server on different deploys see which side is behind.
 | `Entity.invariants(entity)` / `Entity.readsBefore(invariant)` | The invariants an Entity holds; whether one reads the row before (a transition invariant). |
 | `Entity.annotate(metadata)` | Pipe step attaching metadata to the Entity. |
 | `Entity.annotateMembers({ key: metadata })` | Pipe step attaching metadata to members by key. |
-| `Entity.same(a, b)` | Whether two descriptors are versions of one Entity. |
+| `Entity.same(a, b)` | Whether two descriptors are of one Entity. |
 | `Selected<typeof selection>` | Type: the value a Selection reads (its `schema`'s `Type`). |
 | `Words.of(schema)` | A schema's `title` and `description`, each an `Option`, including a title given before a check. |
 | `Entity.is(value)` | Whether a value is an Entity descriptor. |
@@ -1445,10 +1459,14 @@ server on different deploys see which side is behind.
   because Remote keys its store by `id`.
 - A Selection has no filtering or ordering, and a page has no total; those
   belong to the interpreter that fetches.
-- Relations reach only the entities of one `Entity.relate` call; relating the
-  result again adds relations but earlier targets keep pointing at the earlier
-  result.
-- `target()` returns the entity as `relate` returned it. Metadata attached
-  afterwards (`CmsPost` above) is on the new descriptor only, so annotate before
-  relating when a target should carry it.
+- A relation reaches only the entities of its own `Entity.relate` call; relate
+  them again to add relations between them.
+- `target()` returns the entity as `relate` returned it: every member added
+  since is on it (`likeCount`), but metadata annotated afterwards (`CmsPost`
+  above) is on that new descriptor only, so annotate before relating when a
+  target should carry it. Its type shows the members as related; read a later
+  one as an `AnyEntity`.
+- A member is added once per Entity: two pipe chains from one descriptor that
+  each add `score` are refused, as one chain adding it twice is. Adding the very
+  spec again (`Guards.may` on a second view) is the member it added.
 - No registry: nothing checks that two different entities share a name.

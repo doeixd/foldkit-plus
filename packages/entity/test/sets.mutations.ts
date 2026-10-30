@@ -45,7 +45,7 @@ export default [
   edit(
     'the sets are not kept',
     entity,
-    '      sets: Object.freeze(parts.sets),\n',
+    '        sets: Object.freeze({ ...shape.sets }),\n',
     '      sets: {},\n',
   ),
   edit(

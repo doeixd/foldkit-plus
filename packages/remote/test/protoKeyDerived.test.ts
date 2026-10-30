@@ -22,14 +22,16 @@ const names = ['__proto__', 'constructor', 'toString'] as const
 const one = <A>(name: string, value: A): Record<string, A> => Object.fromEntries([[name, value]])
 
 const Id = Schema.String
-const UserFields = Entity.define('User', Schema.Struct({ id: Id }))
-const PostFields = Entity.define('Post', Schema.Struct({ id: Id, title: Schema.String }))
-const LikeFields = Entity.define('Like', Schema.Struct({ id: Id }))
-const Social = Entity.relate(
-  { User: UserFields, Post: PostFields, Like: LikeFields },
-  { Like: { post: Relation.one(PostFields), user: Relation.one(UserFields) } },
-)
-const { User, Like } = Social
+/** A domain of its own per fixture: the member a fixture adds is its Post's for good. */
+const social = () => {
+  const UserFields = Entity.define('User', Schema.Struct({ id: Id }))
+  const PostFields = Entity.define('Post', Schema.Struct({ id: Id, title: Schema.String }))
+  const LikeFields = Entity.define('Like', Schema.Struct({ id: Id }))
+  return Entity.relate(
+    { User: UserFields, Post: PostFields, Like: LikeFields },
+    { Like: { post: Relation.one(PostFields), user: Relation.one(UserFields) } },
+  )
+}
 
 const Model = Schema.Struct({ remote: Remote.Model })
 type Model = typeof Model.Type
@@ -51,6 +53,8 @@ const withDerived = <const D extends DerivedSpec<Schema.Constraint>>(name: Name,
 }
 
 const fixture = (name: Name, member: 'count' | 'exists') => {
+  const Social = social()
+  const { User, Like } = Social
   const Post = Social.Post.pipe(
     withDerived(
       name,

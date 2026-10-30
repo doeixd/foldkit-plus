@@ -3,19 +3,24 @@ import { describe, expect, it } from 'vitest'
 import { Derivation, Derived, Entity, Relation } from '../src/index.js'
 
 const Account = Entity.define('Account', Schema.Struct({ id: Schema.String }))
-const PostFields = Entity.define('Post', Schema.Struct({ id: Schema.String }))
-const LikeFields = Entity.define('Like', Schema.Struct({ id: Schema.String }))
 
-const Social = Entity.relate(
-  { Account, Post: PostFields, Like: LikeFields },
-  {
-    Post: {
-      likes: Relation.many(LikeFields),
-      replyTo: Relation.one(PostFields, { optional: true }),
+/** A domain of its own: a member one test adds is a member of its Entity for every later reader. */
+const social = () => {
+  const PostFields = Entity.define('Post', Schema.Struct({ id: Schema.String }))
+  const LikeFields = Entity.define('Like', Schema.Struct({ id: Schema.String }))
+  return Entity.relate(
+    { Account, Post: PostFields, Like: LikeFields },
+    {
+      Post: {
+        likes: Relation.many(LikeFields),
+        replyTo: Relation.one(PostFields, { optional: true }),
+      },
+      Like: { post: Relation.one(PostFields), account: Relation.one(Account) },
     },
-    Like: { post: Relation.one(PostFields), account: Relation.one(Account) },
-  },
-)
+  )
+}
+
+const Social = social()
 
 describe('Derived.count', () => {
   it('keeps the relation it counts, and is a non-negative integer', () => {
@@ -31,6 +36,7 @@ describe('Derived.count', () => {
   })
 
   it('counts a relation from an Entity to itself', () => {
+    const Social = social()
     const Post = Social.Post.pipe(
       Entity.derived({ replyCount: Derived.count(Social.Post.relations.replyTo) }),
     )
@@ -38,11 +44,13 @@ describe('Derived.count', () => {
   })
 
   it('says a member made by Derived.make is supplied', () => {
+    const Social = social()
     const Post = Social.Post.pipe(Entity.derived({ score: Derived.make(Schema.Number) }))
     expect(Derivation.$is('Supplied')(Post.derived.score.derives)).toBe(true)
   })
 
   it('refuses a count of a relation pointing at another Entity', () => {
+    const Social = social()
     const step = Entity.derived({ likeCount: Derived.count(Social.Like.relations.account) })
     // @ts-expect-error the relation points at Account, not Post
     expect(() => step(Social.Post)).toThrow(
@@ -51,6 +59,7 @@ describe('Derived.count', () => {
   })
 
   it('refuses a count of a many relation', () => {
+    const Social = social()
     // @ts-expect-error a many relation counts no rows pointing here
     const many = Derived.count(Social.Post.relations.likes)
     const step = Entity.derived({ likeCount: many })
@@ -82,6 +91,7 @@ describe('Derived.exists', () => {
   })
 
   it("refuses a viewer that is another Entity's relation", () => {
+    const Social = social()
     const exists = Derived.exists(Social.Like.relations.post, {
       // @ts-expect-error the viewer must be a relation of Like, as the read relation is
       viewer: Social.Post.relations.replyTo,
@@ -92,6 +102,7 @@ describe('Derived.exists', () => {
   })
 
   it('refuses a viewer that is the read relation itself', () => {
+    const Social = social()
     const exists = Derived.exists(Social.Like.relations.post, {
       viewer: Social.Like.relations.post,
     })

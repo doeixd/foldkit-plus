@@ -20,28 +20,34 @@ import {
 
 const Team = Entity.define('Team', Schema.Struct({ id: Schema.String }))
 const User = Entity.define('User', Schema.Struct({ id: Schema.String }))
-const PostFields = Entity.define(
-  'Post',
-  Schema.Struct({
-    id: Schema.String,
-    body: Schema.String,
-    authorId: Schema.String,
-    createdAt: Schema.Number,
-    editedAt: Schema.Number,
-    // Who last edited it, if anyone: a field that holds a null.
-    editorId: Schema.NullOr(Schema.String),
-  }),
-)
-const Blog = Entity.relate(
-  { Team, User, Post: PostFields },
-  {
-    Post: {
-      author: Relation.one(User),
-      editor: Relation.one(User, { optional: true }),
-      readers: Relation.many(User),
+/** A Post of its own, related: what one test sets is set for every later reader of its Entity. */
+const blog = () =>
+  Entity.relate(
+    {
+      Team,
+      User,
+      Post: Entity.define(
+        'Post',
+        Schema.Struct({
+          id: Schema.String,
+          body: Schema.String,
+          authorId: Schema.String,
+          createdAt: Schema.Number,
+          editedAt: Schema.Number,
+          // Who last edited it, if anyone: a field that holds a null.
+          editorId: Schema.NullOr(Schema.String),
+        }),
+      ),
     },
-  },
-)
+    {
+      Post: {
+        author: Relation.one(User),
+        editor: Relation.one(User, { optional: true }),
+        readers: Relation.many(User),
+      },
+    },
+  )
+const Blog = blog()
 const Post = Blog.Post.pipe(
   Entity.sets(
     { authorId: Expr.viewer(User), createdAt: Expr.now, author: Expr.viewer(User) },
@@ -57,7 +63,7 @@ const NewPost = Entity.input(Post, Schema.Struct({ id: Schema.String, body: Sche
 const PostChirp = Write.insert(NewPost, { id: 'id' })
 const EditPost = Write.update(NewPost, { id: 'id' })
 const setting = (values: EntitySets<typeof Blog.Post>) => () =>
-  Blog.Post.pipe(Entity.sets(values, { on: 'create' }))
+  blog().Post.pipe(Entity.sets(values, { on: 'create' }))
 
 const you = { entity: 'User', id: 'you' }
 /** What the context sets, with no row held to read a path from. */
@@ -99,7 +105,7 @@ describe('Entity.sets', () => {
   })
 
   it('refuses a derived member, which an interpreter supplies', () => {
-    const Scored = Blog.Post.pipe(Entity.derived({ score: Derived.make(Schema.Number) }))
+    const Scored = blog().Post.pipe(Entity.derived({ score: Derived.make(Schema.Number) }))
     // @ts-expect-error a derived member is no field
     expect(() => Scored.pipe(Entity.sets({ score: Expr.now }, { on: 'create' }))).toThrow(
       'sets "score", which is not a field or relation',
@@ -162,7 +168,7 @@ describe('a write of an Entity with context sets', () => {
   it('counts the context as setting something on a write whose input sets nothing', () => {
     const Bare = Entity.input(Post, Schema.Struct({ id: Schema.String }))
     expect(() =>
-      Write.insert(Entity.input(Blog.Post, Schema.Struct({ id: Schema.String })), { id: 'id' }),
+      Write.insert(Entity.input(blog().Post, Schema.Struct({ id: Schema.String })), { id: 'id' }),
     ).toThrow('it sets no field')
     expect(() => Write.insert(Bare, { id: 'id' })).not.toThrow()
     expect(() => Write.update(Bare, { id: 'id' })).not.toThrow()
