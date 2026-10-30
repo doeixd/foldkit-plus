@@ -57,3 +57,12 @@ export const FocusCartCloseButton = Command.define('FocusCartCloseButton', {
     Effect.as(Message.CompletedFocusCartCloseButton()),
   ),
 })
+
+/** An emptied search shows the landing's empty page from its top, as upstream's does. */
+export const ScrollPageToTop = Command.define('ScrollPageToTop', {
+  messages: [Message.CompletedScrollPageToTop],
+  execute: Effect.sync(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' })
+    return Message.CompletedScrollPageToTop()
+  }),
+})

@@ -27,6 +27,7 @@ import {
   FocusSearchInput,
   LoadExternal,
   NavigateInternal,
+  ScrollPageToTop,
 } from './command.js'
 import {
   AvailabilityFilter,
@@ -89,9 +90,14 @@ const typed = (model: Model, value: string): Return =>
 const layoutFor = (model: Model, query: string): SearchLayout =>
   String.isNonEmpty(query) ? 'Search' : model.searchLayout
 
-/** The search box emptied: nothing is read, now, not after the debounce. */
-const cleared = (model: Model): Return =>
-  typed(modifyFields(model, { query: () => '', settledLabel: () => Option.none() }), '')
+/** The search box emptied: nothing is read, now, not after the debounce, and the page is back at its top. */
+const cleared = (model: Model): Return => {
+  const next = typed(
+    modifyFields(model, { query: () => '', settledLabel: () => Option.none() }),
+    '',
+  )
+  return { model: next.model, commands: [...(next.commands ?? []), ScrollPageToTop()] }
+}
 
 /** The TLD dropdown: upstream's Listbox `update`, drawn by `foldkit-mixins-ui`. */
 export const TldDropdown = ListboxView.create<TldFilter, TldFilter>()
@@ -278,6 +284,10 @@ const own = (model: Model, message: Own): Return =>
     CompletedLoadExternal: () => ({ model }),
     CompletedFocusSearchInput: () => ({ model }),
     CompletedDismissSearchKeyboard: () => ({ model }),
+    CompletedScrollPageToTop: () => ({ model }),
+    // Their focus moves with the press itself (`focusSelector`), as upstream's.
+    ClickedDomainsHome: () => ({ model }),
+    ClickedSkipToMain: () => ({ model }),
   })
 
 /** Every result shown in relevance order, and the controls that change it closed. */
@@ -319,6 +329,10 @@ export const QueryInUrl = Mirror.url(App, {
   name: 'query',
   fields: [App.model.query],
   keys: { query: { key: 'q', history: 'replace' } },
+  // Written with each keystroke, as upstream's Command writes it, so a reload
+  // right after typing opens what was typed; a replace makes no history to
+  // rate-limit.
+  throttle: 0,
   initial: empty,
 })
 

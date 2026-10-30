@@ -1,2 +1,6 @@
 # Local workerd state and bundles from `pnpm preview`.
 .wrangler/
+# Upstream's suites, copied by `parity/run.mjs`.
+parity/.suite/
+# Playwright's output from `pnpm parity`.
+test-results/

@@ -1,6 +1,6 @@
 # Reimplementing foldkit-domains with Foldkit Plus
 
-> **Status:** Being built (2026-10-30): phases 0 to 6 are built; §8 records what
+> **Status:** Being built (2026-10-30): phases 0 to 7 are built; §8 records what
 > each phase built and where it departs from this plan. Written against
 > upstream [foldkit/foldkit-domains](https://github.com/foldkit/foldkit-domains)
 > at `c3041350`, copied unchanged to
@@ -307,7 +307,7 @@ without it, and the root checks green. The upstream copy stays untouched.
    README; Remote and the mixins recipes are expected to cost more than the
    preview's Query, and the number says how much.
 
-## 7. Gaps in Foldkit Plus (candidate issues, not filed)
+## 7. Gaps in Foldkit Plus (as planned; §8 says which closed, and the issues filed)
 
 1. **A window-scrolled virtual list.** Closed by #351 (`WindowList`,
    `WindowViewport`, `MeasureRows`); kept for the record. Upstream's preview VirtualList scrolls
@@ -326,20 +326,20 @@ without it, and the root checks green. The upstream copy stays untouched.
    Remote's retention is time (`grace`) plus `departedLimit` for reads and
    lists; no bound on held entities. 556 names per label × a minute of typing
    is a few thousand small rows.
-4. **A client deadline.** Upstream fails a lookup after 20 s as a retriable
+4. **A client deadline.** Closed: `Remote.clientLayer(…, { timeout })` (§8, phase 2). Upstream fails a lookup after 20 s as a retriable
    error. `packages/remote/src/client.ts` has no timeout option; a deadline
    needs a wrapper over `RemoteClient`.
-5. **Many reads from one Surface.** Reading N ids is N `Data.get` Projections
+5. **Many reads from one Surface.** Closed: one batched read per plan, nothing while the window stays on the same rows (§8, phase 3). Reading N ids is N `Data.get` Projections
    combined with `Projection.struct` over dynamic keys. Phase 3 checks that
    this plans one batched read and that requirements stay stable while the
    window moves by one row; if not, a `Data.getAll(selection, ids)` is the
    candidate.
-6. **Interrupting a superseded read.** Upstream aborts the HTTP request of a
+6. **Interrupting a superseded read.** Closed: the superseded `fetch` is aborted (§8, phase 2). Upstream aborts the HTTP request of a
    superseded search. Phase 2 checks that a read entry whose requirements
    change interrupts its in-flight request (a held-open `fetch` with an abort
    assertion); if it lets it finish, the answer is still reduced but the
    bandwidth is spent.
-7. **Typing before the bundle.** Upstream keeps an inline script and a
+7. **Typing before the bundle.** Half closed: `rh.KeepTyped()` keeps and replays it; answering it before boot is [#372](https://github.com/doeixd/foldkit-plus/issues/372). Upstream keeps an inline script and a
    handoff Command (tracked upstream as foldkit/foldkit#1784). `foldkit-ssr`'s
    `Resume` answers events before boot; whether it can write `?q=` and text
    holes before boot, and keep the input node and caret, is unknown. If not,
@@ -354,7 +354,7 @@ without it, and the root checks green. The upstream copy stays untouched.
    draws both and hides one by breakpoint, with two Models and two code
    paths. `foldkit-mixins-ui`'s `Sidebar` has this (`sheet` option); a select
    does not.
-10. **Request bounds on the Remote endpoint.** Upstream refuses bodies over
+10. **Request bounds on the Remote endpoint.** Mostly closed: `serveFetch`'s `maxBodyBytes` (413) and 400; no 415. Upstream refuses bodies over
     1 KiB (413), non-JSON (415) and unreadable bodies (400) before decoding.
     `foldkit-remote-server` has no body-size option; the Worker entry has to
     bound the stream itself. The bound also has to grow: a read of the whole
@@ -559,4 +559,43 @@ Results following once the runtime boots. Departures:
   for `/?q=…`, where it was refused
   ([#373](https://github.com/doeixd/foldkit-plus/issues/373)); the Worker
   renders every page.
+
+**Phase 7, built, with parity measured.** Upstream's dark dropdowns
+(`menu: { panel: 'default' }`) and sheets (`SheetLook`), the phone's search
+box moving into the header's second row while it has focus, the skip link
+and the brand link focusing on the press (`focusSelector`), the TLD panel a
+tab stop, the results list a described tab stop (a Behavior on
+`WindowList`'s `root`), the page back at its top when the search empties
+(`ScrollPageToTop`), and `?q=` written with each keystroke (the mirror's
+throttle at 0, so a reload right after typing opens what was typed). Parity
+(§6), as `examples/foldkit/domains-plus/README.md` records it in full:
+
+- **Upstream's suites** run unchanged through `parity/run.mjs`, which copies
+  them beside the ported `api.ts` (reads by id at `/remote`, asking upstream's
+  `search` for the range that covers them) and runs them against the built
+  Worker: 27 of 67 pass in Chromium (two workers). The failures fall in four groups: answering typing
+  before boot (#372; upstream's own inline script), the read pattern (upstream
+  counts "60 of 556 checked" pages; the port reads the rows in view), the
+  phone's filters (one combined sheet upstream, a `Picker` per control here),
+  and look or behaviour differences listed per test in the README.
+  `domains.rpc.spec.ts`, `domains.worker.spec.ts` and `domains.dev.spec.ts`
+  test upstream's RPC and its dev server and are replaced by the port's
+  `test/server.test.ts` and `e2e/dev.e2e.ts`, not run.
+- **Screenshots** of both apps at 320, 390, 900 and 1440 px in nine states,
+  by `parity/screenshots.mjs`.
+- **Size**: the port's client JavaScript is 341 KB gzipped against upstream's 220 KB plus 8 KB of CSS, about 113 KB more.
+
+**Issues filed while building:** [#364](https://github.com/doeixd/foldkit-plus/issues/364)
+(`SSR.entry` status), [#365](https://github.com/doeixd/foldkit-plus/issues/365)
+(root styles dropped by hydration), [#368](https://github.com/doeixd/foldkit-plus/issues/368)
+(`Trace.run` and `verifyPredictions`), [#369](https://github.com/doeixd/foldkit-plus/issues/369)
+(`WindowList`'s Mount in a Scene), [#371](https://github.com/doeixd/foldkit-plus/issues/371)
+(`KeepTyped` on an element `h` builds), [#372](https://github.com/doeixd/foldkit-plus/issues/372)
+(answering typing before boot), [#373](https://github.com/doeixd/foldkit-plus/issues/373)
+(a prerendered page served for a query).
+
+**Left:** the "look or behaviour" failures of the parity table (colour contrast
+in the TLD dropdown, the narrow cart, the phone cart's focus trap and the
+two-row header's geometry), WebKit, a parity re-run after the mirror's
+throttle change, and #372 for upstream's early-input specs.
 

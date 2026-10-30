@@ -22,6 +22,8 @@ export const { t, slots, forSlots, stylesheet } = AppStyle.make({
   theme: Theme.make({
     type: { body: "'Geist Variable', Arial, Helvetica, sans-serif", heading: 'inherit' },
     accent: { chroma: 0 },
+    // Upstream's dropdowns are the page's own dark, not an inverted panel.
+    menu: { panel: 'default' },
   }),
   tokens: Theme.define({
     domains: {
@@ -90,6 +92,13 @@ const inSearch = (declarations: Parameters<typeof Style.nest>[1]) =>
 const whenIdle = (declarations: Parameters<typeof Style.nest>[1]) =>
   Style.nest('[data-search="idle"] &', declarations)
 
+/**
+ * A rule on this slot while the search box has focus on a phone: upstream
+ * moves the box into the header's second row as soon as it is tapped.
+ */
+const whileTyping = (selector: string, declarations: Parameters<typeof Style.nest>[1]) =>
+  Style.at(`@media ${NARROW}`, Style.nest(selector, declarations))
+
 /** A rule on this slot under `selector`, on a window at most `width` wide. */
 const atMost = (width: string, selector: string, declarations: Parameters<typeof Style.nest>[1]) =>
   Style.at(`@media (max-width: ${width})`, Style.nest(selector, declarations))
@@ -151,6 +160,7 @@ export const Page = slots({
       '@media (max-width: 700px)',
       Style.pseudo('[data-search-layout="Search"]', { '--header-height': '123px' }),
     ),
+    whileTyping('&:has(input[type="search"]:focus)', { '--header-height': '123px' }),
   ],
   skip: [
     Style.class('skip-link'),
@@ -232,11 +242,17 @@ export const Page = slots({
       minHeight: 'calc(100svh - var(--header-height))',
     }),
   ],
-  pageHeading: [Style.class('search-page-heading'), srOnly, whenIdle({ display: 'none' })],
+  pageHeading: [
+    Style.class('search-page-heading'),
+    srOnly,
+    whenIdle({ display: 'none' }),
+    whileTyping('.app:has(input[type="search"]:focus) &', { display: 'block' }),
+  ],
   hero: [
     Style.class('hero'),
     { padding: 'var(--hero-top) 24px 160px', textAlign: 'center' },
     inSearch({ padding: '0' }),
+    whileTyping('.app:has(input[type="search"]:focus) &', { padding: '0' }),
   ],
   heroTitle: [
     {
@@ -248,6 +264,7 @@ export const Page = slots({
     },
     Style.media(NARROW, { letterSpacing: '-2.4px' }),
     inSearch({ display: 'none' }),
+    whileTyping('.app:has(input[type="search"]:focus) &', { display: 'none' }),
   ],
   heroAccent: [{ color: d.soft }],
   heroLine: [
@@ -258,6 +275,7 @@ export const Page = slots({
       margin: 'var(--hero-subtitle-gap) 0 0',
     },
     inSearch({ display: 'none' }),
+    whileTyping('.app:has(input[type="search"]:focus) &', { display: 'none' }),
   ],
   heroLink: [
     { color: 'inherit', textDecoration: 'underline', textUnderlineOffset: '4px' },
@@ -267,6 +285,7 @@ export const Page = slots({
     Style.class('hero-search-space'),
     { height: 'calc(var(--hero-search-gap) + var(--search-height) + var(--hero-bottom-gap))' },
     inSearch({ display: 'none' }),
+    whileTyping('.app:has(input[type="search"]:focus) &', { display: 'none' }),
   ],
   search: [
     Style.class('search'),
@@ -301,6 +320,13 @@ export const Page = slots({
     }),
     atMost('700px', '[data-search-layout="Search"] &', {
       top: '75px',
+      width: 'calc(100vw - 32px)',
+    }),
+    whileTyping('.app:has(input[type="search"]:focus) &', {
+      position: 'fixed',
+      top: '75px',
+      zIndex: '20',
+      height: '38px',
       width: 'calc(100vw - 32px)',
     }),
   ],
@@ -354,6 +380,11 @@ export const Page = slots({
     Style.class('begin-search'),
     { display: 'none' },
     Style.nest('[data-search-layout="Search"][data-search="idle"] &', {
+      display: 'flex',
+      justifyContent: 'center',
+      padding: 'clamp(24px, calc(50svh - 235.5px), 280px) 24px 40px',
+    }),
+    whileTyping('[data-search="idle"]:has(input[type="search"]:focus) &', {
       display: 'flex',
       justifyContent: 'center',
       padding: 'clamp(24px, calc(50svh - 235.5px), 280px) 24px 40px',
@@ -601,7 +632,7 @@ export const Page = slots({
       gap: '16px',
       border: '0',
       borderRadius: '4px',
-      background: 'transparent',
+      background: d.panel,
       padding: '0 20px',
       textAlign: 'left',
       fontSize: '16px',
@@ -833,6 +864,7 @@ export const Page = slots({
     atMost('700px', '[data-search-layout="Search"][data-search="idle"] &', {
       display: 'none',
     }),
+    whileTyping('[data-search="idle"]:has(input[type="search"]:focus) &', { display: 'none' }),
   ],
   footerLink: [
     {
@@ -906,3 +938,14 @@ export const SheetStyle = forSlots(DialogSlots)(Recipes.Sheet(), { name: 'SheetS
 export const CartSheetStyle = forSlots(DialogSlots)(Recipes.Sheet({ size: 'sm', handle: 'none' }), {
   name: 'CartSheetStyle',
 })
+
+/** The sheets in upstream's greys: its panel, its hairline, its headings and notes. */
+export const SheetLook = forSlots(DialogSlots)(
+  {
+    backdrop: { background: d.scrim },
+    panel: { background: d.panel, color: d.text, borderColor: d.lineStrong },
+    title: { margin: '0', fontSize: '22px', fontWeight: '550', letterSpacing: '-0.7px' },
+    description: { margin: '13px 0', fontSize: '13px', lineHeight: '1.7', color: d.soft },
+  },
+  { name: 'SheetLook' },
+)

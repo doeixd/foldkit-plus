@@ -29,6 +29,8 @@ const own = {
   PressedEscape: {},
   ClickedClearSearch: {},
   ClickedRetrySearch: {},
+  ClickedDomainsHome: {},
+  ClickedSkipToMain: {},
   GotResultsListMessage: { message: WindowList.Message },
   GotAvailabilityPickerMessage: { message: Picker.Message },
   GotSortPickerMessage: { message: Picker.Message },
@@ -50,6 +52,7 @@ const own = {
   CompletedLoadExternal: {},
   CompletedFocusSearchInput: {},
   CompletedDismissSearchKeyboard: {},
+  CompletedScrollPageToTop: {},
 }
 export const Own = defineMessageUnion(own)
 export type Own = typeof Own.Type

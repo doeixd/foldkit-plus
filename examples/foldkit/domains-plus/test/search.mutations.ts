@@ -21,8 +21,8 @@ export default [
     edits: [
       {
         file: '../src/client/app.ts',
-        find: "typed(modifyFields(model, { query: () => '', settledLabel: () => Option.none() }), '')",
-        replace: "typed(modifyFields(model, { query: () => '' }), '')",
+        find: "modifyFields(model, { query: () => '', settledLabel: () => Option.none() }),",
+        replace: "modifyFields(model, { query: () => '' }),",
       },
     ],
     tests,

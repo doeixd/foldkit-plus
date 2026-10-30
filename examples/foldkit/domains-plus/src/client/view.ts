@@ -7,8 +7,8 @@
 import { Array, Option, String, pipe } from 'effect'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import { Icon, type IconData } from 'foldkit-media'
-import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
-import { WindowList } from 'foldkit-mixins-ui'
+import { Behavior, SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
+import { WindowList, WindowListSlots } from 'foldkit-mixins-ui'
 import { Resume } from 'foldkit-ssr/client'
 import {
   type AvailableDomain,
@@ -71,11 +71,15 @@ const logo = (slots: Slots, h: H): Html =>
 
 const header = (model: Model, slots: Slots, h: H): Html =>
   h.header(slots.header.attrs(), [
-    h.a(slots.brand.attrs([h.Href(searchHref), h.AriaLabel('Domains home')]), [
-      logo(slots, h),
-      h.span(slots.brandDivider.attrs(), ['/']),
-      h.span([], ['Domains']),
-    ]),
+    h.a(
+      slots.brand.attrs([
+        h.Href(searchHref),
+        h.AriaLabel('Domains home'),
+        // Focused during the press, where a phone still lets a field take the keyboard.
+        h.OnClick(Message.ClickedDomainsHome(), { focusSelector: `#${SEARCH_INPUT_ID}` }),
+      ]),
+      [logo(slots, h), h.span(slots.brandDivider.attrs(), ['/']), h.span([], ['Domains'])],
+    ),
     h.span(slots.demoLabel.attrs(), ['Unofficial demo']),
     h.div(slots.headerActions.attrs(), [cartButton(model, slots, h)]),
     cartAnnouncement(model, slots, h),
@@ -299,6 +303,20 @@ const allResults = (
       onMessage: message => Message.GotResultsListMessage({ message }),
       label: 'All domain results',
       style: ResultsListStyle,
+      // A tab stop that says how it moves: the page scrolls, so the browser's
+      // arrows, Page Up and Down, Home and End move it, as upstream's keys do.
+      mixins: [
+        Behavior.forSlots(WindowListSlots)<undefined, Message>({
+          root: Behavior.slot({
+            attributes: ({ h }) => [
+              h.Tabindex(0),
+              h.AriaDescription(
+                `${arranged.count} domains. Use arrow keys, Page Up, Page Down, Home, and End to scroll the page.`,
+              ),
+            ],
+          }),
+        }).mixin,
+      ],
     },
     h,
   )
@@ -430,7 +448,16 @@ const searchPage = (model: Model, slots: Slots, h: H): Html =>
       h.DataAttribute('search', String.isNonEmpty(model.query) ? 'active' : 'idle'),
     ]),
     [
-      h.a(slots.skip.attrs([h.Href('#main')]), ['Skip to main content']),
+      h.a(
+        slots.skip.attrs([
+          h.Href('#main'),
+          h.OnClick(Message.ClickedSkipToMain(), {
+            defaultAction: 'Prevent',
+            focusSelector: '#main',
+          }),
+        ]),
+        ['Skip to main content'],
+      ),
       header(model, slots, h),
       h.main(slots.main.attrs([h.Id('main'), h.Tabindex(-1)]), [
         h.h1(slots.pageHeading.attrs(), ['Domain search']),

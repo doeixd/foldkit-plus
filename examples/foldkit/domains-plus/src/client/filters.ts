@@ -5,7 +5,7 @@
  * Model keeps each value; these draw the controls that change it.
  */
 import { Array, Option, String, pipe } from 'effect'
-import type { Html, HtmlBuilder } from 'foldkit/html'
+import { type Html, type HtmlBuilder, childAttributes } from 'foldkit/html'
 import { Icon } from 'foldkit-media'
 import type { SlotBuilders } from 'foldkit-mixins'
 import { Listbox, Picker, Sheet } from 'foldkit-mixins-ui'
@@ -13,7 +13,7 @@ import { type Model, TldDropdown } from './app.js'
 import { AvailabilityFilter, SortOrder, TldFilter } from './domain'
 import { icons } from './iconData.js'
 import { Message } from './message.js'
-import { ListboxStyle, type Page, PickerStyle, SheetStyle } from './style.js'
+import { ListboxStyle, type Page, PickerStyle, SheetLook, SheetStyle } from './style.js'
 
 type H = HtmlBuilder<Message>
 type Slots = SlotBuilders<typeof Page.slots, Message>
@@ -69,6 +69,8 @@ const desktopTld = (model: Model, slots: Slots, h: H): Html => {
           tldLabel(model.tldFilter),
         ),
         toView: Listbox.toView([ListboxStyle.mixin], { h }),
+        // The 557 rows scroll: the panel takes focus so the keys can reach them, as upstream's.
+        itemsAttributes: childAttributes([h.Tabindex(0)]),
       },
       toParentMessage: message => Message.GotTldListboxMessage({ message }),
     }),
@@ -87,7 +89,7 @@ const tldSheet = (model: Model, slots: Slots, h: H): Html =>
     {
       model: model.tldSheet,
       onMessage: message => Message.GotTldSheetMessage({ message }),
-      mixins: [SheetStyle.mixin],
+      mixins: [SheetStyle.mixin, SheetLook.mixin],
       draw: sheet =>
         h.dialog(
           sheet.dialog,
@@ -169,7 +171,7 @@ const picker = <Value extends string>(
       anchor: { placement: 'bottom-end', gap: 6, padding: 8, portal: false },
       style: PickerStyle,
       listbox: [ListboxStyle.mixin],
-      sheet: [SheetStyle.mixin],
+      sheet: [SheetStyle.mixin, SheetLook.mixin],
     },
     h,
   )

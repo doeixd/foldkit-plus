@@ -9,6 +9,7 @@ import { WindowList } from 'foldkit-mixins-ui'
 import { fromString } from 'foldkit/url'
 import { describe, expect, test } from 'vitest'
 import { Message, init, update, type Model } from '../src/client/app.js'
+import { ScrollPageToTop } from '../src/client/command.js'
 import { SearchInput } from '../src/client/message.js'
 import { view } from '../src/client/view.js'
 
@@ -69,6 +70,10 @@ describe('typing', () => {
     expect(cleared.settledLabel).toEqual(Option.none())
     // The layout stays in the header, as upstream's does.
     expect(cleared.searchLayout).toBe('Search')
+    // And the page goes back to its top.
+    expect(
+      update(searching, Message.PressedEscape()).commands?.map(command => command.name),
+    ).toContain(ScrollPageToTop().name)
   })
 })
 

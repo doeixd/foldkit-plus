@@ -9,7 +9,6 @@ import type { Domain } from '../shared/domain'
 import { domainCandidates } from '../shared/domain'
 import {
   type AvailabilityFilter,
-  DomainListing,
   type SortOrder,
   type TldFilter,
   filterAndSortDomainListings,
@@ -81,7 +80,3 @@ export const arrangedOf = (
     return { groups, keys: Array.map(groups, ({ id }) => id), count: listings.length }
   })
 }
-
-/** Every name of `label` still pending, in upstream's order. */
-export const pendingOf = (label: string): ReadonlyArray<DomainListing> =>
-  Array.map(domainCandidates(label), DomainListing.Pending)
