@@ -1418,8 +1418,11 @@ case 'ClickedRename': {
 `Remote.patch(entity, id, values)` builds one entity's patch, and
 `Remote.ref(entity, id)` names one row. Both take the entity you declared,
 whether with `foldkit-entity` or Remote's `Entity.make`, and check `values`
-against its fields in their wire shape: a relation is written as its ref key,
-such as `'User:u1'`.
+against its fields in their wire shape, except a relation, which is a ref:
+`owner: Remote.ref(User, 'u1')`, an array of refs for a `many`, or `null`
+where it is optional. The patch holds the ref key the store keeps. A ref key
+typed by hand (`'User:u1'`) or a ref to another entity is refused, by the type
+and when the patch is made.
 
 Those settlement Messages go through `Data.reduce` like every other Remote fact.
 The request id comes from the Remote Model's sequence, so `update` stays pure.

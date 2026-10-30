@@ -71,7 +71,9 @@ import {
   type EntityPatch,
   type EntityRef,
   type FieldsFrom,
+  type PatchValues,
 } from './entity.js'
+import { wireValues } from './patchValues.js'
 import { EntityChange, Impact, changesOf, impactOn, type HeldConnection } from './impact.js'
 import { belongsEncoded, matching, type Judged, type Matched } from './matching.js'
 import { readWhy, regressed, Why, type ReadStep, type ReadWhy } from './why.js'
@@ -2545,15 +2547,22 @@ export const Remote = {
    * overlay. Takes a `foldkit-entity` Entity or a Remote descriptor alike, so
    * the domain you declared once is the one you patch:
    * `Remote.patch(Project, 'p1', { name: 'Apollo II' })`. Values are the
-   * fields' wire shape, as the server writes them; a relation is its ref key
-   * (`'User:u1'`).
+   * fields' wire shape, as the server writes them, except a relation, which is
+   * a ref (`owner: Remote.ref(User, 'u1')`), an array of refs, or `null` where
+   * it is optional. A ref key typed by hand, or a ref to another Entity, is
+   * refused, in the type and when the patch is made.
    */
   patch: <E extends EntityLike>(
     entity: E,
     id: string,
-    values: Partial<Schema.Struct.Encoded<FieldsOf<E>>>,
-  ): EntityPatch<NameOf<E>, FieldsOf<E>> =>
-    descriptorOf(entity).patch(id, values) as EntityPatch<NameOf<E>, FieldsOf<E>>,
+    values: PatchValues<FieldsOf<E>>,
+  ): EntityPatch<NameOf<E>, FieldsOf<E>> => {
+    const descriptor = descriptorOf(entity)
+    return descriptor.patch(id, wireValues(descriptor, values)) as EntityPatch<
+      NameOf<E>,
+      FieldsOf<E>
+    >
+  },
 
   /**
    * A deletion of one entity, for a mutation's `optimistic` list or an

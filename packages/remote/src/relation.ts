@@ -104,7 +104,7 @@ export const isRefPage = (value: unknown): value is RefPageValue => {
  * ref, an array of refs (`many`), or a page of refs (`page`). `undefined` for a
  * scalar field, which cannot take a nested selection.
  */
-export const relationShape = (schema: Schema.Top): RelationShape | undefined =>
+export const relationShape = (schema: Schema.Constraint): RelationShape | undefined =>
   shapeOf(schema.ast, false)
 
 const shapeOf = (ast: SchemaAST.AST, nullable: boolean): RelationShape | undefined => {

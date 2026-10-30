@@ -283,8 +283,10 @@ case 'SignedOut': {
   server's value. The live ledger keeps the 256 streams most recently heard from.
   Optimistic list edits: `optimistic: ({ tempId }) => [Remote.patch(Project, tempId, {...}), ConnectionChange.prepend(projects.ref, Remote.ref(Project, tempId))]`,
   where `projects` is the `Data.query(...)` Projection above. `Remote.patch`
-  values are wire-shaped: a relation is its ref key, typed `RefKey<'User'>`
-  (`` `User:${string}` ``), so a ref to the wrong entity is a type error.
+  values are wire-shaped, except a relation, which is a ref
+  (`owner: Remote.ref(User, 'u1')`), an array of refs for a `many`, or `null`
+  where optional; a ref key typed by hand or a ref to another entity is
+  refused, by the type and when the patch is made.
 - An answer carries what the page shows of each row it names: `Data.mutate`
   sends what the active Surfaces read of each entity and every field its own
   layer shows (`shown`: a count moved on a page left behind), and the server

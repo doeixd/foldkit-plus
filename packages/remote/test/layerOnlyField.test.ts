@@ -134,7 +134,7 @@ describe('A field only a pending layer holds', () => {
         { id: 'p2', body: '' },
         {
           requestId: 'create',
-          optimistic: [Remote.patch(Post, 'p2', { id: 'p2', author: 'User:u3' })],
+          optimistic: [Remote.patch(Post, 'p2', { id: 'p2', author: Remote.ref(Blog.User, 'u3') })],
         },
       ).model
     const answered = (model: Model): Model =>
@@ -170,7 +170,7 @@ describe('A field only a pending layer holds', () => {
       { id: 'p1', body: 'moved' },
       {
         requestId: 'move',
-        optimistic: [Remote.patch(Post, 'p1', { author: 'User:u2' })],
+        optimistic: [Remote.patch(Post, 'p1', { author: Remote.ref(Blog.User, 'u2') })],
       },
     ).model
     expect(Data.plan(moved, post)).toEqual([

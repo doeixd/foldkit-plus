@@ -36,6 +36,7 @@ import {
   ProjectSummary,
   ProjectsByOwner,
   RenameProject,
+  User,
   liveHub,
   makeSyncServer,
   openReplica,
@@ -181,8 +182,13 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     { id: 'p3', name: 'Calypso', ownerId: 'u1' },
     {
       optimistic: [
-        Project.patch('p3', { id: 'p3', name: 'Calypso', status: 'active', owner: 'User:u1' }),
-        ConnectionChange.prepend(projects.ref, Project.ref('p3')),
+        Remote.patch(Project, 'p3', {
+          id: 'p3',
+          name: 'Calypso',
+          status: 'active',
+          owner: Remote.ref(User, 'u1'),
+        }),
+        ConnectionChange.prepend(projects.ref, Remote.ref(Project, 'p3')),
       ],
     },
   )

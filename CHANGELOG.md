@@ -23,7 +23,8 @@ from its own Wrangler config, and the shipped theme is new. A security review
 (#284 and others) bounds live subscriptions and collection reads, stops
 caches keeping an answer, and closes several write-rule gaps.
 
-Breaking, under Changed: `Data.why` returns a `ReadWhy`; a mutation nothing
+Breaking, under Changed: `Remote.patch` takes a ref for a relation;
+`Data.why` returns a `ReadWhy`; a mutation nothing
 answered fails with `RemoteUnreachable`; `verifyPlacement` is
 `verifyPredictions`; `Data.mutate`'s `now` is a number; the wire protocol is
 version 5 and `LiveSource.subscribe` takes `queries`; a `QuerySource` names
@@ -489,6 +490,14 @@ carries `drawn`.
   `Diagnostics.DiagnosticError`s: `theme:knob-value` (`Theme.make:
   surface.lightness refuses its value: …`) and `theme:unknown-knob`, with the
   knob path in `details`.
+- **Breaking: `Remote.patch` takes a ref for a relation** (#238).
+  `owner: Remote.ref(User, 'u1')`, an array of refs for a `many`, a page of
+  refs, or `null` where it is optional; the patch holds the ref key the store
+  keeps. A ref key typed by hand was checked only up to its prefix, and not
+  at all from untyped code; it, and a ref to another entity, are now refused
+  by the type and when the patch is made. Write `author: 'User:u1'` as
+  `author: Remote.ref(User, 'u1')`. The descriptor's own `patch` and
+  `Entity.patch` stay wire-shaped.
 - **`Data.active` and a placed Crud piece's `active` keep the read's type.**
   `projectionOf(model)` gave a `Projection` of `unknown`, so code reading
   it cast; it now gives the read itself, and an editor's reads a

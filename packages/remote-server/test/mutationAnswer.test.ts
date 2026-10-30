@@ -85,7 +85,9 @@ const backend = (options: { readonly hidden?: string } = {}) =>
       RemoteServer.mutation(Reassign, ({ input }) =>
         Effect.succeed({
           output: {},
-          entities: [Remote.patch(Post, input.id, { title: 'One', author: 'User:u1' })],
+          entities: [
+            Remote.patch(Post, input.id, { title: 'One', author: Remote.ref(User, 'u1') }),
+          ],
         }),
       ),
     ],
@@ -341,7 +343,12 @@ describe('a created row, end to end', () => {
       { id: 'p2', title: 'Two' },
       {
         optimistic: [
-          Remote.patch(Post, 'p2', { id: 'p2', title: 'Two', body: 'Draft', author: 'User:u1' }),
+          Remote.patch(Post, 'p2', {
+            id: 'p2',
+            title: 'Two',
+            body: 'Draft',
+            author: Remote.ref(User, 'u1'),
+          }),
           ConnectionChange.prepend(posts.ref, p2),
         ],
       },

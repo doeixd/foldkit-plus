@@ -89,6 +89,28 @@ export interface EntityPatch<Name extends string, F extends Schema.Struct.Fields
   readonly values: Partial<Schema.Struct.Encoded<F>>
 }
 
+/** What a relation field decodes to: a ref, refs, or a page of refs, perhaps null. */
+type IsRelation<T> = [NonNullable<T>] extends [never]
+  ? false
+  : [NonNullable<T>] extends [
+        EntityRef<string, any> | ReadonlyArray<EntityRef<string, any>> | RefPage<string, any>,
+      ]
+    ? true
+    : false
+
+/**
+ * `Remote.patch`'s values: each field's wire shape, except a relation, which
+ * takes what it decodes to (`Remote.ref(User, id)`, an array of refs, a page
+ * of refs, or `null` where it is optional), never a ref key typed by hand.
+ */
+export type PatchValues<F extends Schema.Struct.Fields> = {
+  readonly [K in keyof Schema.Struct.Encoded<F>]?: K extends keyof Schema.Struct.Type<F>
+    ? IsRelation<Schema.Struct.Type<F>[K]> extends true
+      ? Schema.Struct.Type<F>[K]
+      : Schema.Struct.Encoded<F>[K]
+    : Schema.Struct.Encoded<F>[K]
+}
+
 /**
  * One authoritative page of a paginated relation: refs (never inline entities)
  * plus whether more exist. The adapter does not hold segmentation state; the
