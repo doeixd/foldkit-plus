@@ -506,38 +506,13 @@ export interface MakeSpec<
   readonly helpers?: Helpers
 }
 
-/** The bundle `make` returns: its services are what `init`, `update` and the helpers need together. */
-type Made<
-  Name extends string,
-  Args,
-  Model,
-  Message extends AnyMessage,
-  OutMessage,
-  RInit,
-  RUpdate,
-  S,
-  ViewInputs,
-  Resources extends ResourceEntries<Model, Message>,
-  Helpers extends HelperRecord<Model, Message, OutMessage>,
-> = Bundle<
-  Name,
-  Args,
-  Model,
-  Message,
-  OutMessage,
-  RInit | RUpdate | HelperRequirements<Helpers>,
-  S,
-  ViewInputs,
-  Resources,
-  Helpers
->
-
 // `Model` is `const` because a paramless `init` is typed before the Schema
 // fixes `Model`, and `NoInfer` alone let its literals widen to `string` there.
 // The Schema supplies no literal expression, so nothing else changes.
 /**
  * Collects a child machine's parts into a bundle. Name it first,
  * `make('Search', { Model, Message, init, update })`, or inside the spec.
+ * The bundle's services are what `init`, `update` and the helpers need together.
  */
 export function make<
   const Name extends string,
@@ -569,7 +544,18 @@ export function make<
     >,
     'name'
   > & { readonly name?: never },
-): Made<Name, Args, Model, Message, OutMessage, RInit, RUpdate, S, ViewInputs, Resources, Helpers>
+): Bundle<
+  Name,
+  Args,
+  Model,
+  Message,
+  OutMessage,
+  RInit | RUpdate | HelperRequirements<Helpers>,
+  S,
+  ViewInputs,
+  Resources,
+  Helpers
+>
 export function make<
   const Name extends string,
   const Model,
@@ -596,7 +582,18 @@ export function make<
     Resources,
     Helpers
   >,
-): Made<Name, Args, Model, Message, OutMessage, RInit, RUpdate, S, ViewInputs, Resources, Helpers>
+): Bundle<
+  Name,
+  Args,
+  Model,
+  Message,
+  OutMessage,
+  RInit | RUpdate | HelperRequirements<Helpers>,
+  S,
+  ViewInputs,
+  Resources,
+  Helpers
+>
 export function make(
   nameOrSpec: string | BundleSpec<string, any, any, any, any, any, any, any, any, any>,
   spec?: Omit<BundleSpec<string, any, any, any, any, any, any, any, any, any>, 'name'>,
@@ -658,7 +655,18 @@ export function fromParts<
   > & {
     readonly name?: never
   },
-): Made<Name, Args, Model, Message, OutMessage, never, R, S, ViewInputs, {}, Helpers>
+): Bundle<
+  Name,
+  Args,
+  Model,
+  Message,
+  OutMessage,
+  R | HelperRequirements<Helpers>,
+  S,
+  ViewInputs,
+  {},
+  Helpers
+>
 export function fromParts<
   const Name extends string,
   const Model,
@@ -671,7 +679,18 @@ export function fromParts<
   Helpers extends HelperRecord<Model, Message, OutMessage> = {},
 >(
   config: PartsConfig<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, Helpers>,
-): Made<Name, Args, Model, Message, OutMessage, never, R, S, ViewInputs, {}, Helpers>
+): Bundle<
+  Name,
+  Args,
+  Model,
+  Message,
+  OutMessage,
+  R | HelperRequirements<Helpers>,
+  S,
+  ViewInputs,
+  {},
+  Helpers
+>
 export function fromParts(
   nameOrConfig: string | ErasedPartsConfig,
   maybeConfig?: Omit<ErasedPartsConfig, 'name'>,
