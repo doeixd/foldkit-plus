@@ -84,7 +84,7 @@ says what it counts, the rows whose `one` relation points here, so it is added
 after `Entity.relate`:
 
 ```ts
-const Post = Blog.Post.pipe(
+const CountedPost = Blog.Post.pipe(
   Entity.derived({ commentTotal: Derived.count(Blog.Comment.relations.post) }),
 )
 ```
@@ -98,7 +98,7 @@ row pointing here through `relation` whose `viewer` relation points at whoever
 reads it, or none.
 
 ```ts
-const Post = Blog.Post.pipe(
+const CommentedPost = Blog.Post.pipe(
   Entity.derived({
     myComment: Derived.exists(Blog.Comment.relations.post, {
       viewer: Blog.Comment.relations.author,
@@ -116,6 +116,8 @@ Selection of the target yields that Selection's value. `many` is an array, an
 optional `one` is nullable.
 
 ```ts
+import type { Selected } from 'foldkit-entity'
+
 const AuthorOption = Entity.select(Blog.Author, { id: true, name: true })
 
 const PostRow = Entity.select(Blog.Post, {
@@ -128,7 +130,7 @@ const PostRow = Entity.select(Blog.Post, {
 
 PostRow.schema   // Struct: title, commentCount, author {id,name}, editor {..} | null, comments EntityRef[]
 PostRow.members  // what was selected, for an interpreter to walk
-type Row = Selected<typeof PostRow> // the value it reads (import type { Selected } from 'foldkit-entity')
+type Row = Selected<typeof PostRow> // the value it reads
 ```
 
 **Read an operation's input against an Entity** (experimental). The operation
@@ -196,7 +198,7 @@ members, a list's membership and order from its query's body.
 ```ts
 const NewAuthor = Entity.input(Blog.Author, Schema.Struct({ name: Schema.String }))
 
-const CreatePost = Entity.input(
+const CreatePostAndAuthor = Entity.input(
   Blog.Post,
   Schema.Struct({ title: Schema.String, author: NewAuthor.schema }),
   { author: Relation.nested(Blog.Post.relations.author, NewAuthor) },
@@ -342,6 +344,8 @@ target's id type; `Data.get(selection, id)` in `foldkit-remote` takes it too. Id
 Entity with `id: Schema.String` is unchanged.
 
 ```ts
+import type { IdOf } from 'foldkit-entity'
+
 const AuthorId = Schema.String.pipe(Schema.brand('AuthorId'))
 const PostId = Schema.String.pipe(Schema.brand('PostId'))
 
@@ -362,7 +366,7 @@ Entity.input(Press.Article, Schema.Struct({ authorId: AuthorId }), {
 ## Saying something about a row: `Expr`
 
 ```ts
-import { Expr, Order, dependenciesOf } from 'foldkit-entity'
+import { Expr, Order, Query, dependenciesOf } from 'foldkit-entity'
 
 const byTitle = Expr.eq(Blog.Post.fields.title, Expr.input('title', Schema.String))
 const published = Expr.eq(Blog.Post.fields.published, true)   // literal coerced
@@ -442,6 +446,19 @@ a call to `acme.slug@2`, naming both, from the versions every `OperatorTable` li
 **Asking about an input without branching on it.** An input is a placeholder, so
 a query cannot pick a shape from a value. It does not need to:
 
+<!-- docs-check
+const Entry = Entity.define(
+  'Entry',
+  Schema.Struct({ id: Schema.String, label: Schema.String, archivedAt: Schema.NullOr(Schema.String) }),
+)
+const input = {
+  archived: Expr.input('archived', Schema.Boolean),
+  search: Expr.input('search', Schema.String),
+  handle: Expr.input('handle', Schema.String),
+  me: Expr.input('me', Schema.String),
+}
+-->
+
 ```ts
 Expr.eq(Expr.isNotNull(Entry.fields.archivedAt), input.archived)  // archived ? … : …
 Expr.contains(Entry.fields.label, input.search)                   // search === '' ? … : …
@@ -456,9 +473,9 @@ not even the empty string, so its rows drop out.
 
 ```ts
 const onlyPublished = Query.where(published)          // a reusable fragment
-const newest = Query.orderBy(Order.desc(Blog.Post.fields.title))
+const newestFirst = Query.orderBy(Order.desc(Blog.Post.fields.title))
 
-const recent = Query.from(Blog.Post).pipe(onlyPublished, newest)
+const recent = Query.from(Blog.Post).pipe(onlyPublished, newestFirst)
 Query.dependencies(recent)     // every field it reads, also split into `predicate` and `order`
 ```
 
@@ -525,10 +542,26 @@ Query.dependencies(recent)     // every field it reads, also split into `predica
 
 ### Across relations, and what a holder has
 
+<!-- docs-check
+const UserFields = Entity.define('User', Schema.Struct({ id: Schema.String, handle: Schema.String }))
+const Feed = Entity.relate(
+  {
+    User: UserFields,
+    Post: Entity.define('Post', Schema.Struct({ id: Schema.String })),
+    Follow: Entity.define('Follow', Schema.Struct({ id: Schema.String, followerId: Schema.String })),
+  },
+  {
+    Post: { author: Relation.one(UserFields) },
+    Follow: { followee: Relation.one(UserFields) },
+  },
+)
+const { User, Follow } = Feed
+-->
+
 ```ts
 // Posts by a handle, and posts whose author the reader follows.
-Expr.eq(Expr.path(Post.relations.author, User.fields.handle), input.handle)
-Expr.path(Post.relations.author,
+Expr.eq(Expr.path(Feed.Post.relations.author, User.fields.handle), input.handle)
+Expr.path(Feed.Post.relations.author,
   Expr.exists(Follow.relations.followee, Expr.eq(Follow.fields.followerId, input.me)))
 ```
 
@@ -564,6 +597,18 @@ viewer of another Entity), and `Expr.now` the time in milliseconds. Each side
 provides them once: a server from `RemoteServer.make({ viewer })` and its clock,
 a client from `Remote.make({ viewer })`. A run given no context refuses a body
 that reads one (`ContextMissingError`) rather than reading a visitor.
+
+<!-- docs-check
+const Note = Entity.define(
+  'Note',
+  Schema.Struct({ id: Schema.String, ownerId: Schema.String, orgId: Schema.String }),
+)
+const Team = Entity.define('Team', Schema.Struct({ id: Schema.String, orgId: Schema.String }))
+const { Member } = Entity.relate(
+  { Team, Member: Entity.define('Member', Schema.Struct({ id: Schema.String })) },
+  { Member: { team: Relation.one(Team) } },
+)
+-->
 
 ```ts
 Query.from(Note).pipe(Query.where(Expr.eq(Note.fields.ownerId, Expr.viewer(User))))

@@ -29,6 +29,32 @@ Nothing is generated from an Entity alone: no form and mutation, no editor.
 `EditPostForm` is a `Form.make` result; `EditPostMutation` is a Remote mutation
 over the same input struct (see [form.md](form.md), [remote.md](remote.md)).
 
+<!-- docs-check
+import { Entity, Expr, Relation, Write } from 'foldkit-entity'
+import { Form, Input } from 'foldkit-form'
+import { Mutation, Query } from 'foldkit-remote'
+const Author = Entity.define('Author', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const Blog = Entity.relate(
+  {
+    Author,
+    Post: Entity.define(
+      'Post',
+      Schema.Struct({ id: Schema.String, title: Schema.String, published: Schema.Boolean }),
+    ),
+  },
+  { Post: { editor: Relation.one(Author, { optional: true }) } },
+)
+const EditPost = Entity.input(
+  Blog.Post,
+  Schema.Struct({ ...Entity.fields(Blog.Post, 'id', 'title'), editorId: Schema.NullOr(Schema.String) }),
+  { editorId: 'editor' },
+)
+const EditPostForm = Form.make('EditPost', EditPost, {
+  inputs: { id: Input.hidden(), editorId: Input.search() },
+})
+const EditPostMutation = Mutation.write('EditPost', Write.update(EditPost, { id: 'id' }))
+-->
+
 ```ts
 import { Schema } from 'effect'
 import { Crud } from 'foldkit-crud'
@@ -40,7 +66,7 @@ import { Surface } from 'foldkit-surface'
 const Editor = Crud.editor('PostEditor', { form: EditPostForm, mutation: EditPostMutation })
 
 const Slot = Bundle.declare(Editor.bundle, 'editor')
-const Model = Schema.Struct({ remote: Remote.Model, ...Slot.fields })
+const Model = Schema.Struct({ remote: Remote.Model, search: Schema.String, ...Slot.fields })
 const Message = defineMessageUnion({ ...Remote.messages, ...Slot.cases })
 
 const App = Surface.application({ Model, Message })
@@ -101,7 +127,16 @@ const subscriptions = Data.subscriptions({ editor: PostEditor.active })
 One query and one Selection. The pages live in Remote, so a list holds no state
 and is not a Bundle.
 
+<!-- docs-check
+const AuthorsQuery = Query.make('Authors', {
+  Input: { search: Schema.String },
+  Result: Query.connection(Blog.Author),
+})
+-->
+
 ```ts
+import { Option } from 'effect'
+
 const Authors = Crud.list('Authors', {
   query: AuthorsQuery, // Query.make('Authors', { Input: { search }, Result: Query.connection(Blog.Author) })
   selection: Entity.select(Blog.Author, { id: true, name: true }),
@@ -119,7 +154,7 @@ const AuthorList = Authors.at({
   input: model => Option.some({ search: model.search }),
 })
 
-const subscriptions = Data.subscriptions({ authors: AuthorList.active })
+const listSubscriptions = Data.subscriptions({ authors: AuthorList.active })
 ```
 
 - `Authors.columns`: the selected members in order, each with `key`, `member`,
@@ -141,7 +176,7 @@ const subscriptions = Data.subscriptions({ authors: AuthorList.active })
 
 ## Deleting and detail
 
-```ts
+```ts sketch
 const Remover = Crud.remover('PostRemover', {
   mutation: DeletePostMutation,
   input: id => ({ id }), // the mutation's input for an id
@@ -175,42 +210,70 @@ read through a Selection, with the target's columns. Set one with `Entity.annota
 `Display.show(display, value, words?)` is the cell's text.
 
 `foldkit-mixins-crud` draws them through Mixins slots. A list holds no state, so
-every click is a Message you pass in:
+every click is a Message you pass in (here `PageMessage`, the page's own union):
+
+<!-- docs-check
+import type { HtmlBuilder } from 'foldkit/html'
+const PageMessage = defineMessageUnion({
+  OpenedPost: { id: Schema.String },
+  RequestedMorePosts: {},
+  RetriedPosts: {},
+  SortedPosts: { sort: Schema.String },
+  OpenedPage: { id: Schema.String },
+  RetriedPages: {},
+})
+type PageMessage = typeof PageMessage.Type
+const PostRow = Entity.select(Blog.Post, { id: true, title: true, published: true })
+const PostsQuery = Query.make('Posts', { Input: {}, Result: Query.connection(Blog.Post) })
+const PostList = Crud.list('Posts', { query: PostsQuery, selection: PostRow })
+const Posts = PostList.at({ data: Data, input: () => Option.some({}) })
+const PostDetail = Crud.detail('Post', { selection: PostRow })
+const Shown = PostDetail.at({ data: Data, id: () => Option.some('p1') })
+declare const model: typeof Model.Type
+declare const h: HtmlBuilder<PageMessage>
+-->
 
 ```ts
 import { DetailView, ListView } from 'foldkit-mixins-crud'
 
-const PostTable = ListView.forMessages<Message>().define(PostList) // the list, not the placed one
+const PostTable = ListView.forMessages<PageMessage>().define(PostList) // the list, not the placed one
 PostTable(
   {
     page: Posts.page(model),
-    onOpen: row => Message.OpenedPost({ id: row.id }),
-    onMore: Message.RequestedMorePosts(),
-    onRetry: Message.RetriedPosts(), // update: { model: Posts.refresh(model) }
-    sort: { title: { direction: 'asc', message: Message.SortedPosts({ sort: 'title-desc' }) } },
+    onOpen: row => PageMessage.OpenedPost({ id: row.id }),
+    onMore: PageMessage.RequestedMorePosts(),
+    onRetry: PageMessage.RetriedPosts(), // update: { model: Posts.refresh(model) }
+    sort: { title: { direction: 'asc', message: PageMessage.SortedPosts({ sort: 'title-desc' }) } },
     cells: { published: (row, h) => h.span([], [row.published ? '●' : '○']) },
     words: { yes: 'Live', no: 'Draft', empty: 'No posts yet.' },
   },
   h,
 )
 
-DetailView.forMessages<Message>().define(PostDetail)({ value: Shown.value(model) }, h)
+DetailView.forMessages<PageMessage>().define(PostDetail)({ value: Shown.value(model) }, h)
 ```
 
 A list whose markup is rows rather than a table (a navigation, a picker of
 whole rows) uses `RowListView`, which carries the same state contract over
 `ul`/`li`; you draw each row, and `onOpen` makes the whole row a button:
 
+<!-- docs-check
+import type { Page as RemotePage, RemoteData } from 'foldkit-remote'
+type PageRow = { readonly id: string; readonly label: string }
+// An application's query read, as `Data.query(SitePagesQuery, input, { select })` gives it.
+declare const SitePages: { read: (model: typeof Model.Type) => RemoteData<RemotePage<PageRow>> }
+-->
+
 ```ts
 import { RowListView } from 'foldkit-mixins-crud'
 
-const PageList = RowListView.forMessages<Message>().define<PageRow>({ name: 'Pages' })
+const PageList = RowListView.forMessages<PageMessage>().define<PageRow>({ name: 'Pages' })
 PageList(
   {
     page: SitePages.read(model),
     row: (page, h) => [h.span([], [page.label])],
-    onOpen: page => Message.OpenedPage({ id: page.id }),
-    onRetry: Message.RetriedPages(),
+    onOpen: page => PageMessage.OpenedPage({ id: page.id }),
+    onRetry: PageMessage.RetriedPages(),
     words: { empty: 'No pages yet.' },
   },
   h,
@@ -259,12 +322,12 @@ goes once the refresh starts, so the retry's `update` branch should return a
 ## Pickers that search
 
 ```ts
-const AuthorList = Authors.at({
+const AuthorPicker = Authors.at({
   data: Data,
-  input: model => Option.some({ search: EditPostForm.search(model.editor.form, 'authorId') }),
+  input: model => Option.some({ search: EditPostForm.search(model.editor.form, 'editorId') }),
 })
-const pickers = Crud.options(EditPostForm, [AuthorList], { chosen: model => model.editor.form })
-Data.subscriptions({ authors: AuthorList.active, chosen: pickers.active })
+const pickers = Crud.options(EditPostForm, [AuthorPicker], { chosen: model => model.editor.form })
+Data.subscriptions({ authors: AuthorPicker.active, chosen: pickers.active })
 ```
 
 `chosen` keeps what a picker holds among its choices when the search no longer

@@ -200,7 +200,7 @@ makes the SlotView's input exactly the Surface projection and its Message univer
 exposed subset, so no annotations are needed and Behaviors cannot read unprojected fields or emit
 unexposed Messages. It adds no state and no renderer.
 
-```ts
+```ts standalone
 import { Option, Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Behavior, Capability, Event, Slot, Slots, Style } from 'foldkit-mixins'
@@ -278,7 +278,7 @@ const html = SurfaceView.render(TodoListView, TodoList, undefined, {
 and hands `draw` the bundles with the Mixins applied (non-slot data such as `activeIndex` passes
 through); add your own attributes beside them (`h.input([...input, h.Autocomplete('off')])`).
 
-```ts
+```ts standalone
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
 import * as UiButton from '@foldkit/ui/button'

@@ -13,6 +13,7 @@
  * - <!-- docs-check    hidden code the reader is assumed to have written
  *    declare const model: Model
  *    -->               (an application's Model, its `h`), compiled in place.
+ *                      `<!-- docs-check standalone` also starts a module.
  *
  * Every block must parse. A document in `pending` below has blocks that do
  * not compile yet: its type errors are not failures, but once it compiles it
@@ -114,14 +115,8 @@ const pending = new Set([
   'packages/sync/README.md',
   'skills/foldkit-plus/references/alchemy.md',
   'skills/foldkit-plus/references/auth.md',
-  'skills/foldkit-plus/references/cms.md',
-  'skills/foldkit-plus/references/crud.md',
-  'skills/foldkit-plus/references/entity.md',
-  'skills/foldkit-plus/references/form.md',
   'skills/foldkit-plus/references/guard.md',
   'skills/foldkit-plus/references/mirror.md',
-  'skills/foldkit-plus/references/mixins.md',
-  'skills/foldkit-plus/references/react.md',
   'skills/foldkit-plus/references/remote.md',
   'skills/foldkit-plus/references/site.md',
   'skills/foldkit-plus/references/ssr.md',
@@ -154,9 +149,14 @@ const itemsOf = text => {
     if (fixture !== null) {
       const close = lines.findIndex((line, j) => j >= i && line.includes('-->'))
       const end = close === -1 ? lines.length - 1 : close
-      const code = [fixture[1], ...lines.slice(i + 1, end + 1)]
+      const standalone = /^\s*standalone\b/.test(fixture[1])
+      const code = [standalone ? '' : fixture[1], ...lines.slice(i + 1, end + 1)]
       code[code.length - 1] = code.at(-1).replace(/-->.*$/, '')
-      items.push({ line: i + 1, code: code.join('\n'), words: new Set() })
+      items.push({
+        line: i + 1,
+        code: code.join('\n'),
+        words: new Set(standalone ? ['standalone'] : []),
+      })
       i = end
       continue
     }
@@ -286,7 +286,8 @@ for (const document of documents) {
 }
 
 // A dependency the root does not install is linked from the first workspace
-// project that does, so a block imports it as an application would.
+// project that does, with its `@types` package if it has one (react's), so a
+// block imports it as an application would.
 const installers = [
   root,
   ...['packages', 'examples'].flatMap(folder =>
@@ -295,7 +296,8 @@ const installers = [
       .filter(dir => statSync(dir).isDirectory()),
   ),
 ]
-for (const name of foreign) {
+const typesOf = name => `@types/${name.replace(/^@/, '').replace('/', '__')}`
+for (const name of [...foreign, ...[...foreign].map(typesOf)]) {
   const found = installers.map(dir => join(dir, 'node_modules', name)).find(existsSync)
   if (found === undefined) continue
   mkdirSync(dirname(join(check, 'node_modules', name)), { recursive: true })

@@ -295,7 +295,7 @@ const MeetingInput = Schema.Struct({ due: CalendarDate, startsAt: Schema.String 
 const Meeting = Form.make('Meeting', Form.input(MeetingInput), {
   inputs: { due: due.control, startsAt: startsAt.control },
 })
-const View = FormView.define(Meeting, { renderers: renderers() }) // date and datetime-local inputs
+const MeetingView = FormView.define(Meeting, { renderers: renderers() }) // date and datetime-local inputs
 ```
 
 - `date()`: value `CalendarDate` (`Calendar.CalendarDate` or
@@ -342,7 +342,18 @@ A key mapped with `Relation.nested(relation, input)` holds rows of a form built
 from the nested input: exactly one (a required `one`), none or one (a `one`
 admitting `null`/`undefined`), or any number (a `many`).
 
+<!-- docs-check
+const CommentFields = Entity.define('Comment', Schema.Struct({ id: Schema.String, body: Schema.String }))
+const Blog = Entity.relate(
+  { Comment: CommentFields, Post: Entity.define('Post', Schema.Struct({ id: Schema.String, title: Schema.String })) },
+  { Post: { comments: Relation.many(CommentFields) } },
+)
+-->
+
 ```ts
+import { Relation } from 'foldkit-entity'
+import { Input } from 'foldkit-form'
+
 const NewComment = Entity.input(Blog.Comment, Schema.Struct({ body: Schema.String }))
 const CreatePost = Entity.input(
   Blog.Post,

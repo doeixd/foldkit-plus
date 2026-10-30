@@ -35,6 +35,36 @@ before the row does.
 
 ## Minimal example
 
+<!-- docs-check
+import { Schema } from 'effect'
+import { Entity } from 'foldkit-entity'
+import { Form } from 'foldkit-form'
+import { Mutation } from 'foldkit-remote'
+const Author = Entity.define('Author', Schema.Struct({ id: Schema.String, name: Schema.String }))
+const Blog = Entity.relate(
+  {
+    Author,
+    Post: Entity.define(
+      'Post',
+      Schema.Struct({
+        id: Schema.String,
+        title: Schema.String,
+        slug: Schema.String,
+        publishedAt: Schema.NullOr(Schema.String),
+      }),
+    ),
+  },
+  {},
+)
+const PostInput = Schema.Struct({ title: Schema.String, slug: Schema.String })
+const PostForm = Form.make('PostForm', Entity.input(Blog.Post, PostInput))
+const CreatePostMutation = Mutation.make('CreatePost', { Input: PostInput, Output: { id: Schema.String } })
+const UpdatePostMutation = Mutation.make('UpdatePost', {
+  Input: { ...PostInput.fields, id: Schema.String },
+  Output: {},
+})
+-->
+
 ```ts
 import { Cms } from 'foldkit-cms'
 
@@ -73,7 +103,36 @@ Cms.offers(facts, new Date(), Posts) // ['save', 'discard', 'publish', 'schedule
 
 ## The editor
 
+<!-- docs-check
+import { FormView } from 'foldkit-mixins-form'
+const form = PostForm
+const view = FormView.define(PostForm)
+const surfaces = {}
+const entryId = Cms.newEntryId()
+// The page holding the editor's slot, as the block below declares it.
+import { defineMessageUnion } from 'foldkit/message'
+import { Remote, type RemoteClient } from 'foldkit-remote'
+import { Surface } from 'foldkit-surface'
+const PageSlot = Bundle.declare(Cms.editor('PostEditor', { content: Posts }).bundle, 'editor')
+const Model = Schema.Struct({ remote: Remote.Model, ...PageSlot.fields })
+const Message = defineMessageUnion({ ...Remote.messages, ...PageSlot.cases })
+const App = Surface.application({ Model, Message })
+const Data = Remote.make({
+  model: App.model.remote,
+  entities: [...Object.values(Blog), ...Object.values(Cms.Entities)],
+  mutations: [CreatePostMutation, UpdatePostMutation, ...Cms.operations],
+})
+const Page = Bundle.parent({ Model, Message }).withServices<RemoteClient>()
+declare const model: typeof Model.Type
+declare const yourUpdate: (
+  model: typeof Model.Type,
+  message: typeof Message.Type,
+) => { readonly model: typeof Model.Type }
+-->
+
 ```ts
+import { Bundle } from 'foldkit-bundle'
+
 const Editor = Cms.editor('PostEditor', { content: Posts }) // rest?, version?, untitled?
 const Slot = Bundle.declare(Editor.bundle, 'editor')
 const PostEditor = Editor.at({ data: Data, model: App.model.editor })
@@ -143,18 +202,67 @@ Bundle.declare(Editor.bundle.pipe(Bundle.withView(Cms.editorView(FormView.submod
 
 ## The server
 
+<!-- docs-check
+import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { Effect, Option } from 'effect'
+import type { DrizzleDatabase } from 'foldkit-remote-drizzle'
+const Principal = Schema.Struct({ name: Schema.String, role: Schema.Literals(['author', 'editor']) })
+type Principal = Option.Option<typeof Principal.Type>
+const G = Guards.declare(
+  'Cms',
+  Principal,
+  guard => ({
+    isAuthor: guard.principal(),
+    isEditor: guard.principal(),
+    isPublished: guard.row(Post, () => Cms.published(Post)),
+  }),
+  { key: author => author.name, unguarded: 'allow' },
+)
+const Policy = G.implement({
+  isAuthor: Option.isSome,
+  isEditor: principal => Option.exists(principal, author => author.role === 'editor'),
+})
+const posts = sqliteTable('posts', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  slug: text('slug').notNull().unique(),
+  publishedAt: text('published_at'),
+})
+const authors = sqliteTable('authors', { id: text('id').primaryKey(), name: text('name').notNull() })
+const CreatePost = RemoteServer.mutation<
+  Principal,
+  DrizzleDatabase,
+  string,
+  typeof PostInput.Type,
+  { id: string }
+>(Posts.publish.create, () => Effect.succeed({ output: { id: 'post-1' } }))
+const UpdatePost = RemoteServer.mutation<
+  Principal,
+  DrizzleDatabase,
+  string,
+  typeof PostInput.Type & { readonly id: string },
+  {}
+>(Posts.publish.update, () => Effect.succeed({ output: {} }))
+-->
+
 ```ts
 import { CmsServer, Transaction, sqliteTables } from 'foldkit-cms-drizzle'
+import { Guards } from 'foldkit-guard'
+import { GuardDrizzle } from 'foldkit-guard/drizzle'
+import { bind, source } from 'foldkit-remote-drizzle'
+import { RemoteServer } from 'foldkit-remote-server'
 
-// A guard set: G.isAuthor, G.isEditor (principal guards), G.isPublished (a row guard over Blog.Post).
-const Post = Blog.Post.pipe(Guards.attach(G, { row: { Read: [G.isPublished, G.isAuthor] } }))
-const Db = bind({ ...Blog, Post }, {
-  Post: { table: posts, visible: GuardDrizzle.visible(Policy, [Post]).Post }, // a visitor sees published rows
+// A guard set: G.isAuthor, G.isEditor (principal guards), G.isPublished (a row guard over Post).
+// Guard the Post that carries the CMS roles, so the content type and its binding agree.
+const ServedPost = Post.pipe(Guards.attach(G, { row: { Read: [G.isPublished, G.isAuthor] } }))
+const Db = bind({ Author: Blog.Author, Post: ServedPost }, {
+  Author: { table: authors },
+  Post: { table: posts, visible: GuardDrizzle.visible(Policy, [ServedPost]).Post }, // a visitor sees published rows
 })
 const cms = CmsServer.make({
   tables: sqliteTables(), // or pgTables()
   // create/update: your own RemoteServer.mutation handlers of Posts.publish.create/.update
-  content: [{ type: Posts, entity: Post, binding: Db.Post, create: CreatePost, update: UpdatePost }],
+  content: [{ type: Posts, entity: ServedPost, binding: Db.Post, create: CreatePost, update: UpdatePost }],
   transaction: Transaction.statements, // one connection (SQLite); Transaction.drizzle for Postgres, libSQL
   policy: Policy,
   authors: [G.isAuthor], // who reads and writes unpublished work

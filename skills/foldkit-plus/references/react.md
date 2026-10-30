@@ -20,7 +20,28 @@ Foldkit inside React:  props ─▶ inbound Ports ─▶ Runtime.embed program
 
 ## React inside Foldkit
 
+<!-- docs-check
+import { Schema } from 'effect'
+import type { Html, HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import type { ReactNode } from 'react'
+declare const DatePicker: (props: {
+  readonly value: Date
+  readonly onChange?: (date: Date) => void
+}) => ReactNode
+declare const Spinner: () => ReactNode
+const Model = Schema.Struct({ dueDate: Schema.Date })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({
+  ChangedDueDate: { date: Schema.Date },
+  PickerCrashed: { reason: Schema.String },
+})
+type Message = typeof Message.Type
+const { ChangedDueDate, PickerCrashed } = Message
+-->
+
 ```ts
+import { createElement } from 'react'
 import { ReactComponent } from 'foldkit-react'
 
 // Name the event props. Other function props (renderDay, …) stay plain props.
@@ -51,6 +72,25 @@ const view = (model: Model, h: HtmlBuilder<Message>): Html =>
   Stale keep data). It starts no work: a Command loads.
 
 ## Foldkit inside React
+
+<!-- docs-check
+import * as Port from 'foldkit/port'
+import type * as Runtime from 'foldkit/runtime'
+const ports = {
+  inbound: { stepChanged: Port.inbound(Schema.Number) },
+  outbound: { countChanged: Port.outbound(Schema.Number) },
+}
+declare const makeCounter: (
+  container: HTMLElement,
+  initialCount: number,
+) => Runtime.MakeRuntimeReturn<typeof ports, void, never, 'Element'>
+interface CounterProps {
+  readonly initialCount: number
+  readonly step: number
+  readonly userId: string
+  readonly onCountChange?: (count: number) => void
+}
+-->
 
 ```ts
 import { FoldkitComponent, useFoldkitElement } from 'foldkit-react'
