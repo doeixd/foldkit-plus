@@ -760,6 +760,12 @@ carries `drawn`.
 
 ### Fixed
 
+- **A write's path through the viewer reads a withheld field named like an
+  `Object.prototype` member as withheld.** `RemoteServer.write` read the
+  last field of an `Entity.sets` path by plain index, so a field named
+  `constructor`, `toString` or `__proto__` that the asker may not read gave
+  `Object`'s member (or its prototype) instead of nothing, and the write
+  landed with it rather than being refused. It now reads the row's own keys.
 - **Remote keeps fields named `__proto__`, `constructor` and `toString`.**
   Records keyed by a field were written by assignment, which turns
   `__proto__` into the prototype, and read by index, which finds

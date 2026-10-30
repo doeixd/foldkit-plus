@@ -2213,7 +2213,13 @@ export const RemoteServer = {
         /** A path from the viewer, read through the server's sources: a row hidden or gone is null. */
         const context = Write.contextValues(write, { viewer, now: Option.some(now) }, (row, key) =>
           Effect.map(read(row, [key]), found =>
-            Held.of(Option.match(found, { onNone: () => null, onSome: values => values[key] })),
+            Held.of(
+              Option.match(found, {
+                onNone: () => null,
+                // A withheld member is missing: never `Object`'s of the same name.
+                onSome: values => (Object.hasOwn(values, key) ? values[key] : undefined),
+              }),
+            ),
           ),
         )
         const given = input as never
