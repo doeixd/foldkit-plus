@@ -887,7 +887,13 @@ The handler applies bounded, protocol-level safeguards before or around Sources:
 
 - a read batch may name at most `maxIdsPerEntity` distinct ids for one Entity
   (default `1000`); oversized client batches fail rather than loading unbounded
-  rows;
+  rows. Remote's client cuts its batches to the same default, and to the
+  number given in `Remote.clientLayer(…, { maxIdsPerEntity })`;
+- a request body may be at most `maxBodyBytes` (default 1 MiB) where bytes are
+  read: `serveFetch`'s option, and `bodyLimit` in front of an `RpcServer`
+  route. A larger one is a 413, `{ error, tooLarge: { limit } }`, refused by
+  its `content-length` before anything else, or cancelled the moment the bytes
+  read pass the limit, and never decoded;
 - nested resolution is bounded by `maxDepth` (default `8`);
 - the wire decoder also rejects a selection deeper than
   `MAX_RELATION_DEPTH` (`8`) or more than `MAX_FIELDS_PER_REQUEST` (`256`)
@@ -1098,6 +1104,26 @@ It binds no principal: pass the `handlers` for the request's own,
 established by your authentication, as everywhere else. It carries no live
 data.
 
+For an endpoint that serves `RemoteRpc` through Effect's own `RpcServer`,
+`bodyLimit(maxBytes)` is the same limit as HTTP middleware (Effect's
+`MaxBodySize` fails the RPC body read as a defect, a 500):
+
+```ts
+import { Layer } from 'effect'
+import { HttpRouter } from 'effect/http'
+import { RpcSerialization, RpcServer } from 'effect/rpc'
+import { RemoteRpc } from 'foldkit-remote'
+import { RemoteServer, bodyLimit } from 'foldkit-remote-server'
+
+// `server` is your RemoteServer.make; answered as an anonymous principal here.
+const RpcRoutes = RpcServer.layer(RemoteRpc).pipe(
+  Layer.provide(RemoteRpc.toLayer(RemoteServer.handlers(server, 'anonymous'))),
+  Layer.provide(RpcServer.layerProtocolHttp({ path: '/rpc' })),
+  Layer.provide(RpcSerialization.layerJson),
+  Layer.provide(HttpRouter.middleware(bodyLimit(64 * 1024)).layer),
+)
+```
+
 ## Over fetch (Workers)
 
 `serveFetch` from `foldkit-remote-server/fetch` is that route as a value: a
@@ -1122,8 +1148,14 @@ export default {
 ```
 
 Only `POST`s to `path` (default `/remote`) are answered; anything else is a
-404. A body that is not JSON, or not a request, is a 400 that reaches no
-handler; a handler's failure a 500 with its message. Every response, refusals
+404. A body larger than `maxBodyBytes` (default 1 MiB) is a 413 with
+`{ error, tooLarge: { limit } }`: one whose `content-length` says so before
+the layer is built or the principal resolved, any other once the bytes read
+pass the limit, its stream cancelled there. Give the client the same number
+(`Remote.clientLayer(Remote.http('/remote'), { maxBodyBytes })`) and it cuts its
+reads to fit; `Remote.http` reads a 413 as the call's own error, so a durable
+write is not resent. A body that is not UTF-8 JSON, or not a request, is a 400
+that reaches no handler; a handler's failure a 500 with its message. Every response, refusals
 and errors included, says `cache-control: no-store` unless `headers` gives a
 `cache-control` of its own: each answer is one principal's rows (and `may`), so
 no shared cache may keep one.

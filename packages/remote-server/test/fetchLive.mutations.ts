@@ -34,7 +34,7 @@ export default [
     edits: [
       {
         file,
-        find: 'if (isLiveOpen(body.value)) {',
+        find: 'if (isLiveOpen(body.success)) {',
         replace: 'if (false) {',
       },
     ],

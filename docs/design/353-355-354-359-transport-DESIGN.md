@@ -1,6 +1,6 @@
 # Remote's transport: deadlines, cancellation, batching and body limits (#353, #355, #354, #359)
 
-Status: designed (2026-10-30). All four came out of planning the
+Status: built (2026-10-30). All four came out of planning the
 foldkit-domains port (`foldkit-domains-PLAN.md`, gaps 4, 5, 6 and 10). They
 share one seam, the wrapper `Remote.clientLayer` and `Remote.coalesced` put
 around a transport, and the server's one byte-reading boundary, `serveFetch`.
@@ -140,7 +140,7 @@ serveFetch({ server, resolvePrincipal, layer, maxBodyBytes: 64 * 1024 })
   the limit (a chunked body, or a `content-length` that lies), then decoded
   as UTF-8 and parsed. The principal is resolved first, so a refused caller
   makes the server read nothing.
-- `RemoteServer.bodyLimit(maxBytes)` is the same check as Effect HTTP
+- `bodyLimit(maxBytes)` (a root export) is the same check as Effect HTTP
   middleware, for an endpoint that serves `RemoteRpc` through `RpcServer`
   (Effect's own `MaxBodySize` fails the RPC body read as a defect, a 500).
 - The client: `Remote.http` reads a 413 as a refusal, whatever its body (a

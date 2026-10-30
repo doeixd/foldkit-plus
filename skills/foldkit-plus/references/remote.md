@@ -238,7 +238,10 @@ A transport failure becomes the call's Remote error, not a defect.
   what `layer(env)` provides; failing with `RemoteServer.unauthenticated(reason?)`
   answers 401. `revalidate: { every, key? }` asks again while a live stream is
   open and ends it on a refusal. Every answer is one principal's, so it says
-  `cache-control: no-store` unless `headers` gives its own. A Worker request
+  `cache-control: no-store` unless `headers` gives its own. `maxBodyBytes`
+  (1 MiB) refuses a larger body with a 413 `{ error, tooLarge: { limit } }`
+  before decoding it; `bodyLimit(n)` (root export) is the same as HTTP
+  middleware for an `RpcServer` route. A Worker request
   cannot wake another's stream, so a `LiveHub` fed from a second request
   reaches nobody: poll the durable store (D1) inside the subscriber's request
   (`pollLive`, below).

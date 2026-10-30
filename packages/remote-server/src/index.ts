@@ -41,6 +41,8 @@ import {
   type WriteAssignment,
 } from 'foldkit-entity'
 import {
+  // One default for both ends, so a client cuts its reads to what the server takes.
+  DEFAULT_MAX_IDS_PER_ENTITY,
   Diagnostics,
   REMOTE_PROTOCOL_VERSION,
   Remote,
@@ -781,9 +783,6 @@ const withServices =
   ) =>
   (...args: A): Effect.Effect<B, E> =>
     Effect.provideContext(read(...args), services)
-
-/** A read batch may not carry more than this many distinct ids per entity. */
-const DEFAULT_MAX_IDS_PER_ENTITY = 1000
 
 /** A nested selection may not reach further than this many relation levels. */
 const DEFAULT_MAX_DEPTH = 8
@@ -3098,6 +3097,7 @@ export const RemoteServer = {
 }
 
 export * from './evaluate.js'
+export { bodyLimit } from './body.js'
 export type {
   AnswerUnread,
   ClockSkewed,

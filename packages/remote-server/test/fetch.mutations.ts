@@ -43,8 +43,9 @@ export default [
     edits: [
       {
         file,
-        find: "{ error: 'The body is not JSON' }, { status: 400, headers }",
-        replace: "{ error: 'The body is not JSON' }, { status: 200, headers }",
+        find: 'return { response: Response.json(answer, { status, headers }), live: false }',
+        replace:
+          'return { response: Response.json(answer, { status: 200, headers }), live: false }',
       },
     ],
     tests,
@@ -158,8 +159,8 @@ export default [
     edits: [
       {
         file,
-        find: "{ error: 'The body is not JSON' }, { status: 400, headers }",
-        replace: "{ error: 'The body is not JSON' }, { status: 400 }",
+        find: 'return { response: Response.json(answer, { status, headers }), live: false }',
+        replace: 'return { response: Response.json(answer, { status }), live: false }',
       },
     ],
     tests,

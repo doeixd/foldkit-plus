@@ -2132,6 +2132,13 @@ of its own named a form field "fits the Catalog". Read words with
   the staged file yourself (HEAD's blob with your hunks applied by content, `git hash-object
   -w` and `git update-index --cacheinfo`), diff it against the working tree to see only the
   foreign hunks remain, and parse `git show HEAD:<file>` after committing.
+- **A hunk picked by its content can carry a neighbour's lines.** Choosing my
+  hunks of `remote/src/index.ts` by a word in them took one where another
+  session's new `RetainEntryOptions` sat three lines above my `timeout`, so
+  `git diff` joined them; HEAD then named a `budget` its Model lacked and did
+  not compile until a follow-up took it out. Pick hunks with `-U0`'s
+  boundaries in view, and read `git show HEAD -- <file>` for lines you did not
+  write before pushing.
 - **But a pathspec that names only the new half of a rename ships both files.**
   `git mv old new` stages a rename; `git commit -- new` then commits the addition
   while the deletion of `old` stays in the index, so HEAD holds two copies and a

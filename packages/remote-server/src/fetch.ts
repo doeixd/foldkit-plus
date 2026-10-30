@@ -18,13 +18,14 @@ import {
   Effect,
   Exit,
   Layer,
-  Option,
+  Result,
   Schedule,
   Schema,
   Scope,
   Stream,
 } from 'effect'
 import {
+  DEFAULT_MAX_BODY_BYTES,
   Diagnostics,
   LiveRequirement,
   Remote,
@@ -36,6 +37,7 @@ import {
   type RemoteRpcClient,
   type RemoteUnauthenticated,
 } from 'foldkit-remote'
+import { declaresTooLarge, readJson, tooLargeAnswer } from './body.js'
 import { serverDefect } from './diagnostics.js'
 import { RemoteServer, type LiveHub, type ServerDefinition } from './index.js'
 import { unauthenticatedAnswer } from './refusal.js'
@@ -103,6 +105,14 @@ export interface FetchConfig<P, R, Env, RP = never> {
   readonly maxIdsPerEntity?: number | undefined
   /** A nested selection may not reach further than this many levels; default 8. */
   readonly maxDepth?: number | undefined
+  /**
+   * A request body may not be larger than this many bytes; default 1 MiB. A
+   * larger one is a 413 with Remote's `tooLarge` answer, refused before it is
+   * decoded: by its `content-length` before the principal is resolved, or
+   * once the bytes read pass the limit. Give the client the same number
+   * (`Remote.clientLayer(…, { maxBodyBytes })`), so it cuts its reads to fit.
+   */
+  readonly maxBodyBytes?: number | undefined
 }
 
 /** A live open over fetch: the requirements and the cursor it resumes after. */
@@ -256,6 +266,7 @@ export const serveFetch = <P, R, Env, RP = never>(
   config: FetchConfig<P, R, Env, RP>,
 ): ((request: Request, env: Env) => Promise<Response>) => {
   const path = config.path ?? '/remote'
+  const maxBodyBytes = config.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES
   const heartbeat = config.liveHeartbeat ?? DEFAULT_HEARTBEAT
   if (
     config.revalidate !== undefined &&
@@ -302,12 +313,10 @@ export const serveFetch = <P, R, Env, RP = never>(
     Effect.gen(function* () {
       const principal = yield* config.resolvePrincipal(request, env)
       const headers = config.headers?.(principal) ?? {}
-      const body = yield* Effect.option(Effect.tryPromise(() => request.json()))
-      if (Option.isNone(body)) {
-        return {
-          response: Response.json({ error: 'The body is not JSON' }, { status: 400, headers }),
-          live: false,
-        }
+      const body = yield* Effect.result(readJson(request, maxBodyBytes))
+      if (Result.isFailure(body)) {
+        const { status, answer } = body.failure
+        return { response: Response.json(answer, { status, headers }), live: false }
       }
       // Bound per request: the principal is the request's own, as everywhere else.
       const handlers = RemoteServer.handlers(config.server, principal, {
@@ -315,10 +324,10 @@ export const serveFetch = <P, R, Env, RP = never>(
         maxIdsPerEntity: config.maxIdsPerEntity,
         maxDepth: config.maxDepth,
       })
-      if (isLiveOpen(body.value)) {
+      if (isLiveOpen(body.success)) {
         const response = yield* liveResponse(
           handlers,
-          body.value.payload,
+          body.success.payload,
           heartbeat,
           revalidation(request, env, principal),
           Scope.close(scope, Exit.void),
@@ -327,7 +336,7 @@ export const serveFetch = <P, R, Env, RP = never>(
         // A 400 for a payload no stream speaks has no stream to close it.
         return { response, live: response.status === 200 }
       }
-      const answered = yield* RemoteServer.answer(handlers, body.value)
+      const answered = yield* RemoteServer.answer(handlers, body.success)
       return {
         response: Response.json(answered.body, { status: answered.status, headers }),
         live: false,
@@ -341,6 +350,10 @@ export const serveFetch = <P, R, Env, RP = never>(
   const served = async (request: Request, env: Env): Promise<Response> => {
     if (request.method !== 'POST' || new URL(request.url).pathname !== path) {
       return Response.json({ error: 'not found' }, { status: 404 })
+    }
+    // Refused on what it says of itself: no layer built, no principal asked, nothing read.
+    if (declaresTooLarge(request, maxBodyBytes)) {
+      return Response.json(tooLargeAnswer(maxBodyBytes), { status: 413 })
     }
     const exit = await Effect.runPromiseExit(
       Effect.gen(function* () {

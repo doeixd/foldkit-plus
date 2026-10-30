@@ -87,6 +87,18 @@ version changed; `pnpm` skips versions already in the registry.
   and `keep`; Slots `root`, `spacer`, `row`. `VirtualList` stays the list in
   a box of its own.
 
+- **Request body limits on the Remote endpoint** (`foldkit-remote-server`,
+  #359). `serveFetch`'s `maxBodyBytes` (default 1 MiB; it read a body of any
+  size) answers a larger body with a 413 and Remote's typed answer, `{ error,
+  tooLarge: { limit } }` (`RemoteJsonAnswer.tooLarge`): by its
+  `content-length` before the layer is built or the principal resolved, or
+  once the bytes read pass the limit, cancelling the rest; nothing over the
+  limit is buffered or decoded. A body that is not UTF-8 is a 400.
+  `bodyLimit(maxBytes)` is the same check as Effect HTTP middleware for an
+  `RpcServer` route of `RemoteRpc`. `Remote.http` reads any 413 as the call's
+  own error, so a mutation refused for its size is not resent.
+
+
 ### Changed
 
 - **`RemoteJsonSend` takes the call's `AbortSignal`** (`foldkit-remote`,

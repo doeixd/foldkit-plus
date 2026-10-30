@@ -33,6 +33,8 @@ export const RemoteJsonAnswer = Schema.Union([
     forbidden: Schema.optional(Schema.Struct({ reason: Schema.optional(Schema.String) })),
     /** Who is asking could not be told, with the reason when one was given; a 401. */
     unauthenticated: Schema.optional(Schema.Struct({ reason: Schema.optional(Schema.String) })),
+    /** The request body was larger than the server takes, `limit` bytes when it says; a 413. */
+    tooLarge: Schema.optional(Schema.Struct({ limit: Schema.optional(Schema.Number) })),
   }),
 ])
 export type RemoteJsonAnswer = typeof RemoteJsonAnswer.Type
@@ -141,24 +143,30 @@ const notJson = Symbol('not JSON')
 const Reason = Schema.Struct({ reason: Schema.optional(Schema.String) })
 /** A refusal in Remote's own words, by the key it is given under. */
 const ownRefusal: Record<
-  'unauthenticated' | 'forbidden',
+  'unauthenticated' | 'forbidden' | 'tooLarge',
   (body: unknown) => Option.Option<Partial<RemoteJsonAnswer>>
 > = {
   unauthenticated: Schema.decodeUnknownOption(
     Schema.Struct({ error: Schema.String, unauthenticated: Reason }),
   ),
   forbidden: Schema.decodeUnknownOption(Schema.Struct({ error: Schema.String, forbidden: Reason })),
+  tooLarge: Schema.decodeUnknownOption(
+    Schema.Struct({
+      error: Schema.String,
+      tooLarge: Schema.Struct({ limit: Schema.optional(Schema.Number) }),
+    }),
+  ),
 }
 
 /**
- * A 401's or 403's answer, whatever its body: Remote's own refusal as it is,
+ * A 401's, 403's or 413's answer, whatever its body: Remote's own refusal as it is,
  * and anything else (`{ error }` from middleware, HTML, a shape of its own)
  * as the status alone, so it never reaches a decoder that would call it a
  * broken answer.
  */
 const refusalOf = (
   body: unknown,
-  kind: 'unauthenticated' | 'forbidden',
+  kind: 'unauthenticated' | 'forbidden' | 'tooLarge',
   status: string,
 ): Partial<RemoteJsonAnswer> =>
   Option.getOrElse(ownRefusal[kind](body), () => ({ error: status, [kind]: {} }))
@@ -174,9 +182,10 @@ const unanswered: ReadonlySet<number> = new Set([408, 429, 502, 503, 504])
  * answer its JSON body. A body that is not JSON, or one under 408, 429, 502,
  * 503 or 504, is no answer: a mutation fails `RemoteUnreachable`, so a
  * durable one is sent again. A 401 is answered as
- * unauthenticated, for every call kind, and a 403 as forbidden, whatever the
- * body says: the server's own says why, and middleware in front of Remote
- * may say anything.
+ * unauthenticated, for every call kind, a 403 as forbidden, and a 413 as the
+ * call's own error (a mutation's `RemoteMutationError`, never resent),
+ * whatever the body says: the server's own says why, and middleware or a
+ * gateway in front of Remote may say anything.
  * `headers` is read per request, so a token that changes reaches the next
  * call. `fetch` defaults to the global one; pass it to route calls through
  * another implementation in tests.
@@ -200,6 +209,8 @@ export const http = (
     const body: unknown = await response.json().catch(() => notJson)
     if (response.status === 401) return refusalOf(body, 'unauthenticated', status)
     if (response.status === 403) return refusalOf(body, 'forbidden', status)
+    // A body too large is refused again whoever sends it: a mutation is not resent.
+    if (response.status === 413) return refusalOf(body, 'tooLarge', status)
     if (body === notJson || unanswered.has(response.status)) throw new Error(status)
     return body
   })
