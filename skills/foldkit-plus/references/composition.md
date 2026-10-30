@@ -396,6 +396,23 @@ const PageForm = Form.make('PageForm', PageInput, {
   unknown Block, which can be reordered where it is or removed, but not moved
   elsewhere or have its props set.
 
+## Known traps
+
+Met in applications on this stack: what failed, and what to do instead.
+
+- **A Block's Mount reads its args once.** Chrome beside a node stayed where
+  it was first drawn. Key the element by the node (`h.Key(node)`), not by a
+  counter in the Model.
+- **One layout decision written twice drifts apart.** A page builder stacked
+  its panels below 64rem but showed the tabs that choose one only below 52rem,
+  so at a 1280px window every panel stood above the page. Name the width once,
+  pass it to every query that decides the same thing, and test between values.
+- **A layout test that checks what shows passes a broken layout**: a narrow
+  editor showed the right panel, squeezed to 50px. Assert geometry (a width, a
+  position) in a browser.
+- **A view input may hold no nested function**, so the Builder's words are text
+  with blanks: words of your own drawn through `BuilderView.submodel` must be too.
+
 ## See also
 
 - [Package README](https://github.com/doeixd/foldkit-plus/blob/main/packages/composition/README.md)

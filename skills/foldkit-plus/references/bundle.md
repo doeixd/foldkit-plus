@@ -274,6 +274,37 @@ need (`init` when a wiring restores, `url` when one reads the URL).
   declaration emit with TS2742; keep it unexported. The same happens when
   exporting `Tabs.create()` itself.
 
+## Known traps
+
+Met in applications on this stack: what failed, and what to do instead.
+
+- **A view input may hold no nested function.** `h.submodel` throws on a
+  function below the top level of `viewInputs`; a test drawing the view
+  directly passed. Pass text, data, or a top-level function, and test a view
+  input through a submodel.
+- **A child's bookkeeping Message must not reset the parent's state.** A Sheet
+  cleared its drag on every Dialog Message, so an animation Message landing
+  mid-press dropped it. Reset on the child's transition that means it (`isOpen`
+  changing), and when a failure resists, log the Messages `update` receives.
+- **A Scene test does not model keys.** A keyed element still showed its old
+  Mount as mounted after its key changed, with or without `h.Key`. Test
+  remounting on the real runtime (`Runtime.makeElement` + `embed`).
+- **`Bundle.make` infers less than its spec says.** An empty `{}` or `[]` in
+  `init` widens the Model past its Schema
+  ([#334](https://github.com/doeixd/foldkit-plus/issues/334)), and a helper
+  whose Commands need a service fails with `R` pinned to `never`
+  ([#335](https://github.com/doeixd/foldkit-plus/issues/335)): until fixed,
+  give `make` explicit generics. Foldkit's `Message.match` unifies its arms to
+  the first one's shape: annotate each arm
+  (`Update.Return<Model, Message, unknown>`).
+- **A module-level call keeps its module in the entry chunk**, read or not:
+  what `Resource.lazy` should defer must live in a module the entry does not
+  import for another name.
+
+More: https://github.com/doeixd/foldkit-plus/tree/main/packages/bundle and the
+example https://github.com/doeixd/foldkit-plus/tree/main/examples/bundle
+Ready-made bundles live in https://github.com/doeixd/foldkit-plus/tree/main/packages/primitives
+
 More: https://github.com/doeixd/foldkit-plus/tree/main/packages/bundle and the
 example https://github.com/doeixd/foldkit-plus/tree/main/examples/bundle
 Ready-made bundles live in https://github.com/doeixd/foldkit-plus/tree/main/packages/primitives

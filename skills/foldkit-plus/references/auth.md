@@ -152,6 +152,31 @@ has the compiled wiring; what it takes:
   with `foldkit-bundle`'s `Resource.lazy` ([bundle.md](bundle.md)): the entry names
   it by type only, and the Commands read it with `Resource.get`.
 
+## Known traps
+
+Met in applications on this stack: what failed, and what to do instead.
+
+- **A page navigation carries no CSRF header, and often no `Origin`**, so a
+  resolver in the default `'scripted'` mode answers every signed-in page render
+  as a visitor. Read the page's session with `requests: 'navigation'` behind
+  `pageReader`, which cannot write; never forge the headers in a pre-read.
+- **A browser `WebSocket` sends no header of yours**, so a resolver asking for
+  the CSRF header answers every Sync upgrade as a visitor. Resolve sockets with
+  `requests: 'browser'`, which checks `Origin` alone.
+- **Node's `fetch` sends `Sec-Fetch-Mode: cors` whatever it is given**, so a
+  test that fakes a navigation with it is refused by a navigation resolver.
+  Send such requests through `node:http`, as
+  [examples/reference](https://github.com/doeixd/foldkit-plus/tree/main/examples/reference)'s
+  `test/worker.test.ts` does.
+- **A module-level `AuthContract.make(…)` keeps Yielded in the entry chunk**
+  even behind `Resource.lazy`, when the entry imports that module for another
+  name (`Me`). Put what only the lazy chunk and the server need in a module of
+  its own.
+- **An Effect handed to a loop is built once.** A polling loop written
+  `Effect.andThen(resolve(request))` asked the resolver when the loop was made,
+  so a revoked session was never seen. Pass a function (`() => resolve(request)`)
+  or `Effect.suspend` where each pass must ask again.
+
 ## See also
 
 - [foldkit-auth README](https://github.com/doeixd/foldkit-plus/blob/main/packages/auth/README.md)

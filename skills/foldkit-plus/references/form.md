@@ -390,6 +390,21 @@ PostForm.rows(PostForm.initial, 'comments') // [{ id, model }], each a Model of 
   no `check`; `form.field` refuses its key (use `form.control(key).field`); a
   nested form whose control has Subscriptions or Resources is refused.
 
+## Known traps
+
+Met in applications on this stack: what failed, and what to do instead.
+
+- **Keys typed faster than a frame meet the last frame's view.** A control
+  that opened an editor on a key restarted the edit for every key sent before
+  the editor was drawn, and "Dowel" became "l"; it failed only some runs. Let
+  the Message carry enough for `update` to continue what is open, or the Model
+  state the handler was drawn from
+  ([#224](https://github.com/doeixd/foldkit-plus/issues/224)), and reproduce by
+  holding frames back (`Frames.track()`'s `hold()`), not by throttling.
+- **A key's control and a Slot of your own on one element lose a class**:
+  a choice row drawn with `[...option.card, ...builders.choice.attrs()]` lost
+  its layout. Give each its own element ([mixins.md](mixins.md)).
+
 ## See also
 
 - https://github.com/doeixd/foldkit-plus/tree/main/examples/chirp (the compose box in `src/compose.ts`, the editor in `src/editor.ts`)

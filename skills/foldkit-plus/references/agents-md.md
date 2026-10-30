@@ -98,7 +98,7 @@ Foldkit and the Model
 - A Mount reads its args once, at insert. Drive a DOM effect the Model causes
   (focus the next field) as a Command from the Message that changed it.
 - Model fields named `Schema`, `optic`, `dependency`, `key`, `read`, `get`,
-  `set`, `at`, `index` or `select` throw once a Surface reads the Model.
+  `set`, `at`, `index` or `select` throw once a Surface reads the Model (#331).
 
 Effect 4
 - Moved names: `Effect.result` (was `either`), `Effect.callback` (`async`),
@@ -136,7 +136,7 @@ SSR
   or served pages flash unstyled. Import `foldkit-plus/ssr/client` in the browser.
 
 Sync
-- One storage name and `ReplicaId` per tab, never per user or token.
+- One storage name and `ReplicaId` per tab, never per user or token (#336).
 - A durable Message writes only the shared slice and returns no Commands: mint
   ids and timestamps in a Command first.
 

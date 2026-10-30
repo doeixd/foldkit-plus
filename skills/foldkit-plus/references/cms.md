@@ -234,6 +234,26 @@ RemoteServer.make({
 - An entry's id is the branded `EntryId`, not the content row's id.
 - A slug that follows a title is `foldkit-form`'s `Input.following('title', slugify)`.
 
+## Known traps
+
+Met in applications on this stack: what failed, and what to do instead.
+
+- **The URL the editor writes comes back as a `UrlChanged`.** A new entry's
+  reload cleared its pending state on that echo and showed "That entry does not
+  exist." while every test passed. A `UrlChanged` for the shown address must
+  undo nothing ([mirror.md](mirror.md)).
+- **An overwrite must wait for the answer, not for "fresh".** A row asked for
+  again reads `NotFound` until it lands, so a save made at once went against
+  the old copy ([#263](https://github.com/doeixd/foldkit-plus/issues/263)).
+  Wait until `Data.plan(model, projection)` is empty.
+- **A studio drawn into a container with no id is a blank page.** The runtime
+  fails before rendering, and every test mounted its own container; only an
+  end-to-end test runs the real entry.
+- **A slug is not URL-safe text**: route it through `schemaSegment` with an
+  encoding Schema ([site.md](site.md)).
+- **A draft with a `Schema.Option` field does not round-trip** ("Expected
+  Option"); a stored Model uses `Schema.OptionFromNullOr`.
+
 ## See also
 
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/cms/README.md

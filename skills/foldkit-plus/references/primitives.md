@@ -243,6 +243,24 @@ and the bundle's `GoTo { step }` jump to any kept step, counted from the oldest.
 - **Init is a safe default, not a read.** `matches: false`, `online: true`,
   count zero: SSR renders these, and subscriptions then report live facts.
 
+## Known traps
+
+Met in applications on this stack: what failed, and what to do instead.
+
+- **Settle a forked stream before advancing `TestClock`.** Its listeners attach
+  on the real scheduler, so events dispatched right after the fork hit nothing
+  and a debounce test watched an un-reset timer. Yield (a hundred `yieldNow`)
+  after the fork, before the first `adjust`.
+- **Merged event streams lose the order between them.** Four streams merged read
+  a focus moving between links as `focusin`, `focusin`, `focusout`. Events that
+  decide state together go through one listener (`Stream.callback`).
+- **`setTimeout(0)` does not wait for a forked fiber.** A test that waited one
+  tick for a background load failed on a loaded CI runner. Wait for evidence
+  the step happened.
+- **A sleep between synthetic pointer events stretches past what reads their
+  times**: a flick's speed read from `timeStamp` over 100ms became a rest on
+  CI. Space such events with a busy-wait in one synchronous run.
+
 ## See also
 
 - Primitives package: https://github.com/doeixd/foldkit-plus/blob/main/packages/primitives

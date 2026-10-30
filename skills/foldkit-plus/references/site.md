@@ -140,6 +140,24 @@ with OutMessages and non-Bundle children stay on `Bundle.at` / `Link.child`.
 - `Site.target(Node, {})` for param-less routes: params are always explicit.
 - Locales are route params when they arrive; themes are preferences, not routes.
 
+## Known traps
+
+Met in applications on this stack: what failed, and what to do instead.
+
+- **Foldkit's `string` route segment neither encodes nor decodes.** A slug
+  `a/b` built `/site/a/b`, which parsed as `a` plus a stray segment, and a
+  browser's `a%20b` read back as `a%20b`. Route text that is not URL-safe
+  through `schemaSegment` with an encoding Schema
+  ([examples/cms](https://github.com/doeixd/foldkit-plus/tree/main/examples/cms)'s
+  `src/content/siteRoutes.ts`, `Slug`).
+- **Foldkit draws the next screen before a navigation's Command runs.** A
+  scroll offset recorded on `navigate` or `popstate` was already clamped to
+  the new, shorter page, and a restore made when the entry changed was undone
+  by the loading state drawn after it. Record the offset at the reader's
+  action, and hold a restore until the screen has settled.
+- **A route change the application made comes back as a `UrlChanged`** for
+  the address already shown: make it a no-op (see [mirror.md](mirror.md)).
+
 ## See also
 
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/site/README.md

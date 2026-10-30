@@ -153,6 +153,17 @@ the whole wiring, compiled.
 - ARIA is logical: `aria-rowindex` and `aria-colindex` count every row and
   visible column, drawn or not; `aria-rowcount` is `-1` for an unknown count.
 
+## Known traps
+
+Met in applications on this stack: what failed, and what to do instead.
+
+- **Two runtimes in one document share its ids.** Two panes on one page each
+  drew a grid with the id `products`, and the grid finds its cells by id, so
+  one pane's keys could reach the other's. Give each grid an id unique in the
+  document, or each runtime a frame of its own.
+- **Keys typed faster than a frame meet the last frame's view**: see
+  [form.md](form.md)'s known traps for the fix the grid's own editing uses.
+
 See also: [the 100,000-row registry example](https://github.com/doeixd/foldkit-plus/blob/main/examples/data-grid),
 [the registry over Remote and Sync](https://github.com/doeixd/foldkit-plus/blob/main/examples/registry),
 [the view's README](https://github.com/doeixd/foldkit-plus/blob/main/packages/mixins-data-grid/README.md),

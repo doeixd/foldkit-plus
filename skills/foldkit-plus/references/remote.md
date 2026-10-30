@@ -1133,6 +1133,47 @@ handler's write and raw SQL are held to the invariants and move the revision too
   rules declared on the domain, in `foldkit-guard/server` (`GuardServer.writer`,
   `GuardServer.mutation`, `GuardServer.validate` at startup); see [guard.md](guard.md).
 
+## Known traps
+
+Met in applications on this stack: what failed, and what to do instead.
+
+- **A `Query.make` list is invalidated by any change to its Entity**, since
+  the client cannot read its meaning. Declare a list the client should place
+  with `Query.define` ([#238](https://github.com/doeixd/foldkit-plus/issues/238)).
+- **A mutation's answer is read back only for the rows its handler names.** A
+  row the write predicted (a derived count) and the handler did not name falls
+  back to its old copy when the write settles. Name each row the handler changed
+  (`Remote.patch(Entity, id, {})`); `Remote.make({ verifyPredictions: true })`
+  reports the gaps in development ([#226](https://github.com/doeixd/foldkit-plus/issues/226)).
+- **Fresh is not answered.** A row asked for again keeps its tombstone and
+  reads `NotFound` until the answer ([#263](https://github.com/doeixd/foldkit-plus/issues/263)),
+  so a CMS overwrite that saved at once saved against the old copy. Wait until
+  `Data.plan(model, projection)` is empty.
+- **On Workers, one request cannot wake another's stream.** A hub fed by a
+  write's request tears the subscriber's response down ("Promise will never
+  complete"). Serve live updates with `foldkit-remote-drizzle`'s `pollLive`,
+  which re-reads D1 inside the subscriber's own request.
+- **A Source's `read` is not what the reader may see**: the handlers wrap it in
+  guards' `authorize` and `filter`, and a loop that called `read` itself sent
+  withheld members. Read to send through `RemoteServer.readAs`
+  ([#264](https://github.com/doeixd/foldkit-plus/issues/264)).
+- **A hand-written Source gets the client's field names as sent.** `fields:
+  ['__proto__']` read `Object.prototype` as a relation and crashed a read:
+  look names up with `Object.hasOwn` or a `Map`, never `name in table`.
+- **A lazy row view hits only with the same function and arguments.** An arrow
+  made inline, or an array rebuilt per render (`flatMap`), misses every
+  render; a memoized drawing is reused at one position only, so key the row.
+- **Drizzle's SQLite transaction is synchronous.** `db.transaction(async tx =>
+  …)` commits before its awaits run, so a failure after one rolls nothing
+  back. Write it synchronously (`.run()`, `.all()`); D1 has only `batch`.
+- **Node's SQLite runs the transaction path, not D1's batch.** Test a D1
+  write on workerd (`Stack.start`, [greenfield.md](greenfield.md)), and a
+  race against `stack.env().DB` from Node: requests sent through the stack's
+  HTTP origin did not interleave, so the race test passed with the handling removed.
+- **One `drizzle-orm` per install.** The Drizzle adapters peer on it; a second
+  copy, resolved with other optional peers, makes the application's tables
+  fail to type-check against the adapter. Count the copies in the lockfile.
+
 ## See also
 
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/remote/README.md

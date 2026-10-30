@@ -613,6 +613,25 @@ rows })`), unknown where it lacks one. No list orders by one. `Entity.sets`
   itself forever. Ask with a comparison over the placeholder, never a branch
   around it.
 
+## Known traps
+
+Met in applications on this stack: what failed, and what to do instead.
+
+- **`Schema.isMaxLength` counts UTF-16 units; SQL's `length()` counts code
+  points**, so a CHECK compiled from it is looser for an emoji. Use
+  `Schema.isMaxCodePoints` for a rule the database should hold too, as
+  [examples/chirp](https://github.com/doeixd/foldkit-plus/tree/main/examples/chirp)'s
+  280-character body does.
+- **`Schema.Struct({})` is not an empty object.** It accepts `{ foo: 1 }`, `[]`
+  and `"str"`, even with `onExcessProperty: 'error'`. Use
+  `Schema.Record(Schema.String, Schema.Never)`.
+- **`Schema.Record` drops a key its key schema refuses**, silently, unless the
+  decode passes `onExcessProperty: 'error'`.
+- **PGlite collates by `C`, so a dropped collation passes there.** A text order
+  on Postgres held on PGlite and failed on a database created with a locale.
+  Test Postgres ordering on such a database, with rows the two orders
+  disagree on (`a-c` and `ab`, `é` and `f`).
+
 ## See also
 
 - https://github.com/doeixd/foldkit-plus/tree/main/examples/chirp (a whole app's domain in `src/domain.ts`: Users, Posts and Likes, derived counts, the checks its tables compile)

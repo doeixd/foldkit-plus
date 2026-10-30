@@ -176,3 +176,18 @@ only to its own ids): a refused folder SVG fails the build,
 a refused Iconify icon is left out and its import fails. A package commits constants
 made with `foldkit-media/icons`' `parse(svg, name)` or `fromIconify(set, name)`.
 Never set an icon's markup through `innerHTML`.
+## Known traps
+
+Met in applications on this stack: what failed, and what to do instead.
+
+- **A sized `svg` in a squeezed flex row shrinks to nothing.** Its `width`
+  attribute is no floor: a 16px icon beside text in a 40px row measured 0 wide.
+  `Icon.draw` writes `flex-shrink: 0`; an icon drawn by hand needs it too.
+- **A layout-shift test needs files that arrive late.** With `data:` URLs the
+  file is there before the first layout, so an `Image` with `width` and
+  `height` deleted showed no shift. Hold the request in the browser
+  (`Fetch.enable`, then fulfil it after two frames).
+- **`toEqual` cannot tell two `File`s apart**: their `name`, `size` and `type`
+  are prototype getters, so a test that the first of two dropped files was sent
+  passed when the last was. Compare a `File` with `toBe`.
+

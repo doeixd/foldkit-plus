@@ -272,7 +272,20 @@ registerPackageActions(AgentNative.actions({
 - MCP over HTTP ignores a principal sent in request params and refuses an `Origin` that is not allowlisted. An unauthenticated server should listen on localhost only.
 - Agent Native keeps the first registration of a name and skips `Object.prototype` names such as `__proto__`.
 
-## 7. See also
+## 7. Known traps
+
+Met in applications on this stack: what failed, and what to do instead.
+
+- **In Node, Effect's default logger writes every level to stdout**, which an
+  MCP stdio server speaks its protocol on, so the server's own `Effect.log…`
+  corrupts the stream. `AgentMcp.stdio` sends its diagnostics to stderr; give
+  the rest of the program `Layer.succeed(Logger.LogToStderr, true)`, which moves every level.
+- **A test that a wait holds passes when nothing re-evaluates it.** An Agent +
+  Sync test asserted "still pending before the exchange" and passed with the
+  committed view reading the optimistic value. Force a transition between the
+  two states the test tells apart.
+
+## 8. See also
 
 - https://github.com/doeixd/foldkit-plus/blob/main/docs/agents.md
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/agent/README.md

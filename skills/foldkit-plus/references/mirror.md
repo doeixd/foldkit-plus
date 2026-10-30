@@ -195,6 +195,22 @@ for (const command of start.commands ?? []) {
 - Kernel: `Mirror.make(App, store, config)` over any `MirrorStore`
   (`read`/`write`). Built-in stores are `MirrorStore.url`, `.kv`, and `.memory`.
 
+## Known traps
+
+Met in applications on this stack: what failed, and what to do instead.
+
+- **A URL a Command writes comes back as a `UrlChanged`** for the address the
+  Model already shows (Foldkit's `pushUrl` and `replaceUrl` dispatch it, and a
+  URL mirror's write is one). A CMS cleared a new entry's pending state on that
+  echo and showed "That entry does not exist." Make a `UrlChanged` for the
+  shown address a no-op, pending work included.
+- **`Schema.Option` does not survive storage.** Its encoded side is an
+  `Option`, not JSON, so a stored draft with one failed to decode ("Expected
+  Option"). A Model slice that is stored or sent uses `Schema.OptionFromNullOr`.
+- **What the first frame shows comes from `bootstrap`, not a Subscription**,
+  which starts after the first render; a value restored there draws a frame
+  without it ([#262](https://github.com/doeixd/foldkit-plus/issues/262)).
+
 ## See also
 
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/mirror/README.md

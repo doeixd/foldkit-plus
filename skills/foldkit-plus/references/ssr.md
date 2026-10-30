@@ -256,6 +256,30 @@ served page stays in view while the fresh one draws hidden, and is swapped once 
   root as `data-foldkit-plus-resume`, beside Foldkit's own stamps, so any host
   injects the page whole.
 
+## Known traps
+
+Met in applications on this stack: what failed, and what to do instead.
+
+- **Without one build id on both sides, `SSR.hydrate` contains the server's
+  page instead of resuming it** ([#210](https://github.com/doeixd/foldkit-plus/issues/210)).
+  `import.meta.env` is undefined under `tsx`, so a module both Vite and `tsx`
+  load throws on a bare `import.meta.env.FOLDKIT_BUILD_ID`. Read it only in
+  entries Vite transforms, read `process.env` in scripts, and make a server
+  entry they share a factory that takes the id.
+- **Server markup must be what a parser builds from it.** Rows put straight in
+  a `<table>` gain a `tbody` when parsed, and Foldkit refuses to serialize a
+  view whose parse differs, so every server-rendered page with that table
+  failed while DOM-built tests passed. Write the `tbody`, and test markup by
+  rendering it to a string and parsing it back.
+- **A property set through a generic write is client-only.** `h.Prop` (and a
+  custom element's property) is left out of a server render, so a form tool
+  reading the markup misses it. Check what reaches the markup by rendering to
+  a string, not by assuming.
+- **Any import from `foldkit/experimental/server` brings the server along.** A
+  browser entry that took one constant from it grew from 700 KB to 880 KB.
+  Check the bundle's size after an import from a package that also runs on a
+  server.
+
 ## See also
 
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/ssr/README.md

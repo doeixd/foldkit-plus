@@ -293,6 +293,20 @@ supplied: true } }`). Select `may: true` and read it with
   until it is answered; an explained refusal is the agent error's message);
   `Agent.forApplication(App).withPrincipal(G.Principal)`.
 
+## Known traps
+
+Met in applications on this stack: what failed, and what to do instead.
+
+- **A Source's `read` is not what a reader may see.** The handlers apply
+  `authorize` and `filter` around it, so a member's Read rule lives outside
+  `read`, and a live loop that called `read` itself sent a withheld member in
+  every patch while the Source passed `GuardServer.validate`. Anything that
+  reads to send reads through `RemoteServer.readAs`, as `pollLive` does
+  ([#264](https://github.com/doeixd/foldkit-plus/issues/264)).
+- **A page render is a navigation**: the resolver that reads its principal
+  needs `requests: 'navigation'`, or every signed-in page renders for a
+  visitor ([auth.md](auth.md)).
+
 Worked app: [examples/chirp](https://github.com/doeixd/foldkit-plus/tree/main/examples/chirp)'s
 `src/guard.ts` (a post is written by its author or an admin), enforced in
 `src/server/server.ts`.

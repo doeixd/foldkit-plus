@@ -248,7 +248,8 @@ rejects copies and hand-built values.
 - **Reserved field names.** `Surface.application` throws
   `Model field "..." is reserved by ModelRef` when a Model Struct field is named
   `Schema`, `optic`, `dependency`, `key`, `read`, `get`, `set`, `at`, `index`,
-  or `select`. The check also covers nested Structs.
+  or `select`. The check also covers nested Structs
+  ([#331](https://github.com/doeixd/foldkit-plus/issues/331)): name such fields otherwise (`slide`, `point`).
 - **Params.** A Surface declared without `params` has Params type `void`. Call it
   as `Surface.read(s, model)`, `Surface.contract(s)`, `s.projection()`, or
   `Surface.rootView(s, undefined, ...)`. A Surface with params builds its
@@ -282,6 +283,26 @@ rejects copies and hand-built values.
 - `Surface.make(app, name, { Params, model, messages })` is the explicit form:
   `Params` is a schema and `model` must return a Projection. Prefer
   `App.surface`.
+
+## Known traps
+
+Met in applications on this stack: what failed, and what to do instead.
+
+- **A no-op that returns a copy renders the whole page.** Foldkit renders when
+  the root Model changes identity, so `{ ...model }` redrew everything on every
+  `pointerdown` in one app. Return the Model `update` was given; test `toBe(model)`.
+- **An `Option` compared with `=== undefined` or `=== null` compiles and is
+  never equal**, and `${option}` makes an id of `[object Object]`. After moving
+  a value to `Option`, grep its readers for `=== undefined`, `=== null`, `?.` and `${`.
+- **The first frame cannot wait for a Subscription.** Foldkit starts them after
+  the first render, so a list restored in one drew `Loading` for a frame on
+  every reload ([#262](https://github.com/doeixd/foldkit-plus/issues/262)).
+  Resolve what the first frame needs as the runtime's `flags`, before `init`.
+- **`Effect.logError` reaches `console.log`, not `console.error`, in a
+  browser**, and so does a failed boot (a throw in `modelToDependencies`),
+  which still paints; a check watching `console.error` misses both
+  ([#272](https://github.com/doeixd/foldkit-plus/issues/272)). Report through
+  `Diagnostics.report`, whose default writes an error to `console.error`.
 
 ## See also
 

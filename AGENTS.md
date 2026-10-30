@@ -578,6 +578,13 @@ Every item below cost real time here. Check for them by name, and **add to this
 list whenever you learn a durable lesson** -- one that would have saved the work
 you just redid. Keep each to a couple of lines, with the concrete failure.
 
+A trap is a lesson, not a place to park a defect. When our own package behaves
+surprisingly (drops input, fails open, needs a workaround in caller code),
+file an issue on doeixd/foldkit-plus and link it here (`(#n)`), keeping only
+what a reader needs until it is fixed; delete the line when it closes.
+Foldkit's own behaviour that we work around is listed in
+`docs/upstream-foldkit-ssr.md` ("Other Foldkit behaviour we work around").
+
 **External APIs**
 
 - **Compile adapters against the real peer types.** The Agent Native README
@@ -737,7 +744,7 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   build and against the source.
 - **A Mount runs outside the application's `resources`.** Only Commands and
   Subscriptions get them, so a service given there (a diagnostics reporter)
-  never reaches a Mount; `MountFailed` goes to the default log.
+  never reaches a Mount; `MountFailed` goes to the default log (#333).
 - **Upstream's Menu clicks a row for you on a release after a press on the
   trigger.** It keeps the press's origin until the menu shuts, and a release
   on the rows over 200ms later and 5px away sends `ClickItem` as well as the
@@ -954,11 +961,11 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   and its tables did not type-check against the adapter. A library the
   application also uses is a `peerDependency`.
 
-- **A replica id names a store, not a person.** Sync operation ids are
+- **A replica id names a store, not a person** (#336). Sync operation ids are
   `replicaId:localSequence`. todo-app named its replica by the sign-in token,
   so a second browser for one person counted from 0 again and the journal
-  rejected every new operation as a reused id, with nothing shown. Mint the id
-  per tab (`sessionStorage`) and name the storage after it.
+  rejected every new operation as a reused id. Until Sync mints it, mint the
+  id per tab (`sessionStorage`) and name the storage after it.
 
 - **A no-op must return the Model it was given.** Foldkit renders only when the root Model
   changes identity, and `Update.foldChild` writes the child back unconditionally, so a
@@ -972,17 +979,15 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   `pnpm dev` showed a blank page for a week: every test mounts its own
   container. Only an e2e test runs the real entry.
 
-- **A member added after `Entity.relate` is missing from relation targets.**
-  `Like.relations.post.target()` returns the related Post without a
-  `likeCount` piped on afterwards, so the server cannot find a count from the
-  written Entity; it names every row the write points at instead.
-- **A Surface's ModelRef reserves field names.** `Schema`, `optic`,
-  `dependency`, `key`, `read`, `get`, `set`, `at`, `index` and `select` name
-  its own members, so a Model holding a field so named throws "Model field
-  "index" is reserved by ModelRef" when any Surface reads it, at any depth.
-  The Carousel's `index` and the Sheet's `at` broke the site, whose Model a
-  Surface reads, and a component's Model would break any such application.
-  Name a component's Model fields outside that set (`slide`, `point`).
+- **A member added after `Entity.relate` is missing from relation targets**
+  (#332). `Like.relations.post.target()` returns the related Post without a
+  `likeCount` piped on afterwards, so the server names every row the write
+  points at instead of finding the count.
+- **A Surface's ModelRef reserves field names** (#331). A Model field named
+  `Schema`, `optic`, `dependency`, `key`, `read`, `get`, `set`, `at`, `index`
+  or `select`, at any depth, throws once any Surface reads the Model; the
+  Carousel's `index` and the Sheet's `at` broke the site. Until it is fixed,
+  name a component's Model fields outside that set (`slide`, `point`).
 - **`scrollBy` stops at every `scroll-snap-stop: always`.** A carousel drawn
   at its third slide landed on its second: the scroll halted at the first
   snap on the way. Scroll to a position (`scrollTo`, `scrollIntoView`) to
@@ -1041,7 +1046,7 @@ you just redid. Keep each to a couple of lines, with the concrete failure.
   an absent key, so writing a new key (or clearing one) needs a container-aware
   setter, not `optic.replace`. Silent no-op otherwise.
 - **A guard's or a query's Entity may be the one declared before
-  `Entity.relate`.** `guard.row(LikeFields, …)` and `Query.from(PostFields)`
+  `Entity.relate`** (#332). `guard.row(LikeFields, …)` and `Query.from(PostFields)`
   hold an Entity with no relations, though a rule over `Like.relations.user`
   reads one, so a converter that looked for links in `query.entity.relations`
   found none and compared `'User:ada'` with `'ada'`. `Held.fromRefs` finds a
@@ -1344,11 +1349,11 @@ of its own named a form field "fits the Catalog". Read words with
 
 - **Bundle authoring needs explicit types in three places; inference drops
   precision in each.** A service-requiring bundle helper pins the whole spec's
-  `R` to `never` (annotate `make`'s generics explicitly); literal Model fields
-  widen to `string` through inference — and an empty `{}`/`[]` in `init`
-  widens the whole inferred Model (Virtual's `heights` became `{}`), so
-  prefer explicit `make` generics whenever `init` holds an empty container;
-  and `Message.match` unifies diverse arm shapes to the first arm: pin each
+  `R` to `never` (#335; annotate `make`'s generics explicitly); `Model` is
+  inferred from `init` over its Schema, so literal fields widen to `string`
+  and an empty `{}`/`[]` widens the whole Model (#334; Virtual's `heights`
+  became `{}`), so give explicit `make` generics until those close;
+  and Foldkit's `Message.match` unifies diverse arm shapes to the first arm: pin each
   arm's output, since pinning the whole call does not reach the match's own
   inference (two `Link.child` folds each speak their own wrapper commands, so
   each arm is annotated `Update.Return<Model, Message, unknown>`).

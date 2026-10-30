@@ -350,7 +350,8 @@ stamps with `Sync.lww.openClock` before dispatch, never in `update`.
 
 - Durable Messages must not return Commands or write outside `shared`. Mint IDs
   and timestamps in a Command, then dispatch the fact.
-- Use one mount per replica, and one storage name + `ReplicaId` per tab. A
+- Use one mount per replica, and one storage name + `ReplicaId` per tab
+  ([#336](https://github.com/doeixd/foldkit-plus/issues/336)). A
   second writer fails the storage compare-and-swap. Losing IndexedDB loses
   unsent edits.
 - `foldkit-durable`'s `Journal.make` needs Node >= 22 (`node:sqlite`);
@@ -364,6 +365,34 @@ stamps with `Sync.lww.openClock` before dispatch, never in `update`.
   `OpId.make(operation.opId)`. App schema migration is yours to handle.
 - With no Foldkit app, use `Sync.define({ documentId, message, shared, empty,
   durable, replay })`.
+
+## Known traps
+
+Met in applications on this stack: what failed, and what to do instead.
+
+- **A replica id names a store, not a person.** An app that named its replica
+  by the sign-in token counted from 0 again in a second browser, and the
+  journal refused every new operation as a reused id. Mint the id per tab
+  (`sessionStorage`) and name the storage after it, as
+  [examples/todo-app](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo-app)'s
+  `src/client.ts` does ([#336](https://github.com/doeixd/foldkit-plus/issues/336)).
+- **State derived from the shared slice belongs in `afterUpdate`.** Replay runs
+  the durable Message through `update` and refuses any other field it changes,
+  so reconciling another field at the end of `update` failed every replica
+  ("changed Model fields outside the shared projection"). Derive it in
+  `Sync.mount`'s `afterUpdate`.
+- **A durable edit shows before it is stored.** `Sync.mount` applies it to the
+  Model at once and persists it in a Command, so a test that reloaded on what
+  the page drew lost the edit on slow runs. Wait for the `ReplicaStatus`'s
+  `pending` count, which moves only once storage holds the operation.
+- **A hand-written exchange that throws on one operation blocks the outbox**:
+  the replica sends it again on every exchange, and every edit behind it waits.
+  Use `foldkit-sync/journal`'s `journalExchange` or `serveJournal`, which refuse
+  such an operation by id so the replica drops it.
+- **A worker resolves its dependencies with the page's conditions.** A
+  SharedWorker loaded a package's `browser` build, which touched `document`,
+  and died before answering; the tabs showed only edits that never arrived.
+  Add `worker` to Vite's `resolve.conditions` for it.
 
 ## See also
 

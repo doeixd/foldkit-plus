@@ -616,7 +616,45 @@ export const stylesheet: string = Style.stylesheet(
   server, `Style.usedIn(html)` is the CSS of the classes the rendered markup uses, with the
   global rules of the Styles behind them (keyframes, `raise`'s depth rules).
 
-## 8. See also
+## 8. Known traps
+
+Met in applications on this stack: what failed, and what to do instead.
+
+- **Two Slots' attributes on one element keep one class.** Foldkit's `Class`
+  sets the vnode's data outright, so `h.label([...option.card,
+  ...builders.choice.attrs()])` dropped the `card` class while unit tests
+  passed. Give each Slot an element of its own; assert layout in a browser.
+- **An element holds one Mount.** Foldkit's `OnMount` replaces the vnode's
+  `insert` hook. The resolver composes the Mounts mixins add, but not one inside
+  an upstream bundle: a Mount given to a listbox's `items` slot disabled its
+  anchor, and the panel stayed hidden with no error. Put a Mount of your own on
+  an element of your own, after checking the slot's bundle for an `OnMount`.
+- **A Mount reads its args once, at insert.** A Mount meant to follow the Model
+  (focus the next cell) ran with its first args for good. Drive a DOM effect
+  the Model causes as a Command from the Message that changed it, or key the
+  element by the value the args depend on (`h.Key(node)`), never a counter.
+- **A Mount that throws halfway through acquiring leaks what it attached
+  first**: an observer left behind kept calling into a torn-down Mount. Make
+  every observer before any observes. A Mount also runs outside the runtime's
+  `resources`, so a service given there never reaches it, and a `MountFailed`
+  goes to the default log ([#333](https://github.com/doeixd/foldkit-plus/issues/333)).
+- **A knob set on a region does not reach a portaled panel.** Menus, Listboxes
+  and Comboboxes portal their panel by default, so a `size` set on the wrapper
+  never reached the rows. Set what a panel needs on the panel's own slot, and
+  test by opening the real component in a browser.
+- **A state rule in a base loses to a variant that sets the same property**:
+  every `surface` variant sets `background` in `variants`, so a selected Card's
+  fill in `components` never showed. Write the state beside each variant that
+  sets its property, and where a base sets a longhand (`backgroundClip`), its
+  hover and pressed rules write longhands too (`backgroundColor`).
+- **A view returning a `Document` owns the whole body**: a note placed beside
+  the app's container was removed by the first draw. Draw such chrome in the
+  view, in a Slot.
+- **A synthetic event moves no focus.** `dispatchEvent(new MouseEvent('click'))`
+  left focus in place, so four focus bugs passed jsdom. Test a focus claim in a
+  browser with `userEvent`, and wait with `frames.settle()`, never a sleep.
+
+## 9. See also
 
 - https://github.com/doeixd/foldkit-plus/blob/main/docs/mixins.md
 - https://github.com/doeixd/foldkit-plus/blob/main/packages/mixins/README.md

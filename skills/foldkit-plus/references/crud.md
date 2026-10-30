@@ -314,6 +314,22 @@ Selection), `choiceOf(model, id)` (that row as a choice once read), and `owner`.
 - Each save's answer is taken once, as it lands: later saves send only keys
   changed since, and a revision moved after it reads `Moved`.
 
+## Known traps
+
+Met in applications on this stack: what failed, and what to do instead.
+
+- **A saved row the handler did not name reverts when the save settles** (a
+  derived count beside it, say). Name each row the mutation changed; see
+  [remote.md](remote.md)'s known traps
+  ([#226](https://github.com/doeixd/foldkit-plus/issues/226)).
+- **A list refetches after every write to its Entity when its query is
+  `Query.make`**: sorting and filtering that the client should apply need a
+  `Query.define` body ([#238](https://github.com/doeixd/foldkit-plus/issues/238)).
+- **An editor opened on a row asked for again reads it absent until the answer**
+  ([#263](https://github.com/doeixd/foldkit-plus/issues/263)): an overwrite
+  that saved at once saved against the old copy. Act once `Data.plan(model,
+  projection)` is empty.
+
 ## See also
 
 - https://github.com/doeixd/foldkit-plus/tree/main/examples/chirp (a post's editor in `src/editor.ts`, over Remote's declared writes)

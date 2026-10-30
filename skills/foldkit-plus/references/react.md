@@ -99,4 +99,23 @@ pnpm foldkit-react-codegen src --out-dir generated
 - `<foldkit-react-host>` is `display: inline` unless styled.
 - React 19 only.
 
+## Known traps
+
+Met in applications on this stack: what failed, and what to do instead.
+
+- **A runtime embedded by hand needs a container with an id.** Without one
+  Foldkit fails asynchronously before rendering, and the page stays blank (a
+  CMS studio did for a week; every test mounted its own container).
+  `useFoldkitElement` gives its container one; a `Runtime.makeElement` you
+  `embed` yourself needs one too.
+- **`embed` replaces its container with the rendering.** A test that kept the
+  container and read `container.querySelector(...)`, or `getElementById` of the
+  staged div, saw an empty page. Query the drawn page from `document`.
+- **Strict Mode can dispose a runtime before its Subscriptions start**, so a
+  `Stream.ensuring` on one never runs. Do not take "my stream ended" as the only
+  stop signal.
+- **An inbound Port takes the Encoded form.** Sending a decoded value with an
+  `Option` field failed with a `SchemaError` and was dropped; tests with plain
+  strings passed. Encode before `send`, and test one transforming field.
+
 See also: https://github.com/doeixd/foldkit-plus/blob/main/packages/react/README.md

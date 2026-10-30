@@ -482,5 +482,25 @@ carries both. Do not present the design's API sketches as shipped APIs.
 The planned integrations reuse Bundle lifecycle, Form controls, CMS drafts,
 metadata keys, and Sync presence; they must not add another document owner.
 
+## Known traps
+
+Met in applications on this stack: what failed, and what to do instead.
+
+- **Chrome drawn beside a block keeps its first Mount's args.** A block
+  handle's anchor stayed beside the first block the caret visited. Key the
+  element by the block it serves (`h.Key(node)`); a counter kept in the Model
+  is no key, since it restarts from the same `initial`.
+- **SQLite's and Postgres's drivers store a lone surrogate as U+FFFD**, so
+  `'a\uD83D'` and `'a\uDE00'` come back equal. Expect stored text to differ
+  there from what the editor held.
+- **Test a serializer by parsing its output back**, not by its string: a
+  Markdown test locked in `\1. not a list` as an escape, which the parser kept
+  as text. A round trip through the real parser catches it.
+- **End goes to the end of a line, not of a block**, and CI fonts wrap
+  elsewhere: an e2e test that pressed End in a callout typed mid-text on CI
+  only. Put the caret at a block's end with a press past its last line.
+- **A caret key meets the last drawn page.** Reproduce a race between keys and
+  edits locally with `Emulation.setCPUThrottlingRate`, not by sleeping.
+
 See the [package README](https://github.com/doeixd/foldkit-plus/blob/main/packages/richtext/README.md)
 and [phase plan](https://github.com/doeixd/foldkit-plus/blob/main/docs/design/richtext-DESIGN.md).

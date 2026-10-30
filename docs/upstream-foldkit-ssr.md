@@ -309,3 +309,65 @@ check:
 
 Each upstream change is followed here by removing the workaround it replaces,
 with the SSR plan and README updated in the same commit.
+
+## Other Foldkit behaviour we work around
+
+Beyond SSR, this repository works around the behaviour below. None is filed
+upstream yet; each is a candidate once it has the use case Foldkit asks for.
+The working detail of each is a trap in `AGENTS.md`, named here by its title.
+
+Runtime and view:
+
+- **An element holds one Mount** (`OnMount` replaces the vnode's `insert`
+  hook), while `addDataOn` chains every `On…` handler. A second Mount, such as
+  one a Slot adds beside `@foldkit/ui`'s anchor, silently drops the first.
+  Asking for: chain Mounts the way handlers are chained, or refuse the second.
+- **Two `Class` (or `Style`) attributes on one element keep the later one**
+  (`setModuleData`), so two Slots' attributes on one element lose a class.
+  Asking for: merge them, as the mixins resolver does within one Slot.
+- **Mount args are read once, at insert**: no update hook, so a Mount cannot
+  follow the Model. We key the element or use a Command.
+- **A Mount runs outside the application's `resources`**, so a reporter given
+  there never sees `MountFailed` (#333 on our side).
+- **`h.submodel` throws on a function below the top level of `viewInputs`.**
+- **Lazy slots throw outside a runtime render**, with no way to ask first; the
+  Renderer catches the throw. `inertHtml` is also every view's `h`, so it
+  cannot tell inert drawing apart.
+- **`Update.foldChild` writes the child back unconditionally**, so a child
+  no-op still makes a new root Model and a full render.
+- **A container with no id fails asynchronously, before rendering.**
+  `useFoldkitElement` and `Sync.mount` give or require one.
+- **A failed boot is logged with `console.log` and still paints**; a runtime
+  disposed before its Subscriptions start never ends their streams.
+- **Subscriptions start after the first render**, so what the first frame
+  shows goes through `flags`.
+- **`Subscription.lift` wraps each entry's dependencies** in
+  `{ maybeDependencies }`, gated or not.
+- **The slow-render warning logs the whole Model**, which a browser test pays
+  to format.
+
+Routing and the build:
+
+- **The `string` route segment neither encodes nor decodes.** We route such
+  text through `schemaSegment` with an encoding Schema.
+- **`pushUrl` and `replaceUrl` come back as `UrlChanged`** for the address the
+  Model already shows.
+- **Head tags are filled into the template, never added.**
+- **`@foldkit/vite-plugin` defines `FOLDKIT_BUILD_ID` only for an id it was
+  given** (#210, and proposal 4 above).
+- **The workspace build brands each view with its module path**
+  (`foldkit:view-identity`), which skews a workspace bundle measurement.
+
+Testing:
+
+- **Scene does not model keys**, and resolves every Mount a view draws with a
+  Message, so a Mount that sends none cannot be on by default.
+
+`@foldkit/ui`:
+
+- **The anchor portals its node by default** (`portal ?? true`) and burns time
+  without layout; we pass `portal: false`. Menus, Listboxes and Comboboxes
+  portal their panel, so a knob set on the wrapper never reaches it.
+- **The Menu clicks a row for you** on a release over 200ms and 5px after a
+  press on the trigger, beside the browser's own click.
+- Combobox keyboard behaviour: [upstream-combobox-keyboard.md](./upstream-combobox-keyboard.md).
