@@ -1676,7 +1676,9 @@ function memory<P = undefined>(config: MemoryConfig<P>): MemoryBackend<P> {
                               field,
                               valueFor(
                                 refsShown(readable, name, field, row[field]),
-                                windows?.[field],
+                                windows !== undefined && Object.hasOwn(windows, field)
+                                  ? windows[field]
+                                  : undefined,
                               ),
                             ] as const,
                           ]

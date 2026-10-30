@@ -760,6 +760,10 @@ carries `drawn`.
 
 ### Fixed
 
+- **`RemoteServer.memory` serves a list named `constructor`, `toString` or
+  `__proto__` whole.** Read beside a list asked with a window, such a list
+  took `Object.prototype`'s member as its own window and came back as a
+  page. The backend now reads only the windows the request names itself.
 - **A mirror keeps fields and store keys named like `Object.prototype`
   members.** A key named `constructor` or `toString` (by `keys` or a field's
   own name) read as already taken, so the mirror refused to be declared; a
