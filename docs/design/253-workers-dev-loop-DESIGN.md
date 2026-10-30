@@ -1,7 +1,10 @@
 # A Workers dev stack read from wrangler.toml (#253)
 
-Status: slice 1 built (2026-10-27) in `examples/cloudflare`. The rest is
-listed under [Deferred](#deferred). Since moved, by #239, into
+Status: slice 1 built (2026-10-27) in `examples/cloudflare`. Slice 2
+(2026-10-30): a Worker that does not start is refused before the swap, and
+the configuration is watched; see [Slice 2](#slice-2-a-change-is-tried-before-it-is-swapped-in).
+Attaching to a running stack stays deferred, with the reason under
+[Deferred](#deferred). Since moved, by #239, into
 `foldkit-plus/testing/workers` as `Stack.start` and `Stack.writeBundle`,
 reading the configuration with Wrangler's own reader instead of
 `smol-toml` ([239-plus-testing-DESIGN.md](./239-plus-testing-DESIGN.md)).
@@ -109,7 +112,7 @@ interface WorkersStack<Env> {
   origin: string                        // real HTTP
   env(): Promise<Env>                   // the bindings; a swap retires earlier ones
   dispatch: DispatchFetch               // straight to the Worker; upgrades hand back the socket
-  watch(listener: { onSwap, onBuildError, onStopped }): Promise<void>
+  watch(listener: { onSwap, onRefused, onStopped }): Promise<void>
   stop(): Promise<void>
 }
 
@@ -157,30 +160,104 @@ These are refused before anything starts:
   otherwise ignore it in silence.
 - **A missing date, a missing `main`, or a source that does not build.**
 
-While watching:
+While watching (slice 2):
 
-- **A change that does not build** is reported (`onBuildError`), and the last
-  Worker keeps answering.
-- **A Worker that builds but does not start.** Examples are a named export
-  that is not a handler, or a top-level throw. Wrangler's harness tears its
-  whole session down with it, then comes back on a new port with new storage
-  (probed). The stack reports `onStopped`, stops swapping, and `pnpm dev`
-  exits. Promising "same origin, same storage" past that point would be false.
+- **A change that does not build, or bundles to no code,** is refused
+  (`onRefused`), and the last Worker keeps answering.
+- **A Worker that builds but does not start** (a named export that is not a
+  handler, a top-level throw) is refused the same way: it is tried on a
+  workerd of its own first, below.
+- **A configuration the stack refuses at start** (a date workerd does not
+  know, `no_bundle` unset, an `[env.*]` section) or that Wrangler does not
+  validate is refused too, and the last Worker keeps answering.
+- **A swap that fails after its trial started.** Wrangler's harness tears
+  its whole session down with it, then comes back on a new port with new
+  storage (probed). The stack reports `onStopped`, stops swapping, and
+  `pnpm dev` exits. Promising "same origin, same storage" past that point
+  would be false.
+
+## Slice 2: a change is tried before it is swapped in
+
+### Surviving a Worker that does not start
+
+`harness.update` with a Worker that does not start rejects, and the harness
+then tears its session down (`update`'s `catch` calls `teardownSession`,
+wrangler 4.116 `src/api/test-harness.ts`). Nothing the stack passes changes
+that, and the D1 it held is gone: the harness fixes `persist: false`, so
+storage lives only in that workerd.
+
+Options, as probed:
+
+1. **Restart the session with D1 kept.** Not possible through the harness:
+   `persist` is fixed, so a new session starts with empty storage. Copying D1
+   out row by row before every swap would cost each swap a dump, and R2 and
+   Durable Objects would still be lost.
+2. **A stable front** (a Node proxy at a fixed origin over a harness that may
+   restart). Keeps the origin, not the storage, so it is option 1 again.
+3. **Try the change first, on a workerd of its own.** Chosen. Each change
+   is bundled into the stack's `trial` directory and started by a second,
+   short-lived harness with the same configuration, vars and secrets (fresh
+   storage, its D1 migrated as at start). Only if that starts does the stack
+   write the bundle where the running Worker reads it and call
+   `harness.update`. A trial that fails is reported through `onRefused`,
+   with workerd's own words (`notAHandler` and so on), and the running Worker
+   keeps answering over the same storage.
+
+What it costs: a trial is a start, about 0.35 s warm and 0.9 s cold for the
+test Worker (probed; the update itself is about 0.25 s), added to each swap.
+What it does not catch: a Worker that starts on fresh storage and not on the
+running one. Startup reads no storage (a Worker cannot touch a binding at
+the top level), so the remaining failure is the harness's own, and it still
+reports `onStopped`.
+
+`onBuildError` is renamed `onRefused`, since a refusal now covers a Worker
+that built: the name said less than it reported.
+
+### Watching the configuration
+
+`watch` also watches the Wrangler configuration file (the directory it is in,
+filtered by its name, so an editor that renames a temporary over it is
+seen). A change is read through the same `readConfig` as at start, so every
+refusal at start is a refusal while watching. If the raw configuration
+differs from the running one, it is tried with the running bundle and then
+swapped in with `harness.update`. Afterwards, the D1 migrations of every
+`[[d1_databases]]` are applied, so a database the change adds has its tables.
+Already-applied migrations are skipped by the runner.
+
+Probed on wrangler 4.116: an update that adds a var, an R2 bucket and a
+second D1 keeps the first D1's rows and the port. A configuration Wrangler
+does not validate is thrown by `update` before it touches the session, which
+keeps answering.
+
+Source swaps and configuration swaps run one at a time, in order, through
+one queue, so a configuration read while a source swap is in flight is
+applied over it rather than beside it. `stop` closes the file watcher, waits
+for esbuild's rebuild in flight and then for the queue, before it closes the
+harness. A step that finds the stack stopping swaps nothing.
+
+Not watched: `.dev.vars` and the migration files themselves. A migration file
+saved in place reads empty for a moment (see the `writeFile` trap), and the
+runner would record it as applied with no SQL. Restart, or touch the
+configuration, to apply a new migration.
 
 ## Deferred
 
-- **Attaching to a running stack** (`startStack({ reuse: true })`). Tests read
-  D1 and R2 and upgrade sockets through in-process binding proxies, and
-  Miniflare offers those only to the process that owns the runtime. Attaching
-  needs a control channel from the dev process, and isolation between test
-  files that share one runtime. That second need is #253's per-file D1
-  snapshots. For now each test file starts its own stack (about 2 s).
-- **Surviving a Worker that does not start.** This needs a stable front that
-  outlives the runtime, as `wrangler dev`'s proxy Worker is. The harness gives
-  none.
+- **Attaching to a running stack** (`startStack({ reuse: true })`), with
+  per-file D1 snapshots. Still deferred (2026-10-30), for the same reason
+  and a measured one. Tests read D1 and R2 and upgrade sockets through
+  in-process binding proxies, and Miniflare offers those only to the process
+  that owns the runtime; Vitest runs each test file in a worker of its own,
+  so even a stack started in `globalSetup` could hand files only its origin.
+  Attaching would mean speaking Miniflare's internal proxy protocol across
+  processes, plus isolating test files that share one D1. What it would save
+  is small: `examples/cloudflare`'s stack starts in about 4 s (esbuild
+  0.7 s of it), once per test file, and the files run side by side. Revisit
+  if a suite's start time dominates its run.
+- **Surviving a Worker that does not start.** Done in slice 2, by trying the
+  change on a workerd of its own before the swap.
 - **Printing the Worker's logs under `pnpm dev`.** The harness captures them
   (`getLogs`) and offers no subscription. Done by #269: the stack drains them.
-- **Watching `wrangler.toml` itself.** Restart `pnpm dev` after editing it.
+- **Watching `wrangler.toml` itself.** Done in slice 2.
 - **Assets with `run_worker_first`.** The example has no assets binding. The
   harness reads `[assets]`, but a stack that sets one has not been run. Since
   run by `examples/reference` (#269): `binding` and `run_worker_first = true`
@@ -188,7 +265,8 @@ While watching:
 - **Lifting `workers.ts` into `foldkit-plus/testing/workers`** (#239), with
   the typed Remote client and the Playwright behavior assertions #239
   proposes, once #228's reference app is the second consumer.
-- **No build before `test`.** This follows from attaching.
+- **No build before `test`.** This follows from attaching. The stack
+  already bundles from source itself; what a test file pays is the start.
 
 ## Costs
 
