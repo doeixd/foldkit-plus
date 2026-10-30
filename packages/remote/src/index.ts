@@ -1477,18 +1477,6 @@ export interface RetainOptions {
   readonly grace?: Duration.Input | undefined
 }
 
-/** `Remote.retain`'s options: a retain entry wired by hand says the budget itself. */
-export interface RetainEntryOptions extends RetainOptions {
-  /** How many entries, rows and lists, retention keeps; `defaultBudget` when not given. */
-  readonly budget?: number | undefined
-}
-
-/** `RetentionChanged` for these roots, naming a budget only when one was given. */
-const retentionChanged = (roots: RetentionRoots, budget: number | undefined): RemoteMessage =>
-  budget === undefined
-    ? { _tag: 'RetentionChanged', roots }
-    : { _tag: 'RetentionChanged', roots, budget }
-
 /** How `Remote.observe` and `Remote.prefetch` treat fields the store already holds. */
 export interface ObserveOptions {
   /** Default `RemotePolicy.cacheFirst`. */
