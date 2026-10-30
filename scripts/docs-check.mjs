@@ -113,13 +113,7 @@ const pending = new Set([
   'packages/ssr/README.md',
   'packages/surface/README.md',
   'packages/sync/README.md',
-  'skills/foldkit-plus/references/alchemy.md',
-  'skills/foldkit-plus/references/auth.md',
-  'skills/foldkit-plus/references/guard.md',
-  'skills/foldkit-plus/references/mirror.md',
   'skills/foldkit-plus/references/remote.md',
-  'skills/foldkit-plus/references/site.md',
-  'skills/foldkit-plus/references/ssr.md',
   'skills/foldkit-plus/references/sync.md',
 ])
 

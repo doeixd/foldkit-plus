@@ -51,7 +51,7 @@ pnpm add -D alchemy@2.0.0-beta.84 @alchemy.run/cloudflare@2.0.0-beta.84 @effect/
 
 Alchemy's own peers include `effect@^4.0.5` and `vite@^8.0.7`.
 
-```ts
+```ts sketch
 // alchemy.run.ts
 import * as Alchemy from 'alchemy'
 import * as Cloudflare from '@alchemy.run/cloudflare'

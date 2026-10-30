@@ -29,6 +29,14 @@ or an evaluator runs.
 
 ## Minimal example
 
+<!-- docs-check
+import { Entity } from 'foldkit-entity'
+const TodoFields = Entity.define(
+  'Todo',
+  Schema.Struct({ id: Schema.String, ownerId: Schema.String, projectId: Schema.String }),
+)
+-->
+
 ```ts
 import { Option, Schema } from 'effect'
 import { Expr } from 'foldkit-entity'

@@ -7,6 +7,20 @@ targets, and per-node metadata — compiling to the Router, Surface, and Bundle
 primitives the runtime already runs. Pure data: no Model, no Effects, no
 Messages, no fetching.
 
+<!-- docs-check
+import { Schema, pipe } from 'effect'
+import { Route } from 'foldkit'
+import { defineRouteUnion, int, literal, slash } from 'foldkit/route'
+const AppRoute = defineRouteUnion({
+  Home: {},
+  People: {},
+  Person: { personId: Schema.Number },
+})
+const personRouter = pipe(literal('people'), slash(int('personId')), Route.mapTo(AppRoute.Person))
+const Home = Site.route(pipe(Route.root, Route.mapTo(AppRoute.Home)), AppRoute.Home)
+const People = Site.route(pipe(literal('people'), Route.mapTo(AppRoute.People)), AppRoute.People)
+-->
+
 ```ts
 import { Site } from 'foldkit-site'
 

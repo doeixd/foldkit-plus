@@ -31,6 +31,36 @@ Nothing outside the slice crosses, Flags included.
 `makeApplication` config, `EditorToolbar` one of its Surfaces, and `template`
 the built `index.html`:
 
+<!-- docs-check
+import { Schema } from 'effect'
+import type { HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+const Model = Schema.Struct({ draft: Schema.String, count: Schema.Number, menuOpen: Schema.Boolean })
+type Model = typeof Model.Type
+const Message = defineMessageUnion({ ToggledMenu: {} })
+type Message = typeof Message.Type
+const App = Surface.application({
+  Model,
+  Message,
+  initial: { draft: '', count: 0, menuOpen: false },
+  update: model => ({ model }),
+})
+const EditorToolbar = App.surface('EditorToolbar', {
+  model: ({ model }) => ({ draft: model.draft, menuOpen: model.menuOpen }),
+  messages: [Message.ToggledMenu],
+})
+const config = {
+  Model,
+  init: () => ({ model: App.initial }),
+  update: (model: Model, _message: Message) => ({ model }),
+  view: (model: Model, h: HtmlBuilder<Message>) => ({ title: 'Editor', body: h.p([], [model.draft]) }),
+  container: null,
+}
+declare const template: string
+declare const buildId: string
+declare const url: string
+-->
+
 ```ts
 import { Effect } from 'effect'
 import { Projection, Surface } from 'foldkit-surface'

@@ -18,6 +18,25 @@ what ([guard.md](guard.md)).
 
 ## Basic use
 
+<!-- docs-check
+import { Auth, AuthContract, Password, Sessions } from '@yielded/auth'
+import { Context, Layer, Option, Schema } from 'effect'
+import { RemoteServer } from 'foldkit-remote-server'
+const AppAuth = Auth.make(
+  AuthContract.make('app/Auth', {
+    claims: Schema.Struct({}),
+    actions: sessions => ({ signIn: AuthContract.passwordSignIn(sessions) }),
+  }),
+  {
+    sessions: Sessions.stateful({ idleTimeout: '10 minutes', maxAge: '1 hour' }),
+    strategies: { password: Password.make() },
+    defaultStrategy: 'password',
+  },
+)
+declare const AppAuthLive: Layer.Layer<Context.Service.Identifier<typeof AppAuth>>
+const server = RemoteServer.make<Option.Option<{ readonly id: string }>>({ entities: [] })
+-->
+
 ```ts
 import { Effect } from 'effect'
 import { AuthServer } from 'foldkit-auth/server'
