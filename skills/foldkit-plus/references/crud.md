@@ -339,6 +339,12 @@ when given `pickers`.
 A placed list also gives `row(id)` (a Projection of one row through the list's
 Selection), `choiceOf(model, id)` (that row as a choice once read), and `owner`.
 
+## A variant Entity
+
+`Crud.editor` over a form of a variant Entity's input (see the form
+reference) loads each row as its case, so the form is filled with that case's
+keys alone; draw the form's keys through `form.shows`.
+
 ## Gotchas
 
 - **Wire every piece's `active`**, or it never loads: `Data.wiring(Crud.actives({ posts: Posts, editor: PostEditor, pickers }))`

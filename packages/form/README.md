@@ -586,6 +586,45 @@ PostForm.rows(PostForm.initial, 'comments') // [{ id, model }], each a Model of 
   (`Schema.isMaxLength(5)`) is a failure of the whole, in `errors`.
 - `fill` fills rows from values, and nesting goes as deep as the inputs do.
 
+## A form over a variant Entity
+
+An Entity declared with `Entity.defineVariants` has a row that is one of its
+cases. Its input names `_tag`, which is the case picker, and declares each
+field only some cases have with `Schema.optionalKey`, so a row of another case
+leaves it out:
+
+```ts
+const Domain = Entity.defineVariants('Domain', {
+  Available: { id: Schema.String, name: Schema.String, price: Schema.Finite },
+  Unconfirmed: { id: Schema.String, name: Schema.String },
+})
+const Listing = Form.make(
+  'Listing',
+  Entity.input(
+    Domain,
+    Schema.Struct({
+      _tag: Domain.fields._tag.schema,
+      name: Schema.String,
+      price: Schema.optionalKey(Schema.Finite),
+    }),
+  ),
+)
+
+Listing.chosen(Listing.initial) // Option.none(): no case chosen yet
+Listing.shows(Listing.initial, 'price') // false until Available is chosen
+```
+
+- `_tag`'s control is a choice of the case names, like any key of literals.
+- A key of some cases is asked only once one of them is chosen: a view draws
+  the keys `shows` says, and a submit validates and sends those alone. In its
+  case it is required as the case holds it, though the input declares it
+  optional. What was typed in it under another case stays in its draft and
+  is not sent.
+- Such a key that the input does not declare optional is refused when the form
+  is made, since a row of another case could never leave it out.
+- The value is the input's Struct, holding the chosen case's keys: an
+  operation taking that input takes it as it is.
+
 ## Editing existing values
 
 `fill` shows values as drafts, for an edit form. Keys you do not pass keep their

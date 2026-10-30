@@ -384,6 +384,14 @@ PostForm.rows(PostForm.initial, 'comments') // [{ id, model }], each a Model of 
   `controls`, by key (a row key by its path):
   `placed.view(model, h, { controls: { document: BuilderView.inputs({ data }) } })`.
 
+## A variant Entity's form
+
+Over an `Entity.defineVariants` Entity, put `_tag` in the input (the case
+picker) and declare each field only some cases have with `Schema.optionalKey`;
+`Form.make` refuses one that is not. `form.chosen(model)` is the case chosen,
+and `form.shows(model, key)` whether to draw a key: a case's key is asked,
+required as the case holds it, and sent only in its case.
+
 ## Gotchas
 
 - A key is validated against **the input's schema for that key**, not the

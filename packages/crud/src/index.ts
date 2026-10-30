@@ -874,20 +874,10 @@ export const Crud = {
       },
     })
 
-    const written = Entity.selectFor(form.input)
-    type Row = (typeof written)['schema']['Type']
     // What is loaded: what the form writes, and what `locks` reads beside it,
     // which the form never fills from.
-    // Through `unknown`: a Selection's schema type turns on whether `_tag` is
-    // selected (a variant Entity's union), which TypeScript cannot compare for
-    // two specs it holds only generically.
-    const current: typeof written =
-      locks === undefined
-        ? written
-        : (Entity.select(form.input.entity, {
-            ...(written.members as Readonly<Record<string, unknown>>),
-            ...locks.select,
-          } as never) as unknown as typeof written)
+    const current = Entity.selectFor(form.input, { also: locks?.select })
+    type Row = (typeof current)['schema']['Type']
     /** The member each form key writes: a field's own key, or the relation it points. */
     const writes: ReadonlyArray<readonly [keyof Fields & string, string]> = Object.entries(
       form.input.members as Readonly<Record<string, InputMember | undefined>>,

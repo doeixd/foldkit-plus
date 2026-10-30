@@ -623,6 +623,45 @@ const nestedPlanOf = (
   }
 }
 
+/**
+ * A form over a variant Entity's input that sets `_tag`: the key that picks
+ * the case, and for each key of a field only some cases have, those cases.
+ * None for any other form. Such a key must be an optional key of the input, so
+ * a row of another case leaves it out.
+ */
+const casesOf = (
+  name: string,
+  input: EntityInput<AnyEntity, any, any>,
+  keys: ReadonlyArray<string>,
+): Option.Option<{
+  readonly tagKey: string
+  readonly only: ReadonlyMap<string, ReadonlySet<string>>
+}> => {
+  const members = input.members as Readonly<Record<string, InputMember>>
+  const fields = input.schema.fields as Readonly<Record<string, Schema.Top>>
+  const tagKey = keys.find(key => {
+    const member = members[key]!
+    return member._tag === 'Field' && member.key === '_tag'
+  })
+  return Option.flatMap(Entity.variantsOf(input.entity), variants => {
+    if (tagKey === undefined) return Option.none()
+    const only = new Map<string, ReadonlySet<string>>()
+    for (const key of keys) {
+      const member = members[key]!
+      if (member._tag !== 'Field' || member.key === '_tag') continue
+      const holders = variants.tags.filter(tag => Object.hasOwn(variants.cases[tag]!, member.key))
+      if (holders.length === variants.tags.length) continue
+      if (!SchemaAST.isOptional(fields[key]!.ast))
+        fail(
+          name,
+          `"${key}" is a field of some cases of ${input.entity.name}; declare it Schema.optionalKey in the input, so a row of another case leaves it out`,
+        )
+      only.set(key, new Set(holders))
+    }
+    return Option.some({ tagKey, only })
+  })
+}
+
 const planOf = (
   name: string,
   key: string,
@@ -850,13 +889,20 @@ const Core = {
 
     const overrides: Readonly<Record<string, Control | ControlChange | undefined>> =
       options.inputs ?? {}
+    const cases = casesOf(name, input, keys)
+    const caseOnly = (key: string): ReadonlySet<string> | undefined =>
+      Option.match(cases, { onNone: () => undefined, onSome: ({ only }) => only.get(key) })
     const plans = Object.fromEntries(
       keys.map(key => [
         key,
         planOf(
           name,
           key,
-          input.schema.fields[key] as Schema.Top,
+          // A key of some cases is asked as the case holds it: required where its schema is.
+          (caseOnly(key) === undefined
+            ? input.schema.fields[key]
+            : (input.schema.fields[key] as unknown as { readonly schema: Schema.Top })
+                .schema) as Schema.Top,
           members[key]!,
           own(overrides, key),
           (options.messages ?? {}) as FormMessages,
@@ -1124,10 +1170,28 @@ const Core = {
         ),
     })
 
+    /** The case `_tag`'s draft names, for a form over a variant Entity's input. */
+    const chosen = (model: Model): Option.Option<string> =>
+      Option.flatMap(cases, ({ tagKey }) =>
+        Result.getSuccess(plans[tagKey as Key].check(drafts(model)[tagKey as Key].value)).pipe(
+          Option.filter(tag => typeof tag === 'string'),
+        ),
+      )
+
+    /** Whether the form asks `key` now: always, but for a key of cases other than the one chosen. */
+    const shows = (model: Model, key: string): boolean => {
+      const holders = caseOnly(key)
+      return holders === undefined || Option.exists(chosen(model), tag => holders.has(tag))
+    }
+
+    /** The keys asked now: every key, or, over a variant Entity, those of the case chosen. */
+    const asked = (model: Model): ReadonlyArray<Key> =>
+      Option.isNone(cases) ? keys : keys.filter(key => shows(model, key))
+
     /** What currently decodes, by key: the context of a check, and the makings of the value. */
     const decoded = (model: Model): Partial<Value> =>
       Object.fromEntries(
-        keys.flatMap(key => {
+        asked(model).flatMap(key => {
           const value = Result.getOrUndefined(plans[key].check(drafts(model)[key].value))
           return value === undefined ? [] : [[key, value] as const]
         }),
@@ -1355,7 +1419,7 @@ const Core = {
       )
 
     const acceptable = (model: Model): boolean =>
-      keys.every(key => {
+      asked(model).every(key => {
         const field = drafts(model)[key]
         // Foldkit counts an optional key not checked yet as valid, and `decoded`
         // leaves out a draft that fails: a filled one would vanish from the
@@ -1412,7 +1476,7 @@ const Core = {
     ): { readonly model: Model; readonly commands: Commands } => {
       let next = model
       const commands: Array<Command<Message, never, R>> = []
-      for (const key of keys) {
+      for (const key of asked(model)) {
         const state = drafts(next)[key]
         // A key whose work is in flight is being found out, as a checked one is:
         // it is validated when the work lands or ends, not called missing now.
@@ -1845,6 +1909,17 @@ const Core = {
       initial,
       /** The keys in the input's order, each with its control, label, and member. */
       controls,
+      /**
+       * Over a variant Entity's input, the case its `_tag` key names as it
+       * stands; none before one is chosen, and for any other form.
+       */
+      chosen,
+      /**
+       * Whether a view draws `key` now: a key of a field only some cases have is
+       * asked, validated and submitted only once one of those cases is chosen.
+       * Every key of any other form.
+       */
+      shows: (model: Model, key: Key): boolean => shows(model, key),
       /**
        * The same controls by key, for a view that places each field itself:
        * `form.controlsByKey.email.label`.

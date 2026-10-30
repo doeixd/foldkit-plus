@@ -102,7 +102,7 @@ export default [
   },
   {
     name: 'what locks read is not loaded',
-    edits: [{ file: editor, find: '...locks.select,', replace: '' }],
+    edits: [{ file: editor, find: '{ also: locks?.select }', replace: '{}' }],
     tests,
   },
   {

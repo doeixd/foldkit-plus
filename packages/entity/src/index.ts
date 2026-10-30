@@ -1428,9 +1428,13 @@ export const Entity = {
   /**
    * The Selection of every member an input writes, with each relation as refs:
    * what an edit screen loads before it shows the input's current values.
+   * `also` names members to read beside them, each with `true` (what a lock
+   * reads). The Selection is typed as the input's alone: what it reads has
+   * those members, and these besides.
    */
   selectFor: <E extends AnyEntity, Fields extends Schema.Struct.Fields, Members>(
     input: EntityInput<E, Fields, Members>,
+    options: { readonly also?: Readonly<Record<string, true>> | undefined } = {},
   ): Selection<
     E['name'],
     WrittenSpec<Members>,
@@ -1450,7 +1454,7 @@ export const Entity = {
               : [],
       ),
     )
-    return Entity.select(input.entity, spec as never) as never
+    return Entity.select(input.entity, { ...spec, ...options.also } as never) as never
   },
 
   /**

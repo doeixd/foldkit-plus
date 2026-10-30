@@ -25,7 +25,11 @@ version changed; `pnpm` skips versions already in the registry.
   of the cases, each holding the selected fields it has; without `_tag`, a
   field only some cases have is refused. `Entity.selectionSchema` builds that
   schema from member schemas, and Remote reads such a Selection's rows as their
-  cases.
+  cases. A form over a variant input (`_tag`, and each field of some cases a
+  `Schema.optionalKey`) takes `_tag` as its case picker and asks, validates
+  and sends a case's keys only in that case (`form.chosen`, `form.shows`);
+  `Crud.editor` loads each row as its case, through `Entity.selectFor(input,
+  { also })`. A guard rule per case is a row guard over `Expr.is`.
 
 - **`rh.KeepTyped()`** (`foldkit-ssr`, #356): a field marked with it keeps
   what is typed into it before the page's script runs. `SSR.hydrate` reads

@@ -1483,7 +1483,7 @@ server on different deploys see which side is behind.
 | `Write.writes(write)` / `Write.bind(write, value, keys?)` | The fields it may change; the row and values one input writes, encoded as the store holds them. |
 | `Entity.input(entity, struct, mapping?)` | Experimental. Which member each key of an operation's input writes. |
 | `Relation.nested(relation, input)` | In an input mapping: the key holds the target itself, written through `input`. |
-| `Entity.selectFor(input)` | The Selection of the members an input writes: what an edit screen loads. |
+| `Entity.selectFor(input, { also? })` | The Selection of the members an input writes, and `also` beside them: what an edit screen loads. |
 | `Entity.valuesFor(input, value)` | The input values that reproduce a loaded value: fields as they are, refs as ids. |
 | `Entity.derived({ key: Derived.make(schema, { predict?, forbids? }) })` | Pipe step adding readable, externally supplied members; `predict` and `forbids` say what a client foresees of one. |
 | `Derived.count(Other.relations.pointer)` | A derived member counting the rows whose `one` relation points at this one. |

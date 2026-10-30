@@ -205,6 +205,9 @@ const subscriptions = Data.subscriptions({ editor: PostEditor.active })
 - **`Crud.editor`** checks, in the types, that the form's value is the
   mutation's input. Declaring the input struct once and giving it to both is
   what makes that true.
+- **Over a variant Entity's form** (an input with `_tag`; see
+  [`foldkit-form`](../form/README.md#a-form-over-a-variant-entity)), the editor
+  loads each row as its case and fills that case's keys alone.
 - **`Editor.bundle`** wraps the form's Bundle. Its Messages are the form's own,
   so a view dispatches `EditPostForm.Message.Changed(...)` exactly as before.
 - **`Bundle.compose`** states the page once, with the editor under `editor`.

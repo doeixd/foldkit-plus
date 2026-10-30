@@ -1,8 +1,8 @@
 # Variants of an Entity (#357)
 
-Status: phases 1 to 3 built (2026-10-30): the core and Selections in
-`foldkit-entity`, `variantCases` with the CHECKs on SQLite and Postgres and in
-memory, and Remote's reads. Phases 4 and 5 are planned below.
+Status: built (2026-10-30), all five phases: the core and Selections in
+`foldkit-entity`, `variantCases` on SQLite, Postgres and in memory, Remote's
+reads, the form and Crud editor, and guards.
 
 ## The problem
 
@@ -184,25 +184,45 @@ needs nothing: an optimistic row is judged by the invariants.
 `variantCases` runs in `remote-server/test/conformance.test.ts`, the
 in-memory interpreter, beside the Drizzle compiler's run.
 
-## Form and Crud (phase 4)
+## Form and Crud (phase 4, built)
 
-A form writes through an `Entity.input`, and an input per case works today:
-`Entity.input(Domain, Schema.Struct(Domain.variants.cases.Available.fields))`
-maps each key to its stored field (`_tag`'s literal fits the stored
-`Literals`), and `judgeInput` reports the case's invariant. Phase 4 adds a
-form over the union: a case picker drawn from `_tag`, the chosen case's
-controls, and a submit that encodes through the case. Crud's list columns come
-from `selection.members` (`crud/src/index.ts` 226-252), so a list shows the
-stored row now and the union after phase 2; its editor is the phase 4 form.
+A form writes through an `Entity.input`, whose schema is a Struct, and so is
+the operation's input; a union is not one. A form over a variant Entity is
+therefore a form over a Struct input that names `_tag` and declares each field
+only some cases have as `Schema.optionalKey`:
 
-## Guards (phase 5)
+- `_tag`'s key is the case picker, a choice of the case names like any key of
+  literals. `form.chosen(model)` is the case it names as it stands.
+- A key of some cases is asked only in them: `form.shows(model, key)` tells a
+  view whether to draw it, and a submit validates and sends only the keys of
+  the chosen case. In its case the key is required as the case holds it (its
+  plan is made from the schema inside the optional key). A draft typed under
+  another case stays and is not sent.
+- A key of some cases the input does not declare optional is refused by
+  `Form.make`: a row of another case could never leave it out.
+- The value stays the input's Struct type, with the chosen case's keys:
+  honest for the operation, which takes that input as it is. A typed union of
+  the value was rejected: the operation could not take it, and every caller
+  would narrow twice.
 
-A guard rule is a predicate, so `Expr.is` works in one today
-(`guard.row(Domain, …, Expr.is(Domain, 'Available'))`). Guards read field
-schemas by key (`guard/src/sync.ts` 66-69, `server.ts` 207-210, 362-371),
-which the stored fields serve. Phase 5 only documents it and adds a test of a
-per-case read rule; a member Read rule per case (hide `price` from a reader
-only on Available rows) is a predicate rule over `Expr.is` already.
+Crud's editor loads `Entity.selectFor(form.input, { also: locks.select })`,
+a Selection of a variant Entity with `_tag` read as its case (phase 3), so a
+row fills only its case's keys. `selectFor`'s `also` replaced the cast
+through `unknown` phase 2 left in Crud: its Selection is typed as the input's,
+and what it reads has the lock members besides.
+
+## Guards (phase 5, built)
+
+A rule per case is a row guard over `Expr.is`
+(`guard.row(Domain, p => Expr.is(Domain, 'Available', ({ price }) =>
+Expr.lte(price, p.budget)))`). It is false on another case's rows and reads
+`_tag` and the case's fields as stored columns, so it compiles to SQL and
+judges in memory as any rule does (`guard/test/variants.test.ts`). Guards
+read field schemas by key (`guard/src/sync.ts`, `server.ts`), which the stored
+fields serve; nothing in `foldkit-guard` changed.
+
+The domains port plan declares its `Domain` with `Entity.defineVariants`
+(`foldkit-domains-PLAN.md`, gap 8 closed).
 
 ## Existing Entities
 
@@ -235,7 +255,7 @@ for `VariantEntity` and fall through to the old one. No member is reserved:
    (`remote-drizzle/test/variants.test.ts`), with no change to the adapter.
 3. **Remote's store** (built) reads a variant Selection as its union, and the
    in-memory interpreter runs `variantCases`.
-4. **Form and Crud**: a form over the union with a case picker; Crud's editor
-   and list through it.
-5. **Guards**: a documented, tested per-case rule; port the domains example's
-   `Domain` onto `Entity.defineVariants` (gap 8 of the port plan).
+4. **Form and Crud** (built): a form over a variant input with `_tag` as the
+   case picker; Crud's editor loads each row as its case.
+5. **Guards** (built): a documented, tested per-case rule; the domains port
+   plan's `Domain` on `Entity.defineVariants`.
