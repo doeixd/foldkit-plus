@@ -40,13 +40,13 @@ const parts = (fail: ReadonlyArray<'serve' | 'watch' | 'stop'> = []) => {
 }
 
 describe('develop', () => {
-  it('stops once when the Worker did not start and the user then interrupts', async () => {
+  it('stops once when a swap took the stack down and the user then interrupts', async () => {
     const { events, watching, given } = parts()
     const stop = await develop(given)
-    watching[0]!.onStopped('notAHandler')
+    watching[0]!.onStopped('the runtime went down')
     await stop(0)
     expect(events).toEqual([
-      'error the worker did not start, and took the stack with it:',
+      'error the swap took the stack down with it:',
       'page closed',
       'stack stopped',
       'exit 1',

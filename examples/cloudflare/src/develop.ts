@@ -47,10 +47,10 @@ export const develop = async (parts: DevParts): Promise<(code: number) => Promis
     page = Option.some(await parts.servePage(stack.origin))
     await stack.watch({
       onSwap: () => parts.log(`${time()} worker reloaded`),
-      onBuildError: message =>
-        parts.error(`${time()} worker not rebuilt, the last one runs:\n${message}`),
+      onRefused: message =>
+        parts.error(`${time()} worker not swapped in, the last one runs:\n${message}`),
       onStopped: message => {
-        parts.error(`${time()} the worker did not start, and took the stack with it:\n${message}`)
+        parts.error(`${time()} the swap took the stack down with it:\n${message}`)
         void stop(1)
       },
     })

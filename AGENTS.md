@@ -950,7 +950,9 @@ Foldkit's own behaviour that we work around is listed in
 - **Wrangler's test harness drops its whole session when an update fails to
   start.** A Worker that builds but throws on load takes the runtime down, and
   the next `listen()` has a new port and empty storage; a reload loop must stop
-  there, not report a swap.
+  there, not report a swap. Its `persist: false` is fixed, so no restart keeps
+  D1: `Stack.watch` starts each change on a second, short-lived harness first
+  (about 0.35 s) and swaps only what started.
 - **Miniflare with no `compatibilityDate` runs an old runtime.** It lacked
   `URL.canParse`, which the auth resolver needs; at a recent date,
   `streams_enable_constructors` stops workerd starting. Give the local stack

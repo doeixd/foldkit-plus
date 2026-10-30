@@ -153,6 +153,17 @@ behind it with its stack; `console: 'quiet'` keeps the lines for `logs()`
 alone. The lines travel beside the response, not on it, so a test reading
 what one request wrote polls (`expect.poll(() => stack.logs())`).
 
+`stack.watch({ onSwap, onRefused, onStopped })` is the dev loop. It
+rebuilds on every change to a file the bundle read, and rereads
+`wrangler.toml` when it changes. Each change is started first on a workerd
+of its own, with fresh storage and its D1 migrated. Only a change that
+starts is swapped in at the same origin, over the same D1, R2 and Durable
+Object storage, and the migrations not yet applied are applied. A change
+that does not build, or builds a Worker that does not start, or a
+configuration the stack refuses, goes to `onRefused`, and the Worker running
+keeps answering. `onStopped` is the rest: a swap that failed after its trial
+started, which takes Wrangler's harness down with its storage.
+
 <!-- docs-check
 import type { Page } from 'playwright'
 import { expect } from 'vitest'

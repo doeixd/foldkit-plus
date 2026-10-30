@@ -52,19 +52,23 @@ export default {
       return new Response('logged')
     }
     return path === '/env'
-      ? Response.json({ GREETING: env.GREETING, TOKEN: env.TOKEN, ORIGIN: env.ORIGIN })
+      ? Response.json({ GREETING: env.GREETING, TOKEN: env.TOKEN, ORIGIN: env.ORIGIN, NOTE: env.NOTE })
       : new Response('${version}')
   },
 }
 `
 
-interface Env {
-  readonly DB: {
-    readonly prepare: (sql: string) => {
-      readonly run: () => Promise<unknown>
-      readonly all: () => Promise<{ readonly results: ReadonlyArray<unknown> }>
-    }
+interface D1 {
+  readonly prepare: (sql: string) => {
+    readonly run: () => Promise<unknown>
+    readonly all: () => Promise<{ readonly results: ReadonlyArray<unknown> }>
   }
+}
+
+interface Env {
+  readonly DB: D1
+  /** Bound only once a test's configuration adds it. */
+  readonly SECOND: D1
 }
 
 const directories: Array<string> = []
@@ -121,32 +125,34 @@ describe('a watched stack', () => {
     expect(JSON.parse(await answer('/env'))).toEqual({ GREETING: 'hello', TOKEN: 'secret' })
   })
 
-  it('swaps a changed Worker in at the same origin, keeping D1, until one does not start', async () => {
+  it('swaps a changed Worker in at the same origin, keeping D1, and refuses one that does not build or start', async () => {
     expect(await answer()).toBe('one')
     await (await stack.env()).DB.prepare("INSERT INTO notes (id) VALUES ('kept')").run()
 
     const outcomes: Array<string> = []
-    await stack.watch({
-      onSwap: () => outcomes.push('swapped'),
-      onBuildError: message => outcomes.push(`build error: ${message}`),
-      onStopped: message => outcomes.push(`stopped: ${message}`),
-    })
+    await stack.watch(listener(outcomes))
     await save(entry, source('two'))
     await expect.poll(() => outcomes, { timeout: 20_000 }).toEqual(['swapped'])
     expect(await answer()).toBe('two')
-    const rows = await (await stack.env()).DB.prepare('SELECT id FROM notes').all()
-    expect(rows.results).toEqual([{ id: 'kept' }])
+    expect(await notes(stack)).toEqual([{ id: 'kept' }])
 
     await save(entry, `${source('three')}\nexport const broken = (`)
     await expect.poll(() => outcomes.length, { timeout: 20_000 }).toBe(2)
-    expect(outcomes[1]).toMatch(/^build error: /)
+    expect(outcomes[1]).toMatch(/^refused: /)
     expect(await answer()).toBe('two')
 
     // Builds, but workerd refuses a named export that is not a handler.
     await save(entry, `${source('three')}\nexport const notAHandler = 1`)
     await expect.poll(() => outcomes.length, { timeout: 20_000 }).toBe(3)
-    expect(outcomes[2]).toMatch(/^stopped: .*notAHandler/s)
-    await expect(answer()).rejects.toThrow()
+    expect(outcomes[2]).toMatch(/^refused: .*notAHandler/s)
+    expect(await answer()).toBe('two')
+    expect(await notes(stack)).toEqual([{ id: 'kept' }])
+
+    await save(entry, source('three'))
+    await expect.poll(() => outcomes, { timeout: 20_000 }).toHaveLength(4)
+    expect(outcomes[3]).toBe('swapped')
+    expect(await answer()).toBe('three')
+    expect(await notes(stack)).toEqual([{ id: 'kept' }])
   }, 120_000)
 
   it('keeps the running Worker through an entry emptied as it is saved', async () => {
@@ -157,7 +163,7 @@ describe('a watched stack', () => {
       await own.watch(listener(outcomes))
       await writeFile(worker.entry, '')
       await expect.poll(() => outcomes.length, { timeout: 20_000 }).toBe(1)
-      expect(outcomes[0]).toMatch(/^build error: .*no code/)
+      expect(outcomes[0]).toMatch(/^refused: .*no code/)
       expect(await (await fetch(own.origin)).text()).toBe('one')
       await save(worker.entry, source('two'))
       await expect.poll(() => outcomes, { timeout: 20_000 }).toEqual([outcomes[0], 'swapped'])
@@ -166,12 +172,84 @@ describe('a watched stack', () => {
       await own.stop()
     }
   }, 120_000)
+
+  it('rereads a changed configuration, migrating a database it adds, and refuses one it would not start', async () => {
+    const worker = await project()
+    const own = await Stack.start<Env>(worker)
+    const env = async () => JSON.parse(await (await fetch(`${own.origin}/env`)).text())
+    try {
+      await (await own.env()).DB.prepare("INSERT INTO notes (id) VALUES ('kept')").run()
+      const outcomes: Array<string> = []
+      await own.watch(listener(outcomes))
+      const second = `
+[[d1_databases]]
+binding = "SECOND"
+database_name = "second"
+database_id = "11111111-1111-1111-1111-111111111111"
+migrations_dir = "migrations"
+
+[vars]
+NOTE = "from the configuration"
+`
+      // Saved, but says what it said: no swap. Kept apart from the next save, whose
+      // outcome a swap of this one would precede.
+      await save(worker.wrangler, `# unchanged\n${configuration}`)
+      await new Promise(resolve => setTimeout(resolve, 300))
+      await save(worker.wrangler, `${configuration}${second}`)
+      await expect.poll(() => outcomes, { timeout: 20_000 }).toEqual(['swapped'])
+      expect(await env()).toEqual({ NOTE: 'from the configuration' })
+      expect(await notes(own)).toEqual([{ id: 'kept' }])
+      expect(await notes(own, 'SECOND')).toEqual([])
+
+      await save(
+        worker.wrangler,
+        `${configuration.replace(/compatibility_date = ".*"/, 'compatibility_date = "2999-01-01"')}${second}`,
+      )
+      await expect.poll(() => outcomes, { timeout: 20_000 }).toHaveLength(2)
+      expect(outcomes[1]).toMatch(/^refused: .*supports up to/)
+
+      // Read and validated, but workerd does not start with it.
+      await save(
+        worker.wrangler,
+        `compatibility_flags = ["no_such_flag_253"]\n${configuration}${second}`,
+      )
+      await expect.poll(() => outcomes, { timeout: 20_000 }).toHaveLength(3)
+      expect(outcomes[2]).toMatch(/^refused: .*no_such_flag_253/s)
+
+      // A database whose migrations do not run on a fresh D1 is refused with the rest of the change.
+      await mkdir(join(worker.directory, 'broken'))
+      await writeFile(join(worker.directory, 'broken', '0001_broken.sql'), 'NOT SQL;\n')
+      const broken = `
+[[d1_databases]]
+binding = "THIRD"
+database_name = "third"
+database_id = "22222222-2222-2222-2222-222222222222"
+migrations_dir = "broken"
+`
+      await save(
+        worker.wrangler,
+        `${configuration}${broken}${second.replace('from the configuration', 'changed')}`,
+      )
+      await expect.poll(() => outcomes, { timeout: 20_000 }).toHaveLength(4)
+      expect(outcomes[3]).toMatch(/^refused: D1_ERROR: near "NOT"/)
+      expect(await env()).toEqual({ NOTE: 'from the configuration' })
+      expect(await notes(own)).toEqual([{ id: 'kept' }])
+    } finally {
+      await own.stop()
+    }
+  }, 120_000)
 })
+
+/** The rows of `notes` in the D1 bound as `binding`, read through the bindings as they are now. */
+const notes = async (stack: Stack<Env>, binding: 'DB' | 'SECOND' = 'DB') => {
+  const env = await stack.env()
+  return (await env[binding].prepare('SELECT id FROM notes').all()).results
+}
 
 /** A watch listener that records what it is told in `outcomes`. */
 const listener = (outcomes: Array<string> = []): WatchListener => ({
   onSwap: () => outcomes.push('swapped'),
-  onBuildError: message => outcomes.push(`build error: ${message}`),
+  onRefused: message => outcomes.push(`refused: ${message}`),
   onStopped: message => outcomes.push(`stopped: ${message}`),
 })
 

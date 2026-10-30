@@ -280,11 +280,14 @@ carries `drawn`.
   (#239, #253, #269, #274). `Stack.start` runs a Worker on a local workerd
   from its own Wrangler config, read with Wrangler's own reader (bindings,
   compatibility date and flags, `.dev.vars`, a migrated D1 per stack), and
-  swaps it in place on change, keeping D1, R2 and Durable Object storage; it
-  refuses a date the installed workerd does not support, a config without
-  `no_bundle`, and `[env.*]` sections. A rebuild that bundles to no code (an
-  editor emptying the file before writing it) is reported through
-  `onBuildError`, and the running Worker keeps answering. It prints each line
+  swaps it in place on change to its sources or to the Wrangler config,
+  keeping D1, R2 and Durable Object storage; it refuses a date the installed
+  workerd does not support, a config without `no_bundle`, and `[env.*]`
+  sections. Each change is started on a workerd of its own before the swap,
+  so a change that does not build, bundles to no code (an editor emptying the
+  file before writing it), builds a Worker that does not start, or is a
+  config the stack refuses is reported through `onRefused`, and the running
+  Worker keeps answering with its storage. It prints each line
   the Worker writes to its console, prefixed `[worker]`, unless `console:
   'quiet'`; `stack.logs()` takes the lines (`WorkerLog`) since the last call.
   `vars` may be a function of the origin the stack answers at. `Stack.stop`

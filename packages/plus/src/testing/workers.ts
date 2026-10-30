@@ -16,10 +16,11 @@
 import { Option, Schema } from 'effect'
 import type { BuildContext, BuildOptions, OutputFile, Plugin } from 'esbuild'
 import type { TestHarness, WorkerHandle } from 'wrangler'
+import { watch as watchFile, type FSWatcher } from 'node:fs'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { basename, dirname, join, resolve } from 'node:path'
+import { basename, dirname, join, relative, resolve } from 'node:path'
 import { peer } from './peer.js'
 
 const SUBPATH = 'testing/workers'
@@ -59,19 +60,25 @@ export interface WorkerLog {
   readonly timestamp: number
 }
 
-/** What a watched stack reports after each change to the bundle's sources. */
+/**
+ * What a watched stack reports after each change to the bundle's sources or
+ * to the Wrangler configuration.
+ */
 export interface WatchListener {
   /** The new Worker answers at the same origin, over the same storage. */
   readonly onSwap: () => void
   /**
-   * The change did not build, or built no code, as an entry saved in place
-   * reads for a moment. The running Worker keeps answering.
+   * The change was not swapped in, and the Worker running keeps answering
+   * over the same storage. It did not build, built no code (as an entry saved
+   * in place reads for a moment), did not start when tried on a workerd of
+   * its own, or is a configuration the stack refuses. Or it was swapped in,
+   * and a D1 migration then failed on the running database; the message says so.
    */
-  readonly onBuildError: (message: string) => void
+  readonly onRefused: (message: string) => void
   /**
-   * The new Worker did not start. Wrangler's harness tears its runtime down
-   * with it, storage included, so the stack has stopped answering and
-   * watches no more: call `stop`, and start again.
+   * A Worker that started when tried did not start in the stack. Wrangler's
+   * harness tears its runtime down with it, storage included, so the stack
+   * has stopped answering and watches no more: call `stop`, and start again.
    */
   readonly onStopped: (message: string) => void
 }
@@ -93,14 +100,17 @@ export interface Stack<Env> {
    */
   readonly logs: () => ReadonlyArray<WorkerLog>
   /**
-   * Rebuilds on every change to a file the bundle read, and swaps the new
-   * Worker in at the same origin. D1, R2 and Durable Object storage stay.
+   * Rebuilds on every change to a file the bundle read, and rereads the
+   * Wrangler configuration when it changes. Each change is first started on
+   * a workerd of its own, then swapped in at the same origin, and the D1
+   * migrations not yet applied are applied. D1, R2 and Durable Object storage stay.
    */
   readonly watch: (listener: WatchListener) => Promise<void>
   /**
    * Stops watching, stops workerd and removes the bundle's directory, each
-   * even when one before it failed. A rebuild still in flight swaps nothing
-   * and reports nothing. A second call returns the first one's promise.
+   * even when one before it failed. A change not yet being tried swaps
+   * nothing and reports nothing; one being tried finishes first. A second
+   * call returns the first one's promise.
    */
   readonly stop: () => Promise<void>
 }
@@ -170,7 +180,9 @@ const bundleOptions = (options: StackOptions, outfile: string) =>
 
 type OutputFiles = ReadonlyArray<OutputFile>
 
-const writeOutputs = async (files: OutputFiles) => {
+const writeOutputs = async (
+  files: ReadonlyArray<{ readonly path: string; readonly contents: Uint8Array }>,
+) => {
   for (const file of files) {
     await mkdir(dirname(file.path), { recursive: true })
     await writeFile(file.path, file.contents)
@@ -200,6 +212,19 @@ const writeBundle = async (options: Omit<StackOptions, 'vars' | 'secrets'>): Pro
   await writeOutputs((await build(bundleOptions(options, outfile))).outputFiles)
 }
 
+type Raw = Awaited<ReturnType<typeof readConfig>>['raw']
+
+/** What the stack runs: a configuration and a bundle, swapped in together. */
+interface Running {
+  readonly raw: Raw
+  readonly config: typeof Config.Type
+  readonly files: OutputFiles
+}
+
+const migrate = async (worker: WorkerHandle, config: typeof Config.Type) => {
+  for (const database of config.d1_databases ?? []) await worker.applyD1Migrations(database.binding)
+}
+
 /**
  * Starts the Worker with a fresh, migrated D1 for each `[[d1_databases]]`,
  * and empty R2 and Durable Object storage. Each call is a stack of its own,
@@ -211,18 +236,20 @@ const start = async <Env>(options: StackOptions): Promise<Stack<Env>> => {
   const { createTestHarness } = await wrangler()
   const directory = join(tmpdir(), `foldkit-workers-${crypto.randomUUID()}`)
   const outfile = join(directory, basename(config.main))
+  // Where a change is started on a workerd of its own before the swap.
+  const trialDirectory = join(directory, 'trial')
   const bundle = bundleOptions(options, outfile)
   // In memory: a source that does not build fails here, before anything exists to clean up.
   const first = (await build(bundle)).outputFiles
 
-  const harnessOptions = (vars: Vars | undefined) => ({
+  const optionsFor = (raw: Raw, main: string, vars: Vars | undefined) => ({
     root: dirname(options.wrangler),
-    workers: [{ config: { ...raw, main: outfile }, vars, secrets: options.secrets }],
+    workers: [{ config: { ...raw, main }, vars, secrets: options.secrets }],
   })
-  const vars = options.vars
-  const harness: TestHarness = createTestHarness(
-    harnessOptions(typeof vars === 'function' ? undefined : vars),
-  )
+  const given = options.vars
+  // Given here, or once the stack knows its origin.
+  let vars = typeof given === 'function' ? undefined : given
+  const harness: TestHarness = createTestHarness(optionsFor(raw, outfile, vars))
   // The harness keeps workerd's console and offers no handler, so it is drained:
   // read and cleared in one synchronous step, nothing is read twice or missed.
   const kept: Array<WorkerLog> = []
@@ -235,6 +262,10 @@ const start = async <Env>(options: StackOptions): Promise<Stack<Env>> => {
   const draining = setInterval(drain, 100)
   draining.unref()
   let watching = Option.none<Promise<BuildContext>>()
+  let configWatcher = Option.none<FSWatcher>()
+  let rereading = Option.none<ReturnType<typeof setTimeout>>()
+  // Swaps run one at a time, in the order their changes arrived.
+  let swaps: Promise<void> = Promise.resolve()
   let stopping = Option.none<Promise<void>>()
   const dispose = async (watcher: Promise<BuildContext>) => {
     // A context that never opened has nothing to dispose; its failure was the watch's to report.
@@ -245,11 +276,14 @@ const start = async <Env>(options: StackOptions): Promise<Stack<Env>> => {
   // workerd running, or the bundle's directory behind.
   const stopOnce = async () => {
     clearInterval(draining)
+    Option.map(rereading, clearTimeout)
+    Option.map(configWatcher, watcher => watcher.close())
     try {
       const watcher = watching
       watching = Option.none()
-      // Waits for a rebuild in flight, whose `onEnd` sees `stopping`.
+      // Waits for a rebuild in flight, whose step sees `stopping`.
       if (Option.isSome(watcher)) await dispose(watcher.value)
+      await swaps
     } finally {
       try {
         await harness.close()
@@ -271,16 +305,78 @@ const start = async <Env>(options: StackOptions): Promise<Stack<Env>> => {
     await writeOutputs(first)
     const { url } = await harness.listen()
     // A reload at the same origin, as a swap is, before any request of the caller's.
-    if (typeof vars === 'function') await harness.update(harnessOptions(vars(url.origin)))
+    if (typeof given === 'function') {
+      vars = given(url.origin)
+      await harness.update(optionsFor(raw, outfile, vars))
+    }
     const worker = harness.getWorker()
-    for (const database of config.d1_databases ?? [])
-      await worker.applyD1Migrations(database.binding)
+    await migrate(worker, config)
 
     const watch = async (listener: WatchListener) => {
       if (Option.isSome(stopping)) throw new Error('This stack has stopped.')
       if (Option.isSome(watching)) throw new Error('This stack is already watching.')
-      // The bundle running now; none once a Worker did not start and took the runtime with it.
-      let running = Option.some(identityOf(first))
+      // None once a swap failed after its trial and took the runtime with it.
+      let running = Option.some<Running>({ raw, config, files: first })
+
+      /**
+       * Starts `next` on a workerd of its own, then swaps it in. A Worker
+       * that does not start is refused there, and the stack's harness, which
+       * a failed update tears down with its storage, never sees it.
+       */
+      const swap = async (next: Running) => {
+        try {
+          await writeOutputs(
+            next.files.map(file => ({
+              path: join(trialDirectory, relative(directory, file.path)),
+              contents: file.contents,
+            })),
+          )
+          const trial = createTestHarness(
+            optionsFor(next.raw, join(trialDirectory, basename(outfile)), vars),
+          )
+          try {
+            await trial.listen()
+            await migrate(trial.getWorker(), next.config)
+          } finally {
+            await trial.close()
+          }
+        } catch (error) {
+          listener.onRefused(errorText(error))
+          return
+        }
+        try {
+          await writeOutputs(next.files)
+          await harness.update(optionsFor(next.raw, outfile, vars))
+        } catch (error) {
+          running = Option.none()
+          listener.onStopped(errorText(error))
+          return
+        }
+        running = Option.some(next)
+        try {
+          await migrate(harness.getWorker(), next.config)
+        } catch (error) {
+          listener.onRefused(
+            `The Worker was swapped in, but a migration failed: ${errorText(error)}`,
+          )
+          return
+        }
+        listener.onSwap()
+      }
+      /** Queues a swap of what `change` makes of the running stack, which may be none. */
+      const enqueue = (change: (now: Running) => Promise<Option.Option<Running>>) => {
+        const step = swaps.then(async () => {
+          // A step that runs once `stop` began swaps nothing: `stop` waits for
+          // it before closing the harness, so it would swap into a closing stack.
+          if (Option.isNone(running) || Option.isSome(stopping)) return
+          const next = await change(running.value)
+          if (Option.isSome(next)) await swap(next.value)
+        })
+        // A listener that throws fails its own step, not the ones after it.
+        swaps = step.catch(() => undefined)
+        return step
+      }
+
       const watcher = context({
         ...bundle,
         plugins: [
@@ -288,37 +384,26 @@ const start = async <Env>(options: StackOptions): Promise<Stack<Env>> => {
           {
             name: 'foldkit-swap',
             setup: build =>
-              build.onEnd(async result => {
-                // A rebuild that ends once `stop` began swaps nothing: `stop` waits
-                // for it before closing the harness, so it would swap into a closing stack.
-                if (Option.isNone(running) || Option.isSome(stopping)) return
-                if (result.errors.length > 0) {
-                  listener.onBuildError(result.errors.map(error => error.text).join('\n'))
-                  return
-                }
-                const files = result.outputFiles ?? []
-                // An editor saving in place empties the file before writing it, and a
-                // rebuild can read it then. A Worker with no code never starts, and one
-                // that does not start takes the runtime down, D1 with it; the write's own
-                // rebuild swaps.
-                if (files.some(file => file.path === outfile && file.contents.length === 0)) {
-                  listener.onBuildError(
-                    `${options.entry} bundles to no code, so no Worker could start.`,
-                  )
-                  return
-                }
-                const next = identityOf(files)
-                if (Option.contains(running, next)) return
-                try {
-                  await writeOutputs(files)
-                  await harness.update(same => same)
-                  running = Option.some(next)
-                  listener.onSwap()
-                } catch (error) {
-                  running = Option.none()
-                  listener.onStopped(errorText(error))
-                }
-              }),
+              build.onEnd(result =>
+                enqueue(async now => {
+                  if (result.errors.length > 0) {
+                    listener.onRefused(result.errors.map(error => error.text).join('\n'))
+                    return Option.none()
+                  }
+                  const files = result.outputFiles ?? []
+                  // An editor saving in place empties the file before writing it, and a
+                  // rebuild can read it then; the write's own rebuild swaps.
+                  if (files.some(file => file.path === outfile && file.contents.length === 0)) {
+                    listener.onRefused(
+                      `${options.entry} bundles to no code, so no Worker could start.`,
+                    )
+                    return Option.none()
+                  }
+                  return identityOf(files) === identityOf(now.files)
+                    ? Option.none()
+                    : Option.some({ ...now, files })
+                }),
+              ),
           },
         ],
       })
@@ -333,6 +418,34 @@ const start = async <Env>(options: StackOptions): Promise<Stack<Env>> => {
         }
         throw error
       }
+      // A `stop` that began while the context opened would close no watcher made now.
+      if (Option.isSome(stopping)) return
+
+      const reread = () =>
+        enqueue(async now => {
+          const read = await readConfig(options.wrangler).then(Option.some, (error: unknown) => {
+            listener.onRefused(errorText(error))
+            return Option.none<Awaited<ReturnType<typeof readConfig>>>()
+          })
+          // A save that changed nothing the configuration says.
+          return read.pipe(
+            Option.filter(({ raw }) => JSON.stringify(raw) !== JSON.stringify(now.raw)),
+            Option.map(({ raw, config }) => ({ ...now, raw, config })),
+          )
+        })
+      // The directory, not the file: an editor that renames a temporary over the
+      // file replaces what a file watcher watches.
+      const name = basename(options.wrangler)
+      configWatcher = Option.some(
+        watchFile(dirname(options.wrangler), (_, changed) => {
+          if (changed !== name) return
+          // One reread for the burst of events a single save makes.
+          Option.map(rereading, clearTimeout)
+          rereading = Option.some(setTimeout(() => void reread(), 50))
+        }).on('error', error =>
+          listener.onRefused(`The configuration is no longer watched: ${errorText(error)}`),
+        ),
+      )
     }
 
     const env = () => harness.getWorker<Env>().getEnv()

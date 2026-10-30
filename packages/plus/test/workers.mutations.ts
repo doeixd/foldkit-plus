@@ -3,6 +3,7 @@
  * `pnpm mutate packages/plus/test/workers.mutations.ts`
  */
 const workers = 'packages/plus/test/workers.test.ts'
+const stopped = 'packages/plus/test/workers.stopped.test.ts'
 const file = '../src/testing/workers.ts'
 const peerFile = '../src/testing/peer.ts'
 
@@ -31,7 +32,7 @@ export default [
   edit('an [env.*] section is ignored', "if ('env' in raw)", "if ('env' in raw && false)"),
   edit(
     'the harness runs what main names, not this bundle',
-    'config: { ...raw, main: outfile },',
+    'config: { ...raw, main },',
     'config: raw,',
   ),
   edit(
@@ -42,15 +43,15 @@ export default [
   edit('the secrets given are dropped', 'secrets: options.secrets }', '}'),
   edit(
     'the vars given are dropped',
-    "harnessOptions(typeof vars === 'function' ? undefined : vars)",
-    'harnessOptions(undefined)',
+    "let vars = typeof given === 'function' ? undefined : given",
+    'let vars = undefined',
   ),
   edit(
     'vars of the origin are never given',
-    "if (typeof vars === 'function') await harness.update(harnessOptions(vars(url.origin)))",
+    'await harness.update(optionsFor(raw, outfile, vars))',
     '',
   ),
-  edit('vars are given the URL, not its origin', 'vars(url.origin)', 'vars(url.href)'),
+  edit('vars are given the URL, not its origin', 'given(url.origin)', 'given(url.href)'),
   edit("the Worker's console is read and never cleared", '    harness.clearLogs()\n', ''),
   edit(
     'logs() leaves what it returned to be returned again',
@@ -79,17 +80,55 @@ export default [
     '        drain()\n        await rm(',
     '        await rm(',
   ),
-  edit('a change is reported but not swapped in', 'await harness.update(same => same)', ''),
+  edit(
+    'a change is reported but not swapped in',
+    'await harness.update(optionsFor(next.raw, outfile, vars))',
+    '',
+  ),
+  edit(
+    'a change is swapped in without being tried first',
+    '            await trial.listen()\n            await migrate(trial.getWorker(), next.config)\n',
+    '',
+  ),
+  edit(
+    'a trial runs no migrations',
+    '            await migrate(trial.getWorker(), next.config)\n',
+    '',
+  ),
+  edit(
+    'a database the configuration adds is not migrated',
+    '          await migrate(harness.getWorker(), next.config)\n',
+    '',
+  ),
+  edit(
+    'the stack keeps the configuration it started with',
+    '            Option.map(({ raw, config }) => ({ ...now, raw, config })),',
+    '            Option.map(() => now),',
+  ),
+  edit('the configuration is not watched', 'if (changed !== name) return', 'return'),
+  edit(
+    'a save that changes nothing the configuration says is swapped in',
+    'JSON.stringify(raw) !== JSON.stringify(now.raw)',
+    'true',
+  ),
+  edit(
+    'a configuration the stack refuses is not reported',
+    '            listener.onRefused(errorText(error))\n            return Option.none<Awaited',
+    '            return Option.none<Awaited',
+  ),
   edit(
     'an entry emptied as it is saved is swapped in, and stops the stack',
     'file.path === outfile && file.contents.length === 0',
     'false',
   ),
-  edit(
-    'a Worker that did not start is reported as a build error',
-    'listener.onStopped(errorText(error))',
-    'listener.onBuildError(errorText(error))',
-  ),
+  {
+    ...edit(
+      'a swap that took the runtime down is reported as refused',
+      'listener.onStopped(errorText(error))',
+      'listener.onRefused(errorText(error))',
+    ),
+    tests: [stopped],
+  },
   edit(
     'the bindings are read once, before any swap',
     'const env = () => harness.getWorker<Env>().getEnv()',
@@ -114,12 +153,13 @@ export default [
   ),
   {
     ...edit(
-      'a build after a Worker did not start is swapped in anyway',
+      'a change after a swap took the runtime down is tried anyway',
       'if (Option.isNone(running) || Option.isSome(stopping)) return',
       'if (Option.isSome(stopping)) return',
     ),
+    tests: [stopped],
     survives:
-      'After a Worker did not start, no completed rebuild is observable without a sleep: the harness has no session to swap into, and the test cannot wait for a build that reports nothing.',
+      'Without the guard the step reads `running.value` of a none, throws before any trial, and the queue drops the throw: nothing is tried either way. The guard says so instead of a TypeError.',
   },
   edit(
     'a rebuild in flight when the stack stops is swapped in',

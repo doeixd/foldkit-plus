@@ -149,10 +149,11 @@ from the deployed one. The stack (`foldkit-plus/testing/workers`, called
 from `src/stack.ts`) only bundles, with the
 workspace's source condition, and refuses a compatibility date the installed
 workerd does not know rather than run an older runtime. Under `pnpm dev`, a
-change to anything the worker bundles swaps the new worker in at the same
-origin, keeping D1, R2 and the Durable Object's storage; a change that does
-not build leaves the last one running. A worker that builds but does not start
-stops the stack, storage and all: fix it and run `pnpm dev` again.
+change to anything the worker bundles, or to `wrangler.toml`, swaps the new
+worker in at the same origin, keeping D1, R2 and the Durable Object's
+storage. Each change is started on a workerd of its own first, so one that
+does not build, or builds a worker that does not start, leaves the last one
+running.
 
 From the repository root, `npx vitest run --config vitest.e2e.config.ts
 examples/cloudflare` starts the worker on miniflare and the page on Vite, and

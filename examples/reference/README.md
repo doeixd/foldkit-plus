@@ -71,8 +71,8 @@ pnpm --filter foldkit-example-reference dev      # build the page, start the Wor
 
 Nothing needs an account: the Worker runs on a local workerd, configured by
 `wrangler.toml` through `foldkit-plus/testing/workers`, with a fresh,
-migrated D1. A change to anything the Worker bundles swaps it in place,
-keeping D1; a change to the page needs `pnpm dev` again.
+migrated D1. A change to anything the Worker bundles, or to `wrangler.toml`,
+swaps it in place, keeping D1; a change to the page needs `pnpm dev` again.
 
 From the repository root:
 
