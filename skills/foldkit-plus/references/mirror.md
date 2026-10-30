@@ -135,7 +135,7 @@ dispatch once mounted (`TodoSync`, `replica`, `container` and `view` as in
 [sync.md](sync.md)):
 
 <!-- docs-check
-import { DocumentId, type Storage } from 'foldkit-sync'
+import { DocumentId } from 'foldkit-sync'
 import { MessageSet } from 'foldkit-surface'
 import type { HtmlBuilder } from 'foldkit/html'
 const TodoSync = Sync.forApplication(App).make({
@@ -143,8 +143,7 @@ const TodoSync = Sync.forApplication(App).make({
   shared: Projection.pick(App.model.draft),
   durable: MessageSet.make(App, []),
 })
-declare const storage: Storage
-const replica = Effect.runSync(TodoSync.openReplica(storage))
+declare const replica: Effect.Success<ReturnType<typeof TodoSync.openReplica>>
 declare const container: HTMLElement
 const view = (model: Model, h: HtmlBuilder<Message>) => ({ title: 'Todos', body: h.p([], [model.draft]) })
 -->
