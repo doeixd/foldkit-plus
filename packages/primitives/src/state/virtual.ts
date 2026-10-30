@@ -246,21 +246,7 @@ const saneMeasured = (height: number): number | null =>
  * renders `windowFor(...)` rows with its own views (keyed, so `each`
  * placements keep identity) inside a spacer of `totalHeight(...)`.
  */
-export const Virtual = Bundle.make<
-  'Virtual',
-  VirtualModel,
-  VirtualMessage,
-  {
-    readonly estimatedHeight: number
-    readonly overscan: number
-    readonly gap: number
-    readonly paddingStart: number
-    readonly paddingEnd: number
-    readonly settleMs?: number | undefined
-    readonly initialScrollTop?: number | undefined
-    readonly initialHeights?: Readonly<Record<string, number>> | undefined
-  }
->('Virtual', {
+export const Virtual = Bundle.make('Virtual', {
   Model: VirtualModel,
   Message: VirtualMessage,
   args: Schema.Struct({

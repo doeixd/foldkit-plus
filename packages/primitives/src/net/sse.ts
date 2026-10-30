@@ -82,17 +82,6 @@ export const Source = ManagedResource.tag<AcquiredSource>()('sse')
 /** The source service a placed SSE stream requires. */
 export type SourceService = ManagedResource.ServiceOf<typeof Source>
 
-type SourceResources = Readonly<{
-  source: ManagedResource.Entry<
-    SseModel,
-    SseMessage,
-    Option.Option<string>,
-    AcquiredSource,
-    SourceService,
-    () => SseMessage
-  >
-}>
-
 const failMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error)
 
@@ -109,18 +98,7 @@ export const sse = <const Name extends string>(config: {
 }) => {
   const createSource: (url: string) => SourceHandle =
     config.createSource ?? (url => new EventSource(url) as unknown as SourceHandle)
-  return Bundle.make<
-    Name,
-    SseModel,
-    SseMessage,
-    { readonly url: string },
-    never,
-    SourceService,
-    SourceService,
-    void,
-    SourceResources,
-    {}
-  >(config.name, {
+  return Bundle.make(config.name, {
     Model: SseModel,
     Message: SseMessage,
     args: Schema.Struct({ url: Schema.String }),

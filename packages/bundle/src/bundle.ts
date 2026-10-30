@@ -4,7 +4,7 @@
  * and programmatic entry points. It holds no state; placing it with a Link
  * compiles each part to the Foldkit lift that already exists for it.
  */
-import { Pipeable, type Option, type Schema } from 'effect'
+import { Pipeable, type Effect, type Option, type Schema } from 'effect'
 import type * as ManagedResource from 'foldkit/managedResource'
 import type * as Submodel from 'foldkit/submodel'
 import type * as Subscription from 'foldkit/subscription'
@@ -50,6 +50,31 @@ export type Helper<Model, Message, OutMessage, R> = (
   model: Model,
   ...input: ReadonlyArray<any>
 ) => Update.ReturnWithOutMessage<Model, Message, OutMessage, R>
+
+/**
+ * The helpers a spec may hold. Their services are left open (`any`) because
+ * `make` reads them from each helper's Commands (`HelperRequirements`) rather
+ * than requiring them to be named up front.
+ */
+export type HelperRecord<Model, Message, OutMessage> = Readonly<
+  Record<string, Helper<Model, Message, OutMessage, any>>
+>
+
+type CommandRequirements<Commands> =
+  Commands extends ReadonlyArray<infer Command>
+    ? Command extends { readonly effect: Effect.Effect<any, any, infer R> }
+      ? R
+      : never
+    : never
+
+/** The services the Commands of every helper in `H` need. */
+export type HelperRequirements<H> = {
+  [K in keyof H]: H[K] extends (...input: ReadonlyArray<any>) => infer Return
+    ? Return extends { readonly commands?: infer Commands }
+      ? CommandRequirements<Commands>
+      : never
+    : never
+}[keyof H]
 
 export interface BundleSpec<
   Name extends string,
@@ -436,56 +461,142 @@ const build = <
   return bundle
 }
 
-/** A spec without its name, for the `make(name, spec)` form; `name` is given once. */
-export type NamelessSpec<
+/**
+ * What `make` reads. The `Model` and `Message` Schemas alone declare those
+ * types (every other part is checked against them, so an empty `{}` in `init`
+ * cannot widen the Model), and the services each part's Commands need are
+ * inferred per part, so `init`, `update` and the helpers may each need
+ * different ones.
+ */
+export interface MakeSpec<
   Name extends string,
   Args,
   Model,
   Message extends AnyMessage,
   OutMessage,
-  R,
+  RInit,
+  RUpdate,
   S,
   ViewInputs,
   Resources extends ResourceEntries<Model, Message>,
-  Helpers extends Readonly<Record<string, Helper<Model, Message, OutMessage, R>>>,
-> = Omit<
-  BundleSpec<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, Resources, Helpers>,
-  'name'
-> & { readonly name?: never }
+  Helpers extends HelperRecord<Model, Message, OutMessage>,
+> {
+  readonly name: Name
+  readonly Model: Schema.Codec<Model, unknown>
+  readonly Message: Schema.Codec<Message, unknown>
+  /**
+   * The args Schema. When given, `Args` is inferred from it, a placement's args
+   * are checked against it, and Module lists them.
+   */
+  readonly args?: Schema.Codec<Args, unknown>
+  /** Set by `with`: the bound args, encoded as text, for Module. */
+  readonly preset?: string | undefined
+  /** Runs when the bundle is placed; its Commands start with the placement. */
+  readonly init: (args: Args) => Update.Return<NoInfer<Model>, NoInfer<Message>, RInit>
+  readonly update: (
+    model: NoInfer<Model>,
+    message: NoInfer<Message>,
+    args: Args,
+  ) => Update.ReturnWithOutMessage<NoInfer<Model>, NoInfer<Message>, OutMessage, RUpdate>
+  readonly subscriptions?: (
+    args: Args,
+  ) => Subscription.Subscriptions<NoInfer<Model>, NoInfer<Message>, S>
+  readonly resources?: (args: Args) => Resources
+  readonly view?: Submodel.View<NoInfer<Model>, NoInfer<Message>, ViewInputs>
+  readonly helpers?: Helpers
+}
 
+/** The bundle `make` returns: its services are what `init`, `update` and the helpers need together. */
+type Made<
+  Name extends string,
+  Args,
+  Model,
+  Message extends AnyMessage,
+  OutMessage,
+  RInit,
+  RUpdate,
+  S,
+  ViewInputs,
+  Resources extends ResourceEntries<Model, Message>,
+  Helpers extends HelperRecord<Model, Message, OutMessage>,
+> = Bundle<
+  Name,
+  Args,
+  Model,
+  Message,
+  OutMessage,
+  RInit | RUpdate | HelperRequirements<Helpers>,
+  S,
+  ViewInputs,
+  Resources,
+  Helpers
+>
+
+// `Model` is `const` because a paramless `init` is typed before the Schema
+// fixes `Model`, and `NoInfer` alone let its literals widen to `string` there.
+// The Schema supplies no literal expression, so nothing else changes.
 /**
  * Collects a child machine's parts into a bundle. Name it first,
  * `make('Search', { Model, Message, init, update })`, or inside the spec.
  */
 export function make<
   const Name extends string,
-  Model,
+  const Model,
   Message extends AnyMessage,
   Args = void,
   OutMessage = never,
-  R = never,
+  RInit = never,
+  RUpdate = never,
   S = never,
   ViewInputs = void,
   Resources extends ResourceEntries<Model, Message> = {},
-  Helpers extends Readonly<Record<string, Helper<Model, Message, OutMessage, R>>> = {},
+  Helpers extends HelperRecord<Model, Message, OutMessage> = {},
 >(
   name: Name,
-  spec: NamelessSpec<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, Resources, Helpers>,
-): Bundle<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, Resources, Helpers>
+  spec: Omit<
+    MakeSpec<
+      Name,
+      Args,
+      Model,
+      Message,
+      OutMessage,
+      RInit,
+      RUpdate,
+      S,
+      ViewInputs,
+      Resources,
+      Helpers
+    >,
+    'name'
+  > & { readonly name?: never },
+): Made<Name, Args, Model, Message, OutMessage, RInit, RUpdate, S, ViewInputs, Resources, Helpers>
 export function make<
   const Name extends string,
-  Model,
+  const Model,
   Message extends AnyMessage,
   Args = void,
   OutMessage = never,
-  R = never,
+  RInit = never,
+  RUpdate = never,
   S = never,
   ViewInputs = void,
   Resources extends ResourceEntries<Model, Message> = {},
-  Helpers extends Readonly<Record<string, Helper<Model, Message, OutMessage, R>>> = {},
+  Helpers extends HelperRecord<Model, Message, OutMessage> = {},
 >(
-  spec: BundleSpec<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, Resources, Helpers>,
-): Bundle<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, Resources, Helpers>
+  spec: MakeSpec<
+    Name,
+    Args,
+    Model,
+    Message,
+    OutMessage,
+    RInit,
+    RUpdate,
+    S,
+    ViewInputs,
+    Resources,
+    Helpers
+  >,
+): Made<Name, Args, Model, Message, OutMessage, RInit, RUpdate, S, ViewInputs, Resources, Helpers>
 export function make(
   nameOrSpec: string | BundleSpec<string, any, any, any, any, any, any, any, any, any>,
   spec?: Omit<BundleSpec<string, any, any, any, any, any, any, any, any, any>, 'name'>,
@@ -502,20 +613,22 @@ export interface PartsConfig<
   R,
   S,
   ViewInputs,
-  Helpers extends Readonly<Record<string, Helper<Model, Message, OutMessage, R>>>,
+  Helpers extends HelperRecord<Model, Message, OutMessage>,
 > {
   readonly name: Name
   readonly Model: Schema.Codec<Model, unknown>
   readonly Message: Schema.Codec<Message, unknown>
-  readonly init: (args: Args) => Model
+  readonly init: (args: Args) => NoInfer<Model>
   readonly parts: {
     readonly update: (
-      model: Model,
-      message: Message,
-    ) => Update.ReturnWithOutMessage<Model, Message, OutMessage, R>
-    readonly view?: Submodel.View<Model, Message, ViewInputs>
+      model: NoInfer<Model>,
+      message: NoInfer<Message>,
+    ) => Update.ReturnWithOutMessage<NoInfer<Model>, NoInfer<Message>, OutMessage, R>
+    readonly view?: Submodel.View<NoInfer<Model>, NoInfer<Message>, ViewInputs>
   }
-  readonly subscriptions?: (args: Args) => Subscription.Subscriptions<Model, Message, S>
+  readonly subscriptions?: (
+    args: Args,
+  ) => Subscription.Subscriptions<NoInfer<Model>, NoInfer<Message>, S>
   readonly helpers?: Helpers
 }
 
@@ -524,18 +637,19 @@ type ErasedPartsConfig = PartsConfig<string, any, any, any, any, any, any, any, 
 /**
  * A bundle from a component that ships its parts separately, like the
  * `@foldkit/ui` components: `init` returns only the Model, and `parts` is the
- * `{ update, view }` pair their `create()` returns.
+ * `{ update, view }` pair their `create()` returns. The Schemas declare the
+ * Model and Message, as in `make`.
  */
 export function fromParts<
   const Name extends string,
-  Model,
+  const Model,
   Message extends AnyMessage,
   Args = void,
   OutMessage = never,
   R = never,
   S = never,
   ViewInputs = void,
-  Helpers extends Readonly<Record<string, Helper<Model, Message, OutMessage, R>>> = {},
+  Helpers extends HelperRecord<Model, Message, OutMessage> = {},
 >(
   name: Name,
   config: Omit<
@@ -544,20 +658,20 @@ export function fromParts<
   > & {
     readonly name?: never
   },
-): Bundle<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, {}, Helpers>
+): Made<Name, Args, Model, Message, OutMessage, never, R, S, ViewInputs, {}, Helpers>
 export function fromParts<
   const Name extends string,
-  Model,
+  const Model,
   Message extends AnyMessage,
   Args = void,
   OutMessage = never,
   R = never,
   S = never,
   ViewInputs = void,
-  Helpers extends Readonly<Record<string, Helper<Model, Message, OutMessage, R>>> = {},
+  Helpers extends HelperRecord<Model, Message, OutMessage> = {},
 >(
   config: PartsConfig<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, Helpers>,
-): Bundle<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, {}, Helpers>
+): Made<Name, Args, Model, Message, OutMessage, never, R, S, ViewInputs, {}, Helpers>
 export function fromParts(
   nameOrConfig: string | ErasedPartsConfig,
   maybeConfig?: Omit<ErasedPartsConfig, 'name'>,

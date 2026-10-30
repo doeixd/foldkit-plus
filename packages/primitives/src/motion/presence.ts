@@ -26,18 +26,7 @@ export const isVisible = (model: PresenceModel): boolean => model.phase !== 'hid
  * generation it was scheduled under, so a `Show` in between wins and the
  * late fact is ignored. The clock is Effect's, so tests drive it.
  */
-export const Presence = Bundle.make<
-  'Presence',
-  PresenceModel,
-  PresenceMessage,
-  { readonly durationMs: number },
-  never,
-  never,
-  never,
-  void,
-  {},
-  {}
->('Presence', {
+export const Presence = Bundle.make('Presence', {
   Model: PresenceModel,
   Message: PresenceMessage,
   args: Schema.Struct({

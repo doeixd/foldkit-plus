@@ -218,6 +218,13 @@ need (`init` when a wiring restores, `url` when one reads the URL).
   `Page.place(bundle, 'field', config)` places without a separate `declare`.
 - **Helpers:** `helpers: { reset: (model: CounterModel, to: number) => ({ model }) }` become
   `placed.helpers.reset(to)`, an `Update.Step` of the parent.
+- **Types:** `Bundle.make` takes no explicit generics. The `Model` and
+  `Message` Schemas declare those types and every part is checked against
+  them (`init` may write `{}` or `'idle'`); the bundle's services are what
+  `init`, `update` and each helper's Commands need, together.
+  `Bundle.fromParts`, `Bundle.lazy` (its `init` and loaded `update`) and
+  `Bundle.withHelpers` (its helpers' services join the bundle's) follow the
+  same rules. Annotate a helper's parameters, as above.
 - **Views:** `placed.view(model, h, viewInputs?)` renders through `h.submodel`
   (nothing while the child is absent); `placed.viewIn('mobile')` renders the same
   placement in a second position.
@@ -304,14 +311,9 @@ Met in applications on this stack: what failed, and what to do instead.
 - **A Scene test does not model keys.** A keyed element still showed its old
   Mount as mounted after its key changed, with or without `h.Key`. Test
   remounting on the real runtime (`Runtime.makeElement` + `embed`).
-- **`Bundle.make` infers less than its spec says.** An empty `{}` or `[]` in
-  `init` widens the Model past its Schema
-  ([#334](https://github.com/doeixd/foldkit-plus/issues/334)), and a helper
-  whose Commands need a service fails with `R` pinned to `never`
-  ([#335](https://github.com/doeixd/foldkit-plus/issues/335)): until fixed,
-  give `make` explicit generics. Foldkit's `Message.match` unifies its arms to
-  the first one's shape: annotate each arm
-  (`Update.Return<Model, Message, unknown>`).
+- **Foldkit's `Message.match` unifies its arms to the first one's shape.**
+  Pinning the whole call does not reach the match's own inference: annotate
+  each arm (`Update.Return<Model, Message, unknown>`).
 - **A module-level call keeps its module in the entry chunk**, read or not:
   what `Resource.lazy` should defer must live in a module the entry does not
   import for another name.

@@ -8,7 +8,16 @@
 import { Effect } from 'effect'
 import * as Submodel from 'foldkit/submodel'
 import type { AnyMessage } from './link.js'
-import { make, type Bundle, type BundleSpec, type Helper, type ResourceEntries } from './bundle.js'
+import {
+  make,
+  type Bundle,
+  type BundleSpec,
+  type Helper,
+  type HelperRecord,
+  type HelperRequirements,
+  type MakeSpec,
+  type ResourceEntries,
+} from './bundle.js'
 
 /** The bodies a lazy bundle loads: its `update`, and its `view` if it has one. */
 export interface Body<Model, Message extends AnyMessage, Args, OutMessage, R, ViewInputs> {
@@ -34,17 +43,17 @@ export type LazySpec<
   Model,
   Message extends AnyMessage,
   OutMessage,
-  R,
+  RInit,
   S,
   ViewInputs,
   Resources extends ResourceEntries<Model, Message>,
-  Helpers extends Readonly<Record<string, Helper<Model, Message, OutMessage, R>>>,
+  Helpers extends HelperRecord<Model, Message, OutMessage>,
 > = Omit<
-  BundleSpec<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, Resources, Helpers>,
+  MakeSpec<Name, Args, Model, Message, OutMessage, RInit, never, S, ViewInputs, Resources, Helpers>,
   'update' | 'view'
 > & {
   /** Rendered until the bodies load; nothing by default. */
-  readonly while?: Submodel.View<Model, Message, ViewInputs>
+  readonly while?: Submodel.View<NoInfer<Model>, NoInfer<Message>, ViewInputs>
 }
 
 export interface Lazy<
@@ -84,21 +93,34 @@ export interface Loadable {
  */
 export const lazy = <
   const Name extends string,
-  Model,
+  const Model,
   Message extends AnyMessage,
   Args = void,
   OutMessage = never,
-  R = never,
+  RInit = never,
+  RBody = never,
   S = never,
   ViewInputs = void,
   Resources extends ResourceEntries<Model, Message> = {},
-  Helpers extends Readonly<Record<string, Helper<Model, Message, OutMessage, R>>> = {},
+  Helpers extends HelperRecord<Model, Message, OutMessage> = {},
 >(
-  spec: LazySpec<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, Resources, Helpers>,
-  load: () => Promise<Body<Model, Message, Args, OutMessage, R, ViewInputs>>,
-): Lazy<Name, Args, Model, Message, OutMessage, R, S, ViewInputs, Resources, Helpers> => {
+  spec: LazySpec<Name, Args, Model, Message, OutMessage, RInit, S, ViewInputs, Resources, Helpers>,
+  load: () => Promise<Body<NoInfer<Model>, NoInfer<Message>, Args, OutMessage, RBody, ViewInputs>>,
+): Lazy<
+  Name,
+  Args,
+  Model,
+  Message,
+  OutMessage,
+  RInit | RBody | HelperRequirements<Helpers>,
+  S,
+  ViewInputs,
+  Resources,
+  Helpers
+> => {
+  type R = RInit | RBody | HelperRequirements<Helpers>
   const { while: placeholder, ...declaration } = spec
-  let body: Body<Model, Message, Args, OutMessage, R, ViewInputs> | undefined
+  let body: Body<Model, Message, Args, OutMessage, RBody, ViewInputs> | undefined
   let loading: Promise<void> | undefined
   // A load that fails is forgotten, so the next Message or `load()` tries again
   // rather than awaiting the same rejection for the rest of the session.

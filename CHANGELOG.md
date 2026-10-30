@@ -24,6 +24,7 @@ from its own Wrangler config, and the shipped theme is new. A security review
 caches keeping an answer, and closes several write-rule gaps.
 
 Breaking, under Changed: `Remote.patch` takes a ref for a relation;
+`Bundle.make`, `fromParts` and `lazy` take new generic parameters;
 a declared insert of a taken id is refused `Taken`, and its `Refusal` is
 `Taken | Invalid`;
 `Data.why` returns a `ReadWhy`; a mutation nothing
@@ -505,6 +506,21 @@ carries `drawn`.
 
 ### Changed
 
+- **A bundle's Model comes from its Schema, and its services from every
+  part (#334, #335).** `Bundle.make` inferred the Model from `init` as well as
+  the `Model` Schema, so `heights: {}` widened a record field to `{}` and
+  `status: 'idle'` widened to `string` and failed; and one `R` stood for the
+  services of `init`, `update` and the helpers, so a helper whose Command
+  needed a service failed against `never`, and `init` and `update` needing
+  different ones failed too. Seven primitives wrote out `make`'s generics to
+  get by. Now the Schemas alone declare `Model` and `Message` (every other
+  part is checked against them), and the bundle's services are the union of
+  what `init`, `update` and each helper's Commands need. `fromParts`, `lazy`
+  and `withHelpers` follow the same rules. **Breaking:** `make`'s and
+  `fromParts`'s generic parameters change (`make` and `lazy` take `RInit`,
+  and `RUpdate` or `RBody`, where they took `R`; helpers take `HelperRecord`),
+  so a call that wrote them out drops them; `MakeSpec` is what `make` reads
+  (`NamelessSpec` is gone), and `BundleSpec` remains the bundle's shape.
 - **A create of a taken id is refused as `Taken`, not a server error.** A
   declared insert (`Mutation.write(…, Write.insert(…))`) of an id a row
   already holds failed with `RemoteServerError` ("Todo t-x could not be

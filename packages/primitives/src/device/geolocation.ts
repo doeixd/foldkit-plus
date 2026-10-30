@@ -85,18 +85,7 @@ const watchStream = (): Stream.Stream<GeolocationMessage> => {
  * failures keep the last fix and note the error. No geolocation API yields
  * an empty stream instead of throwing.
  */
-export const Geolocation = Bundle.make<
-  'Geolocation',
-  GeolocationModel,
-  GeolocationMessage,
-  void,
-  never,
-  never,
-  never,
-  void,
-  {},
-  {}
->('Geolocation', {
+export const Geolocation = Bundle.make('Geolocation', {
   Model: GeolocationModel,
   Message: GeolocationMessage,
   init: () => ({ model: { status: 'unknown', coords: Option.none(), lastError: Option.none() } }),

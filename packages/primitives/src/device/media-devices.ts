@@ -131,7 +131,7 @@ export const mediaDevices = <const Name extends string>(config: {
     )
   }
 
-  return Bundle.make<Name, MediaDevicesModel, MediaDevicesMessage>(config.name, {
+  return Bundle.make(config.name, {
     Model: MediaDevicesModel,
     Message: MediaDevicesMessage,
     init: () => ({

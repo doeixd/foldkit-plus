@@ -367,6 +367,14 @@ ClicksPlaced.helpers.reset(0) // an Update.Step of the parent
   dropped by omission. Write `onOut: Bundle.ignore` to drop it on purpose.
 - **Without an args Schema**, `Args` is inferred from `init`'s parameter
   annotation instead.
+- **The `Model` and `Message` Schemas declare those types**, and `init`,
+  `update`, `subscriptions`, `view` and the helpers are checked against them:
+  `init` may write `heights: {}` or `status: 'idle'` and the Model stays the
+  Schema's.
+- **The bundle's services are what its Commands need**, gathered from `init`,
+  `update` and each helper separately, so a helper whose Command yields a
+  service needs no annotation, and the placement carries it to the runtime's
+  `resources`. `make` takes no explicit generics.
 
 ### Derived args: `args` from the parent seed
 

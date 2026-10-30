@@ -6,27 +6,40 @@ import { Function } from 'effect'
 import type * as Submodel from 'foldkit/submodel'
 import * as Subscription from 'foldkit/subscription'
 import type * as Update from 'foldkit/update'
-import { make, type AnyBundle, type Bundle, type BundleSpec, type Helper } from './bundle.js'
+import {
+  make,
+  type AnyBundle,
+  type Bundle,
+  type BundleSpec,
+  type HelperRecord,
+  type HelperRequirements,
+} from './bundle.js'
 import type { BundleParts } from './declare.js'
 
 type P<B> = BundleParts<B>
 
 type Rebuilt<
   B,
-  Changes extends Partial<{ Name: string; S: unknown; Helpers: unknown; ViewInputs: unknown }> = {},
+  Changes extends Partial<{
+    Name: string
+    R: unknown
+    S: unknown
+    Helpers: unknown
+    ViewInputs: unknown
+  }> = {},
 > = Bundle<
   Changes extends { Name: infer N extends string } ? N : P<B>['Name'],
   P<B>['Args'],
   P<B>['Model'],
   P<B>['Message'],
   P<B>['OutMessage'],
-  P<B>['R'],
+  Changes extends { R: infer R } ? R : P<B>['R'],
   Changes extends { S: infer S } ? S : P<B>['S'],
   Changes extends { ViewInputs: infer V } ? V : P<B>['ViewInputs'],
   P<B>['Resources'],
   Extract<
     Changes extends { Helpers: infer H } ? H : P<B>['Helpers'],
-    Readonly<Record<string, HelperOf<B>>>
+    HelperRecord<P<B>['Model'], P<B>['Message'], P<B>['OutMessage']>
   >
 >
 
@@ -96,20 +109,25 @@ export const withView: {
   ): Rebuilt<B, { ViewInputs: ViewInputs }>
 } = Function.dual(2, (self: AnyBundle, view: AnyBundle['view']) => rebuild(self, { view }))
 
-/** Adds programmatic entry points beside the bundle's own. */
+/** Adds programmatic entry points beside the bundle's own; the services their Commands need join the bundle's. */
 export const withHelpers: {
-  <B extends AnyBundle, const Helpers extends Readonly<Record<string, HelperOf<B>>>>(
+  <B extends AnyBundle, const Helpers extends HelperOf<B>>(
     helpers: Helpers,
-  ): (self: B) => Rebuilt<B, { Helpers: P<B>['Helpers'] & Helpers }>
-  <B extends AnyBundle, const Helpers extends Readonly<Record<string, HelperOf<B>>>>(
+  ): (self: B) => Rebuilt<B, WithHelpers<B, Helpers>>
+  <B extends AnyBundle, const Helpers extends HelperOf<B>>(
     self: B,
     helpers: Helpers,
-  ): Rebuilt<B, { Helpers: P<B>['Helpers'] & Helpers }>
+  ): Rebuilt<B, WithHelpers<B, Helpers>>
 } = Function.dual(2, (self: AnyBundle, helpers: object) =>
   rebuild(self, { helpers: { ...self.helpers, ...helpers } }),
 )
 
-type HelperOf<B> = Helper<P<B>['Model'], P<B>['Message'], P<B>['OutMessage'], P<B>['R']>
+type HelperOf<B> = HelperRecord<P<B>['Model'], P<B>['Message'], P<B>['OutMessage']>
+
+type WithHelpers<B, Helpers> = {
+  Helpers: P<B>['Helpers'] & Helpers
+  R: P<B>['R'] | HelperRequirements<Helpers>
+}
 
 /** Adds Subscriptions beside the bundle's own. A duplicate key throws, as in `Subscription.aggregate`. */
 export const withSubscriptions: {

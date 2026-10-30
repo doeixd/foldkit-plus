@@ -46,17 +46,6 @@ export const Watch = ManagedResource.tag<Acquired>()('permissions')
 /** The watch service a placed Permissions bundle requires. */
 export type WatchService = ManagedResource.ServiceOf<typeof Watch>
 
-type WatchResources = Readonly<{
-  watch: ManagedResource.Entry<
-    PermissionsModel,
-    PermissionsMessage,
-    Option.Option<ReadonlyArray<string>>,
-    Acquired,
-    WatchService,
-    (acquired: Acquired) => PermissionsMessage
-  >
-}>
-
 const failMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error)
 
@@ -87,18 +76,7 @@ export const permissions = <const Name extends string>(config: {
     return api ?? null
   }
 
-  return Bundle.make<
-    Name,
-    PermissionsModel,
-    PermissionsMessage,
-    { readonly names: ReadonlyArray<string> },
-    never,
-    never,
-    WatchService,
-    void,
-    WatchResources,
-    {}
-  >(config.name, {
+  return Bundle.make(config.name, {
     Model: PermissionsModel,
     Message: PermissionsMessage,
     args: Schema.Struct({ names: Schema.Array(Schema.String) }),

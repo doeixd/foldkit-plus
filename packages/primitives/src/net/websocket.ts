@@ -92,24 +92,6 @@ export const Socket = ManagedResource.tag<Acquired>()('websocket')
 /** The socket service a placed WebSocket's streams and send commands require. */
 export type SocketService = ManagedResource.ServiceOf<typeof Socket>
 
-type SocketResources = Readonly<{
-  socket: ManagedResource.Entry<
-    WebSocketModel,
-    WebSocketMessage,
-    Option.Option<string>,
-    Acquired,
-    SocketService,
-    () => WebSocketMessage
-  >
-}>
-
-type SendHelpers = Readonly<{
-  send: (
-    model: WebSocketModel,
-    data: string,
-  ) => Update.ReturnWithOutMessage<WebSocketModel, WebSocketMessage, never, SocketService>
-}>
-
 const textOf = (data: unknown): Effect.Effect<string> =>
   typeof data === 'string'
     ? Effect.succeed(data)
@@ -146,18 +128,7 @@ export const websocket = <const Name extends string>(config: {
 }) => {
   const createSocket: (url: string) => SocketHandle =
     config.createSocket ?? (url => new WebSocket(url) as unknown as SocketHandle)
-  return Bundle.make<
-    Name,
-    WebSocketModel,
-    WebSocketMessage,
-    { readonly url: string; readonly connectTimeoutMs?: number | undefined },
-    never,
-    SocketService,
-    SocketService,
-    void,
-    SocketResources,
-    SendHelpers
-  >(config.name, {
+  return Bundle.make(config.name, {
     Model: WebSocketModel,
     Message: WebSocketMessage,
     args: Schema.Struct({
@@ -325,7 +296,7 @@ export const websocket = <const Name extends string>(config: {
         ),
       })),
     helpers: {
-      send: (model, data) => ({
+      send: (model: WebSocketModel, data: string) => ({
         model,
         commands: [
           {
