@@ -617,6 +617,86 @@ export const Page = slots({
     Style.nest('[aria-pressed="true"] > &', { visibility: 'visible' }),
   ],
   emptyResults: [Style.class('empty-results'), { margin: '16px 0' }],
+  iconButton: [
+    Style.class('icon-button'),
+    control,
+    {
+      width: 'var(--domain-action-size, 32px)',
+      height: 'var(--domain-action-size, 32px)',
+      flexShrink: '0',
+      border: `1px solid ${d.lineFirm}`,
+      padding: '0',
+    },
+    Style.pseudo('[data-added]', { color: d.added }),
+    Style.media(NARROW, { minHeight: '44px', minWidth: '44px' }),
+  ],
+  cartButton: [
+    Style.class('button'),
+    Style.class('cart-button'),
+    control,
+    {
+      position: 'relative',
+      height: '34px',
+      gap: '8px',
+      padding: '0 12px',
+      fontSize: '13px',
+      whiteSpace: 'nowrap',
+    },
+    Style.media(NARROW, { width: '44px', height: '44px', padding: '0' }),
+  ],
+  cartLabel: [Style.media(NARROW, { display: 'none' })],
+  cartCount: [
+    Style.class('cart-count'),
+    {
+      display: 'grid',
+      width: '17px',
+      height: '17px',
+      placeItems: 'center',
+      borderRadius: '9999px',
+      background: d.text,
+      fontSize: '10px',
+      color: d.page,
+    },
+    Style.media(NARROW, { position: 'absolute', top: '-4px', right: '-4px' }),
+  ],
+  cartPanel: [Style.class('cart-panel'), { padding: '24px' }],
+  cartHeading: [
+    Style.class('cart-heading'),
+    {
+      marginBottom: '32px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+  ],
+  cartItems: [Style.class('cart-items'), { margin: '16px 0', listStyle: 'none', padding: '0' }],
+  cartItem: [
+    {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: '16px',
+      borderBottom: `1px solid ${d.lineSoft}`,
+      padding: '18px 0',
+    },
+  ],
+  cartName: [{ marginBottom: '8px', display: 'block', fontSize: '14px', overflowWrap: 'anywhere' }],
+  cartTerms: [{ fontSize: '13px', color: d.soft }],
+  cartRenewal: [{ marginTop: '4px', display: 'block', fontSize: '12px', color: d.soft }],
+  cartTotal: [
+    Style.class('cart-total'),
+    {
+      display: 'flex',
+      justifyContent: 'space-between',
+      borderBottom: `1px solid ${d.lineSoft}`,
+      padding: '24px 0',
+      fontSize: '14px',
+    },
+  ],
+  cartNote: [
+    Style.class('empty-cart'),
+    { margin: '13px 0', fontSize: '13px', lineHeight: '1.7', color: d.soft },
+  ],
   resultsHeading: [
     Style.class('results-heading'),
     {
@@ -821,3 +901,8 @@ export const PickerStyle = forSlots(PickerSlots)(Recipes.Picker({ sheetBelow: 'm
 
 /** The phone's sheets, from the bottom. */
 export const SheetStyle = forSlots(DialogSlots)(Recipes.Sheet(), { name: 'SheetStyle' })
+
+/** The cart: a sheet at the window's right edge, as wide as upstream's panel. */
+export const CartSheetStyle = forSlots(DialogSlots)(Recipes.Sheet({ size: 'sm', handle: 'none' }), {
+  name: 'CartSheetStyle',
+})

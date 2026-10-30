@@ -9,7 +9,13 @@ import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import { Icon, type IconData } from 'foldkit-media'
 import { SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import { WindowList } from 'foldkit-mixins-ui'
-import { Domain, domainTlds, queryToMaybeDomainLabel, type DomainName } from '../shared/domain'
+import {
+  type AvailableDomain,
+  Domain,
+  domainTlds,
+  queryToMaybeDomainLabel,
+  type DomainName,
+} from '../shared/domain'
 import { Message, type Model } from './app.js'
 import { SEARCH_INPUT_ID } from './command.js'
 import {
@@ -28,6 +34,7 @@ import {
   SearchViewState,
   searchViewState,
 } from './searchViewState.js'
+import { cartAnnouncement, cartButton, cartSheet } from './cart.js'
 import { filters } from './filters.js'
 import { type Arranged, arrangedOf } from './results.js'
 import type { DomainListingGroup } from './resultsList.js'
@@ -61,7 +68,7 @@ const logo = (slots: Slots, h: H): Html =>
     ],
   )
 
-const header = (slots: Slots, h: H): Html =>
+const header = (model: Model, slots: Slots, h: H): Html =>
   h.header(slots.header.attrs(), [
     h.a(slots.brand.attrs([h.Href(searchHref), h.AriaLabel('Domains home')]), [
       logo(slots, h),
@@ -69,7 +76,8 @@ const header = (slots: Slots, h: H): Html =>
       h.span([], ['Domains']),
     ]),
     h.span(slots.demoLabel.attrs(), ['Unofficial demo']),
-    h.div(slots.headerActions.attrs(), []),
+    h.div(slots.headerActions.attrs(), [cartButton(model, slots, h)]),
+    cartAnnouncement(model, slots, h),
   ])
 
 const searchForm = (model: Model, slots: Slots, h: H): Html =>
@@ -152,7 +160,13 @@ const pendingAction = (slot: Slots['action'], slots: Slots, h: H): Html =>
   ])
 
 /** An answered name: its price and terms, or that the demo marks it taken. */
-const readyAction = (domain: Domain, slot: Slots['action'], slots: Slots, h: H): Html =>
+const readyAction = (
+  model: Model,
+  domain: Domain,
+  slot: Slots['action'],
+  slots: Slots,
+  h: H,
+): Html =>
   Domain.match(domain, {
     Unconfirmed: () =>
       h.div(slot.attrs(), [
@@ -173,13 +187,40 @@ const readyAction = (domain: Domain, slot: Slots['action'], slots: Slots, h: H):
           ]),
           [formatRegistrationPrice(available)],
         ),
+        cartToggle(model, available, slots, h),
       ]),
   })
 
-const action = (listing: DomainListing, slot: Slots['action'], slots: Slots, h: H): Html =>
+/** Adds an available name to the cart, or takes it out again. */
+const cartToggle = (model: Model, domain: AvailableDomain, slots: Slots, h: H): Html => {
+  const added = Array.some(model.cart, ({ name }) => name === domain.name)
+  const terms = `${formatRegistrationPrice(domain)}. ${domain.isPremium ? 'Premium domain. ' : ''}${formatRenewalPrice(domain)}`
+  return h.button(
+    slots.iconButton.attrs([
+      h.Type('button'),
+      ...(added ? [h.DataAttribute('added', '')] : []),
+      h.AriaLabel(added ? `Remove ${domain.name} from cart` : `Add ${domain.name} to cart`),
+      h.AriaDescription(terms),
+      h.OnClick(
+        added
+          ? Message.ClickedRemoveDomain({ name: domain.name })
+          : Message.ClickedAddDomain({ domain }),
+      ),
+    ]),
+    [Icon.draw(added ? icons.check : icons.cart, h, { size: '18px' })],
+  )
+}
+
+const action = (
+  model: Model,
+  listing: DomainListing,
+  slot: Slots['action'],
+  slots: Slots,
+  h: H,
+): Html =>
   DomainListing.match(listing, {
     Pending: () => pendingAction(slot, slots, h),
-    Ready: ({ domain }) => readyAction(domain, slot, slots, h),
+    Ready: ({ domain }) => readyAction(model, domain, slot, slots, h),
   })
 
 /** Whether the demo marks an answered name taken, which greys its name. */
@@ -191,16 +232,16 @@ const isUnavailable = DomainListing.match({
 const unavailableMark = (listing: DomainListing, h: H) =>
   isUnavailable(listing) ? [h.DataAttribute('unavailable', '')] : []
 
-const card = (listing: DomainListing, slots: Slots, h: H): Html =>
+const card = (model: Model, listing: DomainListing, slots: Slots, h: H): Html =>
   h.keyed('article')(listing.name, slots.card.attrs(unavailableMark(listing, h)), [
     h.h3(slots.cardName.attrs(), domainName(listing, h)),
-    action(listing, slots.action, slots, h),
+    action(model, listing, slots.action, slots, h),
   ])
 
-const row = (listing: DomainListing, slots: Slots, h: H): Html =>
+const row = (model: Model, listing: DomainListing, slots: Slots, h: H): Html =>
   h.keyed('li')(listing.name, slots.row.attrs(unavailableMark(listing, h)), [
     h.span(slots.domainName.attrs(), domainName(listing, h)),
-    action(listing, slots.rowAction, slots, h),
+    action(model, listing, slots.rowAction, slots, h),
   ])
 
 const retryButton = (slots: Slots, h: H): Html =>
@@ -246,7 +287,7 @@ const allResults = (
             h.DataAttribute('virtual-list-item-key', group.id),
             h.DataAttribute('virtual-list-item-index', `${index}`),
           ]),
-          Array.map(group.listings, listing => row(listingOf(listing), slots, h)),
+          Array.map(group.listings, listing => row(model, listingOf(listing), slots, h)),
         ),
       onMessage: message => Message.GotResultsListMessage({ message }),
       label: 'All domain results',
@@ -299,7 +340,9 @@ const searchResults = (model: Model, search: SearchViewState, slots: Slots, h: H
         ]),
         h.div(
           slots.topResults.attrs(),
-          Array.map(Array.take(listings, TOP_RESULT_COUNT), listing => card(listing, slots, h)),
+          Array.map(Array.take(listings, TOP_RESULT_COUNT), listing =>
+            card(model, listing, slots, h),
+          ),
         ),
         h.div(slots.resultsHeading.attrs(), [
           h.h2(slots.sectionTitle.attrs(), ['All Results']),
@@ -319,7 +362,12 @@ const searchResults = (model: Model, search: SearchViewState, slots: Slots, h: H
                     PREVIEW_RESULT_COUNT,
                   ),
                   listing =>
-                    row(DomainListing.Pending({ name: listing.name, tld: listing.tld }), slots, h),
+                    row(
+                      model,
+                      DomainListing.Pending({ name: listing.name, tld: listing.tld }),
+                      slots,
+                      h,
+                    ),
                 ),
               ),
             ]),
@@ -376,7 +424,7 @@ const searchPage = (model: Model, slots: Slots, h: H): Html =>
     ]),
     [
       h.a(slots.skip.attrs([h.Href('#main')]), ['Skip to main content']),
-      header(slots, h),
+      header(model, slots, h),
       h.main(slots.main.attrs([h.Id('main'), h.Tabindex(-1)]), [
         h.h1(slots.pageHeading.attrs(), ['Domain search']),
         hero(model, slots, h),
@@ -384,6 +432,7 @@ const searchPage = (model: Model, slots: Slots, h: H): Html =>
         results(model, slots, h),
       ]),
       footer(slots, h),
+      cartSheet(model, slots, h),
     ],
   )
 

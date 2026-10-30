@@ -19,6 +19,7 @@ It is being built: the sections below grow with each phase.
 | 2 | The Top Results' prices, read by name through `foldkit-remote` from `/remote` (`foldkit-remote-server`'s `serveFetch` in the Worker's entry), fresh for a minute; the failed-search error and Try again |
 | 3 | All Results: every name in rows of six, drawn by `foldkit-mixins-ui`'s `WindowList` in the page's scroll; the rows in view (and two past each end) read their prices; the count of names checked |
 | 4 | Filters and sort: availability and sort as `Picker`s (a dropdown on a desktop, a sheet on a phone), the TLD as a dropdown with typeahead or a searchable sheet; the Available filter and the price sorts read the whole catalog |
+| 5 | The cart: add and remove, the count said in a live region, the cart as a sheet at the right edge with the total; focus moves to the close button on a removal and back to the Cart button on close |
 
 ## How it compares to the upstream copy
 

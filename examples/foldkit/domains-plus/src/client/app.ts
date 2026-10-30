@@ -4,6 +4,7 @@
  * keeps in `?q=`; the label the reads use is `settledLabel`, which the
  * debounce moves once the text rests.
  */
+import * as UiDialog from '@foldkit/ui/dialog'
 import * as UiListbox from '@foldkit/ui/listbox'
 import { Array, Option, Schema, String } from 'effect'
 import * as Command from 'foldkit/command'
@@ -21,12 +22,15 @@ import { type Domain as DomainValue, DomainLabel, queryToMaybeDomainLabel } from
 import { Domain, Quote } from '../shared/entity'
 import {
   DismissSearchKeyboard,
+  FocusCartButton,
+  FocusCartCloseButton,
   FocusSearchInput,
   LoadExternal,
   NavigateInternal,
 } from './command.js'
 import {
   AvailabilityFilter,
+  Cart,
   SortOrder,
   TOP_RESULT_COUNT,
   TldFilter,
@@ -69,6 +73,10 @@ export const Model = Schema.Struct({
   /** Availability and sort: a dropdown on a desktop, a sheet on a phone. */
   availabilityPicker: Picker.Model,
   sortPicker: Picker.Model,
+  /** The domains added, in the order added: the page's, sent nowhere and forgotten on a reload. */
+  cart: Cart.Cart,
+  /** The cart, a sheet at the window's right edge. */
+  cartSheet: Sheet.Model,
 })
 export type Model = typeof Model.Type
 
@@ -114,6 +122,27 @@ const pickerStep = (
     commands: Command.mapMessages(next.commands ?? [], wrap),
   }
 }
+
+/**
+ * The cart's step, its Commands under the page's Message. Closed, it gives
+ * focus back to the Cart button that opened it.
+ */
+const cartSheetStep = (model: Model, next: Sheet.Return): Return => ({
+  model:
+    next.model === model.cartSheet ? model : modifyFields(model, { cartSheet: () => next.model }),
+  commands: [
+    ...Command.mapMessages(next.commands ?? [], message =>
+      Message.GotCartSheetMessage({ message }),
+    ),
+    ...Option.match(Option.fromNullishOr(next.outMessage), {
+      onNone: () => [],
+      onSome: UiDialog.OutMessage.match({ Opened: () => [], Closed: () => [FocusCartButton()] }),
+    }),
+  ],
+})
+
+const withoutDomain = (name: string) => (cart: Cart.Cart) =>
+  Array.filter(cart, domain => domain.name !== name)
 
 /** A Sheet's step, its Commands under the page's Message. */
 const tldSheetStep = (model: Model, next: Sheet.Return): Return => ({
@@ -222,6 +251,22 @@ const own = (model: Model, message: Own): Return =>
     }),
     ClickedMobileTldOption: ({ value }) =>
       tldSheetStep(modifyFields(model, { tldFilter: () => value }), Sheet.close(model.tldSheet)),
+    ClickedAddDomain: ({ domain }) =>
+      Array.some(model.cart, ({ name }) => name === domain.name)
+        ? { model }
+        : { model: modifyFields(model, { cart: cart => Array.append(cart, domain) }) },
+    ClickedRemoveDomain: ({ name }) => ({
+      model: modifyFields(model, { cart: withoutDomain(name) }),
+    }),
+    ClickedRemoveCartDomain: ({ name }) => ({
+      model: modifyFields(model, { cart: withoutDomain(name) }),
+      commands: [FocusCartCloseButton()],
+    }),
+    ClickedCart: () => cartSheetStep(model, Sheet.open(model.cartSheet)),
+    GotCartSheetMessage: ({ message }) =>
+      cartSheetStep(model, Sheet.update(model.cartSheet, message)),
+    CompletedFocusCartButton: () => ({ model }),
+    CompletedFocusCartCloseButton: () => ({ model }),
     GotResultsListMessage: ({ message }) => {
       const next = WindowList.update(model.resultsList, message).model
       return {
@@ -245,6 +290,8 @@ const filtersInitial = () => ({
   tldSearchQuery: '',
   availabilityPicker: Picker.init({ id: 'availability-filter' }),
   sortPicker: Picker.init({ id: 'sort-order' }),
+  cart: [],
+  cartSheet: Sheet.init({ id: 'domains-cart', side: 'right' }),
 })
 
 /** How long the search text rests before it is read. */

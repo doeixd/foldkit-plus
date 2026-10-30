@@ -1,6 +1,6 @@
 # Reimplementing foldkit-domains with Foldkit Plus
 
-> **Status:** Being built (2026-10-30): phases 0 to 4 are built; §8 records what
+> **Status:** Being built (2026-10-30): phases 0 to 5 are built; §8 records what
 > each phase built and where it departs from this plan. Written against
 > upstream [foldkit/foldkit-domains](https://github.com/foldkit/foldkit-domains)
 > at `c3041350`, copied unchanged to
@@ -514,4 +514,24 @@ chooses `.dev`, and sorts through the Picker's sheet. Departures:
   matches upstream's dark panel.
 - **A choice is checked against its literals** (`Schema.is`) where a Picker's
   `Chose` hands back a string; a value no option holds changes nothing.
+
+**Phase 5, built.** `cart` in the Model (sent nowhere, forgotten on a
+reload, as upstream's), the add and remove buttons on every available name
+(an unconfirmed one has its note and no button), the Cart button with its
+count, the polite `#cart-announcement` region, and the cart drawn as a
+`Sheet` at the window's right edge with the total and the demo note. Removing
+from the open cart focuses its close button (`FocusCartCloseButton`), and the
+Dialog's `Closed` gives focus back to the Cart button (`FocusCartButton`).
+Tests: `test/cart.test.ts` (adding twice keeps one and the region says the
+count, a taken name has no button, both focus Commands) with
+`test/cart.mutations.ts` (4 of 4 killed), and the e2e adds two domains,
+opens the cart, removes one and closes it with Escape, reading
+`document.activeElement` at each step. Departures:
+
+- **The cart is a right-side `Sheet`**, `foldkit-mixins-ui`'s Dialog with a
+  side, rather than the bare Dialog adapter: upstream's panel stands at the
+  window's right edge full height, which is the Sheet's `side: 'right'`.
+- **Foldkit's Scene could not click inside the page** (`click` threw reading
+  an ancestor's `sel`), so the Scene draws the Model after the Message the
+  button sends; the e2e presses the real buttons.
 

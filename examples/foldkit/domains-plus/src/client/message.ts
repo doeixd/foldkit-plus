@@ -11,6 +11,7 @@ import * as UiListbox from '@foldkit/ui/listbox'
 import { Picker, Sheet, WindowList } from 'foldkit-mixins-ui'
 import { debounce } from 'foldkit-primitives/time'
 import { Remote } from 'foldkit-remote'
+import { Domain } from '../shared/domain'
 import { TldFilter } from './domain'
 
 /**
@@ -36,6 +37,13 @@ const own = {
   ClickedTldFilter: {},
   UpdatedTldSearch: { value: Schema.String },
   ClickedMobileTldOption: { value: TldFilter },
+  ClickedAddDomain: { domain: Domain.Available },
+  ClickedRemoveDomain: { name: Schema.String },
+  ClickedRemoveCartDomain: { name: Schema.String },
+  ClickedCart: {},
+  GotCartSheetMessage: { message: Sheet.Message },
+  CompletedFocusCartButton: {},
+  CompletedFocusCartCloseButton: {},
   ClickedLink: { request: UrlRequest },
   ChangedUrl: { url: Url },
   CompletedNavigateInternal: {},
