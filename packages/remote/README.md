@@ -614,8 +614,8 @@ Match them with `Why.match`:
 
 | `Why` | What it says | What restarts it |
 | --- | --- | --- |
-| `List { list, held, inFlight }` | the list's own page is `Missing` or `Stale` | the read entry, while a Surface reads it |
-| `Fields { row, via, fields, held, inFlight }` | fields of one row are `Missing` or `Stale`; `via` is the relation path (`['owner']`) | the read entry |
+| `List { list, held, inFlight }` | the list's own page is `Missing`, `Evicted` (the budget dropped it) or `Stale` | the read entry, while a Surface reads it |
+| `Fields { row, via, fields, held, inFlight }` | fields of one row are `Missing`, `Evicted` (the budget dropped the row) or `Stale`; `via` is the relation path (`['owner']`) | the read entry |
 | `ListFailed`, `FieldsFailed` | a request failed | **nothing on its own**: `Data.refresh`, a write of the field, a new page |
 | `Unavailable`, `Undecodable`, `OverlayOnly` | the store holds what cannot be shown | a change of Selection or overlay |
 | `Deleted { row, by }` | the server deleted it (`by` none), or a pending write does | — |
@@ -709,14 +709,15 @@ failed). `Remote.make({ verifyPredictions: true })` names each one: see
 
 ### Why does a page I went back to read `Refreshing`?
 
-Remote keeps what the screens you most recently left reached: the last 16
-lists and 256 reads (`departedLimit`). Under `cacheFirst` a list left is held
+Remote keeps what the screens you most recently left reached, within a budget
+of 1,000 rows and lists (`Remote.make({ budget })`). Under `cacheFirst` a list left is held
 **stale**, so going back shows its rows at once and reads `Refreshing` while
 the planner refetches it; the page that answers replaces what was held. Read
 under `staleWhileRevalidate` by every call that reads it, a list left keeps
 its age instead: going back inside `maxAge` draws it `Ready` and sends
-nothing, and past it reads `Refreshing` while it refetches. Only past those limits is a
-screen's data collected, and then coming back reads `Loading` and refetches.
+nothing, and past it reads `Refreshing` while it refetches. Only past the budget is a
+screen's data evicted, the screen left longest ago first, and then coming back
+reads `Loading` and refetches; `Data.why` says the list or row is `Evicted`.
 To keep something no screen reads, name it in a retain entry or a
 `connections` list; see [Retention](#retention-and-garbage-collection).
 
@@ -2178,15 +2179,25 @@ reads; `connections` given to any call are kept the same way. A root keeps:
 
 After the configured grace period, `RetentionChanged` enters the Model and the
 pure Remote reducer collects what no root reaches. The roots it keeps are the
-active ones and those of the Surfaces most recently left, up to
-`departedLimit` (16 lists and 256 entity reads, oldest dropped first), so going
-back to a page shows what it held rather than reading `Loading`:
+active ones and those of the Surfaces left, so going back to a page shows what
+it held rather than reading `Loading`, within `Remote.make`'s `budget`.
+
+The budget counts **entries**: each row and each list the store holds is one.
+The rows and lists the active Surfaces read, and what a pending write changes
+(with the rows of a list it places a row in), are always kept, even past it.
+The roots a Surface left, which leave together, are kept newest first while
+the entries they add fit; the first that does not fit is evicted with every
+older one. A read whose row another root holds already costs one, so the
+roots kept stay bounded too. The default is `defaultBudget`, 1,000. A list or
+row the budget evicted reads `Initial` again, and `Data.why` names it
+`Evicted` rather than `Missing`. A hand-wired `Remote.retain` takes `budget`
+in its options.
 
 ```text
 Surface left      -> its lists held stale (or with their age, under staleWhileRevalidate), its reads held
 Surface again     -> rows read Refreshing; the planner refetches the stale list
 page arrives      -> it replaces the held rows; Ready
-past the limit    -> collected; going back reads Loading and refetches
+past the budget   -> evicted, left longest ago first; going back reads Loading and refetches
 ```
 
 A value nothing reached when retention ran, such as a prefetch no Surface
@@ -3007,8 +3018,10 @@ Remote does **not** own:
 - Coalescing is scoped to one `RemoteClient` layer. Separate layers do not share
   batches.
 - Retention keeps what active Surfaces (and explicit retain entries) reach, and
-  what the most recently left ones reached, up to `departedLimit`. Past it, an
-  inactive Surface loses its cache on `RetentionChanged`.
+  what the Surfaces left reached while it fits the budget (`Remote.make({
+  budget })`, entries of rows and lists). Past it, the Surface left longest ago
+  loses its cache on `RetentionChanged`. The budget is a count of entries, not
+  bytes: a row with a large field costs what a small one does.
 - Two applications with the same Model type are not distinguishable by TypeScript
   alone; `Data.subscriptions` also checks the Surface owner token at runtime.
 - `staleWhileRevalidate({ maxAge })` ages rows and lists alike; a list's age is

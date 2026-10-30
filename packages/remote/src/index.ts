@@ -1477,6 +1477,27 @@ export interface RetainOptions {
   readonly grace?: Duration.Input | undefined
 }
 
+/** `Remote.retain`'s options: a retain entry wired by hand says the budget itself. */
+export interface RetainEntryOptions extends RetainOptions {
+  /** How many entries, rows and lists, retention keeps; `defaultBudget` when not given. */
+  readonly budget?: number | undefined
+}
+
+/** The budget given, refused where it is given when it counts no entries a cache can hold. */
+const checkedBudget = (budget: number | undefined): number | undefined => {
+  if (budget !== undefined && !(budget >= 0))
+    throw new Error(
+      `[foldkit-remote] budget is how many entries retention keeps, 0 or more (Infinity for no limit); got ${budget}`,
+    )
+  return budget
+}
+
+/** `RetentionChanged` for these roots, naming a budget only when one was given. */
+const retentionChanged = (roots: RetentionRoots, budget: number | undefined): RemoteMessage =>
+  budget === undefined
+    ? { _tag: 'RetentionChanged', roots }
+    : { _tag: 'RetentionChanged', roots, budget }
+
 /** How `Remote.observe` and `Remote.prefetch` treat fields the store already holds. */
 export interface ObserveOptions {
   /** Default `RemotePolicy.cacheFirst`. */
@@ -2719,11 +2740,19 @@ export const Remote = {
     readonly viewer?:
       | ((model: AppModel) => Option.Option<{ readonly entity: string; readonly id: string }>)
       | undefined
+    /**
+     * How many entries, rows and lists, retention keeps (`defaultBudget`,
+     * 1,000, when not given). What the active Surfaces read is always kept;
+     * past the budget the Surfaces left longest ago are evicted, and going
+     * back to one reads `Loading`, which `Data.why` says is `Evicted`.
+     */
+    readonly budget?: number | undefined
   }): RemoteDomain<AppModel, Store, Entities, Queries, Mutations> =>
     bindDomain(defineRemote(config), config.model, {
       verifyPredictions: config.verifyPredictions,
       operators: config.operators,
       viewer: config.viewer,
+      budget: config.budget,
     }),
 
   /**
@@ -3169,15 +3198,16 @@ export const Remote = {
   retain: <AppModel, Message = RemoteMessage>(
     projections: ReadonlyArray<Projection<AppModel, unknown>>,
     toMessage: (message: RemoteMessage) => Message = identityMessage as never,
-    options: RetainOptions = {},
+    options: RetainEntryOptions = {},
   ): EntryWithoutKeepAlive<AppModel, Message, RetentionRoots, never> => {
     const roots = rootsOf(projections, options)
+    const budget = checkedBudget(options.budget)
     return {
       dependenciesSchema: retentionRootsSchema,
       modelToDependencies: () => roots,
       dependenciesToStream: current =>
         Stream.fromEffect(
-          Effect.succeed(toMessage({ _tag: 'RetentionChanged', roots: current })).pipe(
+          Effect.succeed(toMessage(retentionChanged(current, budget))).pipe(
             Effect.delay(options.grace ?? 0),
           ),
         ),
@@ -3404,9 +3434,11 @@ const bindDomain = <
     readonly viewer?:
       | ((model: AppModel) => Option.Option<{ readonly entity: string; readonly id: string }>)
       | undefined
+    readonly budget?: number | undefined
   } = {},
 ): RemoteDomain<AppModel, Store, Entities, Queries, Mutations> => {
   const operators = options.operators ?? Operators.kernel
+  const budget = checkedBudget(options.budget)
   const bound = bindRemote(definition, ref, operators)
   const store = bound.store
   const viewerOf = options.viewer ?? (() => Option.none())
@@ -4136,7 +4168,7 @@ const bindDomain = <
         },
         dependenciesToStream: (current: RetentionRoots) =>
           Stream.fromEffect(
-            Effect.succeed<RemoteMessage>({ _tag: 'RetentionChanged', roots: current }).pipe(
+            Effect.succeed<RemoteMessage>(retentionChanged(current, budget)).pipe(
               Effect.delay(options.grace ?? 0),
             ),
           ),

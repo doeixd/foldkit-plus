@@ -15,7 +15,6 @@ import { describe, expect, it } from 'vitest'
 import {
   Query,
   Remote,
-  departedLimit,
   isRemoteMessage,
   type RemoteClient,
   type RemoteMessage,
@@ -175,10 +174,11 @@ describe('A list whose Surface was left', () => {
     expect(Trace.tags(trace, projects)).toEqual(['Initial', 'Loading', 'Ready'])
   })
 
-  it(`is collected once ${departedLimit.connections} lists have been left after it`, () => {
-    const lists = Array.from({ length: departedLimit.connections + 1 }, (_, i) => listOf(`o${i}`))
+  it('is evicted once the lists left after it spend the budget', () => {
+    // Each list and its one row are two entries; a budget of 1,000 holds 500.
+    const lists = Array.from({ length: 501 }, (_, i) => listOf(`o${i}`))
     const visited = reduceAll({ remote: Remote.initial, owners: [] }, [
-      ...lists.flatMap(list => [...loaded(list, ['p1']), showing(list)]),
+      ...lists.flatMap((list, i) => [...loaded(list, [`p${i}`]), showing(list)]),
       showing(),
     ])
 
@@ -214,8 +214,9 @@ describe('A read whose Surface was left', () => {
     expect(after.remote.entities['Project:p3']).toBeDefined()
   })
 
-  it(`is collected once ${departedLimit.requirements} reads have been left after it`, () => {
-    const ids = Array.from({ length: departedLimit.requirements + 1 }, (_, i) => `r${i}`)
+  it('is evicted once the reads left after it spend the budget', () => {
+    // Each read is one entry, its row.
+    const ids = Array.from({ length: 1_001 }, (_, i) => `r${i}`)
     const after = reduceAll({ remote: Remote.initial, owners: [] }, [
       ...ids.flatMap(id => [received([id]), retaining([read(id)])]),
       retaining([]),

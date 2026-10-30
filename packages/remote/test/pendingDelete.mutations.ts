@@ -131,7 +131,7 @@ export default [
     edits: [
       {
         file: '../src/retain.ts',
-        find: '    for (const gone of layer.deletes) kept.add(entityKey(gone.entity, gone.id))',
+        find: '    for (const gone of layer.deletes) walk.add(entityKey(gone.entity, gone.id))',
         replace: '',
       },
     ],

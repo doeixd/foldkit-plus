@@ -184,9 +184,10 @@ batch, a requirement already in flight is joined, and every waiter gets the
 whole result. Retention is a Message too: `Remote.retain` lists the observed
 projections as roots and emits `RetentionChanged` after a grace period, and the
 reducer's pure `gc` keeps what the roots reach through the store's refs plus any
-pending optimistic change. The roots of the Surfaces most recently left count
-too, up to `departedLimit`, their lists held stale, so going back reads
-`Refreshing` while the list refetches.
+pending optimistic change. The roots of the Surfaces left count too, their
+lists held stale, so going back reads `Refreshing` while the list refetches,
+until they pass `Remote.make`'s `budget` of rows and lists: then the Surface
+left longest ago is evicted first, and `Data.why` says `Evicted`.
 
 In the view, a remote field is a `RemoteData`. `Remote.select` produces
 `Ready` once its selected fields are present, `Refreshing` while one is stale

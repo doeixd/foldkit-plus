@@ -10,8 +10,11 @@ const RowRef = Schema.Struct({ entity: Schema.String, id: Schema.String })
 /** A list by its query's name and its connection identity (the query and its encoded input). */
 const ListRef = Schema.Struct({ query: Schema.String, identity: Schema.String })
 export type ListRef = typeof ListRef.Type
-/** `Missing`: the store does not hold it. `Stale`: it holds it, marked out of date. */
-const Held = Schema.Literals(['Missing', 'Stale'])
+/**
+ * `Missing`: the store does not hold it. `Evicted`: it does not, because the
+ * budget evicted it from a Surface left. `Stale`: it holds it, marked out of date.
+ */
+const Held = Schema.Literals(['Missing', 'Evicted', 'Stale'])
 const Names = Schema.Array(Schema.String)
 
 /** What shows something the server has not said: a write, an overlay, or a live event. */
@@ -146,6 +149,12 @@ const heldWords: Readonly<
     true: what => `${what} is being fetched.`,
     false: what => `${what} is not held, and nothing is fetching it.`,
   },
+  Evicted: {
+    true: what =>
+      `${what} was evicted to keep the cache within its budget (Remote.make's budget), and is being fetched again.`,
+    false: what =>
+      `${what} was evicted to keep the cache within its budget (Remote.make's budget); the read entry fetches it again while a Surface reads it.`,
+  },
   Stale: {
     true: what => `${what} is shown while a newer value is fetched.`,
     false: what =>
@@ -200,6 +209,7 @@ type Decided = Readonly<
 /** A list's own page: missing reads `Loading` while fetched, `Initial` otherwise. */
 const listDecides: Decided = {
   Missing: { true: ['Loading'], false: ['Initial'] },
+  Evicted: { true: ['Loading'], false: ['Initial'] },
   Stale: { true: ['Refreshing'], false: ['Refreshing'] },
 }
 
@@ -209,6 +219,7 @@ const listDecides: Decided = {
  */
 const fieldsDecide: Decided = {
   Missing: { true: ['Loading', 'Refreshing'], false: ['Initial', 'Refreshing'] },
+  Evicted: { true: ['Loading', 'Refreshing'], false: ['Initial', 'Refreshing'] },
   Stale: { true: ['Refreshing'], false: ['Refreshing'] },
 }
 

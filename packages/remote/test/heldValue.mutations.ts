@@ -120,7 +120,7 @@ export default [
   edit(
     'retention keeps only what is shown',
     model,
-    'const retained = gc(model, recent)',
+    'const retained = gc(model, heldRoots(recent))',
     'const retained = gc(model, message.roots)',
   ),
   // The exceptions are narrow: a value taken by anything else is caught.
@@ -133,7 +133,7 @@ export default [
   edit(
     'retention keeps nothing left',
     '../src/retain.ts',
-    'return [...departed.slice(Math.max(0, departed.length - limit)), ...active]',
-    'return active',
+    'const departed = batches.slice(oldestKept)',
+    'const departed: ReadonlyArray<RetentionRoots> = []',
   ),
 ]

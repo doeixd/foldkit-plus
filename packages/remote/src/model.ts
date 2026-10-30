@@ -71,12 +71,23 @@ import {
   setUnavailable,
   tombstone,
   writeEntities,
+  type EntityKey,
   type EntityStore,
   type EntityWrite,
 } from './store.js'
 import { windowKey } from './plan.js'
 import { isRefPage, targetsOf, type RefPageValue } from './relation.js'
-import { gc, reachable, recentRoots, type Retained, type RetentionRoots } from './retain.js'
+import {
+  budgeted,
+  defaultBudget,
+  gc,
+  heldRoots,
+  noRecentRoots,
+  reachable,
+  type RecentRoots,
+  type Retained,
+  type RetentionRoots,
+} from './retain.js'
 import { RemotePersistence, type MergePolicy } from './persistence.js'
 import {
   AnswerRead,
@@ -174,11 +185,40 @@ export interface RemoteModel {
    */
   readonly diagnostics: ReadonlyArray<RemoteDiagnostic>
   /**
-   * What retention keeps: the active Surfaces' roots, after those of the
-   * Surfaces most recently left (`departedLimit`). A list left is held stale,
-   * so going back reads it `Refreshing` while it refetches.
+   * What retention keeps: the active Surfaces' roots, and those of the
+   * Surfaces left, in the batches they left in, while the budget allows. A
+   * list left is held stale, so going back reads it `Refreshing` while it
+   * refetches, unless its age says when it is due (`ConnectionRoot.ages`).
    */
-  readonly recent: RetentionRoots
+  readonly recent: RecentRoots
+  /**
+   * The roots of Surfaces left that the budget evicted, newest last, the
+   * newest 256 of each: lists by identity, reads by row. `Data.why` reads a
+   * list or row absent from the store as `Evicted` while it is named here.
+   */
+  readonly evicted: Evicted
+}
+
+/** What the budget evicted, by list identity and by the row a read reads. */
+export interface Evicted {
+  readonly connections: ReadonlyArray<string>
+  readonly rows: ReadonlyArray<EntityKey>
+}
+
+const noEvicted: Evicted = { connections: [], rows: [] }
+
+/** How many evicted lists, and rows, `evicted` remembers. */
+const EVICTED_KEPT = 256
+
+/** `names` with `added` moved to the end, the oldest dropped past `EVICTED_KEPT`. */
+const remembered = (
+  names: ReadonlyArray<string>,
+  added: ReadonlyArray<string>,
+): ReadonlyArray<string> => {
+  if (added.length === 0) return names
+  const fresh = new Set(added)
+  const next = [...names.filter(name => !fresh.has(name)), ...fresh]
+  return next.slice(Math.max(0, next.length - EVICTED_KEPT))
 }
 
 /** A list's first page as the client placed it: its keys in order, and those it took out. */
@@ -288,7 +328,8 @@ export const initialRemoteModel: RemoteModel = {
   restoredFrom: Option.none(),
   placed: {},
   diagnostics: [],
-  recent: { requirements: [], connections: [] },
+  recent: noRecentRoots,
+  evicted: noEvicted,
 }
 
 /** The entity store and the mutation ledger are runtime values, not wire shapes. */
@@ -316,6 +357,7 @@ export const remoteModelSchema = (): Schema.Codec<RemoteModel, unknown> =>
     placed: runtimeSchema,
     diagnostics: runtimeSchema,
     recent: runtimeSchema,
+    evicted: runtimeSchema,
   }) as unknown as Schema.Codec<RemoteModel, unknown>
 
 /** The submodel's Messages; each reduces to `RemoteModel` through `updateRemote`. */
@@ -361,8 +403,16 @@ export type RemoteMessage =
    * "being fetched" from `Initial`, "nothing is fetching this".
    */
   | { readonly _tag: 'QueryStarted'; readonly connections: readonly string[] }
-  /** The active Surfaces' roots changed; everything they do not reach is collected. */
-  | { readonly _tag: 'RetentionChanged'; readonly roots: RetentionRoots }
+  /**
+   * The active Surfaces' roots changed; everything they and the roots kept
+   * for going back do not reach is collected.
+   */
+  | {
+      readonly _tag: 'RetentionChanged'
+      readonly roots: RetentionRoots
+      /** How many entries, rows and lists, retention keeps; `defaultBudget` when absent. */
+      readonly budget?: number | undefined
+    }
   /** A restored snapshot meets the store; runtime state is untouched. */
   | {
       readonly _tag: 'Hydrated'
@@ -568,7 +618,7 @@ export const remoteMessageCases = {
   },
   ReadStarted: { requests: Schema.Array(ReadRequest), refresh: Schema.optional(Schema.Number) },
   QueryStarted: { connections: Schema.Array(Schema.String) },
-  RetentionChanged: { roots: retentionRootsSchema },
+  RetentionChanged: { roots: retentionRootsSchema, budget: Schema.optional(Schema.Number) },
   Hydrated: {
     connections: Schema.optional(Schema.Unknown),
     from: Schema.optional(Schema.String),
@@ -933,7 +983,10 @@ const setConnectionStale = (
   stale: boolean,
 ): Readonly<Record<string, Connection>> => {
   const current = connections[connection]
-  if (current?.stale === stale) return connections
+  // A list no page answered is not made one by being called fresh: it would
+  // read `Ready` with no rows.
+  if (current?.stale === stale || (!stale && (current?.segments.length ?? 0) === 0))
+    return connections
   return { ...connections, [connection]: { ...(current ?? emptyConnection), stale } }
 }
 
@@ -1421,18 +1474,24 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
         failures: withFieldFailures(model.failures, message.requests, message.error),
       }
     case 'RetentionChanged': {
-      const recent = recentRoots(model.recent, message.roots)
-      const retained = gc(model, recent)
-      const active = new Set(message.roots.connections.map(root => root.identity))
+      const { recent, evicted } = budgeted(
+        model.recent,
+        message.roots,
+        model,
+        message.budget ?? defaultBudget,
+      )
+      const retained = gc(model, heldRoots(recent))
       // A list no active Surface shows is held for going back, and refetched
       // then, unless its age already says when it is due.
-      const connections = recent.connections.reduce(
-        (held, { identity, ages }) =>
-          active.has(identity) || held[identity] === undefined || ages === true
-            ? held
-            : setConnectionStale(held, identity, true),
-        retained.connections,
-      )
+      const connections = recent.departed
+        .flatMap(batch => batch.connections)
+        .reduce(
+          (held, { identity, ages }) =>
+            held[identity] === undefined || ages === true
+              ? held
+              : setConnectionStale(held, identity, true),
+          retained.connections,
+        )
       // Retention's own walk over the Model before collection. It counts a
       // relation's target and a list's row the store does not hold, which is
       // exactly a value whose first read failed or is still in flight.
@@ -1450,6 +1509,19 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
         ...retained,
         connections,
         recent,
+        evicted:
+          evicted.connections.length === 0 && evicted.requirements.length === 0
+            ? model.evicted
+            : {
+                connections: remembered(
+                  model.evicted.connections,
+                  evicted.connections.map(root => root.identity),
+                ),
+                rows: remembered(
+                  model.evicted.rows,
+                  evicted.requirements.map(root => entityKey(root.entity, root.id)),
+                ),
+              },
         grown: keptWindows(model.grown, retained.connections),
         placed: keptPlacements(model.placed, retained.connections),
         refresh: prunedRefresh(model.refresh, retained),

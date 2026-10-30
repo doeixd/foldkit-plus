@@ -1,6 +1,7 @@
 # Lists that age, and a cache with a size (#234, #352)
 
-Status: design (2026-10-30).
+Status: built (2026-10-30). Lists that age: bc971357; the budget and the
+example: the commits after it.
 
 Two issues meet in one place, retention and read planning:
 
@@ -106,7 +107,15 @@ even past the budget. What the budget evicts is the roots of Surfaces left.
 
 A departed root costs what it adds: the rows it reaches that nothing kept
 before it, and one for a list. A read whose row is already held costs one, so
-the roots kept for going back stay bounded too.
+the roots kept for going back stay bounded too. Only rows the store holds
+count: retention's walk keeps every string field as a possible ref, and a
+name that is no row costs nothing.
+
+What a pending write changes is kept whole, and that now includes a list it
+places a row in or takes one out of, with the list's rows. Before, retention
+kept such a list for the write and collected its rows, so a list the budget
+evicted read `Initial` once the write failed, though a Surface showed it again
+meanwhile (the seeded walk found it, seed 597 at 30 steps).
 
 ### Least recently read
 
@@ -135,8 +144,17 @@ again needs no clearing.
 
 The budget reaches the pure reducer on the Message (`RetentionChanged.budget`),
 since retention is the domain's: every call's retain entry sends the same one.
-`Remote.retain` takes `budget` in its options for an application that wires it
-by hand.
+`Remote.retain` takes `budget` in its options (`RetainEntryOptions`) for an
+application that wires it by hand; `Data.subscriptions`' options do not, so
+two calls cannot disagree. A budget below 0, or not a number, is refused where
+it is given; `Infinity` keeps everything.
+
+### Found on the way
+
+The seeded walk, given eviction, found `ConnectionRefreshed` for a list the
+store does not hold, or one invalidated before it loaded, making it fresh and
+empty: it read `Ready` with no rows. A list no page answered now stays as it
+is.
 
 ## Breaking
 
@@ -163,5 +181,6 @@ by hand.
 
 ## Example
 
-Chirp reads its profile and timeline lists under `staleWhileRevalidate`, so
-going back to a profile inside the window draws it with no request.
+Chirp reads under `staleWhileRevalidate({ maxAge: 60_000 })` (`freshness` in
+`examples/chirp/src/app.ts`), so going back to the timeline within a minute
+draws it with no request (`examples/chirp/test/back.test.ts`).

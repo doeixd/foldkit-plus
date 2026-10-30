@@ -124,11 +124,13 @@ const rowReasons = (
   const missing = relation.fields.filter(
     field => entry === undefined || (!entry.present.has(field) && !entry.unavailable.has(field)),
   )
+  // A row the store lacks whole because the budget evicted it says so.
+  const absent = entry === undefined && remote.evicted.rows.includes(key) ? 'Evicted' : 'Missing'
   const stale = relation.fields.filter(
     field => entry !== undefined && entry.present.has(field) && entry.stale.has(field),
   )
   for (const [held, fields] of [
-    ['Missing', missing],
+    [absent, missing],
     ['Stale', stale],
   ] as const) {
     for (const [inFlight, part] of byFlight(remote, entity, id, fields)) {
@@ -234,7 +236,11 @@ const listReasons = (reader: WhyReader, asked: ConnectionRequirement): ReadonlyA
   const reasons: Why[] = failure === undefined ? [] : [Why.ListFailed({ list, error: failure })]
   // A stale list with no pages has nothing to show: it is missing, as the read reads it.
   if (connection === undefined || (connection.stale && connection.segments.length === 0)) {
-    return [...reasons, Why.List({ list, held: 'Missing', inFlight })]
+    const held =
+      connection === undefined && remote.evicted.connections.includes(identity)
+        ? 'Evicted'
+        : 'Missing'
+    return [...reasons, Why.List({ list, held, inFlight })]
   }
   if (connection.stale) reasons.push(Why.List({ list, held: 'Stale', inFlight }))
   const { shown, placed, pages } = reader.edgesOf(asked)

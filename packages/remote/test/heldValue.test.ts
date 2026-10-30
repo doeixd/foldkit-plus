@@ -10,7 +10,8 @@
  *   `EntityDeleted`, a read answered without it, or a pending
  *   `Remote.tombstone`), so it reads `NotFound`;
  * - a `Hydrated` snapshot under `replace` overwrote the store;
- * - retention dropped the read's root, which is past `departedLimit`.
+ * - the budget evicted the read's root, left longest ago, and nothing else
+ *   that held what it shows (another root, a pending write) holds it now.
  *
  * Every Message variant has generators (`messages` is checked against the
  * union, so a new variant does not compile until it has one). Each is applied
@@ -28,10 +29,10 @@ import {
   Query,
   Remote,
   cursor,
-  departedLimit,
   emptyLiveState,
   emptyStore,
   entityKey,
+  heldRoots,
   isTombstone,
   predictionOfWrite,
   stableStringify,
@@ -134,17 +135,19 @@ interface Watched {
   readonly entity: Option.Option<string>
   /** The list it shows, when it is a list read. */
   readonly list: Option.Option<string>
-  /** Whether retention holds its root, and whether it holds as many such roots as it may. */
-  readonly retained: (model: Model) => { readonly held: boolean; readonly full: boolean }
+  /** Whether retention holds its root, and whether the budget evicted it. */
+  readonly retained: (model: Model) => { readonly held: boolean; readonly evicted: boolean }
 }
 
 const heldConnection = (identity: string) => (model: Model) => ({
-  held: model.remote.recent.connections.some(root => root.identity === identity),
-  full: model.remote.recent.connections.length >= departedLimit.connections,
+  held: heldRoots(model.remote.recent).connections.some(root => root.identity === identity),
+  evicted: model.remote.evicted.connections.includes(identity),
 })
 const heldRequirement = (key: string) => (model: Model) => ({
-  held: model.remote.recent.requirements.some(root => entityKey(root.entity, root.id) === key),
-  full: model.remote.recent.requirements.length >= departedLimit.requirements,
+  held: heldRoots(model.remote.recent).requirements.some(
+    root => entityKey(root.entity, root.id) === key,
+  ),
+  evicted: model.remote.evicted.rows.includes(key),
 })
 
 const watched: ReadonlyArray<Watched> = [
@@ -355,6 +358,9 @@ const messages = {
     'leaving everything': () => showing(),
     'only the full list shown': () => showing(list),
     'leaving everything, its lists ageing': () => ageing(),
+    // Six rows and two lists are held: a budget of four keeps what is shown.
+    'leaving the open list under a small budget': () => ({ ...showing(list, project), budget: 4 }),
+    'leaving everything under a budget of none': () => ({ ...showing(), budget: 0 }),
     'going back to the open list, its lists ageing': () => ageing(left, stale),
   },
   Hydrated: {
@@ -763,6 +769,17 @@ const regressions: ReadonlyArray<{
     },
   ]),
   {
+    // Marking a list the store does not hold fresh made it, empty: it read
+    // `Ready` with no rows until retention took it away (seed 22).
+    name: 'a list the store does not hold marked fresh, then collected',
+    from: () =>
+      reduceAll(loaded(), [
+        messages.RetentionChanged['leaving the open list under a small budget'](),
+        messages.ConnectionRefreshed['the open list marked fresh'](),
+      ]),
+    message: messages.RetentionChanged['leaving everything, its lists ageing'],
+  },
+  {
     // A refresh forgot a tombstone, so the deleted row was back in the list
     // unread, and the list above read `Initial` again.
     name: 'the one row shown deleted, then asked about again',
@@ -776,12 +793,7 @@ const regressions: ReadonlyArray<{
 ]
 
 /** The exceptions, by name: each one a Message that really removes the value. */
-const exception = (
-  read: Watched,
-  message: RemoteMessage,
-  before: Model,
-  after: Model,
-): Option.Option<string> => {
+const exception = (read: Watched, message: RemoteMessage, after: Model): Option.Option<string> => {
   if (
     read.read(after)._tag === 'NotFound' &&
     Option.exists(
@@ -794,14 +806,11 @@ const exception = (
   if (message._tag === 'Hydrated' && message.merge === 'replace') {
     return Option.some('a snapshot replaced the store')
   }
+  // Evicted now, or before while another root, or a pending write's overlay,
+  // still held what it shows: whatever lets that go takes the value with it.
   const retention = read.retained(after)
-  if (
-    message._tag === 'RetentionChanged' &&
-    read.retained(before).held &&
-    !retention.held &&
-    retention.full
-  ) {
-    return Option.some('retention dropped it past departedLimit')
+  if (!retention.held && retention.evicted) {
+    return Option.some('the budget evicted it')
   }
   return Option.none()
 }
@@ -848,7 +857,7 @@ const violations = (before: Model, message: RemoteMessage): ReadonlyArray<string
   const after = Data.reduce(before, message)
   return watched.flatMap(read => {
     if (!holds(read.read(before)) || kept(read.read(after))) return []
-    return Option.isSome(exception(read, message, before, after))
+    return Option.isSome(exception(read, message, after))
       ? []
       : [`${read.name}: ${read.read(before)._tag} -> ${read.read(after)._tag}`]
   })
@@ -919,7 +928,7 @@ describe('Each exception', () => {
     const after = Data.reduce(model, message)
 
     expect(stale.read(after)._tag).toBe('NotFound')
-    expect(exception(watched[3]!, message, model, after)).toEqual(
+    expect(exception(watched[3]!, message, after)).toEqual(
       Option.some('the entity it shows was deleted'),
     )
   })
@@ -930,23 +939,18 @@ describe('Each exception', () => {
     const after = Data.reduce(model, message)
 
     expect(project.read(after)._tag).toBe('Initial')
-    expect(exception(watched[2]!, message, model, after)).toEqual(
+    expect(exception(watched[2]!, message, after)).toEqual(
       Option.some('a snapshot replaced the store'),
     )
   })
 
-  it(`retention may drop a list once ${departedLimit.connections} more are left`, () => {
-    const others = Array.from({ length: departedLimit.connections }, (_, i) =>
-      showing(Data.query(ByStatus, { status: `s${i}` }, { select: Named, first: 25 })),
-    )
-    const before = reduceAll(loaded(), others.slice(0, -1))
-    const message = others.at(-1)!
-    const after = Data.reduce(before, message)
+  it('the budget may evict a list left, oldest first', () => {
+    const model = loaded()
+    const message = messages.RetentionChanged['leaving the open list under a small budget']()
+    const after = Data.reduce(model, message)
 
-    expect(left.read(before)._tag).toBe('Refreshing')
+    expect(left.read(model)._tag).toBe('Refreshing')
     expect(left.read(after)._tag).toBe('Initial')
-    expect(exception(watched[1]!, message, before, after)).toEqual(
-      Option.some('retention dropped it past departedLimit'),
-    )
+    expect(exception(watched[1]!, message, after)).toEqual(Option.some('the budget evicted it'))
   })
 })

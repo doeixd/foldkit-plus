@@ -36,24 +36,27 @@ export interface Retained {
 }
 
 /**
- * The entity keys the roots reach: each root entity, the targets its retained
- * fields refer to, and recursively the targets a nested relation selects.
+ * A walk of what roots reach, one root at a time: a read keeps its row, the
+ * targets its retained fields refer to, and recursively the targets a nested
+ * relation selects; a list keeps its edges' targets and what its `select`
+ * reaches through them. `held` counts the kept keys the store holds, as they
+ * are kept, so a caller can read what each root adds: a string field may
+ * name no row, and is kept all the same.
  */
-export const reachable = (
-  store: EntityStore,
-  roots: RetentionRoots,
-  connections: Readonly<Record<string, Connection>>,
-  optimistic: OptimisticState,
-  pending: ReadonlySet<string>,
-): ReadonlySet<EntityKey> => {
+const reacher = (store: EntityStore, connections: Readonly<Record<string, Connection>>) => {
   const kept = new Set<EntityKey>()
-  const rootConnections = new Set(roots.connections.map(root => root.identity))
+  let held = 0
+  const add = (key: EntityKey): void => {
+    if (kept.has(key)) return
+    kept.add(key)
+    if (Object.hasOwn(store, key)) held++
+  }
   // A target is walked once per relation spec that reaches it: two specs may
   // select different nested relations of the same entity, and a spec tree is
   // finite, so this terminates on cyclic data too.
   const walked = new Map<EntityKey, Set<Omit<Requirement, 'id'>>>()
   const visit = (key: EntityKey, requirement: Omit<Requirement, 'id'>): void => {
-    kept.add(key)
+    add(key)
     const seen = walked.get(key) ?? new Set()
     if (seen.has(requirement)) return
     seen.add(requirement)
@@ -65,87 +68,190 @@ export const reachable = (
       for (const ref of refsIn(value.value)) {
         const target = entityKey(ref.entity, ref.id)
         if (relation === undefined || ref.entity !== relation.entity) {
-          kept.add(target)
+          add(target)
           continue
         }
         visit(target, relation)
       }
     }
   }
-  for (const root of roots.requirements) visit(entityKey(root.entity, root.id), root)
-  // A connection root keeps its edges' targets, and what a page's `select`
-  // reaches through them (an item's owner, say), so the page stays readable.
-  for (const { identity, select } of roots.connections) {
-    for (const segment of connections[identity]?.segments ?? []) {
-      for (const edge of segment.edges) {
-        const target = entityKey(edge.ref.entity, edge.ref.id)
-        if (select === undefined || edge.ref.entity !== select.entity) kept.add(target)
-        else visit(target, select)
+  return {
+    kept,
+    held: (): number => held,
+    add,
+    read: (root: Requirement): void => visit(entityKey(root.entity, root.id), root),
+    // The page stays readable: an item's owner, say, is kept with the item.
+    list: ({ identity, select }: ConnectionRoot): void => {
+      for (const segment of connections[identity]?.segments ?? []) {
+        for (const edge of segment.edges) {
+          const target = entityKey(edge.ref.entity, edge.ref.id)
+          if (select === undefined || edge.ref.entity !== select.entity) add(target)
+          else visit(target, select)
+        }
       }
-    }
+    },
   }
-  // A pending request's changes are kept whole; a settled overlay (a live or
-  // confirmed insert) is kept only with a retained connection, below.
-  for (const layer of optimistic.layers) {
-    if (!pending.has(layer.id)) continue
-    for (const patch of layer.patches) kept.add(entityKey(patch.entity, patch.id))
-    // A failure brings the row back, as it was.
-    for (const gone of layer.deletes) kept.add(entityKey(gone.entity, gone.id))
-  }
-  for (const overlay of optimistic.overlays) {
-    if (!pending.has(overlay.id) && !rootConnections.has(overlay.connection)) continue
-    for (const edge of overlay.edges) kept.add(entityKey(edge.ref.entity, edge.ref.id))
-  }
-  return kept
 }
 
 /**
- * How many lists, and how many entity reads, stay held after the Surface
- * showing them goes inactive. Going back to one shows what it held while the
- * list refetches, rather than reading as if nothing had ever loaded.
+ * What a pending request changes, kept whole until it settles: the rows its
+ * layer writes or deletes, and each list it places a row in or takes one out
+ * of, with that list's rows, so the list reads as it did if the request fails.
  */
-export const departedLimit = { connections: 16, requirements: 256 } as const
+const keepPending = (
+  walk: ReturnType<typeof reacher>,
+  optimistic: OptimisticState,
+  pending: ReadonlySet<string>,
+): void => {
+  for (const layer of optimistic.layers) {
+    if (!pending.has(layer.id)) continue
+    for (const patch of layer.patches) walk.add(entityKey(patch.entity, patch.id))
+    // A failure brings the row back, as it was.
+    for (const gone of layer.deletes) walk.add(entityKey(gone.entity, gone.id))
+  }
+  for (const overlay of optimistic.overlays) {
+    if (!pending.has(overlay.id)) continue
+    walk.list({ identity: overlay.connection })
+    for (const edge of overlay.edges) walk.add(entityKey(edge.ref.entity, edge.ref.id))
+  }
+}
+
+/**
+ * The entity keys the roots reach, what a pending request changes, and the
+ * edges of each settled overlay on a list the roots keep.
+ */
+export const reachable = (
+  store: EntityStore,
+  roots: RetentionRoots,
+  connections: Readonly<Record<string, Connection>>,
+  optimistic: OptimisticState,
+  pending: ReadonlySet<string>,
+): ReadonlySet<EntityKey> => {
+  const walk = reacher(store, connections)
+  roots.requirements.forEach(walk.read)
+  roots.connections.forEach(walk.list)
+  keepPending(walk, optimistic, pending)
+  // A settled overlay (a live or confirmed insert) is kept only with a retained connection.
+  const rootConnections = new Set(roots.connections.map(root => root.identity))
+  for (const overlay of optimistic.overlays) {
+    if (pending.has(overlay.id) || !rootConnections.has(overlay.connection)) continue
+    for (const edge of overlay.edges) walk.add(entityKey(edge.ref.entity, edge.ref.id))
+  }
+  return walk.kept
+}
+
+/**
+ * What retention holds: the active Surfaces' roots, and those of Surfaces
+ * left, in the batches they left in, oldest first. A page left takes its
+ * lists and reads together, so they are one batch.
+ */
+export interface RecentRoots {
+  readonly active: RetentionRoots
+  readonly departed: ReadonlyArray<RetentionRoots>
+}
+
+const noRoots: RetentionRoots = { requirements: [], connections: [] }
+export const noRecentRoots: RecentRoots = { active: noRoots, departed: [] }
+
+/**
+ * How many entries retention keeps when `Remote.make` is given no `budget`:
+ * each row and each list the store holds is one.
+ */
+export const defaultBudget = 1_000
+
+/** Every root `recent` holds: the departed, oldest first, then the active. */
+export const heldRoots = (recent: RecentRoots): RetentionRoots => ({
+  requirements: [
+    ...recent.departed.flatMap(batch => batch.requirements),
+    ...recent.active.requirements,
+  ],
+  connections: [
+    ...recent.departed.flatMap(batch => batch.connections),
+    ...recent.active.connections,
+  ],
+})
 
 const requirementKey = (requirement: Requirement): string => JSON.stringify(requirement)
 const connectionKey = (root: ConnectionRoot): string => JSON.stringify(root)
 
-/** The last `limit` of `previous` that `active` does not hold, then all of `active`. */
-const departedThen = <A>(
-  previous: ReadonlyArray<A>,
-  active: ReadonlyArray<A>,
-  key: (value: A) => string,
-  limit: number,
-): ReadonlyArray<A> => {
-  const current = new Set(active.map(key))
-  const departed = previous.filter(value => !current.has(key(value)))
-  return [...departed.slice(Math.max(0, departed.length - limit)), ...active]
-}
+/** `roots` without the reads in `reads` and the lists in `lists`, by identity. */
+const without = (
+  roots: RetentionRoots,
+  reads: ReadonlySet<string>,
+  lists: ReadonlySet<string>,
+): RetentionRoots => ({
+  requirements: roots.requirements.filter(root => !reads.has(requirementKey(root))),
+  connections: roots.connections.filter(root => !lists.has(root.identity)),
+})
+
+const sameRoots = (a: RetentionRoots, b: RetentionRoots): boolean =>
+  a.requirements.length === b.requirements.length &&
+  a.connections.length === b.connections.length &&
+  a.requirements.every((root, i) => requirementKey(root) === requirementKey(b.requirements[i]!)) &&
+  a.connections.every((root, i) => connectionKey(root) === connectionKey(b.connections[i]!))
 
 /**
- * The roots retention keeps: the active ones, after the most recently
- * departed ones `previous` held (oldest first), up to `departedLimit`.
+ * The roots retention keeps once `active` are the active Surfaces' roots, and
+ * those the budget evicts.
+ *
+ * The active roots, and the rows a pending request touches, are always kept,
+ * past the budget if they must be. The roots `previous.active` held that
+ * `active` does not leave as a batch of their own, after every earlier one;
+ * a root that is active again leaves its batch. Batches are then admitted
+ * newest first while the entries they add fit `budget`: each row not held
+ * before, each list, and at least one for a read whose row is held already,
+ * so the roots kept stay bounded too. The first batch that does not fit is
+ * evicted with every older one. `previous` itself when nothing changed.
  */
-export const recentRoots = (previous: RetentionRoots, active: RetentionRoots): RetentionRoots => {
-  const next = {
-    requirements: departedThen(
-      previous.requirements,
-      active.requirements,
-      requirementKey,
-      departedLimit.requirements,
-    ),
-    connections: departedThen(
-      previous.connections,
-      active.connections,
-      connectionKey,
-      departedLimit.connections,
-    ),
+export const budgeted = (
+  previous: RecentRoots,
+  active: RetentionRoots,
+  state: Retained & { readonly mutations: MutationState },
+  budget: number,
+): { readonly recent: RecentRoots; readonly evicted: RetentionRoots } => {
+  const reads = new Set(active.requirements.map(requirementKey))
+  const lists = new Set(active.connections.map(root => root.identity))
+  const batches = [...previous.departed, previous.active]
+    .map(batch => without(batch, reads, lists))
+    .filter(batch => batch.requirements.length > 0 || batch.connections.length > 0)
+
+  const walk = reacher(state.entities, state.connections)
+  keepPending(walk, state.optimistic, state.mutations.pending)
+  active.requirements.forEach(walk.read)
+  active.connections.forEach(walk.list)
+  let spent = walk.held() + active.connections.length
+  let oldestKept = batches.length
+  for (let at = batches.length - 1; at >= 0; at--) {
+    const batch = batches[at]!
+    let cost = batch.connections.length
+    for (const root of batch.requirements) {
+      const before = walk.held()
+      walk.read(root)
+      cost += Math.max(1, walk.held() - before)
+    }
+    for (const root of batch.connections) {
+      const before = walk.held()
+      walk.list(root)
+      cost += walk.held() - before
+    }
+    if (spent + cost > budget) break
+    spent += cost
+    oldestKept = at
   }
-  const same = <A>(a: ReadonlyArray<A>, b: ReadonlyArray<A>, key: (value: A) => string) =>
-    a.length === b.length && a.every((value, i) => key(value) === key(b[i]!))
-  return same(previous.requirements, next.requirements, requirementKey) &&
-    same(previous.connections, next.connections, connectionKey)
-    ? previous
-    : next
+
+  const departed = batches.slice(oldestKept)
+  const evicted = batches.slice(0, oldestKept)
+  const unchanged =
+    sameRoots(previous.active, active) &&
+    previous.departed.length === departed.length &&
+    previous.departed.every((batch, i) => sameRoots(batch, departed[i]!))
+  return {
+    recent: unchanged ? previous : { active, departed },
+    evicted: {
+      requirements: evicted.flatMap(batch => batch.requirements),
+      connections: evicted.flatMap(batch => batch.connections),
+    },
+  }
 }
 
 /**

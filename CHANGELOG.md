@@ -141,7 +141,31 @@ version changed; `pnpm` skips versions already in the registry.
   re-queried once older than `maxAge`; a held list under `networkOnly` reads
   `Refreshing` while it is re-queried, and the page replaces it.
 
+- **Retention keeps what Surfaces left within a budget** (`foldkit-remote`,
+  #352). `Remote.make({ budget })` sets how many entries, rows and lists,
+  the store keeps (`defaultBudget`, 1,000); `Remote.retain` takes `budget`
+  in its options (`RetainEntryOptions`). What the active Surfaces read and
+  what a pending write changes are always kept; the roots of Surfaces left,
+  which leave together as one batch, are kept newest first while they fit,
+  and the first that does not is evicted with every older one.
+  `RemoteModel.evicted` remembers the newest 256 lists and reads evicted, and
+  `Data.why` names one `Evicted` (a third `held`) rather than `Missing`.
+  `RetentionChanged` carries the `budget`. Breaking: `departedLimit` and
+  `recentRoots` are gone; `RemoteModel.recent` is a `RecentRoots` (`active`,
+  and `departed` batches, oldest first); a `Why.List`/`Why.Fields` `held`
+  may be `Evicted`.
+
 ### Fixed
+
+- **A list a pending write changes keeps its rows** (`foldkit-remote`).
+  Retention kept the list for the write but collected its rows when no
+  Surface read it, so it read `Initial` once the write failed and the overlay
+  lifted, though a Surface showed it again meanwhile.
+
+- **A list no page answered is not made fresh** (`foldkit-remote`).
+  `ConnectionRefreshed` for a list the store does not hold, or one
+  invalidated before it loaded, made it fresh and empty, so it read `Ready`
+  with no rows.
 
 - **The resumable builder's value events fit every element** (`foldkit-ssr`).
   `rh.OnInput`, `rh.OnChange`, `rh.OnKeyDown` and `rh.OnKeyUp` returned

@@ -62,7 +62,7 @@ stale fields. An inactive Surface creates no work. `RemoteData` is a closed unio
 **Why a read is in its state.** `Data.why` returns a `ReadWhy` (`state`,
 `because`, `message`, `surfaces`), pure over the Model. `because` is every
 fact about what the read reads, typed (`Why`, matched with `Why.match` or
-`Why.guards`): `List`/`Fields` `Missing` or `Stale` and `inFlight` (`via` is
+`Why.guards`): `List`/`Fields` `Missing`, `Evicted` or `Stale` and `inFlight` (`via` is
 the relation path to a row), `ListFailed`/`FieldsFailed` (nothing retries
 them; `Data.refresh` does), `Unavailable`, `Undecodable`, `OverlayOnly`,
 `Deleted`, `LiveReconnecting`/`LiveRefused`, `Pending`, and `Joined`/`Left`
@@ -1194,8 +1194,10 @@ handler's write and raw SQL are held to the invariants and move the revision too
 - Presence is not `value === undefined`: missing, present-undefined, present-null,
   stale, and not-found are distinct.
 - Retention: after the `grace` period, data no active Surface reaches is
-  garbage-collected (safe; it refetches), except what the Surfaces most
-  recently left reached (`departedLimit`: 16 lists, 256 reads). A list held
+  garbage-collected (safe; it refetches), except what the Surfaces
+  left reached, within `Remote.make({ budget })` (default 1,000 entries, a row
+  or a list each; what active Surfaces read is never evicted; the Surface left
+  longest ago goes first, and `Data.why` says `Evicted`). A list held
   that way is stale, so going back reads `Refreshing` and refetches it, unless
   every call reading it is `staleWhileRevalidate`: then it keeps its age, and
   going back inside `maxAge` draws it with no request.
