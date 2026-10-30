@@ -193,16 +193,21 @@ const strip = (model: Model, slots: Slots, h: H): Html =>
     ...switcher(model, slots, h),
   ])
 
-/** The chirps posted and not yet answered, said while there are any. */
+/**
+ * The chirps posted and not yet answered, said once a send went unanswered.
+ * Every chirp waits while it is on its way, so a line said for that alone
+ * stood above each new chirp for a frame or two and pushed it down.
+ */
 const waiting = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => {
-  const { waiting: count } = Chirps.outboxStatus(model)
-  return count === 0
-    ? []
-    : [
+  const { waiting: count, items } = Chirps.outboxStatus(model)
+  const unanswered = items.some(item => item.state._tag === 'Waiting' && item.state.attempt > 0)
+  return unanswered
+    ? [
         h.p(slots.quiet.attrs([h.Role('status')]), [
           `${count} ${count === 1 ? 'chirp' : 'chirps'} waiting to send`,
         ]),
       ]
+    : []
 }
 
 const home = (model: Model, slots: Slots, h: H): ReadonlyArray<Html> => [

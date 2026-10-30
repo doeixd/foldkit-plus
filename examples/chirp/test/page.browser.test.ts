@@ -2,17 +2,18 @@
 /**
  * The page in a real browser, over the sandbox's own server. The compose
  * box's Chirp button holds its word in the middle, a profile's portrait is cut
- * out of the banner in the avatar's own shape, and Delete shows on the
- * reader's own chirps alone.
+ * out of the banner in the avatar's own shape, Delete shows on the reader's
+ * own chirps alone, and a chirp posted is drawn once, where it stays.
  */
-import { Effect, Layer, Option } from 'effect'
+import { Deferred, Effect, Layer, Option } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
 import type { Html, HtmlBuilder } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
 import { fromString } from 'foldkit/url'
 import { Style } from 'foldkit-mixins'
+import { RemoteClient } from 'foldkit-remote'
 import { afterEach, expect, it, vi } from 'vitest'
-import { page } from 'vitest/browser'
+import { page, userEvent } from 'vitest/browser'
 import { init, Model, opening, outbox, subscriptions, update, type Message } from '../src/app.js'
 import { sandboxRemote } from '../src/server/connection.js'
 import type { Person } from '../src/server/seed.js'
@@ -26,11 +27,22 @@ const answered = { timeout: 20_000 }
 let dispose = () => {}
 afterEach(() => {
   dispose()
+  heard.length = 0
   document.body.replaceChildren()
 })
 
-/** The page as `person` at `path`, on a sandbox started again from the seed. */
-const mount = async (path: string, person: Person = 'you') => {
+/** The tag of every Message the page's `update` received, in order. */
+const heard: Array<Message['_tag']> = []
+
+/**
+ * The page as `person` at `path`, on a sandbox started again from the seed.
+ * Each write is sent once `answering` has run.
+ */
+const mount = async (
+  path: string,
+  person: Person = 'you',
+  answering: Effect.Effect<void> = Effect.void,
+) => {
   Style.install(stylesheet)
   const container = document.createElement('div')
   container.id = 'chirp-test'
@@ -43,10 +55,22 @@ const mount = async (path: string, person: Person = 'you') => {
       Model,
       container,
       init: () => init(restored, Option.getOrThrow(fromString(`http://chirp.test${path}`))),
-      update,
+      update: (model: Model, message: Message) => {
+        heard.push(message._tag)
+        return update(model, message)
+      },
       view: (model: Model, h: HtmlBuilder<Message>): Html => view(model, h).body,
       subscriptions,
-      resources: Layer.merge(sandboxRemote(person, true, false), KeyValueStore.layerMemory),
+      resources: Layer.merge(
+        Layer.effect(
+          RemoteClient,
+          Effect.map(Effect.service(RemoteClient), client => ({
+            ...client,
+            mutate: request => Effect.andThen(answering, client.mutate(request)),
+          })),
+        ).pipe(Layer.provide(sandboxRemote(person, true, false))),
+        KeyValueStore.layerMemory,
+      ),
     }),
   )
   dispose = () => handle.dispose()
@@ -166,4 +190,55 @@ it('takes a chirp of yours away at once when Delete is pressed', async () => {
     .click()
   await vi.waitUntil(() => posts().length === 5)
   expect(posts().map(post => post.body)).not.toContain('Hello, Chirp! My first post.')
+})
+
+/** Resolves after the next `count` frames have been drawn. */
+const frames = (count: number) =>
+  new Promise<void>(resolve => {
+    const next = (left: number) =>
+      left === 0 ? resolve() : requestAnimationFrame(() => next(left - 1))
+    next(count)
+  })
+
+it('draws a chirp posted once, where it stays, through the answer', async () => {
+  // The answer held until the chirp has been drawn a few frames, as a slow server's is.
+  const answer = Deferred.makeUnsafe<void>()
+  await mount('/', 'you', Deferred.await(answer))
+  await vi.waitUntil(() => posts().length === 6, answered)
+  const main = document.querySelector('main')!
+  await userEvent.fill(document.querySelector('textarea')!, 'Steady as she goes.')
+  // What changed among the page's own parts: the feed's posts and the lines around them.
+  const changes: Array<string> = []
+  const observer = new MutationObserver(records =>
+    records.forEach(record => {
+      record.removedNodes.forEach(node => changes.push(`removed ${node.nodeName}`))
+      record.addedNodes.forEach(node => changes.push(`added ${node.nodeName}`))
+    }),
+  )
+  observer.observe(main, { childList: true })
+  // Where the new post stood in each frame it was drawn.
+  const tops: Array<number> = []
+  let watching = true
+  const measure = () => {
+    const first = main.querySelector('article')
+    if (first?.textContent?.includes('Steady as she goes.'))
+      tops.push(first.getBoundingClientRect().top)
+    if (watching) requestAnimationFrame(measure)
+  }
+  requestAnimationFrame(measure)
+  const settled = heard.filter(tag => tag === 'MutationSucceeded').length
+  ;[...document.querySelectorAll('button')].find(button => button.textContent === 'Chirp')!.click()
+  await vi.waitUntil(() => tops.length > 0)
+  await frames(3)
+  Deferred.doneUnsafe(answer, Effect.void)
+  await vi.waitUntil(
+    () => heard.filter(tag => tag === 'MutationSucceeded').length > settled,
+    answered,
+  )
+  await frames(5)
+  watching = false
+  observer.disconnect()
+  expect(changes).toEqual(['added ARTICLE'])
+  expect(tops.length).toBeGreaterThan(0)
+  expect(new Set(tops).size).toBe(1)
 })

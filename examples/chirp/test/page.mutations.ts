@@ -24,4 +24,15 @@ export default [
     "Recipes.Avatar({ color: 'name', size: 'xl', ring: 'page' })",
     "Recipes.Avatar({ color: 'name', size: 'xl' })",
   ),
+  {
+    name: 'every chirp on its way is said to be waiting, above where it is drawn',
+    edits: [
+      {
+        file: '../src/view.ts',
+        find: "item.state._tag === 'Waiting' && item.state.attempt > 0",
+        replace: "item.state._tag === 'Waiting'",
+      },
+    ],
+    tests,
+  },
 ]
