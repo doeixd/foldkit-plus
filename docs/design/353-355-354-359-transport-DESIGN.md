@@ -47,9 +47,10 @@ Data.mutate(model, Rename, input, { timeout: '5 seconds' }) // this send
   failing a caller that joined the same read with a longer one. Giving up
   releases what the caller waited on, so a read nobody else waits on is
   cancelled (section 2) and its request aborted.
-- A read or a query that times out fails with `RemoteReadError` /
-  `RemoteQueryError` ("No answer within 20 seconds"): `ReadFailed` /
-  `QueryFailed`, retried by `Data.refresh` like any failed read.
+- A read or a query that times out fails `RemoteUnreachable` ("No answer
+  within 20 seconds"), as one whose transport failed does since #361:
+  `ReadFailed` / `QueryFailed`, retried by `Data.refresh` like any failed
+  read.
 - A mutation that times out fails `RemoteUnreachable`: it may have reached the
   server, so a durable one stays in the outbox and is sent again under the
   same operation id, which the ledger answers once.

@@ -891,7 +891,11 @@ export interface RemoteDomain<
     options?: ObserveOptions,
   ): Effect.Effect<
     AppModel,
-    RemoteReadError | RemoteProtocolError | RemoteQueryError | RemoteUnauthenticated,
+    | RemoteReadError
+    | RemoteProtocolError
+    | RemoteQueryError
+    | RemoteUnauthenticated
+    | RemoteUnreachable,
     RemoteClient
   >
   /**
@@ -916,6 +920,7 @@ export interface RemoteDomain<
     | RemoteProtocolError
     | RemoteQueryError
     | RemoteUnauthenticated
+    | RemoteUnreachable
     | RemoteUnsatisfied,
     RemoteClient
   >
@@ -1469,6 +1474,10 @@ const wallClock = (): number => Date.now()
 
 /** The default `toMessage`: the application reduces `RemoteMessage` itself. */
 const identityMessage = (message: RemoteMessage): RemoteMessage => message
+
+/** An RPC call whose transport failed: no answer came, so a write may have reached the server. */
+const unanswered = (error: RpcClientError.RpcClientError) =>
+  Effect.fail(new RemoteUnreachable({ message: error.message }))
 
 export interface RetainOptions {
   /** The query connections the application shows, by `QueryRef` or identity. */
@@ -3096,14 +3105,6 @@ export const Remote = {
   writeRead,
 
   /**
-   * Adapts an Effect RPC client for `RemoteRpc` to `RemoteClient`, so an
-   * application provides the transport's RPC layer instead of writing the
-   * `LiveChange`-to-`LiveEvent` mapping by hand. The client `RpcClient.make`
-   * builds is accepted as it is: when its transport fails (`RpcClientError`),
-   * the call fails with its own Remote error, which the application shows and
-   * retries like any failed read, query, mutation or live stream.
-   */
-  /**
    * Remote's client over any way of sending one JSON request and receiving its
    * answer, for `clientLayer`: a worker, a server in the page. `RemoteServer.answer`
    * is the other end.
@@ -3124,6 +3125,15 @@ export const Remote = {
    */
   httpWithLive: httpWithLiveClient,
 
+  /**
+   * Adapts an Effect RPC client for `RemoteRpc` to `RemoteClient`, so an
+   * application provides the transport's RPC layer instead of writing the
+   * `LiveChange`-to-`LiveEvent` mapping by hand. The client `RpcClient.make`
+   * builds is accepted as it is: when its transport fails (`RpcClientError`),
+   * a read, a query or a mutation fails `RemoteUnreachable` and a live stream
+   * `RemoteLiveError`, which the application shows and retries like any
+   * failure; a durable mutation is sent again.
+   */
   clientLayer: <R = never>(
     client: RemoteRpcClient<R, RpcClientError.RpcClientError | RemoteUnreachable>,
     options: ClientOptions = {},
@@ -3137,27 +3147,26 @@ export const Remote = {
           const context = yield* Effect.context<R>()
           return {
             read: batch =>
-              client.FoldkitRemoteRead(batch).pipe(
-                Effect.catchTag(['RpcClientError', 'Unreachable'], error =>
-                  Effect.fail(new RemoteReadError({ message: error.message })),
+              client
+                .FoldkitRemoteRead(batch)
+                .pipe(
+                  Effect.catchTag('RpcClientError', unanswered),
+                  Effect.provideContext(context),
                 ),
-                Effect.provideContext(context),
-              ),
             query: request =>
-              client.FoldkitRemoteQuery(request).pipe(
-                Effect.catchTag(['RpcClientError', 'Unreachable'], error =>
-                  Effect.fail(new RemoteQueryError({ message: error.message })),
+              client
+                .FoldkitRemoteQuery(request)
+                .pipe(
+                  Effect.catchTag('RpcClientError', unanswered),
+                  Effect.provideContext(context),
                 ),
-                Effect.provideContext(context),
-              ),
             mutate: request =>
-              client.FoldkitRemoteMutate(request).pipe(
-                // The transport failed: the request may not have reached the server.
-                Effect.catchTag('RpcClientError', error =>
-                  Effect.fail(new RemoteUnreachable({ message: error.message })),
+              client
+                .FoldkitRemoteMutate(request)
+                .pipe(
+                  Effect.catchTag('RpcClientError', unanswered),
+                  Effect.provideContext(context),
                 ),
-                Effect.provideContext(context),
-              ),
             live: ({ requirements, queries, after }) =>
               client
                 .FoldkitRemoteLive({

@@ -97,12 +97,17 @@ export default [
     tests: [unit],
   },
   {
-    name: 'a mutation that runs out reads as refused, so the outbox drops it',
+    name: 'a call that runs out reads as refused, so the outbox drops it',
     edits: [
       {
-        file: coalesce,
-        find: 'message => new RemoteUnreachable({ message }),',
-        replace: 'message => new RemoteMutationError({ message }),',
+        file: deadline,
+        find: "import { RemoteUnreachable } from './wire.js'",
+        replace: "import { RemoteMutationError, RemoteUnreachable } from './wire.js'",
+      },
+      {
+        file: deadline,
+        find: 'new RemoteUnreachable({ message: `No answer within',
+        replace: 'new RemoteMutationError({ message: `No answer within',
       },
     ],
     tests: [unit, calls],

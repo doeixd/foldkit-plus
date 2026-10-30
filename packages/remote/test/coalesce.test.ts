@@ -556,8 +556,8 @@ describe('a deadline per client and per call (#353)', () => {
       ),
     )
     expect(errors.map(error => [error._tag, error.message])).toEqual([
-      ['RemoteReadError', 'No answer within 20s'],
-      ['RemoteQueryError', 'No answer within 20s'],
+      ['Unreachable', 'No answer within 20s'],
+      ['Unreachable', 'No answer within 20s'],
       ['Unreachable', 'No answer within 20s'],
     ])
   })
@@ -587,7 +587,7 @@ describe('a deadline per client and per call (#353)', () => {
         const read = yield* coalesceReads(raw.read)
         const patient = yield* Effect.forkChild(read(batch(req('u1', ['name']))))
         const hasty = yield* Effect.forkChild(
-          withDeadline(read(batch(req('u1', ['name']))), '1 second', message => message),
+          withDeadline(read(batch(req('u1', ['name']))), '1 second'),
         )
         yield* until(() => raw.gates.length === 1)
         yield* TestClock.adjust('1 second')

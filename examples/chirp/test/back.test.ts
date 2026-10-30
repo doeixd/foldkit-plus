@@ -27,10 +27,8 @@ const sandbox = (): RemoteClient['Service'] => {
     ).then(answered => answered.body),
   )
   return {
-    // A server in the same process always answers.
-    read: batch => json.FoldkitRemoteRead(batch).pipe(Effect.catchTag('Unreachable', Effect.die)),
-    query: request =>
-      json.FoldkitRemoteQuery(request).pipe(Effect.catchTag('Unreachable', Effect.die)),
+    read: json.FoldkitRemoteRead,
+    query: json.FoldkitRemoteQuery,
     mutate: json.FoldkitRemoteMutate,
     live: () => Stream.never,
   }

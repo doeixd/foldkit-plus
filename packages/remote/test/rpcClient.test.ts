@@ -1,8 +1,9 @@
 /**
  * `Remote.clientLayer` over the client `RpcClient.make(RemoteRpc)` builds, as
  * an application wires a real transport. That client also fails with
- * `RpcClientError` when the transport does; it reaches the application as the
- * Remote error of the call, which it shows and retries, never as a defect.
+ * `RpcClientError` when the transport does; it reaches the application as
+ * `RemoteUnreachable` (a live stream's `RemoteLiveError`), which it shows and
+ * retries, never as a defect.
  */
 import { Effect, Layer, Result, Stream } from 'effect'
 import { HttpClient, HttpClientError, HttpClientResponse } from 'effect/http'
@@ -66,10 +67,10 @@ describe('Remote.clientLayer with the stock RpcClient', () => {
         Stream.runDrain(client.live({ requirements: [], queries: [], after: 0 })),
       ),
     ])
+    // Nothing answered a call, so it is told apart from one the server refused.
     expect(failures.map(failure => failure?._tag)).toEqual([
-      'RemoteReadError',
-      'RemoteQueryError',
-      // A write that may not have reached the server is told apart from one it refused.
+      'Unreachable',
+      'Unreachable',
       'Unreachable',
       'RemoteLiveError',
     ])

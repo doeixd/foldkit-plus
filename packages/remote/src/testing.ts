@@ -69,7 +69,9 @@ export const Respond = {
    */
   query: (
     ref: QueryRef<string, unknown>,
-    options: { readonly fail?: RemoteQueryError | RemoteUnauthenticated } = {},
+    options: {
+      readonly fail?: RemoteQueryError | RemoteUnauthenticated | RemoteUnreachable
+    } = {},
   ): Respond =>
     new Release(
       `Respond.query(${ref.query})`,
@@ -84,7 +86,11 @@ export const Respond = {
     entity: EntityLike,
     id: string,
     options: {
-      readonly fail?: RemoteReadError | RemoteProtocolError | RemoteUnauthenticated
+      readonly fail?:
+        | RemoteReadError
+        | RemoteProtocolError
+        | RemoteUnauthenticated
+        | RemoteUnreachable
     } = {},
   ): Respond =>
     new Release(

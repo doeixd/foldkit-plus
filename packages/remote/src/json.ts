@@ -48,20 +48,20 @@ const decodeAnswer = Schema.decodeUnknownEffect(RemoteJsonAnswer)
  * rejects when nothing came back, and the call fails with that message.
  * `signal` aborts when the call is interrupted: nobody waits on its answer
  * any more, or its deadline passed; stop the request then. A
- * value that is not a `RemoteJsonAnswer` is no answer either: a mutation fails
- * `RemoteUnreachable` for both, a read or a query its own error, which is
- * retried like any failed read.
+ * value that is not a `RemoteJsonAnswer` is no answer either: the call fails
+ * `RemoteUnreachable` for both.
  */
 export type RemoteJsonSend = (request: string, signal: AbortSignal) => Promise<unknown>
 
-const call = <A, E, U>(
+/** What no answer coming back is: the request was not sent, or what came back was no answer. */
+const unreached = (message: string) => new RemoteUnreachable({ message })
+
+const call = <A, E>(
   send: RemoteJsonSend,
   operation: RemoteJsonRequest['operation'],
   payload: unknown,
   fail: (answer: ErrorAnswer) => E,
-  /** What no answer coming back is: the request was not sent, or what came back was no answer. */
-  unreached: (message: string) => U,
-): Effect.Effect<A, E | U> =>
+): Effect.Effect<A, E | RemoteUnreachable> =>
   Effect.tryPromise({
     try: signal => send(JSON.stringify({ operation, payload }), signal),
     catch: error => unreached(error instanceof Error ? error.message : String(error)),
@@ -107,7 +107,6 @@ export const json = (send: RemoteJsonSend): RemoteJsonClient => ({
       'read',
       payload,
       failure(({ error }) => new RemoteReadError({ message: error })),
-      message => new RemoteReadError({ message }),
     ),
   FoldkitRemoteQuery: payload =>
     call(
@@ -115,7 +114,6 @@ export const json = (send: RemoteJsonSend): RemoteJsonClient => ({
       'query',
       payload,
       failure(({ error }) => new RemoteQueryError({ message: error })),
-      message => new RemoteQueryError({ message }),
     ),
   FoldkitRemoteMutate: payload =>
     call(
@@ -130,9 +128,6 @@ export const json = (send: RemoteJsonSend): RemoteJsonClient => ({
               ...(forbidden.reason === undefined ? {} : { reason: forbidden.reason }),
             }),
       ),
-      // A mutation that may not have reached the server is told apart, so a
-      // durable one is sent again rather than settled.
-      message => new RemoteUnreachable({ message }),
     ),
   FoldkitRemoteLive: () => Stream.empty,
 })
@@ -180,8 +175,8 @@ const unanswered: ReadonlySet<number> = new Set([408, 429, 502, 503, 504])
 /**
  * Remote's client over HTTP: each call a `POST` of the request to `url`, the
  * answer its JSON body. A body that is not JSON, or one under 408, 429, 502,
- * 503 or 504, is no answer: a mutation fails `RemoteUnreachable`, so a
- * durable one is sent again. A 401 is answered as
+ * 503 or 504, is no answer: the call fails `RemoteUnreachable`, and a durable
+ * mutation is sent again. A 401 is answered as
  * unauthenticated, for every call kind, a 403 as forbidden, and a 413 as the
  * call's own error (a mutation's `RemoteMutationError`, never resent),
  * whatever the body says: the server's own says why, and middleware or a

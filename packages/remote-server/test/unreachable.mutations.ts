@@ -5,23 +5,23 @@
  */
 export default [
   {
-    name: 'a JSON write that was never answered reads as refused',
+    name: 'a JSON call that was never answered reads as refused',
     edits: [
       {
         file: '../../remote/src/json.ts',
-        find: 'message => new RemoteUnreachable({ message }),',
-        replace: 'message => new RemoteMutationError({ message }),',
+        find: 'const unreached = (message: string) => new RemoteUnreachable({ message })',
+        replace: 'const unreached = (message: string) => new RemoteMutationError({ message })',
       },
     ],
     tests: ['packages/remote-server/test/answer.test.ts'],
   },
   {
-    name: 'an RPC write the transport lost reads as refused',
+    name: 'an RPC call the transport lost reads as refused',
     edits: [
       {
         file: '../../remote/src/index.ts',
-        find: 'Effect.fail(new RemoteUnreachable({ message: error.message })),',
-        replace: 'Effect.fail(new RemoteMutationError({ message: error.message })),',
+        find: 'Effect.fail(new RemoteUnreachable({ message: error.message }))',
+        replace: 'Effect.fail(new RemoteReadError({ message: error.message }))',
       },
     ],
     tests: ['packages/remote/test/rpcClient.test.ts'],

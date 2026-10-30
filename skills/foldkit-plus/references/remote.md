@@ -220,9 +220,9 @@ A transport failure becomes the call's Remote error, not a defect.
   worker or a server in the page (`send(request, signal)`: stop on abort).
   Neither carries live data.
 - Every transport takes `Remote.clientLayer(client, { timeout, maxIdsPerEntity,
-  maxBodyBytes, window })`. `timeout`: a read/list past it fails like a failed
-  read; a mutation fails `RemoteUnreachable` (the outbox resends it, same
-  operation id). Per call: `Data.subscriptions(active, { timeout })`,
+  maxBodyBytes, window })`. `timeout`: a call past it fails
+  `RemoteUnreachable`; a read/list is retried like a failed read, a durable
+  mutation resent by the outbox (same operation id). Per call: `Data.subscriptions(active, { timeout })`,
   `Data.mutate(…, { timeout })` (not with `durable`, which throws). A read or
   list nobody has waited on for a frame is interrupted and its `fetch`
   aborted; a restart asking for some of the same rows joins it. One plan is
@@ -643,10 +643,10 @@ or middleware) fails every call kind, reads and live streams included, with
 `_tag: 'Unauthenticated'` and `reason` when given: the session is gone; read it
 with `RemoteData.denied(error)` (`Option<Denied>`: `Unauthenticated` or `Forbidden`, read with `Denied.match`; not a mutation's `refusal`). Remote
 treats it as any failure (a live stream restarts with backoff, refused each
-time); the application signs in again and `forget`s. A mutation nothing answered (the
-request not sent, or a response that is no Remote answer: not JSON, JSON that is not `{ result }`
+time); the application signs in again and `forget`s. A read, a query or a mutation nothing answered (the
+request not sent, an RPC transport failure, or a response that is no Remote answer: not JSON, JSON that is not `{ result }`
 or `{ error }`, or a 408, 429, 502, 503 or 504) fails with `_tag:
-'Unreachable'` (`RemoteUnreachable`): the server may or may not have run it;
+'Unreachable'` (`RemoteUnreachable`), which `RemoteClient`'s types name: a mutation may or may not have run;
 `RemoteData.isUnreachable(error)` asks it without comparing tags.
 
 **Outcomes in the Model.** `Data.mutation(model, requestId)` is `Pending`,

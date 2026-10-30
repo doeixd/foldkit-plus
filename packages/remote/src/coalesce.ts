@@ -36,8 +36,8 @@ import type { RemoteProtocolError, RemoteUnauthenticated } from './wire.js'
 
 type Batch = Schema.Schema.Type<typeof ReadBatch>
 type BatchResult = Schema.Schema.Type<typeof ReadBatchResult>
-type ReadError = RemoteReadError | RemoteProtocolError | RemoteUnauthenticated
-type QueryError = RemoteQueryError | RemoteUnauthenticated
+type ReadError = RemoteReadError | RemoteProtocolError | RemoteUnauthenticated | RemoteUnreachable
+type QueryError = RemoteQueryError | RemoteUnauthenticated | RemoteUnreachable
 export type BatchRead = (batch: Batch) => Effect.Effect<BatchResult, ReadError>
 type QueryRequestValue = Schema.Schema.Type<typeof QueryRequest>
 type QueryResultValue = Schema.Schema.Type<typeof QueryResult>
@@ -52,9 +52,9 @@ export interface ClientOptions {
   readonly window?: Duration.Input | undefined
   /**
    * How long a read, a query or a mutation waits for its answer; default no
-   * limit. A read or a query that runs out fails with its own error, retried
-   * like any failed read; a mutation fails `RemoteUnreachable`, so a durable
-   * one is sent again under the same operation id.
+   * limit. One that runs out fails `RemoteUnreachable`: a read or a query is
+   * retried like any failed read, and a durable mutation, which may have
+   * reached the server, is sent again under the same operation id.
    */
   readonly timeout?: Duration.Input | undefined
   /**
@@ -415,24 +415,13 @@ export const coalescedLayer = <E, R>(
       const { budget } = limitsOf(options)
       return {
         ...client,
-        read: batch =>
-          withDeadline(read(batch), options.timeout, message => new RemoteReadError({ message })),
-        query: request =>
-          withDeadline(
-            query(request),
-            options.timeout,
-            message => new RemoteQueryError({ message }),
-          ),
+        read: batch => withDeadline(read(batch), options.timeout),
+        query: request => withDeadline(query(request), options.timeout),
         mutate: request =>
           jsonBytes(request) > budget
             ? // Refused rather than unreachable: sending it again is refused again.
               Effect.fail(new RemoteMutationError({ message: tooLargeMessage(options) }))
-            : withDeadline(
-                client.mutate(request),
-                options.timeout,
-                // It may have reached the server: a durable one is sent again.
-                message => new RemoteUnreachable({ message }),
-              ),
+            : withDeadline(client.mutate(request), options.timeout),
       }
     }),
   ).pipe(Layer.provide(layer))

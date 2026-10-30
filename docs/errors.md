@@ -14,7 +14,7 @@ has the details; this page links to them.
 
 | Failure | Owner | What the reader sees | What the application does |
 | --- | --- | --- | --- |
-| A read failed: the network, the server, a decode | `foldkit-remote` | `Failed`, with the value it showed kept as `previous` | `Data.refresh(model, actives, { failed: true })` |
+| A read failed: the network, the server, a decode, no answer in time | `foldkit-remote` | `Failed`, with the value it showed kept as `previous`; `RemoteData.isUnreachable` tells a read nothing answered | `Data.refresh(model, actives, { failed: true })` |
 | A field the server will not answer | `foldkit-remote-server` decides; Remote records it | `Failed` with an `Unavailable` error | select without it |
 | A write failed or was refused | `foldkit-remote` (client), the server (refusal) | the optimistic change goes; `Data.failedWrites` lists it, with a typed `refusal` | `Data.retry`, `Data.dismiss`, or show the refusal |
 | A write nothing answered (offline, a gateway's error page) | `foldkit-remote` | a failed write with `_tag: 'Unreachable'`; a durable one waits and is sent again | `Data.retry`, as the same write |
@@ -162,9 +162,9 @@ send:
 
 | `_tag` | Meaning | Asking again |
 | --- | --- | --- |
-| `RemoteReadError`, `RemoteQueryError` | the request failed: the network, or the server's Source (its message) | may work |
+| `RemoteReadError`, `RemoteQueryError` | the server failed the request: its Source (its message), or a request larger than it takes | may work; a request too large will not |
 | `RemoteMutationError` | a mutation failed: the server's Source (its message), or the mutation's declared refusal (`refusal`, which `Data.refusal` decodes) | may work; a refusal will not, with the same input |
-| `Unreachable` | a mutation nothing answered: it could not be sent, or what came back was no answer (a gateway's 502 page); the server may or may not have run it | as the same write (`Data.retry`), which a ledgered writer answers from its record; a durable write is sent again on its own |
+| `Unreachable` | a read, a query or a mutation nothing answered: it could not be sent, what came back was no answer (a gateway's 502 page), or none came within the deadline; a mutation may or may not have run | may work; a write as the same write (`Data.retry`), which a ledgered writer answers from its record; a durable write is sent again on its own |
 | `RemoteLiveError` | a live stream broke; `Data.liveStatus` carries it while the stream restarts itself | not needed |
 | `RemoteProtocolError` | client and server speak different protocol versions | never: deploy one version |
 | `DecodeError` | what the server sent does not decode against the Selection | never: the shapes disagree |

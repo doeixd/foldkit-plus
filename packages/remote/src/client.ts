@@ -33,6 +33,7 @@ import {
 /**
  * The transport boundary. `foldkit-remote` never talks to a transport directly;
  * it depends on this Effect service, which a later phase wires to Effect RPC.
+ * A read, a query or a mutation nothing answered fails `RemoteUnreachable`.
  */
 export class RemoteClient extends Context.Service<
   RemoteClient,
@@ -41,13 +42,13 @@ export class RemoteClient extends Context.Service<
       batch: Schema.Schema.Type<typeof ReadBatch>,
     ) => Effect.Effect<
       Schema.Schema.Type<typeof ReadBatchResult>,
-      RemoteReadError | RemoteProtocolError | RemoteUnauthenticated
+      RemoteReadError | RemoteProtocolError | RemoteUnauthenticated | RemoteUnreachable
     >
     readonly query: (
       request: Schema.Schema.Type<typeof QueryRequest>,
     ) => Effect.Effect<
       Schema.Schema.Type<typeof QueryResult>,
-      RemoteQueryError | RemoteUnauthenticated
+      RemoteQueryError | RemoteUnauthenticated | RemoteUnreachable
     >
     readonly mutate: (
       request: Schema.Schema.Type<typeof MutationRequest>,

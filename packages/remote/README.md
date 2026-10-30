@@ -2471,11 +2471,10 @@ It is a `Layer<RemoteClient>` like the others; a port that cannot be set up is
 a defect, not a failed read.
 
 **Nothing answered.** The client `RpcClient.make(RemoteRpc)` builds is
-accepted as it is. When its transport fails, a read, a
-query or a live stream fails with its own Remote error (`RemoteReadError`,
-`RemoteQueryError`, `RemoteLiveError`), which the UI shows and retries like any
-other failure. A mutation fails with `RemoteUnreachable` (`_tag:
-'Unreachable'`): nothing answered, so the server may or may not have run it.
+accepted as it is. When its transport fails, a read, a query or a mutation
+fails with `RemoteUnreachable` (`_tag: 'Unreachable'`), and a live stream with
+`RemoteLiveError`; the UI shows and retries each like any other failure. For a
+mutation it means the server may or may not have run it.
 `RemoteData.isUnreachable(error)` asks that of a failure without comparing tags.
 `Remote.json`, `Remote.http` and `Remote.httpWithLive` say the same of a
 request they could not send, and of a response that is no Remote answer: a
@@ -2497,10 +2496,10 @@ const overHttp = Remote.clientLayer(Remote.http('/remote'), {
 })
 ```
 
-- `timeout` is the client's deadline. A read or a list past it fails as a
-  failed read does, and `Data.refresh` retries it; a mutation fails
-  `RemoteUnreachable`, since it may have reached the server, so a durable one
-  is sent again under the same operation id. A read entry sets its own with
+- `timeout` is the client's deadline. A call past it fails
+  `RemoteUnreachable`: a read or a list is retried by `Data.refresh` like any
+  failed read, and a durable mutation, which may have reached the server, is
+  sent again under the same operation id. A read entry sets its own with
   `Data.subscriptions(active, { timeout })`, one send with `Data.mutate(…, {
   timeout })` (not with `durable`: the outbox uses the client's). The deadline
   is each caller's: one giving up does not fail another that joined the same

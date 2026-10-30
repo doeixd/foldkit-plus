@@ -60,10 +60,10 @@ version changed; `pnpm` skips versions already in the registry.
   `Remote.clientLayer(client, { timeout })` (and `Remote.coalesced`) gives
   every read, list and mutation a deadline; `Data.subscriptions`'s and
   `Remote.observe`'s `timeout` sets one for that entry's reads and lists, and
-  `Data.mutate`'s for that send (not with `durable`, which throws). A read or
-  a list that runs out fails as a failed read does, retried by
-  `Data.refresh`; a mutation fails `RemoteUnreachable`, so a durable one is
-  sent again under the same operation id. The deadline is each caller's, so
+  `Data.mutate`'s for that send (not with `durable`, which throws). A call
+  that runs out fails `RemoteUnreachable`: a read or a list is retried by
+  `Data.refresh`, and a durable mutation is sent again under the same
+  operation id. The deadline is each caller's, so
   one giving up does not fail another that joined the same read.
 
 
@@ -118,6 +118,19 @@ version changed; `pnpm` skips versions already in the registry.
   `list`, `option`; options and the trigger are drawn in the Listbox's slots.
 
 ### Changed
+
+- **A read or a query nothing answered fails `RemoteUnreachable`**
+  (`foldkit-remote`, #361), as a mutation does, and `RemoteClient`'s `read`
+  and `query` error types name it, as do `Data.prefetch`'s and
+  `Data.satisfy`'s. `Remote.json` and `Remote.http` failed such a read with
+  `RemoteReadError` while `RemoteJsonClient`'s type said `RemoteUnreachable`,
+  so a client written by hand over them did not type-check without mapping
+  the error away. Breaking: `Remote.clientLayer` fails a read or a query
+  whose RPC transport failed with `RemoteUnreachable` (was `RemoteReadError`,
+  `RemoteQueryError`), and so do `Remote.json` and `Remote.http` for a
+  request not sent or a response that is no answer; code that reads a
+  failed read's `_tag` sees `Unreachable`, which `RemoteData.isUnreachable`
+  reads.
 
 - **`RemoteJsonSend` takes the call's `AbortSignal`** (`foldkit-remote`,
   #355): `(request, signal) => Promise<unknown>`. It aborts when nobody waits

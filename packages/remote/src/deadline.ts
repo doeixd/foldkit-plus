@@ -6,6 +6,7 @@
  * fail another that joined the same read.
  */
 import { Context, Duration, Effect, Option } from 'effect'
+import { RemoteUnreachable } from './wire.js'
 
 /** The deadline the running caller set for its own calls. */
 export const CallTimeout = Context.Reference<Option.Option<Duration.Input>>(
@@ -22,19 +23,22 @@ export const withCallTimeout = <A, E, R>(
 
 /**
  * `effect` interrupted once the caller's deadline, or else `client`'s, passes,
- * failing with `onTimeout`'s error; with neither, `effect` as it is.
+ * failing `RemoteUnreachable`: no answer came, and a write may have reached
+ * the server. With neither deadline, `effect` as it is.
  */
-export const withDeadline = <A, E, R, E2>(
+export const withDeadline = <A, E, R>(
   effect: Effect.Effect<A, E, R>,
   client: Duration.Input | undefined,
-  onTimeout: (message: string) => E2,
-): Effect.Effect<A, E | E2, R> =>
+): Effect.Effect<A, E | RemoteUnreachable, R> =>
   Effect.gen(function* () {
     const timeout = Option.getOrUndefined(yield* CallTimeout) ?? client
     if (timeout === undefined) return yield* effect
     const duration = Duration.fromInputUnsafe(timeout)
     return yield* Effect.timeoutOrElse(effect, {
       duration,
-      orElse: () => Effect.fail(onTimeout(`No answer within ${Duration.format(duration)}`)),
+      orElse: () =>
+        Effect.fail(
+          new RemoteUnreachable({ message: `No answer within ${Duration.format(duration)}` }),
+        ),
     })
   })

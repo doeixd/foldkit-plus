@@ -138,15 +138,22 @@ describe('Remote.json', () => {
     expect(failed.message).toBe('not today')
   })
 
-  it('fails when the answer is not an answer, or nothing came back', async () => {
+  it('fails a read or a query unreached when the answer is not an answer, or nothing came back', async () => {
     const garbled = Remote.json(() => Promise.resolve({ maybe: 1 }))
-    expect(
-      (await Effect.runPromise(Effect.flip(garbled.FoldkitRemoteRead(readA)))).message,
-    ).toMatch(/not an answer/)
+    expect(await Effect.runPromise(Effect.flip(garbled.FoldkitRemoteRead(readA)))).toMatchObject({
+      _tag: 'Unreachable',
+      message: /not an answer/,
+    })
     const lost = Remote.json(() => Promise.reject(new Error('offline')))
-    expect((await Effect.runPromise(Effect.flip(lost.FoldkitRemoteRead(readA)))).message).toBe(
-      'offline',
-    )
+    expect(await Effect.runPromise(Effect.flip(lost.FoldkitRemoteRead(readA)))).toMatchObject({
+      _tag: 'Unreachable',
+      message: 'offline',
+    })
+    expect(
+      await Effect.runPromise(
+        Effect.flip(lost.FoldkitRemoteQuery({ query: 'Q', input: {}, window: {} })),
+      ),
+    ).toMatchObject({ _tag: 'Unreachable', message: 'offline' })
   })
 
   it('tells a write nothing answered from one the server failed', async () => {
