@@ -125,6 +125,9 @@ export const Todo = TodoFields.pipe(
   (a `one` relation compares as the id it points at). A set without `viewer`
   refuses such a rule. `Policy.viewer(principal)` is that ref:
   `RemoteServer.make({ viewer: Policy.viewer })`.
+- A rule per case of a variant Entity is a row guard over `Expr.is`
+  (`guard.row(Domain, p => Expr.is(Domain, 'Available', ({ price }) =>
+  Expr.lte(price, p.budget)))`): false on another case's rows.
 - A row's `Read`, `Update` and `Delete` rules may reach other rows (`Expr.path`,
   `Expr.exists`, a path from the viewer); SQL reads them as stored. Update and
   Delete rules are judged in the write's statement (remote-drizzle's `writer`,

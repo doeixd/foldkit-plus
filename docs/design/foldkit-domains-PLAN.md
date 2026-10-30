@@ -125,8 +125,8 @@ missing ones into one read.
 
 | Piece | Declaration |
 | --- | --- |
-| Entity | `Domain = Entity.define('Domain', Struct({ id: DomainName, status: Literals(['Available','Unconfirmed']), price, renewalPrice, years, isPremium }))`, the quote fields `OptionFromNullOr`. `Entity.define` takes a Struct, so upstream's union of `Available` and `Unconfirmed` is flattened here and rebuilt by a pure `toDomain` for the view (gap 8) |
-| Selection | `Quote = Entity.select(Domain, { status: true, price: true, renewalPrice: true, years: true, isPremium: true })` |
+| Entity | `Domain = Entity.defineVariants('Domain', { Available: { id: DomainNameText, ...DomainName.fields, ...DomainQuote.fields }, Unconfirmed: { id: DomainNameText, ...DomainName.fields } })`: upstream's `defineTaggedUnion` cases, spread from the same field sets, with the name as the id. The stored row is `_tag`, `id`, `name`, `tld` and the quote fields nullable; the `variant_Available` and `variant_Unconfirmed` invariants hold an Available to its quote and an Unconfirmed to none (#357) |
+| Selection | `Quote = Entity.select(Domain, { _tag: true, name: true, tld: true, price: true, renewalPrice: true, years: true, isPremium: true })`, whose value is the union: the view branches with `Quote.schema.match` where upstream used `Domain.match`, and no `toDomain` rebuilds it. The 'Available' filter is `Expr.is(Domain, 'Available')`, a price sort orders by the stored `price`, which an Unconfirmed holds as null |
 | Reads | `TopResults` Surface: `Data.get(Quote, name)` for the 4 top names. `VisibleResults` Surface: one `Data.get` per name in the virtual list's viewport plus overscan (the arithmetic of `findFirstPendingListingInViewport`, returning every pending name instead of the first), combined with `Projection.struct`. `WholeCatalog` Surface, active only while the 'Available' filter or a price sort is chosen: all 556 names |
 | Freshness | `Data.subscriptions(actives, { policy: RemotePolicy.staleWhileRevalidate({ maxAge: 60_000 }), grace: '1 minute' })`: a name read within the minute is served from the store, which is what makes a backspace show results with no request |
 | Retry | `Data.refresh(model, actives, { failed: true })` for "Try again" |
@@ -343,10 +343,11 @@ without it, and the root checks green. The upstream copy stays untouched.
    `Resume` answers events before boot; whether it can write `?q=` and text
    holes before boot, and keep the input node and caret, is unknown. If not,
    a `foldkit-ssr` early-input recipe is the candidate.
-8. **Entities with variants.** `Entity.define` takes a Struct. A fact that is
-   one of two shapes (`Available` with a quote, `Unconfirmed` without) is
+8. **Entities with variants.** Closed by #357 (`Entity.defineVariants`,
+   `Expr.is`, a Selection with `_tag` read as its union); kept for the record.
+   `Entity.define` took a Struct, so a fact that is one of two shapes was
    flattened to a status field plus nullable fields, and a pure function
-   rebuilds the union.
+   rebuilt the union.
 9. **A picker that is a Listbox on desktop and a Sheet on a phone.** Closed by
    #358 (`Picker`, `Recipes.Picker`); kept for the record. Upstream
    draws both and hides one by breakpoint, with two Models and two code

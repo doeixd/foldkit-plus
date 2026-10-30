@@ -225,6 +225,11 @@ Beyond the row's own fields:
   `Policy.viewer(principal)` is that row's ref, the server's one viewer:
   `RemoteServer.make({ viewer: Policy.viewer })`. A rule over `Expr.viewer`
   in a set without one, or over `Expr.now`, is refused where it is declared.
+- A rule per case of a variant Entity (`Entity.defineVariants`) is a row
+  guard over `Expr.is`: `guard.row(Domain, p => Expr.is(Domain, 'Available',
+  ({ price }) => Expr.lte(price, p.budget)))`. It is false on a row of another
+  case, so the row's other rules decide it, and it reads `_tag` and the
+  case's fields as columns of the stored row, in SQL and in memory alike.
 - A row's `Read`, `Update` and `Delete` rules may reach another row
   (`Expr.path`, `Expr.exists`, a path from the viewer: `Expr.eq(Note.fields.orgId,
   orgOfViewer)`). A Read rule compiles to SQL; an Update or Delete rule is
