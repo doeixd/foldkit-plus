@@ -1,0 +1,42 @@
+diff --git a/dist/index.js b/dist/index.js
+index 529f371..c32c3c2 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1,4 +1,5 @@
+-import { Array, Clock, ConfigProvider, Console, Crypto, Data, Duration, Effect, Exit, Fiber, HashMap, Layer, Match, Number, Option, Order, Predicate, Queue, Ref, Schedule, Schema, Stream, pipe, } from 'effect';
++import { Array, Clock, ConfigProvider, Console, Data, Duration, Effect, Exit, Fiber, HashMap, Layer, Match, Number, Option, Order, Predicate, Queue, Ref, Schedule, Schema, Stream, pipe, } from 'effect';
++import { SecureRandom } from 'effect/crypto';
+ import { Event as DevToolsEvent, EventFrame, RELAY_RECORD_VERSION, RequestFrame, Response, ResponseFrame, } from 'foldkit/devtools-protocol';
+ import { PreserveModelMessage, RequestModelMessage, RestoreModelMessage, } from 'foldkit/model-preservation';
+ import { createHmac, timingSafeEqual } from 'node:crypto';
+@@ -292,8 +293,8 @@ class RelayBindFailed extends Data.TaggedError('RelayBindFailed') {
+ }
+ const isPortInUse = (error) => Predicate.hasProperty(error, 'code') && error.code === 'EADDRINUSE';
+ const relayId = Effect.gen(function* () {
+-    const crypto = yield* Crypto.Crypto;
+-    return yield* randomUUIDv4Effect(crypto).pipe(Effect.orDie);
++    const secureRandom = yield* SecureRandom.SecureRandom;
++    return yield* secureRandom.uuidV4();
+ });
+ const attachRelayHandlers = (wss, enqueue) => {
+     wss.on('connection', client => {
+@@ -311,8 +312,8 @@ const boundPort = (address) => address === null || Predicate.isString(address)
+     : Option.some(address.port);
+ const relayHasNoBoundPort = () => new Error('[foldkit:devTools] the MCP relay listener has no bound port');
+ const relayToken = Effect.gen(function* () {
+-    const crypto = yield* Crypto.Crypto;
+-    const bytes = yield* crypto.randomBytes(RELAY_TOKEN_BYTES).pipe(Effect.orDie);
++    const secureRandom = yield* SecureRandom.SecureRandom;
++    const bytes = yield* secureRandom.randomBytes(RELAY_TOKEN_BYTES);
+     return Buffer.from(bytes).toString('hex');
+ });
+ const relayUrlForLog = (url) => {
+@@ -538,7 +539,7 @@ const main = (server, events, options) => Effect.gen(function* () {
+  * an array; Vite flattens nested plugin arrays, so `plugins: [foldkit()]`
+  * keeps working.
+  */
+-const relayRegistryLayer = Layer.provideMerge(NodeChildProcessSpawner.layer, Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, NodeCrypto.layer));
++const relayRegistryLayer = Layer.provideMerge(NodeChildProcessSpawner.layer, Layer.mergeAll(NodeFileSystem.layer, NodePath.layer, NodeCrypto.layerSecureRandom));
+ export const foldkit = (options = {}) => {
+     // NOTE: During a Vite restart, old and new servers overlap. Separate queues
+     // and fibers keep their events and shutdowns attached to the right server.

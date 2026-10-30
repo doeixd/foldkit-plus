@@ -1,0 +1,4 @@
+# Upstream's own outputs: the local Worker's state and the Playwright reports.
+.wrangler/
+test-results/
+playwright-report/

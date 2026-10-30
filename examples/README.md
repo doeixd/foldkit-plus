@@ -55,6 +55,13 @@ to Foldkit Plus: one folder per upstream example, kept close to it, with a Plus
 package taking over only the concern it owns. Its README is the map of what
 each port owns.
 
+[`foldkit/domains`](./foldkit/domains/README.md) is the exception: Foldkit's
+[domain-search showcase](https://github.com/foldkit/foldkit-domains) (search
+as you type, progressive sample prices over Effect RPC, a virtualized list,
+filters, a cart, SSR on a Worker), copied unchanged as the reference a Foldkit
+Plus reimplementation is compared against. It runs on Foldkit's Blocks preview
+canary, not the workspace's Foldkit.
+
 ## Recommended reading order
 
 For the todo app, the README already lists its source files in the order to read

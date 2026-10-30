@@ -64,6 +64,9 @@ export default defineConfig({
           browser: browser({ hasTouch: false }),
         },
       }),
+      // The upstream foldkit-domains copy keeps its own test setup (happy-dom,
+      // Foldkit's Vitest setup, tests beside the source), as upstream runs it.
+      'examples/foldkit/domains/vitest.config.ts',
       mergeConfig(inBrowser, {
         test: {
           name: 'browser-touch',

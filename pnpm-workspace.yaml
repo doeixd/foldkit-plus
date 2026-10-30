@@ -18,3 +18,11 @@ overrides:
   '@effect/platform-node': ^4.1.0
   '@effect/platform-node-shared': ^4.1.0
   '@effect/sql-sqlite-node': ^4.1.0
+
+# The upstream foldkit-domains copy (`examples/foldkit/domains`) pins
+# Foldkit's Blocks preview canary and carries upstream's VirtualList patch.
+patchedDependencies:
+  '@foldkit/ui@0.169.0-canary.90746b32d2ca': examples/foldkit/domains/patches/@foldkit__ui@0.169.0-canary.90746b32d2ca.patch
+  # Effect 4.1 moved `Crypto` to `effect/crypto`'s `SecureRandom`; the patch
+  # makes the preview plugin's change that the released 0.29.0 made.
+  '@foldkit/vite-plugin@0.28.0-canary.90746b32d2ca': examples/foldkit/domains/patches/@foldkit__vite-plugin@0.28.0-canary.90746b32d2ca.patch

@@ -10,3 +10,10 @@ pnpm-lock.yaml
 
 # Written by foldkit-media/vite each time Vite starts; formatted, it would be written back.
 foldkit-icons.d.ts
+
+# The upstream foldkit-domains copy keeps upstream's own formatting (80
+# columns, sorted imports), so it diffs cleanly against foldkit/foldkit-domains.
+examples/foldkit/domains/**
+!examples/foldkit/domains/package.json
+!examples/foldkit/domains/tsconfig.json
+!examples/foldkit/domains/e2e/dev.e2e.ts

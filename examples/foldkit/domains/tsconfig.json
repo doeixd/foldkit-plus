@@ -1,0 +1,14 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "types": ["node", "vite/client"],
+    "verbatimModuleSyntax": false,
+    "allowJs": true,
+    "checkJs": true,
+    "erasableSyntaxOnly": true
+  },
+  "include": ["src/**/*", "e2e/**/*.ts", "*.config.ts"]
+}

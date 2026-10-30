@@ -39,6 +39,12 @@ view draws through `foldkit-mixins` Slots instead of Tailwind classes.
 | [`ssg`](./ssg) | [`examples/ssg`](https://github.com/foldkit/foldkit/tree/main/examples/ssg) | `foldkit-ssr` prerenders each page and adopts it in the browser |
 | [`ssr`](./ssr) | [`examples/ssr`](https://github.com/foldkit/foldkit/tree/main/examples/ssr) | `foldkit-ssr` renders each request and adopts the page in the browser |
 
+One folder is not a port. [`domains`](./domains) is upstream's
+[foldkit-domains](https://github.com/foldkit/foldkit-domains) application,
+copied unchanged (on Foldkit's Blocks preview, with its own Tailwind CSS) so
+that a Foldkit Plus reimplementation can be checked against it; its README
+says what changed to run it here.
+
 ## Run one
 
 Each is a private package named `foldkit-example-foldkit-<name>`, a browser
