@@ -1,6 +1,6 @@
 import { Deferred, Effect, Exit, Fiber, Layer, Schema, Stream } from 'effect'
 import { TestClock } from 'effect/testing'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   REMOTE_PROTOCOL_VERSION,
   Remote,
@@ -165,23 +165,43 @@ describe('coalesceReads', () => {
     expect(raw.batches).toHaveLength(2)
   })
 
-  it('interrupting the only waiter keeps the batch running for a later joiner', async () => {
-    const raw = recording({ hold: true })
-    await Effect.runPromise(
-      Effect.gen(function* () {
-        const read = yield* coalesceReads(raw.read)
-        const fiber = yield* Effect.forkChild(read(batch(req('u1', ['name']))))
-        yield* until(() => raw.gates.length === 1)
-        yield* Fiber.interrupt(fiber)
-        // Asked again before a timer turn: a read entry restarting on new requirements.
-        const later = yield* Effect.forkChild(read(batch(req('u1', ['name']))))
-        yield* Effect.sleep('20 millis')
-        expect(raw.batches).toHaveLength(1)
-        yield* Deferred.succeed(raw.gates[0]!, undefined)
-        const exit = yield* Fiber.await(later)
-        expect(Exit.isSuccess(exit)).toBe(true)
-      }),
-    )
+  it('interrupting the only waiter keeps the batch running for a joiner a timer turn later', async () => {
+    // The cancel waits on `setTimeout`, so the test holds that clock: the
+    // restart below asks after exactly one timer turn, whatever the load.
+    // Real timers raced Effect's scheduler turns (`setImmediate`) against the
+    // cancel, so its mutations were killed or not by the machine's load (#367).
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const raw = recording({ hold: true })
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const read = yield* coalesceReads(raw.read)
+          const fiber = yield* Effect.forkChild(read(batch(req('u1', ['name']))))
+          yield* until(() => raw.gates.length === 1)
+          yield* Fiber.interrupt(fiber)
+          // A read entry restarting on new requirements may span a timer turn.
+          vi.advanceTimersByTime(1)
+          let answered = false
+          yield* Effect.forkChild(
+            read(batch(req('u1', ['name']))).pipe(
+              Effect.andThen(
+                Effect.sync(() => {
+                  answered = true
+                }),
+              ),
+            ),
+          )
+          // Its batch runs after a few scheduler turns, none of them a timer's,
+          // so no cancel can fire meanwhile; a second batch ends the wait early.
+          for (let turn = 0; turn < 100 && raw.batches.length === 1; turn++) yield* Effect.yieldNow
+          expect(raw.batches).toHaveLength(1)
+          yield* Deferred.succeed(raw.gates[0]!, undefined)
+          yield* until(() => answered)
+        }),
+      )
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('an empty batch never touches the transport', async () => {
