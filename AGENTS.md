@@ -1347,16 +1347,18 @@ of its own named a form field "fits the Catalog". Read words with
   would need library internals to satisfy an argument, the library should read
   them itself.
 
-- **Bundle authoring needs explicit types in three places; inference drops
-  precision in each.** A service-requiring bundle helper pins the whole spec's
-  `R` to `never` (#335; annotate `make`'s generics explicitly); `Model` is
-  inferred from `init` over its Schema, so literal fields widen to `string`
-  and an empty `{}`/`[]` widens the whole Model (#334; Virtual's `heights`
-  became `{}`), so give explicit `make` generics until those close;
-  and Foldkit's `Message.match` unifies diverse arm shapes to the first arm: pin each
-  arm's output, since pinning the whole call does not reach the match's own
-  inference (two `Link.child` folds each speak their own wrapper commands, so
-  each arm is annotated `Update.Return<Model, Message, unknown>`).
+- **Foldkit's `Message.match` unifies diverse arm shapes to the first arm.**
+  Pin each arm's output, since pinning the whole call does not reach the
+  match's own inference (two `Link.child` folds each speak their own wrapper
+  commands, so each arm is annotated `Update.Return<Model, Message, unknown>`).
+  `Bundle.make` needs no explicit generics: its Model comes from the Schema
+  and its services from every part (#334, #335).
+- **A paramless callback is typed before inference fixes anything.**
+  `init: () => ({ model: { status: 'idle' } })` is not context-sensitive, so
+  TypeScript typed it in the first pass, and `NoInfer<Model>` alone still
+  widened `'idle'` to `string`; a `const Model` type parameter keeps it. A
+  per-part services parameter is needed too: two candidates for one `R` pick
+  one, not their union.
 
 **Async**
 
