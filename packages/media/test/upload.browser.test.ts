@@ -21,13 +21,19 @@ interface Paused {
 const hash = 'a'.repeat(64)
 const facts = { key: hash, width: 4, height: 2, alpha: false, hash, placeholder: null }
 
+// A request held before `next` asks waits in `paused`; a `next` asking first
+// waits in `waiting` until the request arrives, however late a loaded run makes
+// it, bounded only by the test's own timeout.
 let paused: Array<Paused> = []
+let waiting: Array<(event: Paused) => void> = []
 const hold = (event: Paused) => {
-  paused.push(event)
+  const waiter = waiting.shift()
+  if (waiter) waiter(event)
+  else paused.push(event)
 }
-const next = async (): Promise<Paused> => {
-  await vi.waitFor(() => expect(paused.length).toBeGreaterThan(0))
-  return paused.shift()!
+const next = (): Promise<Paused> => {
+  const event = paused.shift()
+  return event ? Promise.resolve(event) : new Promise(resolve => waiting.push(resolve))
 }
 const answer = (requestId: string, status: number, body: string) =>
   cdp().send('Fetch.fulfillRequest', {
@@ -39,6 +45,7 @@ const answer = (requestId: string, status: number, body: string) =>
 
 beforeEach(async () => {
   paused = []
+  waiting = []
   cdp().on('Fetch.requestPaused', hold)
   await cdp().send('Fetch.enable', {
     patterns: [{ urlPattern: '*/_media/upload*', requestStage: 'Request' }],
