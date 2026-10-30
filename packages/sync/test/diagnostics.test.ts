@@ -6,15 +6,24 @@
  * threw. Each with the facts behind it, to the reporter the host or the
  * context gives.
  */
-import { Effect, Exit, Result } from 'effect'
+import { Cause, Effect, Exit, Result, Stream } from 'effect'
 import { DocumentId } from 'foldkit-durable'
 import { Diagnostics, type Diagnostic } from 'foldkit-surface'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Sync } from '../src/index.js'
 import { defineDocumentHost, type AcceptingWebSocket } from '../src/do.js'
-import { documentHost, journalExchange } from '../src/journal.js'
+import { documentHost, journalChanges, journalExchange, serveJournal } from '../src/journal.js'
+import type { ListenerFailed } from '../src/diagnostics.js'
 import { layerSocket, TransportSocket, type SocketLike } from '../src/transport.js'
-import { Message, Todos, closeScopes, openJournal, pendingOf, replica } from './fixtures/todos.js'
+import {
+  Message,
+  Todos,
+  closeScopes,
+  openJournal,
+  pendingOf,
+  replica,
+  send,
+} from './fixtures/todos.js'
 import { socketPair } from './sockets.js'
 
 afterEach(() => {
@@ -228,6 +237,71 @@ describe('a listener that throws', () => {
     expect(heard).toEqual(['presence'])
     expect(collected.reported).toEqual([
       expect.objectContaining({ _tag: 'ListenerFailed', level: 'error', site: 'Socket' }),
+    ])
+  })
+})
+
+describe("journalChanges' notices", () => {
+  const commit = async (exchange: ReturnType<typeof journalExchange>, name: string) =>
+    send(exchange, 0, await pendingOf(name, ['Milk']))
+
+  it('reports a listener that throws, and calls it again on the next commit', async () => {
+    const collected = Diagnostics.collect()
+    const journal = openJournal()
+    const exchange = journalExchange({ sync: Todos, journal, principal: 'ada' })
+    let calls = 0
+    const stop = journalChanges(journal, 'todos', { diagnostics: collected.report })(() => {
+      calls += 1
+      throw new Error('socket closed')
+    })
+    await new Promise(resolve => setTimeout(resolve, 20))
+    await commit(exchange, 'a')
+    await until(() => calls === 1)
+    await commit(exchange, 'b')
+    await until(() => calls === 2)
+    stop()
+    expect(collected.reported).toEqual([
+      expect.objectContaining({ _tag: 'ListenerFailed', level: 'error', site: 'Notice' }),
+      expect.objectContaining({ _tag: 'ListenerFailed', site: 'Notice' }),
+    ])
+    expect((collected.reported[0] as ListenerFailed).thrown).toEqual(new Error('socket closed'))
+  })
+
+  it('reports a commit stream that breaks, since no notice follows it', async () => {
+    const collected = Diagnostics.collect()
+    const journal = { ...openJournal(), subscribe: Stream.die(new Error('pubsub gone')) }
+    journalChanges(journal, 'todos', { diagnostics: collected.report })(() => {})
+    await until(() => collected.reported.length > 0)
+    expect(collected.reported).toEqual([
+      expect.objectContaining({ _tag: 'HostDefect', level: 'error', stage: 'Changes' }),
+    ])
+    expect(collected.reported[0]!.message).toContain('pubsub gone')
+  })
+
+  it('reports nothing when unsubscribed, or when the journal ends or interrupts its stream', async () => {
+    const collected = Diagnostics.collect()
+    const stop = journalChanges(openJournal(), 'todos', { diagnostics: collected.report })(() => {})
+    // Running before it is interrupted, so the interrupt reaches the handler.
+    await new Promise(resolve => setTimeout(resolve, 20))
+    stop()
+    // A journal shutting down ends its stream, or interrupts it from inside (a PubSub shut down).
+    for (const subscribe of [Stream.empty, Stream.failCause(Cause.interrupt())]) {
+      journalChanges({ ...openJournal(), subscribe }, 'todos', { diagnostics: collected.report })(
+        () => {},
+      )
+    }
+    await new Promise(resolve => setTimeout(resolve, 30))
+    expect(collected.reported).toEqual([])
+  })
+
+  it("serveJournal passes the host's reporter on", async () => {
+    const collected = Diagnostics.collect()
+    const journal = { ...openJournal(), subscribe: Stream.die(new Error('pubsub gone')) }
+    const { server } = socketPair()
+    serveJournal(server, { sync: Todos, journal, principal: 'ada', diagnostics: collected.report })
+    await until(() => collected.reported.length > 0)
+    expect(collected.reported).toEqual([
+      expect.objectContaining({ _tag: 'HostDefect', stage: 'Changes' }),
     ])
   })
 })

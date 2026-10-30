@@ -36,7 +36,13 @@ import { sequence } from './ids.js'
 import type { AuthorizeDecision } from './make.js'
 import type { Operation, Sync, TransportClient } from './sync.js'
 import { checkRevalidate } from './revalidate.js'
-import { hostDefect, reportTo, type HostStage } from './diagnostics.js'
+import {
+  hostDefect,
+  listenerFailed,
+  reportTo,
+  type HostStage,
+  type SyncDiagnostic,
+} from './diagnostics.js'
 import { serveSocket, type SocketLike } from './transport.js'
 
 export type { HostDefect, HostStage } from './diagnostics.js'
@@ -220,17 +226,34 @@ export const journalExchange = <Message, Shared, Principal>(
 /**
  * Calls `listener` each time the document commits, for `Sync.transport.serve`'s
  * `changes`, so a socket wakes its replica to exchange. Returns the unsubscribe.
+ * A listener that throws is reported as `ListenerFailed` and called again on
+ * the next commit; a commit stream that breaks is reported as `HostDefect`
+ * (`Changes`), since no notice follows it.
  */
 export const journalChanges =
   <Shared, Principal>(
     journal: Journal<Operation, Shared, Principal, Operation>,
     documentId: string,
+    options: {
+      /** Where a failure is reported; the default reporter when not given, since this runs outside any context. */
+      readonly diagnostics?: ReportDiagnostic | undefined
+    } = {},
   ): ((listener: () => void) => () => void) =>
   listener => {
+    const report = (diagnostic: SyncDiagnostic) => reportTo(options.diagnostics, diagnostic)
     const fiber = Effect.runFork(
       Stream.runForEach(
         Stream.filter(journal.subscribe, key => key === documentId),
-        () => Effect.sync(listener),
+        () =>
+          Effect.try(listener).pipe(
+            Effect.catch(thrown => report(listenerFailed('Notice', thrown.cause))),
+          ),
+      ).pipe(
+        // A journal shutting down may end its stream by interrupting it, as it
+        // may end it; any other cause ends every later notice unannounced.
+        Effect.catchCause(cause =>
+          Cause.hasInterruptsOnly(cause) ? Effect.void : report(hostDefect('Changes', cause)),
+        ),
       ),
     )
     return () => Effect.runSync(Fiber.interrupt(fiber))
@@ -244,12 +267,17 @@ export const journalChanges =
 export const serveJournal = <Message, Shared, Principal>(
   socket: SocketLike,
   options: JournalExchangeOptions<Message, Shared, Principal> & {
-    /** Where an `opens` that failed before a notice is reported; the reporter in context when not given. */
+    /**
+     * Where an `opens` that failed before a notice, a notice that could not be
+     * sent, or a broken commit stream is reported; the reporter in context when not given.
+     */
     readonly diagnostics?: ReportDiagnostic | undefined
   },
 ): (() => void) => {
   const client = journalExchange(options)
-  const notices = journalChanges(options.journal, options.sync.documentId)
+  const notices = journalChanges(options.journal, options.sync.documentId, {
+    diagnostics: options.diagnostics,
+  })
   const { opens, diagnostics } = options
   const report = (cause: Cause.Cause<unknown>) => reportTo(diagnostics, hostDefect('Notice', cause))
   return serveSocket(socket, {

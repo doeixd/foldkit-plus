@@ -46,6 +46,8 @@ export type HostStage =
   | 'Revalidate'
   /** Asking `opens` before a commit notice, which failed: the notice was not sent. */
   | 'Notice'
+  /** The journal's stream of commits, which broke: the connection hears of no more commits. */
+  | 'Changes'
 
 /**
  * A document host broke on its own side: the upgrade was answered 500
@@ -64,6 +66,8 @@ export type ListenerSite =
   | 'Presence'
   /** A listener on the socket transport's shared `socket` (`onMessage`), for another protocol's frames. */
   | 'Socket'
+  /** `journalChanges`' listener, after a commit: the next commit calls it again. */
+  | 'Notice'
 
 /** A listener the application gave threw; the rest still ran, and so did Sync. */
 export interface ListenerFailed extends Diagnostic {
@@ -107,6 +111,7 @@ const stageText: Record<HostStage, string> = {
   Exchange: 'opens or settle threw, and the upgrade was answered "Internal error"',
   Revalidate: 'asking the resolver again broke, and the socket was closed with 1011',
   Notice: 'asking opens before a commit notice failed, and the notice was not sent',
+  Changes: "the journal's stream of commits broke, and this connection hears of no more commits",
 }
 
 export const hostDefect = (stage: HostStage, cause: Cause.Cause<unknown>): HostDefect => ({
@@ -121,6 +126,7 @@ export const hostDefect = (stage: HostStage, cause: Cause.Cause<unknown>): HostD
 const siteText: Record<ListenerSite, string> = {
   Presence: 'a presence listener',
   Socket: "a listener on the replica's socket",
+  Notice: 'the listener woken by a commit',
 }
 
 export const listenerFailed = (site: ListenerSite, thrown: unknown): ListenerFailed => ({

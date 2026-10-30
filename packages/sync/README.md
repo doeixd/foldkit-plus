@@ -257,6 +257,8 @@ an optional peer of this package):
   a notice after each commit, so its replica hears of others' edits.
   `journalExchange(options)` is the same exchange as a `TransportClient`, for
   `Sync.transport.fromPromise` in process; `journalChanges` the notice alone.
+  Both report to `diagnostics`, when given, since a notice is sent from
+  outside any Effect context.
 - **What cannot be taken is rejected by its id, not left to fail the
   exchange.** An operation whose message does not decode, that names another
   document, that `authorize` or `validate` refuses, or that reuses an id for
@@ -731,8 +733,8 @@ Effect's log: the console in a browser, `wrangler tail` on a Worker.
 | --- | --- | --- |
 | `ExchangeFailed` | `warning` | An exchange failed; it is in `status.lastError` and retried on a backoff. Carries the `error`. |
 | `HistoryRebuilt` | `warning` | The server answered from another epoch, so the committed state was rebuilt from it (the outbox is kept). |
-| `HostDefect` | `error` | A document host broke on its side, at a `stage`: `Upgrade` (the socket pair), `Resolve` (the `layer` or resolver), `Journal`, `Exchange` (`opens` or `settle` threw) answer a 500; `Revalidate` closes the socket with 1011; `Notice` (`opens` failed before a commit notice) sends none. Carries the `cause`, which the replica is never told. |
-| `ListenerFailed` | `error` | A listener the application gave threw: a presence subscriber, or a listener on the socket transport's shared `socket`. The others still ran. |
+| `HostDefect` | `error` | A document host broke on its side, at a `stage`: `Upgrade` (the socket pair), `Resolve` (the `layer` or resolver), `Journal`, `Exchange` (`opens` or `settle` threw) answer a 500; `Revalidate` closes the socket with 1011; `Notice` (`opens` failed before a commit notice) sends none; `Changes` (the journal's stream of commits broke) sends no more. Carries the `cause`, which the replica is never told. |
+| `ListenerFailed` | `error` | A listener the application gave threw: a presence subscriber, a listener on the socket transport's shared `socket`, or `journalChanges`' listener (`Notice`, called again on the next commit). The others still ran. |
 
 A replica reports to the reporter in the Effect context it runs in:
 `Layer.succeed(Diagnostics.Reporter, report)` in the runtime's resources. A

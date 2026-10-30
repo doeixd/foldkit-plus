@@ -776,6 +776,14 @@ carries `drawn`.
 
 ### Fixed
 
+- **Sync's commit notices no longer stop unannounced (#237).**
+  `journalChanges`, and `serveJournal` through it, notified from a fiber
+  that a listener's throw (a `send` on a socket that had just closed) or a
+  broken commit stream ended for good, with no report. A listener that
+  throws is reported as `ListenerFailed` (site `Notice`) and called again on
+  the next commit; a stream that breaks is reported as `HostDefect` (stage
+  `Changes`). `journalChanges` takes `{ diagnostics }`, and `serveJournal`
+  passes its own on.
 - **Remote keeps a field named `__proto__` in `Entity.from` and in a captured
   resume.** `Entity.from` assigned each member of a `foldkit-entity` Entity
   to a plain object, so a field named `__proto__` was missing from the

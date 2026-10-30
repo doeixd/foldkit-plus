@@ -212,4 +212,66 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'a notice listener that throws ends the notices',
+    edits: [
+      { file: host, find: 'Effect.try(listener).pipe(', replace: 'Effect.sync(listener).pipe(' },
+    ],
+    tests,
+  },
+  {
+    name: 'a notice listener that throws is not reported',
+    edits: [
+      {
+        file: host,
+        find: "Effect.catch(thrown => report(listenerFailed('Notice', thrown.cause))),",
+        replace: 'Effect.catch(() => Effect.void),',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a notice listener is reported with the wrapper, not what it threw',
+    edits: [
+      {
+        file: host,
+        find: "listenerFailed('Notice', thrown.cause)",
+        replace: "listenerFailed('Notice', thrown)",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a broken commit stream is not reported',
+    edits: [
+      {
+        file: host,
+        find: "Cause.hasInterruptsOnly(cause) ? Effect.void : report(hostDefect('Changes', cause)),",
+        replace: 'Effect.void,',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a journal interrupting its stream is reported as broken',
+    edits: [
+      {
+        file: host,
+        find: "Cause.hasInterruptsOnly(cause) ? Effect.void : report(hostDefect('Changes', cause)),",
+        replace: "report(hostDefect('Changes', cause)),",
+      },
+    ],
+    tests,
+  },
+  {
+    name: "serveJournal's notices ignore the host's reporter",
+    edits: [
+      {
+        file: host,
+        find: '    diagnostics: options.diagnostics,',
+        replace: '    diagnostics: undefined,',
+      },
+    ],
+    tests,
+  },
 ]
