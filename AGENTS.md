@@ -1916,6 +1916,10 @@ of its own named a form field "fits the Catalog". Read words with
   git commit` printed `1` and committed, twice in one session (a re-anchor
   and an ambiguous anchor each followed). Chain every check into the commit
   with `&&`, or read the output before committing.
+  `BLOB=$(build | git hash-object -w --stdin)` stored an empty blob when the
+  script building a temporary-index CHANGELOG failed its own assert, and
+  0b76df63 committed the changelog emptied. Write the built file to disk
+  first, check it (`wc -c`, a grep for the entry), then hash the file.
 - **A check's last line is its summary, not its verdict.** `pnpm -s format:check | tail -1`
   printed "Finished in 341ms on 3380 files", the line after "Format issues found", and
   an unformatted mutation spec went to CI and failed lint. Read the exit status (`echo
