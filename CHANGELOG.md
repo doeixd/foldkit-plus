@@ -9,6 +9,21 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **Variants of an Entity** (`foldkit-entity`, #357): `Entity.defineVariants(name,
+  { Available: fields, Unconfirmed: fields })` declares an Entity whose row is
+  one of its cases. `entity.variants` is Effect's `Schema.TaggedUnion` of the
+  cases, read with its own `match`; `fields` and `schema` are the stored row
+  (`_tag`, the fields every case has, the rest nullable), so every interpreter
+  reads it unchanged. Each case with fields of its own gets an invariant
+  (`variant_<Case>`), which `Entity.judge` applies and the Drizzle binding
+  writes as a CHECK. `Expr.is(entity, tag, fields => predicate)` narrows to a
+  case, over the row or through a `one` relation, handing out the case's fields
+  never null. `Entity.variantsOf` gives an interpreter the union, the cases and
+  the codec from a stored row to its case; `foldkit-entity/conformance` adds
+  `Variant`, `variantRows` and `variantCases`. Selections, Remote, forms and
+  guards read the stored row until the later phases of
+  `docs/design/357-entity-variants-DESIGN.md`.
+
 - **`rh.KeepTyped()`** (`foldkit-ssr`, #356): a field marked with it keeps
   what is typed into it before the page's script runs. `SSR.hydrate` reads
   each marked field whose value differs from the served one, replays it as
