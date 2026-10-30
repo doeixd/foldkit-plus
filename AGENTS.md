@@ -1100,6 +1100,18 @@ Foldkit's own behaviour that we work around is listed in
   taking SQLite columns first matched Postgres ones too and returned SQLite
   check builders, which `pgTable` refused with a misleading error. List the
   Postgres overload first.
+- **sql.js leaves SQLite's foreign keys off; Node's `node:sqlite` turns them
+  on.** Chirp's `likes.post_id ... on delete cascade` held in every Node test
+  while the published demo, on sql.js, would have left a deleted chirp's likes
+  behind. A server that relies on a reference sets `pragma foreign_keys = on`
+  itself, and a test of it runs on the demo's database too
+  (`examples/chirp/test/wasm.browser.test.ts`).
+- **A cutout drawn by a wrapper drifts from the avatar's shape.** Chirp's
+  profile portrait sat in a span with a 9999px radius and a page-coloured
+  border, around an Avatar the theme rounds to a square (radius factor 0.45),
+  so a circle showed behind a rounded square. Draw the band on the avatar
+  itself (the Avatar recipe's `ring: 'page'`, a shadow, which follows its own
+  corner).
 - **Drizzle's SQLite transaction is synchronous.** `db.transaction(async tx
   => …)` over `node-sqlite` commits before the callback's awaits run, so a
   failure after an await rolls nothing back; a probe left the row of a
