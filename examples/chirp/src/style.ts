@@ -304,14 +304,8 @@ export const ChirpPage = slots(
       },
     ],
     profile: [{ padding: `0 ${t.space.md} ${t.space.md}`, borderBottom: rule }],
-    portrait: [
-      {
-        display: 'inline-flex',
-        marginTop: '-2.75rem',
-        borderRadius: '9999px',
-        border: `4px solid ${t.surface.base}`,
-      },
-    ],
+    // Raised into the banner; its cutout is the avatar's own ring (`PortraitStyle`).
+    portrait: [{ display: 'inline-flex', marginTop: '-2.75rem' }],
     profileName: [
       { margin: `${t.space.xs} 0 0`, fontSize: '1.25rem', fontWeight: '800', color: t.text.overt },
     ],
@@ -405,9 +399,15 @@ export const ChirpPage = slots(
 export const AvatarStyle = forSlots(AvatarSlots)(Recipes.Avatar({ color: 'name' }), {
   name: 'ChirpAvatar',
 })
-export const PortraitStyle = forSlots(AvatarSlots)(Recipes.Avatar({ color: 'name', size: 'xl' }), {
-  name: 'ChirpPortrait',
-})
+/**
+ * A profile's avatar, cut out of the banner by a band of the page: the
+ * recipe's ring, a shadow of the avatar itself, so the cutout takes whatever
+ * shape the avatar has (a rounded square at the theme's radius).
+ */
+export const PortraitStyle = forSlots(AvatarSlots)(
+  Recipes.Avatar({ color: 'name', size: 'xl', ring: 'page' }),
+  { name: 'ChirpPortrait' },
+)
 
 /** A form's field: the label for screen readers, the placeholder for eyes. */
 export const FieldStyle = forSlots(FieldSlots)(
@@ -452,7 +452,12 @@ export const FormStyle = forSlots(FormSlots)(
         ...pill,
         alignSelf: 'flex-end',
         width: 'fit-content',
-        padding: `${t.space.xs} ${t.space.lg}`,
+        // The word's line trimmed to its capitals and baseline, in a box of a
+        // set height that the button centers it in. Untrimmed, the font's
+        // ascent above the capitals, larger than its descent, sat them low.
+        blockSize: '2.75rem',
+        padding: `0 ${t.space.lg}`,
+        textBox: 'trim-both cap alphabetic',
         fontWeight: '700',
         background: t.accent.default,
         color: t.accent['on-fill'],

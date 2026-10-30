@@ -8,6 +8,7 @@ import { defaultClientConditions } from 'vite'
 import { defineConfig } from 'vitest/config'
 import { mutation } from './scripts/mutation-plugin.mjs'
 import { alias, inNode } from './scripts/test-resolve.mjs'
+import { icons } from './packages/media/src/vite/icons.js'
 
 /** For tests in Node or jsdom. */
 export const shared = defineConfig({
@@ -22,6 +23,9 @@ export const shared = defineConfig({
  * configs concatenates arrays, and the Node conditions would stay.
  */
 export const inBrowser = defineConfig({
-  plugins: [mutation()],
+  // Lucide's icons by name, as an example's own Vite config gives them, so a
+  // test can draw the example's page (`examples/chirp`). From source, by path:
+  // a package import of the plugin would run its `dist`, or none on CI.
+  plugins: [mutation(), icons({ iconify: ['lucide'], dts: false })],
   resolve: { conditions: ['foldkit-plus:source', ...defaultClientConditions], alias },
 })
