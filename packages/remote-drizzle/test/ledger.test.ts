@@ -419,7 +419,10 @@ describe('A writer with a ledger', () => {
     const taken = await create(server, 'ada', 4, 'op-d')
     expect(taken).toMatchObject({
       _tag: 'Failure',
-      failure: { message: 'Item i2 could not be created' },
+      failure: {
+        message: 'Item i2 is already taken',
+        refusal: { _tag: 'Taken', entity: 'Item', id: 'i2' },
+      },
     })
     expect(await create(server, 'ada', 9, 'op-d')).toEqual(taken)
     expect(await create(server, 'grace', 4, 'op-c')).toEqual(taken)
@@ -531,7 +534,10 @@ describe('A writer with a ledger, on Postgres', () => {
     const taken = await pgCreate('ada', 'op-d')
     expect(taken).toMatchObject({
       _tag: 'Failure',
-      failure: { message: 'Item i2 could not be created' },
+      failure: {
+        message: 'Item i2 is already taken',
+        refusal: { _tag: 'Taken', entity: 'Item', id: 'i2' },
+      },
     })
     expect(await pgCreate('grace', 'op-c')).toEqual(taken)
     const rows = await pglite.query("select stock from items where id = 'i2'")

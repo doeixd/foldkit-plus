@@ -155,9 +155,9 @@ export default [
     edits: [
       {
         file: drizzle,
-        find: 'onNone: () =>\n            Effect.fail(\n              new RemoteServerError({ message: `${binding.name} ${id} could not be created` }),\n            ),',
+        find: 'onNone: () => Effect.fail(RemoteServer.taken(`${binding.name} ${id} is already taken`)),',
         replace:
-          'onNone: () =>\n            Effect.gen(function* () {\n              const there = answeredOf(yield* selectRows(yield* DrizzleDatabase, binding.table, answered.columns, { where: eq(idColumn(binding), id) }), answered)\n              if (Option.isSome(there) && holdsWritten(there.value, values, links)) return there.value\n              return yield* new RemoteServerError({ message: `${binding.name} ${id} could not be created` })\n            }),',
+          'onNone: () =>\n            Effect.gen(function* () {\n              const there = answeredOf(yield* selectRows(yield* DrizzleDatabase, binding.table, answered.columns, { where: eq(idColumn(binding), id) }), answered)\n              if (Option.isSome(there) && holdsWritten(there.value, values, links)) return there.value\n              return yield* RemoteServer.taken(`${binding.name} ${id} is already taken`)\n            }),',
       },
     ],
     tests: [

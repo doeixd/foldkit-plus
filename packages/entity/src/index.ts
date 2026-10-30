@@ -1340,6 +1340,7 @@ export {
   type WriteComputations,
   type WriteCondition,
   type WriteIncrement,
+  type WriteKind,
   type WriteLink,
   type WriteSet,
   type ContextSet,

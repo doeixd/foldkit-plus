@@ -262,7 +262,10 @@ describe('what the context sets, on the server', () => {
     try {
       await mutate('bob', 'PostChirp', { id: 'n1', body: 'Hi' }, 5_000)
       expect(await mutate('ada', 'PostChirp', { id: 'n1', body: 'Hi' }, 5_000)).toMatchObject({
-        failure: { message: 'Post n1 could not be created' },
+        failure: {
+          message: 'Post n1 is already taken',
+          refusal: { _tag: 'Taken', entity: 'Post', id: 'n1' },
+        },
       })
     } finally {
       close()

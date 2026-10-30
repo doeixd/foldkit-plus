@@ -32,8 +32,8 @@ export default [
   ),
   edit(
     'the server passes no operation to an insert',
-    '...set.links },\n                    operation,',
-    '...set.links },\n                    operation: Option.none(),',
+    '...set.links },\n                      operation,',
+    '...set.links },\n                      operation: Option.none(),',
   ),
   edit(
     'a visitor is not refused',

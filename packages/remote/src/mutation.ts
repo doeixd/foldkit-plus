@@ -26,6 +26,7 @@ import {
   type MemoryOperators,
   type Predict,
   type Write,
+  type WriteKind,
 } from 'foldkit-entity'
 import { holderOf } from './held.js'
 import type { OptimisticOperation } from './optimistic.js'
@@ -344,6 +345,11 @@ export interface MutationDescriptor<Name extends string, Input, Output, Refused 
 const conflict = Schema.TaggedStruct('Conflict', {})
 const unmet = Schema.TaggedStruct('Unmet', {})
 /**
+ * Another row already holds the id an insert names: its Entity and that id,
+ * both the caller's own, and nothing of the row, which may be hidden from them.
+ */
+const taken = Schema.TaggedStruct('Taken', { entity: Schema.String, id: Schema.String })
+/**
  * The row the write would leave breaks one of its Entity's invariants: which
  * one (its Entity and its id, since an id is unique only within one), what to
  * tell the author, and the fields to show it beside. None and empty when the
@@ -357,6 +363,18 @@ const invalid = Schema.TaggedStruct('Invalid', {
 })
 const conflictOrInvalid = Schema.Union([conflict, invalid])
 const conflictUnmetOrInvalid = Schema.Union([conflict, unmet, invalid])
+const takenOrInvalid = Schema.Union([taken, invalid])
+/** What the constructors typed a write by: its kind, and whether it holds a `when`. */
+const refusalOfWrite = (write: AnyWrite) => {
+  const moved = () => (Option.isSome(write.when) ? conflictUnmetOrInvalid : conflictOrInvalid)
+  return Match.value(write).pipe(
+    Match.tagsExhaustive({
+      Insert: (): Schema.Top => takenOrInvalid,
+      Update: moved,
+      Delete: moved,
+    }),
+  )
+}
 const anyField = Schema.TaggedStruct('Field', { key: Schema.String, reason: Schema.Unknown })
 
 /** Refusals a form or an editor knows how to show. */
@@ -368,6 +386,8 @@ export const Refusal = {
   conflict,
   /** The row does not hold what the write's `when` asks of it, where it would commit. */
   unmet,
+  /** The id an insert names is taken: another create made it, or a retry the server could not tell. */
+  taken,
   /** The row the write would leave breaks an invariant of its Entity. */
   invalid,
   /** Whether a refusal, of whatever mutation, is a `Refusal.field`. */
@@ -376,6 +396,8 @@ export const Refusal = {
   isConflict: Schema.is(conflict),
   /** Whether a refusal, of whatever mutation, is `Refusal.unmet`. */
   isUnmet: Schema.is(unmet),
+  /** Whether a refusal, of whatever mutation, is `Refusal.taken`. */
+  isTaken: Schema.is(taken),
   /** Whether a refusal, of whatever mutation, is `Refusal.invalid`. */
   isInvalid: Schema.is(invalid),
   /**
@@ -390,15 +412,21 @@ export const Refusal = {
     Option.contains(refusal.rule, invariant.id),
 }
 
+type KindOf<W> = W extends { readonly _tag: infer Kind extends WriteKind } ? Kind : WriteKind
+
 /**
- * What a declared write may be refused with: unmet too, when it has a `when`,
- * and invalid always, since the server's Entity may hold invariants the
- * client's does not show.
+ * What a declared write may be refused with: an insert as taken, an update or
+ * a delete as a conflict (unmet too, when it has a `when`), and every one as
+ * invalid, since the server's Entity may hold invariants the client's does
+ * not show. A write whose kind its type leaves open may be refused as any.
  */
 export type RefusalOfWrite<W> =
-  | (W extends ConditionedWrite<any, any>
-      ? typeof conflict.Type | typeof unmet.Type
-      : typeof conflict.Type)
+  | ('Insert' extends KindOf<W> ? typeof taken.Type : never)
+  | ([Exclude<KindOf<W>, 'Insert'>] extends [never]
+      ? never
+      : W extends ConditionedWrite<any, any>
+        ? typeof conflict.Type | typeof unmet.Type
+        : typeof conflict.Type)
   | typeof invalid.Type
 
 /** A codec, or the fields of a `Schema.Struct` where one is expected. */
@@ -899,9 +927,10 @@ export const Mutation = {
   /**
    * A mutation that is a declared `Write` (`update`, `insert` or `delete`): its
    * input is the write's, and it answers nothing but the row it changed, as a
-   * patch, or its deletion. It may be refused as a conflict, for a write that
-   * `expect`s a revision the row has moved past, for a write with a `when` as
-   * unmet, and as invalid when the row it would leave breaks an invariant.
+   * patch, or its deletion. An insert may be refused as taken, when a row
+   * already holds its id; an update or a delete as a conflict, when it
+   * `expect`s a revision the row has moved past, and as unmet, when it has a
+   * `when`; and any as invalid, when the row it would leave breaks an invariant.
    */
   write: <
     const Name extends string,
@@ -916,10 +945,7 @@ export const Mutation = {
     name,
     Input: write.input.schema as unknown as Schema.Codec<Schema.Struct.Type<Fields>>,
     Output: Schema.Struct({}),
-    // What the overloads typed `W` by is whether it holds a `when`.
-    Refusal: (Option.isSome(write.when)
-      ? conflictUnmetOrInvalid
-      : conflictOrInvalid) as unknown as Schema.Codec<RefusalOfWrite<W>, unknown>,
+    Refusal: refusalOfWrite(write) as unknown as Schema.Codec<RefusalOfWrite<W>, unknown>,
     write,
   }),
 

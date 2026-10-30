@@ -232,7 +232,10 @@ describe('A write that expects a revision, on Postgres', () => {
     const again = await create('Pioneer')
     expect(again).toMatchObject({
       _tag: 'Failure',
-      failure: { message: 'Project p8 could not be created' },
+      failure: {
+        message: 'Project p8 is already taken',
+        refusal: { _tag: 'Taken', entity: 'Project', id: 'p8' },
+      },
     })
     expect(await create('Other')).toEqual(again)
     const rows = await pglite.query("select name from projects where id = 'p8'")
@@ -426,7 +429,11 @@ describe('Inserting and deleting a declared write', () => {
     })
     expect(again).toMatchObject({
       _tag: 'Failure',
-      failure: { _tag: 'RemoteMutationError', message: 'Project p7 could not be created' },
+      failure: {
+        _tag: 'RemoteMutationError',
+        message: 'Project p7 is already taken',
+        refusal: { _tag: 'Taken', entity: 'Project', id: 'p7' },
+      },
     })
     expect(taken).toEqual(again)
   })

@@ -449,7 +449,10 @@ describe('A declared write over D1', () => {
       // Another operation: the id is taken, and nothing is recorded for it.
       expect(await send(ledgered(), 'CreateNote', note, 'op-d')).toMatchObject({
         _tag: 'Failure',
-        failure: { message: 'Note n1 could not be created' },
+        failure: {
+          message: 'Note n1 is already taken',
+          refusal: { _tag: 'Taken', entity: 'Note', id: 'n1' },
+        },
       })
       expect(await records()).toEqual([{ operation: 'op-c', target: 'Note:n1' }])
     }, 30_000)

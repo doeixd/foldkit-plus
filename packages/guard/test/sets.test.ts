@@ -179,7 +179,10 @@ describe('fields the server sets on a create', () => {
     await like('ada', 'r1', { id: 'ada:p1', postId: 'p1' })
     expect(await like('bo', 'r2', { id: 'ada:p1', postId: 'p1' })).toMatchObject({
       _tag: 'Failure',
-      failure: { message: 'Like ada:p1 could not be created' },
+      failure: {
+        message: 'Like ada:p1 is already taken',
+        refusal: { _tag: 'Taken', entity: 'Like', id: 'ada:p1' },
+      },
     })
     expect(rows()).toEqual([expect.objectContaining({ id: 'ada:p1', account_id: 'ada' })])
   })

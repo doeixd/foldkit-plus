@@ -41,8 +41,8 @@ export default [
   edit(
     'a plain write cannot be refused as invalid',
     '../../remote/src/mutation.ts',
-    ': conflictOrInvalid) as unknown',
-    ': Refusal.conflict) as unknown',
+    'conflictUnmetOrInvalid : conflictOrInvalid)',
+    'conflictUnmetOrInvalid : conflict)',
   ),
   edit(
     'a writer that judges no transition is taken',

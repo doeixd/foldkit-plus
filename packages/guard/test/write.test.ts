@@ -388,7 +388,10 @@ describe('GuardServer.writer', () => {
     expect(answers).toMatchObject(
       taken.map(({ id }) => ({
         _tag: 'Failure',
-        failure: { message: `Todo ${id} could not be created` },
+        failure: {
+          message: `Todo ${id} is already taken`,
+          refusal: { _tag: 'Taken', entity: 'Todo', id },
+        },
       })),
     )
     // Two answers about one id are the same answer, whatever was proposed.

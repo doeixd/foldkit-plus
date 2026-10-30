@@ -33,8 +33,8 @@ export default [
     edits: [
       {
         file: server,
-        find: ': { status: 422 as const',
-        replace: ': { status: 500 as const',
+        find: ': (422 as const),',
+        replace: ': (500 as const),',
       },
     ],
     tests,

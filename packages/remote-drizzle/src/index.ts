@@ -2048,10 +2048,7 @@ export const writer = <P = unknown>(
         }
         // Nothing inserted: the id is taken, and every such create is answered alike.
         return yield* Option.match(answeredOf(inserted, answered), {
-          onNone: () =>
-            Effect.fail(
-              new RemoteServerError({ message: `${binding.name} ${id} could not be created` }),
-            ),
+          onNone: () => Effect.fail(RemoteServer.taken(`${binding.name} ${id} is already taken`)),
           onSome: Effect.succeed,
         })
       }),

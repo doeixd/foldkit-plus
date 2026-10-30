@@ -109,12 +109,20 @@ export interface ContextSet {
   readonly value: ContextValue
 }
 
+/** What a declared write does to its row. */
+export type WriteKind = 'Update' | 'Insert' | 'Delete'
+
 /**
  * One row of an Entity, by id, from an operation's input: updated, inserted
- * with an id the client chose, or deleted.
+ * with an id the client chose, or deleted. `Kind` is the one its constructor
+ * made, so what it may be refused with can follow it.
  */
-export interface Write<E extends AnyEntity, Fields extends Schema.Struct.Fields> {
-  readonly _tag: 'Update' | 'Insert' | 'Delete'
+export interface Write<
+  E extends AnyEntity,
+  Fields extends Schema.Struct.Fields,
+  Kind extends WriteKind = WriteKind,
+> {
+  readonly _tag: Kind
   readonly input: EntityInput<E, Fields, any>
   /** The input key holding the row's id, and the Entity's `id` field it is. */
   readonly id: WriteSet & { readonly key: keyof Fields & string }
@@ -150,10 +158,11 @@ export interface Write<E extends AnyEntity, Fields extends Schema.Struct.Fields>
 export type AnyWrite = Write<AnyEntity, any>
 
 /** A write declared with a precondition, so it may be refused as unmet. */
-export type ConditionedWrite<E extends AnyEntity, Fields extends Schema.Struct.Fields> = Write<
-  E,
-  Fields
-> & { readonly when: Option.Some<AnyQuery> }
+export type ConditionedWrite<
+  E extends AnyEntity,
+  Fields extends Schema.Struct.Fields,
+  Kind extends WriteKind = WriteKind,
+> = Write<E, Fields, Kind> & { readonly when: Option.Some<AnyQuery> }
 
 interface RowOptions<Fields extends Schema.Struct.Fields> {
   readonly id: keyof Fields & string
@@ -204,12 +213,12 @@ interface UpdateWrite {
   <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
     input: EntityInput<E, Fields, any>,
     options: UpdateOptions<E, Fields> & { readonly when: WriteCondition<E, Fields> },
-  ): ConditionedWrite<E, Fields>
+  ): ConditionedWrite<E, Fields, 'Update'>
   // `when?: undefined`, so an optional `when` in a variable cannot pick this one and lose `Unmet`.
   <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
     input: EntityInput<E, Fields, any>,
     options: UpdateOptions<E, Fields> & { readonly when?: undefined },
-  ): Write<E, Fields>
+  ): Write<E, Fields, 'Update'>
 }
 
 /** `delete`: conditioned when given `when`, as an update is. */
@@ -217,11 +226,11 @@ interface DeleteWrite {
   <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
     input: EntityInput<E, Fields, any>,
     options: RowOptions<Fields> & { readonly when: WriteCondition<E, Fields> },
-  ): ConditionedWrite<E, Fields>
+  ): ConditionedWrite<E, Fields, 'Delete'>
   <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
     input: EntityInput<E, Fields, any>,
     options: RowOptions<Fields> & { readonly when?: undefined },
-  ): Write<E, Fields>
+  ): Write<E, Fields, 'Delete'>
 }
 
 // `declared` sets `when` exactly when it is given, which is what the overloads say.
@@ -304,8 +313,8 @@ const fieldAt = (input: EntityInput<AnyEntity, any, any>, key: string, role: str
  * What every kind shares: the key naming the row, the expected revision, and
  * what the other keys set or point. A kind adds its own checks.
  */
-const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
-  kind: Write<E, Fields>['_tag'],
+const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields, Kind extends WriteKind>(
+  kind: Kind,
   input: EntityInput<E, Fields, any>,
   options: {
     readonly id: keyof Fields & string
@@ -314,7 +323,7 @@ const declared = <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
     readonly increment?: Readonly<Record<string, string | undefined>>
     readonly compute?: WriteComputations<E, Fields> | undefined
   },
-): Write<E, Fields> => {
+): Write<E, Fields, Kind> => {
   const id = fieldAt(input, options.id, 'id')
   if (id.key !== 'id') fail(input, `id "${options.id}" is mapped to "${id.key}", not to "id"`)
   const idSchema = input.schema.fields[options.id] as unknown as Schema.Top
@@ -750,9 +759,13 @@ const incrementOf = (
 }
 
 /** An update or an insert that would write nothing is refused where it is declared. */
-const settingSomething = <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
-  write: Write<E, Fields>,
-): Write<E, Fields> =>
+const settingSomething = <
+  E extends AnyEntity,
+  Fields extends Schema.Struct.Fields,
+  Kind extends WriteKind,
+>(
+  write: Write<E, Fields, Kind>,
+): Write<E, Fields, Kind> =>
   write.sets.length === 0 &&
   write.links.length === 0 &&
   write.increments.length === 0 &&
@@ -801,7 +814,7 @@ export const Write = {
   insert: <E extends AnyEntity, Fields extends Schema.Struct.Fields>(
     input: EntityInput<E, Fields, any>,
     options: { readonly id: keyof Fields & string },
-  ): Write<E, Fields> =>
+  ): Write<E, Fields, 'Insert'> =>
     settingSomething(
       Object.freeze({
         ...declared('Insert', input, options),

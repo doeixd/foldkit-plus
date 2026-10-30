@@ -24,6 +24,8 @@ from its own Wrangler config, and the shipped theme is new. A security review
 caches keeping an answer, and closes several write-rule gaps.
 
 Breaking, under Changed: `Remote.patch` takes a ref for a relation;
+a declared insert of a taken id is refused `Taken`, and its `Refusal` is
+`Taken | Invalid`;
 `Data.why` returns a `ReadWhy`; a mutation nothing
 answered fails with `RemoteUnreachable`; `verifyPlacement` is
 `verifyPredictions`; `Data.mutate`'s `now` is a number; the wire protocol is
@@ -488,6 +490,24 @@ carries `drawn`.
 
 ### Changed
 
+- **A create of a taken id is refused as `Taken`, not a server error.** A
+  declared insert (`Mutation.write(…, Write.insert(…))`) of an id a row
+  already holds failed with `RemoteServerError` ("Todo t-x could not be
+  created"), which `RemoteServer.answer` sent as a 500, like a crash, on
+  SQLite, Postgres and D1 alike. It is now the mutation's `Refusal.taken`
+  (`{ _tag: 'Taken', entity, id }`, with `Refusal.isTaken`), sent as a 409 and
+  carried by `Remote.json`, `Remote.http` and the RPC handlers alike.
+  `Data.failedWrites` lists it with that refusal; a durable one is kept as
+  failed until retried or dismissed, as any refusal is. A retry of the create
+  that made the row is still answered from the writer's ledger. The refusal
+  holds only the Entity and the id the caller sent, so it is the same whether
+  the row is hidden from them or not. **Breaking:** a declared insert's
+  `Refusal` is `Taken | Invalid` (it was `Conflict | Invalid`, and nothing
+  refused an insert as a conflict); `Write` takes its kind as a third type
+  parameter (`WriteKind`), which `Write.insert`, `Write.update` and
+  `Write.delete` set; `EntityWriter.insert` fails with `RemoteTaken`
+  (`RemoteServer.taken()`) for a taken id; `RemoteServer.write` takes no
+  `Refused` type parameter; `RemoteServer.answer`'s status may be 409.
 - **A theme refusal names the call and the knob (#237).** `Theme.make`,
   `Theme.set` and `Knobs.withValue` threw a bare `SchemaError` for a value
   out of range (`Expected a value between 6 and 36 at ["dark"]`), naming

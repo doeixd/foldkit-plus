@@ -52,6 +52,7 @@ import {
   RemoteProtocolError,
   RemoteQueryError,
   RemoteReadError,
+  Refusal,
   connectionIdentity,
   entityKey,
   refParts,
@@ -106,6 +107,16 @@ export class RemoteServerError extends Schema.TaggedError<RemoteServerError>()(
  * mutation's `Unmet` refusal.
  */
 export class RemoteUnmet extends Schema.TaggedError<RemoteUnmet>()('RemoteUnmet', {
+  message: Schema.String,
+}) {}
+
+/**
+ * A writer's word that a row already holds the id an insert names, and its
+ * ledger records no insert of this operation that made it: `RemoteServer.write`
+ * answers it as the mutation's `Taken` refusal. It says nothing of the row,
+ * which may be hidden from whoever asked.
+ */
+export class RemoteTaken extends Schema.TaggedError<RemoteTaken>()('RemoteTaken', {
   message: Schema.String,
 }) {}
 
@@ -406,11 +417,11 @@ export interface EntityWriter<P, R = never> {
     R
   >
   /**
-   * Inserts the row and answers it. An id already taken fails with one
-   * answer, whatever the row there holds and whether its asker may see it, so
-   * a create never tells what it may not read; unless the writer's ledger
-   * records `operation` as the insert that made it (a retry), answered with
-   * the row as it now is.
+   * Inserts the row and answers it. An id already taken fails with
+   * `RemoteTaken`, whatever the row there holds and whether its asker may see
+   * it, so a create never tells what it may not read; unless the writer's
+   * ledger records `operation` as the insert that made it (a retry), answered
+   * with the row as it now is.
    */
   readonly insert: (context: {
     readonly id: string
@@ -427,7 +438,7 @@ export interface EntityWriter<P, R = never> {
     readonly principal: P
   }) => Effect.Effect<
     Readonly<Record<string, unknown>>,
-    RemoteServerError | RemoteForbidden | RemoteInvalid,
+    RemoteServerError | RemoteForbidden | RemoteInvalid | RemoteTaken,
     R
   >
   /**
@@ -2018,6 +2029,13 @@ export const RemoteServer = {
     new RemoteUnmet({ message }),
 
   /**
+   * A writer's refusal of an insert whose id a row already holds: fail
+   * `insert` with it (`yield* RemoteServer.taken()`), and `RemoteServer.write`
+   * answers the mutation's `Taken` refusal, naming the Entity and the id.
+   */
+  taken: (message = 'The id is already taken'): RemoteTaken => new RemoteTaken({ message }),
+
+  /**
    * A writer's refusal of a row that would break an invariant: fail `update`
    * or `insert` with it, naming the invariant's id and path when the caller
    * may be told them, and `RemoteServer.write` answers the mutation's
@@ -2059,24 +2077,19 @@ export const RemoteServer = {
    * input bound to the write lands through `writer`, and the row as written
    * answers as a patch (a deletion as `deleted`). An update writes only the
    * keys the client named, when it named some, and fails for a row that is not
-   * there; an insert of an id already taken fails alike whatever the row
-   * holds, unless the writer's ledger records this operation as the insert
-   * that made it (a retry), answered with that row; a delete of a row already
-   * gone succeeds. A row that moved past the revision the write
+   * there; an insert of an id already taken is refused as taken, alike
+   * whatever the row holds, unless the writer's ledger records this operation
+   * as the insert that made it (a retry), answered with that row; a delete of
+   * a row already gone succeeds. A row that moved past the revision the write
    * `expect`s is refused as a conflict, and one that does not hold its `when`
    * as unmet; a write with a `when` needs a writer that checks it
    * (`preconditions`), and is refused here without one.
    */
-  write: <
-    P = unknown,
-    R = never,
-    Name extends string = string,
-    Input = unknown,
-    Refused extends { readonly _tag: 'Conflict' | 'Unmet' | 'Invalid' } = {
-      readonly _tag: 'Conflict'
-    },
-  >(
-    mutation: MutationDescriptor<Name, Input, {}, Refused> & {
+  write: <P = unknown, R = never, Name extends string = string, Input = unknown>(
+    // Its `Refusal` is the one `Mutation.write` derived from the write's kind; each
+    // refusal below is one that kind declares. Left `any`, so a list of writes of
+    // every kind, each refused its own way, maps through here.
+    mutation: MutationDescriptor<Name, Input, {}, any> & {
       readonly write: AnyWrite
     },
     writer: EntityWriter<P, R>,
@@ -2227,7 +2240,7 @@ export const RemoteServer = {
         const conflict = (bound: { readonly entity: string; readonly id: string }) =>
           RemoteServer.refuse(
             mutation,
-            { _tag: 'Conflict' } as Refused,
+            { _tag: 'Conflict' },
             `${bound.entity} ${bound.id} changed since it was read`,
           )
         // The body reads the input as a query's does: encoded, by its keys.
@@ -2264,7 +2277,7 @@ export const RemoteServer = {
                 : Effect.fail(
                     RemoteServer.refuse(
                       mutation,
-                      { _tag: 'Unmet' } as Refused,
+                      { _tag: 'Unmet' },
                       `${bound.entity} ${bound.id} does not hold what ${mutation.name} asks of it`,
                     ),
                   ),
@@ -2288,7 +2301,7 @@ export const RemoteServer = {
                   rule: refused.rule,
                   message: refused.message,
                   path: refused.path,
-                } as unknown as Refused,
+                },
                 refused.message,
               ),
             ),
@@ -2386,14 +2399,31 @@ export const RemoteServer = {
                 // A visitor, a viewer of another Entity, or a path reaching no row.
                 if (set.unfilled.length > 0) return yield* Effect.fail(RemoteServer.forbid())
                 const row = yield* invalid(
-                  writer.insert({
-                    id: bound.id,
-                    values: { ...bound.values, ...set.values },
-                    links: { ...bound.links, ...set.links },
-                    operation,
-                    request: yield* request,
-                    principal,
-                  }),
+                  writer
+                    .insert({
+                      id: bound.id,
+                      values: { ...bound.values, ...set.values },
+                      links: { ...bound.links, ...set.links },
+                      operation,
+                      request: yield* request,
+                      principal,
+                    })
+                    .pipe(
+                      // Built from the request alone: the row there may be hidden from who asked.
+                      Effect.catchTag('RemoteTaken', () =>
+                        Effect.fail(
+                          RemoteServer.refuse(
+                            mutation,
+                            {
+                              _tag: 'Taken',
+                              entity: bound.entity,
+                              id: bound.id,
+                            },
+                            `${bound.entity} ${bound.id} is already taken`,
+                          ),
+                        ),
+                      ),
+                    ),
                 )
                 return naming(yield* answered(bound, row), yield* pointedAt(bound.id, principal))
               }),
@@ -2731,7 +2761,8 @@ export const RemoteServer = {
    * The request and its payload are decoded by the protocol's own schemas
    * before a handler sees them, so an operation name is one of Remote's three
    * and nothing else. A body that is not a request is a 400; a caller who
-   * could not be told a 401; a refusal of who is asking a 403; a handler's
+   * could not be told a 401; a refusal of who is asking a 403; a mutation's
+   * declared refusal a 422, or a 409 when it is `Refusal.taken`; a handler's
    * failure a 500 with its message; a defect a 500 that says nothing of it,
    * its cause reported as a `ServerDefect` (`Diagnostics`, by default the log).
    * `Remote.json` and `Remote.http` are the other end.
@@ -2740,7 +2771,10 @@ export const RemoteServer = {
     handlers: RemoteRpcClient<R>,
     body: unknown,
   ): Effect.Effect<
-    { readonly status: 200 | 400 | 401 | 403 | 422 | 500; readonly body: RemoteJsonAnswer },
+    {
+      readonly status: 200 | 400 | 401 | 403 | 409 | 422 | 500
+      readonly body: RemoteJsonAnswer
+    },
     never,
     R
   > => {
@@ -2781,7 +2815,10 @@ export const RemoteServer = {
         Effect.succeed(
           error.refusal === undefined
             ? { status: 500 as const, body: { error: error.message } }
-            : { status: 422 as const, body: { error: error.message, refusal: error.refusal } },
+            : {
+                status: Refusal.isTaken(error.refusal) ? (409 as const) : (422 as const),
+                body: { error: error.message, refusal: error.refusal },
+              },
         ),
       ),
       Effect.catch(error =>

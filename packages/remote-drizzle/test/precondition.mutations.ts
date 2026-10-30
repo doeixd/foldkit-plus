@@ -68,8 +68,8 @@ export default [
   edit(
     'an unmet write is refused as a conflict',
     server,
-    "{ _tag: 'Unmet' } as Refused,",
-    "{ _tag: 'Conflict' } as Refused,",
+    "{ _tag: 'Unmet' },",
+    "{ _tag: 'Conflict' },",
   ),
   edit(
     'a guarded writer hides its writer’s preconditions',
