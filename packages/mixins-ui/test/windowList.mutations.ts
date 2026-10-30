@@ -98,11 +98,28 @@ export default [
     edits: [
       {
         file,
-        find: 'onMessage(Message.Placed({ top, height })),',
-        replace: 'onMessage(Message.Placed({ top: top * 0, height })),',
+        find: '.pipe(Stream.map(({ top, height }) => Message.Placed({ top, height }))),',
+        replace:
+          '.pipe(Stream.map(({ top, height }) => Message.Placed({ top: top * 0, height }))),',
       },
     ],
     tests: browser,
+  },
+  {
+    name: 'the rows are never measured',
+    edits: [
+      {
+        file,
+        find: '.pipe(Stream.map(({ rows }) => Message.Measured({ rows }))),',
+        replace: '.pipe(Stream.drain),',
+      },
+    ],
+    tests: browser,
+  },
+  {
+    name: "a Scene's reading skips the page's onMessage",
+    edits: [{ file, find: '=> [Track, onMessage(reading)]', replace: '=> [Track, reading]' }],
+    tests: unit,
   },
   {
     name: 'rows carry no key to be measured by',

@@ -7,8 +7,8 @@
  * header above it sticks, and the page's keys (Space, End) move it.
  *
  * ```text
- * WindowViewport (on root) -> Placed { top, height } -> update -> viewport
- * MeasureRows (on root)    -> Measured { rows }      -> update -> heights
+ * Track (on root) -> Placed { top, height } -> update -> viewport
+ *                 -> Measured { rows }      -> update -> heights
  * view: windowOf(model, keys) -> start spacer, rows [start, end), end spacer
  * ```
  *
@@ -19,9 +19,10 @@
  * padding, not margins. `@foldkit/ui`'s `VirtualList` is the list in a box
  * of its own.
  */
-import { Schema } from 'effect'
+import { Schema, Stream } from 'effect'
 import { Capability, Slot, Slots, SlotView, type NamedStyle } from 'foldkit-mixins'
 import type { Html, HtmlBuilder } from 'foldkit/html'
+import type { Scene } from 'foldkit/test'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Mount from 'foldkit/mount'
 import { modifyFields } from 'foldkit/struct'
@@ -199,6 +200,36 @@ const keysOf = <Item>(
   return keys
 }
 
+/**
+ * The list's one Mount, on its `root`: where the viewport lies over the list
+ * (`WindowViewport`, as `Placed`) and the heights of the rows drawn
+ * (`MeasureRows`, as `Measured`). A failure in either ends both, reported
+ * as this Mount's. A Scene test resolves it with `resolveTrack`.
+ */
+export const Track = Mount.defineStream('WindowList.Track', {
+  messages: [Message.Placed, Message.Measured],
+  execute: ({ element, viewStateChanges }) =>
+    Stream.merge(
+      WindowViewport()
+        .f(element, viewStateChanges)
+        .pipe(Stream.map(({ top, height }) => Message.Placed({ top, height }))),
+      MeasureRows({ attribute: ROW_KEY })
+        .f(element, viewStateChanges)
+        .pipe(Stream.map(({ rows }) => Message.Measured({ rows }))),
+    ),
+})
+
+/**
+ * `Track` resolved with `reading`, for a Scene test of a page that draws the
+ * list: the reading goes through the view's own `onMessage`, as it does when
+ * the Mount reports, so the page's `update` receives its own Message.
+ * `Scene.Mount.resolveAll(WindowList.resolveTrack(onMessage, WindowList.Message.Placed({ top: 0, height: 900 })))`.
+ */
+export const resolveTrack = <Outer>(
+  onMessage: (message: Message) => Outer,
+  reading: Message,
+): Scene.MountResolver<Outer> => [Track, onMessage(reading)]
+
 /** The list: the rows in view of the window, between spacers as tall as the rest. */
 export const view = <Item, Outer>(
   options: WindowListView<Item, Outer>,
@@ -231,16 +262,7 @@ export const view = <Item, Outer>(
       h.Id(model.id),
       h.Role('list'),
       ...(options.label === undefined ? [] : [h.AriaLabel(options.label)]),
-      h.OnMount(
-        Mount.mapMessage(WindowViewport(), ({ top, height }) =>
-          onMessage(Message.Placed({ top, height })),
-        ),
-      ),
-      h.OnMount(
-        Mount.mapMessage(MeasureRows({ attribute: ROW_KEY }), ({ rows }) =>
-          onMessage(Message.Measured({ rows })),
-        ),
-      ),
+      h.OnMount(Mount.mapMessage(Track(), onMessage)),
     ]),
     [
       spacer('start', startHeight),

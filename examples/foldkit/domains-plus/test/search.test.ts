@@ -108,13 +108,12 @@ describe('the address', () => {
   })
 })
 
-/**
- * All Results' list reports where the window lies over it. `WindowList`
- * composes its two Mounts into one, which a Scene matches by name (#369).
- */
-const placeResultsList = Mount.resolve(
-  { name: 'Mixins[root](WindowViewport,MeasureRows)' },
-  Message.GotResultsListMessage({ message: WindowList.Message.Placed({ top: 0, height: 900 }) }),
+/** All Results' list reports where the window lies over it. */
+const placeResultsList = Mount.resolveAll(
+  WindowList.resolveTrack(
+    message => Message.GotResultsListMessage({ message }),
+    WindowList.Message.Placed({ top: 0, height: 900 }),
+  ),
 )
 
 describe('the page while typing', () => {

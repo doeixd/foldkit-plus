@@ -2,8 +2,13 @@
  * WindowList's Model: a reading equal to the one held returns the Model it
  * was given, a poisoned height is ignored, `keep` lets departed rows go, and
  * `windowOf` covers the part of the viewport over the list plus the overscan,
- * whether the list is above, across or below the viewport.
+ * whether the list is above, across or below the viewport. A Scene of a page
+ * drawing the list resolves its one Mount through the page's own Message.
  */
+import { Schema } from 'effect'
+import type { Html, HtmlBuilder } from 'foldkit/html'
+import { defineMessageUnion } from 'foldkit/message'
+import { Scene } from 'foldkit/test'
 import { describe, expect, it } from 'vitest'
 import { WindowList } from '../src/index.js'
 
@@ -110,5 +115,40 @@ describe('WindowList.windowOf', () => {
     ).model
     // The viewport over 100..200 is all of row 1, the second 100px row.
     expect(WindowList.windowOf(tall, keys)).toEqual({ start: 0, end: 4 })
+  })
+})
+
+describe('WindowList.resolveTrack', () => {
+  const Page = defineMessageUnion({ GotList: { message: WindowList.Message } })
+  type Page = typeof Page.Type
+  const toPage = (message: WindowList.Message): Page => Page.GotList({ message })
+  const pageUpdate = (list: WindowList.Model, message: Page) =>
+    Page.match(message, {
+      GotList: ({ message }) => ({ model: WindowList.update(list, message).model }),
+    })
+  const pageView = (list: WindowList.Model, h: HtmlBuilder<Page>): Html =>
+    WindowList.view(
+      {
+        model: list,
+        items: keys,
+        itemToKey: key => key,
+        itemToView: key => h.span([], [key]),
+        onMessage: toPage,
+      },
+      h,
+    )
+
+  it("is the page's one Mount, and hands the page's update its own Message", () => {
+    Scene.scene(
+      { update: pageUpdate, view: pageView },
+      Scene.given(model),
+      Scene.Mount.expectExact(WindowList.Track),
+      Scene.Mount.resolveAll(
+        WindowList.resolveTrack(toPage, WindowList.Message.Placed({ top: 400, height: 100 })),
+      ),
+      // 400px down, a 100px viewport and 2 rows of overscan draw rows 18 to 26.
+      Scene.expect(Scene.text('row-18')).toExist(),
+      Scene.expect(Scene.text('row-0')).toBeAbsent(),
+    )
   })
 })

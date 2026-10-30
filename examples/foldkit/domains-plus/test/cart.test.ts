@@ -62,9 +62,11 @@ const priced = async (): Promise<Model> => {
   return trace.entries.at(-1)?.model ?? trace.start
 }
 
-const placeResultsList = Mount.resolve(
-  { name: 'Mixins[root](WindowViewport,MeasureRows)' },
-  Message.GotResultsListMessage({ message: WindowList.Message.Placed({ top: 0, height: 900 }) }),
+const placeResultsList = Mount.resolveAll(
+  WindowList.resolveTrack(
+    message => Message.GotResultsListMessage({ message }),
+    WindowList.Message.Placed({ top: 0, height: 900 }),
+  ),
 )
 
 const vercelApp = {

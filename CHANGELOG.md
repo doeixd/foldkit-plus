@@ -99,7 +99,9 @@ version changed; `pnpm` skips versions already in the registry.
   a `sticky` header above it, and the page's keys. `WindowList.init`,
   `update`, `view`, `windowOf` (the rows drawn, for loading what is in view)
   and `keep`; Slots `root`, `spacer`, `row`. `VirtualList` stays the list in
-  a box of its own.
+  a box of its own. Its one Mount, `WindowList.Track`, is resolved in a
+  Scene with `WindowList.resolveTrack(onMessage, reading)`, which sends the
+  reading through the view's own `onMessage` (#369).
 
 - **Request body limits on the Remote endpoint** (`foldkit-remote-server`,
   #359). `serveFetch`'s `maxBodyBytes` (default 1 MiB; it read a body of any

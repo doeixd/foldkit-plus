@@ -1,11 +1,12 @@
 /**
  * WindowList's view: `Item` is inferred from `items` and reaches `itemToKey`
  * and `itemToView`; `onMessage` maps the list's Messages into the
- * application's and is not where `Outer` is inferred. Type-checked, not
- * executed.
+ * application's and is not where `Outer` is inferred. `resolveTrack` builds
+ * a Scene's resolution through the same mapping. Type-checked, not executed.
  */
+import type { Scene } from 'foldkit/test'
 import { WindowList } from '../src/index.js'
-import { h, message } from './fixture.js'
+import { h, message, type TestMessage } from './fixture.js'
 
 const model = WindowList.init({ id: 'results', estimatedHeight: 40 })
 const names = ['a.com', 'b.dev']
@@ -59,3 +60,17 @@ export const foreignMessage = WindowList.view(
 
 // @ts-expect-error A Placed reading carries both its top and its height.
 export const halfPlaced = WindowList.Message.Placed({ top: 0 })
+
+const placed = WindowList.Message.Placed({ top: 0, height: 900 })
+
+// A Scene resolves the list's Mount with the page's Message, built by the view's `onMessage`.
+export const resolved: Scene.MountResolver<TestMessage> = WindowList.resolveTrack(
+  () => message('Other'),
+  placed,
+)
+
+// @ts-expect-error The reading is one of the list's Messages, not the page's.
+export const pageReading = WindowList.resolveTrack(() => message('Other'), message('Other'))
+
+// @ts-expect-error `onMessage` takes the list's Messages.
+export const foreignOnMessage = WindowList.resolveTrack((tag: TestMessage) => tag, placed)
