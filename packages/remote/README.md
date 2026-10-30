@@ -1694,7 +1694,11 @@ Data.refusal(model, requestId, SetPrice) // Option<{ _tag: 'Field', key: 'price'
 hold what a [declared write](#declared-writes-what-the-client-predicts)'s
 `when` asks of it. A `Mutation.write` is refused as unmet only when its write
 has a `when`, and its `Refusal` type says so: without one it stays `Conflict`,
-so a match over it needs no `Unmet` arm. `Refusal.invalid` says the row it
+so a match over it needs no `Unmet` arm. `Refusal.taken` says an insert's id
+is already a row's: its `entity` and `id`, the caller's own, and nothing of the
+row, which may be hidden from them. A `Mutation.write` over `Write.insert` is
+refused as taken and never as a conflict, since an insert expects no revision.
+`Refusal.invalid` says the row it
 would leave breaks an invariant of its Entity (`Entity.invariant`): its
 `entity` and `rule` (an id is unique only within its Entity, so the two name
 it) and its `path`, which a form shows the `message` beside, or none and empty

@@ -495,9 +495,10 @@ through the whole path; what this package does with each part of a write:
   `foldkit-guard` hands it a rule that reads another row that way.
 - **Creates and deletes.** An update of no row fails, and a delete of a row
   already gone succeeds, so its retry is safe. An insert of an id already
-  taken fails with one answer, whatever the row there holds and whether its
-  asker may see it: comparing that row with the insert would tell the asker
-  what it holds. Only a writer with a ledger tells a retry from another create
+  taken is refused as `Refusal.taken` (the writer fails `insert` with
+  `RemoteTaken`, `RemoteServer.taken()`), with one answer whatever the row
+  there holds and whether its asker may see it: comparing that row with the
+  insert would tell the asker what it holds. Only a writer with a ledger tells a retry from another create
   of the id, by the operation the client sent, and answers it with the row;
   without one, a create whose answer was lost is refused when it is sent
   again. Give a writer a ledger where a client may resend a create, and make
@@ -1072,6 +1073,8 @@ const route = async (request: Request): Promise<Response> => {
   call, of whatever kind, with `_tag: 'Unauthenticated'`.
 - **403** with `{ error, forbidden: { reason? } }`: who is asking may not do
   this (`RemoteServer.forbid`).
+- **409** with `{ error, refusal }`: a declared insert's id is already a
+  row's, refused as `Refusal.taken`.
 - **422** with `{ error, refusal }`: the mutation refused what was asked, in
   its own `Refusal`.
 - **500** with `{ error }`: the handler failed, and the message is its own;

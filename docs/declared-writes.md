@@ -126,7 +126,9 @@ written. A published one is answered as written and does not change.
   decodes the input before anything else, so a client cannot send another value.
   There is no separate constant-assignment API, because this is one.
 - **`Mutation.write`** types the refusal. A write with a `when` may be refused
-  as `Unmet` as well as `Conflict`; one without has no `Unmet` arm to match.
+  as `Unmet` as well as `Conflict`; one without has no `Unmet` arm to match. An
+  insert expects no revision, so it is refused as `Taken` (its id is a row's),
+  never as `Conflict`.
 - **`writer(Db.Product)`** is where I/O happens: one `update … where id = ? and
   <when>`, then, if no row changed, one read to say why. It checks no rules; the
   guard, below, does.
@@ -451,10 +453,10 @@ create index write_ledger_at on write_ledger (at);
   and an increment would be applied again. Records are pruned as new ones are
   made; the index on `at` keeps that from scanning the table.
 - **Updates and inserts are recorded.** A retried insert is answered from its
-  record with the row it made. Without a ledger an insert of a taken id is
-  refused, retry or not, with one answer whatever the row holds, since
-  comparing the row with the insert would tell its asker what it holds. A
-  retried delete finds the row gone.
+  record with the row it made. Any other insert of a taken id, and without a
+  ledger a retry too, is refused as `Taken`, with one answer whatever the row
+  holds, since comparing the row with the insert would tell its asker what it
+  holds. A retried delete finds the row gone.
 
 A retry found in the ledger is not written again, and the guard does not decide
 it again: it was decided when it landed, and deciding it over a row that has
@@ -545,6 +547,7 @@ with what its pending write showed, and reports a disagreement as a
 | `Conflict` | the input's revision is not the row's | re-read, then let the author decide |
 | `Unmet` | the row does not hold the write's `when` | show why; the state changed |
 | `Invalid` | the row the write would leave breaks an invariant, over a row or over the change | show its `message` beside its `path`; change the input |
+| `Taken` | an insert's id is already a row's, and the ledger holds no record of this operation making it (a 409 over HTTP) | choose another id; the refusal names the Entity and the id, nothing of the row |
 | "changed while it was written" | the row kept moving through three decisions | retry later |
 | `Unreachable` | no answer came back; the write may or may not have landed | `Data.retry` (a durable write is sent again on its own); safe as far as the retry table says |
 | "needs a database with transactions" | a ledger over a database with neither a transaction nor D1's batch | give the writer a Drizzle database |

@@ -1161,8 +1161,9 @@ table.
 - A record is kept for `retention` milliseconds, a day unless given; a retry
   later than that is a new operation. Records are pruned as new ones are made.
 - Updates and inserts are recorded. A retried insert is answered from its
-  record with the row it made; without a ledger, a create of a taken id is
-  refused, retry or not. A retried delete finds the row gone.
+  record with the row it made; any other create of a taken id, and without a
+  ledger a retry too, is refused as `Refusal.taken`. A retried delete finds the
+  row gone.
 - The ledger runs in a transaction: synchronous on SQLite, awaited on Postgres.
   D1 refuses a transaction's `BEGIN`, so there the ledger reads the record
   first and then writes the row and its record in one `batch`, which commits
@@ -1201,9 +1202,10 @@ bytes is refused, since Postgres would cut it. The revision column must be `not 
 changes in one operation, which the trigger would move past its sequence.
 
 An insert is one `insert ... on conflict do nothing returning` under the id the
-client chose. An id already taken is refused with one answer, whatever the row
-there holds, since comparing it with the insert would tell the asker what it
-holds; only a ledger tells a retry from another create of that id. A delete
+client chose. An id already taken is refused as `Refusal.taken` (a 409 over
+HTTP), with one answer whatever the row there holds, since comparing it with
+the insert would tell the asker what it holds; only a ledger tells a retry from
+another create of that id. A delete
 is one `delete` by id, guarded by the revision when it expects one; a row
 already gone is gone.
 

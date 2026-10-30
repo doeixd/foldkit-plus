@@ -512,8 +512,9 @@ over such a member judges the server's value like any other: declare none there.
 
 No input may set `ownerId`, which is refused where the write is declared. A
 visitor is no one to set, and is refused even where the rules would let
-anyone create. A create of an id already taken is refused with one answer,
-whatever the row there holds, so it tells nothing the asker may not read. Only
+anyone create. A create of an id already taken is refused as
+`Refusal.taken`, with one answer whatever the row there holds, so it tells
+nothing the asker may not read. Only
 the writer's ledger recognises a retry, by its operation and who asked, and
 answers it with its row, first time kept; the same id from another account is
 refused.

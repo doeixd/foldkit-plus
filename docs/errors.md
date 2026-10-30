@@ -291,9 +291,10 @@ so a refusal discloses nothing to someone who may not write:
 | Refusal | When | What to do |
 | --- | --- | --- |
 | `Forbidden` (a `RemoteError`, not a `refusal`) | the row is hidden from the caller, or a guard rule does not hold; refused where it is made when the held `may` says no | show it; asking again is refused again |
-| `Conflict` | the row moved past the revision the write `expect`s | read it again; let the author decide |
+| `Conflict` | the row moved past the revision the write `expect`s (an update or a delete) | read it again; let the author decide |
 | `Unmet` | the row does not hold the write's `when` (only for a write with one) | show why; the state changed |
 | `Invalid` | the row it would leave breaks an Entity invariant; refused where it is made when the client holds what the invariant reads | show `message` beside each field `path` names |
+| `Taken` | an insert's id is already a row's (only for an insert), whatever the row holds and whether the caller may see it; a retry of the create that made it is answered from the writer's ledger instead | choose another id; asking again is refused again |
 
 An `Invalid` over a member hidden from the caller names no rule and no path.
 `Refusal.isInvalidBy(refusal, invariant)` asks which invariant refused it, by
@@ -347,7 +348,8 @@ internal leaks. Over `RemoteServer.answer` and `serveFetch`:
 | On the server | The client receives |
 | --- | --- |
 | A Source fails with `RemoteServerError(message)` | `RemoteReadError`, `RemoteQueryError` or `RemoteMutationError` with that message: write it for the reader |
-| `RemoteServer.refuse(mutation, refusal)` | a 422 with the refusal, which `Data.refusal` decodes |
+| `RemoteServer.refuse(mutation, refusal)` | a 422 with the refusal (a 409 for a `Refusal.taken`), which `Data.refusal` decodes |
+| A writer's `RemoteServer.taken()`, for a declared insert of a taken id | a 409 with the mutation's `Taken` refusal, naming only the Entity and the id |
 | `RemoteServer.forbid(reason?)` | a 403, `_tag: 'Forbidden'`, with `reason` only when given |
 | `RemoteServer.unauthenticated(reason?)` from a resolver | a 401, `_tag: 'Unauthenticated'`, with `reason` only when given |
 | A mutation's input does not decode | `Invalid mutation input`, and nothing of the schema's message |

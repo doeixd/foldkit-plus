@@ -174,7 +174,9 @@ reuses the fields' schemas, and a mapping may name a member by key:
 `Entity.input(Post, Input, { editorId: 'editor' })` is `Relation.input(Post.relations.editor)`.
 
 **What an input writes:** `Write.update(input, { id: 'id' })`, `Write.insert(input, { id })` and
-`Write.delete(input, { id })` declare a write as data. In an update, every key mapped to a field is set,
+`Write.delete(input, { id })` declare a write as data, typed by its kind (`Write<E, Fields, 'Insert'>`,
+`WriteKind`), which is what `foldkit-remote`'s `Mutation.write` reads to type its refusals (an insert's
+`Taken`, an update's `Conflict`). In an update, every key mapped to a field is set,
 a `one` relation key is pointed (bound to a ref in `links`), and an unmapped key is not written; a `many`
 or nested key is refused. `Write.writes(write)` is what it may change, `Write.reads(write)` what it
 reads from its row, and `Write.bind(write, value, keys?)` the row and its encoded new values, for an

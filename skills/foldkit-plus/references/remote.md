@@ -581,7 +581,9 @@ invariants: [entity.md](entity.md).
 **Refusals.** `Mutation.make(name, { Input, Output, Refusal })` declares what
 the server may refuse with (`Refusal.field(key, reason)`, `Refusal.conflict`,
 or any codec); a `Mutation.write` whose write has a `when` may also be refused
-as `Refusal.unmet`, and only then does its `Refusal` type include it; every `Mutation.write` may be refused as
+as `Refusal.unmet`, and only then does its `Refusal` type include it; one over `Write.insert` is
+refused as `Refusal.taken` (`{ entity, id }`, nothing of the row) when its id is a row's, and never
+as `Refusal.conflict`; every `Mutation.write` may be refused as
 `Refusal.invalid` (`{ entity: Option<string>, rule: Option<string>, message, path }`), when the row it would leave breaks an invariant, and `Refusal.isInvalidBy(refusal, invariant)` matches it, by Entity and id (ids are unique only within an Entity), against the value `Entity.invariant` returned once attached; a Source fails with `RemoteServer.refuse(mutation, value)`, and
 `Data.refusal(model, requestId, mutation)` reads it decoded, as an `Option`.
 A declared write (given no `optimistic` of its own) whose row the client can tell breaks an invariant (judged over
@@ -859,7 +861,8 @@ declare const principal: Principal // authentication happens outside this packag
 const handlers = RemoteServer.handlers(Server, principal) // once per authenticated principal
 const inProcess = Remote.clientLayer(handlers)            // tests/SSR/worker
 // Over JSON: RemoteServer.answer(handlers, parsedBody) -> { status, body }:
-// 200, 400, 401 (unauthenticated), 403 (forbid), 422 (a declared refusal) or 500.
+// 200, 400, 401 (unauthenticated), 403 (forbid), 409 (Refusal.taken), 422 (a declared refusal)
+// or 500.
 // The body is { operation: 'read' | 'query' | 'mutate', payload }; test a server over HTTP
 // with the real client, Remote.http(`${origin}/remote`, { headers, fetch }).
 // It decodes the request by the protocol's schemas first; a defect answers 'Internal error',
@@ -935,7 +938,8 @@ const ProjectsByOwner = Query.make('ProjectsByOwner', { Input: { ownerId: Schema
 // A declared write needs no handler: RemoteServer.write(EditProject, writer(Db.Project)),
 // with Db = bind({ Project }, { Project: { table } }); it writes only the keys named, and an
 // `expect`ed revision guards the row and moves on in the same statement (else a conflict).
-// An insert of a taken id fails alike whatever the row holds; only a writer's ledger
+// An insert of a taken id is refused as Refusal.taken (the writer fails with
+// RemoteServer.taken()), alike whatever the row holds; only a writer's ledger
 // answers a retry of it, by operation, with its row; a delete of a row already gone succeeds;
 // a guarded write retried after it landed answers its row (EntityWriter.delete says
 // 'deleted' | 'absent' | 'moved'). A binding with `visible` reads the answer back
