@@ -10,6 +10,7 @@
     "paths": {
       "foldkit-bundle": ["../../packages/bundle/src/index.ts"],
       "foldkit-mixins": ["../../packages/mixins/src/index.ts"],
+      "foldkit-mixins-ui": ["../../packages/mixins-ui/src/index.ts"],
       "foldkit-mixins/app": ["../../packages/mixins/src/app.ts"],
       "foldkit-mixins/defaults": ["../../packages/mixins/src/defaults.ts"],
       "foldkit-mixins/foundations": ["../../packages/mixins/src/foundations.ts"],
@@ -39,6 +40,9 @@
     },
     {
       "path": "../../packages/mixins/tsconfig.build.json"
+    },
+    {
+      "path": "../../packages/mixins-ui/tsconfig.build.json"
     },
     {
       "path": "../../packages/primitives/tsconfig.build.json"

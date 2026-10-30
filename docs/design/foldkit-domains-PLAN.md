@@ -98,7 +98,7 @@ unchanged so it carries over, and becomes an acceptance test for that phase.
 | `makeFieldsStep`, `makeCommandsStep`, `Update.combineSteps` | `modifyFields` in `update` and plain `Update.Return` values; the steps that remain are small functions over `(model) => Return` |
 | `ApplicationDefinition.makeCommand` + `EffectsLayer` | `Command.define` from `foldkit/command` (its `interrupt` option where a later run supersedes) |
 | `Query.define` (`KeyedQuery`) | `foldkit-remote` (§3.2) |
-| `DialogBlock`, `Listbox.makeBlock`, `VirtualList.makeBlock`, `initAndSet` | `@foldkit/ui` 0.170 Models (`Dialog.init`, `Listbox.init`, `VirtualList.init`) drawn through `foldkit-mixins-ui` adapters |
+| `DialogBlock`, `Listbox.makeBlock`, `VirtualList.makeBlock`, `initAndSet` | `@foldkit/ui` 0.170 Models (`Dialog.init`, `Listbox.init`) drawn through `foldkit-mixins-ui` adapters, and `foldkit-mixins-ui`'s `WindowList` and `Picker` (#351, #358) |
 | `Program.make` + `Runtime.hydrate`, `Server.renderToString` | `makeApplication` + `foldkit-ssr` (`SSR.render`, `SSR.hydrate`, `SSR.generate`) |
 | Tailwind 4 + `styles.css` (902 lines) + utility classes in `view.ts` | `Theme`, `Style.stylesheet`, `foldkit-mixins-ui` recipes, Slots; no CSS file |
 | `icon.ts` (hand-copied Lucide paths) | `foldkit-media`'s icons by name (`lucide`), drawn with `Icon.draw` |
@@ -156,24 +156,29 @@ that hold the 4-name request apart are ported to hold the top reads instead
 
 | Concern | Owner |
 | --- | --- |
-| Which rows are drawn, scroll and measurement | `@foldkit/ui` 0.170 `VirtualList` (`init({ id, rowHeightPx })`, `dynamicRowHeights`), through `foldkit-mixins-ui`'s `VirtualList.view` (Slots `root`, `row`, `bar`, `thumb`) |
+| Which rows are drawn, scroll and measurement | `foldkit-mixins-ui`'s `WindowList` (`init({ id, estimatedHeight })`, rows measured as drawn), in the page's own scroll (Slots `root`, `spacer`, `row`) |
 | Grouping 6 names per row, width-based estimates | the app, unchanged (`groupDomainListings`, `estimateResultGroupHeightPx`) |
-| Which names are visible, for the reads | a pure function of the VirtualList Model (§3.2) |
-| Page-scroll keys, End | the app's Commands (`ScrollPage`, `ScrollPageToTop`), as upstream; End is `VirtualList.scrollToEnd` |
+| Which names are visible, for the reads | `WindowList.windowOf(model, keys)`, a pure function of its Model (§3.2) |
+| Page-scroll keys, End | the browser's, since the document scrolls; upstream's `ScrollPageToTop` is a `window.scrollTo` Command |
 
 Upstream scrolls the document, not the list (`ScrollContainer.Window()`,
 `rowLayout: 'Absolute'`) and patches `@foldkit/ui` for scroll anchoring. 0.170's
-`VirtualList.InitConfig` has neither option, so phase 3 ships the list in its
-own scroller with a fixed height and records the difference (gap 1).
+`VirtualList.InitConfig` has neither option. Gap 1 is closed (#351):
+`foldkit-mixins-ui`'s `WindowList` scrolls with the document, reads the list's
+offset under the header on every scroll, keeps the browser's scroll anchoring
+(in-flow rows) and restoration, and `WindowList.windowOf` is the pure
+function of the Model that names the visible groups for the reads. Phase 3
+uses it in place of `VirtualList` and an own scroller; its Slots are `root`,
+`spacer` and `row`, and End and Page Down are the browser's own keys.
 
 ### 3.4 Filters and sort
 
 | Concern | Owner |
 | --- | --- |
 | `tldFilter`, `availabilityFilter`, `sortOrder` | the Model (unchanged; upstream does not put them in the URL, and neither does the port) |
-| Desktop pickers | three `@foldkit/ui` Listbox Models drawn with `foldkit-mixins-ui`'s `Listbox` adapter (`anchor.portal: false`, as upstream, so the panel stays in the header's stacking context) and its recipe |
-| Phone sheets | `foldkit-mixins-ui`'s `Sheet` (a Dialog with a drag handle) for Filters and for the TLD list; the TLD search box is an `Input` recipe over `tldSearchQuery` |
-| Which picker shows | CSS breakpoints in the Style, as upstream (`desktop-filters` / `filters-button`); no media-query bundle is needed because no `update` reads the width |
+| Availability and sort | two `foldkit-mixins-ui` `Picker`s (#358, gap 9): each a Listbox on a desktop (its panel kept in place, as upstream's `portal: false`) and a bottom Sheet below `md`, one Model and one `Chose` either way; the app keeps `availabilityFilter` and `sortOrder` |
+| The TLD list | a `Picker` would hold 556 rows in its Sheet without a search box, so the TLD filter keeps a Listbox on a desktop and a `Sheet` with an `Input` recipe over `tldSearchQuery` on a phone |
+| Which picker shows | `Recipes.Picker`'s `sheetBelow` (the theme's `md`), in CSS, as upstream's `desktop-filters` / `filters-button`; no `update` reads the width |
 
 Deleted: `filterListboxes.ts` (Blocks), the Listbox `className` strings, and
 the three bindings. `steps/filters.ts` becomes three `modifyFields` cases; a
@@ -241,12 +246,13 @@ query              typed text; Mirror.url -> ?q (replace)
 settledLabel       debounce bundle's output; what the reads read
 searchLayout       landing | search (kept for the pre-hydration handoff)
 remote             Remote.Model: Domain quotes by name
-resultsList        @foldkit/ui VirtualList Model
-tldListbox, availabilityListbox, sortListbox   @foldkit/ui Listbox Models
+resultsList        foldkit-mixins-ui WindowList Model
+tldListbox         @foldkit/ui Listbox Model
+availabilityPicker, sortPicker                 foldkit-mixins-ui Picker Models
 tldFilter, availabilityFilter, sortOrder       unchanged
 cart               unchanged
 cartDialog         @foldkit/ui Dialog Model
-filtersSheet, tldSheet                         foldkit-mixins-ui Sheet Models
+tldSheet           foldkit-mixins-ui Sheet Model
 tldSearchQuery     unchanged
 debounce           the debounce bundle's slice
 ```
@@ -265,7 +271,7 @@ without it, and the root checks green. The upstream copy stays untouched.
 | 0 | Package, tsconfig (`pnpm paths`), `vite.config.ts` with `@foldkit/vite-plugin` 0.29 and `foldkit-media/vite` icons; `shared/domain.ts`, `tld.ts`, `demoDomains.ts`, `client/domain/*` copied unchanged; `Surface.application`, `Site` tree, a theme and sheet; landing page and 404 | Landing and 404 render, no search | Scene: landing draws the search box and "Begin your search"; Site: `/missing` parses to NotFound; the copied pure tests (`domain.fixture.ts` users) |
 | 1 | `query`, `Mirror.url` for `q`, `debounce` → `settledLabel`, pending cards and rows (no virtual list yet: the first 36 names, as upstream's preview), invalid-label error, Escape and clear | Typing shows names; the URL follows; back/forward restore | Story: typing replaces the URL once per keystroke and the mirror's own `UrlChanged` returns the same Model (`toBe`); an invalid label asks nothing; `e2e` in Chromium: type, reload, back |
 | 2 | `foldkit-remote`: Domain entity, `TopResults` reads, server Source over `makeDemoDomains`, `/remote` in the dev server and the Worker, freshness 60 s, failures and retry | Top 4 cards fill with prices; retry works; backspace within a minute asks nothing | Story with `Remote.clientLayer(RemoteServer.handlers(...))` in process: prices land, a failed read reads `Failed`, retry clears it; server tests ported from `search.test.ts` (deterministic prices, unknown TLD, unconfirmed names); a Story that a second visit within `maxAge` plans no read |
-| 3 | All Results: VirtualList through the mixins-ui adapter (own scroller), 6-name rows, `VisibleResults` reads, result count, page banner | Scrolling fills prices for what is in view | Story: moving the VirtualList Model's `scrollTop` adds the names in view to the plan and nothing else; browser test: a scrolled list shows prices for its visible rows only |
+| 3 | All Results: `WindowList` (#351; the page scrolls), 6-name rows, `VisibleResults` reads, result count, page banner | Scrolling fills prices for what is in view | Story: a `WindowList.Message.Placed` further down adds the names in view to the plan and nothing else; browser test: a scrolled list shows prices for its visible rows only |
 | 4 | Filters and sort: three Listboxes, Filters and TLD Sheets, `WholeCatalog` reads, empty state | Every filter and sort works on desktop and phone | Story table over every `SortOrder` × `AvailabilityFilter`, reusing upstream's expectations; a filter chosen while reads are pending applies on arrival; browser test of the Sheet at 390 px |
 | 5 | Cart: Dialog, add/remove, total, focus return, live region | Cart flow complete | Scene: add twice keeps one; unconfirmed has no button; remove from dialog focuses the close button (browser test, real focus) |
 | 6 | `foldkit-ssr`: `SSR.generate` for `/`, `SSR.render` in the Worker with 404 status, the plan, `bootstrap.ts` and its handoff Command, DevTools | Served page is styled and editable before scripts; hydration adopts the input | e2e: hold scripts, type, release, the text, caret and node survive (upstream's `domains.spec.ts:91` ported); `/missing` is 404 |
@@ -302,7 +308,8 @@ without it, and the root checks green. The upstream copy stays untouched.
 
 ## 7. Gaps in Foldkit Plus (candidate issues, not filed)
 
-1. **A window-scrolled virtual list.** Upstream's preview VirtualList scrolls
+1. **A window-scrolled virtual list.** Closed by #351 (`WindowList`,
+   `WindowViewport`, `MeasureRows`); kept for the record. Upstream's preview VirtualList scrolls
    the document (`ScrollContainer.Window()`), positions rows absolutely, and
    keeps a scroll anchor through sorting and resizes (upstream patches it).
    `@foldkit/ui` 0.170's `VirtualList.InitConfig` has `id`, `rowHeightPx`,
@@ -340,7 +347,8 @@ without it, and the root checks green. The upstream copy stays untouched.
    one of two shapes (`Available` with a quote, `Unconfirmed` without) is
    flattened to a status field plus nullable fields, and a pure function
    rebuilds the union.
-9. **A picker that is a Listbox on desktop and a Sheet on a phone.** Upstream
+9. **A picker that is a Listbox on desktop and a Sheet on a phone.** Closed by
+   #358 (`Picker`, `Recipes.Picker`); kept for the record. Upstream
    draws both and hides one by breakpoint, with two Models and two code
    paths. `foldkit-mixins-ui`'s `Sidebar` has this (`sheet` option); a select
    does not.

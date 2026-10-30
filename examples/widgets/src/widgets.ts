@@ -63,6 +63,8 @@ import {
 } from './native-select/view.js'
 import * as Sidebar from './sidebar/app.js'
 import { Sidebar as SidebarView, SidebarSlots, runDemo as runSidebarDemo } from './sidebar/view.js'
+import * as PickerApp from './picker/app.js'
+import { PickerIsland, pickerStyles, runDemo as runPickerDemo } from './picker/view.js'
 import * as Resizable from './resizable/app.js'
 import {
   Resizable as ResizableView,
@@ -89,6 +91,12 @@ import {
   ProgressSlots,
   runDemo as runProgressDemo,
 } from './progress/view.js'
+import * as WindowListApp from './window-list/app.js'
+import {
+  WindowListIsland,
+  windowListStyles,
+  runDemo as runWindowListDemo,
+} from './window-list/view.js'
 import * as Toggle from './toggle/app.js'
 import { Toggle as ToggleView, ToggleSlots, runDemo as runToggleDemo } from './toggle/view.js'
 import * as ToggleGroup from './toggle-group/app.js'
@@ -132,6 +140,12 @@ export interface Island {
 }
 
 const define = <T extends Island>(island: T): T => island
+
+/** One source of several, for an island drawn with more than one style. */
+const merged = (...sources: ReadonlyArray<StylesheetSource>): StylesheetSource => ({
+  rules: sources.flatMap(source => source.rules),
+  globalRules: sources.flatMap(source => source.globalRules),
+})
 
 export const islands = [
   define({
@@ -469,6 +483,41 @@ export const islands = [
           init: () => ({ model: Resizable.initial }),
           update: Resizable.update,
           view: (model, h) => ResizableView(model, h),
+          container,
+        }),
+      )
+    },
+  }),
+  define({
+    id: PickerApp.ISLAND,
+    title: 'Picker (a dropdown, and a sheet on a phone)',
+    runDemo: runPickerDemo,
+    style: () => merged(...pickerStyles),
+    mount: container => {
+      Runtime.embed(
+        Runtime.makeElement({
+          Model: PickerApp.Model,
+          init: () => ({ model: PickerApp.initial }),
+          update: PickerApp.update,
+          view: (model, h) => PickerIsland(model, h),
+          container,
+        }),
+      )
+    },
+  }),
+  // Last: its thousand rows make the page long, which is the point.
+  define({
+    id: WindowListApp.ISLAND,
+    title: 'Window list',
+    runDemo: runWindowListDemo,
+    style: () => merged(...windowListStyles),
+    mount: container => {
+      Runtime.embed(
+        Runtime.makeElement({
+          Model: WindowListApp.Model,
+          init: () => ({ model: WindowListApp.initial }),
+          update: WindowListApp.update,
+          view: (model, h) => WindowListIsland(model, h),
           container,
         }),
       )

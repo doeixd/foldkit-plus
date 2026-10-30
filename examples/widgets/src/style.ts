@@ -22,6 +22,9 @@ import type { NativeSelectSlots } from './native-select/view.js'
 import type { ResizableSlots } from './resizable/view.js'
 import type { SidebarSlots } from './sidebar/view.js'
 import type { NumberFieldSlots } from './number-field/view.js'
+import type { PickerIslandSlots } from './picker/view.js'
+import type { WindowListIslandSlots } from './window-list/view.js'
+import type { WindowListSlots } from 'foldkit-mixins-ui'
 import type { OtpFieldSlots } from './otp-field/view.js'
 import type { PaletteSlots } from './palette/view.js'
 import type { ProgressSlots } from './progress/view.js'
@@ -666,4 +669,41 @@ export const resizableStyle = (slots: typeof ResizableSlots) =>
       status: Style.self({ flexBasis: '100%', margin: '0' }),
     },
     { name: 'ShowcaseResizable' },
+  )
+
+export const pickerIslandStyle = (slots: typeof PickerIslandSlots) =>
+  Style.forSlots(slots)(
+    {
+      root: Style.self({ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '1rem' }),
+      result: Style.self({ margin: '0', color: muted }),
+    },
+    { name: 'ShowcasePicker' },
+  )
+
+export const windowListIslandStyle = (slots: typeof WindowListIslandSlots) =>
+  Style.forSlots(slots)(
+    {
+      root: Style.self({ display: 'grid' }),
+      // Stuck to the window's top while the names scroll under it.
+      heading: Style.self({
+        position: 'sticky',
+        insetBlockStart: '0',
+        zIndex: '1',
+        margin: '0',
+        paddingBlock: '0.5rem',
+        background: onAccent,
+        borderBlockEnd: `${t.border.thin} solid ${line}`,
+      }),
+      name: Style.self({ fontVariantNumeric: 'tabular-nums' }),
+    },
+    { name: 'ShowcaseWindowList' },
+  )
+
+/** Space between the rows is padding, which a row's measure counts. */
+export const windowListRowsStyle = (slots: typeof WindowListSlots) =>
+  Style.forSlots(slots)(
+    {
+      row: Style.self({ paddingBlock: '0.5rem', borderBlockEnd: `${t.border.thin} solid ${line}` }),
+    },
+    { name: 'ShowcaseWindowListRows' },
   )

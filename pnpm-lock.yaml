@@ -2281,6 +2281,9 @@ importers:
 
   examples/widgets:
     dependencies:
+      '@foldkit/ui':
+        specifier: 0.170.0
+        version: 0.170.0(effect@4.1.0)(foldkit@0.170.0(@effect/platform-browser@4.1.0(effect@4.1.0))(effect@4.1.0))
       effect:
         specifier: ^4.1.0
         version: 4.1.0
@@ -2290,9 +2293,15 @@ importers:
       foldkit-bundle:
         specifier: workspace:*
         version: link:../../packages/bundle
+      foldkit-media:
+        specifier: workspace:*
+        version: link:../../packages/media
       foldkit-mixins:
         specifier: workspace:*
         version: link:../../packages/mixins
+      foldkit-mixins-ui:
+        specifier: workspace:*
+        version: link:../../packages/mixins-ui
       foldkit-primitives:
         specifier: workspace:*
         version: link:../../packages/primitives

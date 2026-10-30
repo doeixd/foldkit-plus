@@ -72,6 +72,14 @@ npx vitest run examples/widgets
 - `src/palette/` — command palette: the command island's query, list, and
   pick under `Overlay.modal`. Enter runs the highlighted command through
   `update`.
+- `src/picker/` — a sort order chosen with `foldkit-mixins-ui`'s `Picker`:
+  a Listbox dropping its options down on a desktop, and below the theme's
+  `md` breakpoint an opener showing them in a bottom Sheet. One Model and one
+  `Chose` either way; the order is the island's, an unlisted one ignored.
+- `src/window-list/` — a thousand names in `foldkit-mixins-ui`'s
+  `WindowList`, which scrolls with the page: only the rows in view are drawn,
+  between spacers as tall as the rest, under a heading that sticks to the
+  window's top. Last on the page, which it makes long.
 
 Each folder holds `app.ts` (Model, Message, update) and `view.ts` (the
 SlotView and its `runDemo`). The toolbar's trace lives in `demo.ts`. `test/`
@@ -79,7 +87,9 @@ pins each widget with a mutation spec beside it. Absent values in these
 models are `Option`. `src/style.ts` is `AppStyle.make` of the design-system
 palette: one `Style.forSlots` per widget, state visuals read from the ARIA
 the behaviors already write (`Style.states(..., 'aria-pressed')`). Island
-slots are each widget's own anatomy, so they do not reuse `Recipes.Button`.
+slots are each widget's own anatomy, so they do not reuse `Recipes.Button`;
+the picker and the window list are `foldkit-mixins-ui` components, drawn with
+its recipes (`Recipes.Picker`, `Recipes.Listbox`, `Recipes.Sheet`).
 `src/entry.ts` installs `pageStylesheet`. `test/style.test.ts` pins the sheet.
 
 Adding a widget means adding one entry to `src/widgets.ts` (plus its folder
