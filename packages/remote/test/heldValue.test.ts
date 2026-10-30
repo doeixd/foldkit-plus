@@ -213,12 +213,21 @@ const page = (identity: string, ids: ReadonlyArray<string>, refreshes = true): R
   now: 0,
 })
 
-const showing = (
-  ...shown: ReadonlyArray<typeof list | typeof left | typeof project | typeof stale>
-): RemoteMessage => ({
+type Shown = ReadonlyArray<typeof list | typeof left | typeof project | typeof stale>
+
+const showing = (...shown: Shown): RemoteMessage => ({
   _tag: 'RetentionChanged',
   roots: Remote.retain(shown).modelToDependencies({ remote: Remote.initial }),
 })
+
+/** As `showing`, with every list read by calls that age it, so one left keeps its age. */
+const ageing = (...shown: Shown): RemoteMessage => {
+  const roots = Remote.retain(shown).modelToDependencies({ remote: Remote.initial })
+  return {
+    _tag: 'RetentionChanged',
+    roots: { ...roots, connections: roots.connections.map(root => ({ ...root, ages: true })) },
+  }
+}
 
 const reduceAll = (model: Model, messages: ReadonlyArray<RemoteMessage>): Model =>
   messages.reduce(Data.reduce, model)
@@ -317,6 +326,12 @@ const messages = {
       _tag: 'RefreshStarted',
       requests: ['p1', 'p2', 'p3'].map(nameOf),
     }),
+    // A list aged out, or asked for again under networkOnly.
+    'both lists asked for again whole': () => ({
+      _tag: 'RefreshStarted',
+      requests: [],
+      connections: [list.ref.identity, left.ref.identity],
+    }),
   },
   ReadStarted: {
     'p1 being read': () => ({ _tag: 'ReadStarted', requests: [nameOf('p1')] }),
@@ -339,6 +354,8 @@ const messages = {
     'going back to the open list': () => showing(left, stale),
     'leaving everything': () => showing(),
     'only the full list shown': () => showing(list),
+    'leaving everything, its lists ageing': () => ageing(),
+    'going back to the open list, its lists ageing': () => ageing(left, stale),
   },
   Hydrated: {
     'a snapshot under preserve-existing': () => ({

@@ -535,18 +535,21 @@ describe('Data.live and Data.subscriptions', () => {
       ],
       queries: [],
       refresh: 0,
+      refreshing: [],
       expires: null,
     })
     expect(subscriptions['page.read'].modelToDependencies(at(''))).toEqual({
       requirements: [],
       queries: [],
       refresh: 0,
+      refreshing: [],
       expires: null,
     })
     expect(subscriptions['home.read'].modelToDependencies(at(''))).toEqual({
       requirements: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
       queries: [],
       refresh: 0,
+      refreshing: [],
       expires: null,
     })
   })
@@ -607,6 +610,7 @@ describe('Data.live and Data.subscriptions', () => {
       requirements: [],
       queries: [],
       refresh: 0,
+      refreshing: [],
       expires: null,
     })
 
@@ -659,12 +663,14 @@ describe('Data.live and Data.subscriptions', () => {
       requirements: [],
       queries: [],
       refresh: 0,
+      refreshing: [],
       expires: null,
     })
     expect(tuned['home.read'].modelToDependencies(loaded)).toEqual({
       requirements: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
       queries: [],
       refresh: 0,
+      refreshing: [],
       expires: null,
     })
   })
@@ -1479,6 +1485,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
         { identity, window: { first: 2 }, select: { entity: 'Project', fields: ['name'] } },
       ],
       refresh: 0,
+      refreshing: [],
       expires: null,
     })
     // The connection is a retention root by itself, with what the page selects of each item.
@@ -1526,6 +1533,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
       ],
       queries: [],
       refresh: 0,
+      refreshing: [],
       expires: null,
     })
     const reads = await Effect.runPromise(
@@ -1548,11 +1556,12 @@ describe('Data.query reads a connection as a page of selected items', () => {
       requirements: [],
       queries: [],
       refresh: 0,
+      refreshing: [],
       expires: null,
     })
   })
 
-  it('a refreshing policy announces only the fields it refetches, never a bare query', async () => {
+  it('a refreshing policy announces the list it asks for again, never a bare query', async () => {
     const List = App.surface('List', { model: () => ({ projects }) })
     let clock = 5_000
     const entry = Data.subscriptions(
@@ -1565,7 +1574,8 @@ describe('Data.query reads a connection as a page of selected items', () => {
       ),
     )
     expect(messages.map(message => message._tag)).toEqual(['QueryStarted', 'ConnectionMerged'])
-    // With the page known and its items aged out, the refetch is announced.
+    // With the page known and aged out, it is asked for again whole, and
+    // the refetch is announced, naming it, so it reads `Refreshing`.
     const loaded = read(messages.reduce(Data.reduce, initial), ['p1'])
     clock = 10_000
     const refetch = await Effect.runPromise(
@@ -1574,10 +1584,11 @@ describe('Data.query reads a connection as a page of selected items', () => {
       ),
     )
     expect(refetch.map(message => message._tag)).toEqual([
-      'ReadStarted',
       'RefreshStarted',
-      'ReadReceived',
+      'QueryStarted',
+      'ConnectionMerged',
     ])
+    expect(refetch[0]).toEqual({ _tag: 'RefreshStarted', requests: [], connections: [identity] })
   })
 
   it('a connection invalidated before it was ever loaded still reads Initial', () => {
@@ -1666,6 +1677,7 @@ describe('Data.query reads a connection as a page of selected items', () => {
       requirements: [],
       queries: [],
       refresh: 0,
+      refreshing: [],
       expires: null,
     })
     const foreign = Data.reduce(initial, {

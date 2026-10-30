@@ -15,6 +15,12 @@ import type { MutationState } from './mutation.js'
 export interface ConnectionRoot {
   readonly identity: string
   readonly select?: RelationRequirement | undefined
+  /**
+   * Every call reading it ages it (`staleWhileRevalidate`), so once left it
+   * is held as it is and its age says when it is due. Otherwise a list left
+   * is held stale, and going back refetches it.
+   */
+  readonly ages?: boolean | undefined
 }
 
 export interface RetentionRoots {

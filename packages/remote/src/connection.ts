@@ -44,9 +44,15 @@ export interface Segment {
 export interface Connection {
   readonly segments: readonly Segment[]
   readonly stale: boolean
+  /**
+   * The injected clock reading of the page that last answered the list whole:
+   * its first page, or the one that replaced it after it went stale. What
+   * `staleWhileRevalidate` ages it by; 0 when no page dated it.
+   */
+  readonly receivedAt: number
 }
 
-export const emptyConnection: Connection = { segments: [], stale: false }
+export const emptyConnection: Connection = { segments: [], stale: false, receivedAt: 0 }
 
 export const segment = (edges: readonly Edge[], start: Boundary, end: Boundary): Segment => ({
   edges,

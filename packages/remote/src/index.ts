@@ -1698,12 +1698,31 @@ const covers = (outer: Asked, inner: Asked): boolean => {
   )
 }
 
+/** When held rows and lists next age out under a freshness. */
+export interface ReadDeadline extends Deadline {
+  /** Held lists that age out then, by identity. */
+  readonly connections: ReadonlyArray<string>
+}
+
 /** The plan for what a projection asks: the entity fields to read, and the queries to run. */
 interface Planned {
   readonly requirements: ReadonlyArray<Requirement>
   readonly queries: ReadonlyArray<QueryRequirement>
+  /** Held lists among `queries` asked for whole, which read `Refreshing` while they are. */
+  readonly refreshing: ReadonlyArray<string>
   /** Under a freshness, when what is held next goes stale; `null` when nothing held will. */
-  readonly expires: Deadline | null
+  readonly expires: ReadDeadline | null
+}
+
+/** The earlier of two deadlines, or both joined when they fall together. */
+const earlier = (a: ReadDeadline | null, b: ReadDeadline | null): ReadDeadline | null => {
+  if (a === null || b === null) return a ?? b
+  if (a.at !== b.at) return a.at < b.at ? a : b
+  return {
+    at: a.at,
+    due: Requirement.merge([...a.due, ...b.due]),
+    connections: [...a.connections, ...b.connections],
+  }
 }
 
 /**
@@ -1784,7 +1803,10 @@ const planAsked = (
   operators: MemoryOperators,
 ): Planned => {
   const queries: QueryRequirement[] = []
+  const refreshing: string[] = []
   const items: Requirement[] = []
+  const { freshness } = options
+  let listsExpire: ReadDeadline | null = null
   const connections = Requirement.mergeConnections(
     asked.connections,
   ) as ReadonlyArray<QueryRequirement>
@@ -1792,7 +1814,14 @@ const planAsked = (
     const known = remote.connections[connection.identity]
     const failed = options.force !== true && connection.identity in remote.failures.connections
     const size = windowSize(remote, connection)
-    if (!failed && (known === undefined || known.stale || options.force === true)) {
+    // Under a freshness a list ages as a row does, from the page that last
+    // answered it whole.
+    const expires =
+      freshness === undefined || known === undefined
+        ? undefined
+        : known.receivedAt + freshness.freshness
+    const aged = freshness !== undefined && expires !== undefined && freshness.now > expires
+    if (!failed && (known === undefined || known.stale || aged || options.force === true)) {
       queries.push(
         size === undefined
           ? connection
@@ -1801,9 +1830,17 @@ const planAsked = (
               connection.window.first === undefined ? { last: size } : { first: size },
             ),
       )
+      if (known !== undefined && known.segments.length > 0) refreshing.push(connection.identity)
       continue
     }
     if (known === undefined) continue
+    // A failed list is not asked again on its own, so no clock waits on it.
+    if (!failed && expires !== undefined && Number.isFinite(expires))
+      listsExpire = earlier(listsExpire, {
+        at: expires,
+        due: [],
+        connections: [connection.identity],
+      })
     // A wider window than the connection holds asks for the rows it lacks.
     const tail =
       failed || size === undefined ? undefined : missingRows(known, connection.window, size)
@@ -1828,13 +1865,15 @@ const planAsked = (
   const sent = planned.filter(
     requirement => !held.has(entityKey(requirement.entity, requirement.id)),
   )
+  const rowsExpire = freshness === undefined ? undefined : deadlineOf(visible, read, freshness)
   return {
     requirements: options.force === true ? sent : withoutFailedFields(remote, sent),
     queries,
-    expires:
-      options.freshness === undefined
-        ? null
-        : (deadlineOf(visible, read, options.freshness) ?? null),
+    refreshing,
+    expires: earlier(
+      rowsExpire === undefined ? null : { ...rowsExpire, connections: [] },
+      listsExpire,
+    ),
   }
 }
 
@@ -2091,14 +2130,29 @@ export interface ReadDependencies {
    */
   readonly refresh: number
   /**
+   * Held lists the entry queries whole: under a refreshing policy its
+   * `RefreshStarted` marks them stale, so each reads `Refreshing` with its
+   * rows and the page answering it replaces them.
+   */
+  readonly refreshing: ReadonlyArray<string>
+  /**
    * Under a refreshing policy, when a value the entry holds next ages out and
    * what is due then. Time reaches Remote only as a Message: the entry sleeps
-   * until then and emits `RefreshStarted`, which marks the fields stale, and
-   * the plan that follows fetches them. A Model that does not change past its
-   * `maxAge` is otherwise never looked at again.
+   * until then and emits `RefreshStarted`, which marks the fields and lists
+   * stale, and the plan that follows fetches them. A Model that does not
+   * change past its `maxAge` is otherwise never looked at again.
    */
-  readonly expires: Deadline | null
+  readonly expires: ReadDeadline | null
 }
+
+/** `RefreshStarted` for these fields and lists, naming lists only when there are some. */
+const refreshStarted = (
+  requests: ReadonlyArray<Requirement>,
+  connections: ReadonlyArray<string>,
+): RemoteMessage =>
+  connections.length === 0
+    ? { _tag: 'RefreshStarted', requests }
+    : { _tag: 'RefreshStarted', requests, connections }
 
 /**
  * The read entry: plans what `askedOf(model)` asks against the Model and runs
@@ -2133,7 +2187,14 @@ const observeEntry = <AppModel, Store extends RemoteModel, Message>(
       requirements: Schema.Array(ReadRequest),
       queries: Schema.Array(PlannedQuery),
       refresh: Schema.Number,
-      expires: Schema.NullOr(Schema.Struct({ at: Schema.Number, due: Schema.Array(ReadRequest) })),
+      refreshing: Schema.Array(Schema.String),
+      expires: Schema.NullOr(
+        Schema.Struct({
+          at: Schema.Number,
+          due: Schema.Array(ReadRequest),
+          connections: Schema.Array(Schema.String),
+        }),
+      ),
     }),
     modelToDependencies: model => {
       const remote = bound.store.get(model)
@@ -2156,6 +2217,7 @@ const observeEntry = <AppModel, Store extends RemoteModel, Message>(
           window,
           select,
         })),
+        refreshing: plan.refreshing,
         expires: plan.expires,
       }
       if (byAsked === undefined) {
@@ -2165,19 +2227,18 @@ const observeEntry = <AppModel, Store extends RemoteModel, Message>(
       byAsked.set(askedKey, { until: plan.expires?.at ?? Infinity, dependencies })
       return dependencies
     },
-    dependenciesToStream: ({ requirements, queries, refresh, expires }) =>
+    dependenciesToStream: ({ requirements, queries, refresh, refreshing, expires }) =>
       Stream.concat(
         Stream.fromIterable([
+          // Absent fields read as `Loading` until the read lands.
           ...(requirements.length === 0
             ? []
-            : [
-                // Absent fields read as `Loading` until the read lands.
-                toMessage({ _tag: 'ReadStarted', requests: requirements, refresh }),
-                // A refreshing policy also marks the present ones stale.
-                ...(RemotePolicy.refreshes(policy)
-                  ? [toMessage({ _tag: 'RefreshStarted', requests: requirements })]
-                  : []),
-              ]),
+            : [toMessage({ _tag: 'ReadStarted', requests: requirements, refresh })]),
+          // A refreshing policy also marks the present fields, and the held
+          // lists it asks for whole, stale.
+          ...(RemotePolicy.refreshes(policy) && (requirements.length > 0 || refreshing.length > 0)
+            ? [toMessage(refreshStarted(requirements, refreshing))]
+            : []),
           // A list with nothing to show reads `Loading` until its page lands.
           ...(queries.length === 0
             ? []
@@ -2203,7 +2264,7 @@ const observeEntry = <AppModel, Store extends RemoteModel, Message>(
             : Stream.fromEffect(
                 Effect.as(
                   Effect.sleep(Math.max(0, expires.at - now())),
-                  toMessage({ _tag: 'RefreshStarted', requests: expires.due }),
+                  toMessage(refreshStarted(expires.due, expires.connections)),
                 ),
               ),
         ),
@@ -3080,8 +3141,10 @@ export const Remote = {
 
   /**
    * Wraps a `RemoteClient` layer so its reads coalesce: requirements issued
-   * together become one batch, and a requirement already in flight is joined.
-   * `Remote.clientLayer` applies this; use it on a hand-written client.
+   * together become one batch, cut to the server's limits, a requirement
+   * already in flight is joined, and one nobody waits on is interrupted;
+   * every call is held to `timeout`. `Remote.clientLayer` applies this; use
+   * it on a hand-written client.
    */
   coalesced: coalescedLayer,
 
@@ -3350,6 +3413,9 @@ const bindDomain = <
     (model: AppModel) => ReadonlyArray<NamedProjection<AppModel>>
   >()
   const keptConnections = new Set<string>()
+  // Whether every call naming a reader ages what it reads: a list only such
+  // readers read keeps its age once left, rather than going stale.
+  const ageing = new Map<ActiveEntry<AppModel>, boolean>()
   /**
    * What to do with a row a live event says was inserted into a connection.
    *
@@ -4021,6 +4087,10 @@ const bindDomain = <
       for (const [key, entry] of Object.entries(active)) {
         const resolvedAt = readers.get(entry) ?? memoizedResolved(entry)
         readers.set(entry, resolvedAt)
+        ageing.set(
+          entry,
+          (ageing.get(entry) ?? true) && options.policy?._tag === 'StaleWhileRevalidate',
+        )
         const asked = (model: AppModel) =>
           askedUnion(resolvedAt(model).map(({ projection }) => projection))
         entries[`${key}.read`] = observeEntry(bound, asked, identityMessage, options)
@@ -4035,10 +4105,21 @@ const bindDomain = <
         keptConnections.add(connectionIdentity(identity))
       entries.retain = {
         dependenciesSchema: retentionRootsSchema,
-        modelToDependencies: model =>
-          rootsOf(
-            [...readers.values()].flatMap(resolvedAt =>
-              resolvedAt(model).map(({ projection }) => projection),
+        modelToDependencies: model => {
+          const unaged = new Set<string>()
+          const projections = [...readers].flatMap(([entry, resolvedAt]) => {
+            const read = resolvedAt(model).map(({ projection }) => projection)
+            if (ageing.get(entry) !== true)
+              for (const { identity } of read.flatMap(connectionsOf)) unaged.add(identity)
+            return read
+          })
+          const roots = rootsOf(projections, { connections: [...keptConnections] })
+          return {
+            ...roots,
+            connections: roots.connections.map(root =>
+              root.select === undefined || unaged.has(root.identity)
+                ? root
+                : { ...root, ages: true },
             ),
             { connections: [...keptConnections] },
           ),

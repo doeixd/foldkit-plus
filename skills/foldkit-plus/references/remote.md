@@ -270,8 +270,10 @@ const projects = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: Projec
 // Data.active('ProjectDetail', m => Option.map(m.openId, id => Data.get(Selection, id)))
 // Its projectionOf(model) is Option<Projection> of that read, typed by its value.
 // Under staleWhileRevalidate the read entry sleeps (Effect clock) until the earliest held value
-// ages out and emits RefreshStarted for it: time reaches Remote only as a Message, and a
-// Projection never reads the clock. The deadline is a dependency (`expires`), so a write moves it.
+// or list ages out and emits RefreshStarted for it (`connections` names the lists): time reaches
+// Remote only as a Message, and a Projection never reads the clock. The deadline is a dependency
+// (`expires`), so a write moves it. A list's age is its last whole page (`Connection.receivedAt`);
+// an aged list is asked for again whole and reads Refreshing with its rows meanwhile.
 // A mutation's answer dates what it writes too: `MutationSucceeded.now`, Effect's Clock when the
 // answer lands (drive TestClock). Data.mutate's `now` option is the write's time sent to the server.
 
@@ -1181,9 +1183,11 @@ handler's write and raw SQL are held to the invariants and move the revision too
 - Retention: after the `grace` period, data no active Surface reaches is
   garbage-collected (safe; it refetches), except what the Surfaces most
   recently left reached (`departedLimit`: 16 lists, 256 reads). A list held
-  that way is stale, so going back reads `Refreshing` and refetches it.
-- `staleWhileRevalidate` ages entities only; connections refetch only when
-  invalidated, left and gone back to, or under `networkOnly`.
+  that way is stale, so going back reads `Refreshing` and refetches it, unless
+  every call reading it is `staleWhileRevalidate`: then it keeps its age, and
+  going back inside `maxAge` draws it with no request.
+- `staleWhileRevalidate` ages rows and lists; a list also refetches when
+  invalidated, or under `networkOnly` (reading `Refreshing` meanwhile).
 - Live cursors count on from the `after` a stream opened with (a new stream's
   first event is `1`): duplicates ignored, an ahead-of-cursor event is a **gap** (not
   applied, recorded in `remote.gaps`). It restarts the stream; only the

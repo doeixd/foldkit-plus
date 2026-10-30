@@ -113,7 +113,11 @@ describe('a value ageing out under staleWhileRevalidate', () => {
   )['page.read']
 
   it('is a dependency of the read entry, and none under cacheFirst', () => {
-    expect(entry.modelToDependencies(knownAt(0)).expires).toEqual({ at: 1_000, due: [request] })
+    expect(entry.modelToDependencies(knownAt(0)).expires).toEqual({
+      at: 1_000,
+      due: [request],
+      connections: [],
+    })
     const cacheFirst = Data.subscriptions({ page: Page })['page.read']
     expect(cacheFirst.modelToDependencies(knownAt(0)).expires).toBeNull()
   })
@@ -158,7 +162,8 @@ describe('a value ageing out under staleWhileRevalidate', () => {
       requirements: [],
       queries: [],
       refresh: 0,
-      expires: { at: 2_000, due: [request] },
+      refreshing: [],
+      expires: { at: 2_000, due: [request], connections: [] },
     })
   })
 
@@ -176,7 +181,7 @@ describe('a value ageing out under staleWhileRevalidate', () => {
     const after = entry.modelToDependencies(knownAt(150))
     expect(before.requirements).toEqual(after.requirements)
     expect(before).not.toEqual(after)
-    expect(after.expires).toEqual({ at: 1_150, due: [request] })
+    expect(after.expires).toEqual({ at: 1_150, due: [request], connections: [] })
   })
 })
 

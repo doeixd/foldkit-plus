@@ -123,6 +123,26 @@ describe('captureRemote', () => {
     expect(Data.plan(resumed, detail)).toEqual([])
   })
 
+  it("keeps a list's age, so the browser revalidates it when it is due", () => {
+    const dated = Data.reduce(
+      Data.reduce(served, { _tag: 'ConnectionInvalidated', connection: identity }),
+      {
+        _tag: 'ConnectionMerged',
+        connection: identity,
+        page: {
+          edges: [{ key: 'Project:p1', ref: { entity: 'Project', id: 'p1' } }],
+          start: { _tag: 'Terminal' },
+          end: { _tag: 'Terminal' },
+        },
+        refreshes: true,
+        now: 500,
+      },
+    )
+    expect(dated.remote.connections[identity]?.receivedAt).toBe(500)
+    const resumed = restoreRemote(initial.remote, captureRemote(dated.remote, [list]))
+    expect(resumed.connections[identity]?.receivedAt).toBe(500)
+  })
+
   it('keeps a field marked stale, so the browser revalidates it', () => {
     const entry = served.remote.entities['Project:p1']
     if (entry === undefined) throw new Error('the server read no Project:p1')

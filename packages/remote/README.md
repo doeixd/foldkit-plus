@@ -662,14 +662,15 @@ server said last time. To see change:
   screen reads `Refreshing` and the active Subscription fetches it again, old
   value still on screen. A refresh button, a window regaining focus.
 - **By age**: `RemotePolicy.staleWhileRevalidate({ maxAge })` refetches a value
-  older than `maxAge` the next time it is planned.
+  or a list older than `maxAge`, and nothing younger.
 - **Always**: `RemotePolicy.networkOnly` requests every selected field, cached
   value visible meanwhile.
 - **As it happens**: `Data.live` instead of `Data.get`, or `live: true` on a
   `Data.query`, with a server that publishes changes; see [Live data](#live-data).
 
-Connections have no age: a list re-queries when invalidated, refreshed, or
-under `networkOnly`. See [Reading, policies, and prefetch](#reading-policies-and-prefetch).
+A list's age is the page that last answered it whole: its first page, or the
+one that replaced it after it went stale. A later page from "load more" does
+not date it. See [Reading, policies, and prefetch](#reading-policies-and-prefetch).
 
 ### Why did my change disappear?
 
@@ -709,9 +710,12 @@ failed). `Remote.make({ verifyPredictions: true })` names each one: see
 ### Why does a page I went back to read `Refreshing`?
 
 Remote keeps what the screens you most recently left reached: the last 16
-lists and 256 reads (`departedLimit`). A list left is held **stale**, so going
-back shows its rows at once and reads `Refreshing` while the planner refetches
-it; the page that answers replaces what was held. Only past those limits is a
+lists and 256 reads (`departedLimit`). Under `cacheFirst` a list left is held
+**stale**, so going back shows its rows at once and reads `Refreshing` while
+the planner refetches it; the page that answers replaces what was held. Read
+under `staleWhileRevalidate` by every call that reads it, a list left keeps
+its age instead: going back inside `maxAge` draws it `Ready` and sends
+nothing, and past it reads `Refreshing` while it refetches. Only past those limits is a
 screen's data collected, and then coming back reads `Loading` and refetches.
 To keep something no screen reads, name it in a retain entry or a
 `connections` list; see [Retention](#retention-and-garbage-collection).
@@ -861,13 +865,16 @@ What Remote should do when the Model already contains the selected fields is a
 `RemotePolicy`:
 
 - `RemotePolicy.cacheFirst` (default) — fetch missing, stale, or re-windowed data.
-- `RemotePolicy.staleWhileRevalidate({ maxAge })` — keep a present value visible
-  and refetch when it is older than `maxAge`.
-- `RemotePolicy.networkOnly` — request every selected field; cached values stay
-  visible while the request is in flight.
+- `RemotePolicy.staleWhileRevalidate({ maxAge })` — keep a present value or list
+  visible and refetch it when it is older than `maxAge`; a list is asked for
+  again whole.
+- `RemotePolicy.networkOnly` — request every selected field and list; cached
+  values stay visible while the request is in flight.
 
-A refreshing policy emits `RefreshStarted` before the read, so the Projection
-becomes `Refreshing` without discarding the old value. Planning accepts `now`
+A refreshing policy emits `RefreshStarted` before the read, naming the fields
+and the held lists it asks for again, so the Projection becomes `Refreshing`
+without discarding the old value, and the page answering a list replaces what
+it held. Planning accepts `now`
 as an input, so tests can control time. It defaults to `Date.now`, read at each
 use, so fake timers (`vi.useFakeTimers`) move it; Effect's `TestClock` does not,
 because a plan runs outside Effect, so a test that drives `TestClock` passes
@@ -909,8 +916,8 @@ changes; a page that sits still past its
 `maxAge` would otherwise never be looked at again. So a read entry under
 `staleWhileRevalidate` knows when the earliest value it holds ages out, sleeps
 until then under the Effect clock, and emits `RefreshStarted` for what is due.
-That marks the fields stale in the Model, and the plan that follows fetches
-them, the same path a refresh button takes. Nothing reads the clock while a
+That marks the fields and lists stale in the Model, and the plan that follows
+fetches them, the same path a refresh button takes. Nothing reads the clock while a
 Projection is read, so a Model reads the same twice, and a recorded one
 replays.
 
@@ -2176,7 +2183,7 @@ active ones and those of the Surfaces most recently left, up to
 back to a page shows what it held rather than reading `Loading`:
 
 ```text
-Surface left      -> its lists held stale, its reads held
+Surface left      -> its lists held stale (or with their age, under staleWhileRevalidate), its reads held
 Surface again     -> rows read Refreshing; the planner refetches the stale list
 page arrives      -> it replaces the held rows; Ready
 past the limit    -> collected; going back reads Loading and refetches
@@ -2970,8 +2977,8 @@ Remote does **not** own:
   inactive Surface loses its cache on `RetentionChanged`.
 - Two applications with the same Model type are not distinguishable by TypeScript
   alone; `Data.subscriptions` also checks the Surface owner token at runtime.
-- `staleWhileRevalidate({ maxAge })` ages entity data. Connections have no age;
-  they re-query when invalidated or when `networkOnly` forces them.
+- `staleWhileRevalidate({ maxAge })` ages rows and lists alike; a list's age is
+  that of its last whole page; a later page or a live event does not date it.
 - `RemoteData` is a closed union.
 - A Selection must choose at least one field; an empty Selection would require
   nothing and misleadingly read `Ready` for every id, so it is rejected.

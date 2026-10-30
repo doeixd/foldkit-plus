@@ -338,8 +338,16 @@ export type RemoteMessage =
        */
       readonly stream?: string | undefined
     }
-  /** A refetch of present fields began; they read as `Refreshing` until it lands. */
-  | { readonly _tag: 'RefreshStarted'; readonly requests: readonly Requirement[] }
+  /**
+   * A refetch of present fields, and of held lists whole, began; they read as
+   * `Refreshing` until it lands.
+   */
+  | {
+      readonly _tag: 'RefreshStarted'
+      readonly requests: readonly Requirement[]
+      /** Held lists asked for again by identity: marked stale, as an invalidation does. */
+      readonly connections?: readonly string[] | undefined
+    }
   /** A read began; the fields it asks for that the store lacks read as `Loading`. */
   | {
       readonly _tag: 'ReadStarted'
@@ -531,7 +539,11 @@ export type RemoteMessage =
 export const retentionRootsSchema = Schema.Struct({
   requirements: Schema.Array(ReadRequest),
   connections: Schema.Array(
-    Schema.Struct({ identity: Schema.String, select: Schema.optional(RelationRequest) }),
+    Schema.Struct({
+      identity: Schema.String,
+      select: Schema.optional(RelationRequest),
+      ages: Schema.optional(Schema.Boolean),
+    }),
   ),
 })
 
@@ -550,7 +562,10 @@ export const remoteMessageCases = {
     error: remoteErrorSchema,
     stream: Schema.optional(Schema.String),
   },
-  RefreshStarted: { requests: Schema.Array(ReadRequest) },
+  RefreshStarted: {
+    requests: Schema.Array(ReadRequest),
+    connections: Schema.optional(Schema.Array(Schema.String)),
+  },
   ReadStarted: { requests: Schema.Array(ReadRequest), refresh: Schema.optional(Schema.Number) },
   QueryStarted: { connections: Schema.Array(Schema.String) },
   RetentionChanged: { roots: retentionRootsSchema },
@@ -1409,10 +1424,11 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
       const recent = recentRoots(model.recent, message.roots)
       const retained = gc(model, recent)
       const active = new Set(message.roots.connections.map(root => root.identity))
-      // A list no active Surface shows is held for going back, and refetched then.
+      // A list no active Surface shows is held for going back, and refetched
+      // then, unless its age already says when it is due.
       const connections = recent.connections.reduce(
-        (held, { identity }) =>
-          active.has(identity) || held[identity] === undefined
+        (held, { identity, ages }) =>
+          active.has(identity) || held[identity] === undefined || ages === true
             ? held
             : setConnectionStale(held, identity, true),
         retained.connections,
@@ -1461,6 +1477,7 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
                 end: unknownBoundary,
               })),
               stale: true,
+              receivedAt: 0,
             },
           ] as const,
       )
@@ -1507,7 +1524,17 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
       // so the same roots prune it.
       const retried = reached.filter(mark => mark in model.failures.fields)
       const loading = retried.length === 0 ? model.loading : new Set([...model.loading, ...retried])
-      return { ...model, entities, failures, loading }
+      // A list is asked again whole, so it reads `Refreshing` with its rows and
+      // the page answering it replaces them. One the Model does not hold has
+      // nothing to show, and stays as it is.
+      const connections = (message.connections ?? []).reduce(
+        (held, identity) =>
+          (held[identity]?.segments.length ?? 0) === 0
+            ? held
+            : setConnectionStale(held, identity, true),
+        model.connections,
+      )
+      return { ...model, entities, failures, loading, connections }
     }
     case 'QueryStarted': {
       const loading = new Set(model.loading)
@@ -1688,6 +1715,12 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
       // again. A re-run of a connection that was not invalidated still merges.
       const replaces = message.refreshes === true && current.stale
       const merged = merge(replaces ? emptyConnection : current, message.page)
+      // A page answering the list whole dates it; a later page leaves the rows
+      // before it as old as they were.
+      const receivedAt =
+        message.now !== undefined && (replaces || current.segments.length === 0)
+          ? message.now
+          : current.receivedAt
       // A query payload writes like a read: one synthetic request per matching
       // edge, so windows, nested relations and settled fields behave as they do
       // for `ReadReceived`. A page without a payload only merges the connection.
@@ -1722,7 +1755,12 @@ const reduceRemote = (model: RemoteModel, message: RemoteMessage): RemoteModel =
         entities,
         connections: {
           ...model.connections,
-          [message.connection]: message.refreshes === true ? { ...merged, stale: false } : merged,
+          [message.connection]:
+            message.refreshes === true
+              ? { ...merged, stale: false, receivedAt }
+              : receivedAt === merged.receivedAt
+                ? merged
+                : { ...merged, receivedAt },
         },
         optimistic: pruneOverlays(
           model.optimistic,

@@ -53,6 +53,8 @@ const CapturedConnection = Schema.Struct({
     }),
   ),
   stale: Schema.Boolean,
+  /** Absent from a capture an older server wrote: the list then reads as never dated. */
+  receivedAt: Schema.optional(Schema.Number),
 })
 
 const CapturedLive = Schema.Struct({
@@ -209,6 +211,7 @@ export const captureRemote = (
             end: segment.end,
           })),
           stale: connection.stale,
+          receivedAt: connection.receivedAt,
         },
       ]),
     ),
@@ -254,6 +257,7 @@ export const restoreRemote = <Store extends RemoteModel>(
             end: segment.end as Boundary,
           })),
           stale: connection.stale,
+          receivedAt: connection.receivedAt ?? 0,
         } satisfies Connection,
       ]),
     ),

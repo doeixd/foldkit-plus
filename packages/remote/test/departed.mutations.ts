@@ -22,8 +22,8 @@ export default [
   edit(
     'a list left is not refetched',
     model,
-    ': setConnectionStale(held, identity, true),',
-    ': held,',
+    'ages === true\n            ? held\n            : setConnectionStale(held, identity, true),',
+    'ages === true\n            ? held\n            : held,',
   ),
   edit(
     'a list still shown is marked stale too',

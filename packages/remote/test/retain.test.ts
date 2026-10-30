@@ -71,8 +71,9 @@ const model = (): RemoteModel => ({
         ),
       ],
       stale: false,
+      receivedAt: 0,
     },
-    'Other()': { segments: [], stale: false },
+    'Other()': { segments: [], stale: false, receivedAt: 0 },
   },
 })
 

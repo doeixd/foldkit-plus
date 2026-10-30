@@ -7,6 +7,23 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+### Changed
+
+- **A list ages under `staleWhileRevalidate`** (`foldkit-remote`, #234). A
+  list is dated by the page that last answered it whole
+  (`Connection.receivedAt`) and, like a row, is drawn from the store while
+  younger than `maxAge` and asked for again whole once older, reading
+  `Refreshing` with its rows meanwhile. The read entry's deadline names lists
+  (`ReadDeadline.connections`), its `RefreshStarted` carries them
+  (`connections`), and `ReadDependencies.refreshing` names the held lists it
+  asks for whole. A list left keeps its age when every `Data.subscriptions`
+  call reading it ages it (`ConnectionRoot.ages`), so going back inside
+  `maxAge` draws it with no request; under `cacheFirst` it is held stale and
+  refetched on going back, as before. Breaking: a `Connection` built by hand
+  needs `receivedAt`; an active list under `staleWhileRevalidate` is
+  re-queried once older than `maxAge`; a held list under `networkOnly` reads
+  `Refreshing` while it is re-queried, and the page replaces it.
+
 ## 0.36.0
 
 Writes the client can judge, and failures it can see. Guard rules and query

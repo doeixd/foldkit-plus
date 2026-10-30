@@ -83,6 +83,7 @@ const segment = (ids: ReadonlyArray<string>, start: Boundary, end: Boundary) => 
 const list = (...segments: ReturnType<typeof segment>[]): Connection => ({
   segments,
   stale: false,
+  receivedAt: 0,
 })
 
 const rows = [
@@ -331,6 +332,7 @@ describe('a row with a number id', () => {
         },
       ],
       stale: false,
+      receivedAt: 0,
     }
     // As text, '10' sorts below '9' and '8'; as a number it comes first.
     expect(placeIn(items, loaded, Newest.body!, {}, 'Item:10', Operators.kernel)).toEqual(
