@@ -220,9 +220,15 @@ filtered by its name, so an editor that renames a temporary over it is
 seen). A change is read through the same `readConfig` as at start, so every
 refusal at start is a refusal while watching. If the raw configuration
 differs from the running one, it is tried with the running bundle and then
-swapped in with `harness.update`. Afterwards, the D1 migrations of every
-`[[d1_databases]]` are applied, so a database the change adds has its tables.
-Already-applied migrations are skipped by the runner.
+swapped in with `harness.update`.
+
+After every swap, source or configuration, the D1 migrations of every
+`[[d1_databases]]` not yet applied are applied, as at start, so a database a
+change adds has its tables. The trial has already run them all on a fresh
+D1, so a migration that cannot run is refused before the swap. One that runs
+there and fails on the running database (a `NOT NULL` column added to a
+table with rows) is reported through `onRefused`, saying the Worker was
+swapped in.
 
 Probed on wrangler 4.116: an update that adds a var, an R2 bucket and a
 second D1 keeps the first D1's rows and the port. A configuration Wrangler
@@ -233,12 +239,13 @@ Source swaps and configuration swaps run one at a time, in order, through
 one queue, so a configuration read while a source swap is in flight is
 applied over it rather than beside it. `stop` closes the file watcher, waits
 for esbuild's rebuild in flight and then for the queue, before it closes the
-harness. A step that finds the stack stopping swaps nothing.
+harness. A step that begins once the stack is stopping swaps nothing; one
+whose trial is under way finishes first.
 
 Not watched: `.dev.vars` and the migration files themselves. A migration file
 saved in place reads empty for a moment (see the `writeFile` trap), and the
-runner would record it as applied with no SQL. Restart, or touch the
-configuration, to apply a new migration.
+runner would record it as applied with no SQL. A new migration is applied
+with the next swap, or on restart.
 
 ## Deferred
 
