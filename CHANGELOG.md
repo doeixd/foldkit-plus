@@ -7,6 +7,8 @@ version changed; `pnpm` skips versions already in the registry.
 
 ## Unreleased
 
+## 0.36.0
+
 Writes the client can judge, and failures it can see. Guard rules and query
 bodies read other rows (`Expr.path`, `Expr.exists`) and the write's context
 (`Expr.viewer`, `Expr.now`), compiled to SQL and judged by the client in three
@@ -54,6 +56,31 @@ read whole is bounded. Under Fixed: a write ledger needs a `request` column,
 `Expr.givesNul` is `Expr.givesUnportable`, `LawsVerdict` has an `Unanswered`
 variant, the CMS `EditorDomain` needs `plan`, and `TagsInput`'s `Typed`
 carries `drawn`.
+
+Versions: every package but `foldkit-metadata` and `foldkit-react-codegen` is
+a new minor, since each now peers on Effect 4.1 (and, where it draws or runs a
+Foldkit runtime, on Foldkit 0.170), a range an application on 0.35.0's peers
+does not meet. Breaking changes of their own: `foldkit-agent-mcp` 0.8.0,
+`foldkit-bundle` 0.9.0, `foldkit-cms` 0.9.0, `foldkit-entity` 0.14.0,
+`foldkit-form` 0.9.0, `foldkit-guard` 0.7.0, `foldkit-mixins` 0.21.0,
+`foldkit-mixins-ui` 0.22.0, `foldkit-plus` 0.18.0, `foldkit-primitives`
+0.16.0, `foldkit-remote` 0.22.0, `foldkit-remote-drizzle` 0.16.0,
+`foldkit-remote-server` 0.19.0, `foldkit-ssr` 0.9.0, `foldkit-surface` 0.11.0
+and `foldkit-sync` 0.13.0. Fixes or additions of their own: `foldkit-agent`
+0.9.0, `foldkit-auth` 0.2.0, `foldkit-builder` 0.4.0, `foldkit-cms-drizzle`
+0.7.0, `foldkit-crud` 0.12.0, `foldkit-durable` 0.10.0, `foldkit-media` 0.4.0,
+`foldkit-mirror` 0.7.0, `foldkit-mixins-form` 0.11.0,
+`foldkit-mixins-richtext` 0.6.0 and `foldkit-site` 0.5.0. For the new peers,
+or the new versions they depend on, alone: `foldkit-agent-a2a` 0.7.0,
+`foldkit-agent-native` 0.7.0, `foldkit-agent-webmcp` 0.8.0,
+`foldkit-bundle-surface` 0.5.0, `foldkit-composition` 0.4.0,
+`foldkit-data-grid` 0.4.0, `foldkit-form-recipes` 0.2.0,
+`foldkit-mixins-builder` 0.4.0, `foldkit-mixins-crud` 0.10.0,
+`foldkit-mixins-data-grid` 0.3.0, `foldkit-mixins-surface` 0.7.0,
+`foldkit-react` 0.5.0, `foldkit-richtext` 0.6.0, `foldkit-richtext-code`
+0.3.0, `foldkit-richtext-code-shiki` 0.3.0, `foldkit-richtext-dom` 0.7.0 and
+`foldkit-richtext-markdown` 0.4.0. `foldkit-metadata` 0.1.0 and
+`foldkit-react-codegen` 0.3.0 are unchanged.
 
 ### Added
 
