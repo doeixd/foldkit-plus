@@ -318,7 +318,9 @@ export const makeSyncServer = (principal: Principal) =>
     return { journal, transport }
   })
 
-export const openReplica = KitchenSync.openReplica(ReplicaId.make('kitchen-a'), memoryStorage())
+export const openReplica = KitchenSync.openReplica(memoryStorage(), {
+  replicaId: ReplicaId.make('kitchen-a'),
+})
 
 const Page = Bundle.parent({ Model: App.Model, Message })
 

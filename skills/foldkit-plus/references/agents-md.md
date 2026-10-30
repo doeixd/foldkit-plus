@@ -136,7 +136,7 @@ SSR
   or served pages flash unstyled. Import `foldkit-plus/ssr/client` in the browser.
 
 Sync
-- One storage name and `ReplicaId` per tab, never per user or token (#336).
+- Open a browser replica on `Sync.tabStorage(name)`; its id is its store's.
 - A durable Message writes only the shared slice and returns no Commands: mint
   ids and timestamps in a Command first.
 

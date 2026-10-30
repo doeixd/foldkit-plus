@@ -161,7 +161,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   say('')
   say('# the replica refuses a local Message (sync.ts)')
   const replica = await Effect.runPromise(
-    TodoSync.openReplica(ReplicaId.make('demo'), memoryStorage()),
+    TodoSync.openReplica(memoryStorage(), { replicaId: ReplicaId.make('demo') }),
   )
   const local = await Effect.runPromise(
     // @ts-expect-error a local Message does not compile at `submit`; sent anyway, it is refused

@@ -40,7 +40,7 @@ const memoryStorage = (): Storage => {
 }
 
 const open = (id: string): Promise<Replica<Message, Shared>> =>
-  Effect.runPromise(PagesSync.openReplica(ReplicaId.make(id), memoryStorage()))
+  Effect.runPromise(PagesSync.openReplica(memoryStorage(), { replicaId: ReplicaId.make(id) }))
 
 const caretAt = (node: RichText.NodeId, offset: number): RichText.Selection => {
   const at = { node, offset, affinity: 'after' as const }

@@ -165,7 +165,7 @@ const startPane = async (
   const connection = connectSandbox()
   const mounted = await startDevice({
     container: app,
-    key: `foldkit-registry/sandbox/${id}`,
+    store: `foldkit-registry/sandbox/${id}`,
     name: () => name,
     resources: connection.remote,
     transport: device => Sync.transport.socket({ makeSocket: () => connection.socket(device) }),

@@ -5,7 +5,7 @@
  */
 import { Effect, Scope } from 'effect'
 import { AgentWebMcp } from 'foldkit-agent-webmcp'
-import { ReplicaId, Sync } from 'foldkit-sync'
+import { Sync } from 'foldkit-sync'
 import { AddTodoForm, AppAgent, bindAgent } from './agent.js'
 import type { Message } from './app.js'
 import type { Principal } from './principal.js'
@@ -30,19 +30,16 @@ const transport = sandboxed
       url: `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/sync?token=${encodeURIComponent(token)}`,
     })
 
-// The token names the person; the replica is this tab. Operation ids are the
-// replica's id and a count, so a replica named by the token restarted its count
-// in a second browser, and the journal refused each new operation as a reused
-// id. A reload opens the same replica, unsent operations included.
-const replicaKey = 'foldkit-todo-app/replica'
-const replicaId = sessionStorage.getItem(replicaKey) ?? crypto.randomUUID()
-sessionStorage.setItem(replicaKey, replicaId)
+// The token names the person; the replica is this tab's store, and its id is
+// the store's own, so a second browser for the same person is a second replica.
+// A reload opens the same store, unsent operations included.
 const storageScope = Effect.runSync(Scope.make())
-// Opening IndexedDB and reading the replica back are asynchronous.
-const storage = await Effect.runPromise(
-  Effect.provideService(Sync.indexedDb(`foldkit-todo-app/${replicaId}`), Scope.Scope, storageScope),
+const replica = await Effect.runPromise(
+  Sync.tabStorage('foldkit-todo-app').pipe(
+    Effect.flatMap(TodoSync.openReplica),
+    Effect.provideService(Scope.Scope, storageScope),
+  ),
 )
-const replica = await Effect.runPromise(TodoSync.openReplica(ReplicaId.make(replicaId), storage))
 
 const container = document.querySelector<HTMLElement>('#app')
 if (container === null) throw new Error('#app is missing from the page')

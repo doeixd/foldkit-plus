@@ -218,7 +218,9 @@ const mount = async (
   // jsdom lays nothing out: a 1,000 by 356 box is a 36px header over ten 32px rows.
   vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(356)
   vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1000)
-  const replica = await Effect.runPromise(RegistrySync.openReplica(ReplicaId.make(name), storage))
+  const replica = await Effect.runPromise(
+    RegistrySync.openReplica(storage, { replicaId: ReplicaId.make(name) }),
+  )
   document.body.innerHTML = ''
   const container = document.createElement('div')
   container.id = 'registry-page'
@@ -297,7 +299,9 @@ const commitElsewhere = async (
   device = 'tab-2',
 ) => {
   const other = await Effect.runPromise(
-    RegistrySync.openReplica(ReplicaId.make(`${device}:${index}:${cents}`), memoryStorage()),
+    RegistrySync.openReplica(memoryStorage(), {
+      replicaId: ReplicaId.make(`${device}:${index}:${cents}`),
+    }),
   )
   await Effect.runPromise(
     other.submit(
@@ -545,7 +549,7 @@ test('an edit another device made shows here after an exchange', async () => {
     await vi.waitFor(() => expect(cell(productId(4), 'description')).not.toBeNull())
     // Another device, with its own replica, edits and sends.
     const other = await Effect.runPromise(
-      RegistrySync.openReplica(ReplicaId.make('tab-2'), memoryStorage()),
+      RegistrySync.openReplica(memoryStorage(), { replicaId: ReplicaId.make('tab-2') }),
     )
     await Effect.runPromise(
       other.submit(
@@ -644,7 +648,7 @@ test('a committed edit shows until the table has it, then the table shows, whoev
     // A later change this page has not exchanged for: once Remote reads the
     // row at that revision, the table shows, not this device's older edit.
     const importer = await Effect.runPromise(
-      RegistrySync.openReplica(ReplicaId.make('importer'), memoryStorage()),
+      RegistrySync.openReplica(memoryStorage(), { replicaId: ReplicaId.make('importer') }),
     )
     await Effect.runPromise(
       importer.submit(
@@ -666,7 +670,7 @@ test('a committed edit shows until the table has it, then the table shows, whoev
 test('an edit that says when it committed is refused, and the table keeps its price', async () => {
   const server = serve()
   const forger = await Effect.runPromise(
-    RegistrySync.openReplica(ReplicaId.make('forger'), memoryStorage()),
+    RegistrySync.openReplica(memoryStorage(), { replicaId: ReplicaId.make('forger') }),
   )
   await Effect.runPromise(
     forger.submit(
@@ -687,7 +691,7 @@ test('an edit the journal absorbed keeps showing until the row is read at its re
   /** Another device's price for product `index`, sent: a reinstall on this page's next exchange. */
   const elsewhere = async (name: string, index: number) => {
     const other = await Effect.runPromise(
-      RegistrySync.openReplica(ReplicaId.make(name), memoryStorage()),
+      RegistrySync.openReplica(memoryStorage(), { replicaId: ReplicaId.make(name) }),
     )
     await Effect.runPromise(
       other.submit(

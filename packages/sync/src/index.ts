@@ -10,7 +10,7 @@
  * `Sync.transport.socket`. Ids are branded schemas, so they construct through
  * `DocumentId.make('todos')`. Every name is also exported on its own.
  */
-import { indexedDb } from './indexedDb.js'
+import { indexedDb, tabStorage } from './indexedDb.js'
 import { lwwRegister, openLwwClock } from './lww.js'
 import { forApplication } from './make.js'
 import { fact, mount } from './mount.js'
@@ -54,8 +54,10 @@ export const Sync = {
   fact,
   /** Counters and a histogram an application can scrape. */
   metrics: syncMetrics,
-  /** The only storage adapter: one IndexedDB database per document/replica. */
+  /** The storage adapter: one IndexedDB database per replica, named by the caller. */
   indexedDb,
+  /** This tab's IndexedDB store, kept across reloads: what a browser opens a replica on. */
+  tabStorage,
 
   /** The `Transport` service's layers, and the bridges to and from a promise client. */
   transport: {
@@ -105,7 +107,13 @@ export type {
   ListenerSite,
   SyncDiagnostic,
 } from './diagnostics.js'
-export { indexedDb, type OutboxEntry, type Storage } from './indexedDb.js'
+export {
+  indexedDb,
+  tabStorage,
+  type OutboxEntry,
+  type Storage,
+  type TabStorageOptions,
+} from './indexedDb.js'
 export {
   fact,
   mount,
@@ -198,6 +206,7 @@ export {
   type CommittedOperation,
   type Exchange,
   type JournalContract,
+  type OpenReplicaOptions,
   type Operation,
   type Rejection,
   type Replica,

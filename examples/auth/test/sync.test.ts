@@ -83,7 +83,9 @@ const exchangeAs = async (
   cookie: string | undefined,
   messages: ReadonlyArray<BoardMessage>,
 ) => {
-  const replica = await Effect.runPromise(PinBoard.openReplica(replicaId(name), memory()))
+  const replica = await Effect.runPromise(
+    PinBoard.openReplica(memory(), { replicaId: replicaId(name) }),
+  )
   for (const message of messages) await Effect.runPromise(replica.submit(message))
   await Effect.runPromise(
     replica.synchronize.pipe(

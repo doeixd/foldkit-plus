@@ -67,7 +67,9 @@ describe('Sync fragments', () => {
     expect(Board.contract.owns).toEqual([['todos'], ['members']])
     expect(Board.contract.messages).toEqual(['CreatedTodo', 'RenamedTodo', 'Invited'])
 
-    const replica = await Effect.runPromise(Board.openReplica(replicaId('a'), memoryStorage()))
+    const replica = await Effect.runPromise(
+      Board.openReplica(memoryStorage(), { replicaId: replicaId('a') }),
+    )
     await Effect.runPromise(replica.submit(Message.CreatedTodo({ id: 'a', title: 'A' })))
     await Effect.runPromise(replica.submit(Message.Invited({ name: 'bo' })))
     expect(Effect.runSync(replica.shared)).toEqual({

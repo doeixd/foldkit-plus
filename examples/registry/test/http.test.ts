@@ -45,7 +45,7 @@ test('reads the first page over HTTP', async () => {
 
 test('an edit sent over the socket is committed and read back through Remote', async () => {
   const replica = await Effect.runPromise(
-    RegistrySync.openReplica(ReplicaId.make('http-test'), memoryStorage()),
+    RegistrySync.openReplica(memoryStorage(), { replicaId: ReplicaId.make('http-test') }),
   )
   await Effect.runPromise(
     replica.submit(
@@ -71,14 +71,14 @@ test('an edit sent over the socket is committed and read back through Remote', a
 
 test('a commit wakes another replica’s exchange loop, which brings it the edit', async () => {
   const watching = await Effect.runPromise(
-    RegistrySync.openReplica(ReplicaId.make('watching'), memoryStorage()),
+    RegistrySync.openReplica(memoryStorage(), { replicaId: ReplicaId.make('watching') }),
   )
   // The loop exchanges once, then waits: for its own submit, or the server's notice.
   const loop = Effect.runFork(
     watching.start.pipe(Effect.provide(Sync.transport.socket({ url: server.syncUrl }))),
   )
   const writing = await Effect.runPromise(
-    RegistrySync.openReplica(ReplicaId.make('writing'), memoryStorage()),
+    RegistrySync.openReplica(memoryStorage(), { replicaId: ReplicaId.make('writing') }),
   )
   await new Promise(resolve => setTimeout(resolve, 200))
   await Effect.runPromise(

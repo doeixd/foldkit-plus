@@ -19,7 +19,7 @@ if (import.meta.env.MODE === 'sandbox') {
   // Vite proxies `/remote` and `/sync` to the server, so the browser talks to one origin.
   await startDevice({
     container,
-    key: 'foldkit-registry/replica',
+    store: 'foldkit-registry',
     // The name this tab commits as, short enough to read in "replaced by …".
     name: replicaId => `tab-${replicaId.slice(0, 4)}`,
     resources: Remote.clientLayer(Remote.httpWithLive('/remote')),

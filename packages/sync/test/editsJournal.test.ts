@@ -117,7 +117,9 @@ const send = async (
   name: string,
   prices: ReadonlyArray<readonly [string, number]>,
 ) => {
-  const replica = await Effect.runPromise(Prices.openReplica(replicaId(name), memoryStorage()))
+  const replica = await Effect.runPromise(
+    Prices.openReplica(memoryStorage(), { replicaId: replicaId(name) }),
+  )
   for (const [id, cents] of prices)
     await Effect.runPromise(replica.submit(Message.Priced({ id, cents })))
   const transport = Sync.transport.fromPromise(

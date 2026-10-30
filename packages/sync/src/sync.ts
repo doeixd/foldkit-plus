@@ -286,10 +286,25 @@ export interface Sync<Message, Shared, Durable = Message> {
   }
   /** The codecs and pure reducer `foldkit-durable`'s `makeJournal` consumes. */
   readonly journalContract: () => JournalContract<Operation, Shared>
+  /**
+   * Opens the replica a store holds. Its id is the store's: read back, or minted
+   * when the store is empty, so two stores never share one. In a browser the
+   * store is `Sync.tabStorage(name)`, one per tab.
+   */
   readonly openReplica: (
-    replicaId: ReplicaId,
     storage: Storage,
+    options?: OpenReplicaOptions,
   ) => Effect.Effect<Replica<Durable, Shared>, ReplicaError>
+}
+
+export interface OpenReplicaOptions {
+  /**
+   * The id the store must hold, for a test asserting operation ids or a replica
+   * a server names. It names one store, never a person: operation ids are
+   * `replicaId:localSequence`, so two stores under one id (a person's second
+   * browser) reuse ids the journal refuses.
+   */
+  readonly replicaId?: ReplicaId | undefined
 }
 
 /** Structural match for `foldkit-durable`'s journal options; Sync stays independent. */
@@ -469,14 +484,13 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
     )
 
   const openReplica = Effect.fn('Sync.openReplica')(
-    function* (replicaId: ReplicaId, storage: Storage) {
-      yield* Effect.annotateCurrentSpan({ documentId, replicaId })
+    function* (storage: Storage, options?: OpenReplicaOptions) {
       const saved = yield* storage.load()
       const initial: ReplicaState<Shared> = {
         protocolVersion: PROTOCOL_VERSION,
         schemaVersion: SCHEMA_VERSION,
         documentId,
-        replicaId,
+        replicaId: options?.replicaId ?? ReplicaId.make(crypto.randomUUID()),
         revision: 0,
         nextLocalSequence: localSequence(1),
         cursor: sequence(0),
@@ -496,10 +510,15 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
                   cause,
                 }),
             })
-      if (state.documentId !== documentId || state.replicaId !== replicaId)
+      const replicaId = state.replicaId
+      yield* Effect.annotateCurrentSpan({ documentId, replicaId })
+      if (
+        state.documentId !== documentId ||
+        (options?.replicaId !== undefined && replicaId !== options.replicaId)
+      )
         return yield* new WrongReplicaStorageError({
           documentId,
-          replicaId,
+          replicaId: options?.replicaId ?? replicaId,
           message: 'The stored replica belongs to a different document or replica',
         })
       const committedIds = new Set(state.committedIds)
@@ -936,7 +955,7 @@ export const defineSync = <Message, Shared, MessageEncoded, SharedEncoded>(
         })(),
       }
     },
-    (effect, _replicaId, storage) =>
+    (effect, storage) =>
       // Close a partially initialized storage on any failure, including a
       // defect, so a failed open cannot leak the connection.
       effect.pipe(

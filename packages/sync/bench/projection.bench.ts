@@ -84,7 +84,7 @@ const committed = (serverSequence: number, id: string): CommittedOperation => ({
 })
 
 const open = (state: ReplicaState<Shared>): Replica<Message, Shared> =>
-  Effect.runSync(Sync.openReplica(replicaId('a'), storageWith(state)))
+  Effect.runSync(Sync.openReplica(storageWith(state), { replicaId: replicaId('a') }))
 
 describe('openReplica with a committed model of 100', () => {
   for (const pending of [0, 100, 1000, 5000])

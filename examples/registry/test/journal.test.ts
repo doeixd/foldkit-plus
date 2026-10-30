@@ -26,7 +26,7 @@ test('an operation whose price breaks the Product’s rules is refused, and noth
   const backend = openServer(memorySqlite(), { count: 10 })
   const journal = memoryJournal(backend)
   const replica = await Effect.runPromise(
-    RegistrySync.openReplica(ReplicaId.make('tampering'), memoryStorage()),
+    RegistrySync.openReplica(memoryStorage(), { replicaId: ReplicaId.make('tampering') }),
   )
   await Effect.runPromise(
     replica.submit(
@@ -105,7 +105,7 @@ const editAndSend = async (
   prices: ReadonlyArray<readonly [number, number]>,
 ) => {
   const replica = await Effect.runPromise(
-    RegistrySync.openReplica(ReplicaId.make(name), memoryStorage()),
+    RegistrySync.openReplica(memoryStorage(), { replicaId: ReplicaId.make(name) }),
   )
   for (const [index, cents] of prices)
     await Effect.runPromise(
@@ -148,7 +148,7 @@ test('absorbing records what the table holds, so replicas drop it and newcomers 
   })
   // A replica that never saw the log is sent the compacted snapshot: no edits.
   const newcomer = await Effect.runPromise(
-    RegistrySync.openReplica(ReplicaId.make('newcomer'), memoryStorage()),
+    RegistrySync.openReplica(memoryStorage(), { replicaId: ReplicaId.make('newcomer') }),
   )
   await Effect.runPromise(newcomer.synchronize.pipe(Effect.provide(transport)))
   expect(await Effect.runPromise(newcomer.committed)).toEqual({ edits: [] })
@@ -180,7 +180,7 @@ test('a client cannot record what the table holds', async () => {
   const journal = memoryJournal(backend)
   const { transport } = await editAndSend(journal, 'editing', [[1, 101]])
   const forger = await Effect.runPromise(
-    RegistrySync.openReplica(ReplicaId.make('forger'), memoryStorage()),
+    RegistrySync.openReplica(memoryStorage(), { replicaId: ReplicaId.make('forger') }),
   )
   await Effect.runPromise(forger.submit(Message.AbsorbedEdits({ through: 100 })))
   await Effect.runPromise(forger.synchronize.pipe(Effect.provide(transport)))

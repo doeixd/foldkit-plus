@@ -1,4 +1,4 @@
-import { Config, Effect } from 'effect'
+import { Config, Effect, Option } from 'effect'
 import { StorageError } from './errors.js'
 
 /** One submitted operation, as `Storage.append` records it. */
@@ -186,4 +186,70 @@ export const indexedDb = Effect.fn('Storage.indexedDb')(function* (
     close: Effect.sync(() => database.close()),
   }
   return storage
+})
+
+/** What `tabStorage` reads of the page, given in a test. */
+export interface TabStorageOptions {
+  /** Where the tab's key lives; it survives a reload and is copied to a duplicated tab. */
+  readonly sessionStorage?: {
+    getItem(key: string): string | null
+    setItem(key: string, value: string): void
+  }
+  /**
+   * Claims the key while the tab is open, so a duplicated tab takes another;
+   * `undefined` where the page has no Web Locks.
+   */
+  readonly locks?:
+    | {
+        request(
+          name: string,
+          options: { readonly ifAvailable: true },
+          callback: (lock: unknown) => Promise<void> | undefined,
+        ): Promise<unknown>
+      }
+    | undefined
+  readonly indexedDB?: IDBFactory
+}
+
+/** Holds a Web Lock for the scope; false when another tab holds it. */
+const claim = (locks: NonNullable<TabStorageOptions['locks']>, name: string) =>
+  Effect.acquireRelease(
+    Effect.callback<Option.Option<() => void>>(resume => {
+      void locks.request(name, { ifAvailable: true }, lock => {
+        if (lock === null) {
+          resume(Effect.succeed(Option.none()))
+          return undefined
+        }
+        // The lock is held until this promise settles, which the scope's close does.
+        return new Promise<void>(release => resume(Effect.succeed(Option.some(release))))
+      })
+    }),
+    held => Effect.sync(() => Option.map(held, release => release())),
+  ).pipe(Effect.map(Option.isSome))
+
+/**
+ * This tab's store: IndexedDB `${name}/${key}`, where the key is read from
+ * `sessionStorage` under `name`, or minted. A reload reopens the store, unsent
+ * operations included; a duplicated tab, whose copied key another tab holds,
+ * mints its own. Pass it to `openReplica`, which takes the replica's id from
+ * the store.
+ */
+export const tabStorage = Effect.fn('Storage.tabStorage')(function* (
+  name: string,
+  options: TabStorageOptions = {},
+) {
+  const session = options.sessionStorage ?? globalThis.sessionStorage
+  const locks =
+    'locks' in options
+      ? options.locks
+      : (globalThis.navigator as { locks?: TabStorageOptions['locks'] } | undefined)?.locks
+  const held = (key: string) =>
+    locks === undefined ? Effect.succeed(true) : claim(locks, `foldkit-sync:${name}/${key}`)
+  const kept = session.getItem(name)
+  const key = kept !== null && (yield* held(kept)) ? kept : crypto.randomUUID()
+  if (key !== kept) {
+    yield* held(key)
+    session.setItem(name, key)
+  }
+  return yield* indexedDb(`${name}/${key}`, options.indexedDB)
 })

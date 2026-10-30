@@ -85,11 +85,11 @@ A custom `replay` option loses those guards. For large apps, declare one
 
 ```ts
 import { Effect } from 'effect'
-import { ReplicaId, Sync } from 'foldkit-sync'
+import { Sync } from 'foldkit-sync'
 
 const program = Effect.gen(function* () {
-  const storage = yield* Sync.indexedDb('todos/tab-1')        // scoped; one per document + writer
-  const replica = yield* TodoSync.openReplica(ReplicaId.make('tab-1'), storage)
+  const storage = yield* Sync.tabStorage('todos')             // scoped; this tab's store, kept across reloads
+  const replica = yield* TodoSync.openReplica(storage)        // the store's id: read back, or minted
 
   yield* replica.submit(Message.CreatedTodo({ id: 't1', title: 'Milk' })) // durable only: a local Message does not compile
   const optimistic = yield* replica.shared                    // already includes the pending op
@@ -123,7 +123,12 @@ const program = Effect.gen(function* () {
   socket transport also provides `TransportSocket` (`Context.get(built, TransportSocket)`
   or `yield* TransportSocket`), its connection across reconnects, for
   `Sync.presence.socketChannel`; only a socket transport's layer has it in its type.
-- `Sync.indexedDb(name, factory?)` is the only built-in storage (pass
+- A replica's id is its store's: `openReplica(storage)` reads it back, or mints
+  one for an empty store, so two stores never share one. `{ replicaId }` names
+  it for a test or a server; never name it after a person, whose second browser
+  would reuse its operation ids. `Sync.tabStorage(name)` is this tab's store
+  (`sessionStorage` key, IndexedDB `${name}/${key}`; a duplicated tab mints its
+  own); `Sync.indexedDb(name, factory?)` opens a database by name (pass
   `fake-indexeddb` in Node). Its submit writes only the new operation, through
   the optional `Storage.append`. A test `Storage` needs just three members:
 
@@ -145,11 +150,12 @@ const memoryStorage = (): Storage => {
 
 ```ts
 import { Effect, Option, Scope } from 'effect'
-import { ReplicaId, Sync } from 'foldkit-sync'
+import { Sync } from 'foldkit-sync'
 
-const scope = Effect.runSync(Scope.make())
-const storage = Effect.runSync(Effect.provideService(Sync.indexedDb('todos/tab-1'), Scope.Scope, scope))
-const replica = Effect.runSync(TodoSync.openReplica(ReplicaId.make('tab-1'), storage))
+const scope = Effect.runSync(Scope.make())                    // the store's connection lives for the page
+const replica = await Effect.runPromise(
+  Sync.tabStorage('todos').pipe(Effect.flatMap(TodoSync.openReplica), Effect.provideService(Scope.Scope, scope)),
+)
 
 const mounted = Sync.mount(App, TodoSync, {
   replica,
@@ -351,10 +357,9 @@ stamps with `Sync.lww.openClock` before dispatch, never in `update`.
 
 - Durable Messages must not return Commands or write outside `shared`. Mint IDs
   and timestamps in a Command, then dispatch the fact.
-- Use one mount per replica, and one storage name + `ReplicaId` per tab
-  ([#336](https://github.com/doeixd/foldkit-plus/issues/336)). A
-  second writer fails the storage compare-and-swap. Losing IndexedDB loses
-  unsent edits.
+- Use one mount per replica, on its own store (`Sync.tabStorage`). A second
+  writer on one store fails its compare-and-swap. Losing IndexedDB loses unsent
+  edits.
 - `foldkit-durable`'s `Journal.make` needs Node >= 22 (`node:sqlite`);
   `foldkit-durable/core`'s `Journal.layer(options)` (or `Journal.define(key)
   .layer`) is a layer that needs any `effect/sql` SQLite `SqlClient`,
@@ -371,12 +376,6 @@ stamps with `Sync.lww.openClock` before dispatch, never in `update`.
 
 Met in applications on this stack: what failed, and what to do instead.
 
-- **A replica id names a store, not a person.** An app that named its replica
-  by the sign-in token counted from 0 again in a second browser, and the
-  journal refused every new operation as a reused id. Mint the id per tab
-  (`sessionStorage`) and name the storage after it, as
-  [examples/todo-app](https://github.com/doeixd/foldkit-plus/tree/main/examples/todo-app)'s
-  `src/client.ts` does ([#336](https://github.com/doeixd/foldkit-plus/issues/336)).
 - **State derived from the shared slice belongs in `afterUpdate`.** Replay runs
   the durable Message through `update` and refuses any other field it changes,
   so reconciling another field at the end of `update` failed every replica

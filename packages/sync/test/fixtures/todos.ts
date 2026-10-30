@@ -52,7 +52,7 @@ export const openJournal = () => {
 }
 
 export const replica = (name: string) =>
-  Effect.runPromise(Todos.openReplica(replicaId(name), memoryStorage()))
+  Effect.runPromise(Todos.openReplica(memoryStorage(), { replicaId: replicaId(name) }))
 
 /** The operations a replica would send, held back. */
 export const pendingOf = async (name: string, titles: ReadonlyArray<string>) => {

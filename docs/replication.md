@@ -157,14 +157,16 @@ Open storage and a replica, mount the application over it, start the loop:
 
 ```ts
 import { Effect, Scope } from 'effect'
-import { ReplicaId, Sync } from 'foldkit-sync'
+import { Sync } from 'foldkit-sync'
 
 const container = document.getElementById('app')!
 const scope = Effect.runSync(Scope.make())
-const storage = Effect.runSync(
-  Effect.provideService(Sync.indexedDb('todos/tab-1'), Scope.Scope, scope),
+const replica = await Effect.runPromise(
+  Sync.tabStorage('todos').pipe(
+    Effect.flatMap(TodoSync.openReplica),
+    Effect.provideService(Scope.Scope, scope),
+  ),
 )
-const replica = Effect.runSync(TodoSync.openReplica(ReplicaId.make('tab-1'), storage))
 
 const mounted = Sync.mount(App, TodoSync, {
   replica,

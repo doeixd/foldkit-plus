@@ -12,8 +12,9 @@ import { TodoSync } from './sync.js'
 type TodoReplica = Replica<Message, Shared>
 const open = (
   id: string,
-  storage: Parameters<typeof TodoSync.openReplica>[1],
-): Promise<TodoReplica> => Effect.runPromise(TodoSync.openReplica(ReplicaId.make(id), storage))
+  storage: Parameters<typeof TodoSync.openReplica>[0],
+): Promise<TodoReplica> =>
+  Effect.runPromise(TodoSync.openReplica(storage, { replicaId: ReplicaId.make(id) }))
 const submit = (replica: TodoReplica, message: Message): Promise<void> =>
   Effect.runPromise(replica.submit(message))
 const synchronize = (replica: TodoReplica, transport: TransportClient): Promise<void> =>

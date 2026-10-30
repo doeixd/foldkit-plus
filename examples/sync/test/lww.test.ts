@@ -42,8 +42,10 @@ const rename = (counter: number, replica: string, value: string | null): Message
   Message.Renamed({ title: { stamp: { counter, replicaId: ReplicaId.make(replica) }, value } })
 
 /** A promise facade over the Effect replica, so the LWW test reads as before. */
-const openReplica = async (id: string, storage: Parameters<typeof TitlesSync.openReplica>[1]) => {
-  const replica = await Effect.runPromise(TitlesSync.openReplica(ReplicaId.make(id), storage))
+const openReplica = async (id: string, storage: Parameters<typeof TitlesSync.openReplica>[0]) => {
+  const replica = await Effect.runPromise(
+    TitlesSync.openReplica(storage, { replicaId: ReplicaId.make(id) }),
+  )
   return {
     shared: () => Effect.runSync(replica.shared),
     pending: () => Effect.runSync(replica.pending),

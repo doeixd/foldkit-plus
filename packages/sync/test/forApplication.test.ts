@@ -39,7 +39,8 @@ const TodoSync = forApplication(App).make({
   durable: Changes,
 })
 
-const open = () => Effect.runPromise(TodoSync.openReplica(replicaId('a'), memoryStorage()))
+const open = () =>
+  Effect.runPromise(TodoSync.openReplica(memoryStorage(), { replicaId: replicaId('a') }))
 type Replica = Awaited<ReturnType<typeof open>>
 type Durable = Parameters<Replica['submit']>[0]
 const submit = (replica: Replica, message: Durable) => Effect.runPromise(replica.submit(message))
@@ -123,7 +124,7 @@ describe('Sync.forApplication', () => {
       shared: Projection.pick(Faulty.model.todos),
       durable: MessageSet.make(Faulty, [Message.CreatedTodo, Message.RenamedTodo]),
     })
-    return Effect.runPromise(sync.openReplica(replicaId('a'), memoryStorage()))
+    return Effect.runPromise(sync.openReplica(memoryStorage(), { replicaId: replicaId('a') }))
   }
 
   it('accepts a durable transition that returns no Commands', async () => {
@@ -201,7 +202,9 @@ describe('Sync.forApplication', () => {
     })
 
     it('replays through the custom reducer, not update', async () => {
-      const replica = await Effect.runPromise(Custom.openReplica(replicaId('a'), memoryStorage()))
+      const replica = await Effect.runPromise(
+        Custom.openReplica(memoryStorage(), { replicaId: replicaId('a') }),
+      )
       await submit(replica, Message.CreatedTodo({ id: 'a', title: 'a' }))
       expect(shared(replica)).toEqual({ todos: [{ id: 'a', title: 'A' }] })
       expect(Surface.inspect(Custom.surface, undefined).name).toBe('CustomTodos')

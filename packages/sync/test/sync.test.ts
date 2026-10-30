@@ -107,7 +107,7 @@ const memoryStorage = (initial?: unknown): Storage => {
 }
 
 const open = (id: string, storage = memoryStorage()): Promise<Replica<Message, Shared>> =>
-  Effect.runPromise(Sync.openReplica(replicaId(id), storage))
+  Effect.runPromise(Sync.openReplica(storage, { replicaId: replicaId(id) }))
 const submit = (replica: Replica<Message, Shared>, message: Message): Promise<void> =>
   Effect.runPromise(replica.submit(message))
 const sync = (replica: Replica<Message, Shared>, transport: TransportClient): Promise<void> =>
@@ -194,7 +194,7 @@ describe('the replica', () => {
 
   it('replays once at submit and reuses the projection until the state changes', async () => {
     const replica = await Effect.runPromise(
-      CountingSync.openReplica(replicaId('a'), memoryStorage()),
+      CountingSync.openReplica(memoryStorage(), { replicaId: replicaId('a') }),
     )
     replayCalls.count = 0
 
@@ -230,7 +230,9 @@ describe('the replica', () => {
         return definition.replay(shared, message)
       },
     })
-    const replica = await Effect.runPromise(Poisonable.openReplica(replicaId('a'), memoryStorage()))
+    const replica = await Effect.runPromise(
+      Poisonable.openReplica(memoryStorage(), { replicaId: replicaId('a') }),
+    )
     await submit(replica, created('t1'))
     // An exchange replaces the state without a seeded projection.
     await sync(replica, { exchange: async () => ({ operations: [], rejected: [] }) })
@@ -254,7 +256,9 @@ describe('the replica', () => {
         return definition.replay(shared, message)
       },
     })
-    const replica = await Effect.runPromise(Throwing.openReplica(replicaId('a'), memoryStorage()))
+    const replica = await Effect.runPromise(
+      Throwing.openReplica(memoryStorage(), { replicaId: replicaId('a') }),
+    )
     await submit(replica, created('t1'))
 
     const refused = await Effect.runPromise(Effect.result(replica.submit(created('t2', 'boom'))))
@@ -611,7 +615,9 @@ describe('the replica', () => {
         return definition.replay(shared, message)
       },
     })
-    const replica = await Effect.runPromise(Throwing.openReplica(replicaId('a'), memoryStorage()))
+    const replica = await Effect.runPromise(
+      Throwing.openReplica(memoryStorage(), { replicaId: replicaId('a') }),
+    )
 
     const exit = await Effect.runPromiseExit(
       Effect.provide(
@@ -646,7 +652,9 @@ describe('the replica', () => {
     }
     const storage = memoryStorage(saved)
 
-    const result = await Effect.runPromise(Effect.result(Sync.openReplica(replicaId('a'), storage)))
+    const result = await Effect.runPromise(
+      Effect.result(Sync.openReplica(storage, { replicaId: replicaId('a') })),
+    )
 
     expect(result).toMatchObject({
       _tag: 'Failure',
@@ -974,7 +982,7 @@ describe('coalescing', () => {
         : undefined,
   })
   const openCoalescing = (id: string, storage = memoryStorage()) =>
-    Effect.runPromise(Coalescing.openReplica(replicaId(id), storage))
+    Effect.runPromise(Coalescing.openReplica(storage, { replicaId: replicaId(id) }))
   const titles = (replica: Replica<Message, Shared>) =>
     pending(replica).map(operation => [
       operation.opId,
@@ -1009,7 +1017,9 @@ describe('coalescing', () => {
         return next._tag === 'RenamedTodo' ? { _tag: 'SelectedTodo', id: next.id } : undefined
       },
     })
-    const replica = await Effect.runPromise(Selecting.openReplica(replicaId('a'), memoryStorage()))
+    const replica = await Effect.runPromise(
+      Selecting.openReplica(memoryStorage(), { replicaId: replicaId('a') }),
+    )
     const refusal = (message: Message) =>
       Effect.runPromise(Effect.flip(replica.submit(message))).then(error => error.message)
     await submit(replica, created('t'))
@@ -1069,7 +1079,9 @@ describe('a transforming shared codec', () => {
 
   it('round-trips through storage and reload', async () => {
     const storage = memoryStorage()
-    const first = await Effect.runPromise(Counter.openReplica(replicaId('a'), storage))
+    const first = await Effect.runPromise(
+      Counter.openReplica(storage, { replicaId: replicaId('a') }),
+    )
     await Effect.runPromise(
       Effect.provide(
         first.synchronize,
@@ -1102,13 +1114,17 @@ describe('a transforming shared codec', () => {
     const stored = await Effect.runPromise(storage.load())
     expect(stored).toMatchObject({ committed: { count: '1' } })
 
-    const second = await Effect.runPromise(Counter.openReplica(replicaId('a'), storage))
+    const second = await Effect.runPromise(
+      Counter.openReplica(storage, { replicaId: replicaId('a') }),
+    )
     expect(Effect.runSync(second.shared)).toEqual({ count: 1 })
     await Effect.runPromise(second.close)
   })
 
   it('adopts a checkpoint through the encoded wire form', async () => {
-    const replica = await Effect.runPromise(Counter.openReplica(replicaId('a'), memoryStorage()))
+    const replica = await Effect.runPromise(
+      Counter.openReplica(memoryStorage(), { replicaId: replicaId('a') }),
+    )
     await Effect.runPromise(
       Effect.provide(
         replica.synchronize,

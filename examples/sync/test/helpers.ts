@@ -38,8 +38,9 @@ export const closeStorages = (): Promise<void> =>
 /** The Effect-native replica, for tests that embed it in the Foldkit runtime. */
 export const openReplicaEffect = (
   id: string,
-  storage: Parameters<typeof TodoSync.openReplica>[1],
-): Promise<TodoReplica> => Effect.runPromise(TodoSync.openReplica(ReplicaId.make(id), storage))
+  storage: Parameters<typeof TodoSync.openReplica>[0],
+): Promise<TodoReplica> =>
+  Effect.runPromise(TodoSync.openReplica(storage, { replicaId: ReplicaId.make(id) }))
 
 /** A promise facade, so app-level test bodies read as they did before. */
 export interface PromiseReplica {
@@ -63,5 +64,5 @@ const replicaFacade = (replica: TodoReplica): PromiseReplica => ({
 
 export const openReplica = async (
   id: string,
-  storage: Parameters<typeof TodoSync.openReplica>[1],
+  storage: Parameters<typeof TodoSync.openReplica>[0],
 ): Promise<PromiseReplica> => replicaFacade(await openReplicaEffect(id, storage))

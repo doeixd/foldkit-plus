@@ -74,7 +74,9 @@ const scope = Effect.runSync(Scope.make())
 const storage = Effect.runSync(
   Effect.provideService(Sync.indexedDb('todos/tab-1'), Scope.Scope, scope),
 )
-const replica = Effect.runSync(TodoSync.openReplica(ReplicaId.make('tab-1'), storage))
+const replica = Effect.runSync(
+  TodoSync.openReplica(storage, { replicaId: ReplicaId.make('tab-1') }),
+)
 
 const mounted = Sync.mount(App, TodoSync, {
   replica,

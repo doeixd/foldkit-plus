@@ -35,7 +35,7 @@ describe('the mounted app', () => {
     container.id = 'todo-app-mirrors'
     document.body.appendChild(container)
     const replica = await Effect.runPromise(
-      TodoSync.openReplica(ReplicaId.make('mirrors'), memoryStorage()),
+      TodoSync.openReplica(memoryStorage(), { replicaId: ReplicaId.make('mirrors') }),
     )
     const mounted = mountApp(replica, container)
     try {
@@ -68,7 +68,7 @@ describe('the mounted app', () => {
     document.body.appendChild(container)
 
     const replica = await Effect.runPromise(
-      TodoSync.openReplica(ReplicaId.make('test'), memoryStorage()),
+      TodoSync.openReplica(memoryStorage(), { replicaId: ReplicaId.make('test') }),
     )
     const mounted = mountApp(replica, container)
     try {

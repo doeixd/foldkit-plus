@@ -23,5 +23,7 @@ export const closeStorages = (): Promise<void> =>
 
 export const openReplica = async (id: string): Promise<TodoReplica> =>
   Effect.runPromise(
-    TodoSync.openReplica(ReplicaId.make(id), await Effect.runPromise(openStorage(id))),
+    TodoSync.openReplica(await Effect.runPromise(openStorage(id)), {
+      replicaId: ReplicaId.make(id),
+    }),
   )

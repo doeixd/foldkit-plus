@@ -169,7 +169,7 @@ describe('Sync.mount', () => {
       changes: Replica<Message, Shared>['statusChanges'],
     ) => Replica<Message, Shared>['statusChanges'] = changes => changes,
   ) => {
-    replica = await Effect.runPromise(TodoSync.openReplica(replicaId('a'), storage))
+    replica = await Effect.runPromise(TodoSync.openReplica(storage, { replicaId: replicaId('a') }))
     mounted = mount(App, TodoSync, {
       replica: { ...replica, statusChanges: statuses(replica.statusChanges) },
       container,
@@ -297,7 +297,9 @@ describe('Sync.mount', () => {
   })
 
   it('runs afterUpdate after every live update, facts included, and never in replay', async () => {
-    replica = await Effect.runPromise(TodoSync.openReplica(replicaId('a'), memoryStorage()))
+    replica = await Effect.runPromise(
+      TodoSync.openReplica(memoryStorage(), { replicaId: replicaId('a') }),
+    )
     // Local state derived from the shared slice: a durable transition may not write it.
     const counted = (model: Model): Model => {
       const count = `${model.todos.length} todos`

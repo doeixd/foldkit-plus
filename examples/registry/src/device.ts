@@ -8,7 +8,6 @@ import { Context, Effect, Layer, Option, Schema, Scope } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
 import type { RemoteClient } from 'foldkit-remote'
 import {
-  ReplicaId,
   Sync,
   TransportSocket,
   type Mounted,
@@ -21,32 +20,25 @@ import { RegistrySync, mountRegistry, pausable } from './sync.js'
 
 export const startDevice = async (options: {
   readonly container: HTMLElement
-  /** Where the tab keeps this device's replica id, so a reload opens the same replica. */
-  readonly key: string
+  /** The device's store in this tab (`Sync.tabStorage`), so a reload opens the same replica. */
+  readonly store: string
   /** The name the device commits as, from its replica's id. */
   readonly name: (replicaId: string) => string
   readonly resources: Layer.Layer<RemoteClient>
   /** The device's way to the journal, as the name it commits as. */
   readonly transport: (device: string) => Layer.Layer<Transport | TransportSocket, TransportError>
 }): Promise<Mounted<Model, Message>> => {
-  // One replica per device, and its storage named after it: a reload opens the
-  // same one, edits it has not sent included, while two never write one storage.
-  // The id lives as long as the tab does.
-  const replicaId = sessionStorage.getItem(options.key) ?? crypto.randomUUID()
-  sessionStorage.setItem(options.key, replicaId)
+  // One replica per device, in a store of the tab's: a reload opens the same one,
+  // edits it has not sent included, while two never write one store.
   // What the device opens (its storage, its socket) lives as long as the page.
   const scope = Effect.runSync(Scope.make())
-  const storage = await Effect.runPromise(
-    Effect.provideService(
-      Sync.indexedDb(`foldkit-registry/${RegistrySync.documentId}/${replicaId}`),
-      Scope.Scope,
-      scope,
+  const replica = await Effect.runPromise(
+    Sync.tabStorage(options.store).pipe(
+      Effect.flatMap(RegistrySync.openReplica),
+      Effect.provideService(Scope.Scope, scope),
     ),
   )
-  const replica = await Effect.runPromise(
-    RegistrySync.openReplica(ReplicaId.make(replicaId), storage),
-  )
-  const device = options.name(replicaId)
+  const device = options.name(replica.replicaId)
   const { mounted } = mountRegistry(replica, {
     container: options.container,
     // The rows read are kept in the browser, so a reload paints them at once.

@@ -36,7 +36,9 @@ interface Person {
 
 const person = async (name: string): Promise<Person> => ({
   name,
-  replica: await Effect.runPromise(PagesSync.openReplica(ReplicaId.make(name), memoryStorage())),
+  replica: await Effect.runPromise(
+    PagesSync.openReplica(memoryStorage(), { replicaId: ReplicaId.make(name) }),
+  ),
   model: initialModel(name),
 })
 

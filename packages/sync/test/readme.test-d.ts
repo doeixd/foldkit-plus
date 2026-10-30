@@ -75,7 +75,9 @@ const scope = Effect.runSync(Scope.make())
 const storage = Effect.runSync(
   Effect.provideService(Sync.indexedDb('todos/tab-1'), Scope.Scope, scope),
 )
-const replica = Effect.runSync(TodoSync.openReplica(ReplicaId.make('tab-1'), storage))
+const replica = Effect.runSync(
+  TodoSync.openReplica(storage, { replicaId: ReplicaId.make('tab-1') }),
+)
 
 const mounted = Sync.mount(App, TodoSync, {
   replica,
@@ -237,7 +239,9 @@ const memoryStorage = (): Storage => {
 }
 
 const tested = Effect.gen(function* () {
-  const replica = yield* TodoSync.openReplica(ReplicaId.make('test'), memoryStorage())
+  const replica = yield* TodoSync.openReplica(memoryStorage(), {
+    replicaId: ReplicaId.make('test'),
+  })
   yield* replica.submit(Message.CreatedTodo({ id: 't1', title: 'Milk' }))
   yield* replica.synchronize
   return yield* replica.status
@@ -255,7 +259,7 @@ void tested
 // Advanced: the replica
 const program = Effect.gen(function* () {
   const storage = yield* Sync.indexedDb('todos/tab-1')
-  const replica = yield* TodoSync.openReplica(ReplicaId.make('tab-1'), storage)
+  const replica = yield* TodoSync.openReplica(storage, { replicaId: ReplicaId.make('tab-1') })
 
   yield* replica.submit(Message.CreatedTodo({ id: 't1', title: 'Milk' }))
   const optimistic = yield* replica.shared
@@ -310,7 +314,7 @@ const Protocol = Sync.define({
 
 const lower = Effect.gen(function* () {
   const storage = yield* Sync.indexedDb('todos-tab-1')
-  const replica = yield* Protocol.openReplica(ReplicaId.make('tab-1'), storage)
+  const replica = yield* Protocol.openReplica(storage, { replicaId: ReplicaId.make('tab-1') })
   yield* replica.submit({ _tag: 'Renamed', title: 'Milk' })
   yield* Effect.provide(replica.synchronize, Sync.transport.fromPromise(transport))
   return yield* replica.shared

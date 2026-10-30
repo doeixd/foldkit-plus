@@ -39,7 +39,8 @@ validates it, and `Message.Refused` takes `value`;
 the net and device primitives' `lastError` and `coords` are `Option`s;
 `RemotePersistence.hydrate` returns an `Option`; a socket transport's
 shared socket is `TransportSocket`;
-a made replica's `submit` takes only durable Messages; the shipped theme's
+a made replica's `submit` takes only durable Messages; `openReplica` takes
+its storage first and the id as an option (#336); the shipped theme's
 defaults changed. Under Security: `GuardServer.validate` refuses a served
 write no rule governs under `'allow'`, `EntityWriter.insert` takes
 `operation`, `LiveHub.subscribe` takes no `maxIdsPerEntity`, and a collection
@@ -49,6 +50,13 @@ variant, the CMS `EditorDomain` needs `plan`, and `TagsInput`'s `Typed`
 carries `drawn`.
 
 ### Added
+
+- **`Sync.tabStorage(name)`** (#336): this tab's IndexedDB store, the one a
+  browser opens a replica on. Its key is kept in `sessionStorage` under
+  `name`, so a reload reopens the store and its unsent edits; a duplicated
+  tab, which copies that key while the first tab holds it (a Web Lock), mints
+  one of its own. Every browser example wrote this by hand, and todo-app and
+  registry missed the duplicated tab.
 
 - **A Mount's diagnostics reach the application's reporter (#237, #333).**
   Foldkit runs Mounts outside the runtime's `resources`, so a `MountFailed`
@@ -508,6 +516,15 @@ carries `drawn`.
   `AUTH_ORIGIN` set.
 
 ### Changed
+
+- **A replica's id is its store's (#336).** `openReplica(replicaId, storage)`
+  is `openReplica(storage, { replicaId? })`. Without an id it reads the one
+  the store holds, or mints one for an empty store, so two stores never share
+  an id. An application chose the id before, and the obvious choice, the
+  person, was wrong: todo-app named its replica by the sign-in token, and a
+  second browser for the same person counted its operations from 1 again,
+  each refused by the journal as a reused id. Pass `{ replicaId }` for a
+  test or a server-side replica; a store holding another id still refuses it.
 
 - **A bundle's Model comes from its Schema, and its services from every
   part (#334, #335).** `Bundle.make` inferred the Model from `init` as well as

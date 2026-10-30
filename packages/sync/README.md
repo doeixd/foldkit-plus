@@ -163,16 +163,18 @@ the exchange loop.
 
 ```ts
 import { Effect, Scope } from 'effect'
-import { ReplicaId, Sync } from 'foldkit-sync'
+import { Sync } from 'foldkit-sync'
 
 const container = document.getElementById('app')!
 
-// One IndexedDB database per document and tab; its connection lives for the page.
+// This tab's store, kept across reloads; its connection lives for the page.
 const scope = Effect.runSync(Scope.make())
-const storage = Effect.runSync(
-  Effect.provideService(Sync.indexedDb('todos/tab-1'), Scope.Scope, scope),
+const replica = await Effect.runPromise(
+  Sync.tabStorage('todos').pipe(
+    Effect.flatMap(TodoSync.openReplica),
+    Effect.provideService(Scope.Scope, scope),
+  ),
 )
-const replica = Effect.runSync(TodoSync.openReplica(ReplicaId.make('tab-1'), storage))
 
 const mounted = Sync.mount(App, TodoSync, {
   replica,
@@ -194,11 +196,15 @@ mounted.dispatch(Message.CreatedTodo({ id: crypto.randomUUID(), title: 'Milk' })
 
 What each call does, and does not do:
 
-- **`Sync.indexedDb(name)`** opens one database. Name it by document and
-  writer: two tabs on one name race, and the loser fails its write rather than
-  merging two histories.
-- **`openReplica(id, storage)`** reads back the committed snapshot, cursor, and
-  outbox saved last time, or starts empty. It does no network I/O.
+- **`Sync.tabStorage('todos')`** opens this tab's IndexedDB store. Its key
+  lives in `sessionStorage`, so a reload reopens the store, unsent edits
+  included; a duplicated tab, which copies that key, opens a store of its own.
+- **`openReplica(storage)`** reads back the committed snapshot, cursor, and
+  outbox saved last time, or starts empty. It does no network I/O. The
+  replica's id is the store's: read back, or minted for an empty store.
+  Operation ids are `replicaId:count`, so an id names one store, never a
+  person: a person's second browser under the same id would send ids the
+  journal already has. `{ replicaId }` names one for a test or a server.
 - **`Sync.mount(App, TodoSync, …)`** runs the ordinary Foldkit runtime with
   your `view` and `update`. A durable Message applies through `update` at once,
   then a Command persists it; if the persist fails, the edit is reverted and
@@ -667,7 +673,7 @@ const memoryStorage = (): Storage => {
 }
 
 const program = Effect.gen(function* () {
-  const replica = yield* TodoSync.openReplica(ReplicaId.make('test'), memoryStorage())
+  const replica = yield* TodoSync.openReplica(memoryStorage())
   yield* replica.submit(Message.CreatedTodo({ id: 't1', title: 'Milk' }))
   yield* replica.synchronize
   return yield* replica.status
@@ -702,8 +708,9 @@ application come first.
 - **Local storage was evicted.** The replica starts at cursor 0 and catches up
   from the server, but edits that lived only in the outbox are gone. The
   outbox is user data, not a cache.
-- **Two tabs share one storage name.** Compare-and-swap fails the stale writer
-  with `StorageError`. Give each tab its own name and `ReplicaId`.
+- **Two tabs share one store.** Compare-and-swap fails the stale writer with
+  `StorageError`. `Sync.tabStorage` gives each tab its own; a store named by
+  hand with `Sync.indexedDb(name)` must be one tab's.
 - **The replica is far behind.** The server may answer in pages (`more`), and
   `synchronize` asks again at once until caught up. If the server compacted
   the history it needs, it sends a checkpoint instead: a snapshot and cursor
@@ -763,8 +770,8 @@ server-side actor, a test) uses it directly.
 
 ```ts
 const program = Effect.gen(function* () {
-  const storage = yield* Sync.indexedDb('todos/tab-1')
-  const replica = yield* TodoSync.openReplica(ReplicaId.make('tab-1'), storage)
+  const storage = yield* Sync.indexedDb('todos/worker')
+  const replica = yield* TodoSync.openReplica(storage)
 
   yield* replica.submit(Message.CreatedTodo({ id: 't1', title: 'Milk' }))
   const optimistic = yield* replica.shared // includes the pending edit

@@ -963,12 +963,6 @@ Foldkit's own behaviour that we work around is listed in
   and its tables did not type-check against the adapter. A library the
   application also uses is a `peerDependency`.
 
-- **A replica id names a store, not a person** (#336). Sync operation ids are
-  `replicaId:localSequence`. todo-app named its replica by the sign-in token,
-  so a second browser for one person counted from 0 again and the journal
-  rejected every new operation as a reused id. Until Sync mints it, mint the
-  id per tab (`sessionStorage`) and name the storage after it.
-
 - **A no-op must return the Model it was given.** Foldkit renders only when the root Model
   changes identity, and `Update.foldChild` writes the child back unconditionally, so a
   `{ ...model }` equal copy (or a placement that re-wrote an unchanged child) rendered the

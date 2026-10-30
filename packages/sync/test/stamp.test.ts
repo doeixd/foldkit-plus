@@ -67,7 +67,7 @@ const serve = (sync: typeof Notes) => {
 }
 
 const open = (sync: typeof Notes, name: string) =>
-  Effect.runPromise(sync.openReplica(replicaId(name), memoryStorage()))
+  Effect.runPromise(sync.openReplica(memoryStorage(), { replicaId: replicaId(name) }))
 
 it('replaces what a replica sent with the stamped Message, the same on every replica', async () => {
   const transport = serve(Notes)

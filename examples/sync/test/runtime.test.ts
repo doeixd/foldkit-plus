@@ -30,20 +30,23 @@ it('runs the application over Sync.mount: durable changes render at once and per
     release = resolve
   })
   const replica = await Effect.runPromise(
-    TodoSync.openReplica(ReplicaId.make('a'), {
-      ...storage,
-      save: (state, revision) =>
-        Effect.gen(function* () {
-          if (revision !== null) yield* Effect.promise(() => held)
-          yield* storage.save(state, revision)
-        }),
-      // A submit appends its operation rather than saving the whole state.
-      append: (entry, revision) =>
-        Effect.gen(function* () {
-          yield* Effect.promise(() => held)
-          yield* storage.append!(entry, revision)
-        }),
-    }),
+    TodoSync.openReplica(
+      {
+        ...storage,
+        save: (state, revision) =>
+          Effect.gen(function* () {
+            if (revision !== null) yield* Effect.promise(() => held)
+            yield* storage.save(state, revision)
+          }),
+        // A submit appends its operation rather than saving the whole state.
+        append: (entry, revision) =>
+          Effect.gen(function* () {
+            yield* Effect.promise(() => held)
+            yield* storage.append!(entry, revision)
+          }),
+      },
+      { replicaId: ReplicaId.make('a') },
+    ),
   )
   const container = document.createElement('div')
   container.id = 'sync-runtime'
@@ -90,10 +93,9 @@ describe('a browser agent on the mounted app', () => {
     stubAnimationFrames()
     const journal = openJournal(':memory:')
     const replica = await Effect.runPromise(
-      TodoSync.openReplica(
-        ReplicaId.make('browser'),
-        await Effect.runPromise(openStorage('browser', new IDBFactory())),
-      ),
+      TodoSync.openReplica(await Effect.runPromise(openStorage('browser', new IDBFactory())), {
+        replicaId: ReplicaId.make('browser'),
+      }),
     )
     const container = document.createElement('div')
     container.id = 'sync-agent'
