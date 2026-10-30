@@ -145,7 +145,7 @@ describe.each(names)('a page relation named %s', name => {
     expect({ ...selection.connections }).toEqual(one(name, { first: 5 }))
     expect(Object.keys(selection.relations ?? {})).toEqual([name])
     expect(
-      Schema.decodeUnknownSync(selection.schema as unknown as Schema.ConstraintDecoder<unknown>)(
+      Schema.decodeUnknownSync(selection.schema)(
         one(name, { items: [], hasNext: false, hasPrevious: false }),
       ),
     ).toEqual(one(name, { items: [], hasNext: false, hasPrevious: false }))
@@ -191,15 +191,56 @@ describe.each(names)('a relation named %s', name => {
   })
 })
 
+// Each name written out, so the types see it: a bare `__proto__:` in a literal
+// would set the prototype, so that one is computed.
+const domainOdd = (name: (typeof names)[number]) => {
+  switch (name) {
+    case '__proto__': {
+      const Odd = DomainEntity.define(
+        'Odd',
+        Schema.Struct({ id: Schema.String, ['__proto__']: Schema.String }),
+      )
+      return {
+        Odd,
+        read: Remote.make({ model: App.model.remote, entities: [Odd] }).get(
+          DomainEntity.select(Odd, { ['__proto__']: true }),
+          'o1',
+        ),
+      }
+    }
+    case 'constructor': {
+      const Odd = DomainEntity.define(
+        'Odd',
+        Schema.Struct({ id: Schema.String, constructor: Schema.String }),
+      )
+      return {
+        Odd,
+        read: Remote.make({ model: App.model.remote, entities: [Odd] }).get(
+          DomainEntity.select(Odd, { constructor: true }),
+          'o1',
+        ),
+      }
+    }
+    case 'toString': {
+      const Odd = DomainEntity.define(
+        'Odd',
+        Schema.Struct({ id: Schema.String, toString: Schema.String }),
+      )
+      return {
+        Odd,
+        read: Remote.make({ model: App.model.remote, entities: [Odd] }).get(
+          DomainEntity.select(Odd, { toString: true }),
+          'o1',
+        ),
+      }
+    }
+  }
+}
+
 describe.each(names)('a foldkit-entity field named %s', name => {
   it('is read through Remote', () => {
-    const Odd = DomainEntity.define(
-      'Odd',
-      Schema.Struct({ id: Schema.String, ...one(name, Schema.String) }),
-    )
+    const { Odd, read } = domainOdd(name)
     expect(Object.keys(Entity.from(Odd).fields)).toEqual(['id', name])
-    const Data = Remote.make({ model: App.model.remote, entities: [Odd] })
-    const read = Data.get(DomainEntity.select(Odd, one(name, true) as never), 'o1')
 
     expect(read.read(held([{ key: 'Odd:o1', values: one(name, 'odd') }]))).toMatchObject({
       _tag: 'Ready',
