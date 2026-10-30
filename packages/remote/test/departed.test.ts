@@ -175,10 +175,18 @@ describe('A list whose Surface was left', () => {
   })
 
   it('is evicted once the lists left after it spend the budget', () => {
-    // Each list and its one row are two entries; a budget of 1,000 holds 500.
+    // Each list and its one row are two entries. Shown with the 499 lists
+    // after them, the second list fills the default budget of 1,000 and the
+    // first does not fit. Few batches, so each change walks few roots (#362).
     const lists = Array.from({ length: 501 }, (_, i) => listOf(`o${i}`))
+    const [first, second, ...rest] = lists
     const visited = reduceAll({ remote: Remote.initial, owners: [] }, [
-      ...lists.flatMap((list, i) => [...loaded(list, [`p${i}`]), showing(list)]),
+      ...loaded(first!, ['p0']),
+      showing(first!),
+      ...loaded(second!, ['p1']),
+      showing(second!),
+      ...rest.flatMap((list, i) => loaded(list, [`p${i + 2}`])),
+      showing(...rest),
       showing(),
     ])
 
@@ -215,10 +223,16 @@ describe('A read whose Surface was left', () => {
   })
 
   it('is evicted once the reads left after it spend the budget', () => {
-    // Each read is one entry, its row.
-    const ids = Array.from({ length: 1_001 }, (_, i) => `r${i}`)
+    // Each read is one entry, its row. Shown with the 999 reads after them,
+    // r1 fills the default budget of 1,000 and r0 does not fit.
+    const rest = Array.from({ length: 999 }, (_, i) => read(`r${i + 2}`))
     const after = reduceAll({ remote: Remote.initial, owners: [] }, [
-      ...ids.flatMap(id => [received([id]), retaining([read(id)])]),
+      received(['r0']),
+      retaining([read('r0')]),
+      received(['r1']),
+      retaining([read('r1')]),
+      received(rest.map(root => root.id)),
+      retaining(rest),
       retaining([]),
     ])
 

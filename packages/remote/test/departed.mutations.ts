@@ -55,6 +55,12 @@ export default [
     'message.budget ?? Infinity',
   ),
   edit(
+    'the budget holds one entry fewer',
+    retain,
+    'if (spent + cost > budget) break',
+    'if (spent + cost >= budget) break',
+  ),
+  edit(
     'unchanged roots are new roots',
     retain,
     'recent: unchanged ? previous : { active, departed },',
