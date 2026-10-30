@@ -16,7 +16,6 @@ import {
   DomainListing,
   TOP_RESULT_COUNT,
   domainToReadyListing,
-  filterAndSortDomainListings,
   formatRegistrationPrice,
   formatRenewalPrice,
   queryToDomainListings,
@@ -29,7 +28,8 @@ import {
   SearchViewState,
   searchViewState,
 } from './searchViewState.js'
-import { resultsOf } from './results.js'
+import { filters } from './filters.js'
+import { type Arranged, arrangedOf } from './results.js'
 import type { DomainListingGroup } from './resultsList.js'
 import { Page, ResultsListStyle } from './style.js'
 
@@ -218,43 +218,46 @@ const searchError = (error: string, retry: boolean, slots: Slots, h: H): Html =>
 const groupKey = (group: DomainListingGroup): string => group.id
 
 /**
- * Every name of the typed label in rows of six, drawn by `WindowList` while
- * in view of the window. A row draws its names from what has been read.
+ * Every name of the typed label as the filters and sort arrange them, in rows
+ * of six, drawn by `WindowList` while in view of the window. A row draws its
+ * names from what has been read.
  */
-const allResults = (model: Model, domains: ReadonlyArray<Domain>, slots: Slots, h: H): Html =>
-  Option.match(queryToMaybeDomainLabel(model.query), {
-    onNone: () => h.empty,
-    onSome: label => {
-      const byName = new Map(Array.map(domains, domain => [domain.name, domain] as const))
-      const listingOf = (pending: DomainListing): DomainListing =>
-        Option.match(Option.fromNullishOr(byName.get(pending.name)), {
-          onNone: () => pending,
-          onSome: domainToReadyListing,
-        })
-      return WindowList.view(
-        {
-          model: model.resultsList,
-          items: resultsOf(label).groups,
-          itemToKey: groupKey,
-          itemToView: (group, index) =>
-            h.ul(
-              slots.rowGroup.attrs([
-                h.DataAttribute('virtual-list-item-key', group.id),
-                h.DataAttribute('virtual-list-item-index', `${index}`),
-              ]),
-              Array.map(group.listings, pending => row(listingOf(pending), slots, h)),
-            ),
-          onMessage: message => Message.GotResultsListMessage({ message }),
-          label: 'All domain results',
-          style: ResultsListStyle,
-        },
-        h,
-      )
+const allResults = (
+  model: Model,
+  arranged: Arranged,
+  domains: ReadonlyArray<Domain>,
+  slots: Slots,
+  h: H,
+): Html => {
+  const byName = new Map(Array.map(domains, domain => [domain.name, domain] as const))
+  const listingOf = (listing: DomainListing): DomainListing =>
+    Option.match(Option.fromNullishOr(byName.get(listing.name)), {
+      onNone: () => listing,
+      onSome: domainToReadyListing,
+    })
+  return WindowList.view(
+    {
+      model: model.resultsList,
+      items: arranged.groups,
+      itemToKey: groupKey,
+      itemToView: (group, index) =>
+        h.ul(
+          slots.rowGroup.attrs([
+            h.DataAttribute('virtual-list-item-key', group.id),
+            h.DataAttribute('virtual-list-item-index', `${index}`),
+          ]),
+          Array.map(group.listings, listing => row(listingOf(listing), slots, h)),
+        ),
+      onMessage: message => Message.GotResultsListMessage({ message }),
+      label: 'All domain results',
+      style: ResultsListStyle,
     },
-  })
+    h,
+  )
+}
 
 /** What the count line says: how many names are checked, until all are. */
-const resultCountText = (search: SearchViewState, results: ReadonlyArray<DomainListing>) =>
+const resultCountText = (search: SearchViewState, count: number) =>
   SearchViewState.match(search, {
     Idle: () => 'Checking availability and prices…',
     Loading: () => 'Checking availability and prices…',
@@ -262,8 +265,10 @@ const resultCountText = (search: SearchViewState, results: ReadonlyArray<DomainL
     Ready: ({ domains }) =>
       domains.length < domainTlds.length
         ? `${domains.length} of ${domainTlds.length} domains checked · Registration prices in USD`
-        : `${results.length} domains · Registration prices in USD`,
+        : `${count} domains · Registration prices in USD`,
   })
+
+const noArrangement: Arranged = { groups: [], keys: [], count: 0 }
 
 const searchResults = (model: Model, search: SearchViewState, slots: Slots, h: H): Html => {
   const domains = SearchViewState.match(search, {
@@ -273,7 +278,10 @@ const searchResults = (model: Model, search: SearchViewState, slots: Slots, h: H
     Ready: ready => ready.domains,
   })
   const listings = queryToDomainListings(model.query, domains)
-  const results = filterAndSortDomainListings(model.query, domains, 'All', 'All', 'Relevance')
+  const arranged = Option.match(queryToMaybeDomainLabel(model.query), {
+    onNone: () => noArrangement,
+    onSome: label => arrangedOf(label, model, domains),
+  })
   const request = SearchViewState.match(search, {
     Idle: () => DomainRequest.Idle(),
     Loading: () => DomainRequest.Loading(),
@@ -293,16 +301,28 @@ const searchResults = (model: Model, search: SearchViewState, slots: Slots, h: H
           slots.topResults.attrs(),
           Array.map(Array.take(listings, TOP_RESULT_COUNT), listing => card(listing, slots, h)),
         ),
-        h.div(slots.resultsHeading.attrs(), [h.h2(slots.sectionTitle.attrs(), ['All Results'])]),
-        h.div(slots.allResults.attrs(), [
-          allResults(model, domains, slots, h),
-          h.ul(
-            slots.preview.attrs([h.AriaHidden(true)]),
-            Array.map(Array.take(results, PREVIEW_RESULT_COUNT), listing =>
-              row(DomainListing.Pending({ name: listing.name, tld: listing.tld }), slots, h),
-            ),
-          ),
+        h.div(slots.resultsHeading.attrs(), [
+          h.h2(slots.sectionTitle.attrs(), ['All Results']),
+          filters(model, slots, h),
         ]),
+        arranged.count === 0
+          ? h.p(slots.emptyResults.attrs([h.Role('status')]), [
+              'No domains match your filters. Try another extension or show all domains.',
+            ])
+          : h.div(slots.allResults.attrs(), [
+              allResults(model, arranged, domains, slots, h),
+              h.ul(
+                slots.preview.attrs([h.AriaHidden(true)]),
+                Array.map(
+                  Array.take(
+                    arranged.groups.flatMap(group => group.listings),
+                    PREVIEW_RESULT_COUNT,
+                  ),
+                  listing =>
+                    row(DomainListing.Pending({ name: listing.name, tld: listing.tld }), slots, h),
+                ),
+              ),
+            ]),
       ]),
       DomainRequest.match(request, {
         Idle: () => h.empty,
@@ -319,7 +339,7 @@ const searchResults = (model: Model, search: SearchViewState, slots: Slots, h: H
           h.AriaAtomic(true),
           ...(ready ? [] : [h.AriaLabel('Searching domains')]),
         ]),
-        [resultCountText(search, results)],
+        [resultCountText(search, arranged.count)],
       ),
     ],
   )

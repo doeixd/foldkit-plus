@@ -13,7 +13,7 @@
 import geistLatinUrl from '@fontsource-variable/geist/files/geist-latin-wght-normal.woff2?url'
 import { Style, type Piece } from 'foldkit-mixins'
 import { AppStyle } from 'foldkit-mixins/app'
-import { WindowListSlots } from 'foldkit-mixins-ui'
+import { DialogSlots, ListboxSlots, PickerSlots, Recipes, WindowListSlots } from 'foldkit-mixins-ui'
 import { Theme } from 'foldkit-mixins/theme'
 
 export { geistLatinUrl }
@@ -522,6 +522,101 @@ export const Page = slots({
     },
   ],
   bannerText: [{ margin: '0' }],
+  filters: [
+    Style.class('filters'),
+    { display: 'flex', gap: '6px' },
+    Style.media(NARROW, { minWidth: '0', alignItems: 'center' }),
+  ],
+  desktopTld: [Style.class('desktop-tld-filter'), Style.media(NARROW, { display: 'none' })],
+  mobileTld: [
+    Style.class('filter-trigger'),
+    Style.class('mobile-tld-filter'),
+    control,
+    {
+      display: 'none',
+      minHeight: '44px',
+      minWidth: '0',
+      gap: '16px',
+      justifyContent: 'space-between',
+      padding: '8px 12px',
+      fontSize: '13px',
+      whiteSpace: 'nowrap',
+    },
+    Style.media(NARROW, { display: 'flex' }),
+  ],
+  tldPanel: [
+    Style.class('filters-panel'),
+    Style.class('tld-panel'),
+    { display: 'flex', height: 'min(360px, 80dvh)', flexDirection: 'column', overflow: 'hidden' },
+  ],
+  tldSearch: [
+    Style.class('tld-search'),
+    {
+      display: 'flex',
+      minHeight: '44px',
+      flexShrink: '0',
+      alignItems: 'center',
+      gap: '12px',
+      borderBottom: `1px solid ${d.lineFirm}`,
+      padding: '0 12px',
+      color: d.muted,
+    },
+  ],
+  tldSearchInput: [
+    {
+      minWidth: '0',
+      flex: '1',
+      border: '0',
+      background: 'transparent',
+      padding: '12px 0',
+      fontSize: '16px',
+      color: d.text,
+      outline: 'none',
+      font: 'inherit',
+    },
+    Style.pseudo('::placeholder', { color: d.soft }),
+  ],
+  tldOptions: [
+    Style.class('tld-options'),
+    {
+      minHeight: '0',
+      flex: '1',
+      overflowY: 'auto',
+      overscrollBehavior: 'contain',
+      padding: '8px 6px',
+    },
+  ],
+  tldNoResults: [
+    Style.class('tld-no-results'),
+    { padding: '16px 20px', fontSize: '14px', color: d.muted },
+  ],
+  choice: [
+    Style.class('filter-choice'),
+    {
+      display: 'flex',
+      minHeight: '44px',
+      width: '100%',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: '16px',
+      border: '0',
+      borderRadius: '4px',
+      background: 'transparent',
+      padding: '0 20px',
+      textAlign: 'left',
+      fontSize: '16px',
+      color: 'inherit',
+      cursor: 'pointer',
+    },
+    Style.pseudo(':hover', { background: d.raised }),
+    focusRing,
+  ],
+  choiceCheck: [
+    Style.class('filter-choice-check'),
+    { visibility: 'hidden', display: 'flex', width: '20px', height: '20px', flexShrink: '0' },
+    Style.nest('[aria-pressed="true"] > &', { visibility: 'visible' }),
+  ],
+  emptyResults: [Style.class('empty-results'), { margin: '16px 0' }],
   resultsHeading: [
     Style.class('results-heading'),
     {
@@ -715,3 +810,14 @@ export const ResultsListStyle = forSlots(WindowListSlots)(
   },
   { name: 'ResultsListStyle' },
 )
+
+/** The dropdowns: a dark panel under the trigger, as upstream's. */
+export const ListboxStyle = forSlots(ListboxSlots)(Recipes.Listbox(), { name: 'ListboxStyle' })
+
+/** Availability and sort: the dropdown on a desktop, the Sheet below upstream's breakpoint. */
+export const PickerStyle = forSlots(PickerSlots)(Recipes.Picker({ sheetBelow: 'md' }), {
+  name: 'PickerStyle',
+})
+
+/** The phone's sheets, from the bottom. */
+export const SheetStyle = forSlots(DialogSlots)(Recipes.Sheet(), { name: 'SheetStyle' })

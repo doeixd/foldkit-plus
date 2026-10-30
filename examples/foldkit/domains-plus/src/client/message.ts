@@ -7,9 +7,11 @@ import { defineMessageUnion } from 'foldkit/message'
 import { UrlRequest } from 'foldkit/navigation'
 import { Url } from 'foldkit/url'
 import { Bundle } from 'foldkit-bundle'
-import { WindowList } from 'foldkit-mixins-ui'
+import * as UiListbox from '@foldkit/ui/listbox'
+import { Picker, Sheet, WindowList } from 'foldkit-mixins-ui'
 import { debounce } from 'foldkit-primitives/time'
 import { Remote } from 'foldkit-remote'
+import { TldFilter } from './domain'
 
 /**
  * The search text on its way to the reads. Each keystroke is `Changed`; the
@@ -27,6 +29,13 @@ const own = {
   ClickedClearSearch: {},
   ClickedRetrySearch: {},
   GotResultsListMessage: { message: WindowList.Message },
+  GotAvailabilityPickerMessage: { message: Picker.Message },
+  GotSortPickerMessage: { message: Picker.Message },
+  GotTldListboxMessage: { message: UiListbox.Message },
+  GotTldSheetMessage: { message: Sheet.Message },
+  ClickedTldFilter: {},
+  UpdatedTldSearch: { value: Schema.String },
+  ClickedMobileTldOption: { value: TldFilter },
   ClickedLink: { request: UrlRequest },
   ChangedUrl: { url: Url },
   CompletedNavigateInternal: {},

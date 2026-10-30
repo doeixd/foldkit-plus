@@ -37,8 +37,8 @@ export default [
     edits: [
       {
         file: '../src/client/app.ts',
-        find: 'resultsList: list => WindowList.keep(list, keys),',
-        replace: '',
+        find: 'resultsList: list => (same ? list : WindowList.keep(list, [])),',
+        replace: 'resultsList: list => list,',
       },
     ],
     tests,

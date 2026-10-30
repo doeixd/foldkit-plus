@@ -18,6 +18,7 @@ It is being built: the sections below grow with each phase.
 | 1 | Search as you type: `query` mirrored to `?q=` by `foldkit-mirror`, the label the reads use settled by `foldkit-primitives`' debounce, pending cards and rows, the invalid-label error, Escape and the clear button |
 | 2 | The Top Results' prices, read by name through `foldkit-remote` from `/remote` (`foldkit-remote-server`'s `serveFetch` in the Worker's entry), fresh for a minute; the failed-search error and Try again |
 | 3 | All Results: every name in rows of six, drawn by `foldkit-mixins-ui`'s `WindowList` in the page's scroll; the rows in view (and two past each end) read their prices; the count of names checked |
+| 4 | Filters and sort: availability and sort as `Picker`s (a dropdown on a desktop, a sheet on a phone), the TLD as a dropdown with typeahead or a searchable sheet; the Available filter and the price sorts read the whole catalog |
 
 ## How it compares to the upstream copy
 
@@ -30,6 +31,7 @@ It is being built: the sections below grow with each phase.
 | A 150 ms sleep inside the fetch, cancelled by interruption | `debounce` from `foldkit-primitives/time` between the box and `settledLabel` |
 | `SearchDomains({ label, offset, limit })` over Effect RPC at `/rpc`, cached by a `KeyedQuery` per range | `Domain` as a variant Entity read by name; the rows on screen declare what they need and Remote batches it (`foldkit-remote`, `/remote`) |
 | A Blocks `VirtualList` with a window scroll container (upstream patches it) and a planner for the next range to fetch | `WindowList`, and `WindowList.windowOf` naming the rows whose names the `VisibleResults` Surface reads |
+| Three Blocks Listboxes and two hand-made dialogs for the phone, two Models per control | `foldkit-mixins-ui`'s `Picker` for availability and sort (one Model, one `Chose`), a `ListboxView` dropdown and a `Sheet` for the TLD |
 | `icon.ts`, hand-copied Lucide paths | Lucide by name in `icons.json`, written to `src/client/iconData.ts` by `pnpm icons` and drawn with `foldkit-media`'s `Icon.draw` |
 
 The page's styles ride in the document's head, not in the rendered root, so

@@ -20,7 +20,7 @@ import {
   type Model,
 } from '../src/client/app.js'
 import { SearchInput } from '../src/client/message.js'
-import { resultsOf } from '../src/client/results.js'
+import { arrangedOf, namesOf } from '../src/client/results.js'
 import { RESULTS_GROUP_HEIGHT_PX } from '../src/client/resultsList.js'
 import { readDomains } from '../src/server/remote.js'
 import { Quote } from '../src/shared/entity'
@@ -65,7 +65,11 @@ const run = (steps: ReadonlyArray<Message | Respond>) =>
 const asked = (pending: ReadonlyArray<string>): ReadonlyArray<string> =>
   pending.flatMap(request => [...request.matchAll(/Domain:([^,]+)/g)].map(([, name]) => name!))
 
-const { groups } = resultsOf('acme')
+const { groups } = arrangedOf(
+  'acme',
+  { tldFilter: 'All', availabilityFilter: 'All', sortOrder: 'Relevance' },
+  [],
+)
 const namesOfGroups = (from: number, to: number) =>
   groups.slice(from, to).flatMap(group => group.listings.map(({ name }) => name))
 
@@ -105,7 +109,7 @@ describe('All Results', () => {
       Respond.all,
     ])
     const last: Model = trace.entries.at(-1)?.model ?? trace.start
-    const checked = resultsOf('acme').names.filter(
+    const checked = namesOf('acme').filter(
       name => Data.get(Quote, name).read(last)._tag === 'Ready',
     )
     // The first eleven rows, the top four among them, and the twelve around row 40.

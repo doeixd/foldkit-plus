@@ -172,3 +172,33 @@ test('All Results reads the rows scrolled into view, and only those', async () =
   expect(problems).toEqual([])
   await page.close()
 })
+
+test('on a phone the filters open as sheets from the bottom', async () => {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true })
+  const problems: Array<string> = []
+  page.on('pageerror', error => problems.push(String(error)))
+  await page.goto(`${origin}/?q=vercel`)
+  await expect.poll(() => page.locator('.domain-card .price').count(), { timeout: 60_000 }).toBe(2)
+  // The desktop's TLD dropdown is hidden; the phone's opener shows.
+  expect(await page.locator('.desktop-tld-filter').isVisible()).toBe(false)
+  await page.getByRole('button', { name: 'Filter by TLD: All TLDs' }).click()
+  const sheet = page.locator('.tld-panel')
+  await sheet.waitFor()
+  const box = await sheet.boundingBox()
+  expect(box !== null && box.y + box.height).toBeGreaterThan(780)
+  await page.getByRole('searchbox', { name: 'Search TLDs' }).fill('.dev')
+  await page.getByRole('button', { name: '.dev', exact: true }).click()
+  await expect.poll(() => sheet.count()).toBe(0)
+  await expect.poll(() => page.locator('.result-count').textContent()).toContain('domains')
+  expect(await page.locator('#domain-results .domain-row').allTextContents()).toEqual([
+    expect.stringContaining('vercel.dev'),
+  ])
+
+  await page.getByRole('button', { name: 'Sort results: Relevance' }).click()
+  await page.getByRole('option', { name: 'Alphabetical' }).click()
+  await expect
+    .poll(() => page.getByRole('button', { name: 'Sort results: Alphabetical' }).count())
+    .toBe(1)
+  expect(problems).toEqual([])
+  await page.close()
+})

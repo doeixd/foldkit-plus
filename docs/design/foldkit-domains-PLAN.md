@@ -1,6 +1,6 @@
 # Reimplementing foldkit-domains with Foldkit Plus
 
-> **Status:** Being built (2026-10-30): phases 0 to 3 are built; §8 records what
+> **Status:** Being built (2026-10-30): phases 0 to 4 are built; §8 records what
 > each phase built and where it departs from this plan. Written against
 > upstream [foldkit/foldkit-domains](https://github.com/foldkit/foldkit-domains)
 > at `c3041350`, copied unchanged to
@@ -486,4 +486,32 @@ the middle of the list never asked for. Findings:
 - **The pending preview stays** (`.results-preview`, upstream's 36 rows)
   until the list draws its first row: the early-input script of phase 6
   writes into it before the bundle runs.
+
+**Phase 4, built.** `tldFilter`, `availabilityFilter` and `sortOrder` in the
+Model; availability and sort as two `Picker`s (a dropdown kept in place on a
+desktop, a bottom Sheet below `md`); the TLD as `ListboxView`'s dropdown with
+typeahead over the catalog on a desktop and a Sheet with a search box on a
+phone; the `WholeCatalog` Surface, active while the Available filter or a
+price sort is chosen; All Results arranged by upstream's
+`filterAndSortDomainListings` (`results.ts`'s `arrangedOf`, kept per label,
+filters and, for the arrangements that depend on prices, the number read);
+the empty state. Tests: `test/filters.test.ts` (a table over every sort ×
+availability with upstream's orders, unpriced names last under a price sort,
+the whole catalog read only when needed, a filter chosen before the prices
+applying when they land, a value no option holds refused, both TLD
+controls) with `test/filters.mutations.ts` (5 of 5 killed), and the e2e
+opens the TLD sheet at 390 px (it stands on the bottom edge), searches,
+chooses `.dev`, and sorts through the Picker's sheet. Departures:
+
+- **A phone has three openers, not upstream's two.** Upstream's phone shows
+  the TLD button and one "Filters and sort" button opening one sheet with
+  both groups. A `Picker` is one control with one sheet, so availability and
+  sort each open their own; upstream's mobile specs that use the combined
+  sheet (`.filters-button`, `Filters and sort`) are listed, not edited (§6).
+- **The sort's phone list is the desktop's**: upstream's phone offered one
+  "Price" choice for both price orders; a `Picker` has one option list.
+- **Menus are inverted** (a light panel), the shipped theme's default; phase 7
+  matches upstream's dark panel.
+- **A choice is checked against its literals** (`Schema.is`) where a Picker's
+  `Chose` hands back a string; a value no option holds changes nothing.
 

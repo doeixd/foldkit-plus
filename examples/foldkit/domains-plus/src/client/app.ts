@@ -4,18 +4,20 @@
  * keeps in `?q=`; the label the reads use is `settledLabel`, which the
  * debounce moves once the text rests.
  */
+import * as UiListbox from '@foldkit/ui/listbox'
 import { Array, Option, Schema, String } from 'effect'
+import * as Command from 'foldkit/command'
 import { UrlRequest } from 'foldkit/navigation'
 import { modifyFields } from 'foldkit/struct'
 import type * as Update from 'foldkit/update'
 import { Url, toString as urlToString } from 'foldkit/url'
 import { Bundle } from 'foldkit-bundle'
 import { Mirror } from 'foldkit-mirror'
-import { WindowList } from 'foldkit-mixins-ui'
-import { Remote, RemotePolicy, type RemoteClient } from 'foldkit-remote'
+import { ListboxView, Picker, Sheet, WindowList } from 'foldkit-mixins-ui'
+import { Remote, RemoteData, RemotePolicy, type RemoteClient } from 'foldkit-remote'
 import { SSR } from 'foldkit-ssr/client'
 import { Projection, Surface } from 'foldkit-surface'
-import { DomainLabel, queryToMaybeDomainLabel } from '../shared/domain'
+import { type Domain as DomainValue, DomainLabel, queryToMaybeDomainLabel } from '../shared/domain'
 import { Domain, Quote } from '../shared/entity'
 import {
   DismissSearchKeyboard,
@@ -23,9 +25,15 @@ import {
   LoadExternal,
   NavigateInternal,
 } from './command.js'
-import { TOP_RESULT_COUNT } from './domain'
+import {
+  AvailabilityFilter,
+  SortOrder,
+  TOP_RESULT_COUNT,
+  TldFilter,
+  isCompleteCatalogRequired,
+} from './domain'
 import { Message, Own, Search, SearchInput } from './message.js'
-import { resultsOf } from './results.js'
+import { arrangedOf, namesOf } from './results.js'
 import { initResultsList } from './resultsList.js'
 import { AppRoute, routeOf } from './site.js'
 
@@ -50,6 +58,17 @@ export const Model = Schema.Struct({
   remote: Remote.Model,
   /** All Results' window over the page: which rows are drawn, and their heights. */
   resultsList: WindowList.Model,
+  tldFilter: TldFilter,
+  availabilityFilter: AvailabilityFilter,
+  sortOrder: SortOrder,
+  /** The desktop's TLD dropdown, with typeahead over the catalog. */
+  tldListbox: UiListbox.Model,
+  /** The phone's TLD sheet, searched by `tldSearchQuery`. */
+  tldSheet: Sheet.Model,
+  tldSearchQuery: Schema.String,
+  /** Availability and sort: a dropdown on a desktop, a sheet on a phone. */
+  availabilityPicker: Picker.Model,
+  sortPicker: Picker.Model,
 })
 export type Model = typeof Model.Type
 
@@ -65,6 +84,45 @@ const layoutFor = (model: Model, query: string): SearchLayout =>
 /** The search box emptied: nothing is read, now, not after the debounce. */
 const cleared = (model: Model): Return =>
   typed(modifyFields(model, { query: () => '', settledLabel: () => Option.none() }), '')
+
+/** The TLD dropdown: upstream's Listbox `update`, drawn by `foldkit-mixins-ui`. */
+export const TldDropdown = ListboxView.create<TldFilter, TldFilter>()
+
+const isTld = Schema.is(TldFilter)
+const isAvailability = Schema.is(AvailabilityFilter)
+const isSort = Schema.is(SortOrder)
+
+/**
+ * A picker's step: its new Model put back with `put`, its Commands under the
+ * page's Message, and a value it chose set with `choose`.
+ */
+const pickerStep = (
+  model: Model,
+  next: Picker.Return,
+  put: (model: Model, picker: Picker.Model) => Model,
+  choose: (model: Model, value: string) => Model,
+  wrap: (message: Picker.Message) => Message,
+): Return => {
+  const stepped = put(model, next.model)
+  return {
+    model:
+      next.outMessage === undefined
+        ? stepped
+        : Picker.OutMessage.match(next.outMessage, {
+            Chose: ({ value }) => choose(stepped, value),
+          }),
+    commands: Command.mapMessages(next.commands ?? [], wrap),
+  }
+}
+
+/** A Sheet's step, its Commands under the page's Message. */
+const tldSheetStep = (model: Model, next: Sheet.Return): Return => ({
+  model:
+    next.model === model.tldSheet ? model : modifyFields(model, { tldSheet: () => next.model }),
+  commands: Command.mapMessages(next.commands ?? [], message =>
+    Message.GotTldSheetMessage({ message }),
+  ),
+})
 
 /** The page's own Messages; the debounce's and Remote's are their placements'. */
 const own = (model: Model, message: Own): Return =>
@@ -118,6 +176,52 @@ const own = (model: Model, message: Own): Return =>
             routed.query,
           )
     },
+    GotAvailabilityPickerMessage: ({ message }) =>
+      pickerStep(
+        model,
+        Picker.update(model.availabilityPicker, message),
+        (model, picker) =>
+          picker === model.availabilityPicker
+            ? model
+            : modifyFields(model, { availabilityPicker: () => picker }),
+        (model, value) =>
+          isAvailability(value) ? modifyFields(model, { availabilityFilter: () => value }) : model,
+        message => Message.GotAvailabilityPickerMessage({ message }),
+      ),
+    GotSortPickerMessage: ({ message }) =>
+      pickerStep(
+        model,
+        Picker.update(model.sortPicker, message),
+        (model, picker) =>
+          picker === model.sortPicker ? model : modifyFields(model, { sortPicker: () => picker }),
+        (model, value) => (isSort(value) ? modifyFields(model, { sortOrder: () => value }) : model),
+        message => Message.GotSortPickerMessage({ message }),
+      ),
+    GotTldListboxMessage: ({ message }) => {
+      const next = TldDropdown.update(model.tldListbox, message)
+      const stepped =
+        next.model === model.tldListbox
+          ? model
+          : modifyFields(model, { tldListbox: () => next.model })
+      const chosen = next.outMessage?.value
+      return {
+        model:
+          chosen !== undefined && isTld(chosen)
+            ? modifyFields(stepped, { tldFilter: () => chosen })
+            : stepped,
+        commands: Command.mapMessages(next.commands ?? [], message =>
+          Message.GotTldListboxMessage({ message }),
+        ),
+      }
+    },
+    GotTldSheetMessage: ({ message }) => tldSheetStep(model, Sheet.update(model.tldSheet, message)),
+    ClickedTldFilter: () =>
+      tldSheetStep(modifyFields(model, { tldSearchQuery: () => '' }), Sheet.open(model.tldSheet)),
+    UpdatedTldSearch: ({ value }) => ({
+      model: modifyFields(model, { tldSearchQuery: () => value }),
+    }),
+    ClickedMobileTldOption: ({ value }) =>
+      tldSheetStep(modifyFields(model, { tldFilter: () => value }), Sheet.close(model.tldSheet)),
     GotResultsListMessage: ({ message }) => {
       const next = WindowList.update(model.resultsList, message).model
       return {
@@ -131,6 +235,18 @@ const own = (model: Model, message: Own): Return =>
     CompletedDismissSearchKeyboard: () => ({ model }),
   })
 
+/** Every result shown in relevance order, and the controls that change it closed. */
+const filtersInitial = () => ({
+  tldFilter: 'All' as const,
+  availabilityFilter: 'All' as const,
+  sortOrder: 'Relevance' as const,
+  tldListbox: UiListbox.init({ id: 'tld-filter' }),
+  tldSheet: Sheet.init({ id: 'tld-sheet', side: 'bottom' }),
+  tldSearchQuery: '',
+  availabilityPicker: Picker.init({ id: 'availability-filter' }),
+  sortPicker: Picker.init({ id: 'sort-order' }),
+})
+
 /** How long the search text rests before it is read. */
 const SETTLE_MS = 150
 
@@ -142,6 +258,7 @@ const empty: Model = {
   search: SearchInput.init({ delayMs: SETTLE_MS }).model,
   remote: Remote.initial,
   resultsList: initResultsList(),
+  ...filtersInitial(),
   route: AppRoute.Search(),
   query: '',
   settledLabel: Option.none(),
@@ -170,10 +287,29 @@ export const Data = Remote.make({
 const readsOf = (names: ReadonlyArray<string>) =>
   Object.fromEntries(Array.map(names, name => [name, Data.get(Quote, name)]))
 
+/** What a read shows: its value, or the last one before it failed. */
+const shown = (data: RemoteData<DomainValue>): ReadonlyArray<DomainValue> =>
+  RemoteData.match(data, {
+    Initial: () => [],
+    Loading: () => [],
+    Ready: value => [value],
+    Refreshing: value => [value],
+    Failed: (_error, previous) => Option.toArray(previous),
+    NotFound: () => [],
+  })
+
+/** Every name of `label` read so far, in upstream's order: what is checked. */
+export const answeredOf = (model: Model, label: string): ReadonlyArray<DomainValue> =>
+  Array.flatMap(namesOf(label), name => shown(Data.get(Quote, name).read(model)))
+
+/** All Results for `label`, as the Model's filters and sort arrange it. */
+export const arrangementOf = (model: Model, label: string) =>
+  arrangedOf(label, model, answeredOf(model, label))
+
 /** The four Top Results: read first, as upstream's first request. */
 export const TopResults = App.surface('TopResults', {
   params: { label: Schema.String },
-  model: ({ params }) => readsOf(Array.take(resultsOf(params.label).names, TOP_RESULT_COUNT)),
+  model: ({ params }) => readsOf(Array.take(namesOf(params.label), TOP_RESULT_COUNT)),
 })
 
 /** The rows of All Results in view of the window, and two more at each end. */
@@ -182,22 +318,36 @@ export const VisibleResults = App.surface('VisibleResults', {
   model: ({ params }) => readsOf(params.names),
 })
 
+/**
+ * Every name of the label, read while the Available filter or a price sort
+ * is chosen: neither can be shown in order before every price is known.
+ */
+export const WholeCatalog = App.surface('WholeCatalog', {
+  params: { label: Schema.String },
+  model: ({ params }) => readsOf(namesOf(params.label)),
+})
+
+const needsWholeCatalog = (model: Model): boolean =>
+  isCompleteCatalogRequired(model.availabilityFilter, model.sortOrder)
+
 /** The names in the rows the list draws, for the label the reads use. */
 export const visibleNames = (model: Model, label: string): ReadonlyArray<string> => {
-  const { groups, keys } = resultsOf(label)
+  const { groups, keys } = arrangementOf(model, label)
   const { start, end } = WindowList.windowOf(model.resultsList, keys)
   return Array.flatMap(groups.slice(start, end), group => group.listings.map(({ name }) => name))
 }
 
-/** The names the page reads now: the Top Results and the rows in view, of the settled label. */
+/** The names the page reads now, of the settled label: the Top Results, the rows in view, and every name when the filters need them all. */
 export const readNames = (model: Model): ReadonlyArray<string> =>
   Option.match(model.settledLabel, {
     onNone: () => [],
     onSome: label =>
-      Array.dedupe([
-        ...Array.take(resultsOf(label).names, TOP_RESULT_COUNT),
-        ...visibleNames(model, label),
-      ]),
+      needsWholeCatalog(model)
+        ? namesOf(label)
+        : Array.dedupe([
+            ...Array.take(namesOf(label), TOP_RESULT_COUNT),
+            ...visibleNames(model, label),
+          ]),
   })
 
 /** Every read the page makes, each while the settled label is a name. */
@@ -207,6 +357,12 @@ export const actives = {
   ),
   visible: Surface.at(VisibleResults, (model: Model) =>
     Option.map(model.settledLabel, label => ({ names: visibleNames(model, label) })),
+  ),
+  whole: Surface.at(WholeCatalog, (model: Model) =>
+    Option.filter(
+      Option.map(model.settledLabel, label => ({ label })),
+      () => needsWholeCatalog(model),
+    ),
   ),
 }
 
@@ -227,11 +383,11 @@ const Settled = Page.at(Search, {
     (model: Model): Return => {
       const label = queryToMaybeDomainLabel(value)
       // Rows of another label are never drawn again: their heights go with them.
-      const keys = Option.match(label, { onNone: () => [], onSome: label => resultsOf(label).keys })
+      const same = Option.makeEquivalence(String.Equivalence)(label, model.settledLabel)
       return {
         model: modifyFields(model, {
           settledLabel: () => label,
-          resultsList: list => WindowList.keep(list, keys),
+          resultsList: list => (same ? list : WindowList.keep(list, [])),
         }),
       }
     },
@@ -254,6 +410,7 @@ const start = (route: AppRoute, query: string): Return =>
     searchLayout: String.isNonEmpty(query) ? 'Search' : 'Landing',
     remote: Remote.initial,
     resultsList: initResultsList(),
+    ...filtersInitial(),
   })
 
 /** The page at `url`, as the server renders it; the browser resumes from it. */

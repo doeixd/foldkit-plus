@@ -10,8 +10,7 @@ import { defineTaggedUnion } from 'foldkit/schema'
 import { RemoteData } from 'foldkit-remote'
 import { Domain, queryToMaybeDomainLabel } from '../shared/domain'
 import { Quote } from '../shared/entity'
-import { Data, type Model, readNames } from './app.js'
-import { resultsOf } from './results.js'
+import { Data, type Model, answeredOf, readNames } from './app.js'
 
 export const INVALID_LABEL =
   'Enter a domain name using letters, numbers, and hyphens (up to 63 characters).'
@@ -33,17 +32,6 @@ export const SearchViewState = defineTaggedUnion({
 export type SearchViewState = typeof SearchViewState.Type
 
 type Read = RemoteData<Domain>
-
-/** What a read shows: its value, or the last one before it failed. */
-const shown = (data: Read): ReadonlyArray<Domain> =>
-  RemoteData.match(data, {
-    Initial: () => [],
-    Loading: () => [],
-    Ready: value => [value],
-    Refreshing: value => [value],
-    Failed: (_error, previous) => Option.toArray(previous),
-    NotFound: () => [],
-  })
 
 const hasFailed = (data: Read): boolean =>
   RemoteData.match(data, {
@@ -78,7 +66,7 @@ export const searchViewState = (model: Model): SearchViewState => {
   if (!Option.contains(model.settledLabel, label.value)) return SearchViewState.Loading()
   // Every name of the label read so far counts as checked, scrolled past or
   // not; whether more is coming is the reads the page makes now.
-  const domains = Array.flatMap(resultsOf(label.value).names, name => shown(readOf(model)(name)))
+  const domains = answeredOf(model, label.value)
   const reading = Array.map(readNames(model), readOf(model))
   const loading = Array.some(reading, isInFlight)
   const failed = Array.some(reading, hasFailed)
