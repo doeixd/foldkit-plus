@@ -150,7 +150,7 @@ serveFetch({ server, resolvePrincipal, layer, maxBodyBytes: 64 * 1024 })
   write is not resent forever. Over Effect RPC the 413's status is lost by
   `RpcClient.layerProtocolHttp`, which reads the body as RPC frames;
   `Remote.rpcProtocolHttp` keeps it, and `clientLayer` reads it the same way
-  (#360).
+  (#360), and a 401 or 403 from middleware as `Remote.http` does (#366).
 
 ## Tests
 

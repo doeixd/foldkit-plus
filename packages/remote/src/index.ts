@@ -3140,8 +3140,8 @@ export const Remote = {
    * Effect RPC's client protocol over HTTP to `url`, for `RpcClient.make(RemoteRpc)`
    * under `clientLayer`: `RpcClient.layerProtocolHttp({ url })`, except that a
    * response under a status other than 2xx fails the call with its status, so
-   * a request the server refused for its size (`bodyLimit`'s 413) is not read
-   * as unreachable and resent for good.
+   * a request the server refused (middleware's 401 or 403, `bodyLimit`'s 413)
+   * is not read as unreachable and resent for good.
    */
   rpcProtocolHttp,
 
@@ -3152,9 +3152,11 @@ export const Remote = {
    * builds is accepted as it is: when its transport fails (`RpcClientError`),
    * a read, a query or a mutation fails `RemoteUnreachable` and a live stream
    * `RemoteLiveError`, which the application shows and retries like any
-   * failure; a durable mutation is sent again. A failure carrying an HTTP 413
-   * (`rpcProtocolHttp` keeps the status) is the call's own error instead,
-   * refused for its size, and a durable mutation so refused is settled.
+   * failure; a durable mutation is sent again. A failure carrying an HTTP
+   * status (`rpcProtocolHttp` keeps it) reads as `Remote.http` reads it: a
+   * 401 `RemoteUnauthenticated`, a 403 a mutation's `RemoteForbidden` and a
+   * read's or a query's own error, a 413 the call's own error. A durable
+   * mutation so refused is settled.
    */
   clientLayer: <R = never>(
     client: RemoteRpcClient<R, RpcClientError.RpcClientError | RemoteUnreachable>,
@@ -3172,7 +3174,7 @@ export const Remote = {
               client.FoldkitRemoteRead(batch).pipe(
                 Effect.catchTag(
                   'RpcClientError',
-                  rpcFailure(message => new RemoteReadError({ message })),
+                  rpcFailure((_status, message) => new RemoteReadError({ message })),
                 ),
                 Effect.provideContext(context),
               ),
@@ -3180,7 +3182,7 @@ export const Remote = {
               client.FoldkitRemoteQuery(request).pipe(
                 Effect.catchTag(
                   'RpcClientError',
-                  rpcFailure(message => new RemoteQueryError({ message })),
+                  rpcFailure((_status, message) => new RemoteQueryError({ message })),
                 ),
                 Effect.provideContext(context),
               ),
@@ -3188,7 +3190,11 @@ export const Remote = {
               client.FoldkitRemoteMutate(request).pipe(
                 Effect.catchTag(
                   'RpcClientError',
-                  rpcFailure(message => new RemoteMutationError({ message })),
+                  rpcFailure((status, message) =>
+                    status === 403
+                      ? new RemoteForbidden({ message })
+                      : new RemoteMutationError({ message }),
+                  ),
                 ),
                 Effect.provideContext(context),
               ),

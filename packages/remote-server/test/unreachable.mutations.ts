@@ -20,8 +20,8 @@ export default [
     edits: [
       {
         file: '../../remote/src/rpc.ts',
-        find: ': new RemoteUnreachable({ message: error.message }),',
-        replace: ': refused(error.message),',
+        find: 'return Effect.fail(new RemoteUnreachable({ message: error.message }))',
+        replace: 'return Effect.fail(refused(413, error.message))',
       },
     ],
     tests: ['packages/remote/test/rpcClient.test.ts'],

@@ -215,8 +215,8 @@ A transport failure becomes the call's Remote error, not a defect.
 
 - Effect RPC: `Remote.clientLayer(rpcClient)` as above, with
   `Remote.rpcProtocolHttp(url)` as the protocol (Effect's
-  `RpcClient.layerProtocolHttp` loses a 413's status, so a write refused for
-  its size would be resent for good); on the server
+  `RpcClient.layerProtocolHttp` loses a 401's, 403's or 413's status, so a
+  write so refused would be resent for good); on the server
   `RemoteRpc.toLayer(handlers)`, `bodyLimit(maxBytes)` in front.
 - JSON over HTTP: `Remote.clientLayer(Remote.http('/remote', { headers }))`,
   answered by `RemoteServer.answer(handlers, body)`; `Remote.json(send)` for a

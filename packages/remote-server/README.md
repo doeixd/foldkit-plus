@@ -1124,10 +1124,12 @@ const RpcRoutes = RpcServer.layer(RemoteRpc).pipe(
 )
 ```
 
-The client reads that 413 as the call's own error only over
-`Remote.rpcProtocolHttp(url)` in place of `RpcClient.layerProtocolHttp({ url
-})`, which reads the refusal as RPC frames and loses its status: a durable
-write would then read as unreachable and be sent again for good.
+The client reads that 413 as the call's own error, and a 401 or 403 from
+session middleware in front of the route as `Unauthenticated` or `Forbidden`,
+only over `Remote.rpcProtocolHttp(url)` in place of
+`RpcClient.layerProtocolHttp({ url })`, which reads the refusal as RPC frames
+and loses its status: a durable write would then read as unreachable and be
+sent again for good.
 
 ## Over fetch (Workers)
 

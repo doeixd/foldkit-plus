@@ -392,8 +392,10 @@ are different from a mutation's. See [When things go wrong](../packages/sync/REA
 
 A request whose session ended answers 401 with `Your session ended.`; a read
 reads `Failed`, and a write is listed failed, with
-`_tag: 'Unauthenticated'`. `RemoteData.denied(error)` reads either as a typed
-`Denied`:
+`_tag: 'Unauthenticated'`. A 401 from middleware in front of Remote reads the
+same, whatever its body, over `Remote.http` and over Effect RPC with
+`Remote.rpcProtocolHttp`; a durable write so refused is settled, not sent
+again. `RemoteData.denied(error)` reads either as a typed `Denied`:
 
 ```ts
 import { Option } from 'effect'
