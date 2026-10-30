@@ -652,7 +652,13 @@ const render = <Model, Fields extends Schema.Struct.Fields, Message = any>(
     readonly styles?: Head | undefined
   },
 ): Effect.Effect<RenderedPage, RenderError | ResumeUnsafe> =>
-  renderMatching(config, plan, options, 'full')
+  Effect.map(renderMatching(config, plan, options, 'full'), served => served.page)
+
+/** A rendered page, with the Model the server's `init` (or a post) reached. */
+interface Served<Model> {
+  readonly page: RenderedPage
+  readonly model: Model
+}
 
 const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
   config: ResumableConfig<Model>,
@@ -664,7 +670,7 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
     readonly styles?: Head | undefined
   },
   match: RouteMatch,
-): Effect.Effect<RenderedPage, RenderError | ResumeUnsafe> =>
+): Effect.Effect<Served<Model>, RenderError | ResumeUnsafe> =>
   Effect.gen(function* () {
     yield* loadLazy(config)
     let served: ReturnType<ResumableConfig<Model>['init']> | undefined
@@ -809,10 +815,13 @@ const renderMatching = <Model, Fields extends Schema.Struct.Fields>(
         : withInRoot(rendered.html, options.styles(rendered))
     if (Result.isFailure(styled)) return yield* styled.failure
     return {
-      rendered: { ...rendered, html: withEnvelopeAttribute(styled.success, envelope) },
-      meta,
-      envelope,
-      unnamed,
+      page: {
+        rendered: { ...rendered, html: withEnvelopeAttribute(styled.success, envelope) },
+        meta,
+        envelope,
+        unnamed,
+      },
+      model: started.model,
     }
   })
 
@@ -1055,6 +1064,7 @@ const generate = <
         },
         'path',
       ).pipe(
+        Effect.map(served => served.page),
         Effect.tap(result => reportUnnamed(config, plan, result.unnamed)),
         Effect.map(result => ({
           path,
@@ -1082,7 +1092,8 @@ const generate = <
  * refuses, is answered `500` with the reason reported (`diagnostics`), never with a page the
  * browser cannot resume. `headers(request)` rides on the `Rendered` result, so
  * Foldkit's `toResponse` sets it over its own on the page: a cache policy, or
- * a CORS answer to a preflight.
+ * a CORS answer to a preflight. `status(model, request)` gives a page its
+ * status from the Model the server reached, `404` for a route not found.
  *
  * The page is answered as `Rendered`: the rendered application carries the
  * envelope in its root, so the host injects it into its own template with
@@ -1128,6 +1139,13 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
      * per-page styles go; anything a head owns stays with `SSR.generate`.
      */
     readonly styles?: Head | undefined
+    /**
+     * The status a rendered page is answered with, from the Model the server
+     * reached and the request: `404` for a route the Model says is not found.
+     * Omitted, every page is `200`. One outside `200`–`599`, or a `status`
+     * that throws, is answered `500` and reported, as a failed render is.
+     */
+    readonly status?: ((model: Model, request: Request) => number) | undefined
     /**
      * Where this request's diagnostics go, with the request: a request
      * answered 500 (`PageFailed`), a handler the page cannot name, and what
@@ -1194,6 +1212,7 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
       return responded(plainText(403, 'The form was not posted from this site.'))
     }
     const flagsOf = options.flags
+    const statusOf = options.status
     const styled = options.styles === undefined ? {} : { styles: options.styles }
     // `Effect.result` would miss a defect, such as a view that throws, and a
     // `flags` that throws or rejects is not in the Effect at all: both would
@@ -1203,20 +1222,27 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
         const flags =
           flagsOf === undefined ? undefined : yield* Effect.tryPromise(async () => flagsOf(request))
         const flagged = flagsOf === undefined ? {} : { flags }
-        if (posting) {
-          return yield* handle(request, config, plan, {
-            buildId: options.buildId,
-            ...flagged,
-            ...styled,
-            ...(options.resources === undefined ? {} : { resources: options.resources(request) }),
-          })
+        const served = posting
+          ? yield* handleServed(request, config, plan, {
+              buildId: options.buildId,
+              ...flagged,
+              ...styled,
+              ...(options.resources === undefined ? {} : { resources: options.resources(request) }),
+            })
+          : yield* renderMatching(
+              config,
+              plan,
+              { buildId: options.buildId, url: request.url, ...flagged, ...styled },
+              'full',
+            )
+        if (statusOf === undefined) return { page: served.page, status: Option.none<number>() }
+        const status = statusOf(served.model, request)
+        if (!Number.isInteger(status) || status < 200 || status > 599) {
+          return yield* Effect.die(
+            new Error(`status gave ${status} for the page, which is no status between 200 and 599`),
+          )
         }
-        return yield* render(config, plan, {
-          buildId: options.buildId,
-          url: request.url,
-          ...flagged,
-          ...styled,
-        })
+        return { page: served.page, status: Option.some(status) }
       }).pipe(reporting),
     )
     if (Exit.isFailure(exit)) {
@@ -1229,12 +1255,14 @@ const entry = <Model, Fields extends Schema.Struct.Fields, Message = any>(
       await Effect.runPromise(reporting(Diagnostics.report(pageFailed(request.url, exit.cause))))
       return responded(plainText(500, 'The page could not be rendered.'))
     }
-    await Effect.runPromise(reporting(reportUnnamed(config, plan, exit.value.unnamed)))
-    // No `headers` key without custom headers: a `Rendered` that carries none
-    // stays generatable as a static file.
-    return extra === undefined
-      ? Rendered(exit.value.rendered)
-      : Rendered(exit.value.rendered, { headers: extra })
+    const { page, status } = exit.value
+    await Effect.runPromise(reporting(reportUnnamed(config, plan, page.unnamed)))
+    // No `headers` or `status` key unless given: a `Rendered` that carries
+    // neither stays generatable as a static file.
+    return Rendered(page.rendered, {
+      ...(extra === undefined ? {} : { headers: extra }),
+      ...Option.match(status, { onNone: () => ({}), onSome: status => ({ status }) }),
+    })
   }
   return { renderPage: answer }
 }
@@ -1384,18 +1412,28 @@ const handle = <Model, Fields extends Schema.Struct.Fields, Message = any>(
   request: Request,
   config: ResumableConfig<Model, Message>,
   plan: ResumePlan<Model, Fields>,
-  options: {
-    readonly buildId: string
-    readonly flags?: unknown
-    readonly styles?: Head | undefined
-    /**
-     * This post's own services, beside the config's `resources`: who is
-     * asking, a client bound to them. Built once for the post; where both
-     * provide a service, the post's is the one its Commands get.
-     */
-    readonly resources?: Layer.Layer<never, never, never> | undefined
-  },
+  options: HandleOptions,
 ): Effect.Effect<RenderedPage, RenderError | ResumeUnsafe | FallbackRefused> =>
+  Effect.map(handleServed(request, config, plan, options), served => served.page)
+
+interface HandleOptions {
+  readonly buildId: string
+  readonly flags?: unknown
+  readonly styles?: Head | undefined
+  /**
+   * This post's own services, beside the config's `resources`: who is
+   * asking, a client bound to them. Built once for the post; where both
+   * provide a service, the post's is the one its Commands get.
+   */
+  readonly resources?: Layer.Layer<never, never, never> | undefined
+}
+
+const handleServed = <Model, Fields extends Schema.Struct.Fields>(
+  request: Request,
+  config: ResumableConfig<Model>,
+  plan: ResumePlan<Model, Fields>,
+  options: HandleOptions,
+): Effect.Effect<Served<Model>, RenderError | ResumeUnsafe | FallbackRefused> =>
   // The post's resources live as long as the post.
   Effect.scoped(
     Effect.gen(function* () {
@@ -1463,11 +1501,16 @@ const handle = <Model, Fields extends Schema.Struct.Fields, Message = any>(
         options.resources === undefined ? Context.empty() : yield* Layer.build(options.resources)
       const booted = yield* fold(config, post, started.model, [], boot)
       const model = yield* fold(config, post, booted, [message], [])
-      return yield* render(startingFrom(config, { model }) as ResumableConfig<Model>, plan, {
-        buildId: options.buildId,
-        url: request.url,
-        ...(options.styles === undefined ? {} : { styles: options.styles }),
-      })
+      return yield* renderMatching(
+        startingFrom(config, { model }) as ResumableConfig<Model>,
+        plan,
+        {
+          buildId: options.buildId,
+          url: request.url,
+          ...(options.styles === undefined ? {} : { styles: options.styles }),
+        },
+        'full',
+      )
     }),
   )
 

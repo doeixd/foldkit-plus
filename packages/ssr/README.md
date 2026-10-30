@@ -348,6 +348,23 @@ SSR.entry(config, Post, {
 
 A `headers` that throws is answered `500`, as a failed render is.
 
+Every rendered page is answered `200` unless `status: (model, request) =>
+...` says otherwise. It is given the Model the server reached, which already
+says which route it is, so a not-found page is answered `404` without parsing
+the URL twice:
+
+```ts
+SSR.entry(config, Post, {
+  buildId,
+  status: model =>
+    AppRoute.match(model.route, { Home: () => 200, Post: () => 200, NotFound: () => 404 }),
+})
+```
+
+The page is rendered and resumed as any other; only the response's status
+changes. A status outside `200`–`599`, or a `status` that throws, is answered
+`500` and reported.
+
 What the page says of itself (`meta`) and per-page `head` markup are written
 into a template's head, which the host owns here: a plan with `meta` is
 refused when the entry is made, and served with `SSR.generate` below, which
@@ -1076,7 +1093,7 @@ for a plan, as `Surface.when(PostActions, App.model.route, AppRoute.Post, route
 [the coverage example](#checking-what-the-browser-will-read).
 
 ```ts
-const AppRoute = defineRouteUnion({ Home: {}, Post: { id: Schema.String } })
+const AppRoute = defineRouteUnion({ Home: {}, Post: { id: Schema.String }, NotFound: {} })
 
 const Model = Schema.Struct({
   route: AppRoute,

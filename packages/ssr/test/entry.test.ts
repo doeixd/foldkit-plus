@@ -223,3 +223,57 @@ describe('SSR.entry through handleRequest', () => {
     expect(body).not.toContain('server-only token')
   })
 })
+
+describe('SSR.entry status (#364)', () => {
+  // `report` is the server's alone: the browser's Model never holds it, so a
+  // status read from it proves which Model `status` is given.
+  const missing = SSR.entry(config, plan, {
+    buildId: 'b',
+    status: (model, request) =>
+      model.report !== '' && new URL(request.url).pathname === '/missing' ? 404 : 200,
+  })
+
+  it('answers the status the server’s Model and the request give, with the page', async () => {
+    const response = await serve(
+      new Request('https://example.test/missing', { headers: html }),
+      missing,
+    )
+    expect(response.status).toBe(404)
+    expect(await response.text()).toContain(RESUME_ATTRIBUTE)
+    const found = await serve(new Request('https://example.test/', { headers: html }), missing)
+    expect(found.status).toBe(200)
+  })
+
+  it('carries no status without one, so the page stays generatable', async () => {
+    const result = await SSR.entry(config, plan, { buildId: 'b' }).renderPage(
+      new Request('https://example.test/'),
+    )
+    expect(result).not.toHaveProperty('status')
+  })
+
+  it.each([
+    {
+      given: 'no status a response can have',
+      status: () => 99,
+      reason: 'status gave 99 for the page',
+    },
+    {
+      given: 'a fraction',
+      status: () => 404.5,
+      reason: 'status gave 404.5 for the page',
+    },
+    {
+      given: 'a status that throws',
+      status: () => {
+        throw new Error('no route today')
+      },
+      reason: 'no route today',
+    },
+  ])('answers $given 500, reporting why', async ({ status, reason }) => {
+    const { reported, diagnostics } = collecting()
+    const entry = SSR.entry(config, plan, { buildId: 'b', diagnostics, status })
+    const response = await serve(new Request('https://example.test/', { headers: html }), entry)
+    expect(response.status).toBe(500)
+    expect(reported).toEqual([failed('https://example.test/', reason)])
+  })
+})

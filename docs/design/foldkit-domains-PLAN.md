@@ -380,8 +380,9 @@ styled and resumes it; `/missing` answers 404). Departures:
   `SSR.entry` from the start, with Foldkit's Vite plugin in its `ssr.build`
   mode (`clientEntry`, `prerender: true`) as upstream uses it. Phase 6 keeps
   the early-input work (`bootstrap.ts`, `rh.KeepTyped()`) and DevTools.
-- **The 404 status** is set on `SSR.entry`'s result, which has no status of
-  its own ([#364](https://github.com/doeixd/foldkit-plus/issues/364)).
+- **The 404 status** was set on `SSR.entry`'s result, which had no status of
+  its own ([#364](https://github.com/doeixd/foldkit-plus/issues/364)); it is
+  now the entry's `status`, from the Model's route.
 - **The page's styles ride in the document's head** (the document renderer's
   `head`), not in the rendered root through `SSR.entry`'s `styles`: hydration
   drops the root's `<style>`, and a page with no second render (the landing

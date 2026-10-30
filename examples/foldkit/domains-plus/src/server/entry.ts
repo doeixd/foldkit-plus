@@ -16,7 +16,7 @@ import { Style } from 'foldkit-mixins'
 import { SSR } from 'foldkit-ssr'
 import { Model, init, plan, routing, subscriptions, update } from '../client/app.js'
 import { documentHead } from '../client/documentHead.js'
-import { AppRoute, routeOf } from '../client/site.js'
+import { AppRoute } from '../client/site.js'
 import { stylesheet } from '../client/style.js'
 import { view } from '../client/view.js'
 import { serveRemote } from './remote.js'
@@ -38,18 +38,14 @@ export const renderDocument: DocumentRenderer = (application, assets) =>
 const pages = SSR.entry(
   { Model, init, update, view, subscriptions, routing, container: null },
   plan,
-  { buildId: import.meta.env.FOLDKIT_BUILD_ID },
+  {
+    buildId: import.meta.env.FOLDKIT_BUILD_ID,
+    status: model => AppRoute.match(model.route, { Search: () => 200, NotFound: () => 404 }),
+  },
 )
 
-/**
- * A page, answered 404 where the route is NotFound. `SSR.entry` answers every
- * page it renders 200 (#364), so the status is set on its result.
- */
-export const renderPage = async (request: Request): Promise<EntryResult> => {
-  const url = fromString(request.url)
-  if (Option.exists(url, ({ pathname }) => pathname === '/remote'))
-    return Responded(await serveRemote(request, undefined))
-  const result = await pages.renderPage(request)
-  const missing = Option.exists(url, at => AppRoute.guards.NotFound(routeOf(at)))
-  return result._tag === 'Rendered' && missing ? { ...result, status: 404 } : result
-}
+/** `/remote` answers the prices; every other path is a page. */
+export const renderPage = async (request: Request): Promise<EntryResult> =>
+  Option.exists(fromString(request.url), ({ pathname }) => pathname === '/remote')
+    ? Responded(await serveRemote(request, undefined))
+    : pages.renderPage(request)

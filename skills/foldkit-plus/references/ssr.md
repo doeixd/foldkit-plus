@@ -240,12 +240,14 @@ served page stays in view while the fresh one draws hidden, and is swapped once 
   root's last child for a served page, which has no template head to write
   to; hydration drops it on its first patch, and styles for a void root are
   refused with `VoidRootWithStyles`.
-- `SSR.entry(config, plan, { buildId, flags?, headers?, diagnostics? })` returns the
+- `SSR.entry(config, plan, { buildId, flags?, headers?, status?, diagnostics? })` returns the
   `{ renderPage }` a Foldkit server entry exports for `handleRequest` (or the
   `foldkit` Vite plugin's dev server). `GET` and `HEAD` render, `POST` is
   handled for a plan with `fallback: 'server'`; other methods get `405`; a
   refused, failed or throwing render, or `flags` that reject, get `500` with
-  the reason reported. It answers `Rendered`, with the envelope on the rendered
+  the reason reported. A page is `200` unless `status: (model, request) =>
+  number` gives another from the server's Model (`404` for a NotFound route);
+  one outside 200–599 is a `500`. It answers `Rendered`, with the envelope on the rendered
   root beside Foldkit's own stamps. A plan with `meta` is refused at
   construction: `meta` is written into a head the host owns, so serve it with
   `SSR.generate`.

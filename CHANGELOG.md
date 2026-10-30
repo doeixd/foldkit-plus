@@ -43,6 +43,13 @@ version changed; `pnpm` skips versions already in the registry.
   server (`ResumeUnsafe`, `UnkeepableField`). `KEEP_ATTRIBUTE` names the
   marker. Used in `examples/foldkit/ssr`'s note field.
 
+- **A page's status from its Model** (`foldkit-ssr`, #364): `SSR.entry`'s
+  `status: (model, request) => number` answers a rendered page with the
+  status the server's Model gives, `404` for a route not found, where every
+  page was `200`. A status outside 200–599, or one that throws, is answered
+  `500` and reported (`PageFailed`). `examples/foldkit/domains-plus` answers
+  its NotFound route through it.
+
 - **`WindowViewport`** (`foldkit-primitives/state`, #351): a Mount on a
   list's own box reporting `ViewportPlaced { top, height }`, how far the
   window's viewport is past the list's top and its height, on every scroll,

@@ -115,3 +115,21 @@ Server.render(
   plan,
   { buildId: 'b' },
 )
+
+// #364: `status` is given the application's own Model, inferred from the config.
+Server.entry({ Model, init, update, view, container: null }, plan, {
+  buildId: 'b',
+  status: model => (model.path === '/missing' ? 404 : 200),
+})
+
+Server.entry({ Model, init, update, view, container: null }, plan, {
+  buildId: 'b',
+  // @ts-expect-error: the Model has no `route`
+  status: model => (model.route === 'missing' ? 404 : 200),
+})
+
+Server.entry({ Model, init, update, view, container: null }, plan, {
+  buildId: 'b',
+  // @ts-expect-error: a status is a number
+  status: () => '404',
+})
