@@ -1017,6 +1017,15 @@ case 'ClickedTryAgain':
   return { model: Data.refresh(model, actives, { failed: true }) }
 ```
 
+One list can also be named by its query and input, with no select or window
+to restate: `Data.refresh(model, Everyone.ref({}))` invalidates that list for
+every window reading it. It marks no row's fields, since a ref names no
+selection; the refetched page carries what each read selects. That suits a
+list another page reads, after a write whose answer cannot say it changed: a
+list the Model never loaded is left alone, and one nothing observes now is
+fetched when it is next read. With `{ failed: true }` it is asked again only
+if its query failed. A query the domain does not register is refused.
+
 ### Forgetting everything: a change of principal
 
 Everything Remote knows, it knows for a principal: a value the server gave

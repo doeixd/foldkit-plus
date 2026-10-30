@@ -47,6 +47,11 @@ carries `drawn`.
 
 ### Added
 
+- **`Data.refresh(model, Query.ref(input))`** (#238): one list asked again
+  by its query and input, for every window reading it, with no select to
+  restate. An application reached it only by reducing Remote's own
+  `ConnectionInvalidated`. A list the Model never loaded is left alone, and
+  a query the domain does not register is refused.
 - **`Form.controlsByKey`**: a form's controls by key, each typed by its own
   key, for a view that places each field itself
   (`form.controlsByKey.email.label`). Reading `controls` by key took a cast.

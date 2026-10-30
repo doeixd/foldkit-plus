@@ -357,8 +357,10 @@ case 'SignedOut': {
   projection itself, which is already the visible read; there is no
   `Data.visible`.
 - `Data.refresh(model, target, { failed? })` accepts the active record, one
-  entry of it (`actives.page`, params from the Model), a Projection, or a
-  Surface **without params**. It only works if something observes what it
+  entry of it (`actives.page`, params from the Model), a Projection, a
+  Surface **without params**, or a registered query's ref
+  (`Everyone.ref({})`), which invalidates that list for every window and
+  marks no row's fields. It only works if something observes what it
   marks (an active read entry). For unobserved data use `Data.prefetch` with
   `RemotePolicy.networkOnly`.
 

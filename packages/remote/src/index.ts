@@ -800,10 +800,15 @@ export interface RemoteDomain<
    * `Remote.refresh`: marks what `target` reads for this Model as due, for its
    * read entries to refetch. `target` is a projection, a Surface without
    * params, one entry of the active record, or the record itself, whose
-   * params come from the Model as they do for `subscriptions`. With
+   * params come from the Model as they do for `subscriptions`; or a
+   * registered query's ref, which invalidates that list whatever its window. With
    * `{ failed: true }` only what failed is asked again: a "Try again".
    */
-  refresh(model: AppModel, target: RefreshTarget<AppModel>, options?: RefreshOptions): AppModel
+  refresh(
+    model: AppModel,
+    target: RefreshTarget<AppModel, QueryName<Queries[number]>>,
+    options?: RefreshOptions,
+  ): AppModel
   /** `Remote.forget`: the Model with every server-derived fact gone, for a change of principal. */
   forget(model: AppModel): AppModel
   /**
@@ -2388,12 +2393,14 @@ const memoizedResolved = <AppModel>(
 /**
  * What `Data.refresh` asks again: a projection, a Surface without params, one
  * entry of the active record (a `Surface.at`/`Surface.when` value, a family),
- * or the whole record.
+ * the whole record, or one list by its query and input (`Everyone.ref({})`),
+ * whatever window reads it.
  */
-export type RefreshTarget<AppModel> =
+export type RefreshTarget<AppModel, Queries extends string = string> =
   | Projection<AppModel, unknown>
   | ActiveEntry<AppModel>
   | Readonly<Record<string, ActiveEntry<AppModel>>>
+  | QueryRef<Queries, any>
 
 /** How `Data.refresh` asks again. */
 export interface RefreshOptions {
@@ -2423,6 +2430,12 @@ const assertOwnedBy = <AppModel>(contract: Contract, entry: ActiveEntry<AppModel
   }
 }
 
+/** Whether a refresh target is one list by its query and input. */
+const isQueryRef = <AppModel>(target: RefreshTarget<AppModel>): target is QueryRef<string, any> =>
+  // No projection or entry has an identity, and a record's values are entries,
+  // never strings, so a record keyed `identity` cannot pass for a ref.
+  typeof (target as Partial<Record<'identity', unknown>>).identity === 'string'
+
 /** Whether a refresh target is a projection, the one kind that is not a Surface. */
 const isProjection = <AppModel>(
   target: RefreshTarget<AppModel>,
@@ -2446,7 +2459,7 @@ const isActiveEntry = <AppModel>(
 /** Every projection a refresh target reads for this Model, each entry resolved as the read entries resolve it. */
 const targetProjections = <AppModel>(
   contract: Contract,
-  target: RefreshTarget<AppModel>,
+  target: Exclude<RefreshTarget<AppModel>, QueryRef<string, any>>,
   model: AppModel,
 ): ReadonlyArray<Projection<AppModel, unknown>> => {
   if (isProjection(target)) return [target]
@@ -2870,6 +2883,16 @@ export const Remote = {
     options: RefreshOptions = {},
   ): AppModel => {
     const remote = bound.store.get(model)
+    if (isQueryRef(target)) {
+      assertRegistered(bound, 'Query', bound.definition.registry.queries, target.query)
+      // Only a list the Model holds, or whose query failed, has anything to ask again.
+      const failed = Object.hasOwn(remote.failures.connections, target.identity)
+      const due =
+        failed || (options.failed !== true && remote.connections[target.identity] !== undefined)
+      return due
+        ? bound.store.set(model, invalidateConnections(remote, [target.identity]) as Store)
+        : model
+    }
     const asked = askedUnion(targetProjections(bound.contract, target, model))
     const merged = Requirement.mergeConnections(
       asked.connections,
