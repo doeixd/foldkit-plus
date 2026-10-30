@@ -49,7 +49,49 @@ version changed; `pnpm` skips versions already in the registry.
   reports the rows a frame resized in one `RowsMeasured` batch, where
   `MeasureRow` is a Mount and a Message per row.
 
+- **A deadline for Remote's calls** (`foldkit-remote`, #353).
+  `Remote.clientLayer(client, { timeout })` (and `Remote.coalesced`) gives
+  every read, list and mutation a deadline; `Data.subscriptions`'s and
+  `Remote.observe`'s `timeout` sets one for that entry's reads and lists, and
+  `Data.mutate`'s for that send (not with `durable`, which throws). A read or
+  a list that runs out fails as a failed read does, retried by
+  `Data.refresh`; a mutation fails `RemoteUnreachable`, so a durable one is
+  sent again under the same operation id. The deadline is each caller's, so
+  one giving up does not fail another that joined the same read.
+
+
+- **A read nobody waits on is aborted** (`foldkit-remote`, #355). The client
+  counts who waits on each requirement in flight; when nobody has waited on
+  any of a read's requirements for a frame (its read entry restarted on other
+  rows, its deadline passed, its page closed), the read is interrupted and
+  its request aborted. A restart that asks again for some of the same rows
+  joins the read instead, and every waiter still gets its whole answer. Lists
+  are aborted the same way.
+
+
+- **A batch is cut to the server's limits** (`foldkit-remote`, #354).
+  `ClientOptions.maxIdsPerEntity` (default 1000, the server's) and
+  `maxBodyBytes` (default 1 MiB) cut one plan's batch into the fewest
+  requests the server takes, read concurrently. A view of 2,500 rows of one
+  Entity read as one batch the server refused whole, and every row read
+  `Failed`; it now reads in three. A requirement, a list or a mutation too
+  large to send alone fails without being sent, a mutation with
+  `RemoteMutationError`, so the outbox does not resend it.
+
+
 ### Changed
+
+- **`RemoteJsonSend` takes the call's `AbortSignal`** (`foldkit-remote`,
+  #355): `(request, signal) => Promise<unknown>`. It aborts when nobody waits
+  on the call any more or its deadline passed; `Remote.http` passes it to
+  `fetch`. A send that ignores it still works, and its request runs on.
+
+
+- **`CoalesceOptions` is `ClientOptions`** (`foldkit-remote`): it holds
+  `timeout`, `maxIdsPerEntity` and `maxBodyBytes` beside `window`.
+  `coalescedLayer` moved from `client.ts` to `coalesce.ts`; its name and
+  export are unchanged.
+
 
 - **A list ages under `staleWhileRevalidate`** (`foldkit-remote`, #234). A
   list is dated by the page that last answered it whole

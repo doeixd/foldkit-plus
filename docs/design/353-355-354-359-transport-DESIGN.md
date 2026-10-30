@@ -75,10 +75,12 @@ The wrapper counts, per requirement key, the callers waiting on it. A read
 in flight settles a set of keys. When the last caller of every key a read
 settles has gone (its read entry restarted on new requirements, its deadline
 passed, its runtime disposed), the read is interrupted and its transport
-call aborted. The count is checked after a timer turn, so a read entry that
-restarts and asks again for some of the same keys (a list narrowed by
+call aborted. The count is checked a frame (16 ms) later, so a read entry
+that restarts and asks again for some of the same keys (a list narrowed by
 typing, a window moved by a row) joins the read in flight instead of
-cancelling and resending it.
+cancelling and resending it. A timer turn alone was too short: Effect's
+scheduler may start the restarted entry's fiber on a later timer turn, and
+the coalescer's own test cancelled a read a restart was about to join.
 
 - `RemoteJsonSend` becomes `(request: string, signal: AbortSignal) =>
   Promise<unknown>` (breaking, 0.x): `Remote.json` hands it the call's

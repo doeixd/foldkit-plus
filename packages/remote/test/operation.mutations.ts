@@ -48,8 +48,8 @@ export default [
   edit(
     'the operation is not sent',
     '../src/client.ts',
-    '    operation,\n    mutation: mutation.name,',
-    '    mutation: mutation.name,',
+    '      operation,\n      mutation: mutation.name,',
+    '      mutation: mutation.name,',
   ),
   edit(
     'the wire takes any length',

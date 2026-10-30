@@ -43,12 +43,14 @@ const decodeAnswer = Schema.decodeUnknownEffect(RemoteJsonAnswer)
 
 /**
  * Sends one request's text and resolves with its answer as parsed JSON. It
- * rejects when nothing came back, and the call fails with that message. A
+ * rejects when nothing came back, and the call fails with that message.
+ * `signal` aborts when the call is interrupted: nobody waits on its answer
+ * any more, or its deadline passed; stop the request then. A
  * value that is not a `RemoteJsonAnswer` is no answer either: a mutation fails
  * `RemoteUnreachable` for both, a read or a query its own error, which is
  * retried like any failed read.
  */
-export type RemoteJsonSend = (request: string) => Promise<unknown>
+export type RemoteJsonSend = (request: string, signal: AbortSignal) => Promise<unknown>
 
 const call = <A, E, U>(
   send: RemoteJsonSend,
@@ -59,7 +61,7 @@ const call = <A, E, U>(
   unreached: (message: string) => U,
 ): Effect.Effect<A, E | U> =>
   Effect.tryPromise({
-    try: () => send(JSON.stringify({ operation, payload })),
+    try: signal => send(JSON.stringify({ operation, payload }), signal),
     catch: error => unreached(error instanceof Error ? error.message : String(error)),
   }).pipe(
     Effect.flatMap(answer =>
@@ -186,12 +188,13 @@ export const http = (
     readonly fetch?: typeof fetch | undefined
   } = {},
 ): RemoteJsonClient =>
-  json(async request => {
+  json(async (request, signal) => {
     const via = options.fetch ?? fetch
     const response = await via(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json', ...options.headers?.() },
       body: request,
+      signal,
     })
     const status = `${response.status} ${response.statusText}`
     const body: unknown = await response.json().catch(() => notJson)

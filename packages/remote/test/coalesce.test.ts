@@ -13,6 +13,7 @@ import {
   type BatchRead,
   type QueryRun,
 } from '../src/index.js'
+import { withCallTimeout, withDeadline } from '../src/deadline.js'
 
 type Batch = Parameters<BatchRead>[0]
 
@@ -42,6 +43,13 @@ const recording = (options: { readonly hold?: boolean; readonly fail?: boolean }
     })
   return { batches, gates, read }
 }
+
+/** Yields until `done` holds: a forked call starts after some scheduler turns, not a fixed count. */
+const until = (done: () => boolean) =>
+  Effect.gen(function* () {
+    for (let turn = 0; turn < 100 && !done(); turn++) yield* Effect.yieldNow
+    expect(done()).toBe(true)
+  })
 
 const req = (id: string, fields: string[]) => ({ entity: 'User', id, fields })
 const batch = (...requests: Array<ReturnType<typeof req>>): Batch => ({
@@ -105,12 +113,9 @@ describe('coalesceReads', () => {
       Effect.gen(function* () {
         const read = yield* coalesceReads(raw.read)
         const first = yield* Effect.forkChild(read(batch(req('u1', ['name']))))
-        yield* Effect.yieldNow
-        yield* Effect.yieldNow
-        expect(raw.batches).toHaveLength(1)
+        yield* until(() => raw.gates.length === 1)
         const second = yield* Effect.forkChild(read(batch(req('u1', ['name']))))
-        yield* Effect.yieldNow
-        yield* Effect.yieldNow
+        for (let turn = 0; turn < 20; turn++) yield* Effect.yieldNow
         yield* Deferred.succeed(raw.gates[0]!, undefined)
         return [yield* Fiber.join(first), yield* Fiber.join(second)]
       }),
@@ -125,14 +130,11 @@ describe('coalesceReads', () => {
       Effect.gen(function* () {
         const read = yield* coalesceReads(raw.read)
         const first = yield* Effect.forkChild(read(batch(req('u1', ['name']))))
-        yield* Effect.yieldNow
-        yield* Effect.yieldNow
+        yield* until(() => raw.gates.length === 1)
         const second = yield* Effect.forkChild(
           read(batch(req('u1', ['name']), req('u2', ['name']))),
         )
-        yield* Effect.yieldNow
-        yield* Effect.yieldNow
-        expect(raw.batches).toHaveLength(2)
+        yield* until(() => raw.gates.length === 2)
         expect(raw.batches[1]!.requests).toEqual([req('u2', ['name'])])
         for (const gate of raw.gates) yield* Deferred.succeed(gate, undefined)
         yield* Fiber.join(first)
@@ -169,13 +171,11 @@ describe('coalesceReads', () => {
       Effect.gen(function* () {
         const read = yield* coalesceReads(raw.read)
         const fiber = yield* Effect.forkChild(read(batch(req('u1', ['name']))))
-        yield* Effect.yieldNow
-        yield* Effect.yieldNow
+        yield* until(() => raw.gates.length === 1)
         yield* Fiber.interrupt(fiber)
-        yield* Effect.yieldNow
+        // Asked again before a timer turn: a read entry restarting on new requirements.
         const later = yield* Effect.forkChild(read(batch(req('u1', ['name']))))
-        yield* Effect.yieldNow
-        yield* Effect.yieldNow
+        yield* Effect.sleep('20 millis')
         expect(raw.batches).toHaveLength(1)
         yield* Deferred.succeed(raw.gates[0]!, undefined)
         const exit = yield* Fiber.await(later)
@@ -278,8 +278,7 @@ describe('coalesceQueries', () => {
             concurrency: 'unbounded',
           }),
         )
-        yield* Effect.yieldNow
-        yield* Effect.yieldNow
+        yield* until(() => raw.gates.length === 3)
         // All three are in flight before any answers.
         expect(raw.requests.map(request => [request.input, request.window.first])).toEqual([
           ['u1', 10],
@@ -379,5 +378,223 @@ describe('Remote.coalesced and Remote.clientLayer', () => {
     expect(raw.batches).toHaveLength(1)
     expect(rawQuery.requests).toHaveLength(1)
     expect(Schema.is(Schema.Number)(raw.batches[0]!.version)).toBe(true)
+  })
+})
+
+/** A raw read held open until interrupted, recording what it was asked and what was interrupted. */
+const abandoned = () => {
+  const asked: Batch[] = []
+  const interrupted: Batch[] = []
+  const read: BatchRead = batch =>
+    Effect.sync(() => asked.push(batch)).pipe(
+      Effect.andThen(Effect.never),
+      Effect.onInterrupt(() => Effect.sync(() => interrupted.push(batch))),
+    )
+  return { asked, interrupted, read }
+}
+
+describe('a call nobody waits on is interrupted (#355)', () => {
+  it('interrupts a read whose every waiter left, after a frame', async () => {
+    const raw = abandoned()
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const read = yield* coalesceReads(raw.read)
+        const fiber = yield* Effect.forkChild(read(batch(req('u1', ['name']), req('u2', ['name']))))
+        yield* until(() => raw.asked.length === 1)
+        yield* Fiber.interrupt(fiber)
+        yield* Effect.sleep('40 millis')
+        expect(raw.interrupted).toEqual(raw.asked)
+        // Gone from the in-flight table: the next caller reads again rather than joining it.
+        yield* Effect.forkChild(read(batch(req('u1', ['name']))))
+        yield* until(() => raw.asked.length === 2)
+      }),
+    )
+  })
+
+  it('keeps a read while any of its keys has a waiter, and that waiter gets the whole answer', async () => {
+    const raw = recording({ hold: true })
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const read = yield* coalesceReads(raw.read)
+        const wide = yield* Effect.forkChild(read(batch(req('u1', ['name']), req('u2', ['name']))))
+        yield* until(() => raw.gates.length === 1)
+        const narrow = yield* Effect.forkChild(read(batch(req('u2', ['name']))))
+        yield* Fiber.interrupt(wide)
+        yield* Effect.sleep('40 millis')
+        yield* Deferred.succeed(raw.gates[0]!, undefined)
+        const answer = yield* Fiber.join(narrow)
+        expect(answer.entities.map(entity => entity.id)).toEqual(['u1', 'u2'])
+        expect(raw.batches).toHaveLength(1)
+      }),
+    )
+  })
+
+  it('interrupts a query whose every waiter left', async () => {
+    const interrupted: unknown[] = []
+    const run: QueryRun = request =>
+      Effect.never.pipe(
+        Effect.onInterrupt(() => Effect.sync(() => interrupted.push(request.input))),
+      )
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const query = yield* coalesceQueries(run)
+        const fiber = yield* Effect.forkChild(query(q('u1')))
+        yield* Effect.sleep('5 millis')
+        yield* Fiber.interrupt(fiber)
+        yield* Effect.sleep('40 millis')
+        expect(interrupted).toEqual(['u1'])
+      }),
+    )
+  })
+})
+
+describe('a batch is cut to the limits the client knows (#354, #359)', () => {
+  const ids = (count: number) =>
+    Array.from({ length: count }, (_, index) => req(`u${index}`, ['name']))
+
+  it('cuts a batch naming more ids of one Entity than maxIdsPerEntity, and answers every one', async () => {
+    const raw = recording()
+    const answer = await Effect.runPromise(
+      Effect.gen(function* () {
+        const read = yield* coalesceReads(raw.read, { maxIdsPerEntity: 2 })
+        return yield* read(batch(...ids(5)))
+      }),
+    )
+    expect(raw.batches.map(each => each.requests.length)).toEqual([2, 2, 1])
+    expect(answer.entities.map(entity => entity.id).sort()).toEqual(['u0', 'u1', 'u2', 'u3', 'u4'])
+  })
+
+  it('cuts by bytes so each request fits maxBodyBytes', async () => {
+    const raw = recording()
+    const maxBodyBytes = 512 + 200
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const read = yield* coalesceReads(raw.read, { maxBodyBytes })
+        return yield* read(batch(...ids(20)))
+      }),
+    )
+    expect(raw.batches.length).toBeGreaterThan(1)
+    for (const sent of raw.batches) {
+      expect(JSON.stringify({ operation: 'read', payload: sent }).length).toBeLessThanOrEqual(
+        maxBodyBytes,
+      )
+    }
+    expect(raw.batches.flatMap(each => each.requests)).toHaveLength(20)
+  })
+
+  it('fails a requirement too large to send alone without sending it, and reads the rest', async () => {
+    const raw = recording()
+    const outcome = await Effect.runPromise(
+      Effect.gen(function* () {
+        const read = yield* coalesceReads(raw.read, { maxBodyBytes: 512 + 100 })
+        return yield* Effect.all(
+          [
+            Effect.flip(read(batch(req('u2', ['x'.repeat(200)])))),
+            read(batch(req('u1', ['name']))),
+          ],
+          { concurrency: 'unbounded' },
+        )
+      }),
+    )
+    expect(outcome[0].message).toContain('larger than the server takes')
+    expect(raw.batches.flatMap(each => each.requests.map(request => request.id))).toEqual(['u1'])
+  })
+
+  it('refuses a query or a mutation larger than maxBodyBytes as refused, not unreachable', async () => {
+    const sent: string[] = []
+    const Raw = Layer.succeed(RemoteClient, {
+      read: () => Effect.die('unused'),
+      query: () => Effect.sync(() => void sent.push('query')).pipe(Effect.andThen(Effect.never)),
+      mutate: () => Effect.sync(() => void sent.push('mutate')).pipe(Effect.andThen(Effect.never)),
+      live: () => Stream.empty,
+    })
+    const errors = await Effect.runPromise(
+      Effect.gen(function* () {
+        const client = yield* RemoteClient
+        const big = 'x'.repeat(300)
+        return yield* Effect.all([
+          Effect.flip(client.query(q(big))),
+          Effect.flip(client.mutate({ requestId: 'r1', mutation: 'M', input: { big } })),
+        ])
+      }).pipe(Effect.provide(Remote.coalesced(Raw, { maxBodyBytes: 512 + 100 }))),
+    )
+    expect(errors.map(error => error._tag)).toEqual(['RemoteQueryError', 'RemoteMutationError'])
+    expect(sent).toEqual([])
+  })
+})
+
+describe('a deadline per client and per call (#353)', () => {
+  const never = Layer.succeed(RemoteClient, {
+    read: () => Effect.never,
+    query: () => Effect.never,
+    mutate: () => Effect.never,
+    live: () => Stream.empty,
+  })
+
+  it('fails a read, a query and a mutation that outlive the client’s timeout, each its own way', async () => {
+    const errors = await Effect.runPromise(
+      Effect.gen(function* () {
+        const client = yield* RemoteClient
+        const fiber = yield* Effect.forkChild(
+          Effect.all(
+            [
+              Effect.flip(client.read(batch(req('u1', ['name'])))),
+              Effect.flip(client.query(q('u1'))),
+              Effect.flip(client.mutate({ requestId: 'r1', mutation: 'M', input: {} })),
+            ],
+            { concurrency: 'unbounded' },
+          ),
+        )
+        yield* Effect.yieldNow
+        yield* TestClock.adjust('19 seconds')
+        expect(fiber.pollUnsafe()).toBeUndefined()
+        yield* TestClock.adjust('1 second')
+        return yield* Fiber.join(fiber)
+      }).pipe(
+        Effect.provide(Remote.coalesced(never, { timeout: '20 seconds' })),
+        Effect.provide(TestClock.layer()),
+      ),
+    )
+    expect(errors.map(error => [error._tag, error.message])).toEqual([
+      ['RemoteReadError', 'No answer within 20s'],
+      ['RemoteQueryError', 'No answer within 20s'],
+      ['Unreachable', 'No answer within 20s'],
+    ])
+  })
+
+  it('a caller’s own deadline wins over the client’s', async () => {
+    const error = await Effect.runPromise(
+      Effect.gen(function* () {
+        const client = yield* RemoteClient
+        const fiber = yield* Effect.forkChild(
+          Effect.flip(withCallTimeout(client.read(batch(req('u1', ['name']))), '1 second')),
+        )
+        yield* Effect.yieldNow
+        yield* TestClock.adjust('1 second')
+        return yield* Fiber.join(fiber)
+      }).pipe(
+        Effect.provide(Remote.coalesced(never, { timeout: '20 seconds' })),
+        Effect.provide(TestClock.layer()),
+      ),
+    )
+    expect(error.message).toBe('No answer within 1s')
+  })
+
+  it('a caller that gives up does not fail another waiting on the same read', async () => {
+    const raw = recording({ hold: true })
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const read = yield* coalesceReads(raw.read)
+        const patient = yield* Effect.forkChild(read(batch(req('u1', ['name']))))
+        const hasty = yield* Effect.forkChild(
+          withDeadline(read(batch(req('u1', ['name']))), '1 second', message => message),
+        )
+        yield* until(() => raw.gates.length === 1)
+        yield* TestClock.adjust('1 second')
+        expect(Exit.isFailure(yield* Fiber.await(hasty))).toBe(true)
+        yield* Deferred.succeed(raw.gates[0]!, undefined)
+        expect(Exit.isSuccess(yield* Fiber.await(patient))).toBe(true)
+      }).pipe(Effect.provide(TestClock.layer())),
+    )
   })
 })

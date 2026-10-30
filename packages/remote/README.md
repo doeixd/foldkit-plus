@@ -2471,6 +2471,38 @@ Remote's server never answers with. Each is a `RemoteJsonClient`, a
 server failed is a `RemoteMutationError`. The difference matters for a [durable write](#a-write-that-outlives-the-page-dataoutbox):
 an `Unreachable` one is sent again, a refused one is settled `Failed`.
 
+**Deadlines, aborts and limits.** `Remote.clientLayer(client, options)` puts
+one wrapper around any transport, and it decides how long a call waits, when
+it stops, and how big a request may be:
+
+```ts
+const overHttp = Remote.clientLayer(Remote.http('/remote'), {
+  timeout: '20 seconds', // every read, list and mutation
+  maxBodyBytes: 64 * 1024, // the server's serveFetch maxBodyBytes
+})
+```
+
+- `timeout` is the client's deadline. A read or a list past it fails as a
+  failed read does, and `Data.refresh` retries it; a mutation fails
+  `RemoteUnreachable`, since it may have reached the server, so a durable one
+  is sent again under the same operation id. A read entry sets its own with
+  `Data.subscriptions(active, { timeout })`, one send with `Data.mutate(…, {
+  timeout })` (not with `durable`: the outbox uses the client's). The deadline
+  is each caller's: one giving up does not fail another that joined the same
+  read.
+- A read nobody waits on is aborted. When no read entry has waited on any of
+  a read's rows for a frame (the search changed, the deadline passed, the
+  page closed), the call is interrupted and `Remote.http` aborts its `fetch`;
+  `Remote.json` hands its `send` the `AbortSignal` to do the same. A read
+  entry that restarts and asks again for some of the same rows joins the read
+  instead, and gets its whole answer. Lists are aborted the same way.
+- A view of many rows sends one batch per plan, cut to the server's limits:
+  `maxIdsPerEntity` (default 1000) and `maxBodyBytes` (default 1 MiB), each
+  matching `serveFetch`'s defaults, so 2,500 rows of one Entity read in three
+  requests rather than being refused whole. A row, a list or a mutation too
+  large to send alone fails without being sent; a mutation so refused is a
+  `RemoteMutationError`, which the outbox does not resend.
+
 **Testing a server over HTTP.** Call it as the application does: give
 `` Remote.http(`${origin}/remote`, { headers, fetch }) `` the server's address
 (miniflare's `(await mf.ready).origin` for a Worker) and call
@@ -2918,14 +2950,16 @@ the outbox stamp it from Effect's `Clock` when the answer lands, never from the
 The wire schemas (`ReadBatch`, `QueryRequest`, `MutationRequest`,
 `LiveRequirement`, results/errors) and the `RemoteRpc` group are exported.
 
-`Remote.clientLayer(rpcClient, { window? })` adapts an Effect RPC client,
+`Remote.clientLayer(rpcClient, { window?, timeout?, maxIdsPerEntity?, maxBodyBytes? })` adapts an Effect RPC client,
 including live-change mapping. It takes the client `RpcClient.make(RemoteRpc)`
 builds, whose calls can also fail with `RpcClientError`; each such failure
 becomes the call's Remote error rather than a defect. Compatible reads and queries coalesce:
 requirements issued together become one `ReadBatch`, an identical in-flight
 requirement/query is joined, and a failed request releases the coalesced entry.
 A relation request with its own pagination window stays separate because one
-response answers one window exactly.
+response answers one window exactly. A batch is cut to `maxIdsPerEntity` and
+`maxBodyBytes`, each piece its own read, and a read or query nobody waits on
+any more is interrupted ([Deadlines, aborts and limits](#clients-and-transports)).
 
 `Remote.coalesced(layer, options)` adds the same behavior to a hand-written
 `RemoteClient` layer; `window` widens batching beyond work issued concurrently.

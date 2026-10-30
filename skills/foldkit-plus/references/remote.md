@@ -217,7 +217,17 @@ A transport failure becomes the call's Remote error, not a defect.
   `RemoteRpc.toLayer(handlers)`.
 - JSON over HTTP: `Remote.clientLayer(Remote.http('/remote', { headers }))`,
   answered by `RemoteServer.answer(handlers, body)`; `Remote.json(send)` for a
-  worker or a server in the page. Neither carries live data.
+  worker or a server in the page (`send(request, signal)`: stop on abort).
+  Neither carries live data.
+- Every transport takes `Remote.clientLayer(client, { timeout, maxIdsPerEntity,
+  maxBodyBytes, window })`. `timeout`: a read/list past it fails like a failed
+  read; a mutation fails `RemoteUnreachable` (the outbox resends it, same
+  operation id). Per call: `Data.subscriptions(active, { timeout })`,
+  `Data.mutate(…, { timeout })` (not with `durable`, which throws). A read or
+  list nobody has waited on for a frame is interrupted and its `fetch`
+  aborted; a restart asking for some of the same rows joins it. One plan is
+  one batch, cut to `maxIdsPerEntity` (1000) and `maxBodyBytes` (1 MiB), the
+  server's defaults; set them to the server's own limits.
 - A MessagePort (a sandbox's worker): `port(open)` from `foldkit-remote/port`,
   `servePort(handlers, port)` from `foldkit-remote-server/port`. Live data,
   typed errors and interruption cross it.

@@ -2,9 +2,9 @@
  * The transport seam: the `RemoteClient` Effect service, the RPC client it is
  * built from, the wire-to-client reconstructions, and the mutation call.
  */
-import { Context, Effect, Layer, Schema, Stream } from 'effect'
+import { Context, type Duration, Effect, Schema, Stream } from 'effect'
+import { withCallTimeout } from './deadline.js'
 import type { RelationRequirement, Requirement } from './requirement.js'
-import { coalesceQueries, coalesceReads, type CoalesceOptions } from './coalesce.js'
 import type { LiveCursor, LiveEvent } from './live.js'
 import type { MutationDescriptor } from './mutation.js'
 import type { ConnectionChange } from './optimistic.js'
@@ -177,20 +177,6 @@ export const remoteError = (error: {
   ...(error.reason === undefined ? {} : { reason: error.reason }),
 })
 
-export const coalescedLayer = <E, R>(
-  layer: Layer.Layer<RemoteClient, E, R>,
-  options: CoalesceOptions = {},
-): Layer.Layer<RemoteClient, E, R> =>
-  Layer.effect(
-    RemoteClient,
-    Effect.gen(function* () {
-      const client = yield* RemoteClient
-      const read = yield* coalesceReads(client.read, options)
-      const query = yield* coalesceQueries(client.query, options)
-      return { ...client, read, query }
-    }),
-  ).pipe(Layer.provide(layer))
-
 /**
  * A new operation's identity: random, so unique across clients and reloads.
  * `randomUUID` exists only in a secure context, so a page served over plain
@@ -226,6 +212,8 @@ export const mutateRemote = Effect.fn('Remote.mutate')(function* <
     readonly shown?: ReadonlyArray<RelationRequirement> | undefined
     /** When the reader acted, as `Data.mutate` predicted it: sent for the server to take. */
     readonly now?: number | undefined
+    /** How long this send waits for its answer, over the client's `timeout`. */
+    readonly timeout?: Duration.Input | undefined
   } = {},
 ) {
   const { keys, shown, now } = options
@@ -237,15 +225,18 @@ export const mutateRemote = Effect.fn('Remote.mutate')(function* <
       Effect.fail(new RemoteMutationError({ message: error.message })),
     ),
   )
-  const result = yield* client.mutate({
-    requestId,
-    operation,
-    mutation: mutation.name,
-    input: encoded,
-    ...(keys === undefined ? {} : { keys }),
-    ...(now === undefined ? {} : { now }),
-    ...(shown === undefined || shown.length === 0 ? {} : { shown }),
-  })
+  const result = yield* withCallTimeout(
+    client.mutate({
+      requestId,
+      operation,
+      mutation: mutation.name,
+      input: encoded,
+      ...(keys === undefined ? {} : { keys }),
+      ...(now === undefined ? {} : { now }),
+      ...(shown === undefined || shown.length === 0 ? {} : { shown }),
+    }),
+    options.timeout,
+  )
   const output = yield* Schema.decodeUnknownEffect(mutation.Output)(result.output).pipe(
     Effect.catchTag('SchemaError', error =>
       Effect.fail(new RemoteMutationError({ message: error.message })),

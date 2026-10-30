@@ -50,7 +50,6 @@ import {
 } from 'foldkit-surface'
 import {
   RemoteClient,
-  coalescedLayer,
   liveEventOf,
   mintOperation,
   mutateRemote,
@@ -215,7 +214,8 @@ import {
   RemoteUnauthenticated,
   RemoteUnreachable,
 } from './wire.js'
-import type { CoalesceOptions } from './coalesce.js'
+import { coalescedLayer, type ClientOptions } from './coalesce.js'
+import { withCallTimeout } from './deadline.js'
 import {
   Requirement,
   RemoteConnections,
@@ -494,6 +494,12 @@ export interface DomainMutateOptions {
    * changed (what an author edited). The rest of the input is still sent, whole.
    */
   readonly keys?: ReadonlyArray<string> | undefined
+  /**
+   * How long this send waits for its answer, over the client's `timeout`;
+   * one that runs out fails `RemoteUnreachable`. Not with `durable`: the
+   * outbox sends a durable write under the client's `timeout`.
+   */
+  readonly timeout?: Duration.Input | undefined
 }
 
 /**
@@ -1471,12 +1477,29 @@ export interface RetainOptions {
   readonly grace?: Duration.Input | undefined
 }
 
+/** `Remote.retain`'s options: a retain entry wired by hand says the budget itself. */
+export interface RetainEntryOptions extends RetainOptions {
+  /** How many entries, rows and lists, retention keeps; `defaultBudget` when not given. */
+  readonly budget?: number | undefined
+}
+
+/** `RetentionChanged` for these roots, naming a budget only when one was given. */
+const retentionChanged = (roots: RetentionRoots, budget: number | undefined): RemoteMessage =>
+  budget === undefined
+    ? { _tag: 'RetentionChanged', roots }
+    : { _tag: 'RetentionChanged', roots, budget }
+
 /** How `Remote.observe` and `Remote.prefetch` treat fields the store already holds. */
 export interface ObserveOptions {
   /** Default `RemotePolicy.cacheFirst`. */
   readonly policy?: RemotePolicy | undefined
   /** The clock a refreshing policy reads; default `Date.now`, read at each use. */
   readonly now?: (() => number) | undefined
+  /**
+   * How long each read and list this entry runs waits for its answer, over
+   * the client's `timeout`; one that runs out fails as a failed read does.
+   */
+  readonly timeout?: Duration.Input | undefined
 }
 
 /** How `Data.satisfy` reads: how many passes it may take, and the clock. */
@@ -2169,11 +2192,11 @@ const observeEntry = <AppModel, Store extends RemoteModel, Message>(
   toMessage: (message: RemoteMessage) => Message,
   options: ObserveOptions,
 ): EntryWithoutKeepAlive<AppModel, Message, ReadDependencies, RemoteClient> => {
-  const { policy = RemotePolicy.cacheFirst, now = wallClock } = options
+  const { policy = RemotePolicy.cacheFirst, now = wallClock, timeout } = options
   const read = (requirements: ReadonlyArray<Requirement>) =>
-    Effect.map(readMessage(requirements, now), toMessage)
+    Effect.map(withCallTimeout(readMessage(requirements, now), timeout), toMessage)
   const run = (query: ReadDependencies['queries'][number]) =>
-    Effect.map(queryMessage(query, now), toMessage)
+    Effect.map(withCallTimeout(queryMessage(query, now), timeout), toMessage)
   // A plan is a function of the Remote model, what is asked, and the clock only
   // until the next value ages out (`expires`, which `deadlineOf` computes as
   // exactly that moment), so a Model change the Remote model is not part of
@@ -3086,7 +3109,7 @@ export const Remote = {
 
   clientLayer: <R = never>(
     client: RemoteRpcClient<R, RpcClientError.RpcClientError | RemoteUnreachable>,
-    options: CoalesceOptions = {},
+    options: ClientOptions = {},
   ): Layer.Layer<RemoteClient, never, R> =>
     coalescedLayer(
       Layer.effect(
@@ -4591,6 +4614,10 @@ const bindDomain = <
       assertRegistered(bound, 'Mutation', definition.registry.mutations, mutation.name)
       const remote = store.get(model)
       const durable = options.durable === true
+      if (durable && options.timeout !== undefined)
+        throw new Error(
+          `[foldkit-remote] Data.mutate(${mutation.name}, { durable: true, timeout }): the outbox sends a durable write under the client's timeout; pass none`,
+        )
       const requestId = durable
         ? durableId(remote, mutation.name, options.requestId)
         : (options.requestId ?? `${bound.contract.name}-${remote.mutations.sequence + 1}`)
@@ -4710,6 +4737,7 @@ const bindDomain = <
                       operation,
                       shown: shownAt(startedModel, optimistic ?? []),
                       now: options.now,
+                      timeout: options.timeout,
                     }).pipe(
                       Effect.matchEffect({
                         onFailure: error =>
