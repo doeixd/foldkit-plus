@@ -1,7 +1,8 @@
 # Variants of an Entity (#357)
 
-Status: designed (2026-10-30). Phase 1, the core in `foldkit-entity`, is
-being built; phases 2 to 5 are planned below.
+Status: phase 1 built (2026-10-30), the core in `foldkit-entity`, with the
+SQL half of phase 2 (`variantCases` and the CHECKs on SQLite and Postgres).
+The rest of phase 2 and phases 3 to 5 are planned below.
 
 ## The problem
 
@@ -214,15 +215,15 @@ for `VariantEntity` and fall through to the old one. No member is reserved:
 
 ## Phases
 
-1. **Core in `foldkit-entity`**: `Entity.defineVariants`,
+1. **Core in `foldkit-entity`** (built): `Entity.defineVariants`,
    `VariantEntity`, `Entity.variantsOf` (union, cases, stored codec), the
    `variant_<Case>` invariants, `Expr.is` over the Entity and through a `one`
    relation, a conformance set (`variantCases`) run by the reference
    evaluator, README and skill reference.
-2. **Selections**: a union Selection when `_tag` is selected, and refusal of a
-   case field without it; run `variantCases` in
-   `remote-drizzle/test/conformance.test.ts` over SQLite and Postgres, with
-   the CHECKs `derive` writes.
+2. **Selections and SQL**: a union Selection when `_tag` is selected, and
+   refusal of a case field without it. Built: `variantCases` and the CHECKs
+   `derive` writes, on SQLite and Postgres
+   (`remote-drizzle/test/variants.test.ts`), with no change to the adapter.
 3. **Remote's store** reads a variant Selection as its union
    (`packages/remote`).
 4. **Form and Crud**: a form over the union with a case picker; Crud's editor

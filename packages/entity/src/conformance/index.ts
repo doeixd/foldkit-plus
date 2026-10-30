@@ -750,3 +750,4 @@ export const primitiveRefusals: ReadonlyArray<ConformanceRefusal> = [
 ]
 export * from './operator.js'
 export * from './relational.js'
+export * from './variants.js'

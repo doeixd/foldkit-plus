@@ -17,9 +17,11 @@ import { Collation } from './collation.js'
 import { SchemaShape } from './shape.js'
 import { Law, type Side } from './law.js'
 import { now, viewer, type NowExpr, type ViewerExpr, type ViewerPathExpr } from './context.js'
-import { own } from './record.js'
+import { own, put } from './record.js'
+import { variantsOf } from './variants.js'
 import type {
   AnyEntity,
+  AnyVariantEntity,
   Cardinality,
   EntityField,
   EntityIdentity,
@@ -1445,6 +1447,96 @@ const existsOf = (relation: unknown, where: unknown): ExistsPredicate => {
   })
 }
 
+/** The case names of an Entity with variants. */
+type TagOf<E extends AnyVariantEntity> = keyof E['variants']['cases'] & string
+
+/** A case's schemas, `_tag` aside. */
+type CaseSchemas<E extends AnyVariantEntity, T extends string> = Omit<
+  E['variants']['cases'][T]['fields'],
+  '_tag'
+>
+
+/** A case's fields as `Expr.is` hands them out: typed as the case holds them, never null. */
+export type CaseFields<E extends AnyVariantEntity, T extends string> = {
+  readonly [K in keyof CaseSchemas<E, T> & string]: EntityField<E['name'], K, CaseSchemas<E, T>[K]>
+}
+
+/** A case's fields as read through a `one` relation to its Entity: a path to each. */
+export type CasePaths<Owner extends string, E extends AnyVariantEntity, T extends string> = {
+  readonly [K in keyof CaseSchemas<E, T> & string]: PathExpr<
+    Schema.Schema.Type<CaseSchemas<E, T>[K]>
+  > &
+    Reads<Owner>
+}
+
+/** `Expr.is`'s two subjects: the row judged, or the row a `one` relation of it reaches. */
+interface IsOf {
+  <E extends AnyVariantEntity, const T extends TagOf<E>, P extends Predicate = never>(
+    entity: E,
+    tag: T,
+    build?: (fields: CaseFields<E, T>) => P,
+  ): Predicate & Reads<E['name'] | ReadsOf<P>>
+  <
+    Owner extends string,
+    Target extends AnyVariantEntity,
+    const T extends TagOf<Target>,
+    P extends Predicate = never,
+  >(
+    relation: EntityRelation<Owner, string, Target, 'one', boolean>,
+    tag: T,
+    build?: (fields: CasePaths<Owner, Target, T>) => P,
+  ): Predicate & Reads<Owner | ReadsOf<P>>
+}
+
+const isOf = (
+  subject: unknown,
+  tag: string,
+  build?: (fields: Readonly<Record<string, unknown>>) => unknown,
+): Predicate => {
+  const relation =
+    tagOf(subject) === 'Relation'
+      ? (subject as EntityRelation<string, string, AnyEntity, Cardinality, boolean>)
+      : undefined
+  if (relation !== undefined && relation.cardinality !== 'one') {
+    throw new Error(
+      `[foldkit-entity] Expr.is: ${relation.owner.name}.${relation.key} is a many relation, which reaches no one row`,
+    )
+  }
+  const entity = relation === undefined ? (subject as AnyEntity) : relation.target()
+  const variants = Option.getOrThrowWith(
+    typeof entity === 'object' && entity !== null && 'identity' in entity
+      ? variantsOf(entity.identity)
+      : Option.none(),
+    () =>
+      new Error(
+        '[foldkit-entity] Expr.is: the first argument is an Entity declared with Entity.defineVariants, or a one relation to one',
+      ),
+  )
+  if (!variants.tags.includes(tag)) {
+    throw new Error(
+      `[foldkit-entity] Expr.is: ${entity.name} has no case "${tag}"; its cases are ${variants.tags.join(', ')}`,
+    )
+  }
+  const stored = entity.fields as Readonly<
+    Record<string, EntityField<string, string, Schema.Constraint>>
+  >
+  // Through a relation, each field is read on the row it reaches.
+  const read = (field: EntityField<string, string, Schema.Constraint>): unknown =>
+    relation === undefined ? field : pathOf(relation, field)
+  const is = Expr.eq(read(stored._tag!) as AnyExpr, tag as never)
+  if (build === undefined) return is
+  const caseFields: Record<string, unknown> = {}
+  for (const [key, schema] of Object.entries(variants.cases[tag]!)) {
+    // The stored field, whatever a descriptor annotated on it, typed as the case holds it.
+    put(caseFields, key, read(Object.freeze({ ...stored[key]!, schema })))
+  }
+  const asked = build(Object.freeze(caseFields))
+  if (!isPredicate(asked)) {
+    throw new Error(`[foldkit-entity] Expr.is: what is asked of a ${tag} is a predicate`)
+  }
+  return Expr.and(is, asked)
+}
+
 /** `Expr.field`: an Entity field, or an expression refused with what to write instead. */
 interface FieldOf {
   <Name extends string, Key extends string, S extends Schema.Constraint>(
@@ -1629,6 +1721,26 @@ export const Expr = {
     relation: EntityRelation<Owner, string, Target, 'one', boolean>,
     where?: W,
   ) => ExistsPredicate & Reads<Target['name']>,
+
+  /**
+   * The row is of case `tag` of an Entity declared with
+   * `Entity.defineVariants`, and holds what `build` asks of that case's
+   * fields, each typed as the case holds it:
+   *
+   * ```ts
+   * Expr.is(Domain, 'Unconfirmed')
+   * Expr.is(Domain, 'Available', ({ price }) => Expr.lt(price, 20))
+   * // Through a one relation, the row it reaches.
+   * Expr.is(Order.relations.domain, 'Available', ({ price }) => Expr.lt(price, 20))
+   * ```
+   *
+   * It is `_tag = tag` and the predicate, so a row of another case is false,
+   * never unknown, and `Expr.not` of it holds there. Through a relation, a null
+   * link reaches no row and the test is unknown, as a path's field reads null.
+   * Use the fields inside `build`: outside it a case's field is the stored
+   * column, null on rows of other cases.
+   */
+  is: isOf as IsOf,
 
   /**
    * Whoever asks, as a row of `entity`: `Expr.eq(Like.fields.userId,

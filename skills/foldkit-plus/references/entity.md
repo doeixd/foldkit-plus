@@ -628,6 +628,33 @@ reads it from the rows a holder has (`Judge.query(body, input, row, { context,
 rows })`), unknown where it lacks one. No list orders by one. `Entity.sets`
 (above) takes the same terms.
 
+## Variants: rows of several shapes
+
+`Entity.defineVariants(name, cases)` takes each case's fields by tag (what
+`Schema.TaggedUnion` takes). `Domain.variants` is that tagged union, the row,
+branched on with its own `match`; `Domain.fields` is the stored row: `_tag`,
+shared fields as declared, every other field nullable. Each case with fields
+of its own gets an invariant (`variant_<Case>`), so judging and the Drizzle
+binding's CHECKs refuse a row mixing cases. `Expr.is` narrows to a case:
+
+```ts
+const DomainName = { id: Schema.String, name: Schema.String }
+const Domain = Entity.defineVariants('Domain', {
+  Available: { ...DomainName, price: Schema.Finite },
+  Unconfirmed: DomainName,
+})
+const Cheap = Query.from(Domain).pipe(
+  Query.where(Expr.is(Domain, 'Available', ({ price }) => Expr.lt(price, 20))),
+)
+const priceOf = (row: typeof Domain.variants.Type) =>
+  Domain.variants.match(row, { Available: ({ price }) => price, Unconfirmed: () => 0 })
+```
+
+`Expr.is` also takes a `one` relation to a variant Entity, reading the case
+of the row it reaches. `Entity.variantsOf(entity)` is the union, the cases and
+the codec from a stored row to its case, or none. Selections, Remote, forms
+and guards read the stored row for now.
+
 ## Gotchas
 
 - Relations are **not** in `entity.schema`. Do not put `author` in the Struct.
@@ -662,6 +689,10 @@ rows })`), unknown where it lacks one. No list orders by one. `Entity.sets`
 - A schema's label and help text are `Words.of(schema)` (`title`, `description`, each an
   `Option`). Never `Schema.resolveAnnotations(schema)?.title`: under Effect 4 a checked
   schema resolves to its last check's annotations, so a title given before a check is lost.
+- A variant Entity's case is read with `Domain.variants.match` or narrowed with
+  `Expr.is`, never inferred from which fields are null. A case field outside
+  `Expr.is`'s function is the stored column, null on other cases, so
+  `Expr.not(Expr.lt(Domain.fields.price, 20))` drops them.
 - An `Expr.input(...)` is a **placeholder**, not the value. A query body is
   built once, so `input.archived ? a : b` over one is always truthy and decides
   itself forever. Ask with a comparison over the placeholder, never a branch

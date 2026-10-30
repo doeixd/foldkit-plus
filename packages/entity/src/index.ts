@@ -23,6 +23,19 @@ import type { ExprContext, NowExpr, ViewerExpr, ViewerPathExpr } from './context
 import type { HeldRow, HeldRows } from './held.js'
 import { own, put } from './record.js'
 import { checkedSet, type EntitySet, type SetOn } from './sets.js'
+import { Expr, type NextExpr } from './expr.js'
+import {
+  declareVariants,
+  registerVariants,
+  storesNull,
+  variantsOf,
+  type AnyVariantUnion,
+  type CheckCases,
+  type EntityVariants,
+  type StoredFields,
+  type VariantCases,
+  type VariantUnion,
+} from './variants.js'
 
 export const EntityTypeId: unique symbol = Symbol.for('foldkit-entity/Entity')
 export type EntityTypeId = typeof EntityTypeId
@@ -221,6 +234,23 @@ export interface Entity<
 
 export type AnyEntity = Entity<string, any, any, any>
 
+/**
+ * An Entity whose rows are one of several shapes (`Entity.defineVariants`).
+ * `variants` is Effect's tagged union of them, read with its own `match`;
+ * `fields` and `schema` are the stored row, which every case shares.
+ */
+export interface VariantEntity<
+  Name extends string,
+  Fields extends Schema.Struct.Fields,
+  Relations extends RelationSpecs = {},
+  Derived extends DerivedSpecs = {},
+  Union extends AnyVariantUnion = AnyVariantUnion,
+> extends Entity<Name, Fields, Relations, Derived> {
+  readonly variants: Union
+}
+
+export type AnyVariantEntity = VariantEntity<string, any, any, any, any>
+
 /** The keys of an Entity's `one` relations. */
 type OneRelationKeys<E extends AnyEntity> = {
   [K in keyof E['relations'] & string]: E['relations'][K]['cardinality'] extends 'one' ? K : never
@@ -275,9 +305,11 @@ type PointsHere<E extends AnyEntity, New extends DerivedSpecs> = {
   : never
 
 type WithDerived<E, New extends DerivedSpecs> =
-  E extends Entity<infer Name, infer Fields, infer R, infer D>
-    ? Entity<Name, Fields, R, D & New>
-    : never
+  E extends VariantEntity<infer Name, infer Fields, infer R, infer D, infer U>
+    ? VariantEntity<Name, Fields, R, D & New, U>
+    : E extends Entity<infer Name, infer Fields, infer R, infer D>
+      ? Entity<Name, Fields, R, D & New>
+      : never
 
 export type Entities = Readonly<Record<string, AnyEntity>>
 export type RelationMap<Es extends Entities> = { readonly [K in keyof Es]?: RelationSpecs }
@@ -301,9 +333,11 @@ export type RelatedSpecs<Es extends Entities, Rs extends RelationMap<Es>, K exte
  * through type arguments, which TypeScript resolves only when asked.
  */
 export type Related<Es extends Entities, Rs extends RelationMap<Es>, K extends keyof Es> =
-  Es[K] extends Entity<infer Name, infer Fields, infer R, infer D>
-    ? Entity<Name, Fields, R & RelatedSpecs<Es, Rs, K>, D>
-    : never
+  Es[K] extends VariantEntity<infer Name, infer Fields, infer R, infer D, infer U>
+    ? VariantEntity<Name, Fields, R & RelatedSpecs<Es, Rs, K>, D, U>
+    : Es[K] extends Entity<infer Name, infer Fields, infer R, infer D>
+      ? Entity<Name, Fields, R & RelatedSpecs<Es, Rs, K>, D>
+      : never
 
 /** Marks a relation key that is already a member of its owner, or an owner that is not listed. */
 type CheckRelations<Es extends Entities, Rs> = {
@@ -732,6 +766,9 @@ const make = (parts: Parts): AnyEntity => {
     sets: { get: () => current().sets, enumerable: true },
     metadata: { value: parts.metadata, enumerable: true },
   })
+  Option.map(variantsOf(parts.identity), ({ union }) =>
+    Object.defineProperty(entity, 'variants', { value: union, enumerable: true }),
+  )
   partsOf.set(entity, parts)
   return Object.freeze(entity)
 }
@@ -813,6 +850,76 @@ export const Entity = {
       metadata: Metadata.empty,
     }) as Entity<Name, Fields>
   },
+
+  /**
+   * Declares an Entity whose rows are one of several shapes, each case's fields
+   * by its tag:
+   *
+   * ```ts
+   * const Domain = Entity.defineVariants('Domain', {
+   *   Available: { ...DomainName.fields, ...DomainQuote.fields },
+   *   Unconfirmed: DomainName.fields,
+   * })
+   * Domain.variants.match(row, { Available: ({ price }) => price, Unconfirmed: () => 0 })
+   * ```
+   *
+   * A row is `Domain.variants`, Effect's tagged union of the cases. The stored
+   * row is `fields` and `schema`: `_tag`, the fields every case has, and each
+   * other field nullable, null on a row of another case. Each case with fields
+   * of its own gets an invariant saying so (`variant_Available`), which a
+   * database binding writes as a CHECK. A key in several cases is one stored
+   * field, so it is declared with one schema, spread into each case. Refused
+   * here: fewer than two cases, a case declaring `_tag`, an optional key.
+   */
+  defineVariants: <const Name extends string, const Cases extends VariantCases>(
+    name: Name,
+    cases: Cases & CheckCases<Cases>,
+  ): VariantEntity<Name, StoredFields<Cases>, {}, {}, VariantUnion<Cases>> => {
+    const { fields, variants } = declareVariants(name, cases)
+    const declared = Entity.define(name, Schema.Struct(fields))
+    registerVariants(declared.identity, declared.schema, variants)
+    // Made again so the descriptor reads the variants just registered.
+    let entity = remake(declared, {})
+    const separate = Object.keys(fields).filter(
+      key => key !== '_tag' && variants.tags.some(tag => !Object.hasOwn(variants.cases[tag]!, key)),
+    )
+    for (const tag of variants.tags) {
+      const own = variants.cases[tag]!
+      const reads = separate.filter(key => !Object.hasOwn(own, key) || !storesNull(own[key]!))
+      if (reads.length === 0) continue
+      const held = reads.filter(key => Object.hasOwn(own, key))
+      const foreign = reads.filter(key => !Object.hasOwn(own, key))
+      entity = invariant<AnyEntity>(
+        `variant_${tag}`,
+        ({ after }) => {
+          const row = after as Readonly<Record<string, NextExpr<unknown>>>
+          const checks = [
+            ...held.map(key => Expr.isNotNull(row[key]!)),
+            ...foreign.map(key => Expr.isNull(row[key]!)),
+          ]
+          return Expr.or(
+            Expr.not(Expr.eq(row._tag!, tag)),
+            Expr.and(checks[0]!, ...checks.slice(1)),
+          )
+        },
+        {
+          message: `A ${name} that is ${tag} ${[
+            ...(held.length > 0 ? [`holds ${held.join(', ')}`] : []),
+            ...(foreign.length > 0 ? [`holds none of ${foreign.join(', ')}`] : []),
+          ].join(' and ')}`,
+          path: reads,
+        },
+      )(entity)
+    }
+    return entity as never
+  },
+
+  /**
+   * An Entity's variants as an interpreter reads them: the union, each case's
+   * fields, and the codec from a stored row to its case. None for an Entity of
+   * one shape.
+   */
+  variantsOf: (entity: AnyEntity): Option.Option<EntityVariants> => variantsOf(entity.identity),
 
   /**
    * Declares the relations between a set of Entities in one step, and returns
@@ -1425,6 +1532,14 @@ export * from './text.js'
 export * from './readFilter.js'
 export * from './words.js'
 export * from './shape.js'
+export type {
+  AnyVariantUnion,
+  CheckCases,
+  EntityVariants,
+  StoredFields,
+  VariantCases,
+  VariantUnion,
+} from './variants.js'
 // The reference semantics of the IR above. The conformance suite that proves
 // an interpreter agrees with it is `foldkit-entity/conformance`, kept out of
 // this entry because it is fixture data every form and admin screen would

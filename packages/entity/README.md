@@ -782,6 +782,73 @@ relation.
 Only the operations a real query in this repository needs exist. The set grows
 from queries, not from what a database could express.
 
+## Rows of several shapes: variants
+
+> Experimental (#357): the core. Selections, Remote, forms and guards read
+> the stored row for now.
+
+A domain search answers `Available`, with a price and a term, or
+`Unconfirmed`, with neither. `Entity.defineVariants` declares that as one
+Entity whose row is one of its cases, each case's fields by its tag, the shape
+`Schema.TaggedUnion` takes:
+
+```ts
+const DomainName = { id: Schema.String, name: Schema.String }
+const Domain = Entity.defineVariants('Domain', {
+  Available: { ...DomainName, price: Schema.Finite, years: Schema.Int },
+  Unconfirmed: DomainName,
+})
+
+// The row: Effect's tagged union of the cases, with its own `match`.
+const priceOf = (row: typeof Domain.variants.Type) =>
+  Domain.variants.match(row, { Available: ({ price }) => price, Unconfirmed: () => 0 })
+```
+
+One Entity has two views of one row:
+
+```text
+row          Domain.variants      { _tag: 'Available', id, name, price, years }
+                                | { _tag: 'Unconfirmed', id, name }
+stored row   Domain.fields        { _tag, id, name, price | null, years | null }
+```
+
+- **The stored row** is what `fields` and `schema` describe: `_tag`, every
+  field all cases have as declared, and every other field nullable, since a
+  row of another case holds null there (a field whose stored form holds null
+  already, `Schema.OptionFromNullOr`, stays as it is). It is what every
+  interpreter reads, so a table, a Remote read and a form work as they do for
+  any Entity.
+- **The row** is `Domain.variants`, branched on with its `match`, never by
+  reading which fields are null. `Entity.variantsOf(Domain)` holds the codec
+  between the two (`stored`): a stored row, encoded, decodes to its case, and
+  one holding another case's field is refused.
+- **Each case says what it holds.** A case with fields of its own gets an
+  invariant (`variant_Available`: an Available holds `price` and `years`;
+  `variant_Unconfirmed`: an Unconfirmed holds none of them), so `Entity.judge`
+  and a form refuse a row that mixes cases, and `foldkit-remote-drizzle`
+  writes each as a CHECK.
+
+A key in several cases is one stored field, so it is declared once and spread
+into each, as `DomainName` is. Refused where declared: fewer than two cases, a
+case declaring `_tag`, an optional key, and a key with two different schemas.
+
+`Expr.is` narrows a predicate to a case. Given a function, it hands it the
+case's fields typed as the case holds them, never null:
+
+```ts
+const CheapDomains = Query.from(Domain).pipe(
+  Query.where(Expr.is(Domain, 'Available', ({ price }) => Expr.lt(price, 20))),
+)
+```
+
+It is `_tag = 'Available'` and the predicate, so it is false, not unknown, on
+an Unconfirmed: `Expr.not` of it keeps every Unconfirmed, where
+`Expr.not(Expr.lt(Domain.fields.price, 20))` drops them, since their stored
+`price` is null. Given a `one` relation to a variant Entity, it reads the
+case of the row the relation reaches, each field as a path (`Expr.is(
+Cart.relations.domain, 'Available', …)`). Several cases at once are
+`Expr.in(Domain.fields._tag, ['Available', 'Unconfirmed'])`.
+
 ## Reading an operation's input
 
 > Experimental: the smallest mapping that several operation shapes and
@@ -1385,6 +1452,8 @@ server on different deploys see which side is behind.
 | Call | Meaning |
 | --- | --- |
 | `Entity.define(name, struct)` | A new Entity with a Field per property. |
+| `Entity.defineVariants(name, { Case: fields, … })` | Experimental. An Entity whose row is one of its cases: `variants` is their tagged union, `fields` the stored row (`_tag`, shared fields, the rest nullable), with an invariant per case. |
+| `Entity.variantsOf(entity)` | An Entity's variants for an interpreter (the union, each case's fields, the codec from a stored row to its case), or none. |
 | `Entity.relate(entities, { Owner: { key: Relation.one(Target) } })` | The entities with their relations declared; targets resolve to the returned entities. |
 | `Entity.select(entity, { key: true or Selection })` | A Selection: what was selected (`members`) and the `schema` of the result. |
 | `Entity.page(selection, { first, after } or { last, before })` | In a Selection, a `many` relation read as a page: `items`, `hasNext`, `hasPrevious`. |
@@ -1418,6 +1487,7 @@ server on different deploys see which side is behind.
 | `Expr.and(a, b, …)` / `Expr.or(a, b, …)` | Every operand holds / at least one does, as SQL's three-valued `and` and `or`. At least one operand; a nested one of the same kind is flattened in. |
 | `Expr.not(predicate)` | The predicate does not hold; an unknown stays unknown, so a null matches neither side. |
 | `Expr.lt` / `lte` / `gt` / `gte(left, right, { collation? })` | One value orders before or after the other. Numbers as numbers; text only under `binary` or `asciiFold` (the field's declared collation, or the one given), and only against a field. |
+| `Expr.is(entity or relation, tag, fields => predicate?)` | The row, or the row a `one` relation reaches, is of a case of a variant Entity, and holds what is asked of that case's fields, typed as the case holds them. False on another case. |
 | `Expr.path(relation, end)` | What the row a `one` relation points at holds: a field, a further path, or an exists; null where no row is reached. At most `maxPathLength` (4) relations. |
 | `Entity.sets({ member: Expr.viewer(E) or Expr.now }, { on })` | Pipe step: members whose value the write's context gives, on every insert (`'create'`) or every insert and update (`'write'`); no input sets them. A value may also be a path from the viewer (`Expr.path(Expr.viewer(E), end)`). `Write.contextValues(write, context, read)` is what they come to. |
 | `Expr.eq(Post.relations.author, …)` | A `one` relation as an operand: the id it points at, null for none. |
