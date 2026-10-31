@@ -324,29 +324,31 @@ export const computeRender = (
     }
   }
 
-  const button: ReadonlyArray<ChildAttribute> = childAttributes([
-    h.Id(`${id}-button`),
-    h.Type('button'),
-    h.AriaHasPopup('listbox'),
-    h.AriaExpanded(isVisible),
-    ...(isVisible ? [h.AriaControls(`${id}-items`)] : []),
-    ...resolveButtonLabel(),
-    ...(isButtonEffectivelyDisabled
-      ? [h.AriaDisabled(true), h.DataAttribute('disabled', '')]
-      : [
-          h.OnPointerDown(handleButtonPointerDown),
-          h.OnKeyDownPreventDefault(key => handleButtonKeyDown(readingKey(key, direction))),
-          h.OnKeyUpPreventDefault(handleSpaceKeyUp),
-          h.OnClick(handleButtonClick()),
-        ]),
-    ...(isVisible
-      ? [h.DataAttribute('open', ''), h.Style({ position: 'relative', zIndex: '1' })]
-      : []),
-    ...(isReadOnly ? [h.DataAttribute('readonly', '')] : []),
-    ...(isInvalid ? [h.DataAttribute('invalid', '')] : []),
-    ...(buttonClassName ? [h.Class(buttonClassName)] : []),
+  const button: ReadonlyArray<ChildAttribute> = [
+    ...childAttributes([
+      h.Id(`${id}-button`),
+      h.Type('button'),
+      h.AriaHasPopup('listbox'),
+      h.AriaExpanded(isVisible),
+      ...(isVisible ? [h.AriaControls(`${id}-items`)] : []),
+      ...resolveButtonLabel(),
+      ...(isButtonEffectivelyDisabled
+        ? [h.AriaDisabled(true), h.DataAttribute('disabled', '')]
+        : [
+            h.OnPointerDown(handleButtonPointerDown),
+            h.OnKeyDownPreventDefault(key => handleButtonKeyDown(readingKey(key, direction))),
+            h.OnKeyUpPreventDefault(handleSpaceKeyUp),
+            h.OnClick(handleButtonClick()),
+          ]),
+      ...(isVisible
+        ? [h.DataAttribute('open', ''), h.Style({ position: 'relative', zIndex: '1' })]
+        : []),
+      ...(isReadOnly ? [h.DataAttribute('readonly', '')] : []),
+      ...(isInvalid ? [h.DataAttribute('invalid', '')] : []),
+      ...(buttonClassName ? [h.Class(buttonClassName)] : []),
+    ]),
     ...buttonAttributes,
-  ])
+  ]
 
   const maybeActiveDescendant = Option.match(maybeActiveItemIndex, {
     onNone: () => [],
@@ -374,16 +376,18 @@ export const computeRender = (
         ]),
   ]
 
-  const wrapper: ReadonlyArray<ChildAttribute> = childAttributes([
-    // So the CSS reads the direction the keys do.
-    ...(direction === undefined ? [] : [h.Dir(direction)]),
-    ...(className ? [h.Class(className)] : []),
+  const wrapper: ReadonlyArray<ChildAttribute> = [
+    ...childAttributes([
+      // So the CSS reads the direction the keys do.
+      ...(direction === undefined ? [] : [h.Dir(direction)]),
+      ...(className ? [h.Class(className)] : []),
+      ...(isVisible ? [h.DataAttribute('open', '')] : []),
+      ...(isDisabled ? [h.DataAttribute('disabled', '')] : []),
+      ...(isReadOnly ? [h.DataAttribute('readonly', '')] : []),
+      ...(isInvalid ? [h.DataAttribute('invalid', '')] : []),
+    ]),
     ...attributes,
-    ...(isVisible ? [h.DataAttribute('open', '')] : []),
-    ...(isDisabled ? [h.DataAttribute('disabled', '')] : []),
-    ...(isReadOnly ? [h.DataAttribute('readonly', '')] : []),
-    ...(isInvalid ? [h.DataAttribute('invalid', '')] : []),
-  ])
+  ]
 
   if (!isVisible) {
     return {
@@ -402,45 +406,49 @@ export const computeRender = (
 
   const backdrop = {
     key: `${id}-backdrop`,
-    attributes: childAttributes([
-      h.OnMount(UpstreamListbox.PortalListboxBackdrop()),
-      ...(isLeaving ? [] : [h.OnClick(Message.Closed())]),
-      ...(backdropClassName ? [h.Class(backdropClassName)] : []),
+    attributes: [
+      ...childAttributes([
+        h.OnMount(UpstreamListbox.PortalListboxBackdrop()),
+        ...(isLeaving ? [] : [h.OnClick(Message.Closed())]),
+        ...(backdropClassName ? [h.Class(backdropClassName)] : []),
+      ]),
       ...backdropAttributes,
-    ]),
+    ],
   }
 
   const itemsContainer = {
     key: `${id}-items-container`,
-    attributes: childAttributes([
-      h.Id(`${id}-items`),
-      h.Role('listbox'),
-      h.AriaOrientation(String.toLowerCase(orientation)),
-      ...(behavior.ariaMultiSelectable ? [h.AriaMultiSelectable(true)] : []),
-      ...(isReadOnly ? [h.AriaReadonly(true), h.DataAttribute('readonly', '')] : []),
-      h.AriaLabelledBy(`${id}-button`),
-      ...maybeActiveDescendant,
-      h.Tabindex(-1),
-      ...anchorAttributes,
-      ...animationAttributes,
-      ...(isLeaving
-        ? []
-        : [
-            h.OnKeyDownPreventDefault(key => handleItemsKeyDown(readingKey(key, direction))),
-            h.OnKeyUpPreventDefault(handleSpaceKeyUp),
-            h.OnBlur(Message.BlurredItems()),
-          ]),
-      ...(itemsClassName ? [h.Class(itemsClassName)] : []),
+    attributes: [
+      ...childAttributes([
+        h.Id(`${id}-items`),
+        h.Role('listbox'),
+        h.AriaOrientation(String.toLowerCase(orientation)),
+        ...(behavior.ariaMultiSelectable ? [h.AriaMultiSelectable(true)] : []),
+        ...(isReadOnly ? [h.AriaReadonly(true), h.DataAttribute('readonly', '')] : []),
+        h.AriaLabelledBy(`${id}-button`),
+        ...maybeActiveDescendant,
+        h.Tabindex(-1),
+        ...anchorAttributes,
+        ...animationAttributes,
+        ...(isLeaving
+          ? []
+          : [
+              h.OnKeyDownPreventDefault(key => handleItemsKeyDown(readingKey(key, direction))),
+              h.OnKeyUpPreventDefault(handleSpaceKeyUp),
+              h.OnBlur(Message.BlurredItems()),
+            ]),
+        ...(itemsClassName ? [h.Class(itemsClassName)] : []),
+      ]),
       ...itemsAttributes,
-    ]),
+    ],
   }
 
   const scroll =
     itemsScrollClassName || Array.isReadonlyArrayNonEmpty(itemsScrollAttributes)
-      ? childAttributes([
-          ...(itemsScrollClassName ? [h.Class(itemsScrollClassName)] : []),
+      ? [
+          ...childAttributes(itemsScrollClassName ? [h.Class(itemsScrollClassName)] : []),
           ...itemsScrollAttributes,
-        ])
+        ]
       : undefined
 
   const itemRenders: ReadonlyArray<ListboxItemRender> = Array.map(items, (item, index) => {
@@ -525,23 +533,27 @@ export const computeRender = (
               heading,
               group: {
                 key: `${id}-group-${segment.key}`,
-                attributes: childAttributes([
-                  h.Role('group'),
-                  ...(heading ? [h.AriaLabelledBy(headingId)] : []),
-                  ...(groupClassName ? [h.Class(groupClassName)] : []),
+                attributes: [
+                  ...childAttributes([
+                    h.Role('group'),
+                    ...(heading ? [h.AriaLabelledBy(headingId)] : []),
+                    ...(groupClassName ? [h.Class(groupClassName)] : []),
+                  ]),
                   ...groupAttributes,
-                ]),
+                ],
               },
               separator:
                 segmentIndex > 0 &&
                 (separatorClassName || Array.isReadonlyArrayNonEmpty(separatorAttributes))
                   ? {
                       key: `${id}-separator-${segmentIndex}`,
-                      attributes: childAttributes([
-                        h.Role('separator'),
-                        ...(separatorClassName ? [h.Class(separatorClassName)] : []),
+                      attributes: [
+                        ...childAttributes([
+                          h.Role('separator'),
+                          ...(separatorClassName ? [h.Class(separatorClassName)] : []),
+                        ]),
                         ...separatorAttributes,
-                      ]),
+                      ],
                     }
                   : undefined,
               items: segment.items,

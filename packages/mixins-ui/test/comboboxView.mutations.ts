@@ -13,8 +13,8 @@ export default [
     edits: [
       {
         file: '../src/comboboxShared.ts',
-        find: "h.Role('combobox'),\n    h.AriaExpanded(isItemsPanelVisible),",
-        replace: "h.Role('combobox'),\n    h.AriaExpanded(!isItemsPanelVisible),",
+        find: "h.Role('combobox'),\n      h.AriaExpanded(isItemsPanelVisible),",
+        replace: "h.Role('combobox'),\n      h.AriaExpanded(!isItemsPanelVisible),",
       },
     ],
     tests,

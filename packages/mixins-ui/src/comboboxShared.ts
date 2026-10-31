@@ -331,50 +331,52 @@ export const computeRender = (
     ? []
     : [h.OnInput(value => Message.UpdatedInputValue({ value }))]
 
-  const input: ReadonlyArray<ChildAttribute> = childAttributes([
-    h.Id(`${id}-input`),
-    h.Role('combobox'),
-    h.AriaExpanded(isItemsPanelVisible),
-    ...(isItemsPanelVisible ? [h.AriaControls(`${id}-items`)] : []),
-    h.Attribute('aria-autocomplete', 'list'),
-    h.Attribute('aria-haspopup', 'listbox'),
-    ...inputLabelAttributes,
-    h.Autocomplete('off'),
-    // What is typed filters: a phone's keyboard capitalizing and correcting it filters
-    // on a word nobody typed, and its Enter key says it searches.
-    h.Attribute('autocapitalize', 'none'),
-    h.Attribute('autocorrect', 'off'),
-    h.Attribute('spellcheck', 'false'),
-    h.Attribute('enterkeyhint', 'search'),
-    h.Value(model.inputValue),
-    ...(isItemsPanelVisible ? maybeActiveDescendant : []),
-    ...(inputPlaceholder ? [h.Placeholder(inputPlaceholder)] : []),
-    ...(isDisabled
-      ? [h.AriaDisabled(true), h.DataAttribute('disabled', '')]
-      : [
-          ...onInputAttributes,
-          h.OnKeyDownPreventDefault(handleInputKeyDown),
-          h.OnBlur(
-            Message.BlurredInput({
-              restingInputValue,
-              isClearable: !isReadOnly,
-            }),
-          ),
-          ...(openOnFocus
-            ? [h.OnFocus(Message.Opened({ maybeActiveItemIndex: Option.none() }))]
-            : []),
-        ]),
-    ...(isReadOnly
-      ? [h.Readonly(true), h.AriaReadonly(true), h.DataAttribute('readonly', '')]
-      : []),
-    ...(isInvalid ? [h.AriaInvalid(true), h.DataAttribute('invalid', '')] : []),
-    ...(isVisible ? [h.DataAttribute('open', '')] : []),
-    ...(model.selectInputOnFocus
-      ? [h.OnMount(UpstreamCombobox.AttachComboboxSelectOnFocus())]
-      : []),
-    ...(inputClassName ? [h.Class(inputClassName)] : []),
+  const input: ReadonlyArray<ChildAttribute> = [
+    ...childAttributes([
+      h.Id(`${id}-input`),
+      h.Role('combobox'),
+      h.AriaExpanded(isItemsPanelVisible),
+      ...(isItemsPanelVisible ? [h.AriaControls(`${id}-items`)] : []),
+      h.Attribute('aria-autocomplete', 'list'),
+      h.Attribute('aria-haspopup', 'listbox'),
+      ...inputLabelAttributes,
+      h.Autocomplete('off'),
+      // What is typed filters: a phone's keyboard capitalizing and correcting it filters
+      // on a word nobody typed, and its Enter key says it searches.
+      h.Attribute('autocapitalize', 'none'),
+      h.Attribute('autocorrect', 'off'),
+      h.Attribute('spellcheck', 'false'),
+      h.Attribute('enterkeyhint', 'search'),
+      h.Value(model.inputValue),
+      ...(isItemsPanelVisible ? maybeActiveDescendant : []),
+      ...(inputPlaceholder ? [h.Placeholder(inputPlaceholder)] : []),
+      ...(isDisabled
+        ? [h.AriaDisabled(true), h.DataAttribute('disabled', '')]
+        : [
+            ...onInputAttributes,
+            h.OnKeyDownPreventDefault(handleInputKeyDown),
+            h.OnBlur(
+              Message.BlurredInput({
+                restingInputValue,
+                isClearable: !isReadOnly,
+              }),
+            ),
+            ...(openOnFocus
+              ? [h.OnFocus(Message.Opened({ maybeActiveItemIndex: Option.none() }))]
+              : []),
+          ]),
+      ...(isReadOnly
+        ? [h.Readonly(true), h.AriaReadonly(true), h.DataAttribute('readonly', '')]
+        : []),
+      ...(isInvalid ? [h.AriaInvalid(true), h.DataAttribute('invalid', '')] : []),
+      ...(isVisible ? [h.DataAttribute('open', '')] : []),
+      ...(model.selectInputOnFocus
+        ? [h.OnMount(UpstreamCombobox.AttachComboboxSelectOnFocus())]
+        : []),
+      ...(inputClassName ? [h.Class(inputClassName)] : []),
+    ]),
     ...inputAttributes,
-  ])
+  ]
 
   const placed = { position: 'absolute', margin: '0', visibility: 'hidden' }
   const anchorAttributes = [
@@ -409,48 +411,54 @@ export const computeRender = (
         ]),
   ]
 
-  const inputWrapper: ReadonlyArray<ChildAttribute> = childAttributes([
-    h.Id(`${id}-input-wrapper`),
-    ...(inputWrapperClassName ? [h.Class(inputWrapperClassName)] : []),
+  const inputWrapper: ReadonlyArray<ChildAttribute> = [
+    ...childAttributes([
+      h.Id(`${id}-input-wrapper`),
+      ...(inputWrapperClassName ? [h.Class(inputWrapperClassName)] : []),
+    ]),
     ...inputWrapperAttributes,
-  ])
+  ]
 
-  const wrapper: ReadonlyArray<ChildAttribute> = childAttributes([
-    ...(className ? [h.Class(className)] : []),
+  const wrapper: ReadonlyArray<ChildAttribute> = [
+    ...childAttributes([
+      ...(className ? [h.Class(className)] : []),
+      ...(isVisible ? [h.DataAttribute('open', '')] : []),
+      ...(isDisabled ? [h.DataAttribute('disabled', '')] : []),
+      ...(isReadOnly ? [h.DataAttribute('readonly', '')] : []),
+      ...(isInvalid ? [h.DataAttribute('invalid', '')] : []),
+    ]),
     ...attributes,
-    ...(isVisible ? [h.DataAttribute('open', '')] : []),
-    ...(isDisabled ? [h.DataAttribute('disabled', '')] : []),
-    ...(isReadOnly ? [h.DataAttribute('readonly', '')] : []),
-    ...(isInvalid ? [h.DataAttribute('invalid', '')] : []),
-  ])
+  ]
 
   const toggleButton =
     buttonContent === undefined
       ? undefined
       : {
           key: `${id}-button`,
-          attributes: childAttributes([
-            h.Id(`${id}-button`),
-            h.Type('button'),
-            h.Tabindex(-1),
-            ...(isItemsPanelVisible ? [h.AriaControls(`${id}-items`)] : []),
-            h.AriaExpanded(isItemsPanelVisible),
-            h.Attribute('aria-haspopup', 'listbox'),
-            ...(isDisabled
-              ? [h.AriaDisabled(true), h.DataAttribute('disabled', '')]
-              : [
-                  h.OnClick(
-                    Message.PressedToggleButton({
-                      restingInputValue,
-                      isClearable: !isReadOnly,
-                    }),
-                  ),
-                ]),
-            ...(isReadOnly ? [h.DataAttribute('readonly', '')] : []),
-            h.OnMount(UpstreamCombobox.AttachComboboxPreventBlur()),
-            ...(buttonClassName ? [h.Class(buttonClassName)] : []),
+          attributes: [
+            ...childAttributes([
+              h.Id(`${id}-button`),
+              h.Type('button'),
+              h.Tabindex(-1),
+              ...(isItemsPanelVisible ? [h.AriaControls(`${id}-items`)] : []),
+              h.AriaExpanded(isItemsPanelVisible),
+              h.Attribute('aria-haspopup', 'listbox'),
+              ...(isDisabled
+                ? [h.AriaDisabled(true), h.DataAttribute('disabled', '')]
+                : [
+                    h.OnClick(
+                      Message.PressedToggleButton({
+                        restingInputValue,
+                        isClearable: !isReadOnly,
+                      }),
+                    ),
+                  ]),
+              ...(isReadOnly ? [h.DataAttribute('readonly', '')] : []),
+              h.OnMount(UpstreamCombobox.AttachComboboxPreventBlur()),
+              ...(buttonClassName ? [h.Class(buttonClassName)] : []),
+            ]),
             ...buttonAttributes,
-          ]),
+          ],
           content: buttonContent,
         }
 
@@ -514,42 +522,46 @@ export const computeRender = (
   const backdrop = isBackdropVisible
     ? {
         key: `${id}-backdrop`,
-        attributes: childAttributes([
-          h.Id(`${id}-backdrop`),
-          h.OnMount(UpstreamCombobox.PortalComboboxBackdrop()),
-          ...(isLeaving
-            ? []
-            : [h.OnClick(Message.Closed({ restingInputValue, isClearable: !isReadOnly }))]),
-          ...(backdropClassName ? [h.Class(backdropClassName)] : []),
+        attributes: [
+          ...childAttributes([
+            h.Id(`${id}-backdrop`),
+            h.OnMount(UpstreamCombobox.PortalComboboxBackdrop()),
+            ...(isLeaving
+              ? []
+              : [h.OnClick(Message.Closed({ restingInputValue, isClearable: !isReadOnly }))]),
+            ...(backdropClassName ? [h.Class(backdropClassName)] : []),
+          ]),
           ...backdropAttributes,
-        ]),
+        ],
       }
     : undefined
 
   const itemsContainer = isItemsPanelVisible
     ? {
         key: `${id}-items-container`,
-        attributes: childAttributes([
-          h.Id(`${id}-items`),
-          h.Role('listbox'),
-          ...(behavior.ariaMultiSelectable ? [h.AriaMultiSelectable(true)] : []),
-          h.AriaLabelledBy(`${id}-input`),
-          h.Tabindex(-1),
-          ...(isReadOnly ? [h.AriaReadonly(true), h.DataAttribute('readonly', '')] : []),
-          ...anchorAttributes,
-          ...animationAttributes,
-          ...(itemsClassName ? [h.Class(itemsClassName)] : []),
+        attributes: [
+          ...childAttributes([
+            h.Id(`${id}-items`),
+            h.Role('listbox'),
+            ...(behavior.ariaMultiSelectable ? [h.AriaMultiSelectable(true)] : []),
+            h.AriaLabelledBy(`${id}-input`),
+            h.Tabindex(-1),
+            ...(isReadOnly ? [h.AriaReadonly(true), h.DataAttribute('readonly', '')] : []),
+            ...anchorAttributes,
+            ...animationAttributes,
+            ...(itemsClassName ? [h.Class(itemsClassName)] : []),
+          ]),
           ...itemsAttributes,
-        ]),
+        ],
       }
     : undefined
 
   const scroll =
     itemsScrollClassName || Array.isReadonlyArrayNonEmpty(itemsScrollAttributes)
-      ? childAttributes([
-          ...(itemsScrollClassName ? [h.Class(itemsScrollClassName)] : []),
+      ? [
+          ...childAttributes(itemsScrollClassName ? [h.Class(itemsScrollClassName)] : []),
           ...itemsScrollAttributes,
-        ])
+        ]
       : undefined
 
   const itemRenders: ReadonlyArray<ComboboxItemRender> = Array.map(items, (item, index) => {
@@ -644,23 +656,27 @@ export const computeRender = (
               heading,
               group: {
                 key: `${id}-group-${segment.key}`,
-                attributes: childAttributes([
-                  h.Role('group'),
-                  ...(heading ? [h.AriaLabelledBy(headingId)] : []),
-                  ...(groupClassName ? [h.Class(groupClassName)] : []),
+                attributes: [
+                  ...childAttributes([
+                    h.Role('group'),
+                    ...(heading ? [h.AriaLabelledBy(headingId)] : []),
+                    ...(groupClassName ? [h.Class(groupClassName)] : []),
+                  ]),
                   ...groupAttributes,
-                ]),
+                ],
               },
               separator:
                 segmentIndex > 0 &&
                 (separatorClassName || Array.isReadonlyArrayNonEmpty(separatorAttributes))
                   ? {
                       key: `${id}-separator-${segmentIndex}`,
-                      attributes: childAttributes([
-                        h.Role('separator'),
-                        ...(separatorClassName ? [h.Class(separatorClassName)] : []),
+                      attributes: [
+                        ...childAttributes([
+                          h.Role('separator'),
+                          ...(separatorClassName ? [h.Class(separatorClassName)] : []),
+                        ]),
                         ...separatorAttributes,
-                      ]),
+                      ],
                     }
                   : undefined,
               items: segment.items,

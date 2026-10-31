@@ -10,7 +10,7 @@ import { Array, Option, String, pipe } from 'effect'
 import { type Html, type HtmlBuilder, childAttributes } from 'foldkit/html'
 import { Icon } from 'foldkit-media'
 import type { SlotAttributes, SlotBuilders } from 'foldkit-mixins'
-import { Listbox, type ListboxRenderInfo, Sheet } from 'foldkit-mixins-ui'
+import { Listbox, Sheet } from 'foldkit-mixins-ui'
 import { Dropdown, type Model } from './app.js'
 import { FILTERS_BUTTON_ID, TLD_FILTER_BUTTON_ID } from './command.js'
 import { AvailabilityFilter, SortOrder, TldFilter } from './domain'
@@ -66,28 +66,6 @@ const visibleTlds = (query: string): ReadonlyArray<TldFilter> => {
   )
 }
 
-/**
- * The TLD panel's 557 rows scroll inside it, so it is a tab stop of its own
- * (axe's scrollable-region-focusable), as upstream's. The Listbox's
- * `itemsAttributes` crash the page once drawn (#374), and a Behavior may not
- * own the Tabindex the Listbox sets, so the panel's own attributes take it
- * before its Slot resolves them; the later Tabindex wins.
- */
-const withTabStop =
-  (h: H, draw: (render: ListboxRenderInfo) => Html) =>
-  (render: ListboxRenderInfo): Html =>
-    draw(
-      render.items === undefined
-        ? render
-        : {
-            ...render,
-            items: {
-              ...render.items,
-              attributes: [...render.items.attributes, ...childAttributes([h.Tabindex(0)])],
-            },
-          },
-    )
-
 /** A desktop dropdown over `values`, its trigger naming `label` and the value chosen. */
 const dropdown = <Value extends string>(
   config: {
@@ -125,10 +103,10 @@ const dropdown = <Value extends string>(
       ariaLabel: `${config.label}: ${chosen}`,
       itemToConfig: option => ({ content: parts.option({ label: option.label }) }),
       buttonContent: parts.trigger(Option.some({ label: chosen }), chosen),
-      toView:
-        config.tabStop === true
-          ? withTabStop(h, Listbox.toView(mixins, { h }))
-          : Listbox.toView(mixins, { h }),
+      // The TLD panel's 557 rows scroll inside it, so it is a tab stop of its
+      // own (axe's scrollable-region-focusable), as upstream's.
+      ...(config.tabStop === true ? { itemsAttributes: childAttributes([h.Tabindex(0)]) } : {}),
+      toView: Listbox.toView(mixins, { h }),
     },
     toParentMessage: config.onMessage,
   })

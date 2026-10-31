@@ -241,6 +241,14 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A popup's given attributes reach its parts once** (`foldkit-mixins-ui`,
+  #374). The Listbox, Combobox and Menu wrapped the attributes an
+  application gives their parts (`itemsAttributes`, `buttonAttributes`,
+  `inputAttributes`, `attributes`, `backdropAttributes`, …), already bound
+  with `childAttributes` as their type asks, a second time, and the page
+  crashed with "handler is not a function" when the part was drawn. They
+  are now drawn after the part's own attributes as given.
+
 - **A write's answer carries what its row foresees** (`foldkit-remote`,
   #370). `Data.mutate` of a declared create or edit asks, in `shown`, for
   every supplied member its Entity foresees (`Derived.make`'s `predict`,

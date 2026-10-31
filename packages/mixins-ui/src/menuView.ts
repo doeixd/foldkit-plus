@@ -268,29 +268,31 @@ const computeRender = <Item extends string>(
     }
   }
 
-  const button = childAttributes([
-    h.Id(`${id}-button`),
-    h.Type('button'),
-    h.AriaHasPopup('menu'),
-    h.AriaExpanded(isVisible),
-    ...(isVisible ? [h.AriaControls(`${id}-items`)] : []),
-    ...resolveButtonLabel(),
-    ...(isButtonDisabled
-      ? [h.AriaDisabled(true), h.DataAttribute('disabled', '')]
-      : [
-          h.OnPointerDown(handleButtonPointerDown),
-          h.OnKeyDownPreventDefault(handleButtonKeyDown),
-          h.OnKeyUpPreventDefault(handleSpaceKeyUp),
-          // Upstream's `update` decides, from the Model: this drawing may be a
-          // frame behind the press that opened the menu.
-          h.OnClick(Message.ClickedButton()),
-        ]),
-    ...(isVisible
-      ? [h.DataAttribute('open', ''), h.Style({ position: 'relative', zIndex: '1' })]
-      : []),
-    ...(buttonClassName ? [h.Class(buttonClassName)] : []),
+  const button = [
+    ...childAttributes([
+      h.Id(`${id}-button`),
+      h.Type('button'),
+      h.AriaHasPopup('menu'),
+      h.AriaExpanded(isVisible),
+      ...(isVisible ? [h.AriaControls(`${id}-items`)] : []),
+      ...resolveButtonLabel(),
+      ...(isButtonDisabled
+        ? [h.AriaDisabled(true), h.DataAttribute('disabled', '')]
+        : [
+            h.OnPointerDown(handleButtonPointerDown),
+            h.OnKeyDownPreventDefault(handleButtonKeyDown),
+            h.OnKeyUpPreventDefault(handleSpaceKeyUp),
+            // Upstream's `update` decides, from the Model: this drawing may be a
+            // frame behind the press that opened the menu.
+            h.OnClick(Message.ClickedButton()),
+          ]),
+      ...(isVisible
+        ? [h.DataAttribute('open', ''), h.Style({ position: 'relative', zIndex: '1' })]
+        : []),
+      ...(buttonClassName ? [h.Class(buttonClassName)] : []),
+    ]),
     ...buttonAttributes,
-  ])
+  ]
 
   const maybeActiveDescendant = Option.match(maybeActiveItemIndex, {
     onNone: () => [],
@@ -315,11 +317,13 @@ const computeRender = <Item extends string>(
       : [h.Style(placed), h.OnMount(Menu.AnchorMenu({ buttonId: `${id}-button`, anchor }))]),
   ]
 
-  const wrapper = childAttributes([
-    ...(className ? [h.Class(className)] : []),
+  const wrapper = [
+    ...childAttributes([
+      ...(className ? [h.Class(className)] : []),
+      ...(isVisible ? [h.DataAttribute('open', '')] : []),
+    ]),
     ...attributes,
-    ...(isVisible ? [h.DataAttribute('open', '')] : []),
-  ])
+  ]
 
   if (!isVisible) {
     return {
@@ -337,43 +341,47 @@ const computeRender = <Item extends string>(
 
   const backdrop = {
     key: `${id}-backdrop`,
-    attributes: childAttributes([
-      h.OnMount(Menu.PortalMenuBackdrop()),
-      ...(isLeaving ? [] : [h.OnClick(Message.Closed())]),
-      ...(backdropClassName ? [h.Class(backdropClassName)] : []),
+    attributes: [
+      ...childAttributes([
+        h.OnMount(Menu.PortalMenuBackdrop()),
+        ...(isLeaving ? [] : [h.OnClick(Message.Closed())]),
+        ...(backdropClassName ? [h.Class(backdropClassName)] : []),
+      ]),
       ...backdropAttributes,
-    ]),
+    ],
   }
 
   const itemsContainer = {
     key: `${id}-items-container`,
-    attributes: childAttributes([
-      h.Id(`${id}-items`),
-      h.Role('menu'),
-      h.AriaLabelledBy(`${id}-button`),
-      ...maybeActiveDescendant,
-      h.Tabindex(-1),
-      ...anchorAttributes,
-      ...animationAttributes,
-      ...(isLeaving
-        ? []
-        : [
-            h.OnKeyDownPreventDefault(handleItemsKeyDown),
-            h.OnKeyUpPreventDefault(handleSpaceKeyUp),
-            h.OnPointerUp(handleItemsPointerUp),
-            h.OnBlur(Message.BlurredItems()),
-          ]),
-      ...(itemsClassName ? [h.Class(itemsClassName)] : []),
+    attributes: [
+      ...childAttributes([
+        h.Id(`${id}-items`),
+        h.Role('menu'),
+        h.AriaLabelledBy(`${id}-button`),
+        ...maybeActiveDescendant,
+        h.Tabindex(-1),
+        ...anchorAttributes,
+        ...animationAttributes,
+        ...(isLeaving
+          ? []
+          : [
+              h.OnKeyDownPreventDefault(handleItemsKeyDown),
+              h.OnKeyUpPreventDefault(handleSpaceKeyUp),
+              h.OnPointerUp(handleItemsPointerUp),
+              h.OnBlur(Message.BlurredItems()),
+            ]),
+        ...(itemsClassName ? [h.Class(itemsClassName)] : []),
+      ]),
       ...itemsAttributes,
-    ]),
+    ],
   }
 
   const scroll =
     itemsScrollClassName || Array.isReadonlyArrayNonEmpty(itemsScrollAttributes)
-      ? childAttributes([
-          ...(itemsScrollClassName ? [h.Class(itemsScrollClassName)] : []),
+      ? [
+          ...childAttributes(itemsScrollClassName ? [h.Class(itemsScrollClassName)] : []),
           ...itemsScrollAttributes,
-        ])
+        ]
       : undefined
 
   const itemRenders: ReadonlyArray<MenuItemRender> = Array.map(items, (item, index) => {
@@ -455,23 +463,27 @@ const computeRender = <Item extends string>(
               heading,
               group: {
                 key: `${id}-group-${segment.key}`,
-                attributes: childAttributes([
-                  h.Role('group'),
-                  ...(heading ? [h.AriaLabelledBy(headingId)] : []),
-                  ...(groupClassName ? [h.Class(groupClassName)] : []),
+                attributes: [
+                  ...childAttributes([
+                    h.Role('group'),
+                    ...(heading ? [h.AriaLabelledBy(headingId)] : []),
+                    ...(groupClassName ? [h.Class(groupClassName)] : []),
+                  ]),
                   ...groupAttributes,
-                ]),
+                ],
               },
               separator:
                 segmentIndex > 0 &&
                 (separatorClassName || Array.isReadonlyArrayNonEmpty(separatorAttributes))
                   ? {
                       key: `${id}-separator-${segmentIndex}`,
-                      attributes: childAttributes([
-                        h.Role('separator'),
-                        ...(separatorClassName ? [h.Class(separatorClassName)] : []),
+                      attributes: [
+                        ...childAttributes([
+                          h.Role('separator'),
+                          ...(separatorClassName ? [h.Class(separatorClassName)] : []),
+                        ]),
                         ...separatorAttributes,
-                      ]),
+                      ],
                     }
                   : undefined,
               items: segment.items,
