@@ -191,6 +191,17 @@ version changed; `pnpm` skips versions already in the registry.
   gzipped).
 
 
+- **Breaking: `overlay`, `lift`, `overlays` and `filtered` are functions of
+  entries of their own, not domain methods** (`foldkit-remote`, #378).
+  `Data.overlay(model, id, operations)` is `overlay(Data, model, id,
+  operations)`, and `lift` and `overlays` follow, from
+  `foldkit-remote/overlay`; `Data.filtered(model, list, Query, input)` is
+  `filtered(Data, model, list, Query, input)` from `foldkit-remote/filter`. A
+  page that never previews or filters loads none of their code. The overlay
+  functions take any `OverlaidDomain` (a domain's slot, store and `reduce`):
+  `foldkit-sync/remote`'s `RemoteOverlays` is that type, and
+  `foldkit-cms`'s `EditorDomain` extends it.
+
 - **Breaking: a domain loads the code that shows pending layers only through
   what makes one** (`foldkit-remote`, #378). Showing pending writes, overlays
   and live inserts over the store is a capability a domain installs from what

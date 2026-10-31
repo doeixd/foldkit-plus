@@ -443,6 +443,16 @@
       "types": "./dist/remote.d.mts",
       "import": "./dist/remote.mjs"
     },
+    "./remote/filter": {
+      "foldkit-plus:source": "./src/remote/filter.ts",
+      "types": "./dist/remote/filter.d.mts",
+      "import": "./dist/remote/filter.mjs"
+    },
+    "./remote/overlay": {
+      "foldkit-plus:source": "./src/remote/overlay.ts",
+      "types": "./dist/remote/overlay.d.mts",
+      "import": "./dist/remote/overlay.mjs"
+    },
     "./remote/port": {
       "foldkit-plus:source": "./src/remote/port.ts",
       "types": "./dist/remote/port.d.mts",

@@ -265,7 +265,7 @@ matching(store, Query, input, { operators }) ──▶ { matched, skipped }
 `skipped` is what it could not judge: a row
 missing a field the body reads, or holding text no interpreter answers for (a
 NUL). Each row is judged alone, so one such row never blanks the rest.
-`Data.filtered(model, list, Query, input)` filters a loaded list with it and
+`filtered(Data, model, list, Query, input)` (`foldkit-remote/filter`) filters a loaded list with it and
 says whether the answer is `complete`. An operator the client's table lacks
 cannot be judged there: a filter answers nothing and says it is incomplete, and
 a live row it cannot judge is the server's to place.

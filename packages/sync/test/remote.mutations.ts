@@ -12,8 +12,8 @@ export default [
     edits: [
       {
         file,
-        find: 'if (!reached(remote, edit)) next = data.overlay(next, `${SHOWN}${key}`, [patchOf(edit)])',
-        replace: 'next = data.overlay(next, `${SHOWN}${key}`, [patchOf(edit)])',
+        find: 'if (!reached(remote, edit)) next = overlay(data, next, `${SHOWN}${key}`, [patchOf(edit)])',
+        replace: 'next = overlay(data, next, `${SHOWN}${key}`, [patchOf(edit)])',
       },
     ],
     tests,
@@ -131,7 +131,7 @@ export default [
     edits: [
       {
         file,
-        find: 'shownIn(model).reduce((next, shown) => data.lift(next, shown.id), model)',
+        find: 'shownIn(model).reduce((next, shown) => lift(data, next, shown.id), model)',
         replace: 'model',
       },
     ],

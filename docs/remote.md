@@ -93,7 +93,7 @@ ProjectsByOwner(u7)   Project:p9  Project:p7  Project:p4  [gap]  Project:p1
   `Data.forget`, called from `update` on a login, a logout or a switch of
   organization, drops all of it and restarts every active read and stream.
 - **Local execution is not a second authority.** `matching` and
-  `Data.filtered` derive conclusions from the facts held (`p1` matches this
+  `filtered` derive conclusions from the facts held (`p1` matches this
   query) and never promote them into knowledge of the whole dataset (this
   query is `[p1]`) unless a connection's terminal boundaries prove it. A new
   list is a server query.

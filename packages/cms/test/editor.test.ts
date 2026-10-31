@@ -9,7 +9,7 @@ import { Entity } from 'foldkit-entity'
 import { Form, Input } from 'foldkit-form'
 import { defineMessageUnion } from 'foldkit/message'
 import * as Subscription from 'foldkit/subscription'
-import { Mutation, type MutationStatus } from 'foldkit-remote'
+import { Capability, Mutation, Remote, type MutationStatus } from 'foldkit-remote'
 import { ModelRef } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { FieldRecipes } from 'foldkit-form-recipes'
@@ -85,8 +85,10 @@ const world = (refused: Option.Option<unknown>, { stateLoading = false } = {}) =
       throw new Error('nothing here starts a mutation')
     },
     refresh: (model: Root) => model,
-    overlay: (model: Root) => model,
-    lift: (model: Root) => model,
+    // What the overlay entry reads: no layer is shown here.
+    [Capability]: { domain: 'stub', layers: Option.none() },
+    store: { get: () => Remote.initial },
+    reduce: (model: Root) => model,
     active: (name: string, projectionOf: unknown) => ({
       name,
       owner: {},
@@ -473,8 +475,10 @@ describe('a saved draft', () => {
         return { model, requestId: 'r1', command: { name: 'save', args: {}, effect: Effect.never } }
       },
       refresh: (model: SavingRoot) => model,
-      overlay: (model: SavingRoot) => model,
-      lift: (model: SavingRoot) => model,
+      // What the overlay entry reads: no layer is shown here.
+      [Capability]: { domain: 'stub', layers: Option.none() },
+      store: { get: () => Remote.initial },
+      reduce: (model: SavingRoot) => model,
       active: (name: string, projectionOf: unknown) => ({
         name,
         owner: {},

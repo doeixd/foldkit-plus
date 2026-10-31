@@ -10,7 +10,7 @@ import { Query, type Dependencies } from 'foldkit-entity'
 import type { ActiveSurface, Projection, SurfaceSource } from 'foldkit-surface'
 import { askedOf, covers, resolvedOf } from './active.js'
 import type { ModelOfDomain, QueryProjection, RemoteDomain } from './index.js'
-import { whyReaderOf } from './inner.js'
+import { innerOf } from './inner.js'
 import type { QueryWindow } from './query.js'
 import type { RemoteData } from './remoteData.js'
 import { connectionsOf, RemoteConnections, type RelationRequirement } from './requirement.js'
@@ -251,7 +251,7 @@ export const why = <Domain extends AnyDomain>(
     [
       ...initial,
       ...failedReasons(data),
-      ...reasonsOf(whyReaderOf<ModelOfDomain<Domain>>(domain)(model), asked),
+      ...reasonsOf(innerOf<ModelOfDomain<Domain>>(domain).why(model), asked),
       ...streams,
     ],
     surfaces,

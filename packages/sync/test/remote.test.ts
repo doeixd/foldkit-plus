@@ -11,6 +11,7 @@ import { Surface } from 'foldkit-surface'
 import { EditableEntity, type Author } from 'foldkit-sync/entity'
 import { RemoteEdits } from 'foldkit-sync/remote'
 import { describe, expect, test } from 'vitest'
+import { overlays } from 'foldkit-remote/overlay'
 
 const Item = Entity.define(
   'Item',
@@ -109,17 +110,18 @@ describe('RemoteEdits', () => {
   test('reads the overlays again only when the store, the overlays or the slice changed', () => {
     let reads = 0
     const Counted = RemoteEdits.make(
-      { ...Data, overlays: (model: Model) => (reads++, Data.overlays(model)) },
+      { ...Data, store: { get: (model: Model) => (reads++, Data.store.get(model)) } },
       Edits,
     )
     const slice = [pending('a:1', 11)]
     const { model } = Counted.reconcile(loaded, slice, here)
     const before = reads
+    // Only the store's own check: the overlays are not read.
     expect(Counted.reconcile(model, slice, here).model).toBe(model)
-    expect(reads).toBe(before)
+    expect(reads).toBe(before + 1)
     // A read lands: the store is another, so the overlays are read again.
     Counted.reconcile(read(model, { id: 'a:10', price: 21, revision: 1 }), slice, here)
-    expect(reads).toBe(before + 1)
+    expect(reads).toBeGreaterThan(before + 2)
   })
 
   test('shows a committed edit until a read of its row reaches it', () => {
@@ -142,12 +144,12 @@ describe('RemoteEdits', () => {
     const slice = [committed('a:1', 11, 5, grace)]
     // Read at it first: nothing is shown.
     const first = read(loaded, { id: 'a:1', price: 11, revision: 5 })
-    expect(Data.overlays(reconcile(first, slice).model)).toEqual([])
+    expect(overlays(Data, reconcile(first, slice).model)).toEqual([])
     // Shown first, then read at it: lifted.
     const shown = reconcile(loaded, slice).model
-    expect(Data.overlays(shown)).toHaveLength(1)
+    expect(overlays(Data, shown)).toHaveLength(1)
     const at = reconcile(read(shown, { id: 'a:1', price: 11, revision: 5 }), slice).model
-    expect(Data.overlays(at)).toEqual([])
+    expect(overlays(Data, at)).toEqual([])
   })
 
   test('holds an absorbed edit while the cached row is below it, and says so once', () => {

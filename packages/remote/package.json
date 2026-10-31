@@ -32,6 +32,16 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./filter": {
+      "foldkit-plus:source": "./src/filter.ts",
+      "types": "./dist/filter.d.ts",
+      "import": "./dist/filter.js"
+    },
+    "./overlay": {
+      "foldkit-plus:source": "./src/overlay.ts",
+      "types": "./dist/overlay.d.ts",
+      "import": "./dist/overlay.js"
+    },
     "./port": {
       "foldkit-plus:source": "./src/port.ts",
       "types": "./dist/port.d.ts",

@@ -629,7 +629,7 @@ undo's value). It owns no state and does no I/O.
 
 `RemoteEdits.make(Data, ProductEdits)` is the bridge to a Remote domain over
 the same Entity. Its `reconcile(model, edits, replica)` brings Remote's
-overlays (`Data.overlay`) in line with the slice, so every read of a row draws
+overlays (`overlay` from `foldkit-remote/overlay`) in line with the slice, so every read of a row draws
 its edits, a second view or a filter as well as the grid. It holds an edit the
 journal absorbed while the cached row is below it, and lifts it once a read
 reaches it; it returns those newly `held` (ask for their rows again) and this

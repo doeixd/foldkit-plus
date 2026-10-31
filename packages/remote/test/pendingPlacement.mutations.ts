@@ -23,9 +23,14 @@ export default [
     name: 'filtering a list judges the server’s pages as they are',
     edits: [
       {
-        file: index,
-        find: ': shownEdges(remote, over.ref.identity, connection)',
-        replace: ': edgesOf(capabilities, remote, over.ref.identity, connection)',
+        file: '../src/filter.ts',
+        find: ': inner.shown(remote, over.ref.identity, connection)',
+        replace: ': edgesOf(domain[Capability], remote, over.ref.identity, connection)',
+      },
+      {
+        file: '../src/filter.ts',
+        find: "import { Capability, visibleOf } from './capability.js'",
+        replace: "import { Capability, edgesOf, visibleOf } from './capability.js'",
       },
     ],
     tests,

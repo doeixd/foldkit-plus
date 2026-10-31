@@ -168,7 +168,7 @@ Bundle.declare(Editor.bundle.pipe(Bundle.withView(Cms.editorView(FormView.submod
   saved values key by key, else what is published. `resumed` is `Lost` when a
   draft fit nothing.
 - Preview: give `Cms.content` a `preview: (value, id) => operations`; `PreviewShown` /
-  `PreviewHidden` lay the form's decodable value over Remote's store (`Data.overlay`),
+  `PreviewHidden` lay the form's decodable value over Remote's store (`overlay` from `foldkit-remote/overlay`),
   so the app's own views draw it. Nothing is sent. `PostEditor.canPreview`, `.previewing(model)`.
 - `open`/`create`/`close` drop the form: run `PostEditor.flush(model)` first (it
   returns `{ model, commands }`) so edits made within the rest are saved.

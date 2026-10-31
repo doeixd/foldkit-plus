@@ -30,6 +30,7 @@ import {
   stored,
   type Model,
 } from './whyDomain.js'
+import { overlay } from '../src/overlay.js'
 
 const Page = App.surface('ProjectPage', {
   params: { projectId: Schema.String },
@@ -142,7 +143,7 @@ describe('ReadWhy', () => {
   it('encodes to JSON, an Option as null', () => {
     const said = why(
       Data,
-      Data.overlay(stored, 'trash', [Remote.tombstone(Project, 'p1')]),
+      overlay(Data, stored, 'trash', [Remote.tombstone(Project, 'p1')]),
       project,
     )
 

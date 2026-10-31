@@ -49,6 +49,8 @@
       "foldkit-primitives/state": ["../../packages/primitives/src/state/index.ts"],
       "foldkit-primitives/time": ["../../packages/primitives/src/time/index.ts"],
       "foldkit-remote": ["../../packages/remote/src/index.ts"],
+      "foldkit-remote/filter": ["../../packages/remote/src/filter.ts"],
+      "foldkit-remote/overlay": ["../../packages/remote/src/overlay.ts"],
       "foldkit-remote/port": ["../../packages/remote/src/port.ts"],
       "foldkit-remote/testing": ["../../packages/remote/src/testing.ts"],
       "foldkit-remote/why": ["../../packages/remote/src/why.ts"],

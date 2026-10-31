@@ -12,6 +12,7 @@ import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { ConnectionChange, Query, Remote, type NormalizedPatch } from '../src/index.js'
 import { Answers } from './answers.js'
+import { overlay } from '../src/overlay.js'
 
 const Project = DomainEntity.define(
   'Project',
@@ -418,7 +419,7 @@ describe('A list the write may have changed', () => {
   })
 
   it('is invalidated when a row it would place is shown only by an overlay', () => {
-    const optimistic = Data.overlay(loaded(), 'preview', [
+    const optimistic = overlay(Data, loaded(), 'preview', [
       ConnectionChange.append(active.ref, Remote.ref(Project, 'p3')),
     ])
     const repriced = answered(optimistic, [patch('p3', { price: 1 })])

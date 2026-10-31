@@ -22,7 +22,6 @@ import {
   Derivation,
   Entity as DomainEntity,
   Query as Relational,
-  QueryEvaluateError,
   Operators,
   ReadFilter,
   SelectionTypeId,
@@ -59,7 +58,6 @@ import {
   emptyConnection,
   hasNext,
   hasPrevious,
-  isGapped,
   items,
   type Connection,
   type Edge,
@@ -94,9 +92,10 @@ import {
 import { installLayers } from './layers.js'
 import { memoRead } from './memo.js'
 import { placedHeld } from './placing.js'
-import { belongsEncoded, matching, type Judged, type Matched } from './matching.js'
+import { assertRegistered } from './registered.js'
+import { belongsEncoded } from './matching.js'
 import type { WhyReader } from './whyReasons.js'
-import { withWhyReader } from './inner.js'
+import { withInner } from './inner.js'
 import { askedOf, askedUnion, resolvedOf, type Asked, type NamedProjection } from './active.js'
 
 import { inspectEntity, inspectRemote, type RemoteInspection } from './inspect.js'
@@ -104,7 +103,6 @@ import type { LiveCursor, LiveEvent } from './live.js'
 import {
   failureOf,
   initialRemoteModel,
-  overlaysOf,
   isFieldFailed,
   isLoadingThrough,
   onlyOverlaid,
@@ -737,48 +735,6 @@ export interface RemoteDomain<
     model: AppModel,
     projection: QueryProjection<AppModel, any, Name, Input>,
   ): Option.Option<AppModel>
-  /**
-   * The rows of a loaded list that a body matches, decoded as the list decodes
-   * them — a filter that asks the server nothing.
-   *
-   * **It filters a list; it does not run a query.** That distinction is what
-   * keeps it honest. "Which rows match" would need to know that the list holds
-   * every row the body could match, which is predicate containment and is
-   * deliberately not built. "Which rows *of this list* match" is decidable from
-   * what is already here, and is what a search box over a loaded page actually
-   * wants.
-   *
-   * `complete` says whether the answer is about the whole list: every edge
-   * judged, and the connection terminal at both ends. An incomplete answer is
-   * not wrong — it is about less than the caller may have meant, which is why
-   * it is said rather than left for a view to assume.
-   *
-   * Creates no connection, so there is nothing new to retain and nothing new to
-   * fetch. The server stays authoritative for which rows exist.
-   */
-  filtered<Value, Name extends string, Input, Q extends QueryDescriptor<any, any, any>>(
-    model: AppModel,
-    over: QueryProjection<AppModel, Value, Name, Input>,
-    by: Q & Registered<Q['name'], QueryName<Queries[number]>, 'Query'>,
-    input: QueryInput<Q>,
-  ): Matched<Value>
-  /**
-   * Shows operations over the store with no request behind them, as a mutation's
-   * `optimistic` ones show while it is in flight: every Selection and view draws
-   * them. For a preview of a change nobody has made. They stay until `lift`;
-   * showing an id again replaces what it showed. Called from `update`. A read
-   * of an entity only overlays show, lacking a field it selects, is `Failed`
-   * (`Overlaid`): nothing will fetch that field.
-   */
-  overlay(model: AppModel, id: string, optimistic: ReadonlyArray<OptimisticOperation>): AppModel
-  /** Lifts what `overlay` showed under this id. Lifting nothing returns the same Model. */
-  lift(model: AppModel, id: string): AppModel
-  /**
-   * The ids `overlay` shows now, in the order they are drawn, a later one over
-   * an earlier: what a caller that overlays from its own state reconciles
-   * against.
-   */
-  overlays(model: AppModel): ReadonlyArray<string>
   /**
    * The edges a connection shows, as its reads draw them: the server's pages
    * with pending edits placed, each inserted row where the body's order puts
@@ -1622,20 +1578,6 @@ const bindRemote = <
       messages: [],
       metadata: [],
     },
-  }
-}
-
-/** The runtime half of `Registered`: a descriptor the domain never declared is an error naming both. */
-const assertRegistered = (
-  bound: BoundRemote<any, any>,
-  kind: 'Entity' | 'Query' | 'Mutation',
-  registered: ReadonlyMap<string, unknown>,
-  name: string,
-): void => {
-  if (!registered.has(name)) {
-    throw new Error(
-      `Remote: ${kind} "${name}" is not registered with domain "${bound.contract.name}"`,
-    )
   }
 }
 
@@ -4104,77 +4046,8 @@ const bindDomain = <
           )
         : Option.none()
     },
-    filtered: (model, over, by, input) => {
-      assertRegistered(bound, 'Query', definition.registry.queries, by.name)
-      // A filter over a different Entity can never match anything, and would
-      // otherwise answer "I checked the whole list and found nothing" — a
-      // confident wrong answer rather than a refusal.
-      const filters = by.body?.entity.name
-      if (filters !== undefined && filters !== over.selection.entity) {
-        throw new Error(
-          `Remote: query "${by.name}" is over "${filters}", but the list is of "${over.selection.entity}", so it cannot filter it`,
-        )
-      }
-      const remote = store.get(model)
-      const connection = remote.connections[over.ref.identity]
-      const visible = visibleOf(capabilities, remote, operators)
-      const edges =
-        connection === undefined ? [] : shownEdges(remote, over.ref.identity, connection)
-      const among = edges.map(edge => entityKey(edge.ref.entity, edge.ref.id))
-      let judged: Judged
-      try {
-        judged = matching(visible, by, input, { among, operators, context: contextOf(model) })
-      } catch (error) {
-        // An input the reference interpreter refuses (a search holding NUL) is
-        // one the server refuses too: nothing here can be said about the list.
-        // Thrown on, it would end the `update` that asked.
-        if (error instanceof QueryEvaluateError) return { items: [], complete: false }
-        throw error
-      }
-      const relation = relationOf(over.selection)
-      const relationKey = stableStringify(relation)
-
-      const items: unknown[] = []
-      let assembledAll = true
-      for (const key of judged.matched) {
-        const row = readRow(visible, key, relation, relationKey, over.selection.schema)
-        // A matching row whose selected fields are not all here cannot be shown.
-        // It is not dropped from the truth, only from the list: `complete` says
-        // the answer is about less than the whole.
-        if (row === undefined || row._tag === 'Failed') {
-          assembledAll = false
-          continue
-        }
-        items.push(row.value)
-      }
-
-      return {
-        items: items as never,
-        // Whole only if every edge was judged, every match could be shown, and
-        // the list itself is all there. `hasNext`/`hasPrevious` read the outer
-        // boundaries alone, so `isGapped` is the third question: a connection
-        // paged from both ends is `Terminal` at both and still missing its
-        // middle.
-        complete:
-          judged.skipped.length === 0 &&
-          assembledAll &&
-          connection !== undefined &&
-          !isGapped(connection) &&
-          !hasNext(connection) &&
-          !hasPrevious(connection),
-      }
-    },
     refresh: (model, target, options) => Remote.refresh(bound, model, target, options),
     forget: model => Remote.forget(bound, model),
-    overlay: (model, id, optimistic) => {
-      installLayers(capabilities)
-      return reduce(model, { _tag: 'OverlayShown', id, optimistic })
-    },
-    lift: (model, id) => {
-      installLayers(capabilities)
-      return reduce(model, { _tag: 'OverlayLifted', id })
-    },
-    overlays: model => overlaysOf(store.get(model)),
     visibleItems: (remote, connection) => {
       const identity = connectionIdentity(connection)
       return shownEdges(remote, identity, remote.connections[identity] ?? emptyConnection)
@@ -4972,7 +4845,7 @@ const bindDomain = <
           : layersIn(capabilities).context(remote.optimistic.layers),
     }
   }
-  return withWhyReader(domain, whyReader)
+  return withInner(domain, { why: whyReader, context: contextOf, shown: shownEdges })
 }
 
 /** The outbox's own answers, as another tab announced them: a settled write, and nothing else. */

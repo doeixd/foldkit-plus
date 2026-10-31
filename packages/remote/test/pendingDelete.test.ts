@@ -21,6 +21,7 @@ import {
   writeEntities,
   type RemoteData,
 } from '../src/index.js'
+import { lift, overlay } from '../src/overlay.js'
 
 const PostBase = DomainEntity.define(
   'Post',
@@ -204,9 +205,9 @@ describe('A pending delete', () => {
   })
 
   it('is shown by an overlay too, and lifting it brings the row back', () => {
-    const previewed = Data.overlay(loaded, 'preview', [Remote.tombstone(Post, 'p1')])
+    const previewed = overlay(Data, loaded, 'preview', [Remote.tombstone(Post, 'p1')])
     expect(shown(previewed)).toEqual(hidden)
-    expect(shown(Data.lift(previewed, 'preview'))).toEqual(before)
+    expect(shown(lift(Data, previewed, 'preview'))).toEqual(before)
   })
 
   it('keeps its row through retention, so a failure still has it to bring back', () => {

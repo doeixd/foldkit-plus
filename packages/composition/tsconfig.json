@@ -29,6 +29,8 @@
       "foldkit-mixins/utilities": ["../mixins/src/utilities.ts"],
       "foldkit-react": ["../react/src/index.ts"],
       "foldkit-remote": ["../remote/src/index.ts"],
+      "foldkit-remote/filter": ["../remote/src/filter.ts"],
+      "foldkit-remote/overlay": ["../remote/src/overlay.ts"],
       "foldkit-remote/port": ["../remote/src/port.ts"],
       "foldkit-remote/testing": ["../remote/src/testing.ts"],
       "foldkit-remote/why": ["../remote/src/why.ts"],

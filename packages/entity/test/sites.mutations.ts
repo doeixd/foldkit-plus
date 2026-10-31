@@ -80,9 +80,9 @@ export default [
   edit('Remote.make drops its table', remote, '      operators: config.operators,\n', ''),
   edit(
     'the client filters with the kernel',
-    remote,
-    'judged = matching(visible, by, input, { among, operators, context: contextOf(model) })',
-    'judged = matching(visible, by, input, { among, context: contextOf(model) })',
+    '../../remote/src/filter.ts',
+    'judged = matching(visible, by, input, { among, operators, context: inner.context(model) })',
+    'judged = matching(visible, by, input, { among, context: inner.context(model) })',
   ),
   edit(
     'a form judges with the kernel',

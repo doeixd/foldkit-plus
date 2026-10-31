@@ -17,6 +17,7 @@ import {
   writeEntities,
   type RemoteMessage,
 } from '../src/index.js'
+import { overlay } from '../src/overlay.js'
 
 const UserBase = DomainEntity.define(
   'User',
@@ -112,7 +113,7 @@ describe('A field only a pending layer holds', () => {
   })
 
   it('is not planned on a row a pending request deletes', () => {
-    const deleting = Data.overlay(pending, 'gone', [Remote.tombstone(Post, 'p1')])
+    const deleting = overlay(Data, pending, 'gone', [Remote.tombstone(Post, 'p1')])
     expect(post.read(deleting)._tag).toBe('NotFound')
     expect(Data.plan(deleting, post)).toEqual([])
   })

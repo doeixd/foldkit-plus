@@ -9,6 +9,8 @@ import { Entity as DomainEntity, Expr, Order } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { ConnectionChange, Query, Remote, RemoteData, type NormalizedPatch } from '../src/index.js'
+import { lift, overlay } from '../src/overlay.js'
+import { filtered } from '../src/filter.js'
 
 const Project = DomainEntity.define(
   'Project',
@@ -105,7 +107,7 @@ const patch = (id: string, values: Record<string, unknown>): NormalizedPatch => 
 })
 
 const repriced = (model: Model, id: string, price: number) =>
-  Data.overlay(model, 'edit', [patch(id, { price })])
+  overlay(Data, model, 'edit', [patch(id, { price })])
 
 describe('A pending edit to an ordering field', () => {
   it('moves its row where the order puts it, and back when lifted', () => {
@@ -114,11 +116,11 @@ describe('A pending edit to an ordering field', () => {
     expect(ids(active, moved)).toEqual(['p2', 'p1', 'p3'])
     // The server's pages are as they were: only the read places the edit.
     expect(moved.remote.connections).toBe(base.remote.connections)
-    expect(ids(active, Data.lift(moved, 'edit'))).toEqual(['p1', 'p2', 'p3'])
+    expect(ids(active, lift(Data, moved, 'edit'))).toEqual(['p1', 'p2', 'p3'])
   })
 
   it('moves it by a pending increment, the sum taken over the price the store holds', () => {
-    const moved = Data.overlay(loaded(), 'edit', [
+    const moved = overlay(Data, loaded(), 'edit', [
       { entity: 'Project', id: 'p1', values: {}, adds: { price: 12 } },
     ])
     expect(ids(active, moved)).toEqual(['p2', 'p1', 'p3'])
@@ -144,34 +146,34 @@ describe('A pending edit to an ordering field', () => {
 
   it('places two pending edits together, a later one over an earlier', () => {
     const first = repriced(loaded(), 'p1', 25)
-    const second = Data.overlay(first, 'again', [patch('p3', { price: 1 })])
+    const second = overlay(Data, first, 'again', [patch('p3', { price: 1 })])
     expect(ids(active, second)).toEqual(['p3', 'p2', 'p1'])
-    const over = Data.overlay(second, 'over', [patch('p1', { price: 15 })])
+    const over = overlay(Data, second, 'over', [patch('p1', { price: 15 })])
     expect(ids(active, over)).toEqual(['p3', 'p1', 'p2'])
   })
 
   it('leaves its row where the server put it when the order cannot be placed', () => {
-    const renamed = Data.overlay(loaded(), 'edit', [patch('p1', { name: 'Zond' })])
+    const renamed = overlay(Data, loaded(), 'edit', [patch('p1', { name: 'Zond' })])
     expect(ids(byName, renamed)).toEqual(['p1', 'p2', 'p3', 'p4'])
   })
 })
 
 describe('A pending edit to a filtered field', () => {
   it('takes its row out of a list it no longer matches', () => {
-    const archiving = Data.overlay(loaded(), 'edit', [patch('p2', { status: 'archived' })])
+    const archiving = overlay(Data, loaded(), 'edit', [patch('p2', { status: 'archived' })])
     expect(ids(active, archiving)).toEqual(['p1', 'p3'])
   })
 
   it('does not bring it into a list it now matches, which waits for the server', () => {
-    const archiving = Data.overlay(loaded(), 'edit', [patch('p2', { status: 'archived' })])
+    const archiving = overlay(Data, loaded(), 'edit', [patch('p2', { status: 'archived' })])
     // Read after the list it left, from the same Model: each list is placed apart.
     expect(ids(active, archiving)).toEqual(['p1', 'p3'])
     expect(ids(archived, archiving)).toEqual(['p4'])
   })
 
   it('is what filtering the list judges too', () => {
-    const archiving = Data.overlay(loaded(), 'edit', [patch('p2', { status: 'archived' })])
-    const all = Data.filtered(archiving, active, ByName, {})
+    const archiving = overlay(Data, loaded(), 'edit', [patch('p2', { status: 'archived' })])
+    const all = filtered(Data, archiving, active, ByName, {})
     expect(all.items.map(item => item.id)).toEqual(['p1', 'p3'])
   })
 })
@@ -232,7 +234,7 @@ const created = (
   values: Record<string, unknown>,
   list: typeof active | typeof byName = active,
 ) =>
-  Data.overlay(model, 'create', [
+  overlay(Data, model, 'create', [
     patch('p5', { id: 'p5', ...values }),
     ConnectionChange.prepend(list.ref, { entity: 'Project', id: 'p5' }),
   ])
@@ -257,7 +259,7 @@ describe('A row an insert shows', () => {
     const shown = created(loaded(), { name: 'Europa', status: 'active', price: 15 })
     expect(ids(active, shown)).toEqual(['p1', 'p5', 'p2', 'p3'])
     // Its overlay is lifted with it.
-    expect(ids(active, Data.lift(shown, 'create'))).toEqual(['p1', 'p2', 'p3'])
+    expect(ids(active, lift(Data, shown, 'create'))).toEqual(['p1', 'p2', 'p3'])
     // Past every row of a list loaded whole: its end.
     const dearest = created(loaded(), { name: 'Europa', status: 'active', price: 99 })
     expect(ids(active, dearest)).toEqual(['p1', 'p2', 'p3', 'p5'])
@@ -297,7 +299,7 @@ describe('A row an insert shows', () => {
   })
 
   it('shows again, placed, when an insert follows a remove', () => {
-    const removed = Data.overlay(loaded(), 'hide', [
+    const removed = overlay(Data, loaded(), 'hide', [
       ConnectionChange.remove(active.ref, { entity: 'Project', id: 'p1' }),
     ])
     expect(ids(active, removed)).toEqual(['p2', 'p3'])

@@ -39,5 +39,12 @@ export default [
     edits: [relative],
     tests,
   },
-  linked('remote', ['src/index.ts', 'src/port.ts', 'src/testing.ts', 'src/why.ts']),
+  linked('remote', [
+    'src/index.ts',
+    'src/filter.ts',
+    'src/overlay.ts',
+    'src/port.ts',
+    'src/testing.ts',
+    'src/why.ts',
+  ]),
 ]

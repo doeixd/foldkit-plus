@@ -12,6 +12,8 @@
       "foldkit-entity/conformance": ["../entity/src/conformance/index.ts"],
       "foldkit-metadata": ["../metadata/src/index.ts"],
       "foldkit-remote": ["./src/index.ts"],
+      "foldkit-remote/filter": ["./src/filter.ts"],
+      "foldkit-remote/overlay": ["./src/overlay.ts"],
       "foldkit-remote/port": ["./src/port.ts"],
       "foldkit-remote/testing": ["./src/testing.ts"],
       "foldkit-remote/why": ["./src/why.ts"],

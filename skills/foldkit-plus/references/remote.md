@@ -399,10 +399,12 @@ case 'SignedOut': {
   a loaded list by the body's order: `Before { segment, edge }`, `End { segment }`,
   `Outside` (past a `Cursor` or in a gap), or `Unknown { reason }`. A list whose body is
   placeable (`Query.placement`) also reads its body's fields for it.
-- `Data.overlays(model)` is the ids `overlay` shows now, in drawing order, for a
-  caller that reconciles overlays against its own state (`foldkit-sync/remote`).
-- `Data.overlay(model, id, operations)` shows optimistic operations with no request
-  (a preview) until `Data.lift(model, id)`; same id replaces; both pure, from `update`.
+- `overlays(Data, model)` (`foldkit-remote/overlay`) is the ids `overlay` shows
+  now, in drawing order, for a caller that reconciles overlays against its own
+  state (`foldkit-sync/remote`).
+- `overlay(Data, model, id, operations)` (`foldkit-remote/overlay`) shows
+  optimistic operations with no request (a preview) until `lift(Data, model,
+  id)`; same id replaces; both pure, from `update`.
   A preview of an unsaved entity that lacks a field its Selection reads is
   `Failed` (`_tag: 'Overlaid'`, naming the fields), not `Initial` forever.
 - `Data.confirmed(projection)` is the same projection read over the
@@ -582,7 +584,7 @@ any disagreement with the server's first page as a `PredictionMismatch`
 diagnostic whose `part` is a `Placement`: an order it does not share, or a row placing
 took out that it still lists (`remote.placed` holds `{ order, dropped }` until
 the page arrives). A pending edit (an `optimistic` patch, a
-`Data.overlay`) shows its row placed in what a read shows until it settles,
+`overlay`) shows its row placed in what a read shows until it settles,
 and a read or a live `EntityPatched` places a held row in the pages; neither
 brings a row into a list or fetches. A row an insert overlay or a live
 `ConnectionInsert` shows is drawn where the body's order puts it, in a list
@@ -723,7 +725,7 @@ Debugging: `Data.plan(model, projection)` shows what is missing;
 the reads in flight (`entity\0id\0field` marks) beside `mutations.pending` for
 the writes — both read from the Model, never from the fibers doing the work.
 
-`Data.filtered(model, over, by, input)` filters a **loaded list** by a query
+`filtered(Data, model, over, by, input)` from `foldkit-remote/filter` filters a **loaded list** by a query
 body without asking the server, returning `Matched<Value>` — `items` decoded
 through the list's own Selection, plus `complete`. It filters a list rather than
 running a query on purpose: "which rows match" would need predicate containment,
@@ -1207,7 +1209,7 @@ handler's write and raw SQL are held to the invariants and move the revision too
   `Initial` as a spinner. Check `Data.plan` and your `Surface.at` wiring.
 - Give `update` an explicit `Update.Return<...>` / `{ model: Model }` return type;
   otherwise `App` and `Data` are mutually inferred and TypeScript errors.
-- `Data.refresh`, `Data.lift`, and `Data.reduce` of the common no-op Messages
+- `Data.refresh`, `lift`, and `Data.reduce` of the common no-op Messages
   (a duplicate live event, a repeated `ReadStarted`) return the **same Model**,
   so Foldkit does not render.
 - Reading every row on every render is cheap: `Data.get(selection, id)` is one

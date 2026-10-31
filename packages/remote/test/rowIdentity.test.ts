@@ -16,6 +16,7 @@ import {
   terminal,
   type RemoteMessage,
 } from '../src/index.js'
+import { overlay } from '../src/overlay.js'
 
 const User = Entity.make('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
 const Project = Entity.make(
@@ -177,7 +178,7 @@ describe('A read handed out again (#384)', () => {
   })
 
   it('keeps an optimistic row while the store under it changes elsewhere', () => {
-    const shown = Data.overlay(current(), 'preview', [Project.patch('p1', { name: 'Previewed' })])
+    const shown = overlay(Data, current(), 'preview', [Project.patch('p1', { name: 'Previewed' })])
     const before = value(shown)
     const elsewhere = Data.reduce(shown, received('User', 'u3', { name: 'Edsger' }))
 

@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest'
 import { Data, initial } from '../src/app.js'
 import { Todo } from '../src/domain.js'
 import { AllTodos } from '../src/operations.js'
+import { overlay } from 'foldkit-remote/overlay'
 
 interface Row {
   readonly id: string
@@ -33,7 +34,7 @@ const drawn = (rows: ReadonlyArray<Row>, added: Row): ReadonlyArray<string> => {
       { entity: 'Todo', fields: ['id', 'title', 'done'] },
     ),
   )
-  const creating = Data.overlay(loaded, 'create', [
+  const creating = overlay(Data, loaded, 'create', [
     Remote.patch(Todo, added.id, { ...added, done: 0 }),
     ConnectionChange.prepend(list, Remote.ref(Todo, added.id)),
   ])

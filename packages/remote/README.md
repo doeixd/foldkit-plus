@@ -69,7 +69,7 @@ that update incrementally, and optimistic transactions rolled back on failure.
 Its unit is the collection; a screen queries what is already local. Remote's
 unit is the field: a screen declares which fields of which entities it reads,
 and only those are fetched, so there is no collection to load first and a page
-carries what it shows. Remote has no live query engine: `Data.filtered` and
+carries what it shows. Remote has no live query engine: `filtered` and
 `matching` judge the rows a list already holds, a new list is a server query,
 and a list read `live` is kept current by the server's live source, not by
 the client. Where TanStack DB syncs client-authored writes through a sync
@@ -445,7 +445,7 @@ The snippets below call the domain itself (`Data.subscriptions`,
 `Data.mutate`, `Data.retry`, `Data.preload`), as the spread form does. Under
 the fold, call the fold's members of the same names (`foldData.mutate`, …),
 which yield the wrapper Message; the members that only read or write the Model
-(`Data.get`, `Data.refresh`, `Data.overlay`, …) stay on the domain either way.
+(`Data.get`, `Data.refresh`, `Data.forget`, …) stay on the domain either way.
 
 ### One value with `foldkit-bundle`: `Data.wiring`
 
@@ -701,7 +701,7 @@ what the server said:
   ([What an answer carries](#what-an-answer-carries)); a row it changed
   without naming (a post's count, after a like) keeps the old value until a
   read writes the new one. Name the row in the answer.
-- **A preview** shown with `Data.overlay` stays until `Data.lift`; a settled
+- **A preview** shown with `overlay` stays until `lift`; a settled
   mutation never takes it along.
 
 See [Mutations and optimistic state](#mutations-and-optimistic-state).
@@ -1218,10 +1218,14 @@ same query does not grow with it.
 ### Filtering a loaded list without asking the server
 
 A search box over a page you already have should not be a round trip.
-`Data.filtered` narrows a loaded list by a query body:
+`filtered` from `foldkit-remote/filter` narrows a loaded list by a query body.
+It is an entry of its own because it runs the relational evaluator in the page,
+which a page that never filters does not load:
 
 ```ts
-const found = Data.filtered(model, projects, ActiveProjects, {})
+import { filtered } from 'foldkit-remote/filter'
+
+const found = filtered(Data, model, projects, ActiveProjects, {})
 
 found.items     // decoded exactly as the list decodes them
 found.complete  // whether the answer was about the whole list
@@ -1586,7 +1590,7 @@ the store the answer left:
 `Remote.make({ ..., operators })` (`Operators.kernel` by default) is the table
 it matches, filters and places rows with. A body calling an operator the table
 does not run is judged by the server, as any row the client cannot judge is:
-`Data.filtered` answers it incomplete and a change to it refetches.
+`filtered` answers it incomplete and a change to it refetches.
 
 **A placement can be checked against the server.** `Remote.make({ ...,
 verifyPredictions: true })` places as usual, and also fetches each list it placed
@@ -1606,7 +1610,7 @@ order, and a price change moves the row within a list sorted by price, all
 without a request.
 
 **A pending edit, and the server's word on a row, are placed the same way.**
-While a request's `optimistic` patch or a `Data.overlay` is pending, a list
+While a request's `optimistic` patch or an `overlay` is pending, a list
 that holds the row shows it where the edit puts it, or leaves it out once it
 stops matching; the server's pages are untouched, and lifting the edit puts
 the row back. A read or a live `EntityPatched` that brings a new value for a
@@ -1987,12 +1991,18 @@ on any mismatch.
 ### Showing a change nobody has made
 
 A mutation's `optimistic` operations show over the store while it is in flight.
-`Data.overlay` shows operations the same way with no request behind them, until
-`Data.lift`: a preview, in every Selection and view, of something not yet sent.
+`overlay` from `foldkit-remote/overlay` shows operations the same way with no
+request behind them, until `lift`: a preview, in every Selection and view, of
+something not yet sent. They are functions of the domain rather than its
+methods, so a page that never previews loads none of the code that shows one.
 
 ```ts
-const previewed = Data.overlay(model, 'post-preview', [Remote.patch(Project, id, { name: draft })])
-const back = Data.lift(previewed, 'post-preview')
+import { lift, overlay } from 'foldkit-remote/overlay'
+
+const previewed = overlay(Data, model, 'post-preview', [
+  Remote.patch(Project, id, { name: draft }),
+])
+const back = lift(Data, previewed, 'post-preview')
 ```
 
 - Both are called from `update`, and neither performs I/O or touches what the
@@ -2006,7 +2016,7 @@ const back = Data.lift(previewed, 'post-preview')
   `Failed`, with an `Overlaid` error naming what is missing, since nothing will
   fetch it. Overlay every field the Selection reads, or preview through a
   smaller Selection.
-- `Data.overlays(model)` lists the ids shown now, in the order they are drawn.
+- `overlays(Data, model)` lists the ids shown now, in the order they are drawn.
   A caller that overlays from state of its own reconciles against it:
   `foldkit-sync/remote` shows a replica's pending cell edits this way, so the
   durable edit stays Sync's and Remote only draws it.

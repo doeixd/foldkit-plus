@@ -6,7 +6,7 @@ export default [
     name: 'a refused filter ends the update',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/filter.ts',
         find: 'if (error instanceof QueryEvaluateError) return { items: [], complete: false }',
         replace: '',
       },

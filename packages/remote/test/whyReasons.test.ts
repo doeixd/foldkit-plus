@@ -29,6 +29,7 @@ import {
   stored,
   summary,
 } from './whyDomain.js'
+import { overlay } from '../src/overlay.js'
 
 describe("why names a list's own page", () => {
   it('in flight while it has nothing to show', () => {
@@ -246,10 +247,10 @@ describe('why names what deleted a row', () => {
   })
 
   it('the newest pending write that touches it', () => {
-    const renamed = Data.overlay(stored, 'rename', [
+    const renamed = overlay(Data, stored, 'rename', [
       { entity: 'Project', id: 'p1', values: { name: 'Apollo II' } },
     ])
-    const gone = Data.overlay(renamed, 'trash', [Remote.tombstone(Project, 'p1')])
+    const gone = overlay(Data, renamed, 'trash', [Remote.tombstone(Project, 'p1')])
 
     expect(why(Data, gone, project).because).toEqual([
       Why.Deleted({ row: p1, by: Option.some(ShownBy.Overlay({ id: 'trash' })) }),
@@ -257,7 +258,7 @@ describe('why names what deleted a row', () => {
   })
 
   it('a pending write', () => {
-    const gone = Data.overlay(stored, 'trash', [Remote.tombstone(Project, 'p1')])
+    const gone = overlay(Data, stored, 'trash', [Remote.tombstone(Project, 'p1')])
     const said = why(Data, gone, project)
 
     expect(said.state).toBe('NotFound')
@@ -292,7 +293,7 @@ describe('why names what a pending write shows', () => {
   })
 
   it('a row that joined a list, and the term that put it there', () => {
-    const created = Data.overlay(listed, 'new', [
+    const created = overlay(Data, listed, 'new', [
       {
         entity: 'Project',
         id: 'p9',
@@ -314,7 +315,7 @@ describe('why names what a pending write shows', () => {
   })
 
   it('a row that left a list, and the term that took it out', () => {
-    const archived = Data.overlay(listed, 'archive', [
+    const archived = overlay(Data, listed, 'archive', [
       { entity: 'Project', id: 'p1', values: { status: 'archived' } },
     ])
 
@@ -332,7 +333,8 @@ describe('why names what a pending write shows', () => {
 
   it('a term it could not judge, and what it lacks', () => {
     // p5 is held without the status the body filters on, and an insert shows it.
-    const inserted = Data.overlay(
+    const inserted = overlay(
+      Data,
       reduced(listed, received([{ id: 'p5', name: 'Echo', price: 1 }])),
       'pin',
       [ConnectionChange.prepend(active.ref, { entity: 'Project', id: 'p5' })],
@@ -383,7 +385,7 @@ describe('why names a value the store holds and cannot show', () => {
   it('one only an overlay shows, which lacks what the Selection reads', () => {
     const said = why(
       Data,
-      Data.overlay(open, 'draft', [{ entity: 'Project', id: 'p1', values: { name: 'Draft' } }]),
+      overlay(Data, open, 'draft', [{ entity: 'Project', id: 'p1', values: { name: 'Draft' } }]),
       project,
     )
 

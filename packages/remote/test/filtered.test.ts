@@ -28,6 +28,8 @@ import {
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Query, Remote, type Matched } from '../src/index.js'
+import { overlay } from '../src/overlay.js'
+import { filtered } from '../src/filter.js'
 
 const Project = DomainEntity.define(
   'Project',
@@ -112,7 +114,7 @@ const loaded = (wholly = true, fields = ['id', 'name', 'status']): Model => {
 
 describe('A filter over rows already held', () => {
   it('answers from the Model, asking nothing', () => {
-    const found = Data.filtered(loaded(), projects, Active, {})
+    const found = filtered(Data, loaded(), projects, Active, {})
 
     expect(found.items).toEqual([
       { id: 'p1', name: 'Apollo' },
@@ -126,7 +128,7 @@ describe('A filter over rows already held', () => {
     // rather than by id, or a decode that dropped or reshaped fields would pass.
     const page = projects.read(loaded())
     if (page._tag !== 'Ready') throw new Error(`expected Ready, got ${page._tag}`)
-    const found = Data.filtered(loaded(), projects, Active, {})
+    const found = filtered(Data, loaded(), projects, Active, {})
 
     expect(found.items).toEqual(page.value.items.filter(item => item.id !== 'p2'))
   })
@@ -145,7 +147,10 @@ describe('A filter over rows already held', () => {
     })
     const list = Domain.query(ProjectsByOwner, { ownerId: 'u1' }, { select: Summary, first: 25 })
 
-    expect(Domain.filtered(loaded(), list, Reversed, {}).items.map(i => i.id)).toEqual(['p3', 'p1'])
+    expect(filtered(Domain, loaded(), list, Reversed, {}).items.map(i => i.id)).toEqual([
+      'p3',
+      'p1',
+    ])
   })
 
   it('filters on a field the list fetched but does not show', () => {
@@ -153,11 +158,11 @@ describe('A filter over rows already held', () => {
     // does not render it. Two rows differ *only* in that field, so an
     // implementation reading the Selection rather than the store cannot tell
     // them apart and fails here.
-    expect(Data.filtered(loaded(), projects, Active, {}).items.map(item => item.id)).toEqual([
+    expect(filtered(Data, loaded(), projects, Active, {}).items.map(item => item.id)).toEqual([
       'p1',
       'p3',
     ])
-    expect(Object.keys(Data.filtered(loaded(), projects, Active, {}).items[0]!)).toEqual([
+    expect(Object.keys(filtered(Data, loaded(), projects, Active, {}).items[0]!)).toEqual([
       'id',
       'name',
     ])
@@ -166,12 +171,12 @@ describe('A filter over rows already held', () => {
 
 describe('Whether the answer is about the whole list', () => {
   it('is complete when every edge was judged and the list is all there', () => {
-    expect(Data.filtered(loaded(), projects, Active, {}).complete).toBe(true)
+    expect(filtered(Data, loaded(), projects, Active, {}).complete).toBe(true)
   })
 
   it('is incomplete when the list has more pages the client never fetched', () => {
     // The rows here still match; what is unknown is the ones beyond the cursor.
-    const found = Data.filtered(loaded(false), projects, Active, {})
+    const found = filtered(Data, loaded(false), projects, Active, {})
 
     expect(found.items).toHaveLength(2)
     expect(found.complete).toBe(false)
@@ -180,7 +185,9 @@ describe('Whether the answer is about the whole list', () => {
   it('is incomplete when a row could not be judged for want of a field', () => {
     // The list never fetched `name`, so `contains(name, …)` cannot be decided
     // about any row — and saying "no matches" would be a lie.
-    const found = Data.filtered(loaded(true, ['id', 'status']), projects, Named, { name: 'Apollo' })
+    const found = filtered(Data, loaded(true, ['id', 'status']), projects, Named, {
+      name: 'Apollo',
+    })
 
     expect(found.items).toEqual([])
     expect(found.complete).toBe(false)
@@ -189,7 +196,7 @@ describe('Whether the answer is about the whole list', () => {
   it('is incomplete when a match cannot be shown for want of a selected field', () => {
     // Judgeable by `status`, but `name` is what the Selection renders and it is
     // not here. The row matched and is not in `items`, so the answer is partial.
-    const found = Data.filtered(loaded(true, ['id', 'status']), projects, Active, {})
+    const found = filtered(Data, loaded(true, ['id', 'status']), projects, Active, {})
 
     expect(found.items).toEqual([])
     expect(found.complete).toBe(false)
@@ -207,7 +214,7 @@ describe('Whether the answer is about the whole list', () => {
       },
       now: 1,
     })
-    const found = Data.filtered(tainted, projects, Named, { name: 'Apollo' })
+    const found = filtered(Data, tainted, projects, Named, { name: 'Apollo' })
 
     expect(found.items.map(item => item.id)).toEqual(['p1', 'p3'])
     expect(found.complete).toBe(false)
@@ -226,7 +233,7 @@ describe('Whether the answer is about the whole list', () => {
       queries: [ProjectsByOwner, None],
     })
     const list = Domain.query(ProjectsByOwner, { ownerId: 'u1' }, { select: Summary, first: 25 })
-    const found = Domain.filtered(loaded(), list, None, {})
+    const found = filtered(Domain, loaded(), list, None, {})
 
     // Empty-and-complete and empty-and-partial are different answers, which is
     // the whole reason the flag exists.
@@ -235,7 +242,7 @@ describe('Whether the answer is about the whole list', () => {
   })
 
   it('is incomplete when the list was never loaded at all', () => {
-    const found = Data.filtered({ remote: Remote.initial }, projects, Active, {})
+    const found = filtered(Data, { remote: Remote.initial }, projects, Active, {})
 
     expect(found.items).toEqual([])
     expect(found.complete).toBe(false)
@@ -244,7 +251,7 @@ describe('Whether the answer is about the whole list', () => {
   it('is incomplete, and does not throw, for a search no interpreter may answer', () => {
     // Text holding NUL means nothing portable, so every interpreter refuses it.
     // Here that refusal would otherwise end the `update` that asked.
-    const found = Data.filtered(loaded(), projects, Named, {
+    const found = filtered(Data, loaded(), projects, Named, {
       name: `Apo${String.fromCharCode(0)}`,
     })
 
@@ -293,7 +300,7 @@ describe('Gaps, which the outer boundaries do not show', () => {
     const connection = model.remote.connections[projects.ref.identity]!
     expect(connection.segments.length).toBe(2)
 
-    const found = Data.filtered(model, projects, Active, {})
+    const found = filtered(Data, model, projects, Active, {})
 
     expect(found.items.map(item => item.id)).toEqual(['p1', 'p3'])
     expect(found.complete).toBe(false)
@@ -306,7 +313,8 @@ describe('What it does not do', () => {
     // which a function returning `Matched` cannot change however broken it is.
     // What is actually worth pinning is the signature: there is no Model in the
     // result, so no connection, retention root or plan can come out of it.
-    const found: Matched<{ readonly id: string; readonly name: string }> = Data.filtered(
+    const found: Matched<{ readonly id: string; readonly name: string }> = filtered(
+      Data,
       loaded(),
       projects,
       Active,
@@ -335,7 +343,7 @@ describe('What it does not do', () => {
       now: 0,
     })
 
-    expect(Data.filtered(model, projects, Active, {}).items.map(i => i.id)).toEqual(['p1', 'p3'])
+    expect(filtered(Data, model, projects, Active, {}).items.map(i => i.id)).toEqual(['p1', 'p3'])
   })
 
   it('refuses a filter over a different Entity, rather than finding nothing', () => {
@@ -353,7 +361,7 @@ describe('What it does not do', () => {
     })
     const list = Domain.query(ProjectsByOwner, { ownerId: 'u1' }, { select: Summary, first: 25 })
 
-    expect(() => Domain.filtered(loaded(), list, OtherQuery, {})).toThrow(
+    expect(() => filtered(Domain, loaded(), list, OtherQuery, {})).toThrow(
       'query "OtherQuery" is over "Other", but the list is of "Project"',
     )
   })
@@ -362,7 +370,7 @@ describe('What it does not do', () => {
     // An optimistic insert can put an edge in a connection with no entity entry
     // behind it. Dropping it silently would let `complete` claim the whole list
     // was considered when one of its rows never was.
-    const withGhost = Data.overlay(loaded(), 'pending', [
+    const withGhost = overlay(Data, loaded(), 'pending', [
       {
         _tag: 'Insert',
         connection: projects.ref.identity,
@@ -370,7 +378,7 @@ describe('What it does not do', () => {
         position: 'prepend',
       },
     ])
-    const found = Data.filtered(withGhost, projects, Active, {})
+    const found = filtered(Data, withGhost, projects, Active, {})
 
     expect(found.items.map(item => item.id)).toEqual(['p1', 'p3'])
     expect(found.complete).toBe(false)
@@ -381,7 +389,7 @@ describe('What it does not do', () => {
       Query.from(Project).pipe(Query.orderBy(Order.asc(Project.fields.id))),
     )
 
-    expect(() => Data.filtered(loaded(), projects, Stray as unknown as typeof Active, {})).toThrow(
+    expect(() => filtered(Data, loaded(), projects, Stray as unknown as typeof Active, {})).toThrow(
       'Query "Stray" is not registered',
     )
   })
@@ -406,7 +414,7 @@ describe('A filter calling an application’s operator', () => {
   it('is judged on the client with the table `Remote.make` was given', () => {
     const Given = domain(Operators.memory(Operators.implement(live, status => status === 'active')))
     const list = Given.query(ProjectsByOwner, { ownerId: 'u1' }, { select: Summary, first: 25 })
-    const found = Given.filtered(loaded(), list, Live, {})
+    const found = filtered(Given, loaded(), list, Live, {})
     expect(found.items.map(item => item.id)).toEqual(['p1', 'p3'])
     expect(found.complete).toBe(true)
   })
@@ -414,6 +422,6 @@ describe('A filter calling an application’s operator', () => {
   it('is left to the server without it: nothing said, and not complete', () => {
     const Bare = domain()
     const list = Bare.query(ProjectsByOwner, { ownerId: 'u1' }, { select: Summary, first: 25 })
-    expect(Bare.filtered(loaded(), list, Live, {})).toEqual({ items: [], complete: false })
+    expect(filtered(Bare, loaded(), list, Live, {})).toEqual({ items: [], complete: false })
   })
 })

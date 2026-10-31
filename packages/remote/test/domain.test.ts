@@ -32,6 +32,7 @@ import {
   type Boundary,
   type RemoteMessage,
 } from '../src/index.js'
+import { lift, overlay } from '../src/overlay.js'
 
 const User = Entity.make('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
 const Project = Entity.make(
@@ -292,30 +293,30 @@ describe('Data.overlay shows a change nobody has made', () => {
   const name = (model: Model) => Data.get(summary, 'p1').read(model)
 
   it('over the store, for every Selection, until it is lifted, and the store is as it was', () => {
-    const shown = Data.overlay(known, 'preview', [Project.patch('p1', { name: 'Previewed' })])
+    const shown = overlay(Data, known, 'preview', [Project.patch('p1', { name: 'Previewed' })])
     expect(name(shown)).toEqual({ _tag: 'Ready', value: { name: 'Previewed' } })
     // No request began, and what the server said is untouched beneath.
     expect(shown.remote.mutations).toBe(known.remote.mutations)
     expect(shown.remote.entities).toBe(known.remote.entities)
 
-    const lifted = Data.lift(shown, 'preview')
+    const lifted = lift(Data, shown, 'preview')
     expect(name(lifted)).toEqual({ _tag: 'Ready', value: { name: 'Saved' } })
     expect(lifted.remote.optimistic).toEqual(known.remote.optimistic)
   })
 
   it('replaces what an id showed when it is shown again', () => {
-    const first = Data.overlay(known, 'preview', [
+    const first = overlay(Data, known, 'preview', [
       Project.patch('p1', { name: 'First' }),
       ConnectionChange.prepend('Feed', Project.ref('p1')),
     ])
-    const second = Data.overlay(first, 'preview', [Project.patch('p1', { name: 'Second' })])
+    const second = overlay(Data, first, 'preview', [Project.patch('p1', { name: 'Second' })])
     expect(name(second)).toEqual({ _tag: 'Ready', value: { name: 'Second' } })
     expect(second.remote.optimistic.layers).toHaveLength(1)
     expect(second.remote.optimistic.overlays).toEqual([])
   })
 
   it('is apart from a request of the same id, and outlives it', () => {
-    const shown = Data.overlay(known, 'remote-1', [Project.patch('p1', { name: 'Previewed' })])
+    const shown = overlay(Data, known, 'remote-1', [Project.patch('p1', { name: 'Previewed' })])
     const started = Data.mutate(
       shown,
       Rename,
@@ -335,7 +336,7 @@ describe('Data.overlay shows a change nobody has made', () => {
   })
 
   it('lifting what was never shown is the same Model', () => {
-    expect(Data.lift(known, 'nothing')).toBe(known)
+    expect(lift(Data, known, 'nothing')).toBe(known)
   })
 
   it('says what a preview of an unsaved entity lacks, rather than waiting for it', () => {
@@ -343,7 +344,7 @@ describe('Data.overlay shows a change nobody has made', () => {
       Project.select({ name: true, owner: User.select({ name: true }) }),
       'draft',
     )
-    const shown = Data.overlay(known, 'preview', [Project.patch('draft', { name: 'Draft' })])
+    const shown = overlay(Data, known, 'preview', [Project.patch('draft', { name: 'Draft' })])
     expect(detail.read(shown)).toEqual({
       _tag: 'Failed',
       error: {
@@ -359,7 +360,7 @@ describe('Data.overlay shows a change nobody has made', () => {
     })
     // A known entity's missing field is the server's to answer, and a request's
     // layer is settled by its answer: either is waited for.
-    const overKnown = Data.overlay(known, 'preview', [Project.patch('p1', { name: 'Previewed' })])
+    const overKnown = overlay(Data, known, 'preview', [Project.patch('p1', { name: 'Previewed' })])
     expect(
       Data.get(Project.select({ owner: User.select({ name: true }) }), 'p1').read(overKnown),
     ).toEqual({
@@ -386,7 +387,7 @@ describe('Data.confirmed reads past what is only pending', () => {
   })
 
   it('shows what the server said while the projection itself shows the layer', () => {
-    const shown = Data.overlay(known, 'preview', [Project.patch('p1', { name: 'Previewed' })])
+    const shown = overlay(Data, known, 'preview', [Project.patch('p1', { name: 'Previewed' })])
 
     expect(project.read(shown)).toEqual({ _tag: 'Ready', value: { name: 'Previewed' } })
     expect(Data.confirmed(project).read(shown)).toEqual({
@@ -450,7 +451,7 @@ describe('Data.confirmed reads past what is only pending', () => {
         end: { _tag: 'Terminal' },
       },
     })
-    const shown = Data.overlay(loaded, 'preview', [
+    const shown = overlay(Data, loaded, 'preview', [
       Project.patch('p2', { name: 'Draft' }),
       ConnectionChange.prepend(projects.ref, Project.ref('p2')),
     ])

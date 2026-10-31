@@ -6,6 +6,7 @@ import { ConnectionChange, Query, Remote, RemoteClient } from 'foldkit-remote'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Crud } from '../src/index.js'
+import { overlay } from 'foldkit-remote/overlay'
 
 const Author = Entity.define(
   'Author',
@@ -147,7 +148,7 @@ describe('Crud.list', () => {
     const list = Option.getOrThrow(AuthorList.connection(searching))
     // The search is part of the key: one rebuilt with another input names a list nothing reads.
     expect(list.identity).not.toBe(AuthorsQuery.ref({ search: '' }).identity)
-    const adding = Data.overlay(searching, 'create', [
+    const adding = overlay(Data, searching, 'create', [
       Remote.patch(Blog.Author, 'a9', { id: 'a9', name: 'Gus' }),
       ConnectionChange.append(list, Remote.ref(Blog.Author, 'a9')),
     ])

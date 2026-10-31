@@ -17,6 +17,7 @@ import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Query, Remote, entityKey, optimisticOfWrite } from '../src/index.js'
 import { Answers } from './answers.js'
+import { overlay } from '../src/overlay.js'
 
 const Project = DomainEntity.define(
   'Project',
@@ -100,7 +101,7 @@ const remote = (operators?: MemoryOperators) => {
 
   /** A pending edit moving p1 below the floor, before any answer. */
   const pending = (model: Model) =>
-    Data.overlay(model, 'edit', [{ entity: 'Project', id: 'p1', values: { price: 1 } }])
+    overlay(Data, model, 'edit', [{ entity: 'Project', id: 'p1', values: { price: 1 } }])
 
   /** The server saying p3 was inserted at the list's start. */
   const inserted = (model: Model) =>
@@ -220,7 +221,7 @@ describe('A list ordered by a call', () => {
       },
       // The same move pending, before any answer.
       pending: Data.visibleItems(
-        Data.overlay(loaded, 'edit', [{ entity: 'Project', id: 'p2', values: { price: 13 } }])
+        overlay(Data, loaded, 'edit', [{ entity: 'Project', id: 'p2', values: { price: 13 } }])
           .remote,
         identity,
       ).map(edge => edge.ref.id),
@@ -317,7 +318,8 @@ describe('A pending computed assignment', () => {
         now: 0,
       },
     )
-    const pending = Data.overlay(
+    const pending = overlay(
+      Data,
       stored,
       'edit',
       optimisticOfWrite(Prefix, { id: 'p1', prefix: 'o' }, undefined),
@@ -377,8 +379,9 @@ describe('A pending computed assignment', () => {
         now: 0,
       },
     )
-    const first = Data.overlay(stored, 'first', optimisticOfWrite(Upper, { id: 'p1' }, undefined))
-    const both = Data.overlay(
+    const first = overlay(Data, stored, 'first', optimisticOfWrite(Upper, { id: 'p1' }, undefined))
+    const both = overlay(
+      Data,
       first,
       'second',
       optimisticOfWrite(Prefix, { id: 'p1', prefix: 'o' }, undefined),

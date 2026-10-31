@@ -199,6 +199,16 @@ On the Entity side, the `Entity` object reaches `invariant`, which imports
    layer code. The page keeps the layer code still, through the core's live
    path, which installs it until live leaves the core in phase 5; so the
    size test's layer case waits for phase 5, and its write case for 4b.
+   **4c built (2026-10-31).** `overlay`, `lift` and `overlays` are functions
+   of `foldkit-remote/overlay` over any `OverlaidDomain` (the slot, the store
+   and `reduce`), and `overlay` and `lift` install the layer capability;
+   `filtered` is `foldkit-remote/filter`'s, with `matching` and Entity's
+   evaluator. What they read of the domain beyond its face (the context its
+   viewer gives a body, the edges a list shows) is recorded beside it in
+   `inner.ts`, with `why`'s reader. `foldkit-sync/remote`'s `RemoteOverlays`
+   is now `OverlaidDomain`, and `foldkit-cms`'s `EditorDomain` extends it. No
+   size case moves: list placement for read news (`placedNews`, through
+   `impact.ts`) still keeps `matching` and `evaluate` on a read-only page.
 5. **Live through the transport; the outbox through `Data.outbox`.** Waits
    for phase 4's layer capability (a live insert is an overlay). `sse.js`
    also needs the `Remote` object to become an ES module namespace, as

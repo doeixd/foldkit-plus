@@ -20,15 +20,11 @@
  */
 import { Equal, Option, Schema } from 'effect'
 import { entityKey, readField, type OptimisticOperation, type RemoteModel } from 'foldkit-remote'
+import { lift, overlay, overlays, type OverlaidDomain } from 'foldkit-remote/overlay'
 import type { Author } from './entity.js'
 
 /** What `RemoteEdits.make` uses of a Remote domain: `Remote.make`'s value is one. */
-export interface RemoteOverlays<AppModel> {
-  readonly store: { get(model: AppModel): RemoteModel }
-  overlay(model: AppModel, id: string, optimistic: ReadonlyArray<OptimisticOperation>): AppModel
-  lift(model: AppModel, id: string): AppModel
-  overlays(model: AppModel): ReadonlyArray<string>
-}
+export type RemoteOverlays<AppModel> = OverlaidDomain<AppModel>
 
 /** What `RemoteEdits.make` uses of `EditableEntity.make`'s value, over a named Entity. */
 export interface EditsOf<Edit> {
@@ -96,7 +92,7 @@ const make = <AppModel, Edit extends AnyEdit>(
 
   /** The edits this bridge shows, by overlay id, read back from Remote's overlays. */
   const shownIn = (model: AppModel) =>
-    data.overlays(model).flatMap(id => {
+    overlays(data, model).flatMap(id => {
       const held = id.startsWith(HELD)
       if (!held && !id.startsWith(SHOWN)) return []
       const key = id.slice((held ? HELD : SHOWN).length)
@@ -183,7 +179,7 @@ const make = <AppModel, Edit extends AnyEdit>(
           // replica's and the row still holds it: a later edit that reaches the
           // row live is then seen replacing it, though the slice may never say.
           if (!reachedNow || (!differs && edits.mine(shown.edit, replica))) continue
-          next = data.lift(next, shown.id)
+          next = lift(data, next, shown.id)
           if (differs && edits.mine(shown.edit, replica)) replaced.push(shown.edit)
           continue
         }
@@ -195,16 +191,16 @@ const make = <AppModel, Edit extends AnyEdit>(
           Option.isSome(revisionOf(remote, shown.edit)) &&
           !reached(remote, shown.edit)
         if (holds && shown.held) continue
-        next = data.lift(next, shown.id)
+        next = lift(data, next, shown.id)
         if (holds) {
-          next = data.overlay(next, `${HELD}${shown.key}`, [patchOf(shown.edit)])
+          next = overlay(data, next, `${HELD}${shown.key}`, [patchOf(shown.edit)])
           held.push(shown.edit)
         } else if (differs && edits.mine(shown.edit, replica)) {
           replaced.push(shown.edit)
         }
       }
       for (const [key, edit] of inSlice) {
-        if (!reached(remote, edit)) next = data.overlay(next, `${SHOWN}${key}`, [patchOf(edit)])
+        if (!reached(remote, edit)) next = overlay(data, next, `${SHOWN}${key}`, [patchOf(edit)])
       }
       settled = {
         entities: remote.entities,
@@ -232,7 +228,7 @@ const make = <AppModel, Edit extends AnyEdit>(
      * the rows' revisions count a history that is gone.
      */
     clear: (model: AppModel): AppModel =>
-      shownIn(model).reduce((next, shown) => data.lift(next, shown.id), model),
+      shownIn(model).reduce((next, shown) => lift(data, next, shown.id), model),
   }
 }
 

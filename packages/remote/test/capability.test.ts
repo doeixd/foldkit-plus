@@ -7,6 +7,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Entity, Mutation, Query, Remote, RemoteClient, type RemoteMessage } from '../src/index.js'
+import { lift, overlay } from '../src/overlay.js'
 
 const Project = Entity.make('Project', Schema.Struct({ id: Schema.String, name: Schema.String }))
 const Rename = Mutation.make('Rename', {
@@ -61,11 +62,17 @@ describe('A domain that registers no mutation', () => {
 
   it('shows an overlay, which installs the layer code', () => {
     const Data = reads()
-    const shown = Data.overlay(known(Data), 'preview', [Project.patch('p1', { name: 'preview' })])
+    const shown = overlay(Data, known(Data), 'preview', [Project.patch('p1', { name: 'preview' })])
     expect(Data.get(summary, 'p1').read(shown)).toEqual({
       _tag: 'Ready',
       value: { name: 'preview' },
     })
+  })
+
+  it('lifts nothing, which installs the layer code, and keeps its Model', () => {
+    const Data = reads()
+    const model = known(Data)
+    expect(lift(Data, model, 'preview')).toBe(model)
   })
 
   it('shows a live insert, which installs the layer code', () => {

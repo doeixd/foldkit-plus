@@ -24,6 +24,7 @@ import {
   type RemoteError,
   type RemoteMessage,
 } from 'foldkit-remote'
+import { lift, overlay, type OverlaidDomain } from 'foldkit-remote/overlay'
 import { ModelRef, type ActiveSurface, type Projection } from 'foldkit-surface'
 import type { Command } from 'foldkit/command'
 import type * as FieldValidation from 'foldkit/fieldValidation'
@@ -170,7 +171,7 @@ export interface EditorForm<FormModel, FormMessage, Value, Resources = {}, Servi
 }
 
 /** The parts of a bound Remote domain the editor uses. */
-export interface EditorDomain<Root> {
+export interface EditorDomain<Root> extends OverlaidDomain<Root> {
   // Method syntax: the descriptors are checked where the domain is made, not here.
   mutate(
     model: Root,
@@ -186,8 +187,6 @@ export interface EditorDomain<Root> {
   refusal(model: Root, requestId: string, mutation: any): Option.Option<unknown>
   refresh(model: Root, target: any): Root
   plan(model: Root, projection: Projection<Root, any>): ReadonlyArray<unknown>
-  overlay(model: Root, id: string, optimistic: ReadonlyArray<OptimisticOperation>): Root
-  lift(model: Root, id: string): Root
   /** `Data.active`: a read of the domain as an active Surface of its application. */
   active(
     name: string,
@@ -797,14 +796,15 @@ export const makeEditor =
         const previewed = (root: Root): Root => {
           const editor = slice.get(root)
           if (!editor.previewing || content.preview === undefined || editor.entry === null)
-            return data.lift(root, overlayId)
+            return lift(data, root, overlayId)
           // Something new is shown under its entry's id until publishing gives it a row.
           const id =
             held<{ readonly targetId: string | null }>(read(root, 'entry'))?.targetId ??
             editor.entry
           const as = `${editor.edits}:${id}`
           if (editor.previewedAs === as) return root
-          const shown = data.overlay(
+          const shown = overlay(
+            data,
             root,
             overlayId,
             content.preview(form.partial(editor.form), id),

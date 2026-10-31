@@ -4,6 +4,7 @@
  */
 const tests = ['packages/remote/test/capability.test.ts']
 const index = '../src/index.ts'
+const overlay = '../src/overlay.ts'
 
 export default [
   {
@@ -32,9 +33,20 @@ export default [
     name: 'an overlay installs nothing',
     edits: [
       {
-        file: index,
-        find: "      installLayers(capabilities)\n      return reduce(model, { _tag: 'OverlayShown', id, optimistic })",
-        replace: "      return reduce(model, { _tag: 'OverlayShown', id, optimistic })",
+        file: overlay,
+        find: "  installLayers(domain[Capability])\n  return domain.reduce(model, { _tag: 'OverlayShown'",
+        replace: "  return domain.reduce(model, { _tag: 'OverlayShown'",
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a lift installs nothing',
+    edits: [
+      {
+        file: overlay,
+        find: "  installLayers(domain[Capability])\n  return domain.reduce(model, { _tag: 'OverlayLifted'",
+        replace: "  return domain.reduce(model, { _tag: 'OverlayLifted'",
       },
     ],
     tests,
