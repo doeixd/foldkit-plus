@@ -78,7 +78,7 @@ export interface WriteUnheard extends Diagnostic {
  */
 export interface LiveRefused extends Diagnostic {
   readonly _tag: 'LiveRefused'
-  /** The stream's key, as `Data.liveStatus` and the Model's `streams` name it. */
+  /** The stream's key, as `liveStatus` and the Model's `streams` name it. */
   readonly stream: string
   readonly error: RemoteError
 }

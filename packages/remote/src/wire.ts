@@ -267,7 +267,7 @@ export const MAX_LIVE_QUERIES = 32
 export const LiveRequirement = Schema.Struct({
   version: Schema.Number,
   requirements: Schema.Array(ReadRequest),
-  /** Lists read live (`Data.query(…, { live: true })`), each as its read sends it. */
+  /** Lists read live (`liveQuery`), each as its read sends it. */
   queries: Schema.optional(Schema.Array(QueryRequest).check(Schema.isMaxLength(MAX_LIVE_QUERIES))),
   /** Resume cursor; events at or before it are duplicates. */
   after: Schema.Number,

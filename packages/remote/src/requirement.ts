@@ -21,7 +21,7 @@ export interface RelationRequirement {
 
 export interface Requirement extends RelationRequirement {
   readonly id: string
-  /** The projection also subscribes to changes of this entity (`Data.live`). */
+  /** The projection also subscribes to changes of this entity (`live` from `foldkit-remote/live`). */
   readonly live?: boolean | undefined
 }
 
@@ -34,7 +34,7 @@ export interface ConnectionRequirement {
   readonly identity: string
   readonly window: QueryWindow
   readonly select: RelationRequirement
-  /** The projection also watches the list live (`Data.query(…, { live: true })`). */
+  /** The projection also watches the list live (`liveQuery`). */
   readonly live?: boolean | undefined
 }
 
