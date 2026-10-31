@@ -12,13 +12,6 @@ export default defineConfig({
   clean: true,
   target: 'es2022',
   deps: {
-    neverBundle: [
-      /^\.\.?\//,
-      'effect',
-      'foldkit',
-      'foldkit-data-grid',
-      'foldkit-mixins',
-      'foldkit-primitives',
-    ],
+    neverBundle: [/^\.\.?\//, 'effect', 'foldkit', 'foldkit-data-grid', 'foldkit-mixins'],
   },
 })
