@@ -245,32 +245,39 @@ export interface ListenOptions {
  * the markers. Returns what removes the listeners.
  */
 export const listen = (root: Element, options: ListenOptions): (() => void) => {
+  // The markers as served, read once: the boot takes them off the page before
+  // Foldkit adopts it, and an event landing before the first render is still
+  // answered from them.
+  const markers = new Map<Element, Map<string, string>>()
+  for (const element of [root, ...Array.from(root.querySelectorAll('*'))]) {
+    for (const name of element.getAttributeNames()) {
+      if (!name.startsWith(BINDING_ATTRIBUTE)) continue
+      const held = markers.get(element) ?? new Map<string, string>()
+      held.set(name.slice(BINDING_ATTRIBUTE.length), element.getAttribute(name) ?? '')
+      markers.set(element, held)
+    }
+  }
   // The bindings name most events; a marker whose handlers the page could not
   // name is `*` alone, so the markers themselves say the rest.
   const events = new Set(options.bindings.map(binding => binding.event))
   if (options.events !== undefined) {
     for (const event of options.events) events.add(event)
   } else {
-    for (const element of [root, ...Array.from(root.querySelectorAll('*'))]) {
-      for (const { name } of Array.from(element.attributes)) {
-        if (name.startsWith(BINDING_ATTRIBUTE)) events.add(name.slice(BINDING_ATTRIBUTE.length))
-      }
-    }
+    for (const held of markers.values()) for (const event of held.keys()) events.add(event)
   }
   const handler = (event: Event) => {
     const type = event.type
-    const attribute = `${BINDING_ATTRIBUTE}${type}`
     const messages: Array<unknown> = []
     // An event that does not bubble (`focus`, `blur`, `mouseenter`) reaches only
     // its target's own handlers on the live page, so only those answer it here.
     const path = event.bubbles ? event.composedPath() : [event.target]
     for (const node of path) {
       if (!(node instanceof Element)) continue
-      const tokens = node.getAttribute(attribute)
+      const tokens = markers.get(node)?.get(type)
       // Foldkit chains an element's handlers in one listener, so a Stop among
       // them keeps the event from other elements, not from its siblings.
       let stopped = false
-      if (tokens !== null) {
+      if (tokens !== undefined) {
         for (const token of tokens.split(' ')) {
           if (token === UNNAMED_HANDLER) {
             options.onAnswer({ event, messages, unnamed: node })

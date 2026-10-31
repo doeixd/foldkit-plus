@@ -19,9 +19,18 @@ import {
 } from './diagnostics.js'
 import { hold, keptFields, restore, typedMessages, type Held, type KeptField } from './keep.js'
 import { listen, type DecodedBinding } from './listen.js'
-import { FALLBACK_DEPTH_FIELD, FALLBACK_FIELD, KEEP_ATTRIBUTE, builder, view } from './resumable.js'
+import {
+  BINDING_ATTRIBUTE,
+  FALLBACK_DEPTH_FIELD,
+  FALLBACK_FIELD,
+  KEEP_ATTRIBUTE,
+  SLOT_ATTRIBUTE,
+  builder,
+  view,
+} from './resumable.js'
 import {
   FOLDKIT_APP_ATTRIBUTE,
+  RESUME_ATTRIBUTE,
   STATIC_ATTRIBUTE,
   STYLES_MARKER,
   arrival,
@@ -220,7 +229,7 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
       },
     })
   const boot = (entries: Readonly<Record<string, unknown>> = {}) => {
-    unpost(root)
+    unmark(root)
     return adopt(
       makeApplication({
         ...withContext(startingFrom({ ...config, update }, startOf()), resuming),
@@ -263,13 +272,23 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
 }
 
 /**
- * Takes out what the server added to each form for the fallback, its
- * `method` and hidden fields, which the browser's view does not draw: left
- * in, Foldkit would meet markup its first render lacks and reconcile every
- * such form as it adopted the page. Run as the page boots, so a form
- * submitted before then still posts.
+ * Takes out of the served page what the server wrote for this script to read
+ * and no view draws: the envelope, each binding's and kept field's marker,
+ * each placement's slot, and each form's fallback (its `method` and hidden
+ * fields). Left in, each is in what Foldkit records of the served page and
+ * gone after its first patch, so Foldkit reconciles every such element, and
+ * a development build reports that the server's markup and the view
+ * disagree. Run as the page boots, so a form submitted before then still
+ * posts.
  */
-const unpost = (root: Element): void => {
+const unmark = (root: Element): void => {
+  root.removeAttribute(RESUME_ATTRIBUTE)
+  for (const element of [root, ...root.querySelectorAll('*')]) {
+    for (const name of element.getAttributeNames()) {
+      if (name.startsWith(BINDING_ATTRIBUTE) || name === KEEP_ATTRIBUTE || name === SLOT_ATTRIBUTE)
+        element.removeAttribute(name)
+    }
+  }
   for (const field of root.querySelectorAll(`input[type="hidden"][name="${FALLBACK_FIELD}"]`)) {
     const form = field.parentElement
     form?.removeAttribute('method')
