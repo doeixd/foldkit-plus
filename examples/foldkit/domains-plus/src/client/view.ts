@@ -4,7 +4,7 @@
  * so a reader, a screen reader and upstream's Playwright suites meet the
  * same page.
  */
-import { Array, Option, String, pipe } from 'effect'
+import { Array, Equal, Option, String, pipe } from 'effect'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import { Icon, type IconData } from 'foldkit-media'
 import { Behavior, SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
@@ -272,14 +272,17 @@ const drawPreviewRow = (
   { name, tld }: { readonly name: string; readonly tld: string },
 ): Html => drawRow(slots, h, { listing: DomainListing.Pending({ name, tld }), added: false })
 
-// One Ready listing per answered domain, so a row reads the same listing
-// while its domain is the same value.
-const readyListings = new WeakMap<Domain, DomainListing>()
+// One Ready listing per name while its domain reads the same. A read can
+// give an equal domain as a new value (a toggled filter redrew every row
+// when listings were kept by the domain's identity). Names come from every
+// search typed, so the map starts over once it holds many.
+const readyListings = new Map<string, ReturnType<typeof domainToReadyListing>>()
 const readyListingOf = (domain: Domain): DomainListing => {
-  const known = readyListings.get(domain)
-  if (known !== undefined) return known
+  const known = readyListings.get(domain.name)
+  if (known !== undefined && Equal.equals(known.domain, domain)) return known
+  if (readyListings.size >= 4096) readyListings.clear()
   const made = domainToReadyListing(domain)
-  readyListings.set(domain, made)
+  readyListings.set(domain.name, made)
   return made
 }
 
