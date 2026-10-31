@@ -9,6 +9,18 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **A placement draws its child with what the parent holds** (`foldkit-bundle`,
+  #387). `viewInputs: (model, given) => inputs` in a placement's config
+  rewrites the inputs the child's view is drawn with, at every draw, from the
+  parent's Model: a fact the child's Model cannot hold, such as whether a write
+  it started is answered.
+
+- **A drawn form says why its write did not land** (`foldkit-mixins-form`,
+  #387). `FormView`'s inputs take `failure: { error, retry }`, drawn in a new
+  `failure` Slot (`role="alert"`); with `retry` the submit button reads
+  `words.resubmit` (default `Try again`). `submitting` is documented as read
+  from Remote's ledger by the write's request id, never a flag of the page's.
+
 - **`Projection.derive`: a value worked out again by the Model paths it
   reads** (`foldkit-surface`, #384). `Projection.derive(on, derive)` takes
   the field references and Projections `derive` reads and gives `{
@@ -163,6 +175,18 @@ version changed; `pnpm` skips versions already in the registry.
   `list`, `option`; options and the trigger are drawn in the Listbox's slots.
 
 ### Changed
+
+- **`Crud.editor`'s form is busy until its save is answered** (`foldkit-crud`,
+  #387; breaking). A placed editor's `onOut` moved into `placement` (`{ onOut,
+  viewInputs }`): place it with `Page.at(Slot, Editor.placement)` or
+  `Bundle.configure(field, Editor.placement)`, and spread it to add to it. Its
+  `viewInputs` draw the form `submitting` (`aria-busy` on the form Slot) from
+  submit until Remote has the answer, read from Remote's ledger by the save's
+  request id at every draw, and the save's `failure`: a refusal naming no key
+  of the form, or a failure, after which a submit sends the same write again
+  through `Data.retry` (same request and operation ids). A submit while busy
+  writes nothing and returns the Model it was given. `busy(model)` reads the
+  same fact; the domain an editor is given now needs `retry`.
 
 - **A page whose lists have no body keeps none of the relational evaluator**
   (`foldkit-remote`, #378). What a query's body does on the client (the fields
@@ -423,6 +447,10 @@ version changed; `pnpm` skips versions already in the registry.
   may be `Evicted`.
 
 ### Fixed
+
+- **A second submit of an unchanged form keeps its Model** (`foldkit-form`,
+  #387). It handed the value out again in a new, equal Model, so a parent that
+  refused the value could not return the Model it was given.
 
 - **`Behaviors.optimistic` waits for the answer to be drawn**
   (`foldkit-plus/testing/playwright`). It looked for a write's faults once
