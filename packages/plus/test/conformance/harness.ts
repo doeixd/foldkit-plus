@@ -55,6 +55,8 @@ export type Step<Message> = Data.TaggedEnum<{
   Click: { readonly target: string }
   /** Typing `value` into a field: an `input` event with the field holding it. */
   Type: { readonly target: string; readonly value: string }
+  /** A `keydown` of `key` on the first element the selector finds. */
+  Key: { readonly target: string; readonly key: string }
   /** A Message from outside the view, as a Subscription delivers one. */
   Send: { readonly message: Message }
 }>

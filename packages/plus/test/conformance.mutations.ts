@@ -59,6 +59,31 @@ export default [
     tests,
   },
   {
+    // The grid case opens its editor from the keyboard: unpressed, the
+    // runtime draws no editor where Scene, pressing the key, does.
+    name: "the runtime's key reaches nothing",
+    edits: [
+      {
+        file: drawers,
+        find: "new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }),",
+        replace: "new KeyboardEvent('keyup', { key, bubbles: true, cancelable: true }),",
+      },
+    ],
+    tests,
+  },
+  {
+    // The editor's Mount answers as it starts, and Scene is told it does.
+    name: "the grid's editor says nothing when it holds focus",
+    edits: [
+      {
+        file: '../../mixins-data-grid/src/holdFocus.ts',
+        find: '          Queue.offerUnsafe(queue, HoldingFocus.make({}))\n',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
     name: "a field is read by its markup's value, not what it holds",
     edits: [
       {

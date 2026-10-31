@@ -903,7 +903,7 @@ clicks, typing and Messages sent as a Subscription would):
 | submodels | two `h.submodel`s of one view, their Messages wrapped for the parent |
 | event handlers | a click bubbling from a child to its parent's handler, elements added and removed |
 | KeepTyped | a field built by foldkit-ssr's `Resume.builder`, marked `KeepTyped` |
-| data grid header | foldkit-mixins-data-grid's grid, sorted by its header's buttons |
+| data grid | foldkit-mixins-data-grid's grid, sorted by its header's buttons, then a cell's editor opened by keys and typed in |
 
 **Found** (each pinned in `known.ts`; an entry that stops appearing fails
 the suite):
@@ -918,12 +918,17 @@ the suite):
   The grid drew three Mounts that answered no Message when they started
   (`DataGridHeaderDrag`, a `Move` per resize handle, `DataGridCellPress`),
   and Scene resolves every Mount with one. The header row's and the body's
-  listeners now send `PressListening` when they start, and the header row's
+  listeners now send `MountStarted` when they start, and the header row's
   follows a resize handle's drag too, so a handle holds no Mount; the case
   agrees on all three drawers. It also showed that the runtime starts an
   element's Mounts after its children's (snabbdom's `insert` hooks), where
   Scene lists them parent first, so the Scene drawer resolves them in the
-  runtime's order: their start Messages are compared in order.
+  runtime's order: their start Messages are compared in order. The editor,
+  choice list and column menu held focus with Mounts that answered nothing
+  either (#382, fixed); they send `MountStarted` too, and the case opens an
+  editor from the keyboard (a `Key` step) and types in it. It leaves the
+  editor open, since closing it moves focus back to the grid, and the blur
+  that follows is the runtime's alone.
 - **The server refuses a table without a `tbody`** (Foldkit, by design):
   a parser would insert one, so `renderToString` fails with
   `SerializationError` where the runtime and Scene draw the rows as written.

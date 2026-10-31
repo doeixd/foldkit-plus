@@ -85,6 +85,8 @@ export const runtime: LiveDrawer = {
       if (root === null || root === container) throw new Error('the runtime has drawn nothing yet')
       return root
     }
+    const find = (target: string): Element | null =>
+      drawn().querySelector(target) ?? (drawn().matches(target) ? drawn() : null)
     // A Mount's Message arrives on a fiber after the frame that inserted it,
     // and may ask for another frame: settled is a round with nothing new.
     const settle = async () => {
@@ -109,8 +111,7 @@ export const runtime: LiveDrawer = {
       for (const step of subject.script) {
         Step.$match(step, {
           Click: ({ target }) => {
-            const element =
-              drawn().querySelector(target) ?? (drawn().matches(target) ? drawn() : null)
+            const element = find(target)
             if (!(element instanceof HTMLElement))
               throw new Error(`nothing drawn matches ${target}`)
             element.click()
@@ -121,6 +122,13 @@ export const runtime: LiveDrawer = {
               throw new Error(`no field drawn matches ${target}`)
             element.value = value
             element.dispatchEvent(new Event('input', { bubbles: true }))
+          },
+          Key: ({ target, key }) => {
+            const element = find(target)
+            if (element === null) throw new Error(`nothing drawn matches ${target}`)
+            element.dispatchEvent(
+              new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }),
+            )
           },
           Send: ({ message }) => {
             Queue.offerUnsafe(sent, message)
@@ -238,6 +246,7 @@ export const scene: LiveDrawer = {
       Step.$match(step, {
         Click: ({ target }) => acting(Scene.click(target)),
         Type: ({ target, value }) => acting(Scene.type(target, value)),
+        Key: ({ target, key }) => acting(Scene.keydown(target, key)),
         Send: ({ message }) => Scene.Subscription.emit(message),
       }),
       settle,

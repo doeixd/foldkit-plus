@@ -489,10 +489,13 @@ const keepTyped = define({
   script: [Step.Type({ target: '#query', value: 'atlas' })],
 })
 
-// The data grid's header, from foldkit-mixins-data-grid: two sortable
-// columns, sorted by clicking a header's button. The grid measures its
-// scroll container with a Mount, which Scene is told the result of: a
-// browser lays the fixed box out at 400 by 100, and jsdom at nothing.
+// The data grid, from foldkit-mixins-data-grid: two sortable columns,
+// sorted by clicking a header's button, then a cell's editor opened from the
+// keyboard and typed in. The grid measures its scroll container with a
+// Mount, which Scene is told the result of: a browser lays the fixed box out
+// at 400 by 100, and jsdom at nothing. The editor holds focus with another,
+// which answers as it starts. The editor is left open: closing it moves focus
+// back to the grid, which only the runtime does, so its blur would differ.
 
 interface Item {
   readonly id: string
@@ -505,7 +508,7 @@ const items: ReadonlyArray<Item> = [
 ]
 const columns = Columns.define<Item>()({
   id: { header: 'Id', value: item => item.id, width: 100 },
-  name: { header: 'Name', value: item => item.name, width: 100 },
+  name: { header: 'Name', value: item => item.name, width: 100, edit: {} },
 })
 const Grid = DataGrid.make({ id: 'parts', columns })
 const GridPlacement = Bundle.declare(Grid.bundle, 'grid')
@@ -534,13 +537,17 @@ const GridView = DataGridView<GridMessage>()
     ),
   )
 const laidOut = !navigator.userAgent.includes('jsdom')
-const gridMounts = DataGridView<GridMessage>().resolveMounts(Grid, {
-  wrap: message => GridPlacement.wrapper.make(message),
-  viewport: { top: 0, left: 0, width: laidOut ? 400 : 0, height: laidOut ? 100 : 0 },
-})
+const gridWrap = (message: typeof Grid.Message.Type) => GridPlacement.wrapper.make(message)
+const gridMounts = [
+  ...DataGridView<GridMessage>().resolveMounts(Grid, {
+    wrap: gridWrap,
+    viewport: { top: 0, left: 0, width: laidOut ? 400 : 0, height: laidOut ? 100 : 0 },
+  }),
+  ...DataGridView<GridMessage>().resolveOpened(Grid, { wrap: gridWrap, opened: 'editor' }),
+]
 
 const gridHeader = define({
-  name: 'data grid header',
+  name: 'data grid',
   program: () => ({
     Model: GridModel,
     init: gridApplication.initial({ sort: Option.none() }).model,
@@ -575,7 +582,7 @@ const gridHeader = define({
         {
           state: model.grid,
           rows: RowModel.fromArray(sorted, item => item.id),
-          wrap: message => GridPlacement.wrapper.make(message),
+          wrap: gridWrap,
           label: 'Parts',
           rowHeight: 20,
           headerHeight: 20,
@@ -591,13 +598,14 @@ const gridHeader = define({
   script: [
     // What a browser's layout reports, so jsdom's drawers draw the rows too.
     Step.Send({
-      message: GridPlacement.wrapper.make(
-        Grid.Message.Measured({ top: 0, left: 0, width: 400, height: 100 }),
-      ),
+      message: gridWrap(Grid.Message.Measured({ top: 0, left: 0, width: 400, height: 100 })),
     }),
     Step.Click({ target: '[aria-colindex="2"] button' }),
     Step.Click({ target: '[aria-colindex="2"] button' }),
     Step.Click({ target: '[aria-colindex="1"] button' }),
+    Step.Key({ target: '[role="grid"]', key: 'ArrowRight' }),
+    Step.Key({ target: '[role="grid"]', key: 'Enter' }),
+    Step.Type({ target: 'input', value: 'Bolts' }),
   ],
   mounted: ({ name }) =>
     Option.map(
