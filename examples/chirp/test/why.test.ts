@@ -1,6 +1,6 @@
 /**
  * Why your profile shows a chirp the server has not listed yet, as
- * `Data.why` says it (#248): the chirp you posted joined your posts by the
+ * `why` says it (#248): the chirp you posted joined your posts by the
  * write that is still pending, and the list body's one term, that its author
  * is you, put it there. The timeline of a trace says the same across the post
  * and its answer, and that no read on the page went back to `Loading`.
@@ -8,7 +8,8 @@
 import { Effect, Option, Stream } from 'effect'
 import { TestClock } from 'effect/testing'
 import { Entity } from 'foldkit-entity'
-import { Remote, ShownBy, Why, type RemoteClient, type RemoteMessage } from 'foldkit-remote'
+import { Remote, type RemoteClient, type RemoteMessage } from 'foldkit-remote'
+import { ShownBy, why, Why } from 'foldkit-remote/why'
 import { Respond, Trace } from 'foldkit-remote/testing'
 import { RemoteServer } from 'foldkit-remote-server'
 import { describe, expect, it } from 'vitest'
@@ -61,10 +62,10 @@ describe('why your profile shows a chirp the server has not listed', () => {
   it('names the pending write and the term that put it there', () => {
     const pending = posted(held)
     const [requestId] = Data.inspect(pending).mutations.pending
-    const why = Data.why(pending, mine)
+    const said = why(Data, pending, mine)
 
-    expect(why.state).toBe('Ready')
-    expect(why.because).toContainEqual(
+    expect(said.state).toBe('Ready')
+    expect(said.because).toContainEqual(
       Why.Joined({
         list: { query: 'ByAuthor', identity: mine.ref.identity },
         row: { entity: 'Post', id: 'n1' },
@@ -77,7 +78,7 @@ describe('why your profile shows a chirp the server has not listed', () => {
   })
 
   it('names nothing once the server has answered with the same list', () => {
-    expect(Data.why(held, mine).because).toEqual([])
+    expect(why(Data, held, mine).because).toEqual([])
   })
 })
 
@@ -129,6 +130,6 @@ describe('the timeline of a post', () => {
     // The list stays `Ready` throughout: its rows changed, its tag did not.
     expect(steps).toEqual([])
     const pending = trace.entries.find(entry => entry.message._tag === 'ClockedPost')!.model
-    expect(Data.why(pending, mine).because.map(why => why._tag)).toContain('Joined')
+    expect(why(Data, pending, mine).because.map(why => why._tag)).toContain('Joined')
   })
 })

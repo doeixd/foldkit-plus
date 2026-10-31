@@ -177,6 +177,19 @@ version changed; `pnpm` skips versions already in the registry.
   `Entity.judge`), not when declared, so they are no longer in the Entity's
   metadata. `InputMembers`, `WrittenAs`, `WrittenKey` and `WrittenSpec` are
   also reachable as `Entity.InputMembers` and so on.
+- **Breaking: `why`, `timeline` and `explain` are functions of
+  `foldkit-remote/why`, not domain methods** (`foldkit-remote`, #378).
+  `Data.why(model, read, options)` is `why(Data, model, read, options)`,
+  `Data.timeline(start, history, reads, options)` is `timeline(Data, start,
+  history, reads, options)`, and `Data.explain(model, query, options)` is
+  `explain(Data, model, query, options)`. `Why`, `ShownBy`, `WhyTerm`,
+  `ReadWhy`, `ReadStep`, `QueryExplanation` and `ExplainedDependencies` are
+  exported from `foldkit-remote/why`, and no longer from `foldkit-remote`.
+  A page that never explains a read keeps none of it: a read-only
+  `Remote.make` page keeps 260.2 kB of `foldkit-remote` where it kept 282.2
+  kB (rendered; the page 526.1 kB to 508.8 kB minified, 145.1 kB to 140.2 kB
+  gzipped).
+
 
 - **Remote reads are cheap to repeat, and keep their objects while what they
   read does** (`foldkit-remote`, #384). `Data.get(selection, id)` (and

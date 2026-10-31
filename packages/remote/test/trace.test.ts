@@ -20,8 +20,8 @@ import {
   isRemoteMessage,
   terminal,
   writeEntities,
-  Why,
 } from '../src/index.js'
+import { Why } from '../src/why.js'
 import { Respond, Trace } from '../src/testing.js'
 
 const Project = Entity.define(

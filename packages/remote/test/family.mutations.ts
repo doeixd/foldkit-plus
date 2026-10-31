@@ -5,13 +5,14 @@
  */
 const tests = ['packages/remote/test/family.test.ts']
 const file = '../src/index.ts'
+const active = '../src/active.ts'
 
 export default [
   {
     name: 'a family drops its parent requirements',
     edits: [
       {
-        file,
+        file: active,
         find: '    return [\n      ...Option.toArray(from.projectionOf(model)).map(projection => ({\n        name: from.name,\n        projection,\n      })),\n      ...instances.map(instance => ({',
         replace: '    return [\n      ...instances.map(instance => ({',
       },
@@ -22,7 +23,7 @@ export default [
     name: 'family instances are named by their Surface alone',
     edits: [
       {
-        file,
+        file: active,
         find: '        name: `${entry.name}[${instance.key}]`,',
         replace: '        name: entry.name,',
       },

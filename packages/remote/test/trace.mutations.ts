@@ -58,19 +58,19 @@ export default [
     'a failure that keeps its value regresses',
     'Failed: (_, previous) => Option.isSome(previous),',
     'Failed: () => false,',
-    '../src/why.ts',
+    '../src/whyTerms.ts',
   ),
   edit(
     'a row found gone regresses',
     'NotFound: () => true,',
     'NotFound: () => false,',
-    '../src/why.ts',
+    '../src/whyTerms.ts',
   ),
   edit(
     'regressions compare a Model with itself',
     'const from = before',
     'const from = entry.model',
-    '../src/index.ts',
+    '../src/why.ts',
   ),
   edit(
     'a list with a row not yet read reads Loading (#243)',

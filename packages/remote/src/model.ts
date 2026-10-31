@@ -193,7 +193,7 @@ export interface RemoteModel {
   readonly recent: RecentRoots
   /**
    * The roots of Surfaces left that the budget evicted, newest last, the
-   * newest 256 of each: lists by identity, reads by row. `Data.why` reads a
+   * newest 256 of each: lists by identity, reads by row. `why` reads a
    * list or row absent from the store as `Evicted` while it is named here.
    */
   readonly evicted: Evicted

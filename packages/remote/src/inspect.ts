@@ -1,19 +1,6 @@
 /** A serializable summary of a RemoteModel for DevTools and diagnostics. */
-import type { Dependencies } from 'foldkit-entity'
-
-/** A query body's `Dependencies` as plain data: each field by its Entity's name and key. */
-export interface ExplainedDependencies {
-  readonly fields: ReadonlyArray<{ readonly entity: string; readonly key: string }>
-  readonly inputs: Dependencies['inputs']
-  readonly operations: Dependencies['operations']
-  /** Each operator it calls, by its id and version. */
-  readonly operators: ReadonlyArray<{ readonly id: string; readonly version: number }>
-}
 import type { RemoteDiagnostic } from './diagnostics.js'
 import type { Failures, RemoteModel } from './model.js'
-import type { QueryWindow } from './query.js'
-import type { RemoteData } from './remoteData.js'
-import type { RelationRequirement } from './requirement.js'
 import type { EntityEntry } from './store.js'
 
 /** A serializable summary of a RemoteModel for DevTools and diagnostics. */
@@ -85,80 +72,4 @@ export const inspectEntity = (
 ): RemoteInspection['entities'][number] | undefined => {
   const entry = model.entities[key]
   return entry === undefined ? undefined : inspectEntry(key, entry)
-}
-
-/**
- * What one query read is, and what it currently is — data-query-DESIGN §29.1.
- *
- * Every member is gathered from something that already existed: the read was
- * always this many pieces, and nothing had ever been asked to put them in one
- * place. It is plain serializable data, so a DevTools panel, a log line and a
- * test assert on the same value.
- *
- * Two members of §29.1's sketch are **not** here, and their absence is the
- * finding rather than an omission:
- *
- * - **Surface.** A Projection does not know which Surface reads it, and often
- *   several do — so it is not a property of the read, and `explain` cannot
- *   recover it alone. Given the active Surfaces (the same record
- *   `subscriptions` takes), it reports **every** Surface reading the connection
- *   rather than guessing one, and omits the member entirely when it was not
- *   given them.
- * - **Executor.** The thing that answers a query is a `RemoteClient` Layer in
- *   the runtime, not a value in the Model, and a pure read of the Model cannot
- *   see it. That is the same boundary that makes this function pure and
- *   replayable, so it is worth more than the line of text.
- *
- * And one that the design proposed and this does not want: *expectation*
- * (required versus optional). §11 left it unbuilt for want of a consumer, and
- * the explanation was the likeliest consumer. It turns out not to need it — a
- * query's result is a connection, so the shape is a `Page`, decided by the
- * definition rather than by the read. Nothing here has an opinion about whether
- * an empty one is an error, because nothing here has to have one.
- */
-export interface QueryExplanation {
-  /** The bound Remote domain that answers it. */
-  readonly domain: string
-  /** The definition's name. */
-  readonly query: string
-  /** The input as encoded, which is what the identity is built from. */
-  readonly input: unknown
-  /** The connection identity: definition plus canonical input, excluding the window. */
-  readonly identity: string
-  /** How much of the connection this read asks for. */
-  readonly window: QueryWindow
-  /** What it reads of each item, as the slice asked of the server. */
-  readonly select: RelationRequirement
-  /**
-   * What the query means, as readable text — `Query.show`, and so neither SQL
-   * nor whatever the backend compiled. Absent for a definition made with
-   * `Query.make`, whose meaning lives on the server that answers it.
-   */
-  readonly body?: string | undefined
-  /**
-   * The fields, inputs and operations the body reads; absent with the body.
-   * Plain data, so it serializes: a field is its Entity's name and key, which
-   * is unambiguous because a query reads one Entity.
-   */
-  readonly dependencies?: ExplainedDependencies | undefined
-  /** What the read answers from this Model right now. */
-  readonly state: RemoteData<unknown>['_tag']
-  /**
-   * The active Surfaces reading this connection at this Model, if the active
-   * record was supplied. Plural because several may, which is why a Projection
-   * cannot carry the answer itself.
-   */
-  readonly surfaces?: ReadonlyArray<string> | undefined
-  /**
-   * Why each of those Surfaces is active, where it was placed with
-   * `Surface.when` — the Model path and the tag, without running anything. A
-   * Surface placed with `Surface.at` has no entry: a callback cannot be read.
-   */
-  readonly activation?:
-    | ReadonlyArray<{
-        readonly surface: string
-        readonly path: readonly string[]
-        readonly tag: string
-      }>
-    | undefined
 }

@@ -115,13 +115,13 @@ export default [
     '(!stale && current === undefined)',
   ),
   edit(
-    'Data.why says no list was evicted',
+    'why says no list was evicted',
     reasons,
     'connection === undefined && remote.evicted.connections.includes(identity)',
     'false',
   ),
   edit(
-    'Data.why says a held row was evicted',
+    'why says a held row was evicted',
     reasons,
     'entry === undefined && remote.evicted.rows.includes(key)',
     'remote.evicted.rows.includes(key)',

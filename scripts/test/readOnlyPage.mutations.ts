@@ -7,7 +7,9 @@
  * which the test imports, are mutated here. Entity's source was mutated by
  * hand: `defineVariants` reading its invariants (`invariantsOf(entity)`)
  * before it returns, and `Entity` an object again, each failed "keeps no
- * invariant judge, expressions or writes".
+ * invariant judge, expressions or writes". Remote's likewise: a domain that
+ * carries `why` again (`Object.assign(domain, { why })` in `bindDomain`)
+ * failed "keeps no explanations".
  */
 const tests = ['scripts/test/readOnlyPage.test.ts']
 
@@ -37,5 +39,5 @@ export default [
     edits: [relative],
     tests,
   },
-  linked('remote', ['src/index.ts', 'src/port.ts', 'src/testing.ts']),
+  linked('remote', ['src/index.ts', 'src/port.ts', 'src/testing.ts', 'src/why.ts']),
 ]

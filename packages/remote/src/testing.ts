@@ -21,7 +21,7 @@ import type { MutationDescriptor } from './mutation.js'
 import { OutboxLocks } from './outbox.js'
 import { IDENTITY_SEPARATOR, queryIdentity, stableStringify, type QueryRef } from './query.js'
 import type { RemoteData } from './remoteData.js'
-import type { ReadStep, ReadWhy } from './why.js'
+import { timeline, why, type ReadStep, type ReadWhy } from './why.js'
 import type {
   RemoteForbidden,
   RemoteMutationError,
@@ -139,9 +139,9 @@ export interface Trace<AppModel, Message> {
   readonly entries: ReadonlyArray<TraceEntry<AppModel, Message>>
   /** The requests still held when the steps ran out. */
   readonly pending: ReadonlyArray<string>
-  /** `Data.why` of a read at a Model, given the trace's active record. */
+  /** `why` of a read at a Model, given the trace's active record. */
   readonly why: (model: AppModel, read: Projection<AppModel, RemoteData<unknown>>) => ReadWhy
-  /** `Data.timeline` over the trace, given its active record. */
+  /** `timeline` over the trace, given its active record. */
   readonly timeline: (
     reads: Readonly<Record<string, Projection<AppModel, RemoteData<unknown>>>>,
   ) => ReadonlyArray<ReadStep<Message>>
@@ -156,7 +156,7 @@ export interface Regression<Message> {
   readonly message: Message
   readonly from: Tag
   readonly to: Tag
-  /** `Data.why`, for the Model it regressed in. */
+  /** `why`, for the Model it regressed in. */
   readonly why: ReadWhy
 }
 
@@ -178,7 +178,7 @@ export interface TraceConfig<
   ) => Update.Return<AppModel, Message, unknown>) &
     // Said apart, so the application's union is inferred from `update` alone.
     ((model: AppModel, message: RemoteMessage) => unknown)
-  /** The active record, as `Data.subscriptions` and `Data.why` take it. */
+  /** The active record, as `Data.subscriptions` and `why` take it. */
   readonly active: Readonly<Record<string, ActiveSurface<AppModel> | SurfaceSource<AppModel>>>
   /** As `Data.subscriptions` takes them; the trace's clock stands still, so it sets `now`. */
   readonly options?: Omit<SubscriptionsOptions, 'now'>
@@ -207,7 +207,7 @@ export interface TraceConfig<
   readonly regresses?: { readonly [Name in keyof NoInfer<Reads>]?: string }
 }
 
-/** Reads by name, as `Data.timeline` takes them. */
+/** Reads by name, as `timeline` takes them. */
 type NamedReads<AppModel> = Readonly<Record<string, Projection<AppModel, RemoteData<unknown>>>>
 
 /** A `PredictionMismatch` the reducer recorded, and the Message it recorded it for. */
@@ -312,7 +312,7 @@ const disagreementsOf = <AppModel, Message>(
     known = new Set(recorded)
     return found.map(mismatch => ({ index, message, mismatch }))
   })
-  const regressions = Data.timeline(start, history, reads, { surfaces }).filter(
+  const regressions = timeline(Data, start, history, reads, { surfaces }).filter(
     step => step.regression && regresses[step.read] === undefined,
   )
   return { mismatches, regressions }
@@ -592,8 +592,8 @@ const run = async <AppModel, Message, Reads extends NamedReads<AppModel> = Recor
       start: config.start,
       entries,
       pending: held.map(request => request.description),
-      why: (at, read) => Data.why(at, read, { surfaces: config.active }),
-      timeline: reads => Data.timeline(config.start, entries, reads, { surfaces: config.active }),
+      why: (at, read) => why(Data, at, read, { surfaces: config.active }),
+      timeline: reads => timeline(Data, config.start, entries, reads, { surfaces: config.active }),
     }
   } finally {
     for (const fiber of [...fibers]) fiber.interruptUnsafe()
@@ -626,7 +626,7 @@ const record = <
   options: {
     readonly reads?: Reads
     readonly regresses?: { readonly [Name in keyof NoInfer<Reads>]?: string }
-    /** The active record, for `Data.why` in a regression's words. */
+    /** The active record, for `why` in a regression's words. */
     readonly active?: TraceConfig<AppModel, Message>['active']
   } = {},
 ): Recording<AppModel, Message, Return> => {

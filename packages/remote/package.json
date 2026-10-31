@@ -41,6 +41,11 @@
       "foldkit-plus:source": "./src/testing.ts",
       "types": "./dist/testing.d.ts",
       "import": "./dist/testing.js"
+    },
+    "./why": {
+      "foldkit-plus:source": "./src/why.ts",
+      "types": "./dist/why.d.ts",
+      "import": "./dist/why.js"
     }
   },
   "files": [

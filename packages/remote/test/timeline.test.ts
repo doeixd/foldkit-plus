@@ -1,5 +1,5 @@
 /**
- * `Data.timeline`: each change of each read's tag across a recorded history,
+ * `timeline`: each change of each read's tag across a recorded history,
  * as Foldkit's devtools records it, with the Message that made it, `why` at
  * the Model it left, and #234's rule (#248).
  */
@@ -8,7 +8,8 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Entity, Order } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
-import { Query, Remote, Why, emptyStore, writeEntities, type RemoteMessage } from '../src/index.js'
+import { Query, Remote, emptyStore, writeEntities, type RemoteMessage } from '../src/index.js'
+import { timeline, Why } from '../src/why.js'
 
 const Project = Entity.define('Project', Schema.Struct({ id: Schema.String, name: Schema.String }))
 const All = Query.define('All', {}, () =>
@@ -74,9 +75,9 @@ const dropped: RemoteMessage = {
   merge: 'replace',
 }
 
-describe('Data.timeline', () => {
+describe('timeline', () => {
   const history = recorded([refresh, asked, dropped])
-  const steps = Data.timeline(start, history, { project, other, list })
+  const steps = timeline(Data, start, history, { project, other, list })
   // `other` never changes: p2 keeps its name through all three.
 
   it('has one step per change of a read’s tag, with the Message that made it', () => {
@@ -120,7 +121,8 @@ describe('Data.timeline', () => {
     const shown = {
       list: Surface.at(App.surface('Listing', { model: () => ({ list }) }), undefined),
     }
-    const [, , , last] = Data.timeline(
+    const [, , , last] = timeline(
+      Data,
       start,
       history,
       { project, other, list },
@@ -132,7 +134,8 @@ describe('Data.timeline', () => {
   })
 
   it('does not mark a read that had nothing to show', () => {
-    const [loading] = Data.timeline(
+    const [loading] = timeline(
+      Data,
       { remote: Remote.initial },
       [{ message: asked, model: Data.reduce({ remote: Remote.initial }, asked) }],
       { project },
@@ -142,6 +145,6 @@ describe('Data.timeline', () => {
   })
 
   it('is empty for a history that changes no tag', () => {
-    expect(Data.timeline(start, recorded([asked]), { other, list })).toEqual([])
+    expect(timeline(Data, start, recorded([asked]), { other, list })).toEqual([])
   })
 })

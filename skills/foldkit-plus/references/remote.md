@@ -47,7 +47,7 @@ stale fields. An inactive Surface creates no work. `RemoteData` is a closed unio
 (`RemoteData.match` is exhaustive; `RemoteData.answered(data)` is whether it has an answer yet):
 
 - `Initial`: absent, **nothing is fetching it** (often a wiring bug: not observed).
-  `Data.why(model, projection, { surfaces })` says which: its first reason is
+  `why(Data, model, projection, { surfaces })` says which: its first reason is
   `NotObserved` (no active Surface reads it) or `NotFetching` (one does;
   Subscriptions not installed). See "Why a read is in its state" below.
 - `Loading`: absent, a read or a list's query is in flight (`QueryStarted`).
@@ -59,7 +59,9 @@ stale fields. An inactive Surface creates no work. `RemoteData` is a closed unio
   naming the field; select without it, or `Data.refresh` asks again).
 - `NotFound`: tombstone (server answered with nothing about the entity).
 
-**Why a read is in its state.** `Data.why` returns a `ReadWhy` (`state`,
+**Why a read is in its state.** `why(Data, model, read)`, from
+`foldkit-remote/why` (development tools, an entry of their own so a page
+that never explains a read keeps none of them), returns a `ReadWhy` (`state`,
 `because`, `message`, `surfaces`), pure over the Model. `because` is every
 fact about what the read reads, typed (`Why`, matched with `Why.match` or
 `Why.guards`): `List`/`Fields` `Missing`, `Evicted` or `Stale` and `inFlight` (`via` is
@@ -96,13 +98,13 @@ declare const history: ReadonlyArray<{ readonly message: Message; readonly model
 
 ```ts
 import { Schema } from 'effect'
-import { ReadWhy, Why } from 'foldkit-remote'
+import { ReadWhy, timeline, why, Why } from 'foldkit-remote/why'
 
-const why = Data.why(model, list, { surfaces: active })
-const waiting = why.because.filter(Why.guards.Fields) // row, via, fields, held, inFlight
-const json = Schema.encodeSync(ReadWhy)(why) // for a log or a devtools client
+const said = why(Data, model, list, { surfaces: active })
+const waiting = said.because.filter(Why.guards.Fields) // row, via, fields, held, inFlight
+const json = Schema.encodeSync(ReadWhy)(said) // for a log or a devtools client
 // each change of each read's tag across recorded (Message, Model) pairs
-const steps = Data.timeline(start, history, { list }, { surfaces: active })
+const steps = timeline(Data, start, history, { list }, { surfaces: active })
 ```
 
 ## Minimal client
@@ -794,7 +796,7 @@ subscription naming more ids of one Entity than `maxIdsPerEntity`): it is not
 restarted until the live requirements change, and a `LiveRefused` diagnostic
 records it.
 
-`Data.explain(model, queryProjection)` explains one query read as a single
+`explain(Data, model, queryProjection)`, from `foldkit-remote/why`, explains one query read as a single
 serializable value: `domain`, `query`, `input`, `identity`, `window`, `select`,
 the `body` as readable text with its `dependencies` (each field `{ entity, key }`,
 without the owner identity `Query.dependencies` carries; absent for a
@@ -828,14 +830,14 @@ stands still (no `grace`, age-out or live restart fires), live streams send
 nothing (script `LiveReceived`), and only Remote's Commands run. `update` must
 take Remote's Messages; a `Remote.fold` domain is not supported yet. Each
 regression carries `why`, a `ReadWhy` (its `because[0]` says what the read
-waits on); `trace.timeline({ list })` is `Data.timeline` over the trace, every
+waits on); `trace.timeline({ list })` is `timeline` over the trace, every
 change of tag and not only regressions.
 
 **A disagreement fails the test (#350).** `Trace.run` refuses a domain that
 registers a mutation and does not verify its predictions, and throws after its steps on any
 `PredictionMismatch` a Model recorded, or on a regression of a read named in
 `reads` (`regresses: { list: 'why' }` allows one on purpose), naming the
-Message and `Data.why`. Declare the domain with
+Message and `why`. Declare the domain with
 `verifyPredictions: import.meta.env?.DEV === true` (Vite dev and Vitest on, a
 build off; no package reads a build mode); a part the server answers
 otherwise on purpose goes in `verifyPredictions: { on, expected: { mutations:
@@ -1225,7 +1227,7 @@ handler's write and raw SQL are held to the invariants and move the revision too
   garbage-collected (safe; it refetches), except what the Surfaces
   left reached, within `Remote.make({ budget })` (default 1,000 entries, a row
   or a list each; what active Surfaces read is never evicted; the Surface left
-  longest ago goes first, and `Data.why` says `Evicted`). A list held
+  longest ago goes first, and `why` says `Evicted`). A list held
   that way is stale, so going back reads `Refreshing` and refetches it, unless
   every call reading it is `staleWhileRevalidate`: then it keeps its age, and
   going back inside `maxAge` draws it with no request.

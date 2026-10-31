@@ -32,6 +32,7 @@ import {
   type EntityStore,
   type Page,
 } from 'foldkit-remote'
+import { why } from 'foldkit-remote/why'
 import { Surface } from 'foldkit-surface'
 
 const Project = Entity.make(
@@ -258,13 +259,13 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     `plan: ${requirements.map(entry => `${entry.entity}:${entry.id} [${entry.fields.join(',')}]`).join(', ')}`,
   )
   lines.push(`before fetch: ${describeData(projection.read(initial))}`)
-  // `Data.why` tells the two reasons for `Initial` apart: nothing reads it, or
+  // `why` tells the two reasons for `Initial` apart: nothing reads it, or
   // something does and nothing fetches. Here the page is active, and nothing has
   // fetched yet: the step below is the I/O.
-  const why = Data.why(initial, projection, {
+  const said = why(Data, initial, projection, {
     surfaces: { page: Surface.at(ProjectPage, { projectId: 'p1' }) },
   })
-  lines.push(`why: ${why.because.map(reason => reason._tag).join(', ')}`)
+  lines.push(`why: ${said.because.map(reason => reason._tag).join(', ')}`)
 
   // The store stamps each write with the clock it is given, so the refresh
   // below can decide staleness without waiting.

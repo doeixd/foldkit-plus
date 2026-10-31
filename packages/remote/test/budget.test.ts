@@ -2,7 +2,7 @@
  * A budget on what retention keeps (#352): rows and lists the Surfaces left
  * are evicted, least recently read first, once they and what the active
  * Surfaces read pass `budget` entries. What an active Surface reads, and what
- * a pending write changes, is never evicted, and `Data.why` says `Evicted`.
+ * a pending write changes, is never evicted, and `why` says `Evicted`.
  */
 import { Effect, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
@@ -13,11 +13,11 @@ import {
   ConnectionChange,
   Query,
   Remote,
-  Why,
   type RemoteMessage,
   type RetentionRoots,
 } from '../src/index.js'
-import { whyWords } from '../src/why.js'
+import { why, Why } from '../src/why.js'
+import { whyWords } from '../src/whyTerms.js'
 
 const Project = DomainEntity.define(
   'Project',
@@ -270,11 +270,11 @@ describe('A budget', () => {
   })
 })
 
-describe('Data.why on what the budget evicted', () => {
+describe('why on what the budget evicted', () => {
   const evicted = visited(6, showing(6)())
 
   it('says a list is Evicted, not merely Missing', () => {
-    expect(Data.why(evicted, a).because).toContainEqual(
+    expect(why(Data, evicted, a).because).toContainEqual(
       Why.List({
         list: { query: 'ByOwner', identity: a.ref.identity },
         held: 'Evicted',
@@ -282,7 +282,7 @@ describe('Data.why on what the budget evicted', () => {
       }),
     )
     // A list never loaded is Missing.
-    expect(Data.why(evicted, listOf('z')).because).toContainEqual(
+    expect(why(Data, evicted, listOf('z')).because).toContainEqual(
       Why.List({
         list: { query: 'ByOwner', identity: listOf('z').ref.identity },
         held: 'Missing',
@@ -310,7 +310,7 @@ describe('Data.why on what the budget evicted', () => {
       held: 'Evicted',
       inFlight: false,
     })
-    expect(Data.why(left, read).because).toContainEqual(because)
+    expect(why(Data, left, read).because).toContainEqual(because)
     expect(whyWords(because)).toContain(
       "evicted to keep the cache within its budget (Remote.make's budget)",
     )
@@ -323,7 +323,7 @@ describe('Data.why on what the budget evicted', () => {
       },
       now: 0,
     })
-    expect(Data.why(other, read).because).toContainEqual(
+    expect(why(Data, other, read).because).toContainEqual(
       Why.Fields({
         row: { entity: 'Project', id: 'a1' },
         via: [],

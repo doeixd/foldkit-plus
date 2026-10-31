@@ -187,7 +187,7 @@ reducer's pure `gc` keeps what the roots reach through the store's refs plus any
 pending optimistic change. The roots of the Surfaces left count too, their
 lists held stale, so going back reads `Refreshing` while the list refetches,
 until they pass `Remote.make`'s `budget` of rows and lists: then the Surface
-left longest ago is evicted first, and `Data.why` says `Evicted`.
+left longest ago is evicted first, and `why` says `Evicted`.
 
 In the view, a remote field is a `RemoteData`. `Remote.select` produces
 `Ready` once its selected fields are present, `Refreshing` while one is stale
@@ -199,11 +199,11 @@ read is fetching it and `Initial` when none is: the read entry emits
 mark. That distinction is the one worth rendering differently, because nothing
 fetches a projection no active Surface observes; it reads `Initial` forever, and
 a spinner there hides the wiring mistake rather than showing progress. There is
-no hidden suspense; the states are explicit. `Data.why(model, projection, {
-surfaces })` says why a read shows what it shows, as typed reasons read from the
+no hidden suspense; the states are explicit. `why(Data, model, projection, {
+surfaces })`, from `foldkit-remote/why`, says why a read shows what it shows, as typed reasons read from the
 Model (not observed, a list or fields missing or in flight, a failure nothing
 retries, a pending write, a row a write moved into or out of a list), and
-`Data.timeline` gives each change of a read's state across a recorded history.
+`timeline` gives each change of a read's state across a recorded history.
 
 ## Mutations and live data
 

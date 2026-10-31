@@ -1,5 +1,5 @@
 /**
- * `Data.why` and `Data.timeline`, broken in turn:
+ * `why` and `timeline`, broken in turn:
  * `pnpm mutate packages/remote/test/why.mutations.ts`.
  */
 const tests = [
@@ -9,8 +9,9 @@ const tests = [
   'packages/remote/test/unavailable.test.ts',
   'packages/remote/test/trace.test.ts',
 ]
-const why = '../src/why.ts'
+const terms = '../src/whyTerms.ts'
 const reasons = '../src/whyReasons.ts'
+const why = '../src/why.ts'
 const index = '../src/index.ts'
 const edit = (name: string, find: string, replace: string, file = reasons) => ({
   name,
@@ -23,13 +24,13 @@ export default [
     'the reason that decides the state is left where it was found',
     'decisive <= 0 ? because : [because[decisive]!, ...because.filter((_, at) => at !== decisive)]',
     'because',
-    why,
+    terms,
   ),
   edit(
     'the message speaks of the first reason, deciding or not',
     'message: decisive === -1 ? stateWords[state] : whyWords(because[decisive]!),',
     'message: because.length === 0 ? stateWords[state] : whyWords(because[0]!),',
-    why,
+    terms,
   ),
   edit(
     'a stale list with no pages reads as stale',
@@ -92,19 +93,24 @@ export default [
     'return [Why.OverlayOnly({ message: error.message })]',
     'return []',
   ),
-  edit('a read that had nothing to show regressed', 'shows(from) && !keeps(to)', '!keeps(to)', why),
-  edit('every read is Initial for why', "data._tag !== 'Initial'", 'false', index),
+  edit(
+    'a read that had nothing to show regressed',
+    'shows(from) && !keeps(to)',
+    '!keeps(to)',
+    terms,
+  ),
+  edit('every read is Initial for why', "data._tag !== 'Initial'", 'false', why),
   edit(
     'an unread read blames the Subscriptions',
     'names.length === 0 ? Why.NotObserved() : Why.NotFetching({ surfaces: names }),',
     'Why.NotFetching({ surfaces: names }),',
-    index,
+    why,
   ),
   edit(
     'a read that is not live is asked about its stream',
     'asked.connections.some(connection => connection.live === true)',
     'true',
-    index,
+    why,
   ),
   edit(
     'a list’s rows are not cut to the read’s window',
@@ -112,8 +118,8 @@ export default [
     'shown: placed,',
     index,
   ),
-  edit('the timeline compares every Model with the start', 'before = entry.model', '', index),
-  edit('every Message is a step', 'if (was._tag === is._tag) return []', '', index),
+  edit('the timeline compares every Model with the start', 'before = entry.model', '', why),
+  edit('every Message is a step', 'if (was._tag === is._tag) return []', '', why),
   edit(
     'every change is a regression',
     '.filter(change => change.regression)',

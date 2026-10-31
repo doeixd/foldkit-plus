@@ -1,5 +1,5 @@
 /**
- * `Data.why`: every fact the Model holds about a read, by typed reference,
+ * `why`: every fact the Model holds about a read, by typed reference,
  * the reason that decides its state first (#248).
  *
  * `Initial` means nothing is fetching the read. In the first hour with Remote
@@ -14,7 +14,8 @@ import { Option, Schema } from 'effect'
 import { Entity, Relation } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
-import { ReadWhy, Remote, Why } from '../src/index.js'
+import { Remote } from '../src/index.js'
+import { ReadWhy, why, Why } from '../src/why.js'
 import {
   App,
   Data,
@@ -51,32 +52,32 @@ const surfaces = {
   ),
 }
 
-describe('Data.why for a read that is Initial', () => {
+describe('why for a read that is Initial', () => {
   it('says it cannot tell without the active record', () => {
-    const why = Data.why(open, project)
-    expect(why.state).toBe('Initial')
-    expect(why.because[0]).toEqual(Why.NoActiveRecord())
-    expect(why.surfaces).toEqual(Option.none())
+    const said = why(Data, open, project)
+    expect(said.state).toBe('Initial')
+    expect(said.because[0]).toEqual(Why.NoActiveRecord())
+    expect(said.surfaces).toEqual(Option.none())
   })
 
   it('says no active Surface reads it while the page is closed', () => {
-    const why = Data.why(closed, project, { surfaces })
+    const said = why(Data, closed, project, { surfaces })
 
-    expect(why.because[0]).toEqual(Why.NotObserved())
-    expect(why.surfaces).toEqual(Option.some([]))
-    expect(why.message).toContain('No active Surface reads it')
+    expect(said.because[0]).toEqual(Why.NotObserved())
+    expect(said.surfaces).toEqual(Option.some([]))
+    expect(said.message).toContain('No active Surface reads it')
   })
 
   it('names the Surface that reads it, and blames the missing Subscriptions', () => {
-    const why = Data.why(open, project, { surfaces })
+    const said = why(Data, open, project, { surfaces })
 
-    expect(why.because[0]).toEqual(Why.NotFetching({ surfaces: ['ProjectPage'] }))
-    expect(why.surfaces).toEqual(Option.some(['ProjectPage']))
-    expect(why.message).toContain('Data.subscriptions')
+    expect(said.because[0]).toEqual(Why.NotFetching({ surfaces: ['ProjectPage'] }))
+    expect(said.surfaces).toEqual(Option.some(['ProjectPage']))
+    expect(said.message).toContain('Data.subscriptions')
   })
 
   it('says, after the wiring, which fields nothing is fetching', () => {
-    expect(Data.why(open, project, { surfaces }).because.slice(1)).toEqual([
+    expect(why(Data, open, project, { surfaces }).because.slice(1)).toEqual([
       Why.Fields({
         row: p1,
         via: [],
@@ -90,22 +91,22 @@ describe('Data.why for a read that is Initial', () => {
   it('does not count a Surface that reads only some of it', () => {
     // ProjectTitle reads `name` of p1 and not `status`, so it cannot be why
     // the whole card would be fetched.
-    expect(Data.why(open, project, { surfaces }).surfaces).toEqual(Option.some(['ProjectPage']))
+    expect(why(Data, open, project, { surfaces }).surfaces).toEqual(Option.some(['ProjectPage']))
   })
 
   it('matches a list by its connection', () => {
-    expect(Data.why(open, list, { surfaces }).because[0]).toEqual(Why.NotObserved())
+    expect(why(Data, open, list, { surfaces }).because[0]).toEqual(Why.NotObserved())
 
     // A Surface with no params is active whenever it is in the record.
     const shown = { ...surfaces, listing: Surface.at(Listing, undefined) }
 
-    expect(Data.why(open, list, { surfaces: shown }).because[0]).toEqual(
+    expect(why(Data, open, list, { surfaces: shown }).because[0]).toEqual(
       Why.NotFetching({ surfaces: ['ProjectList'] }),
     )
   })
 })
 
-describe('Data.why counts only a Surface that asks for all of the read', () => {
+describe('why counts only a Surface that asks for all of the read', () => {
   const ownerWith = (fields: { readonly name: true }) =>
     Entity.select(Project, { owner: Entity.select(User, fields) })
   const full = Data.get(
@@ -119,7 +120,7 @@ describe('Data.why counts only a Surface that asks for all of the read', () => {
     })
 
     expect(
-      Data.why(open, full, { surfaces: { one: Surface.at(Owner, undefined) } }).because[0],
+      why(Data, open, full, { surfaces: { one: Surface.at(Owner, undefined) } }).because[0],
     ).toEqual(Why.NotObserved())
   })
 
@@ -132,25 +133,29 @@ describe('Data.why counts only a Surface that asks for all of the read', () => {
     })
 
     expect(
-      Data.why(open, full, { surfaces: { one: Surface.at(Both, undefined) } }).because[0],
+      why(Data, open, full, { surfaces: { one: Surface.at(Both, undefined) } }).because[0],
     ).toEqual(Why.NotFetching({ surfaces: ['OwnerBoth'] }))
   })
 })
 
 describe('ReadWhy', () => {
   it('encodes to JSON, an Option as null', () => {
-    const why = Data.why(Data.overlay(stored, 'trash', [Remote.tombstone(Project, 'p1')]), project)
+    const said = why(
+      Data,
+      Data.overlay(stored, 'trash', [Remote.tombstone(Project, 'p1')]),
+      project,
+    )
 
-    expect(JSON.parse(JSON.stringify(Schema.encodeSync(ReadWhy)(why)))).toEqual({
+    expect(JSON.parse(JSON.stringify(Schema.encodeSync(ReadWhy)(said)))).toEqual({
       state: 'NotFound',
       because: [{ _tag: 'Deleted', row: p1, by: { _tag: 'Overlay', id: 'trash' } }],
-      message: why.message,
+      message: said.message,
       surfaces: null,
     })
   })
 })
 
-describe('Data.why tells apart reads of the same shape', () => {
+describe('why tells apart reads of the same shape', () => {
   const CommentBase = Entity.define(
     'Comment',
     Schema.Struct({ id: Schema.String, body: Schema.String }),
@@ -165,7 +170,7 @@ describe('Data.why tells apart reads of the same shape', () => {
     Entity.select(Post, {
       comments: Entity.page(Entity.select(Comment, { body: true }), window),
     })
-  const first = (why: ReadWhy) => why.because[0]
+  const first = (said: ReadWhy) => said.because[0]
 
   it('by id: a Surface reading another post is not reading this one', () => {
     const Other = App.surface('OtherPost', {
@@ -174,7 +179,7 @@ describe('Data.why tells apart reads of the same shape', () => {
 
     expect(
       first(
-        Blog.why(open, Blog.get(comments({ first: 2 }), 'a'), {
+        why(Blog, open, Blog.get(comments({ first: 2 }), 'a'), {
           surfaces: { other: Surface.at(Other, undefined) },
         }),
       ),
@@ -192,10 +197,10 @@ describe('Data.why tells apart reads of the same shape', () => {
     const read = Blog.get(comments({ first: 2 }), 'a')
 
     expect(
-      first(Blog.why(open, read, { surfaces: { later: Surface.at(Later, undefined) } })),
+      first(why(Blog, open, read, { surfaces: { later: Surface.at(Later, undefined) } })),
     ).toEqual(Why.NotObserved())
     expect(
-      first(Blog.why(open, read, { surfaces: { first: Surface.at(First, undefined) } })),
+      first(why(Blog, open, read, { surfaces: { first: Surface.at(First, undefined) } })),
     ).toEqual(Why.NotFetching({ surfaces: ['FirstComments'] }))
   })
 })

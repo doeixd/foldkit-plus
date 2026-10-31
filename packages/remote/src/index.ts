@@ -10,7 +10,6 @@ import {
   Duration,
   Effect,
   Layer,
-  Match,
   Option,
   Queue,
   Record,
@@ -76,23 +75,11 @@ import {
 import { wireValues } from './patchValues.js'
 import { EntityChange, Impact, changesOf, impactOn, type HeldConnection } from './impact.js'
 import { belongsEncoded, matching, type Judged, type Matched } from './matching.js'
-import { readWhy, regressed, Why, type ReadStep, type ReadWhy } from './why.js'
-import { failedReasons, reasonsOf, type WhyReader } from './whyReasons.js'
+import type { WhyReader } from './whyReasons.js'
+import { withWhyReader } from './inner.js'
+import { askedOf, askedUnion, resolvedOf, type Asked, type NamedProjection } from './active.js'
 
-/** A body's dependencies as an explanation carries them: without the owner identity, which holds a symbol. */
-const explainedDependencies = (dependencies: Domain.Dependencies): ExplainedDependencies => ({
-  fields: dependencies.fields.map(({ entity, key }) => ({ entity, key })),
-  inputs: dependencies.inputs,
-  operations: dependencies.operations,
-  operators: dependencies.operators.map(({ id, version }) => ({ id, version })),
-})
-import {
-  inspectEntity,
-  inspectRemote,
-  type ExplainedDependencies,
-  type QueryExplanation,
-  type RemoteInspection,
-} from './inspect.js'
+import { inspectEntity, inspectRemote, type RemoteInspection } from './inspect.js'
 import type { LiveCursor, LiveEvent } from './live.js'
 import {
   failureOf,
@@ -263,7 +250,6 @@ export * from './inspect.js'
 export * from './live.js'
 export * from './matching.js'
 export { placeIn, RowPlace } from './placement.js'
-export { ReadWhy, ShownBy, Why, WhyTerm, type ReadStep } from './why.js'
 export * from './model.js'
 export * from './mutation.js'
 export * from './optimistic.js'
@@ -694,69 +680,6 @@ export interface RemoteDomain<
     model: AppModel,
     projection: QueryProjection<AppModel, any, Name, Input>,
   ): Option.Option<AppModel>
-  /**
-   * What a query read is and what it currently is, as one serializable value —
-   * data-query-DESIGN §29.1: the domain, the definition and its input, the
-   * connection identity, the window, the Selection, the body as readable text
-   * with what it depends on, and what the read answers from this Model.
-   *
-   * Pure, so a DevTools panel showing it shows something the Model can be
-   * replayed to.
-   *
-   * Given `surfaces` — the same active record `subscriptions` takes — it also
-   * reports which of them read this connection, and why each is active where
-   * that is a readable fact (`Surface.when`) rather than a callback
-   * (`Surface.at`). A Projection cannot carry this itself: several Surfaces may
-   * read one connection, so it is not a property of the read.
-   */
-  explain<Name extends string, Input>(
-    model: AppModel,
-    projection: QueryProjection<AppModel, any, Name, Input>,
-    options?: {
-      readonly surfaces?:
-        | Readonly<Record<string, ActiveSurface<AppModel> | SurfaceSource<AppModel>>>
-        | undefined
-    },
-  ): QueryExplanation
-  /**
-   * Why a read shows what it shows. Any Remote read: `Data.get`, `Data.live`
-   * or `Data.query`, or a projection made of them.
-   *
-   * `because` is every fact the Model holds about what it reads, as typed
-   * references: a list or a row's fields missing, stale, in flight or
-   * failed; a pending write showing a value, and which `where` term put a row
-   * in a list or took it out. The reason that decides the state comes first,
-   * and `message` says it, with what restarts it. For `Initial`, given
-   * `surfaces` (the record `subscriptions` takes), it tells the two wiring
-   * mistakes apart: no active Surface reads it, or one does and Remote's
-   * Subscriptions are not running. Pure: it reads the Model and plans nothing.
-   */
-  why(
-    model: AppModel,
-    projection: Projection<AppModel, RemoteData<unknown>>,
-    options?: {
-      readonly surfaces?:
-        | Readonly<Record<string, ActiveSurface<AppModel> | SurfaceSource<AppModel>>>
-        | undefined
-    },
-  ): ReadWhy
-  /**
-   * Each change of each read's tag across a recorded history (the Messages
-   * `update` handled, each with the Model it left, as Foldkit's devtools
-   * records them), with the Message that made it and `why` at the Model it
-   * changed to. `regression` marks a read that showed a value and stopped
-   * with no reason a reader can see (#234).
-   */
-  timeline<Message>(
-    start: AppModel,
-    history: ReadonlyArray<{ readonly message: Message; readonly model: AppModel }>,
-    reads: Readonly<Record<string, Projection<AppModel, RemoteData<unknown>>>>,
-    options?: {
-      readonly surfaces?:
-        | Readonly<Record<string, ActiveSurface<AppModel> | SurfaceSource<AppModel>>>
-        | undefined
-    },
-  ): ReadonlyArray<ReadStep<Message>>
   /**
    * The rows of a loaded list that a body matches, decoded as the list decodes
    * them — a filter that asks the server nothing.
@@ -1742,59 +1665,6 @@ const assertRegistered = (
   }
 }
 
-/** What a projection asks of the remote: entity requirements and query connections. */
-interface Asked {
-  readonly requirements: ReadonlyArray<Requirement>
-  readonly connections: ReadonlyArray<ConnectionRequirement>
-}
-
-const askedOf = (projection: Projection<any, unknown>): Asked => ({
-  requirements: requirementsOf(projection),
-  connections: connectionsOf(projection),
-})
-
-/**
- * Whether `outer` asks for everything `inner` does of one entity: each field,
- * each relation's own slice of its target, and each page window alike.
- */
-const sliceCovers = (outer: RelationRequirement, inner: RelationRequirement): boolean =>
-  outer.entity === inner.entity &&
-  inner.fields.every(field => outer.fields.includes(field)) &&
-  Object.entries(inner.relations ?? {}).every(([field, relation]) => {
-    const wider = outer.relations?.[field]
-    return wider !== undefined && sliceCovers(wider, relation)
-  }) &&
-  Object.entries(inner.windows ?? {}).every(
-    ([field, window]) =>
-      outer.windows?.[field] !== undefined &&
-      stableStringify(outer.windows[field]) === stableStringify(window),
-  )
-
-/**
- * Whether what `outer` asks includes everything `inner` asks: each list with
- * the slice it selects of its rows, and each entity with the slice it reads,
- * relations included. A Surface that shows a read is one whose projection
- * asks for all of it; one that reads part of it cannot be why it is fetched.
- * A Surface that asks for one entity in several pieces is already one
- * requirement here: projection metadata unions them per entity and id.
- */
-const covers = (outer: Asked, inner: Asked): boolean => {
-  const { connections, requirements } = outer
-  return (
-    inner.connections.every(connection =>
-      connections.some(
-        wider =>
-          wider.identity === connection.identity &&
-          (connection.select === undefined ||
-            (wider.select !== undefined && sliceCovers(wider.select, connection.select))),
-      ),
-    ) &&
-    inner.requirements.every(requirement =>
-      requirements.some(wider => wider.id === requirement.id && sliceCovers(wider, requirement)),
-    )
-  )
-}
-
 /** When held rows and lists next age out under a freshness. */
 export interface ReadDeadline extends Deadline {
   /** Held lists that age out then, by identity. */
@@ -2471,67 +2341,6 @@ const liveEntry = <AppModel, Store extends RemoteModel, Message>(
   },
 })
 
-/** The projection an active entry has for this Model; none while it is inactive. */
-const projectionOf = <AppModel>(
-  entry: ActiveEntry<AppModel>,
-  model: AppModel,
-): Option.Option<Projection<AppModel, unknown>> => {
-  if ('projectionOf' in entry) return entry.projectionOf(model)
-  // A bare Surface without params reads whole; a source without `instancesOf`
-  // cannot happen, and resolves to nothing if it does.
-  if ('projection' in entry) return Option.some(entry.projection())
-  return Option.none()
-}
-
-/** One of an entry's reads, named for diagnostics: a lone Surface keeps its name, a family instance takes `Child[key]`. */
-interface NamedProjection<AppModel> {
-  readonly name: string
-  readonly projection: Projection<AppModel, unknown>
-}
-
-/**
- * Every projection an entry resolves to for a Model: the lone one of a
- * `Surface.at`/`Surface.when` value or a bare Surface, or a family's parent
- * first and then each instance. The parent joins so an unloaded parent is
- * fetched before what it reveals; `Data.satisfy` reaches the instances in a
- * later pass. A caller that also passes the parent separately double-covers
- * its requirements, as overlapping Surfaces already do.
- */
-const resolvedOf = <AppModel>(
-  entry: ActiveEntry<AppModel>,
-  model: AppModel,
-): ReadonlyArray<NamedProjection<AppModel>> => {
-  const source = entry as Partial<SurfaceSource<AppModel>>
-  if (typeof source.instancesOf === 'function') {
-    const instances = source.instancesOf(model)
-    const from = (entry as { readonly from?: ActiveSurface<AppModel> }).from
-    // A lone `Surface.at`/`Surface.when` keeps its name; a family names each
-    // instance after its key, with the parent first.
-    if (from === undefined)
-      return instances.map(instance => ({ name: entry.name, projection: instance.projection }))
-    return [
-      ...Option.toArray(from.projectionOf(model)).map(projection => ({
-        name: from.name,
-        projection,
-      })),
-      ...instances.map(instance => ({
-        name: `${entry.name}[${instance.key}]`,
-        projection: instance.projection,
-      })),
-    ]
-  }
-  return Option.toArray(projectionOf(entry, model)).map(projection => ({
-    name: entry.name,
-    projection,
-  }))
-}
-
-/** What some projections ask for together: their requirements and connections unioned. */
-const askedUnion = (projections: ReadonlyArray<Projection<any, unknown>>): Asked => ({
-  requirements: projections.flatMap(requirementsOf),
-  connections: projections.flatMap(connectionsOf),
-})
-
 /**
  * `resolvedOf` computed once per Model: the read, live, and retain entries
  * all derive their dependencies from the same projections on the same Model
@@ -2816,7 +2625,7 @@ export const Remote = {
      * How many entries, rows and lists, retention keeps (`defaultBudget`,
      * 1,000, when not given). What the active Surfaces read is always kept;
      * past the budget the Surfaces left longest ago are evicted, and going
-     * back to one reads `Loading`, which `Data.why` says is `Evicted`.
+     * back to one reads `Loading`, which `why` says is `Evicted`.
      */
     readonly budget?: number | undefined
   }): RemoteDomain<AppModel, Store, Entities, Queries, Mutations> =>
@@ -4472,153 +4281,6 @@ const bindDomain = <
           )
         : Option.none()
     },
-    explain: (model, projection, options) => {
-      const { ref } = projection
-      // Which active Surfaces read this connection, asked of the Model rather
-      // than of the projection: a Surface's projection is rebuilt per Model, so
-      // the only honest comparison is by connection identity. A family names
-      // each reading instance (`Grid[all]`), not just the Surface.
-      const reading = Object.values(options?.surfaces ?? {}).flatMap(source => {
-        const matched = resolvedOf(source, model).filter(({ projection: shown }) =>
-          connectionsOf(shown).some(connection => connection.identity === ref.identity),
-        )
-        // An inactive Surface reads nothing, which is not the same as reading
-        // something else.
-        if (matched.length === 0) return []
-        return [{ source, names: matched.map(({ name }) => name) }]
-      })
-      // The body lives on the descriptor, and a projection keeps only its
-      // `QueryRef` — so the explanation looks the definition back up by name.
-      // Which it can, because `Data` is bound to the domain that registered it.
-      const body = definition.registry.queries.get(ref.query)?.body
-      const [connection] = RemoteConnections.get(projection.metadata)
-      return {
-        domain: bound.contract.name,
-        query: ref.query,
-        input: Schema.encodeSync(ref.Input)(ref.input),
-        identity: ref.identity,
-        window: ref.window,
-        select: connection!.select,
-        ...(body === undefined
-          ? {}
-          : {
-              body: Relational.show(body),
-              dependencies: explainedDependencies(Relational.dependencies(body)),
-            }),
-        state: projection.read(model)._tag,
-        ...(options?.surfaces === undefined
-          ? {}
-          : {
-              surfaces: reading.flatMap(read => read.names),
-              activation: reading.flatMap(read => {
-                const activation = 'activation' in read.source ? read.source.activation : undefined
-                return activation === undefined
-                  ? []
-                  : [{ surface: read.source.name, ...activation }]
-              }),
-            }),
-      }
-    },
-    why: (model, projection, options) => {
-      const data = projection.read(model)
-      const asked = askedOf(projection)
-      const entries = options?.surfaces === undefined ? [] : Object.values(options.surfaces)
-      // Each active entry whose reads ask for all of this one: one that reads
-      // part of it cannot be why it is fetched.
-      const reading = entries.flatMap(entry => {
-        const names = resolvedOf(entry, model)
-          .filter(({ projection: shown }) => covers(askedOf(shown), asked))
-          .map(({ name }) => name)
-        return names.length === 0 ? [] : [{ entry, names }]
-      })
-      const surfaces =
-        options?.surfaces === undefined
-          ? Option.none()
-          : Option.some(reading.flatMap(read => read.names))
-      const initial: ReadonlyArray<Why> =
-        data._tag !== 'Initial'
-          ? []
-          : [
-              Option.match(surfaces, {
-                onNone: () => Why.NoActiveRecord(),
-                onSome: names =>
-                  names.length === 0 ? Why.NotObserved() : Why.NotFetching({ surfaces: names }),
-              }),
-            ]
-      const remote = store.get(model)
-      const live =
-        asked.requirements.some(requirement => requirement.live === true) ||
-        asked.connections.some(connection => connection.live === true)
-      const streams: ReadonlyArray<Why> = live
-        ? reading.flatMap(({ entry }): ReadonlyArray<Why> => {
-            return Match.valueTags(domain.liveStatus(model, entry), {
-              Idle: () => [],
-              Live: () => [],
-              Reconnecting: ({ attempt, error }) => [
-                Why.LiveReconnecting({ surface: entry.name, attempt, error }),
-              ],
-              Refused: ({ error }) => [Why.LiveRefused({ surface: entry.name, error })],
-            })
-          })
-        : []
-      const reader: WhyReader = {
-        remote,
-        visible: visibleStoreOf(remote.entities, remote.optimistic, operators),
-        listOf: identity => ({
-          query: Option.match(queryOf(identity), {
-            onNone: () => identity,
-            onSome: query => query.descriptor.name,
-          }),
-          identity,
-        }),
-        bodyOf: identity =>
-          Option.flatMap(queryOf(identity), query =>
-            Option.map(Option.fromUndefinedOr(query.descriptor.body), body => ({
-              body,
-              encoded: query.encoded,
-            })),
-          ),
-        edgesOf: ({ identity, window }) => {
-          const connection = remote.connections[identity] ?? emptyConnection
-          const placed = shownEdges(remote, identity, connection)
-          return {
-            shown: cutToWindow(placed, window, windowSize(remote, { identity, window })).edges,
-            placed,
-            pages: items(connection),
-          }
-        },
-        operators,
-        context: layersContext(remote.optimistic.layers),
-      }
-      return readWhy(
-        data._tag,
-        [...initial, ...failedReasons(data), ...reasonsOf(reader, asked), ...streams],
-        surfaces,
-      )
-    },
-    timeline: (start, history, reads, options) => {
-      let before = start
-      return history.flatMap((entry, index) => {
-        const from = before
-        before = entry.model
-        return Object.entries(reads).flatMap(([read, projection]): ReadonlyArray<ReadStep<any>> => {
-          const was = projection.read(from)
-          const is = projection.read(entry.model)
-          if (was._tag === is._tag) return []
-          return [
-            {
-              read,
-              index,
-              message: entry.message,
-              from: was._tag,
-              to: is._tag,
-              why: domain.why(entry.model, projection, options),
-              regression: regressed(was, is),
-            },
-          ]
-        })
-      })
-    },
     filtered: (model, over, by, input) => {
       assertRegistered(bound, 'Query', definition.registry.queries, by.name)
       // A filter over a different Entity can never match anything, and would
@@ -5445,7 +5107,40 @@ const bindDomain = <
       contract: bound.contract,
     }),
   }
-  return domain
+  // What `foldkit-remote/why` reads of this domain: its lists as reads show them.
+  const whyReader = (model: AppModel): WhyReader => {
+    const remote = store.get(model)
+    return {
+      remote,
+      visible: visibleStoreOf(remote.entities, remote.optimistic, operators),
+      listOf: identity => ({
+        query: Option.match(queryOf(identity), {
+          onNone: () => identity,
+          onSome: query => query.descriptor.name,
+        }),
+        identity,
+      }),
+      bodyOf: identity =>
+        Option.flatMap(queryOf(identity), query =>
+          Option.map(Option.fromUndefinedOr(query.descriptor.body), body => ({
+            body,
+            encoded: query.encoded,
+          })),
+        ),
+      edgesOf: ({ identity, window }) => {
+        const connection = remote.connections[identity] ?? emptyConnection
+        const placed = shownEdges(remote, identity, connection)
+        return {
+          shown: cutToWindow(placed, window, windowSize(remote, { identity, window })).edges,
+          placed,
+          pages: items(connection),
+        }
+      },
+      operators,
+      context: layersContext(remote.optimistic.layers),
+    }
+  }
+  return withWhyReader(domain, whyReader)
 }
 
 /** The outbox's own answers, as another tab announced them: a settled write, and nothing else. */

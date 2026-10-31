@@ -24,6 +24,7 @@
       "foldkit-remote": ["../../packages/remote/src/index.ts"],
       "foldkit-remote/port": ["../../packages/remote/src/port.ts"],
       "foldkit-remote/testing": ["../../packages/remote/src/testing.ts"],
+      "foldkit-remote/why": ["../../packages/remote/src/why.ts"],
       "foldkit-surface": ["../../packages/surface/src/index.ts"]
     }
   },

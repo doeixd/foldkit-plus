@@ -1,5 +1,5 @@
 /**
- * The reasons `Data.why` reads out of the Model: what it holds about each list
+ * The reasons `why` reads out of the Model: what it holds about each list
  * and each row a read reads, and what pending writes show of them (#248).
  */
 import { Array as Arr, Option } from 'effect'
@@ -11,21 +11,16 @@ import {
   type MemoryOperators,
   type Row,
 } from 'foldkit-entity'
+import type { Asked } from './active.js'
 import type { Edge } from './connection.js'
 import { holderOf } from './held.js'
 import { fieldMark, isQueryLoading, readsStale, type RemoteModel } from './model.js'
 import type { EntityLayer } from './optimistic.js'
 import { targetsOf } from './relation.js'
 import { RemoteData, type RemoteError } from './remoteData.js'
-import type { ConnectionRequirement, RelationRequirement, Requirement } from './requirement.js'
+import type { ConnectionRequirement, RelationRequirement } from './requirement.js'
 import { entityKey, type EntityStore } from './store.js'
-import { ShownBy, Why, type ListRef, type WhyTerm } from './why.js'
-
-/** What a read asks of the store: entity requirements and list connections. */
-export interface Asked {
-  readonly requirements: ReadonlyArray<Requirement>
-  readonly connections: ReadonlyArray<ConnectionRequirement>
-}
+import { ShownBy, Why, type ListRef, type WhyTerm } from './whyTerms.js'
 
 /** What the reasons are read from, as the bound domain reads its lists. */
 export interface WhyReader {

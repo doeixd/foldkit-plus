@@ -2,7 +2,7 @@
  * Why a Surface is active, as a value rather than a callback.
  *
  * local-execution-DESIGN phase 5, closing data-query-DESIGN §31.10 and the one
- * line §29.1 asked for that `Data.explain` could not report.
+ * line §29.1 asked for that `explain` could not report.
  *
  * `Surface.at` takes an arbitrary function of the Model. That is correct and
  * opaque: nothing can say *why* a Surface is on without running it, so there is
@@ -31,6 +31,7 @@ import { Entity as DomainEntity, Expr, Order } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Query, Remote, connectionsOf } from '../src/index.js'
+import { explain } from '../src/why.js'
 
 const Project = DomainEntity.define(
   'Project',
@@ -175,21 +176,21 @@ describe('An explanation can finally name its Surface', () => {
   const actives = { page: byTag }
 
   it('reports the Surfaces reading the connection, and why each is active', () => {
-    const explained = Data.explain(at('/owners/u1'), projects('u1'), { surfaces: actives })
+    const explained = explain(Data, at('/owners/u1'), projects('u1'), { surfaces: actives })
 
     expect(explained.surfaces).toEqual(['OwnerPage'])
     expect(explained.activation).toEqual([{ surface: 'OwnerPage', path: ['route'], tag: 'Owner' }])
   })
 
   it('reports none where the Surface is inactive, rather than guessing', () => {
-    const explained = Data.explain(at('/'), projects('u1'), { surfaces: actives })
+    const explained = explain(Data, at('/'), projects('u1'), { surfaces: actives })
 
     expect(explained.surfaces).toEqual([])
   })
 
   it('reports none for a connection no active Surface reads', () => {
     // The Surface is on, but for a different owner: a different connection.
-    const explained = Data.explain(at('/owners/u1'), projects('u2'), { surfaces: actives })
+    const explained = explain(Data, at('/owners/u1'), projects('u2'), { surfaces: actives })
 
     expect(explained.surfaces).toEqual([])
   })
@@ -198,7 +199,7 @@ describe('An explanation can finally name its Surface', () => {
     const second = Surface.when(OwnerPage, App.model.route, AppRoute.Owner, route => ({
       ownerId: route.ownerId,
     }))
-    const explained = Data.explain(at('/owners/u1'), projects('u1'), {
+    const explained = explain(Data, at('/owners/u1'), projects('u1'), {
       surfaces: { page: byTag, panel: second },
     })
 
@@ -206,14 +207,14 @@ describe('An explanation can finally name its Surface', () => {
   })
 
   it('omits the members entirely when it was given no Surfaces', () => {
-    const explained = Data.explain(at('/owners/u1'), projects('u1'))
+    const explained = explain(Data, at('/owners/u1'), projects('u1'))
 
     expect(explained).not.toHaveProperty('surfaces')
     expect(explained).not.toHaveProperty('activation')
   })
 
   it('has a Surface but no activation for a callback placement', () => {
-    const explained = Data.explain(at('/owners/u1'), projects('u1'), {
+    const explained = explain(Data, at('/owners/u1'), projects('u1'), {
       surfaces: { page: byCallback },
     })
 

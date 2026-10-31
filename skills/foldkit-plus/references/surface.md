@@ -261,7 +261,7 @@ rejects copies and hand-built values.
 
 - `Surface.when(surface, place, TaggedCase, value => params)` is `Surface.at`
   with the activation **readable**: it records the Model path and the tag, so a
-  route-to-Surface manifest, a prefetch analysis or `Data.explain`'s heading can
+  route-to-Surface manifest, a prefetch analysis or `explain`'s heading can
   be built without running a callback. Not router-specific — a route is one kind
   of tagged Model state. It takes the *read half* of a ref (a focus with
   `dependency` + `get`), because activation observes and because a union field is a union of

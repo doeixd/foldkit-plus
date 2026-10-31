@@ -151,7 +151,7 @@ A read is a `RemoteData`: `Initial`, `Loading`, `Ready`, `Refreshing`,
 `Failed { error, previous }` or `NotFound`. `RemoteData.match` is the
 exhaustive fold over the six; `RemoteData.render` the view's fold above.
 `Initial` is not a failure but is often a mistake: nothing is fetching the
-read, which a spinner hides. `Data.why(model, read, { surfaces: actives })`
+read, which a spinner hides. `why(Data, model, read, { surfaces: actives })`
 says why: which list or which field of which row is missing, stale, in
 flight or failed, and what restarts it.
 

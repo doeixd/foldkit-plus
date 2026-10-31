@@ -90,9 +90,13 @@ beforeAll(async () => {
     ])
     const under = (entry: string) => {
       const dir = entry.replaceAll('\\', '/').replace(/[^/]+$/, '')
-      return modules
-        .filter(({ id, length }) => id.startsWith(dir) && length > 0)
-        .map(({ id }) => basename(id))
+      return (
+        modules
+          .filter(({ id, length }) => id.startsWith(dir) && length > 0)
+          // A module in an import cycle is emitted as a shared chunk named after
+          // one of them with a hash (`why-B1AUOttp.js`): read it by that name.
+          .map(({ id }) => basename(id).replace(/-[\w-]{8}\.js$/, '.js'))
+      )
     }
     return { entity: under(entityEntry), remote: under(remoteEntry) }
   }
@@ -123,7 +127,7 @@ describe('a read-only Remote page', () => {
     )
   })
 
-  it.fails('keeps no explanations (#378 phase 2)', () => {
+  it('keeps no explanations (#378 phase 2)', () => {
     expect(kept.readOnly.remote).not.toContain('why.js')
     expect(kept.readOnly.remote).not.toContain('whyReasons.js')
   })

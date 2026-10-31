@@ -144,8 +144,8 @@ why: NotFetching, Fields
 after fetch: Ready {...}
 ```
 
-Before those fields exist, the Projection reads `Initial`. `Data.why(model,
-projection, { surfaces })` says why, as typed reasons: the page is active and
+Before those fields exist, the Projection reads `Initial`. `why(Data, model,
+projection, { surfaces })`, from `foldkit-remote/why`, says why, as typed reasons: the page is active and
 reads it (`NotFetching`, where `NotObserved` would mean no active Surface
 does), and its fields are missing and not in flight (`Fields`). It is pure, so
 it belongs in a test or a development panel. The demo then uses

@@ -1,5 +1,5 @@
 /**
- * `Data.why`'s reasons for every state but a wiring mistake: which list or
+ * `why`'s reasons for every state but a wiring mistake: which list or
  * which field of which row is missing, stale, in flight or failed, which
  * pending write shows a value, and which term of a list's body put a row in
  * it or took it out (#248).
@@ -8,7 +8,8 @@ import { Option } from 'effect'
 import { Entity, Expr } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
-import { ConnectionChange, Remote, ShownBy, Why } from '../src/index.js'
+import { ConnectionChange, Remote } from '../src/index.js'
+import { ShownBy, why, Why } from '../src/why.js'
 import {
   App,
   ByStatus,
@@ -29,32 +30,34 @@ import {
   summary,
 } from './whyDomain.js'
 
-describe("Data.why names a list's own page", () => {
+describe("why names a list's own page", () => {
   it('in flight while it has nothing to show', () => {
-    const why = Data.why(
+    const said = why(
+      Data,
       reduced(open, { _tag: 'QueryStarted', connections: [list.ref.identity] }),
       list,
     )
 
-    expect(why.state).toBe('Loading')
-    expect(why.because).toEqual([
+    expect(said.state).toBe('Loading')
+    expect(said.because).toEqual([
       Why.List({
         list: { query: 'All', identity: list.ref.identity },
         held: 'Missing',
         inFlight: true,
       }),
     ])
-    expect(why.message).toBe('Its list "All" is being fetched.')
+    expect(said.message).toBe('Its list "All" is being fetched.')
   })
 
   it('stale while its rows still show', () => {
-    const why = Data.why(
+    const said = why(
+      Data,
       reduced(listed, { _tag: 'ConnectionInvalidated', connection: active.ref.identity }),
       active,
     )
 
-    expect(why.state).toBe('Refreshing')
-    expect(why.because[0]).toEqual(
+    expect(said.state).toBe('Refreshing')
+    expect(said.because[0]).toEqual(
       Why.List({
         list: { query: 'ByStatus', identity: active.ref.identity },
         held: 'Stale',
@@ -64,12 +67,13 @@ describe("Data.why names a list's own page", () => {
   })
 
   it('missing while stale with no pages, as one invalidated before it loaded', () => {
-    const why = Data.why(
+    const said = why(
+      Data,
       reduced(open, { _tag: 'ConnectionInvalidated', connection: list.ref.identity }),
       list,
     )
 
-    expect(why.because).toEqual([
+    expect(said.because).toEqual([
       Why.NoActiveRecord(),
       Why.List({
         list: { query: 'All', identity: list.ref.identity },
@@ -82,7 +86,8 @@ describe("Data.why names a list's own page", () => {
   it('after the reason that decides its state', () => {
     // A stale list whose row then failed: the failure decides `Failed`.
     const error = { _tag: 'RemoteReadError', message: 'offline' }
-    const why = Data.why(
+    const said = why(
+      Data,
       reduced(
         listed,
         { _tag: 'ConnectionInvalidated', connection: active.ref.identity },
@@ -95,34 +100,35 @@ describe("Data.why names a list's own page", () => {
       active,
     )
 
-    expect(why.state).toBe('Failed')
-    expect(why.because.map(reason => reason._tag)).toEqual(['FieldsFailed', 'List'])
-    expect(why.message).toContain('Reading name of Project p1 failed.')
+    expect(said.state).toBe('Failed')
+    expect(said.because.map(reason => reason._tag)).toEqual(['FieldsFailed', 'List'])
+    expect(said.message).toContain('Reading name of Project p1 failed.')
   })
 
   it('failed, and that nothing retries it on its own', () => {
     const error = { _tag: 'RemoteQueryError', message: 'offline' }
-    const why = Data.why(
+    const said = why(
+      Data,
       reduced(open, { _tag: 'QueryFailed', connection: list.ref.identity, error }),
       list,
     )
 
-    expect(why.state).toBe('Failed')
-    expect(why.because[0]).toEqual(
+    expect(said.state).toBe('Failed')
+    expect(said.because[0]).toEqual(
       Why.ListFailed({ list: { query: 'All', identity: list.ref.identity }, error }),
     )
-    expect(why.message).toContain('Nothing retries a failed read on its own')
+    expect(said.message).toContain('Nothing retries a failed read on its own')
   })
 })
 
-describe("Data.why names a row's fields", () => {
+describe("why names a row's fields", () => {
   it('in flight, for an entity read that is Loading', () => {
     const loading = reduced(open, {
       _tag: 'ReadStarted',
       requests: [{ entity: 'Project', id: 'p1', fields: ['name', 'status'] }],
     })
 
-    expect(Data.why(loading, project)).toEqual({
+    expect(why(Data, loading, project)).toEqual({
       state: 'Loading',
       because: [
         Why.Fields({
@@ -140,7 +146,8 @@ describe("Data.why names a row's fields", () => {
 
   it('in flight, for one row of a list that holds its page (the #243 blip)', () => {
     const page = reduced(open, merged(active.ref.identity, ['p1']))
-    const why = Data.why(
+    const said = why(
+      Data,
       reduced(page, {
         _tag: 'ReadStarted',
         requests: [{ entity: 'Project', id: 'p1', fields: ['name'] }],
@@ -148,8 +155,8 @@ describe("Data.why names a row's fields", () => {
       active,
     )
 
-    expect(why.state).toBe('Loading')
-    expect(why.because[0]).toEqual(
+    expect(said.state).toBe('Loading')
+    expect(said.because[0]).toEqual(
       Why.Fields({ row: p1, via: [], fields: ['name'], held: 'Missing', inFlight: true }),
     )
   })
@@ -159,10 +166,10 @@ describe("Data.why names a row's fields", () => {
       _tag: 'RefreshStarted',
       requests: [{ entity: 'Project', id: 'p1', fields: ['status'] }],
     })
-    const why = Data.why(refreshing, project)
+    const said = why(Data, refreshing, project)
 
-    expect(why.state).toBe('Refreshing')
-    expect(why.because).toEqual([
+    expect(said.state).toBe('Refreshing')
+    expect(said.because).toEqual([
       Why.Fields({ row: p1, via: [], fields: ['status'], held: 'Stale', inFlight: false }),
     ])
   })
@@ -177,7 +184,7 @@ describe("Data.why names a row's fields", () => {
       requests: [{ entity: 'User', id: 'ada', fields: ['name'] }],
     })
 
-    expect(Data.why(held, owned).because).toEqual([
+    expect(why(Data, held, owned).because).toEqual([
       Why.Fields({
         row: { entity: 'User', id: 'ada' },
         via: ['owner'],
@@ -190,7 +197,8 @@ describe("Data.why names a row's fields", () => {
 
   it('failed', () => {
     const error = { _tag: 'RemoteReadError', message: 'offline' }
-    const why = Data.why(
+    const said = why(
+      Data,
       reduced(open, {
         _tag: 'ReadFailed',
         requests: [{ entity: 'Project', id: 'p1', fields: ['name', 'status'] }],
@@ -199,10 +207,10 @@ describe("Data.why names a row's fields", () => {
       project,
     )
 
-    expect(why.because[0]).toEqual(
+    expect(said.because[0]).toEqual(
       Why.FieldsFailed({ row: p1, via: [], fields: ['name', 'status'], error }),
     )
-    expect(why.message).toBe(
+    expect(said.message).toBe(
       'Reading name, status of Project p1 failed. Its request failed: offline. Nothing retries a failed read on its own; Data.refresh asks again.',
     )
   })
@@ -217,14 +225,14 @@ describe("Data.why names a row's fields", () => {
       },
       now: 0,
     })
-    const why = Data.why(withheld, project)
+    const said = why(Data, withheld, project)
 
-    expect(why.state).toBe('Failed')
-    expect(why.because[0]).toEqual(Why.Unavailable({ row: p1, via: [], fields: ['status'] }))
+    expect(said.state).toBe('Failed')
+    expect(said.because[0]).toEqual(Why.Unavailable({ row: p1, via: [], fields: ['status'] }))
   })
 })
 
-describe('Data.why names what deleted a row', () => {
+describe('why names what deleted a row', () => {
   it('the server', () => {
     const gone = reduced(stored, {
       _tag: 'MutationSucceeded',
@@ -234,7 +242,7 @@ describe('Data.why names what deleted a row', () => {
       now: 0,
     })
 
-    expect(Data.why(gone, project).because).toEqual([Why.Deleted({ row: p1, by: Option.none() })])
+    expect(why(Data, gone, project).because).toEqual([Why.Deleted({ row: p1, by: Option.none() })])
   })
 
   it('the newest pending write that touches it', () => {
@@ -243,24 +251,24 @@ describe('Data.why names what deleted a row', () => {
     ])
     const gone = Data.overlay(renamed, 'trash', [Remote.tombstone(Project, 'p1')])
 
-    expect(Data.why(gone, project).because).toEqual([
+    expect(why(Data, gone, project).because).toEqual([
       Why.Deleted({ row: p1, by: Option.some(ShownBy.Overlay({ id: 'trash' })) }),
     ])
   })
 
   it('a pending write', () => {
     const gone = Data.overlay(stored, 'trash', [Remote.tombstone(Project, 'p1')])
-    const why = Data.why(gone, project)
+    const said = why(Data, gone, project)
 
-    expect(why.state).toBe('NotFound')
-    expect(why.because).toEqual([
+    expect(said.state).toBe('NotFound')
+    expect(said.because).toEqual([
       Why.Deleted({ row: p1, by: Option.some(ShownBy.Overlay({ id: 'trash' })) }),
     ])
-    expect(why.message).toContain('overlay "trash" deletes Project p1')
+    expect(said.message).toContain('overlay "trash" deletes Project p1')
   })
 })
 
-describe('Data.why names what a pending write shows', () => {
+describe('why names what a pending write shows', () => {
   it('the fields it writes, and the mutation that wrote them', () => {
     const pending = reduced(stored, {
       _tag: 'MutationStarted',
@@ -268,17 +276,17 @@ describe('Data.why names what a pending write shows', () => {
       optimistic: [{ entity: 'Project', id: 'p1', values: { name: 'Apollo II', price: 11 } }],
       write: { mutation: 'Rename', input: {} },
     })
-    const why = Data.why(pending, project)
+    const said = why(Data, pending, project)
 
-    expect(why.state).toBe('Ready')
-    expect(why.because).toEqual([
+    expect(said.state).toBe('Ready')
+    expect(said.because).toEqual([
       Why.Pending({
         row: p1,
         fields: ['name'],
         by: ShownBy.Write({ requestId: 'r7', mutation: Option.some('Rename') }),
       }),
     ])
-    expect(why.message).toBe(
+    expect(said.message).toBe(
       'name of Project p1 show what Rename (request r7) wrote, until it is answered.',
     )
   })
@@ -293,7 +301,7 @@ describe('Data.why names what a pending write shows', () => {
     ])
     const list = { query: 'ByStatus', identity: active.ref.identity }
 
-    expect(Data.why(created, active).because).toContainEqual(
+    expect(why(Data, created, active).because).toContainEqual(
       Why.Joined({
         list,
         row: { entity: 'Project', id: 'p9' },
@@ -310,7 +318,7 @@ describe('Data.why names what a pending write shows', () => {
       { entity: 'Project', id: 'p1', values: { status: 'archived' } },
     ])
 
-    expect(Data.why(archived, active).because).toContainEqual(
+    expect(why(Data, archived, active).because).toContainEqual(
       Why.Left({
         list: { query: 'ByStatus', identity: active.ref.identity },
         row: p1,
@@ -329,7 +337,7 @@ describe('Data.why names what a pending write shows', () => {
       'pin',
       [ConnectionChange.prepend(active.ref, { entity: 'Project', id: 'p5' })],
     )
-    const joined = Data.why(inserted, active).because.find(Why.guards.Joined)
+    const joined = why(Data, inserted, active).because.find(Why.guards.Joined)
 
     expect(joined?.by).toEqual(Option.some(ShownBy.Overlay({ id: 'pin' })))
     expect(joined?.terms).toEqual([
@@ -342,11 +350,11 @@ describe('Data.why names what a pending write shows', () => {
   })
 })
 
-describe('Data.why names a list by what it shows', () => {
+describe('why names a list by what it shows', () => {
   it('not a row past the window as one that left', () => {
     const first = Data.query(ByStatus, { status: 'active' }, { select: summary, first: 1 })
 
-    expect(Data.why(listed, first).because).toEqual([])
+    expect(why(Data, listed, first).because).toEqual([])
   })
 
   it('nor the fields of a row past it', () => {
@@ -356,33 +364,35 @@ describe('Data.why names a list by what it shows', () => {
       requests: [{ entity: 'Project', id: 'p2', fields: ['name'] }],
     })
 
-    expect(Data.why(stale, first)).toMatchObject({ state: 'Ready', because: [] })
+    expect(why(Data, stale, first)).toMatchObject({ state: 'Ready', because: [] })
   })
 })
 
-describe('Data.why names a value the store holds and cannot show', () => {
+describe('why names a value the store holds and cannot show', () => {
   it('one that does not decode against the Selection', () => {
-    const why = Data.why(
+    const said = why(
+      Data,
       reduced(open, received([{ id: 'p1', name: 42, status: 'active' }])),
       project,
     )
 
-    expect(why.state).toBe('Failed')
-    expect(why.because[0]?._tag).toBe('Undecodable')
+    expect(said.state).toBe('Failed')
+    expect(said.because[0]?._tag).toBe('Undecodable')
   })
 
   it('one only an overlay shows, which lacks what the Selection reads', () => {
-    const why = Data.why(
+    const said = why(
+      Data,
       Data.overlay(open, 'draft', [{ entity: 'Project', id: 'p1', values: { name: 'Draft' } }]),
       project,
     )
 
-    expect(why.state).toBe('Failed')
-    expect(why.because[0]?._tag).toBe('OverlayOnly')
+    expect(said.state).toBe('Failed')
+    expect(said.because[0]?._tag).toBe('OverlayOnly')
   })
 })
 
-describe('Data.why names a live stream that is not arriving', () => {
+describe('why names a live stream that is not arriving', () => {
   const Watched = App.surface('Watched', { model: () => ({ project: Data.live(card, 'p1') }) })
   const watching = { watched: Surface.at(Watched, undefined) }
   const stream = 'Project:p1:name,status'
@@ -391,7 +401,7 @@ describe('Data.why names a live stream that is not arriving', () => {
     const error = { _tag: 'RemoteLiveError', message: 'dropped' }
     const broke = reduced(stored, { _tag: 'ReadFailed', requests: [], error, stream })
 
-    expect(Data.why(broke, Data.live(card, 'p1'), { surfaces: watching }).because).toEqual([
+    expect(why(Data, broke, Data.live(card, 'p1'), { surfaces: watching }).because).toEqual([
       Why.LiveReconnecting({ surface: 'Watched', attempt: 1, error: Option.some(error) }),
     ])
   })
@@ -400,7 +410,7 @@ describe('Data.why names a live stream that is not arriving', () => {
     const error = { _tag: 'RemoteLiveRefused', message: 'too many' }
     const refused = reduced(stored, { _tag: 'ReadFailed', requests: [], error, stream })
 
-    expect(Data.why(refused, Data.live(card, 'p1'), { surfaces: watching }).because).toEqual([
+    expect(why(Data, refused, Data.live(card, 'p1'), { surfaces: watching }).because).toEqual([
       Why.LiveRefused({ surface: 'Watched', error }),
     ])
   })
@@ -409,6 +419,6 @@ describe('Data.why names a live stream that is not arriving', () => {
     const error = { _tag: 'RemoteLiveError', message: 'dropped' }
     const broke = reduced(stored, { _tag: 'ReadFailed', requests: [], error, stream })
 
-    expect(Data.why(broke, project, { surfaces: watching }).because).toEqual([])
+    expect(why(Data, broke, project, { surfaces: watching }).because).toEqual([])
   })
 })

@@ -30,6 +30,7 @@ import {
   RemoteUnsatisfied,
   type ReadDependencies,
 } from '../src/index.js'
+import { explain, why } from '../src/why.js'
 
 const Page = DomainEntity.define(
   'Page',
@@ -276,10 +277,10 @@ describe('Diagnostics see instances', () => {
     const loaded = await Effect.runPromise(
       Data.satisfy(at('/pages/p1'), { cards: Cards }).pipe(Effect.provide(recording().layer)),
     )
-    const explained = Data.explain(loaded, gridQuery(), { surfaces: { grids: Grids } })
+    const explained = explain(Data, loaded, gridQuery(), { surfaces: { grids: Grids } })
     expect(explained.surfaces).toEqual(['Grid[all]'])
     // The lone parent reads no connection, so adding it changes nothing.
-    const withParent = Data.explain(loaded, gridQuery(), {
+    const withParent = explain(Data, loaded, gridQuery(), {
       surfaces: { grids: Grids, page: pageAt },
     })
     expect(withParent.surfaces).toEqual(['Grid[all]'])
@@ -300,7 +301,7 @@ describe('Diagnostics see instances', () => {
     const loaded = await Effect.runPromise(
       Data.satisfy(at('/pages/p1'), { cards: Cards }).pipe(Effect.provide(recording().layer)),
     )
-    const said = Data.why(loaded, Data.get(DomainEntity.select(Project, { name: true }), 'a'), {
+    const said = why(Data, loaded, Data.get(DomainEntity.select(Project, { name: true }), 'a'), {
       surfaces: { cards: Cards },
     })
     expect(said).toMatchObject({ state: 'Ready', surfaces: Option.some(['Card[a]']) })

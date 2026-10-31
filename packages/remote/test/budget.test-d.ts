@@ -3,13 +3,8 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Entity } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { expectTypeOf } from 'vitest'
-import {
-  Remote,
-  type Evicted,
-  type RecentRoots,
-  type RemoteMessage,
-  type Why,
-} from '../src/index.js'
+import { Remote, type Evicted, type RecentRoots, type RemoteMessage } from '../src/index.js'
+import { type Why } from '../src/why.js'
 
 const Project = Entity.define('Project', Schema.Struct({ id: Schema.String, name: Schema.String }))
 const Model = Schema.Struct({ remote: Remote.Model })

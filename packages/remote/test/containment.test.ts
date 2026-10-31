@@ -21,6 +21,7 @@ import type { AnyQuery } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Query, Remote, entityKey, readField } from '../src/index.js'
+import { explain } from '../src/why.js'
 
 const Project = DomainEntity.define(
   'Project',
@@ -160,10 +161,10 @@ describe('Why it is not built, which is not what it looked like', () => {
     // domain holds the registry, every planner entry point takes one, and
     // `explain` reaches a body through exactly that route without being handed
     // the descriptor. So §21 is not blocked on plumbing.
-    const explained = Data.explain(loadedWider(), narrower)
+    const explained = explain(Data, loadedWider(), narrower)
 
     expect(explained.body).toContain('Project.ownerId = $ownerId')
-    expect(Data.explain(loadedWider(), wider).body).toContain('Project.status = "active"')
+    expect(explain(Data, loadedWider(), wider).body).toContain('Project.status = "active"')
   })
 
   it('makes the cheap containment check look right, which is the trap', () => {

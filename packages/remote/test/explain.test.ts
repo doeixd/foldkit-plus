@@ -17,6 +17,7 @@ import { Entity as DomainEntity, Expr, Order } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Query, Remote } from '../src/index.js'
+import { explain } from '../src/why.js'
 
 const Project = DomainEntity.define(
   'Project',
@@ -82,7 +83,7 @@ const loaded = (): Model => {
 }
 
 describe('A query read, explained', () => {
-  const explained = Data.explain(initial, projects)
+  const explained = explain(Data, initial, projects)
 
   it('names the domain that answers it, the definition and the input it was given', () => {
     expect(explained.domain).toBe('remote')
@@ -137,16 +138,16 @@ describe('A query read, explained', () => {
 
 describe('What it currently is, which is the half that needs the Model', () => {
   it('reads Initial before anything is fetched', () => {
-    expect(Data.explain(initial, projects).state).toBe('Initial')
+    expect(explain(Data, initial, projects).state).toBe('Initial')
   })
 
   it('reads Ready once the page and the selected fields are there', () => {
     const model = loaded()
 
-    expect(Data.explain(model, projects).state).toBe('Ready')
+    expect(explain(Data, model, projects).state).toBe('Ready')
     // The same answer the view gets, from the same read — an explanation that
     // computed the state its own way could disagree with what is on screen.
-    expect(Data.explain(model, projects).state).toBe(projects.read(model)._tag)
+    expect(explain(Data, model, projects).state).toBe(projects.read(model)._tag)
   })
 
   it('reads Refreshing while the connection is being refetched', () => {
@@ -155,18 +156,19 @@ describe('What it currently is, which is the half that needs the Model', () => {
       connection: projects.ref.identity,
     })
 
-    expect(Data.explain(stale, projects).state).toBe('Refreshing')
+    expect(explain(Data, stale, projects).state).toBe('Refreshing')
   })
 })
 
 describe('What an explanation cannot say, and why each one is absent', () => {
-  const explained = () => Data.explain(initial, projects)
+  const explained = () => explain(Data, initial, projects)
 
   it('has no body for a query whose meaning lives on the server', () => {
     // `Query.make` says a name, an input and a result shape. What rows it is
     // about is whatever the server registered to answer it, and inventing a
     // rendering of that would be a fiction rather than a gap.
-    const answered = Data.explain(
+    const answered = explain(
+      Data,
       initial,
       Data.query(ProjectsAnswered, { ownerId: 'u1' }, { select: ProjectSummary, first: 25 }),
     )

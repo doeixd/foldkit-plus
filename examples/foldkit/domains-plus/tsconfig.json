@@ -50,6 +50,7 @@
       "foldkit-remote-server/port": ["../../../packages/remote-server/src/port.ts"],
       "foldkit-remote/port": ["../../../packages/remote/src/port.ts"],
       "foldkit-remote/testing": ["../../../packages/remote/src/testing.ts"],
+      "foldkit-remote/why": ["../../../packages/remote/src/why.ts"],
       "foldkit-site": ["../../../packages/site/src/index.ts"],
       "foldkit-ssr": ["../../../packages/ssr/src/index.ts"],
       "foldkit-ssr/client": ["../../../packages/ssr/src/client.ts"],

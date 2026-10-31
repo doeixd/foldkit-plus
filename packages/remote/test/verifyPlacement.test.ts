@@ -15,6 +15,7 @@ import {
   type PredictionMismatch,
   type RemoteModel,
 } from '../src/index.js'
+import { why } from '../src/why.js'
 
 /** The placement mismatches `remote` records, as the facts each names. */
 const mismatchesOf = (remote: RemoteModel) =>
@@ -120,7 +121,7 @@ describe('verifyPredictions', () => {
       const model = repriced(Data)
       expect(shown(Data).read(model)._tag).toBe('Ready')
       expect(shown(make(false)).read(repriced(make(false)))._tag).toBe('Ready')
-      expect(Data.why(model, shown(Data)).because.map(why => why._tag)).not.toContain('List')
+      expect(why(Data, model, shown(Data)).because.map(why => why._tag)).not.toContain('List')
       const asked = Data.reduce(model, { _tag: 'QueryStarted', connections: [list] })
       expect(Data.meta(asked, shown(Data))).toMatchObject({ stale: false, loading: false })
     })

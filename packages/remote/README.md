@@ -55,8 +55,8 @@ screen is a function of the Model, replays from a recording, and is tested
 without a network.
 
 What Remote does not have: a component hook (it has Surfaces and Foldkit
-Subscriptions), a devtools panel of its own (`Data.inspect`, `Data.why` and
-`Data.timeline` are the data one would show), and retries of a failed read (it
+Subscriptions), a devtools panel of its own (`Data.inspect`, `why` and
+`timeline` are the data one would show), and retries of a failed read (it
 stays failed until something asks again; see
 [When a read fails](#when-a-read-fails)). Only a durable write is sent again
 on its own, and only when nothing answered it.
@@ -98,7 +98,7 @@ what you are doing:
 | A list shows old rows | [Why is it stale?](#why-is-it-stale) |
 | A saved change showed, then vanished | [Why did my change disappear?](#why-did-my-change-disappear) |
 | A page I came back to reads `Refreshing` or `Loading` | [Why `Refreshing`?](#why-does-a-page-i-went-back-to-read-refreshing) |
-| Ask the Model why a read shows what it shows | [`Data.why`](#why-is-it-loading) |
+| Ask the Model why a read shows what it shows | [`why`](#why-is-it-loading) |
 | Test that a list never blinks to `Loading`, without a browser | [`Trace`](#testing-what-a-reader-sees-trace) |
 | Test that what a write shows is what the server stores | [`Law`](#testing-that-a-prediction-is-the-truth-law) |
 | Show a failed read, and let the user retry | [When a read fails](#when-a-read-fails) |
@@ -531,7 +531,7 @@ no active Surface may remain `Initial` forever. Rendering a spinner for
 state that actually means "wait for this request."
 
 When a read sits at `Initial` and you expected data, ask the Model why with
-`Data.why`; see [Why is it still `Initial`?](#why-is-it-still-initial).
+`why`; see [Why is it still `Initial`?](#why-is-it-still-initial).
 
 `RemoteData.match` is exhaustive, so adding or omitting a state is visible at
 compile time. `RemoteData.answered(data)` is whether a read has an answer yet:
@@ -586,10 +586,14 @@ symptom names the section; the cure is one call.
 ### Why is it still `Initial`?
 
 `Initial` means required data is absent and **nothing is fetching it**, so a
-spinner here hides a wiring mistake. Ask the Model:
+spinner here hides a wiring mistake. Ask the Model with `why`, from the
+`foldkit-remote/why` entry (a development tool, kept apart so a page that
+never explains a read keeps none of it):
 
 ```ts
-Data.why(model, projection, { surfaces }) // the record you give Data.subscriptions
+import { why } from 'foldkit-remote/why'
+
+why(Data, model, projection, { surfaces }) // the record you give Data.subscriptions
 // { state: 'Initial',
 //   because: [Why.NotFetching({ surfaces: ['ProjectPage'] }), Why.Fields({ … })],
 //   message: 'ProjectPage reads it and is active, yet nothing is fetching it. …',
@@ -614,7 +618,7 @@ missing at all.
 A list reads `Loading` when its page is missing and its query is out, and
 also when it holds its page and one row's field is being fetched. It reads
 `Refreshing` when the page is stale, a row is stale, or a row is left out
-until a field arrives. `Data.why` tells them apart. `because` lists every
+until a field arrives. `why` tells them apart. `because` lists every
 fact the Model holds about what the read reads, by typed reference, never by
 the store's internal marks. The reason that decides the state comes first.
 Match them with `Why.match`:
@@ -648,10 +652,10 @@ Why.Left({
 `truth` is `True`, `False`, `Null` (SQL's unknown, which keeps a row out) or
 `Unknown` (the store lacks what it rests on). `ReadWhy` is a Schema:
 `Schema.encodeSync(ReadWhy)(why)` is JSON for a log or a devtools client.
-`Data.why` reads the Model and nothing else: it plans nothing and fetches
+`why` reads the Model and nothing else: it plans nothing and fetches
 nothing.
 
-**Across a history.** `Data.timeline(start, history, { feed, post },
+**Across a history.** `timeline(Data, start, history, { feed, post },
 { surfaces })` takes the Messages `update` handled, each with the Model it
 left (what Foldkit's devtools records), and gives one step per change of a
 read's tag: the Message that made it, `why` at the Model it changed to, and
@@ -724,7 +728,7 @@ under `staleWhileRevalidate` by every call that reads it, a list left keeps
 its age instead: going back inside `maxAge` draws it `Ready` and sends
 nothing, and past it reads `Refreshing` while it refetches. Only past the budget is a
 screen's data evicted, the screen left longest ago first, and then coming back
-reads `Loading` and refetches; `Data.why` says the list or row is `Evicted`.
+reads `Loading` and refetches; `why` says the list or row is `Evicted`.
 To keep something no screen reads, name it in a retain entry or a
 `connections` list; see [Retention](#retention-and-garbage-collection).
 
@@ -2250,7 +2254,7 @@ The roots a Surface left, which leave together, are kept newest first while
 the entries they add fit; the first that does not fit is evicted with every
 older one. A read whose row another root holds already costs one, so the
 roots kept stay bounded too. The default is `defaultBudget`, 1,000. A list or
-row the budget evicted reads `Initial` again, and `Data.why` names it
+row the budget evicted reads `Initial` again, and `why` names it
 `Evicted` rather than `Missing`. A hand-wired `Remote.retain` takes `budget`
 in its options.
 
@@ -2602,7 +2606,7 @@ into private state:
 Data.inspect(model)            // serializable cache/domain summary
 Data.plan(model, projection)   // the entity plan a read would execute
 Data.meta(model, projection)   // when what is shown was received, stale/loading
-Data.explain(model, query)     // what one query read is, and currently is
+explain(Data, model, query)    // what one query read is (from 'foldkit-remote/why')
 Remote.planQueries(...)        // missing/stale query work
 Remote.inspectEntity(...)      // one normalized entity
 ```
@@ -2613,7 +2617,7 @@ received), with `stale` and `loading` beside it, so "updated 5s ago" reads
 the Model like any other render.
 
 These are pure and useful in tests, tooling, and debugging. For a read that
-stays `Initial`, `Data.why` and `Data.plan` are the tools; see
+stays `Initial`, `why` and `Data.plan` are the tools; see
 [Why is it still `Initial`?](#why-is-it-still-initial).
 
 `Data.inspect(model).loading` answers the other one — **"what is Remote doing
@@ -2675,11 +2679,11 @@ placement behave the same whether one is recorded or not.
 
 A query read is assembled from more pieces than it looks like: a definition, an
 input, a connection identity that excludes the window, a window that does not,
-and a Selection that is a slice asked of the server. `Data.explain` puts them in
+and a Selection that is a slice asked of the server. `explain` puts them in
 one serializable value, beside what the read answers from this Model right now:
 
 ```ts
-Data.explain(model, projects)
+explain(Data, model, projects)
 // {
 //   domain: 'remote',
 //   query: 'ProjectsByOwner',
@@ -2708,7 +2712,7 @@ each is active where that is a readable fact (`Surface.when`) rather than a
 callback (`Surface.at`):
 
 ```ts
-Data.explain(model, projects, { surfaces: actives })
+explain(Data, model, projects, { surfaces: actives })
 // surfaces:   ['ProjectPage']
 // activation: [{ surface: 'ProjectPage', path: ['route'], tag: 'Project' }]
 ```
@@ -2756,7 +2760,7 @@ expect(Trace.tags(trace, list)).toEqual(['Ready', 'Refreshing', 'Ready'])
   to, until nothing is. Reorder the steps to try another interleaving.
 - **`Trace.regressions`** names each time a read that showed a value read
   `Loading`, `Initial`, or `Failed` without it. It gives the step, the Message
-  and `Data.why`; it is `Data.timeline` over the trace, kept to its
+  and `why`; it is `timeline` over the trace, kept to its
   regressions. `NotFound` is not a regression, since the server said the row
   is gone. **`Trace.tags`** is each change of a read's tag.
 - **It fails loudly.** A `Respond` that matches nothing held throws and lists
@@ -2770,7 +2774,7 @@ expect(Trace.tags(trace, list)).toEqual(['Ready', 'Refreshing', 'Ready'])
   recorded a `PredictionMismatch` the domain does not declare `expected`.
   Name reads in `reads` and a regression of one fails it too, unless
   `regresses: { list: 'why' }` says it is on purpose. The error names the
-  Message, and the mismatch's words or the read's `Data.why`.
+  Message, and the mismatch's words or the read's `why`.
 - **`Trace.record(Data, update, { reads })`** checks a running application
   the same way: give its `update` to `Runtime.embed` in a browser test, and
   call `check()` once the steps are done.

@@ -1,4 +1,4 @@
-/** The domain and Models `Data.why`'s tests read (#248). */
+/** The domain and Models `why`'s tests read (#248). */
 import { Schema } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Entity, Expr, Order, Relation } from 'foldkit-entity'
