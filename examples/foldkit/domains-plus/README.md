@@ -75,8 +75,9 @@ Where it behaves differently, on purpose or because of a gap in Foldkit Plus:
 
 **Upstream's Playwright suites, unchanged, against the built Worker**
 (`pnpm parity --project chromium` and `--project webkit`, two workers,
-2026-10-30, Windows): **46 of 67 pass in Chromium, 43 of 67 in WebKit**
-(27 in Chromium before phase 7's fixes).
+Windows): **48 of 67 pass in Chromium** (2026-10-31), **43 of 67 in WebKit**
+(2026-10-30, before #381 and #383 were fixed; 27 in Chromium before phase
+7's fixes).
 `parity/run.mjs` copies upstream's `e2e/` and the `src/shared/` files its
 specs import into `parity/.suite`, puts the ported `parity/api.ts` in place
 of upstream's mock (it answers reads by name at `/remote`, asking upstream's
@@ -89,22 +90,20 @@ is replaced by `e2e/dev.e2e.ts`.
 
 What still fails falls into these groups:
 
-- **early input** (12): the spec holds the bundle and expects the page to
+- **early input** (11): the spec holds the bundle and expects the page to
   answer typing, or show `?q=`, before it runs: the URL, the pending names,
-  `domains:ready`, the layout attribute on `<html>`, or the box holding the
-  query of a prerendered `/` served for `/?q=…` while the bundle is held.
-  Upstream's inline script does this; the port keeps and replays the typing
-  and starts from the URL once it runs ([#372](https://github.com/doeixd/foldkit-plus/issues/372),
-  [#373](https://github.com/doeixd/foldkit-plus/issues/373)).
+  `domains:ready`, or the layout attribute on `<html>`. Upstream's inline
+  script does this; the port keeps and replays the typing
+  ([#372](https://github.com/doeixd/foldkit-plus/issues/372)). A page opened
+  at `?q=` is rendered for its query, so its box holds it before the bundle
+  runs: nothing is prerendered, since the file a static host serves for `/`
+  would be served for every `?q=` with an empty box
+  ([#383](https://github.com/doeixd/foldkit-plus/issues/383)).
 - **read pattern** (8): the spec counts upstream's 60-name pages ("60 of 556
   domains checked") or its RPC ranges, or expects one failed range to fail
   the whole search. The port reads the rows in view, by design: the first
   read of a search is the top four and the rows in view together, and a
   scroll reads exactly the rows it brings into view.
-- **rows of unequal height** (1, both browsers): at 320 px some names wrap,
-  so the rows of a search are not all one height, and the list's estimate
-  for the rows not yet drawn, the mean of those measured, moves as prices
-  land ([#381](https://github.com/doeixd/foldkit-plus/issues/381)).
 - **WebKit on Windows** (3, WebKit only): Tab does not reach links in
   Playwright's WebKit on Windows; upstream's own build fails the same three
   there.
@@ -112,8 +111,8 @@ What still fails falls into these groups:
 | Spec | Chromium | WebKit |
 | --- | --- | --- |
 | `domains.a11y.spec.ts` | 16 of 17 | 13 of 17 |
-| `domains.mobile.spec.ts` | 17 of 25 | 17 of 25 |
-| `domains.spec.ts` | 13 of 25 | 13 of 25 |
+| `domains.mobile.spec.ts` | 18 of 25 | 17 of 25 |
+| `domains.spec.ts` | 14 of 25 | 13 of 25 |
 
 | Test | Chromium | WebKit | Why it differs |
 | --- | --- | --- | --- |
@@ -141,7 +140,7 @@ What still fails falls into these groups:
 | `domains.mobile.spec.ts:233` clearing search and dismissing the mobile keyboard retains the search header before hydration | fail | fail | early input |
 | `domains.mobile.spec.ts:233` clearing search and dismissing the mobile keyboard retains the search header after hydration | pass | pass |  |
 | `domains.mobile.spec.ts:314` tapping Domains focuses search during the mobile gesture before hydration | fail | fail | early input |
-| `domains.mobile.spec.ts:314` tapping Domains focuses search during the mobile gesture after hydration | fail | fail | early input |
+| `domains.mobile.spec.ts:314` tapping Domains focuses search during the mobile gesture after hydration | pass | fail | WebKit not re-run since #383 |
 | `domains.mobile.spec.ts:393` mobile submission dismisses focus before hydration and preserves the query at handoff | fail | fail | early input |
 | `domains.mobile.spec.ts:449` mobile cart traps focus, locks page scrolling, and restores focus in portrait | pass | pass |  |
 | `domains.mobile.spec.ts:449` mobile cart traps focus, locks page scrolling, and restores focus in landscape | pass | pass |  |
@@ -171,7 +170,7 @@ What still fails falls into these groups:
 | `domains.spec.ts:451` quote skeletons preserve card, row, and control geometry at 1440px | pass | pass |  |
 | `domains.spec.ts:451` quote skeletons preserve card, row, and control geometry at 900px | pass | pass |  |
 | `domains.spec.ts:451` quote skeletons preserve card, row, and control geometry at 390px | pass | pass |  |
-| `domains.spec.ts:451` quote skeletons preserve card, row, and control geometry at 320px | fail | fail | rows of unequal height (#381) |
+| `domains.spec.ts:451` quote skeletons preserve card, row, and control geometry at 320px | pass | fail | WebKit not re-run since #381 |
 | `domains.spec.ts:587` restores queries on reload and browser navigation and ignores superseded searches | pass | pass |  |
 | `domains.spec.ts:616` virtualizes the catalog and preserves scrolling and cart selections across query changes | fail | fail | read pattern |
 | `domains.spec.ts:715` hands URL synchronization to the Runtime without leaving duplicate early listeners | fail | fail | early input |

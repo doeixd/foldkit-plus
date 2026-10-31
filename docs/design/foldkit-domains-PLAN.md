@@ -560,9 +560,14 @@ Results following once the runtime boots. Departures:
 - **Nothing was prerendered.** The plugin's prerender renders `/` through
   `SSR.entry`, which recorded the query, and the static host serves that file
   for `/?q=…`, where it was refused
-  ([#373](https://github.com/doeixd/foldkit-plus/issues/373)). `/` is
-  prerendered again: the entry's `prerendered: prerenderPaths` records its
-  path alone, and the page at `?q=` is handed the URL as `ChangedUrl`.
+  ([#373](https://github.com/doeixd/foldkit-plus/issues/373)). `/` was
+  prerendered again once the entry's `prerendered` recorded its path alone
+  and the page at `?q=` was handed the URL as `ChangedUrl`; but until the
+  bundle ran, that file showed an empty box at `?q=acme`, so the port went
+  back to rendering every page per request
+  ([#383](https://github.com/doeixd/foldkit-plus/issues/383)).
+  `e2e/built.e2e.ts` serves the build as `pnpm preview` does and reads the
+  box with the bundle held.
 
 **Phase 7, built, with parity measured.** Upstream's dark dropdowns
 (`menu: { panel: 'default' }`) and sheets (`SheetLook`), the phone's search
@@ -616,9 +621,13 @@ dropdown crashed on opening. Fixed:
   Moving focus on `CompletedCloseDialog` took WebKit from 30 to 43.
 - **The results list focused from the keys** scrolls its start below the
   header, as upstream's `RevealResultsListStart`.
-- **Rows not yet drawn** take the mean height of the rows measured: a row
-  of six names is 114 px on a desktop and 366 px on a phone, and the fixed
-  estimate made the list grow as it was scrolled (#381).
+- **Rows not yet drawn** take the mean height of the rows measured
+  (`WindowList.init`'s `unmeasured: 'mean'`): a row of six names is 114 px
+  on a desktop and 366 px on a phone, and the fixed estimate made the list
+  grow as it was scrolled (#381). The debounce's settle keeps the heights of
+  the label's own rows, drawn and measured as it was typed: dropping them
+  left a stale mean until the prices resized the rows, and at 320 px the
+  list's length moved as they landed (`e2e/dev.e2e.ts`).
 - **Phone sheets** slide for upstream's half second, not at all under
   reduced motion; their panels carry `filters-panel` and `tld-panel`.
 
@@ -643,5 +652,9 @@ under load was #379, since fixed in `foldkit-mirror`.
 (the mirror's echo undoing a keystroke), [#381](https://github.com/doeixd/foldkit-plus/issues/381)
 (`WindowList`'s fixed estimate).
 
-**Left:** #372 and #373 for the early-input specs, #378 for the bundle, and
-#381 for rows of unequal height.
+**After #381 and #383:** 48 of 67 pass in Chromium (2026-10-31; WebKit not
+re-run). The 320 px geometry check and "tapping Domains… after hydration"
+pass; what fails is the early-input group (11, #372) and the read pattern
+(8, by design).
+
+**Left:** #372 for the early-input specs and #378 for the bundle.
