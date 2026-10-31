@@ -1,8 +1,8 @@
 # A read-only page pays for reading: capabilities carried by declarations (#378)
 
-Status: phases 1, 2 and 3 built (2026-10-31). Phase 4 was found wider than
-planned and is redesigned below (a layer capability first); #384, which it
-waited on, has landed.
+Status: phases 1 to 4 built, and measured (phase 6), 2026-10-31. Phase 5
+stopped before starting: as written it cannot drop its code (below), and it
+needs a decision on where live and the outbox are installed.
 
 ## The problem
 
@@ -231,8 +231,49 @@ On the Entity side, the `Entity` object reaches `invariant`, which imports
    for phase 4's layer capability (a live insert is an overlay). `sse.js`
    also needs the `Remote` object to become an ES module namespace, as
    `Entity` did in phase 3: it holds `Remote.httpWithLive`.
+   **Stopped, not started (2026-10-31).** Three things this phase assumes do
+   not hold:
+   - A domain member is always kept: `bindDomain` builds one object, so
+     `Data.outbox`, `Data.persistence` and `Data.liveStatus` keep the outbox,
+     persistence and live code on every page that binds a domain. Reaching
+     them only "through `Data.outbox(...)`" means leaving the domain, as
+     `overlay` and `filtered` did in 4c (`outbox(Data, …)` from
+     `foldkit-remote/outbox`, and so on): an API change this note does not
+     name.
+   - "The live transport" is not one place. A page reads live through
+     `Data.live`, a query's `live: true`, and the `.live` entry `subscriptions`
+     adds for every active entry; the events come from `RemoteClient.live`,
+     which `clientLayer` gives every RPC client (in-process, HTTP, worker), not
+     only `httpWithLive`. So the core's live path installs the layer capability
+     today (4a), and keeps it. Moving it out needs a chosen install point: an
+     option on `clientLayer` that live clients pass (breaking every live test
+     and example), or live reads as entries of their own (`live(Data, …)`).
+   - The read core places read news in held lists (`placedNews`, through
+     `impact.ts`, `matching` and Entity's `evaluate`) on every page with a
+     query that has a body. Dropping `evaluate` needs that placement carried
+     by `Query.define`'s descriptor, as writes are by Mutation's: a
+     capability this note does not name either.
+   What is left after 4 on the read-only page: `layers`, `optimistic`,
+   `impact`, `placing`, `matching`, `placement`, `answerGaps` (the answer
+   checks in `Data.reduce`), `live`, `outbox`, `persistence` and `sse` of
+   Remote, and `write`, `evaluate`, `expr`, `operators` of Entity.
 6. **Measure** domains-plus (read-only) and Chirp (writes), to confirm apps
    that write don't regress.
+   **Done for phase 4 (2026-10-31).** Each example's client built with its
+   own Vite config (the view-identity plugin spliced out), `foldkit-remote`
+   and `foldkit-entity` resolved to builds made with their own
+   `tsdown.config.ts`: *before* from Remote at `77636e08` (the commit before
+   4a), *after* at 4b; the examples' sources the same in both. Minified JS of
+   the client, then the Remote and Entity modules it keeps (rendered):
+   | example | before | after |
+   | --- | ---: | ---: |
+   | domains-plus, all JS | 994.0 kB, 311.3 kB gz | 983.1 kB, 308.2 kB gz |
+   | domains-plus, Remote / Entity | 262.7 / 109.3 kB | 247.8 / 104.8 kB |
+   | Chirp, all JS | 1,186.3 kB, 381.6 kB gz | 1,181.1 kB, 380.6 kB gz |
+   | Chirp, Remote / Entity | 348.5 / 120.9 kB | 339.5 / 120.9 kB |
+   Chirp, which writes, does not regress: it lost `filtered` and the overlay
+   members it never called. domains-plus saves 3.1 kB gzipped of the 40 kB
+   this note set out to save; the rest is behind phase 5.
 
 Every phase keeps behaviour unchanged, only where code lives, so `Law.check`,
 `heldValue.test.ts`, the R0 conformance suite and every example must stay
