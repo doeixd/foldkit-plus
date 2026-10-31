@@ -152,6 +152,7 @@ Each carries a status note at its head saying what it waits for.
 | [query-native-FINDINGS.md](./query-native-FINDINGS.md) | Five findings from the Query native (reffect) integration (2026-09-30). [remote-improvement-plan.md](./remote-improvement-plan.md) §4 records all five fixed or obsolete. |
 | [remote-improvement-DESIGN.md](./remote-improvement-DESIGN.md) | An outside review comparing Foldkit Plus with Convex, Fate and TanStack DB; [remote-improvement-plan.md](./remote-improvement-plan.md) checks each proposal against the code. |
 | [remote-improvement-2-DESIGN.md](./remote-improvement-2-DESIGN.md) | An outside proposal for a shared, versioned domain contract that Entity, Remote, Drizzle, Sync and Durable interpret. Not adopted as a plan. |
+| [solid-2-optimistic-COMPARISON.md](./solid-2-optimistic-COMPARISON.md) | Solid 2.0's stores, `action`, optimistic stores, `until` and `affects` (from its beta RFCs), compared with Remote's predicted pending layers; four ideas worth taking (2026-10-30). |
 
 ### History and earlier exploration
 
