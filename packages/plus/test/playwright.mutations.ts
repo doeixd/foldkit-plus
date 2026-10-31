@@ -29,8 +29,13 @@ export default [
   ),
   edit(
     'the answer is not waited for before looking again',
-    'while (inFlight.size > 0)',
-    'while (false)',
+    'if (inFlight.size === 0 && answers === before) break',
+    'break',
+  ),
+  edit(
+    'a quiet that began before the last answer counts as settled',
+    'if (inFlight.size === 0 && answers === before) break',
+    'if (inFlight.size === 0) break',
   ),
   edit('hidden text counts as shown', 'document.body?.innerText', 'document.body?.textContent'),
   edit(

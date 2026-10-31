@@ -237,7 +237,12 @@ const optimistic = async (page: Page, options: OptimisticOptions): Promise<void>
   const sent = (request: Request) => {
     if (Option.isSome(remoteOperation(request))) inFlight.add(request)
   }
-  const done = (request: Request) => inFlight.delete(request)
+  // How many have been answered: a quiet that began before the last answer
+  // may have ended before the page drew it.
+  let answers = 0
+  const done = (request: Request) => {
+    if (inFlight.delete(request)) answers += 1
+  }
   const errors: Array<string> = []
   const logged = (message: ConsoleMessage) => {
     if (message.type() === 'error') errors.push(message.text())
@@ -291,9 +296,14 @@ const optimistic = async (page: Page, options: OptimisticOptions): Promise<void>
       await writes.answered()
     }
     // Every held write is in flight until answered, and an answer drawn can ask
-    // for more: settled once the page asks nothing and stays quiet.
-    do await quiet(page)
-    while (inFlight.size > 0)
+    // for more: settled once the page asks nothing and stays quiet from after
+    // the last answer. The network finishes before the page reads the answer,
+    // and an app draws it on a later frame.
+    for (;;) {
+      const before = answers
+      await quiet(page)
+      if (inFlight.size === 0 && answers === before) break
+    }
     if (Option.isSome(watched)) {
       const faults = await watched.value.evaluateAll(stopStill, watch)
       if (faults.length > 0)

@@ -377,6 +377,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **`Behaviors.optimistic` waits for the answer to be drawn**
+  (`foldkit-plus/testing/playwright`). It looked for a write's faults once
+  the page was quiet and no Remote request was in flight, but a quiet that
+  began before the last answer could end before the page drew it: the
+  network finishes before the page reads the answer, and an application
+  draws the Message it caused on a later frame. A write pushed by its
+  answer three frames on passed every time, and one drawn on the next frame
+  now and then. It now waits for a quiet that begins after the last answer.
+
 - **A server render draws a memoized SlotView drawing afresh**
   (`foldkit-ssr`, `foldkit-mixins`, #388). Foldkit keeps a `createLazy`
   drawing under `renderToString` too, so a SlotView item or part drawn in one

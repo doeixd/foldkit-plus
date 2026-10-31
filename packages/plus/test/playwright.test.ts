@@ -18,7 +18,9 @@ const ORIGIN = 'http://app.test'
  * and posts a Remote mutation, `pessimistic` shows it once the answer lands,
  * `revert` shows it and removes it on the answer, `local` shows it and posts
  * nothing. The rest show it and post, then on the answer: `jump` takes away
- * a line drawn above it while it was pending, so it moves up; `redraw` draws
+ * a line drawn above it while it was pending, so it moves up, and `drawn`
+ * does so three frames after the answer arrives, as an app drawing the
+ * Message it caused on a later frame would; `redraw` draws
  * it again as a new node; `reinsert` takes the list out and puts it back
  * where it was; `hide` hides it for a frame, and `blank` makes it invisible
  * for one; `flash` hides and shows it in one go; `late` asks a query, and
@@ -52,6 +54,7 @@ const nextFrame = () => new Promise(resolve => requestAnimationFrame(resolve))
 const answers = {
   revert: clear,
   jump: () => { waiting.hidden = true },
+  drawn: () => nextFrame().then(nextFrame).then(nextFrame).then(() => { waiting.hidden = true }),
   redraw: show,
   reinsert: () => { const add = document.getElementById('add'); list.remove(); add.before(list) },
   hide: () => { row().hidden = true; nextFrame().then(() => nextFrame()).then(() => { row().hidden = false }) },
@@ -71,7 +74,7 @@ document.getElementById('add').onclick = () => {
     setTimeout(() => { waiting.hidden = true }, 600)
   }
   else {
-    if (write === 'jump') waiting.hidden = false
+    if (write === 'jump' || write === 'drawn') waiting.hidden = false
     show()
     post().then(answers[write] ?? (() => {}))
   }
@@ -132,6 +135,7 @@ describe('optimistic', () => {
     ['taken back by its answer', 'revert', /<li>Milk<\/li> was taken out of the page/],
     ['shown with no write sent', 'local', /the action sent no Remote mutation/],
     ['pushed by a line taken away on its answer', 'jump', /moved \d+px up,/],
+    ['pushed by a line taken away frames after its answer', 'drawn', /moved \d+px up,/],
     ['drawn again on its answer', 'redraw', /<li>Milk<\/li> was replaced by a new element/],
     ['taken out and put back on its answer', 'reinsert', /was taken out and put back/],
     ['hidden for a frame by its answer', 'hide', /<li hidden="">Milk<\/li> was hidden/],
