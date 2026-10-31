@@ -1,8 +1,8 @@
 # A read-only page pays for reading: capabilities carried by declarations (#378)
 
-Status: proposed (2026-10-31). Phases 1, 2 and 3 built; phase 4 stopped, see below. Phases 1–3 are independent of
-#384 (cheaper repeated reads, in progress in `packages/remote`); phase 4
-rewrites the reducer #384 touches, so it waits for #384 to land.
+Status: phases 1, 2 and 3 built (2026-10-31). Phase 4 was found wider than
+planned and is redesigned below (a layer capability first); #384, which it
+waited on, has landed.
 
 ## The problem
 
@@ -147,11 +147,38 @@ On the Entity side, the `Entity` object reaches `invariant`, which imports
      `foldkit-crud`/`foldkit-cms`' structural domains read; members present
      only for a non-empty `Mutations` tuple make it a conditional type every
      one of them must follow.
-   The likely shape, for whoever takes it up: a layer capability (visible
-   store, pending placement, overlay reducer cases) that reads call only when
-   a layer or overlay exists, installed by Mutation descriptors, by a
-   standalone `overlay` and by the live transport; the write capability on
-   top of it; `filtered` to an entry of its own as `why` went.
+   **Decided (2026-10-31), replacing the plan above:**
+   - **4a. A layer capability.** The visible store, pending placement and
+     the overlay reducer cases (`pruneOverlays`, the optimistic parts of
+     `RetentionChanged`, `Hydrated` and `forget`) move behind one
+     capability. The core read path calls it only through a slot that is
+     empty on a domain with no layers: an empty slot reads the committed
+     store directly, which is exactly what the visible store returns when
+     no layer exists, so reads do not change. Whatever can make a layer
+     installs it: a Mutation descriptor, `overlay` and the live transport.
+     `schemaOf` moves out of `mutation.ts` to a module both import, and
+     `live.ts` reaches `addOverlay` through the capability.
+   - **4b. The write capability on top of 4a**, carried by Mutation
+     descriptors as this note first said: `mutate`, `retry`, the write
+     reducer cases, prediction and answers.
+   - **Types: no conditional domain.** `mutate` already accepts only a
+     mutation registered on the domain
+     (`Registered<M['name'], MutationName<Mutations[number]>, 'Mutation'>`),
+     so on a domain with none it is uncallable. `RemoteDomain` keeps every
+     member, and `Remote.fold`, `foldkit-remote/testing`, `foldkit-crud` and
+     `foldkit-cms` need no change. At runtime a domain without the write
+     capability holds a stub that fails loudly (a defect naming the domain
+     and saying it declares no mutations), reachable only through a cast.
+     Type tests pin that `mutate` and `retry` are uncallable on such a
+     domain.
+   - **4c. `overlay`, `lift`, `overlays` and `filtered` become functions
+     of entries of their own**, as `why` did in phase 2: `overlay(Data, …)`
+     installs the layer capability; `filtered(Data, …)` from
+     `foldkit-remote/filter` brings `matching` and Entity's `evaluate`.
+     Breaking; update `packages/cms` and the Remote tests that call them.
+   - **Order:** 4a, then 4c (which needs 4a's install point), then 4b.
+     Each turns its own `it.fails` case in `readOnlyPage.test.ts` into
+     `it`.
 5. **Live through the transport; the outbox through `Data.outbox`.** Waits
    for phase 4's layer capability (a live insert is an overlay). `sse.js`
    also needs the `Remote` object to become an ES module namespace, as
@@ -171,6 +198,10 @@ green; each phase has its own tests and mutation specs.
   into separate capabilities, which makes Remote easier to change and fits the
   service-shaped direction of
   [foldkit-renderer-independence-PLAN.md](./foldkit-renderer-independence-PLAN.md).
-- Recommendation: do it in the order above, using the size test as the guide,
-  and stop after phase 3 if phases 4–5 turn out more invasive than they are
-  worth.
+- Phases 1–3 took the read-only page from 148.5 kB to 140.2 kB gzipped; the
+  rest of the 40 kB is behind phases 4 and 5. Phase 4 is wider than first
+  thought, but the decided shape keeps the domain's type, so its cost is
+  internal: worth doing.
+- Solid 2's form enhancement cost a page about 1 KB because nothing it did not
+  use was loaded ([solid-2-forms-cache-COMPARISON.md](./solid-2-forms-cache-COMPARISON.md)),
+  the same rule as this note.
