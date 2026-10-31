@@ -118,12 +118,10 @@ const unchanged = (store: EntityStore, memo: RowMemo): boolean => {
 const sameRead = (left: RowRead<unknown>, right: RowRead<unknown>): boolean => {
   if (left === undefined || right === undefined) return left === right
   if (left._tag === 'Failed' || right._tag === 'Failed') {
+    if (left._tag !== 'Failed' || right._tag !== 'Failed') return false
     return (
-      left._tag === right._tag &&
-      'error' in left &&
-      'error' in right &&
-      left.error._tag === right.error._tag &&
-      left.error.message === right.error.message
+      // tag-check: open, a RemoteError's tag is whatever failure a transport reports
+      left.error._tag === right.error._tag && left.error.message === right.error.message
     )
   }
   return left._tag === right._tag && left.value === right.value
