@@ -35,9 +35,4 @@ export const known: Readonly<Record<string, Recorded>> = {
       { drawer: 'scene', step: 3, aspect: 'mounts' },
     ],
   },
-  'data grid header': {
-    because:
-      'foldkit-mixins-data-grid (#380): the grid draws Mounts by default that answer no Message when they start (DataGridHeaderDrag, Move, DataGridCellPress), and Scene resolves every Mount with one, so Scene cannot draw a page holding a grid.',
-    found: [{ drawer: 'scene', step: 0, aspect: 'play' }],
-  },
 }

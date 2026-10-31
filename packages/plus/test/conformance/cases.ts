@@ -8,8 +8,9 @@ import { defineMessageUnion } from 'foldkit/message'
 import * as Mount from 'foldkit/mount'
 import { defineView } from 'foldkit/submodel'
 import { Bundle } from 'foldkit-bundle'
-import { Columns, DataGrid, GridViewport, RowModel } from 'foldkit-data-grid'
-import { DataGridView } from 'foldkit-mixins-data-grid'
+import { Columns, DataGrid, RowModel } from 'foldkit-data-grid'
+import { Style } from 'foldkit-mixins'
+import { DataGridView, GridSlots } from 'foldkit-mixins-data-grid'
 import { Resume } from 'foldkit-ssr'
 import { Step, type Case, type Probe, type Program, type Tagged } from './harness.js'
 
@@ -490,8 +491,8 @@ const keepTyped = define({
 
 // The data grid's header, from foldkit-mixins-data-grid: two sortable
 // columns, sorted by clicking a header's button. The grid measures its
-// scroll container with a Mount; jsdom lays nothing out, so it reads zero,
-// and Scene is told the same.
+// scroll container with a Mount, which Scene is told the result of: a
+// browser lays the fixed box out at 400 by 100, and jsdom at nothing.
 
 interface Item {
   readonly id: string
@@ -525,7 +526,18 @@ const gridApplication = Bundle.assemble<GridModel, GridMessage>()([
   }),
 ])
 const gridUpdate = gridApplication.update()
-const GridView = DataGridView<GridMessage>().define(Grid)
+const GridView = DataGridView<GridMessage>()
+  .define(Grid)
+  .pipe(
+    Style.attach(
+      Style.forSlots(GridSlots)({ root: Style.inline({ width: '400px', height: '100px' }) }),
+    ),
+  )
+const laidOut = !navigator.userAgent.includes('jsdom')
+const gridMounts = DataGridView<GridMessage>().resolveMounts(Grid, {
+  wrap: message => GridPlacement.wrapper.make(message),
+  viewport: { top: 0, left: 0, width: laidOut ? 400 : 0, height: laidOut ? 100 : 0 },
+})
 
 const gridHeader = define({
   name: 'data grid header',
@@ -577,7 +589,7 @@ const gridHeader = define({
     },
   }),
   script: [
-    // What a browser's layout would report: jsdom reports nothing, so every drawer is told the size.
+    // What a browser's layout reports, so jsdom's drawers draw the rows too.
     Step.Send({
       message: GridPlacement.wrapper.make(
         Grid.Message.Measured({ top: 0, left: 0, width: 400, height: 100 }),
@@ -587,11 +599,11 @@ const gridHeader = define({
     Step.Click({ target: '[aria-colindex="2"] button' }),
     Step.Click({ target: '[aria-colindex="1"] button' }),
   ],
-  // The header's drag and the cells' press answer nothing until a pointer moves.
   mounted: ({ name }) =>
-    name === 'GridViewportMeasure'
-      ? Option.some(GridViewport.Message.Measured({ top: 0, left: 0, width: 0, height: 0 }))
-      : Option.none(),
+    Option.map(
+      Option.fromUndefinedOr(gridMounts.find(([mount]) => mount.name === name)),
+      ([, message]) => message,
+    ),
 })
 
 export const cases: ReadonlyArray<AnyCase> = [

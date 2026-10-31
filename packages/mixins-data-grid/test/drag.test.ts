@@ -110,7 +110,7 @@ const mount = (direction: 'ltr' | 'rtl') => {
 const header = (column: Id) => document.getElementById(GridFocus.headerId('lines', column))!
 const order = () =>
   Array.from(document.querySelectorAll('#lines [role="columnheader"]'), each => each.textContent)
-// jsdom has no PointerEvent: a MouseEvent with the pointer's id is what the Mounts read.
+// jsdom has no PointerEvent: a MouseEvent with the pointer's id is what the Mount reads.
 const pointer = (target: Element, type: string, x: number) => {
   const event = new MouseEvent(type, { bubbles: true, button: 0, clientX: x })
   Object.defineProperty(event, 'pointerId', { value: 3 })
@@ -177,6 +177,13 @@ test('a header is dragged to a new place, cancelled with Escape, and leaves clic
     pointer(handleOf, 'pointerup', 450)
     await frames.settle()
     expect(order()).toEqual(['A', 'C', 'B', 'D', 'E'])
+
+    // A cancelled resize puts the width back.
+    pointer(handleOf, 'pointerdown', 400)
+    pointer(handleOf, 'pointermove', 480)
+    await vi.waitFor(() => expect(handleOf.getAttribute('aria-valuenow')).toBe('230'))
+    pointer(handleOf, 'pointercancel', 480)
+    await vi.waitFor(() => expect(handleOf.getAttribute('aria-valuenow')).toBe('150'))
   } finally {
     handle.dispose()
     frames.dispose()

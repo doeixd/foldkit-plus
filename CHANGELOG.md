@@ -143,6 +143,23 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **A page holding a data grid draws in Scene** (`foldkit-mixins-data-grid`,
+  `foldkit-data-grid`, #380; breaking). The grid drew three Mounts that sent
+  nothing when they started (`DataGridHeaderDrag`, a `Move` on every resize
+  handle, `DataGridCellPress`), and Scene resolves every Mount with a
+  Message, so no Scene test could draw such a page. The header row's and the
+  body's pointer listeners now send the grid's `PressListening`, which
+  changes nothing, when they start, and
+  `DataGridView<Message>().resolveMounts(Grid, { wrap, viewport })` resolves
+  the grid's three Mounts with what the runtime sends. A resize handle's
+  drag is the header row's listener's (`DataGridHeaderPress`, which was
+  `DataGridHeaderDrag`), so a handle holds no Mount and a column scrolled
+  into view starts none. `ResizeStarted` names its column by its header's
+  DOM id (`{ header }`, `GridFocus.headerId`), as `ColumnDragStarted` does,
+  where it took `{ column }`. `GridViewport.Measure` sends a reading only
+  when it changes, so a browser's `ResizeObserver` no longer repeats the one
+  it sent on starting.
+
 - **A page recorded for its path starts from the URL it is opened at**
   (`foldkit-ssr`, #373). A page from `SSR.generate`, or one `SSR.entry`
   prerenders, opened at a query resumed with the Model made without it, and

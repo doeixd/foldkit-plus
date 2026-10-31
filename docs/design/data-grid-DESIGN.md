@@ -373,7 +373,9 @@ departs from §12:
   width function: the layout and widths are the grid's, and
   `Grid.project(rows, state)` is the one projection for them.
 - **Resize handles** are `role="separator"` elements at each resizable
-  column's end edge, dragged through the `Move` Mount. The drag is a session
+  column's end edge, dragged through the `Move` Mount (since #380, through
+  the header row's one listener, `HeaderPress`, so a handle holds no Mount
+  and Scene can draw the grid). The drag is a session
   in the Model (`resizing: { column, from }`), so every move is measured
   from the width it began at, and a cancelled drag restores it. A focused
   handle steps with the arrows, mirrored for right-to-left. The handles are

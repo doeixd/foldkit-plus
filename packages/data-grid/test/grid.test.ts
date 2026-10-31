@@ -171,7 +171,10 @@ describe('DataGrid', () => {
   })
 
   test('resizes from where the drag began, not by summing its steps', () => {
-    const resizing = step(start, Grid.Message.ResizeStarted({ column: 'price' })).model
+    const resizing = step(
+      start,
+      Grid.Message.ResizeStarted({ header: GridFocus.headerId('products', 'price') }),
+    ).model
     expect(resizing.grid.resizing).toEqual(Option.some({ column: 'price', from: 120 }))
     const wider = step(resizing, Grid.Message.ResizeMoved({ delta: 30 })).model
     const widest = step(wider, Grid.Message.ResizeMoved({ delta: 50 })).model
@@ -185,11 +188,26 @@ describe('DataGrid', () => {
 
   test('a cancelled drag puts the width back', () => {
     const resized = step(start, Grid.Message.ColumnResized({ column: 'price', width: 90 })).model
-    const resizing = step(resized, Grid.Message.ResizeStarted({ column: 'price' })).model
+    const resizing = step(
+      resized,
+      Grid.Message.ResizeStarted({ header: GridFocus.headerId('products', 'price') }),
+    ).model
     const dragged = step(resizing, Grid.Message.ResizeMoved({ delta: 200 })).model
     const cancelled = step(dragged, Grid.Message.ResizeEnded({ completed: false })).model
     expect(cancelled.grid.columns.widths).toEqual([{ column: 'price', width: 90 }])
     expect(cancelled.grid.resizing).toEqual(Option.none())
+  })
+
+  test.each([
+    ['another grid’s header', GridFocus.headerId('orders', 'price')],
+    ['a column the grid does not define', GridFocus.headerId('products', 'missing')],
+    ['a cell’s id', GridFocus.cellId('products', at('p:1', 'price'))],
+  ])('a resize on %s starts nothing', (_, header) => {
+    expect(step(start, Grid.Message.ResizeStarted({ header })).model).toBe(start)
+  })
+
+  test('the view’s pointer listeners starting changes nothing', () => {
+    expect(step(start, Grid.Message.PressListening()).model).toBe(start)
   })
 
   test('a resize that never began ends as nothing', () => {
@@ -376,7 +394,11 @@ describe('DataGrid', () => {
     })
     const model = Fixed.bundle.init(undefined).model
     expect(
-      Fixed.bundle.update(model, Fixed.Message.ResizeStarted({ column: 'id' }), undefined).model,
+      Fixed.bundle.update(
+        model,
+        Fixed.Message.ResizeStarted({ header: GridFocus.headerId('fixed', 'id') }),
+        undefined,
+      ).model,
     ).toBe(model)
   })
 

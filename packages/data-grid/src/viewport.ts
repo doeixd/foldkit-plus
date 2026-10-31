@@ -76,8 +76,8 @@ type ResizeObserverCtor = new (callback: () => void) => ResizeObserver
 
 /**
  * Reports the element's scroll offsets and size: once when it mounts, then on
- * every scroll and every resize. Attach it to the scroll container. Without
- * `ResizeObserver` (a test DOM) it still reports scrolls.
+ * every scroll and every resize that changes them. Attach it to the scroll
+ * container. Without `ResizeObserver` (a test DOM) it still reports scrolls.
  */
 const Measure = Mount.defineStream('GridViewportMeasure', {
   messages: [Message.Measured],
@@ -85,16 +85,21 @@ const Measure = Mount.defineStream('GridViewportMeasure', {
     Stream.callback<typeof Message.Measured.Type>(queue =>
       Effect.gen(function* () {
         const scroller = element as unknown as Scroller
-        const report = () =>
-          Queue.offerUnsafe(
-            queue,
-            Message.Measured({
-              top: scroller.scrollTop,
-              left: scroller.scrollLeft,
-              width: scroller.clientWidth,
-              height: scroller.clientHeight,
-            }),
-          )
+        // An observer's first callback repeats the size just reported, so
+        // only a change is sent: the Mount answers once when it starts.
+        let last = ''
+        const report = () => {
+          const reading = Message.Measured({
+            top: scroller.scrollTop,
+            left: scroller.scrollLeft,
+            width: scroller.clientWidth,
+            height: scroller.clientHeight,
+          })
+          const key = `${reading.top} ${reading.left} ${reading.width} ${reading.height}`
+          if (key === last) return
+          last = key
+          Queue.offerUnsafe(queue, reading)
+        }
         const Observer = (globalThis as { ResizeObserver?: ResizeObserverCtor }).ResizeObserver
         yield* Effect.acquireRelease(
           Effect.sync(() => {

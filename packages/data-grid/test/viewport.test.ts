@@ -87,6 +87,25 @@ describe('GridViewport.Measure', () => {
     expect(observers[0]!.observed).toEqual([element])
   })
 
+  test('reports nothing when an observer fires with nothing changed', async () => {
+    const observers = installResizeObserver()
+    const element = scroller({ top: 0, left: 0, width: 300, height: 100 })
+    const messages = await run(
+      Effect.gen(function* () {
+        const fiber = yield* Effect.forkChild(
+          takeMessages(GridViewport.Measure().f(element, Mount.liveViewStateChanges), 2),
+        )
+        yield* settle
+        // A browser's observer calls back once as it starts observing.
+        observers[0]!.fire()
+        element.scrollTop = 25
+        element.dispatchEvent(new Event('scroll'))
+        return yield* Fiber.join(fiber)
+      }),
+    )
+    expect(messages).toEqual([measured(0, 0, 300, 100), measured(25, 0, 300, 100)])
+  })
+
   test('stops listening when it unmounts', async () => {
     const observers = installResizeObserver()
     const element = scroller({ top: 0, left: 0, width: 300, height: 100 })

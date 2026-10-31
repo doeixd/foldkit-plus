@@ -8,6 +8,8 @@ import {
   fillDragOn,
 } from './fillDrag.js'
 
+/** The body's listeners are attached: the Mount's answer when it starts, which changes nothing. */
+export const CellsListening = Schema.TaggedStruct('CellsListening', {})
 export const CellClicked = Schema.TaggedStruct('CellClicked', {
   /** The clicked gridcell's DOM id. */
   cell: Schema.String,
@@ -27,12 +29,13 @@ type Modified = Event & {
  * drag (`fillDragOn`), from listeners on the element that holds the cells
  * rather than one per cell: one Mount, since an element holds one. A click
  * outside a gridcell, on the fill handle, or ending a fill reports nothing;
- * what a click means is the grid's update.
+ * what a click means is the grid's update. It answers `CellsListening` when
+ * it starts, so a Scene test resolves it with a Message the runtime also sends.
  */
 export const CellPress = Mount.defineStream('DataGridCellPress', {
-  messages: [CellClicked, FillDragStarted, FillDraggedOver, FillDragEnded],
+  messages: [CellsListening, CellClicked, FillDragStarted, FillDraggedOver, FillDragEnded],
   execute: ({ element }) =>
-    Stream.callback<typeof CellClicked.Type | FillFact>(queue =>
+    Stream.callback<typeof CellsListening.Type | typeof CellClicked.Type | FillFact>(queue =>
       Effect.acquireRelease(
         Effect.sync(() => {
           const fill = fillDragOn(element, fact => Queue.offerUnsafe(queue, fact))
@@ -53,6 +56,7 @@ export const CellPress = Mount.defineStream('DataGridCellPress', {
             )
           }
           element.addEventListener('click', listener)
+          Queue.offerUnsafe(queue, CellsListening.make({}))
           return { listener, fill }
         }),
         ({ listener, fill }) =>

@@ -123,7 +123,8 @@ root     role="grid", tabindex 0, aria-rowcount, aria-colcount, aria-activedesce
   does not handle (Enter, Tab, anything with Shift, Alt or Meta) keeps its
   default.
 - **Resize handles** sit at each resizable column's end edge. A pointer drag
-  resizes from where it began, and a cancelled pointer (`pointercancel`, or
+  resizes from where it began (the header row's one listener follows it, as
+  it follows a header dragged to reorder), and a cancelled pointer (`pointercancel`, or
   a lost capture) puts the width back; a focused handle steps 16px with the
   arrow keys, its
   own keys only, so the grid's focus stays put. Handles are out of the tab
@@ -248,6 +249,37 @@ the window is worked out from is the view's: a Style that sets a cell's
 `width`, `position`, `insetInlineStart` or `boxSizing`, a row's `height`, or
 the root's `overflow` is refused with `slot "cell" protects style property`.
 Cells are `border-box`, so padding stays inside the width the window assumed.
+
+## Testing in Scene
+
+The grid starts three Mounts as it is drawn: the root's measure of its
+scroll container, and one pointer listener each on the header row and the
+body. Each sends a Message when it starts (`Measured`, and `PressListening`,
+which changes nothing), so Scene can resolve them with the Messages the
+runtime sends, and `resolveMounts` names them. For the grid of the first
+example:
+
+```ts
+import { Scene } from 'foldkit/test'
+
+Scene.scene(
+  { update: application.update(), view },
+  Scene.given(application.initial({}).model),
+  Scene.Mount.resolveAll(
+    ...DataGridView<Message>().resolveMounts(Grid, {
+      wrap: message => Placement.wrapper.make(message),
+      // What a browser's layout would report for the scroll container.
+      viewport: { top: 0, left: 0, width: 400, height: 300 },
+    }),
+  ),
+  Scene.keydown(Scene.role('grid'), 'ArrowDown'),
+)
+```
+
+`wrap` is the one the view is given. Scene runs no Mount, so what the
+pointer does (a click on a cell, a drag) is tested on the runtime; the keys
+are tested in Scene. An open editor, choice list or column menu keeps focus
+with a Mount that sends nothing, so a Scene test stops short of opening one.
 
 ## Limits
 

@@ -124,8 +124,12 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
     ColumnShown: { column: Column },
     /** A column moved to `index` in `region`: a reorder, a pin or an unpin. */
     ColumnMoved: { column: Column, region: Region, index: Schema.Number },
-    /** The pointer went down on a column's resize handle. */
-    ResizeStarted: { column: Column },
+    /**
+     * The pointer went down on the resize handle of the column header whose
+     * DOM id is `header` (`GridFocus.headerId`). The id comes from the page,
+     * so one that is not a resizable column of this grid starts nothing.
+     */
+    ResizeStarted: { header: Schema.String },
     /**
      * The pointer moved `delta` pixels toward the column's end edge since the
      * resize began: positive widens it, in either direction of text.
@@ -182,6 +186,12 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
      */
     CellPressed: { cell: Schema.String, shiftKey: Schema.Boolean, toggleKey: Schema.Boolean },
     CellsCleared: {},
+    /**
+     * The view's pointer listeners started, on the header row or the body.
+     * Nothing changes: it is their Mounts' answer on start, so a Scene test
+     * resolves them with a Message the runtime sends too.
+     */
+    PressListening: {},
     /** An edit began on an editable cell, with the text it starts from. */
     EditStarted: { address: focus.Address, draft: Schema.String },
     /**
@@ -295,6 +305,11 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
   type Address = typeof focus.Address.Type
   const isColumn = (column: string): column is keyof Specs & string =>
     Object.hasOwn(options.columns.byId, column)
+  /** One of this grid's columns, from its header's DOM id. */
+  const columnOf = (header: string): Option.Option<keyof Specs & string> =>
+    Option.flatMap(GridFocus.headerOf(options.id, header), column =>
+      isColumn(column) ? Option.some(column) : Option.none(),
+    )
   /** The address of one of this grid's cells, from its DOM id. */
   const addressOf = (cell: string): Option.Option<Address> =>
     Option.flatMap(GridFocus.cellOf(options.id, cell), ({ row, column }) =>
@@ -686,14 +701,21 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
         }),
         // Each move is measured from where the drag began, so the width is the
         // pointer's place now, not a sum of every step on the way.
-        ResizeStarted: ({ column }): Return => ({
-          model:
-            options.columns.byId[column].resizable === false
-              ? model
-              : modifyFields(model, {
+        ResizeStarted: ({ header }): Return => ({
+          model: Option.match(
+            Option.filter(
+              columnOf(header),
+              column => options.columns.byId[column].resizable !== false,
+            ),
+            {
+              onNone: () => model,
+              onSome: column =>
+                modifyFields(model, {
                   resizing: () =>
                     Option.some({ column, from: columnState.widthOf(model.columns)(column) }),
                 }),
+            },
+          ),
         }),
         ResizeMoved: ({ delta }): Return => ({
           model: Option.match(model.resizing, {
@@ -747,12 +769,7 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
         MenuClosed: (): Return => ({ model: closeMenu(model) }),
         ColumnDragStarted: ({ header }): Return => ({
           model: Option.match(
-            Option.filter(
-              Option.flatMap(GridFocus.headerOf(options.id, header), column =>
-                isColumn(column) ? Option.some(column) : Option.none(),
-              ),
-              column => !model.columns.hidden.includes(column),
-            ),
+            Option.filter(columnOf(header), column => !model.columns.hidden.includes(column)),
             {
               onNone: () => model,
               onSome: column =>
@@ -989,6 +1006,7 @@ const make = <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(optio
         }),
 
         CellsCleared: (): Return => ({ model: clearCells(model) }),
+        PressListening: (): Return => ({ model }),
         ResizeEnded: ({ completed }): Return => ({
           model: Option.match(model.resizing, {
             onNone: () => model,

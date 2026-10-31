@@ -1,6 +1,7 @@
 import { Match, Option } from 'effect'
 import type { Attribute, Html, HtmlBuilder, KeyboardModifiers } from 'foldkit/html'
 import * as Mount from 'foldkit/mount'
+import type { Scene } from 'foldkit/test'
 import {
   addressableRows,
   type CellAddress,
@@ -24,11 +25,10 @@ import {
   VirtualGrid,
 } from 'foldkit-data-grid'
 import { SlotView } from 'foldkit-mixins'
-import { Move } from 'foldkit-primitives/dom'
 import { fillHandleAttribute } from './fillDrag.js'
 import { HoldFocus } from './holdFocus.js'
 import { KeepFocus } from './keepFocus.js'
-import { HeaderDrag } from './headerDrag.js'
+import { HeaderPress } from './headerPress.js'
 import { CellPress } from './press.js'
 import { GridSlots } from './slots.js'
 
@@ -892,6 +892,7 @@ const view = <Message>() => ({
         const pressed = Mount.mapMessage(CellPress(), fact =>
           input.wrap(
             Match.valueTags(fact, {
+              CellsListening: () => grid.Message.PressListening(),
               CellClicked: ({ cell, shiftKey, toggleKey }) =>
                 grid.Message.CellPressed({ cell, shiftKey, toggleKey }),
               FillDragStarted: () => grid.Message.FillStarted(),
@@ -922,7 +923,6 @@ const view = <Message>() => ({
         // The end edge is the side the text runs toward, so a drag that way widens.
         const toward = input.direction === 'rtl' ? -1 : 1
 
-        // A header drag is measured toward the region's end, as a resize is.
         // A fill being dragged, where it would write if let go now: the same
         // `Fill.plan` the application's `fill` works it out by on release.
         const fillTarget = Option.map(
@@ -953,12 +953,17 @@ const view = <Message>() => ({
           ]),
           [],
         )
-        const headerDragged = Mount.mapMessage(HeaderDrag(), fact =>
+        // A header drag is measured toward the region's end, as a resize is.
+        const headerPressed = Mount.mapMessage(HeaderPress(), fact =>
           input.wrap(
             Match.valueTags(fact, {
+              HeaderListening: () => grid.Message.PressListening(),
               HeaderDragStarted: ({ header }) => grid.Message.ColumnDragStarted({ header }),
               HeaderDragged: ({ deltaX }) => grid.Message.ColumnDragged({ delta: deltaX * toward }),
               HeaderDragEnded: ({ completed }) => grid.Message.ColumnDragEnded({ completed }),
+              HandleDragStarted: ({ header }) => grid.Message.ResizeStarted({ header }),
+              HandleDragged: ({ deltaX }) => grid.Message.ResizeMoved({ delta: deltaX * toward }),
+              HandleDragEnded: ({ completed }) => grid.Message.ResizeEnded({ completed }),
             }),
           ),
         )
@@ -993,20 +998,10 @@ const view = <Message>() => ({
             ['ArrowRight', resizeStep * toward],
             ['ArrowLeft', -resizeStep * toward],
           ])
-          const dragged = Mount.mapMessage(Move(), fact =>
-            input.wrap(
-              Match.valueTags(fact, {
-                MoveStarted: () => grid.Message.ResizeStarted({ column: id }),
-                Moved: ({ deltaX }) => grid.Message.ResizeMoved({ delta: deltaX * toward }),
-                MoveEnded: ({ completed }) => grid.Message.ResizeEnded({ completed }),
-              }),
-            ),
-          )
           return [
             h.div(
               slots.resizeHandle.attrs([
-                // A Mount reads its args once: key it by what its mapping closes over.
-                h.Key(`resize:${id}:${toward}`),
+                // Dragged through the header row's listener (`HeaderPress`).
                 h.Role('separator'),
                 h.AriaOrientation('vertical'),
                 h.AriaLabel(`Resize ${column.header}`),
@@ -1021,7 +1016,6 @@ const view = <Message>() => ({
                     input.wrap(grid.Message.ColumnResized({ column: id, width: now + by })),
                   ),
                 ),
-                h.OnMount(dragged),
                 h.Style({
                   position: 'absolute',
                   top: '0',
@@ -1400,8 +1394,8 @@ const view = <Message>() => ({
                     h.Role('row'),
                     h.AriaRowindex(1),
                     // A Mount reads its args once: key it by what its mapping closes over.
-                    h.Key(`header-drag:${toward}`),
-                    h.OnMount(headerDragged),
+                    h.Key(`header-press:${toward}`),
+                    h.OnMount(headerPressed),
                     h.Style({ display: 'flex', height: px(headerHeight), width: px(shown.width) }),
                   ]),
                   across(headerCell),
@@ -1436,6 +1430,29 @@ const view = <Message>() => ({
       },
       { name: grid.id },
     )
+  },
+  /**
+   * The Mounts a grid starts as it is drawn, resolved for a Scene test of a
+   * page that draws it, with the Messages the runtime sends: the scroll
+   * container's measure with `viewport` (what a browser's layout would
+   * report), and the header row's and the body's pointer listeners with
+   * `PressListening`. A Scene of the page starts with
+   * `Scene.Mount.resolveAll(...DataGridView<Message>().resolveMounts(Grid, { wrap, viewport }))`.
+   */
+  resolveMounts: <Row, Specs extends Record<string, ColumnSpec<Row, unknown>>>(
+    grid: DataGridOf<Row, Specs>,
+    options: {
+      /** The view's `wrap`. */
+      readonly wrap: (message: typeof grid.Message.Type) => Message
+      readonly viewport: Viewport
+    },
+  ): ReadonlyArray<Scene.MountResolver<Message>> => {
+    const listening = options.wrap(grid.Message.PressListening())
+    return [
+      [GridViewport.Measure, options.wrap(grid.Message.Measured(options.viewport))],
+      [HeaderPress, listening],
+      [CellPress, listening],
+    ]
   },
 })
 

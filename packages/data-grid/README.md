@@ -239,9 +239,14 @@ Grid.Message.Moved({
 - **`ColumnResized`**, **`ColumnHidden`**, **`ColumnShown`** and
   **`ColumnMoved`** change the column state (below).
 - **`ResizeStarted`**, **`ResizeMoved`** and **`ResizeEnded`** are a pointer
-  drag on a resize handle. The grid records the width the drag began at, so
-  each move is measured from there, not summed; a cancelled drag puts the
-  width back. A column that does not resize starts no drag.
+  drag on a resize handle. `ResizeStarted` names the column by its header's
+  DOM id (`GridFocus.headerId`), since it comes from the page: an id that is
+  not a resizable column of this grid starts nothing. The grid records the
+  width the drag began at, so each move is measured from there, not summed;
+  a cancelled drag puts the width back.
+- **`PressListening`** changes nothing: the view's pointer listeners send it
+  when they start, so a Scene test resolves them with what the runtime
+  sends (`foldkit-mixins-data-grid`'s `resolveMounts`).
 
 The Model is `{ focus, viewport, columns, resizing }` and encodes to plain
 data.

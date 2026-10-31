@@ -914,11 +914,16 @@ the suite):
   there, answering that row's Message. The runtime ends and starts the rows'
   own. Scene draws the keyed and the positional list identically; the
   runtime does not. This is the disagreement §4.7 predicted.
-- **Scene cannot draw the data grid** (this repository, #380). The grid
-  draws three Mounts by default that answer no Message when they start
-  (`DataGridHeaderDrag`, `Move`, `DataGridCellPress`), and Scene resolves
-  every Mount with one. The runtime and the server agree on the grid
-  through three sort clicks.
+- **Scene could not draw the data grid** (this repository, #380, fixed).
+  The grid drew three Mounts that answered no Message when they started
+  (`DataGridHeaderDrag`, a `Move` per resize handle, `DataGridCellPress`),
+  and Scene resolves every Mount with one. The header row's and the body's
+  listeners now send `PressListening` when they start, and the header row's
+  follows a resize handle's drag too, so a handle holds no Mount; the case
+  agrees on all three drawers. It also showed that the runtime starts an
+  element's Mounts after its children's (snabbdom's `insert` hooks), where
+  Scene lists them parent first, so the Scene drawer resolves them in the
+  runtime's order: their start Messages are compared in order.
 - **The server refuses a table without a `tbody`** (Foldkit, by design):
   a parser would insert one, so `renderToString` fails with
   `SerializationError` where the runtime and Scene draw the rows as written.

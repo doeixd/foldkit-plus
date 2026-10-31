@@ -46,6 +46,19 @@ export default [
     tests,
   },
   {
+    // The grid's header row and body start before its root in the runtime;
+    // resolved parent first, Scene's start Messages come in another order.
+    name: 'Scene resolves its Mounts parent first',
+    edits: [
+      {
+        file: drawers,
+        find: 'const pending = startOrder(current.html)',
+        replace: 'const pending = current.mounts.map(mount => mount.name)',
+      },
+    ],
+    tests,
+  },
+  {
     name: "a field is read by its markup's value, not what it holds",
     edits: [
       {

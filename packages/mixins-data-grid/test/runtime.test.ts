@@ -63,6 +63,36 @@ afterEach(() => {
 
 const cell = (row: string, column: 'id' | 'name') => GridFocus.cellId('items', { row, column })
 
+test('the header row and the body each say when their pointer listeners start', async () => {
+  const update = application.update()
+  const started: Array<string> = []
+  const container = document.createElement('div')
+  container.id = 'grid-listening'
+  document.body.appendChild(container)
+  const handle = Runtime.embed(
+    Runtime.makeElement({
+      Model,
+      container,
+      init: () => application.initial({ grid: Grid.bundle.init(undefined).model }),
+      update: (model: Model, message: Message) => {
+        Message.match(message, { GotGridMessage: ({ message }) => started.push(message._tag) })
+        return update(model, message)
+      },
+      view: viewIn('ltr'),
+    }),
+  )
+  try {
+    await vi.waitFor(() =>
+      expect(started.filter(tag => tag === 'PressListening')).toEqual([
+        'PressListening',
+        'PressListening',
+      ]),
+    )
+  } finally {
+    handle.dispose()
+  }
+})
+
 test('the keyboard moves the active descendant and scrolls a move off screen into view', async () => {
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
     setTimeout(() => callback(performance.now()), 0),
@@ -186,7 +216,7 @@ test('in right-to-left text the end edge is on the left, for the keys and the po
       new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true }),
     )
     await vi.waitFor(() => expect(nameHandle().getAttribute('aria-valuenow')).toBe('116'))
-    // A drag to the left widens it too. jsdom has no PointerEvent; Move reads these fields.
+    // A drag to the left widens it too. jsdom has no PointerEvent; the header row's listener reads these fields.
     const pointer = (type: string, clientX: number) =>
       nameHandle().dispatchEvent(new MouseEvent(type, { bubbles: true, button: 0, clientX }))
     pointer('pointerdown', 100)

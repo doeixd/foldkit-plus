@@ -6,6 +6,7 @@
  */
 import { Effect, Option, Queue, Result, Schema, Stream } from 'effect'
 import { renderToString } from 'foldkit/experimental/server'
+import type { Html } from 'foldkit/html'
 import * as Runtime from 'foldkit/runtime'
 import * as Subscription from 'foldkit/subscription'
 import { Scene } from 'foldkit/test'
@@ -151,6 +152,24 @@ const SceneSlots = Schema.Struct({
 })
 const sceneSlots = Schema.decodeUnknownSync(SceneSlots)
 
+// Where `OnMount` marks a VNode: Foldkit's `FOLDKIT_MOUNT_KEY`, which `foldkit/html` does not export.
+const mountKey = 'foldkitMount'
+const markerOf = Schema.decodeUnknownOption(Schema.Struct({ name: Schema.String }))
+
+/**
+ * The names of the Mounts a VNode draws, in the order the runtime starts
+ * them: snabbdom calls an element's `insert` hook after its children's, where
+ * Scene lists its pending Mounts parent first.
+ */
+const startOrder = (node: Exclude<Html, null> | string): ReadonlyArray<string> => {
+  if (typeof node === 'string') return []
+  const children = (node.children ?? []).flatMap(startOrder)
+  return Option.match(markerOf(Reflect.get(node.data ?? {}, mountKey)), {
+    onNone: () => children,
+    onSome: ({ name }) => [...children, name],
+  })
+}
+
 /** Scene: the view's VNode, walked; Mounts resolved by their description, never run. */
 export const scene: LiveDrawer = {
   name: 'scene',
@@ -189,7 +208,10 @@ export const scene: LiveDrawer = {
           current = Scene.Mount.expectEnded(args === undefined ? { name } : { name, args })(current)
           continue
         }
-        const [pending] = current.mounts
+        // Resolved in the runtime's order, since each start's Message is compared in order.
+        const pending = startOrder(current.html)
+          .map(name => current.mounts.find(mount => mount.name === name))
+          .find(mount => mount !== undefined)
         if (pending === undefined) return current
         const { name, args } = pending
         if (probed.has(name)) record.mounts.push({ event: 'started', name, args: args ?? {} })
