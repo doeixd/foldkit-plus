@@ -1657,6 +1657,12 @@ of its own named a form field "fits the Catalog". Read words with
   accessibility tree does not (it says "Team"). Check a name against
   Chrome's tree (`Accessibility.getFullAXTree` per frame, as
   `steady.browser.test.ts` does), and press such an element with `click()`.
+- **Vitest names an element by a selector made at the call, often by
+  position.** `userEvent.hover(spot)` on a bare `div` sent `div >> nth=1`,
+  made before the runtime drew a `nav` in place of its container; on a loaded
+  CI runner the draw landed first, nothing matched, and the hover timed out
+  (`nav.browser.test.ts`). Give an element you act on an id, or act through a
+  locator (`page.getByRole`).
 - **The browser tests share one real pointer.** A test that read a row's
   resting fill as transparent failed in CI only: an earlier test file had left
   the mouse where the row was drawn, so it was hovered. Before asserting

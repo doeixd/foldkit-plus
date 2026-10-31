@@ -39,8 +39,11 @@ const mount = () => {
   document.head.append(sheet)
   const container = document.createElement('div')
   container.id = 'hover-card'
-  // An empty spot below the trigger, to move the pointer off it.
+  // An empty spot below the trigger, to move the pointer off it, found by
+  // its id: Vitest's selector for an element without one is positional
+  // (`div >> nth=1`), and the card's opening and closing moves the count.
   const spot = document.createElement('div')
+  spot.id = 'spot'
   spot.style.blockSize = '200px'
   document.body.append(container, spot)
   const view = (model: Model, h: HtmlBuilder<Message>) =>
@@ -97,7 +100,7 @@ const mount = () => {
   )
 }
 
-const away = () => document.body.lastElementChild!
+const away = () => document.getElementById('spot')!
 const card = () => document.querySelector<HTMLElement>('[aria-label="card"]')
 
 test('the open card shows below its trigger, outside the row that clips it, its arrow at the trigger', async () => {

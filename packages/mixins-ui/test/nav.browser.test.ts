@@ -33,8 +33,12 @@ const mount = (fluid: boolean) => {
   document.head.append(sheet)
   const container = document.createElement('div')
   container.id = 'nav-browser'
-  // An empty spot away from the links, to move the pointer off them.
+  // An empty spot away from the links, to move the pointer off them. Its id
+  // is its locator: Vitest names an element by a selector made when the
+  // action is called, and without one that is `div >> nth=1`, which matches
+  // nothing once the runtime draws a `nav` in place of the container.
   const spot = document.createElement('div')
+  spot.id = 'spot'
   spot.style.blockSize = '200px'
   document.body.append(container, spot)
   const view = (_model: Model, h: HtmlBuilder<never>) =>
@@ -70,7 +74,7 @@ const spans = (overlay: HTMLElement, target: HTMLElement) => {
 test('the indicator sits under the current link, and the highlight follows the pointer', async () => {
   const handle = mount(true)
   try {
-    await userEvent.hover(document.body.lastElementChild!)
+    await userEvent.hover(document.getElementById('spot')!)
     await vi.waitFor(() => expect(spans(part(0), link('docs'))).toBe(true))
     await vi.waitFor(() => expect(getComputedStyle(link('docs')).boxShadow).toBe('none'))
     await userEvent.hover(link('blog'))
