@@ -1243,3 +1243,39 @@ by its Model paths; both are this repository's work on today's renderer.
 R2 stays worth doing only for what it was never measured on here: native
 renderers (U1–U4) and the cost of `view` running whole, which neither app
 shows to matter once its lists are regions.
+
+### After R3: cheap repeated Remote reads (#384)
+
+R3 left `searchViewState`'s 556 Remote reads as most of domains-plus's
+view. #384 ([design and full tables](384-read-memo-DESIGN.md)) made a read
+cheap to repeat and identity-keeping: `Data.get` is one handle per
+Selection and id (making it was 1.5 of 1.8 ms per pass), a row read is
+kept by the store entries it reaches, and a page keeps its object while its
+rows do; 556 reads are 0.23 ms on an unchanged store (1.80 before) and
+0.46 ms after one row changed (3.72). `Projection.derive` (`foldkit-surface`)
+works a value out again only when a path it reads changed, and
+`SlotView.region` is built on it; domains-plus's `searchViewState` is one.
+
+**A correction to R3.** The equal domain that made every row miss was not a
+Remote read: Foldkit's tagged constructors copy a struct field
+(`DomainListing.Ready({ domain })`, `SearchViewState.Ready({ domains })`),
+so a listing kept by a copy missed on each new arrangement. domains-plus
+now keeps a listing per Remote domain and takes its domains from Remote, the
+per-name `Equal.equals` map is gone, and a toggled filter draws no row.
+
+Same method as R1 and R3, an A/B against `4924eb6c` in alternating rounds,
+view ms (median):
+
+| frame's last Message | 1× before | 1× after | 4× before | 4× after |
+| --- | ---: | ---: | ---: | ---: |
+| `UpdatedSearch` | 3.1 · 3.2 | 3.1 · 3.2 | 20.5 · 20.3 | 22.1 |
+| `ReadStarted` | 8.2 · 7.6 | 6.8 · 6.7 | 58.2 · 59.7 | 41.9 |
+| `ReadReceived` | 7.3 · 7.2 | 6.1 · 6.4 | 57.1 · 58.1 | 45.9 |
+| `Placed` | 6.9 · 7.4 | 4.7 · 4.3 | 48.1 · 55.3 | 35.6 |
+| `PressedPointerOnButton` | 7.5 · 9.6 | 3.7 · 3.5 | 50.2 · 56.8 | 21.9 |
+| `SelectedItem` | 7.8 · 11.2 | 5.4 · 4.5 | 47.7 · 56.1 | 31.6 |
+
+Patch is unchanged within noise. A price arriving is now 6.2 + 3.1 ms
+(46 + 27 ms at 4×): what remains is `view` running whole and the rows a
+price really changes, which is R2's question again, now with less in front
+of it.

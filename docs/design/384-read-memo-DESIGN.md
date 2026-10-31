@@ -1,6 +1,6 @@
 # Cheap repeated Remote reads (#384)
 
-Status: designed (2026-10-31). Results are added below as each part lands.
+Status: built (2026-10-31). Results below.
 
 ## The problem
 
@@ -9,9 +9,10 @@ domains-plus's view time in `searchViewState`, which reads all 556 names
 through Remote on every render: `Data.get(Quote, name).read(model)` once per
 name in `answeredOf`, and again through `readNames` and `visibleNames`, and
 once more per Model change in the `visible` read entry's parameters. R3 also
-found a read handing back an equal domain as a new object, which made every
+took a read to hand back an equal domain as a new object, which made every
 row miss its memo, and worked around it in the view by keeping listings per
-name under `Equal.equals`.
+name under `Equal.equals`; that copy turned out to be Foldkit's constructors,
+not Remote (below).
 
 ## What a read costs today
 
@@ -46,11 +47,17 @@ A CPU profile of the same loop says where it goes:
   entry's `values` object. The store keeps it across an equal refetch, but an
   optimistic layer's row is rebuilt on every write to the base store
   (`visibleStore` writes the patch over it again), and an evicted row read
-  again is a new entry: both decode an equal value as a new object. In a
-  trace of domains-plus (search, filter toggled three times, every read
-  answered) no domain changed identity, so R3's per-frame misses came from
-  a path the trace does not take (eviction after the minute's grace, a
-  resumed store); the row memo below keeps identity on all of them.
+  again is a new entry: both decode an equal value as a new object.
+- **R3's equal-but-new domain was not Remote's.** A trace of domains-plus
+  through Remote alone (search, the filter toggled, every read answered)
+  kept every domain's identity. Counting in the render build found the copy
+  elsewhere: Foldkit's tagged constructors rebuild a struct field through
+  `Schema.make` (`foldkit/schema`: only primitive fields are copied by
+  reference), so `DomainListing.Ready({ domain })` and
+  `SearchViewState.Ready({ domains })` hand out copies, and a listing kept
+  by a copied domain missed on every new arrangement: 48 rows drawn per
+  filter toggled. The fix is in the example (below); the row memo still
+  keeps identity on the Remote paths that did lose it.
 - **Constant states are new objects.** `Initial`, `Loading` and `NotFound`
   are object literals made per read.
 
@@ -150,9 +157,11 @@ is for `Projection.fromReader`'s `dependencies`.
 
 ## Where it is applied
 
-- **domains-plus**: the listing per name under `Equal.equals` goes; rows key
-  their listing by the domain's identity again (a `WeakMap`, as before R3's
-  workaround). `searchViewState` is a `Projection.derive` over the seven
+- **domains-plus**: the listing per name under `Equal.equals` goes.
+  `domainToReadyListing` keeps one listing per Remote domain object (a
+  `WeakMap`), and the view takes the domains from Remote (a
+  `Projection.derive` over the store and the query) rather than from the
+  `Ready`, whose constructor copies them. A filter toggled draws no row. `searchViewState` is a `Projection.derive` over the seven
   fields it reads, so a render that changed none of them (a menu opened, the
   cart) does not work it out.
 - **Chirp's timeline**: a post not being edited is drawn as a keyed lazy
@@ -174,4 +183,60 @@ unchanged. Each memo has a mutation spec.
 
 ## Results
 
-(Recorded as each part lands.)
+**The read.** `byId.bench.ts`, same machine, mean per pass of 556 reads:
+
+| case | before | after |
+| --- | ---: | ---: |
+| same Model | 1.80 ms | 0.23 ms |
+| same Model, held handles | 0.24 ms | 0.21 ms |
+| one row changed, the write included | 3.72 ms | 0.46 ms |
+| a row no read reaches written, the write included | 3.29 ms | 0.41 ms |
+| that write alone | 0.14 ms | 0.15 ms |
+
+**The page.** `pnpm bench:render --app domains`, R1's method unchanged,
+as an A/B: *before* is the tree at `4924eb6c` (before this work, R3's
+per-name workaround included), built from a detached worktree; *after* is
+`main` with this work. Two rounds at each throttle, alternating. The
+Worker was served on port 5299 for the second rounds: another project's
+`vite preview` held 5197. The first *after* round at 4× ran while other
+work loaded the machine (its keystroke frame, which this work does not
+change, read 29 ms against 20); it is recorded and left out of the table.
+Samples: `docs/design/renderer-baseline/2026-10-31-384-{before,after}-cpu{1,4}x-{1,2}.json`.
+
+View and patch in ms, median of each round (round 1 · round 2):
+
+| frame's last Message | view before | view after | patch before | patch after |
+| --- | ---: | ---: | ---: | ---: |
+| `UpdatedSearch` (a keystroke) | 3.1 · 3.2 | 3.1 · 3.2 | 2.3 · 2.2 | 2.4 · 2.4 |
+| `ReadStarted` (names checked) | 8.2 · 7.6 | 6.8 · 6.7 | 0.2 · 0.2 | 0.2 · 0.3 |
+| `ReadReceived` (prices arrive) | 7.3 · 7.2 | 6.1 · 6.4 | 2.9 · 2.8 | 3.2 · 3.1 |
+| `Placed` (a scroll) | 6.9 · 7.4 | 4.7 · 4.3 | 2.4 · 3.0 | 2.7 · 2.6 |
+| `PressedPointerOnButton` (filter opened) | 7.5 · 9.6 | 3.7 · 3.5 | 2.1 · 2.6 | 2.4 · 2.2 |
+| `SelectedItem` (filter chosen) | 7.8 · 11.2 | 5.4 · 4.5 | 1.8 · 2.3 | 2.1 · 1.8 |
+
+With the CPU slowed four times (before: both rounds; after: round 2):
+
+| frame's last Message | view before | view after | patch before | patch after |
+| --- | ---: | ---: | ---: | ---: |
+| `UpdatedSearch` | 20.5 · 20.3 | 22.1 | 17.5 · 16.3 | 18.6 |
+| `ReadStarted` | 58.2 · 59.7 | 41.9 | 1.2 · 1.2 | 1.4 |
+| `ReadReceived` | 57.1 · 58.1 | 45.9 | 26.9 · 25.2 | 27.0 |
+| `Placed` | 48.1 · 55.3 | 35.6 | 23.6 · 20.6 | 24.2 |
+| `PressedPointerOnButton` | 50.2 · 56.8 | 21.9 | 12.6 · 15.2 | 14.8 |
+| `SelectedItem` | 47.7 · 56.1 | 31.6 | 10.9 · 12.3 | 12.1 |
+
+**Reading it.**
+
+- **A price arriving** costs about 20% less view (7.2 to 6.2 ms; 58 to
+  46 ms at 4×): the 556 reads are a handle lookup and an entry comparison
+  each, and the rows that did not change keep their drawing. What is left
+  is the rest of the view, which runs whole.
+- **A frame that changes nothing the search reads** (the filter's menu
+  opened) does not work the search out at all: 7.5–9.6 to 3.6 ms, 50–57 to
+  22 ms at 4×. Choosing a filter draws no row (48 before, counted), and
+  costs a third less view.
+- **A scroll** costs a third less view: the window's names are worked out
+  from reads that are now cheap.
+- **A keystroke is unchanged** (it changes the query, which every
+  derivation reads), and patch is unchanged throughout, within noise.
+

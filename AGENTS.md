@@ -1566,6 +1566,13 @@ of its own named a form field "fits the Catalog". Read words with
   `createLazy` never hits, since the function is new every render; so does an
   array rebuilt per render (`flatMap`) among its arguments. Pass a function
   defined once, and values that keep their identity.
+- **A Foldkit tagged constructor copies a struct field.** `defineTaggedUnion`'s
+  `Variant({ … })` passes primitives through but rebuilds an object or array
+  field with `Schema.make`, so `Listing.Ready({ domain })` holds a copy, and a
+  memo keyed on that copy misses every time it is built: R3 blamed Remote for
+  the "equal but new" domain that drew 48 rows per filter toggle (#384). Key
+  a memo on the value you were handed, before it goes into a constructor, and
+  count draws to find where identity is lost.
 - **One layout decision written twice drifts apart.** The page builder
   stacked its panels below 64rem of its own width but showed the tabs that
   choose one only below 52rem, so between the two (a 1280px window) every
