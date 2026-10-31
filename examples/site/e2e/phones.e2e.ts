@@ -11,6 +11,7 @@ import { createServer, mergeConfig, type UserConfig } from 'vite'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 import { demos } from '../src/demos.js'
 import { auditPhone } from '../src/phoneAudit.js'
+import { onFreePort } from '../../../scripts/free-port.mjs'
 
 /** How a demo is served as it is published, where that is not its plain dev server at `/`. */
 const launch: Readonly<Record<string, { readonly mode?: string; readonly path?: string }>> = {
@@ -60,7 +61,7 @@ test.each(demos.map(demo => [demo.example, demo] as const))('%s fits a phone', a
     isMobile: true,
   })
   try {
-    await vite.listen()
+    await onFreePort(() => vite.listen())
     const page = await context.newPage()
     const errors: Array<string> = []
     page.on('pageerror', error => errors.push(String(error)))

@@ -4,6 +4,7 @@
  */
 import { fileURLToPath } from 'node:url'
 import { createServer } from 'vite'
+import { onFreePort } from '../../../scripts/free-port.mjs'
 
 export const servePage = async (worker: string, port: number) => {
   const vite = await createServer({
@@ -12,6 +13,7 @@ export const servePage = async (worker: string, port: number) => {
     logLevel: 'error',
     server: { host: '127.0.0.1', port, strictPort: true, proxy: { '/remote': { target: worker } } },
   })
-  await vite.listen()
+  // `pnpm dev` names its port; the e2e test asks for any (0).
+  await (port === 0 ? onFreePort(() => vite.listen()) : vite.listen())
   return vite
 }

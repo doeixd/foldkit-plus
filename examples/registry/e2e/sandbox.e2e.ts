@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url'
 import { type Browser, chromium, type Page } from 'playwright'
 import { build, preview, type PreviewServer } from 'vite'
 import { afterAll, beforeAll, expect, test } from 'vitest'
+import { onFreePort } from '../../../scripts/free-port.mjs'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 let outDir: string
@@ -28,13 +29,15 @@ beforeAll(async () => {
     logLevel: 'error',
     build: { outDir, emptyOutDir: true },
   })
-  server = await preview({
-    root,
-    configFile: false,
-    logLevel: 'error',
-    build: { outDir },
-    preview: { port: 0 },
-  })
+  server = await onFreePort(() =>
+    preview({
+      root,
+      configFile: false,
+      logLevel: 'error',
+      build: { outDir },
+      preview: { port: 0 },
+    }),
+  )
   url = server.resolvedUrls!.local[0]!
   browser = await chromium.launch()
 })

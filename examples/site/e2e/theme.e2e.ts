@@ -15,6 +15,7 @@ import { afterAll, beforeAll, expect, test } from 'vitest'
 // only a build CI's e2e job never makes.
 import config from '../vite.config.js'
 import { defaults } from '../src/gallery/theme.js'
+import { onFreePort } from '../../../scripts/free-port.mjs'
 
 let vite: ViteDevServer
 let browser: Browser
@@ -30,7 +31,7 @@ beforeAll(async () => {
       server: { port: 0 },
     }),
   )
-  await vite.listen()
+  await onFreePort(() => vite.listen())
   url = vite.resolvedUrls!.local[0]!.replace(/\/$/, '')
   browser = await chromium.launch()
 })

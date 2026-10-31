@@ -616,6 +616,11 @@ Foldkit's own behaviour that we work around is listed in
 
 **Library behaviour**
 
+- **Vite 8's `port: 0` is a probe, not a bind.** `httpServerStart` listens on
+  an ephemeral port, closes it, and binds it again, so another process can
+  take it between: CI's cloudflare e2e failed "Port 41893 is already in use",
+  `strictPort` or not. Start an e2e server with `onFreePort(() =>
+  vite.listen())` (`scripts/free-port.mjs`), which retries only that error.
 - **A runtime disposed before its Subscriptions start never ends their
   streams.** `embed(...).dispose()` in the same tick as boot (React
   StrictMode's mount, unmount, mount) interrupts the Subscription fibers

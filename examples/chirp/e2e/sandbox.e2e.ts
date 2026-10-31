@@ -12,6 +12,7 @@ import { type Browser, chromium, type Page } from 'playwright'
 import { createServer, type ViteDevServer } from 'vite'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 import { mutation } from '../../../scripts/mutation-plugin.mjs'
+import { onFreePort } from '../../../scripts/free-port.mjs'
 
 let vite: ViteDevServer
 let browser: Browser
@@ -26,7 +27,7 @@ beforeAll(async () => {
     // `pnpm mutate`'s edits reach the page this server builds.
     plugins: [mutation()],
   })
-  await vite.listen()
+  await onFreePort(() => vite.listen())
   url = vite.resolvedUrls!.local[0]!
   browser = await chromium.launch()
 })

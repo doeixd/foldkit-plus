@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { type Browser, chromium, type Page } from 'playwright'
 import { createServer, type ViteDevServer } from 'vite'
 import { afterAll, beforeAll, expect, test } from 'vitest'
+import { onFreePort } from '../../../scripts/free-port.mjs'
 
 let vite: ViteDevServer
 let browser: Browser
@@ -19,7 +20,7 @@ beforeAll(async () => {
     logLevel: 'error',
     server: { port: 0 },
   })
-  await vite.listen()
+  await onFreePort(() => vite.listen())
   browser = await chromium.launch()
 })
 

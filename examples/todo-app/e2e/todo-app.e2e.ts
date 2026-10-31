@@ -13,6 +13,7 @@ import { createServer, type ViteDevServer } from 'vite'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 import { openJournal, type ServerJournal } from '../src/journal.js'
 import { startSyncServer, type SyncServer } from '../src/server.js'
+import { onFreePort } from '../../../scripts/free-port.mjs'
 
 const documentId = 'todos'
 let directory: string
@@ -40,7 +41,7 @@ beforeAll(async () => {
       proxy: { '/sync': { target: server.url, ws: true } },
     },
   })
-  await vite.listen()
+  await onFreePort(() => vite.listen())
   url = vite.resolvedUrls!.local[0]!
   browser = await chromium.launch()
 })

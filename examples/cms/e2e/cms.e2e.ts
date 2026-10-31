@@ -12,6 +12,7 @@ import { startHttpServer } from '../src/server/http.js'
 // Vite 5 loading the file itself hands `foldkit-ssr/vite`'s source to Node,
 // which cannot follow its `.js` imports to `.ts` files without a build.
 import config from '../vite.config.js'
+import { onFreePort } from '../../../scripts/free-port.mjs'
 
 let server: Awaited<ReturnType<typeof startHttpServer>>
 let vite: ViteDevServer
@@ -32,7 +33,7 @@ beforeAll(async () => {
       },
     }),
   )
-  await vite.listen()
+  await onFreePort(() => vite.listen())
   url = vite.resolvedUrls!.local[0]!.replace(/\/$/, '')
   browser = await chromium.launch()
 })

@@ -15,6 +15,7 @@ import { afterAll, beforeAll, expect, test } from 'vitest'
 import { startHttpServer } from '../src/http.js'
 import { accounts, notes } from '../src/server.js'
 import { configFor } from '../vite.config.js'
+import { onFreePort } from '../../../scripts/free-port.mjs'
 
 let server: Awaited<ReturnType<typeof startHttpServer>>
 let vite: ViteDevServer
@@ -35,15 +36,22 @@ const freePort = () =>
   })
 
 beforeAll(async () => {
-  origin = `http://127.0.0.1:${await freePort()}`
-  server = await startHttpServer(0, origin)
-  vite = await createServer({
-    ...configFor({ origin, authServer: server.url }),
-    root: fileURLToPath(new URL('..', import.meta.url)),
-    configFile: false,
-    logLevel: 'error',
+  // The port can be taken between the probe and Vite's bind: start both again.
+  await onFreePort(async () => {
+    origin = `http://127.0.0.1:${await freePort()}`
+    server = await startHttpServer(0, origin)
+    vite = await createServer({
+      ...configFor({ origin, authServer: server.url }),
+      root: fileURLToPath(new URL('..', import.meta.url)),
+      configFile: false,
+      logLevel: 'error',
+    })
+    await vite.listen().catch(async (error: unknown) => {
+      await vite.close()
+      await server.close()
+      throw error
+    })
   })
-  await vite.listen()
   browser = await chromium.launch()
   context = await browser.newContext()
 })

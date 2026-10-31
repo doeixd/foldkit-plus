@@ -11,6 +11,7 @@ import { type Browser, chromium, type Page } from 'playwright'
 import { createServer, type ViteDevServer } from 'vite'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 import { startHttpServer } from '../src/http.js'
+import { onFreePort } from '../../../scripts/free-port.mjs'
 
 let server: Awaited<ReturnType<typeof startHttpServer>>
 let vite: ViteDevServer
@@ -29,7 +30,7 @@ beforeAll(async () => {
       proxy: { '/remote': { target: new URL(server.url).origin } },
     },
   })
-  await vite.listen()
+  await onFreePort(() => vite.listen())
   browser = await chromium.launch()
   page = await browser.newPage()
 })

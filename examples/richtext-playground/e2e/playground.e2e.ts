@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { type Browser, chromium, type Locator, type Page } from 'playwright'
 import { createServer, type ViteDevServer } from 'vite'
 import { afterAll, beforeAll, expect, test } from 'vitest'
+import { onFreePort } from '../../../scripts/free-port.mjs'
 
 let vite: ViteDevServer
 let browser: Browser
@@ -20,7 +21,7 @@ beforeAll(async () => {
     server: { port: 0, host: '127.0.0.1' },
     logLevel: 'error',
   })
-  await vite.listen()
+  await onFreePort(() => vite.listen())
   const address = vite.httpServer?.address()
   if (address === null || typeof address !== 'object') throw new Error('Vite is not listening')
   origin = `http://127.0.0.1:${address.port}`

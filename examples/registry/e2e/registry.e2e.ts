@@ -13,6 +13,7 @@ import { REMOTE_PROTOCOL_VERSION, Remote } from 'foldkit-remote'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 import { startHttpServer } from '../src/http.js'
 import { productId, seedOf } from '../src/server.js'
+import { onFreePort } from '../../../scripts/free-port.mjs'
 
 let server: Awaited<ReturnType<typeof startHttpServer>>
 let vite: ViteDevServer
@@ -36,7 +37,7 @@ beforeAll(async () => {
       },
     },
   })
-  await vite.listen()
+  await onFreePort(() => vite.listen())
   url = vite.resolvedUrls!.local[0]!
   browser = await chromium.launch()
 })

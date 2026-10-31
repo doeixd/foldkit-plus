@@ -10,6 +10,7 @@ import { createServer, type ViteDevServer } from 'vite'
 import { afterAll, beforeAll, expect, test } from 'vitest'
 import { openJournal } from '../src/journal.js'
 import { startPagesServer } from '../src/server.js'
+import { onFreePort } from '../../../scripts/free-port.mjs'
 
 let journal: ReturnType<typeof openJournal>
 let server: Awaited<ReturnType<typeof startPagesServer>>
@@ -30,7 +31,7 @@ beforeAll(async () => {
       proxy: { '/sync': { target: server.url, ws: true } },
     },
   })
-  await vite.listen()
+  await onFreePort(() => vite.listen())
   url = vite.resolvedUrls!.local[0]!
   browser = await chromium.launch()
 })
@@ -98,7 +99,7 @@ test('with the server down an edit says it is kept, and saved once the server is
     logLevel: 'silent',
     server: { port: 0, proxy: { '/sync': { target: `ws://127.0.0.1:${port}`, ws: true } } },
   })
-  await offline.listen()
+  await onFreePort(() => offline.listen())
   let up: Awaited<ReturnType<typeof startPagesServer>> | undefined
   try {
     const page = await browser.newPage()
