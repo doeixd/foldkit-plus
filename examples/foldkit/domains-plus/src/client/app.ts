@@ -220,16 +220,19 @@ const filtersSheetStep = (model: Model, next: Sheet.Return): Return =>
   sheetStep(model, next, filtersSheet)
 
 /**
- * Rows not yet measured take the height of the rows just measured: a row of
+ * Rows not yet measured take the mean height of every row measured: a row of
  * six names is one height on a desktop and three times it on a phone, and a
  * fixed estimate made the list's length change as rows were drawn (#381).
+ * The mean of all, not of the last report, so rows measured again as their
+ * prices land do not move the estimate.
  */
 const estimatedFromMeasured = (list: WindowList.Model, message: WindowList.Message) =>
   WindowList.Message.match(message, {
     Placed: () => list,
-    Measured: ({ rows }) => {
-      if (rows.length === 0) return list
-      const mean = rows.reduce((sum, row) => sum + row.height, 0) / rows.length
+    Measured: () => {
+      const heights = Object.values(list.heights)
+      if (heights.length === 0) return list
+      const mean = heights.reduce((sum, height) => sum + height, 0) / heights.length
       return mean === list.estimatedHeight
         ? list
         : modifyFields(list, { estimatedHeight: () => mean })
