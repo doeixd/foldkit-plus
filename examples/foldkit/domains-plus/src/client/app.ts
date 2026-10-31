@@ -538,7 +538,11 @@ export const SearchBox = App.surface('SearchBox', {
 
 /**
  * What crosses from the server's render to the browser, which starts from it
- * instead of running `init`. The debounce starts empty in the browser.
+ * instead of running `init`. The debounce starts empty in the browser. The
+ * server reads every price the page shows before it renders
+ * (`server/entry.ts`), and Remote's part sends what the reading Surfaces
+ * read, so the page is whole without a script and the browser asks for none
+ * of it again.
  */
 export const plan = SSR.plan(
   { owner: App.owner, Message, initial: empty },
@@ -549,10 +553,15 @@ export const plan = SSR.plan(
       App.model.query,
       App.model.settledLabel,
       App.model.searchLayout,
+      // What the reading Surfaces follow, so the browser reads what the server read.
+      App.model.resultsList,
+      App.model.tldFilter,
+      App.model.availabilityFilter,
+      App.model.sortOrder,
     ),
-    // Prices are read again in the browser, as upstream's are: none is inlined.
-    local: [App.model.search, App.model.remote, App.model.resultsList],
-    surfaces: [Surface.at(SearchBox, undefined)],
+    local: [App.model.search],
+    surfaces: [Surface.at(SearchBox, undefined), actives.top, actives.visible, actives.whole],
+    parts: [Remote.resume(Data)],
   },
 )
 

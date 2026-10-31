@@ -7,7 +7,7 @@
  */
 import { Effect, Layer, Option, Schema } from 'effect'
 import { RemoteServer } from 'foldkit-remote-server'
-import { serveFetch } from 'foldkit-remote-server/fetch'
+import { pageReader, serveFetch } from 'foldkit-remote-server/fetch'
 import { makeDemoDomains } from '../shared/demoDomains'
 import { Domain as DomainCase, DomainLabel } from '../shared/domain'
 import { Domain, MAX_BODY_BYTES, MAX_IDS_PER_READ } from '../shared/entity'
@@ -62,11 +62,15 @@ export const server = RemoteServer.make({
   entities: [RemoteServer.entity(Domain, { read: ({ ids }) => Effect.succeed(readDomains(ids)) })],
 })
 
-/** `/remote`, as the Worker and the dev server answer it: one reader, the public. */
-export const serveRemote = serveFetch({
+const served = {
   server,
   resolvePrincipal: () => Effect.void,
   layer: () => Layer.empty,
   maxIdsPerEntity: MAX_IDS_PER_READ,
-  maxBodyBytes: MAX_BODY_BYTES,
-})
+}
+
+/** `/remote`, as the Worker and the dev server answer it: one reader, the public. */
+export const serveRemote = serveFetch({ ...served, maxBodyBytes: MAX_BODY_BYTES })
+
+/** The same server read in this process, for a page's render: no request crosses HTTP. */
+export const readPrices = (request: Request) => pageReader(served)(request, undefined)
