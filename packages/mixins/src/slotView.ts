@@ -219,11 +219,20 @@ const runPending = (..._compared: ReadonlyArray<unknown>): Html => pending!()
 let started = 0
 
 /**
+ * Set by `foldkit-ssr` while it renders a page on the server, under a
+ * registered symbol so it crosses bundles. Each of its passes is drawn
+ * whole: a drawing kept from another pass or another request would carry
+ * that render's resume markers and none of this one's bindings.
+ */
+const SERVER_RENDER = Symbol.for('foldkit-plus.serverRender')
+
+/**
  * `memoized()` under a lazy slot, or `plain()` where there is no runtime frame
- * to memoize under (a test, a server's first pass). An error from the drawing
+ * to memoize under (a test, a server's first pass) or a server renders a page. An error from the drawing
  * itself is thrown as it is, not drawn a second time.
  */
 const memoizedOr = (memoized: () => Html, plain: () => Html): Html => {
+  if ((globalThis as Record<symbol, unknown>)[SERVER_RENDER] === true) return plain()
   const before = started
   try {
     return memoized()

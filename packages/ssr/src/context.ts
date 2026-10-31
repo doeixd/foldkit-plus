@@ -89,13 +89,26 @@ let context: RenderContext | undefined
 /** The context of the view call in progress, if any. */
 export const current = (): RenderContext | undefined => context
 
+/**
+ * Set on `globalThis` while the server renders a page, under a registered
+ * symbol so a view's packages find it from another bundle: a memoized
+ * drawing (`foldkit-mixins`' SlotView) is drawn afresh then, since one kept
+ * from another pass or request carries that render's markers and none of
+ * this one's bindings.
+ */
+const SERVER_RENDER = Symbol.for('foldkit-plus.serverRender')
+
 export const within = <A>(next: RenderContext, run: () => A): A => {
   const previous = context
+  const global = globalThis as Record<symbol, unknown>
+  const rendering = global[SERVER_RENDER]
   context = next
+  global[SERVER_RENDER] = next.mode === 'collect' || next.mode === 'replay'
   try {
     return run()
   } finally {
     context = previous
+    global[SERVER_RENDER] = rendering
   }
 }
 

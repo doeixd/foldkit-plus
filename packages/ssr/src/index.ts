@@ -26,6 +26,7 @@ import {
   type RenderedApplication,
 } from 'foldkit/experimental/server'
 import { Diagnostics, Metadata, type Diagnostic, type MetadataSummary } from 'foldkit-surface'
+import type { HtmlBuilder } from 'foldkit/html'
 import type {
   Activation,
   ActiveSurface,
@@ -1439,6 +1440,11 @@ const startOf = <Model>(
       {
         ...config,
         init: (...args: ReadonlyArray<unknown>) => (started = config.init(...args)),
+        // Only `init`'s answer is wanted. The application's view drawn here
+        // would also fill its memoized drawings (`createLazy`) outside any
+        // render the plan records, and the post's own render, from a Model
+        // holding the same values, would reuse them without their markers.
+        view: (_model: unknown, h: HtmlBuilder<unknown>) => ({ title: '', body: h.div([], []) }),
       } as never,
       { buildId: 'x', ...options } as never,
     )

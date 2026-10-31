@@ -356,6 +356,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A server render draws a memoized SlotView drawing afresh**
+  (`foldkit-ssr`, `foldkit-mixins`, #388). Foldkit keeps a `createLazy`
+  drawing under `renderToString` too, so a SlotView item or part drawn in one
+  of the server's renders (another request's, or a posted form's while it
+  rebuilt the Model) came back in the next with that render's resume markers
+  and none of this one's bindings: a post to a page with a memoized cart
+  button was answered `500` (`ResumeUnsafe`), and a page could carry another
+  request's markers. While `foldkit-ssr` renders a page it now says so under
+  a registered symbol, and SlotView draws plainly then; `SSR.handle` no
+  longer draws the application's view while it rebuilds the Model.
+
 - **A resumed page is adopted as the browser draws it** (`foldkit-ssr`,
   #388). The served page carries what the server wrote for the browser's
   script and no view draws: the envelope on the root, each binding's and
