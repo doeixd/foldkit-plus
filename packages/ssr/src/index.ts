@@ -141,9 +141,8 @@ const envelopeOf = <Model, Fields extends Schema.Struct.Fields>(
  * Foldkit's own app and build stamps. `injectIntoTemplate` accepts the
  * envelope there, as part of the root, and refuses it beside the root, so a
  * page the host injects carries the handover without the entry owning the
- * template. Hydration adopts the server's nodes around it and drops the
- * attribute on its first patch, so the browser reads the envelope before it
- * boots.
+ * template. The browser reads the envelope, then takes the attribute off
+ * as the page boots, before Foldkit adopts the server's nodes around it.
  */
 const withEnvelopeAttribute = (html: string, json: string): string => {
   const stamp = 'data-foldkit-app="'

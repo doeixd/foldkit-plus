@@ -505,8 +505,8 @@ export const builder = <Builder extends AnyBuilder>(
 
   /**
    * `h.submodel` with the child's root stamped with its slot, while the
-   * server renders: a boundary a tool can find, which the browser's first
-   * patch removes as it removes the markers.
+   * server renders: a boundary a tool can find, which the browser takes off
+   * as the page boots, with the markers.
    */
   const submodel = (config: {
     readonly slotId: string

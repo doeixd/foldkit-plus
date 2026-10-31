@@ -1095,6 +1095,10 @@ In a test, `Diagnostics.collect()` gives a reporter and the array it fills.
 - **A resumable page leans on two Foldkit behaviours,** each pinned by a test
   here and by Foldkit's own: the first patch removes attributes the browser's
   view does not assert, and a control's value is re-asserted to the Model's.
+  What the server wrote for the browser's script alone (the envelope, the
+  markers, a placement's slot, a fallback form's method and hidden field) is
+  taken off as the page boots, before Foldkit records the served page, so a
+  development build does not report it as markup the view disagrees with.
   It does not depend on `Runtime.hydrate` rendering its first frame before
   it returns, which Foldkit does today without promising it: until that
   frame commits (`Render.afterCommit`), the page keeps answering from its
@@ -1121,8 +1125,8 @@ In a test, `Diagnostics.collect()` gives a reporter and the array it fills.
   as a `Result`. `SSR.render` carries it on the stamped root, beside Foldkit's
   own stamps; the JSON escapes `<` as Foldkit escapes its Flags, and U+2028
   and U+2029, and the attribute escapes `&` and `"` besides, so no string in
-  the Model can break out of the value. Hydration drops the attribute on its
-  first patch, so the browser reads it before it boots.
+  the Model can break out of the value. The browser reads it, then takes the
+  attribute off as the page boots.
 - **`SSR.inspect(plan, model)`**: the plan's coverage as data.
 - **`Resume.bindings(plan, document, root, model)`** decodes and checks a
   page's bindings, and **`Resume.listen(root, { bindings, onAnswer, events? })`**
