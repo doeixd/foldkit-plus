@@ -11,7 +11,7 @@ export default [
     name: 'a request keeps no order',
     edits: [
       {
-        file,
+        file: '../src/ledger.ts',
         find: '  order: new Map([...state.order, [requestId, state.sequence + 1]]),\n',
         replace: '',
       },
@@ -22,7 +22,7 @@ export default [
     name: 'an earlier answer overwrites a field a later one settled',
     edits: [
       {
-        file,
+        file: '../src/ledger.ts',
         find: '.filter(([field]) => !newer(`${key}\\u0000${field}`)),',
         replace: '.filter(() => true),',
       },
@@ -31,19 +31,19 @@ export default [
   },
   {
     name: 'an earlier answer clears a tombstone a later one settled',
-    edits: [{ file, find: '        if (newer(key)) return []\n', replace: '' }],
+    edits: [{ file: '../src/ledger.ts', find: '        if (newer(key)) return []\n', replace: '' }],
     tests,
   },
   {
     name: 'an earlier delete answer deletes a row a later one wrote',
-    edits: [{ file, find: '.filter(key => !rewritten(key))', replace: '' }],
+    edits: [{ file: '../src/ledger.ts', find: '.filter(key => !rewritten(key))', replace: '' }],
     tests,
   },
   {
     name: 'nothing is recorded as settled',
     edits: [
       {
-        file,
+        file: '../src/ledger.ts',
         find: 'if (at !== undefined && at > earliest) for (const mark of marks) settled.set(mark, at)',
         replace: '',
       },
@@ -54,7 +54,7 @@ export default [
     name: 'settled marks are kept after every earlier request settled',
     edits: [
       {
-        file,
+        file: '../src/ledger.ts',
         find: 'for (const [mark, by] of state.settled) if (by > earliest) settled.set(mark, by)',
         replace: 'for (const [mark, by] of state.settled) settled.set(mark, by)',
       },
@@ -65,7 +65,7 @@ export default [
     name: 'a failed request keeps its order',
     edits: [
       {
-        file,
+        file: '../src/ledger.ts',
         find: 'operations, writes, ...ordered(state, requestId, []) }',
         replace: 'operations, writes }',
       },
@@ -74,7 +74,7 @@ export default [
   },
   {
     name: 'a settled request keeps its order',
-    edits: [{ file, find: '  order.delete(requestId)\n', replace: '' }],
+    edits: [{ file: '../src/ledger.ts', find: '  order.delete(requestId)\n', replace: '' }],
     tests,
   },
   {

@@ -21,7 +21,7 @@ import {
   type NormalizedPatch,
   type PendingDelete,
   type PendingPatch,
-} from './mutation.js'
+} from './ledger.js'
 import { put } from './record.js'
 import { isPatch } from './shown.js'
 import {

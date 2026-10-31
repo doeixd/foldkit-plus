@@ -191,6 +191,16 @@ version changed; `pnpm` skips versions already in the registry.
   gzipped).
 
 
+- **Breaking: `mutate` and `retry` come with the Mutations a domain
+  registers** (`foldkit-remote`, #378). A Mutation descriptor carries the
+  write capability (prediction, local refusal, what an answer must carry), and
+  a domain binds `Data.mutate` and `Data.retry` from it, so a read-only page
+  loads none of it. On a domain that registers no mutation, `retry`'s request
+  id is a type error as `mutate`'s descriptor already was, and either called
+  past the types throws, naming the domain. The ledger's functions
+  (`beginMutation`, `reconcileMutation`, `mutationStatus`, …) and `DerivedBy`
+  are exported as before, from modules of their own.
+
 - **Breaking: `overlay`, `lift`, `overlays` and `filtered` are functions of
   entries of their own, not domain methods** (`foldkit-remote`, #378).
   `Data.overlay(model, id, operations)` is `overlay(Data, model, id,

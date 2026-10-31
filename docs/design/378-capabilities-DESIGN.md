@@ -209,6 +209,24 @@ On the Entity side, the `Entity` object reaches `invariant`, which imports
    is now `OverlaidDomain`, and `foldkit-cms`'s `EditorDomain` extends it. No
    size case moves: list placement for read news (`placedNews`, through
    `impact.ts`) still keeps `matching` and `evaluate` on a read-only page.
+   **4b built (2026-10-31).** `writes.ts` is the write capability: it binds
+   a domain's `mutate` and `retry` (prediction, local refusal, what the
+   answer must carry) and installs the layer capability with itself. A
+   Mutation descriptor's `[Installs]` is `installWrites`; a domain whose slot
+   holds none gets a stub that throws, naming the domain, and `retry`'s
+   request id is typed `string & Writes<Mutations>`, which refuses every id
+   on a domain that registers no mutation (`writes.test-d.ts`, proven by
+   widening it). `mutation.ts` keeps only prediction; the ledger (begin,
+   fail, settle, reconcile, status) moved to `ledger.ts` and `DerivedBy` to
+   `derived.ts`, both light. The reducer's write cases stay in the core:
+   they are ledger bookkeeping, and the layers they begin and settle are
+   already behind the layer slot, so a hand-made write Message on a domain
+   with no mutation still fails there. The answer checks of
+   `verifyPredictions` stay in `Data.reduce`; they import no write code. The
+   read-only page keeps no `mutation.js`, `mutationDescriptor.js` or
+   `writes.js` (its size case is an `it`): the Remote and Entity modules it
+   keeps went from 526.6 kB to 496.3 kB (rendered, unminified, built from
+   source) between 4a and 4b.
 5. **Live through the transport; the outbox through `Data.outbox`.** Waits
    for phase 4's layer capability (a live insert is an overlay). `sse.js`
    also needs the `Remote` object to become an ES module namespace, as

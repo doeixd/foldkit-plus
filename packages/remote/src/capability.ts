@@ -9,8 +9,12 @@
 import { Option } from 'effect'
 import type { ExprContext, EntityRef, MemoryOperators } from 'foldkit-entity'
 import { items, type Connection, type Edge } from './connection.js'
+import type { NamedProjection } from './active.js'
 import type { HeldConnection } from './impact.js'
-import type { MutationAnswer, MutationState } from './mutation.js'
+import type { BoundRemote, DomainMutateOptions, MutationStarted } from './index.js'
+import type { RemoteModel } from './model.js'
+import type { MutationDescriptor } from './mutationDescriptor.js'
+import type { MutationAnswer, MutationState } from './ledger.js'
 import type {
   ConnectionChange,
   ConnectionOverlay,
@@ -29,11 +33,14 @@ export interface Capabilities {
   readonly domain: string
   /** Shows pending layers and overlays; installed by whatever makes one. */
   layers: Option.Option<LayerCapability>
+  /** `mutate` and `retry`; installed by a Mutation the domain registers. */
+  writes: Option.Option<WriteCapability>
 }
 
 export const noCapabilities = (domain: string): Capabilities => ({
   domain,
   layers: Option.none(),
+  writes: Option.none(),
 })
 
 /** Where a declaration holds what it installs on a domain that registers it. */
@@ -115,6 +122,35 @@ export interface LayerCapability {
     covered: ReadonlySet<string>,
     pending: ReadonlySet<string>,
   ) => OptimisticState
+}
+
+/** What the write capability reads of the domain it is bound to. */
+export interface WriteContext<AppModel, Store extends RemoteModel> {
+  readonly bound: BoundRemote<AppModel, Store>
+  /** Who reads, whom a declared write predicts each `Derived.exists` for. */
+  readonly viewerOf: (model: AppModel) => Option.Option<EntityRef>
+  /** How each reader `subscriptions` names resolves for a Model: what an answer must carry. */
+  readonly readers: () => Iterable<(model: AppModel) => ReadonlyArray<NamedProjection<AppModel>>>
+  /** The descriptor a recorded write names. */
+  readonly registeredMutation: (name: string) => MutationDescriptor<any, any, any>
+}
+
+/** A domain's `mutate` and `retry`, as `RemoteDomain` types them for a domain that writes. */
+export interface WriteMethods<AppModel> {
+  readonly mutate: <M extends MutationDescriptor<any, any, any>>(
+    model: AppModel,
+    mutation: M,
+    input: M extends MutationDescriptor<any, infer Input, any> ? Input : never,
+    options?: DomainMutateOptions,
+  ) => MutationStarted<AppModel>
+  readonly retry: (model: AppModel, requestId: string) => Option.Option<MutationStarted<AppModel>>
+}
+
+/** The write capability: binds a domain's `mutate` and `retry`. */
+export interface WriteCapability {
+  readonly bind: <AppModel, Store extends RemoteModel>(
+    context: WriteContext<AppModel, Store>,
+  ) => WriteMethods<AppModel>
 }
 
 /** The layer capability, which whatever made the Model's layers installed. */

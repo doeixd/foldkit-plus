@@ -2948,6 +2948,9 @@ that shows pending writes and overlays only through what makes one: a Mutation
 it registers, `overlay`, a live insert. Handed a pending layer nothing
 installed (a hand-made `MutationStarted` on a domain that registers no
 mutation), it fails, naming the domain, rather than read as if there were none.
+Writing comes the same way: `Data.mutate` and `Data.retry` run the code a
+registered Mutation brings, so on a domain that registers none both are type
+errors, and a call past the types throws, naming the domain.
 The common Messages that change nothing (a duplicate live
 event, a repeated `ReadStarted`, an empty `Hydrated`, a retention pass that
 collects nothing) return the Model they were given, so Foldkit neither renders

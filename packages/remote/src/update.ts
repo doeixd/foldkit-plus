@@ -9,7 +9,12 @@ import type { Capabilities } from './capability.js'
 import { layers } from './layers.js'
 import { reduceIn, type RemoteMessage, type RemoteModel } from './model.js'
 
-const everything: Capabilities = { domain: 'updateRemote', layers: Option.some(layers) }
+// The reducer reads only the layer capability; the write capability binds a domain's methods.
+const everything: Capabilities = {
+  domain: 'updateRemote',
+  layers: Option.some(layers),
+  writes: Option.none(),
+}
 
 /**
  * The pure reducer all four producers share, as `Data.reduce` runs it with

@@ -9,7 +9,7 @@ import { refsIn } from './relation.js'
 import { entityKey, readField, type EntityKey, type EntityStore } from './store.js'
 import type { Connection } from './connection.js'
 import type { OptimisticState } from './optimistic.js'
-import type { MutationState } from './mutation.js'
+import type { MutationState } from './ledger.js'
 
 /** A connection to keep: its identity, and what a page of it selects of each item, if a projection reads it. */
 export interface ConnectionRoot {

@@ -18,8 +18,8 @@ export default [
   ),
   edit(
     'the viewer is not passed',
-    '../src/index.ts',
-    '      const viewer = viewerOf(model)\n',
+    '../src/writes.ts',
+    '      const viewer = context.viewerOf(model)\n',
     '      const viewer = Option.none<never>()\n',
   ),
   edit(

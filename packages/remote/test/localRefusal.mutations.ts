@@ -13,7 +13,7 @@ const index = '../src/index.ts'
 export default [
   edit(
     'nothing is refused where it is made',
-    index,
+    '../src/writes.ts',
     'write === undefined || options.optimistic !== undefined',
     'true',
   ),
@@ -25,20 +25,25 @@ export default [
   ),
   edit(
     'a refused write is shown',
-    index,
+    '../src/writes.ts',
     'const optimistic = Option.isSome(refused)\n        ? undefined',
     'const optimistic = Option.isSome(refused)\n        ? predicted',
   ),
   edit(
     'a refused write is sent',
-    index,
+    '../src/writes.ts',
     '                : Option.isSome(refused)\n                  ? Effect.succeed({',
     '                : false\n                  ? Effect.succeed({',
   ),
-  edit('the refusal names no rule', index, 'rule: Option.some(held.id),', 'rule: Option.none(),'),
+  edit(
+    'the refusal names no rule',
+    '../src/writes.ts',
+    'rule: Option.some(held.id),',
+    'rule: Option.none(),',
+  ),
   edit(
     'the refusal names no Entity',
-    index,
+    '../src/writes.ts',
     'entity: Option.some(held.entity),',
     'entity: Option.none(),',
   ),

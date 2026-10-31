@@ -29,7 +29,7 @@ import { RowPlace, placeIn, withEdge, withoutEdge } from './placement.js'
 import { Data, Match, Option, Schema } from 'effect'
 import { sameData } from './data.js'
 import { belongsEncoded } from './matching.js'
-import type { NormalizedPatch } from './mutation.js'
+import type { NormalizedPatch } from './ledger.js'
 import type { ConnectionSpec, QueryDescriptor } from './query.js'
 import { entityKey, type EntityKey, type EntityStore } from './store.js'
 

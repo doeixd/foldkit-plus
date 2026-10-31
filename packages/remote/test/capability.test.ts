@@ -135,7 +135,41 @@ describe('A domain that registers no mutation', () => {
   })
 })
 
+describe('A domain that registers no mutation, called past its types', () => {
+  it('has no mutate, and says so naming the domain', () => {
+    const Data = reads()
+    // @ts-expect-error Registered refuses a mutation the domain does not register
+    expect(() => Data.mutate(known(Data), Rename, { id: 'p1', name: 'x' })).toThrow(
+      /domain "remote" declares no mutations, so it has no mutate/,
+    )
+  })
+
+  it('has no retry, and says so naming the domain', () => {
+    const Data = reads()
+    // @ts-expect-error a domain that registers no mutation has nothing to retry
+    expect(() => Data.retry(known(Data), 'r1')).toThrow(
+      /domain "remote" declares no mutations, so it has no retry/,
+    )
+  })
+})
+
 describe('A domain that registers a mutation', () => {
+  it('mutates, showing the write while it is pending', () => {
+    const Data = Remote.make({ model: App.model.remote, entities: [Project], mutations: [Rename] })
+    const started = Data.mutate(
+      known(Data),
+      Rename,
+      { id: 'p1', name: 'renamed' },
+      {
+        optimistic: [Project.patch('p1', { name: 'renamed' })],
+      },
+    )
+    expect(Data.get(summary, 'p1').read(started.model)).toEqual({
+      _tag: 'Ready',
+      value: { name: 'renamed' },
+    })
+  })
+
   it('shows a pending layer', () => {
     const Data = Remote.make({ model: App.model.remote, entities: [Project], mutations: [Rename] })
     const pending = Data.reduce(known(Data), started)

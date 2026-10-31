@@ -10,7 +10,7 @@ export default [
     name: 'a started write is not recorded',
     edits: [
       {
-        file: '../src/mutation.ts',
+        file: '../src/ledger.ts',
         find: '  writes: write === undefined ? state.writes : new Map([...state.writes, [requestId, write]]),',
         replace: '  writes: state.writes,',
       },
@@ -32,7 +32,7 @@ export default [
     name: 'a failure drops the writes still in flight',
     edits: [
       {
-        file: '../src/mutation.ts',
+        file: '../src/ledger.ts',
         find: 'if (!failed.has(id) && !pending.has(id)) writes.delete(id)',
         replace: 'if (!failed.has(id)) writes.delete(id)',
       },
@@ -43,7 +43,7 @@ export default [
     name: 'writes outlive the failure window',
     edits: [
       {
-        file: '../src/mutation.ts',
+        file: '../src/ledger.ts',
         find: '  for (const id of writes.keys()) if (!failed.has(id) && !pending.has(id)) writes.delete(id)\n',
         replace: '',
       },
@@ -54,7 +54,7 @@ export default [
     name: 'an applied retry stays listed',
     edits: [
       {
-        file: '../src/mutation.ts',
+        file: '../src/ledger.ts',
         find: '      ...forgetFailure(state, requestId),\n',
         replace: '      ...state,\n',
       },
@@ -98,7 +98,7 @@ export default [
     name: 'a write in flight is retried',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/writes.ts',
         find: "      if (write === undefined || mutationStatus(mutations, requestId)._tag !== 'Failed')",
         replace: '      if (write === undefined)',
       },
@@ -109,7 +109,7 @@ export default [
     name: 'a retry shows nothing optimistic',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/writes.ts',
         find: '          optimistic: write.optimistic,\n',
         replace: '',
       },
@@ -120,7 +120,7 @@ export default [
     name: 'a retry sends no keys',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/writes.ts',
         find: '          keys: write.keys,\n          // The same time',
         replace: '          // The same time',
       },
@@ -131,7 +131,7 @@ export default [
     name: 'a retry is a new request',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/writes.ts',
         find: '          requestId,\n          optimistic: write.optimistic,',
         replace: '          optimistic: write.optimistic,',
       },

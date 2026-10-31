@@ -29,7 +29,7 @@ export default [
   ),
   edit(
     'the client predicts a moment late',
-    '../../remote/src/index.ts',
+    '../../remote/src/writes.ts',
     '              now: Option.fromUndefinedOr(options.now),',
     '              now: Option.map(Option.fromUndefinedOr(options.now), at => at + 1),',
   ),
@@ -77,7 +77,7 @@ export default [
   ),
   edit(
     'the client refuses no write itself',
-    '../../remote/src/index.ts',
+    '../../remote/src/writes.ts',
     'write === undefined || options.optimistic !== undefined',
     'true',
   ),

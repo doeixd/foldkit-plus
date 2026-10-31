@@ -18,7 +18,7 @@ export default [
   ),
   edit(
     'the page dates a note a moment late',
-    '../../../packages/remote/src/index.ts',
+    '../../../packages/remote/src/writes.ts',
     '              now: Option.fromUndefinedOr(options.now),',
     '              now: Option.map(Option.fromUndefinedOr(options.now), at => at + 1),',
   ),

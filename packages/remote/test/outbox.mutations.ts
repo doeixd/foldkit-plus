@@ -34,7 +34,7 @@ export default [
   ),
   edit(
     'a durable write is sent by its Command, not queued',
-    index,
+    '../src/writes.ts',
     "Effect.succeed({ _tag: 'MutationQueued', requestId })",
     "Effect.die('sent')",
   ),

@@ -17,19 +17,19 @@ const edit = (name: string, file: string, find: string, replace: string) => ({
 export default [
   edit(
     'a retry mints a new operation',
-    '../src/index.ts',
+    '../src/writes.ts',
     'Effect.sync(() => Option.getOrElse(known, mintOperation)),',
     'Effect.sync(mintOperation),',
   ),
   edit(
     'a failed request keeps no operation',
-    '../src/mutation.ts',
+    '../src/ledger.ts',
     'const operations = new Map([...state.operations, [requestId, operation] as const])',
     'const operations = new Map(state.operations)',
   ),
   edit(
     'operations outlive the failure window',
-    '../src/mutation.ts',
+    '../src/ledger.ts',
     'for (const id of operations.keys()) if (!failed.has(id)) operations.delete(id)',
     '',
   ),

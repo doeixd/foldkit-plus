@@ -35,7 +35,7 @@ export default [
     name: 'a write is sent without its row’s foreseen members',
     edits: [
       {
-        file: index,
+        file: '../src/writes.ts',
         find: 'write === undefined ? [] : foreseenOfWrite(write),',
         replace: '[],',
       },
@@ -87,7 +87,7 @@ export default [
     name: 'a durable write stores only what the active Surfaces read',
     edits: [
       {
-        file: index,
+        file: '../src/writes.ts',
         find: 'shown: shownAt(model, optimistic ?? [], mutation.write),',
         replace: 'shown: shownAt(model, [], mutation.write),',
       },
@@ -98,7 +98,7 @@ export default [
     name: 'a write sent at once sends only what the active Surfaces read',
     edits: [
       {
-        file: index,
+        file: '../src/writes.ts',
         find: 'shown: shownAt(startedModel, optimistic ?? [], mutation.write),',
         replace: 'shown: shownAt(startedModel, [], mutation.write),',
       },

@@ -40,7 +40,7 @@ import {
   settledLater,
   type MutationState,
   type NormalizedPatch,
-} from './mutation.js'
+} from './ledger.js'
 import {
   emptyOutbox,
   operationOf,

@@ -1227,6 +1227,8 @@ handler's write and raw SQL are held to the invariants and move the revision too
   hand-made `MutationStarted` or `MutationSucceeded` on a domain that registers
   no mutation throws, naming the domain; register one in such a test, or reduce
   with `updateRemote`, which has everything. `RemoteDescriptor.update` is gone.
+  `mutate` and `retry` come with the Mutations a domain registers: on a domain
+  with none, both are type errors, and called past the types they throw.
 - Selections must pick at least one field (`Selection.make` throws otherwise).
 - Presence is not `value === undefined`: missing, present-undefined, present-null,
   stale, and not-found are distinct.

@@ -6,7 +6,7 @@
 import { Match, Option, Schema } from 'effect'
 import type { AnyWrite, ConditionedWrite, Invariant, Write, WriteKind } from 'foldkit-entity'
 import { Installs, type Install } from './capability.js'
-import { installLayers } from './layers.js'
+import { installWrites } from './writes.js'
 import { schemaOf, type SchemaOrFields, type TypeOf } from './schema.js'
 
 /** A mutation an application declares: its name and input/output codecs. */
@@ -146,7 +146,7 @@ export const Mutation = {
     Output: Schema.Struct({}),
     Refusal: refusalOfWrite(write) as unknown as Schema.Codec<RefusalOfWrite<W>, unknown>,
     write,
-    [Installs]: installLayers,
+    [Installs]: installWrites,
   }),
 
   make: <
@@ -166,6 +166,6 @@ export const Mutation = {
     Input: schemaOf(config.Input),
     Output: schemaOf(config.Output),
     Refusal: config.Refusal ?? Schema.Never,
-    [Installs]: installLayers,
+    [Installs]: installWrites,
   }),
 }

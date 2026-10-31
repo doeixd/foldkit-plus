@@ -47,14 +47,14 @@ export default [
   ),
   edit(
     'the refusal loses its words',
-    index,
+    '../src/writes.ts',
     'onSome: said => ({ reason: said }),',
     'onSome: () => ({}),',
     [remote],
   ),
   edit(
     'an invariant is judged before who may write',
-    index,
+    '../src/writes.ts',
     '          : Option.orElse(\n              Option.map(\n                forbiddenByWrite(',
     '          : ((first: any, second: any) => Option.orElse(second(), () => first))(\n              Option.map(\n                forbiddenByWrite(',
     [remote],

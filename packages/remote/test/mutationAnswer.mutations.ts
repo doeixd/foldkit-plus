@@ -38,7 +38,7 @@ export default [
     name: 'Data.mutate sends nothing shown',
     edits: [
       {
-        file: index,
+        file: '../src/writes.ts',
         find: '                      shown: shownAt(startedModel, optimistic ?? [], mutation.write),\n',
         replace: '',
       },
@@ -65,7 +65,7 @@ export default [
     name: 'the settling Message drops the read',
     edits: [
       {
-        file: index,
+        file: '../src/writes.ts',
         find: '                            ...(outcome.read === undefined ? {} : { read: outcome.read }),',
         replace: '',
       },

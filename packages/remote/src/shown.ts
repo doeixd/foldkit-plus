@@ -4,7 +4,7 @@
  * knows which rows a write changed, the client what it reads of a row of
  * each kind.
  */
-import type { PendingPatch } from './mutation.js'
+import type { PendingPatch } from './ledger.js'
 import type { OptimisticOperation } from './optimistic.js'
 import { Requirement, type ConnectionRequirement, type RelationRequirement } from './requirement.js'
 

@@ -43,7 +43,7 @@ export default [
     name: 'the write’s patch wins over the operations given',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/writes.ts',
         find: ': (options.optimistic ??',
         replace: ': (undefined ??',
       },

@@ -19,6 +19,22 @@ export default [
     tests,
   },
   {
+    name: 'a mutation installs no write capability',
+    edits: [
+      {
+        file: '../src/writes.ts',
+        find: '  capabilities.writes = Option.some(writes)\n',
+        replace: '',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a mutation installs the write capability without the layers it shows',
+    edits: [{ file: '../src/writes.ts', find: '  installLayers(capabilities)\n', replace: '' }],
+    tests,
+  },
+  {
     name: 'a live insert installs nothing',
     edits: [
       {

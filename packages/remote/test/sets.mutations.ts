@@ -69,7 +69,7 @@ export default [
     name: 'Data.mutate predicts with no time',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/writes.ts',
         find: '              now: Option.fromUndefinedOr(options.now),',
         replace: '              now: Option.none(),',
       },
@@ -87,7 +87,7 @@ export default [
     name: 'Data.mutate sends no time',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/writes.ts',
         find: '                now: options.now,',
         replace: '',
       },
@@ -109,7 +109,7 @@ export default [
     name: 'a retry sends no time',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/writes.ts',
         find: 'now: Option.getOrUndefined(write.now),',
         replace: 'now: undefined,',
       },
