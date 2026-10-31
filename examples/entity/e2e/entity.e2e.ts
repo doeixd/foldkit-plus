@@ -2,7 +2,7 @@
  * The entity example end to end: its HTTP server (SQLite in memory) and its
  * Vite dev server started here, and Chromium driving the page. A title saved
  * from the form changes the row, is in the table the server reads, and is
- * there after a reload.
+ * there after a reload; the form is busy until the server answers.
  */
 import { fileURLToPath } from 'node:url'
 import { Effect } from 'effect'
@@ -51,7 +51,23 @@ test('a title saved from the form is the row’s, the server’s, and the reload
   const title = page.getByRole('textbox', { name: 'Title' })
   await expect.poll(() => title.inputValue()).toBe('Notes on the Engine')
   await title.fill('Notes on the Engine, revised')
+
+  // The save is held at the network, so the form shows it in flight.
+  let release: () => void = () => {}
+  const held = new Promise<void>(resolve => {
+    release = resolve
+  })
+  await page.route('**/remote**', async route => {
+    if (route.request().postData()?.includes('FoldkitRemoteMutate') === true) await held
+    await route.fallback()
+  })
+  const form = page.locator('form')
   await page.getByRole('button', { name: 'Save' }).click()
+  await expect.poll(() => form.getAttribute('aria-busy')).toBe('true')
+  expect(await page.getByRole('button', { name: 'Saving…' }).isDisabled()).toBe(true)
+  release()
+  await expect.poll(() => form.getAttribute('aria-busy')).toBeNull()
+  await page.unroute('**/remote**')
   await expect.poll(() => titleCell().textContent()).toBe('Notes on the Engine, revised')
 
   // The server wrote it: Remote reads it back from the table.

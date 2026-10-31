@@ -14,6 +14,8 @@ export const words = {
   required: '{label} is required',
   // foldkit-mixins-form
   submit: 'Save',
+  submitting: 'Saving…',
+  resubmit: 'Save again',
   search: 'Find',
   // foldkit-mixins-crud
   yes: 'yes',

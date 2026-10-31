@@ -131,9 +131,13 @@ post list again: p1 "Notes on the Engine", p2 "Compilers, revised"
   read back as the id the form holds.
 - **`invalid submit`** goes nowhere: the form emits no out Message while a key
   fails the input's schema, so no mutation starts.
-- **`valid submit`** is the editor's `onOut` turning the decoded `EditPostInput`
-  into `Data.mutate`, and **`status`** reading Remote's own mutation state. The
-  form knows nothing of Remote. The editor was picked from the choices.
+- **`valid submit`** is the editor's `onOut` (in its `placement`) turning the
+  decoded `EditPostInput` into `Data.mutate`, and **`status`** reading Remote's
+  own mutation state. The form knows nothing of Remote. The editor was picked
+  from the choices. In the page, the same placement draws the form busy
+  (`aria-busy`, its button "Saving…") until the save is answered, read from
+  Remote's ledger by the save's request id; the e2e test holds the save at the
+  network to see it.
 - **`row after`** is the database itself: `headline`, `published`, and
   `editor_id` changed by one `update`. `EditPost` is a declared write
   (`Mutation.write` over `Write.update`), so the server has no handler for it:
