@@ -73,6 +73,7 @@ import {
   requestOnlyOf,
   shownEdgesOf,
   visibleOf,
+  type Answered,
   type Capabilities,
   type ConnectionIdentity,
   type Lists,
@@ -108,6 +109,7 @@ import {
   invalidateConnections,
   readsStale,
   reduceIn,
+  setConnectionStale,
   withRefreshRequested,
   writeRead,
   type RemoteMessage,
@@ -127,7 +129,7 @@ import type { MutationDescriptor } from './mutationDescriptor.js'
 import type { OptimisticOperation } from './optimistic.js'
 import { deadlineOf, plan, type Deadline, type PlanOptions } from './plan.js'
 import { RemotePolicy } from './policy.js'
-import { IDENTITY_SEPARATOR, stableStringify } from './query.js'
+import { IDENTITY_SEPARATOR, queryIdentity, stableStringify } from './query.js'
 import type { ConnectionSpec, QueryDescriptor, QueryRef, QueryWindow } from './query.js'
 import { remoteDataSchema, type RemoteData, type RemoteError } from './remoteData.js'
 import type { ConnectionRoot, RetentionRoots } from './retain.js'
@@ -2887,12 +2889,13 @@ const bindDomain = <
     const next =
       answer === undefined
         ? placedNews(reduced, newsOf(message), remote.entities, contextOf(model))
-        : impactOf(
-            reduced,
-            remote.mutations.applied.has(answer.requestId) ? answer : withAnswerRead(answer),
-            remote.entities,
-            contextOf(model),
-          )
+        : remote.mutations.applied.has(answer.requestId)
+          ? impactOf(reduced, answer, remote.entities, contextOf(model))
+          : withAnswerLists(
+              remote,
+              impactOf(reduced, withAnswerRead(answer), remote.entities, contextOf(model)),
+              answer,
+            )
     const checked =
       answer === undefined || !verify.on ? next : withAnswerChecked(model, remote, next, answer)
     return checked === remote ? model : store.set(model, checked as Store)
@@ -3065,7 +3068,7 @@ const bindDomain = <
    */
   const impactOf = (
     remote: RemoteModel,
-    answer: Extract<RemoteMessage, { readonly _tag: 'MutationSucceeded' }>,
+    answer: Answered,
     // The store before the answer, to tell a value it changed from one it repeated.
     before: EntityStore,
     context: ExprContext,
@@ -3085,13 +3088,40 @@ const bindDomain = <
   }
 
   /**
+   * `judged` with the pages the answer carries (`lists`) written in: each list
+   * the answer moved (placed, or left to be fetched again) takes its page here,
+   * as its refetch would, so it reads `Ready` with no `Refreshing` between. A
+   * list it did not move keeps what it holds, and one stale before it keeps
+   * its own read; one with no page, or a page past its window, is fetched as
+   * before.
+   */
+  const withAnswerLists = (
+    before: RemoteModel,
+    judged: RemoteModel,
+    answer: Extract<RemoteMessage, { readonly _tag: 'MutationSucceeded' }>,
+  ): RemoteModel => {
+    let next = judged
+    for (const { request, result } of answer.lists ?? []) {
+      const identity = queryIdentity(request.query, request.input)
+      const held = before.connections[identity]
+      if (held === undefined || held.stale || judged.connections[identity] === held) continue
+      const page = pageMessage(identity, result, true, request.window, request.select, answer.now)
+      if (page._tag !== 'ConnectionMerged') continue
+      // Marked stale first, so the page replaces what the client placed rather than merging into it.
+      const owed = { ...next, connections: setConnectionStale(next.connections, identity, true) }
+      next = reduceIn(capabilities, owed, page)
+    }
+    return next
+  }
+
+  /**
    * The lists a write's answer leaves to be fetched when no list has a body:
    * each over an entity a row of which the answer changed, unless the answer
    * itself put that row in or took it out of the list.
    */
   const unplaceable = (
     remote: RemoteModel,
-    answer: Extract<RemoteMessage, { readonly _tag: 'MutationSucceeded' }>,
+    answer: Answered,
     before: EntityStore,
   ): ReadonlyArray<string> => {
     const changed = changesOf(answer, before).flatMap(change =>
@@ -3273,6 +3303,9 @@ const bindDomain = <
         viewerOf,
         readers: () => readers.values(),
         registeredMutation,
+        judged: (model, remote, answered) =>
+          impactOf(remote, answered, remote.entities, contextOf(model)),
+        refetched: (remote, asked) => planAsked(bound, remote, asked, {}).queries,
       }),
   })
   /** A query read; `live` watches the list too (`liveQuery` from `foldkit-remote/live`). */

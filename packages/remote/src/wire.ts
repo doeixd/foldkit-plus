@@ -163,6 +163,43 @@ export const AnswerRead = Schema.Struct({
   result: ReadBatchResult,
 })
 
+export const QueryRequest = Schema.Struct({
+  query: Schema.String,
+  input: Schema.Unknown,
+  window: WindowSchema,
+  /**
+   * What to read of each item, as the relation slice a read asks the server
+   * for. Absent for a query run without one: the response carries only edges,
+   * and the client's read entry fetches fields in a second round trip.
+   */
+  select: Schema.optional(RelationRequest),
+})
+
+export const WireBoundary = Schema.Union([
+  Schema.Struct({ _tag: Schema.Literal('Terminal') }),
+  Schema.Struct({ _tag: Schema.Literal('Cursor'), cursor: Schema.String }),
+  Schema.Struct({ _tag: Schema.Literal('Unknown') }),
+])
+
+export const QueryEdge = Schema.Struct({
+  entity: Schema.String,
+  id: Schema.String,
+  key: Schema.String,
+})
+
+export const QueryResult = Schema.Struct({
+  edges: Schema.Array(QueryEdge),
+  start: WireBoundary,
+  end: WireBoundary,
+  /**
+   * The selected fields of the page's items, in the same shape a read batch
+   * returns. Absent from a server that predates payload planning: the client
+   * reads it as empty and fetches fields as before.
+   */
+  entities: Schema.optional(Schema.Array(NormalizedEntity)),
+  settled: Schema.optional(Schema.Array(SettledFields)),
+})
+
 /**
  * One operation's identity across every client: minted where it is first sent
  * and sent again with each retry of it. Bounded, since a server keys a record
@@ -176,6 +213,9 @@ export const OperationId = Schema.String.check(
 
 /** A mutation request may name at most this many entities in `shown`. */
 export const MAX_SHOWN_ENTITIES = 256
+
+/** A mutation request may ask at most this many lists back (`lists`); each is a query run after the write. */
+export const MAX_ANSWER_LISTS = 8
 
 /**
  * What a client reads of one entity's rows: a read request without its id. It
@@ -213,7 +253,16 @@ export const MutationRequest = Schema.Struct({
    * left out, read as any read is (`MutationResult.read`).
    */
   shown: Schema.optional(Schema.Array(ShownSlice).check(Schema.isMaxLength(MAX_SHOWN_ENTITIES))),
+  /**
+   * The first page of each held list the client judges the write moves, as
+   * its read entry would ask for it again. The server answers each it admits
+   * after the write (`MutationResult.lists`); the client asks again for the rest.
+   */
+  lists: Schema.optional(Schema.Array(QueryRequest).check(Schema.isMaxLength(MAX_ANSWER_LISTS))),
 })
+
+/** A list a mutation's answer carries: the query as the client asked it, and its page. */
+export const AnswerList = Schema.Struct({ request: QueryRequest, result: QueryResult })
 
 export const LiveEdge = Schema.Struct({
   entity: Schema.String,
@@ -247,18 +296,12 @@ export const MutationResult = Schema.Struct({
    * as a read is.
    */
   read: Schema.optional(AnswerRead),
-})
-
-export const QueryRequest = Schema.Struct({
-  query: Schema.String,
-  input: Schema.Unknown,
-  window: WindowSchema,
   /**
-   * What to read of each item, as the relation slice a read asks the server
-   * for. Absent for a query run without one: the response carries only edges,
-   * and the client's read entry fetches fields in a second round trip.
+   * The first page, read after the write, of each list of the request's
+   * `lists` the server admitted and could read; one it did not answer is
+   * left out.
    */
-  select: Schema.optional(RelationRequest),
+  lists: Schema.optional(Schema.Array(AnswerList)),
 })
 
 /** A live subscription may watch no more lists than this; each is run again every tick. */
@@ -339,31 +382,6 @@ export const Live = Rpc.make('FoldkitRemoteLive', {
 export class RemoteQueryError extends Schema.TaggedError<RemoteQueryError>()('RemoteQueryError', {
   message: Schema.String,
 }) {}
-
-export const WireBoundary = Schema.Union([
-  Schema.Struct({ _tag: Schema.Literal('Terminal') }),
-  Schema.Struct({ _tag: Schema.Literal('Cursor'), cursor: Schema.String }),
-  Schema.Struct({ _tag: Schema.Literal('Unknown') }),
-])
-
-export const QueryEdge = Schema.Struct({
-  entity: Schema.String,
-  id: Schema.String,
-  key: Schema.String,
-})
-
-export const QueryResult = Schema.Struct({
-  edges: Schema.Array(QueryEdge),
-  start: WireBoundary,
-  end: WireBoundary,
-  /**
-   * The selected fields of the page's items, in the same shape a read batch
-   * returns. Absent from a server that predates payload planning: the client
-   * reads it as empty and fetches fields as before.
-   */
-  entities: Schema.optional(Schema.Array(NormalizedEntity)),
-  settled: Schema.optional(Schema.Array(SettledFields)),
-})
 
 export const QueryRpc = Rpc.make('FoldkitRemoteQuery', {
   payload: QueryRequest,

@@ -32,21 +32,21 @@ const held: Model = (
       _tag: 'ConnectionMerged',
       connection: mine.ref.identity,
       page: {
-        edges: [{ key: 'Post:p1', ref: { entity: 'Post', id: 'p1' } }],
+        edges: [{ key: 'Post:p4', ref: { entity: 'Post', id: 'p4' } }],
         start: { _tag: 'Terminal' },
         end: { _tag: 'Terminal' },
       },
     },
     {
       _tag: 'ReadReceived',
-      requests: [{ entity: 'Post', id: 'p1', fields: ['id', 'body', 'author', 'createdAt'] }],
+      requests: [{ entity: 'Post', id: 'p4', fields: ['id', 'body', 'author', 'createdAt'] }],
       result: {
         settled: [],
         entities: [
           {
             entity: 'Post',
-            id: 'p1',
-            values: { id: 'p1', body: 'First', author: 'User:you', createdAt: 4_000 },
+            id: 'p4',
+            values: { id: 'p4', body: 'First', author: 'User:you', createdAt: 4_000 },
           },
         ],
       },

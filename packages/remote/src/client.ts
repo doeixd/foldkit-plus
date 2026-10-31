@@ -213,11 +213,13 @@ export const mutateRemote = Effect.fn('Remote.mutate')(function* <
     readonly shown?: ReadonlyArray<RelationRequirement> | undefined
     /** When the reader acted, as `Data.mutate` predicted it: sent for the server to take. */
     readonly now?: number | undefined
+    /** The first pages of the lists the client judges the write moves, for the answer to carry. */
+    readonly lists?: ReadonlyArray<Schema.Schema.Type<typeof QueryRequest>> | undefined
     /** How long this send waits for its answer, over the client's `timeout`. */
     readonly timeout?: Duration.Input | undefined
   } = {},
 ) {
-  const { keys, shown, now } = options
+  const { keys, shown, now, lists } = options
   const operation = options.operation ?? (yield* Effect.sync(mintOperation))
   yield* Effect.annotateCurrentSpan({ mutation: mutation.name, requestId, operation })
   const client = yield* RemoteClient
@@ -235,6 +237,7 @@ export const mutateRemote = Effect.fn('Remote.mutate')(function* <
       ...(keys === undefined ? {} : { keys }),
       ...(now === undefined ? {} : { now }),
       ...(shown === undefined || shown.length === 0 ? {} : { shown }),
+      ...(lists === undefined || lists.length === 0 ? {} : { lists }),
     }),
     options.timeout,
   )
@@ -249,5 +252,6 @@ export const mutateRemote = Effect.fn('Remote.mutate')(function* <
     connections: (result.connections ?? []).map(connectionChangeOf),
     deleted: result.deleted ?? [],
     read: result.read,
+    lists: result.lists,
   }
 })

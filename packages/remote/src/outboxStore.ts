@@ -15,7 +15,7 @@ import type { Computation } from 'foldkit-entity'
 import type { OptimisticOperation } from './optimistic.js'
 import { remoteErrorSchema, type RemoteError } from './remoteData.js'
 import { Queued, withDone, type OutboxState, type ReadEntry } from './queue.js'
-import { RelationRequest } from './wire.js'
+import { QueryRequest, RelationRequest } from './wire.js'
 
 /** Where a queued write stands, as the store keeps it. */
 export type QueuedState =
@@ -87,6 +87,8 @@ export const StoredWrite = Schema.Struct({
   viewer: Schema.optionalKey(Ref),
   /** What the reader was shown when they acted, for the answer to carry. */
   shown: Schema.Array(RelationRequest),
+  /** The lists it asks back with its answer; absent from a write stored before they were. */
+  lists: Schema.optionalKey(Schema.Array(QueryRequest)),
   /** Moves on each change of `state`; of two copies, the higher wins. */
   revision: Schema.Number,
   state: QueuedStateSchema,

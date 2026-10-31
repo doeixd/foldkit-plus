@@ -78,6 +78,7 @@ import {
   type RemoteRpcClient,
   MutationRequest,
   QueryRequest,
+  QueryResult,
   ReadBatch,
   RemoteJsonAnswer,
   RemoteJsonRequest,
@@ -1886,6 +1887,110 @@ const answerRead = <P, R>(
     return found.length === 0 ? Option.none() : Option.some({ requests: found, result })
   })
 
+type QueryRequestValue = Schema.Schema.Type<typeof QueryRequest>
+
+/**
+ * A query's page as `FoldkitRemoteQuery` answers it: the source's edges, and
+ * with a select, what the page's items select, read through `readHelper`, so
+ * `authorize` and `filter` hold. A mutation's answer reads its lists with it.
+ */
+const answerQuery = <P, R>(
+  server: ServerDefinition<P, R>,
+  caller: P,
+  options: HandlerOptions<P, R>,
+  payload: QueryRequestValue,
+): Effect.Effect<Schema.Schema.Type<typeof QueryResult>, RemoteQueryError, R> =>
+  Effect.gen(function* () {
+    const source = server.queries.get(payload.query)
+    if (source === undefined) {
+      return yield* new RemoteQueryError({ message: `Unknown query: ${payload.query}` })
+    }
+
+    const input = yield* Schema.decodeUnknownEffect(source.Input)(payload.input).pipe(
+      Effect.catchTag('SchemaError', () =>
+        Effect.fail(new RemoteQueryError({ message: 'Invalid query input' })),
+      ),
+    )
+
+    const select = payload.select
+    if (select !== undefined) {
+      const paged = checkPagesPerRelation([select])
+      if (paged !== undefined) {
+        return yield* new RemoteQueryError({
+          message: `Too many pages of "${paged}" in one query select`,
+        })
+      }
+    }
+
+    const page = yield* source
+      .run({
+        input,
+        window: payload.window,
+        principal: caller,
+        viewer: viewerOf(server, caller),
+        ...(select === undefined ? {} : { select }),
+      })
+      .pipe(
+        Effect.catchTag('RemoteServerError', error =>
+          Effect.fail(new RemoteQueryError({ message: error.message })),
+        ),
+      )
+
+    if (select === undefined) return { edges: page.edges, start: page.start, end: page.end }
+    // The page's items as requirements, so the selected fields ride back
+    // with the edges in one response. Edges of another entity (a query
+    // lists one) take no fields: the client's planner asks for them next.
+    const requirements: Requirement[] = page.edges.flatMap(edge =>
+      edge.entity === select.entity
+        ? [
+            {
+              entity: select.entity,
+              id: edge.id,
+              fields: [...select.fields],
+              ...(select.windows === undefined ? {} : { windows: select.windows }),
+              ...(select.relations === undefined ? {} : { relations: select.relations }),
+            },
+          ]
+        : [],
+    )
+    if (requirements.length === 0)
+      return { edges: page.edges, start: page.start, end: page.end, entities: [], settled: [] }
+    const read = yield* RemoteServer.readHelper(server, caller, options, requirements).pipe(
+      Effect.catchTag('RemoteReadError', error =>
+        Effect.fail(new RemoteQueryError({ message: error.message })),
+      ),
+    )
+    return { edges: page.edges, start: page.start, end: page.end, ...read }
+  })
+
+/**
+ * The lists of a mutation request the server answers after the write, judged
+ * before it runs: each a first page (`first`, no `after`) of a query it serves,
+ * selecting that query's entity, within the select's page bound, while the
+ * rows every admitted list may return stay within `maxIds` per entity. One
+ * past these is not answered, and the client asks for it again; the write
+ * runs either way.
+ */
+const admitLists = <P, R>(
+  server: ServerDefinition<P, R>,
+  lists: ReadonlyArray<QueryRequestValue>,
+  maxIds: number,
+): ReadonlyArray<QueryRequestValue> => {
+  const rows = new Map<string, number>()
+  return lists.filter(request => {
+    const source = server.queries.get(request.query)
+    const { select, window } = request
+    if (source === undefined || select === undefined || select.entity !== source.entity)
+      return false
+    if (window.first === undefined || window.after !== undefined) return false
+    if (checkPagesPerRelation([select]) !== undefined) return false
+    const listed = (rows.get(select.entity) ?? 0) + window.first
+    if (listed > maxIds) return false
+    rows.set(select.entity, listed)
+    return true
+  })
+}
+
 /**
  * A Source's refusal as the client receives it: encoded by the mutation's own
  * `Refusal`. A refusal made for another mutation, or one the mutation does not
@@ -2886,6 +2991,12 @@ export const RemoteServer = {
           ),
         )
 
+        // Judged before the write runs, so its bounds are the request's, not the outcome's.
+        const lists = admitLists(
+          server,
+          payload.lists ?? [],
+          Math.max(1, options.maxIdsPerEntity ?? DEFAULT_MAX_IDS_PER_ENTITY),
+        )
         const caller = yield* asking
         const outcome = yield* source
           .run({
@@ -2923,6 +3034,19 @@ export const RemoteServer = {
           ),
         )
 
+        // Each list read after the write, as a query of it is; one that fails is
+        // left out, for the client to ask for again.
+        const answered = yield* Effect.forEach(lists, request =>
+          answerQuery(server, caller, options, request).pipe(
+            Effect.map(result => [{ request, result }]),
+            Effect.catchTag('RemoteQueryError', error =>
+              Diagnostics.report(
+                answerUnread(payload.mutation, `list "${request.query}": ${error.message}`),
+              ).pipe(Effect.as([])),
+            ),
+          ),
+        ).pipe(Effect.map(pages => pages.flat()))
+
         // What the mutation answers is what changed, so live subscribers hear it
         // without the handler naming it again. The write has committed by now: a
         // failed publish is logged, never the mutation's failure, which a client
@@ -2953,71 +3077,12 @@ export const RemoteServer = {
           connections: outcome.connections,
           deleted: outcome.deleted.map(gone => ({ entity: gone.entity, id: gone.id })),
           ...Option.match(read, { onNone: () => ({}), onSome: value => ({ read: value }) }),
+          ...(answered.length === 0 ? {} : { lists: answered }),
         }
       }),
 
       FoldkitRemoteQuery: Effect.fn('RemoteServer.FoldkitRemoteQuery')(function* (payload) {
-        const source = server.queries.get(payload.query)
-        if (source === undefined) {
-          return yield* new RemoteQueryError({ message: `Unknown query: ${payload.query}` })
-        }
-
-        const input = yield* Schema.decodeUnknownEffect(source.Input)(payload.input).pipe(
-          Effect.catchTag('SchemaError', () =>
-            Effect.fail(new RemoteQueryError({ message: 'Invalid query input' })),
-          ),
-        )
-
-        const select = payload.select
-        if (select !== undefined) {
-          const paged = checkPagesPerRelation([select])
-          if (paged !== undefined) {
-            return yield* new RemoteQueryError({
-              message: `Too many pages of "${paged}" in one query select`,
-            })
-          }
-        }
-
-        const caller = yield* asking
-        const page = yield* source
-          .run({
-            input,
-            window: payload.window,
-            principal: caller,
-            viewer: viewerOf(server, caller),
-            ...(select === undefined ? {} : { select }),
-          })
-          .pipe(
-            Effect.catchTag('RemoteServerError', error =>
-              Effect.fail(new RemoteQueryError({ message: error.message })),
-            ),
-          )
-
-        if (select === undefined) return { edges: page.edges, start: page.start, end: page.end }
-        // The page's items as requirements, so the selected fields ride back
-        // with the edges in one response. Edges of another entity (a query
-        // lists one) take no fields: the client's planner asks for them next.
-        const requirements: Requirement[] = page.edges.flatMap(edge =>
-          edge.entity === select.entity
-            ? [
-                {
-                  entity: select.entity,
-                  id: edge.id,
-                  fields: [...select.fields],
-                  ...(select.windows === undefined ? {} : { windows: select.windows }),
-                  ...(select.relations === undefined ? {} : { relations: select.relations }),
-                },
-              ]
-            : [],
-        )
-        if (requirements.length === 0)
-          return { edges: page.edges, start: page.start, end: page.end, entities: [], settled: [] }
-        const read = yield* RemoteServer.readHelper(server, caller, options, requirements).pipe(
-          Effect.catchTag('RemoteReadError', error =>
-            Effect.fail(new RemoteQueryError({ message: error.message })),
-          ),
-        )
-        return { edges: page.edges, start: page.start, end: page.end, ...read }
+        return yield* answerQuery(server, yield* asking, options, payload)
       }),
 
       FoldkitRemoteLive: payload => {

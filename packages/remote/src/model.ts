@@ -77,8 +77,10 @@ import {
   type RetentionRoots,
 } from './retain.js'
 import {
+  AnswerList,
   AnswerRead,
   NormalizedEntity,
+  QueryRequest,
   ReadBatchResult,
   ReadRequest,
   RelationRequest,
@@ -461,6 +463,10 @@ export type RemoteMessage =
               | {
                   readonly input: unknown
                   readonly shown: ReadonlyArray<RelationRequirement>
+                  /** The lists it asks back with its answer. */
+                  readonly lists?:
+                    | ReadonlyArray<Schema.Schema.Type<typeof QueryRequest>>
+                    | undefined
                 }
               | undefined
           }
@@ -503,6 +509,12 @@ export type RemoteMessage =
        * said it shows: written as a read is, in the same reduction.
        */
       readonly read?: Schema.Schema.Type<typeof AnswerRead> | undefined
+      /**
+       * The first page of each list the request asked back, read after the
+       * write: a list the answer leaves to be fetched again takes its page in
+       * the same reduction instead.
+       */
+      readonly lists?: ReadonlyArray<Schema.Schema.Type<typeof AnswerList>> | undefined
       /** Injected clock reading of the answer: how fresh the written entities are. */
       readonly now: number
     }
@@ -635,7 +647,11 @@ export const remoteMessageCases = {
         keys: Schema.optional(Schema.Array(Schema.String)),
         now: Schema.optional(Schema.Number),
         durable: Schema.optional(
-          Schema.Struct({ input: Schema.Unknown, shown: Schema.Array(RelationRequest) }),
+          Schema.Struct({
+            input: Schema.Unknown,
+            shown: Schema.Array(RelationRequest),
+            lists: Schema.optional(Schema.Array(QueryRequest)),
+          }),
         ),
       }),
     ),
@@ -658,6 +674,7 @@ export const remoteMessageCases = {
       Schema.Array(Schema.Struct({ entity: Schema.String, id: Schema.String })),
     ),
     read: Schema.optional(AnswerRead),
+    lists: Schema.optional(Schema.Array(AnswerList)),
     now: Schema.Number,
   },
   MutationFailed: { requestId: Schema.String, error: remoteErrorSchema, operation: Schema.String },
@@ -976,7 +993,7 @@ export const isLoading = (
   return fields.some(field => model.loading.has(fieldMark(entity, id, field)))
 }
 
-const setConnectionStale = (
+export const setConnectionStale = (
   connections: Readonly<Record<string, Connection>>,
   connection: string,
   stale: boolean,
@@ -1198,6 +1215,7 @@ const queuedWrite = (
     optimistic: message.optimistic ?? [],
     ...(message.viewer === undefined ? {} : { viewer: message.viewer }),
     shown: write.durable?.shown ?? [],
+    ...(write.durable?.lists === undefined ? {} : { lists: write.durable.lists }),
     revision: prior === undefined ? 0 : revisionOf(prior) + 1,
     state: { _tag: 'Waiting' },
   }

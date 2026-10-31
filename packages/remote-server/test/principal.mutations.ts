@@ -28,8 +28,8 @@ export default [
     edits: [
       {
         file,
-        find: 'window: payload.window,\n            principal: caller,',
-        replace: 'window: payload.window,\n            principal: undefined as P,',
+        find: 'window: payload.window,\n        principal: caller,',
+        replace: 'window: payload.window,\n        principal: undefined as P,',
       },
     ],
     tests,

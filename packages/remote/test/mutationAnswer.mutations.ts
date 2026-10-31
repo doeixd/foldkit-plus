@@ -110,8 +110,8 @@ export default [
     edits: [
       {
         file: index,
-        find: 'remote.mutations.applied.has(answer.requestId) ? answer : withAnswerRead(answer),',
-        replace: 'answer,',
+        find: 'impactOf(reduced, withAnswerRead(answer), remote.entities, contextOf(model)),',
+        replace: 'impactOf(reduced, answer, remote.entities, contextOf(model)),',
       },
     ],
     tests,

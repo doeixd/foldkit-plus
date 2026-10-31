@@ -20,8 +20,8 @@ export default [
   edit(
     'the server gives a query no viewer',
     server,
-    '            viewer: viewerOf(server, caller),\n            ...(select === undefined ? {} : { select }),',
-    '            ...(select === undefined ? {} : { select }),',
+    '        viewer: viewerOf(server, caller),\n        ...(select === undefined ? {} : { select }),',
+    '        ...(select === undefined ? {} : { select }),',
   ),
   edit(
     'a run outside a server reads a visitor',

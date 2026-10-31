@@ -171,6 +171,7 @@ describe('a chirp posted, as the server keeps it', () => {
       return read._tag === 'Ready' ? read.value.items.map(post => post.body) : read._tag
     }
     expect(bodies(pending)).toEqual(['Hello', 'Newer', 'Older'])
-    expect(bodies(answered.model)).toEqual(bodies(pending))
+    // The answer carries the server's timeline (#386), where the chirp stays on top.
+    expect(bodies(answered.model)[0]).toBe('Hello')
   })
 })

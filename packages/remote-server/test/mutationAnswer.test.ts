@@ -283,7 +283,7 @@ describe('a mutation answers what the client shows', () => {
         source: 'foldkit-remote-server',
         level: 'warning',
         message:
-          'Touch committed, but reading its answer failed (The database went away): the client reads the rows it names again.',
+          'Touch committed, but reading its answer failed (The database went away): the client reads what it lacks again.',
         mutation: 'Touch',
         reason: 'The database went away',
       },

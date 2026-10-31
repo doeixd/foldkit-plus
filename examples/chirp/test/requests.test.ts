@@ -4,6 +4,10 @@
  * page through its real read entries over the sandbox's server, makes one
  * write, and answers everything until nothing is held; the counts are what
  * went up the wire after the write. `docs/benchmarks.md` records them.
+ *
+ * Chirp places every row it lists itself, so the query a post once cost was
+ * `verifyPredictions` (on in development, as here) asking the server's page
+ * to check the placement against. The write's answer now carries that page.
  */
 import { Effect, Option, Stream } from 'effect'
 import { TestClock } from 'effect/testing'
@@ -45,7 +49,10 @@ const counted = () => {
 const to = (path: string) =>
   Message.ChangedUrl({ url: Option.getOrThrow(fromString(`http://chirp.test${path}`)) })
 
-/** The page at `path`, loaded, then `write`, answered with all it leads to: what went up after the write. */
+/**
+ * The page at `path`, loaded, then `write`, answered with all it leads to:
+ * what went up after the write.
+ */
 const cost = async (path: string, write: ReadonlyArray<Message>) => {
   const { client, sent } = counted()
   const start = ComposeForm.helpers.fill({ id: 'n1', body: 'Hello' })(opened).model
@@ -78,7 +85,7 @@ describe('what a write costs in requests', () => {
     expect(await cost('/', posted)).toMatchInlineSnapshot(`
       {
         "mutate": 1,
-        "query": 1,
+        "query": 0,
         "read": 0,
       }
     `)
@@ -88,7 +95,7 @@ describe('what a write costs in requests', () => {
     expect(await cost('/you', posted)).toMatchInlineSnapshot(`
       {
         "mutate": 1,
-        "query": 1,
+        "query": 0,
         "read": 0,
       }
     `)

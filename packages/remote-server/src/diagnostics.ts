@@ -16,7 +16,10 @@ export interface ServerDefect extends Diagnostic {
   readonly cause: Cause.Cause<unknown>
 }
 
-/** A mutation that committed, answered without the read of the rows it names: the client reads them again. */
+/**
+ * A mutation that committed, answered without the read of the rows it names or
+ * of a list it was asked for: the client reads them again.
+ */
 export interface AnswerUnread extends Diagnostic {
   readonly _tag: 'AnswerUnread'
   readonly mutation: string
@@ -62,7 +65,7 @@ export const answerUnread = (mutation: string, reason: string): AnswerUnread => 
   _tag: 'AnswerUnread',
   source,
   level: 'warning',
-  message: `${mutation} committed, but reading its answer failed (${reason}): the client reads the rows it names again.`,
+  message: `${mutation} committed, but reading its answer failed (${reason}): the client reads what it lacks again.`,
   mutation,
   reason,
 })

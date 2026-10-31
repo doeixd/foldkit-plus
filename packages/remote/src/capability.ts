@@ -10,7 +10,7 @@ import { Option, type Stream } from 'effect'
 import type { AnyQuery, ExprContext, EntityRef, MemoryOperators } from 'foldkit-entity'
 import type { RemoteClient } from './client.js'
 import { items, type Connection, type Edge } from './connection.js'
-import type { NamedProjection } from './active.js'
+import type { Asked, NamedProjection } from './active.js'
 import type { HeldConnection } from './impact.js'
 import type {
   BoundRemote,
@@ -18,6 +18,7 @@ import type {
   LiveDependencies,
   LiveOptions,
   MutationStarted,
+  QueryRequirement,
 } from './index.js'
 import type { applyConnectionEvent, applyEntityEvent } from './liveEvents.js'
 import type { LiveEvent } from './liveState.js'
@@ -149,6 +150,13 @@ export interface WriteContext<AppModel, Store extends RemoteModel> {
   readonly readers: () => Iterable<(model: AppModel) => ReadonlyArray<NamedProjection<AppModel>>>
   /** The descriptor a recorded write names. */
   readonly registeredMutation: (name: string) => MutationDescriptor<any, any, any>
+  /**
+   * `remote` as an answer of `answered` would leave its lists, judged as
+   * `reduce` judges an answer: each placed, or marked stale for its read entry.
+   */
+  readonly judged: (model: AppModel, remote: RemoteModel, answered: Answered) => RemoteModel
+  /** The queries the read entries would send for `asked` over `remote`. */
+  readonly refetched: (remote: RemoteModel, asked: Asked) => ReadonlyArray<QueryRequirement>
 }
 
 /** A domain's `mutate` and `retry`, as `RemoteDomain` types them for a domain that writes. */

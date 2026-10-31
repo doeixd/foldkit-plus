@@ -3,12 +3,14 @@
  * write predicts, refuses and shows before its answer. A Mutation descriptor
  * carries it (`[Installs]`), so a domain that registers none never loads it.
  */
-import { Clock, Effect, Option, Schema } from 'effect'
+import { Clock, Effect, Option, Result, Schema } from 'effect'
 import type * as Domain from 'foldkit-entity'
 import { askedUnion } from './active.js'
 import {
   Capability,
+  layersIn,
   visibleOf,
+  type Answered,
   type Install,
   type WriteCapability,
   type WriteContext,
@@ -19,13 +21,16 @@ import { installLayers } from './layers.js'
 import { mutationStatus } from './ledger.js'
 import { reduceIn, type RemoteMessage, type RemoteModel } from './model.js'
 import { brokenByWrite, forbiddenByWrite, foreseenOfWrite, predictionOfWrite } from './mutation.js'
-import type { OptimisticOperation } from './optimistic.js'
+import type { ConnectionChange, OptimisticOperation } from './optimistic.js'
+import type { PendingDelete } from './ledger.js'
 import { operationOf } from './queue.js'
 import { assertRegistered } from './registered.js'
 import type { RemoteError } from './remoteData.js'
 import type { RelationRequirement } from './requirement.js'
-import { shownOf } from './shown.js'
-import { RemoteForbidden } from './wire.js'
+import { parsedQueryRequest } from './queryRequest.js'
+import { isPatch, patchedFields, shownOf } from './shown.js'
+import { entityKey } from './store.js'
+import { MAX_ANSWER_LISTS, RemoteForbidden, type QueryRequest } from './wire.js'
 
 const writes: WriteCapability = {
   bind: <AppModel, Store extends RemoteModel>(
@@ -50,6 +55,103 @@ const writes: WriteCapability = {
         predicted,
         write === undefined ? [] : foreseenOfWrite(write),
       )
+    /**
+     * The first page of each list the reader is shown that the write's
+     * prediction moves, as its read entry would ask for it again: judged as
+     * its answer will be (#386), so the answer can carry the page and the
+     * list reads `Ready` from it with no second request. A list read from a
+     * cursor or from its end is left for its read entry, and a write that
+     * predicts nothing moves none.
+     */
+    const listsAt = (
+      model: AppModel,
+      remote: RemoteModel,
+      requestId: string,
+      predicted: ReadonlyArray<OptimisticOperation>,
+      viewer: Option.Option<Domain.EntityRef>,
+    ): ReadonlyArray<Schema.Schema.Type<typeof QueryRequest>> => {
+      const capabilities = context.bound[Capability]
+      const layered: RemoteModel = {
+        ...remote,
+        optimistic: layersIn(capabilities).begin(remote.optimistic, requestId, predicted, viewer),
+      }
+      const visible = visibleOf(capabilities, layered, context.bound.operators)
+      const deleted: Array<PendingDelete> = []
+      const connections: Array<ConnectionChange> = []
+      for (const operation of predicted) {
+        if (isPatch(operation)) continue
+        if (operation._tag === 'Delete') deleted.push(operation)
+        else connections.push(operation)
+      }
+      // A patch's predicted values, adds and computes applied, as the visible store shows them.
+      const answered: Answered = {
+        entities: predicted.filter(isPatch).map(patch => {
+          const values = visible[entityKey(patch.entity, patch.id)]?.values ?? {}
+          return {
+            entity: patch.entity,
+            id: patch.id,
+            values: Object.fromEntries(
+              patchedFields(patch)
+                .filter(field => Object.hasOwn(values, field))
+                .map(field => [field, values[field]]),
+            ),
+          }
+        }),
+        deleted,
+        connections,
+      }
+      const judged = context.judged(model, layered, answered)
+      const moved = Object.keys(judged.connections).filter(
+        identity =>
+          judged.connections[identity] !== layered.connections[identity] &&
+          layered.connections[identity]?.stale !== true,
+      )
+      if (moved.length === 0) return []
+      const asked = askedUnion(
+        [...context.readers()].flatMap(resolvedAt =>
+          resolvedAt(model).map(({ projection }) => projection),
+        ),
+      )
+      // Fetched again: a list marked stale, and a list placed short of its
+      // window, whose read entry would ask for the rows after it.
+      const short = new Set(
+        context
+          .refetched(judged, asked)
+          .filter(query => query.window.after !== undefined)
+          .map(query => query.identity),
+      )
+      const asks = new Set(
+        moved.filter(identity => judged.connections[identity]!.stale || short.has(identity)),
+      )
+      if (asks.size === 0) return []
+      const whole: RemoteModel = {
+        ...judged,
+        connections: {
+          ...judged.connections,
+          ...Object.fromEntries(
+            [...asks].map(identity => [
+              identity,
+              { ...judged.connections[identity]!, stale: true },
+            ]),
+          ),
+        },
+      }
+      return context
+        .refetched(whole, asked)
+        .filter(
+          query =>
+            asks.has(query.identity) &&
+            query.window.first !== undefined &&
+            query.window.after === undefined,
+        )
+        .flatMap(query =>
+          Result.match(parsedQueryRequest(query), {
+            onFailure: () => [],
+            onSuccess: request => [request],
+          }),
+        )
+        .slice(0, MAX_ANSWER_LISTS)
+    }
     /**
      * A durable write's request id, which is its operation id: this page's
      * session and the next in its sequence, unique across tabs and loads. Only
@@ -160,6 +262,9 @@ const writes: WriteCapability = {
           : (options.optimistic ?? predicted)
       // A write refused where it is made is settled at once, durable or not.
       const queued = durable && Option.isNone(refused)
+      const lists = Option.isSome(refused)
+        ? []
+        : listsAt(model, remote, requestId, optimistic ?? [], viewer)
       const started = reduceIn(context.bound[Capability], remote, {
         _tag: 'MutationStarted',
         requestId,
@@ -176,6 +281,7 @@ const writes: WriteCapability = {
                 durable: {
                   input: Schema.encodeUnknownSync(mutation.Input)(input),
                   shown: shownAt(model, optimistic ?? [], mutation.write),
+                  ...(lists.length === 0 ? {} : { lists }),
                 },
               }
             : {}),
@@ -207,6 +313,7 @@ const writes: WriteCapability = {
                       keys: options.keys,
                       operation,
                       shown: shownAt(startedModel, optimistic ?? [], mutation.write),
+                      lists,
                       now: options.now,
                       timeout: options.timeout,
                     }).pipe(
@@ -227,6 +334,7 @@ const writes: WriteCapability = {
                             connections: outcome.connections,
                             deleted: outcome.deleted,
                             ...(outcome.read === undefined ? {} : { read: outcome.read }),
+                            ...(outcome.lists === undefined ? {} : { lists: outcome.lists }),
                             now: at,
                           })),
                       }),

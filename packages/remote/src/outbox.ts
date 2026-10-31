@@ -314,6 +314,7 @@ export const outbox = <AppModel>(
                 keys: write.keys,
                 operation,
                 shown: write.shown,
+                lists: write.lists,
                 now: write.now,
               }),
             )
@@ -328,6 +329,7 @@ export const outbox = <AppModel>(
                   connections: outcome.connections,
                   deleted: outcome.deleted,
                   ...(outcome.read === undefined ? {} : { read: outcome.read }),
+                  ...(outcome.lists === undefined ? {} : { lists: outcome.lists }),
                   now: at,
                 },
                 { entries: [], done: [operation] },
