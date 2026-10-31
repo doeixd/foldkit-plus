@@ -277,6 +277,15 @@ served page stays in view while the fresh one draws hidden, and is swapped once 
   Commands do not settle within 100 steps (a Command that reschedules itself,
   a poll, cannot run on the server); a Command yielding no Message folds
   nothing in.
+- A whole page without scripts (search and filters as a GET of the URL
+  mirror's keys, plain controls shown under `@media (scripting: none)`,
+  paging links for a virtual list, a cart through the fallback): build a GET
+  form with `h.form`, since with a fallback every `rh.form` whose `OnSubmit`
+  names a Message posts it (#391); draw both kinds of control on both sides,
+  never in `<noscript>`; keep state between posts in a cookie the entry reads
+  and validates, since a post starts from `init`. The guide is
+  https://github.com/doeixd/foldkit-plus/blob/main/docs/progressive-enhancement.md,
+  worked on `examples/foldkit/domains-plus`.
 - `renderPage(request)` gets nothing but the request, so what the host holds
   (a Worker's `env`, a reader built from it) rides on it:
   `const PageContext = SSR.requestContext<C>('app/page')` in a module both
