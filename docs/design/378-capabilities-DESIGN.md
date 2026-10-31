@@ -1,8 +1,8 @@
 # A read-only page pays for reading: capabilities carried by declarations (#378)
 
 Status: phases 1 to 4 built, and measured (phase 6), 2026-10-31. Phase 5
-stopped before starting: as written it cannot drop its code (below), and it
-needs a decision on where live and the outbox are installed.
+stopped before starting, as written it could not drop its code; its three
+blockers are decided (below), and it is being built.
 
 ## The problem
 
@@ -253,6 +253,28 @@ On the Entity side, the `Entity` object reaches `invariant`, which imports
      query that has a body. Dropping `evaluate` needs that placement carried
      by `Query.define`'s descriptor, as writes are by Mutation's: a
      capability this note does not name either.
+   **Decided (2026-10-31), by the maintainer; breaking changes are fine (0.x):**
+   - **Outbox and persistence leave the domain.** `Data.outbox`,
+     `Data.persistence`, `Data.outboxStatus` and `Data.liveStatus` (and any
+     other member that alone keeps outbox, persistence or live code) become
+     functions of entries of their own: `outbox(Data, …)` and
+     `outboxStatus(Data, …)` from `foldkit-remote/outbox`,
+     `persistence(Data, …)` from `foldkit-remote/persistence`, and
+     `liveStatus(Data, …)` from the live entry below.
+   - **Live reads are entries of their own.** `foldkit-remote/live` exports
+     `live(Data, selection, id)`, a live query read (replacing the query's
+     `live: true` option on the domain), `liveStatus` and `httpWithLive`
+     (`Remote` becomes an ES module namespace if `sse.js` needs it, as
+     `Entity` did in phase 3). What it reads installs a live capability and
+     the layer capability; `subscriptions` adds a `.live` entry only while
+     the live capability is installed. `RemoteClient.live` on the RPC
+     clients stays, being the transport's, unless measuring shows it keeps
+     meaningful code; then decide, and record it here.
+   - **Placing read news is carried by `Query.define`'s descriptor.** Placing
+     a read's news in held lists (`placedNews`, through `impact.ts`,
+     `matching` and Entity's `evaluate`) is a capability a query descriptor
+     installs only when its body (a filter or an order) needs it, as a
+     Mutation descriptor carries writes.
    What is left after 4 on the read-only page: `layers`, `optimistic`,
    `impact`, `placing`, `matching`, `placement`, `answerGaps` (the answer
    checks in `Data.reduce`), `live`, `outbox`, `persistence` and `sse` of
