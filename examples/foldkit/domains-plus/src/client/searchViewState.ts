@@ -8,9 +8,10 @@
 import { Array, Option, Schema, String } from 'effect'
 import { defineTaggedUnion } from 'foldkit/schema'
 import { RemoteData } from 'foldkit-remote'
+import { Projection } from 'foldkit-surface'
 import { Domain, queryToMaybeDomainLabel } from '../shared/domain'
 import { Quote } from '../shared/entity'
-import { Data, type Model, answeredOf, readNames } from './app.js'
+import { App, Data, type Model, answeredOf, readNames } from './app.js'
 
 export const INVALID_LABEL =
   'Enter a domain name using letters, numbers, and hyphens (up to 63 characters).'
@@ -58,7 +59,7 @@ const readOf =
   (name: string): Read =>
     Data.get(Quote, name).read(model)
 
-export const searchViewState = (model: Model): SearchViewState => {
+const stateOf = (model: Model): SearchViewState => {
   if (String.isEmpty(model.query)) return SearchViewState.Idle()
   const label = queryToMaybeDomainLabel(model.query)
   if (Option.isNone(label)) return SearchViewState.Failed({ error: INVALID_LABEL })
@@ -76,6 +77,24 @@ export const searchViewState = (model: Model): SearchViewState => {
       : SearchViewState.Loading()
   return SearchViewState.Ready({ domains, domainRequest: requestOf(loading, failed) })
 }
+
+/**
+ * What the search shows, worked out again only when a field it reads holds
+ * something new: every render reads it, and most change none of them (a menu
+ * opened, the cart).
+ */
+export const searchViewState = Projection.derive(
+  [
+    App.model.query,
+    App.model.settledLabel,
+    App.model.remote,
+    App.model.resultsList,
+    App.model.tldFilter,
+    App.model.availabilityFilter,
+    App.model.sortOrder,
+  ],
+  stateOf,
+).read
 
 /** A read still in flight says more is coming, even beside one that failed, as upstream's. */
 const requestOf = (loading: boolean, failed: boolean): DomainRequest => {

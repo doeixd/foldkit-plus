@@ -4,7 +4,7 @@
  * so a reader, a screen reader and upstream's Playwright suites meet the
  * same page.
  */
-import { Array, Equal, Option, String, pipe } from 'effect'
+import { Array, Option, String, pipe } from 'effect'
 import type { Document, Html, HtmlBuilder } from 'foldkit/html'
 import { Icon, type IconData } from 'foldkit-media'
 import { Behavior, SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
@@ -18,7 +18,7 @@ import {
   queryToMaybeDomainLabel,
   type DomainName,
 } from '../shared/domain'
-import { App, Message, type Model } from './app.js'
+import { App, Message, answeredOf, type Model } from './app.js'
 import { SEARCH_INPUT_ID } from './command.js'
 import {
   DomainListing,
@@ -272,20 +272,6 @@ const drawPreviewRow = (
   { name, tld }: { readonly name: string; readonly tld: string },
 ): Html => drawRow(slots, h, { listing: DomainListing.Pending({ name, tld }), added: false })
 
-// One Ready listing per name while its domain reads the same. A read can
-// give an equal domain as a new value (a toggled filter redrew every row
-// when listings were kept by the domain's identity). Names come from every
-// search typed, so the map starts over once it holds many.
-const readyListings = new Map<string, ReturnType<typeof domainToReadyListing>>()
-const readyListingOf = (domain: Domain): DomainListing => {
-  const known = readyListings.get(domain.name)
-  if (known !== undefined && Equal.equals(known.domain, domain)) return known
-  if (readyListings.size >= 4096) readyListings.clear()
-  const made = domainToReadyListing(domain)
-  readyListings.set(domain.name, made)
-  return made
-}
-
 /** Whether the cart holds a name: a set of the cart's names, made once per cart. */
 const cartNames = new WeakMap<Model['cart'], ReadonlySet<string>>()
 const isAdded = (cart: Model['cart'], name: string): boolean => {
@@ -295,12 +281,6 @@ const isAdded = (cart: Model['cart'], name: string): boolean => {
   cartNames.set(cart, made)
   return made.has(name)
 }
-
-/** A listing as `readyListingOf` keeps it, once it is answered. */
-const stableListing = DomainListing.match({
-  Pending: (listing): DomainListing => listing,
-  Ready: ({ domain }) => readyListingOf(domain),
-})
 
 const card = (model: Model, listing: DomainListing, slots: Slots): Html =>
   slots.card.lazy({ index: 0, id: listing.name }, drawCard, {
@@ -344,7 +324,7 @@ const allResults = (
   const listingOf = (listing: DomainListing): DomainListing =>
     Option.match(Option.fromNullishOr(byName.get(listing.name)), {
       onNone: () => listing,
-      onSome: readyListingOf,
+      onSome: domainToReadyListing,
     })
   return WindowList.view(
     {
@@ -396,12 +376,22 @@ const resultCountText = (search: SearchViewState, count: number) =>
 
 const noArrangement: Arranged = { groups: [], keys: [], count: 0 }
 
+/** Every name of the label typed that is read so far, as Remote hands each out. */
+const answered = Projection.derive([App.model.remote, App.model.query], (model: Model) =>
+  Option.match(queryToMaybeDomainLabel(model.query), {
+    onNone: () => [],
+    onSome: label => answeredOf(model, label),
+  }),
+)
+
 const searchResults = (model: Model, search: SearchViewState, slots: Slots, h: H): Html => {
+  // Remote's domains, not the Ready's: its constructor copies them, and a
+  // listing is kept by the domain object (`domainToReadyListing`).
   const domains = SearchViewState.match(search, {
     Idle: () => [],
     Loading: () => [],
     Failed: () => [],
-    Ready: ready => ready.domains,
+    Ready: () => answered.read(model),
   })
   const listings = queryToDomainListings(model.query, domains)
   const arranged = Option.match(queryToMaybeDomainLabel(model.query), {
@@ -425,9 +415,7 @@ const searchResults = (model: Model, search: SearchViewState, slots: Slots, h: H
         ]),
         h.div(
           slots.topResults.attrs(),
-          Array.map(Array.take(listings, TOP_RESULT_COUNT), listing =>
-            card(model, stableListing(listing), slots),
-          ),
+          Array.map(Array.take(listings, TOP_RESULT_COUNT), listing => card(model, listing, slots)),
         ),
         h.div(slots.resultsHeading.attrs(), [
           h.h2(slots.resultsTitle.attrs(), ['All Results']),

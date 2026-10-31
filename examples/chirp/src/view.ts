@@ -127,24 +127,29 @@ const editorNote = (model: Model): string => {
 }
 
 /** A post, keyed by its id: its author's avatar beside it, or beside its editor while open. */
-const post = (row: Row, model: Model, slots: Slots, h: H): Html =>
+const article = (row: Row, slots: Slots, h: H, body: ReadonlyArray<Html>): Html =>
   h.article(slots.post.attrs([h.Key(row.id), h.AriaLabel(`Post by ${row.author.name}`)]), [
     Avatar.view({ name: row.author.name, style: AvatarStyle }, h),
-    h.div(
-      [],
-      PostEditor.target(model) === row.id
-        ? [
-            h.div(slots.editing.attrs(), [
-              EditorForm.view(model, h, { words: { submit: 'Save' } }),
-              h.p(slots.note.attrs([h.AriaLive('polite')]), [editorNote(model)]),
-              h.button(slots.done.attrs([h.Type('button'), h.OnClick(Message.ClosedEditor())]), [
-                'Done',
-              ]),
-            ]),
-          ]
-        : chirp(row, slots, h),
-    ),
+    h.div([], body),
   ])
+
+// Remote hands out a row as the object it was while its data is the same, so
+// a post not being edited is drawn again only when it changed.
+const drawPost = (slots: Slots, h: H, { row }: { readonly row: Row }): Html =>
+  article(row, slots, h, chirp(row, slots, h))
+
+const post = (row: Row, model: Model, slots: Slots, h: H): Html =>
+  PostEditor.target(model) === row.id
+    ? article(row, slots, h, [
+        h.div(slots.editing.attrs(), [
+          EditorForm.view(model, h, { words: { submit: 'Save' } }),
+          h.p(slots.note.attrs([h.AriaLive('polite')]), [editorNote(model)]),
+          h.button(slots.done.attrs([h.Type('button'), h.OnClick(Message.ClosedEditor())]), [
+            'Done',
+          ]),
+        ]),
+      ])
+    : slots.post.lazy({ index: 0, id: row.id }, drawPost, { row })
 
 /** A read's answer drawn, or what it is doing meanwhile. */
 const answered = <A>(

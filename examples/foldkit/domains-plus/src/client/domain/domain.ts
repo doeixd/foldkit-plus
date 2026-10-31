@@ -17,8 +17,19 @@ export const DomainListing = defineTaggedUnion({
 })
 export type DomainListing = typeof DomainListing.Type
 
-export const domainToReadyListing = (domain: Domain) =>
-  DomainListing.Ready({ name: domain.name, tld: domain.tld, domain })
+// One listing per domain object: Remote hands out a domain as the object it
+// was while its data is the same, so a row keyed on its listing is drawn again
+// only when the domain changed. The constructor copies `domain`, so the copy
+// in a listing is never the key.
+const readyListings = new WeakMap<Domain, DomainListing>()
+
+export const domainToReadyListing = (domain: Domain): DomainListing => {
+  const known = readyListings.get(domain)
+  if (known !== undefined) return known
+  const made = DomainListing.Ready({ name: domain.name, tld: domain.tld, domain })
+  readyListings.set(domain, made)
+  return made
+}
 
 export const TldFilter = Schema.Literals(['All', ...Array.map(domainTlds, String.capitalize)])
 export type TldFilter = typeof TldFilter.Type
