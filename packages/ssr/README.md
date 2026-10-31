@@ -483,6 +483,12 @@ export const { renderPage } = SSR.entry(config, Post, { buildId, prerendered: pr
 A prerendered file the entry was not told of is refused at any other query,
 and the reason says so.
 
+Until the bundle runs, a file shows the state it was recorded with: the
+query reaches the Model only when the browser starts. A page whose first
+paint depends on its query (a search box filled from `?q=`) is better
+rendered per request, which records the query and resumes with nothing
+redrawn; `examples/foldkit/domains-plus` prerenders nothing for that reason.
+
 A generated site also wants a sitemap and a `robots.txt` that names it.
 `SSR.sitemap` takes the pages, with a `modified` date where one is known, and
 `SSR.robots` the origin:

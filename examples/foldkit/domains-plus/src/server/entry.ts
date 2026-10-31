@@ -25,9 +25,6 @@ import { serveRemote } from './remote.js'
 export const renderDocument: DocumentRenderer = (application, assets) =>
   renderShell(application, assets, { head: documentHead })
 
-/** The pages a build writes as files: the plugin reads it, and so does `SSR.entry`. */
-export const prerenderPaths: ReadonlyArray<string> = ['/']
-
 const pages = SSR.entry(
   { Model, init, update, view, subscriptions, routing, container: null },
   plan,
@@ -37,7 +34,6 @@ const pages = SSR.entry(
     // before any script runs; the browser moves them into the head, and its
     // Styles find them there and add none twice.
     styles: rendered => `<style>${stylesheet}</style><style>${Style.usedIn(rendered.html)}</style>`,
-    prerendered: prerenderPaths,
     status: model => AppRoute.match(model.route, { Search: () => 200, NotFound: () => 404 }),
   },
 )

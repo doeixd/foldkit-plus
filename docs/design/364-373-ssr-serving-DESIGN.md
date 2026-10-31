@@ -129,6 +129,34 @@ The state names Model fields, not URL parameters, so nothing can say which
 query the Model depends on; and an application that reads `?q=` wants it
 read, not ignored.
 
+### What the person sees before the bundle (#383)
+
+Resuming at the query is right once the bundle runs; before it, a static host
+serves the file as recorded, so domains-plus at `/?q=acme` showed an empty
+box until its script came, where the page rendered per request had shown
+`acme` (upstream's spec "tapping Domains… after hydration" read the box
+before releasing the bundle). There were two ways out:
+
+- **Fill the query-driven fields when serving the file.** A static host runs
+  no code, so filling them means a Worker in front of the file that reads
+  the query and rewrites the markup: the work of a render, done a second way
+  outside `update` and the view, with the plan's slice still recording the
+  empty Model.
+- **Render a request with a query, as before #373.** The page records path
+  and query, carries the Model `init` reached from the URL, and resumes there
+  with nothing redrawn.
+
+domains-plus takes the second and prerenders nothing. Workers' assets answer
+a file by its path whatever the query, so keeping the file for `/` alone
+would mean running the Worker first for `/` to choose between the file and a
+render, and a Worker already running renders the page as cheaply. #373's half stays in `foldkit-ssr`: a page recorded
+for its path still resumes at any query, starting from the URL, which is
+what a page whose query changes little (`?ref=mail`) wants. What it cannot
+give is the query's state before the bundle runs, so a page whose first
+paint depends on its query is rendered per request; the README says so.
+`examples/foldkit/domains-plus/e2e/built.e2e.ts` serves the build as
+`pnpm preview` does, holds the bundle at `/?q=acme`, and reads the box.
+
 ## Answering typing before boot (#372)
 
 | Fact | Owner |

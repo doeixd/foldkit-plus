@@ -15,9 +15,10 @@ export default defineConfig(({ command }) => {
         ssr: {
           serverEntry: '/src/server/entry.ts',
           clientEntry: '/src/client/entry.ts',
-          // `/` is a file the static host serves for every `?q=`: the server
-          // entry's `prerenderPaths`, which `SSR.entry` records by path alone.
-          build: { prerender: true },
+          // Every page is rendered per request. A prerendered `/` would be the
+          // file the static host serves for every `?q=`, whose box is empty
+          // until the bundle runs; a render carries the query (#383).
+          build: { prerender: false },
         },
       }),
     ],

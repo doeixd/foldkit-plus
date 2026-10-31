@@ -300,6 +300,9 @@ served page stays in view while the fresh one draws hidden, and is swapped once 
   prerenders through `SSR.entry` (`ssr.build.prerender`) needs
   `SSR.entry(..., { prerendered: prerenderPaths })`, the list the entry module
   also exports as `prerenderPaths`; otherwise the file is refused at `?q=…`.
+  Until the bundle runs a file shows its recorded state, so a page whose
+  first paint reads its query (a search box from `?q=`) is rendered per
+  request instead.
 - `Projection.pick` refuses two fields with the same last key (`post.id` and
   `viewer.id`), which would otherwise merge into one.
 - Lower level: `SSR.envelope(plan, model, { route? })` and
