@@ -262,6 +262,10 @@ const apps = {
           assets: { directory: './client' },
         }),
       )
+      // A server left on the port by an earlier run would answer for this
+      // build with another's Worker, and the page would never hydrate.
+      if (await fetch(`http://127.0.0.1:${port}`).then(() => true, () => false))
+        throw new Error(`port ${port} is in use: stop what holds it and run again`)
       const logFile = join(outDir, 'wrangler.log')
       const log = openSync(logFile, 'w')
       const child = spawn(

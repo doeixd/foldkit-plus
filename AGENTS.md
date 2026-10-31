@@ -1779,6 +1779,17 @@ of its own named a form field "fits the Catalog". Read words with
 - **A moving element is never stable to Playwright.** `userEvent.hover` on
   a running Marquee's copy timed out ("element is not stable"), since the
   locator waits for the box to stop. Hover the still region around it.
+- **A memo keyed by identity misses on a value a read rebuilds.** domains-plus
+  kept a row's listing by its Remote domain's identity; a read gave an equal
+  domain as a new object, so toggling a filter drew every row again, and the
+  frame was slower than with no memo (a miss also walks and dedupes what it
+  drew). Count a memo's draws in the real app before reporting its gain, and
+  key by value where a read rebuilds.
+- **The render benchmark's Worker port can be held by the last run.**
+  domains-plus's `wrangler dev` outlived `taskkill /T` for a moment, the next
+  run's first fetch reached it, and the page, served by the other build's
+  Worker, never hydrated ("no View phase reported"). `pnpm bench:render` now
+  refuses a port already answering.
 
 **Claims about the repository**
 
