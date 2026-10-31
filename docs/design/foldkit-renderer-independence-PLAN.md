@@ -1,6 +1,6 @@
 # Foldkit programs independent of the renderer
 
-**Status:** plan, 2026-10-30. R0 is built and R1 measured (§10); nothing else is. Tracks #376; related to
+**Status:** plan, 2026-10-30. R0 is built, R1 measured, and R3 built and measured (§10); nothing else is. Tracks #376; related to
 #148, #149 and #190. Every claim about Foldkit is checked against the
 published `foldkit@0.170.0` (`node_modules/.pnpm/foldkit@0.170.0_*/node_modules/foldkit/dist`),
 and every claim about Blocks against the canary `0.169.0-canary.90746b32d2ca`
@@ -688,6 +688,36 @@ writing lazy keys by hand even on snabbdom.
 dependency fails a test that changes that dependency twice (AGENTS.md: "A
 memo test needs a second change").
 
+*The API, as built* (`foldkit-mixins`; §10 has the results). Two forms, both
+on Foldkit's `createLazy` underneath, both drawn with the view's Slots, so a
+Mixin that changes what a Slot is given redraws them as it should:
+
+- **A region, for a piece of an application view keyed by Model paths:**
+  `SlotView.region(reads, draw)`, where `reads` is a `foldkit-surface`
+  Projection over the Model (`Projection.struct({ cart: App.model.cart })`;
+  structurally any `{ dependencies, read }`) and `draw(value, slots, h)` is
+  given only what it reads. `Region(model, slots, h)` in the page's render
+  compares the value at each dependency path with the last, by identity:
+  all the same, it neither reads nor draws, and Foldkit reuses the last
+  drawing undiffed; one changed, it reads, and a read with the same fields
+  is still reused. The drawing cannot read a path it is not redrawn for
+  (its value is all it gets), which is the decision dx-and-builder §3c took
+  for the package form: no proxy tracking, no drift. A Projection with no
+  dependencies is refused at definition. It lives in `foldkit-mixins`, not
+  `foldkit-surface`: it needs the Slot machinery, and takes the Projection
+  structurally, so `foldkit-mixins` gains no dependency.
+- **A keyed item, for a row of a list:** the existing `slots.x.lazy(item,
+  draw, args)`, compared by its args' identity. A row's inputs are values,
+  not Model paths (a listing, whether the cart holds it), so the item form
+  stays. R3 made it fit lists whose keys are unbounded: it kept every key
+  for the page's life (Foldkit's `createKeyedLazy` cannot evict), and now
+  keeps a memo per key that is forgotten once neither the current pass nor
+  the one before drew it.
+
+`Reactive.view`, `Reactive.keyed` and `Reactive.select` of
+reactivity-DESIGN §16 are these two and nothing for `select`: a derived
+value read by a region is a `Projection.fromReader` with its dependencies.
+
 ### Needs Foldkit
 
 **U1. `Html` opaque.** Type-only: the VNode stays underneath. *Done when*
@@ -830,7 +860,9 @@ one most likely to be declined; Proposals A to E are useful without it.
 
 - **The spike may not pay.** Most views here are small; the vdom costs
   where a list redraws (R1 says how much). If regions on snabbdom (R3) take
-  most of the gain, the fine-grained renderer is not worth its upkeep.
+  most of the gain, the fine-grained renderer is not worth its upkeep. For
+  the grid and domains-plus they do (§10 R3): what is left is derivation
+  over Remote reads, which a renderer does not remove.
 - **Two renderers drift.** Every view feature needs an equivalent per
   renderer: Mounts, Slots, Behaviors, controlled inputs, IME composition
   (`imeComposition.js`), focus restoration, dialogs (`dom/dialogRuntime.js`),
@@ -878,7 +910,9 @@ the Messages that reached `update`, the Mounts that started and ended;
 `StaticDrawer`: draw a Model) and `conform`, which compares every drawer to
 a reference. `drawers.ts` holds today's three: the runtime
 (`Runtime.makeElement` and `embed`, the reference), Scene, and the server
-(`renderToString` as static markup, parsed back with `DOMParser`).
+(`renderToString` as static markup, parsed back with `DOMParser`; since
+R3, each Model with a program of its own, so what a program memoizes starts
+empty and a memo the runtime and Scene keep stale disagrees with it).
 `markup.ts` reads every drawing into one canonical text: elements, sorted
 attributes and classes, style declarations, the value a field holds (its
 property, not its attribute) and joined text; Scene's VNode is built into an
@@ -900,6 +934,7 @@ clicks, typing and Messages sent as a Subscription would):
 | keyed list with Mounts | rows keyed by id, each holding a Mount: the first dropped, the list reversed, a row added at the front |
 | positional list with Mounts | the same list without keys |
 | lazy slots | `createLazy` and `createKeyedLazy`, redrawn by their arguments |
+| regions | R3's `SlotView.region` over two Model paths (one below a field), each changed twice, a field beside them changed twice, and keyed items that leave for three passes and come back |
 | submodels | two `h.submodel`s of one view, their Messages wrapped for the parent |
 | event handlers | a click bubbling from a child to its parent's handler, elements added and removed |
 | KeepTyped | a field built by foldkit-ssr's `Resume.builder`, marked `KeepTyped` |
@@ -1072,3 +1107,139 @@ so a renderer that moves work into layout or into Mounts would look better
 here than it is; domains-plus ships Foldkit's DevTools in Inspect mode, as
 upstream does, which records every Message outside these phases; the
 throttled run is one run.
+
+### R3: regions on today's renderer
+
+**What was built** (§6 R3 has the API). In `foldkit-mixins`:
+`SlotView.region(reads, draw)`, a piece of an application view drawn
+again only when a value at a Model path its Projection reads changed (or
+its read gives new fields), and `slots.x.lazy` now forgetting keys it no
+longer draws, so a list keyed by search results or scrolled through
+100,000 rows keeps a memo of what is in view, not of everything ever drawn.
+Neither changes the program model: `view` still runs whole on every
+render, `update` and the Model are untouched, and a region is skipped by
+Foldkit's own `createLazy`, so snabbdom does not diff it either.
+
+**Where it is applied.**
+
+- *domains-plus*: the header and the cart (reading `cart`, `cartSheet`)
+  and the filters (their nine fields) are regions; every All Results row,
+  Top Results card and pending stand-in is a keyed item, drawn from its
+  listing and whether the cart holds it. No `createLazy` is written in the
+  example.
+- *The data grid* (`foldkit-mixins-data-grid`): each body row is a keyed
+  item of its row, index, selection, the focus, range, fill or edit it
+  holds (none for every other row), the column layout (kept while it reads
+  the same), and the `wrap`, `cell` and `marks` given. The example passes a
+  `wrap` made once.
+
+**Correct.** The R0 suite passes with a new case, *regions* (§10 R0's
+table): a region over two paths, one below a field, each changed twice, a
+field beside them changed twice, and keyed items that leave for three
+passes and come back. A mutation that drops a region's second path is
+killed by it (`conformance.mutations.ts`); it was not until the server
+drawer drew each Model with a fresh program, because Scene memoizes too
+and was as stale as the runtime. Unit tests on the runtime
+(`packages/mixins/test/region.test.ts`,
+`packages/mixins-data-grid/test/rowMemo.test.ts`) count what is drawn:
+a region exactly when a path it reads changed, each time; a derived read
+that came out the same, not at all; a focus that moves, the two rows it
+left and reached, twice; a column resized, every row. Their mutation specs
+(`region.mutations.ts`, `rowMemo.mutations.ts`) kill every mutation but one
+declared to survive (an empty memo kept per key with no frame: memory
+only). Upstream's Playwright suites against domains-plus pass as before
+(48 of 67 in Chromium; the 19 failures are the ones its README lists).
+
+**How it was measured.** R1's method unchanged (`pnpm bench:render`, the
+same build, probe, interactions, 30 recorded repetitions after 3 warm-ups,
+the same machine, browser and environment as R1), as an A/B: the files R3
+changes were set to their state before R3 (`a0754504`) for a *before* run
+and back for an *after* run, alternately, two rounds at each throttle. The
+domains-plus Worker was served on port 5297 instead of 5197, where a
+server from the previous run sometimes still answered (the script now
+refuses a port in use). One *before* run at 1× failed that way, so 1× has
+one *before* round; nothing else differs. Samples:
+`docs/design/renderer-baseline/2026-10-31-r3-{before,after}-cpu{1,4}x-{4,5}.json`.
+The *before* numbers sit within run-to-run noise of R1's.
+
+A first *after* round showed domains-plus's filter frames *slower* at 4×
+(about 72 ms against 60 ms of view). Counting draws found every row drawn
+again on every frame: rows kept their listing by the identity of the domain
+Remote read, and a read can give an equal domain as a new object. A listing
+is now kept per name while its domain is equal (`Equal.equals`), and the
+same toggle draws no row. A memo that misses costs more than no memo (it
+also walks and dedupes what it drew), so a gain has to be counted, not
+assumed.
+
+**Results**, ms, median (p10–p90) of the frames of both rounds, before → after:
+
+| app | interaction | frame's last Message | view before | view after | patch before | patch after |
+| --- | --- | --- | ---: | ---: | ---: | ---: |
+| grid | select a cell | `CellPressed` | 3.1 (2.7–3.9) | 1.9 (1.6–2.2) | 0.7 (0.6–0.8) | 0.3 (0.2–0.4) |
+| grid | scroll a page | `Measured` | 2.8 (2.4–3.5) | 2.3 (1.0–4.0) | 1.6 (1.4–1.9) | 1.6 (1.2–2.1) |
+| grid | edit a cell | `EditStarted` | 2.7 (2.5–3.0) | 1.4 (1.1–1.7) | 1.5 (1.4–1.8) | 1.2 (1.0–1.6) |
+| grid | edit a cell | `EditCommitted` | 8.4 (7.8–9.0) | 8.9 (8.1–12.9) | 1.5 (1.4–1.7) | 1.5 (1.4–2.0) |
+| domains-plus | keystroke | `UpdatedSearch` | 3.8 (3.4–4.3) | 3.1 (2.7–3.9) | 2.2 (2.1–2.7) | 2.2 (1.9–2.7) |
+| domains-plus | names checked | `ReadStarted` | 8.9 (8.3–10.2) | 7.5 (6.9–8.9) | 0.6 (0.5–0.8) | 0.2 (0.1–0.3) |
+| domains-plus | prices arrive | `ReadReceived` | 7.5 (6.8–8.5) | 7.3 (6.5–8.6) | 3.0 (2.6–3.3) | 2.8 (2.4–3.3) |
+| domains-plus | open the filter | `PressedPointerOnButton` | 8.7 (8.3–10.4) | 8.0 (7.2–9.6) | 3.1 (2.9–3.3) | 2.2 (2.0–2.6) |
+| domains-plus | choose a filter | `SelectedItem` | 8.7 (8.1–10.4) | 9.1 (7.4–10.3) | 2.8 (2.6–3.0) | 1.9 (1.8–2.3) |
+
+With the CPU slowed four times:
+
+| app | frame's last Message | view before | view after | patch before | patch after |
+| --- | --- | ---: | ---: | ---: | ---: |
+| grid | `CellPressed` (select) | 28.3 (22.5–34.8) | 12.1 (10.0–13.8) | 4.3 (3.4–6.3) | 1.8 (1.5–2.4) |
+| grid | `Measured` (scroll) | 28.4 (23.5–37.0) | 22.3 (6.6–48.5) | 14.1 (11.6–19.9) | 17.0 (12.0–25.0) |
+| grid | `EditStarted` | 24.1 (21.0–38.3) | 7.5 (6.7–10.1) | 10.1 (8.5–14.3) | 6.5 (5.9–9.2) |
+| grid | `EditChanged` (a keystroke in the editor) | 24.4 (20.8–37.3) | 6.7 (5.8–10.4) | 3.5 (2.8–5.7) | 0.9 (0.7–1.5) |
+| grid | `EditCommitted` | 67.7 (53.7–113.4) | 63.3 (58.1–77.5) | 9.3 (7.9–12.2) | 8.6 (7.7–10.7) |
+| domains-plus | `UpdatedSearch` | 22.9 (19.3–28.1) | 20.6 (17.0–27.7) | 18.1 (15.1–22.9) | 17.1 (14.4–20.7) |
+| domains-plus | `ReadStarted` | 69.7 (59.4–83.9) | 59.0 (53.2–66.5) | 4.0 (3.2–5.6) | 1.3 (1.1–1.7) |
+| domains-plus | `ReadReceived` | 63.3 (55.2–76.4) | 59.7 (53.2–66.1) | 27.9 (25.8–32.2) | 25.9 (22.7–29.4) |
+| domains-plus | `Placed` (scroll) | 63.7 (54.6–73.7) | 53.3 (41.8–66.7) | 22.6 (15.4–32.2) | 19.6 (12.4–30.8) |
+| domains-plus | `PressedPointerOnButton` | 61.5 (54.2–70.8) | 52.0 (44.9–63.4) | 20.6 (17.7–25.4) | 14.1 (12.0–17.9) |
+| domains-plus | `SelectedItem` | 62.4 (56.0–73.9) | 51.3 (42.5–59.6) | 18.6 (16.0–21.9) | 11.5 (10.5–16.0) |
+
+**Reading it.**
+
+- **The grid's selected cell is what R1 asked about, and it is mostly
+  gone.** A click on a cell takes 1.9 ms of view and 0.3 ms of patch
+  instead of 3.1 and 0.7; slowed four times, 12 and 2 ms instead of 28 and
+  4, a frame instead of two. Opening and typing in the editor fall by
+  two-thirds at 4×. What is left is the part of the view that is not a
+  row: the header, the column layout, the keyboard's closures and the
+  window's arithmetic, made every render. Committing an edit is unchanged:
+  the rows array is new, `RowModel.fromArray` indexes 100,000 keys again,
+  and the projection is new, so every row in view is drawn anyway.
+- **A scroll gains less, and varies more**: the rows it brings in are new,
+  and the ones it leaves are forgotten two passes later, so scrolling back
+  draws them again.
+- **domains-plus gains 5–20% of view, and a third of patch where the rows
+  hold still.** A price arriving (`ReadReceived`) is 7.3 against 7.5 ms,
+  59.7 against 63.3 ms at 4×. The regions and rows are skipped as
+  intended (counted: a filter toggle now draws no row), but most of the
+  view was never drawing. A profile of the *after* build puts 30–60% of
+  the remaining view in `searchViewState`, which reads all 556 names
+  through Remote (`answeredOf`, `readNames`, `visibleNames`: a
+  `Data.get(Quote, name)` per name builds its requirement metadata and
+  stable key each time) on every render, before any region is asked. A
+  region cannot skip it: it is a derivation over `remote`, which a price
+  arriving changes, and the list, the count line and the filters all read
+  it. Of the rest, Foldkit's `h.submodel` captures a call-site stack
+  (`captureCallSite`) for every `h.submodel` it registers.
+
+**Does R3 make R2 unnecessary for these apps? Yes.** R1 said R2 must beat
+a price arriving (7.2 + 3.0 ms) and a selected cell (3.1 + 0.7 ms). For the
+cell, regions on snabbdom leave 1.9 + 0.3 ms, with the rest outside the
+rows. For the price, a fine-grained renderer would remove what regions
+removed (the rows that did not change) and no more: the remaining cost is
+`searchViewState` deriving from the Remote store, which an accessor or a
+compiled Solid view would recompute too, since it depends on `remote`, the
+path a price changes. What would move domains-plus is cheaper reads in
+Remote (a read handle made once per name; identity kept for an entry that
+did not change, which also made rows miss here) or a derivation memoized
+by its Model paths; both are this repository's work on today's renderer.
+R2 stays worth doing only for what it was never measured on here: native
+renderers (U1–U4) and the cost of `view` running whole, which neither app
+shows to matter once its lists are regions.
