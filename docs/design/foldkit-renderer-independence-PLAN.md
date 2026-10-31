@@ -1,6 +1,6 @@
 # Foldkit programs independent of the renderer
 
-**Status:** plan, 2026-10-30. R0 is built (§10); nothing else is. Tracks #376; related to
+**Status:** plan, 2026-10-30. R0 is built and R1 measured (§10); nothing else is. Tracks #376; related to
 #148, #149 and #190. Every claim about Foldkit is checked against the
 published `foldkit@0.170.0` (`node_modules/.pnpm/foldkit@0.170.0_*/node_modules/foldkit/dist`),
 and every claim about Blocks against the canary `0.169.0-canary.90746b32d2ca`
@@ -949,3 +949,116 @@ the last frame's view"), and the todo and domains-plus examples the plan
 named: their views are bound to their applications' Models and Commands,
 so the cases use the components they draw instead.
 
+
+### R1: the render baseline
+
+**What is measured.** Foldkit's own `slow` timings (`runtime/slowPhase.js`,
+`runtime/renderer.js` `renderSync`): `View` is the time in the program's
+`view(model, h)` under the render frame, `Patch` the time in snabbdom's
+patch of the result into the DOM, `Update` the time in `update`. Every
+budget is set below zero, so every call is reported, not only slow ones.
+Each frame reports the Message that last dirtied it (Foldkit's own
+attribution; Messages landing in one frame share it). Not measured: style,
+layout and paint after the patch, Commands, Subscriptions' streams, and
+the network.
+
+**How.** `pnpm bench:render` (`scripts/render-baseline.mjs`):
+
+1. Builds each app for production with `vite build`'s path (the Foldkit
+   plugin's client, Worker and prerendering for domains-plus), into the
+   app's `node_modules/.render-baseline`. The one change to the app is a
+   transform adding `slow: <config the page installs>` to the runtime
+   config its entry passes (`SSR.hydrate`'s for domains-plus,
+   `makeApplication`'s for the grid). Nothing else in the build differs.
+2. Serves it as it ships: the grid with `vite preview`; domains-plus with
+   `wrangler dev --local` running the built Worker, so prices come from its
+   `/remote` (sample prices, local workerd).
+3. Drives headless Chromium at 1440×900. Each interaction runs 3 unrecorded
+   warm-ups, then 30 recorded repetitions; each repetition waits until the
+   runtime has reported nothing for 400 ms and keeps every phase reported.
+4. Prints, per interaction and per frame's last Message, the frames, the
+   median and p10–p90 of `View` and `Patch`, their maxima, and the median
+   `update` of that Message. `--out` writes every sample; the script fails
+   when an interaction reports no `View` (the probe did not reach the
+   runtime: checked by building without it).
+
+Interactions. **Grid** (`examples/data-grid`, 100,000 rows): a click on a
+cell; the scroll container moved by one viewport and back; one price
+edited (click, Enter, type, Enter). **domains-plus** (opened at
+`/?q=acmeaa`, 556 extensions, All Results in a `WindowList`): two
+Backspaces and two letters in search, each repetition ending on a query not
+asked before, so the names are checked and the rows in view read their
+prices afresh (`ReadStarted`, `ReadReceived`: a price arriving); the window
+scrolled by a viewport and back; the availability dropdown opened and
+Available or Show All chosen.
+
+**Environment.** Windows 11 (10.0.26100), AMD Ryzen 7 6800U (8 cores, 16
+threads), 28 GiB, Node 26.5.0, Chromium 156.0.8078.4 (Playwright),
+headless, on a laptop with other sessions' work running. Chromium is not
+cross-origin isolated here, so `performance.now()` reports whole tenths of
+a millisecond: a 0.6 ms patch is ±0.1 ms. Samples:
+`docs/design/renderer-baseline/2026-10-30-cpu1x-a.json`,
+`-cpu1x-b.json` (the same run again) and `-cpu4x.json`
+(`--throttle 4`, `Emulation.setCPUThrottlingRate`, standing in for a
+phone).
+
+**Results**, ms, median (p10–p90), run a; run b's medians are within 0.3 ms
+of these for every row with 20 or more frames.
+
+| app | interaction | frame's last Message | frames | view | patch | update |
+| --- | --- | --- | ---: | ---: | ---: | ---: |
+| grid | select a cell | `CellPressed` | 30 | 3.1 (2.7–3.8) | 0.7 (0.6–0.7) | 0.1 |
+| grid | scroll a page | `Measured` | 30 | 2.8 (2.3–3.3) | 1.5 (1.3–1.7) | 0.0 |
+| grid | edit a cell | `EditStarted` | 30 | 2.7 (2.5–3.1) | 1.5 (1.4–1.8) | 0.1 |
+| grid | edit a cell | `EditCommitted` | 30 | 8.3 (7.8–9.0) | 1.6 (1.4–1.7) | 1.8 |
+| domains-plus | keystroke | `UpdatedSearch` | 30 | 3.6 (3.2–4.2) | 2.3 (2.1–2.5) | 0.0 |
+| domains-plus | names checked | `ReadStarted` | 27 | 8.4 (8.0–9.0) | 0.6 (0.5–0.7) | 0.1 |
+| domains-plus | prices arrive | `ReadReceived` | 30 | 7.2 (6.7–9.2) | 3.0 (2.7–3.3) | 0.6 |
+| domains-plus | scroll a page | `WindowList Placed` | 22 (run b) | 8.3 (7.3–10.8) | 2.8 (2.2–3.7) | 0.0 |
+| domains-plus | open the filter | `PressedPointerOnButton` | 30 | 8.2 (7.8–9.1) | 2.9 (2.6–3.0) | 0.1 |
+| domains-plus | choose a filter | `SelectedItem` | 30 | 8.4 (7.7–10.3) | 2.6 (2.4–2.9) | 0.1 |
+
+With the CPU slowed four times:
+
+| app | frame's last Message | view | patch |
+| --- | --- | ---: | ---: |
+| grid | `CellPressed` (select) | 28.7 (25.3–32.2) | 4.5 (3.6–6.6) |
+| grid | `Measured` (scroll) | 27.1 (22.5–33.2) | 13.3 (10.7–17.5) |
+| grid | `EditCommitted` | 61.3 (53.7–70.6) | 8.6 (7.7–10.9) |
+| domains-plus | `UpdatedSearch` | 21.2 (18.1–27.4) | 17.4 (15.1–19.6) |
+| domains-plus | `ReadReceived` | 61.7 (53.9–68.6) | 27.9 (25.5–31.6) |
+| domains-plus | `Placed` (scroll) | 54.6 (48.9–72.6) | 20.0 (13.5–31.0) |
+| domains-plus | `SelectedItem` | 59.9 (52.6–68.8) | 17.9 (16.3–22.2) |
+
+**Reading it.**
+
+- **`view` is most of a frame's work, `patch` the lesser part.** On the
+  desktop CPU `view` is 61–93% of view plus patch (a keystroke's 3.6 ms
+  against 2.3 ms is the closest; a selected cell's 3.1 against 0.7 the
+  widest). Building the whole VNode tree for a Message that changes one
+  cell or one price is the cost a fine-grained renderer removes; diffing
+  it is the smaller part.
+- **Neither app is slow on a desktop.** Every median frame is under 12 ms
+  of view and patch together, inside a 16 ms frame, and `update` is under
+  2 ms everywhere. Scrolling 100,000 rows costs no more than a click,
+  since only the window is drawn; committing an edit is the grid's
+  costliest frame (8.3 ms of view); why was not measured.
+- **On a slower CPU the frame budget is gone.** At 4× throttling a price
+  arriving on domains-plus takes about 90 ms of view and patch, a filter
+  about 78 ms, a scroll about 75 ms, and the grid's commit about 70 ms.
+  The scaling is worse than 4× (view 6–10×), so the throttled numbers are an
+  order of magnitude for a phone, not a prediction.
+- **What R2 has to beat:** a price arriving (7.2 + 3.0 ms; 61.7 + 27.9 ms
+  throttled) and a selected cell (3.1 + 0.7 ms; 28.7 + 4.5 ms throttled),
+  both Messages that change a few nodes of a page drawn whole. R3
+  (Projection-keyed regions on snabbdom) attacks the same `view` time
+  without a new renderer, so R2's decision should be taken against R3's
+  estimate as well as this baseline.
+
+**Limits** (after foldkit/foldkit#805's critique of performance claims):
+two machines would say more than two runs on one; the frame's attribution
+is its last Message; Foldkit's measurement covers `view` and `patch` only,
+so a renderer that moves work into layout or into Mounts would look better
+here than it is; domains-plus ships Foldkit's DevTools in Inspect mode, as
+upstream does, which records every Message outside these phases; the
+throttled run is one run.

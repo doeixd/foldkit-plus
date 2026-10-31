@@ -159,6 +159,23 @@ The window costs the column count, not the row count: rows are one height, so
 their window is arithmetic, and the center columns' edges are summed per call
 and searched. The 17 ms is why `RowModel.fromArray` caches per array.
 
+## Rendering: view and patch per Message
+
+`pnpm bench:render` (`scripts/render-baseline.mjs`) builds the data grid demo
+(100,000 rows) and domains-plus for production with Foldkit's `slow` timings
+turned on for every phase, serves each as it ships, and drives it in headless
+Chromium: a cell selected, scrolled and edited; a keystroke in search, the
+prices that arrive, a scroll, a filter. It prints, per interaction and per
+Message that ended a frame, the `view` and `patch` milliseconds (median,
+p10–p90) and the `update` beside them. `--throttle 4` slows Chromium's CPU,
+`--out` writes every sample. It fails when an interaction reports no `view`.
+
+On a Ryzen 7 6800U laptop (Windows 11, Chromium 156, 2026-10-30), every
+median frame took under 12 ms of view and patch together, and `view` was
+most of it: a selected grid cell 3.1 ms of view and 0.7 ms of patch, a
+domains-plus price arriving 7.2 and 3.0 ms. With the CPU slowed four times
+the same price took 62 and 28 ms.
+
 ## foldkit-bundle: type-checking cost of placements
 
 A generated parent with `n` placements of one bundle, each with its own
