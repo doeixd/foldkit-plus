@@ -3,6 +3,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Entity, Mutation, Remote } from '../src/index.js'
+import { live } from '../src/live.js'
 
 const User = Entity.make('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
 const Rename = Mutation.make('Rename', {
@@ -19,7 +20,7 @@ const initial: Model = { route: '/', remote: Remote.initial }
 
 const summary = User.select({ name: true })
 const user = Data.get(summary, 'u1')
-const watched = Data.live(summary, 'u1')
+const watched = live(Data, summary, 'u1')
 const request = { entity: 'User', id: 'u1', fields: ['name'] }
 
 /** The Model after the server answered: `u1` named, `gone` absent, `u2` still in flight. */

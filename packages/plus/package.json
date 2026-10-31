@@ -448,6 +448,11 @@
       "types": "./dist/remote/filter.d.mts",
       "import": "./dist/remote/filter.mjs"
     },
+    "./remote/live": {
+      "foldkit-plus:source": "./src/remote/live.ts",
+      "types": "./dist/remote/live.d.mts",
+      "import": "./dist/remote/live.mjs"
+    },
     "./remote/outbox": {
       "foldkit-plus:source": "./src/remote/outbox.ts",
       "types": "./dist/remote/outbox.d.mts",

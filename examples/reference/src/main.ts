@@ -19,6 +19,7 @@ import { Entity } from 'foldkit-plus/entity'
 import { ME } from 'foldkit-plus/guard'
 import { pointedLinks } from 'foldkit-plus/primitives/dom'
 import { Remote, RemoteData, type RemoteClient } from 'foldkit-plus/remote'
+import { liveQuery } from 'foldkit-plus/remote/live'
 import { Access, Site } from 'foldkit-plus/site'
 import { SSR } from 'foldkit-plus/ssr/client'
 import { ModelRef, Projection, Surface } from 'foldkit-plus/surface'
@@ -150,7 +151,7 @@ export const viewerOf = (model: Model): Option.Option<string> =>
 export const NotebookPage = App.surface('NotebookPage', {
   params: { viewer: Schema.String },
   model: ({ params }) => ({
-    notes: Data.query(Notes, {}, { select: NoteRow, first: NOTES_PAGE, live: true }),
+    notes: liveQuery(Data, Notes, {}, { select: NoteRow, first: NOTES_PAGE }),
     mine: Data.get(MemberCard, params.viewer),
   }),
 })

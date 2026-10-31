@@ -43,7 +43,7 @@ export interface Believing {
 }
 
 /**
- * A `fetch` for `Remote.http` and `Remote.httpWithLive` that repeats, as
+ * A `fetch` for `Remote.http` and `httpWithLive` (`foldkit-remote/live`) that repeats, as
  * `x-foldkit-subject`, whom the server last said it answered as (its
  * `AuthServer.answered` header). While it holds a belief, a request the
  * server would answer as someone else is refused with `SUBJECT_CHANGED`

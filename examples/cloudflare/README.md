@@ -59,7 +59,7 @@ What does cross requests is D1. So `TodoLive` is a `LiveSource` that polls D1
 through the entity's own source under the subscriber's principal, and emitting
 a patch for what moved. The page reads the `AllTodos` list live
 (`Crud.list('Todos', { …, live: true })`), so the stream
-(`Remote.httpWithLive`) also diffs it: an id that joins or leaves is a
+(`httpWithLive` (`foldkit-remote/live`)) also diffs it: an id that joins or leaves is a
 connection event, and the page draws a joining row where the list's order puts
 it. The read does not change with a local edit, so the stream stays open
 across one.
@@ -109,7 +109,7 @@ still re-reads D1. Nothing here pushes across requests.
 4. `POST /remote` reads the row back through `remote-drizzle`, under the
    request's own principal.
 5. A live stream polls D1, sees `done` change, and emits an `EntityPatched`
-   frame, which `Remote.httpWithLive` applies to its normalized Model.
+   frame, which `httpWithLive` (`foldkit-remote/live`) applies to its normalized Model.
 
 Step 2 and 3 are separated on purpose: the journal is the authority on what
 happened, and the table is a projection of it. A crash between them recovers

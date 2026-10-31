@@ -67,6 +67,7 @@ import {
   emptyOptimistic,
   goneOf,
   layersIn,
+  liveIn,
   noCapabilities,
   plannedOf,
   requestOnlyOf,
@@ -77,17 +78,18 @@ import {
   type Lists,
   type WriteMethods,
 } from './capability.js'
-import { installLayers } from './layers.js'
 import { memoRead } from './memo.js'
 import { placedHeld } from './placing.js'
 import { assertRegistered } from './registered.js'
-import { belongsEncoded } from './matching.js'
 import type { WhyReader } from './whyReasons.js'
 import { withInner } from './inner.js'
+import { liveAskOf, liveEntry } from './liveEntry.js'
+import { liveStreamKey } from './liveState.js'
+import { parsedQueryRequest } from './queryRequest.js'
 import { askedOf, askedUnion, resolvedOf, type Asked, type NamedProjection } from './active.js'
 
 import { inspectEntity, inspectRemote, type RemoteInspection } from './inspect.js'
-import type { LiveCursor, LiveEvent } from './live.js'
+import type { LiveCursor, LiveEvent } from './liveState.js'
 import {
   failureOf,
   initialRemoteModel,
@@ -180,7 +182,6 @@ import { reduceReporting } from './reporting.js'
 import { patchedFields } from './shown.js'
 
 import { http as httpClient, json as jsonClient } from './json.js'
-import { httpWithLive as httpWithLiveClient } from './sse.js'
 import { rpcFailure, rpcProtocolHttp } from './rpc.js'
 export * from './client.js'
 export type { RemoteResumePart } from './resume.js'
@@ -199,11 +200,11 @@ export {
 export { Diagnostics, type Diagnostic, type ReportDiagnostic } from 'foldkit-surface'
 export * from './coalesce.js'
 export { RemoteJsonAnswer, RemoteJsonRequest, type RemoteJsonSend } from './json.js'
-export { httpWithLive, liveFetch, type LiveFetchOptions } from './sse.js'
 export * from './connection.js'
 export * from './entity.js'
 export * from './inspect.js'
-export * from './live.js'
+export * from './liveState.js'
+export * from './liveEvents.js'
 export * from './matching.js'
 export { placeIn, RowPlace } from './placement.js'
 export {
@@ -501,27 +502,6 @@ export interface LiveDependencies {
   readonly failures: number
 }
 
-/**
- * Whether what an active entry reads live is arriving. `Reconnecting` is a
- * stream that broke and waits to resubscribe; until it has, changes are
- * missed, and its rows may be out of date. `Refused` is a stream the server
- * would not open for what it asks: it is not retried until that changes.
- */
-export type LiveStatus =
-  /** It reads nothing live. */
-  | { readonly _tag: 'Idle' }
-  /** Subscribed, and not broken since. */
-  | { readonly _tag: 'Live' }
-  | {
-      readonly _tag: 'Reconnecting'
-      /** Breaks in a row, the first being 1. */
-      readonly attempt: number
-      /** Why it broke; none for a gap in its events. */
-      readonly error: Option.Option<RemoteError>
-    }
-  /** The server refused it (`RemoteLiveRefused`); it waits for what it asks to change. */
-  | { readonly _tag: 'Refused'; readonly error: RemoteError }
-
 export interface SubscriptionsOptions extends ObserveOptions, LiveOptions, RetainOptions {}
 
 /**
@@ -600,17 +580,6 @@ export interface RemoteDomain<
     id: NoInfer<Id>,
   ): Projection<AppModel, RemoteData<Value>>
   /**
-   * `get`, and the projection also subscribes to the entity's changes: its
-   * requirements are marked `live`, so `subscriptions` derives a live entry for
-   * the Surfaces that read it.
-   */
-  live<Value, Name extends string, Id extends string = string>(
-    selection: EntitySelection<Value, Name, Id> &
-      Registered<Name, EntityName<Entities[number]>, 'Entity'>,
-    // The id type of the Entity selected: another Entity's branded id does not fit.
-    id: NoInfer<Id>,
-  ): Projection<AppModel, RemoteData<Value>>
-  /**
    * A query connection read as a `Page` of items selected of the query's
    * entity: `Initial` until the page and every item's selected fields are
    * present, `Refreshing` while any of them is being refetched. The window is
@@ -669,7 +638,7 @@ export interface RemoteDomain<
   /**
    * The Foldkit Subscription entries for the active record, keyed for
    * `Subscription.make`: a read entry per record entry (`Remote.observe`), a
-   * live entry per record entry that reads through `live` (`Remote.live`), and
+   * live entry per record entry, which streams what it reads live (`live`, `liveQuery`), and
    * one retain entry (`Remote.retain`). A `Surface.each` family is one record
    * entry whose read unions its parent's requirements with its instances'.
    * Retention is the domain's: the retain entry of every call roots the active
@@ -833,12 +802,6 @@ export interface RemoteDomain<
    * else (a write still waiting, too) returns the same Model.
    */
   dismiss(model: AppModel, requestId: string): AppModel
-  /**
-   * Whether what `active` reads live is arriving: `Reconnecting` from the
-   * moment its stream breaks until it resubscribes, which its live entry does
-   * on its own, with backoff.
-   */
-  liveStatus(model: AppModel, active: ActiveEntry<AppModel>): LiveStatus
   /** `updateRemote` on the bound slice: reduces one of Remote's Messages, as `RemoteMessage` or as the application's union constructs it. */
   reduce(model: AppModel, message: RemoteMessage | RemoteMessageInput): AppModel
   /**
@@ -934,12 +897,6 @@ export type QueryWindowOptions =
 export type QueryOptions<Value, Entity extends string, Of extends string = Entity> = {
   /** What to read of each item: a selection of the query's entity (`Of`). */
   readonly select: EntitySelection<Value, Entity> & SelectsEntity<Entity, Of>
-  /**
-   * Watch the list live while a Surface reads it: rows that join, change or
-   * leave it are streamed (by a live source that watches queries, such as
-   * `foldkit-remote-drizzle`'s `pollLive`). Needs `first`.
-   */
-  readonly live?: boolean | undefined
 } & QueryWindowOptions
 
 /** A query connection read as a `Page` of selected items; `ref` is the connection with its first window. */
@@ -1331,18 +1288,6 @@ export interface LiveOptions {
   readonly maxRetryDelay?: Duration.Input | undefined
 }
 
-/** A stable key for a live subscription's rows and lists. */
-const liveStreamKey = ({ requirements, queries }: LiveAsk): string =>
-  [
-    ...requirements.map(
-      requirement =>
-        `${entityKey(requirement.entity, requirement.id)}:${[...requirement.fields].sort().join(',')}`,
-    ),
-    ...queries.map(query => stableStringify(query)),
-  ]
-    .sort()
-    .join('|')
-
 /** Each registered Entity's `Derived.count`s and `Derived.exists`, under the pointing Entity. */
 const derivedMembersBy = (
   entities: ReadonlyArray<EntityLike>,
@@ -1674,62 +1619,12 @@ const itemsOf = (
 ): ReadonlyArray<Requirement> =>
   edges.filter(edge => edge.entity === select.entity).map(edge => ({ ...select, id: edge.id }))
 
-/**
- * The wire request of a planned query; a `QueryRef` identity carries the query
- * name and the canonical encoded input. A connection requirement built by hand
- * with another identity cannot be run, and fails as a query would.
- */
-const parsedQueryRequest = (query: {
-  readonly identity: string
-  readonly window: QueryWindow
-  readonly select?: RelationRequirement | undefined
-}): Result.Result<Schema.Schema.Type<typeof QueryRequest>, RemoteQueryError> => {
-  const separator = query.identity.indexOf('\u0000')
-  if (separator < 0) {
-    return Result.fail(
-      new RemoteQueryError({
-        message: `connection "${query.identity}" is not a query's: only a QueryRef identity can be run`,
-      }),
-    )
-  }
-  try {
-    return Result.succeed({
-      query: query.identity.slice(0, separator),
-      input: JSON.parse(query.identity.slice(separator + 1)) as unknown,
-      window: query.window,
-      ...(query.select === undefined ? {} : { select: query.select }),
-    })
-  } catch {
-    return Result.fail(
-      new RemoteQueryError({ message: `connection "${query.identity}" carries no encoded input` }),
-    )
-  }
-}
-
 const queryRequestOf = (
   query: Parameters<typeof parsedQueryRequest>[0],
 ): Effect.Effect<Schema.Schema.Type<typeof QueryRequest>, RemoteQueryError> =>
   Effect.suspend(() =>
     Result.match(parsedQueryRequest(query), { onFailure: Effect.fail, onSuccess: Effect.succeed }),
   )
-
-/** What a live stream subscribes to: rows, and lists as their reads send them. */
-interface LiveAsk {
-  readonly requirements: ReadonlyArray<Requirement>
-  readonly queries: ReadonlyArray<Schema.Schema.Type<typeof QueryRequest>>
-}
-
-/**
- * The live rows and lists of what projections ask. A list read live is a
- * `Data.query`, whose identity is always a query's, so one that is not is
- * this package's bug, and throws.
- */
-const liveAskOf = (asked: Asked): LiveAsk => ({
-  requirements: asked.requirements.filter(requirement => requirement.live === true),
-  queries: asked.connections.flatMap(connection =>
-    connection.live === true ? [Result.getOrThrow(parsedQueryRequest(connection))] : [],
-  ),
-})
 
 /**
  * The `ConnectionMerged` for a query result, in the client's edge shape.
@@ -2024,108 +1919,6 @@ const observeEntry = <AppModel, Store extends RemoteModel, Message>(
       ),
   }
 }
-
-// Where a restarted stream resumes, not a reason to restart it: every applied
-// event advances the cursor, and a restart per event would close and reopen
-// the server stream each time. Said in the schema rather than with Foldkit's
-// `keepAliveEquivalence`, which would change the entry's public type
-// (`EntryWithoutKeepAlive`, the only entry type Foldkit exports) for every
-// application that spreads Remote's entries into its own.
-const resumeCursor = Schema.Number.pipe(Schema.overrideToEquivalence(() => () => true))
-
-/** The wait before a stream's restart after `failures` breaks in a row: Sync's transport backoff. */
-const restartDelay = (options: LiveOptions, failures: number): Duration.Duration => {
-  const base = Duration.toMillis(Duration.fromInputUnsafe(options.retryBase ?? '50 millis'))
-  const max = Duration.toMillis(Duration.fromInputUnsafe(options.maxRetryDelay ?? '5 seconds'))
-  const backoff = Math.min(max, base * 2 ** Math.min(Math.max(failures, 1) - 1, 30))
-  return Duration.millis(backoff * (0.8 + Math.random() * 0.4))
-}
-
-/** The live entry: subscribes to `liveOf(model)` from the Model's resume cursor. */
-const liveEntry = <AppModel, Store extends RemoteModel, Message>(
-  bound: BoundRemote<AppModel, Store>,
-  liveOf: (model: AppModel) => LiveAsk,
-  toMessage: (message: RemoteMessage) => Message,
-  options: LiveOptions,
-): EntryWithoutKeepAlive<AppModel, Message, LiveDependencies, RemoteClient> => ({
-  dependenciesSchema: Schema.Struct({
-    requirements: Schema.Array(ReadRequest),
-    queries: Schema.Array(QueryRequest),
-    cursor: resumeCursor,
-    floor: Schema.Number,
-    restarts: Schema.Number,
-    // Read when a break restarts the stream; an applied event resetting it is no reason to.
-    failures: resumeCursor,
-  }),
-  modelToDependencies: model => {
-    const asked = liveOf(model)
-    const stream = liveStreamKey(asked)
-    const remote = bound.store.get(model)
-    const health = remote.streams[stream]
-    return {
-      requirements: asked.requirements,
-      queries: asked.queries,
-      cursor: remote.live[stream]?.cursor ?? 0,
-      // A stream is the principal's: `forget` moves the floor, and it restarts.
-      floor: remote.refresh.floor,
-      restarts: health?.restarts ?? 0,
-      failures: health?.failures ?? 0,
-    }
-  },
-  dependenciesToStream: ({ requirements, queries, cursor, restarts, failures }) => {
-    if (requirements.length === 0 && queries.length === 0) return Stream.empty
-    const stream = liveStreamKey({ requirements, queries })
-    const live = Stream.unwrap(
-      Effect.gen(function* () {
-        const client = yield* RemoteClient
-        return client.live({ requirements, queries, after: cursor })
-      }),
-    ).pipe(
-      Stream.map(event =>
-        toMessage({
-          _tag: 'LiveReceived',
-          stream,
-          event,
-          now: (options.now ?? wallClock)(),
-        }),
-      ),
-      Stream.catchIf(
-        (
-          _error,
-        ): _error is
-          | RemoteLiveError
-          | RemoteLiveRefused
-          | RemoteProtocolError
-          | RemoteUnauthenticated => true,
-        error =>
-          Stream.succeed(
-            toMessage({
-              _tag: 'ReadFailed',
-              requests: requirements,
-              error: remoteError(error),
-              stream,
-            }),
-          ),
-      ),
-    )
-    if (restarts === 0) return live
-    // The server replays nothing a stream missed while it was down, so a
-    // restart refetches what the stream covers. The gap closes before the
-    // resubscribe, so a resubscribe that fails is a break of its own; were the
-    // two concurrent, its failure could land on the open gap and be ignored,
-    // and the late `GapCleared` would leave the stream stopped.
-    return Stream.fromEffect(Effect.sleep(restartDelay(options, failures))).pipe(
-      Stream.drain,
-      Stream.concat(
-        Stream.make(
-          toMessage({ _tag: 'RefreshStarted', requests: requirements }),
-          toMessage({ _tag: 'GapCleared', stream }),
-        ),
-      ),
-      Stream.concat(live),
-    )
-  },
-})
 
 /**
  * `resolvedOf` computed once per Model: the read, live, and retain entries
@@ -2717,14 +2510,6 @@ export const Remote = {
   http: httpClient,
 
   /**
-   * Remote's client over HTTP with live, for `clientLayer`: reads, queries,
-   * and mutations as `http` sends them, live requirements as one `POST`
-   * answered with a `text/event-stream` of changes.
-   * `foldkit-remote-server/fetch` is the other end.
-   */
-  httpWithLive: httpWithLiveClient,
-
-  /**
    * Effect RPC's client protocol over HTTP to `url`, for `RpcClient.make(RemoteRpc)`
    * under `clientLayer`: `RpcClient.layerProtocolHttp({ url })`, except that a
    * response under a status other than 2xx fails the call with its status, so
@@ -2969,41 +2754,6 @@ export const Remote = {
     options: ObserveOptions = {},
   ): EntryWithoutKeepAlive<AppModel, Message, ReadDependencies, RemoteClient> =>
     observeEntry(bound, () => askedOf(surface.projection(params)), toMessage, options),
-
-  /**
-   * A Foldkit Subscription entry that consumes the live stream for a Surface's
-   * requirements, emitting a `LiveReceived` per event and a `ReadFailed`
-   * carrying its `stream` when the stream breaks (including
-   * `ResumeUnavailable`). That records a gap on the stream rather than a failed
-   * read, since nothing was being read, and restarts the entry after a
-   * backoff; the restart refetches what it covers. The resume cursor is read
-   * from `RemoteModel.live`, so the application tracks no cursor of its own.
-   */
-  live: <
-    AppModel,
-    Store extends RemoteModel,
-    Names extends string,
-    Model,
-    SurfaceMessage,
-    Params,
-    Message = RemoteMessage,
-  >(
-    bound: BoundRemote<AppModel, Store, Names>,
-    surface: Surface<AppModel, Model, SurfaceMessage, Params>,
-    params: Params,
-    toMessage: (message: RemoteMessage) => Message = identityMessage as never,
-    options: LiveOptions = {},
-  ): EntryWithoutKeepAlive<AppModel, Message, LiveDependencies, RemoteClient> =>
-    liveEntry(
-      bound,
-      () => {
-        const projection = surface.projection(params)
-        // Every row the Surface reads; a list only where it is read live.
-        return { ...liveAskOf(askedOf(projection)), requirements: requirementsOf(projection) }
-      },
-      toMessage,
-      options,
-    ),
 }
 
 // A domain's Subscription entries are unbranded so an application can spread
@@ -3110,53 +2860,6 @@ const bindDomain = <
   // Whether every call naming a reader ages what it reads: a list only such
   // readers read keeps its age once left, rather than going stale.
   const ageing = new Map<ActiveEntry<AppModel>, boolean>()
-  /**
-   * What to do with a row a live event says was inserted into a connection.
-   *
-   * Resolved here rather than in the pure reducer because this is the only
-   * place with both the Model and the registry, and two separate things needed
-   * one or the other.
-   *
-   * **The declared policy reaches the decision.** `Query.connection(E, { live })`
-   * has always been typed, documented, carried on the descriptor and encoded in
-   * the Message schema — and nothing ever put it on a Message, so every live
-   * insert took the default whatever an application asked for. It does now.
-   *
-   * **A row the client can judge does not need a policy.** The policy exists
-   * because nothing could tell whether an inserted row belonged to the query.
-   * Where the body says it does not, `ignore` is not a guess. Where the body
-   * says it does, or the client cannot tell — a row it never fetched, or holds
-   * without a field the body reads — the declared policy is the answer, exactly
-   * as it was meant to be.
-   *
-   * Only membership is decided here. *Where* a row sorts needs text collation,
-   * which is the backend's, so the position the event carries stands.
-   */
-  const livePolicyFor = (model: AppModel, event: LiveEvent): LivePolicy | undefined => {
-    if (event._tag !== 'ConnectionInsert') return undefined
-    // An identity is always `name`, the separator, and the encoded input — it
-    // is minted in exactly one place — so the separator is always present.
-    const identity = event.connection
-    const descriptor = definition.registry.queries.get(
-      identity.slice(0, identity.indexOf(IDENTITY_SEPARATOR)),
-    )
-    const declared = (descriptor?.Result as Partial<ConnectionSpec> | undefined)?.live
-    if (descriptor?.body === undefined) return declared
-    const encoded = JSON.parse(identity.slice(identity.indexOf(IDENTITY_SEPARATOR) + 1)) as Record<
-      string,
-      unknown
-    >
-    const decided = belongsEncoded(
-      storeOf(bound, model),
-      descriptor,
-      encoded,
-      entityKey(event.edge.ref.entity, event.edge.ref.id),
-      operators,
-      contextOf(model),
-    )
-    return decided === 'no' ? { prepend: 'ignore', append: 'ignore' } : declared
-  }
-
   // An application-union case has the runtime shape of the `RemoteMessage` it names.
   const reduce = (model: AppModel, message: RemoteMessage | RemoteMessageInput): AppModel => {
     const live =
@@ -3165,13 +2868,19 @@ const bindDomain = <
         : undefined
     // A caller that said what it wanted keeps it; `updateRemote` on its own is
     // unchanged, so the pure reducer stays testable without a registry.
+    const remote = store.get(model)
     const resolved =
       live === undefined || live.policy !== undefined
         ? message
-        : { ...live, policy: livePolicyFor(model, live.event) }
-    // A live insert is an overlay, which the layer capability shows.
-    if (live !== undefined) installLayers(capabilities)
-    const remote = store.get(model)
+        : {
+            ...live,
+            policy: liveIn(capabilities).policy(
+              lists,
+              visibleOf(capabilities, remote, operators),
+              live.event,
+              contextOf(model),
+            ),
+          }
     const reduced = reduceIn(capabilities, remote, resolved as RemoteMessage)
     const answer =
       message._tag === 'MutationSucceeded'
@@ -3590,19 +3299,204 @@ const bindDomain = <
         registeredMutation,
       }),
   })
+  /** A query read; `live` watches the list too (`liveQuery` from `foldkit-remote/live`). */
+  const queryRead = <Q extends QueryDescriptor<any, any, any>, Value, Entity extends string>(
+    query: Q,
+    input: QueryInput<Q>,
+    options: QueryOptions<Value, Entity, QueryEntity<Q>>,
+    live: boolean,
+  ): QueryProjection<AppModel, Value, Q['name'], QueryInput<Q>> => {
+    assertRegistered(bound, 'Query', definition.registry.queries, query.name)
+    const { select: given, ...window } = options
+    const select = selectionOf<Value, Entity>(given)
+    for (const [side, size] of [
+      ['first', window.first],
+      ['last', window.last],
+    ] as const) {
+      if (size !== undefined && !(Number.isInteger(size) && size >= 0)) {
+        throw new Error(
+          `Remote: query "${query.name}" asks for ${side}: ${String(size)}; a page size is a non-negative integer`,
+        )
+      }
+    }
+    if (live && window.first === undefined) {
+      throw new Error(
+        `Remote: query "${query.name}" is read live without first; a list watched live is read again every tick, so it needs a size`,
+      )
+    }
+    const listed = (query.Result as Partial<ConnectionSpec>).entity
+    if (listed === undefined) {
+      throw new Error(
+        `Remote: query "${query.name}" is not a connection over an entity, so it has no page to select`,
+      )
+    }
+    if (select.entity !== listed) {
+      throw new Error(
+        `Remote: the selection is of "${select.entity}", but query "${query.name}" lists "${listed}"`,
+      )
+    }
+    const contract = placeableReadContract(
+      readContract(query.ref(input), select, window),
+      query.body,
+      operators,
+    )
+    const { ref, relation } = contract
+    const requirement = live ? { ...contract.requirement, live } : contract.requirement
+    const relationKey = stableStringify(relation)
+    // A read shows at most its window, whatever else loaded the connection:
+    // a picker's `first: 50` and a Block's `first: 3` of one query share it.
+    const sizeOf = (remote: RemoteModel) => windowSize(remote, ref)
+    const shown = (remote: RemoteModel, connection: Connection) =>
+      cutToWindow(shownEdges(remote, ref.identity, connection), ref.window, sizeOf(remote))
+    // The first failed field among the rows a list shows, if any. Decided
+    // outside the memo, which is keyed on what the rows are read from: a
+    // failure can arrive without any of it changing.
+    const failedItem = (
+      remote: RemoteModel,
+      connection: Connection,
+    ): { readonly _tag: 'Failed'; readonly error: RemoteError } | undefined => {
+      if (Object.keys(remote.failures.fields).length === 0) return undefined
+      for (const edge of shown(remote, connection).edges) {
+        if (edge.ref.entity !== relation.entity) continue
+        const error = failureOf(remote, edge.ref.entity, edge.ref.id, relation)
+        if (error !== undefined) return { _tag: 'Failed', error }
+      }
+      return undefined
+    }
+    // A page carries refs; its rows' fields are read after it lands. While
+    // that read is in flight the list is loading, not `Initial`.
+    const loadingItem = (
+      remote: RemoteModel,
+      connection: Connection,
+    ): { readonly _tag: 'Loading' } | undefined => {
+      if (remote.loading.size === 0) return undefined
+      for (const edge of shown(remote, connection).edges) {
+        if (edge.ref.entity !== relation.entity) continue
+        if (isLoadingThrough(remote, edge.ref.entity, edge.ref.id, relation)) {
+          return LOADING
+        }
+      }
+      return undefined
+    }
+    // The page as the rows held make it, before any failure is laid over it.
+    // A row missing a field is left out until it arrives, and the page reads
+    // `Refreshing` meanwhile: a list showing rows keeps showing them while a
+    // joined or re-read row is fetched. `undefined` when no row can be shown
+    // and no row the window would show was deleted: a list that lost its rows
+    // to a delete is a known list without them, not one waiting for its first
+    // rows (#263).
+    const readPage = (
+      remote: RemoteModel,
+      connection: Connection,
+    ): RemoteData<Page<Value>> | undefined => {
+      const visible = visibleOf(capabilities, remote, operators)
+      const key = `${ref.identity}\u0000${relationKey}\u0000${String(sizeOf(remote))}`
+      const read = memoRead<RemoteData<Page<Value>> | undefined>(
+        [visible, connection, remote.optimistic.overlays, remote.placed],
+        key,
+        () => {
+          const made = pageOf(remote, connection, visible)
+          return made === undefined ? undefined : keptPage(pages, key, made)
+        },
+      )
+      // The page read last, a memo hit included, is what the next store's
+      // page is compared with.
+      if (read !== undefined) pages.set(key, read as RemoteData<Page<unknown>>)
+      return read
+    }
+    const pageOf = (
+      remote: RemoteModel,
+      connection: Connection,
+      visible: EntityStore,
+    ): RemoteData<Page<Value>> | undefined => {
+      const rows: Value[] = []
+      let refreshing = readsStale(remote, ref.identity)
+      let missing = false
+      const { edges, cutBefore, cutAfter } = shown(remote, connection)
+      for (const edge of edges) {
+        const key = entityKey(edge.ref.entity, edge.ref.id)
+        const row = readRow(visible, key, relation, relationKey, select.schema)
+        if (row === undefined) {
+          missing = true
+          continue
+        }
+        if (row._tag === 'Failed') return row
+        refreshing ||= row._tag === 'Refreshing'
+        rows.push(row.value)
+      }
+      if (
+        missing &&
+        rows.length === 0 &&
+        !deletedInWindow(
+          items(connection),
+          new Set(shownEdges(remote, ref.identity, connection).map(edge => edge.key)),
+          ref.window,
+          sizeOf(remote),
+          goneOf(capabilities, remote),
+        )
+      ) {
+        return undefined
+      }
+      const page = {
+        items: rows,
+        hasNext: cutAfter || hasNext(connection),
+        hasPrevious: cutBefore || hasPrevious(connection),
+      }
+      return refreshing || missing
+        ? { _tag: 'Refreshing', value: page }
+        : { _tag: 'Ready', value: page }
+    }
+    return {
+      Model: remoteDataSchema(pageSchema(select.schema)) as Schema.Codec<
+        RemoteData<Page<Value>>,
+        unknown
+      >,
+      dependencies: [],
+      metadata: RemoteConnections.of(requirement),
+      ref,
+      selection: select as Selection<Value, string>,
+      read: (root: AppModel): RemoteData<Page<Value>> => {
+        const remote = store.get(root)
+        const connection = remote.connections[ref.identity]
+        const failure = remote.failures.connections[ref.identity]
+        // Invalidating a connection the Model never loaded records it stale with no
+        // segments: still nothing to show. (A loaded empty page is not stale.)
+        if (connection === undefined || (connection.stale && connection.segments.length === 0)) {
+          if (isQueryLoading(remote, ref.identity)) return LOADING
+          return failure === undefined ? INITIAL : { _tag: 'Failed', error: failure }
+        }
+        // A query that answered is not the whole of a list: its rows' fields
+        // are read separately, and one of those failing is the list's failure.
+        const read =
+          readPage(remote, connection) ??
+          failedItem(remote, connection) ??
+          loadingItem(remote, connection) ??
+          INITIAL
+        if (failure === undefined) {
+          if (read._tag !== 'Ready' && read._tag !== 'Refreshing') return read
+          const item = failedItem(remote, connection)
+          return item === undefined ? read : failedWith(read, item.error)
+        }
+        // The rows held before the failure are still the best there is, so they
+        // go with it as `previous`, which `RemoteData.render` shows as stale.
+        switch (read._tag) {
+          case 'Ready':
+          case 'Refreshing':
+            return failedWith(read, failure)
+          case 'Failed':
+            return read
+          case 'Initial':
+          case 'Loading':
+          case 'NotFound':
+            return { _tag: 'Failed', error: failure }
+        }
+      },
+    }
+  }
   const domain: RemoteDomain<AppModel, Store, Entities, Queries, Mutations> = {
     ...definition,
     ...bound,
     get: (selection, id) => Remote.select(bound, selection)(id),
-    live: (selection, id) => {
-      const projection = Remote.select(bound, selection)(id)
-      return {
-        ...projection,
-        metadata: RemoteRequirements.of(
-          ...requirementsOf(projection).map(requirement => ({ ...requirement, live: true })),
-        ),
-      }
-    },
     active: (name, projectionOf) => {
       const { owner } = bound.contract
       if (owner === undefined)
@@ -3689,198 +3583,7 @@ const bindDomain = <
         }),
       }
     },
-    query: <Q extends QueryDescriptor<any, any, any>, Value, Entity extends string>(
-      query: Q,
-      input: QueryInput<Q>,
-      options: QueryOptions<Value, Entity, QueryEntity<Q>>,
-    ): QueryProjection<AppModel, Value, Q['name'], QueryInput<Q>> => {
-      assertRegistered(bound, 'Query', definition.registry.queries, query.name)
-      const { select: given, live, ...window } = options
-      const select = selectionOf<Value, Entity>(given)
-      for (const [side, size] of [
-        ['first', window.first],
-        ['last', window.last],
-      ] as const) {
-        if (size !== undefined && !(Number.isInteger(size) && size >= 0)) {
-          throw new Error(
-            `Remote: query "${query.name}" asks for ${side}: ${String(size)}; a page size is a non-negative integer`,
-          )
-        }
-      }
-      if (live === true && window.first === undefined) {
-        throw new Error(
-          `Remote: query "${query.name}" is read live without first; a list watched live is read again every tick, so it needs a size`,
-        )
-      }
-      const listed = (query.Result as Partial<ConnectionSpec>).entity
-      if (listed === undefined) {
-        throw new Error(
-          `Remote: query "${query.name}" is not a connection over an entity, so it has no page to select`,
-        )
-      }
-      if (select.entity !== listed) {
-        throw new Error(
-          `Remote: the selection is of "${select.entity}", but query "${query.name}" lists "${listed}"`,
-        )
-      }
-      const contract = placeableReadContract(
-        readContract(query.ref(input), select, window),
-        query.body,
-        operators,
-      )
-      const { ref, relation } = contract
-      const requirement = live === true ? { ...contract.requirement, live } : contract.requirement
-      const relationKey = stableStringify(relation)
-      // A read shows at most its window, whatever else loaded the connection:
-      // a picker's `first: 50` and a Block's `first: 3` of one query share it.
-      const sizeOf = (remote: RemoteModel) => windowSize(remote, ref)
-      const shown = (remote: RemoteModel, connection: Connection) =>
-        cutToWindow(shownEdges(remote, ref.identity, connection), ref.window, sizeOf(remote))
-      // The first failed field among the rows a list shows, if any. Decided
-      // outside the memo, which is keyed on what the rows are read from: a
-      // failure can arrive without any of it changing.
-      const failedItem = (
-        remote: RemoteModel,
-        connection: Connection,
-      ): { readonly _tag: 'Failed'; readonly error: RemoteError } | undefined => {
-        if (Object.keys(remote.failures.fields).length === 0) return undefined
-        for (const edge of shown(remote, connection).edges) {
-          if (edge.ref.entity !== relation.entity) continue
-          const error = failureOf(remote, edge.ref.entity, edge.ref.id, relation)
-          if (error !== undefined) return { _tag: 'Failed', error }
-        }
-        return undefined
-      }
-      // A page carries refs; its rows' fields are read after it lands. While
-      // that read is in flight the list is loading, not `Initial`.
-      const loadingItem = (
-        remote: RemoteModel,
-        connection: Connection,
-      ): { readonly _tag: 'Loading' } | undefined => {
-        if (remote.loading.size === 0) return undefined
-        for (const edge of shown(remote, connection).edges) {
-          if (edge.ref.entity !== relation.entity) continue
-          if (isLoadingThrough(remote, edge.ref.entity, edge.ref.id, relation)) {
-            return LOADING
-          }
-        }
-        return undefined
-      }
-      // The page as the rows held make it, before any failure is laid over it.
-      // A row missing a field is left out until it arrives, and the page reads
-      // `Refreshing` meanwhile: a list showing rows keeps showing them while a
-      // joined or re-read row is fetched. `undefined` when no row can be shown
-      // and no row the window would show was deleted: a list that lost its rows
-      // to a delete is a known list without them, not one waiting for its first
-      // rows (#263).
-      const readPage = (
-        remote: RemoteModel,
-        connection: Connection,
-      ): RemoteData<Page<Value>> | undefined => {
-        const visible = visibleOf(capabilities, remote, operators)
-        const key = `${ref.identity}\u0000${relationKey}\u0000${String(sizeOf(remote))}`
-        const read = memoRead<RemoteData<Page<Value>> | undefined>(
-          [visible, connection, remote.optimistic.overlays, remote.placed],
-          key,
-          () => {
-            const made = pageOf(remote, connection, visible)
-            return made === undefined ? undefined : keptPage(pages, key, made)
-          },
-        )
-        // The page read last, a memo hit included, is what the next store's
-        // page is compared with.
-        if (read !== undefined) pages.set(key, read as RemoteData<Page<unknown>>)
-        return read
-      }
-      const pageOf = (
-        remote: RemoteModel,
-        connection: Connection,
-        visible: EntityStore,
-      ): RemoteData<Page<Value>> | undefined => {
-        const rows: Value[] = []
-        let refreshing = readsStale(remote, ref.identity)
-        let missing = false
-        const { edges, cutBefore, cutAfter } = shown(remote, connection)
-        for (const edge of edges) {
-          const key = entityKey(edge.ref.entity, edge.ref.id)
-          const row = readRow(visible, key, relation, relationKey, select.schema)
-          if (row === undefined) {
-            missing = true
-            continue
-          }
-          if (row._tag === 'Failed') return row
-          refreshing ||= row._tag === 'Refreshing'
-          rows.push(row.value)
-        }
-        if (
-          missing &&
-          rows.length === 0 &&
-          !deletedInWindow(
-            items(connection),
-            new Set(shownEdges(remote, ref.identity, connection).map(edge => edge.key)),
-            ref.window,
-            sizeOf(remote),
-            goneOf(capabilities, remote),
-          )
-        ) {
-          return undefined
-        }
-        const page = {
-          items: rows,
-          hasNext: cutAfter || hasNext(connection),
-          hasPrevious: cutBefore || hasPrevious(connection),
-        }
-        return refreshing || missing
-          ? { _tag: 'Refreshing', value: page }
-          : { _tag: 'Ready', value: page }
-      }
-      return {
-        Model: remoteDataSchema(pageSchema(select.schema)) as Schema.Codec<
-          RemoteData<Page<Value>>,
-          unknown
-        >,
-        dependencies: [],
-        metadata: RemoteConnections.of(requirement),
-        ref,
-        selection: select as Selection<Value, string>,
-        read: (root: AppModel): RemoteData<Page<Value>> => {
-          const remote = store.get(root)
-          const connection = remote.connections[ref.identity]
-          const failure = remote.failures.connections[ref.identity]
-          // Invalidating a connection the Model never loaded records it stale with no
-          // segments: still nothing to show. (A loaded empty page is not stale.)
-          if (connection === undefined || (connection.stale && connection.segments.length === 0)) {
-            if (isQueryLoading(remote, ref.identity)) return LOADING
-            return failure === undefined ? INITIAL : { _tag: 'Failed', error: failure }
-          }
-          // A query that answered is not the whole of a list: its rows' fields
-          // are read separately, and one of those failing is the list's failure.
-          const read =
-            readPage(remote, connection) ??
-            failedItem(remote, connection) ??
-            loadingItem(remote, connection) ??
-            INITIAL
-          if (failure === undefined) {
-            if (read._tag !== 'Ready' && read._tag !== 'Refreshing') return read
-            const item = failedItem(remote, connection)
-            return item === undefined ? read : failedWith(read, item.error)
-          }
-          // The rows held before the failure are still the best there is, so they
-          // go with it as `previous`, which `RemoteData.render` shows as stale.
-          switch (read._tag) {
-            case 'Ready':
-            case 'Refreshing':
-              return failedWith(read, failure)
-            case 'Failed':
-              return read
-            case 'Initial':
-            case 'Loading':
-            case 'NotFound':
-              return { _tag: 'Failed', error: failure }
-          }
-        },
-      }
-    },
+    query: (query, input, options) => queryRead(query, input, options, false),
     more: (model, projection) => {
       const remote = store.get(model)
       const { ref } = projection
@@ -3951,23 +3654,6 @@ const bindDomain = <
         mutations: forgetFailure(remote.mutations, requestId),
       } as Store)
     },
-    liveStatus: (model, active) => {
-      assertOwned(active)
-      const resolvedAt = readers.get(active) ?? memoizedResolved(active)
-      const live = liveAskOf(askedUnion(resolvedAt(model).map(({ projection }) => projection)))
-      if (live.requirements.length === 0 && live.queries.length === 0) return { _tag: 'Idle' }
-      const remote = store.get(model)
-      const stream = liveStreamKey(live)
-      const health = remote.streams[stream]
-      if (health === undefined) return { _tag: 'Live' }
-      return Option.match(health.refused, {
-        onSome: error => ({ _tag: 'Refused', error }),
-        onNone: () =>
-          remote.gaps.has(stream)
-            ? { _tag: 'Reconnecting', attempt: health.failures, error: health.error }
-            : { _tag: 'Live' },
-      })
-    },
     reduce,
     inspect: model => inspectRemote(store.get(model)),
     verifiesPredictions: verify.on,
@@ -4029,7 +3715,17 @@ const bindDomain = <
           : layersIn(capabilities).context(remote.optimistic.layers),
     }
   }
-  return withInner(domain, { why: whyReader, context: contextOf, shown: shownEdges })
+  return withInner(domain, {
+    why: whyReader,
+    context: contextOf,
+    shown: shownEdges,
+    liveQuery: (query, input, options) => queryRead(query, input, options, true),
+    liveAsk: (model, active) => {
+      assertOwned(active)
+      const resolvedAt = readers.get(active) ?? memoizedResolved(active)
+      return liveAskOf(askedUnion(resolvedAt(model).map(({ projection }) => projection)))
+    },
+  })
 }
 
 /** The window keys of a `QueryOptions`, and only those, without the undefined ones. */

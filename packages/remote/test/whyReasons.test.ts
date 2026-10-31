@@ -30,6 +30,7 @@ import {
   summary,
 } from './whyDomain.js'
 import { overlay } from '../src/overlay.js'
+import { live } from '../src/live.js'
 
 describe("why names a list's own page", () => {
   it('in flight while it has nothing to show', () => {
@@ -395,7 +396,7 @@ describe('why names a value the store holds and cannot show', () => {
 })
 
 describe('why names a live stream that is not arriving', () => {
-  const Watched = App.surface('Watched', { model: () => ({ project: Data.live(card, 'p1') }) })
+  const Watched = App.surface('Watched', { model: () => ({ project: live(Data, card, 'p1') }) })
   const watching = { watched: Surface.at(Watched, undefined) }
   const stream = 'Project:p1:name,status'
 
@@ -403,7 +404,7 @@ describe('why names a live stream that is not arriving', () => {
     const error = { _tag: 'RemoteLiveError', message: 'dropped' }
     const broke = reduced(stored, { _tag: 'ReadFailed', requests: [], error, stream })
 
-    expect(why(Data, broke, Data.live(card, 'p1'), { surfaces: watching }).because).toEqual([
+    expect(why(Data, broke, live(Data, card, 'p1'), { surfaces: watching }).because).toEqual([
       Why.LiveReconnecting({ surface: 'Watched', attempt: 1, error: Option.some(error) }),
     ])
   })
@@ -412,7 +413,7 @@ describe('why names a live stream that is not arriving', () => {
     const error = { _tag: 'RemoteLiveRefused', message: 'too many' }
     const refused = reduced(stored, { _tag: 'ReadFailed', requests: [], error, stream })
 
-    expect(why(Data, refused, Data.live(card, 'p1'), { surfaces: watching }).because).toEqual([
+    expect(why(Data, refused, live(Data, card, 'p1'), { surfaces: watching }).because).toEqual([
       Why.LiveRefused({ surface: 'Watched', error }),
     ])
   })

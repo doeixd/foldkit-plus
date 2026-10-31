@@ -26,8 +26,10 @@ import { Form, Input, type FormControl, type Submitted } from 'foldkit-form'
 import { Display, type DisplayColumn } from './display.js'
 import { screen } from './screen.js'
 import {
+  Capability,
   Refusal,
   RemoteData,
+  type Capabilities,
   type MutationDescriptor,
   type Page,
   type QueryDescriptor,
@@ -36,6 +38,7 @@ import {
   type RemoteError,
   type RemoteMessage,
 } from 'foldkit-remote'
+import { liveQuery } from 'foldkit-remote/live'
 import { ModelRef, Projection, type ActiveSurface } from 'foldkit-surface'
 import { define as defineCommand, type Command } from 'foldkit/command'
 import * as Dom from 'foldkit/dom'
@@ -162,6 +165,8 @@ export type EditorStatus =
 
 /** The parts of a bound Remote domain an editor uses. */
 export interface DomainLike<Root> {
+  /** What its declarations installed: a live list installs live reads here. */
+  readonly [Capability]: Capabilities
   // Method syntax: the descriptors are checked where the editor is made, not here.
   mutate(
     model: Root,
@@ -469,7 +474,7 @@ export const Crud = {
       readonly selection: Selection<EntityName, Members, S>
       /** How many rows a page holds. Default 25. */
       readonly pageSize?: number
-      /** Watch the list live while it is shown (`Data.query`'s `live`). */
+      /** Watch the list live while it is shown (`liveQuery` from `foldkit-remote/live`). */
       readonly live?: boolean
       /**
        * How a row reads as a choice in a relation picker: its id, and the words
@@ -503,7 +508,9 @@ export const Crud = {
         const { data, input } = where
         const projectionOf = (root: Root) =>
           Option.map(input(root), value =>
-            data.query(query, value, { select: selection, first: pageSize, live }),
+            live
+              ? liveQuery<Root>(data, query, value, { select: selection, first: pageSize })
+              : data.query(query, value, { select: selection, first: pageSize }),
           )
         const page = (root: Root): RemoteData<Page<S['Type']>> =>
           Option.match(projectionOf(root), {

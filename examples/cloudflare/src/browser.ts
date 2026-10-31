@@ -9,6 +9,7 @@ import * as Runtime from 'foldkit/runtime'
 import { Remote } from 'foldkit-remote'
 import { ACTOR_KEY, initial, Model, placements, remoteCache, update } from './app.js'
 import { view } from './view.js'
+import { httpWithLive } from 'foldkit-remote/live'
 
 const container = document.getElementById('app')
 if (container === null) throw new Error('index.html has no #app')
@@ -31,7 +32,7 @@ Runtime.run(
       view,
       resources: Layer.merge(
         Remote.clientLayer(
-          Remote.httpWithLive('/remote', {
+          httpWithLive('/remote', {
             headers: () => {
               const name = sessionStorage.getItem(ACTOR_KEY)
               return { 'x-actor': name === null || name.trim().length === 0 ? 'anon' : name }

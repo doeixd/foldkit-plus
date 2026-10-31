@@ -17,6 +17,7 @@ import { SSR } from 'foldkit-ssr'
 import { defineDocumentHost, type DocumentHostConfig } from 'foldkit-sync/do'
 import { believing } from 'foldkit-auth'
 import { AuthServer } from 'foldkit-auth/server'
+import { httpWithLive } from 'foldkit-remote/live'
 
 const AppAuth = Auth.make(
   AuthContract.make('readme/Auth', {
@@ -48,7 +49,7 @@ export const remote = serveFetch({
 
 // ## The client's side
 
-export const transport = Remote.httpWithLive('/remote', {
+export const transport = httpWithLive('/remote', {
   headers: () => ({ 'x-effect-auth-csrf': '1' }),
 })
 
@@ -68,7 +69,7 @@ export const echoing = serveFetch({
 
 // The browser: Remote's transport through a fetch that repeats it.
 export const belief = believing()
-export const believingTransport = Remote.httpWithLive('/remote', {
+export const believingTransport = httpWithLive('/remote', {
   headers: () => ({ 'x-effect-auth-csrf': '1' }),
   fetch: belief.fetch,
 })

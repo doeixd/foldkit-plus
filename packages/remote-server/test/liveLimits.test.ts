@@ -19,6 +19,7 @@ import {
 import { describe, expect, it } from 'vitest'
 import { serveFetch } from '../src/fetch.js'
 import { RemoteServer, type LiveHub, type ServerDefinition } from '../src/index.js'
+import { httpWithLive } from 'foldkit-remote/live'
 
 const Item = Entity.make('Item', Schema.Struct({ id: Schema.String, name: Schema.String }))
 
@@ -175,7 +176,7 @@ describe('a live subscription over maxIdsPerEntity', () => {
       layer: () => Layer.empty,
       maxIdsPerEntity: 3,
     })
-    const client = Remote.httpWithLive('http://worker.test/remote', {
+    const client = httpWithLive('http://worker.test/remote', {
       fetch: (input, init) => serve(new Request(input, init), undefined),
     })
     const outcome = await Effect.runPromise(

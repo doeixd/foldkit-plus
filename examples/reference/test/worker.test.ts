@@ -12,11 +12,11 @@ import { drizzle } from 'drizzle-orm/d1'
 import {
   REMOTE_PROTOCOL_VERSION,
   Remote,
-  liveFetch,
   type LiveChange,
   type RemoteClient,
   type RemoteMessage,
 } from 'foldkit-plus/remote'
+import { liveFetch } from 'foldkit-plus/remote/live'
 import { databaseLayer } from 'foldkit-plus/remote-drizzle'
 import { RemoteServer } from 'foldkit-plus/remote-server'
 import { Surface } from 'foldkit-plus/surface'

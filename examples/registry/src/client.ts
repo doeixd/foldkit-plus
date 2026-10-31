@@ -6,6 +6,7 @@
 import { Remote } from 'foldkit-remote'
 import { Sync } from 'foldkit-sync'
 import { startDevice } from './device.js'
+import { httpWithLive } from 'foldkit-remote/live'
 
 const container = document.getElementById('app')
 if (container === null) throw new Error('index.html has no #app')
@@ -22,7 +23,7 @@ if (import.meta.env.MODE === 'sandbox') {
     store: 'foldkit-registry',
     // The name this tab commits as, short enough to read in "replaced by …".
     name: replicaId => `tab-${replicaId.slice(0, 4)}`,
-    resources: Remote.clientLayer(Remote.httpWithLive('/remote')),
+    resources: Remote.clientLayer(httpWithLive('/remote')),
     transport: device =>
       Sync.transport.socket({ url: `${protocol}://${location.host}/sync?device=${device}` }),
   })

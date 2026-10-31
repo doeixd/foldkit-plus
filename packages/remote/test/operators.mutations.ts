@@ -31,9 +31,9 @@ export default [
     name: 'a live insert is judged without the table',
     edits: [
       {
-        file: '../src/index.ts',
-        find: '      entityKey(event.edge.ref.entity, event.edge.ref.id),\n      operators,\n',
-        replace: '      entityKey(event.edge.ref.entity, event.edge.ref.id),\n',
+        file: '../src/liveReads.ts',
+        find: '        lists.operators,\n        context,\n      )',
+        replace: '        undefined,\n        context,\n      )',
       },
     ],
     tests,

@@ -19,6 +19,7 @@ import { Entity as DomainEntity, Expr, Order } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Query, Remote, RemoteData, entityKey, type RemoteError } from '../src/index.js'
+import { live as readLive } from '../src/live.js'
 
 const Project = DomainEntity.define(
   'Project',
@@ -37,6 +38,8 @@ const Model = Schema.Struct({ remote: Remote.Model })
 type Model = typeof Model.Type
 const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
 const Data = Remote.make({ model: App.model.remote, entities: [Project], queries: [ByOwner] })
+// Live events reach a domain that reads a row live.
+readLive(Data, Summary, 'p0')
 
 const mine = Data.query(ByOwner, { ownerId: 'u1' }, { select: Summary, first: 25 })
 const theirs = Data.query(ByOwner, { ownerId: 'u2' }, { select: Summary, first: 25 })

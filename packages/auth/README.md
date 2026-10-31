@@ -151,9 +151,9 @@ Remote's transport posts every call, so a browser sends `Origin` on its own;
 the CSRF header is the client's to add:
 
 ```ts
-import { Remote } from 'foldkit-remote'
+import { httpWithLive } from 'foldkit-remote/live'
 
-const transport = Remote.httpWithLive('/remote', {
+const transport = httpWithLive('/remote', {
   headers: () => ({ 'x-effect-auth-csrf': '1' }),
 })
 ```
@@ -171,6 +171,7 @@ whom it answered as, and the client repeats it:
 
 ```ts
 import { believing } from 'foldkit-auth'
+import { httpWithLive } from 'foldkit-remote/live'
 
 const resolving = { auth: AppAuth, http, principal, key: Policy.key }
 serveFetch({
@@ -182,7 +183,7 @@ serveFetch({
 
 // The browser: Remote's transport through a fetch that repeats it.
 export const belief = believing()
-Remote.httpWithLive('/remote', {
+httpWithLive('/remote', {
   headers: () => ({ 'x-effect-auth-csrf': '1' }),
   fetch: belief.fetch,
 })

@@ -34,6 +34,7 @@ import type { Invalid } from 'foldkit-surface'
 import { Entity as DomainEntity, Expr, type InputExpr } from 'foldkit-entity'
 import { RemotePersistence, type Snapshot } from '../src/persistence.js'
 import type { EntityStore } from '../src/store.js'
+import { live } from '../src/live.js'
 
 type Equals<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false
@@ -125,7 +126,7 @@ Project.select({ owner: Comment.select({ id: true }) })
 // @ts-expect-error Team is declared but not registered with Data
 Data.get(Team.select({ id: true }), 't1')
 // @ts-expect-error nor may it be read live
-Data.live(Team.select({ id: true }), 't1')
+live(Data, Team.select({ id: true }), 't1')
 // Item 13: the failure is branded and names the descriptor, in the parameter's own type.
 const _unregisteredEntity: Equals<
   Parameters<typeof Data.get<unknown, 'Team'>>[0],
@@ -225,7 +226,7 @@ Data.mutate(model, Other, {})
 const ProjectPage = App.surface('ProjectPage', {
   params: { projectId: ProjectId },
   model: ({ params }) => ({
-    project: Data.live(ProjectSummary, params.projectId),
+    project: live(Data, ProjectSummary, params.projectId),
     projects: Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: ProjectSummary, first: 25 }),
   }),
   messages: [Message.ArchiveProject],

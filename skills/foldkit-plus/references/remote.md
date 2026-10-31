@@ -238,7 +238,7 @@ A transport failure becomes the call's Remote error, not a defect.
   typed errors and interruption cross it.
 - A Worker's fetch: `serveFetch({ server, resolvePrincipal, layer })` from
   `foldkit-remote-server/fetch` answers what `Remote.http` posts, and a live
-  open with a `text/event-stream` (`Remote.httpWithLive`), heartbeating every
+  open with a `text/event-stream` (`httpWithLive` (`foldkit-remote/live`)), heartbeating every
   `liveHeartbeat` (15 s). `resolvePrincipal` is an Effect per request over
   what `layer(env)` provides; failing with `RemoteServer.unauthenticated(reason?)`
   answers 401. `revalidate: { every, key? }` asks again while a live stream is
@@ -273,9 +273,9 @@ const projects = Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: Projec
 // The select travels with the query: the server returns those fields with the page, so a fresh list lands Ready in one response.
 // Data.meta(model, projects) is when what is shown was last received ({ updatedAt, stale, loading }), pure for "updated 5s ago".
 
-// Data.live: same as get, but also opens a live stream while the Surface is active.
-// model: ({ params }) => ({ project: Data.live(ProjectSummary, params.projectId), projects })
-// A list read live: Data.query(ProjectsByOwner, input, { select, first: 25, live: true }) streams
+// live(Data, …) from foldkit-remote/live: same as get, but also opens a live stream while the Surface is active.
+// model: ({ params }) => ({ project: live(Data, ProjectSummary, params.projectId), projects })
+// A list read live: liveQuery(Data, ProjectsByOwner, input, { select, first: 25 }) streams
 // the rows that join, change or leave it (needs first; a live source that watches lists, pollLive).
 
 // Policy for fields already cached (default RemotePolicy.cacheFirst), as the second argument:
@@ -538,7 +538,7 @@ not `Terminal`. Optimistic layers, live cursors, gaps and the mutation ledger
 are still session state and are never in a snapshot.
 
 **Entities declared with `foldkit-entity`.** `Remote.make` registers them and
-`Data.get` / `Data.live` / a query's `select` take their Selections as they are;
+`Data.get` / `live(Data, …)` / a query's `select` take their Selections as they are;
 nothing downstream changes. Relations become ref fields, derived members become
 fields the server supplies, and the Entity needs an `id` field. `Entity.from` /
 `Selection.from` give the compiled descriptor and Selection when a handler
@@ -790,12 +790,19 @@ field. The live entry restarts a broken stream itself: after Sync's backoff
 (50 ms doubling to 5 s, ±20% jitter; `retryBase`/`maxRetryDelay` in the
 subscriptions options) it resubscribes from its cursor and refetches what the
 stream covers, since no server replays missed events.
-A list read with `live: true` (`Data.query(Q, input, { select, first, live:
-true })`) rides the same live entry while a Surface reads it: the stream sends
+Live reads are `foldkit-remote/live`'s, an entry of their own: `live(Data,
+selection, id)`, `liveQuery`, `liveStatus`, `observeLive` (one Surface's live
+entry) and the `httpWithLive` client. A live read installs on its domain the
+code that streams and applies changes (the live capability), so a page that
+reads nothing live keeps none of it, and a domain that reads nothing live
+refuses a `LiveReceived`, naming itself. The transport's `RemoteClient.live`
+is unchanged.
+A list read with `liveQuery(Data, Q, input, { select, first })` rides the same
+live entry while a Surface reads it: the stream sends
 the list as the read does (at most 32 lists a stream), and the server's live
 source sends the rows that join, change or leave its window, so no made-up row
 is needed to watch a list. On a Worker that source is `pollLive` (below).
-`Data.liveStatus(model, active)` is `Idle | Live | Reconnecting { attempt, error } |
+`liveStatus(Data, model, active)` is `Idle | Live | Reconnecting { attempt, error } |
 Refused { error }` for a view. `Refused` is the server's `RemoteLiveRefused` (a
 subscription naming more ids of one Entity than `maxIdsPerEntity`): it is not
 restarted until the live requirements change, and a `LiveRefused` diagnostic

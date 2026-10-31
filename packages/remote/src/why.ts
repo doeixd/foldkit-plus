@@ -11,6 +11,7 @@ import type { ActiveSurface, Projection, SurfaceSource } from 'foldkit-surface'
 import { askedOf, covers, resolvedOf } from './active.js'
 import type { ModelOfDomain, QueryProjection, RemoteDomain } from './index.js'
 import { innerOf } from './inner.js'
+import { liveStatus } from './live.js'
 import type { QueryWindow } from './query.js'
 import type { RemoteData } from './remoteData.js'
 import { connectionsOf, RemoteConnections, type RelationRequirement } from './requirement.js'
@@ -188,7 +189,7 @@ export const explain = <Domain extends AnyDomain, Name extends string, Input>(
 }
 
 /**
- * Why a read shows what it shows. Any Remote read: `Data.get`, `Data.live`
+ * Why a read shows what it shows. Any Remote read: `Data.get`, `live`
  * or `Data.query`, or a projection made of them.
  *
  * `because` is every fact the Model holds about what it reads, as typed
@@ -236,7 +237,7 @@ export const why = <Domain extends AnyDomain>(
     asked.connections.some(connection => connection.live === true)
   const streams: ReadonlyArray<Why> = live
     ? reading.flatMap(({ entry }): ReadonlyArray<Why> =>
-        Match.valueTags(domain.liveStatus(model, entry), {
+        Match.valueTags(liveStatus(domain, model, entry), {
           Idle: () => [],
           Live: () => [],
           Reconnecting: ({ attempt, error }) => [

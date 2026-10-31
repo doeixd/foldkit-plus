@@ -42,6 +42,7 @@ import {
   Registry,
 } from './domain.js'
 import { ProductSort, ProductsQuery } from './operations.js'
+import { live } from 'foldkit-remote/live'
 
 /** A description as typed: its spaces around dropped, and something left. */
 const Description = Schema.Trim.pipe(
@@ -411,7 +412,7 @@ const LiveRows = Data.active('ProductsLive', model => {
     followed = {
       key,
       projection: Projection.struct(
-        Object.fromEntries(ids.map(id => [id, Data.live(ProductRow, id)])),
+        Object.fromEntries(ids.map(id => [id, live(Data, ProductRow, id)])),
       ),
     }
   }

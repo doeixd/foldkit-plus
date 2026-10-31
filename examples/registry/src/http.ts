@@ -1,6 +1,6 @@
 /**
  * The server on one port: Remote's reads and live streams at `/remote`,
- * reached by `Remote.httpWithLive`, and the edits' journal at `/sync`, a WebSocket the replica
+ * reached by `httpWithLive` (`foldkit-remote/live`), and the edits' journal at `/sync`, a WebSocket the replica
  * exchanges over. Authentication would choose the principal here; this
  * example has none.
  */

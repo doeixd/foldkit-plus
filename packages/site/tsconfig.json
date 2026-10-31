@@ -23,6 +23,7 @@
       "foldkit-primitives/time": ["../primitives/src/time/index.ts"],
       "foldkit-remote": ["../remote/src/index.ts"],
       "foldkit-remote/filter": ["../remote/src/filter.ts"],
+      "foldkit-remote/live": ["../remote/src/live.ts"],
       "foldkit-remote/outbox": ["../remote/src/outbox.ts"],
       "foldkit-remote/overlay": ["../remote/src/overlay.ts"],
       "foldkit-remote/persistence": ["../remote/src/persistence.ts"],

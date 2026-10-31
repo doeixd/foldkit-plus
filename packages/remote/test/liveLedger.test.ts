@@ -11,12 +11,15 @@ import { Entity as DomainEntity } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Remote, isTombstone, type RemoteMessage } from '../src/index.js'
+import { live } from '../src/live.js'
 
 const Post = DomainEntity.define('Post', Schema.Struct({ id: Schema.String, body: Schema.String }))
 const Model = Schema.Struct({ remote: Remote.Model })
 type Model = typeof Model.Type
 const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
 const Data = Remote.make({ model: App.model.remote, entities: [Post] })
+// Live events reach a domain that reads a row live.
+live(Data, DomainEntity.select(Post, { body: true }), 'p0')
 
 const down = { _tag: 'RemoteLiveError', message: 'down' } as const
 const broken = (stream: string): RemoteMessage => ({

@@ -141,8 +141,9 @@ const Authors = Crud.list('Authors', {
   query: AuthorsQuery, // Query.make('Authors', { Input: { search }, Result: Query.connection(Blog.Author) })
   selection: Entity.select(Blog.Author, { id: true, name: true }),
   pageSize: 25,
-  // Read live while shown: rows written elsewhere join and leave it (the
-  // server's live source must serve the query; see remote.md).
+  // Read live while shown, through `liveQuery` from foldkit-remote/live: rows
+  // written elsewhere join and leave it (the server's live source must serve
+  // the query; see remote.md).
   live: true,
   // How a row reads as a choice, for a list that feeds relation pickers.
   choice: { value: row => row.id, label: row => row.name },

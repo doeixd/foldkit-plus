@@ -1472,7 +1472,7 @@ the journal's sequence, so such a table should not also take writes that
 
 Given `{ live: hub }`, it tells that `liveHub` of each edit it applied (the
 member and the revision), so a Remote reader following the row with
-`Data.live` hears a settled edit as the journal applies it, with no refresh.
+`live(Data, …)` hears a settled edit as the journal applies it, with no refresh.
 An edit the row had already passed, run again by recovery, is not told. The
 hub is in-memory, so this reaches readers of the same process; across
 Workers requests, a live source reads the table instead.
@@ -1842,7 +1842,7 @@ subscribed row through the Source as a read answers the subscriber
 (`RemoteServer.readAs`: the Source's `authorize` and `filter` applied) and
 sending a patch for what moved. A member the subscriber may not read is never
 sent, and a row it can no longer read is sent as deleted. A list the page
-reads live (`Data.query(…, { live: true })`) is diffed too, so a row written
+reads live (`liveQuery(Data, …)`) is diffed too, so a row written
 elsewhere joins or leaves it: the handler admits the list and runs its
 registered query as the subscriber, with the page's window, and `pollLive`
 compares each listed row by the fields the read selects (a paged relation is
@@ -1874,6 +1874,7 @@ const Data = Remote.make({ model: App.model.remote, entities: [Todo], queries: [
 
 ```ts
 import { pollLive, rowChangeLog, rowLog } from 'foldkit-remote-drizzle'
+import { liveQuery } from 'foldkit-remote/live'
 
 const TodoLive = pollLive(TodoSource, { changes: rowLog(Db.Todo) })
 
@@ -1881,7 +1882,7 @@ const TodoLive = pollLive(TodoSource, { changes: rowLog(Db.Todo) })
 const statements = rowChangeLog(Db.Todo)
 
 // The page: the list, read live while a Surface shows it. It needs a `first`.
-Data.query(AllTodos, {}, { select: TodoRow, first: 50, live: true })
+liveQuery(Data, AllTodos, {}, { select: TodoRow, first: 50 })
 ```
 
 A stream reads each list silently when it opens, then sends

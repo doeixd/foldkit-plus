@@ -33,6 +33,7 @@ import {
   type RemoteMessage,
 } from '../src/index.js'
 import { lift, overlay } from '../src/overlay.js'
+import { live, observeLive } from '../src/live.js'
 
 const User = Entity.make('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
 const Project = Entity.make(
@@ -479,12 +480,12 @@ describe('Data.confirmed reads past what is only pending', () => {
   })
 })
 
-describe('Data.live and Data.subscriptions', () => {
+describe('live and Data.subscriptions', () => {
   const summary = Project.select({ name: true })
   const Page = App.surface('Page', {
     params: { projectId: Schema.String },
     model: ({ params }) => ({
-      project: Data.live(summary, params.projectId),
+      project: live(Data, summary, params.projectId),
       owner: Data.get(User.select({ name: true }), 'u1'),
     }),
   })
@@ -498,7 +499,7 @@ describe('Data.live and Data.subscriptions', () => {
   const at = (route: string): Model => ({ route, remote: Remote.initial })
 
   it('live marks the projection’s requirements; get does not; the mark survives Projection.struct', () => {
-    expect(requirementsOf(Data.live(summary, 'p1'))).toEqual([
+    expect(requirementsOf(live(Data, summary, 'p1'))).toEqual([
       { entity: 'Project', id: 'p1', fields: ['name'], live: true },
     ])
     expect(requirementsOf(Data.get(summary, 'p1'))).toEqual([
@@ -510,11 +511,11 @@ describe('Data.live and Data.subscriptions', () => {
       ['Project', true],
       ['User', undefined],
     ])
-    expect(Data.live(summary, 'p1').read(initial)).toEqual({ _tag: 'Initial' })
+    expect(live(Data, summary, 'p1').read(initial)).toEqual({ _tag: 'Initial' })
   })
 
   it('the plan never carries the mark to the wire', () => {
-    expect(Data.plan(initial, Data.live(summary, 'p1'))).toEqual([
+    expect(Data.plan(initial, live(Data, summary, 'p1'))).toEqual([
       { entity: 'Project', id: 'p1', fields: ['name'] },
     ])
   })
@@ -729,7 +730,7 @@ describe('what runs on every Model change is built once', () => {
   it('the RemoteData and Page schemas for a selection are shared across projections', () => {
     const summary = Project.select({ name: true })
     expect(Data.get(summary, 'p1').Model).toBe(Data.get(summary, 'p2').Model)
-    expect(Data.live(summary, 'p1').Model).toBe(Data.get(summary, 'p1').Model)
+    expect(live(Data, summary, 'p1').Model).toBe(Data.get(summary, 'p1').Model)
     const page = () => Data.query(ProjectsByOwner, { ownerId: 'u1' }, { select: summary, first: 2 })
     expect(page().Model).toBe(page().Model)
     expect(RemoteData.schema(summary.schema)).toBe(RemoteData.schema(summary.schema))
@@ -806,7 +807,7 @@ describe('what runs on every Model change is built once', () => {
       params: { projectId: Schema.String },
       model: ({ params }) => {
         built += 1
-        return { project: Data.live(Project.select({ name: true }), params.projectId) }
+        return { project: live(Data, Project.select({ name: true }), params.projectId) }
       },
     })
     const subscriptions = Data.subscriptions({
@@ -837,7 +838,7 @@ describe('an unregistered descriptor is an error naming it and the domain', () =
     // @ts-expect-error Team is not registered (branded: `Entity "Team" is not registered …`)
     expect(() => Data.get(Team.select({ id: true }), 't1')).toThrow(message)
     // @ts-expect-error nor for live
-    expect(() => Data.live(Team.select({ id: true }), 't1')).toThrow(message)
+    expect(() => live(Data, Team.select({ id: true }), 't1')).toThrow(message)
     // @ts-expect-error nor for the kernel form
     expect(() => Remote.select(Data, Team.select({ id: true }))).toThrow(message)
     expect(Data.get(Project.select({ id: true }), 'p1').read(initial)).toEqual({ _tag: 'Initial' })
@@ -1132,12 +1133,12 @@ describe('Data.query reads a connection as a page of selected items', () => {
     it('leaves live subscriptions as they are', () => {
       const loaded = read(initial, ['p1'])
       const Live = App.surface('RefreshLive', {
-        model: () => ({ project: Data.live(summary, 'p1') }),
+        model: () => ({ project: live(Data, summary, 'p1') }),
       })
-      const live = Remote.live(Data, Live, undefined)
+      const watching = observeLive(Data, Live, undefined)
 
-      expect(live.modelToDependencies(Data.refresh(loaded, Live))).toEqual(
-        live.modelToDependencies(loaded),
+      expect(watching.modelToDependencies(Data.refresh(loaded, Live))).toEqual(
+        watching.modelToDependencies(loaded),
       )
     })
 

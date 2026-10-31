@@ -59,7 +59,7 @@ Add -> NameNote (id) -> Data.mutate(AddNote)   the note, in its place, and its a
     -> the answer, reduced into the Model; another member's page hears it from pollLive
 ```
 
-The notebook reads its list live (`Data.query(Notes, {}, { …, live: true })`):
+The notebook reads its list live (`liveQuery(Data, Notes, {}, { … })`):
 the page's stream names the list as its read does, and the Worker's `pollLive`
 re-reads it inside that stream's own request.
 

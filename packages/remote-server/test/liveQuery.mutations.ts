@@ -4,6 +4,9 @@
  */
 const server = '../src/index.ts'
 const client = '../../remote/src/index.ts'
+const entry = '../../remote/src/liveEntry.ts'
+const liveState = '../../remote/src/liveState.ts'
+const live = '../../remote/src/live.ts'
 const requirement = '../../remote/src/requirement.ts'
 const poll = '../../remote-drizzle/src/poll.ts'
 const crud = '../../crud/src/index.ts'
@@ -17,7 +20,7 @@ export default [
     edits: [
       {
         file: client,
-        find: 'live === true ? { ...contract.requirement, live } : contract.requirement',
+        find: 'live ? { ...contract.requirement, live } : contract.requirement',
         replace: 'contract.requirement',
       },
     ],
@@ -28,7 +31,7 @@ export default [
     edits: [
       {
         file: client,
-        find: 'if (live === true && window.first === undefined) {',
+        find: 'if (live && window.first === undefined) {',
         replace: 'if (false) {',
       },
     ],
@@ -38,7 +41,7 @@ export default [
     name: 'the live entry subscribes no list',
     edits: [
       {
-        file: client,
+        file: entry,
         find: 'connection.live === true ? [Result.getOrThrow(parsedQueryRequest(connection))] : []',
         replace: '[]',
       },
@@ -49,7 +52,7 @@ export default [
     name: 'the live entry subscribes every list, live or not',
     edits: [
       {
-        file: client,
+        file: entry,
         find: 'connection.live === true ? [Result.getOrThrow(parsedQueryRequest(connection))] : []',
         replace: '[Result.getOrThrow(parsedQueryRequest(connection))]',
       },
@@ -60,9 +63,9 @@ export default [
     name: 'a stream of lists alone opens nothing',
     edits: [
       {
-        file: client,
-        find: 'if (requirements.length === 0 && queries.length === 0) return Stream.empty',
-        replace: 'if (requirements.length === 0) return Stream.empty',
+        file: entry,
+        find: 'dependencies.requirements.length === 0 && dependencies.queries.length === 0',
+        replace: 'dependencies.requirements.length === 0',
       },
     ],
     tests: [...clientTests, ...serverTests],
@@ -70,7 +73,11 @@ export default [
   {
     name: 'two lists share one stream key',
     edits: [
-      { file: client, find: '    ...queries.map(query => stableStringify(query)),\n', replace: '' },
+      {
+        file: liveState,
+        find: '    ...queries.map(query => stableStringify(query)),\n',
+        replace: '',
+      },
     ],
     tests: clientTests,
   },
@@ -78,9 +85,9 @@ export default [
     name: 'liveStatus sees no list',
     edits: [
       {
-        file: client,
-        find: 'if (live.requirements.length === 0 && live.queries.length === 0) return',
-        replace: 'if (live.requirements.length === 0) return',
+        file: live,
+        find: 'if (asked.requirements.length === 0 && asked.queries.length === 0) return',
+        replace: 'if (asked.requirements.length === 0) return',
       },
     ],
     tests: clientTests,
@@ -106,8 +113,8 @@ export default [
     edits: [
       {
         file: crud,
-        find: '{ select: selection, first: pageSize, live }',
-        replace: '{ select: selection, first: pageSize }',
+        find: '? liveQuery<Root>(data, query, value, { select: selection, first: pageSize })',
+        replace: '? data.query(query, value, { select: selection, first: pageSize })',
       },
     ],
     tests: ['packages/crud/test/list.test.ts'],

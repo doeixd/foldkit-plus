@@ -7,13 +7,15 @@
 import { Option } from 'effect'
 import type { Capabilities } from './capability.js'
 import { layers } from './layers.js'
+import { liveReads } from './liveReads.js'
 import { reduceIn, type RemoteMessage, type RemoteModel } from './model.js'
 
-// The reducer reads only the layer capability; the write capability binds a domain's methods.
+// The reducer reads the layer and live capabilities; the write capability binds a domain's methods.
 const everything: Capabilities = {
   domain: 'updateRemote',
   layers: Option.some(layers),
   writes: Option.none(),
+  live: Option.some(liveReads),
 }
 
 /**

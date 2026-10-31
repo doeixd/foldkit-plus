@@ -9,6 +9,7 @@ import { Entity as DomainEntity, Expr, Order } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { ConnectionChange, Query, Remote, RemoteData, type NormalizedPatch } from '../src/index.js'
+import { live as readLive } from '../src/live.js'
 import { lift, overlay } from '../src/overlay.js'
 import { filtered } from '../src/filter.js'
 
@@ -43,6 +44,8 @@ const Data = Remote.make({
   entities: [Project],
   queries: [ByStatus, ByName],
 })
+// Live events reach a domain that reads a row live.
+readLive(Data, Summary, 'p0')
 
 const active = Data.query(ByStatus, { status: 'active' }, { select: Summary, first: 25 })
 const archived = Data.query(ByStatus, { status: 'archived' }, { select: Summary, first: 25 })

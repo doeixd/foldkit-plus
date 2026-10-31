@@ -1,5 +1,5 @@
 /**
- * A list read live (#270): `Data.query(…, { live: true })` subscribes the
+ * A list read live (#270): `liveQuery(Data, …)` subscribes the
  * list as its read sends it, beside the rows read live, with no row of its
  * own to name.
  */
@@ -9,6 +9,7 @@ import { Entity, Order } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Query, Remote, RemoteClient, Requirement, type RemoteMessage } from '../src/index.js'
+import { liveQuery, liveStatus } from '../src/live.js'
 
 const Item = Entity.define('Item', Schema.Struct({ id: Schema.String, name: Schema.String }))
 const All = Query.define('All', { tag: Schema.String }, () =>
@@ -23,7 +24,11 @@ const Data = Remote.make({ model: App.model.remote, entities: [Item], queries: [
 
 const listed = (tag: string, live: boolean) =>
   Data.active(`List ${tag} ${live}`, () =>
-    Option.some(Data.query(All, { tag }, { select: Row, first: 10, live })),
+    Option.some(
+      live
+        ? liveQuery(Data, All, { tag }, { select: Row, first: 10 })
+        : Data.query(All, { tag }, { select: Row, first: 10 }),
+    ),
   )
 const red = listed('red', true)
 const blue = listed('blue', true)
@@ -90,12 +95,13 @@ describe('a list read live', () => {
   })
 
   it('is watched by Data.liveStatus, and a list read without live is idle', () => {
-    expect(Data.liveStatus(initial, red)).toEqual({ _tag: 'Live' })
-    expect(Data.liveStatus(initial, still)).toEqual({ _tag: 'Idle' })
+    expect(liveStatus(Data, initial, red)).toEqual({ _tag: 'Live' })
+    expect(liveStatus(Data, initial, still)).toEqual({ _tag: 'Idle' })
   })
 
   it('needs a size, since it is read again every tick', () => {
-    expect(() => Data.query(All, { tag: 'red' }, { select: Row, live: true })).toThrow(
+    // @ts-expect-error a list read live needs `first`
+    expect(() => liveQuery(Data, All, { tag: 'red' }, { select: Row })).toThrow(
       'is read live without first',
     )
   })

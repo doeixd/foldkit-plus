@@ -6,15 +6,25 @@
  * never makes one never loads it. While the Model holds no layer the read core
  * reads the committed store directly, which is what the visible store is then.
  */
-import { Option } from 'effect'
+import { Option, type Stream } from 'effect'
 import type { ExprContext, EntityRef, MemoryOperators } from 'foldkit-entity'
+import type { RemoteClient } from './client.js'
 import { items, type Connection, type Edge } from './connection.js'
 import type { NamedProjection } from './active.js'
 import type { HeldConnection } from './impact.js'
-import type { BoundRemote, DomainMutateOptions, MutationStarted } from './index.js'
+import type {
+  BoundRemote,
+  DomainMutateOptions,
+  LiveDependencies,
+  LiveOptions,
+  MutationStarted,
+} from './index.js'
+import type { applyConnectionEvent, applyEntityEvent } from './liveEvents.js'
+import type { LiveEvent } from './liveState.js'
 import type { RemoteModel } from './model.js'
 import type { MutationDescriptor } from './mutationDescriptor.js'
 import type { MutationAnswer, MutationState } from './ledger.js'
+import type { RemoteMessage } from './model.js'
 import type {
   ConnectionChange,
   ConnectionOverlay,
@@ -22,6 +32,7 @@ import type {
   OptimisticOperation,
   OptimisticState,
 } from './optimistic.js'
+import type { LivePolicy } from './query.js'
 import { entityKey, isTombstone, type EntityKey, type EntityStore } from './store.js'
 
 /** Where a bound domain holds what its declarations installed. */
@@ -35,12 +46,15 @@ export interface Capabilities {
   layers: Option.Option<LayerCapability>
   /** `mutate` and `retry`; installed by a Mutation the domain registers. */
   writes: Option.Option<WriteCapability>
+  /** Live streams and their events; installed by a live read (`foldkit-remote/live`). */
+  live: Option.Option<LiveCapability>
 }
 
 export const noCapabilities = (domain: string): Capabilities => ({
   domain,
   layers: Option.none(),
   writes: Option.none(),
+  live: Option.none(),
 })
 
 /** Where a declaration holds what it installs on a domain that registers it. */
@@ -152,6 +166,39 @@ export interface WriteCapability {
     context: WriteContext<AppModel, Store>,
   ) => WriteMethods<AppModel>
 }
+
+/** The live capability: a live stream, and what its events do to the Model. */
+export interface LiveCapability {
+  readonly applyEntity: typeof applyEntityEvent
+  readonly applyConnection: typeof applyConnectionEvent
+  /**
+   * What to do with a row a live event inserts into a list: none for the
+   * position the event names, `ignore` where the list's body says the row
+   * does not belong, and the query's declared policy otherwise.
+   */
+  readonly policy: (
+    lists: Lists,
+    visible: EntityStore,
+    event: LiveEvent,
+    context: ExprContext,
+  ) => LivePolicy | undefined
+  /** The stream a live entry runs for what it asks, each event a `LiveReceived`. */
+  readonly stream: <Message>(
+    dependencies: LiveDependencies,
+    toMessage: (message: RemoteMessage) => Message,
+    options: LiveOptions,
+  ) => Stream.Stream<Message, never, RemoteClient>
+}
+
+/** The live capability, which the live read that asked for a stream installed. */
+export const liveIn = (capabilities: Capabilities): LiveCapability =>
+  Option.getOrThrowWith(
+    capabilities.live,
+    () =>
+      new Error(
+        `Remote: domain "${capabilities.domain}" receives a live event or asks for a live stream, but nothing read it live: read through live, liveQuery or observeLive from foldkit-remote/live`,
+      ),
+  )
 
 /** The layer capability, which whatever made the Model's layers installed. */
 export const layersIn = (capabilities: Capabilities): LayerCapability =>

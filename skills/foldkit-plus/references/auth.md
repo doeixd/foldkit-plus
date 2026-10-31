@@ -40,7 +40,7 @@ const server = RemoteServer.make<Option.Option<{ readonly id: string }>>({ entit
 ```ts
 import { Effect } from 'effect'
 import { AuthServer } from 'foldkit-auth/server'
-import { Remote } from 'foldkit-remote'
+import { httpWithLive } from 'foldkit-remote/live'
 import { serveFetch } from 'foldkit-remote-server/fetch'
 
 const http = { origin: 'https://app.example' } as const // the options given Http.make(AppAuth, http)
@@ -56,7 +56,7 @@ export const remote = serveFetch({
 })
 
 // the client: Origin comes with every POST; the CSRF header is yours to send
-const transport = Remote.httpWithLive('/remote', {
+const transport = httpWithLive('/remote', {
   headers: () => ({ 'x-effect-auth-csrf': '1' }),
 })
 ```

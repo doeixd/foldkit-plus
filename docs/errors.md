@@ -165,7 +165,7 @@ send:
 | `RemoteReadError`, `RemoteQueryError` | the server failed the request: its Source (its message), or a request larger than it takes | may work; a request too large will not |
 | `RemoteMutationError` | a mutation failed: the server's Source (its message), the mutation's declared refusal (`refusal`, which `Data.refusal` decodes), or a request larger than the server takes (a 413) | may work; a refusal or a request too large will not, with the same input |
 | `Unreachable` | a read, a query or a mutation nothing answered: it could not be sent, what came back was no answer (a gateway's 502 page), or none came within the deadline; a mutation may or may not have run | may work; a write as the same write (`Data.retry`), which a ledgered writer answers from its record; a durable write is sent again on its own |
-| `RemoteLiveError` | a live stream broke; `Data.liveStatus` carries it while the stream restarts itself | not needed |
+| `RemoteLiveError` | a live stream broke; `liveStatus(Data, …)` carries it while the stream restarts itself | not needed |
 | `RemoteProtocolError` | client and server speak different protocol versions | never: deploy one version |
 | `DecodeError` | what the server sent does not decode against the Selection | never: the shapes disagree |
 | `Unavailable` | the server settled a selected field without a value | never: select without it |
@@ -181,7 +181,7 @@ never hides the rows already shown.
 
 A broken live stream is not a failed read. It records a gap, keeps what the
 server last said, and restarts on its own with backoff, refetching what it
-covered; `Data.liveStatus(model, active)` reads `Reconnecting` with the error
+covered; `liveStatus(Data, model, active)` reads `Reconnecting` with the error
 meanwhile. A stream the server refuses for what it asks (`RemoteLiveRefused`,
 over `maxIdsPerEntity`) is not restarted: it reads `Refused` until its
 requirements change. See [When a stream breaks](../packages/remote/README.md#when-a-stream-breaks).

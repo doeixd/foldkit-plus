@@ -275,6 +275,38 @@ On the Entity side, the `Entity` object reaches `invariant`, which imports
      `matching` and Entity's `evaluate`) is a capability a query descriptor
      installs only when its body (a filter or an order) needs it, as a
      Mutation descriptor carries writes.
+   **Outbox and persistence built (2026-10-31).** `outbox` and
+   `outboxStatus` (`outbox.ts`) and `persistence` (`persistence.ts`) are
+   functions of entries of their own over the domain's registry, store and
+   `reduce`. The store, locks and sending moved to `outboxStore.ts`; the
+   queue as the Model holds it to `queue.ts`, so the reducer's outbox
+   bookkeeping (a durable `mutate`, `dismiss`, `OutboxRead`) stays in the
+   core, as the ledger did in 4b, and imports none of them. `mergeStores`
+   moved to `store.ts`. The read-only Remote page's `foldkit-remote` went
+   from 245.1 kB to 221.7 kB (rendered, from source).
+   **Live built (2026-10-31).** `live.ts` is the entry: `live`,
+   `liveQuery`, `liveStatus`, `observeLive` (was `Remote.live`) and
+   `httpWithLive`. The live capability (`liveReads.ts`: the stream, applying
+   events from `liveEvents.ts`, and a live insert's policy, which runs
+   `matching`) is installed with the layer capability by whatever reads
+   live; the reducer's `LiveReceived` case and `Data.reduce`'s policy reach
+   it through the slot, and refuse a live event on a domain that installed
+   none. What the core keeps is light: the Model's live shapes
+   (`liveState.ts`) and the entry's dependencies (`liveEntry.ts`). One
+   departure from the decision above: `subscriptions` still gives every
+   active entry its `.live` entry, holding no live code. A live read is
+   usually made inside a Surface's `model`, when its read entry first runs,
+   which is after `subscriptions` was called, so an entry added only when the
+   capability was installed would be missing for good; the stream the entry
+   asks for is the capability's, installed before any ask can name a row to
+   watch. `RemoteClient.live` stays on the RPC clients: what it keeps is
+   `liveEventOf` in `client.ts` (3.1 kB in all), not worth a second client
+   shape. `Remote` stays an object: `httpWithLive` left it, so `sse.js`
+   needs no namespace. `foldkit-crud`'s `Crud.list` reads a live list through
+   `liveQuery`, so a page with Crud keeps the live code. The read-only page's
+   `foldkit-remote` went from 221.7 kB to 199.8 kB, and `foldkit-entity`'s
+   from 101.1 kB to 83.6 kB: no `layers`, `optimistic`, `live*` or `sse`,
+   and no Entity `write`.
    What is left after 4 on the read-only page: `layers`, `optimistic`,
    `impact`, `placing`, `matching`, `placement`, `answerGaps` (the answer
    checks in `Data.reduce`), `live`, `outbox`, `persistence` and `sse` of

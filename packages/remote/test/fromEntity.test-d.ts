@@ -11,6 +11,7 @@ import {
   type RemoteData,
   type SelectionValueOf,
 } from '../src/index.js'
+import { live } from '../src/live.js'
 
 const User = Domain.define('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
 const Project = Domain.define(
@@ -102,7 +103,7 @@ Entity.from(Domain.define('Keyless', Schema.Struct({ name: Schema.String })))
   const Title = Domain.select(Post, { title: true })
 
   Data.get(Title, PostId.make('p1'))
-  Data.live(Title, PostId.make('p1'))
+  live(Data, Title, PostId.make('p1'))
   // @ts-expect-error an AuthorId does not read a Post
   Data.get(Title, AuthorId.make('a1'))
   // @ts-expect-error nor does any text

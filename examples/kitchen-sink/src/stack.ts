@@ -41,6 +41,7 @@ import {
   type Sync as SyncContract,
   type TransportClient,
 } from 'foldkit-sync'
+import { live } from 'foldkit-remote/live'
 
 // ---------------------------------------------------------------------------
 // The Drizzle-backed Remote domain
@@ -249,7 +250,7 @@ export const Data = Remote.make({
  */
 export const BoardSurface = App.surface('Board', {
   model: ({ model }) => ({
-    project: Data.live(ProjectSummary, 'p1'),
+    project: live(Data, ProjectSummary, 'p1'),
     notes: model.notes,
     selectedNoteId: model.selectedNoteId,
   }),

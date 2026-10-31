@@ -19,6 +19,7 @@ import { Entity as DomainEntity, Expr, Order } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Query, Remote, entityKey, type QueryProjection } from '../src/index.js'
+import { liveQuery } from '../src/live.js'
 
 const Project = DomainEntity.define(
   'Project',
@@ -65,9 +66,9 @@ const Data = Remote.make({
 /** Either connection, so the helpers are not pinned to one query's name. */
 type Projection = QueryProjection<Model, { readonly id: string; readonly name: string }, string, {}>
 
-const projects: Projection = Data.query(ActiveProjects, {}, { select: Summary, first: 25 })
-const quiet: Projection = Data.query(QuietProjects, {}, { select: Summary, first: 25 })
-const refetched: Projection = Data.query(RefetchedProjects, {}, { select: Summary, first: 25 })
+const projects: Projection = liveQuery(Data, ActiveProjects, {}, { select: Summary, first: 25 })
+const quiet: Projection = liveQuery(Data, QuietProjects, {}, { select: Summary, first: 25 })
+const refetched: Projection = liveQuery(Data, RefetchedProjects, {}, { select: Summary, first: 25 })
 const key = (id: string) => entityKey('Project', id)
 
 /** A loaded connection holding `p1`, plus whatever else is written. */

@@ -56,11 +56,11 @@ in its Model, folds Remote's Messages under one variant of its Message union
 (`Remote.fold`) or spreads `Remote.messages` into it, and binds the
 domain with `Remote.make({ model: App.model.remote, entities, … })`. The bound
 `Data` is the application API: a Surface reads through `Data.get`,
-`Data.live`, and `Data.query`; `Data.subscriptions` fetches, subscribes, and
+`live(Data, …)`, and `Data.query`; `Data.subscriptions` fetches, subscribes, and
 retains for the active Surfaces; `update` starts mutations with `Data.mutate`,
 loads more with `Data.more`, and reduces Remote's Messages with
 `Data.reduce`. Each compiles to a kernel function (`Data.get` to
-`Remote.select`, `Data.subscriptions` to `Remote.observe`, `Remote.live` and
+`Remote.select`, `Data.subscriptions` to `Remote.observe`, `observeLive` and
 `Remote.retain`), documented as the package's
 [Advanced](../packages/remote/README.md#advanced-the-kernel) section.
 
@@ -136,7 +136,7 @@ Each active Surface gives a read entry, which plans and fetches only the missing
 fields through `RemoteClient` and emits a `RemoteMessage` (a fully-known Surface
 emits nothing). Its dependencies are plain data: the planned fields, the queries
 to run, and the Model's refresh generation, so Foldkit restarts it when the plan
-changes or a refresh is requested. Each Surface also gives a live entry for what it reads through `Data.live`; one
+changes or a refresh is requested. Each Surface also gives a live entry for what it reads through `live(Data, …)`; one
 retain entry keeps what the active Surfaces reach. SSR, route/hover prefetch,
 and tests reuse the same plan through `Data.prefetch`.
 
@@ -258,7 +258,7 @@ changes are overlays outside the server-known region; a result's confirmed
 `connections` take the place of the request's own, so a temporary edge becomes
 the real one in place.
 
-A list is read live with `live: true` on `Data.query`. A live source that
+A list is read live with `liveQuery` from `foldkit-remote/live`. A live source that
 watches lists (`foldkit-remote-drizzle`'s `pollLive`) runs each list's window
 again as the subscriber and sends the rows that join, change or leave it;
 the server admits at most 32 lists per stream, their `first` counted toward
@@ -271,7 +271,7 @@ subscriber's principal, so authorization and computed fields take the normal
 path and a subscriber selecting none of the fields costs nothing.
 
 Live data is a stream (Effect RPC streaming, a `text/event-stream` through
-`Remote.httpWithLive`, or a port). Each stream has a monotonic cursor:
+`httpWithLive` (`foldkit-remote/live`), or a port). Each stream has a monotonic cursor:
 duplicates are ignored, and an event **ahead** of the cursor is a gap — it is
 not applied. A gap or a broken transport restarts the stream after a backoff and
 refetches what it covers, since no server replays what was missed. Entity events

@@ -164,6 +164,25 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **Breaking: live reads come from `foldkit-remote/live`** (`foldkit-remote`,
+  #378). `Data.live(selection, id)` is `live(Data, selection, id)`;
+  `Data.query(Q, input, { …, live: true })` is `liveQuery(Data, Q, input, {
+  … })`, whose `first` the types now require; `Data.liveStatus(model, active)`
+  is `liveStatus(Data, model, active)`; `Remote.live(bound, surface, params)`
+  is `observeLive(bound, surface, params)`; and `Remote.httpWithLive`,
+  `liveFetch` and `LiveFetchOptions` are exported from `foldkit-remote/live`
+  only, with `LiveStatus`. A live read installs on its domain the live
+  capability (the stream, the events it applies, the policy a live insert
+  takes) and the layer capability a live insert shows; a domain that reads
+  nothing live refuses a `LiveReceived` handed to it, naming itself.
+  `Data.subscriptions` still gives every active entry its `.live` entry, which
+  runs nothing until a live read installed the stream it asks for.
+  `RemoteClient.live` is unchanged: it is the transport's. `Crud.list`'s
+  `live` reads through `liveQuery`. A read-only `Remote.make` page keeps
+  199.8 kB of `foldkit-remote` where it kept 221.7 kB, and 83.6 kB of
+  `foldkit-entity` where it kept 101.1 kB (rendered, built from source); it
+  keeps no layer code, and none of `write.js`.
+
 - **Breaking: the outbox and persistence are functions of entries of their
   own, not domain methods** (`foldkit-remote`, #378). `Data.outbox(options)`
   is `outbox(Data, options)` and `Data.outboxStatus(model)` is

@@ -643,7 +643,7 @@ export interface QuerySource<P, R = never> {
 }
 
 /**
- * A list a subscriber reads live (`Data.query(…, { live: true })`), admitted
+ * A list a subscriber reads live (`liveQuery(Data, …)`), admitted
  * and resolved by `handlers`: what a live source diffs to tell a row that
  * joins, changes or leaves it.
  */

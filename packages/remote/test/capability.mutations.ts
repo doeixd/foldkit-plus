@@ -1,10 +1,12 @@
 /**
- * Where the layer capability is installed (#378), each install taken out:
+ * Where the layer, write and live capabilities are installed (#378), each install taken out:
  * `pnpm mutate packages/remote/test/capability.mutations.ts`.
  */
 const tests = ['packages/remote/test/capability.test.ts']
 const index = '../src/index.ts'
 const overlay = '../src/overlay.ts'
+const live = '../src/live.ts'
+const liveReads = '../src/liveReads.ts'
 
 export default [
   {
@@ -35,14 +37,48 @@ export default [
     tests,
   },
   {
-    name: 'a live insert installs nothing',
+    name: 'live reads install no layers, which a live insert shows',
     edits: [
       {
-        file: index,
-        find: '    if (live !== undefined) installLayers(capabilities)\n',
-        replace: '',
+        file: liveReads,
+        find: '  installLayers(capabilities)\n  capabilities.live',
+        replace: '  capabilities.live',
       },
     ],
+    tests,
+  },
+  {
+    name: 'live reads install no live capability',
+    edits: [
+      { file: liveReads, find: '  capabilities.live = Option.some(liveReads)\n', replace: '' },
+    ],
+    tests,
+  },
+  {
+    name: 'a row read live installs nothing',
+    edits: [
+      {
+        file: live,
+        find: '): Projection<AppModel, RemoteData<Value>> => {\n  installLive(domain[Capability])\n',
+        replace: '): Projection<AppModel, RemoteData<Value>> => {\n',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a list read live installs nothing',
+    edits: [
+      {
+        file: live,
+        find: '): QueryProjection<unknown, unknown, string, unknown> {\n  installLive(domain[Capability])\n',
+        replace: '): QueryProjection<unknown, unknown, string, unknown> {\n',
+      },
+    ],
+    tests: [...tests, 'packages/remote/test/liveBelongs.test.ts'],
+  },
+  {
+    name: 'observeLive installs nothing',
+    edits: [{ file: live, find: '  installLive(bound[Capability])\n', replace: '' }],
     tests,
   },
   {

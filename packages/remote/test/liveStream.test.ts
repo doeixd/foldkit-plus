@@ -17,6 +17,7 @@ import {
   type LiveEvent,
   type RemoteMessage,
 } from '../src/index.js'
+import { observeLive } from '../src/live.js'
 
 const User = Entity.make('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
 const Data = Remote.define({ entities: [User] })
@@ -64,7 +65,7 @@ const toMessage = (message: RemoteMessage): LiveMessageType => {
   }
 }
 
-const entry = Remote.live(AppRemote, UserPage, { userId: 'u1' }, toMessage)
+const entry = observeLive(AppRemote, UserPage, { userId: 'u1' }, toMessage)
 
 const dependencies = entry.modelToDependencies(root)
 
@@ -135,7 +136,7 @@ describe('Remote live subscription', () => {
       mutate: () => Effect.die('unused'),
       live: () => Stream.make(patched),
     })
-    const plain = Remote.live(AppRemote, UserPage, { userId: 'u1' }, undefined, { now: () => 42 })
+    const plain = observeLive(AppRemote, UserPage, { userId: 'u1' }, undefined, { now: () => 42 })
 
     const messages = await Effect.runPromise(
       Stream.runCollect(plain.dependenciesToStream(plain.modelToDependencies(root))).pipe(
@@ -168,7 +169,7 @@ describe('Remote live subscription', () => {
       mutate: () => Effect.die('unused'),
       live: () => Stream.fail(new RemoteLiveError({ message: 'ResumeUnavailable' })),
     })
-    const raw = Remote.live(
+    const raw = observeLive(
       AppRemote,
       UserPage,
       { userId: 'u1' },

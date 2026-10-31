@@ -16,7 +16,7 @@
 import { Result, Schema } from 'effect'
 import type { Focus, Metadata } from 'foldkit-surface'
 import type { Boundary, Connection, Segment } from './connection.js'
-import type { LiveState } from './live.js'
+import type { LiveState } from './liveState.js'
 import type { RemoteModel } from './model.js'
 import { own, put } from './record.js'
 import { targetsOf } from './relation.js'

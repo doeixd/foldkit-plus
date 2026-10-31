@@ -43,6 +43,7 @@ export default [
   linked('remote', [
     'src/index.ts',
     'src/filter.ts',
+    'src/live.ts',
     'src/outbox.ts',
     'src/overlay.ts',
     'src/persistence.ts',

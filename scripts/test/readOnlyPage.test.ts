@@ -138,9 +138,7 @@ describe('a read-only Remote page', () => {
     expect(kept.readOnly.remote).not.toContain('writes.js')
   })
 
-  // A live insert is an overlay, so until live leaves the core (phase 5) the
-  // core's live path installs the layer capability, and keeps it.
-  it.fails('keeps no layer code (#378 phases 4 and 5)', () => {
+  it('keeps no layer code (#378 phases 4 and 5)', () => {
     expect(kept.readOnly.remote).not.toContain('layers.js')
     expect(kept.readOnly.remote).not.toContain('optimistic.js')
     expect(kept.readOnly.entity).not.toContain('write.js')
@@ -152,8 +150,10 @@ describe('a read-only Remote page', () => {
     expect(kept.readOnly.remote).not.toContain('persistence.js')
   })
 
-  it.fails('keeps no live code (#378 phase 5)', () => {
+  it('keeps no live code (#378 phase 5)', () => {
     expect(kept.readOnly.remote).not.toContain('live.js')
+    expect(kept.readOnly.remote).not.toContain('liveReads.js')
+    expect(kept.readOnly.remote).not.toContain('liveEvents.js')
     expect(kept.readOnly.remote).not.toContain('sse.js')
   })
 

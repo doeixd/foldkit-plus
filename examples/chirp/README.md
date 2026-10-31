@@ -169,5 +169,5 @@ icons are Lucide's, imported by name through `foldkit-media/vite`
   here once the list is read again (a reload, or a minute after it was read:
   every read is fresh for a minute, `freshness` in `src/app.ts`, so going
   back to a page within it asks nothing), though both tabs share one server.
-  A list read live (`Data.query(…, { live: true })` over a live source) would
+  A list read live (`liveQuery(Data, …)` over a live source) would
   follow it; `examples/reference` shows one.

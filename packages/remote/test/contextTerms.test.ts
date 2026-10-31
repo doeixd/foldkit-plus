@@ -9,6 +9,7 @@ import { Entity as DomainEntity, Expr, Order, QueryEvaluateError } from 'foldkit
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Query, Remote, entityKey, matching, writeEntity, emptyStore } from '../src/index.js'
+import { liveQuery } from '../src/live.js'
 
 const User = DomainEntity.define('User', Schema.Struct({ id: Schema.String }))
 const Note = DomainEntity.define(
@@ -49,7 +50,7 @@ const notes = [
 
 /** `query`'s list holding `n1`, every note read, and `id` inserted live at its head. */
 const inserted = (query: typeof Mine | typeof Due, id: string): ReadonlyArray<string> => {
-  const list = Data.query(query, {}, { select: Card, first: 25 })
+  const list = liveQuery(Data, query, {}, { select: Card, first: 25 })
   const merged = Data.reduce(
     { remote: Remote.initial, me: 'ada' },
     {

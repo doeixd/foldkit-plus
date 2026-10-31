@@ -25,6 +25,7 @@
       "foldkit-remote-server/fetch": ["../../../packages/remote-server/src/fetch.ts"],
       "foldkit-remote-server/port": ["../../../packages/remote-server/src/port.ts"],
       "foldkit-remote/filter": ["../../../packages/remote/src/filter.ts"],
+      "foldkit-remote/live": ["../../../packages/remote/src/live.ts"],
       "foldkit-remote/outbox": ["../../../packages/remote/src/outbox.ts"],
       "foldkit-remote/overlay": ["../../../packages/remote/src/overlay.ts"],
       "foldkit-remote/persistence": ["../../../packages/remote/src/persistence.ts"],

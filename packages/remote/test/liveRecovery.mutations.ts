@@ -5,6 +5,9 @@
 const tests = ['packages/remote/test/liveRecovery.test.ts']
 const model = '../src/model.ts'
 const index = '../src/index.ts'
+const entry = '../src/liveEntry.ts'
+const reads = '../src/liveReads.ts'
+const live = '../src/live.ts'
 
 export default [
   {
@@ -72,7 +75,7 @@ export default [
     name: 'a break does not restart the entry',
     edits: [
       {
-        file: index,
+        file: entry,
         find: '    restarts: Schema.Number,\n',
         replace: '    restarts: resumeCursor,\n',
       },
@@ -83,7 +86,7 @@ export default [
     name: 'an applied event restarts the entry',
     edits: [
       {
-        file: index,
+        file: entry,
         find: '    failures: resumeCursor,\n',
         replace: '    failures: Schema.Number,\n',
       },
@@ -94,7 +97,7 @@ export default [
     name: 'a restart refetches nothing',
     edits: [
       {
-        file: index,
+        file: reads,
         find: "      toMessage({ _tag: 'RefreshStarted', requests: requirements }),\n",
         replace: '',
       },
@@ -104,7 +107,11 @@ export default [
   {
     name: 'a restart leaves the gap open',
     edits: [
-      { file: index, find: "      toMessage({ _tag: 'GapCleared', stream }),\n", replace: '' },
+      {
+        file: reads,
+        find: "        toMessage({ _tag: 'GapCleared', stream: key }),\n",
+        replace: '',
+      },
     ],
     tests,
   },
@@ -112,7 +119,7 @@ export default [
     name: 'the backoff does not grow',
     edits: [
       {
-        file: index,
+        file: reads,
         find: 'base * 2 ** Math.min(Math.max(failures, 1) - 1, 30)',
         replace: 'base',
       },
@@ -122,7 +129,7 @@ export default [
   {
     name: 'the backoff has no ceiling',
     edits: [
-      { file: index, find: 'Math.min(max, base * 2 **', replace: 'Math.min(Infinity, base * 2 **' },
+      { file: reads, find: 'Math.min(max, base * 2 **', replace: 'Math.min(Infinity, base * 2 **' },
     ],
     tests,
   },
@@ -130,7 +137,7 @@ export default [
     name: 'a restart does not wait',
     edits: [
       {
-        file: index,
+        file: reads,
         find: 'Stream.fromEffect(Effect.sleep(restartDelay(options, failures)))',
         replace: 'Stream.fromEffect(Effect.void)',
       },
@@ -139,14 +146,14 @@ export default [
   },
   {
     name: 'the resubscribe runs beside the gap closing',
-    edits: [{ file: index, find: 'Stream.concat(live),', replace: 'Stream.merge(live),' }],
+    edits: [{ file: reads, find: 'Stream.concat(live),', replace: 'Stream.merge(live),' }],
     tests,
   },
   {
     name: 'a broken stream reads as Live',
     edits: [
       {
-        file: index,
+        file: live,
         find: "? { _tag: 'Reconnecting', attempt: health.failures, error: health.error }",
         replace: "? { _tag: 'Live' }",
       },
@@ -162,9 +169,9 @@ export default [
     name: 'a refused stream reads as Live',
     edits: [
       {
-        file: index,
-        find: "onSome: error => ({ _tag: 'Refused', error }),",
-        replace: "onSome: () => ({ _tag: 'Live' }),",
+        file: live,
+        find: "onSome: (error): LiveStatus => ({ _tag: 'Refused', error }),",
+        replace: "onSome: (): LiveStatus => ({ _tag: 'Live' }),",
       },
     ],
     tests,

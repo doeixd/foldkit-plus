@@ -17,6 +17,7 @@ import {
 import { describe, expect, it } from 'vitest'
 import { serveFetch } from '../src/fetch.js'
 import { RemoteServer } from '../src/index.js'
+import { httpWithLive } from 'foldkit-remote/live'
 
 const Item = Entity.make('Item', Schema.Struct({ id: Schema.String, name: Schema.String }))
 const RenameItem = Mutation.make('RenameItem', {
@@ -259,7 +260,7 @@ describe('serveFetch live', () => {
     const { hub, rename, serve } = fixture()
     const viaServe = (input: string | URL | Request, init?: RequestInit) =>
       serve(new Request(input, init), undefined)
-    const client = Remote.httpWithLive('http://worker.test/remote', {
+    const client = httpWithLive('http://worker.test/remote', {
       fetch: viaServe,
       headers: () => ({ 'x-admin': 'yes' }),
     })

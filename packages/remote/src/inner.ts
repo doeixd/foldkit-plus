@@ -1,9 +1,18 @@
 /**
- * What the entries of their own (`foldkit-remote/why`, `/filter`) read of a
+ * What the entries of their own (`foldkit-remote/why`, `/filter`, `/live`) read of a
  * bound domain that its public face does not offer. Held beside the domain
  * rather than on it, so a page that never calls them keeps none of their code.
  */
 import type { ExprContext } from 'foldkit-entity'
+import type {
+  ActiveEntry,
+  QueryInput,
+  QueryOptions,
+  QueryProjection,
+  QueryEntity,
+} from './index.js'
+import type { LiveAsk } from './liveState.js'
+import type { QueryDescriptor } from './query.js'
 import type { Connection, Edge } from './connection.js'
 import type { RemoteModel } from './model.js'
 import type { WhyReader } from './whyReasons.js'
@@ -20,9 +29,17 @@ export interface Inner<AppModel> {
     identity: string,
     connection: Connection,
   ) => ReadonlyArray<Edge>
+  /** A query read that watches its list live. */
+  readonly liveQuery: <Q extends QueryDescriptor<any, any, any>, Value, Entity extends string>(
+    query: Q,
+    input: QueryInput<Q>,
+    options: QueryOptions<Value, Entity, QueryEntity<Q>>,
+  ) => QueryProjection<AppModel, Value, Q['name'], QueryInput<Q>>
+  /** What an active entry reads live for this Model. */
+  readonly liveAsk: (model: AppModel, active: ActiveEntry<AppModel>) => LiveAsk
 }
 
-const inners = new WeakMap<object, Inner<never>>()
+const inners = new WeakMap<object, unknown>()
 
 /** Records `domain`'s own reading. */
 export const withInner = <Domain extends object, AppModel>(

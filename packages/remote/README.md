@@ -157,7 +157,7 @@ Four roles carry the loop, and most application code needs no more:
 
 | Piece | Responsibility |
 | --- | --- |
-| `Data.get` / `Data.live` / `Data.query` | create pure Projections that declare what a consumer needs |
+| `Data.get` / `live(Data, …)` / `Data.query` | create pure Projections that declare what a consumer needs |
 | `Data.subscriptions` | turn the requirements of **active** Surfaces into reads, live subscriptions, and retention roots |
 | `Data.reduce` | reduce returned Remote Messages into the application's `Remote.Model` |
 | `RemoteClient` | perform the actual read/query/mutate/live I/O |
@@ -676,8 +676,9 @@ server said last time. To see change:
   or a list older than `maxAge`, and nothing younger.
 - **Always**: `RemotePolicy.networkOnly` requests every selected field, cached
   value visible meanwhile.
-- **As it happens**: `Data.live` instead of `Data.get`, or `live: true` on a
-  `Data.query`, with a server that publishes changes; see [Live data](#live-data).
+- **As it happens**: `live(Data, …)` instead of `Data.get`, or `liveQuery(Data,
+  …)` instead of `Data.query`, with a server that publishes changes; see [Live
+  data](#live-data).
 
 A list's age is the page that last answered it whole: its first page, or the
 one that replaced it after it went stale. A later page from "load more" does
@@ -802,7 +803,7 @@ Recursive relations remain finite because the entity schema stores references
 
 [`foldkit-entity`](../entity/README.md) declares a domain without Remote in it:
 fields, relations as navigation edges, derived members. `Remote.make` registers
-those Entities, and `Data.get`, `Data.live`, and a query's `select` take their
+those Entities, and `Data.get`, `live(Data, …)`, and a query's `select` take their
 Selections. Remote compiles both into the descriptor and Selection above, so
 the store, the planner, and the server see nothing new.
 
@@ -827,7 +828,7 @@ const card = Data.get(ProjectCard, 'p1') // Projection<Model, RemoteData<{ name;
 - A relation becomes a ref field: `one` a ref, an optional `one` a nullable ref,
   `many` an array of refs. A derived member becomes a field the server supplies.
 - The Entity needs an `id` field; Remote keys the store by it. When that field
-  is branded, `Data.get` and `Data.live` take that type for an Entity Selection:
+  is branded, `Data.get` and `live(Data, …)` take that type for an Entity Selection:
   another Entity's id, or plain text, does not compile.
 - Register the Entities of one `Entity.relate` result and select from that same
   result; `Object.values(Work)` registers them all.
@@ -873,7 +874,7 @@ Remote never infers presence from `value === undefined`.
 
 ## Reading, policies, and prefetch
 
-`Data.get(selection, id)` returns a pure Projection. `Data.live(selection, id)`
+`Data.get(selection, id)` returns a pure Projection. `live(Data, selection, id)`
 returns the same kind of Projection but marks its requirements as live so
 `Data.subscriptions` also follows server changes.
 
@@ -2153,19 +2154,29 @@ queue of edits.
 
 ## Live data
 
-`Data.live` marks a Projection so active `Data.subscriptions` follow server
-changes for it. A list is marked by its read: `live: true` on `Data.query`
-follows the rows that join, change or leave it, with no row of its own to
-subscribe to:
+Live reads come from `foldkit-remote/live`, an entry of its own: a page that
+reads nothing live keeps none of the code that streams and applies changes.
+`live(Data, selection, id)` is `Data.get` whose Projection active
+`Data.subscriptions` follow server changes for. A list is read live by
+`liveQuery`, which is `Data.query` following the rows that join, change or
+leave it, with no row of its own to subscribe to:
 
 ```ts
-Data.query(Notes, {}, { select: NoteRow, first: 50, live: true })
+import { live, liveQuery } from 'foldkit-remote/live'
+
+const note = live(Data, NoteRow, 'n1')
+const notes = liveQuery(Data, Notes, {}, { select: NoteRow, first: 50 })
 ```
+
+Each installs on the domain the code its live entry runs. A domain that reads
+nothing live refuses a `LiveReceived` handed to it, naming itself, rather than
+apply it with code it never loaded.
 
 A Surface's live entry (`<key>.live`) subscribes the rows and the lists its
 reads mark live in one stream, sending each list as its read sends it (query,
 input, window, `select`). A list read live needs `first`, since a server reads
-it again for every change it checks; `Data.query` throws without one. The
+it again for every change it checks; `liveQuery` without one does not
+type-check, and throws past the types. The
 server admits a stream before it asks any live source: its lists' `first`
 count toward `maxIdsPerEntity` with the rows it follows, and it may carry at
 most `MAX_LIVE_QUERIES` (32) lists; past either it is refused
@@ -2211,11 +2222,11 @@ break -> gap marked, restarts + 1 -> backoff
   live source's to re-send when the stream opens: `pollLive` sends a
   `ConnectionInvalidate` for each list on every open for this reason.
 
-`Data.liveStatus(model, active)` says how what one active entry reads live is
+`liveStatus(Data, model, active)` says how what one active entry reads live is
 doing, for a view that shows it:
 
 ```ts
-Match.value(Data.liveStatus(model, Watched)).pipe(
+Match.value(liveStatus(Data, model, Watched)).pipe(
   Match.tagsExhaustive({
     Idle: () => 'not live',
     Live: () => 'live',
@@ -2520,7 +2531,7 @@ restarts with its backoff, refused again each time, until the application
 signs in again and calls `Data.forget`.
 
 The JSON clients carry no live data. For live data over the same `POST`s,
-`Remote.httpWithLive` keeps reads, queries, and mutations as `http` sends
+`httpWithLive` (`foldkit-remote/live`) keeps reads, queries, and mutations as `http` sends
 them and streams live requirements as a `text/event-stream` of changes;
 [`serveFetch`](../remote-server/README.md#over-fetch-workers) is the other
 end. Abandoning the stream aborts the request, which interrupts the
@@ -2556,7 +2567,7 @@ Over `Remote.rpcProtocolHttp`, a status the server refused with reads as
 call, a 403 a mutation's `RemoteForbidden` and a read's or a query's own
 error, and a 413 the call's own error (`RemoteReadError`, `RemoteQueryError`,
 `RemoteMutationError`). A durable write so refused is settled `Failed`.
-`Remote.json`, `Remote.http` and `Remote.httpWithLive` say the same of a
+`Remote.json`, `Remote.http` and `httpWithLive` (`foldkit-remote/live`) say the same of a
 request they could not send, and of a response that is no Remote answer: a
 body that is not JSON, JSON that is not `{ result }` or `{ error }` (a
 gateway's `{}`), or a response with status 408, 429, 502, 503 or 504, which
@@ -2976,7 +2987,7 @@ read result for callers deliberately managing their own Remote store.
 Remote.observe(bound, surface, params, toMessage?, options?)
   plan + entity reads + query reads
 
-Remote.live(bound, surface, params, toMessage?, options?)
+observeLive(bound, surface, params, toMessage?, options?)   (foldkit-remote/live)
   live streams from the Model-owned cursor
 
 Remote.retain(projections, toMessage?, { connections?, grace? })

@@ -77,7 +77,7 @@ const picked = (
  * accepts it over the guarded source it checks.
  *
  * A stream also diffs each list its subscriber reads live
- * (`Data.query(…, { live: true })`, admitted and run by `handlers` as the
+ * (`liveQuery(Data, …)`, admitted and run by `handlers` as the
  * subscriber reads it): a listed row's change is a patch, a row that joined a
  * patch and then an insert, one that left a delete and then a remove, each by
  * the fields the read selects. Its first read is silent, and then invalidates

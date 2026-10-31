@@ -32,18 +32,18 @@ const partial = (name: string, find: string, replace: string) => ({
 export default [
   partial(
     'a row not yet read hides the whole list',
-    'missing = true\n            continue',
+    'missing = true\n          continue',
     'return undefined',
   ),
   partial(
     'a list with no row read shows an empty page',
-    '          missing &&\n          rows.length === 0 &&',
-    '          false &&',
+    '        missing &&\n        rows.length === 0 &&',
+    '        false &&',
   ),
   partial(
     'a list whose shown rows were deleted reads as never shown',
-    '          !deletedInWindow(',
-    '          !!deletedInWindow(',
+    '        !deletedInWindow(',
+    '        !!deletedInWindow(',
   ),
   partial('a list missing a row reads Ready', 'return refreshing || missing', 'return refreshing'),
   partial(
@@ -60,8 +60,8 @@ export default [
   edit(
     'a list reads Loading while its rows are refetched',
     index,
-    'const read =\n            readPage(remote, connection) ??',
-    'const read =\n            loadingItem(remote, connection) ??\n            readPage(remote, connection) ??',
+    'const read =\n          readPage(remote, connection) ??',
+    'const read =\n          loadingItem(remote, connection) ??\n          readPage(remote, connection) ??',
   ),
   edit(
     'an entity reads Loading while it is refetched',

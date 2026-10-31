@@ -16,6 +16,7 @@ import {
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Query, Remote, entityKey, optimisticOfWrite } from '../src/index.js'
+import { live as readLive } from '../src/live.js'
 import { Answers } from './answers.js'
 import { overlay } from '../src/overlay.js'
 
@@ -50,6 +51,8 @@ const remote = (operators?: MemoryOperators) => {
     queries: [Above],
     ...(operators === undefined ? {} : { operators }),
   })
+  // Live events reach a domain that reads a row live.
+  readLive(Data, Summary, 'p0')
   const list = Data.query(Above, { floor: 5 }, { select: Summary, first: 25 })
   const identity = list.ref.identity
   const key = (id: string) => entityKey('Project', id)
@@ -174,6 +177,8 @@ describe('A list ordered by a call', () => {
       queries: [Nearest],
       ...(operators === undefined ? {} : { operators }),
     })
+    // Live events reach a domain that reads a row live.
+    readLive(Data, Summary, 'p0')
     const list = Data.query(Nearest, { target: 12 }, { select: Summary, first: 25 })
     const identity = list.ref.identity
     // From 12: p1 is 2 away, p2 8 and p3 11.
@@ -306,6 +311,8 @@ describe('A pending computed assignment', () => {
       queries: [],
       ...(operators === undefined ? {} : { operators }),
     })
+    // Live events reach a domain that reads a row live.
+    readLive(Data, Summary, 'p0')
     const stored = Data.reduce(
       { remote: Remote.initial },
       {
@@ -367,6 +374,8 @@ describe('A pending computed assignment', () => {
       queries: [],
       operators: concatTable,
     })
+    // Live events reach a domain that reads a row live.
+    readLive(Data, Summary, 'p0')
     const stored = Data.reduce(
       { remote: Remote.initial },
       {

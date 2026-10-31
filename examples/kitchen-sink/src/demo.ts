@@ -46,6 +46,7 @@ import {
   wiring,
 } from './stack.js'
 import { AppAgent, bindAgent } from './agent.js'
+import { live } from 'foldkit-remote/live'
 
 const describeData = (data: RemoteData<{ readonly name: string }>): string =>
   RemoteData.match(data, {
@@ -121,7 +122,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
   // A live subscription for the Board is registered with the server's hub
   // before the rename, so the patch the mutation answers with reaches it.
   // The Board's Subscription entries, as `Subscription.make` would take them;
-  // the live entry exists because the Board reads the project through `Data.live`.
+  // the live entry exists because the Board reads the project through `live(Data, …)`.
   const liveEntry = Data.subscriptions({ board: BoardSurface })['board.live']
   // `Data.mutate` is what `update` calls: it starts the request in the Model
   // (the id comes from the Model's own sequence) and hands back the Command
@@ -277,7 +278,7 @@ export const runDemo = async (): Promise<ReadonlyArray<string>> => {
     subscriptions: wiring.subscriptions(),
     resources: client,
   })
-  const board = Data.live(ProjectSummary, 'p1')
+  const board = live(Data, ProjectSummary, 'p1')
   const boardRead = await new Promise<string>(resolve => {
     const check = () => {
       const data = board.read(app.host.model())

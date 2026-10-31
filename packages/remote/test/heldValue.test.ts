@@ -45,6 +45,7 @@ import {
   windowGrowthKey,
   type OptimisticOperation,
 } from '../src/index.js'
+import { live as readLive } from '../src/live.js'
 
 const User = DomainEntity.define('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
 const ProjectBase = DomainEntity.define(
@@ -127,6 +128,8 @@ const list = Data.query(All, {}, { select: Named, first: 25 })
 const left = Data.query(ByStatus, { status: 'open' }, { select: Named, first: 25 })
 const project = Data.get(Owned, 'p1')
 const stale = Data.get(DomainEntity.select(Project, { status: true }), 'p2')
+// The walks deliver live events, as a domain that reads a row live hears them.
+readLive(Data, Named, 'p1')
 
 interface Watched {
   readonly name: string

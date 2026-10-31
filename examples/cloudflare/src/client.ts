@@ -12,10 +12,11 @@ import {
   type RemoteJsonClient,
 } from 'foldkit-remote'
 import type { CloudflareStack } from './stack.js'
+import { httpWithLive } from 'foldkit-remote/live'
 
 /** Remote over HTTP with live, posting through `via`. */
 export const remoteClient = (url: string, actor: string, via: typeof fetch): RemoteJsonClient =>
-  Remote.httpWithLive(url, {
+  httpWithLive(url, {
     fetch: via,
     headers: () => ({ 'x-actor': actor }),
   })

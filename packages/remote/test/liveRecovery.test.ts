@@ -18,6 +18,7 @@ import {
   type LiveEvent,
   type RemoteMessage,
 } from '../src/index.js'
+import { live, liveStatus } from '../src/live.js'
 
 const Project = Entity.make('Project', Schema.Struct({ id: Schema.String, name: Schema.String }))
 const summary = Selection.make(Project, { id: true, name: true })
@@ -27,12 +28,12 @@ type Model = typeof Model.Type
 const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
 const Data = Remote.make({ model: App.model.remote, entities: [Project] })
 
-const Watched = Data.active('Watched', () => Option.some(Data.live(summary, 'p1')))
+const Watched = Data.active('Watched', () => Option.some(live(Data, summary, 'p1')))
 const Fetched = Data.active('Fetched', () => Option.some(Data.get(summary, 'p1')))
 const entries = Data.subscriptions({ watched: Watched }, { retryBase: 0 })
 const read = entries['watched.read']
-const live = entries['watched.live']
-const same = Schema.toEquivalence(live.dependenciesSchema)
+const watching = entries['watched.live']
+const same = Schema.toEquivalence(watching.dependenciesSchema)
 
 const initial: Model = { remote: Remote.initial }
 
@@ -116,20 +117,22 @@ describe('a live stream that breaks', () => {
       Stream.empty,
     ])
     const loaded = await step(layer, read, initial)
-    const dropped = await step(layer, live, loaded)
+    const dropped = await step(layer, watching, loaded)
     expect(shown(dropped)).toBe('Apollo II')
-    expect(Data.liveStatus(dropped, Watched)).toEqual({
+    expect(liveStatus(Data, dropped, Watched)).toEqual({
       _tag: 'Reconnecting',
       attempt: 1,
       error: Option.some({ _tag: 'RemoteLiveError', message: 'dropped' }),
     })
     // The break is what restarts the entry.
-    expect(same(live.modelToDependencies(loaded), live.modelToDependencies(dropped))).toBe(false)
+    expect(same(watching.modelToDependencies(loaded), watching.modelToDependencies(dropped))).toBe(
+      false,
+    )
 
     server.name = 'Gemini'
-    const reconnected = await step(layer, live, dropped)
+    const reconnected = await step(layer, watching, dropped)
     expect(server.asked).toEqual([0, 1])
-    expect(Data.liveStatus(reconnected, Watched)).toEqual({ _tag: 'Live' })
+    expect(liveStatus(Data, reconnected, Watched)).toEqual({ _tag: 'Live' })
     expect(Data.get(summary, 'p1').read(reconnected)._tag).toBe('Refreshing')
     expect(shown(await step(layer, read, reconnected))).toBe('Gemini')
   })
@@ -137,15 +140,17 @@ describe('a live stream that breaks', () => {
   it('breaks again when the resubscribe itself fails, so it keeps retrying', async () => {
     const down = Stream.fail(new RemoteLiveError({ message: 'still down' }))
     const { server, layer } = serverWith([down, down])
-    const once = await step(layer, live, initial)
-    const twice = await step(layer, live, once)
+    const once = await step(layer, watching, initial)
+    const twice = await step(layer, watching, once)
     expect(server.asked).toEqual([0, 0])
-    expect(Data.liveStatus(twice, Watched)).toMatchObject({ _tag: 'Reconnecting', attempt: 2 })
-    expect(same(live.modelToDependencies(once), live.modelToDependencies(twice))).toBe(false)
+    expect(liveStatus(Data, twice, Watched)).toMatchObject({ _tag: 'Reconnecting', attempt: 2 })
+    expect(same(watching.modelToDependencies(once), watching.modelToDependencies(twice))).toBe(
+      false,
+    )
   })
 
   it('restarts once for a gap, however many events the dying stream still delivers', () => {
-    const stream = keyOf(live.modelToDependencies(initial).requirements)
+    const stream = keyOf(watching.modelToDependencies(initial).requirements)
     const receive = (model: Model, cursor: number) =>
       Data.reduce(model, {
         _tag: 'LiveReceived',
@@ -160,7 +165,7 @@ describe('a live stream that breaks', () => {
       error: Option.none(),
       refused: Option.none(),
     })
-    expect(Data.liveStatus(broken, Watched)).toEqual({
+    expect(liveStatus(Data, broken, Watched)).toEqual({
       _tag: 'Reconnecting',
       attempt: 1,
       error: Option.none(),
@@ -168,7 +173,7 @@ describe('a live stream that breaks', () => {
   })
 
   it('backs off from the start again once an event applies, without restarting for it', () => {
-    const stream = keyOf(live.modelToDependencies(initial).requirements)
+    const stream = keyOf(watching.modelToDependencies(initial).requirements)
     const fail = (model: Model) =>
       Data.reduce(
         Data.reduce(model, {
@@ -193,7 +198,9 @@ describe('a live stream that breaks', () => {
       error: Option.none(),
       refused: Option.none(),
     })
-    expect(same(live.modelToDependencies(twice), live.modelToDependencies(working))).toBe(true)
+    expect(same(watching.modelToDependencies(twice), watching.modelToDependencies(working))).toBe(
+      true,
+    )
     expect(fail(working).remote.streams[stream]).toMatchObject({ restarts: 3, failures: 1 })
     // A list's event works the same as a row's.
     const listed = Data.reduce(twice, {
@@ -214,7 +221,7 @@ describe('a live stream that breaks', () => {
       { watched: Watched },
       { retryBase: '100 millis', maxRetryDelay: '1 second' },
     )['watched.live']
-    const base = live.modelToDependencies(initial)
+    const base = watching.modelToDependencies(initial)
     const subscribedBy = (failures: number, wait: Duration.Input) =>
       Effect.runPromise(
         Effect.gen(function* () {
@@ -240,10 +247,10 @@ describe('a live stream that breaks', () => {
   })
 
   it('is Idle for an entry that reads nothing live, and Live before anything broke', () => {
-    expect(Data.liveStatus(initial, Fetched)).toEqual({ _tag: 'Idle' })
+    expect(liveStatus(Data, initial, Fetched)).toEqual({ _tag: 'Idle' })
     // As the README shows it in a view.
     const label = (model: Model) =>
-      Match.value(Data.liveStatus(model, Watched)).pipe(
+      Match.value(liveStatus(Data, model, Watched)).pipe(
         Match.tagsExhaustive({
           Idle: () => 'not live',
           Live: () => 'live',
@@ -255,7 +262,7 @@ describe('a live stream that breaks', () => {
   })
 
   it('starts over for another principal', () => {
-    const stream = keyOf(live.modelToDependencies(initial).requirements)
+    const stream = keyOf(watching.modelToDependencies(initial).requirements)
     const broken = Data.reduce(initial, {
       _tag: 'ReadFailed',
       requests: [],
@@ -264,7 +271,7 @@ describe('a live stream that breaks', () => {
     })
     const forgotten = Data.forget(broken)
     expect(forgotten.remote.streams).toEqual({})
-    expect(Data.liveStatus(forgotten, Watched)).toEqual({ _tag: 'Live' })
+    expect(liveStatus(Data, forgotten, Watched)).toEqual({ _tag: 'Live' })
   })
 })
 
@@ -273,16 +280,18 @@ describe('a live stream the server refuses', () => {
 
   it('reads Refused, records the refusal once, and does not reconnect', async () => {
     const { server, layer } = serverWith([Stream.fail(new RemoteLiveRefused(refusal))])
-    const refused = await step(layer, live, initial)
+    const refused = await step(layer, watching, initial)
     expect(server.asked).toEqual([0])
-    expect(Data.liveStatus(refused, Watched)).toEqual({ _tag: 'Refused', error: refusal })
+    expect(liveStatus(Data, refused, Watched)).toEqual({ _tag: 'Refused', error: refusal })
     // Nothing the live entry depends on moved, so it does not subscribe again.
-    expect(same(live.modelToDependencies(initial), live.modelToDependencies(refused))).toBe(true)
+    expect(same(watching.modelToDependencies(initial), watching.modelToDependencies(refused))).toBe(
+      true,
+    )
     expect(refused.remote.gaps.size).toBe(0)
     expect(refused.remote.diagnostics).toMatchObject([
       { _tag: 'LiveRefused', level: 'warning', error: refusal },
     ])
-    const stream = keyOf(live.modelToDependencies(initial).requirements)
+    const stream = keyOf(watching.modelToDependencies(initial).requirements)
     const again = Data.reduce(refused, {
       _tag: 'ReadFailed',
       requests: [],
@@ -293,7 +302,7 @@ describe('a live stream the server refuses', () => {
   })
 
   it('reads Live again once a stream opened again for the same rows is admitted', () => {
-    const stream = keyOf(live.modelToDependencies(initial).requirements)
+    const stream = keyOf(watching.modelToDependencies(initial).requirements)
     const refused = Data.reduce(initial, {
       _tag: 'ReadFailed',
       requests: [],
@@ -306,18 +315,20 @@ describe('a live stream the server refuses', () => {
       event: patched('Apollo', 1),
       now: 0,
     })
-    expect(Data.liveStatus(admitted, Watched)).toEqual({ _tag: 'Live' })
+    expect(liveStatus(Data, admitted, Watched)).toEqual({ _tag: 'Live' })
   })
 
   it('a refusal after a break ends the reconnecting', () => {
-    const stream = keyOf(live.modelToDependencies(initial).requirements)
+    const stream = keyOf(watching.modelToDependencies(initial).requirements)
     const fail = (model: Model, error: { readonly _tag: string; readonly message: string }) =>
       Data.reduce(model, { _tag: 'ReadFailed', requests: [], error, stream })
     const broken = fail(initial, { _tag: 'RemoteLiveError', message: 'dropped' })
-    expect(Data.liveStatus(broken, Watched)._tag).toBe('Reconnecting')
+    expect(liveStatus(Data, broken, Watched)._tag).toBe('Reconnecting')
     const refused = fail(broken, refusal)
-    expect(Data.liveStatus(refused, Watched)).toEqual({ _tag: 'Refused', error: refusal })
+    expect(liveStatus(Data, refused, Watched)).toEqual({ _tag: 'Refused', error: refusal })
     expect(refused.remote.gaps.size).toBe(0)
-    expect(same(live.modelToDependencies(broken), live.modelToDependencies(refused))).toBe(true)
+    expect(same(watching.modelToDependencies(broken), watching.modelToDependencies(refused))).toBe(
+      true,
+    )
   })
 })

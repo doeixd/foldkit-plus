@@ -23,15 +23,9 @@ import {
   type Edge,
   type Segment,
 } from './connection.js'
-import { emptyOptimistic, layersIn, type Capabilities } from './capability.js'
+import { emptyOptimistic, layersIn, liveIn, type Capabilities } from './capability.js'
 import type { ConnectionChange, OptimisticState, OptimisticOperation } from './optimistic.js'
-import {
-  applyConnectionEvent,
-  applyEntityEvent,
-  emptyLiveState,
-  type LiveEvent,
-  type LiveState,
-} from './live.js'
+import { emptyLiveState, type LiveEvent, type LiveState } from './liveState.js'
 import {
   beginMutation,
   emptyMutationState,
@@ -1801,7 +1795,7 @@ const reduceRemote = (
       const state = model.live[message.stream] ?? emptyLiveState
       if (message.event._tag === 'EntityPatched' || message.event._tag === 'EntityDeleted') {
         const event = message.event
-        const applied = applyEntityEvent(state, model.entities, event, message.now)
+        const applied = liveIn(capabilities).applyEntity(state, model.entities, event, message.now)
         if (applied.outcome === 'gap') return broke(model, message.stream, Option.none())
         // A value the server sent is newer than any failure to fetch it.
         const settled =
@@ -1818,7 +1812,12 @@ const reduceRemote = (
         }
         return applied.outcome === 'applied' ? healthy(next, message.stream) : next
       }
-      const applied = applyConnectionEvent(state, model.optimistic, message.event, message.policy)
+      const applied = liveIn(capabilities).applyConnection(
+        state,
+        model.optimistic,
+        message.event,
+        message.policy,
+      )
       if (applied.outcome === 'gap') return broke(model, message.stream, Option.none())
       const written = {
         ...model,

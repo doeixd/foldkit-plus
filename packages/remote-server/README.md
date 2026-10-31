@@ -610,7 +610,7 @@ The stream carries Remote `LiveChange`s: entity patches/deletes and connection
 insert/remove/invalidate events.
 
 `queries` are the lists of this Entity the subscriber reads live
-(`Data.query(…, { live: true })`), each a `LiveQuery` the handler has already
+(`liveQuery(Data, …)`), each a `LiveQuery` the handler has already
 admitted and resolved: `identity` (the connection as the client keys it, for
 the connection events), `select` (what the read draws of each row), and
 `edges`, the registered query run as the subscriber with the page's window.
@@ -916,7 +916,7 @@ pages of one relation than a read may ask, fails the stream with
 lists fails the wire decoder before that. That matters most for a polling
 Source such as `pollLive`, which re-reads every subscribed row each tick. A
 refusal is not truncation: the client does not reconnect it, and
-`Data.liveStatus` reads `Refused`. A hand-written live Source can rely on what
+`liveStatus(Data, …)` reads `Refused`. A hand-written live Source can rely on what
 it is given having passed, and is responsible for any further bounds its
 backend needs.
 
@@ -1194,7 +1194,7 @@ A body that opens live (`{ operation: 'live', payload }`) is answered with
 the stream as `text/event-stream`: one `data:` frame per `LiveChange`, then
 a terminal `event: error` frame carrying the failure's message when the
 stream fails rather than ends. A payload no live stream speaks is a 400 that
-subscribes to nothing. `Remote.httpWithLive` is the other end; a client that
+subscribes to nothing. `httpWithLive` (`foldkit-remote/live`) is the other end; a client that
 disconnects interrupts the subscription, as closing the RPC stream would.
 
 The stream moves on its own even when nothing changes: a `: ping` comment opens

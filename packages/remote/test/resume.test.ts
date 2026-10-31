@@ -9,6 +9,7 @@ import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Entity, Query, Remote, RemoteClient, tombstone } from '../src/index.js'
 import { captureRemote, restoreRemote } from '../src/resume.js'
+import { live } from '../src/live.js'
 
 const User = Entity.make(
   'User',
@@ -41,7 +42,7 @@ const list = Data.query(
   { select: Project.select({ name: true }), first: 1 },
 )
 const identity = ProjectsByOwner.ref({ ownerId: 'u1' }).identity
-const watched = Data.live(Project.select({ name: true }), 'p1')
+const watched = live(Data, Project.select({ name: true }), 'p1')
 
 /** A page showing the detail, the list, and the project live. */
 const Page = App.surface('Page', { model: () => ({ detail, list, watched }) })

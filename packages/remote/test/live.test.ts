@@ -15,10 +15,10 @@ import {
   applyConnectionEvent,
   applyEntityEvent,
   classifyLive,
-  emptyLiveState,
   liveHasNext,
   liveHasPrevious,
-} from '../src/live.js'
+} from '../src/liveEvents.js'
+import { emptyLiveState } from '../src/liveState.js'
 import { addOverlay, emptyOptimistic, visibleItems } from '../src/optimistic.js'
 
 const ref = { entity: 'User', id: 'u1' }

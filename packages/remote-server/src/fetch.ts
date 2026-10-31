@@ -6,7 +6,7 @@
  * them and `RemoteServer.answer` answers them. Live requirements ride one
  * `POST` that answers with a `text/event-stream` of `LiveChange` frames, one
  * `data:` frame per change and a terminal `event: error` frame when the
- * stream fails; `Remote.httpWithLive` is the other end. The principal is
+ * stream fails; `httpWithLive` (`foldkit-remote/live`) is the other end. The principal is
  * resolved per request, from whatever the runtime hands over (a header, a
  * binding, a session), and the Sources' requirements are provided per
  * request from the environment (a D1 binding, a connection string).

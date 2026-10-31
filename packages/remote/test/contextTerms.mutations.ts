@@ -13,8 +13,8 @@ export default [
   edit(
     "a live insert is judged without Remote.make's viewer",
     '../src/index.ts',
-    '      operators,\n      contextOf(model),\n    )',
-    '      operators,\n    )',
+    '              live.event,\n              contextOf(model),',
+    '              live.event,\n              { viewer: Option.none(), now: Option.none() },',
   ),
   edit(
     'matching drops the context',

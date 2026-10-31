@@ -7,6 +7,7 @@ import { defineMessageUnion } from 'foldkit/message'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Entity, Mutation, Query, Remote, RemoteClient, type RemoteMessage } from '../src/index.js'
+import { live, liveQuery, observeLive } from '../src/live.js'
 import { lift, overlay } from '../src/overlay.js'
 
 const Project = Entity.make('Project', Schema.Struct({ id: Schema.String, name: Schema.String }))
@@ -75,9 +76,9 @@ describe('A domain that registers no mutation', () => {
     expect(lift(Data, model, 'preview')).toBe(model)
   })
 
-  it('shows a live insert, which installs the layer code', () => {
+  it('shows a live insert into a list read live, which installs the layer code', () => {
     const Data = reads()
-    const list = Data.query(All, {}, { select: summary, first: 10 })
+    const list = liveQuery(Data, All, {}, { select: summary, first: 10 })
     const paged = Data.reduce(known(Data), {
       _tag: 'ConnectionMerged',
       connection: list.ref.identity,
@@ -104,6 +105,54 @@ describe('A domain that registers no mutation', () => {
       { name: 'saved p1' },
       { name: 'saved p2' },
     ])
+  })
+
+  it('refuses a live event, naming the domain, when it reads nothing live', () => {
+    const Data = reads()
+    const patched: RemoteMessage = {
+      _tag: 'LiveReceived',
+      stream: 's1',
+      event: {
+        _tag: 'EntityPatched',
+        ref: { entity: 'Project', id: 'p1' },
+        values: { name: 'live' },
+        changed: ['name'],
+        cursor: 1,
+      },
+      now: 0,
+    }
+    expect(() => Data.reduce(known(Data), patched)).toThrow(
+      /domain "remote" receives a live event or asks for a live stream, but nothing read it live/,
+    )
+    live(Data, summary, 'p1')
+    expect(Data.get(summary, 'p1').read(Data.reduce(known(Data), patched))).toEqual({
+      _tag: 'Ready',
+      value: { name: 'live' },
+    })
+  })
+
+  it('streams what a Surface reads, once observeLive installs live reads', async () => {
+    const Data = reads()
+    const Board = App.surface('Board', { model: () => ({ project: Data.get(summary, 'p1') }) })
+    const entry = observeLive(Data, Board, undefined)
+    const client = Layer.succeed(RemoteClient, {
+      read: () => Effect.die('unused'),
+      query: () => Effect.die('unused'),
+      mutate: () => Effect.die('unused'),
+      live: () =>
+        Stream.make({
+          _tag: 'EntityPatched' as const,
+          ref: { entity: 'Project', id: 'p1' },
+          values: { name: 'live' },
+          changed: ['name'],
+          cursor: 1,
+        }),
+    })
+    const dependencies = entry.modelToDependencies(known(Data))
+    const heard = await Effect.runPromise(
+      Stream.runCollect(entry.dependenciesToStream(dependencies)).pipe(Effect.provide(client)),
+    )
+    expect(heard.map(message => message._tag)).toEqual(['LiveReceived'])
   })
 
   it('runs Remote.mutateInto, which installs what its mutation carries', async () => {

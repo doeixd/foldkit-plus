@@ -14,6 +14,7 @@ import { TestClock } from 'effect/testing'
 import { defineMessageUnion } from 'foldkit/message'
 import { Entity, Expr, Order } from 'foldkit-entity'
 import { Query, Remote, type RemoteMessage } from 'foldkit-remote'
+import { liveQuery } from 'foldkit-remote/live'
 import { RemoteServer } from 'foldkit-remote-server'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
@@ -44,7 +45,7 @@ type Model = typeof Model.Type
 const App = Surface.application({ Model, Message: defineMessageUnion({ ...Remote.messages }) })
 const Data = Remote.make({ model: App.model.remote, entities: [Item], queries: [Active] })
 
-const listed = (first: number) => Data.query(Active, {}, { select: Row, first, live: true })
+const listed = (first: number) => liveQuery(Data, Active, {}, { select: Row, first })
 
 /**
  * A page reading the active items live, `first` of them, over a database

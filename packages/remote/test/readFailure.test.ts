@@ -17,6 +17,7 @@ import { Entity as DomainEntity, Order, Relation } from 'foldkit-entity'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { Query, Remote, RemoteData, entityKey, type RemoteError } from '../src/index.js'
+import { live as readLive } from '../src/live.js'
 
 const User = DomainEntity.define('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
 const ProjectBase = DomainEntity.define(
@@ -45,6 +46,8 @@ const Data = Remote.make({
   entities: [Blog.Project, Blog.User],
   queries: [All],
 })
+// Live events reach a domain that reads a row live.
+readLive(Data, DomainEntity.select(Project, { name: true }), 'p0')
 
 const named = Data.get(DomainEntity.select(Project, { name: true }), 'p1')
 const status = Data.get(DomainEntity.select(Project, { status: true }), 'p1')

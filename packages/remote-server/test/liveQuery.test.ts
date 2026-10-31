@@ -17,6 +17,7 @@ import {
   type QueryRequest,
   type ReadRequest,
 } from 'foldkit-remote'
+import { liveQuery } from 'foldkit-remote/live'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
 import { RemoteServer, type LiveQuery } from '../src/index.js'
@@ -35,7 +36,7 @@ const unread = { remote: Remote.initial }
 
 /** The live entry of a page that reads the list `tag` live with `first`. */
 const pageOf = (tag: string, first = 2) => {
-  const read = Data.query(All, { tag }, { select: Row, first, live: true })
+  const read = liveQuery(Data, All, { tag }, { select: Row, first })
   return Data.subscriptions({ list: Data.active('List', () => Option.some(read)) })['list.live']
 }
 

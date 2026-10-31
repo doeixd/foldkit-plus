@@ -113,7 +113,7 @@ What each call does:
   the selected members in the Selection's order, each with its `key`,
   `member`, a `label` found the way a form finds one (the schema's `title`,
   else `Form.label` metadata, else the key), and a `display`.
-  `live: true` asks for the list live (`Data.query`'s `live`): rows another
+  `live: true` asks for the list live (`liveQuery`): rows another
   page writes join, change and leave it while it is shown, given a server
   whose live source watches lists (`pollLive`).
 - **`Authors.at`** binds it to your Remote domain and your Model. It still does

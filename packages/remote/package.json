@@ -37,6 +37,11 @@
       "types": "./dist/filter.d.ts",
       "import": "./dist/filter.js"
     },
+    "./live": {
+      "foldkit-plus:source": "./src/live.ts",
+      "types": "./dist/live.d.ts",
+      "import": "./dist/live.js"
+    },
     "./outbox": {
       "foldkit-plus:source": "./src/outbox.ts",
       "types": "./dist/outbox.d.ts",

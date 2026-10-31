@@ -294,7 +294,7 @@ or a Surface without params):
   the server removed, leaves the list; later pages would be paged again.
 
 It does not fetch a Projection nothing observes (use `Data.prefetch` with
-`RemotePolicy.networkOnly` there), and it leaves `Data.live` subscriptions alone.
+`RemotePolicy.networkOnly` there), and it leaves `live(Data, …)` subscriptions alone.
 A read in flight when the refresh lands restarts rather than applying its older
 answer; this in-process client answers instantly, so the demo does not show it.
 
@@ -305,7 +305,7 @@ answer; this in-process client answers instantly, so the demo does not show it.
 - **SQL compilation.** See [`foldkit-remote-drizzle`](../../packages/remote-drizzle)
   and [`examples/kitchen-sink`](../kitchen-sink).
 - **Durable writes and live data.** The outbox (`outbox(Data, …)`) and live reads
-  (`Data.live`, `Data.query(..., { live: true })`) need a client that stays
+  (`live(Data, …)`, `liveQuery(Data, ...)`) need a client that stays
   connected; [Chirp](../chirp) shows the outbox and
   [`examples/reference`](../reference) a live list. Client-authored state that
   must converge is [`examples/sync`](../sync).

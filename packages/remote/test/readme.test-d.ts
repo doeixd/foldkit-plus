@@ -34,6 +34,7 @@ import {
 } from '../src/index.js'
 import { outbox, outboxStatus } from '../src/outbox.js'
 import { port } from '../src/port.js'
+import { live } from '../src/live.js'
 
 const Route = Schema.Union([
   Schema.Struct({ _tag: Schema.Literal('home') }),
@@ -99,7 +100,7 @@ const projects = Data.query(
 
 const ProjectPage = App.surface('ProjectPage', {
   params: { projectId: Schema.String },
-  model: ({ params }) => ({ project: Data.live(ProjectSummary, params.projectId), projects }),
+  model: ({ params }) => ({ project: live(Data, ProjectSummary, params.projectId), projects }),
   messages: [Message.ClickedRename, Message.ClickedMore],
 })
 

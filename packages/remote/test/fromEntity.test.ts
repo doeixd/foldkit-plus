@@ -17,6 +17,7 @@ import {
   writeEntity,
   type EntityStore,
 } from '../src/index.js'
+import { live } from '../src/live.js'
 
 const User = Domain.define('User', Schema.Struct({ id: Schema.String, name: Schema.String }))
 const Comment = Domain.define('Comment', Schema.Struct({ id: Schema.String, body: Schema.String }))
@@ -232,7 +233,7 @@ describe('a domain that registers Entities directly', () => {
 
     expect(requirementsOf(direct)).toEqual(requirementsOf(adapted))
     expect(direct.read(root(fullStore()))).toEqual(adapted.read(root(fullStore())))
-    expect(requirementsOf(Direct.live(ProjectCard, 'p1'))[0]?.live).toBe(true)
+    expect(requirementsOf(live(Direct, ProjectCard, 'p1'))[0]?.live).toBe(true)
   })
 
   it('selects a query page with an Entity Selection', () => {
