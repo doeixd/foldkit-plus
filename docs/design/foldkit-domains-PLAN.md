@@ -587,7 +587,48 @@ throttle at 0, so a reload right after typing opens what was typed). Parity
   `test/server.test.ts` and `e2e/dev.e2e.ts`, not run.
 - **Screenshots** of both apps at 320, 390, 900 and 1440 px in nine states,
   by `parity/screenshots.mjs`.
-- **Size**: the port's client JavaScript is 341 KB gzipped against upstream's 220 KB plus 8 KB of CSS, about 113 KB more.
+- **Size**: the port's client JavaScript is 336 KB gzipped against upstream's 217 KB plus 8 KB of CSS; about a third of the difference is code a read-only page keeps through the `Remote` and `Entity` namespace objects (#378).
+
+**Phase 7 parity, raised.** Running the suites showed most of the timeouts
+were specs waiting for elements the port did not draw, not a slow page:
+the phone's "Filters and sort" button, and the desktop TLD list, whose
+dropdown crashed on opening. Fixed:
+
+- **The TLD dropdown crashed** ("handler is not a function"): the Listbox
+  fork wrapped its `itemsAttributes` a second time (#374, since fixed in the
+  package). Every desktop spec choosing a TLD waited on it.
+- **One "Filters and sort" sheet on a phone**, as upstream: a `Sheet` with
+  availability and sort as pressed choices ("Price" for both price orders)
+  beside the TLD's sheet. A `Picker` is one control with one sheet, so it
+  cannot hold both; the desktop's availability and sort became `ListboxView`
+  dropdowns like the TLD's, and the `Picker`s went. The three openers had
+  pushed "All Results" onto two lines.
+- **Readable triggers**: the dropdown triggers carry upstream's
+  `filter-trigger` and click-away `filter-backdrop` classes, their ink in
+  sRGB (an `oklch()` colour reads as unreadable to upstream's contrast
+  check), the click-away above the sticky header.
+- **The cart** is upstream's 420 px, or the whole of a phone, on an opaque
+  panel, and stands open at once: under load the axe scan read it mid-fade
+  and the narrow-width check mid-slide.
+- **Focus back on a sheet's button once the browser has closed it.** The
+  Dialog says `Closed` when the close is asked for; WebKit, where a press
+  does not focus the button, then moved focus to the body as it closed.
+  Moving focus on `CompletedCloseDialog` took WebKit from 30 to 43.
+- **The results list focused from the keys** scrolls its start below the
+  header, as upstream's `RevealResultsListStart`.
+- **Rows not yet drawn** take the mean height of the rows measured: a row
+  of six names is 114 px on a desktop and 366 px on a phone, and the fixed
+  estimate made the list grow as it was scrolled (#381).
+- **Phone sheets** slide for upstream's half second, not at all under
+  reduced motion; their panels carry `filters-panel` and `tld-panel`.
+
+After them: **46 of 67 pass in Chromium and 43 of 67 in WebKit** (Windows,
+two workers). What fails is the early-input group (12; #372, and a
+prerendered `/` served for `/?q=…` while the bundle is held, #373), the read
+pattern (8, by design), one geometry check at 320 px where rows differ in
+height (#381), and in WebKit three Tab-to-link checks that upstream's own
+build fails on the same machine. A keystroke lost to the address's echo
+under load was #379, since fixed in `foldkit-mirror`.
 
 **Issues filed while building:** [#364](https://github.com/doeixd/foldkit-plus/issues/364)
 (`SSR.entry` status), [#365](https://github.com/doeixd/foldkit-plus/issues/365)
@@ -596,10 +637,11 @@ throttle at 0, so a reload right after typing opens what was typed). Parity
 (`WindowList`'s Mount in a Scene), [#371](https://github.com/doeixd/foldkit-plus/issues/371)
 (`KeepTyped` on an element `h` builds), [#372](https://github.com/doeixd/foldkit-plus/issues/372)
 (answering typing before boot), [#373](https://github.com/doeixd/foldkit-plus/issues/373)
-(a prerendered page served for a query).
+(a prerendered page served for a query), [#374](https://github.com/doeixd/foldkit-plus/issues/374)
+(a popup's given attributes wrapped twice), [#378](https://github.com/doeixd/foldkit-plus/issues/378)
+(a read-only page keeps Remote's and Entity's write code), [#379](https://github.com/doeixd/foldkit-plus/issues/379)
+(the mirror's echo undoing a keystroke), [#381](https://github.com/doeixd/foldkit-plus/issues/381)
+(`WindowList`'s fixed estimate).
 
-**Left:** the "look or behaviour" failures of the parity table (colour contrast
-in the TLD dropdown, the narrow cart, the phone cart's focus trap and the
-two-row header's geometry), WebKit, a parity re-run after the mirror's
-throttle change, and #372 for upstream's early-input specs.
-
+**Left:** #372 and #373 for the early-input specs, #378 for the bundle, and
+#381 for rows of unequal height.
