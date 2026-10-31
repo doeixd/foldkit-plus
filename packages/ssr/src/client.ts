@@ -19,7 +19,7 @@ import {
 } from './diagnostics.js'
 import { hold, keptFields, restore, typedMessages, type Held, type KeptField } from './keep.js'
 import { listen, type DecodedBinding } from './listen.js'
-import { KEEP_ATTRIBUTE, builder, view } from './resumable.js'
+import { FALLBACK_DEPTH_FIELD, FALLBACK_FIELD, KEEP_ATTRIBUTE, builder, view } from './resumable.js'
 import {
   FOLDKIT_APP_ATTRIBUTE,
   STATIC_ATTRIBUTE,
@@ -219,8 +219,9 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
         return { model: step.model, commands: [...commands, ...(step.commands ?? [])] }
       },
     })
-  const boot = (entries: Readonly<Record<string, unknown>> = {}) =>
-    adopt(
+  const boot = (entries: Readonly<Record<string, unknown>> = {}) => {
+    unpost(root)
+    return adopt(
       makeApplication({
         ...withContext(startingFrom({ ...config, update }, startOf()), resuming),
         container: root,
@@ -228,6 +229,7 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
       } as never),
       { buildId: options.buildId },
     )
+  }
   const pending = (config.lazy ?? []).filter(bundle => !bundle.isLoaded())
   const start = Option.isSome(arrived) ? 'now' : plan.start
   const eager = start === 'now' && pending.length === 0
@@ -258,6 +260,22 @@ const hydrate = <Model, Fields extends Schema.Struct.Fields, Message = any>(
   // one starts now, so what was typed is answered as soon as the script runs.
   const typed = answered.length > 0 ? 'now' : start
   deferBoot(root, decoded.success, typed, { boot, answered }, pending, report, kept.success)
+}
+
+/**
+ * Takes out what the server added to each form for the fallback, its
+ * `method` and hidden fields, which the browser's view does not draw: left
+ * in, Foldkit would meet markup its first render lacks and reconcile every
+ * such form as it adopted the page. Run as the page boots, so a form
+ * submitted before then still posts.
+ */
+const unpost = (root: Element): void => {
+  for (const field of root.querySelectorAll(`input[type="hidden"][name="${FALLBACK_FIELD}"]`)) {
+    const form = field.parentElement
+    form?.removeAttribute('method')
+    form?.querySelector(`:scope > input[type="hidden"][name="${FALLBACK_DEPTH_FIELD}"]`)?.remove()
+    field.remove()
+  }
 }
 
 /**

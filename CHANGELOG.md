@@ -343,6 +343,13 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A form that posts without scripts is adopted as drawn** (`foldkit-ssr`,
+  #388). A form rendered for `fallback: 'server'` carries `method="post"` and
+  its Message in a hidden field, which the browser's view does not draw, so
+  Foldkit reconciled every such form as it adopted the page (in development,
+  warning that the server DOM did not match). `SSR.hydrate` now takes them
+  out as the page boots; a form submitted before then still posts.
+
 - **A URL mirror never undoes a keystroke with its own echo**
   (`foldkit-mirror`, #379). A write to the URL comes back as a `UrlChanged`,
   and under load it landed after newer keystrokes, even after the next
