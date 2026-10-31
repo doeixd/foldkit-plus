@@ -3257,6 +3257,9 @@ importers:
       foldkit:
         specifier: 0.170.0
         version: 0.170.0(@effect/platform-browser@4.1.1(effect@4.1.1))(effect@4.1.1)
+      foldkit-bundle:
+        specifier: workspace:*
+        version: link:../bundle
       foldkit-entity:
         specifier: workspace:*
         version: link:../entity
