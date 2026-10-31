@@ -1208,8 +1208,16 @@ handler's write and raw SQL are held to the invariants and move the revision too
 - `Data.refresh`, `Data.lift`, and `Data.reduce` of the common no-op Messages
   (a duplicate live event, a repeated `ReadStarted`) return the **same Model**,
   so Foldkit does not render.
-- A row's decoded value keeps its identity while its entity's fields are equal,
-  so key list rows and render them with a lazy view.
+- Reading every row on every render is cheap: `Data.get(selection, id)` is one
+  Projection per Selection and id, and a read is the object it was while the
+  store entries it reaches are (the row's own and its relations' targets). A
+  changed row gives a new value, a new page and a new `RemoteData`, nothing
+  else new; equal data (a refetch, an optimistic patch while other writes
+  land, a row evicted and read again) keeps its value. So key list rows and
+  draw them with a lazy view keyed by the row, and work out what a view
+  derives from many reads with `Projection.derive([App.model.remote, …], f)`.
+  A Remote read declares no Model path, so name the store's field; `derive`
+  refuses a Remote Projection in `on`.
 - Selections must pick at least one field (`Selection.make` throws otherwise).
 - Presence is not `value === undefined`: missing, present-undefined, present-null,
   stale, and not-found are distinct.

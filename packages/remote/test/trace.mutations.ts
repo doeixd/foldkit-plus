@@ -74,8 +74,8 @@ export default [
   ),
   edit(
     'a list with a row not yet read reads Loading (#243)',
-    '                missing = true\n                continue',
-    '                return undefined',
+    '            missing = true\n            continue',
+    '            return undefined',
     '../src/index.ts',
   ),
 ]

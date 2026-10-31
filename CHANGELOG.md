@@ -155,6 +155,20 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **Remote reads are cheap to repeat, and keep their objects while what they
+  read does** (`foldkit-remote`, #384). `Data.get(selection, id)` (and
+  `Remote.select`) gives one Projection per Selection and id, where it built
+  the relation, its key and the requirement on every call. A row read is kept
+  by the store entries it reaches (its own and its relations' targets), so a
+  write elsewhere costs a comparison per entry instead of assembling every
+  row again; a changed entry with equal data keeps the decoded value and the
+  `RemoteData` (by entity key, so an optimistic row under other writes and a
+  row evicted and read again keep theirs too); a list's page is the object it
+  was while its rows are; `Initial`, `Loading` and `NotFound` are one object
+  each, and a failure over a value is kept while its error is. 556 rows read
+  by id: 1.80 ms to 0.23 ms on an unchanged store, 3.72 ms to 0.46 ms after
+  one changed.
+
 - **A data grid draws a body row again only when it changed**
   (`foldkit-mixins-data-grid`, #376 R3). Each row is a per-item memo of its
   row, index, selection, the focus, range, fill or edit it holds, the column

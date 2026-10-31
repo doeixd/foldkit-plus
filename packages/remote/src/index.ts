@@ -157,15 +157,10 @@ import { IDENTITY_SEPARATOR, stableStringify } from './query.js'
 import type { ConnectionSpec, LivePolicy, QueryDescriptor, QueryRef, QueryWindow } from './query.js'
 import { remoteDataSchema, type RemoteData, type RemoteError } from './remoteData.js'
 import type { ConnectionRoot, RetentionRoots } from './retain.js'
-import {
-  Selection,
-  assemble,
-  pageSchema,
-  relationOf,
-  unavailableOf,
-  type Page,
-} from './selection.js'
+import { Selection, pageSchema, relationOf, type Page } from './selection.js'
 import { sameData } from './data.js'
+import { recent, type Recent } from './recent.js'
+import { INITIAL, LOADING, NOT_FOUND, failedWith, readRow } from './rowRead.js'
 import {
   emptyStore,
   entityKey,
@@ -1384,63 +1379,6 @@ const plannedStoreOf = (
   return planned
 }
 
-/**
- * `Failed` naming a field the server settled without a value, when one is
- * among what `relation` reads of the entity; otherwise nothing, and the store
- * merely lacks the value. The reason stays with the server, so a view shows
- * the field it cannot have, not why.
- */
-const unavailableFailure = (
-  store: EntityStore,
-  key: string,
-  relation: RelationRequirement,
-): { readonly _tag: 'Failed'; readonly error: RemoteError } | undefined => {
-  const field = unavailableOf(store, key, relation)
-  return field === undefined
-    ? undefined
-    : {
-        _tag: 'Failed',
-        error: {
-          _tag: 'Unavailable',
-          message: `The server answered without ${field}, and will not answer with it: the field is not available to this client.`,
-        },
-      }
-}
-
-/**
- * A row's decoded value, kept while the data it was assembled from is the same,
- * so a refetch or live patch that brought equal data hands a view the object it
- * already rendered. Keyed on the row's own values object, which the store keeps
- * across equal writes; a relation's targets are covered by comparing what was
- * assembled.
- */
-const decodedRows = new WeakMap<
-  object,
-  {
-    readonly decode: (values: unknown) => Result.Result<unknown, Schema.SchemaError>
-    readonly rows: WeakMap<object, { readonly values: unknown; readonly decoded: unknown }>
-  }
->()
-
-const decodeRow = <Value>(
-  schema: Schema.Codec<Value, unknown, never, never>,
-  source: object,
-  values: unknown,
-): Result.Result<Value, Schema.SchemaError> => {
-  let bySchema = decodedRows.get(schema)
-  if (bySchema === undefined) {
-    bySchema = { decode: Schema.decodeUnknownResult(schema), rows: new WeakMap() }
-    decodedRows.set(schema, bySchema)
-  }
-  const cached = bySchema.rows.get(source)
-  if (cached !== undefined && sameData(cached.values, values)) {
-    return cached.decoded as Result.Result<Value, Schema.SchemaError>
-  }
-  const decoded = bySchema.decode(values)
-  bySchema.rows.set(source, { values, decoded })
-  return decoded as Result.Result<Value, Schema.SchemaError>
-}
-
 interface ReadScope {
   readonly inner: WeakMap<object, ReadScope>
   readonly results: Map<string, unknown>
@@ -1469,6 +1407,113 @@ const memoRead = <T>(scopes: ReadonlyArray<object>, key: string, compute: () => 
   scope.results.set(key, value)
   return value
 }
+
+/**
+ * `Remote.select`'s reader for one domain and Selection, kept by the
+ * Selection's identity: `Data.get(Quote, name)` runs on every render, and
+ * compiling the relation, its key and the requirement each time cost more
+ * than the read (#384). It gives one Projection per id while the id is
+ * recent, so a memo downstream can key on it.
+ */
+const selectReaders = new WeakMap<object, WeakMap<object, (id: string) => Projection<any, any>>>()
+
+/** The ids whose Projection a reader keeps: `recent`'s two generations of this. */
+const HANDLES_KEPT = 4096
+
+const selectReader = <AppModel, Store extends RemoteModel, Names extends string, Value>(
+  bound: BoundRemote<AppModel, Store, Names>,
+  selection: Selection<Value, string, 'entity'>,
+): ((id: string) => Projection<AppModel, RemoteData<Value>>) => {
+  assertRegistered(bound, 'Entity', bound.definition.registry.entities, selection.entity)
+  const relation = relationOf(selection)
+  const relationKey = stableStringify(relation)
+  const Model = remoteDataSchema(selection.schema)
+  const handles = recent<string, Projection<AppModel, RemoteData<Value>>>(HANDLES_KEPT)
+  const make = (id: string): Projection<AppModel, RemoteData<Value>> => ({
+    Model,
+    dependencies: [],
+    metadata: RemoteRequirements.of({ ...relation, id }),
+    read: (root: AppModel): RemoteData<Value> => {
+      const store = storeOf(bound, root)
+      const key = entityKey(selection.entity, id)
+      // What the row's data reads as, kept while its entries are; `undefined`
+      // means the store lacks the value. Whether that reads as `Loading` or
+      // `Initial` depends on the in-flight marks, which change independently
+      // of the store, so it is decided after.
+      const present = isTombstone(store, key)
+        ? NOT_FOUND
+        : readRow(store, key, relation, relationKey, selection.schema)
+      // Decided after, as loading is: a failure can arrive without the store
+      // changing.
+      const remote = bound.store.get(root)
+      const failure = failureOf(remote, selection.entity, id, relation)
+      if (present !== undefined) {
+        // A value on screen whose refresh failed stays on screen, with the
+        // error, which `RemoteData.render` draws as stale.
+        return failure !== undefined && (present._tag === 'Ready' || present._tag === 'Refreshing')
+          ? failedWith(present, failure)
+          : present
+      }
+      if (isLoadingThrough(remote, selection.entity, id, relation)) return LOADING
+      if (failure !== undefined) return { _tag: 'Failed', error: failure }
+      // A preview of something the server has not seen: what the overlay
+      // leaves out will never arrive, so waiting would be `Initial` for good.
+      if (onlyOverlaid(remote, selection.entity, id)) {
+        const lacking = missingFields(store, key, relation.fields)
+        return {
+          _tag: 'Failed',
+          error: {
+            _tag: 'Overlaid',
+            message: `${selection.entity} ${id} is shown only by an overlay, which does not hold ${
+              lacking.length === 0 ? 'what its relations select' : lacking.join(', ')
+            }; the server has not seen it, so nothing will fetch them.`,
+          },
+        }
+      }
+      // Nothing is fetching this: no active Surface observes it, which is
+      // usually a wiring mistake.
+      return INITIAL
+    },
+  })
+  return id => {
+    const known = handles.get(id)
+    if (known !== undefined) return known
+    const made = make(id)
+    handles.set(id, made)
+    return made
+  }
+}
+
+/** The lists whose last page a domain keeps: `recent`'s two generations of this. */
+const PAGES_KEPT = 256
+
+/**
+ * `read`, or the page last read under `key` when it reads the same: the same
+ * rows, by identity and in order, and the same bounds and state.
+ */
+const keptPage = <Value>(
+  pages: Recent<string, RemoteData<Page<unknown>>>,
+  key: string,
+  read: RemoteData<Page<Value>>,
+): RemoteData<Page<Value>> => {
+  const before = pages.get(key) as RemoteData<Page<Value>> | undefined
+  if (
+    before !== undefined &&
+    before._tag === read._tag &&
+    (read._tag === 'Ready' || read._tag === 'Refreshing') &&
+    (before._tag === 'Ready' || before._tag === 'Refreshing') &&
+    samePage(before.value, read.value)
+  ) {
+    return before
+  }
+  return read
+}
+
+const samePage = <Value>(left: Page<Value>, right: Page<Value>): boolean =>
+  left.hasNext === right.hasNext &&
+  left.hasPrevious === right.hasPrevious &&
+  left.items.length === right.items.length &&
+  left.items.every((item, index) => item === right.items[index])
 
 export interface MutateOptions {
   /** What the request changes before the server answers; released when it settles. */
@@ -2827,70 +2872,17 @@ export const Remote = {
   select: <AppModel, Store extends RemoteModel, Names extends string, Value, Name extends string>(
     bound: BoundRemote<AppModel, Store, Names>,
     given: EntitySelection<Value, Name> & Registered<Name, Names, 'Entity'>,
-  ) => {
-    const selection = selectionOf<Value, Name>(given)
-    assertRegistered(bound, 'Entity', bound.definition.registry.entities, selection.entity)
-    const relation = relationOf(selection)
-    const relationKey = stableStringify(relation)
-    return (id: string): Projection<AppModel, RemoteData<Value>> => ({
-      Model: remoteDataSchema(selection.schema),
-      dependencies: [],
-      metadata: RemoteRequirements.of({ ...relation, id }),
-      read: (root: AppModel): RemoteData<Value> => {
-        const store = storeOf(bound, root)
-        const key = entityKey(selection.entity, id)
-        // The store-dependent half is memoized per store snapshot; `undefined`
-        // means the store lacks the value. Whether that reads as `Loading` or
-        // `Initial` depends on the in-flight marks, which change independently
-        // of the store, so it is decided outside the memo.
-        const present = memoRead<RemoteData<Value> | undefined>(
-          [store],
-          `${key}\u0000${relationKey}`,
-          () => {
-            if (isTombstone(store, key)) return { _tag: 'NotFound' }
-            const assembled = assemble(store, key, relation)
-            if (assembled === undefined) return unavailableFailure(store, key, relation)
-            const decoded = decodeRow(selection.schema, store[key]!.values, assembled.values)
-            return Result.isFailure(decoded)
-              ? { _tag: 'Failed', error: { _tag: 'DecodeError', message: decoded.failure.message } }
-              : assembled.refreshing
-                ? { _tag: 'Refreshing', value: decoded.success }
-                : { _tag: 'Ready', value: decoded.success }
-          },
-        )
-        // Decided outside the memo, as loading is: a failure can arrive
-        // without the store changing.
-        const remote = bound.store.get(root)
-        const failure = failureOf(remote, selection.entity, id, relation)
-        if (present !== undefined) {
-          // A value on screen whose refresh failed stays on screen, with the
-          // error, which `RemoteData.render` draws as stale.
-          return failure !== undefined &&
-            (present._tag === 'Ready' || present._tag === 'Refreshing')
-            ? { _tag: 'Failed', error: failure, previous: present.value }
-            : present
-        }
-        if (isLoadingThrough(remote, selection.entity, id, relation)) return { _tag: 'Loading' }
-        if (failure !== undefined) return { _tag: 'Failed', error: failure }
-        // A preview of something the server has not seen: what the overlay
-        // leaves out will never arrive, so waiting would be `Initial` for good.
-        if (onlyOverlaid(remote, selection.entity, id)) {
-          const lacking = missingFields(store, key, relation.fields)
-          return {
-            _tag: 'Failed',
-            error: {
-              _tag: 'Overlaid',
-              message: `${selection.entity} ${id} is shown only by an overlay, which does not hold ${
-                lacking.length === 0 ? 'what its relations select' : lacking.join(', ')
-              }; the server has not seen it, so nothing will fetch them.`,
-            },
-          }
-        }
-        // Nothing is fetching this: no active Surface observes it, which is
-        // usually a wiring mistake.
-        return { _tag: 'Initial' }
-      },
-    })
+  ): ((id: string) => Projection<AppModel, RemoteData<Value>>) => {
+    let byBound = selectReaders.get(bound)
+    if (byBound === undefined) {
+      byBound = new WeakMap()
+      selectReaders.set(bound, byBound)
+    }
+    const known = byBound.get(given)
+    if (known !== undefined) return known as (id: string) => Projection<AppModel, RemoteData<Value>>
+    const reader = selectReader(bound, selectionOf<Value, Name>(given))
+    byBound.set(given, reader)
+    return reader
   },
 
   /**
@@ -3492,6 +3484,9 @@ const bindDomain = <
     queries: new Set(definition.registry.queries.keys()),
   })
   const store = bound.store
+  // Each list's last page, so a page whose rows are the objects they were is
+  // the object it was: its memo above is per store, and a write makes a store.
+  const pages = recent<string, RemoteData<Page<unknown>>>(PAGES_KEPT)
   const viewerOf = options.viewer ?? (() => Option.none())
   // What a body's `Expr.viewer` reads here. The client has no reading of the
   // time a server judges a list at, so a body over `Expr.now` is the server's.
@@ -4334,7 +4329,7 @@ const bindDomain = <
         for (const edge of shown(remote, connection).edges) {
           if (edge.ref.entity !== relation.entity) continue
           if (isLoadingThrough(remote, edge.ref.entity, edge.ref.id, relation)) {
-            return { _tag: 'Loading' }
+            return LOADING
           }
         }
         return undefined
@@ -4351,56 +4346,61 @@ const bindDomain = <
         connection: Connection,
       ): RemoteData<Page<Value>> | undefined => {
         const visible = visibleStoreOf(remote.entities, remote.optimistic, operators)
-        return memoRead<RemoteData<Page<Value>> | undefined>(
+        const key = `${ref.identity}\u0000${relationKey}\u0000${String(sizeOf(remote))}`
+        const read = memoRead<RemoteData<Page<Value>> | undefined>(
           [visible, connection, remote.optimistic.overlays, remote.placed],
-          `${ref.identity}\u0000${relationKey}\u0000${String(sizeOf(remote))}`,
+          key,
           () => {
-            const rows: Value[] = []
-            let refreshing = readsStale(remote, ref.identity)
-            let missing = false
-            const { edges, cutBefore, cutAfter } = shown(remote, connection)
-            for (const edge of edges) {
-              const key = entityKey(edge.ref.entity, edge.ref.id)
-              const assembled = assemble(visible, key, relation)
-              if (assembled === undefined) {
-                const unavailable = unavailableFailure(visible, key, relation)
-                if (unavailable !== undefined) return unavailable
-                missing = true
-                continue
-              }
-              const decoded = decodeRow(select.schema, visible[key]!.values, assembled.values)
-              if (Result.isFailure(decoded)) {
-                return {
-                  _tag: 'Failed',
-                  error: { _tag: 'DecodeError', message: decoded.failure.message },
-                }
-              }
-              refreshing ||= assembled.refreshing
-              rows.push(decoded.success)
-            }
-            if (
-              missing &&
-              rows.length === 0 &&
-              !deletedInWindow(
-                items(connection),
-                new Set(shownEdges(remote, ref.identity, connection).map(edge => edge.key)),
-                ref.window,
-                sizeOf(remote),
-                goneIn(remote.entities, remote.optimistic),
-              )
-            ) {
-              return undefined
-            }
-            const page = {
-              items: rows,
-              hasNext: cutAfter || hasNext(connection),
-              hasPrevious: cutBefore || hasPrevious(connection),
-            }
-            return refreshing || missing
-              ? { _tag: 'Refreshing', value: page }
-              : { _tag: 'Ready', value: page }
+            const made = pageOf(remote, connection, visible)
+            return made === undefined ? undefined : keptPage(pages, key, made)
           },
         )
+        // The page read last, a memo hit included, is what the next store's
+        // page is compared with.
+        if (read !== undefined) pages.set(key, read as RemoteData<Page<unknown>>)
+        return read
+      }
+      const pageOf = (
+        remote: RemoteModel,
+        connection: Connection,
+        visible: EntityStore,
+      ): RemoteData<Page<Value>> | undefined => {
+        const rows: Value[] = []
+        let refreshing = readsStale(remote, ref.identity)
+        let missing = false
+        const { edges, cutBefore, cutAfter } = shown(remote, connection)
+        for (const edge of edges) {
+          const key = entityKey(edge.ref.entity, edge.ref.id)
+          const row = readRow(visible, key, relation, relationKey, select.schema)
+          if (row === undefined) {
+            missing = true
+            continue
+          }
+          if (row._tag === 'Failed') return row
+          refreshing ||= row._tag === 'Refreshing'
+          rows.push(row.value)
+        }
+        if (
+          missing &&
+          rows.length === 0 &&
+          !deletedInWindow(
+            items(connection),
+            new Set(shownEdges(remote, ref.identity, connection).map(edge => edge.key)),
+            ref.window,
+            sizeOf(remote),
+            goneIn(remote.entities, remote.optimistic),
+          )
+        ) {
+          return undefined
+        }
+        const page = {
+          items: rows,
+          hasNext: cutAfter || hasNext(connection),
+          hasPrevious: cutBefore || hasPrevious(connection),
+        }
+        return refreshing || missing
+          ? { _tag: 'Refreshing', value: page }
+          : { _tag: 'Ready', value: page }
       }
       return {
         Model: remoteDataSchema(pageSchema(select.schema)) as Schema.Codec<
@@ -4418,27 +4418,27 @@ const bindDomain = <
           // Invalidating a connection the Model never loaded records it stale with no
           // segments: still nothing to show. (A loaded empty page is not stale.)
           if (connection === undefined || (connection.stale && connection.segments.length === 0)) {
-            if (isQueryLoading(remote, ref.identity)) return { _tag: 'Loading' }
-            return failure === undefined ? { _tag: 'Initial' } : { _tag: 'Failed', error: failure }
+            if (isQueryLoading(remote, ref.identity)) return LOADING
+            return failure === undefined ? INITIAL : { _tag: 'Failed', error: failure }
           }
           // A query that answered is not the whole of a list: its rows' fields
           // are read separately, and one of those failing is the list's failure.
-          const read = readPage(remote, connection) ??
+          const read =
+            readPage(remote, connection) ??
             failedItem(remote, connection) ??
-            loadingItem(remote, connection) ?? { _tag: 'Initial' }
+            loadingItem(remote, connection) ??
+            INITIAL
           if (failure === undefined) {
             if (read._tag !== 'Ready' && read._tag !== 'Refreshing') return read
             const item = failedItem(remote, connection)
-            return item === undefined
-              ? read
-              : { _tag: 'Failed', error: item.error, previous: read.value }
+            return item === undefined ? read : failedWith(read, item.error)
           }
           // The rows held before the failure are still the best there is, so they
           // go with it as `previous`, which `RemoteData.render` shows as stale.
           switch (read._tag) {
             case 'Ready':
             case 'Refreshing':
-              return { _tag: 'Failed', error: failure, previous: read.value }
+              return failedWith(read, failure)
             case 'Failed':
               return read
             case 'Initial':
@@ -4647,24 +4647,20 @@ const bindDomain = <
         throw error
       }
       const relation = relationOf(over.selection)
+      const relationKey = stableStringify(relation)
 
       const items: unknown[] = []
       let assembledAll = true
       for (const key of judged.matched) {
-        const assembled = assemble(visible, key, relation)
+        const row = readRow(visible, key, relation, relationKey, over.selection.schema)
         // A matching row whose selected fields are not all here cannot be shown.
         // It is not dropped from the truth, only from the list: `complete` says
         // the answer is about less than the whole.
-        if (assembled === undefined) {
+        if (row === undefined || row._tag === 'Failed') {
           assembledAll = false
           continue
         }
-        const decoded = decodeRow(over.selection.schema, visible[key]!.values, assembled.values)
-        if (Result.isFailure(decoded)) {
-          assembledAll = false
-          continue
-        }
-        items.push(decoded.success)
+        items.push(row.value)
       }
 
       return {

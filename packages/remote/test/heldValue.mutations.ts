@@ -32,24 +32,24 @@ const partial = (name: string, find: string, replace: string) => ({
 export default [
   partial(
     'a row not yet read hides the whole list',
-    'missing = true\n                continue',
+    'missing = true\n            continue',
     'return undefined',
   ),
   partial(
     'a list with no row read shows an empty page',
-    '              missing &&\n              rows.length === 0 &&',
-    '              false &&',
+    '          missing &&\n          rows.length === 0 &&',
+    '          false &&',
   ),
   partial(
     'a list whose shown rows were deleted reads as never shown',
-    '              !deletedInWindow(',
-    '              !!deletedInWindow(',
+    '          !deletedInWindow(',
+    '          !!deletedInWindow(',
   ),
   partial('a list missing a row reads Ready', 'return refreshing || missing', 'return refreshing'),
   partial(
     'a row the server will not answer is left out',
-    'if (unavailable !== undefined) return unavailable',
-    '',
+    "if (row._tag === 'Failed') return row",
+    "if (row._tag === 'Failed') continue",
   ),
   edit(
     'a stale list reads as if it held nothing',
@@ -60,25 +60,25 @@ export default [
   edit(
     'a list reads Loading while its rows are refetched',
     index,
-    'const read = readPage(remote, connection) ??',
-    'const read = loadingItem(remote, connection) ?? readPage(remote, connection) ??',
+    'const read =\n            readPage(remote, connection) ??',
+    'const read =\n            loadingItem(remote, connection) ??\n            readPage(remote, connection) ??',
   ),
   edit(
     'an entity reads Loading while it is refetched',
     index,
-    '        if (present !== undefined) {',
-    "        if (isLoadingThrough(remote, selection.entity, id, relation)) return { _tag: 'Loading' }\n        if (present !== undefined) {",
+    '      if (present !== undefined) {',
+    '      if (isLoadingThrough(remote, selection.entity, id, relation)) return LOADING\n      if (present !== undefined) {',
   ),
   edit(
     "a failed list's query drops its rows",
     index,
-    "return { _tag: 'Failed', error: failure, previous: read.value }",
+    'return failedWith(read, failure)',
     "return { _tag: 'Failed', error: failure }",
   ),
   edit(
     "a failed entity's refresh drops its value",
     index,
-    "? { _tag: 'Failed', error: failure, previous: present.value }",
+    '? failedWith(present, failure)',
     "? { _tag: 'Failed', error: failure }",
   ),
   edit(

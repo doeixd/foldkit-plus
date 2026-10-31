@@ -2887,17 +2887,40 @@ requirements for the concrete target.
 `RemotePolicy.toPlan(policy, now)` compiles a high-level policy into planner
 options.
 
-`Remote.storeOf` is the visible store after pending optimistic layers. Reads are
-memoized per visible store (and, for a list, its connection and overlays), so
-equal reads of one Model state assemble/decode once and return one value.
+`Remote.storeOf` is the visible store after pending optimistic layers.
 
-Across Model states, an entity's or row's decoded value stays the same object
-while its entity's fields are equal: a refetch or live patch that brought equal
-data hands the view the value it already rendered, so a keyed row's lazy view
-does not re-run. A write to any field of the entity, even one the row does not
-select, or a pending optimistic patch on it while other writes land, gives the
-row a new value. When the store changed, the `RemoteData` around a value and a
-page's `items` array are new.
+A read is cheap to repeat, and keeps its object while what it reads does, so
+a view can read every row on every render and a memo keyed on what it hands
+out holds:
+
+- **One handle per row.** `Data.get(selection, id)` gives the same Projection
+  for the same Selection and id (of the last few thousand ids), so making it
+  per render costs a lookup.
+- **A row read is kept by the store entries it reaches**: its own, and its
+  relations' targets. While each is the same object, the read is the
+  `RemoteData` it was; a write to any other row, or to the application
+  outside Remote, costs one comparison per entry reached.
+- **Equal data keeps its value.** When an entry did change, the row is
+  assembled again, and its decoded value and its `RemoteData` are the ones it
+  had while what was assembled is equal: an equal refetch or live patch, a
+  write to a field the row does not select, a pending optimistic patch while
+  other writes land, and a row evicted and read again (while it is among the
+  last few thousand rows of its Selection) all hand the view the object it
+  rendered.
+- **A list's page** is the object it was while its rows are, in order, with
+  the same bounds; a changed row gives a new row, a new page and a new
+  `RemoteData`, and nothing else is new. `Initial`, `Loading` and `NotFound`
+  are one object each, and a failure over a value on screen is kept while
+  its error is.
+- **A Remote read declares no Model path**: what it reads is named by its
+  metadata, which is how a server render resumes it. A region or a
+  `Projection.derive` over reads names the store's field
+  (`App.model.remote`), and is worked out again when the store changes.
+
+These caches are bounded (each Selection keeps at most 8,192 rows and
+handles, each domain 512 pages) and hold one version of each: reading a
+Model older than the last one read gives equal values, not always the same
+objects.
 
 `Remote.prefetch(bound, model, projection, options?)` runs the same plans
 imperatively and reduces their results into a new Model.
