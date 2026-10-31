@@ -245,10 +245,11 @@ test('a narrow cart fills the window on an opaque panel', async () => {
   await page.getByRole('button', { name: 'Cart, 1 domains' }).click()
   const panel = page.locator('.cart-panel')
   await panel.waitFor()
-  // Once it has slid in: on its way it stands past the window's edge.
-  await expect
-    .poll(() => panel.evaluate(element => element.closest('section')?.getAnimations().length))
-    .toBe(0)
+  // It stands open at once, as upstream's: nothing slides past the window's
+  // edge or fades its text below the contrast it is read at.
+  expect(await panel.evaluate(element => element.closest('section')?.getAnimations().length)).toBe(
+    0,
+  )
   expect(await page.locator('#domains-cart').evaluate(e => e.scrollWidth <= e.clientWidth)).toBe(
     true,
   )

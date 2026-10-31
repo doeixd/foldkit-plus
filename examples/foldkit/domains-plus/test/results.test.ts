@@ -116,6 +116,24 @@ describe('All Results', () => {
     expect(checked).toHaveLength(11 * 6 + 12 * 6)
   })
 
+  test('on a phone, the rows not yet measured take the height of those measured', () => {
+    // One column: a row of six names is six lines tall, three times the desktop's.
+    const phoneRow = 366
+    const settled = searched('acme').reduce((model, message) => update(model, message).model, empty)
+    const measured = update(
+      settled,
+      Message.GotResultsListMessage({
+        message: WindowList.Message.Measured({
+          rows: groups.slice(0, 2).map(group => ({ key: group.id, height: phoneRow })),
+        }),
+      }),
+    ).model
+    const scrolled = update(measured, placed(10 * phoneRow)).model
+    expect(readNames(scrolled).slice(4)).toEqual(
+      namesOfGroups(10 - 2, 10 + Math.ceil(900 / phoneRow) + 2),
+    )
+  })
+
   test("a new search drops the heights measured for the last one's rows", () => {
     const settle = (model: Model, value: string, generation: number) =>
       [

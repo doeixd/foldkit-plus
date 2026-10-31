@@ -1013,8 +1013,16 @@ export const SheetLook = forSlots(DialogSlots)(
   { name: 'SheetLook' },
 )
 
+/**
+ * Upstream's cart stands open at once: no slide past the window's edge and
+ * no fade, so its text is read at full contrast the moment it shows.
+ */
 export const CartSheetLook = forSlots(DialogSlots)(
-  { panel: { maxInlineSize: '420px' }, description: Style.class('demo-note') },
+  {
+    backdrop: { transitionDuration: '0s' },
+    panel: { maxInlineSize: '420px', transitionDuration: '0s' },
+    description: Style.class('demo-note'),
+  },
   { name: 'CartSheetLook' },
 )
 

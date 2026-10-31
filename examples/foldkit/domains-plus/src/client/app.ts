@@ -210,6 +210,23 @@ const tldSheetStep = (model: Model, next: Sheet.Return): Return =>
 const filtersSheetStep = (model: Model, next: Sheet.Return): Return =>
   sheetStep(model, next, filtersSheet, FocusFiltersButton())
 
+/**
+ * Rows not yet measured take the height of the rows just measured: a row of
+ * six names is one height on a desktop and three times it on a phone, and a
+ * fixed estimate made the list's length change as rows were drawn (#381).
+ */
+const estimatedFromMeasured = (list: WindowList.Model, message: WindowList.Message) =>
+  WindowList.Message.match(message, {
+    Placed: () => list,
+    Measured: ({ rows }) => {
+      if (rows.length === 0) return list
+      const mean = rows.reduce((sum, row) => sum + row.height, 0) / rows.length
+      return mean === list.estimatedHeight
+        ? list
+        : modifyFields(list, { estimatedHeight: () => mean })
+    },
+  })
+
 const withoutDomain = (name: string) => (cart: Cart.Cart) =>
   Array.filter(cart, domain => domain.name !== name)
 
@@ -310,7 +327,10 @@ const own = (model: Model, message: Own): Return =>
     CompletedFocusFiltersButton: () => ({ model }),
     CompletedFocusTldFilterButton: () => ({ model }),
     GotResultsListMessage: ({ message }) => {
-      const next = WindowList.update(model.resultsList, message).model
+      const next = estimatedFromMeasured(
+        WindowList.update(model.resultsList, message).model,
+        message,
+      )
       return {
         model:
           next === model.resultsList ? model : modifyFields(model, { resultsList: () => next }),

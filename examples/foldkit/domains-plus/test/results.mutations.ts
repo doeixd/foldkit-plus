@@ -43,4 +43,15 @@ export default [
     ],
     tests,
   },
+  {
+    name: 'rows not yet measured keep the desktop estimate on a phone',
+    edits: [
+      {
+        file: '../src/client/app.ts',
+        find: '      return mean === list.estimatedHeight',
+        replace: '      return true',
+      },
+    ],
+    tests,
+  },
 ]
