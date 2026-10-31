@@ -100,7 +100,7 @@
   "devDependencies": {
     "@electric-sql/pglite": "0.5.11",
     "drizzle-orm": "1.0.0-rc.5",
-    "effect": "^4.1.0",
+    "effect": "^4.1.1",
     "foldkit": "0.170.0",
     "foldkit-agent": "workspace:*",
     "foldkit-media": "workspace:*",

@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@foldkit/ui": "0.170.0",
-    "effect": "^4.1.0",
+    "effect": "^4.1.1",
     "foldkit": "0.170.0",
     "foldkit-bundle": "workspace:*",
     "foldkit-media": "workspace:*",
@@ -20,10 +20,10 @@
     "foldkit-primitives": "workspace:*"
   },
   "devDependencies": {
-    "@effect/platform-browser": "^4.1.0",
+    "@effect/platform-browser": "^4.1.1",
     "@foldkit/ui": "0.170.0",
     "@foldkit/vite-plugin": "0.29.0",
-    "effect": "^4.1.0",
+    "effect": "^4.1.1",
     "foldkit": "0.170.0",
     "foldkit-bundle": "workspace:*",
     "foldkit-media": "workspace:*",

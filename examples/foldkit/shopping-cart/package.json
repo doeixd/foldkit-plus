@@ -9,13 +9,13 @@
   },
   "dependencies": {
     "@foldkit/ui": "0.170.0",
-    "effect": "^4.1.0",
+    "effect": "^4.1.1",
     "foldkit": "0.170.0",
     "foldkit-mixins": "workspace:*",
     "foldkit-mixins-ui": "workspace:*"
   },
   "devDependencies": {
-    "@effect/platform-browser": "^4.1.0",
+    "@effect/platform-browser": "^4.1.1",
     "@foldkit/vite-plugin": "0.29.0",
     "jsdom": "30.1.3",
     "typescript": "7.0.2",

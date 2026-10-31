@@ -11,10 +11,10 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
-    "@effect/sql-sqlite-wasm": "^4.1.0",
+    "@effect/sql-sqlite-wasm": "^4.1.1",
     "@effect/wa-sqlite": "0.1.2",
     "@foldkit/ui": "0.170.0",
-    "effect": "^4.1.0",
+    "effect": "^4.1.1",
     "foldkit": "0.170.0",
     "foldkit-agent": "workspace:*",
     "foldkit-agent-webmcp": "workspace:*",
@@ -32,7 +32,7 @@
   },
   "devDependencies": {
     "@foldkit/vite-plugin": "0.29.0",
-    "@effect/platform-browser": "^4.1.0",
+    "@effect/platform-browser": "^4.1.1",
     "@types/jsdom": "30.0.0",
     "@types/ws": "^8.18.2",
     "fake-indexeddb": "6.2.6",

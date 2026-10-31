@@ -57,8 +57,8 @@
     "foldkit": "^0.170.0"
   },
   "devDependencies": {
-    "@effect/platform-browser": "^4.1.0",
-    "effect": "^4.1.0",
+    "@effect/platform-browser": "^4.1.1",
+    "effect": "^4.1.1",
     "foldkit": "0.170.0",
     "foldkit-form-recipes": "workspace:*",
     "foldkit-mixins-crud": "workspace:*",

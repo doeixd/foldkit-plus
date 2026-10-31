@@ -58,9 +58,9 @@
     "foldkit-surface": "workspace:*"
   },
   "devDependencies": {
-    "@effect/platform-browser": "^4.1.0",
+    "@effect/platform-browser": "^4.1.1",
     "@types/jsdom": "30.0.0",
-    "effect": "^4.1.0",
+    "effect": "^4.1.1",
     "esbuild": "0.28.2",
     "foldkit": "0.170.0",
     "foldkit-bundle": "workspace:*",

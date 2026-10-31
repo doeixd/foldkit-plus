@@ -81,9 +81,9 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261022.1",
-    "@effect/platform-browser": "^4.1.0",
-    "@effect/sql-d1": "^4.1.0",
-    "effect": "^4.1.0",
+    "@effect/platform-browser": "^4.1.1",
+    "@effect/sql-d1": "^4.1.1",
+    "effect": "^4.1.1",
     "esbuild": "0.28.2",
     "foldkit": "0.170.0",
     "foldkit-agent": "workspace:*",

@@ -16,7 +16,7 @@
     "foldkit-remote-server": "workspace:*"
   },
   "devDependencies": {
-    "effect": "^4.1.0",
+    "effect": "^4.1.1",
     "foldkit-surface": "workspace:*",
     "typescript": "7.0.2"
   }

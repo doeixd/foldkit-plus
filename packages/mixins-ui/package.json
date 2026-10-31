@@ -55,9 +55,9 @@
     "foldkit-primitives": "workspace:^"
   },
   "devDependencies": {
-    "@effect/platform-browser": "^4.1.0",
+    "@effect/platform-browser": "^4.1.1",
     "@foldkit/ui": "0.170.0",
-    "effect": "^4.1.0",
+    "effect": "^4.1.1",
     "foldkit": "0.170.0",
     "foldkit-media": "workspace:*",
     "foldkit-mixins": "workspace:*",

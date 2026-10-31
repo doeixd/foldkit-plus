@@ -79,7 +79,7 @@
     "foldkit-metadata": "workspace:*"
   },
   "devDependencies": {
-    "effect": "^4.1.0",
+    "effect": "^4.1.1",
     "foldkit": "0.170.0",
     "foldkit-bundle": "workspace:*",
     "foldkit-entity": "workspace:*",

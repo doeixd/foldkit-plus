@@ -56,7 +56,7 @@
     "foldkit-primitives": "workspace:*"
   },
   "devDependencies": {
-    "effect": "^4.1.0",
+    "effect": "^4.1.1",
     "foldkit": "0.170.0",
     "foldkit-mixins-form": "workspace:*",
     "jsdom": "30.1.3",

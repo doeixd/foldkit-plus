@@ -16,7 +16,7 @@
     "@yielded/auth-persistence-drizzle": "0.1.0-beta.47",
     "@yielded/auth-platform-workerd": "0.1.0-beta.47",
     "drizzle-orm": "1.0.0-rc.5",
-    "effect": "^4.1.0",
+    "effect": "^4.1.1",
     "foldkit": "0.170.0",
     "foldkit-auth": "workspace:*",
     "foldkit-bundle": "workspace:*",
@@ -40,7 +40,7 @@
   "devDependencies": {
     "@foldkit/vite-plugin": "0.29.0",
     "@cloudflare/workers-types": "5.20261022.1",
-    "@effect/sql-d1": "^4.1.0",
+    "@effect/sql-d1": "^4.1.1",
     "esbuild": "0.28.2",
     "foldkit-plus": "workspace:*",
     "typescript": "7.0.2",

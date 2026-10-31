@@ -14,10 +14,10 @@ useNodeVersion: 22.23.4
 # `foldkit-plus setup` does in an application (`effectPackages` in
 # `packages/plus/src/setup.ts`).
 overrides:
-  '@effect/platform-browser': ^4.1.0
-  '@effect/platform-node': ^4.1.0
-  '@effect/platform-node-shared': ^4.1.0
-  '@effect/sql-sqlite-node': ^4.1.0
+  '@effect/platform-browser': ^4.1.1
+  '@effect/platform-node': ^4.1.1
+  '@effect/platform-node-shared': ^4.1.1
+  '@effect/sql-sqlite-node': ^4.1.1
 
 # The upstream foldkit-domains copy (`examples/foldkit/domains`) pins
 # Foldkit's Blocks preview canary and carries upstream's VirtualList patch.

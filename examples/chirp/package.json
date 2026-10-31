@@ -33,7 +33,7 @@
     "@foldkit/ui": "0.170.0",
     "@iconify-json/lucide": "^1.2.147",
     "@types/sql.js": "1.4.11",
-    "effect": "^4.1.0",
+    "effect": "^4.1.1",
     "foldkit": "0.170.0",
     "foldkit-plus": "workspace:*",
     "playwright": "^1.64.1",

@@ -50,8 +50,8 @@
     "foldkit": "^0.170.0"
   },
   "devDependencies": {
-    "@effect/platform-browser": "^4.1.0",
-    "effect": "^4.1.0",
+    "@effect/platform-browser": "^4.1.1",
+    "effect": "^4.1.1",
     "foldkit": "0.170.0",
     "tsdown": "^0.23.1",
     "typescript": "7.0.2"
