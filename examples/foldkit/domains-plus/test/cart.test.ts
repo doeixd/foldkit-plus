@@ -82,8 +82,8 @@ const vercelApp = {
 describe('the cart', () => {
   test('adding a name twice keeps it once, and the live region says the count', async () => {
     const model = await priced()
-    const once = update(model, Message.ClickedAddDomain({ domain: vercelApp })).model
-    expect(update(once, Message.ClickedAddDomain({ domain: vercelApp })).model).toBe(once)
+    const once = update(model, Message.ClickedAddDomain({ name: vercelApp.name })).model
+    expect(update(once, Message.ClickedAddDomain({ name: vercelApp.name })).model).toBe(once)
     // Foldkit's Scene cannot click inside this page (it finds an ancestor it
     // cannot read), so the click is the Message the button sends, drawn after.
     scene(
@@ -107,8 +107,19 @@ describe('the cart', () => {
     )
   })
 
-  test('removing from the open cart moves focus to its close button; closing it, to the Cart button', () => {
-    const added = update(empty, Message.ClickedAddDomain({ domain: vercelApp })).model
+  test('only a name read as available is added, at the price read', async () => {
+    const model = await priced()
+    // Taken in the demo's data, and never read: neither is added, whatever a form posts.
+    expect(update(model, Message.ClickedAddDomain({ name: 'vercel.com' })).model).toBe(model)
+    expect(update(model, Message.ClickedAddDomain({ name: 'vercel.nope' })).model).toBe(model)
+    expect(update(empty, Message.ClickedAddDomain({ name: vercelApp.name })).model).toBe(empty)
+    expect(update(model, Message.ClickedAddDomain({ name: vercelApp.name })).model.cart).toEqual([
+      vercelApp,
+    ])
+  })
+
+  test('removing from the open cart moves focus to its close button; closing it, to the Cart button', async () => {
+    const added = update(await priced(), Message.ClickedAddDomain({ name: vercelApp.name })).model
     const removed = update(added, Message.ClickedRemoveCartDomain({ name: 'vercel.app' }))
     expect(removed.model.cart).toEqual([])
     expect(removed.commands?.map(command => command.name)).toEqual([FocusCartCloseButton().name])

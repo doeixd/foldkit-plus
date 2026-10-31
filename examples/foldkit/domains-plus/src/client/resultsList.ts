@@ -44,3 +44,19 @@ export const initResultsList = (): WindowList.Model =>
     unmeasured: 'mean',
     overscan: RESULTS_OVERSCAN_GROUPS,
   })
+
+/**
+ * The list drawn from `row` on, as a page opened at `?from=` draws it before
+ * the window is known: the viewport placed past the rows its overscan would
+ * draw above `row`, at the estimate, since nothing is measured yet (#392).
+ */
+export const openAt = (list: WindowList.Model, row: number): WindowList.Model =>
+  row === 0
+    ? list
+    : WindowList.update(
+        list,
+        WindowList.Message.Placed({
+          top: (row + list.overscan) * list.estimatedHeight,
+          height: list.viewport.height,
+        }),
+      ).model

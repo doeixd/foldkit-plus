@@ -43,7 +43,7 @@ export default [
     edits: [
       {
         file: '../src/client/app.ts',
-        find: 'settledLabel: queryToMaybeDomainLabel(query),',
+        find: 'settledLabel: queryToMaybeDomainLabel(search.query),',
         replace: 'settledLabel: Option.none(),',
       },
     ],

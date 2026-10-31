@@ -18,7 +18,12 @@ import { ListboxView, Sheet, WindowList } from 'foldkit-mixins-ui'
 import { Remote, RemoteData, RemotePolicy, type RemoteClient } from 'foldkit-remote'
 import { SSR } from 'foldkit-ssr/client'
 import { Projection, Surface } from 'foldkit-surface'
-import { type Domain as DomainValue, DomainLabel, queryToMaybeDomainLabel } from '../shared/domain'
+import {
+  Domain as DomainCase,
+  type Domain as DomainValue,
+  DomainLabel,
+  queryToMaybeDomainLabel,
+} from '../shared/domain'
 import { Domain, Quote } from '../shared/entity'
 import {
   DismissSearchKeyboard,
@@ -42,7 +47,7 @@ import {
 } from './domain'
 import { Message, Own, Search, SearchInput } from './message.js'
 import { arrangedOf, namesOf } from './results.js'
-import { initResultsList } from './resultsList.js'
+import { initResultsList, openAt } from './resultsList.js'
 import { AppRoute, routeOf } from './site.js'
 
 export { Message }
@@ -66,6 +71,11 @@ export const Model = Schema.Struct({
   remote: Remote.Model,
   /** All Results' window over the page: which rows are drawn, and their heights. */
   resultsList: WindowList.Model,
+  /**
+   * The row of All Results a page opened at (`?from=`), which a page without
+   * scripts pages through by links; 0 once the list follows the window.
+   */
+  from: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
   tldFilter: TldFilter,
   availabilityFilter: AvailabilityFilter,
   sortOrder: SortOrder,
@@ -301,10 +311,19 @@ const own = (model: Model, message: Own): Return =>
     }),
     ClickedMobileTldOption: ({ value }) =>
       tldSheetStep(modifyFields(model, { tldFilter: () => value }), Sheet.close(model.tldSheet)),
-    ClickedAddDomain: ({ domain }) =>
-      Array.some(model.cart, ({ name }) => name === domain.name)
-        ? { model }
-        : { model: modifyFields(model, { cart: cart => Array.append(cart, domain) }) },
+    // Only a name read as available is added, at the price read: what a
+    // form posted without scripts names is checked here, as a click is.
+    ClickedAddDomain: ({ name }) =>
+      Option.match(
+        Array.findFirst(shown(Data.get(Quote, name).read(model)), DomainCase.guards.Available),
+        {
+          onNone: () => ({ model }),
+          onSome: domain =>
+            Array.some(model.cart, held => held.name === domain.name)
+              ? { model }
+              : { model: modifyFields(model, { cart: cart => Array.append(cart, domain) }) },
+        },
+      ),
     ClickedRemoveDomain: ({ name }) => ({
       model: modifyFields(model, { cart: withoutDomain(name) }),
     }),
@@ -319,11 +338,15 @@ const own = (model: Model, message: Own): Return =>
     CompletedFocusCartCloseButton: () => ({ model }),
     CompletedFocusFiltersButton: () => ({ model }),
     CompletedFocusTldFilterButton: () => ({ model }),
+    // The list is live and follows the window, so the row the page opened
+    // at no longer says where it is, and leaves the address.
     GotResultsListMessage: ({ message }) => {
       const next = WindowList.update(model.resultsList, message).model
       return {
         model:
-          next === model.resultsList ? model : modifyFields(model, { resultsList: () => next }),
+          next === model.resultsList && model.from === 0
+            ? model
+            : modifyFields(model, { resultsList: () => next, from: () => 0 }),
       }
     },
     FocusedResultsList: () => ({ model, commands: [RevealResultsListStart()] }),
@@ -369,15 +392,34 @@ const empty: Model = {
   query: '',
   settledLabel: Option.none(),
   searchLayout: 'Landing',
+  from: 0,
 }
 
 export const App = Surface.application({ Model, Message })
 
-/** `?q=`: the search text, replaced as it is typed, so typing makes no history. */
-export const QueryInUrl = Mirror.url(App, {
-  name: 'query',
-  fields: [App.model.query],
-  keys: { query: { key: 'q', history: 'replace' } },
+/**
+ * The search in the address: `?q=` the text, `?tld=`, `?availability=` and
+ * `?sort=` the filters, `?from=` the row a page opened at. Each is replaced,
+ * so typing and choosing make no history. A page without scripts sends the
+ * same keys from its search form and its paging links, and the server reads
+ * them here.
+ */
+export const SearchInUrl = Mirror.url(App, {
+  name: 'search',
+  fields: [
+    App.model.query,
+    App.model.tldFilter,
+    App.model.availabilityFilter,
+    App.model.sortOrder,
+    App.model.from,
+  ],
+  keys: {
+    query: { key: 'q', history: 'replace' },
+    tldFilter: { key: 'tld', history: 'replace' },
+    availabilityFilter: { key: 'availability', history: 'replace' },
+    sortOrder: { key: 'sort', history: 'replace' },
+    from: { history: 'replace' },
+  },
   // Written with each keystroke, as upstream's Command writes it, so a reload
   // right after typing opens what was typed; a replace makes no history to
   // rate-limit.
@@ -506,27 +548,40 @@ const Settled = Page.at(Search, {
 })
 
 const placements = Page.assemble(
-  QueryInUrl.wiring('ChangedUrl'),
+  SearchInUrl.wiring('ChangedUrl'),
   Settled,
   Data.wiring(actives, { policy: freshness, grace: '1 minute' }),
 )
 
 export const update = placements.update(own)
 
-/** The page at `route` with `query` in its box, read at once: the server's first render. */
-const start = (route: AppRoute, query: string): Return =>
+/**
+ * The page at `route` for the search the address names, read at once: the
+ * server's first render. A page opened at a row of All Results draws its
+ * list from there.
+ */
+const start = (route: AppRoute, search: Model, cart: Cart.Cart): Return =>
   placements.initial({
-    route,
-    query,
-    settledLabel: queryToMaybeDomainLabel(query),
-    searchLayout: String.isNonEmpty(query) ? 'Search' : 'Landing',
-    remote: Remote.initial,
-    resultsList: initResultsList(),
     ...filtersInitial(),
+    cart,
+    route,
+    query: search.query,
+    tldFilter: search.tldFilter,
+    availabilityFilter: search.availabilityFilter,
+    sortOrder: search.sortOrder,
+    from: search.from,
+    settledLabel: queryToMaybeDomainLabel(search.query),
+    searchLayout: String.isNonEmpty(search.query) ? 'Search' : 'Landing',
+    remote: Remote.initial,
+    resultsList: openAt(initResultsList(), search.from),
   })
 
 /** The page at `url`, as the server renders it; the browser resumes from it. */
-export const init = (url: Url): Return => start(routeOf(url), QueryInUrl.reduce(empty, url).query)
+export const init = (url: Url): Return => initWith(url, [])
+
+/** The page at `url` holding `cart`, the cart a visitor's cookie keeps (`server/cart.ts`). */
+export const initWith = (url: Url, cart: Cart.Cart): Return =>
+  start(routeOf(url), SearchInUrl.reduce(empty, url), cart)
 
 export const subscriptions = placements.subscriptions()
 
@@ -534,6 +589,15 @@ export const subscriptions = placements.subscriptions()
 export const SearchBox = App.surface('SearchBox', {
   model: ({ model }) => ({ query: model.query }),
   messages: [Message.UpdatedSearch],
+})
+
+/**
+ * The cart's controls: the Messages a form posts when no script runs, which
+ * `SSR.handle` answers by running `update` on the server.
+ */
+export const CartControls = App.surface('CartControls', {
+  model: ({ model }) => ({ cart: model.cart }),
+  messages: [Message.ClickedAddDomain, Message.ClickedRemoveDomain],
 })
 
 /**
@@ -558,10 +622,20 @@ export const plan = SSR.plan(
       App.model.tldFilter,
       App.model.availabilityFilter,
       App.model.sortOrder,
+      App.model.from,
+      App.model.cart,
     ),
     local: [App.model.search],
-    surfaces: [Surface.at(SearchBox, undefined), actives.top, actives.visible, actives.whole],
+    surfaces: [
+      Surface.at(SearchBox, undefined),
+      Surface.at(CartControls, undefined),
+      actives.top,
+      actives.visible,
+      actives.whole,
+    ],
     parts: [Remote.resume(Data)],
+    // A cart form posts its Message to the page when no script runs.
+    fallback: 'server',
   },
 )
 

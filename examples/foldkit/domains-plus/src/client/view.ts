@@ -18,8 +18,8 @@ import {
   queryToMaybeDomainLabel,
   type DomainName,
 } from '../shared/domain'
-import { App, Message, answeredOf, type Model } from './app.js'
-import { SEARCH_INPUT_ID } from './command.js'
+import { App, Message, SearchInUrl, answeredOf, type Model } from './app.js'
+import { SEARCH_FORM_ID, SEARCH_INPUT_ID } from './command.js'
 import {
   DomainListing,
   TOP_RESULT_COUNT,
@@ -36,10 +36,17 @@ import {
   SearchViewState,
   searchViewState,
 } from './searchViewState.js'
-import { type CartInput, cartAnnouncement, cartButton, cartSheet } from './cart.js'
+import {
+  type CartInput,
+  cartAnnouncement,
+  cartButton,
+  cartSheet,
+  plainCart,
+  plainCartLink,
+} from './cart.js'
 import { filters } from './filters.js'
 import { type Arranged, arrangedOf } from './results.js'
-import type { DomainListingGroup } from './resultsList.js'
+import { type DomainListingGroup, initResultsList, openAt } from './resultsList.js'
 import { Page, ResultsListStyle } from './style.js'
 
 type H = HtmlBuilder<Message>
@@ -82,51 +89,67 @@ const header = (model: CartInput, slots: Slots, h: H): Html =>
       [logo(slots, h), h.span(slots.brandDivider.attrs(), ['/']), h.span([], ['Domains'])],
     ),
     h.span(slots.demoLabel.attrs(), ['Unofficial demo']),
-    h.div(slots.headerActions.attrs(), [cartButton(model, slots, h)]),
+    h.div(slots.headerActions.attrs(), [
+      cartButton(model, slots, h),
+      plainCartLink(model, slots, h),
+    ]),
     cartAnnouncement(model, slots, h),
   ])
 
 const searchForm = (model: Model, slots: Slots, h: H): Html => {
   const rh = Resume.builder(h)
-  return h.form(slots.search.attrs([h.Role('search'), h.OnSubmit(Message.SubmittedSearch())]), [
-    h.span(slots.searchIcon.attrs(), [icon(icons.search, h, '16px')]),
-    rh.input([
-      ...slots.searchInput.attrs([
-        h.Id(SEARCH_INPUT_ID),
-        h.Type('search'),
-        h.Name('q'),
-        h.AriaLabel('Search domains'),
-        h.AriaInvalid(isInvalid(model.query)),
-        ...(isInvalid(model.query) ? [h.AriaDescribedBy('search-error')] : []),
-        h.Placeholder('Search for a domain'),
-        h.Value(model.query),
-        h.Autocomplete('off'),
-        h.Attribute('autocapitalize', 'none'),
-        h.Attribute('enterkeyhint', 'search'),
-        h.Spellcheck(false),
-        h.OnKeyDownPreventDefault(key =>
-          key === 'Escape' ? Option.some(Message.PressedEscape()) : Option.none(),
-        ),
-      ]),
-      // Named, so the server's page says which Message typing sends, and kept:
-      // what is typed before the bundle runs is replayed as that Message. The
-      // element is `rh`'s, which is how the server marks it.
-      rh.OnInput(Message.UpdatedSearch),
-      rh.KeepTyped(),
+  // A GET of `/` without scripts, which the server reads as the address
+  // the Mirror writes: the text, and the filters' plain selects that name
+  // this form. With scripts, Enter is `SubmittedSearch` and nothing is sent.
+  // `h.form`, not `rh.form`: the server fallback would make it a post (#391).
+  return h.form(
+    slots.search.attrs([
+      h.Id(SEARCH_FORM_ID),
+      h.Role('search'),
+      h.Method('get'),
+      h.Action(searchHref),
+      h.OnSubmit(Message.SubmittedSearch()),
     ]),
-    h.button(
-      slots.clearSearch.attrs([
-        h.Type('button'),
-        h.AriaLabel('Clear search, Esc'),
-        h.AriaKeyshortcuts('Escape'),
-        h.OnClick(Message.ClickedClearSearch()),
+    [
+      h.span(slots.searchIcon.attrs(), [icon(icons.search, h, '16px')]),
+      rh.input([
+        ...slots.searchInput.attrs([
+          h.Id(SEARCH_INPUT_ID),
+          h.Type('search'),
+          h.Name('q'),
+          h.AriaLabel('Search domains'),
+          h.AriaInvalid(isInvalid(model.query)),
+          ...(isInvalid(model.query) ? [h.AriaDescribedBy('search-error')] : []),
+          h.Placeholder('Search for a domain'),
+          h.Value(model.query),
+          h.Autocomplete('off'),
+          h.Attribute('autocapitalize', 'none'),
+          h.Attribute('enterkeyhint', 'search'),
+          h.Spellcheck(false),
+          h.OnKeyDownPreventDefault(key =>
+            key === 'Escape' ? Option.some(Message.PressedEscape()) : Option.none(),
+          ),
+        ]),
+        // Named, so the server's page says which Message typing sends, and kept:
+        // what is typed before the bundle runs is replayed as that Message. The
+        // element is `rh`'s, which is how the server marks it.
+        rh.OnInput(Message.UpdatedSearch),
+        rh.KeepTyped(),
       ]),
-      [
-        h.kbd(slots.kbd.attrs([h.AriaHidden(true)]), ['Esc']),
-        h.span(slots.clearIcon.attrs(), [icon(icons.close, h)]),
-      ],
-    ),
-  ])
+      h.button(
+        slots.clearSearch.attrs([
+          h.Type('button'),
+          h.AriaLabel('Clear search, Esc'),
+          h.AriaKeyshortcuts('Escape'),
+          h.OnClick(Message.ClickedClearSearch()),
+        ]),
+        [
+          h.kbd(slots.kbd.attrs([h.AriaHidden(true)]), ['Esc']),
+          h.span(slots.clearIcon.attrs(), [icon(icons.close, h)]),
+        ],
+      ),
+    ],
+  )
 }
 
 const hero = (model: Model, slots: Slots, h: H): Html =>
@@ -203,22 +226,34 @@ const readyAction = (
       ]),
   })
 
-/** Adds an available name to the cart, or takes it out again. */
+/**
+ * Adds an available name to the cart, or takes it out again: a form whose
+ * submit is the Message, so a page without scripts posts it to the server,
+ * which runs the same `update` (`fallback: 'server'`). With scripts the page
+ * answers the submit and nothing is sent.
+ */
 const cartToggle = (added: boolean, domain: AvailableDomain, slots: Slots, h: H): Html => {
+  const rh = Resume.builder(h)
   const terms = `${formatRegistrationPrice(domain)}. ${domain.isPremium ? 'Premium domain. ' : ''}${formatRenewalPrice(domain)}`
-  return h.button(
-    slots.iconButton.attrs([
-      h.Type('button'),
-      ...(added ? [h.DataAttribute('added', '')] : []),
-      h.AriaLabel(added ? `Remove ${domain.name} from cart` : `Add ${domain.name} to cart`),
-      h.AriaDescription(terms),
-      h.OnClick(
+  return rh.form(
+    slots.cartForm.attrs([
+      rh.OnSubmit(
         added
           ? Message.ClickedRemoveDomain({ name: domain.name })
-          : Message.ClickedAddDomain({ domain }),
+          : Message.ClickedAddDomain({ name: domain.name }),
       ),
     ]),
-    [Icon.draw(added ? icons.check : icons.cart, h, { size: '18px' })],
+    [
+      h.button(
+        slots.iconButton.attrs([
+          h.Type('submit'),
+          ...(added ? [h.DataAttribute('added', '')] : []),
+          h.AriaLabel(added ? `Remove ${domain.name} from cart` : `Add ${domain.name} to cart`),
+          h.AriaDescription(terms),
+        ]),
+        [Icon.draw(added ? icons.check : icons.cart, h, { size: '18px' })],
+      ),
+    ],
   )
 }
 
@@ -362,6 +397,38 @@ const allResults = (
   )
 }
 
+/**
+ * All Results' pages on a page without scripts, which draws the rows of the
+ * list's first window in the page's flow: links to the windows before and
+ * after, the address the Mirror writes with `?from=` set, so the server
+ * draws the list from that row. Worked out from the row the page opened at,
+ * not the live window, so scrolling a scripted page changes none of it.
+ */
+const paging = (model: Model, arranged: Arranged, slots: Slots, h: H): Html => {
+  const rows = arranged.groups.length
+  const { start, end } = WindowList.windowOf(openAt(initResultsList(), model.from), arranged.keys)
+  const at = Math.min(start, rows)
+  const size = Math.max(1, end - start)
+  const names = (to: number) =>
+    Array.reduce(arranged.groups.slice(0, to), 0, (sum, group) => sum + group.listings.length)
+  const link = (from: number, label: string, rel: string) =>
+    h.a(slots.button.attrs([h.Href(SearchInUrl.href(model, { from }, searchHref)), h.Rel(rel)]), [
+      label,
+    ])
+  return h.nav(slots.paging.attrs([h.AriaLabel('All Results pages')]), [
+    at > 0 ? link(Math.max(0, at - size), 'Previous', 'prev') : h.span([], []),
+    h.span(
+      [],
+      [
+        at < rows
+          ? `Domains ${names(at) + 1}–${names(Math.min(end, rows))} of ${arranged.count}`
+          : 'No more domains',
+      ],
+    ),
+    end < rows ? link(end, 'Next', 'next') : h.span([], []),
+  ])
+}
+
 /** What the count line says: how many names are checked, until all are. */
 const resultCountText = (search: SearchViewState, count: number) =>
   SearchViewState.match(search, {
@@ -439,6 +506,7 @@ const searchResults = (model: Model, search: SearchViewState, slots: Slots, h: H
                 ),
               ),
             ]),
+        arranged.count === 0 ? h.empty : paging(model, arranged, slots, h),
       ]),
       DomainRequest.match(request, {
         Idle: () => h.empty,
@@ -488,6 +556,7 @@ const footer = (slots: Slots, h: H): Html =>
 const cartReads = Projection.struct({ cart: App.model.cart, cartSheet: App.model.cartSheet })
 const Header = SlotView.region(cartReads, header)
 const CartPanel = SlotView.region(cartReads, cartSheet)
+const PlainCart = SlotView.region(Projection.struct({ cart: App.model.cart }), plainCart)
 const Filters = SlotView.region(
   Projection.struct({
     tldFilter: App.model.tldFilter,
@@ -527,6 +596,7 @@ const searchPage = (model: Model, slots: Slots, h: H): Html =>
         hero(model, slots, h),
         beginSearch(slots, h),
         results(model, slots, h),
+        PlainCart(model, slots, h),
       ]),
       footer(slots, h),
       CartPanel(model, slots, h),

@@ -110,6 +110,29 @@ const sectionTitle: Piece = [
   Style.media(NARROW, { fontSize: '20px' }),
 ]
 
+/**
+ * A page in a browser running no scripts: there, each control only a script
+ * drives is not shown, and the plain form control or link that stands in for
+ * it is. Both are drawn on the server and in the browser alike, so the page
+ * the browser adopts is the page the server sent.
+ */
+export const NO_SCRIPT = '(scripting: none)'
+/** Shown only where scripts run. Last in a slot's pieces, so it wins over a width's `display`. */
+const scriptedOnly = Style.media(NO_SCRIPT, { display: 'none' })
+/** Shown only where no script runs, as `display` when it is. */
+const plainOnly = (display: string): Piece => [
+  { display: 'none' },
+  Style.media(NO_SCRIPT, { display }),
+]
+
+const cartTotal: Piece = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  borderBottom: `1px solid ${d.lineSoft}`,
+  padding: '24px 0',
+  fontSize: '14px',
+}
+
 const control: Piece = [
   {
     display: 'inline-flex',
@@ -369,6 +392,7 @@ export const Page = slots({
     },
     Style.nest('[data-search="active"] &', { display: 'flex' }),
     Style.media(NARROW, { marginRight: '-12px', height: '44px', width: '44px', flexShrink: '0' }),
+    scriptedOnly,
   ],
   kbd: [
     {
@@ -563,11 +587,38 @@ export const Page = slots({
     { display: 'flex', gap: '6px' },
     Style.media(NARROW, { minWidth: '0', alignItems: 'center' }),
   ],
-  desktopTld: [Style.class('desktop-tld-filter'), Style.media(NARROW, { display: 'none' })],
+  desktopTld: [
+    Style.class('desktop-tld-filter'),
+    Style.media(NARROW, { display: 'none' }),
+    scriptedOnly,
+  ],
   desktopFilters: [
     Style.class('desktop-filters'),
     { display: 'flex', gap: '6px' },
     Style.media(NARROW, { display: 'none' }),
+    scriptedOnly,
+  ],
+  /** The filters as a page without scripts sends them: selects of the search form, and Apply. */
+  plainFilters: [
+    plainOnly('flex'),
+    { flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center', gap: '6px' },
+  ],
+  plainSelect: [
+    control,
+    { height: '34px', padding: '0 8px', fontSize: '13px', colorScheme: 'dark' },
+    Style.media(NARROW, { minHeight: '44px' }),
+  ],
+  /** All Results' paging links on a page without scripts, under the rows. */
+  paging: [
+    plainOnly('flex'),
+    {
+      margin: '12px 0 0',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: '12px',
+      fontSize: '13px',
+      color: d.muted,
+    },
   ],
   filtersButton: [
     Style.class('filters-button'),
@@ -600,6 +651,7 @@ export const Page = slots({
     }),
     focusRing,
     Style.media(NARROW, { display: 'inline-flex' }),
+    scriptedOnly,
   ],
   mobileTld: [
     Style.class('filter-trigger'),
@@ -616,6 +668,7 @@ export const Page = slots({
       whiteSpace: 'nowrap',
     },
     Style.media(NARROW, { display: 'flex' }),
+    scriptedOnly,
   ],
   tldSearch: [
     Style.class('tld-search'),
@@ -694,6 +747,8 @@ export const Page = slots({
     { margin: '6px 0', border: '0', borderTop: `1px solid ${d.lineFirm}` },
   ],
   emptyResults: [Style.class('empty-results'), { margin: '16px 0' }],
+  /** The form around a cart button, which posts it when no script runs; it adds no box. */
+  cartForm: [{ display: 'contents' }],
   iconButton: [
     Style.class('icon-button'),
     control,
@@ -720,6 +775,28 @@ export const Page = slots({
       whiteSpace: 'nowrap',
     },
     Style.media(NARROW, { width: '44px', height: '44px', padding: '0' }),
+    scriptedOnly,
+  ],
+  /** The Cart button of a page without scripts: a link to the cart's section. */
+  plainCartLink: [
+    control,
+    {
+      position: 'relative',
+      height: '34px',
+      gap: '8px',
+      padding: '0 12px',
+      fontSize: '13px',
+      whiteSpace: 'nowrap',
+      textDecoration: 'none',
+    },
+    Style.media(NARROW, { width: '44px', height: '44px', padding: '0' }),
+    plainOnly('inline-flex'),
+  ],
+  /** The cart on a page without scripts, at the end of the page. */
+  plainCart: [
+    plainOnly('block'),
+    { margin: '0 auto', maxWidth: '1080px', padding: '0 28px 64px' },
+    Style.media(NARROW, { padding: '0 16px 48px' }),
   ],
   cartLabel: [Style.media(NARROW, { display: 'none' })],
   cartCount: [
@@ -763,16 +840,9 @@ export const Page = slots({
   cartName: [{ marginBottom: '8px', display: 'block', fontSize: '14px', overflowWrap: 'anywhere' }],
   cartTerms: [{ fontSize: '13px', color: d.soft }],
   cartRenewal: [{ marginTop: '4px', display: 'block', fontSize: '12px', color: d.soft }],
-  cartTotal: [
-    Style.class('cart-total'),
-    {
-      display: 'flex',
-      justifyContent: 'space-between',
-      borderBottom: `1px solid ${d.lineSoft}`,
-      padding: '24px 0',
-      fontSize: '14px',
-    },
-  ],
+  cartTotal: [Style.class('cart-total'), cartTotal],
+  /** The total of the cart a page without scripts shows, which upstream's suites do not read. */
+  plainCartTotal: [cartTotal],
   cartNote: [
     Style.class('empty-cart'),
     { margin: '13px 0', fontSize: '13px', lineHeight: '1.7', color: d.soft },
@@ -968,6 +1038,8 @@ export const ResultsListStyle = forSlots(WindowListSlots)(
       },
       Style.pseudo(':focus-visible', { outline: `2px solid ${d.text}`, outlineOffset: '-2px' }),
     ],
+    // Without scripts the rows drawn lie in the page's flow, paged by links.
+    spacer: [scriptedOnly],
   },
   { name: 'ResultsListStyle' },
 )

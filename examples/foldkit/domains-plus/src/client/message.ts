@@ -12,7 +12,7 @@ import { Sheet, WindowList } from 'foldkit-mixins-ui'
 import { debounce } from 'foldkit-primitives/time'
 import { Remote } from 'foldkit-remote'
 import { Domain } from '../shared/domain'
-import { AvailabilityFilter, SortOrder, TldFilter } from './domain'
+import { AvailabilityFilter, Cart, SortOrder, TldFilter } from './domain'
 
 /**
  * The search text on its way to the reads. Each keystroke is `Changed`; the
@@ -45,9 +45,11 @@ const own = {
   ClickedFilters: {},
   ClickedMobileAvailabilityOption: { value: AvailabilityFilter },
   ClickedMobileSortOption: { value: SortOrder },
-  ClickedAddDomain: { domain: Domain.Available },
-  ClickedRemoveDomain: { name: Schema.String },
-  ClickedRemoveCartDomain: { name: Schema.String },
+  // A name, not the priced domain: `update` takes the price from what was
+  // read, so a form posted without scripts cannot name its own price.
+  ClickedAddDomain: { name: Cart.Name },
+  ClickedRemoveDomain: { name: Cart.Name },
+  ClickedRemoveCartDomain: { name: Cart.Name },
   ClickedCart: {},
   GotCartSheetMessage: { message: Sheet.Message },
   CompletedFocusCartButton: {},

@@ -75,3 +75,23 @@ test('a page opened at ?q= shows the query in the box before the bundle runs (#3
     await page.close()
   }
 })
+
+test('without JavaScript, the built Worker answers a cart form by running update (#388)', async () => {
+  const context = await browser.newContext({ javaScriptEnabled: false })
+  const page = await context.newPage()
+  try {
+    await page.goto(`${origin}/?q=acme`)
+    const card = page.locator('.domain-card').first()
+    const name = (await card.locator('h3').textContent())!
+    const answered = page.waitForResponse(
+      response => response.request().method() === 'POST' && response.url().includes('?q=acme'),
+    )
+    await card.getByRole('button', { name: `Add ${name} to cart` }).click()
+    const response = await answered
+    expect(response.status()).toBe(200)
+    expect(await response.headerValue('set-cookie')).toContain(`cart=${name}`)
+    expect(await page.getByRole('region', { name: 'Your cart' }).textContent()).toContain(name)
+  } finally {
+    await context.close()
+  }
+})

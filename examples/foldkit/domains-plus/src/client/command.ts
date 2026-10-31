@@ -7,6 +7,8 @@ import { Message } from './message.js'
 import { RESULTS_LIST_ID } from './resultsList.js'
 
 export const SEARCH_INPUT_ID = 'domain-search'
+/** The search form, which the filters' plain selects belong to on a page without scripts. */
+export const SEARCH_FORM_ID = 'domain-search-form'
 export const CART_BUTTON_ID = 'cart-button'
 export const CART_CLOSE_BUTTON_ID = 'cart-close-button'
 export const TLD_FILTER_BUTTON_ID = 'mobile-tld-filter'

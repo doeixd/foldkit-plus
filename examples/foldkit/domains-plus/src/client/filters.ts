@@ -12,7 +12,7 @@ import { Icon } from 'foldkit-media'
 import type { SlotAttributes, SlotBuilders } from 'foldkit-mixins'
 import { Listbox, Sheet } from 'foldkit-mixins-ui'
 import { Dropdown, type Model } from './app.js'
-import { FILTERS_BUTTON_ID, TLD_FILTER_BUTTON_ID } from './command.js'
+import { FILTERS_BUTTON_ID, SEARCH_FORM_ID, TLD_FILTER_BUTTON_ID } from './command.js'
 import { AvailabilityFilter, SortOrder, TldFilter } from './domain'
 import { icons } from './iconData.js'
 import { Message } from './message.js'
@@ -281,6 +281,74 @@ const filtersSheet = (model: FiltersInput, slots: Slots, h: H): Html =>
     h,
   )
 
+/** A select of the search form, sent as `name` with the search text. */
+const plainSelect = <Value extends string>(
+  config: {
+    readonly name: string
+    readonly label: string
+    readonly values: ReadonlyArray<Value>
+    readonly labelOf: (value: Value) => string
+    readonly value: Value
+  },
+  slots: Slots,
+  h: H,
+): Html =>
+  h.select(
+    slots.plainSelect.attrs([
+      h.Name(config.name),
+      h.AriaLabel(config.label),
+      h.Attribute('form', SEARCH_FORM_ID),
+    ]),
+    Array.map(config.values, value =>
+      h.option([h.Value(value), h.Selected(value === config.value)], [config.labelOf(value)]),
+    ),
+  )
+
+/**
+ * The filters on a page without scripts: plain selects that belong to the
+ * search form, so Apply, or Enter in the box, sends the text and the filters
+ * together as a GET of the address the Mirror reads (`?q=&tld=&availability=&sort=`).
+ */
+const plainFilters = (model: FiltersInput, slots: Slots, h: H): Html =>
+  h.div(slots.plainFilters.attrs(), [
+    plainSelect(
+      {
+        name: 'tld',
+        label: 'Filter by TLD',
+        values: TldFilter.literals,
+        labelOf: tldLabel,
+        value: model.tldFilter,
+      },
+      slots,
+      h,
+    ),
+    plainSelect(
+      {
+        name: 'availability',
+        label: 'Filter availability',
+        values: AvailabilityFilter.literals,
+        labelOf: value => availabilityLabels[value],
+        value: model.availabilityFilter,
+      },
+      slots,
+      h,
+    ),
+    plainSelect(
+      {
+        name: 'sort',
+        label: 'Sort results',
+        values: SortOrder.literals,
+        labelOf: value => sortLabels[value],
+        value: model.sortOrder,
+      },
+      slots,
+      h,
+    ),
+    h.button(slots.button.attrs([h.Type('submit'), h.Attribute('form', SEARCH_FORM_ID)]), [
+      'Apply',
+    ]),
+  ])
+
 export const filters = (model: FiltersInput, slots: Slots, h: H): Html =>
   h.div(slots.filters.attrs(), [
     h.div(slots.desktopTld.attrs(), [
@@ -350,6 +418,7 @@ export const filters = (model: FiltersInput, slots: Slots, h: H): Html =>
       ]),
       [Icon.draw(icons.filter, h, { size: '18px' })],
     ),
+    plainFilters(model, slots, h),
     tldSheet(model, slots, h),
     filtersSheet(model, slots, h),
   ])

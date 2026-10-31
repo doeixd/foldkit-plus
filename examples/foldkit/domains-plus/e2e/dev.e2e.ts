@@ -28,6 +28,14 @@ afterAll(async () => {
   await vite?.close()
 })
 
+/**
+ * Waits until the runtime has taken the page over. The served page is whole
+ * (priced, its forms posting to the server), so a test that clicks or
+ * scrolls before then is testing the page without scripts.
+ */
+const live = (page: Page) =>
+  page.locator('#domains-app:not([data-foldkit-plus-resume])').waitFor({ timeout: 60_000 })
+
 /** A page that records every error it logs or throws. */
 const opened = async (): Promise<{ readonly page: Page; readonly problems: Array<string> }> => {
   const page = await browser.newPage()
@@ -99,7 +107,7 @@ test('a page opened at ?q= is served priced, and the browser reads none of it ag
     if (new URL(request.url()).pathname === '/remote') reads.push(request.postData() ?? '')
   })
   await page.goto(`${origin}/?q=vercel`)
-  await page.locator('#domains-app:not([data-foldkit-plus-resume])').waitFor({ timeout: 60_000 })
+  await live(page)
   expect(await page.locator('.domain-card .price').count()).toBe(2)
   expect(await page.locator('.domain-card .unavailable').count()).toBe(2)
   expect(await page.locator('.domain-card .price').allTextContents()).toEqual(['$9.99', '$34.99'])
@@ -151,6 +159,7 @@ test('All Results reads the rows scrolled into view, and only those', async () =
     asked.push(...body.payload.requests.map(({ id }) => id))
   })
   await page.goto(`${origin}/?q=acme`)
+  await live(page)
   const rows = page.locator('#domain-results .domain-row')
   await expect
     .poll(() => page.locator('#domain-results .domain-row .price').count(), { timeout: 60_000 })
@@ -230,7 +239,8 @@ test('on a phone the filters open as sheets from the bottom', async () => {
   const problems: Array<string> = []
   page.on('pageerror', error => problems.push(String(error)))
   await page.goto(`${origin}/?q=vercel`)
-  await expect.poll(() => page.locator('.domain-card .price').count(), { timeout: 60_000 }).toBe(2)
+  await live(page)
+  expect(await page.locator('.domain-card .price').count()).toBe(2)
   // The desktop's dropdowns are hidden; the phone's TLD opener and its one
   // Filters and sort button show, beside an All Results heading on one line.
   expect(await page.locator('.desktop-tld-filter').isVisible()).toBe(false)
@@ -285,6 +295,7 @@ test('a narrow cart fills the window on an opaque panel', async () => {
   const page = await browser.newPage({ viewport: { width: 320, height: 900 } })
   const label = 'a'.repeat(63)
   await page.goto(`${origin}/?q=${label}`)
+  await live(page)
   await page
     .locator('.domain-card')
     .getByRole('button', { name: `Add ${label}.com to cart`, exact: true })
@@ -313,7 +324,8 @@ test('a narrow cart fills the window on an opaque panel', async () => {
 test('the results list focused from the keys shows its start below the header on a phone', async () => {
   const page = await browser.newPage({ viewport: { width: 390, height: 664 } })
   await page.goto(`${origin}/?q=acme`)
-  await expect.poll(() => page.locator('.domain-card .price').count(), { timeout: 60_000 }).toBe(4)
+  await live(page)
+  expect(await page.locator('.domain-card .price').count()).toBe(4)
   await page.locator('#filters-button').focus()
   await page.keyboard.press('Tab')
   await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe('domain-results')
@@ -334,7 +346,8 @@ test('the results list focused from the keys shows its start below the header on
 test('the cart takes domains once, and focus moves as upstream moves it', async () => {
   const { page, problems } = await opened()
   await page.goto(`${origin}/?q=vercel`)
-  await expect.poll(() => page.locator('.domain-card .price').count(), { timeout: 60_000 }).toBe(2)
+  await live(page)
+  expect(await page.locator('.domain-card .price').count()).toBe(2)
   await page.getByRole('button', { name: 'Add vercel.app to cart' }).first().click()
   await page.getByRole('button', { name: 'Add vercel.io to cart' }).first().click()
   await expect

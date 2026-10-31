@@ -10,8 +10,19 @@ export default [
     edits: [
       {
         file: '../src/client/app.ts',
-        find: 'Array.some(model.cart, ({ name }) => name === domain.name)',
+        find: 'Array.some(model.cart, held => held.name === domain.name)',
         replace: 'false',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'a name posted without a price read is added as whatever was read of it',
+    edits: [
+      {
+        file: '../src/client/app.ts',
+        find: 'shown(Data.get(Quote, name).read(model)), DomainCase.guards.Available',
+        replace: 'shown(Data.get(Quote, name).read(model)), () => true',
       },
     ],
     tests,
