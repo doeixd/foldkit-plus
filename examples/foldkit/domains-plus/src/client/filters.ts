@@ -29,6 +29,20 @@ import {
 type H = HtmlBuilder<Message>
 type Slots = SlotBuilders<typeof Page.slots, Message>
 
+/** What the filters read: each value, and the dropdown or sheet that chooses it. */
+type FiltersInput = Pick<
+  Model,
+  | 'tldFilter'
+  | 'tldListbox'
+  | 'tldSheet'
+  | 'tldSearchQuery'
+  | 'availabilityFilter'
+  | 'availabilityListbox'
+  | 'sortOrder'
+  | 'sortListbox'
+  | 'filtersSheet'
+>
+
 const availabilityLabels: Readonly<Record<AvailabilityFilter, string>> = {
   All: 'Show All',
   Available: 'Available',
@@ -119,7 +133,7 @@ const choiceContent = (label: string, slots: Slots, h: H): ReadonlyArray<Html> =
   ]),
 ]
 
-const tldSheet = (model: Model, slots: Slots, h: H): Html =>
+const tldSheet = (model: FiltersInput, slots: Slots, h: H): Html =>
   Sheet.view(
     {
       model: model.tldSheet,
@@ -211,7 +225,7 @@ const choiceGroup = <Value extends string>(
     ),
   ])
 
-const filtersSheet = (model: Model, slots: Slots, h: H): Html =>
+const filtersSheet = (model: FiltersInput, slots: Slots, h: H): Html =>
   Sheet.view(
     {
       model: model.filtersSheet,
@@ -267,7 +281,7 @@ const filtersSheet = (model: Model, slots: Slots, h: H): Html =>
     h,
   )
 
-export const filters = (model: Model, slots: Slots, h: H): Html =>
+export const filters = (model: FiltersInput, slots: Slots, h: H): Html =>
   h.div(slots.filters.attrs(), [
     h.div(slots.desktopTld.attrs(), [
       dropdown(

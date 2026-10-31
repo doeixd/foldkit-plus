@@ -18,9 +18,12 @@ import { CartSheetLook, CartSheetStyle, type Page, SheetLook } from './style.js'
 type H = HtmlBuilder<Message>
 type Slots = SlotBuilders<typeof Page.slots, Message>
 
-const count = (model: Model): number => Array.length(model.cart)
+/** What the cart's controls read: its domains and its sheet. */
+export type CartInput = Pick<Model, 'cart' | 'cartSheet'>
 
-export const cartButton = (model: Model, slots: Slots, h: H): Html =>
+const count = (model: Pick<Model, 'cart'>): number => Array.length(model.cart)
+
+export const cartButton = (model: CartInput, slots: Slots, h: H): Html =>
   h.button(
     slots.cartButton.attrs([
       h.Id(CART_BUTTON_ID),
@@ -38,14 +41,14 @@ export const cartButton = (model: Model, slots: Slots, h: H): Html =>
   )
 
 /** What the live region says, kept on the page so a change is announced. */
-export const cartAnnouncement = (model: Model, slots: Slots, h: H): Html =>
+export const cartAnnouncement = (model: Pick<Model, 'cart'>, slots: Slots, h: H): Html =>
   h.p(slots.srOnly.attrs([h.Id('cart-announcement'), h.AriaLive('polite'), h.AriaAtomic(true)]), [
     count(model) === 0
       ? 'Your cart is empty.'
       : `${count(model)} ${count(model) === 1 ? 'domain' : 'domains'} in your cart.`,
   ])
 
-const items = (model: Model, slots: Slots, h: H): Html =>
+const items = (model: Pick<Model, 'cart'>, slots: Slots, h: H): Html =>
   Array.match(model.cart, {
     onEmpty: () =>
       h.p(slots.cartNote.attrs(), [
@@ -77,7 +80,7 @@ const items = (model: Model, slots: Slots, h: H): Html =>
       ),
   })
 
-export const cartSheet = (model: Model, slots: Slots, h: H): Html =>
+export const cartSheet = (model: CartInput, slots: Slots, h: H): Html =>
   Sheet.view(
     {
       model: model.cartSheet,

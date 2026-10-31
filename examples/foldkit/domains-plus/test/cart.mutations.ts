@@ -41,7 +41,7 @@ export default [
         file: '../src/client/view.ts',
         find: `          [formatRegistrationPrice(available)],
         ),
-        cartToggle(model, available, slots, h),`,
+        cartToggle(added, available, slots, h),`,
         replace: `          [formatRegistrationPrice(available)],
         ),`,
       },

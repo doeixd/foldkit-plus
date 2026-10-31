@@ -10,6 +10,7 @@ import { Icon, type IconData } from 'foldkit-media'
 import { Behavior, SlotView, Style, type SlotBuilders } from 'foldkit-mixins'
 import { WindowList, WindowListSlots } from 'foldkit-mixins-ui'
 import { Resume } from 'foldkit-ssr/client'
+import { Projection } from 'foldkit-surface'
 import {
   type AvailableDomain,
   Domain,
@@ -17,7 +18,7 @@ import {
   queryToMaybeDomainLabel,
   type DomainName,
 } from '../shared/domain'
-import { Message, type Model } from './app.js'
+import { App, Message, type Model } from './app.js'
 import { SEARCH_INPUT_ID } from './command.js'
 import {
   DomainListing,
@@ -35,7 +36,7 @@ import {
   SearchViewState,
   searchViewState,
 } from './searchViewState.js'
-import { cartAnnouncement, cartButton, cartSheet } from './cart.js'
+import { type CartInput, cartAnnouncement, cartButton, cartSheet } from './cart.js'
 import { filters } from './filters.js'
 import { type Arranged, arrangedOf } from './results.js'
 import type { DomainListingGroup } from './resultsList.js'
@@ -69,7 +70,7 @@ const logo = (slots: Slots, h: H): Html =>
     ],
   )
 
-const header = (model: Model, slots: Slots, h: H): Html =>
+const header = (model: CartInput, slots: Slots, h: H): Html =>
   h.header(slots.header.attrs(), [
     h.a(
       slots.brand.attrs([
@@ -172,7 +173,7 @@ const pendingAction = (slot: Slots['action'], slots: Slots, h: H): Html =>
 
 /** An answered name: its price and terms, or that the demo marks it taken. */
 const readyAction = (
-  model: Model,
+  added: boolean,
   domain: Domain,
   slot: Slots['action'],
   slots: Slots,
@@ -198,13 +199,12 @@ const readyAction = (
           ]),
           [formatRegistrationPrice(available)],
         ),
-        cartToggle(model, available, slots, h),
+        cartToggle(added, available, slots, h),
       ]),
   })
 
 /** Adds an available name to the cart, or takes it out again. */
-const cartToggle = (model: Model, domain: AvailableDomain, slots: Slots, h: H): Html => {
-  const added = Array.some(model.cart, ({ name }) => name === domain.name)
+const cartToggle = (added: boolean, domain: AvailableDomain, slots: Slots, h: H): Html => {
   const terms = `${formatRegistrationPrice(domain)}. ${domain.isPremium ? 'Premium domain. ' : ''}${formatRenewalPrice(domain)}`
   return h.button(
     slots.iconButton.attrs([
@@ -223,7 +223,7 @@ const cartToggle = (model: Model, domain: AvailableDomain, slots: Slots, h: H): 
 }
 
 const action = (
-  model: Model,
+  added: boolean,
   listing: DomainListing,
   slot: Slots['action'],
   slots: Slots,
@@ -231,7 +231,7 @@ const action = (
 ): Html =>
   DomainListing.match(listing, {
     Pending: () => pendingAction(slot, slots, h),
-    Ready: ({ domain }) => readyAction(model, domain, slot, slots, h),
+    Ready: ({ domain }) => readyAction(added, domain, slot, slots, h),
   })
 
 /** Whether the demo marks an answered name taken, which greys its name. */
@@ -243,17 +243,73 @@ const isUnavailable = DomainListing.match({
 const unavailableMark = (listing: DomainListing, h: H) =>
   isUnavailable(listing) ? [h.DataAttribute('unavailable', '')] : []
 
-const card = (model: Model, listing: DomainListing, slots: Slots, h: H): Html =>
+/**
+ * What a card or a row is drawn from, each kept while it holds the same: a
+ * name's listing (`listingOf`) and whether the cart holds it. A card and a
+ * row are each drawn again only when one of these changed.
+ */
+interface Shown {
+  readonly listing: DomainListing
+  readonly added: boolean
+}
+
+const drawCard = (slots: Slots, h: H, { listing, added }: Shown): Html =>
   h.keyed('article')(listing.name, slots.card.attrs(unavailableMark(listing, h)), [
     h.h3(slots.cardName.attrs(), domainName(listing, h)),
-    action(model, listing, slots.action, slots, h),
+    action(added, listing, slots.action, slots, h),
   ])
 
-const row = (model: Model, listing: DomainListing, slots: Slots, h: H): Html =>
+const drawRow = (slots: Slots, h: H, { listing, added }: Shown): Html =>
   h.keyed('li')(listing.name, slots.row.attrs(unavailableMark(listing, h)), [
     h.span(slots.domainName.attrs(), domainName(listing, h)),
-    action(model, listing, slots.rowAction, slots, h),
+    action(added, listing, slots.rowAction, slots, h),
   ])
+
+// The stand-ins drawn before All Results' first answer: a name, its price unknown.
+const drawPreviewRow = (
+  slots: Slots,
+  h: H,
+  { name, tld }: { readonly name: string; readonly tld: string },
+): Html => drawRow(slots, h, { listing: DomainListing.Pending({ name, tld }), added: false })
+
+// One Ready listing per answered domain, so a row reads the same listing
+// while its domain is the same value.
+const readyListings = new WeakMap<Domain, DomainListing>()
+const readyListingOf = (domain: Domain): DomainListing => {
+  const known = readyListings.get(domain)
+  if (known !== undefined) return known
+  const made = domainToReadyListing(domain)
+  readyListings.set(domain, made)
+  return made
+}
+
+/** Whether the cart holds a name: a set of the cart's names, made once per cart. */
+const cartNames = new WeakMap<Model['cart'], ReadonlySet<string>>()
+const isAdded = (cart: Model['cart'], name: string): boolean => {
+  const known = cartNames.get(cart)
+  if (known !== undefined) return known.has(name)
+  const made = new Set(Array.map(cart, domain => domain.name))
+  cartNames.set(cart, made)
+  return made.has(name)
+}
+
+/** A listing as `readyListingOf` keeps it, once it is answered. */
+const stableListing = DomainListing.match({
+  Pending: (listing): DomainListing => listing,
+  Ready: ({ domain }) => readyListingOf(domain),
+})
+
+const card = (model: Model, listing: DomainListing, slots: Slots): Html =>
+  slots.card.lazy({ index: 0, id: listing.name }, drawCard, {
+    listing,
+    added: isAdded(model.cart, listing.name),
+  })
+
+const row = (model: Model, listing: DomainListing, slots: Slots): Html =>
+  slots.row.lazy({ index: 0, id: listing.name }, drawRow, {
+    listing,
+    added: isAdded(model.cart, listing.name),
+  })
 
 const retryButton = (slots: Slots, h: H): Html =>
   h.button(slots.button.attrs([h.Type('button'), h.OnClick(Message.ClickedRetrySearch())]), [
@@ -285,7 +341,7 @@ const allResults = (
   const listingOf = (listing: DomainListing): DomainListing =>
     Option.match(Option.fromNullishOr(byName.get(listing.name)), {
       onNone: () => listing,
-      onSome: domainToReadyListing,
+      onSome: readyListingOf,
     })
   return WindowList.view(
     {
@@ -298,7 +354,7 @@ const allResults = (
             h.DataAttribute('virtual-list-item-key', group.id),
             h.DataAttribute('virtual-list-item-index', `${index}`),
           ]),
-          Array.map(group.listings, listing => row(model, listingOf(listing), slots, h)),
+          Array.map(group.listings, listing => row(model, listingOf(listing), slots)),
         ),
       onMessage: message => Message.GotResultsListMessage({ message }),
       label: 'All domain results',
@@ -367,12 +423,12 @@ const searchResults = (model: Model, search: SearchViewState, slots: Slots, h: H
         h.div(
           slots.topResults.attrs(),
           Array.map(Array.take(listings, TOP_RESULT_COUNT), listing =>
-            card(model, listing, slots, h),
+            card(model, stableListing(listing), slots),
           ),
         ),
         h.div(slots.resultsHeading.attrs(), [
           h.h2(slots.resultsTitle.attrs(), ['All Results']),
-          filters(model, slots, h),
+          Filters(model, slots, h),
         ]),
         arranged.count === 0
           ? h.p(slots.emptyResults.attrs([h.Role('status')]), [
@@ -387,13 +443,8 @@ const searchResults = (model: Model, search: SearchViewState, slots: Slots, h: H
                     arranged.groups.flatMap(group => group.listings),
                     PREVIEW_RESULT_COUNT,
                   ),
-                  listing =>
-                    row(
-                      model,
-                      DomainListing.Pending({ name: listing.name, tld: listing.tld }),
-                      slots,
-                      h,
-                    ),
+                  ({ name, tld }) =>
+                    slots.row.lazy({ index: 0, id: name }, drawPreviewRow, { name, tld }),
                 ),
               ),
             ]),
@@ -441,6 +492,26 @@ const footer = (slots: Slots, h: H): Html =>
     ]),
   ])
 
+// Drawn again only when what they read changed: a price arriving, a scroll or
+// a keystroke leaves the header, the filters and the cart as they were.
+const cartReads = Projection.struct({ cart: App.model.cart, cartSheet: App.model.cartSheet })
+const Header = SlotView.region(cartReads, header)
+const CartPanel = SlotView.region(cartReads, cartSheet)
+const Filters = SlotView.region(
+  Projection.struct({
+    tldFilter: App.model.tldFilter,
+    tldListbox: App.model.tldListbox,
+    tldSheet: App.model.tldSheet,
+    tldSearchQuery: App.model.tldSearchQuery,
+    availabilityFilter: App.model.availabilityFilter,
+    availabilityListbox: App.model.availabilityListbox,
+    sortOrder: App.model.sortOrder,
+    sortListbox: App.model.sortListbox,
+    filtersSheet: App.model.filtersSheet,
+  }),
+  filters,
+)
+
 const searchPage = (model: Model, slots: Slots, h: H): Html =>
   h.div(
     slots.app.attrs([
@@ -459,7 +530,7 @@ const searchPage = (model: Model, slots: Slots, h: H): Html =>
         ]),
         ['Skip to main content'],
       ),
-      header(model, slots, h),
+      Header(model, slots, h),
       h.main(slots.main.attrs([h.Id('main'), h.Tabindex(-1)]), [
         h.h1(slots.pageHeading.attrs(), ['Domain search']),
         hero(model, slots, h),
@@ -467,7 +538,7 @@ const searchPage = (model: Model, slots: Slots, h: H): Html =>
         results(model, slots, h),
       ]),
       footer(slots, h),
-      cartSheet(model, slots, h),
+      CartPanel(model, slots, h),
     ],
   )
 
