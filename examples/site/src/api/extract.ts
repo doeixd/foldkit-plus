@@ -622,7 +622,9 @@ const reader = (root: string, checker: ts.TypeChecker) => {
     const name = exported.getName()
     const symbol = resolve(exported)
     const declarations = symbol.declarations ?? []
-    const types = declarations.filter(
+    // A namespace exported under an interface's name (`Entity`) resolves to
+    // the module, so the interface is read from the export itself.
+    const types = [...new Set([...declarations, ...(exported.declarations ?? [])])].filter(
       node => ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node),
     )
     const value = declarations.find(node => valueKinds.includes(node.kind))

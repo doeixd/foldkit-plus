@@ -157,6 +157,13 @@ export enum Color {
 }
 `,
   'src/tools.ts': `export * as Mod from './remote.js'
+import * as KitMembers from './remote.js'
+
+/** What a kit holds. */
+export interface Kit {
+  readonly made: true
+}
+export { KitMembers as Kit }
 
 type Base = { readonly base: () => number }
 const Base: Base = { base: () => 0 }
@@ -461,6 +468,13 @@ describe('extract', () => {
       { name: 'table', kind: 'const' },
       { name: 'twice', kind: 'const' },
     ])
+  })
+
+  test('a namespace exported under an interface name keeps the interface', () => {
+    const kit = exportNamed('Kit', 'extra-tools')
+    expect(kit.kind).toBe('namespace')
+    expect(kit.typeSignature).toEqual(Option.some('interface Kit {\n  readonly made: true\n}'))
+    expect(kit.members.map(({ name }) => name)).toContain('make')
   })
 
   test('names no absolute path', () => {

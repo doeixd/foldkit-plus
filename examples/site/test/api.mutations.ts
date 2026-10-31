@@ -91,4 +91,9 @@ export default [
     "['name', 'Model', 'Message', 'init'].some(",
     '[].some(',
   ),
+  one(
+    'a namespace exported under an interface name loses the interface',
+    '...declarations, ...(exported.declarations ?? [])',
+    '...declarations',
+  ),
 ]
