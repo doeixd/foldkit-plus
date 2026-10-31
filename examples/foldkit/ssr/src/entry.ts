@@ -1,13 +1,9 @@
-import { Style } from 'foldkit-mixins'
 import { FOLDKIT_APP_ATTRIBUTE, SSR } from 'foldkit-ssr/client'
 
 import { Message, Model, init, plan, update, view } from './main.js'
-import { stylesheet } from './style.js'
 
-// The page's styles, installed when the runtime boots. A generated page would
-// carry them in its head; here the server renders each request, so the script
-// brings them.
-Style.install(stylesheet)
+// The page's styles come in its root (`renderPage.ts`'s `styles`), and
+// `SSR.hydrate` moves them into the head, where they stay.
 
 // Every page is rendered by the server, and its root is the application's own.
 const container = document.querySelector<HTMLElement>(`[${FOLDKIT_APP_ATTRIBUTE}]`)

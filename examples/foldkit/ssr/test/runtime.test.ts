@@ -50,7 +50,7 @@ const button = (name: string): HTMLButtonElement => {
   return found
 }
 
-/** The stylesheet `entry.ts` installs when it boots. */
+/** The theme's stylesheet, which the served root carried and `SSR.hydrate` moved into the head. */
 const installed = () =>
   Array.from(document.head.querySelectorAll('style')).filter(
     style => style.textContent === stylesheet,

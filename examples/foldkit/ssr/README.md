@@ -57,7 +57,7 @@ FOLDKIT_BUILD_ID=$(git rev-parse --short HEAD) pnpm --filter foldkit-example-fol
 | Static files, the request target, host-refused methods | the host, on Effect's HTTP server and `@effect/platform-node` as upstream's (`HttpStaticServer`; Foldkit's `resolveRequestUrl`, `resolvesToIndexHtml`, `isHostSettledMethod`) | `src/host.ts`, run by `src/serve.ts` |
 | Keeping what is typed into the note before the script runs | `foldkit-ssr` (`Resume.builder`'s `KeepTyped`, replayed by `SSR.hydrate`) | `noteView` and `NoteField` in `src/main.ts` |
 | The accessible buttons | `@foldkit/ui` Button, styled through `foldkit-mixins-ui` | `src/main.ts`, `src/style.ts` |
-| Appearance, and the CSS in each page's first paint | `foldkit-mixins` (`AppStyle`; `Style.usedIn` for the page's classes; `Style.install`, which keeps the copy a served page carries) | `src/style.ts`, `styles` in `src/renderPage.ts`, `src/entry.ts` |
+| Appearance, and the CSS in each page's first paint | `foldkit-mixins` (`AppStyle`; `Style.usedIn` for the page's classes, which `SSR.hydrate` moves into the head) | `src/style.ts`, `styles` in `src/renderPage.ts` |
 
 ### Typing before the script arrives
 
@@ -76,8 +76,8 @@ replays only Messages an active Surface lists.
 ### What is not used, and why
 
 - **Per-page head markup.** The host owns the template in dynamic serving, so
-  a served page carries its styles in its root (`styles`) and no `meta`: the
-  script installs the stylesheet on boot, while `meta` stays a static path
+  a served page carries its styles in its root (`styles`), which
+  `SSR.hydrate` moves into the head, and no `meta`, which stays a static path
   (`SSR.generate`).
 - **A deferred boot** (`start: 'on-interaction'`). The two buttons could
   answer before the runtime boots once `NoteField`'s Surface listed their
