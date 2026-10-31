@@ -9,7 +9,6 @@ import { Clock, Duration, Effect, Layer, Option, Record, Result, Schema, Stream 
 import {
   Derivation,
   Entity as DomainEntity,
-  Query as Relational,
   Operators,
   ReadFilter,
   SelectionTypeId,
@@ -58,7 +57,8 @@ import {
   type PatchValues,
 } from './entity.js'
 import { wireValues } from './patchValues.js'
-import { Impact, changesOf, impactOn, type HeldConnection } from './impact.js'
+import { EntityChange, changesOf } from './changes.js'
+import type { HeldConnection } from './impact.js'
 import {
   Capability,
   Installs,
@@ -79,12 +79,10 @@ import {
   type WriteMethods,
 } from './capability.js'
 import { memoRead } from './memo.js'
-import { placedHeld } from './placing.js'
 import { assertRegistered } from './registered.js'
 import type { WhyReader } from './whyReasons.js'
 import { withInner } from './inner.js'
 import { liveAskOf, liveEntry } from './liveEntry.js'
-import { liveStreamKey } from './liveState.js'
 import { parsedQueryRequest } from './queryRequest.js'
 import { askedOf, askedUnion, resolvedOf, type Asked, type NamedProjection } from './active.js'
 
@@ -130,7 +128,7 @@ import type { OptimisticOperation } from './optimistic.js'
 import { deadlineOf, plan, type Deadline, type PlanOptions } from './plan.js'
 import { RemotePolicy } from './policy.js'
 import { IDENTITY_SEPARATOR, stableStringify } from './query.js'
-import type { ConnectionSpec, LivePolicy, QueryDescriptor, QueryRef, QueryWindow } from './query.js'
+import type { ConnectionSpec, QueryDescriptor, QueryRef, QueryWindow } from './query.js'
 import { remoteDataSchema, type RemoteData, type RemoteError } from './remoteData.js'
 import type { ConnectionRoot, RetentionRoots } from './retain.js'
 import { Selection, pageSchema, relationOf, type Page } from './selection.js'
@@ -148,7 +146,6 @@ import {
   WindowSchema,
   RemoteLiveError,
   RemoteForbidden,
-  RemoteLiveRefused,
   RemoteMutationError,
   RemoteProtocolError,
   RemoteQueryError,
@@ -963,29 +960,27 @@ const readContract = <Name extends string, Input, Value, Entity extends string>(
  * A read contract whose connection, when a client can place rows in it, also
  * reads every field its body filters and orders by: a changed row is then
  * compared with neighbours that hold those fields. What the view reads, and so
- * decodes, stays its Selection.
+ * decodes, stays its Selection. Which fields those are is the body
+ * capability's, which the query's descriptor installed (`Query.define`).
  */
 const placeableReadContract = <Name extends string, Input>(
+  capabilities: Capabilities,
   contract: ReadContract<Name, Input>,
   body: Domain.AnyQuery | undefined,
   operators: MemoryOperators,
 ): ReadContract<Name, Input> => {
-  if (body === undefined) return contract
+  if (body === undefined || Option.isNone(capabilities.bodies)) return contract
   const { requirement, ref } = contract
   const encoded = Schema.encodeSync(ref.Input)(ref.input) as Readonly<Record<string, unknown>>
-  if (Relational.placement(body, encoded, { operators })._tag !== 'Placeable') return contract
-  const missing = Relational.dependencies(body).fields.filter(
-    field => !requirement.select.fields.includes(field.key),
-  )
+  const missing = capabilities.bodies.value
+    .placedFields(body, encoded, operators)
+    .filter(field => !requirement.select.fields.includes(field))
   if (missing.length === 0) return contract
   return {
     ...contract,
     requirement: {
       ...requirement,
-      select: {
-        ...requirement.select,
-        fields: [...requirement.select.fields, ...missing.map(field => field.key)],
-      },
+      select: { ...requirement.select, fields: [...requirement.select.fields, ...missing] },
     },
   }
 }
@@ -1381,6 +1376,7 @@ const bindRemote = <
   const name = store.dependency.join('.') || 'remote'
   const capabilities = noCapabilities(name)
   for (const mutation of definition.mutations) mutation[Installs](capabilities)
+  for (const query of definition.queries) query[Installs]?.(capabilities)
   return {
     definition,
     store,
@@ -3034,38 +3030,22 @@ const bindDomain = <
   ): ReadonlyArray<Edge> => shownEdgesOf(capabilities, lists, remote, identity, connection)
 
   /**
-   * The loaded lists with what the server said of rows they hold placed: a
-   * read or a live patch that changes a held row's ordering or filtered field
-   * moves it, or takes it out, as a mutation's answer does. A list it cannot
-   * place stands as it is, as a read is no write: its own refetch or live
-   * stream says otherwise. Only a value the client held before counts, so a
-   * row's first read judges nothing.
+   * The loaded lists with what the server said of rows they hold placed, by
+   * their bodies (the body capability): a list with no body places nothing.
    */
   const placedNews = (
     remote: RemoteModel,
     news: ReadonlyArray<NormalizedPatch>,
     before: EntityStore,
     context: ExprContext,
-  ): RemoteModel => {
-    if (news.length === 0) return remote
-    const held = news.map(patch => {
-      const values = before[entityKey(patch.entity, patch.id)]?.values ?? {}
-      return {
-        ...patch,
-        values: Object.fromEntries(
-          Object.entries(patch.values).filter(([field]) => Object.hasOwn(values, field)),
-        ),
-      }
-    })
-    const changes = changesOf({ entities: held }, before)
-    if (changes.length === 0) return remote
-    const placed: Record<string, Connection> = {}
-    for (const [identity, pages] of Object.entries(remote.connections)) {
-      const after = placedHeld(lists, identity, pages, changes, remote.entities, context)
-      if (after !== pages) placed[identity] = after
-    }
-    return withPlacements(remote, placed, [])
-  }
+  ): RemoteModel =>
+    news.length === 0 || Option.isNone(capabilities.bodies)
+      ? remote
+      : withPlacements(
+          remote,
+          capabilities.bodies.value.news(lists, remote, news, before, context),
+          [],
+        )
 
   /** The rows a read or a live patch says the server holds now. */
   const newsOf = (message: RemoteMessage | RemoteMessageInput): ReadonlyArray<NormalizedPatch> => {
@@ -3077,9 +3057,11 @@ const bindDomain = <
   }
 
   /**
-   * The loaded connections as a write left them: each judged by its body
-   * against the store as the write left it, a change it can place placed in
-   * its pages, and one it cannot invalidated for its read entry to fetch.
+   * The loaded connections as a write left them: each judged by its body (the
+   * body capability), a change it can place placed in its pages, and one it
+   * cannot invalidated for its read entry to fetch. A domain whose lists have
+   * no body installed none: a list over an entity the answer changed is then
+   * fetched again, as one with no body always is.
    */
   const impactOf = (
     remote: RemoteModel,
@@ -3088,56 +3070,50 @@ const bindDomain = <
     before: EntityStore,
     context: ExprContext,
   ): RemoteModel => {
-    const changes = changesOf(answer, before)
-    if (changes.length === 0) return remote
-    // A row the answer itself put in or took out of a list is where the server
-    // says; every other change to that list's rows is judged as anywhere.
-    const named = new Map<string, Set<string>>()
-    for (const change of answer.connections ?? []) {
-      const keys = named.get(change.connection) ?? new Set<string>()
-      keys.add(change.edge.key)
-      named.set(change.connection, keys)
-    }
-    const visible = visibleOf(capabilities, remote, operators)
-    const placed: Record<string, Connection> = {}
-    const invalidated: Array<string> = []
-    for (const identity of Object.keys(remote.connections)) {
-      const answered = named.get(identity)
-      const judged =
-        answered === undefined
-          ? changes
-          : changes.filter(change => !answered.has(entityKey(change.entity, change.id)))
-      if (judged.length === 0) continue
-      const query = queryOf(identity)
-      if (Option.isNone(query)) continue
-      const original = remote.connections[identity]!
-      // Each change is judged against the pages the one before it left. What the
-      // list holds is read once: a change is of a row of its own, judged against
-      // the store as the whole answer left it.
-      const holds = new Set(
-        edgesOf(capabilities, remote, identity, original).map(edge =>
-          entityKey(edge.ref.entity, edge.ref.id),
-        ),
+    if (Option.isSome(capabilities.bodies)) {
+      const { placed, invalidated } = capabilities.bodies.value.answer(
+        capabilities,
+        lists,
+        remote,
+        answer,
+        before,
+        context,
       )
-      let pages = original
-      let invalid = false
-      for (const change of judged) {
-        const held: HeldConnection = { ...query.value, connection: pages, holds }
-        const after = Impact.$match(impactOn(held, visible, change, operators, context), {
-          Kept: () => Option.some(pages),
-          Placed: ({ connection }) => Option.some(connection),
-          Invalidated: () => Option.none<Connection>(),
-        })
-        if (Option.isNone(after)) {
-          invalid = true
-          break
-        }
-        pages = after.value
-      }
-      if (invalid) invalidated.push(identity)
-      else if (pages !== original) placed[identity] = pages
+      return withPlacements(remote, placed, invalidated)
     }
-    return withPlacements(remote, placed, invalidated)
+    return invalidateConnections(remote, unplaceable(remote, answer, before))
+  }
+
+  /**
+   * The lists a write's answer leaves to be fetched when no list has a body:
+   * each over an entity a row of which the answer changed, unless the answer
+   * itself put that row in or took it out of the list.
+   */
+  const unplaceable = (
+    remote: RemoteModel,
+    answer: Extract<RemoteMessage, { readonly _tag: 'MutationSucceeded' }>,
+    before: EntityStore,
+  ): ReadonlyArray<string> => {
+    const changed = changesOf(answer, before).flatMap(change =>
+      EntityChange.match(change, { Changed: () => [change], Deleted: () => [] }),
+    )
+    if (changed.length === 0) return []
+    return Object.keys(remote.connections).filter(identity => {
+      const named = new Set(
+        (answer.connections ?? [])
+          .filter(change => change.connection === identity)
+          .map(change => change.edge.key),
+      )
+      return Option.match(queryOf(identity), {
+        onNone: () => false,
+        onSome: ({ descriptor }) => {
+          const over = (descriptor.Result as Partial<ConnectionSpec>).entity
+          return changed.some(
+            change => change.entity === over && !named.has(entityKey(change.entity, change.id)),
+          )
+        },
+      })
+    })
   }
 
   /**
@@ -3336,6 +3312,7 @@ const bindDomain = <
       )
     }
     const contract = placeableReadContract(
+      capabilities,
       readContract(query.ref(input), select, window),
       query.body,
       operators,

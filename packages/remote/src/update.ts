@@ -16,6 +16,7 @@ const everything: Capabilities = {
   layers: Option.some(layers),
   writes: Option.none(),
   live: Option.some(liveReads),
+  bodies: Option.none(),
 }
 
 /**

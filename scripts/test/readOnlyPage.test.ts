@@ -157,7 +157,7 @@ describe('a read-only Remote page', () => {
     expect(kept.readOnly.remote).not.toContain('sse.js')
   })
 
-  it.fails('keeps no expression evaluator (#378 phases 4 and 5)', () => {
+  it('keeps no expression evaluator (#378 phases 4 and 5)', () => {
     expect(kept.readOnly.entity).not.toContain('evaluate.js')
   })
 })

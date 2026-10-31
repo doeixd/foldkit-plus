@@ -164,6 +164,20 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **A page whose lists have no body keeps none of the relational evaluator**
+  (`foldkit-remote`, #378). What a query's body does on the client (the fields
+  a list's read also asks for to place rows by, placing a read's or live
+  patch's news in held lists, and judging a write's answer) is carried by
+  `Query.define`'s descriptor, under `[Installs]`, and installed on a domain
+  that registers it. A domain with no body list fetches again, after a write's
+  answer, each list over an entity the answer changed, as it always did for a
+  list without a body. A read-only `Remote.make` page keeps 182.2 kB of
+  `foldkit-remote` where it kept 199.8 kB, and 52.7 kB of `foldkit-entity`
+  where it kept 83.6 kB (rendered, from source): no `evaluate`. The
+  `domains-plus` example's client is 289.2 kB gzipped where it was 308.2 kB
+  before phase 5 of #378; Chirp, which writes, reads live and keeps an outbox,
+  is 366.3 kB where it was 368.4 kB.
+
 - **Breaking: live reads come from `foldkit-remote/live`** (`foldkit-remote`,
   #378). `Data.live(selection, id)` is `live(Data, selection, id)`;
   `Data.query(Q, input, { …, live: true })` is `liveQuery(Data, Q, input, {

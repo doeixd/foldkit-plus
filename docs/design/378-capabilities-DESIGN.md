@@ -1,8 +1,10 @@
 # A read-only page pays for reading: capabilities carried by declarations (#378)
 
-Status: phases 1 to 4 built, and measured (phase 6), 2026-10-31. Phase 5
-stopped before starting, as written it could not drop its code; its three
-blockers are decided (below), and it is being built.
+Status: built, and measured (phase 6), 2026-10-31. Phase 5 first stopped,
+as written it could not drop its code; its three blockers were decided and
+built (below). A read-only page keeps no write, layer, live, outbox,
+persistence, explanation or evaluator code; what it still keeps unused is
+listed under phase 6.
 
 ## The problem
 
@@ -307,6 +309,22 @@ On the Entity side, the `Entity` object reaches `invariant`, which imports
    `foldkit-remote` went from 221.7 kB to 199.8 kB, and `foldkit-entity`'s
    from 101.1 kB to 83.6 kB: no `layers`, `optimistic`, `live*` or `sse`,
    and no Entity `write`.
+   **Bodies built (2026-10-31).** `bodies.ts` is the body capability: the
+   fields a body places a list's rows by (which its read also asks for),
+   placing a read's or live patch's news in held lists, and judging a
+   write's answer. `Query.define`'s descriptor carries it under
+   `[Installs]`, and `bindRemote` runs each registered query's. A domain
+   whose lists have no body installs none, and an answer then fetches again
+   each list over an entity it changed, which is what a body-less list
+   always got (`impactOn`'s no-body case, kept in the core as
+   `unplaceable`, over `changes.ts`, split from `impact.ts`). The writes no
+   longer need it: a list with a body brought it. One more thing kept it:
+   the `Query` object spreads Entity's `Query`, and a spread object literal
+   is kept whole as if reading it could do something, with `define` and the
+   capability it installs; it is now built in a call marked pure. The
+   read-only page's `foldkit-remote` went from 199.8 kB to 182.2 kB, and
+   `foldkit-entity`'s from 83.6 kB to 52.7 kB: no `evaluate`, `matching`,
+   `impact`, `placement` or `bodies`.
    What is left after 4 on the read-only page: `layers`, `optimistic`,
    `impact`, `placing`, `matching`, `placement`, `answerGaps` (the answer
    checks in `Data.reduce`), `live`, `outbox`, `persistence` and `sse` of
@@ -328,6 +346,29 @@ On the Entity side, the `Entity` object reaches `invariant`, which imports
    Chirp, which writes, does not regress: it lost `filtered` and the overlay
    members it never called. domains-plus saves 3.1 kB gzipped of the 40 kB
    this note set out to save; the rest is behind phase 5.
+   **Done for phase 5 (2026-10-31).** The same way, *before* at `0ed88d50`
+   (phase 4, with the decisions recorded) and *after* with phase 5 built, the
+   examples' sources each at their own commit, `foldkit-crud` too (it reads
+   Remote's API). Chirp's JS here is its page's chunks, without the Worker its
+   sandbox server runs in (720 kB, Remote's server side), which phase 4's
+   figures counted in part:
+   | example | before | live built | after |
+   | --- | ---: | ---: | ---: |
+   | domains-plus, all JS | 983.1 kB, 308.2 kB gz | 948.8 kB, 297.6 kB gz | 922.1 kB, 289.2 kB gz |
+   | domains-plus, Remote / Entity | 247.8 / 104.8 kB | 202.4 / 87.2 kB | 184.7 / 56.1 kB |
+   | Chirp, page JS | 1,145.7 kB, 368.4 kB gz | 1,139.3 kB, 366.4 kB gz | 1,140.1 kB, 366.3 kB gz |
+   | Chirp, Remote / Entity | 267.6 / 120.7 kB | 256.1 / 120.7 kB | 258.0 / 120.7 kB |
+   Chirp, which writes, reads live and keeps an outbox, does not regress.
+   domains-plus saves 19.0 kB gzipped in phase 5, 22.1 kB over phases 4 and
+   5, and 25.7 kB from the 314.9 kB this note began at: not the 40 kB it
+   estimated. Every case of `readOnlyPage.test.ts` holds. What a read-only
+   page still keeps that it does not run is not behind a declaration: the
+   `Remote` object's members it never calls (`coalesced`, `resume`, `json`,
+   `http`, 7.4, 6.1 and 3.2 kB), since `Remote` is an object rather than an
+   ES module namespace, and 34.5 kB of Entity's `expr.ts` reached through
+   `Operators.kernel`, the default operator table `Remote.make` takes. Each
+   is its own change (a `Remote` namespace as `Entity`'s, and the operator
+   table apart from the expression builders), not a capability.
 
 Every phase keeps behaviour unchanged, only where code lives, so `Law.check`,
 `heldValue.test.ts`, the R0 conformance suite and every example must stay

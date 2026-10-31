@@ -9,8 +9,8 @@ export default [
     name: 'a write is judged without the table',
     edits: [
       {
-        file: '../src/index.ts',
-        find: 'impactOn(held, visible, change, operators, context)',
+        file: '../src/bodies.ts',
+        find: 'impactOn(held, visible, change, lists.operators, context)',
         replace: 'impactOn(held, visible, change, undefined as never, context)',
       },
     ],
@@ -108,7 +108,7 @@ export default [
     name: 'a read asks for its order fields only when placeable by no table',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/bodies.ts',
         find: 'Relational.placement(body, encoded, { operators })',
         replace: 'Relational.placement(body, encoded)',
       },

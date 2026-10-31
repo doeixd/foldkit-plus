@@ -5,8 +5,7 @@
  * resume or invalidate. Reached only through the live capability (#378), which
  * a live read installs.
  */
-import type { EdgeRef } from './connection.js'
-import { type Connection, type Edge, hasNext, hasPrevious } from './connection.js'
+import { type Connection, hasNext, hasPrevious } from './connection.js'
 import { addOverlay } from './capability.js'
 import type { OptimisticState } from './optimistic.js'
 import type { LiveInsertion, LivePolicy } from './query.js'

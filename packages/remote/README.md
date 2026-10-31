@@ -1132,7 +1132,10 @@ connection identity — carrying its `body` besides, and the result is a
 connection over the Entity the body reads, so it is not named twice. A server
 can compile that body rather than be told the same thing again in its own
 dialect; one that would rather answer the query its own way still can, and a
-descriptor from `Query.make` has no body at all.
+descriptor from `Query.make` has no body at all. The descriptor also carries
+the code that runs a body on the client (placing rows, judging a write's
+answer), installed on a domain that registers it, so a page whose lists have
+no body keeps none of the relational evaluator.
 
 **Which to declare.** A list the client should keep right after a write needs
 a body: the body is what lets the client place a new or changed row in the

@@ -6,7 +6,15 @@ import { Effect, Layer, Schema, Stream } from 'effect'
 import { defineMessageUnion } from 'foldkit/message'
 import { Surface } from 'foldkit-surface'
 import { describe, expect, it } from 'vitest'
-import { Entity, Mutation, Query, Remote, RemoteClient, type RemoteMessage } from '../src/index.js'
+import {
+  Entity,
+  Mutation,
+  Query,
+  Remote,
+  RemoteClient,
+  type ConnectionChange,
+  type RemoteMessage,
+} from '../src/index.js'
 import { live, liveQuery, observeLive } from '../src/live.js'
 import { lift, overlay } from '../src/overlay.js'
 
@@ -226,5 +234,59 @@ describe('A domain that registers a mutation', () => {
       _tag: 'Ready',
       value: { name: 'pending' },
     })
+  })
+})
+
+describe('A domain whose lists have no body', () => {
+  const Data = Remote.make({
+    model: App.model.remote,
+    entities: [Project],
+    queries: [All],
+    mutations: [Rename],
+  })
+  const list = Data.query(All, {}, { select: summary, first: 10 })
+  const paged = Data.reduce(known(Data), {
+    _tag: 'ConnectionMerged',
+    connection: list.ref.identity,
+    page: {
+      edges: [{ key: 'Project:p1', ref: { entity: 'Project', id: 'p1' } }],
+      start: { _tag: 'Terminal' },
+      end: { _tag: 'Terminal' },
+    },
+  })
+  const answered = (
+    name: string,
+    connections: ReadonlyArray<ConnectionChange> = [],
+  ): RemoteMessage => ({
+    _tag: 'MutationSucceeded',
+    requestId: 'r1',
+    entities: [{ entity: 'Project', id: 'p1', values: { name } }],
+    connections,
+    now: 1,
+  })
+
+  it('installs no body capability, and fetches a list again when an answer changes its rows', () => {
+    const after = Data.reduce(paged, answered('renamed'))
+    expect(after.remote.connections[list.ref.identity]?.stale).toBe(true)
+  })
+
+  it('leaves a list be when the answer itself placed the row there', () => {
+    const after = Data.reduce(
+      paged,
+      answered('renamed', [
+        {
+          _tag: 'Insert',
+          connection: list.ref.identity,
+          position: 'append',
+          edge: { key: 'Project:p1', ref: { entity: 'Project', id: 'p1' } },
+        },
+      ]),
+    )
+    expect(after.remote.connections[list.ref.identity]?.stale).toBe(false)
+  })
+
+  it('leaves a list be when the answer repeats what it held', () => {
+    const after = Data.reduce(paged, answered('saved p1'))
+    expect(after.remote.connections[list.ref.identity]?.stale).toBe(false)
   })
 })

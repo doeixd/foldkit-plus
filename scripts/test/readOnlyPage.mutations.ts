@@ -10,7 +10,9 @@
  * invariant judge, expressions or writes". Remote's likewise: a domain that
  * carries `why` again (`Object.assign(domain, { why })` in `bindDomain`)
  * failed "keeps no explanations", and one that reaches `outboxStatus` and
- * `persistence` again failed "keeps no outbox or persistence code".
+ * `persistence` again failed "keeps no outbox or persistence code", and
+ * Remote's `Query` built without its `@__PURE__` mark failed "keeps no
+ * expression evaluator".
  */
 const tests = ['scripts/test/readOnlyPage.test.ts']
 

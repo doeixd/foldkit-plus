@@ -362,7 +362,9 @@ case 'SignedOut': {
   what it *means*: `Query.from(Task).pipe(Query.where(Expr.eq(Task.fields.ownerId,
   input.ownerId)), Query.orderBy(Order.asc(Task.fields.id)))`. Returns an ordinary
   descriptor — same name, `Input`, `ref`, connection identity — carrying `body`
-  besides, with the result a connection over the Entity the body reads. The body
+  besides, with the result a connection over the Entity the body reads, and the
+  code that runs the body on the client, which a domain registering it
+  installs (a page whose lists have no body keeps none of it). The body
   needs a **`foldkit-entity`** Entity (`Entity.define`), since that is what has
   addressable `fields`; this package's `Entity.make` has none to point at.
   `Query.make` stays for queries whose meaning lives on the server, and such a

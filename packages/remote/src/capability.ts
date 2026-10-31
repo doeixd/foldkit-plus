@@ -7,7 +7,7 @@
  * reads the committed store directly, which is what the visible store is then.
  */
 import { Option, type Stream } from 'effect'
-import type { ExprContext, EntityRef, MemoryOperators } from 'foldkit-entity'
+import type { AnyQuery, ExprContext, EntityRef, MemoryOperators } from 'foldkit-entity'
 import type { RemoteClient } from './client.js'
 import { items, type Connection, type Edge } from './connection.js'
 import type { NamedProjection } from './active.js'
@@ -21,10 +21,9 @@ import type {
 } from './index.js'
 import type { applyConnectionEvent, applyEntityEvent } from './liveEvents.js'
 import type { LiveEvent } from './liveState.js'
-import type { RemoteModel } from './model.js'
 import type { MutationDescriptor } from './mutationDescriptor.js'
-import type { MutationAnswer, MutationState } from './ledger.js'
-import type { RemoteMessage } from './model.js'
+import type { MutationAnswer, MutationState, NormalizedPatch } from './ledger.js'
+import type { RemoteMessage, RemoteModel } from './model.js'
 import type {
   ConnectionChange,
   ConnectionOverlay,
@@ -48,6 +47,8 @@ export interface Capabilities {
   writes: Option.Option<WriteCapability>
   /** Live streams and their events; installed by a live read (`foldkit-remote/live`). */
   live: Option.Option<LiveCapability>
+  /** What a list's body does on the client; installed by a query declared with a body (`Query.define`). */
+  bodies: Option.Option<BodyCapability>
 }
 
 export const noCapabilities = (domain: string): Capabilities => ({
@@ -55,6 +56,7 @@ export const noCapabilities = (domain: string): Capabilities => ({
   layers: Option.none(),
   writes: Option.none(),
   live: Option.none(),
+  bodies: Option.none(),
 })
 
 /** Where a declaration holds what it installs on a domain that registers it. */
@@ -188,6 +190,43 @@ export interface LiveCapability {
     toMessage: (message: RemoteMessage) => Message,
     options: LiveOptions,
   ) => Stream.Stream<Message, never, RemoteClient>
+}
+
+/** What a write's answer carries that a list's body judges. */
+export interface Answered {
+  readonly entities: ReadonlyArray<NormalizedPatch>
+  readonly deleted?: ReadonlyArray<{ readonly entity: string; readonly id: string }> | undefined
+  readonly connections?: ReadonlyArray<ConnectionChange> | undefined
+}
+
+/** The body capability: a list's body placing rows on the client. */
+export interface BodyCapability {
+  /** The fields a body places a list's rows by, which its read also asks for; none when it cannot place them. */
+  readonly placedFields: (
+    body: AnyQuery,
+    encoded: Readonly<Record<string, unknown>>,
+    operators: MemoryOperators,
+  ) => ReadonlyArray<string>
+  /** The loaded lists a read's or live patch's news of rows they hold moved, by identity. */
+  readonly news: (
+    lists: Lists,
+    remote: RemoteModel,
+    news: ReadonlyArray<NormalizedPatch>,
+    before: EntityStore,
+    context: ExprContext,
+  ) => Readonly<Record<string, Connection>>
+  /** The loaded lists a write's answer placed, and those it could not place. */
+  readonly answer: (
+    capabilities: Capabilities,
+    lists: Lists,
+    remote: RemoteModel,
+    answer: Answered,
+    before: EntityStore,
+    context: ExprContext,
+  ) => {
+    readonly placed: Readonly<Record<string, Connection>>
+    readonly invalidated: ReadonlyArray<string>
+  }
 }
 
 /** The live capability, which the live read that asked for a stream installed. */

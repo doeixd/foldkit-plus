@@ -11,6 +11,8 @@ import {
   type AnyQuery,
   type InputExpr,
 } from 'foldkit-entity'
+import { installBodies } from './bodies.js'
+import { Installs, type Install } from './capability.js'
 import type { Cursor } from './connection.js'
 import { schemaOf, type SchemaOrFields, type TypeOf } from './schema.js'
 
@@ -56,6 +58,12 @@ export interface QueryDescriptor<Name extends string, Input, Result> {
    * to answer it — and a source is free to answer either.
    */
   readonly body?: AnyQuery | undefined
+  /**
+   * What a domain that registers the query installs: `Query.define`'s carries
+   * what its body does on the client (#378), so a page whose lists have no
+   * body keeps none of the evaluator.
+   */
+  readonly [Installs]?: Install | undefined
 }
 
 /**
@@ -150,7 +158,9 @@ const inputsOf = (
 /** A relational `Query` over one Entity, as `Query.define`'s body returns. */
 type RelationalQueryOf<E extends AnyEntity> = ReturnType<typeof RelationalQuery.from<E>>
 
-export const Query = {
+// Built in a call marked pure: a spread object literal is kept as if reading it could
+// do something, and with it `define` and the body capability it installs (#378).
+export const Query = /* @__PURE__ */ (() => ({
   ...RelationalQuery,
 
   /** Declares the entity and options a query's result is a connection over. */
@@ -226,7 +236,7 @@ export const Query = {
       Input,
       Result: Query.connection(built.entity, options) as ConnectionSpec<E['name']>,
     })
-    return { ...descriptor, body: built }
+    return { ...descriptor, body: built, [Installs]: installBodies }
   },
 
   first:
@@ -256,4 +266,4 @@ export const Query = {
       ...ref,
       window: { ...ref.window, before: cursor },
     }),
-}
+}))()

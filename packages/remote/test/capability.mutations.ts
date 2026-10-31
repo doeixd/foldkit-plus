@@ -7,8 +7,64 @@ const index = '../src/index.ts'
 const overlay = '../src/overlay.ts'
 const live = '../src/live.ts'
 const liveReads = '../src/liveReads.ts'
+const placed = [...tests, 'packages/remote/test/pendingPlacement.test.ts']
 
 export default [
+  {
+    name: 'a query with a body installs nothing',
+    edits: [
+      {
+        file: '../src/query.ts',
+        find: 'body: built, [Installs]: installBodies }',
+        replace: 'body: built }',
+      },
+    ],
+    tests: placed,
+  },
+  {
+    name: 'a registered query installs nothing',
+    edits: [
+      {
+        file: index,
+        find: '  for (const query of definition.queries) query[Installs]?.(capabilities)\n',
+        replace: '',
+      },
+    ],
+    tests: placed,
+  },
+  {
+    name: 'the body capability installs nothing',
+    edits: [
+      {
+        file: '../src/bodies.ts',
+        find: '  capabilities.bodies = Option.some(bodies)\n',
+        replace: '',
+      },
+    ],
+    tests: placed,
+  },
+  {
+    name: 'with no body, an answer fetches no list again',
+    edits: [
+      {
+        file: index,
+        find: 'return invalidateConnections(remote, unplaceable(remote, answer, before))',
+        replace: 'return remote',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'with no body, a row the answer placed is fetched again too',
+    edits: [
+      {
+        file: index,
+        find: 'change => change.entity === over && !named.has(entityKey(change.entity, change.id)),',
+        replace: 'change => change.entity === over,',
+      },
+    ],
+    tests,
+  },
   {
     name: 'a registered mutation installs nothing',
     edits: [

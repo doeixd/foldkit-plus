@@ -20,7 +20,7 @@ export default [
     name: 'a placement is worked out and not kept',
     edits: [
       {
-        file: '../../../packages/remote/src/index.ts',
+        file: '../../../packages/remote/src/bodies.ts',
         find: 'else if (pages !== original) placed[identity] = pages',
         replace: '',
       },

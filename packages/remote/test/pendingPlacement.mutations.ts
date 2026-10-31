@@ -97,7 +97,7 @@ export default [
     name: 'a row’s first read is judged too',
     edits: [
       {
-        file: index,
+        file: '../src/bodies.ts',
         find: '.filter(([field]) => Object.hasOwn(values, field)),',
         replace: ',',
       },
@@ -110,9 +110,9 @@ export default [
     name: 'a read with nothing new judges every list anyway',
     edits: [
       {
-        file: index,
-        find: 'if (changes.length === 0) return remote\n    const placed',
-        replace: 'const placed',
+        file: '../src/bodies.ts',
+        find: '  if (changes.length === 0) return placed\n',
+        replace: '',
       },
     ],
     tests,
@@ -123,7 +123,7 @@ export default [
     name: 'a placed list is left out of the Model',
     edits: [
       {
-        file: index,
+        file: '../src/bodies.ts',
         find: 'if (after !== pages) placed[identity] = after',
         replace: '',
       },

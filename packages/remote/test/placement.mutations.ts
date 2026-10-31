@@ -66,9 +66,9 @@ export default [
     name: 'a list reads only what its view selects, though it is placeable',
     edits: [
       {
-        file: index,
-        find: "if (Relational.placement(body, encoded, { operators })._tag !== 'Placeable') return contract",
-        replace: 'return contract',
+        file: '../src/bodies.ts',
+        find: "Relational.placement(body, encoded, { operators })._tag === 'Placeable'",
+        replace: 'false',
       },
     ],
     tests,
@@ -77,9 +77,9 @@ export default [
     name: 'every list reads its body’s fields, placeable or not',
     edits: [
       {
-        file: index,
-        find: "if (Relational.placement(body, encoded, { operators })._tag !== 'Placeable') return contract",
-        replace: '',
+        file: '../src/bodies.ts',
+        find: "Relational.placement(body, encoded, { operators })._tag === 'Placeable'",
+        replace: 'true',
       },
     ],
     tests,

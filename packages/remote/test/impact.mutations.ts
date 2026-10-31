@@ -4,13 +4,14 @@
  */
 const tests = ['packages/remote/test/impact.test.ts']
 const impact = '../src/impact.ts'
+const changes = '../src/changes.ts'
 
 export default [
   {
     name: 'no list is ever invalidated',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/bodies.ts',
         find: 'if (invalid) invalidated.push(identity)',
         replace: 'if (false) invalidated.push(identity)',
       },
@@ -21,7 +22,7 @@ export default [
     name: 'a placement is worked out and not kept',
     edits: [
       {
-        file: '../src/index.ts',
+        file: '../src/bodies.ts',
         find: 'else if (pages !== original) placed[identity] = pages',
         replace: '',
       },
@@ -154,8 +155,8 @@ export default [
     name: 'a list the answer names is judged anyway',
     edits: [
       {
-        file: '../src/index.ts',
-        find: ': changes.filter(change => !answered.has(entityKey(change.entity, change.id)))',
+        file: '../src/bodies.ts',
+        find: ': changes.filter(change => !keys.has(entityKey(change.entity, change.id)))',
         replace: ': changes',
       },
     ],
@@ -164,7 +165,7 @@ export default [
   {
     name: 'a repeated value counts as a change',
     edits: [
-      { file: impact, find: '!sameData(held[field], patch.values[field]),', replace: 'true,' },
+      { file: changes, find: '!sameData(held[field], patch.values[field]),', replace: 'true,' },
     ],
     tests,
   },
@@ -238,7 +239,7 @@ export default [
   },
   {
     name: 'every row is new to the client',
-    edits: [{ file: impact, find: 'created: held === undefined,', replace: 'created: true,' }],
+    edits: [{ file: changes, find: 'created: held === undefined,', replace: 'created: true,' }],
     tests,
   },
   {
@@ -256,8 +257,8 @@ export default [
     name: 'a list the answer names is not judged at all',
     edits: [
       {
-        file: '../src/index.ts',
-        find: ': changes.filter(change => !answered.has(entityKey(change.entity, change.id)))',
+        file: '../src/bodies.ts',
+        find: ': changes.filter(change => !keys.has(entityKey(change.entity, change.id)))',
         replace: ': []',
       },
     ],

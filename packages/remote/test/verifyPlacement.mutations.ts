@@ -50,8 +50,9 @@ export default [
     edits: [
       {
         file: '../src/index.ts',
-        find: 'return withPlacements(remote, placed, [])',
-        replace: 'return { ...remote, connections: { ...remote.connections, ...placed } }',
+        find: 'capabilities.bodies.value.news(lists, remote, news, before, context),\n          [],\n        )',
+        replace:
+          '{},\n          [],\n        ) && { ...remote, connections: { ...remote.connections, ...capabilities.bodies.value.news(lists, remote, news, before, context) } }',
       },
     ],
     tests,
