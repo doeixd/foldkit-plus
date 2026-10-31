@@ -5,7 +5,7 @@
  * ordinary Foldkit attributes per slot, using the view's own `h` so Message
  * capability masking is preserved.
  */
-import { createKeyedLazy, createLazy, inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
+import { createLazy, inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
 import type { NamedBehavior } from './behavior.js'
 import type { SlotContribution, SlotItem } from './contribution.js'
 import { ensure } from './inject.js'
@@ -151,18 +151,59 @@ const buildersOver = <Slots, Message>(
 const NESTED = Symbol('nested')
 let using: Set<string | typeof NESTED> | undefined
 
-/** One `draw`'s items: their memo, the Slots each used, and what those were given. */
+/**
+ * One `draw`'s items: a memo per key, the Slots each used, what those were
+ * given, and the keys drawn in this pass and the one before, so a key no
+ * longer drawn is forgotten.
+ */
 interface ItemMemo {
-  readonly lazy: ReturnType<typeof createKeyedLazy>
+  readonly lazies: Map<PropertyKey, ReturnType<typeof createLazy>>
   readonly used: Map<PropertyKey, ReadonlyArray<string | typeof NESTED>>
   readonly given: Map<PropertyKey, unknown>
+  drawn: Set<PropertyKey>
+  before: Set<PropertyKey>
 }
 const itemMemos = new WeakMap<object, ItemMemo>()
 const itemMemoOf = (draw: object): ItemMemo => {
   const known = itemMemos.get(draw)
   if (known !== undefined) return known
-  const made = { lazy: createKeyedLazy(), used: new Map(), given: new Map() }
+  const made: ItemMemo = {
+    lazies: new Map(),
+    used: new Map(),
+    given: new Map(),
+    drawn: new Set(),
+    before: new Set(),
+  }
   itemMemos.set(draw, made)
+  return made
+}
+
+/**
+ * Notes `key` drawn. Foldkit's keyed memo keeps every key for the page's life,
+ * so a list keyed by search results or scrolled through 100,000 rows would
+ * hold a drawing of each. A key is drawn once per pass, so one drawn again
+ * means a new pass began: what neither that pass nor the one before drew is
+ * forgotten (two passes, so two views sharing a `draw` keep each other's).
+ */
+const remember = (memo: ItemMemo, key: PropertyKey): void => {
+  if (memo.drawn.has(key)) {
+    for (const known of new Set([...memo.lazies.keys(), ...memo.used.keys()])) {
+      if (memo.drawn.has(known) || memo.before.has(known)) continue
+      memo.lazies.delete(known)
+      memo.used.delete(known)
+      memo.given.delete(known)
+    }
+    memo.before = memo.drawn
+    memo.drawn = new Set()
+  }
+  memo.drawn.add(key)
+}
+
+const lazyFor = (memo: ItemMemo, key: PropertyKey): ReturnType<typeof createLazy> => {
+  const known = memo.lazies.get(key)
+  if (known !== undefined) return known
+  const made = createLazy()
+  memo.lazies.set(key, made)
   return made
 }
 
@@ -255,7 +296,10 @@ const drawItem = <Slots, Message, Args extends Readonly<Record<string, unknown>>
     }
   }
   const used = memo.used.get(key) ?? [context.first]
-  if (used.includes(NESTED)) return run(true)
+  if (used.includes(NESTED)) {
+    remember(memo, key)
+    return run(true)
+  }
   const now = context.given(used.filter(slot => slot !== NESTED))
   const before = memo.given.get(key)
   // The same data keeps the value last compared, so the memo sees it unchanged.
@@ -266,11 +310,16 @@ const drawItem = <Slots, Message, Args extends Readonly<Record<string, unknown>>
     const compared = [draw, given, ...Object.keys(args), ...Object.values(args)]
     return memoizedOr(
       () => {
-        const html = memo.lazy(key, runPending, compared)
+        const html = lazyFor(memo, key)(runPending, compared)
+        remember(memo, key)
         memo.given.set(key, given)
         return html
       },
-      () => run(false),
+      // No frame (a test, a server's pages): nothing is kept, not even the empty memo.
+      () => {
+        memo.lazies.delete(key)
+        return run(false)
+      },
     )
   } finally {
     pending = undefined
@@ -516,3 +565,107 @@ export const parts =
         })
       }),
   })
+
+/**
+ * What a region reads: the Model paths it depends on and how its value is
+ * read from the root. A `foldkit-surface` `Projection` is one, as built from
+ * the application's field references (`Projection.struct({ cart:
+ * App.model.cart })`), so the paths are the ones the references declare.
+ */
+export interface Reads<Root, Value> {
+  /** Paths from the root, each a list of property names. */
+  readonly dependencies: ReadonlyArray<ReadonlyArray<string>>
+  readonly read: (root: Root) => Value
+}
+
+/** A region of a SlotView's drawing, drawn again only when what it reads changed. */
+export type Region<Root, Slots, Message> = (
+  root: Root,
+  slots: SlotBuilders<Slots, Message>,
+  h: HtmlBuilder<Message>,
+) => Html
+
+const valueAt = (root: unknown, path: ReadonlyArray<string>): unknown => {
+  let value = root
+  for (const key of path) {
+    if (typeof value !== 'object' || value === null) return undefined
+    value = (value as Record<string, unknown>)[key]
+  }
+  return value
+}
+
+// The earlier read when the new one holds the same fields: a struct read is a new record every time.
+const keepAlike = <Value>(before: Value, read: Value): Value =>
+  sameFields(before, read) ? before : read
+
+const sameFields = (left: unknown, right: unknown): boolean => {
+  if (Object.is(left, right)) return true
+  if (typeof left !== 'object' || typeof right !== 'object' || left === null || right === null)
+    return false
+  if (!isPlain(left) || Object.getPrototypeOf(left) !== Object.getPrototypeOf(right)) return false
+  const keys = Object.keys(left)
+  return (
+    keys.length === Object.keys(right).length &&
+    keys.every(
+      key =>
+        Object.hasOwn(right, key) &&
+        Object.is((left as Record<string, unknown>)[key], (right as Record<string, unknown>)[key]),
+    )
+  )
+}
+
+/**
+ * A region: part of a SlotView's drawing that is given only what `reads`
+ * reads, and drawn again only when that changed. While every path `reads`
+ * depends on holds the value it held, the region does not read at all and
+ * Foldkit reuses its last drawing without diffing it; when one changed and
+ * the read gives the same fields as before, it is reused too. Like a Slot's
+ * `lazy` item, it is drawn again when a Mixin gives the Slots it used
+ * something different, and drawn afresh where there is no runtime frame.
+ *
+ * `draw` reads only its value, so the region cannot read what it is not
+ * drawn again for. A region drawn inside another region or item is drawn in
+ * place, and the outer one every time.
+ *
+ * @example
+ * ```ts
+ * const Header = SlotView.region(
+ *   Projection.struct({ cart: App.model.cart }),
+ *   ({ cart }, slots: SlotView.SlotBuilders<typeof Page.slots, Message>, h: HtmlBuilder<Message>) =>
+ *     h.header(slots.header.attrs(), [`${cart.length} in the cart`]),
+ * )
+ * // In the page's render: Header(model, slots, h)
+ * ```
+ */
+export const region = <Root, Value, Slots, Message>(
+  reads: Reads<Root, Value>,
+  draw: (value: Value, slots: SlotBuilders<Slots, Message>, h: HtmlBuilder<Message>) => Html,
+): Region<Root, Slots, Message> => {
+  if (reads.dependencies.length === 0) {
+    throw new Error(
+      'SlotView.region: what it reads declares no Model paths, so it would never be drawn again. Read through field references (Projection.struct), or give Projection.fromReader its dependencies.',
+    )
+  }
+  const paths = reads.dependencies
+  let last: { readonly values: ReadonlyArray<unknown>; readonly value: Value } | undefined
+  const drawRegion = (
+    slots: SlotBuilders<Slots, Message>,
+    h: HtmlBuilder<Message>,
+    args: { readonly value: Value },
+  ): Html => draw(args.value, slots, h)
+  // Its value now: the last one while every path holds what it held, else read.
+  const valueOf = (root: Root, values: ReadonlyArray<unknown>): Value => {
+    if (last === undefined) return reads.read(root)
+    const before = last
+    if (values.every((value, index) => Object.is(value, before.values[index]))) return before.value
+    return keepAlike(before.value, reads.read(root))
+  }
+  return (root, slots, h) => {
+    const values = paths.map(path => valueAt(root, path))
+    const value = valueOf(root, values)
+    last = { values, value }
+    const builder = Object.values(slots)[0] as SlotBuilder<Message, Slots> | undefined
+    if (builder === undefined) throw new Error('SlotView.region: the view publishes no Slots')
+    return builder.lazy({ index: 0 }, drawRegion, { value })
+  }
+}

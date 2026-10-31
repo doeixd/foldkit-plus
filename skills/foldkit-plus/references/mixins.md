@@ -50,7 +50,13 @@ resolver: base attrs + contributions -> Foldkit attributes (or DiagnosticError)
   that reads input makes parts redraw every time.
   Per item: `slots.row.lazy(item, drawRow, { ...args })` with `drawRow(slots, h, args)` defined once;
   an item redraws when an arg changes or what Mixins give its Slots changes (a static Style by
-  identity). The memo is one per `drawRow`, shared by every view drawing it.
+  identity). The memo is one per `drawRow`, shared by every view drawing it; a key not drawn for
+  two passes is forgotten, so keys may be unbounded (search results, scrolled rows).
+- **Regions** redraw by Model path: `const R = SlotView.region(Projection.struct({ cart:
+  App.model.cart }), (value, slots: Builders, h: H) => …)`, then `R(model, slots, h)` in the
+  page's render. Drawn again only when a value at a path the Projection reads changed (by
+  identity), or its read gives new fields; the drawing gets only that value. A Projection with no
+  `dependencies` is refused. A reused region's DOM is not patched.
 - `hidden: true` slots are omitted from public Style/Behavior spec keys.
 - **Styling pipeline:** `tokens -> ref -> pieces -> slots -> sheet`. `Theme.standard(theme)`
   (the scales and the palette, at a theme's knob values) is the only source of values; read them

@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **Regions: an application view redrawn by the Model paths it reads**
+  (`foldkit-mixins`, #376 R3). `SlotView.region(reads, draw)` takes a
+  `foldkit-surface` Projection over the Model (`Projection.struct({ cart:
+  App.model.cart })`, or any `{ dependencies, read }`) and a drawing given only
+  what it reads; `Region(model, slots, h)` in a SlotView's render reuses the
+  last drawing, unread and undiffed, while every path holds the value it held
+  by identity, and while a read gives the same fields. A Projection with no
+  dependencies is refused.
+
 - **Variants of an Entity** (`foldkit-entity`, #357): `Entity.defineVariants(name,
   { Available: fields, Unconfirmed: fields })` declares an Entity whose row is
   one of its cases. `entity.variants` is Effect's `Schema.TaggedUnion` of the
@@ -145,6 +154,12 @@ version changed; `pnpm` skips versions already in the registry.
   `list`, `option`; options and the trigger are drawn in the Listbox's slots.
 
 ### Changed
+
+- **A Slot's per-item memo forgets the items it no longer draws**
+  (`foldkit-mixins`, #376 R3). `slots.x.lazy` kept every key for the page's
+  life, so it asked for keys that stay bounded; a key drawn again now starts a
+  new pass, and a key neither that pass nor the one before drew is dropped.
+  Keys may come from search results or 100,000 rows scrolled through.
 
 - **A data grid's editor, choice list and column menu open in Scene**
   (`foldkit-mixins-data-grid`, `foldkit-data-grid`, #382; breaking). Each

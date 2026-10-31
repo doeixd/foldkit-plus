@@ -5,6 +5,7 @@
 import { Schema } from 'effect'
 import type { HtmlBuilder } from 'foldkit/html'
 import { defineMessageUnion } from 'foldkit/message'
+import { Projection, Surface } from 'foldkit-surface'
 import {
   Attr,
   Behavior,
@@ -110,6 +111,35 @@ const Rows = ListParts.part('Rows', { reads: ['rows'] }, (input, slots, h) =>
   ),
 )
 void Rows
+
+// "Regions: redraw by the Model paths read".
+{
+  const PageSlots = Slots.define({ header: Slot.make({ capability: Capability.Container }) })
+  const PageModel = Schema.Struct({
+    cart: Schema.Array(Schema.String),
+    page: Schema.Struct({ title: Schema.String }),
+  })
+  type PageModel = typeof PageModel.Type
+  const App = Surface.application({ Model: PageModel, Message })
+  const Header = SlotView.region(
+    Projection.struct({ cart: App.model.cart, title: App.model.page.title }),
+    (
+      { cart, title },
+      slots: SlotView.SlotBuilders<typeof PageSlots, Message>,
+      h: HtmlBuilder<Message>,
+    ) => h.header(slots.header.attrs(), [title, ` (${cart.length} in the cart)`]),
+  )
+  const Page = SlotView.forMessages<Message>().define(PageSlots, (model: PageModel, slots, h) =>
+    Header(model, slots, h),
+  )
+  void Page
+  SlotView.region(
+    Projection.struct({ cart: App.model.cart }),
+    // @ts-expect-error: a region's drawing is given only what it reads.
+    ({ title }, slots: SlotView.SlotBuilders<typeof PageSlots, Message>, h: HtmlBuilder<Message>) =>
+      h.header(slots.header.attrs(), [title]),
+  )
+}
 
 // "An application's own look".
 {

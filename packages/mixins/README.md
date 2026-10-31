@@ -914,11 +914,55 @@ left and the row it reached, and no other. `drawRow` reads only its arguments,
 so define it once, not per render. A Mixin that gives an item a handler made per
 render, and an item drawing that holds another, are drawn every time: correct,
 not cached.
-Items are remembered by key for the life of the page, as Foldkit's keyed memo
-is, so key by something bounded (a node id), not by something that keeps
-changing (a search's results). The memo is one per drawing function: two views
-drawing the same key with one `drawRow` share it, and each misses whenever
-what it gives the row differs from the other's. Drawn inert, nothing is kept.
+An item no longer drawn is forgotten: a key is drawn once per pass, so a key
+drawn again starts a new pass, and what neither that pass nor the one before
+drew is dropped. Keys may come from something that keeps changing (a search's
+results, 100,000 rows scrolled through) without the memo growing with them.
+The memo is one per drawing function: two views drawing the same key with one
+`drawRow` share it, and each misses whenever what it gives the row differs from
+the other's. Drawn inert, nothing is kept.
+
+### Regions: redraw by the Model paths read
+
+A part reads keys of its view's input. An application view's input is the whole
+Model, and the values a piece of it needs sit at paths below its fields: a
+region names them through the application's field references, and is drawn
+again only when a value at one of those paths changed.
+
+```ts
+const Header = SlotView.region(
+  Projection.struct({ cart: App.model.cart, title: App.model.page.title }),
+  ({ cart, title }, slots: SlotView.SlotBuilders<typeof PageSlots, Message>, h: HtmlBuilder<Message>) =>
+    h.header(slots.header.attrs(), [title, ` (${cart.length} in the cart)`]),
+)
+// In the page's render, beside anything else it draws:
+Header(model, slots, h)
+```
+
+`Projection` and `App.model` are `foldkit-surface`'s (any value with
+`dependencies` and `read` will do). Each render, the region compares the
+values at its paths with the last ones, by identity: all the same, it neither
+reads nor draws, and Foldkit reuses its last drawing without diffing it. One
+changed, it reads; a read holding the same fields as the last (a value derived
+with `Projection.fromReader` that came out the same) is not drawn either.
+
+- **It reads only its value.** `Header`'s drawing is given what the
+  Projection reads, so it cannot read a path it is not drawn again for. A
+  helper written over the Model takes `Pick<Model, …>` instead.
+- **Its paths must be from the root.** A Projection built from field
+  references has them; one from `Projection.fromReader` needs its
+  `dependencies`, and one with none is refused, since it would never be
+  drawn again.
+- **Slots, Mixins and nesting** work as for an item: a Mixin reading the
+  view's input draws it every time, and a region or item drawn inside
+  another is drawn in place, the outer one every time. Put regions where
+  their reads are narrow (a header, a toolbar, a panel), and items in the
+  lists between them.
+- **A reused drawing is not patched.** While its paths hold, Foldkit does
+  not touch the region's DOM, so a field whose `update` refused a keystroke
+  shows what was typed until a path it reads changes. Keep such a field's
+  value among its reads, or outside a region.
+- **Memoizing needs a running application,** as for parts.
 
 ## With `foldkit-surface`
 
