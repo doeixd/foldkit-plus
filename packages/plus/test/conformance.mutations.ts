@@ -10,6 +10,21 @@ const tests = ['packages/plus/test/conformance.test.ts']
 
 export default [
   {
+    // The plan's R3 test: a region that drops a path it reads is drawn stale
+    // after a change to that path (the case changes it twice) by the runtime
+    // and Scene, which both memoize, while the server, given a program per
+    // Model, draws it afresh.
+    name: 'a region compares only the first path it reads',
+    edits: [
+      {
+        file: '../../mixins/src/slotView.ts',
+        find: 'if (values.every((value, index) => Object.is(value, before.values[index])))',
+        replace: 'if (Object.is(values[0], before.values[0]))',
+      },
+    ],
+    tests,
+  },
+  {
     // The plan's R0 test: the runtime then ends the last row's Mount, as
     // Scene says, so the disagreement the suite records is gone; Scene's own
     // reading is the same with the key or without it.

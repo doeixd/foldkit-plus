@@ -211,10 +211,12 @@ export const conform = async <Model, Message extends Tagged>(
       )
     })
   }
-  const program = subject.program(recordingProbe([]))
   for (const drawer of drawers.static) {
     for (const [step, expected] of reference.entries()) {
-      const drawn = await drawer.draw(program, expected.model)
+      // A program per Model: what a program memoizes starts empty, so each
+      // Model is drawn as if first, and a memo the live drawers kept stale
+      // (a region, a lazy slot) disagrees with it.
+      const drawn = await drawer.draw(subject.program(recordingProbe([])), expected.model)
       found.push(
         ...compare(drawer.name, step, 'markup', showMarkup(expected.markup), showMarkup(drawn)),
       )

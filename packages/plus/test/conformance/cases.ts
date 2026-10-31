@@ -9,9 +9,10 @@ import * as Mount from 'foldkit/mount'
 import { defineView } from 'foldkit/submodel'
 import { Bundle } from 'foldkit-bundle'
 import { Columns, DataGrid, RowModel } from 'foldkit-data-grid'
-import { Style } from 'foldkit-mixins'
+import { Capability, Slot, Slots, SlotView, Style } from 'foldkit-mixins'
 import { DataGridView, GridSlots } from 'foldkit-mixins-data-grid'
 import { Resume } from 'foldkit-ssr'
+import { Projection, Surface } from 'foldkit-surface'
 import { Step, type Case, type Probe, type Program, type Tagged } from './harness.js'
 
 /** A case whose types are its own, held where every case is listed. */
@@ -329,6 +330,92 @@ const lazy = define({
   ],
 })
 
+// Regions and keyed items: a region drawn again only when a Model path it
+// reads changed, each path twice, and keyed items that leave and come back.
+// The runtime memoizes and the other drawers do not, so a stale drawing is a
+// disagreement in markup.
+
+const RegionSlots = Slots.define({
+  root: Slot.make({ capability: Capability.Container }),
+  region: Slot.make({ capability: Capability.Container }),
+  row: Slot.make({ capability: Capability.Container }),
+})
+const RegionModel = Schema.Struct({
+  pair: Schema.Struct({ a: Schema.Number, b: Schema.Number }),
+  c: Schema.Number,
+  rows: Schema.Array(Schema.String),
+})
+type RegionModel = typeof RegionModel.Type
+const RegionMessage = defineMessageUnion({
+  BumpedA: {},
+  BumpedB: {},
+  BumpedC: {},
+  Showed: { rows: Schema.Array(Schema.String) },
+})
+type RegionMessage = typeof RegionMessage.Type
+type RegionBuilders = SlotView.SlotBuilders<typeof RegionSlots, RegionMessage>
+const RegionApp = Surface.application({ Model: RegionModel, Message: RegionMessage })
+
+const regions = define({
+  name: 'regions',
+  program: () => {
+    const Sums = SlotView.region(
+      Projection.struct({ a: RegionApp.model.pair.a, c: RegionApp.model.c }),
+      ({ a, c }, slots: RegionBuilders, h: HtmlBuilder<RegionMessage>) =>
+        h.p(slots.region.attrs([h.Id('sums')]), [`${a}+${c}`]),
+    )
+    const drawRow = (
+      slots: RegionBuilders,
+      h: HtmlBuilder<RegionMessage>,
+      { text }: { readonly text: string },
+    ) => h.li(slots.row.attrs([h.Key(text)]), [text])
+    const button = (h: HtmlBuilder<RegionMessage>, id: string, message: RegionMessage) =>
+      h.button([h.Id(id), h.OnClick(message)], [id])
+    const Page = SlotView.forMessages<RegionMessage>().define(
+      RegionSlots,
+      (model: RegionModel, slots, h) =>
+        h.div(slots.root.attrs(), [
+          button(h, 'a', RegionMessage.BumpedA()),
+          button(h, 'b', RegionMessage.BumpedB()),
+          button(h, 'c', RegionMessage.BumpedC()),
+          button(h, 'ab', RegionMessage.Showed({ rows: ['a', 'b'] })),
+          button(h, 'cd', RegionMessage.Showed({ rows: ['c', 'd'] })),
+          h.span([h.Id('b-value')], [String(model.pair.b)]),
+          Sums(model, slots, h),
+          h.ul(
+            [],
+            model.rows.map((text, index) => slots.row.lazy({ index, id: text }, drawRow, { text })),
+          ),
+        ]),
+    )
+    return {
+      Model: RegionModel,
+      init: { pair: { a: 0, b: 0 }, c: 0, rows: ['a', 'b'] },
+      update: (model, message: RegionMessage) =>
+        RegionMessage.match(message, {
+          BumpedA: () => ({ ...model, pair: { ...model.pair, a: model.pair.a + 1 } }),
+          BumpedB: () => ({ ...model, pair: { ...model.pair, b: model.pair.b + 1 } }),
+          BumpedC: () => ({ ...model, c: model.c + 1 }),
+          Showed: ({ rows }) => ({ ...model, rows }),
+        }),
+      view: (model, h) => Page(model, h),
+    }
+  },
+  script: [
+    Step.Click({ target: '#a' }),
+    Step.Click({ target: '#a' }),
+    Step.Click({ target: '#b' }),
+    Step.Click({ target: '#b' }),
+    Step.Click({ target: '#c' }),
+    Step.Click({ target: '#c' }),
+    Step.Click({ target: '#cd' }),
+    Step.Click({ target: '#b' }),
+    Step.Click({ target: '#b' }),
+    Step.Click({ target: '#b' }),
+    Step.Click({ target: '#ab' }),
+  ],
+})
+
 // A submodel: a child view whose Messages reach the parent wrapped.
 
 const CounterMessage = defineMessageUnion({ Incremented: {} })
@@ -622,6 +709,7 @@ export const cases: ReadonlyArray<AnyCase> = [
   keyedList,
   positionalList,
   lazy,
+  regions,
   submodel,
   events,
   keepTyped,
