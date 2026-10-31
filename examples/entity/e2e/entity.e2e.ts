@@ -52,17 +52,25 @@ test('a title saved from the form is the row’s, the server’s, and the reload
   await expect.poll(() => title.inputValue()).toBe('Notes on the Engine')
   await title.fill('Notes on the Engine, revised')
 
-  // The save is held at the network, so the form shows it in flight.
+  // The save is held at the network, so the form shows it in flight. Remote's
+  // HTTP transport posts JSON naming its operation (`"operation": "mutate"`).
   let release: () => void = () => {}
   const held = new Promise<void>(resolve => {
     release = resolve
   })
+  let holding = 0
   await page.route('**/remote**', async route => {
-    if (route.request().postData()?.includes('FoldkitRemoteMutate') === true) await held
+    const body: unknown = route.request().postDataJSON()
+    if (typeof body === 'object' && body !== null && Reflect.get(body, 'operation') === 'mutate') {
+      holding += 1
+      await held
+    }
     await route.fallback()
   })
   const form = page.locator('form')
   await page.getByRole('button', { name: 'Save' }).click()
+  // The save really is held: otherwise its answer can land before a read of the form.
+  await expect.poll(() => holding).toBe(1)
   await expect.poll(() => form.getAttribute('aria-busy')).toBe('true')
   expect(await page.getByRole('button', { name: 'Saving…' }).isDisabled()).toBe(true)
   release()
