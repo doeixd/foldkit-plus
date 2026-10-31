@@ -16,7 +16,7 @@ nothing; `foldkit-mixins-form` draws it (see [Drawing it](#drawing-it)).
 | What each input key means | `Entity.input` (see [entity.md](entity.md)) |
 | The draft in each control and its validation state | `foldkit-form`, in the parent's Model |
 | What a submitted value does (Remote mutation, Sync op, `update`) | the parent, in `onOut` |
-| Whether a submit is in flight, and its failure | whoever performs it; not the form |
+| Whether a submit is in flight, and its failure | whoever performs it (Remote's ledger, by request id); the view draws it, the form keeps no copy |
 | A relation picker's options | the application; the form names the target Entity |
 
 ## Mental model
@@ -230,7 +230,7 @@ blank choice of a picker; a chosen value the choices lack is shown as `? value`.
 `number`, `toggle`, `select` with its `option`s, `choices`, `choiceLabel`, `choice`), plus `control`, `search`, `more` (the
 "Show more" button under a picker the view's `more` input names), and
 `group`/`affix` for a renderer's control with text beside it. `FormSlots`: `root`, `errors`,
-`summary` (with `summaryTitle`, `issues`, `issue`, `issueLink`), `submit`, and for nested
+`failure`, `summary` (with `summaryTitle`, `issues`, `issue`, `issueLink`), `submit`, and for nested
 rows `group`, `legend`, `row`, `add`, `remove`. After a submit (`form.attempted`), while any
 field is invalid, `summary` lists each one above the submit button as a link to its control
 (`href="#id"`; a press focuses the control and sends `FollowedIssue({ id })`, which changes
@@ -242,10 +242,17 @@ each field's error; a Behavior that supplies one of those throws a two-owners co
 
 While a key's check runs, its field draws a `checking` line (`role="status"`,
 words `words.checking`) and its `root` carries `data-validation` with the
-field's state. Pass `submitting: <your in-flight flag>` in the view inputs; the
-form also counts a submit waiting on a check. While submitting, the `form` is
-`aria-busy` with `data-submitting`, and the button is disabled and reads
-`words.submitting`.
+field's state. While submitting, the `form` is `aria-busy` with
+`data-submitting`, and the button is disabled and reads `words.submitting`. The
+form counts a submit waiting on a check itself; whether the write the value
+started is answered is Remote's, read by its request id, never a flag of your
+own: `Crud.editor` passes it (see [crud.md](crud.md)), and a page that mutates
+in its own `onOut` keeps the request id and passes `submitting:
+Data.mutation(model, requestId)._tag === 'Pending'`. Busy ends at the answer.
+`failure: { error, retry }` draws why the write did not land in the `failure`
+Slot (`role="alert"`): a refusal naming no key (one naming a key goes through
+`Message.Refused`), or a failure, after which `retry` makes the button read
+`words.resubmit` (`Try again`).
 
 The views ship unstyled; `foldkit-mixins-form/recipes` (beside `foldkit-mixins-ui`)
 has a look for each: `Style.forSlots(FieldSlots)(Field({}))` (label over control,
@@ -399,7 +406,9 @@ required as the case holds it, and sent only in its case.
 - `required` is derived: a key is required exactly when its schema admits
   nothing for an empty draft (tried: key left out, `null`, the empty value). A
   plain `Schema.String` admits `""`; add `Schema.isMinLength(1)`.
-- The form has no "submitting" state. Track the operation where it runs.
+- The form has no "submitting" state: the write's is Remote's, by its request
+  id. A second submit of an unchanged form returns the Model it was given, so an
+  `onOut` that refuses it while the write is in flight changes nothing.
 - `onOut` is required when placing; omitting it is a type error.
 - A `Changed` with a draft of the wrong kind for the key (a string for a toggle)
   is ignored, not stored.

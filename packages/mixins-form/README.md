@@ -243,7 +243,7 @@ the view inputs' `more` names (`more: { authorId: true }`, which
 (default `Show more`) and naming the picker with `aria-controls`; a press sends
 the form's `AskedForMore({ key })`, for the page that owns the list to answer.
 All of the view's words (`submit`,
-`submitting`, `checking`, `search`, `none`, `add`, `remove`, `more`, `summary`,
+`submitting`, `resubmit`, `checking`, `search`, `none`, `add`, `remove`, `more`, `summary`,
 `issue`, `inRow`) are text: `add` fills `{label}`, `remove` `{label}` and `{position}`,
 `issue` `{label}` and `{error}`, and `inRow` `{row}` and `{label}`; the others are said as written. See [words in one place](../form/README.md#words-as-text-in-one-place).
 
@@ -341,7 +341,7 @@ Around each control, `FieldSlots` also publishes `root`, `label`, `description`,
 `checking`, `error`, `control` (around a Bundle's own view), and `group` and `affix`, for a
 renderer that draws text beside its control (a prefix, a unit) with the two
 together. `FormSlots` publishes `root` (the `form`), `errors` (failures that
-belong to no one field), `summary`, `summaryTitle`, `issues`, `issue` and
+belong to no one field), `failure` (why the submitted write did not land), `summary`, `summaryTitle`, `issues`, `issue` and
 `issueLink` (the fields to fix, below),
 `submit`, and the five slots of a nested key.
 
@@ -389,18 +389,30 @@ without a Style: `[data-validation='Valid'] label::after { content: ' ✓' }`. A
 Style reads the same state as `input.field` through `Style.whenInput`.
 
 The form is submitting while a submit waits for a check to pass (the form's
-`submitPending`), or while the application says its own work with the value is
-in flight: the view input `submitting`. The form hands the value over through
-`onOut` and cannot see the request that follows, so that part is the
-application's to pass. While submitting, the `form` carries `aria-busy` and
+`submitPending`), or while the write its value started is in flight: the view
+input `submitting`. The form hands the value over through `onOut` and cannot
+see the request that follows. Where that request is a Remote mutation, its
+request id in Remote's ledger says whether it is answered, so `submitting` is
+read from there, never kept as a second flag: `foldkit-crud`'s editor passes it
+itself (with a placement's `viewInputs`), and a page that mutates in its own
+`onOut` keeps the request id and passes `Data.mutation(model, requestId)._tag
+=== 'Pending'`. While submitting, the `form` carries `aria-busy` and
 `data-submitting`, and the submit button is disabled and reads
-`words.submitting` (default `Submitting…`). Where `saving` is the parent's own
-record of a save in flight:
+`words.submitting` (default `Submitting…`). Busy ends when the write is
+answered: a list refreshed after it shows that through its own `Refreshing`.
+
+When the write did not land, the view input `failure` (`{ error, retry }`) says
+why, in the `failure` slot (`role="alert"`, above the submit button): a refusal
+that names none of the form's keys (a refusal that names one shows on that
+field, through the form's `Refused`), or a failure. With `retry` the submit
+button reads `words.resubmit` (default `Try again`), for a page whose next
+submit sends the same write again; the editor's does, through Remote's retry.
+Where `writing` is the request id the page kept:
 
 ```ts
 EditForm.view(model, h, {
-  submitting: model.saving,
-  words: { submit: 'Save', submitting: 'Saving…', checking: 'Checking…' },
+  submitting: Option.exists(model.writing, id => Data.mutation(model, id)._tag === 'Pending'),
+  words: { submit: 'Save', submitting: 'Saving…', resubmit: 'Save again' },
 })
 ```
 

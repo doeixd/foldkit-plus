@@ -1,4 +1,5 @@
 // The README's snippets, compiled. Keep the two in step.
+import { Option } from 'effect'
 import { Bundle } from 'foldkit-bundle'
 import { Style } from 'foldkit-mixins'
 import type * as Submodel from 'foldkit/submodel'
@@ -73,12 +74,15 @@ void wrong
   void Drawn
 }
 
-// A check running, and a submit in flight: the page's own `saving` passed in.
+// A check running, and a submit in flight: read from Remote's ledger by the request id kept.
 {
-  const model = { saving: true }
+  const model = { writing: Option.some('r1') }
+  const Data = {
+    mutation: (_: typeof model, _id: string): { readonly _tag: string } => ({ _tag: 'Pending' }),
+  }
   const inputs = {
-    submitting: model.saving,
-    words: { submit: 'Save', submitting: 'Saving…', checking: 'Checking…' },
+    submitting: Option.exists(model.writing, id => Data.mutation(model, id)._tag === 'Pending'),
+    words: { submit: 'Save', submitting: 'Saving…', resubmit: 'Save again' },
   } satisfies FormViewInputs<Key>
   void inputs
   // @ts-expect-error submitting is whether it is, not what the button says

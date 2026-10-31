@@ -72,14 +72,16 @@ export const Field = Style.recipeFor(FieldSlots)({
 })
 
 /**
- * A form: its fields in a column, a failure that is no one field's in the error's
- * ink, the list of fields to fix in a box of the error's colours, and the submit
- * as the page's primary button, as wide as its words.
+ * A form: its fields in a column, a failure that is no one field's (or its
+ * write's) in the error's ink, the list of fields to fix in a box of the
+ * error's colours, and the submit as the page's primary button, as wide as its
+ * words.
  */
 export const Form = Style.recipeFor(FormSlots)({
   base: {
     root: component(Style.self({ display: 'grid', gap: ref.space.md })),
     errors: said(ref.error.ink),
+    failure: said(ref.error.ink),
     summary: component(
       Style.self({
         display: 'grid',

@@ -233,6 +233,28 @@ describe('FormView markup', () => {
     expect(Inert.text(button(idle))).toBe('Submit')
   })
 
+  it('says why its write did not land, and offers the same write again only for a failure', () => {
+    const draw = (failure?: { readonly error: string; readonly retry: boolean }) =>
+      FormView.define(Edit)(
+        { model: initial, errors: [], canSubmit: true, failure, words: { submit: 'Save' } },
+        SlotView.inertBuilder(),
+      )
+    const alert = (root: Html) =>
+      Inert.all(root).find(node => node.data?.attrs?.role === 'alert' && node.sel === 'p')
+    const button = (root: Html) => Inert.all(root).find(node => node.sel === 'button')
+
+    const failed = draw({ error: 'The server could not be reached', retry: true })
+    expect(Inert.text(alert(failed))).toBe('The server could not be reached')
+    expect(Inert.text(button(failed))).toBe('Try again')
+
+    const refused = draw({ error: 'Archived posts cannot be edited', retry: false })
+    expect(Inert.text(alert(refused))).toBe('Archived posts cannot be edited')
+    expect(Inert.text(button(refused))).toBe('Save')
+
+    expect(alert(draw())).toBeUndefined()
+    expect(Inert.text(button(draw()))).toBe('Save')
+  })
+
   it('reads submitting from a submit waiting for a check, or from the application', () => {
     const view = FormView.submodel(Edit, FormView.define(Edit))
     const submitting = (model: typeof initial, inputs: { readonly submitting?: boolean }) =>

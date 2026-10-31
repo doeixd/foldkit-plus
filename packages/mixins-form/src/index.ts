@@ -61,6 +61,11 @@ export interface FormViewWords {
   readonly checking?: string | undefined
   /** On the submit button while the form is submitting. Default `Submitting…`. */
   readonly submitting?: string | undefined
+  /**
+   * On the submit button after its write failed, when a submit sends that
+   * write again (`failure.retry`). Default `Try again`.
+   */
+  readonly resubmit?: string | undefined
   /** Above the list of fields to fix. Default `Check these fields:`. */
   readonly summary?: string | undefined
   /** One field to fix, a link to it. Default `{label}: {error}`. */
@@ -118,10 +123,27 @@ export interface FormViewInputs<Key extends string = string, ControlKey extends 
    */
   readonly locked?: ReadonlyArray<Key | ControlKey> | undefined
   /**
-   * Whether the application's own work with a submitted value is in flight, such
-   * as its request: the form hands the value over and cannot see what follows.
+   * Whether the write a submit started is in flight: the form hands its value
+   * over and cannot see what follows. `Crud.editor` gives it, read from
+   * Remote's ledger by the write's request id; a form placed with an `onOut`
+   * of its own passes `Data.mutation(model, requestId)._tag === 'Pending'`.
    */
   readonly submitting?: boolean | undefined
+  /**
+   * Why the write the last submit started did not land, as the page reads it
+   * where the write runs: a refusal naming none of the form's keys, or a
+   * failure. Drawn as the form's alert (the `failure` Slot). `retry` says a
+   * submit sends that same write again (a failure; a refusal would only be
+   * refused again), and the button then reads `words.resubmit`.
+   */
+  readonly failure?: SubmitFailure | undefined
+}
+
+/** Why a submitted write did not land, for `FormViewInputs.failure`. */
+export interface SubmitFailure {
+  readonly error: string
+  /** Whether a submit sends the same write again. */
+  readonly retry: boolean
 }
 
 /** What a field's Style and Behavior attachments may read. */
@@ -253,6 +275,11 @@ export const FormSlots = Slots.define({
   root: Slot.make({ capability: Capability.Container, events: [Event.Submit] }),
   /** Failures that belong to no one field: a rule that spans keys. */
   errors: Slot.make({ capability: Capability.Base }),
+  /**
+   * Why the write the last submit started did not land (`failure`): a refusal
+   * that names no key, or a failure a submit sends again. Above the submit button.
+   */
+  failure: Slot.make({ capability: Capability.Base }),
   /**
    * The fields to fix, after a submit while any is invalid, in a form of more
    * than one control: its words (`summaryTitle`), then a list (`issues`) of
@@ -1022,6 +1049,9 @@ export const FormView = {
             ...(input.errors.length === 0
               ? []
               : [h.p(slots.errors.attrs([h.Role('alert')]), [...input.errors])]),
+            ...(input.failure === undefined
+              ? []
+              : [h.p(slots.failure.attrs([h.Role('alert')]), [input.failure.error])]),
             ...(input.submits === false
               ? []
               : [
@@ -1033,7 +1063,9 @@ export const FormView = {
                     [
                       submitting
                         ? (input.words?.submitting ?? 'Submitting…')
-                        : (input.words?.submit ?? 'Submit'),
+                        : input.failure?.retry === true
+                          ? (input.words?.resubmit ?? 'Try again')
+                          : (input.words?.submit ?? 'Submit'),
                     ],
                   ),
                 ]),
