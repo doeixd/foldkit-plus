@@ -15,7 +15,11 @@ export default defineConfig({
   fullyParallel: true,
   reporter: [['list'], ['json', { outputFile: './.suite/results.json' }]],
   use: { baseURL: BASE_URL, trace: 'off' },
-  projects: [{ name: 'chromium', use: devices['Desktop Chrome'] }],
+  // Upstream's two; `--project chromium` or `--project webkit` runs one.
+  projects: [
+    { name: 'chromium', use: devices['Desktop Chrome'] },
+    { name: 'webkit', use: devices['Desktop Safari'] },
+  ],
   webServer: {
     command: `pnpm build && pnpm preview --ip 127.0.0.1 --port ${PORT}`,
     url: BASE_URL,
