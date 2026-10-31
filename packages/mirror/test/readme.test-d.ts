@@ -50,7 +50,7 @@ function update(model: Model, message: Message): Return {
   if (Mirror.reduces(message)) return { model: Prefs.reduce(model, message) }
   switch (message._tag) {
     case 'UrlChanged':
-      return { model: Filters.reduce(model, message.url) }
+      return { model: Filters.urlChanged(model, message.url) }
   }
 }
 

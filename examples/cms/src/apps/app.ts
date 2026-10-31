@@ -203,7 +203,7 @@ const placed = placements.update((model, message) => {
     UrlChanged: ({ url }) => {
       const { preview, ...named } = linkIn(url)
       // The worklist's narrowing is the mirror's to read; which post is open is routing.
-      const narrowed = Narrowing.reduce(model, url)
+      const narrowed = Narrowing.urlChanged(model, url)
       const opened = openNamed(routed, narrowed, named, model.fresh)
       return {
         model: { ...opened.model, previewAsked: Option.some(preview), fresh: opened.fresh },

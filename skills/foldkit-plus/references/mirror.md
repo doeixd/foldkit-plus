@@ -22,7 +22,7 @@ no log and no ordering, so two tabs writing to it do not converge.
 
 ```text
 subscriptions  Model slice -> encode (defaults elided) -> URL / store   (throttled, deduped)
-reduce         URL or MirrorRestored Message -> Model slice
+reduce         URL or MirrorRestored Message -> Model slice (a later URL: urlChanged)
 restore        Command that reads the store on cold load -> MirrorRestored
 bootstrap      pre-read keys (Flags) -> initial Model, before the first render
 ```
@@ -84,7 +84,7 @@ const Prefs = Mirror.kv(App, {
 function update(model: Model, message: Message): Return {
   return Message.match(message, {
     MirrorRestored: restored => ({ model: Prefs.reduce(model, restored) }),
-    UrlChanged: ({ url }) => ({ model: Filters.reduce(model, url) }),
+    UrlChanged: ({ url }) => ({ model: Filters.urlChanged(model, url) }),
   })
 }
 
@@ -179,6 +179,11 @@ for (const command of start.commands ?? []) {
   (`?page=abc`) becomes initial. KV `reduce` fills only fields **still at
   initial**, which keeps early edits, and ignores other mirrors' restores
   (matched by `name`, which defaults to `key`).
+- Read a later URL with `urlChanged`, not `reduce`: the URL mirror's own
+  writes come back as `UrlChanged`s, under load after newer edits, and
+  `urlChanged` returns the Model for each such echo and for a URL leaving its
+  keys as it last read or wrote them, so a keystroke is never undone (#379).
+  The wiring and `Mirror.routing` use it.
 - A KV mirror's writes wait until the Model holds what `restore` answered (per
   runtime), so a slow store cannot lose its document to the first write.
   Before any answer, a write is checked against what the store holds, so a

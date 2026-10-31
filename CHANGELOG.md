@@ -241,6 +241,17 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Fixed
 
+- **A URL mirror never undoes a keystroke with its own echo**
+  (`foldkit-mirror`, #379). A write to the URL comes back as a `UrlChanged`,
+  and under load it landed after newer keystrokes, even after the next
+  write; the mirror read it like a navigation and put the older text back.
+  `UrlMirror.urlChanged(model, url)` reads a later URL: it returns the Model
+  for the echo of each write still to come back, and for a URL leaving the
+  mirror's keys as it last read or wrote them (a path change, another
+  mirror's write). The wiring and `Mirror.routing` read the URL Message with
+  it; an application reading its URL Message by hand calls it in place of
+  `reduce`, which stays the read of a starting URL.
+
 - **A popup's given attributes reach its parts once** (`foldkit-mixins-ui`,
   #374). The Listbox, Combobox and Menu wrapped the attributes an
   application gives their parts (`itemsAttributes`, `buttonAttributes`,

@@ -42,7 +42,7 @@ flowchart LR
   end
   slice -- "entry writes what changed" --> url
   slice -- "entry writes what changed" --> kv
-  url -. "reduce(model, url) on navigation and load" .-> model
+  url -. "urlChanged(model, url) on navigation, reduce(model, url) on load" .-> model
   kv -. "reduce(model, MirrorRestored) from restore" .-> model
 ```
 
@@ -62,7 +62,7 @@ Subscription entry per mirror:
 ```ts sketch
 const update = (model, message) => {
   if (Mirror.reduces(message)) return { model: Prefs.reduce(model, message) }
-  if (message._tag === 'UrlChanged') return { model: Filters.reduce(model, message.url) }
+  if (message._tag === 'UrlChanged') return { model: Filters.urlChanged(model, message.url) }
   …
 }
 const subscriptions = Subscription.make<Model, Message, KeyValueStore>()(() => ({

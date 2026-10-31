@@ -81,7 +81,7 @@ history.pushState / replaceState
 UrlChanged
       |
       v
-Filters.reduce(model, url)
+Filters.urlChanged(model, url)
       |
       v
 Model
@@ -208,7 +208,7 @@ Navigation comes back through the application's normal URL Message:
 ```ts
 function update(model: Model, message: Message) {
   return Match.value(message).pipe(
-    Match.tag('UrlChanged', ({ url }) => ({ model: Filters.reduce(model, url) })),
+    Match.tag('UrlChanged', ({ url }) => ({ model: Filters.urlChanged(model, url) })),
     Match.orElse(() => ({ model })),
   )
 }
@@ -234,13 +234,18 @@ That is the entire URL loop:
 
 ```text
 Model -> subscription -> URL
-URL -> UrlChanged -> reduce -> Model
+URL -> UrlChanged -> urlChanged -> Model
 ```
 
+`reduce` reads a starting URL; `urlChanged` reads one that arrives later.
 The loop closes without a second render: the mirror's own write comes back
-as a `UrlChanged` whose keys hold what the Model already holds, and `reduce`
-then returns the Model it was given. It does the same for a navigation that
-leaves its keys alone, and `Prefs.reduce` for a restore that finds nothing new.
+as a `UrlChanged`, and `urlChanged` returns the Model it was given. It does
+so for every write still to come back, not only the last, because under load
+an echo can land after newer keystrokes, even after the next write, and
+reading it would put the older text back. It also returns the Model for a
+navigation that leaves its keys as it last read or wrote them (a path change,
+another mirror's write), and `Prefs.reduce` does for a restore that finds
+nothing new.
 
 ## Plug the URL into `makeApplication` with `Mirror.routing`
 
@@ -343,7 +348,7 @@ its variant:
 function update(model: Model, message: Message): Return {
   return Message.match(message, {
     GotPrefsMessage: ({ message }) => foldPrefs(model, message),
-    UrlChanged: ({ url }) => ({ model: Filters.reduce(model, url) }),
+    UrlChanged: ({ url }) => ({ model: Filters.urlChanged(model, url) }),
   })
 }
 ```
@@ -370,7 +375,7 @@ const Message = defineMessageUnion({ ...Mirror.messages, UrlChanged: { url: Url 
 function update(model: Model, message: Message): Return {
   if (Mirror.reduces(message)) return { model: Prefs.reduce(model, message) }
   return Match.value(message).pipe(
-    Match.tag('UrlChanged', ({ url }) => ({ model: Filters.reduce(model, url) })),
+    Match.tag('UrlChanged', ({ url }) => ({ model: Filters.urlChanged(model, url) })),
     Match.orElse(() => ({ model })),
   )
 }
@@ -464,7 +469,7 @@ const url = wiring.url(url => Message.UrlChanged({ url }))
 ```
 
 `Filters.wiring('UrlChanged')` routes the application's URL Message into
-`Filters.reduce` and reads the URL at startup; `Prefs.wiring()` routes its own
+`Filters.urlChanged` and reads the URL at startup; `Prefs.wiring()` routes its own
 `MirrorRestored` into `Prefs.reduce` and runs `Prefs.restore` at startup. Both
 tags are shared: two key-value mirrors each read only their own
 `MirrorRestored`, several URL mirrors each read their keys from one

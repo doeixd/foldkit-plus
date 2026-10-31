@@ -120,7 +120,13 @@ const currentHref = (): string | undefined => {
   return loc === undefined ? undefined : `${loc.pathname}${loc.search}${loc.hash}`
 }
 
-const urlStore = (owned: ReadonlyArray<string>, location: UrlLocation): MirrorStore => ({
+// `wrote` hears each href the store writes, before Foldkit answers it with a
+// `UrlChanged`, in the same uninterruptible step.
+const urlStoreReporting = (
+  owned: ReadonlyArray<string>,
+  location: UrlLocation,
+  wrote: (href: string) => void,
+): MirrorStore => ({
   read: Effect.sync(() => {
     const href = currentHref()
     if (href === undefined) return undefined
@@ -128,15 +134,24 @@ const urlStore = (owned: ReadonlyArray<string>, location: UrlLocation): MirrorSt
     return readParams(location === 'search' ? parts.search : parts.hash, owned)
   }),
   write: write =>
-    Effect.suspend(() => {
-      // Outside a browser (SSR, a test without a DOM) there is no URL to write.
-      const href = currentHref()
-      if (href === undefined) return Effect.void
-      const next = applyToHref(href, write, location)
-      if (next === href) return Effect.void
-      return write.intent === 'push' ? Navigation.pushUrl(next) : Navigation.replaceUrl(next)
-    }),
+    Effect.uninterruptible(
+      Effect.suspend(() => {
+        // Outside a browser (SSR, a test without a DOM) there is no URL to write.
+        const href = currentHref()
+        if (href === undefined) return Effect.void
+        const next = applyToHref(href, write, location)
+        if (next === href) return Effect.void
+        wrote(next)
+        return write.intent === 'push' ? Navigation.pushUrl(next) : Navigation.replaceUrl(next)
+      }),
+    ),
 })
+
+// Writes a URL mirror awaits the echo of; far more than a burst ever leaves.
+const MAX_AWAITED = 64
+
+const urlStore = (owned: ReadonlyArray<string>, location: UrlLocation): MirrorStore =>
+  urlStoreReporting(owned, location, () => {})
 
 const KV_VERSION = 1
 
@@ -487,11 +502,22 @@ export interface UrlMirror<
   Name extends string = string,
 > extends Mirror<AppModel, Value, never, Name> {
   readonly kind: 'url'
-  /** The Model with the URL's keys (a Foldkit `Url` or an href) as the whole slice: `fromKeys`. */
+  /**
+   * The Model with the URL's keys (a Foldkit `Url` or an href) as the whole
+   * slice: `fromKeys`. For the starting URL; a later one is `urlChanged`'s.
+   */
   readonly reduce: (model: AppModel, url: Url | string) => AppModel
   /**
+   * The Model after a `UrlChanged`: `reduce`, unless the URL is the echo of
+   * one of this mirror's writes or leaves its keys as it last read or wrote
+   * them (a path change, another mirror's write), when the Model is returned
+   * as it is. An echo can land after newer edits, and reading it would undo
+   * them.
+   */
+  readonly urlChanged: (model: AppModel, url: Url | string) => AppModel
+  /**
    * How this mirror joins an assembly: it routes the application's URL Message
-   * (a variant with a `url` field, tagged `tag`) into `reduce`, reads the URL at
+   * (a variant with a `url` field, tagged `tag`) into `urlChanged`, reads the URL at
    * startup, and brings its Subscriptions and contract. Several URL mirrors share
    * the URL Message.
    */
@@ -1013,27 +1039,63 @@ export const Mirror = {
           field
         ]?.key ?? field,
     )
+    // A write comes back as a `UrlChanged`, and under load it lands after newer
+    // edits, even after a second write: reading it would put the older value
+    // back (#379). So the mirror keeps the text of its keys in each write whose
+    // echo is still to come, and of the URL it last read or wrote; a
+    // `UrlChanged` matching either changed nothing of the slice's (an echo, or
+    // a write or a path change that left these keys alone).
+    const awaited: Array<string> = []
+    let seen: Option.Option<string> = Option.none()
+    const textOf = (url: Url | string): string => {
+      const keys = keysOfUrl(url)
+      return JSON.stringify(owned.map(key => own(keys, key) ?? null))
+    }
     const { mirror, keysOfUrl } = make(
       app,
       'url',
-      MirrorStore.url(owned, config.location ?? 'search'),
+      urlStoreReporting(owned, config.location ?? 'search', href => {
+        const text = textOf(href)
+        seen = Option.some(text)
+        // Bounded for an application that never routes its URL Message here.
+        if (awaited.push(text) > MAX_AWAITED) awaited.shift()
+      }),
       config,
       config.throttle ?? '50 millis',
       Option.none(),
     )
-    const reduce = (model: SliceRoot<S>, url: Url | string) =>
-      mirror.fromKeys(model, keysOfUrl(url))
+    const read = (model: SliceRoot<S>, url: Url | string) => {
+      seen = Option.some(textOf(url))
+      return mirror.fromKeys(model, keysOfUrl(url))
+    }
+    const reduce = (model: SliceRoot<S>, url: Url | string) => {
+      // A starting URL: no echo of an earlier runtime's write is coming.
+      awaited.length = 0
+      return read(model, url)
+    }
+    const urlChanged = (model: SliceRoot<S>, url: Url | string) => {
+      const text = textOf(url)
+      const echo = awaited.indexOf(text)
+      if (echo >= 0) {
+        awaited.splice(0, echo + 1)
+        return model
+      }
+      return Option.contains(seen, text) ? model : read(model, url)
+    }
     return {
       ...mirror,
       kind: 'url',
       reduce,
+      urlChanged,
       wiring: tag => ({
         key: `mirror:${mirror.name}`,
         handles: [tag],
         shared: [tag],
         route: (model, message) =>
           // tag-check: open — `Tag` is the application's URL variant, generic here
-          message._tag === tag ? Option.some({ model: reduce(model, message.url) }) : Option.none(),
+          message._tag === tag
+            ? Option.some({ model: urlChanged(model, message.url) })
+            : Option.none(),
         onUrl: reduce,
         subscriptions: brandEntries(mirror.subscriptions),
         contract: mirror.contract,
@@ -1045,8 +1107,9 @@ export const Mirror = {
    * URL mirrors plugged into `Runtime.makeApplication`: spread the result into
    * its config. `init` reads the starting URL into the Model the application's
    * `init` returns; `update` reads a `urlChanged` Message's URL into the Model
-   * before the application's `update` sees it, so a route handler finds the
-   * slices already read. `routing` is the application's own, passed through.
+   * (each mirror's `urlChanged`, so an echo changes nothing) before the
+   * application's `update` sees it, so a route handler finds the slices
+   * already read. `routing` is the application's own, passed through.
    *
    * @example
    * ```ts
@@ -1077,6 +1140,8 @@ export const Mirror = {
   ): MirrorRouting<AppModel, Message, Args, InitReturn, UpdateReturn> => {
     const read = (model: AppModel, url: Url): AppModel =>
       config.mirrors.reduce((next, mirror) => mirror.reduce(next, url), model)
+    const changed = (model: AppModel, url: Url): AppModel =>
+      config.mirrors.reduce((next, mirror) => mirror.urlChanged(next, url), model)
     const isUrlChanged = (message: Message): message is Message & UrlChangedMessage<Tag> =>
       // tag-check: open — `Tag` is the application's URL variant, generic here
       message._tag === config.urlChanged
@@ -1086,7 +1151,7 @@ export const Mirror = {
         return { ...started, model: read(started.model, args[args.length - 1] as Url) }
       },
       update: (model, message) =>
-        config.update(isUrlChanged(message) ? read(model, message.url) : model, message),
+        config.update(isUrlChanged(message) ? changed(model, message.url) : model, message),
       routing: config.routing,
     }
   },

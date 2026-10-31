@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 /** The URL store, against jsdom's location and history. */
-import { Effect, Schema, Stream } from 'effect'
+import { Effect, Option, Schema, Stream } from 'effect'
+import { fromString } from 'foldkit/url'
 import { defineMessageUnion } from 'foldkit/message'
 import { Projection, Surface } from 'foldkit-surface'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -91,5 +92,88 @@ describe('MirrorStore.url', () => {
         q: 'a b',
       },
     )
+  })
+})
+
+describe('urlChanged', () => {
+  const here = () => `${window.location.pathname}${window.location.search}`
+
+  it('takes the echo of a write that lands after newer edits as no change', async () => {
+    at('/todos')
+    Filters.reduce(initial, here())
+    await write({ filter: 'all', q: 'j' })
+    const firstEcho = here()
+    await write({ filter: 'all', q: 'jo' })
+    const secondEcho = here()
+    // Both writes answered after a third edit: neither echo puts an older text back.
+    const typed: Model = { filter: 'all', q: 'joh' }
+    expect(Filters.urlChanged(typed, firstEcho)).toBe(typed)
+    expect(Filters.urlChanged(typed, secondEcho)).toBe(typed)
+  })
+
+  it('reads a navigation, and a return to a URL whose echo already came', async () => {
+    at('/todos')
+    Filters.reduce(initial, here())
+    await write({ filter: 'active', q: '' })
+    const written = here()
+    const shown: Model = { filter: 'active', q: '' }
+    expect(Filters.urlChanged(shown, written)).toBe(shown)
+    expect(Filters.urlChanged(shown, '/todos')).toEqual(initial)
+    // Forward again to the entry the write made: its echo was answered once already.
+    expect(Filters.urlChanged(initial, written)).toEqual(shown)
+  })
+
+  it('keeps an unwritten edit through a URL that leaves its keys as they were', async () => {
+    at('/todos?filter=active')
+    Filters.reduce(initial, here())
+    const edited: Model = { filter: 'all', q: 'x' }
+    // Another mirror's write, or a path change: these keys stand as last read.
+    expect(Filters.urlChanged(edited, '/other?filter=active&page=2')).toBe(edited)
+  })
+
+  it('keeps an unwritten edit through another key’s echo after its own write', async () => {
+    at('/todos')
+    Filters.reduce(initial, here())
+    await write({ filter: 'all', q: 'j' })
+    const written: Model = { filter: 'all', q: 'j' }
+    expect(Filters.urlChanged(written, here())).toBe(written)
+    const typed: Model = { filter: 'all', q: 'jo' }
+    expect(Filters.urlChanged(typed, `${here()}&page=2`)).toBe(typed)
+  })
+
+  it('is how the wiring and Mirror.routing read a URL Message', async () => {
+    at('/todos')
+    Filters.reduce(initial, here())
+    await write({ filter: 'all', q: 'j' })
+    const url = Option.getOrThrow(fromString(window.location.href))
+    const typed: Model = { filter: 'all', q: 'jo' }
+    const routed = Filters.wiring('UrlChanged').route!(typed, { _tag: 'UrlChanged', url })
+    expect(Option.map(routed, step => step.model)).toEqual(Option.some(typed))
+    await write({ filter: 'all', q: 'jo' })
+    const echo = Option.getOrThrow(fromString(window.location.href))
+    const routing = Mirror.routing({
+      mirrors: [Filters],
+      urlChanged: 'UrlChanged',
+      init: () => ({ model: initial }),
+      update: (model: Model) => ({ model }),
+      routing: {
+        // No link is followed here.
+        onUrlRequest: () => ({ _tag: 'UrlChanged' as const, url: echo }),
+        onUrlChange: changed => ({ _tag: 'UrlChanged' as const, url: changed }),
+      },
+    })
+    const newer: Model = { filter: 'all', q: 'joh' }
+    expect(routing.update(newer, { _tag: 'UrlChanged', url: echo }).model).toBe(newer)
+  })
+
+  it('awaits no echo across a starting URL', async () => {
+    at('/todos')
+    Filters.reduce(initial, here())
+    await write({ filter: 'all', q: 'j' })
+    const written = here()
+    // A runtime started again: the write it would have heard back is not its own.
+    at('/todos')
+    Filters.reduce(initial, here())
+    expect(Filters.urlChanged(initial, written)).toEqual({ filter: 'all', q: 'j' })
   })
 })
