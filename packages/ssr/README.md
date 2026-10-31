@@ -929,6 +929,34 @@ runs `flags`, the config's `resources` and its own as whoever the cookie says
 posted: an entry made without them throws. An entry of your own that calls
 `SSR.handle` checks `Origin` itself.
 
+### A whole page without scripts
+
+A form that posts is one part of a page that works with JavaScript off. The
+rest is the application's, and
+[`examples/foldkit/domains-plus`](../../examples/foldkit/domains-plus) does
+all of it; [Pages that work without JavaScript](../../docs/progressive-enhancement.md)
+is the guide. What the port needed from this package:
+
+- **Render what is shown.** `SSR.render` fetches nothing, so read first
+  (`Data.satisfy`) and start the entry from that Model; send the reading
+  Surfaces' data with `parts: [Remote.resume(Data)]` and list the Surfaces
+  in `surfaces`, so the browser reads none of it again.
+- **Keep GET forms as `h.form`.** With a fallback, every form `rh` builds
+  posts its Message; a search or filter form is a GET of the address the URL
+  mirror reads, and `h.form` leaves it one
+  ([#391](https://github.com/doeixd/foldkit-plus/issues/391)).
+- **Draw the plain controls on both sides.** Show them under
+  `@media (scripting: none)` and hide the scripted ones there; a control in
+  `<noscript>` is not drawn by the view, and the page would not be the one
+  the browser renders first.
+- **Keep state between posts yourself.** A post starts from `init`, so what
+  must outlive it lives in a cookie the entry reads, validated as it is read.
+  Writing it back needs the Model the post reached, which only `status` is
+  given today ([#389](https://github.com/doeixd/foldkit-plus/issues/389)).
+- **Wait for the takeover in a scripted test.** The served page works on its
+  own, so a click before boot posts. The root loses `data-foldkit-plus-resume`
+  as the page boots.
+
 ## A reader's preferences in the first frame
 
 A theme, a light or dark choice, a density: a reader expects the page to open

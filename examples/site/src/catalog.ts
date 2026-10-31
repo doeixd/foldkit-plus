@@ -236,14 +236,17 @@ export const subsites: ReadonlyArray<Subsite> = [
       'richtext-code-shiki',
     ],
   }),
-  family({
-    id: 'ssr',
-    title: 'SSR',
-    tagline: 'Server rendering that hands the browser the Model instead of running init again.',
-    owner: 'the application, in a resume plan',
-    shelf: 'Delivery',
-    packages: ['ssr'],
-  }),
+  family(
+    {
+      id: 'ssr',
+      title: 'SSR',
+      tagline: 'Server rendering that hands the browser the Model instead of running init again.',
+      owner: 'the application, in a resume plan',
+      shelf: 'Delivery',
+      packages: ['ssr'],
+    },
+    [doc('without-javascript', 'Pages that work without JavaScript', 'progressive-enhancement')],
+  ),
   family({
     id: 'media',
     title: 'Media',

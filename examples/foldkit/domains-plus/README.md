@@ -25,11 +25,12 @@ settledLabel + WindowList window + filters ─▶ TopResults · VisibleResults �
 | State | Owner |
 | --- | --- |
 | What the box holds, the route, the layout, the filters, the cart | the Model, changed in `update` |
-| `?q=` | `foldkit-mirror` mirrors `query`; back and forward come back as a keystroke through the debounce |
+| `?q=`, `?tld=`, `?availability=`, `?sort=`, `?from=` | `foldkit-mirror` mirrors `query`, the filters and the row a page opened at; back and forward come back as a keystroke through the debounce |
 | The label the reads use | the debounce bundle from `foldkit-primitives/time` |
-| Prices and availability | the server; `foldkit-remote` keeps them in the Model by name (`Domain`, an Entity with variants), fresh for a minute |
+| Prices and availability | the server; `foldkit-remote` keeps them in the Model by name (`Domain`, an Entity with variants), fresh for a minute. The server reads those a page shows before rendering it, and the browser resumes them |
 | Which rows are drawn | `foldkit-mixins-ui`'s `WindowList`, in the page's own scroll |
-| The page served before the bundle | `foldkit-ssr`: every page is rendered by the Worker's entry and resumed from the plan's slice; typing before boot is kept |
+| The page served before the bundle | `foldkit-ssr`: every page is rendered whole by the Worker's entry and resumed from the plan's slice; typing before boot is kept |
+| The cart of a page without scripts | a cookie of names the Worker's entry reads and prices again; a posted cart form runs `update` on the server (`fallback: 'server'`) |
 
 ## What is built
 
@@ -43,6 +44,7 @@ settledLabel + WindowList window + filters ─▶ TopResults · VisibleResults �
 | 5 | The cart: add and remove, the count said in a live region, the cart as a sheet at the right edge with the total; focus moves to the close button on a removal and back to the Cart button on close |
 | 6 | Typing before the bundle runs is kept (`rh.KeepTyped()`), DevTools ship in the build, and the built Worker runs under `pnpm preview` |
 | 7 | Upstream's dark dropdowns and sheets, the results list as a described tab stop, the page back at its top when the search empties, and the parity checks below; from them, upstream's one "Filters and sort" sheet on a phone (the `Picker`s gave way to dropdowns and that sheet), focus back on a sheet's button once it has closed, the cart open at once at upstream's width, and rows not yet drawn sized as those measured |
+| 8 | The page with JavaScript off ([#388](https://github.com/doeixd/foldkit-plus/issues/388)): every price shown is in the HTML, search and filters are a GET of the address, the list pages by `?from=` links, and the cart is a form the server answers by running `update`; see [below](#without-javascript) |
 
 ## How it compares to the upstream copy
 
@@ -70,6 +72,39 @@ Where it behaves differently, on purpose or because of a gap in Foldkit Plus:
 - The first read of a search asks for the top four and the rows in view
   together, where upstream asked twice (4, then 56); a scroll asks for
   exactly the rows it brings into view, not the next 60-name page.
+
+## Without JavaScript
+
+The page works with scripts off, and the scripted page is the same page
+taken over ([Pages that work without JavaScript](../../../docs/progressive-enhancement.md)
+is the guide this port produced):
+
+- **Everything shown is in the HTML.** `src/server/entry.ts` reads the prices
+  the page shows (`Data.satisfy` through `pageReader`, in the Worker) and
+  renders from that Model; the plan sends them with `Remote.resume(Data)`,
+  so the browser asks for none of them again.
+- **Search and filters are a GET of `/`.** The search box is named `q`; the
+  filters' plain selects (`tld`, `availability`, `sort`) belong to the same
+  form through its id, and Apply sends them all. The server reads them with
+  the URL mirror's `reduce`. With scripts, the dropdowns and sheets choose
+  them and the mirror writes the same keys.
+- **The plain controls show under `(scripting: none)`** (`NO_SCRIPT` in
+  `style.ts`, written with `Style.media`), and the scripted ones are hidden
+  there; both are drawn on both sides, so hydration adopts the page as sent.
+- **All Results pages by links.** A page opened at `?from=13` draws the list
+  from that row in the page's flow, with Previous and Next; with scripts the
+  list follows the window, and `from` leaves the address.
+- **The cart is a form posting its Message.** `update` adds a name only if
+  the page read it as available, at the price read. The server keeps the
+  names in a cookie (`src/server/cart.ts`), prices them again on every read,
+  and answers a page drawn with a cart `private, no-store`. The scripted page
+  keeps its cart in the Model, as upstream's, and writes no cookie.
+
+`e2e/noscript.e2e.ts` searches, filters, pages and fills the cart with
+JavaScript off, and checks that the scripted page posts no form, loads no
+script after it is live, and adopts the page without a hydration warning;
+`e2e/built.e2e.ts` posts a cart form to the built Worker. What it cost, and
+what the packages lacked (#389 to #394), are in the guide.
 
 ## Parity
 
