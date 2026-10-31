@@ -105,14 +105,15 @@ test('the Top Results fill with prices read from /remote', async () => {
   await expect
     .poll(() => page.locator('.result-count').textContent())
     .toMatch(/\d+ of 556 domains checked/)
-  // The first read is the four top names, as upstream's first request.
+  // The first read holds the four top names. The list has placed itself by
+  // the time it is planned, so the rows in view ride in it too, and nothing
+  // past them; upstream asked twice (4, then 56).
   const first: { payload: { requests: Array<{ id: string }> } } = JSON.parse(reads[0] ?? '{}')
-  expect(first.payload.requests.map(({ id }) => id).sort()).toEqual([
-    'vercel.app',
-    'vercel.com',
-    'vercel.dev',
-    'vercel.io',
-  ])
+  const ids = first.payload.requests.map(({ id }) => id)
+  expect(ids).toEqual(
+    expect.arrayContaining(['vercel.app', 'vercel.com', 'vercel.dev', 'vercel.io']),
+  )
+  expect(ids).not.toContain('vercel.zone')
   expect(problems).toEqual([])
   await page.close()
 })
