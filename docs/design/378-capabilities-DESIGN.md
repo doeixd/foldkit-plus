@@ -1,6 +1,6 @@
 # A read-only page pays for reading: capabilities carried by declarations (#378)
 
-Status: proposed (2026-10-31). Phases 1 and 3 built. Phases 1–3 are independent of
+Status: proposed (2026-10-31). Phases 1, 2 and 3 built; phase 4 stopped, see below. Phases 1–3 are independent of
 #384 (cheaper repeated reads, in progress in `packages/remote`); phase 4
 rewrites the reducer #384 touches, so it waits for #384 to land.
 
@@ -74,7 +74,7 @@ On the Entity side, the `Entity` object reaches `invariant`, which imports
   reducer cases and persistence.
 - **Explanations.** `why` and `timeline` are development
   tools; they become standalone functions from their own entry
-  (`Why.of(Data, model, read)` from `foldkit-remote/why`) instead of domain
+  (`why(Data, model, read)` from `foldkit-remote/why`) instead of domain
   methods. Breaking, but only for a development API.
 - **The reducer.** The core keeps reads, freshness, retention and the budget.
   Write, live and outbox Messages go to whichever capability is installed. The
@@ -99,6 +99,16 @@ On the Entity side, the `Entity` object reaches `invariant`, which imports
    `operators` through Remote's own write and live code, not through Entity,
    so on that page they wait for phases 4 and 5.
 2. **Explanations to their own entry.** Small and independent.
+   Done: `why(Data, model, read)`, `timeline` and `explain` are functions of
+   `foldkit-remote/why` (`why.ts`), with the reasons' terms in `whyTerms.ts`
+   and the active-record helpers they share with the read entries in
+   `active.ts`. A bound domain records how it reads its lists for them
+   (`inner.ts`, a weak map), so the domain object names none of it. The
+   read-only Remote page keeps 260.2 kB of `foldkit-remote` where it kept
+   282.2 kB (the page 526.1 kB to 508.8 kB minified, 145.1 kB to 140.2 kB
+   gzipped). The size test reads a chunk an import cycle names with a hash
+   (`why-B1AUOttp.js`) by its module's name, which the first cut of this
+   phase, a cycle between `why.ts` and `whyReasons.ts`, slipped past.
 3. **Entity:** decouple invariants and writes from `define`/`defineVariants`.
    Done: `Entity` is an ES module namespace (`entity.ts`), and the build leaves
    relative imports as written, so it stays one; a variant Entity's per-case
@@ -110,7 +120,42 @@ On the Entity side, the `Entity` object reaches `invariant`, which imports
    538.2 kB to 526.1 kB minified, 148.5 kB to 145.1 kB gzipped).
 4. **Writes carried by Mutation descriptors.** The largest step: the reducer
    split and the typed `mutate`. Waits for #384.
-5. **Live through the transport; the outbox through `Data.outbox`.**
+   Stopped, not started (2026-10-31): it is far wider than this note
+   assumed. The write code is not only reached through `mutate` and the
+   reducer's write cases; reading itself runs it, so moving the write
+   methods off the domain leaves `mutation.js`, `optimistic.js` and Entity's
+   `evaluate.js` on a read-only page:
+   - Every list read places pending layers and overlays into its pages
+     (`shownEdges` -> `pendingPlaced` -> `placedHeld` -> `impactOn`, `placeIn`,
+     `matching` -> `evaluate`), and every row read goes through
+     `visibleStoreOf` (`optimistic.ts`'s `visibleStore`, `plannedStore`,
+     `resolvedPatches`). Layers come from writes, `Data.overlay` and live
+     inserts, so the read path itself needs a layer capability, installed by
+     whichever of the three a domain uses.
+   - Two read-side domain methods reach the excluded modules and would have
+     to leave the domain too, an API change this note does not name:
+     `Data.overlay`/`lift`/`overlays` (layers; used on read-only domains in
+     `packages/cms` and a dozen Remote tests) and `Data.filtered` (`matching`,
+     so `evaluate`).
+   - The core reducer cases touch write state: `ConnectionMerged` prunes
+     overlays (`pruneOverlays`), `RetentionChanged` reads `optimistic` and the
+     mutation ledger, `Hydrated` and `forget` reset them; `query.ts` (every
+     query descriptor) value-imports `schemaOf` from `mutation.ts`, and
+     `live.ts` imports `addOverlay` from `optimistic.ts`.
+   - `RemoteDomain` is one interface that `Remote.fold`
+     (`Parameters<Domain['mutate']>`), `foldkit-remote/testing` and
+     `foldkit-crud`/`foldkit-cms`' structural domains read; members present
+     only for a non-empty `Mutations` tuple make it a conditional type every
+     one of them must follow.
+   The likely shape, for whoever takes it up: a layer capability (visible
+   store, pending placement, overlay reducer cases) that reads call only when
+   a layer or overlay exists, installed by Mutation descriptors, by a
+   standalone `overlay` and by the live transport; the write capability on
+   top of it; `filtered` to an entry of its own as `why` went.
+5. **Live through the transport; the outbox through `Data.outbox`.** Waits
+   for phase 4's layer capability (a live insert is an overlay). `sse.js`
+   also needs the `Remote` object to become an ES module namespace, as
+   `Entity` did in phase 3: it holds `Remote.httpWithLive`.
 6. **Measure** domains-plus (read-only) and Chirp (writes), to confirm apps
    that write don't regress.
 
