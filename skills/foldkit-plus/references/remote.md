@@ -348,6 +348,15 @@ case 'SignedOut': {
   `linked`) where the link can change a derived member of it (a count or
   exists over that relation, or a supplied member), so a like's answer carries
   its post's new count and not its user.
+- A list a write moves comes back with its answer (one request): `Data.mutate`
+  judges its prediction as the answer will be judged and sends, as `lists`,
+  the first page of each active list it leaves to be fetched or short of its
+  window; the server reads each after the write as a query (`authorize`,
+  `filter`, `maxIdsPerEntity` across them, at most `MAX_ANSWER_LISTS`), and the
+  answer's page replaces each list the answer moved in the reduction that
+  releases the layer, so it reads `Ready` throughout. A write that predicts
+  nothing, a cursor or `last` window, or a list the server leaves out is
+  fetched again as before.
 - A row that reads `Loading` for a frame after a mutation settles is a field
   the answer left out: the layer came off and the store lacks it, so it is
   fetched again. `Remote.make({ verifyPredictions: true })` (dev and tests)

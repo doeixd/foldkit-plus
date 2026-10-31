@@ -174,6 +174,23 @@ version changed; `pnpm` skips versions already in the registry.
   move it, and Enter or a tap chooses. Slots `root`, `dropdown`, `opener`,
   `list`, `option`; options and the trigger are drawn in the Listbox's slots.
 
+- **Single flight for lists: a write that moves a list costs one request**
+  (`foldkit-remote`, `foldkit-remote-server`, #386). `Data.mutate` judges its
+  prediction as the answer will be judged, and sends in `MutationRequest`'s
+  new `lists` the first page of each active list it leaves to be fetched or
+  short of its window (a row archived out of a full page), at most
+  `MAX_ANSWER_LISTS` (eight); a durable write keeps them with the write. The
+  server admits them before the write (a query it serves, a first page, a
+  select of the query's Entity, `maxIdsPerEntity` across them), reads each
+  after it as `FoldkitRemoteQuery` would, and answers them in
+  `MutationResult.lists` (`AnswerList`). The client writes each page into a
+  list the answer moved, in the reduction that releases the layer, so the
+  list reads `Ready` with no `Refreshing` frame. A list left out, or whose
+  read failed (`AnswerUnread`), is fetched again as before, and so is every
+  list against a server that predates `lists`, which drops the field. A post
+  on Chirp's timeline costs one request in development where it cost two:
+  the placement check reads the carried page (`docs/benchmarks.md`).
+
 ### Changed
 
 - **`Crud.editor`'s form is busy until its save is answered** (`foldkit-crud`,

@@ -255,3 +255,30 @@ whole anyway.
 So a generated page of the same application is navigated to, and only an
 address the tree does not hold (another application) is a full load, which
 `Site.routing` already does. No target states a preference.
+
+## Requests a write costs (#386)
+
+A write's answer carried the rows it named, but a list whose membership it
+moved was fetched again in a second request. The answer now also carries the
+first page of each active list the write's prediction moves. Counted after
+the write, with every request it leads to answered (`Trace.run`, whose domains
+check their predictions, as development does):
+
+| | before | after |
+| --- | ---: | ---: |
+| Chirp: a chirp posted on the timeline | 2 | 1 |
+| Chirp: a chirp posted on your profile | 2 | 1 |
+| Chirp: a chirp of yours deleted from your profile | 1 | 1 |
+| a todo archived out of a full window, beside a list in the server's order | 3 | 1 |
+| a todo renamed in a list in the server's order | 2 | 1 |
+
+`examples/chirp/test/requests.test.ts` counts Chirp's pages over its sandbox
+server; `packages/remote-server/test/singleFlight.test.ts` the todos over the
+memory server, where "before" is the same run with the answer's pages taken
+out. Chirp places every row it lists, so its second request was the
+development check of that placement, which a build does not make; there a
+post cost one request before as well. The todo rows are the lists a client
+cannot finish alone: one it placed short of its window, whose read entry asks
+for the next row, and one whose order is the server's, which it fetches whole.
+A deleted row leaves its lists through its tombstone, and fetched nothing
+before either.

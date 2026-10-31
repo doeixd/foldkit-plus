@@ -1613,6 +1613,29 @@ moves a row out of the lists filtered by status and into the others in their
 order, and a price change moves the row within a list sorted by price, all
 without a request.
 
+**A list the write moves comes back with its answer.** The judgement above
+runs twice: when `Data.mutate` sends the write, against what its optimistic
+change predicts, and again on the answer. Each list an active Surface reads
+that the prediction leaves to be fetched, or leaves short of its window (a row
+archived out of a full page, whose read entry would ask for the next row), is
+sent with the request as the first page its read entry would ask for (the
+query, its input, `first` and `select`). The server reads each after the write,
+as a query of it is read, and answers it beside the rows. In the reduction that
+releases the layer, each list the answer moved takes its page in place of the
+fetch, so it reads `Ready` throughout and nothing more is asked:
+
+```text
+write + the lists its prediction moves -> answer + their first pages -> rows written, lists replaced, layer released
+```
+
+A page lands only in a list the answer itself moved, and not in one stale
+before the write, whose own read is on its way. Everything else falls back to
+the fetch above: a write that predicts nothing, a list read from a cursor or
+from its end, a list the server does not answer (past `maxIdsPerEntity`
+across the request's lists, more than `MAX_ANSWER_LISTS`, or a read that
+failed), and a page longer than its window. Under `verifyPredictions` a placed
+list is checked against its carried page, so the check asks nothing either.
+
 **A pending edit, and the server's word on a row, are placed the same way.**
 While a request's `optimistic` patch or an `overlay` is pending, a list
 that holds the row shows it where the edit puts it, or leaves it out once it

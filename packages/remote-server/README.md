@@ -563,6 +563,24 @@ mutation is answered without it: the write has
 landed, and the client fetches what it lacks as it would have. A deleted row is
 not read.
 
+A request also names the lists the client judges the write moves (`lists`):
+each the first page of a query, as the client's read entry would ask for it.
+The handler admits them before the write runs, then reads each after it with
+the query's own handler, so the page is what `FoldkitRemoteQuery` would answer,
+`authorize` and `filter` included, and answers them beside the rows (`lists`):
+
+```text
+request lists -> admitted (before the write) -> read as queries (after it) -> answer.lists
+```
+
+A list is admitted when its query is one the server serves, its window is a
+first page (`first`, no `after`), its `select` names the query's Entity within
+a read's page bound, and the rows of every list admitted so far stay within
+`maxIdsPerEntity` per Entity. One that is not, or whose read fails (reported
+as `AnswerUnread`), is left out; the write runs either way, and the client
+fetches that list as it would have. The wire refuses more than
+`MAX_ANSWER_LISTS` lists in one request.
+
 A declared write (`RemoteServer.write`) also reads each row its row points at
 through a `one` relation, before and after the write, through the writer's
 `linked`, where that link can change one of the row's derived members: a

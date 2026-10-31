@@ -62,7 +62,7 @@ is worth it only when the cache outlives the moment of clicking.
 | Cache | Per-call keys; 5 s preload, 5 min Back/Forward | A normalized store; `cacheFirst`, `staleWhileRevalidate`, `networkOnly`; retention within a budget; `Data.persistence` |
 | What a write refreshes | Keys the mutation names, or everything on screen | Derived: the answer carries what active Surfaces show of the rows it names; nothing to name, and no "revalidate everything" default to opt out of |
 | Optimistic | An optimistic store fed by `.onSubmit` | Declared predictions, checked by `Law.check` and `verifyPredictions` |
-| Single flight | The whole page, by default | Rows: yes. A list whose membership changed refetches in a second request ([site.md](../site.md), "designed but explicitly last") |
+| Single flight | The whole page, by default | Rows, and the first page of each active list the write moves (#386); a list the server leaves out is fetched again |
 | Forms without JavaScript | `formAction`: POST, redirect, cookie | `foldkit-ssr`'s `fallback: 'server'`: the form posts its encoded Message to its own URL, and `SSR.handle` runs the same `update`. No action routes |
 | Submission state | `aria-busy` until the result shows; `useSubmissions` with `retry()` | `foldkit-form`'s `submitPending` covers the form's own checks; `Data.failedWrites`/`Data.retry` exist, but nothing ties a form's busy state to its write being answered |
 | Preloading | Intent, tap, viewport, eager | `Site.routing`'s `preload` on intent and tap (#227); viewport deferred (#236) |

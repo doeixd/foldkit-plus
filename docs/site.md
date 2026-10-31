@@ -309,11 +309,14 @@ Three facts compose into it:
    carries `aria-busy` and appears only once the wait is noticeable
    (`Loading.shown`), its space held from the start.
 
-The remaining round trip is the mutation-then-refetch: a mutation patches
-entities, but a query whose membership changed (archiving out of an active
-list) refetches in a second request. Single-flight — answering the affected
-requirements in the mutation's response — is designed but
-explicitly last: it starts with a request-count benchmark, then the wire.
+A write that moves a list's membership costs one round trip too: the
+request names the first page of each active list its prediction moves
+(archiving out of a full list, a row the client cannot place), and the answer
+carries those pages beside the rows, written in the reduction that releases
+the layer, so the list reads `Ready` throughout (#386; Remote's README,
+"Which lists a write moves"). A list the server does not answer is fetched
+again, as before. `examples/chirp/test/requests.test.ts` counts the requests
+a write costs.
 
 ## Intents that wait for their owner
 
@@ -394,7 +397,7 @@ The other side, from its docs ([preloading](https://tanstack.com/router/latest/d
 | Prefetch | Built in: intent/viewport/render strategies, freshness/retention windows, `preloadRoute` | Same composition as navigation (`sourcesFor` + `satisfy`), trigger app-owned; no windows or lanes — Remote policy + retention decide |
 | Guards | `beforeLoad` redirects; server functions enforce | Route access would be presentation policy only (unbuilt); authority stays at `RemoteServer`/audience — the split is explicit, not layered |
 | Head/SEO | Per-route `head()` meta; SSR + streaming; prerender crawls links | Titles and head metadata (`Site.metaOf`) from the tree; SSR/static HTML + sitemap |
-| Mutations + refresh | Router invalidation reruns loaders | Entity/connection patches apply directly; membership-changing queries refetch (single-flight designed, last) |
+| Mutations + refresh | Router invalidation reruns loaders | Entity/connection patches apply directly; a list whose membership changed comes back in the write's answer (single flight) |
 | Server boundary | Server functions alongside routes | Separate by design: documents → SSR, semantic data → `RemoteServer`, HTTP → Effect HttpApi — the Site never becomes an HTTP router |
 
 The deepest difference is not a feature list. TanStack owns the runtime:
