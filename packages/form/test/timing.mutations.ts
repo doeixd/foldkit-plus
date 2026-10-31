@@ -53,11 +53,11 @@ export default [
     edits: [
       {
         file,
-        find: `          submitPending: false,
-          attempted: true,
-        },`,
-        replace: `          submitPending: false,
-        },`,
+        find: `              submitPending: false,
+              attempted: true,
+            },`,
+        replace: `              submitPending: false,
+            },`,
       },
     ],
     tests,

@@ -1442,13 +1442,16 @@ const Core = {
 
     /** The decoded input, once every key and every row is acceptable; else what is wrong with the whole. */
     const finish = (model: Model): { readonly model: Model; readonly value?: Value } => {
-      const settled: Model = { ...model, submitPending: false }
+      const settled: Model = model.submitPending ? { ...model, submitPending: false } : model
       const nested = acceptable(model) && !hasMarks(model) ? nestedValues(model) : undefined
       if (nested === undefined) return { model: settled }
       return Result.match(decodeInput({ ...decoded(model), ...nested }), {
         onSuccess: value =>
           Option.match(judged(settled, value), {
-            onNone: () => ({ model: { ...settled, errors: [] }, value }),
+            onNone: () => ({
+              model: settled.errors.length === 0 ? settled : { ...settled, errors: [] },
+              value,
+            }),
             onSome: refused => ({ model: refused }),
           }),
         onFailure: error => ({
@@ -1510,19 +1513,24 @@ const Core = {
 
     /**
      * A submit: every key and row is validated. With no failure, the value goes
-     * out; with checks still running, the submit waits for them.
+     * out; with checks still running, the submit waits for them. A submit that
+     * changes nothing (a second one of a valid form) keeps the Model it was
+     * given, so a parent that refuses the value has nothing to undo.
      */
     const submit = (
       model: Model,
     ): { readonly model: Model; readonly commands: Commands; readonly value?: Value } => {
+      // Marks stand until an edit: the same value would be judged the same.
+      const cleared = hasMarks(model) || model.errors.length === 0
       const { model: next, commands } = validateEvery(
-        // Marks stand until an edit: the same value would be judged the same.
-        {
-          ...model,
-          errors: hasMarks(model) ? model.errors : [],
-          submitPending: false,
-          attempted: true,
-        },
+        cleared && !model.submitPending && model.attempted
+          ? model
+          : {
+              ...model,
+              errors: cleared ? model.errors : [],
+              submitPending: false,
+              attempted: true,
+            },
         (form, row) => form.engine.submit(row),
       )
       if (isValidating(next)) return { model: { ...next, submitPending: true }, commands }
