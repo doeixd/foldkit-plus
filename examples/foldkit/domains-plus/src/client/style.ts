@@ -13,7 +13,7 @@
 import geistLatinUrl from '@fontsource-variable/geist/files/geist-latin-wght-normal.woff2?url'
 import { Style, type Piece } from 'foldkit-mixins'
 import { AppStyle } from 'foldkit-mixins/app'
-import { DialogSlots, ListboxSlots, PickerSlots, Recipes, WindowListSlots } from 'foldkit-mixins-ui'
+import { DialogSlots, ListboxSlots, Recipes, WindowListSlots } from 'foldkit-mixins-ui'
 import { Theme } from 'foldkit-mixins/theme'
 
 export { geistLatinUrl }
@@ -45,6 +45,8 @@ export const { t, slots, forSlots, stylesheet } = AppStyle.make({
       added: '#50e3a4',
       skeleton: '#1c1c1c',
       scrim: 'rgb(0 0 0 / 0.6)',
+      /** How long upstream's phone sheets take to slide in or out. */
+      slide: '500ms',
     },
   }),
   // Upstream is dark only: every `light-dark()` token takes its dark half.
@@ -102,6 +104,11 @@ const whileTyping = (selector: string, declarations: Parameters<typeof Style.nes
 /** A rule on this slot under `selector`, on a window at most `width` wide. */
 const atMost = (width: string, selector: string, declarations: Parameters<typeof Style.nest>[1]) =>
   Style.at(`@media (max-width: ${width})`, Style.nest(selector, declarations))
+
+const sectionTitle: Piece = [
+  { margin: '0', fontSize: '22px', fontWeight: '550', letterSpacing: '-0.7px' },
+  Style.media(NARROW, { fontSize: '20px' }),
+]
 
 const control: Piece = [
   {
@@ -438,10 +445,8 @@ export const Page = slots({
       gap: '16px',
     },
   ],
-  sectionTitle: [
-    { margin: '0', fontSize: '22px', fontWeight: '550', letterSpacing: '-0.7px' },
-    Style.media(NARROW, { fontSize: '20px' }),
-  ],
+  sectionTitle,
+  resultsTitle: [sectionTitle, Style.media(NARROW, { fontSize: '18px', whiteSpace: 'nowrap' })],
   sampleLabel: [Style.class('sample-data-label'), { fontSize: '12px', color: d.soft }],
   topResults: [
     Style.class('top-results'),
@@ -559,6 +564,43 @@ export const Page = slots({
     Style.media(NARROW, { minWidth: '0', alignItems: 'center' }),
   ],
   desktopTld: [Style.class('desktop-tld-filter'), Style.media(NARROW, { display: 'none' })],
+  desktopFilters: [
+    Style.class('desktop-filters'),
+    { display: 'flex', gap: '6px' },
+    Style.media(NARROW, { display: 'none' }),
+  ],
+  filtersButton: [
+    Style.class('filters-button'),
+    {
+      position: 'relative',
+      display: 'none',
+      width: '44px',
+      height: '44px',
+      flexShrink: '0',
+      alignItems: 'center',
+      justifyContent: 'center',
+      border: '0',
+      borderRadius: '6px',
+      background: 'transparent',
+      padding: '0',
+      color: 'inherit',
+      cursor: 'pointer',
+      WebkitTapHighlightColor: 'transparent',
+      touchAction: 'manipulation',
+    },
+    Style.pseudo('[data-active-filters]::after', {
+      content: '""',
+      position: 'absolute',
+      top: '8px',
+      right: '8px',
+      width: '6px',
+      height: '6px',
+      borderRadius: '9999px',
+      background: d.text,
+    }),
+    focusRing,
+    Style.media(NARROW, { display: 'inline-flex' }),
+  ],
   mobileTld: [
     Style.class('filter-trigger'),
     Style.class('mobile-tld-filter'),
@@ -574,11 +616,6 @@ export const Page = slots({
       whiteSpace: 'nowrap',
     },
     Style.media(NARROW, { display: 'flex' }),
-  ],
-  tldPanel: [
-    Style.class('filters-panel'),
-    Style.class('tld-panel'),
-    { display: 'flex', height: 'min(360px, 80dvh)', flexDirection: 'column', overflow: 'hidden' },
   ],
   tldSearch: [
     Style.class('tld-search'),
@@ -647,6 +684,15 @@ export const Page = slots({
     { visibility: 'hidden', display: 'flex', width: '20px', height: '20px', flexShrink: '0' },
     Style.nest('[aria-pressed="true"] > &', { visibility: 'visible' }),
   ],
+  filterGroup: [{}],
+  filterGroupLabel: [
+    Style.class('filter-group-label'),
+    { margin: '0', padding: '8px 12px 4px', fontSize: '12px', fontWeight: '400', color: d.muted },
+  ],
+  filterDivider: [
+    Style.class('filter-group-divider'),
+    { margin: '6px 0', border: '0', borderTop: `1px solid ${d.lineFirm}` },
+  ],
   emptyResults: [Style.class('empty-results'), { margin: '16px 0' }],
   iconButton: [
     Style.class('icon-button'),
@@ -690,7 +736,10 @@ export const Page = slots({
     },
     Style.media(NARROW, { position: 'absolute', top: '-4px', right: '-4px' }),
   ],
-  cartPanel: [Style.class('cart-panel'), { padding: '24px' }],
+  cartPanel: [
+    Style.class('cart-panel'),
+    { minHeight: '100%', background: d.panel, padding: '24px' },
+  ],
   cartHeading: [
     Style.class('cart-heading'),
     {
@@ -926,26 +975,94 @@ export const ResultsListStyle = forSlots(WindowListSlots)(
 /** The dropdowns: a dark panel under the trigger, as upstream's. */
 export const ListboxStyle = forSlots(ListboxSlots)(Recipes.Listbox(), { name: 'ListboxStyle' })
 
-/** Availability and sort: the dropdown on a desktop, the Sheet below upstream's breakpoint. */
-export const PickerStyle = forSlots(PickerSlots)(Recipes.Picker({ sheetBelow: 'md' }), {
-  name: 'PickerStyle',
-})
+/**
+ * Upstream's dropdown trigger and click-away carry its classes, which its
+ * suites select. The trigger is upstream's greys, written in sRGB: the theme's
+ * ink is an `oklch()`, which a contrast check reading `rgb()` cannot measure.
+ * The click-away stands over the sticky header, as upstream's, so a press
+ * anywhere outside the open panel closes it.
+ */
+export const ListboxLook = forSlots(ListboxSlots)(
+  {
+    button: [Style.class('filter-trigger'), { background: d.panel, color: d.text }],
+    backdrop: [Style.class('filter-backdrop'), { zIndex: '40' }],
+    items: { zIndex: '50' },
+  },
+  { name: 'ListboxLook' },
+)
 
 /** The phone's sheets, from the bottom. */
 export const SheetStyle = forSlots(DialogSlots)(Recipes.Sheet(), { name: 'SheetStyle' })
 
-/** The cart: a sheet at the window's right edge, as wide as upstream's panel. */
-export const CartSheetStyle = forSlots(DialogSlots)(Recipes.Sheet({ size: 'sm', handle: 'none' }), {
-  name: 'CartSheetStyle',
-})
+/** The cart: a sheet at the window's right edge, upstream's 420px or the whole of a phone. */
+export const CartSheetStyle = forSlots(DialogSlots)(
+  Recipes.Sheet({ size: 'full', handle: 'none' }),
+  {
+    name: 'CartSheetStyle',
+  },
+)
 
 /** The sheets in upstream's greys: its panel, its hairline, its headings and notes. */
 export const SheetLook = forSlots(DialogSlots)(
   {
-    backdrop: { background: d.scrim },
+    backdrop: [Style.class('dialog-backdrop'), { background: d.scrim }],
     panel: { background: d.panel, color: d.text, borderColor: d.lineStrong },
     title: { margin: '0', fontSize: '22px', fontWeight: '550', letterSpacing: '-0.7px' },
     description: { margin: '13px 0', fontSize: '13px', lineHeight: '1.7', color: d.soft },
   },
   { name: 'SheetLook' },
+)
+
+export const CartSheetLook = forSlots(DialogSlots)(
+  { panel: { maxInlineSize: '420px' }, description: Style.class('demo-note') },
+  { name: 'CartSheetLook' },
+)
+
+/**
+ * Upstream's phone sheets slide for its own half second, not the theme's
+ * motion scale, and not at all under reduced motion (the `travel` knob is 0
+ * there); a drag still follows the finger with none.
+ */
+const slide = (duration: string): Piece =>
+  Style.pseudo(':not([data-dragging])', {
+    transitionDuration: `calc(${duration} * ${t.knob.travel})`,
+  })
+
+const phoneSheet = {
+  backdrop: [Style.class('filters-backdrop'), slide(d.slide)],
+  // Upstream's sheets name themselves to a screen reader alone.
+  title: srOnly,
+}
+
+/** The phone's TLD sheet: its search above, the extensions scrolling below it. */
+export const TldSheetLook = forSlots(DialogSlots)(
+  {
+    ...phoneSheet,
+    panel: [
+      Style.class('filters-panel'),
+      Style.class('tld-panel'),
+      {
+        display: 'flex',
+        height: 'min(360px, 80dvh)',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        padding: '0 0 env(safe-area-inset-bottom)',
+      },
+      slide(d.slide),
+    ],
+  },
+  { name: 'TldSheetLook' },
+)
+
+/** The phone's Filters and sort sheet: availability, then sort, as upstream's. */
+export const FiltersSheetLook = forSlots(DialogSlots)(
+  {
+    ...phoneSheet,
+    panel: [
+      Style.class('filters-panel'),
+      { maxHeight: '90dvh', padding: '6px 6px max(6px, env(safe-area-inset-bottom))' },
+      slide(d.slide),
+    ],
+  },
+  { name: 'FiltersSheetLook' },
 )

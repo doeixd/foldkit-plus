@@ -184,8 +184,19 @@ test('on a phone the filters open as sheets from the bottom', async () => {
   page.on('pageerror', error => problems.push(String(error)))
   await page.goto(`${origin}/?q=vercel`)
   await expect.poll(() => page.locator('.domain-card .price').count(), { timeout: 60_000 }).toBe(2)
-  // The desktop's TLD dropdown is hidden; the phone's opener shows.
+  // The desktop's dropdowns are hidden; the phone's TLD opener and its one
+  // Filters and sort button show, beside an All Results heading on one line.
   expect(await page.locator('.desktop-tld-filter').isVisible()).toBe(false)
+  expect(await page.locator('.desktop-filters').isVisible()).toBe(false)
+  const heading = page.locator('.results-heading h2')
+  const { height, size } = await heading.evaluate(element => ({
+    height: element.getBoundingClientRect().height,
+    size: Number.parseFloat(getComputedStyle(element).fontSize),
+  }))
+  expect(height).toBeLessThan(size * 2)
+  const filtersButton = page.getByRole('button', { name: 'Filters and sort', exact: true })
+  expect(await filtersButton.boundingBox()).toMatchObject({ width: 44, height: 44 })
+
   await page.getByRole('button', { name: 'Filter by TLD: All TLDs' }).click()
   const sheet = page.locator('.tld-panel')
   await sheet.waitFor()
@@ -198,13 +209,77 @@ test('on a phone the filters open as sheets from the bottom', async () => {
   expect(await page.locator('#domain-results .domain-row').allTextContents()).toEqual([
     expect.stringContaining('vercel.dev'),
   ])
+  await page.getByRole('button', { name: /Filter by TLD/ }).click()
+  await page.getByRole('button', { name: 'All TLDs', exact: true }).click()
+  await expect.poll(() => sheet.count()).toBe(0)
 
-  await page.getByRole('button', { name: 'Sort results: Relevance' }).click()
-  await page.getByRole('option', { name: 'Alphabetical' }).click()
+  // Availability and sort share one sheet, which opens on the chosen
+  // availability and gives focus back to its button once a choice closes it.
+  await filtersButton.click()
+  const filters = page.getByRole('dialog', { name: 'Filters and sort' })
+  await expect.poll(() => page.evaluate(() => document.activeElement?.textContent)).toBe('Show All')
+  await filters.getByRole('button', { name: 'Alphabetical', exact: true }).click()
+  await expect.poll(() => filters.count()).toBe(0)
+  await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe('filters-button')
   await expect
-    .poll(() => page.getByRole('button', { name: 'Sort results: Alphabetical' }).count())
-    .toBe(1)
+    .poll(() => page.locator('#domain-results .domain-row').first().textContent())
+    .toContain('vercel.ac')
+  await filtersButton.click()
+  expect(
+    await filters
+      .getByRole('button', { name: 'Alphabetical', exact: true })
+      .getAttribute('aria-pressed'),
+  ).toBe('true')
   expect(problems).toEqual([])
+  await page.close()
+})
+
+test('a narrow cart fills the window on an opaque panel', async () => {
+  const page = await browser.newPage({ viewport: { width: 320, height: 900 } })
+  const label = 'a'.repeat(63)
+  await page.goto(`${origin}/?q=${label}`)
+  await page
+    .locator('.domain-card')
+    .getByRole('button', { name: `Add ${label}.com to cart`, exact: true })
+    .click({ timeout: 60_000 })
+  await page.getByRole('button', { name: 'Cart, 1 domains' }).click()
+  const panel = page.locator('.cart-panel')
+  await panel.waitFor()
+  // Once it has slid in: on its way it stands past the window's edge.
+  await expect
+    .poll(() => panel.evaluate(element => element.closest('section')?.getAnimations().length))
+    .toBe(0)
+  expect(await page.locator('#domains-cart').evaluate(e => e.scrollWidth <= e.clientWidth)).toBe(
+    true,
+  )
+  expect(
+    await panel.evaluate(element => element.closest('section')?.getBoundingClientRect().width),
+  ).toBe(320)
+  expect(await panel.evaluate(element => getComputedStyle(element).backgroundColor)).toBe(
+    'rgb(10, 10, 10)',
+  )
+  expect(await panel.locator('.demo-note').count()).toBe(1)
+  await page.close()
+})
+
+test('the results list focused from the keys shows its start below the header on a phone', async () => {
+  const page = await browser.newPage({ viewport: { width: 390, height: 664 } })
+  await page.goto(`${origin}/?q=acme`)
+  await expect.poll(() => page.locator('.domain-card .price').count(), { timeout: 60_000 }).toBe(4)
+  await page.locator('#filters-button').focus()
+  await page.keyboard.press('Tab')
+  await expect.poll(() => page.evaluate(() => document.activeElement?.id)).toBe('domain-results')
+  const headerBottom = await page
+    .locator('.header')
+    .evaluate(element => element.getBoundingClientRect().bottom)
+  await expect
+    .poll(() =>
+      page
+        .locator('#domain-results .domain-row')
+        .first()
+        .evaluate(element => element.getBoundingClientRect().top),
+    )
+    .toBeGreaterThanOrEqual(headerBottom)
   await page.close()
 })
 

@@ -5,7 +5,8 @@
  */
 import { defineConfig, devices } from '@playwright/test'
 
-const PORT = 5193
+// Another port (`PARITY_PORT`) keeps a run off a preview already serving an older build.
+const PORT = Number(process.env['PARITY_PORT'] ?? 5193)
 const BASE_URL = `http://127.0.0.1:${PORT}`
 
 export default defineConfig({

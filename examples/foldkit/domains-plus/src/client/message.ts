@@ -8,11 +8,11 @@ import { UrlRequest } from 'foldkit/navigation'
 import { Url } from 'foldkit/url'
 import { Bundle } from 'foldkit-bundle'
 import * as UiListbox from '@foldkit/ui/listbox'
-import { Picker, Sheet, WindowList } from 'foldkit-mixins-ui'
+import { Sheet, WindowList } from 'foldkit-mixins-ui'
 import { debounce } from 'foldkit-primitives/time'
 import { Remote } from 'foldkit-remote'
 import { Domain } from '../shared/domain'
-import { TldFilter } from './domain'
+import { AvailabilityFilter, SortOrder, TldFilter } from './domain'
 
 /**
  * The search text on its way to the reads. Each keystroke is `Changed`; the
@@ -32,13 +32,19 @@ const own = {
   ClickedDomainsHome: {},
   ClickedSkipToMain: {},
   GotResultsListMessage: { message: WindowList.Message },
-  GotAvailabilityPickerMessage: { message: Picker.Message },
-  GotSortPickerMessage: { message: Picker.Message },
+  FocusedResultsList: {},
+  CompletedRevealResultsListStart: {},
   GotTldListboxMessage: { message: UiListbox.Message },
+  GotAvailabilityListboxMessage: { message: UiListbox.Message },
+  GotSortListboxMessage: { message: UiListbox.Message },
   GotTldSheetMessage: { message: Sheet.Message },
   ClickedTldFilter: {},
   UpdatedTldSearch: { value: Schema.String },
   ClickedMobileTldOption: { value: TldFilter },
+  GotFiltersSheetMessage: { message: Sheet.Message },
+  ClickedFilters: {},
+  ClickedMobileAvailabilityOption: { value: AvailabilityFilter },
+  ClickedMobileSortOption: { value: SortOrder },
   ClickedAddDomain: { domain: Domain.Available },
   ClickedRemoveDomain: { name: Schema.String },
   ClickedRemoveCartDomain: { name: Schema.String },
@@ -46,6 +52,8 @@ const own = {
   GotCartSheetMessage: { message: Sheet.Message },
   CompletedFocusCartButton: {},
   CompletedFocusCartCloseButton: {},
+  CompletedFocusFiltersButton: {},
+  CompletedFocusTldFilterButton: {},
   ClickedLink: { request: UrlRequest },
   ChangedUrl: { url: Url },
   CompletedNavigateInternal: {},

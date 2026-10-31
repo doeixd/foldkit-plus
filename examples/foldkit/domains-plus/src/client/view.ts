@@ -310,6 +310,7 @@ const allResults = (
           root: Behavior.slot({
             attributes: ({ h }) => [
               h.Tabindex(0),
+              h.OnFocus(Message.FocusedResultsList()),
               h.AriaDescription(
                 `${arranged.count} domains. Use arrow keys, Page Up, Page Down, Home, and End to scroll the page.`,
               ),
@@ -370,7 +371,7 @@ const searchResults = (model: Model, search: SearchViewState, slots: Slots, h: H
           ),
         ),
         h.div(slots.resultsHeading.attrs(), [
-          h.h2(slots.sectionTitle.attrs(), ['All Results']),
+          h.h2(slots.resultsTitle.attrs(), ['All Results']),
           filters(model, slots, h),
         ]),
         arranged.count === 0

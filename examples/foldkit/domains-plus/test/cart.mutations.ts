@@ -28,8 +28,8 @@ export default [
     edits: [
       {
         file: '../src/client/app.ts',
-        find: 'Closed: () => [FocusCartButton()]',
-        replace: 'Closed: () => []',
+        find: 'sheetStep(model, next, cartSheet, FocusCartButton())',
+        replace: 'sheetStep(model, next, cartSheet, FocusSearchInput())',
       },
     ],
     tests,

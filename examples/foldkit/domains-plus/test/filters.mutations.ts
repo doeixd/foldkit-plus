@@ -1,5 +1,5 @@
 /**
- * Filters and sort (phase 4), broken in turn:
+ * Filters and sort (phase 4, and the phone's one sheet), broken in turn:
  * `pnpm mutate examples/foldkit/domains-plus/test/filters.mutations.ts`.
  */
 const tests = ['examples/foldkit/domains-plus/test/filters.test.ts']
@@ -22,11 +22,11 @@ export default [
     tests,
   },
   {
-    name: 'any value a picker sends becomes the sort',
+    name: 'any value a dropdown sends becomes the sort',
     edits: [
       {
         file: '../src/client/app.ts',
-        find: '(isSort(value) ? modifyFields(model, { sortOrder: () => value }) : model)',
+        find: 'isSort(value) ? modifyFields(model, { sortOrder: () => value }) : model',
         replace: "modifyFields(model, { sortOrder: () => 'Relevance' })",
       },
     ],
@@ -48,8 +48,19 @@ export default [
     edits: [
       {
         file: '../src/client/app.ts',
-        find: 'chosen !== undefined && isTld(chosen)',
-        replace: 'false',
+        find: 'isTld(value) ? modifyFields(model, { tldFilter: () => value }) : model',
+        replace: 'model',
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'the phone filters sheet closes with focus nowhere near its button',
+    edits: [
+      {
+        file: '../src/client/app.ts',
+        find: 'sheetStep(model, next, filtersSheet, FocusFiltersButton())',
+        replace: 'sheetStep(model, next, filtersSheet, FocusSearchInput())',
       },
     ],
     tests,

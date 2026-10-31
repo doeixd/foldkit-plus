@@ -13,7 +13,7 @@ import { CART_BUTTON_ID, CART_CLOSE_BUTTON_ID } from './command.js'
 import { formatPrice, formatRegistrationPrice, formatRenewalPrice } from './domain'
 import { icons } from './iconData.js'
 import { Message } from './message.js'
-import { CartSheetStyle, type Page, SheetLook } from './style.js'
+import { CartSheetLook, CartSheetStyle, type Page, SheetLook } from './style.js'
 
 type H = HtmlBuilder<Message>
 type Slots = SlotBuilders<typeof Page.slots, Message>
@@ -82,7 +82,7 @@ export const cartSheet = (model: Model, slots: Slots, h: H): Html =>
     {
       model: model.cartSheet,
       onMessage: message => Message.GotCartSheetMessage({ message }),
-      mixins: [CartSheetStyle.mixin, SheetLook.mixin],
+      mixins: [CartSheetStyle.mixin, SheetLook.mixin, CartSheetLook.mixin],
       hasDescription: true,
       draw: sheet =>
         h.dialog(

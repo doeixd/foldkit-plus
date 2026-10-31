@@ -14,7 +14,7 @@ import type * as Update from 'foldkit/update'
 import { Url, toString as urlToString } from 'foldkit/url'
 import { Bundle } from 'foldkit-bundle'
 import { Mirror } from 'foldkit-mirror'
-import { ListboxView, Picker, Sheet, WindowList } from 'foldkit-mixins-ui'
+import { ListboxView, Sheet, WindowList } from 'foldkit-mixins-ui'
 import { Remote, RemoteData, RemotePolicy, type RemoteClient } from 'foldkit-remote'
 import { SSR } from 'foldkit-ssr/client'
 import { Projection, Surface } from 'foldkit-surface'
@@ -24,9 +24,12 @@ import {
   DismissSearchKeyboard,
   FocusCartButton,
   FocusCartCloseButton,
+  FocusFiltersButton,
   FocusSearchInput,
+  FocusTldFilterButton,
   LoadExternal,
   NavigateInternal,
+  RevealResultsListStart,
   ScrollPageToTop,
 } from './command.js'
 import {
@@ -66,14 +69,15 @@ export const Model = Schema.Struct({
   tldFilter: TldFilter,
   availabilityFilter: AvailabilityFilter,
   sortOrder: SortOrder,
-  /** The desktop's TLD dropdown, with typeahead over the catalog. */
+  /** The desktop's dropdowns: the TLD, with typeahead over the catalog, availability and sort. */
   tldListbox: UiListbox.Model,
+  availabilityListbox: UiListbox.Model,
+  sortListbox: UiListbox.Model,
   /** The phone's TLD sheet, searched by `tldSearchQuery`. */
   tldSheet: Sheet.Model,
   tldSearchQuery: Schema.String,
-  /** Availability and sort: a dropdown on a desktop, a sheet on a phone. */
-  availabilityPicker: Picker.Model,
-  sortPicker: Picker.Model,
+  /** The phone's one sheet for availability and sort, as upstream's "Filters and sort". */
+  filtersSheet: Sheet.Model,
   /** The domains added, in the order added: the page's, sent nowhere and forgotten on a reload. */
   cart: Cart.Cart,
   /** The cart, a sheet at the window's right edge. */
@@ -99,65 +103,115 @@ const cleared = (model: Model): Return => {
   return { model: next.model, commands: [...(next.commands ?? []), ScrollPageToTop()] }
 }
 
-/** The TLD dropdown: upstream's Listbox `update`, drawn by `foldkit-mixins-ui`. */
-export const TldDropdown = ListboxView.create<TldFilter, TldFilter>()
+/** A dropdown's row: the value it chooses, what it shows, and what typeahead matches. */
+export interface DropdownOption {
+  readonly value: string
+  readonly label: string
+  readonly searchText: string
+}
+
+/** The desktop's dropdowns: upstream's Listbox `update`, drawn by `foldkit-mixins-ui`. */
+export const Dropdown = ListboxView.create<DropdownOption, string>()
 
 const isTld = Schema.is(TldFilter)
 const isAvailability = Schema.is(AvailabilityFilter)
 const isSort = Schema.is(SortOrder)
 
-/**
- * A picker's step: its new Model put back with `put`, its Commands under the
- * page's Message, and a value it chose set with `choose`.
- */
-const pickerStep = (
-  model: Model,
-  next: Picker.Return,
-  put: (model: Model, picker: Picker.Model) => Model,
-  choose: (model: Model, value: string) => Model,
-  wrap: (message: Picker.Message) => Message,
-): Return => {
-  const stepped = put(model, next.model)
-  return {
-    model:
-      next.outMessage === undefined
-        ? stepped
-        : Picker.OutMessage.match(next.outMessage, {
-            Chose: ({ value }) => choose(stepped, value),
-          }),
-    commands: Command.mapMessages(next.commands ?? [], wrap),
-  }
+/** Where a dropdown or a sheet lives in the Model, and the page's Message that carries its own. */
+interface Part<Value, PartMessage> {
+  readonly get: (model: Model) => Value
+  readonly put: (model: Model, value: Value) => Model
+  readonly wrap: (message: PartMessage) => Message
 }
 
 /**
- * The cart's step, its Commands under the page's Message. Closed, it gives
- * focus back to the Cart button that opened it.
+ * A dropdown's step: its Model put back, its Commands under the page's
+ * Message, and a value it chose set with `choose`. A Listbox hands back a
+ * string, so `choose` keeps only one of its options.
  */
-const cartSheetStep = (model: Model, next: Sheet.Return): Return => ({
-  model:
-    next.model === model.cartSheet ? model : modifyFields(model, { cartSheet: () => next.model }),
+const dropdownStep = (
+  model: Model,
+  message: UiListbox.Message,
+  part: Part<UiListbox.Model, UiListbox.Message>,
+  choose: (model: Model, value: string) => Model,
+): Return => {
+  const next = Dropdown.update(part.get(model), message)
+  const stepped = next.model === part.get(model) ? model : part.put(model, next.model)
+  return {
+    model: next.outMessage === undefined ? stepped : choose(stepped, next.outMessage.value),
+    commands: Command.mapMessages(next.commands ?? [], part.wrap),
+  }
+}
+
+const tldDropdown: Part<UiListbox.Model, UiListbox.Message> = {
+  get: model => model.tldListbox,
+  put: (model, listbox) => modifyFields(model, { tldListbox: () => listbox }),
+  wrap: message => Message.GotTldListboxMessage({ message }),
+}
+const availabilityDropdown: Part<UiListbox.Model, UiListbox.Message> = {
+  get: model => model.availabilityListbox,
+  put: (model, listbox) => modifyFields(model, { availabilityListbox: () => listbox }),
+  wrap: message => Message.GotAvailabilityListboxMessage({ message }),
+}
+const sortDropdown: Part<UiListbox.Model, UiListbox.Message> = {
+  get: model => model.sortListbox,
+  put: (model, listbox) => modifyFields(model, { sortListbox: () => listbox }),
+  wrap: message => Message.GotSortListboxMessage({ message }),
+}
+
+const chooseTld = (model: Model, value: string): Model =>
+  isTld(value) ? modifyFields(model, { tldFilter: () => value }) : model
+const chooseAvailability = (model: Model, value: string): Model =>
+  isAvailability(value) ? modifyFields(model, { availabilityFilter: () => value }) : model
+const chooseSort = (model: Model, value: string): Model =>
+  isSort(value) ? modifyFields(model, { sortOrder: () => value }) : model
+
+/**
+ * A sheet's step, its Commands under the page's Message. Closed, it gives
+ * focus back to the button that opened it, as upstream's do: a tap does not
+ * focus a button in every browser, so there may be nothing else to go back to.
+ */
+const sheetStep = (
+  model: Model,
+  next: Sheet.Return,
+  part: Part<Sheet.Model, Sheet.Message>,
+  focusBack: Command.Command<Message>,
+): Return => ({
+  model: next.model === part.get(model) ? model : part.put(model, next.model),
   commands: [
-    ...Command.mapMessages(next.commands ?? [], message =>
-      Message.GotCartSheetMessage({ message }),
-    ),
+    ...Command.mapMessages(next.commands ?? [], part.wrap),
     ...Option.match(Option.fromNullishOr(next.outMessage), {
       onNone: () => [],
-      onSome: UiDialog.OutMessage.match({ Opened: () => [], Closed: () => [FocusCartButton()] }),
+      onSome: UiDialog.OutMessage.match({ Opened: () => [], Closed: () => [focusBack] }),
     }),
   ],
 })
 
+const cartSheet: Part<Sheet.Model, Sheet.Message> = {
+  get: model => model.cartSheet,
+  put: (model, sheet) => modifyFields(model, { cartSheet: () => sheet }),
+  wrap: message => Message.GotCartSheetMessage({ message }),
+}
+const tldSheet: Part<Sheet.Model, Sheet.Message> = {
+  get: model => model.tldSheet,
+  put: (model, sheet) => modifyFields(model, { tldSheet: () => sheet }),
+  wrap: message => Message.GotTldSheetMessage({ message }),
+}
+const filtersSheet: Part<Sheet.Model, Sheet.Message> = {
+  get: model => model.filtersSheet,
+  put: (model, sheet) => modifyFields(model, { filtersSheet: () => sheet }),
+  wrap: message => Message.GotFiltersSheetMessage({ message }),
+}
+
+const cartSheetStep = (model: Model, next: Sheet.Return): Return =>
+  sheetStep(model, next, cartSheet, FocusCartButton())
+const tldSheetStep = (model: Model, next: Sheet.Return): Return =>
+  sheetStep(model, next, tldSheet, FocusTldFilterButton())
+const filtersSheetStep = (model: Model, next: Sheet.Return): Return =>
+  sheetStep(model, next, filtersSheet, FocusFiltersButton())
+
 const withoutDomain = (name: string) => (cart: Cart.Cart) =>
   Array.filter(cart, domain => domain.name !== name)
-
-/** A Sheet's step, its Commands under the page's Message. */
-const tldSheetStep = (model: Model, next: Sheet.Return): Return => ({
-  model:
-    next.model === model.tldSheet ? model : modifyFields(model, { tldSheet: () => next.model }),
-  commands: Command.mapMessages(next.commands ?? [], message =>
-    Message.GotTldSheetMessage({ message }),
-  ),
-})
 
 /** The page's own Messages; the debounce's and Remote's are their placements'. */
 const own = (model: Model, message: Own): Return =>
@@ -211,44 +265,24 @@ const own = (model: Model, message: Own): Return =>
             routed.query,
           )
     },
-    GotAvailabilityPickerMessage: ({ message }) =>
-      pickerStep(
-        model,
-        Picker.update(model.availabilityPicker, message),
-        (model, picker) =>
-          picker === model.availabilityPicker
-            ? model
-            : modifyFields(model, { availabilityPicker: () => picker }),
-        (model, value) =>
-          isAvailability(value) ? modifyFields(model, { availabilityFilter: () => value }) : model,
-        message => Message.GotAvailabilityPickerMessage({ message }),
+    GotTldListboxMessage: ({ message }) => dropdownStep(model, message, tldDropdown, chooseTld),
+    GotAvailabilityListboxMessage: ({ message }) =>
+      dropdownStep(model, message, availabilityDropdown, chooseAvailability),
+    GotSortListboxMessage: ({ message }) => dropdownStep(model, message, sortDropdown, chooseSort),
+    GotFiltersSheetMessage: ({ message }) =>
+      filtersSheetStep(model, Sheet.update(model.filtersSheet, message)),
+    ClickedFilters: () => filtersSheetStep(model, Sheet.open(model.filtersSheet)),
+    // A choice in the phone's sheet applies and closes it, as upstream's.
+    ClickedMobileAvailabilityOption: ({ value }) =>
+      filtersSheetStep(
+        modifyFields(model, { availabilityFilter: () => value }),
+        Sheet.close(model.filtersSheet),
       ),
-    GotSortPickerMessage: ({ message }) =>
-      pickerStep(
-        model,
-        Picker.update(model.sortPicker, message),
-        (model, picker) =>
-          picker === model.sortPicker ? model : modifyFields(model, { sortPicker: () => picker }),
-        (model, value) => (isSort(value) ? modifyFields(model, { sortOrder: () => value }) : model),
-        message => Message.GotSortPickerMessage({ message }),
+    ClickedMobileSortOption: ({ value }) =>
+      filtersSheetStep(
+        modifyFields(model, { sortOrder: () => value }),
+        Sheet.close(model.filtersSheet),
       ),
-    GotTldListboxMessage: ({ message }) => {
-      const next = TldDropdown.update(model.tldListbox, message)
-      const stepped =
-        next.model === model.tldListbox
-          ? model
-          : modifyFields(model, { tldListbox: () => next.model })
-      const chosen = next.outMessage?.value
-      return {
-        model:
-          chosen !== undefined && isTld(chosen)
-            ? modifyFields(stepped, { tldFilter: () => chosen })
-            : stepped,
-        commands: Command.mapMessages(next.commands ?? [], message =>
-          Message.GotTldListboxMessage({ message }),
-        ),
-      }
-    },
     GotTldSheetMessage: ({ message }) => tldSheetStep(model, Sheet.update(model.tldSheet, message)),
     ClickedTldFilter: () =>
       tldSheetStep(modifyFields(model, { tldSearchQuery: () => '' }), Sheet.open(model.tldSheet)),
@@ -273,6 +307,8 @@ const own = (model: Model, message: Own): Return =>
       cartSheetStep(model, Sheet.update(model.cartSheet, message)),
     CompletedFocusCartButton: () => ({ model }),
     CompletedFocusCartCloseButton: () => ({ model }),
+    CompletedFocusFiltersButton: () => ({ model }),
+    CompletedFocusTldFilterButton: () => ({ model }),
     GotResultsListMessage: ({ message }) => {
       const next = WindowList.update(model.resultsList, message).model
       return {
@@ -280,6 +316,8 @@ const own = (model: Model, message: Own): Return =>
           next === model.resultsList ? model : modifyFields(model, { resultsList: () => next }),
       }
     },
+    FocusedResultsList: () => ({ model, commands: [RevealResultsListStart()] }),
+    CompletedRevealResultsListStart: () => ({ model }),
     CompletedNavigateInternal: () => ({ model }),
     CompletedLoadExternal: () => ({ model }),
     CompletedFocusSearchInput: () => ({ model }),
@@ -296,10 +334,11 @@ const filtersInitial = () => ({
   availabilityFilter: 'All' as const,
   sortOrder: 'Relevance' as const,
   tldListbox: UiListbox.init({ id: 'tld-filter' }),
+  availabilityListbox: UiListbox.init({ id: 'availability-filter' }),
+  sortListbox: UiListbox.init({ id: 'sort-order' }),
   tldSheet: Sheet.init({ id: 'tld-sheet', side: 'bottom' }),
   tldSearchQuery: '',
-  availabilityPicker: Picker.init({ id: 'availability-filter' }),
-  sortPicker: Picker.init({ id: 'sort-order' }),
+  filtersSheet: Sheet.init({ id: 'filters-sheet', side: 'bottom' }),
   cart: [],
   cartSheet: Sheet.init({ id: 'domains-cart', side: 'right' }),
 })

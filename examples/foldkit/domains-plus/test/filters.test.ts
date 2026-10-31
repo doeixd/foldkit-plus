@@ -1,12 +1,14 @@
 /**
- * Phase 4: filters and sort. A choice reaches the Model through its Picker
- * or the TLD controls; All Results is arranged from it and the prices read;
- * the Available filter and the price sorts read the whole catalog.
+ * Phase 4: filters and sort. A choice reaches the Model through a desktop
+ * dropdown or a phone's sheet; All Results is arranged from it and the
+ * prices read; the Available filter and the price sorts read the whole
+ * catalog.
  */
+import * as UiDialog from '@foldkit/ui/dialog'
 import * as UiListbox from '@foldkit/ui/listbox'
 import { Effect, Option, Stream } from 'effect'
 import { fromString } from 'foldkit/url'
-import { Picker, Sheet } from 'foldkit-mixins-ui'
+import { Sheet } from 'foldkit-mixins-ui'
 import type { RemoteClient } from 'foldkit-remote'
 import { Respond, Trace } from 'foldkit-remote/testing'
 import { describe, expect, test } from 'vitest'
@@ -21,6 +23,7 @@ import {
   update,
   type Model,
 } from '../src/client/app.js'
+import { FocusFiltersButton } from '../src/client/command.js'
 import { SearchInput } from '../src/client/message.js'
 import { namesOf } from '../src/client/results.js'
 import { readDomains } from '../src/server/remote.js'
@@ -47,10 +50,11 @@ const searched = (value: string): ReadonlyArray<Message> => [
   Message.GotSearchMessage({ message: SearchInput.Message.Settled({ value, generation: 1 }) }),
 ]
 
-const sorted = (value: string) =>
-  Message.GotSortPickerMessage({ message: Picker.Message.ChoseInSheet({ value }) })
-const shown = (value: string) =>
-  Message.GotAvailabilityPickerMessage({ message: Picker.Message.ChoseInSheet({ value }) })
+/** A row chosen in a desktop dropdown, which hands back any string. */
+const sorted = (item: string) =>
+  Message.GotSortListboxMessage({ message: UiListbox.Message.SelectedItem({ item }) })
+const shown = (item: string) =>
+  Message.GotAvailabilityListboxMessage({ message: UiListbox.Message.SelectedItem({ item }) })
 
 const run = (steps: ReadonlyArray<Message | Respond>) =>
   Trace.run(Data, {
@@ -159,5 +163,34 @@ describe('the TLD filter on a desktop', () => {
     ).model
     expect(chosen.tldFilter).toBe('Dev')
     expect(arrangementOf(chosen, 'vercel').count).toBe(1)
+  })
+})
+
+describe('availability and sort on a phone', () => {
+  /** The Dialog's own report that its close has run. */
+  const closedFrom = (model: Model) =>
+    update(
+      model,
+      Message.GotFiltersSheetMessage({
+        message: Sheet.Message.GotDialog({ message: UiDialog.Message.CompletedCloseDialog() }),
+      }),
+    )
+
+  test('one sheet holds both: a choice applies, closes it, and gives focus back to its button', () => {
+    const opened = update(empty, Message.ClickedFilters()).model
+    expect(Sheet.isOpen(opened.filtersSheet)).toBe(true)
+    const sorted = update(opened, Message.ClickedMobileSortOption({ value: 'PriceAscending' }))
+    expect(sorted.model.sortOrder).toBe('PriceAscending')
+    expect(Sheet.isOpen(sorted.model.filtersSheet)).toBe(false)
+    const closed = closedFrom(sorted.model)
+    expect(
+      [sorted, closed].flatMap(step => step.commands ?? []).map(command => command.name),
+    ).toContain(FocusFiltersButton().name)
+
+    const reopened = update(closed.model, Message.ClickedFilters()).model
+    const shown = update(reopened, Message.ClickedMobileAvailabilityOption({ value: 'Available' }))
+    expect(shown.model.availabilityFilter).toBe('Available')
+    expect(shown.model.sortOrder).toBe('PriceAscending')
+    expect(Sheet.isOpen(shown.model.filtersSheet)).toBe(false)
   })
 })
