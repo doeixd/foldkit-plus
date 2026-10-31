@@ -2,9 +2,10 @@
  * One Entity per identity (#332), each part broken in turn:
  * `pnpm mutate packages/entity/test/versions.mutations.ts`.
  */
-const file = '../src/index.ts'
+const descriptor = '../src/descriptor.ts'
+const entity = '../src/entity.ts'
 const tests = ['packages/entity/test/versions.test.ts']
-const edit = (name: string, find: string, replace: string) => ({
+const edit = (name: string, find: string, replace: string, file = descriptor) => ({
   name,
   edits: [{ file, find, replace }],
   tests,
@@ -21,13 +22,13 @@ export default [
     name: 'relate adds each owner’s relations before checking the next',
     edits: [
       {
-        file,
-        find: '      additions.push([entity, added])\n',
-        replace: '      extend(entity, { relations: added })\n',
+        file: entity,
+        find: '    additions.push([entity, added])\n',
+        replace: '    extend(entity, { relations: added })\n',
       },
       {
-        file,
-        find: '    for (const [entity, added] of additions) extend(entity, { relations: added })\n',
+        file: entity,
+        find: '  for (const [entity, added] of additions) extend(entity, { relations: added })\n',
         replace: '',
       },
     ],
@@ -35,13 +36,15 @@ export default [
   },
   edit(
     'the spec added again is refused',
-    "            taken?._tag === 'Derived' &&\n",
-    '            false &&\n',
+    "          taken?._tag === 'Derived' &&\n",
+    '          false &&\n',
+    entity,
   ),
   edit(
     'another schema over the same derivation is the member',
-    '            taken.schema === spec.schema &&\n',
+    '          taken.schema === spec.schema &&\n',
     '',
+    entity,
   ),
   edit(
     'member metadata is dropped from shared members',

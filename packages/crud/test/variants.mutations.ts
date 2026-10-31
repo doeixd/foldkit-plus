@@ -7,7 +7,7 @@ export default [
     name: 'selectFor reads nothing beside the input',
     edits: [
       {
-        file: '../../entity/src/index.ts',
+        file: '../../entity/src/entity.ts',
         find: '{ ...spec, ...options.also }',
         replace: 'spec',
       },
@@ -18,7 +18,7 @@ export default [
     name: 'an editor loads a variant row as the stored row',
     edits: [
       {
-        file: '../../entity/src/index.ts',
+        file: '../../entity/src/entity.ts',
         find: '  return Schema.TaggedUnion(cases)\n',
         replace: '  return Schema.Struct(selected)\n',
       },

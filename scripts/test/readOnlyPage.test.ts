@@ -110,7 +110,7 @@ describe('a page that declares Entities and reads a Selection', () => {
     expect(kept.declares.entity).toContain('variants.js')
   })
 
-  it.fails('keeps no invariant judge, expressions or writes (#378 phase 3)', () => {
+  it('keeps no invariant judge, expressions or writes (#378 phase 3)', () => {
     const heavy = /^(invariant|evaluate|operators|expr|write)\.js$/
     expect(kept.declares.entity.filter(name => heavy.test(name))).toEqual([])
   })

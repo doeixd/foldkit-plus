@@ -8,42 +8,42 @@ const edit = (name: string, file: string, find: string, replace: string) => ({
   edits: [{ file, find, replace }],
   tests,
 })
-const index = '../src/index.ts'
+const entity = '../src/entity.ts'
 
 export default [
   edit(
     'a mapping is read for an inherited key',
-    index,
+    entity,
     'own(given, key) ??',
     '(given as Record<string, InputMember>)[key] ??',
   ),
   edit(
     'a field is read for an inherited key',
-    index,
+    entity,
     'own(fields, key) ??',
     '(fields as Record<string, InputMember>)[key] ??',
   ),
   edit(
     'a mapping may name an inherited key of the input',
-    index,
+    entity,
     'if (!Object.hasOwn(schema.fields, key))',
     'if (!(key in schema.fields))',
   ),
   edit(
     'an annotation is read for an inherited key',
-    index,
+    entity,
     'const extra = own(given, key)',
     'const extra = given[key]',
   ),
   edit(
     'Entity.fields reads an inherited key',
-    index,
-    '          own(\n            entity.fields as',
-    '          ((record: Readonly<Record<string, EntityField<string, string, Schema.Constraint>>>, at: string) => record[at])(\n            entity.fields as',
+    entity,
+    '        own(\n          entity.fields as',
+    '        ((record: Readonly<Record<string, EntityField<string, string, Schema.Constraint>>>, at: string) => record[at])(\n          entity.fields as',
   ),
   edit(
     'a selection reads an inherited member',
-    index,
+    entity,
     'const member = own(members, key)',
     'const member = members[key]',
   ),

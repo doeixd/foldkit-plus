@@ -1,6 +1,6 @@
 # A read-only page pays for reading: capabilities carried by declarations (#378)
 
-Status: proposed (2026-10-31). Not built. Phases 1–3 are independent of
+Status: proposed (2026-10-31). Phases 1 and 3 built. Phases 1–3 are independent of
 #384 (cheaper repeated reads, in progress in `packages/remote`); phase 4
 rewrites the reducer #384 touches, so it waits for #384 to land.
 
@@ -93,8 +93,21 @@ On the Entity side, the `Entity` object reaches `invariant`, which imports
    built against `dist` holds none of `mutation.js`, `outbox.js`, `live.js`,
    `why.js`, `write.js`, `evaluate.js`; a second fixture with one mutation keeps
    the write code. Beside `scripts/test/publishedBuild.test.ts`.
+   Done: `scripts/test/readOnlyPage.test.ts`, with a third page that only
+   declares Entities. What a later phase makes true is an `it.fails` naming it.
+   The read-only Remote page reaches Entity's `write`, `evaluate`, `expr` and
+   `operators` through Remote's own write and live code, not through Entity,
+   so on that page they wait for phases 4 and 5.
 2. **Explanations to their own entry.** Small and independent.
 3. **Entity:** decouple invariants and writes from `define`/`defineVariants`.
+   Done: `Entity` is an ES module namespace (`entity.ts`), and the build leaves
+   relative imports as written, so it stays one; a variant Entity's per-case
+   invariants are built when first read, not declared, so `defineVariants`
+   reaches no expression code. A page that declares two Entities and selects
+   them keeps 10.6 kB of `foldkit-entity` where it kept 94.8 kB (rendered;
+   the page 210.9 kB to 110.5 kB minified, 57.8 kB to 30.7 kB gzipped). The
+   read-only Remote page keeps 106.3 kB of it where it kept 122.6 kB (the page
+   538.2 kB to 526.1 kB minified, 148.5 kB to 145.1 kB gzipped).
 4. **Writes carried by Mutation descriptors.** The largest step: the reducer
    split and the typed `mutate`. Waits for #384.
 5. **Live through the transport; the outbox through `Data.outbox`.**

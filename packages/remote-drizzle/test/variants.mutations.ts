@@ -9,7 +9,7 @@ export default [
     name: 'a case’s CHECK lets another case’s field through',
     edits: [
       {
-        file: '../../entity/src/index.ts',
+        file: '../../entity/src/invariant.ts',
         find: 'foreign.map(key => Expr.isNull(row[key]!))',
         replace: 'foreign.map(key => Expr.or(Expr.isNull(row[key]!), Expr.isNotNull(row[key]!)))',
       },
@@ -20,7 +20,7 @@ export default [
     name: 'a case’s CHECK lets its own field be null',
     edits: [
       {
-        file: '../../entity/src/index.ts',
+        file: '../../entity/src/invariant.ts',
         find: 'held.map(key => Expr.isNotNull(row[key]!))',
         replace: 'held.map(key => Expr.or(Expr.isNull(row[key]!), Expr.isNotNull(row[key]!)))',
       },

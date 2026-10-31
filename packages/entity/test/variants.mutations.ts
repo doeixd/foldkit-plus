@@ -9,7 +9,9 @@ const at = (file: string) => (name: string, find: string, replace: string) => ({
   tests,
 })
 const variants = at('../src/variants.ts')
-const index = at('../src/index.ts')
+const descriptor = at('../src/descriptor.ts')
+const entity = at('../src/entity.ts')
+const invariant = at('../src/invariant.ts')
 const expr = at('../src/expr.ts')
 
 export default [
@@ -45,30 +47,30 @@ export default [
     'Object.hasOwn(row, key) ? row[key] : null',
     'row[key]',
   ),
-  index(
+  descriptor(
     'a descriptor has no variants',
     "    Object.defineProperty(entity, 'variants', { value: union, enumerable: true }),\n",
     '    undefined,\n',
   ),
-  index(
+  invariant(
     'the invariant does not refuse another case’s field',
     'foreign.map(key => Expr.isNull(row[key]!))',
     'foreign.map(key => Expr.or(Expr.isNull(row[key]!), Expr.isNotNull(row[key]!)))',
   ),
-  index(
+  invariant(
     'the invariant does not require a case’s own field',
     'held.map(key => Expr.isNotNull(row[key]!))',
     'held.map(key => Expr.or(Expr.isNull(row[key]!), Expr.isNotNull(row[key]!)))',
   ),
-  index(
+  invariant(
     'the invariant requires a field that stores null already',
     ' || !storesNull(own[key]!))',
     ' || true)',
   ),
-  index(
+  invariant(
     'a case with nothing to say gets an invariant anyway',
-    '      if (reads.length === 0) continue\n',
-    '      if (false) continue\n',
+    '    if (reads.length === 0) return []\n',
+    '    if (false) return []\n',
   ),
   expr('is ignores what is asked', '  if (build === undefined) return is\n', '  return is\n'),
   expr('is asks without the tag', '  return Expr.and(is, asked)\n', '  return asked\n'),
@@ -87,29 +89,40 @@ export default [
     '  if (!variants.tags.includes(tag)) {\n',
     '  if (false) {\n',
   ),
-  index(
+  entity(
     'a variant Selection is a Struct',
     '    onSome: variants => variantSelection(entity, variants, selected),\n',
     '    onSome: () => Schema.Struct(selected),\n',
   ),
-  index(
+  entity(
     'a Selection with _tag is the stored row',
     "  if (!Object.hasOwn(selected, '_tag')) {\n",
     '  if (true) {\n',
   ),
-  index(
+  entity(
     'a case field is selected without _tag',
     '    if (untold.length > 0)\n',
     '    if (false)\n',
   ),
-  index(
+  entity(
     'a case holds every selected field, as stored',
     '      else if (Object.hasOwn(own, key)) put(fields, key, own[key]!)\n',
     '      else put(fields, key, schema)\n',
   ),
-  index(
+  entity(
     'a case drops the selected relations',
     '      if (!Object.hasOwn(entity.fields, key)) put(fields, key, schema)\n',
     '      if (false) put(fields, key, schema)\n',
+  ),
+  invariant(
+    'the cases come after the declared invariants',
+    '[...cases, ...declared]',
+    '[...declared, ...cases]',
+  ),
+  invariant('the cases are built again on each read', '  ofCases.set(identity, built)\n', ''),
+  invariant(
+    'a declared id may repeat a case’s',
+    'if (invariantsOf(entity).some(held => held.id === id))',
+    'if (Invariants.get(entity.metadata).some(held => held.id === id))',
   ),
 ]

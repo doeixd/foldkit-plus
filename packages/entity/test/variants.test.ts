@@ -174,6 +174,27 @@ describe('the invariant per case', () => {
     })
     expect(Entity.invariants(Flag)).toEqual([])
   })
+
+  // Built when first read (#378), so declaring variants reaches no expression code.
+  it('comes before the invariants declared after it, and holds its id', () => {
+    const Declared = domains()
+    const Domain = Declared.pipe(
+      Entity.invariant('named', ({ after }) => Expr.isNotNull(after.name), { message: 'named' }),
+    )
+    expect(Entity.invariants(Domain).map(held => held.id)).toEqual([
+      'variant_Available',
+      'variant_Unconfirmed',
+      'named',
+    ])
+    expect(Entity.invariants(Domain)[0]).toBe(Entity.invariants(Declared)[0])
+    expect(() =>
+      Domain.pipe(
+        Entity.invariant('variant_Available', ({ after }) => Expr.isNotNull(after.name), {
+          message: 'again',
+        }),
+      ),
+    ).toThrow('"variant_Available" is declared twice')
+  })
 })
 
 describe('Expr.is', () => {

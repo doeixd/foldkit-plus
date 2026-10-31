@@ -5,6 +5,7 @@
 const tests = ['packages/entity/test/sets.test.ts']
 const sets = '../src/sets.ts'
 const entity = '../src/index.ts'
+const descriptor = '../src/descriptor.ts'
 const write = '../src/write.ts'
 const edit = (name: string, file: string, find: string, replace: string) => ({
   name,
@@ -44,7 +45,7 @@ export default [
   edit('a key that is no member is kept', sets, 'if (member === undefined) {', 'if (false) {'),
   edit(
     'the sets are not kept',
-    entity,
+    descriptor,
     '        sets: Object.freeze({ ...shape.sets }),\n',
     '      sets: {},\n',
   ),

@@ -164,6 +164,20 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Changed
 
+- **A page that declares Entities keeps none of the invariant judge**
+  (`foldkit-entity`, #378). `Entity` is an ES module namespace rather than an
+  object, and the build leaves relative imports as written so it stays one: a
+  page keeps only the members it calls. One that declares Entities with
+  `Entity.define` and `Entity.defineVariants` and selects them keeps 10.6 kB of
+  `foldkit-entity` where it kept 94.8 kB (rendered; the page 210.9 kB to 110.5
+  kB minified, 57.8 kB to 30.7 kB gzipped), and a read-only `Remote.make` page
+  106.3 kB where it kept 122.6 kB (the page 538.2 kB to 526.1 kB minified,
+  148.5 kB to 145.1 kB gzipped). A variant Entity's per-case invariants
+  (`variant_<Case>`) are built when first read (`Entity.invariants`,
+  `Entity.judge`), not when declared, so they are no longer in the Entity's
+  metadata. `InputMembers`, `WrittenAs`, `WrittenKey` and `WrittenSpec` are
+  also reachable as `Entity.InputMembers` and so on.
+
 - **Remote reads are cheap to repeat, and keep their objects while what they
   read does** (`foldkit-remote`, #384). `Data.get(selection, id)` (and
   `Remote.select`) gives one Projection per Selection and id, where it built

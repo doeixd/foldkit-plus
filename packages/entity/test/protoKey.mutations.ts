@@ -10,7 +10,8 @@ const edit = (name: string, file: string, find: string, replace: string) => ({
   tests,
 })
 const write = '../src/write.ts'
-const index = '../src/index.ts'
+const entity = '../src/entity.ts'
+const descriptor = '../src/descriptor.ts'
 
 export default [
   // ---- #330
@@ -108,37 +109,37 @@ export default [
   ),
   edit(
     'relations may name an inherited key',
-    index,
+    entity,
     'if (!Object.hasOwn(entities, owner))',
     'if (!(owner in entities))',
   ),
   edit(
     'a related Entity is assigned',
-    index,
+    entity,
     'put(related, ownerKey, entity)',
     ';((k: string, v: AnyEntity) => void (related[k] = v))(ownerKey, entity)',
   ),
   edit(
     'a relation is assigned into the Entity’s members',
-    index,
+    descriptor,
     'put(shape.relations, key, member)',
     'void (shape.relations[key] = member)',
   ),
   edit(
     'a derived member is assigned into the Entity’s members',
-    index,
+    descriptor,
     'put(shape.derived, key, member)',
     'void (shape.derived[key] = member)',
   ),
   edit(
     'a set is assigned into the Entity’s sets',
-    index,
+    descriptor,
     'put(shape.sets, key, set)',
     'void (shape.sets[key] = set)',
   ),
   edit(
     'a set is assigned',
-    index,
+    entity,
     'put(added, key, checkedSet(entity, key, value, options.on))',
     'added[key] = checkedSet(entity, key, value, options.on)',
   ),

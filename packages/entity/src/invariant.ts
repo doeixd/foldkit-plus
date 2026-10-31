@@ -30,14 +30,9 @@ import {
   type Predicate,
   type Reads,
 } from './expr.js'
-// A cycle with `index.ts`, safe because `Entity` is read only when an invariant is attached.
-import {
-  Entity,
-  type AnyEntity,
-  type EntityField,
-  type EntityInput,
-  type InputMember,
-} from './index.js'
+import { remake, variantBases } from './descriptor.js'
+import type { AnyEntity, EntityField, EntityIdentity, EntityInput, InputMember } from './index.js'
+import { storesNull, variantsOf } from './variants.js'
 
 type AnyField = EntityField<string, string, Schema.Constraint>
 
@@ -105,7 +100,7 @@ export type Judgement =
       readonly operators: ReadonlyArray<string>
     }
 
-/** Whether an invariant reads the row before, and so is judged only where there is one. */
+/** Whether an invariant reads the row before a write: judged on updates only, and no CHECK. */
 export const readsBefore = (held: Invariant): boolean => held.before.length > 0
 
 /**
@@ -126,16 +121,73 @@ const fail = (entity: AnyEntity, message: string): never => {
   throw new Error(`[foldkit-entity] Entity.invariant on ${entity.name}: ${message}`)
 }
 
+/** How an invariant is declared: what `build` returns over the rows, and what a failure says. */
+type Build<E extends AnyEntity> = (rows: {
+  readonly before: BeforeRow<E>
+  readonly after: AfterRow<E>
+}) => Predicate & Reads<E['name']>
+
+interface Options<E extends AnyEntity> {
+  readonly message: string
+  readonly path?: ReadonlyArray<keyof E['fields'] & string>
+}
+
+/** The invariant `build` declares over `entity`'s rows, refused where it could judge nothing. */
+const declareOn = <E extends AnyEntity>(
+  entity: E,
+  id: string,
+  build: Build<E>,
+  options: Options<E>,
+): Invariant => {
+  const fields = entity.fields as Readonly<Record<string, E['fields'][string]>>
+  const after = Object.fromEntries(
+    Object.entries(fields).map(([key, field]) => [key, Expr.next(field)]),
+  ) as unknown as AfterRow<E>
+  const before = Object.fromEntries(
+    Object.entries(fields).map(([key, field]) => [key, Expr.field(field)]),
+  ) as unknown as BeforeRow<E>
+  const predicate = build({ before, after }) as Predicate
+  // `where` refuses a predicate over another Entity, which the type allows when it is unmarked.
+  const body = Query.from(entity).pipe(Query.where(predicate))
+  const dependencies = Query.dependencies(body)
+  if (dependencies.inputs.length > 0) {
+    fail(entity, `"${id}" reads the input ${dependencies.inputs.join(', ')}; it judges stored rows`)
+  }
+  const beforeReads = dependencies.predicate.map(field => field.key)
+  const afterReads = dependencies.next.map(field => field.key)
+  // Reading the row before alone, it says which rows a write may start from: a write's `when`.
+  // Judged as an invariant, a create would skip it and a repair would be refused by it.
+  if (afterReads.length === 0) {
+    fail(entity, `"${id}" reads no field of \`after\`; what a write may start from is its \`when\``)
+  }
+  const path = options.path ?? [...new Set([...afterReads, ...beforeReads])]
+  for (const key of path) {
+    if (!Object.hasOwn(fields, key)) fail(entity, `"${id}"'s path names "${key}", not a field`)
+  }
+  return Object.freeze({
+    id,
+    entity: entity.name,
+    predicate,
+    message: options.message,
+    path: Object.freeze([...path]),
+    before: Object.freeze(beforeReads),
+    after: Object.freeze(afterReads),
+  })
+}
+
+/**
+ * Declares what every stored row, or every change of one, must hold:
+ * `Entity.invariant('reservedWithinQuantity', ({ after }) =>
+ * Expr.lte(after.reserved, after.quantity), { message })` over the row a
+ * write leaves, or with `before` too over the change an update makes.
+ * Refused where it is declared: an id declared twice, a predicate over another
+ * Entity, one reading an input or nothing of `after` (that is a `when`), a path
+ * naming no field.
+ */
 export const invariant = <E extends AnyEntity>(
   id: string,
-  build: (rows: {
-    readonly before: BeforeRow<E>
-    readonly after: AfterRow<E>
-  }) => Predicate & Reads<E['name']>,
-  options: {
-    readonly message: string
-    readonly path?: ReadonlyArray<keyof E['fields'] & string>
-  },
+  build: Build<E>,
+  options: Options<E>,
 ): DeclaredInvariant<E> => {
   let attached: string | undefined
   const declared = (entity: E): E => {
@@ -143,53 +195,11 @@ export const invariant = <E extends AnyEntity>(
     if (attached !== undefined && attached !== entity.name)
       fail(entity, `"${id}" is declared on ${attached} already: declare it again for this Entity`)
     if (invariantsOf(entity).some(held => held.id === id)) fail(entity, `"${id}" is declared twice`)
-    const fields = entity.fields as Readonly<Record<string, E['fields'][string]>>
-    const after = Object.fromEntries(
-      Object.entries(fields).map(([key, field]) => [key, Expr.next(field)]),
-    ) as unknown as AfterRow<E>
-    const before = Object.fromEntries(
-      Object.entries(fields).map(([key, field]) => [key, Expr.field(field)]),
-    ) as unknown as BeforeRow<E>
-    const predicate = build({ before, after }) as Predicate
-    // `where` refuses a predicate over another Entity, which the type allows when it is unmarked.
-    const body = Query.from(entity).pipe(Query.where(predicate))
-    const dependencies = Query.dependencies(body)
-    if (dependencies.inputs.length > 0) {
-      fail(
-        entity,
-        `"${id}" reads the input ${dependencies.inputs.join(', ')}; it judges stored rows`,
-      )
-    }
-    const beforeReads = dependencies.predicate.map(field => field.key)
-    const afterReads = dependencies.next.map(field => field.key)
-    // Reading the row before alone, it says which rows a write may start from: a write's `when`.
-    // Judged as an invariant, a create would skip it and a repair would be refused by it.
-    if (afterReads.length === 0) {
-      fail(
-        entity,
-        `"${id}" reads no field of \`after\`; what a write may start from is its \`when\``,
-      )
-    }
-    const path = options.path ?? [...new Set([...afterReads, ...beforeReads])]
-    for (const key of path) {
-      if (!Object.hasOwn(fields, key)) fail(entity, `"${id}"'s path names "${key}", not a field`)
-    }
+    const held = declareOn(entity, id, build, options)
     attached = entity.name
-    return entity.pipe(
-      Entity.annotate(
-        Invariants.of(
-          Object.freeze({
-            id,
-            entity: entity.name,
-            predicate,
-            message: options.message,
-            path: Object.freeze([...path]),
-            before: Object.freeze(beforeReads),
-            after: Object.freeze(afterReads),
-          }),
-        ),
-      ),
-    ) as E
+    return remake(entity, {
+      metadata: Metadata.combine([entity.metadata, Invariants.of(held)]),
+    }) as E
   }
   return Object.defineProperties(declared, {
     id: { value: id, enumerable: true },
@@ -207,10 +217,66 @@ export const invariant = <E extends AnyEntity>(
   }) as DeclaredInvariant<E>
 }
 
-export const invariantsOf = (entity: AnyEntity): ReadonlyArray<Invariant> =>
-  Invariants.get(entity.metadata)
+const ofCases = new WeakMap<EntityIdentity<string>, ReadonlyArray<Invariant>>()
 
-/** `judge` with the invariants given, as a binding that keeps them holds them. */
+/**
+ * Each case's invariant of a variant Entity (`variant_Available`): a field
+ * of its own is held, and one of another case is null. Built when first
+ * read, so declaring variants reaches no expression code.
+ */
+const caseInvariants = (identity: EntityIdentity<string>): ReadonlyArray<Invariant> => {
+  const base = variantBases.get(identity)
+  if (base === undefined) return []
+  const known = ofCases.get(identity)
+  if (known !== undefined) return known
+  const variants = Option.getOrThrow(variantsOf(identity))
+  const { name } = base
+  const separate = Object.keys(base.fields).filter(
+    key => key !== '_tag' && variants.tags.some(tag => !Object.hasOwn(variants.cases[tag]!, key)),
+  )
+  const built = variants.tags.flatMap(tag => {
+    const own = variants.cases[tag]!
+    const reads = separate.filter(key => !Object.hasOwn(own, key) || !storesNull(own[key]!))
+    if (reads.length === 0) return []
+    const held = reads.filter(key => Object.hasOwn(own, key))
+    const foreign = reads.filter(key => !Object.hasOwn(own, key))
+    return [
+      declareOn<AnyEntity>(
+        base,
+        `variant_${tag}`,
+        ({ after }) => {
+          const row = after as Readonly<Record<string, NextExpr<unknown>>>
+          const checks = [
+            ...held.map(key => Expr.isNotNull(row[key]!)),
+            ...foreign.map(key => Expr.isNull(row[key]!)),
+          ]
+          return Expr.or(
+            Expr.not(Expr.eq(row._tag!, tag)),
+            Expr.and(checks[0]!, ...checks.slice(1)),
+          )
+        },
+        {
+          message: `A ${name} that is ${tag} ${[
+            ...(held.length > 0 ? [`holds ${held.join(', ')}`] : []),
+            ...(foreign.length > 0 ? [`holds none of ${foreign.join(', ')}`] : []),
+          ].join(' and ')}`,
+          path: reads,
+        },
+      ),
+    ]
+  })
+  ofCases.set(identity, built)
+  return built
+}
+
+/** The Entity's invariants, in the order they were declared. */
+export const invariantsOf = (entity: AnyEntity): ReadonlyArray<Invariant> => {
+  const cases = caseInvariants(entity.identity)
+  const declared = Invariants.get(entity.metadata)
+  return cases.length === 0 ? declared : [...cases, ...declared]
+}
+
+/** `Entity.judge` against invariants already read, such as those a database binding keeps. */
 export const judgeAgainst = (
   invariants: ReadonlyArray<Invariant>,
   change: Change,
