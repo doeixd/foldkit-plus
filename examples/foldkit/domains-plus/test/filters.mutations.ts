@@ -59,8 +59,8 @@ export default [
     edits: [
       {
         file: '../src/client/app.ts',
-        find: 'sheetStep(model, next, filtersSheet, FocusFiltersButton())',
-        replace: 'sheetStep(model, next, filtersSheet, FocusSearchInput())',
+        find: 'sheetMessageStep(model, message, filtersSheet, FocusFiltersButton)',
+        replace: 'sheetMessageStep(model, message, filtersSheet, FocusSearchInput)',
       },
     ],
     tests,

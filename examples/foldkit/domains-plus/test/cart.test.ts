@@ -128,8 +128,10 @@ describe('the cart', () => {
       }),
     )
     expect(Sheet.isOpen(closed.model.cartSheet)).toBe(false)
-    expect(
-      [requested, closed].flatMap(step => step.commands ?? []).map(command => command.name),
-    ).toContain(FocusCartButton().name)
+    // Only once the browser has closed it: Safari moves focus to the body as it closes.
+    const named = (step: { readonly commands?: ReadonlyArray<{ readonly name: string }> }) =>
+      (step.commands ?? []).map(command => command.name)
+    expect(named(requested)).not.toContain(FocusCartButton().name)
+    expect(named(closed)).toContain(FocusCartButton().name)
   })
 })

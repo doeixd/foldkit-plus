@@ -166,26 +166,36 @@ const chooseAvailability = (model: Model, value: string): Model =>
 const chooseSort = (model: Model, value: string): Model =>
   isSort(value) ? modifyFields(model, { sortOrder: () => value }) : model
 
-/**
- * A sheet's step, its Commands under the page's Message. Closed, it gives
- * focus back to the button that opened it, as upstream's do: a tap does not
- * focus a button in every browser, so there may be nothing else to go back to.
- */
+/** A sheet's step, its Commands under the page's Message. */
 const sheetStep = (
   model: Model,
   next: Sheet.Return,
   part: Part<Sheet.Model, Sheet.Message>,
-  focusBack: Command.Command<Message>,
 ): Return => ({
   model: next.model === part.get(model) ? model : part.put(model, next.model),
-  commands: [
-    ...Command.mapMessages(next.commands ?? [], part.wrap),
-    ...Option.match(Option.fromNullishOr(next.outMessage), {
-      onNone: () => [],
-      onSome: UiDialog.OutMessage.match({ Opened: () => [], Closed: () => [focusBack] }),
-    }),
-  ],
+  commands: Command.mapMessages(next.commands ?? [], part.wrap),
 })
+
+const isSheetDialogMessage = Schema.is(Sheet.Message.GotDialog)
+const isCompletedCloseDialog = Schema.is(UiDialog.Message.CompletedCloseDialog)
+
+/**
+ * A sheet's own Message, and focus back on the button that opened it once
+ * the dialog has really closed, as upstream's sheets do. The Dialog says
+ * `Closed` when the close is asked for, before the browser closes it; a
+ * browser where a press does not focus a button (Safari) then puts focus on
+ * the page's body as it closes, after a focus moved on `Closed`.
+ */
+const sheetMessageStep = (
+  model: Model,
+  message: Sheet.Message,
+  part: Part<Sheet.Model, Sheet.Message>,
+  focusBack: () => Command.Command<Message>,
+): Return => {
+  const next = sheetStep(model, Sheet.update(part.get(model), message), part)
+  const closed = isSheetDialogMessage(message) && isCompletedCloseDialog(message.message)
+  return closed ? { ...next, commands: [...(next.commands ?? []), focusBack()] } : next
+}
 
 const cartSheet: Part<Sheet.Model, Sheet.Message> = {
   get: model => model.cartSheet,
@@ -204,11 +214,10 @@ const filtersSheet: Part<Sheet.Model, Sheet.Message> = {
 }
 
 const cartSheetStep = (model: Model, next: Sheet.Return): Return =>
-  sheetStep(model, next, cartSheet, FocusCartButton())
-const tldSheetStep = (model: Model, next: Sheet.Return): Return =>
-  sheetStep(model, next, tldSheet, FocusTldFilterButton())
+  sheetStep(model, next, cartSheet)
+const tldSheetStep = (model: Model, next: Sheet.Return): Return => sheetStep(model, next, tldSheet)
 const filtersSheetStep = (model: Model, next: Sheet.Return): Return =>
-  sheetStep(model, next, filtersSheet, FocusFiltersButton())
+  sheetStep(model, next, filtersSheet)
 
 /**
  * Rows not yet measured take the height of the rows just measured: a row of
@@ -287,7 +296,7 @@ const own = (model: Model, message: Own): Return =>
       dropdownStep(model, message, availabilityDropdown, chooseAvailability),
     GotSortListboxMessage: ({ message }) => dropdownStep(model, message, sortDropdown, chooseSort),
     GotFiltersSheetMessage: ({ message }) =>
-      filtersSheetStep(model, Sheet.update(model.filtersSheet, message)),
+      sheetMessageStep(model, message, filtersSheet, FocusFiltersButton),
     ClickedFilters: () => filtersSheetStep(model, Sheet.open(model.filtersSheet)),
     // A choice in the phone's sheet applies and closes it, as upstream's.
     ClickedMobileAvailabilityOption: ({ value }) =>
@@ -300,7 +309,8 @@ const own = (model: Model, message: Own): Return =>
         modifyFields(model, { sortOrder: () => value }),
         Sheet.close(model.filtersSheet),
       ),
-    GotTldSheetMessage: ({ message }) => tldSheetStep(model, Sheet.update(model.tldSheet, message)),
+    GotTldSheetMessage: ({ message }) =>
+      sheetMessageStep(model, message, tldSheet, FocusTldFilterButton),
     ClickedTldFilter: () =>
       tldSheetStep(modifyFields(model, { tldSearchQuery: () => '' }), Sheet.open(model.tldSheet)),
     UpdatedTldSearch: ({ value }) => ({
@@ -321,7 +331,7 @@ const own = (model: Model, message: Own): Return =>
     }),
     ClickedCart: () => cartSheetStep(model, Sheet.open(model.cartSheet)),
     GotCartSheetMessage: ({ message }) =>
-      cartSheetStep(model, Sheet.update(model.cartSheet, message)),
+      sheetMessageStep(model, message, cartSheet, FocusCartButton),
     CompletedFocusCartButton: () => ({ model }),
     CompletedFocusCartCloseButton: () => ({ model }),
     CompletedFocusFiltersButton: () => ({ model }),

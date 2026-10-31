@@ -176,16 +176,20 @@ describe('availability and sort on a phone', () => {
       }),
     )
 
-  test('one sheet holds both: a choice applies, closes it, and gives focus back to its button', () => {
+  test('one sheet holds both: a choice applies, closes it, and gives focus back to its button once closed', () => {
     const opened = update(empty, Message.ClickedFilters()).model
     expect(Sheet.isOpen(opened.filtersSheet)).toBe(true)
     const sorted = update(opened, Message.ClickedMobileSortOption({ value: 'PriceAscending' }))
     expect(sorted.model.sortOrder).toBe('PriceAscending')
     expect(Sheet.isOpen(sorted.model.filtersSheet)).toBe(false)
     const closed = closedFrom(sorted.model)
-    expect(
-      [sorted, closed].flatMap(step => step.commands ?? []).map(command => command.name),
-    ).toContain(FocusFiltersButton().name)
+    // Focus moves once the browser has closed it, not when the choice asks it to close.
+    expect((sorted.commands ?? []).map(command => command.name)).not.toContain(
+      FocusFiltersButton().name,
+    )
+    expect((closed.commands ?? []).map(command => command.name)).toContain(
+      FocusFiltersButton().name,
+    )
 
     const reopened = update(closed.model, Message.ClickedFilters()).model
     const shown = update(reopened, Message.ClickedMobileAvailabilityOption({ value: 'Available' }))

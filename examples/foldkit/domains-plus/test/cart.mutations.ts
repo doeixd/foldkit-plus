@@ -28,8 +28,8 @@ export default [
     edits: [
       {
         file: '../src/client/app.ts',
-        find: 'sheetStep(model, next, cartSheet, FocusCartButton())',
-        replace: 'sheetStep(model, next, cartSheet, FocusSearchInput())',
+        find: 'sheetMessageStep(model, message, cartSheet, FocusCartButton)',
+        replace: 'sheetMessageStep(model, message, cartSheet, FocusSearchInput)',
       },
     ],
     tests,
@@ -44,6 +44,17 @@ export default [
         cartToggle(model, available, slots, h),`,
         replace: `          [formatRegistrationPrice(available)],
         ),`,
+      },
+    ],
+    tests,
+  },
+  {
+    name: 'focus goes back while the dialog is still closing',
+    edits: [
+      {
+        file: '../src/client/app.ts',
+        find: 'const closed = isSheetDialogMessage(message) && isCompletedCloseDialog(message.message)',
+        replace: 'const closed = isSheetDialogMessage(message)',
       },
     ],
     tests,
