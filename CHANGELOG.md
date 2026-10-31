@@ -264,7 +264,7 @@ version changed; `pnpm` skips versions already in the registry.
   which. `Trace.run` refuses a domain that does not verify, and throws after
   its steps on any `PredictionMismatch` and on a regression of a read named
   in its new `reads` (`regresses` allows one, with why), naming the Message
-  and `Data.why`. `Trace.record(Data, update, { reads })` checks a running
+  and `why`. `Trace.record(Data, update, { reads })` checks a running
   application the same way, for a browser test.
 
 - **`Behaviors.optimistic` asserts the prediction holds still**
@@ -335,7 +335,7 @@ version changed; `pnpm` skips versions already in the registry.
   which leave together as one batch, are kept newest first while they fit,
   and the first that does not is evicted with every older one.
   `RemoteModel.evicted` remembers the newest 256 lists and reads evicted, and
-  `Data.why` names one `Evicted` (a third `held`) rather than `Missing`.
+  `why` names one `Evicted` (a third `held`) rather than `Missing`.
   `RetentionChanged` carries the `budget`. Breaking: `departedLimit` and
   `recentRoots` are gone; `RemoteModel.recent` is a `RecentRoots` (`active`,
   and `departed` batches, oldest first); a `Why.List`/`Why.Fields` `held`
