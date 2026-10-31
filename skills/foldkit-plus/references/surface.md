@@ -134,6 +134,19 @@ const Count = Projection.fromReader(Schema.Number, (m: Model) => m.todos.length,
 })
 ```
 
+`Projection.derive(on, derive)` is a value worked out again only when a value
+at a path in `on` (field refs, or Projections) is a new object, and the last
+one handed back while the new one has the same fields (shallowly): for what a
+view derives on every render. It returns `{ dependencies, read }`, which a
+`SlotView.region` takes. `derive` must read only what `on` names, and each
+entry must declare a path, or it throws: a Remote read declares none, so name
+the store's field (`App.model.remote`).
+
+```ts
+const Open = Projection.derive([App.model.todos], m => m.todos.filter(t => !t.done))
+Open.read(model) // the same array while `todos` is
+```
+
 `Projection.option(p)` maps a projection inside an `Option`.
 `Projection.compose(a, b)` merges writable projections from `pick` that have no
 fields in common.

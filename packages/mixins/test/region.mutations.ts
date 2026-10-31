@@ -9,9 +9,9 @@ export default [
     name: 'a region compares only the first path it reads',
     edits: [
       {
-        file: '../src/slotView.ts',
-        find: 'if (values.every((value, index) => Object.is(value, before.values[index])))',
-        replace: 'if (Object.is(values[0], before.values[0]))',
+        file: '../../surface/src/index.ts',
+        find: ': values.every((value, index) => Object.is(value, before.values[index]))',
+        replace: ': Object.is(values[0], before.values[0])',
       },
     ],
     tests,
@@ -20,9 +20,9 @@ export default [
     name: 'a region keeps its value whatever its paths hold',
     edits: [
       {
-        file: '../src/slotView.ts',
-        find: 'if (values.every((value, index) => Object.is(value, before.values[index])))',
-        replace: 'if (true)',
+        file: '../../surface/src/index.ts',
+        find: ': values.every((value, index) => Object.is(value, before.values[index]))',
+        replace: ': true',
       },
     ],
     tests,
@@ -31,20 +31,9 @@ export default [
     name: 'a region takes a read holding the same fields as a new value',
     edits: [
       {
-        file: '../src/slotView.ts',
-        find: 'return keepAlike(before.value, reads.read(root))',
-        replace: 'return reads.read(root)',
-      },
-    ],
-    tests,
-  },
-  {
-    name: 'a region that reads no path is accepted',
-    edits: [
-      {
-        file: '../src/slotView.ts',
-        find: 'if (reads.dependencies.length === 0) {',
-        replace: 'if (reads.dependencies.length < 0) {',
+        file: '../../surface/src/index.ts',
+        find: ': keepAlike(before.value, derive(root))',
+        replace: ': derive(root)',
       },
     ],
     tests,

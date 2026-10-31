@@ -9,6 +9,15 @@ version changed; `pnpm` skips versions already in the registry.
 
 ### Added
 
+- **`Projection.derive`: a value worked out again by the Model paths it
+  reads** (`foldkit-surface`, #384). `Projection.derive(on, derive)` takes
+  the field references and Projections `derive` reads and gives `{
+  dependencies, read }`: `read(model)` works the value out again only when a
+  value at one of their paths is a new object, and hands back the last value
+  when a new one has the same fields (shallowly). The value counterpart of
+  `SlotView.region`, which is now built on it and can be drawn from one. An
+  empty `on` is refused.
+
 - **Regions: an application view redrawn by the Model paths it reads**
   (`foldkit-mixins`, #376 R3). `SlotView.region(reads, draw)` takes a
   `foldkit-surface` Projection over the Model (`Projection.struct({ cart:

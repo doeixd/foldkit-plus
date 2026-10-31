@@ -6,6 +6,7 @@
  * capability masking is preserved.
  */
 import { createLazy, inertHtml, type Html, type HtmlBuilder } from 'foldkit/html'
+import { Projection } from 'foldkit-surface'
 import type { NamedBehavior } from './behavior.js'
 import type { SlotContribution, SlotItem } from './contribution.js'
 import { ensure } from './inject.js'
@@ -585,35 +586,6 @@ export type Region<Root, Slots, Message> = (
   h: HtmlBuilder<Message>,
 ) => Html
 
-const valueAt = (root: unknown, path: ReadonlyArray<string>): unknown => {
-  let value = root
-  for (const key of path) {
-    if (typeof value !== 'object' || value === null) return undefined
-    value = (value as Record<string, unknown>)[key]
-  }
-  return value
-}
-
-// The earlier read when the new one holds the same fields: a struct read is a new record every time.
-const keepAlike = <Value>(before: Value, read: Value): Value =>
-  sameFields(before, read) ? before : read
-
-const sameFields = (left: unknown, right: unknown): boolean => {
-  if (Object.is(left, right)) return true
-  if (typeof left !== 'object' || typeof right !== 'object' || left === null || right === null)
-    return false
-  if (!isPlain(left) || Object.getPrototypeOf(left) !== Object.getPrototypeOf(right)) return false
-  const keys = Object.keys(left)
-  return (
-    keys.length === Object.keys(right).length &&
-    keys.every(
-      key =>
-        Object.hasOwn(right, key) &&
-        Object.is((left as Record<string, unknown>)[key], (right as Record<string, unknown>)[key]),
-    )
-  )
-}
-
 /**
  * A region: part of a SlotView's drawing that is given only what `reads`
  * reads, and drawn again only when that changed. While every path `reads`
@@ -641,31 +613,18 @@ export const region = <Root, Value, Slots, Message>(
   reads: Reads<Root, Value>,
   draw: (value: Value, slots: SlotBuilders<Slots, Message>, h: HtmlBuilder<Message>) => Html,
 ): Region<Root, Slots, Message> => {
-  if (reads.dependencies.length === 0) {
-    throw new Error(
-      'SlotView.region: what it reads declares no Model paths, so it would never be drawn again. Read through field references (Projection.struct), or give Projection.fromReader its dependencies.',
-    )
-  }
-  const paths = reads.dependencies
-  let last: { readonly values: ReadonlyArray<unknown>; readonly value: Value } | undefined
+  // Worked out again by the same rule a derivation is, which refuses reads
+  // that declare no path, and drawn again by the lazy slot only when that
+  // gives a new value.
+  const derived = Projection.derive([reads], reads.read)
   const drawRegion = (
     slots: SlotBuilders<Slots, Message>,
     h: HtmlBuilder<Message>,
     args: { readonly value: Value },
   ): Html => draw(args.value, slots, h)
-  // Its value now: the last one while every path holds what it held, else read.
-  const valueOf = (root: Root, values: ReadonlyArray<unknown>): Value => {
-    if (last === undefined) return reads.read(root)
-    const before = last
-    if (values.every((value, index) => Object.is(value, before.values[index]))) return before.value
-    return keepAlike(before.value, reads.read(root))
-  }
   return (root, slots, h) => {
-    const values = paths.map(path => valueAt(root, path))
-    const value = valueOf(root, values)
-    last = { values, value }
     const builder = Object.values(slots)[0] as SlotBuilder<Message, Slots> | undefined
     if (builder === undefined) throw new Error('SlotView.region: the view publishes no Slots')
-    return builder.lazy({ index: 0 }, drawRegion, { value })
+    return builder.lazy({ index: 0 }, drawRegion, { value: derived.read(root) })
   }
 }

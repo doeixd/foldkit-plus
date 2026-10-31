@@ -414,6 +414,43 @@ type StructValue<Entries> = {
   ? { readonly [K in keyof Value]: Value[K] }
   : never
 
+/** A value derived from the Model and the paths it reads: what `Projection.derive` makes. */
+export interface Derived<Root, Value> {
+  readonly dependencies: DependencyTree
+  readonly read: (root: Root) => Value
+}
+
+const valueAt = (root: unknown, path: ReadonlyArray<string>): unknown => {
+  let value = root
+  for (const key of path) {
+    if (typeof value !== 'object' || value === null) return undefined
+    value = (value as Record<string, unknown>)[key]
+  }
+  return value
+}
+
+// The earlier value when the new one holds the same fields: a struct is a new record every time.
+const keepAlike = <Value>(before: Value, value: Value): Value =>
+  sameFields(before, value) ? before : value
+
+const sameFields = (left: unknown, right: unknown): boolean => {
+  if (Object.is(left, right)) return true
+  if (typeof left !== 'object' || typeof right !== 'object' || left === null || right === null)
+    return false
+  const prototype = Object.getPrototypeOf(left)
+  const plain = prototype === Object.prototype || prototype === null || Array.isArray(left)
+  if (!plain || Object.getPrototypeOf(right) !== prototype) return false
+  const keys = Object.keys(left)
+  return (
+    keys.length === Object.keys(right).length &&
+    keys.every(
+      key =>
+        Object.hasOwn(right, key) &&
+        Object.is((left as Record<string, unknown>)[key], (right as Record<string, unknown>)[key]),
+    )
+  )
+}
+
 export const Projection = {
   of:
     <F extends Schema.Struct.Fields>(schema: Schema.Struct<F>) =>
@@ -535,6 +572,57 @@ export const Projection = {
     metadata: options?.metadata ?? Metadata.empty,
     read,
   }),
+
+  /**
+   * A value worked out from the Model, and worked out again only when a value
+   * at a path it reads is a new object: the value counterpart of
+   * `foldkit-mixins`' `SlotView.region`, and what a region can be drawn from.
+   * `on` names what `derive` reads, as field references or Projections, each
+   * declaring at least one path (a Remote read declares none: name its
+   * store's field); `derive` must read nothing else, or it shows what it read
+   * last. A result with the same fields as the last,
+   * shallowly, gives the last back, so a memo keyed on it holds. It keeps one
+   * result: the one for the last Model it was given.
+   *
+   * @example
+   * ```ts
+   * const shown = Projection.derive([App.model.todos, App.model.filter], (model: Model) =>
+   *   model.todos.filter(todo => model.filter === 'all' || todo.done === (model.filter === 'done')),
+   * )
+   * // In the view: shown.read(model)
+   * ```
+   */
+  derive: <Root, Value>(
+    on: ReadonlyArray<ModelRef<Root, any> | { readonly dependencies: DependencyTree }>,
+    derive: (root: Root) => Value,
+  ): Derived<Root, Value> => {
+    const paths = on.map(entry =>
+      RefTypeId in entry ? [entry[RefTypeId].dependency] : entry.dependencies,
+    )
+    // A change to what declares no path could never work the value out again.
+    if (paths.length === 0 || paths.some(declared => declared.length === 0)) {
+      throw new Error(
+        "Projection.derive: something it reads declares no Model paths, so a change to it would never work the value out again. Name field references, or Projections built from them; a Remote read declares none, so name its store's field (App.model.remote).",
+      )
+    }
+    const dependencies = mergeDependencies(paths.flat())
+    let last: { readonly values: ReadonlyArray<unknown>; readonly value: Value } | undefined
+    return {
+      dependencies,
+      read: root => {
+        const values = dependencies.map(path => valueAt(root, path))
+        const before = last
+        const value =
+          before === undefined
+            ? derive(root)
+            : values.every((value, index) => Object.is(value, before.values[index]))
+              ? before.value
+              : keepAlike(before.value, derive(root))
+        last = { values, value }
+        return value
+      },
+    }
+  },
 
   /**
    * Derives a writable projection from generated Model field references:

@@ -148,6 +148,31 @@ Projection.fromReader(codec, read)  // escape hatch for a non-ModelRef value
 mix local fields with remote or replicated values. A nested projection
 contributes its dependencies and metadata to the parent.
 
+### Derivations
+
+A view often works out a value from the Model on every render: a filtered
+list, a count, a summary of many server reads. `Projection.derive(on, derive)`
+works it out again only when a value at one of the paths `on` names is a new
+object:
+
+```ts
+const Open = Projection.derive([App.model.todos], model =>
+  model.todos.filter(todo => !todo.done),
+)
+Open.read(model) // the same array while `model.todos` is
+```
+
+`on` takes field references and Projections, whose `dependencies` it reads;
+`derive` must read nothing else, or it shows what it read last. Each must
+declare a path: a Remote read declares none (its data is named by its
+metadata), so name the store's field, `App.model.remote`, and `derive`
+refuses one that declares none. A new result
+with the same fields as the last (shallowly) gives the last back, so a memo
+keyed on it downstream holds. It keeps one result, the one for the Model it
+was last given, and an empty `on` throws, since nothing could tell it to work
+the value out again. What it returns is `{ dependencies, read }`, which
+`foldkit-mixins`' `SlotView.region` takes, and a region uses the same rule.
+
 ### Metadata
 
 `Metadata` is [`foldkit-metadata`](../metadata/README.md), re-exported so an

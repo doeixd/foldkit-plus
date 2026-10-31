@@ -944,7 +944,12 @@ Header(model, slots, h)
 values at its paths with the last ones, by identity: all the same, it neither
 reads nor draws, and Foldkit reuses its last drawing without diffing it. One
 changed, it reads; a read holding the same fields as the last (a value derived
-with `Projection.fromReader` that came out the same) is not drawn either.
+with `Projection.fromReader` that came out the same) is not drawn either. That
+is `Projection.derive`'s rule, which the region is built on: a value a view
+works out on every render without drawing it (a filtered list, a summary of
+many Remote reads) is a `Projection.derive`, and a region can be drawn from
+one. A Remote read declares no Model path: a region over one names the
+store's field (`App.model.remote`) among what it reads.
 
 - **It reads only its value.** `Header`'s drawing is given what the
   Projection reads, so it cannot read a path it is not drawn again for. A

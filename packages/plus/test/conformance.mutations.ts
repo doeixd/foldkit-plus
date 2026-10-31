@@ -17,9 +17,9 @@ export default [
     name: 'a region compares only the first path it reads',
     edits: [
       {
-        file: '../../mixins/src/slotView.ts',
-        find: 'if (values.every((value, index) => Object.is(value, before.values[index])))',
-        replace: 'if (Object.is(values[0], before.values[0]))',
+        file: '../../surface/src/index.ts',
+        find: ': values.every((value, index) => Object.is(value, before.values[index]))',
+        replace: ': Object.is(values[0], before.values[0])',
       },
     ],
     tests,
